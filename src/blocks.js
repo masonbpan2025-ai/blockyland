@@ -32,7 +32,30 @@ export const BLOCKS = {
   SNOW: 28,
   ICE: 29,
   POPPY: 30,
-  DANDELION: 31
+  DANDELION: 31,
+  SANDSTONE: 32,
+  MOSSY_COBBLESTONE: 33,
+  STONE_BRICKS: 34,
+  GLOWSTONE: 35,
+  SEA_LANTERN: 36,
+  CLAY: 37,
+  SPONGE: 38,
+  WET_SPONGE: 39,
+  NETHERRACK: 40,
+  SOUL_SAND: 41,
+  END_STONE: 42,
+  WHITE_WOOL: 43,
+  RED_WOOL: 44,
+  BLUE_WOOL: 45,
+  YELLOW_WOOL: 46,
+  GREEN_WOOL: 47,
+  BLACK_WOOL: 48,
+  LADDER: 49,
+  LEVER: 50,
+  REDSTONE_TORCH: 51,
+  REDSTONE_LAMP: 52,
+  ENCHANTING_TABLE: 53,
+  ANVIL: 54
 };
 
 export const BLOCK_DEFS = {
@@ -361,31 +384,338 @@ export const BLOCK_DEFS = {
     textures: {
       all: 'dandelion.png'
     }
+  },
+  [BLOCKS.SANDSTONE]: {
+    name: 'Sandstone',
+    hardness: 0.8,
+    sound: 'stone',
+    drop: BLOCKS.SANDSTONE,
+    textures: {
+      top: 'sandstone_top.png',
+      side: 'sandstone.png',
+      bottom: 'sandstone_bottom.png'
+    }
+  },
+  [BLOCKS.MOSSY_COBBLESTONE]: {
+    name: 'Mossy Cobblestone',
+    hardness: 2.0,
+    sound: 'stone',
+    drop: BLOCKS.MOSSY_COBBLESTONE,
+    textures: { all: 'mossy_cobblestone.png' }
+  },
+  [BLOCKS.STONE_BRICKS]: {
+    name: 'Stone Bricks',
+    hardness: 1.5,
+    sound: 'stone',
+    drop: BLOCKS.STONE_BRICKS,
+    textures: { all: 'stone_bricks.png' }
+  },
+  [BLOCKS.GLOWSTONE]: {
+    name: 'Glowstone',
+    hardness: 0.3,
+    sound: 'glass',
+    light: 15,
+    dropItem: 'glowstone_dust',
+    textures: { all: 'glowstone.png' }
+  },
+  [BLOCKS.SEA_LANTERN]: {
+    name: 'Sea Lantern',
+    hardness: 0.3,
+    sound: 'glass',
+    light: 15,
+    textures: { all: 'sea_lantern.png' }
+  },
+  [BLOCKS.CLAY]: {
+    name: 'Clay Block',
+    hardness: 0.6,
+    sound: 'gravel',
+    textures: { all: 'clay.png' }
+  },
+  [BLOCKS.SPONGE]: {
+    name: 'Sponge',
+    hardness: 0.6,
+    sound: 'grass',
+    textures: { all: 'sponge.png' }
+  },
+  [BLOCKS.WET_SPONGE]: {
+    name: 'Wet Sponge',
+    hardness: 0.6,
+    sound: 'grass',
+    textures: { all: 'wet_sponge.png' }
+  },
+  [BLOCKS.NETHERRACK]: {
+    name: 'Netherrack',
+    hardness: 0.4,
+    sound: 'stone',
+    textures: { all: 'netherrack.png' }
+  },
+  [BLOCKS.SOUL_SAND]: {
+    name: 'Soul Sand',
+    hardness: 0.5,
+    sound: 'sand',
+    textures: { all: 'soul_sand.png' }
+  },
+  [BLOCKS.END_STONE]: {
+    name: 'End Stone',
+    hardness: 3.0,
+    sound: 'stone',
+    textures: { all: 'end_stone.png' }
+  },
+  [BLOCKS.WHITE_WOOL]: {
+    name: 'White Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'white_wool.png' }
+  },
+  [BLOCKS.RED_WOOL]: {
+    name: 'Red Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'red_wool.png' }
+  },
+  [BLOCKS.BLUE_WOOL]: {
+    name: 'Blue Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'blue_wool.png' }
+  },
+  [BLOCKS.YELLOW_WOOL]: {
+    name: 'Yellow Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'yellow_wool.png' }
+  },
+  [BLOCKS.GREEN_WOOL]: {
+    name: 'Green Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'green_wool.png' }
+  },
+  [BLOCKS.BLACK_WOOL]: {
+    name: 'Black Wool',
+    hardness: 0.8,
+    sound: 'grass',
+    textures: { all: 'black_wool.png' }
+  },
+  [BLOCKS.LADDER]: {
+    name: 'Ladder',
+    hardness: 0.4,
+    sound: 'wood',
+    transparent: true,
+    solid: false,
+    textures: { all: 'ladder.png' }
+  },
+  [BLOCKS.LEVER]: {
+    name: 'Lever',
+    hardness: 0.5,
+    sound: 'wood',
+    transparent: true,
+    solid: false,
+    textures: { all: 'lever.png' }
+  },
+  [BLOCKS.REDSTONE_TORCH]: {
+    name: 'Redstone Torch',
+    hardness: 0.0,
+    sound: 'wood',
+    transparent: true,
+    solid: false,
+    light: 7,
+    textures: { all: 'redstone_torch.png' }
+  },
+  [BLOCKS.REDSTONE_LAMP]: {
+    name: 'Redstone Lamp',
+    hardness: 0.3,
+    sound: 'glass',
+    light: 15,
+    textures: { all: 'redstone_lamp.png' }
+  },
+  [BLOCKS.ENCHANTING_TABLE]: {
+    name: 'Enchanting Table',
+    hardness: 5.0,
+    sound: 'stone',
+    textures: {
+      top: 'enchanting_table_top.png',
+      side: 'obsidian.png',
+      bottom: 'obsidian.png'
+    }
+  },
+  [BLOCKS.ANVIL]: {
+    name: 'Anvil',
+    hardness: 5.0,
+    sound: 'stone',
+    textures: { all: 'anvil.png' }
   }
 };
 
-// Item definitions
+// Complete Item definitions
 export const ITEMS = {
+  // --- Swords / Weapons ---
+  netherite_sword: { name: 'Netherite Sword', attack: 8, icon: '/assets/items/netherite_sword.png', type: 'weapon' },
   diamond_sword: { name: 'Diamond Sword', attack: 7, icon: '/assets/items/diamond_sword.png', type: 'weapon' },
+  golden_sword: { name: 'Golden Sword', attack: 4, icon: '/assets/items/golden_sword.png', type: 'weapon' },
   iron_sword: { name: 'Iron Sword', attack: 6, icon: '/assets/items/iron_sword.png', type: 'weapon' },
   stone_sword: { name: 'Stone Sword', attack: 5, icon: '/assets/items/stone_sword.png', type: 'weapon' },
   wooden_sword: { name: 'Wooden Sword', attack: 4, icon: '/assets/items/wooden_sword.png', type: 'weapon' },
+  bow: { name: 'Bow', attack: 6, icon: '/assets/items/bow.png', type: 'weapon' },
+  crossbow: { name: 'Crossbow', attack: 8, icon: '/assets/items/crossbow.png', type: 'weapon' },
+  arrow: { name: 'Arrow', icon: '/assets/items/arrow.png', type: 'projectile' },
+  trident: { name: 'Trident', attack: 9, icon: '/assets/items/trident.png', type: 'weapon' },
+  totem_of_undying: { name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png', type: 'special' },
+
+  // --- Armor ---
+  diamond_helmet: { name: 'Diamond Helmet', armor: 3, icon: '/assets/items/diamond_helmet.png', type: 'armor' },
+  diamond_chestplate: { name: 'Diamond Chestplate', armor: 8, icon: '/assets/items/diamond_chestplate.png', type: 'armor' },
+  diamond_leggings: { name: 'Diamond Leggings', armor: 6, icon: '/assets/items/diamond_leggings.png', type: 'armor' },
+  diamond_boots: { name: 'Diamond Boots', armor: 3, icon: '/assets/items/diamond_boots.png', type: 'armor' },
+  iron_helmet: { name: 'Iron Helmet', armor: 2, icon: '/assets/items/iron_helmet.png', type: 'armor' },
+  iron_chestplate: { name: 'Iron Chestplate', armor: 6, icon: '/assets/items/iron_chestplate.png', type: 'armor' },
+  iron_leggings: { name: 'Iron Leggings', armor: 5, icon: '/assets/items/iron_leggings.png', type: 'armor' },
+  iron_boots: { name: 'Iron Boots', armor: 2, icon: '/assets/items/iron_boots.png', type: 'armor' },
+  golden_helmet: { name: 'Golden Helmet', armor: 2, icon: '/assets/items/golden_helmet.png', type: 'armor' },
+  golden_chestplate: { name: 'Golden Chestplate', armor: 5, icon: '/assets/items/golden_chestplate.png', type: 'armor' },
+  golden_leggings: { name: 'Golden Leggings', armor: 3, icon: '/assets/items/golden_leggings.png', type: 'armor' },
+  golden_boots: { name: 'Golden Boots', armor: 1, icon: '/assets/items/golden_boots.png', type: 'armor' },
+  chainmail_chestplate: { name: 'Chainmail Chestplate', armor: 5, icon: '/assets/items/chainmail_chestplate.png', type: 'armor' },
+  leather_chestplate: { name: 'Leather Tunic', armor: 3, icon: '/assets/items/leather_chestplate.png', type: 'armor' },
+  diamond_horse_armor: { name: 'Diamond Horse Armor', icon: '/assets/items/diamond_horse_armor.png', type: 'armor' },
+  golden_horse_armor: { name: 'Golden Horse Armor', icon: '/assets/items/golden_horse_armor.png', type: 'armor' },
+  iron_horse_armor: { name: 'Iron Horse Armor', icon: '/assets/items/iron_horse_armor.png', type: 'armor' },
+
+  // --- Pickaxes ---
+  netherite_pickaxe: { name: 'Netherite Pickaxe', speed: 9, icon: '/assets/items/netherite_pickaxe.png', type: 'tool' },
   diamond_pickaxe: { name: 'Diamond Pickaxe', speed: 8, icon: '/assets/items/diamond_pickaxe.png', type: 'tool' },
+  golden_pickaxe: { name: 'Golden Pickaxe', speed: 12, icon: '/assets/items/golden_pickaxe.png', type: 'tool' },
   iron_pickaxe: { name: 'Iron Pickaxe', speed: 6, icon: '/assets/items/iron_pickaxe.png', type: 'tool' },
   stone_pickaxe: { name: 'Stone Pickaxe', speed: 4, icon: '/assets/items/stone_pickaxe.png', type: 'tool' },
   wooden_pickaxe: { name: 'Wooden Pickaxe', speed: 2, icon: '/assets/items/wooden_pickaxe.png', type: 'tool' },
-  stick: { name: 'Stick', icon: '/assets/items/stick.png', type: 'material' },
+
+  // --- Axes ---
+  netherite_axe: { name: 'Netherite Axe', speed: 9, attack: 10, icon: '/assets/items/netherite_axe.png', type: 'tool' },
+  diamond_axe: { name: 'Diamond Axe', speed: 8, attack: 9, icon: '/assets/items/diamond_axe.png', type: 'tool' },
+  golden_axe: { name: 'Golden Axe', speed: 12, attack: 7, icon: '/assets/items/golden_axe.png', type: 'tool' },
+  iron_axe: { name: 'Iron Axe', speed: 6, attack: 9, icon: '/assets/items/iron_axe.png', type: 'tool' },
+  stone_axe: { name: 'Stone Axe', speed: 4, attack: 9, icon: '/assets/items/stone_axe.png', type: 'tool' },
+  wooden_axe: { name: 'Wooden Axe', speed: 2, attack: 7, icon: '/assets/items/wooden_axe.png', type: 'tool' },
+
+  // --- Shovels ---
+  netherite_shovel: { name: 'Netherite Shovel', speed: 9, icon: '/assets/items/netherite_shovel.png', type: 'tool' },
+  diamond_shovel: { name: 'Diamond Shovel', speed: 8, icon: '/assets/items/diamond_shovel.png', type: 'tool' },
+  golden_shovel: { name: 'Golden Shovel', speed: 12, icon: '/assets/items/golden_shovel.png', type: 'tool' },
+  iron_shovel: { name: 'Iron Shovel', speed: 6, icon: '/assets/items/iron_shovel.png', type: 'tool' },
+  stone_shovel: { name: 'Stone Shovel', speed: 4, icon: '/assets/items/stone_shovel.png', type: 'tool' },
+  wooden_shovel: { name: 'Wooden Shovel', speed: 2, icon: '/assets/items/wooden_shovel.png', type: 'tool' },
+
+  // --- Hoes ---
+  netherite_hoe: { name: 'Netherite Hoe', speed: 9, icon: '/assets/items/netherite_hoe.png', type: 'tool' },
+  diamond_hoe: { name: 'Diamond Hoe', speed: 8, icon: '/assets/items/diamond_hoe.png', type: 'tool' },
+  golden_hoe: { name: 'Golden Hoe', speed: 12, icon: '/assets/items/golden_hoe.png', type: 'tool' },
+  iron_hoe: { name: 'Iron Hoe', speed: 6, icon: '/assets/items/iron_hoe.png', type: 'tool' },
+  stone_hoe: { name: 'Stone Hoe', speed: 4, icon: '/assets/items/stone_hoe.png', type: 'tool' },
+  wooden_hoe: { name: 'Wooden Hoe', speed: 2, icon: '/assets/items/wooden_hoe.png', type: 'tool' },
+
+  // --- Utility Items ---
+  bucket: { name: 'Bucket', icon: '/assets/items/bucket.png', type: 'tool' },
+  water_bucket: { name: 'Water Bucket', icon: '/assets/items/water_bucket.png', type: 'tool' },
+  lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
+  milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
+  flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
+  shears: { name: 'Shears', icon: '/assets/items/shears.png', type: 'tool' },
+  fishing_rod: { name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png', type: 'tool' },
+  compass: { name: 'Compass', icon: '/assets/items/compass.png', type: 'tool' },
+  clock: { name: 'Clock', icon: '/assets/items/clock.png', type: 'tool' },
+  lead: { name: 'Lead', icon: '/assets/items/lead.png', type: 'tool' },
+  name_tag: { name: 'Name Tag', icon: '/assets/items/name_tag.png', type: 'tool' },
+  saddle: { name: 'Saddle', icon: '/assets/items/saddle.png', type: 'tool' },
+  oak_boat: { name: 'Oak Boat', icon: '/assets/items/oak_boat.png', type: 'transport' },
+  minecart: { name: 'Minecart', icon: '/assets/items/minecart.png', type: 'transport' },
+  chest_minecart: { name: 'Minecart with Chest', icon: '/assets/items/chest_minecart.png', type: 'transport' },
+  elytra: { name: 'Elytra', icon: '/assets/items/elytra.png', type: 'transport' },
+  firework_rocket: { name: 'Firework Rocket', icon: '/assets/items/firework_rocket.png', type: 'utility' },
+
+  // --- Food & Drinks ---
+  apple: { name: 'Apple', food: 4, icon: '/assets/items/apple.png', type: 'food' },
+  golden_apple: { name: 'Golden Apple', food: 8, icon: '/assets/items/golden_apple.png', type: 'food' },
+  bread: { name: 'Bread', food: 5, icon: '/assets/items/bread.png', type: 'food' },
+  beef: { name: 'Raw Beef', food: 3, icon: '/assets/items/beef.png', type: 'food' },
+  cooked_beef: { name: 'Steak', food: 8, icon: '/assets/items/cooked_beef.png', type: 'food' },
+  porkchop: { name: 'Raw Porkchop', food: 3, icon: '/assets/items/porkchop.png', type: 'food' },
+  cooked_porkchop: { name: 'Cooked Porkchop', food: 8, icon: '/assets/items/cooked_porkchop.png', type: 'food' },
+  salmon: { name: 'Raw Salmon', food: 2, icon: '/assets/items/salmon.png', type: 'food' },
+  cooked_salmon: { name: 'Cooked Salmon', food: 6, icon: '/assets/items/cooked_salmon.png', type: 'food' },
+  cod: { name: 'Raw Cod', food: 2, icon: '/assets/items/cod.png', type: 'food' },
+  cooked_cod: { name: 'Cooked Cod', food: 5, icon: '/assets/items/cooked_cod.png', type: 'food' },
+  carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food' },
+  golden_carrot: { name: 'Golden Carrot', food: 6, icon: '/assets/items/golden_carrot.png', type: 'food' },
+  potato: { name: 'Potato', food: 1, icon: '/assets/items/potato.png', type: 'food' },
+  baked_potato: { name: 'Baked Potato', food: 5, icon: '/assets/items/baked_potato.png', type: 'food' },
+  poisonous_potato: { name: 'Poisonous Potato', food: 2, icon: '/assets/items/poisonous_potato.png', type: 'food' },
+  beetroot: { name: 'Beetroot', food: 1, icon: '/assets/items/beetroot.png', type: 'food' },
+  beetroot_soup: { name: 'Beetroot Soup', food: 6, icon: '/assets/items/beetroot_soup.png', type: 'food' },
+  mushroom_stew: { name: 'Mushroom Stew', food: 6, icon: '/assets/items/mushroom_stew.png', type: 'food' },
+  cookie: { name: 'Cookie', food: 2, icon: '/assets/items/cookie.png', type: 'food' },
+  melon_slice: { name: 'Melon Slice', food: 2, icon: '/assets/items/melon_slice.png', type: 'food' },
+  glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
+  sweet_berries: { name: 'Sweet Berries', food: 2, icon: '/assets/items/sweet_berries.png', type: 'food' },
+  glow_berries: { name: 'Glow Berries', food: 2, icon: '/assets/items/glow_berries.png', type: 'food' },
+  honey_bottle: { name: 'Honey Bottle', food: 6, icon: '/assets/items/honey_bottle.png', type: 'food' },
+  potion: { name: 'Water Bottle / Potion', icon: '/assets/items/potion.png', type: 'food' },
+  glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'material' },
+
+  // --- Ingredients & Materials ---
   coal: { name: 'Coal', icon: '/assets/items/coal.png', type: 'material' },
+  charcoal: { name: 'Charcoal', icon: '/assets/items/charcoal.png', type: 'material' },
   iron_ingot: { name: 'Iron Ingot', icon: '/assets/items/iron_ingot.png', type: 'material' },
   gold_ingot: { name: 'Gold Ingot', icon: '/assets/items/gold_ingot.png', type: 'material' },
+  copper_ingot: { name: 'Copper Ingot', icon: '/assets/items/copper_ingot.png', type: 'material' },
+  netherite_ingot: { name: 'Netherite Ingot', icon: '/assets/items/netherite_ingot.png', type: 'material' },
   diamond: { name: 'Diamond', icon: '/assets/items/diamond.png', type: 'material' },
   emerald: { name: 'Emerald', icon: '/assets/items/emerald.png', type: 'material' },
-  bread: { name: 'Bread', food: 5, icon: '/assets/items/bread.png', type: 'food' },
-  apple: { name: 'Apple', food: 4, icon: '/assets/items/apple.png', type: 'food' },
-  cooked_beef: { name: 'Cooked Beef', food: 8, icon: '/assets/items/cooked_beef.png', type: 'food' },
+  redstone: { name: 'Redstone Dust', icon: '/assets/items/redstone.png', type: 'material' },
+  lapis_lazuli: { name: 'Lapis Lazuli', icon: '/assets/items/lapis_lazuli.png', type: 'material' },
+  quartz: { name: 'Nether Quartz', icon: '/assets/items/quartz.png', type: 'material' },
+  amethyst_shard: { name: 'Amethyst Shard', icon: '/assets/items/amethyst_shard.png', type: 'material' },
+  glowstone_dust: { name: 'Glowstone Dust', icon: '/assets/items/glowstone_dust.png', type: 'material' },
+  stick: { name: 'Stick', icon: '/assets/items/stick.png', type: 'material' },
+  string: { name: 'String', icon: '/assets/items/string.png', type: 'material' },
+  feather: { name: 'Feather', icon: '/assets/items/feather.png', type: 'material' },
+  gunpowder: { name: 'Gunpowder', icon: '/assets/items/gunpowder.png', type: 'material' },
   wheat: { name: 'Wheat', icon: '/assets/items/wheat.png', type: 'material' },
-  bow: { name: 'Bow', icon: '/assets/items/bow.png', type: 'weapon' },
-  arrow: { name: 'Arrow', icon: '/assets/items/arrow.png', type: 'projectile' },
-  crossbow: { name: 'Crossbow', icon: '/assets/items/crossbow.png', type: 'weapon' },
-  totem_of_undying: { name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png', type: 'special' }
+  bone: { name: 'Bone', icon: '/assets/items/bone.png', type: 'material' },
+  bone_meal: { name: 'Bone Meal', icon: '/assets/items/bone_meal.png', type: 'material' },
+  sugar: { name: 'Sugar', icon: '/assets/items/sugar.png', type: 'material' },
+  leather: { name: 'Leather', icon: '/assets/items/leather.png', type: 'material' },
+  paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
+  book: { name: 'Book', icon: '/assets/items/book.png', type: 'material' },
+  ender_pearl: { name: 'Ender Pearl', icon: '/assets/items/ender_pearl.png', type: 'material' },
+  ender_eye: { name: 'Eye of Ender', icon: '/assets/items/ender_eye.png', type: 'material' },
+  blaze_rod: { name: 'Blaze Rod', icon: '/assets/items/blaze_rod.png', type: 'material' },
+  blaze_powder: { name: 'Blaze Powder', icon: '/assets/items/blaze_powder.png', type: 'material' },
+  magma_cream: { name: 'Magma Cream', icon: '/assets/items/magma_cream.png', type: 'material' },
+  slime_ball: { name: 'Slimeball', icon: '/assets/items/slime_ball.png', type: 'material' },
+  snowball: { name: 'Snowball', icon: '/assets/items/snowball.png', type: 'projectile' },
+  egg: { name: 'Egg', icon: '/assets/items/egg.png', type: 'projectile' },
+  fire_charge: { name: 'Fire Charge', icon: '/assets/items/fire_charge.png', type: 'material' },
+
+  // --- Functional / Decorative Items ---
+  armor_stand: { name: 'Armor Stand', icon: '/assets/items/armor_stand.png', type: 'utility' },
+  item_frame: { name: 'Item Frame', icon: '/assets/items/item_frame.png', type: 'utility' },
+  painting: { name: 'Painting', icon: '/assets/items/painting.png', type: 'utility' },
+  brewing_stand: { name: 'Brewing Stand', icon: '/assets/items/brewing_stand.png', type: 'utility' },
+  cauldron: { name: 'Cauldron', icon: '/assets/items/cauldron.png', type: 'utility' },
+
+  // --- Mob Spawn Eggs ---
+  villager_spawn_egg: { name: 'Villager Spawn Egg', icon: '/assets/items/villager_spawn_egg.png', type: 'spawn_egg', mob: 'villager' },
+  iron_golem_spawn_egg: { name: 'Iron Golem Spawn Egg', icon: '/assets/items/iron_golem_spawn_egg.png', type: 'spawn_egg', mob: 'iron_golem' },
+  pillager_spawn_egg: { name: 'Pillager Spawn Egg', icon: '/assets/items/pillager_spawn_egg.png', type: 'spawn_egg', mob: 'pillager' },
+  zombie_spawn_egg: { name: 'Zombie Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie' },
+  skeleton_spawn_egg: { name: 'Skeleton Spawn Egg', icon: '/assets/items/skeleton_spawn_egg.png', type: 'spawn_egg', mob: 'skeleton' },
+  creeper_spawn_egg: { name: 'Creeper Spawn Egg', icon: '/assets/items/creeper_spawn_egg.png', type: 'spawn_egg', mob: 'creeper' },
+  pig_spawn_egg: { name: 'Pig Spawn Egg', icon: '/assets/items/pig_spawn_egg.png', type: 'spawn_egg', mob: 'pig' },
+  cow_spawn_egg: { name: 'Cow Spawn Egg', icon: '/assets/items/cow_spawn_egg.png', type: 'spawn_egg', mob: 'cow' },
+  sheep_spawn_egg: { name: 'Sheep Spawn Egg', icon: '/assets/items/sheep_spawn_egg.png', type: 'spawn_egg', mob: 'sheep' },
+  salmon_spawn_egg: { name: 'Salmon Spawn Egg', icon: '/assets/items/salmon_spawn_egg.png', type: 'spawn_egg', mob: 'salmon' },
+  dolphin_spawn_egg: { name: 'Dolphin Spawn Egg', icon: '/assets/items/dolphin_spawn_egg.png', type: 'spawn_egg', mob: 'dolphin' },
+  octopus_spawn_egg: { name: 'Octopus Spawn Egg', icon: '/assets/items/octopus_spawn_egg.png', type: 'spawn_egg', mob: 'octopus' },
+  axolotl_spawn_egg: { name: 'Axolotl Spawn Egg', icon: '/assets/items/axolotl_spawn_egg.png', type: 'spawn_egg', mob: 'axolotl' }
 };
+

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from './world.js';
+import { WATER_COLORS } from './water.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
 
@@ -49,7 +50,31 @@ export class ChunkMesher {
     const wtUv = [];
     const wtCol = [];
     const wtIdx = [];
+    const wtDepth = [];
     let wtVertCount = 0;
+    const depthCache = new Map();
+    const tintCache = new Map();
+
+    const columnDepth = (x, y, z) => {
+      const key = `${x},${y},${z}`;
+      if (depthCache.has(key)) return depthCache.get(key);
+      let depth = 0;
+      while (depth < 24 && y - depth >= 0 && world.getVoxel(x, y - depth, z) === BLOCKS.WATER) depth++;
+      depthCache.set(key, depth);
+      return depth;
+    };
+    // Shared world-coordinate corners produce matching depth/tint on both sides of a chunk seam.
+    const waterCorner = (x, y, z) => {
+      let depth = 0;
+      const tint = new THREE.Color(0, 0, 0);
+      for (let dx = -1; dx <= 0; dx++) for (let dz = -1; dz <= 0; dz++) {
+        depth += columnDepth(x + dx, y, z + dz);
+        const key = `${x + dx},${z + dz}`;
+        if (!tintCache.has(key)) tintCache.set(key, WATER_COLORS[world.getBiome(x + dx, z + dz)] || WATER_COLORS.plains);
+        tint.add(tintCache.get(key));
+      }
+      return { depth: Math.max(0.25, depth / 4), tint: tint.multiplyScalar(0.25) };
+    };
 
     // Helper to get voxel from world for seamless chunk borders
     const getVoxelWorld = (x, y, z) => {
@@ -190,12 +215,20 @@ export class ChunkMesher {
             );
 
             // Push Vertex Colors (AO * Tint)
+            if (isWater) {
+              for (const position of positions) {
+                const corner = waterCorner(Math.round(position[0]), wy, Math.round(position[2]));
+                wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
+                wtDepth.push(corner.depth);
+              }
+            } else {
             tCol.push(
               baseR * light0, baseG * light0, baseB * light0,
               baseR * light1, baseG * light1, baseB * light1,
               baseR * light2, baseG * light2, baseB * light2,
               baseR * light3, baseG * light3, baseB * light3
             );
+            }
 
             // Push Quad Indices (flipping diagonal if AO requires smooth shading)
             if (ao0 + ao2 > ao1 + ao3) {
@@ -284,10 +317,12 @@ export class ChunkMesher {
       return geo;
     };
 
+    const waterGeo = createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx);
+    if (waterGeo) waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
     return {
       opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx),
       transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx),
-      waterGeo: createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx)
+      waterGeo
     };
   }
 }

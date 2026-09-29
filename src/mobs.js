@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { wanderMob, moveGroundMob } from './mobMotion.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
 function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
@@ -41,7 +42,8 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
 }
 
 export class MobManager {
-  constructor(scene, world, sounds) {
+  constructor(scene, world, sounds, entities = null) {
+    this.entities = entities;
     this.scene = scene;
     this.world = world;
     this.sounds = sounds;
@@ -1082,24 +1084,24 @@ export class MobManager {
   }
 
   damageMob(mob, amount, knockbackOrigin) {
-    if (mob.hitCooldown > 0) return;
+    if (mob.health <= 0 || mob.dying || mob.hitCooldown > 0) return;
     mob.health -= amount;
     mob.hitCooldown = 0.35;
 
     // Flash red
     mob.mat.color.setRGB(1.0, 0.2, 0.2);
-    setTimeout(() => {
-      mob.mat.color.setRGB(1.0, 1.0, 1.0);
-    }, 180);
+    mob.hurtTime = 0.18;
 
     // Apply knockback
     if (knockbackOrigin) {
+      mob.fleeFrom = knockbackOrigin.clone();
+      mob.fleeTime = 2.5;
       const kbDir = mob.mesh.position.clone().sub(knockbackOrigin);
       kbDir.y = 0;
       kbDir.normalize();
-      mob.velocity.x += kbDir.x * 6;
+      mob.knockback = kbDir.multiplyScalar(6);
       mob.velocity.y += 4;
-      mob.velocity.z += kbDir.z * 6;
+
     }
 
     if (mob.type === 'iron_golem') this.sounds.playIronGolem();
@@ -1108,7 +1110,55 @@ export class MobManager {
     else if (mob.type === 'zombie') this.sounds.playZombie();
   }
 
+  updateDeath(mob, dt) {
+    if (!mob.dying) {
+      mob.dying = true;
+      mob.deathTime = 0;
+      mob.velocity.x = mob.velocity.z = 0;
+      mob.deathRotation = mob.mesh.rotation.z;
+      mob.deathMaterials = new Set();
+      mob.mesh.traverse(child => {
+        if (child.material) for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mob.deathMaterials.add(mat);
+      });
+    }
+    mob.deathTime += dt;
+    mob.mesh.position.y -= mob.deathLift || 0;
+    moveGroundMob(this, mob, dt);
+    const fall = THREE.MathUtils.smoothstep(mob.deathTime, 0, 0.5);
+    mob.mesh.rotation.z = mob.deathRotation + fall * Math.PI / 2;
+    mob.deathLift = Math.sin(fall * Math.PI / 2) * this.getMobDimensions(mob.type).width * 0.5;
+    mob.mesh.position.y += mob.deathLift;
+    if (mob.deathTime >= 0.65 && !mob.lootDropped) {
+      mob.lootDropped = true;
+      const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      const loot = {
+        pig: [['porkchop', false, 1, 3]], cow: [['beef', false, 1, 3], ['leather', false, 1, 2]],
+        sheep: [[BLOCKS.WHITE_WOOL, true, 1, 1]], salmon: [['salmon', false, 1, 1]],
+        skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]], creeper: [['gunpowder', false, 1, 2]],
+        iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
+        pillager: [['arrow', false, 1, 2]],
+      };
+      if (!mob.noLoot) for (const [id, isBlock, min, max] of loot[mob.type] || []) {
+        this.entities?.spawnDroppedItem(pos, id, isBlock, min + Math.floor(Math.random() * (max - min + 1)), { pickupDelay: 1.2 });
+      }
+      this.entities?.spawnDeathParticles(pos);
+    }
+    for (const mat of mob.deathMaterials) {
+      mat.transparent = true;
+      mat.opacity = 1 - THREE.MathUtils.smoothstep(mob.deathTime, 0.65, 0.95);
+    }
+    if (mob.deathTime >= 0.95) {
+      this.scene.remove(mob.mesh);
+      this.mobs.splice(this.mobs.indexOf(mob), 1);
+      const geometries = new Set();
+      mob.mesh.traverse(child => { if (child.geometry) geometries.add(child.geometry); });
+      geometries.forEach(geo => geo.dispose());
+      mob.deathMaterials.forEach(mat => mat.dispose()); // texture maps are shared and stay cached
+    }
+  }
+
   update(dt, player) {
+    dt = Math.min(dt, 0.1);
     // 1. Update Projectiles (Arrows)
     for (let i = this.arrows.length - 1; i >= 0; i--) {
       const arrow = this.arrows[i];
@@ -1151,11 +1201,10 @@ export class MobManager {
 
       if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
-      // Handle Death
+      mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);
+      if (mob.hurtTime === 0 && !mob.dying) mob.mat.color.setRGB(1, 1, 1);
       if (mob.health <= 0) {
-        this.sounds.playBreak('stone');
-        this.scene.remove(mob.mesh);
-        this.mobs.splice(i, 1);
+        this.updateDeath(mob, dt);
         continue;
       }
 
@@ -1175,9 +1224,9 @@ export class MobManager {
           mob.mesh.rotation.z = THREE.MathUtils.lerp(mob.mesh.rotation.z, 0, dt * 5.0);
 
           // 1. Fluid drag
-          mob.velocity.x *= 0.94;
-          mob.velocity.y *= 0.92;
-          mob.velocity.z *= 0.94;
+          mob.velocity.x *= Math.exp(-3.7 * dt);
+          mob.velocity.y *= Math.exp(-5 * dt);
+          mob.velocity.z *= Math.exp(-3.7 * dt);
 
           // 2. Swim Target Seeking
           mob.timer -= dt;
@@ -1192,7 +1241,8 @@ export class MobManager {
                   const wy = bY + dy;
                   const wz = bZ + dz;
                   if (this.world.getVoxel(wx, wy, wz) === BLOCKS.WATER) {
-                    waterSpots.push(new THREE.Vector3(wx + 0.5, wy + 0.5, wz + 0.5));
+                    const candidate = new THREE.Vector3(wx + 0.5, wy + 0.15, wz + 0.5);
+                    if (!this.checkMobCollision(mob, candidate)) waterSpots.push(candidate);
                   }
                 }
               }
@@ -1234,31 +1284,37 @@ export class MobManager {
             }
           }
 
+          // Keep fish inside water and recover from a blocked route on a cooldown.
+          const canSwimTo = pos => !this.checkMobCollision(mob, pos) && this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.15), Math.floor(pos.z)) === BLOCKS.WATER;
+          let swimBlocked = false;
           // Move with 3D collision check
           const stepX = mob.mesh.position.x + mob.velocity.x * dt;
           const stepY = mob.mesh.position.y + mob.velocity.y * dt;
           const stepZ = mob.mesh.position.z + mob.velocity.z * dt;
 
-          if (!this.checkMobCollision(mob, new THREE.Vector3(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
+          if (canSwimTo(new THREE.Vector3(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
             mob.mesh.position.x = stepX;
           } else {
-            mob.velocity.x = -mob.velocity.x * 0.5;
-            mob.timer = 0;
+            mob.velocity.x = 0;
+            swimBlocked = true;
           }
 
-          if (!this.checkMobCollision(mob, new THREE.Vector3(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
+          if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
             mob.mesh.position.y = stepY;
           } else {
-            mob.velocity.y = -mob.velocity.y * 0.5;
-            mob.timer = 0;
+            mob.velocity.y = 0;
+            swimBlocked = true;
           }
 
-          if (!this.checkMobCollision(mob, new THREE.Vector3(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
+          if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
             mob.mesh.position.z = stepZ;
           } else {
-            mob.velocity.z = -mob.velocity.z * 0.5;
-            mob.timer = 0;
+            mob.velocity.z = 0;
+            swimBlocked = true;
           }
+
+          mob.swimBlockedTime = swimBlocked ? (mob.swimBlockedTime || 0) + dt : 0;
+          if (mob.swimBlockedTime > 0.4) { mob.timer = 0; mob.targetPos = null; mob.swimBlockedTime = 0; }
 
           mob.mesh.rotation.y = mob.yaw;
           mob.mesh.rotation.x = mob.pitch;
@@ -1330,34 +1386,23 @@ export class MobManager {
         continue;
       }
 
-      // Physics Gravity
-      mob.velocity.y -= 24 * dt;
-      if (mob.velocity.y < -40) mob.velocity.y = -40;
-
       // Distance to player
       const distToPlayer = mob.mesh.position.distanceTo(player.position);
 
       // --- MOB SPECIFIC AI BEHAVIORS ---
       if (mob.type === 'villager') {
         // Look at player if near, or wander peacefully
-        mob.timer -= dt;
-        if (distToPlayer < 4) {
+        if (distToPlayer < 2.5) {
           mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
           mob.velocity.x *= 0.5;
           mob.velocity.z *= 0.5;
-        } else if (mob.timer <= 0) {
-          mob.timer = 3 + Math.random() * 4;
-          mob.yaw = Math.random() * Math.PI * 2;
-          const speed = 1.2;
-          mob.velocity.x = Math.sin(mob.yaw) * speed;
-          mob.velocity.z = Math.cos(mob.yaw) * speed;
-        }
+        } else { wanderMob(this, mob, dt, 1.2); }
       } else if (mob.type === 'iron_golem') {
         // Find nearest hostile target (Pillager or Zombie)
         let nearestHostile = null;
         let minDist = 16;
         for (const other of this.mobs) {
-          if (other.type === 'pillager' || other.type === 'zombie') {
+          if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie')) {
             const d = mob.mesh.position.distanceTo(other.mesh.position);
             if (d < minDist) {
               minDist = d;
@@ -1386,13 +1431,7 @@ export class MobManager {
           }
         } else {
           // Patrol slowly
-          mob.timer -= dt;
-          if (mob.timer <= 0) {
-            mob.timer = 4 + Math.random() * 5;
-            mob.yaw = Math.random() * Math.PI * 2;
-            mob.velocity.x = Math.sin(mob.yaw) * 1.0;
-            mob.velocity.z = Math.cos(mob.yaw) * 1.0;
-          }
+          wanderMob(this, mob, dt, 1.0);
         }
         if (mob.attackCooldown > 0) mob.attackCooldown -= dt;
       } else if (mob.type === 'pillager') {
@@ -1404,7 +1443,7 @@ export class MobManager {
           targetEntity = 'player';
         } else {
           for (const other of this.mobs) {
-            if (other.type === 'villager' && mob.mesh.position.distanceTo(other.mesh.position) < 16) {
+            if (other.health > 0 && other.type === 'villager' && mob.mesh.position.distanceTo(other.mesh.position) < 16) {
               targetPos = other.mesh.position;
               targetEntity = other;
               break;
@@ -1440,13 +1479,7 @@ export class MobManager {
           }
         } else {
           // Patrol wander
-          mob.timer -= dt;
-          if (mob.timer <= 0) {
-            mob.timer = 3 + Math.random() * 3;
-            mob.yaw = Math.random() * Math.PI * 2;
-            mob.velocity.x = Math.sin(mob.yaw) * 1.2;
-            mob.velocity.z = Math.cos(mob.yaw) * 1.2;
-          }
+          wanderMob(this, mob, dt, 1.2);
         }
       } else if (mob.type === 'zombie') {
         // Chase player or villagers
@@ -1472,22 +1505,15 @@ export class MobManager {
           }
         } else {
           // Wander
-          mob.timer -= dt;
-          if (mob.timer <= 0) {
-            mob.timer = 4;
-            mob.yaw = Math.random() * Math.PI * 2;
-            mob.velocity.x = Math.sin(mob.yaw) * 1.0;
-            mob.velocity.z = Math.cos(mob.yaw) * 1.0;
-          }
+          wanderMob(this, mob, dt, 1.0);
         }
       } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep') {
-        mob.timer -= dt;
-        if (mob.timer <= 0) {
-          mob.timer = 2 + Math.random() * 4;
-          mob.yaw = Math.random() * Math.PI * 2;
-          const s = Math.random() > 0.4 ? 1.0 : 0;
-          mob.velocity.x = Math.sin(mob.yaw) * s;
-          mob.velocity.z = Math.cos(mob.yaw) * s;
+        wanderMob(this, mob, dt, 1.15);
+        if (mob.fleeTime > 0) {
+          mob.fleeTime -= dt;
+          const escape = mob.mesh.position.clone().sub(mob.fleeFrom); escape.y = 0; escape.normalize();
+          mob.yaw = Math.atan2(escape.x, escape.z);
+          mob.velocity.x = escape.x * 2.8; mob.velocity.z = escape.z * 2.8;
         }
       } else if (mob.type === 'creeper') {
         if (distToPlayer < 16) {
@@ -1500,20 +1526,13 @@ export class MobManager {
 
           if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
             player.takeDamage(10);
-            this.sounds.playExplode();
+            this.sounds.playExplosion();
             mob.health = 0; // explode
-            this.mobs = this.mobs.filter(m => m !== mob);
-            this.scene.remove(mob.mesh);
+            mob.noLoot = true;
             continue;
           }
         } else {
-          mob.timer -= dt;
-          if (mob.timer <= 0) {
-            mob.timer = 4;
-            mob.yaw = Math.random() * Math.PI * 2;
-            mob.velocity.x = Math.sin(mob.yaw) * 0.8;
-            mob.velocity.z = Math.cos(mob.yaw) * 0.8;
-          }
+          wanderMob(this, mob, dt, 0.8);
         }
       } else if (mob.type === 'skeleton') {
         if (distToPlayer < 18) {
@@ -1537,94 +1556,13 @@ export class MobManager {
             this.spawnArrow(shootOrigin, shootDir, mob);
           }
         } else {
-          mob.timer -= dt;
-          if (mob.timer <= 0) {
-            mob.timer = 4;
-            mob.yaw = Math.random() * Math.PI * 2;
-            mob.velocity.x = Math.sin(mob.yaw) * 0.8;
-            mob.velocity.z = Math.cos(mob.yaw) * 0.8;
-          }
+          wanderMob(this, mob, dt, 0.8);
         }
       }
 
-      // 3-Axis AABB Voxel Collision Detection & Resolution for Mobs
-      // 1. Anti-embedding safety check: if mob is stuck inside solid terrain, pop it up to safety
-      if (this.checkMobCollision(mob, mob.mesh.position)) {
-        for (let lift = 1; lift <= 8; lift++) {
-          const testPos = mob.mesh.position.clone();
-          testPos.y += lift * 0.5;
-          if (!this.checkMobCollision(mob, testPos)) {
-            mob.mesh.position.y = testPos.y;
-            break;
-          }
-        }
-      }
-
-      const oldPos = mob.mesh.position.clone();
-      const newPos = mob.mesh.position.clone();
-
-      // 2. Horizontal X Movement with Step-Climbing
-      newPos.x += mob.velocity.x * dt;
-      if (this.checkMobCollision(mob, newPos)) {
-        // Try stepping up 1 block (step-assist like in vanilla Minecraft)
-        const stepPos = newPos.clone();
-        stepPos.y += 1.05;
-        if (mob.onGround && !this.checkMobCollision(mob, stepPos)) {
-          newPos.y += 1.05;
-          mob.velocity.y = 0;
-        } else {
-          newPos.x = oldPos.x;
-          mob.velocity.x = 0;
-          if (mob.timer) mob.timer = 0; // turn around when hitting a wall
-        }
-      }
-
-      // 3. Horizontal Z Movement with Step-Climbing
-      newPos.z += mob.velocity.z * dt;
-      if (this.checkMobCollision(mob, newPos)) {
-        const stepPos = newPos.clone();
-        stepPos.y += 1.05;
-        if (mob.onGround && !this.checkMobCollision(mob, stepPos)) {
-          newPos.y += 1.05;
-          mob.velocity.y = 0;
-        } else {
-          newPos.z = oldPos.z;
-          mob.velocity.z = 0;
-          if (mob.timer) mob.timer = 0;
-        }
-      }
-
-      // 4. Vertical Y Movement (Gravity, Falling & Landing)
-      newPos.y += mob.velocity.y * dt;
-      mob.onGround = false;
-      if (this.checkMobCollision(mob, newPos)) {
-        if (mob.velocity.y < 0) {
-          // Landing on solid ground
-          mob.onGround = true;
-          newPos.y = Math.ceil(newPos.y);
-          // If still touching block after ceil, find exact free floor level
-          while (this.checkMobCollision(mob, newPos)) {
-            newPos.y += 0.05;
-          }
-        } else {
-          // Bumped ceiling
-          newPos.y = oldPos.y;
-        }
-        mob.velocity.y = 0;
-      }
-
-      // Ground friction
-      if (mob.onGround) {
-        mob.velocity.x *= 0.94;
-        mob.velocity.z *= 0.94;
-      }
-
-      mob.mesh.position.copy(newPos);
-      mob.mesh.rotation.y = mob.yaw;
-
-      // Limb swing animation
-      const moveSpeed = Math.sqrt(mob.velocity.x * mob.velocity.x + mob.velocity.z * mob.velocity.z);
-      const legSwing = Math.sin(performance.now() * 0.008) * Math.min(0.8, moveSpeed * 0.4);
+      const moveSpeed = moveGroundMob(this, mob, dt);
+      mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
+      const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
       if (mob.leftLeg && mob.rightLeg) {
         mob.leftLeg.rotation.x = legSwing;
         mob.rightLeg.rotation.x = -legSwing;

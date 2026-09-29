@@ -467,5 +467,12 @@ export class World {
       const neighbor = this.getChunk(cx, cz + 1);
       if (neighbor) neighbor.dirty = true;
     }
+    // Water depth is averaged across all four columns at shared corners.
+    const dx = lx === 0 ? -1 : (lx === CHUNK_SIZE_X - 1 ? 1 : 0);
+    const dz = lz === 0 ? -1 : (lz === CHUNK_SIZE_Z - 1 ? 1 : 0);
+    if (dx && dz) {
+      const diagonal = this.getChunk(cx + dx, cz + dz);
+      if (diagonal) diagonal.dirty = true;
+    }
   }
 }

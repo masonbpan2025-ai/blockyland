@@ -21,7 +21,7 @@ export class Player {
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;
-    this.gamemode = 'survival'; // 'survival' | 'creative'
+    this.gamemode = 'creative'; // 'creative' | 'survival'
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
     // Stats

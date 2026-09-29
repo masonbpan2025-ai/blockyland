@@ -41,7 +41,7 @@
     <div>Antigravity High-Performance Voxel Engine</div>
     <div id="dbg-mem">Draw Calls: 2 | Chunks: 0</div>
     <div id="dbg-entities">Entities: 0</div>
-    <div id="dbg-mode">Mode: Survival</div>
+    <div id="dbg-mode">Mode: Creative</div>
     <div>Renderer: Three.js WebGL2</div>
   </div>
 
@@ -84,6 +84,62 @@
       <div class="grid-slots" id="inv-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
     </div>
   </div>
+
+  <!-- Creative Mode Inventory GUI (E in Creative Mode or Gamemode Switch) -->
+  <div id="creative-modal" class="game-modal hidden">
+    <div class="creative-gui-wrapper">
+      <!-- Top Tabs -->
+      <div class="creative-tabs top-tabs" id="creative-tabs-top"></div>
+
+      <!-- Main Container GUI -->
+      <div class="creative-container-gui">
+        <div class="creative-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="creative-tab-title" style="font-weight: bold; font-size: 15px;">Building Blocks</span>
+            <span id="creative-item-count" style="font-size: 12px; color: #666;">(0)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="creative-search-wrapper">
+              <input type="text" id="creative-search-input" placeholder="Search..." autocomplete="off">
+              <button type="button" id="creative-clear-search-btn" title="Clear Search">✕</button>
+            </div>
+            <span class="close-btn" id="close-creative">✕</span>
+          </div>
+        </div>
+
+        <!-- Scrollable Creative Item Grid -->
+        <div class="creative-slots-scroll" id="creative-slots-scroll">
+          <div class="grid-slots" id="creative-item-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+        </div>
+
+        <!-- Hotbar & Controls Section -->
+        <div class="creative-footer">
+          <div class="creative-hotbar-label-row">
+            <span style="font-size: 14px; font-weight: bold;">Hotbar</span>
+            <div class="creative-actions">
+              <button type="button" class="creative-action-btn" id="btn-clear-hotbar" title="Clear entire hotbar">Clear Hotbar</button>
+            </div>
+          </div>
+          <div class="creative-hotbar-row">
+            <div class="grid-slots" id="creative-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+            <div class="creative-destroy-slot" id="creative-destroy-slot" title="Destroy Item (Click with held item, or Shift+Click to clear hotbar)">
+              <img src="/assets/items/lava_bucket.png" alt="Destroy" class="slot-icon">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Tabs -->
+      <div class="creative-tabs bottom-tabs" id="creative-tabs-bottom"></div>
+    </div>
+  </div>
+
+  <!-- Floating Minecraft Item Tooltip -->
+  <div id="mc-tooltip" class="mc-tooltip hidden">
+    <div class="mc-tooltip-title" id="mc-tooltip-title"></div>
+    <div class="mc-tooltip-sub" id="mc-tooltip-sub"></div>
+  </div>
+
 
   <!-- Crafting Table GUI (3x3) -->
   <div id="crafting-modal" class="game-modal hidden">
@@ -132,7 +188,7 @@
     <div class="mc-menu-card">
       <div class="mc-title">Game Paused</div>
       <button class="mc-btn" id="btn-resume">Back to Game</button>
-      <button class="mc-btn" id="btn-gamemode">Game Mode: Survival</button>
+      <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
       <button class="mc-btn" id="btn-time">Time: Set Day</button>
       <button class="mc-btn" id="btn-spawn-golem">Spawn Iron Golem</button>
       <button class="mc-btn" id="btn-spawn-villager">Spawn Villager</button>

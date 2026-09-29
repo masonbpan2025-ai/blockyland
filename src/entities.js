@@ -12,18 +12,19 @@ export class EntityManager {
   }
 
   // Spawn spinning dropped item in 3D world
-  spawnDroppedItem(pos, itemType, isBlock = true, count = 1) {
+  spawnDroppedItem(pos, itemType, isBlock = true, count = 1, options = {}) {
     const group = new THREE.Group();
     let mesh;
 
     if (isBlock) {
       const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-      const mat = new THREE.MeshLambertMaterial({ color: 0x88aa55 });
+      const mat = new THREE.MeshLambertMaterial({ color: itemType === BLOCKS.WHITE_WOOL ? 0xf1eee4 : 0x88aa55 });
       mesh = new THREE.Mesh(geo, mat);
     } else {
       const geo = new THREE.PlaneGeometry(0.35, 0.35);
       const tex = new THREE.TextureLoader().load(ITEMS[itemType] ? ITEMS[itemType].icon : '/assets/items/stick.png');
       tex.magFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide });
       mesh = new THREE.Mesh(geo, mat);
     }
@@ -42,8 +43,19 @@ export class EntityManager {
         3.5,
         (Math.random() - 0.5) * 2
       ),
-      age: 0
+      age: 0,
+      pickupDelay: options.pickupDelay ?? 0.4
     });
+  }
+
+  spawnDeathParticles(pos) {
+    for (let i = 0; i < 12; i++) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12),
+        new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.8 }));
+      mesh.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 0.7, (Math.random() - 0.5) * 0.8));
+      this.scene.add(mesh);
+      this.particles.push({ mesh, velocity: new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.6 + Math.random(), (Math.random() - 0.5) * 0.8), life: 0.6, death: true });
+    }
   }
 
   // Spawn Primed TNT
@@ -106,8 +118,10 @@ export class EntityManager {
       const item = this.droppedItems[i];
       item.age += dt;
 
-      // Gravity
-      item.velocity.y -= 18 * dt;
+      // Rest on the contact plane without repeatedly falling and snapping upward.
+      const below = this.world.getVoxel(Math.floor(item.group.position.x), Math.floor(item.group.position.y - 0.15), Math.floor(item.group.position.z));
+      if (item.grounded && (below === BLOCKS.AIR || below === BLOCKS.WATER)) item.grounded = false;
+      if (!item.grounded) item.velocity.y -= 18 * dt;
 
       item.group.position.x += item.velocity.x * dt;
       item.group.position.z += item.velocity.z * dt;
@@ -122,6 +136,7 @@ export class EntityManager {
       if (block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
         item.group.position.y = bY + 1.1;
         item.velocity.set(0, 0, 0);
+        item.grounded = true;
       }
 
       // Spin & Bob
@@ -132,12 +147,18 @@ export class EntityManager {
       const playerPos = player.position.clone().add(new THREE.Vector3(0, 0.8, 0));
       const dist = item.group.position.distanceTo(playerPos);
 
-      if (dist < 1.6 && item.age > 0.4) {
+      if (dist < 1.6 && item.age > item.pickupDelay) {
         // Collect into inventory
-        const added = inventory.addItem(item.itemType, item.isBlock, item.count);
-        if (added) {
+        let added = 0;
+        // Single-item transactions avoid duplicating a partially accepted stack.
+        while (item.count > 0 && inventory.addItem(item.itemType, item.isBlock, 1)) { item.count--; added++; }
+        if (added > 0) {
           this.sounds.playClick();
+          this.onItemPickup?.(item.itemType, added);
+        }
+        if (item.count === 0) {
           this.scene.remove(item.group);
+          item.group.traverse(child => { child.geometry?.dispose(); child.material?.map?.dispose(); child.material?.dispose(); });
           this.droppedItems.splice(i, 1);
         }
       }
@@ -211,11 +232,13 @@ export class EntityManager {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
-      p.velocity.y -= 16 * dt;
+      p.velocity.y -= (p.death ? 0.5 : 16) * dt;
+      if (p.death) p.mesh.material.opacity = Math.max(0, p.life / 0.6) * 0.8;
       p.mesh.position.addScaledVector(p.velocity, dt);
 
       if (p.life <= 0) {
         this.scene.remove(p.mesh);
+        if (p.death) { p.mesh.geometry.dispose(); p.mesh.material.dispose(); }
         this.particles.splice(i, 1);
       }
     }

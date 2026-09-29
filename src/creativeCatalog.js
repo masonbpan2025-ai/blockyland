@@ -1,0 +1,223 @@
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+
+export const CREATIVE_TABS = [
+  { id: 'building_blocks', name: 'Building Blocks', icon: '/assets/blocks/bricks.png' },
+  { id: 'colored_blocks', name: 'Colored Blocks', icon: '/assets/blocks/red_wool.png' },
+  { id: 'natural_blocks', name: 'Natural Blocks', icon: '/assets/blocks/grass_block_side.png' },
+  { id: 'functional_blocks', name: 'Functional Blocks', icon: '/assets/blocks/torch.png' },
+  { id: 'redstone_blocks', name: 'Redstone Blocks', icon: '/assets/items/redstone.png' },
+  { id: 'tools_utilities', name: 'Tools & Utilities', icon: '/assets/items/diamond_pickaxe.png' },
+  { id: 'combat', name: 'Combat', icon: '/assets/items/diamond_sword.png' },
+  { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
+  { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
+  { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
+  { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
+];
+
+function blockItem(blockId, tab, customName = null) {
+  const def = BLOCK_DEFS[blockId];
+  if (!def) return null;
+  const icon = def.textures
+    ? `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top || 'dirt.png'}`
+    : '/assets/blocks/dirt.png';
+  const name = customName || def.name;
+  return {
+    id: blockId,
+    name,
+    icon,
+    isBlock: true,
+    tab,
+    count: 64,
+    searchTerms: `${name.toLowerCase()} block ${tab.replace('_', ' ')}`
+  };
+}
+
+function itemEntry(itemId, tab, customName = null) {
+  const def = ITEMS[itemId];
+  if (!def) return null;
+  const name = customName || def.name;
+  return {
+    id: itemId,
+    name,
+    icon: def.icon,
+    isBlock: false,
+    tab,
+    count: (def.type === 'tool' || def.type === 'weapon' || def.type === 'armor' || def.type === 'special') ? 1 : 64,
+    searchTerms: `${name.toLowerCase()} ${def.type || ''} ${tab.replace('_', ' ')}`
+  };
+}
+
+export function buildCreativeCatalog() {
+  const catalog = [];
+
+  // 1. Building Blocks
+  const buildingBlocksList = [
+    BLOCKS.STONE, BLOCKS.COBBLESTONE, BLOCKS.MOSSY_COBBLESTONE, BLOCKS.STONE_BRICKS,
+    BLOCKS.BRICKS, BLOCKS.SANDSTONE, BLOCKS.OAK_PLANKS, BLOCKS.BOOKSHELF,
+    BLOCKS.GLASS, BLOCKS.OBSIDIAN, BLOCKS.BEDROCK, BLOCKS.CLAY,
+    BLOCKS.NETHERRACK, BLOCKS.SOUL_SAND, BLOCKS.END_STONE
+  ];
+  for (const b of buildingBlocksList) {
+    const entry = blockItem(b, 'building_blocks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 2. Colored Blocks
+  const coloredBlocksList = [
+    BLOCKS.WHITE_WOOL, BLOCKS.RED_WOOL, BLOCKS.BLUE_WOOL,
+    BLOCKS.YELLOW_WOOL, BLOCKS.GREEN_WOOL, BLOCKS.BLACK_WOOL
+  ];
+  for (const b of coloredBlocksList) {
+    const entry = blockItem(b, 'colored_blocks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 3. Natural Blocks
+  const naturalBlocksList = [
+    BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.SAND, BLOCKS.GRAVEL,
+    BLOCKS.OAK_LOG, BLOCKS.OAK_LEAVES, BLOCKS.CACTUS, BLOCKS.SNOW, BLOCKS.ICE,
+    BLOCKS.POPPY, BLOCKS.DANDELION,
+    BLOCKS.COAL_ORE, BLOCKS.IRON_ORE, BLOCKS.GOLD_ORE, BLOCKS.DIAMOND_ORE,
+    BLOCKS.REDSTONE_ORE, BLOCKS.EMERALD_ORE,
+    BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
+    BLOCKS.WATER, BLOCKS.LAVA
+  ];
+  for (const b of naturalBlocksList) {
+    const entry = blockItem(b, 'natural_blocks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 4. Functional Blocks
+  const functionalBlocksList = [
+    BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.LADDER,
+    BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL
+  ];
+  for (const b of functionalBlocksList) {
+    const entry = blockItem(b, 'functional_blocks');
+    if (entry) catalog.push(entry);
+  }
+  const functionalItemsList = [
+    'armor_stand', 'item_frame', 'painting', 'brewing_stand', 'cauldron'
+  ];
+  for (const it of functionalItemsList) {
+    const entry = itemEntry(it, 'functional_blocks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 5. Redstone Blocks & Mechanisms
+  const redstoneBlocksList = [
+    BLOCKS.REDSTONE_TORCH, BLOCKS.LEVER, BLOCKS.REDSTONE_LAMP, BLOCKS.TNT, BLOCKS.REDSTONE_ORE
+  ];
+  for (const b of redstoneBlocksList) {
+    const entry = blockItem(b, 'redstone_blocks');
+    if (entry) catalog.push(entry);
+  }
+  const redstoneItems = ['redstone', 'glowstone_dust'];
+  for (const it of redstoneItems) {
+    const entry = itemEntry(it, 'redstone_blocks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 6. Tools & Utilities
+  const toolsList = [
+    // Shovels
+    'netherite_shovel', 'diamond_shovel', 'golden_shovel', 'iron_shovel', 'stone_shovel', 'wooden_shovel',
+    // Pickaxes
+    'netherite_pickaxe', 'diamond_pickaxe', 'golden_pickaxe', 'iron_pickaxe', 'stone_pickaxe', 'wooden_pickaxe',
+    // Axes
+    'netherite_axe', 'diamond_axe', 'golden_axe', 'iron_axe', 'stone_axe', 'wooden_axe',
+    // Hoes
+    'netherite_hoe', 'diamond_hoe', 'golden_hoe', 'iron_hoe', 'stone_hoe', 'wooden_hoe',
+    // Utilities
+    'bucket', 'water_bucket', 'lava_bucket', 'milk_bucket',
+    'fishing_rod', 'flint_and_steel', 'shears',
+    'compass', 'clock', 'lead', 'name_tag', 'saddle',
+    'oak_boat', 'minecart', 'chest_minecart',
+    'elytra', 'firework_rocket'
+  ];
+  for (const it of toolsList) {
+    const entry = itemEntry(it, 'tools_utilities');
+    if (entry) catalog.push(entry);
+  }
+
+  // 7. Combat
+  const combatList = [
+    // Swords
+    'netherite_sword', 'diamond_sword', 'golden_sword', 'iron_sword', 'stone_sword', 'wooden_sword',
+    'trident', 'bow', 'crossbow', 'arrow',
+    'totem_of_undying',
+    // Armor
+    'diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots',
+    'iron_helmet', 'iron_chestplate', 'iron_leggings', 'iron_boots',
+    'golden_helmet', 'golden_chestplate', 'golden_leggings', 'golden_boots',
+    'chainmail_chestplate', 'leather_chestplate',
+    'diamond_horse_armor', 'golden_horse_armor', 'iron_horse_armor'
+  ];
+  for (const it of combatList) {
+    const entry = itemEntry(it, 'combat');
+    if (entry) catalog.push(entry);
+  }
+
+  // 8. Food & Drinks
+  const foodList = [
+    'golden_apple', 'apple', 'bread',
+    'cooked_beef', 'beef', 'cooked_porkchop', 'porkchop',
+    'cooked_salmon', 'salmon', 'cooked_cod', 'cod',
+    'golden_carrot', 'carrot', 'baked_potato', 'potato', 'poisonous_potato',
+    'beetroot_soup', 'beetroot', 'mushroom_stew',
+    'cookie', 'melon_slice', 'glistering_melon_slice',
+    'sweet_berries', 'glow_berries', 'honey_bottle',
+    'potion', 'glass_bottle'
+  ];
+  for (const it of foodList) {
+    const entry = itemEntry(it, 'food_drinks');
+    if (entry) catalog.push(entry);
+  }
+
+  // 9. Ingredients
+  const ingredientsList = [
+    'netherite_ingot', 'diamond', 'emerald', 'gold_ingot', 'iron_ingot', 'copper_ingot',
+    'coal', 'charcoal', 'lapis_lazuli', 'quartz', 'amethyst_shard',
+    'redstone', 'glowstone_dust',
+    'stick', 'string', 'feather', 'gunpowder', 'wheat',
+    'bone', 'bone_meal', 'sugar', 'leather', 'paper', 'book',
+    'ender_pearl', 'ender_eye', 'blaze_rod', 'blaze_powder', 'magma_cream', 'slime_ball',
+    'snowball', 'egg', 'fire_charge'
+  ];
+  for (const it of ingredientsList) {
+    const entry = itemEntry(it, 'ingredients');
+    if (entry) catalog.push(entry);
+  }
+
+  // 10. Mob Spawn Eggs
+  const spawnEggsList = [
+    'villager_spawn_egg', 'iron_golem_spawn_egg', 'pillager_spawn_egg',
+    'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg',
+    'pig_spawn_egg', 'cow_spawn_egg', 'sheep_spawn_egg',
+    'salmon_spawn_egg', 'dolphin_spawn_egg', 'octopus_spawn_egg', 'axolotl_spawn_egg'
+  ];
+  for (const it of spawnEggsList) {
+    const entry = itemEntry(it, 'spawn_eggs');
+    if (entry) catalog.push(entry);
+  }
+
+  return catalog;
+}
+
+export const ALL_CREATIVE_ITEMS = buildCreativeCatalog();
+
+export function getCreativeItemsByTab(tabId) {
+  if (tabId === 'all_items') {
+    return ALL_CREATIVE_ITEMS;
+  }
+  return ALL_CREATIVE_ITEMS.filter(it => it.tab === tabId);
+}
+
+export function searchCreativeItems(query, activeTab = null) {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return activeTab && activeTab !== 'all_items' ? getCreativeItemsByTab(activeTab) : ALL_CREATIVE_ITEMS;
+  }
+  const source = (activeTab && activeTab !== 'all_items') ? getCreativeItemsByTab(activeTab) : ALL_CREATIVE_ITEMS;
+  return source.filter(it => it.name.toLowerCase().includes(q) || it.searchTerms.includes(q));
+}

@@ -12,6 +12,7 @@ import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { GeminiAgent } from './geminiAgent.js';
+import { Sky } from './sky.js';
 
 class Game {
   constructor() {
@@ -48,6 +49,9 @@ class Game {
     this.sunLight = new THREE.DirectionalLight(0xfffaed, 0.85);
     this.sunLight.position.set(50, 80, 40);
     this.scene.add(this.sunLight);
+    this.sky = new Sky(this.scene);
+    this.moonLight = new THREE.DirectionalLight(0x9db9ee, 0);
+    this.scene.add(this.moonLight);
 
     // Day/Night Cycle State
     this.worldTime = 6000; // 0..24000 (6000 = midday, 18000 = midnight)
@@ -96,14 +100,15 @@ class Game {
     this.scene.add(this.player.model);
 
     // 3. Initialize Mobs & Entities
-    this.mobs = new MobManager(this.scene, this.world, this.sounds);
     this.entities = new EntityManager(this.scene, this.world, this.sounds);
+    this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
     this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds);
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
+    this.entities.onItemPickup = () => this.ui.updateHotbar();
 
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
@@ -145,6 +150,19 @@ class Game {
     const pcx = Math.floor(this.player.position.x / CHUNK_SIZE_X);
     const pcz = Math.floor(this.player.position.z / CHUNK_SIZE_Z);
 
+    // Generate neighbors before meshing so boundary water depth and face culling
+    // use real terrain rather than treating not-yet-loaded chunks as empty air.
+    for (let cx = pcx - this.renderDistance; cx <= pcx + this.renderDistance; cx++) {
+      for (let cz = pcz - this.renderDistance; cz <= pcz + this.renderDistance; cz++) {
+        if (!this.world.getChunk(cx, cz)) {
+          this.world.getOrCreateChunk(cx, cz);
+          for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+            const neighbor = this.world.getChunk(cx + dx, cz + dz);
+            if (neighbor) neighbor.dirty = true;
+          }
+        }
+      }
+    }
     for (let cx = pcx - this.renderDistance; cx <= pcx + this.renderDistance; cx++) {
       for (let cz = pcz - this.renderDistance; cz <= pcz + this.renderDistance; cz++) {
         const chunk = this.world.getOrCreateChunk(cx, cz);
@@ -321,19 +339,69 @@ class Game {
       return;
     }
 
-    // Eating Food
+    // Eating Food, Buckets, and Spawn Eggs
     const activeItem = this.inventory.getActiveItem();
     if (activeItem && !activeItem.isBlock) {
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
-        if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth) {
+        if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
           this.sounds.playEat();
-          this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + it.food);
+          this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + (it.food || 4));
           this.player.health = Math.min(this.player.maxHealth, this.player.health + 2);
-          this.inventory.consumeActiveItem();
-          this.ui.updateHotbar();
+          if (this.player.gamemode !== 'creative') {
+            this.inventory.consumeActiveItem();
+            this.ui.updateHotbar();
+          }
           return;
         }
+      }
+
+      // Water / Lava Buckets
+      if (it && (activeItem.id === 'water_bucket' || activeItem.id === 'lava_bucket')) {
+        const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
+        const px = bX + norm.x;
+        const py = bY + norm.y;
+        const pz = bZ + norm.z;
+        const isWater = (activeItem.id === 'water_bucket');
+        this.world.setVoxel(px, py, pz, isWater ? BLOCKS.WATER : BLOCKS.LAVA);
+        if (isWater) this.sounds.playWater(); else this.sounds.playStone();
+        const chunk = this.world.getChunk(Math.floor(px / 16), Math.floor(pz / 16));
+        if (chunk) this.rebuildChunkMesh(chunk);
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.hotbar[this.inventory.activeSlot] = { id: 'bucket', isBlock: false, count: 1 };
+          this.ui.updateHotbar();
+        }
+        return;
+      }
+
+      // Spawn Eggs
+      if (it && it.type === 'spawn_egg') {
+        const mobType = it.mob;
+        const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
+        const sx = bX + norm.x + 0.5;
+        const sy = bY + norm.y + 0.05;
+        const sz = bZ + norm.z + 0.5;
+
+        if (mobType === 'villager') this.mobs.spawnVillager(sx, sy, sz);
+        else if (mobType === 'iron_golem') this.mobs.spawnIronGolem(sx, sy, sz);
+        else if (mobType === 'pillager') this.mobs.spawnPillager(sx, sy, sz);
+        else if (mobType === 'zombie') this.mobs.spawnZombie(sx, sy, sz);
+        else if (mobType === 'skeleton') this.mobs.spawnSkeleton(sx, sy, sz);
+        else if (mobType === 'creeper') this.mobs.spawnCreeper(sx, sy, sz);
+        else if (mobType === 'pig') this.mobs.spawnPig(sx, sy, sz);
+        else if (mobType === 'cow') this.mobs.spawnCow(sx, sy, sz);
+        else if (mobType === 'sheep') this.mobs.spawnSheep(sx, sy, sz);
+        else if (mobType === 'salmon') this.mobs.spawnSalmon(sx, sy, sz);
+        else if (mobType === 'dolphin') this.mobs.spawnDolphin(sx, sy, sz);
+        else if (mobType === 'octopus') this.mobs.spawnOctopus(sx, sy, sz);
+        else if (mobType === 'axolotl') this.mobs.spawnAxolotl(sx, sy, sz);
+
+        this.sounds.playPop();
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+        return;
       }
     }
 
@@ -450,6 +518,7 @@ class Game {
     this.targetMob = null;
     let closestMobDist = Infinity;
     for (const mob of this.mobs.mobs) {
+      if (mob.health <= 0 || mob.dying) continue;
       const mobPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
       const toMob = mobPos.clone().sub(camPos);
       const proj = toMob.dot(camDir);
@@ -583,29 +652,16 @@ class Game {
 
   updateDayNightCycle(dt) {
     this.worldTime = (this.worldTime + (24000 / this.dayLengthSeconds) * dt) % 24000;
-    const angle = ((this.worldTime / 24000) * Math.PI * 2) - Math.PI / 2;
-
-    // Sun orbits in sky
-    this.sunLight.position.set(
-      Math.cos(angle) * 100,
-      Math.sin(angle) * 100,
-      40
-    );
-
-    const sunHeight = Math.sin(angle); // -1 (midnight) to +1 (noon)
-
-    if (sunHeight > 0) {
-      // Day
-      const t = sunHeight;
-      this.normalBgColor.setRGB(0.47 * t + 0.05, 0.65 * t + 0.05, 1.0 * t + 0.1);
-      this.ambientLight.intensity = 0.4 + 0.45 * t;
-      this.sunLight.intensity = 0.85 * t;
-    } else {
-      // Night
-      this.normalBgColor.setRGB(0.04, 0.04, 0.12);
-      this.ambientLight.intensity = 0.22;
-      this.sunLight.intensity = 0.05;
-    }
+    this.sky.setTime(this.worldTime);
+    this.sunLight.position.copy(this.sky.sunDirection).multiplyScalar(100);
+    this.moonLight.position.copy(this.sunLight.position).negate();
+    const sunHeight = this.sky.sunDirection.y;
+    const day = this.sky.uniforms.uDay.value;
+    this.normalBgColor.copy(this.sky.horizonColor);
+    this.ambientLight.intensity = 0.2 + day * 0.55;
+    this.sunLight.intensity = 0.9 * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
+    this.sunLight.color.setRGB(1, 0.65 + 0.31 * day, 0.4 + 0.49 * day);
+    this.moonLight.intensity = 0.17 * Math.max(0, -sunHeight) * (1 - this.weather.rainIntensity * 0.8);
 
     // Apply fog based on underwater state
     if (!this.isUnderwater) {
@@ -683,6 +739,7 @@ class Game {
       if (mode === 'creative' || mode === 'c' || mode === '1') {
         this.player.gamemode = 'creative';
         this.ui.addChatMessage('Set game mode to Creative Mode', 'system');
+        this.ui.openCreativeInventory();
       } else if (mode === 'survival' || mode === 's' || mode === '0') {
         this.player.gamemode = 'survival';
         this.player.isFlying = false;
@@ -793,6 +850,7 @@ class Game {
     this.updateDayNightCycle(dt);
     this.updateUnderwaterState();
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
+    this.sky.update(dt, this.camera, this.weather, this.isUnderwater);
     this.textures.update(dt, this.sunLight, this.scene.background, this.scene.fog);
 
     // 7. Update UI Stats & Debug Overlay

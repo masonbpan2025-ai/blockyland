@@ -1,5 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { VILLAGER_TRADES } from './crafting.js';
+import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems } from './creativeCatalog.js';
 
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds) {
@@ -60,6 +61,25 @@ export class UIManager {
     // Floating item cursor
     this.floatingItem = document.getElementById('floating-cursor-item');
 
+    // Creative Mode Inventory Elements
+    this.creativeModal = document.getElementById('creative-modal');
+    this.creativeTabsTop = document.getElementById('creative-tabs-top');
+    this.creativeTabsBottom = document.getElementById('creative-tabs-bottom');
+    this.creativeItemGrid = document.getElementById('creative-item-grid');
+    this.creativeHotbarGrid = document.getElementById('creative-hotbar-grid');
+    this.creativeSearchInput = document.getElementById('creative-search-input');
+    this.creativeClearSearchBtn = document.getElementById('creative-clear-search-btn');
+    this.creativeTabTitle = document.getElementById('creative-tab-title');
+    this.creativeItemCount = document.getElementById('creative-item-count');
+    this.creativeDestroySlot = document.getElementById('creative-destroy-slot');
+    this.btnClearHotbar = document.getElementById('btn-clear-hotbar');
+    this.closeCreative = document.getElementById('close-creative');
+    this.mcTooltip = document.getElementById('mc-tooltip');
+    this.mcTooltipTitle = document.getElementById('mc-tooltip-title');
+    this.mcTooltipSub = document.getElementById('mc-tooltip-sub');
+    this.activeCreativeTab = 'building_blocks';
+    this.creativeSearchQuery = '';
+
     // Chat
     this.chatContainer = document.getElementById('chat-container');
     this.chatMessages = document.getElementById('chat-messages');
@@ -77,6 +97,7 @@ export class UIManager {
     this.initHotbarDOM();
     this.initStatusBarsDOM();
     this.bindInventoryEvents();
+    this.bindCreativeEvents();
     this.bindVillagerTradeEvents();
     this.bindPauseEvents();
     this.bindChatEvents();
@@ -145,19 +166,22 @@ export class UIManager {
   }
 
   isModalOpen() {
-    return !this.invModal.classList.contains('hidden') ||
-           !this.craftModal.classList.contains('hidden') ||
-           !this.villagerModal.classList.contains('hidden') ||
-           !this.pauseModal.classList.contains('hidden') ||
+    return (!this.invModal.classList.contains('hidden')) ||
+           (this.creativeModal && !this.creativeModal.classList.contains('hidden')) ||
+           (!this.craftModal.classList.contains('hidden')) ||
+           (!this.villagerModal.classList.contains('hidden')) ||
+           (!this.pauseModal.classList.contains('hidden')) ||
            this.isGeminiOpen();
   }
 
   closeAllModals() {
     this.invModal.classList.add('hidden');
+    if (this.creativeModal) this.creativeModal.classList.add('hidden');
     this.craftModal.classList.add('hidden');
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
+    this.hideTooltip();
 
     // Return any cursor item to inventory
     if (this.inv.cursorItem) {
@@ -234,6 +258,13 @@ export class UIManager {
   }
 
   updateStats() {
+    const isCreative = this.player.gamemode === 'creative';
+    const statusBars = document.getElementById('status-bars');
+    const expContainer = document.getElementById('exp-container');
+    if (statusBars) statusBars.style.display = isCreative ? 'none' : 'flex';
+    if (expContainer) expContainer.style.display = isCreative ? 'none' : 'block';
+    if (isCreative) return;
+
     // Health hearts
     const hearts = this.healthBarEl.children;
     const hp = Math.ceil(this.player.health);
@@ -294,6 +325,15 @@ export class UIManager {
 
   // Inventory Modal Management
   toggleInventory() {
+    if (this.player.gamemode === 'creative') {
+      if (this.creativeModal && !this.creativeModal.classList.contains('hidden')) {
+        this.closeAllModals();
+      } else {
+        this.openCreativeInventory();
+      }
+      return;
+    }
+
     if (this.invModal.classList.contains('hidden')) {
       document.exitPointerLock();
       this.closeAllModals();
@@ -303,6 +343,289 @@ export class UIManager {
       this.closeAllModals();
     }
   }
+
+  openCreativeInventory() {
+    document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.creativeModal) return;
+    this.creativeModal.classList.remove('hidden');
+    this.renderCreativeTabs();
+    this.renderCreativeItems();
+    this.renderCreativeHotbar();
+  }
+
+  bindCreativeEvents() {
+    if (this.closeCreative) {
+      this.closeCreative.onclick = () => this.closeAllModals();
+    }
+
+    if (this.creativeSearchInput) {
+      this.creativeSearchInput.addEventListener('input', (e) => {
+        this.creativeSearchQuery = e.target.value.trim();
+        if (this.creativeSearchQuery && this.activeCreativeTab !== 'all_items') {
+          this.activeCreativeTab = 'all_items';
+          this.renderCreativeTabs();
+        }
+        this.renderCreativeItems();
+      });
+    }
+
+    if (this.creativeClearSearchBtn) {
+      this.creativeClearSearchBtn.onclick = () => {
+        if (this.creativeSearchInput) this.creativeSearchInput.value = '';
+        this.creativeSearchQuery = '';
+        this.renderCreativeItems();
+      };
+    }
+
+    if (this.btnClearHotbar) {
+      this.btnClearHotbar.onclick = () => {
+        this.inv.hotbar.fill(null);
+        this.sounds.playPop();
+        this.renderCreativeHotbar();
+        this.updateHotbar();
+      };
+    }
+
+    if (this.creativeDestroySlot) {
+      this.creativeDestroySlot.onclick = (e) => {
+        if (e.shiftKey) {
+          this.inv.hotbar.fill(null);
+          this.sounds.playPop();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+        } else if (this.inv.cursorItem) {
+          this.inv.cursorItem = null;
+          this.updateFloatingCursor();
+          this.sounds.playPop();
+        }
+      };
+
+      this.creativeDestroySlot.onmouseenter = (e) => {
+        this.showTooltip(e.clientX, e.clientY, 'Destroy Item', 'Click with held item, or Shift+Click to clear hotbar');
+      };
+      this.creativeDestroySlot.onmouseleave = () => this.hideTooltip();
+    }
+  }
+
+  renderCreativeTabs() {
+    if (!this.creativeTabsTop || !this.creativeTabsBottom) return;
+
+    // Top Tabs: first 6
+    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'all_items'];
+    // Bottom Tabs: tools_utilities, combat, food_drinks, ingredients, spawn_eggs, survival_inventory
+    const bottomTabIds = ['tools_utilities', 'combat', 'food_drinks', 'ingredients', 'spawn_eggs', 'survival_inventory'];
+
+    const renderTabRow = (container, ids) => {
+      container.innerHTML = '';
+      ids.forEach(id => {
+        const tabDef = CREATIVE_TABS.find(t => t.id === id) || (id === 'survival_inventory' ? {
+          id: 'survival_inventory',
+          name: 'Survival Inventory',
+          icon: '/assets/gui/inventory.png'
+        } : null);
+        if (!tabDef) return;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'creative-tab-btn' + (this.activeCreativeTab === id ? ' active' : '');
+        btn.title = tabDef.name;
+        btn.innerHTML = `<img class="tab-icon" src="${tabDef.icon}" alt="${tabDef.name}">`;
+
+        btn.onclick = () => {
+          this.sounds.playClick();
+          this.activeCreativeTab = id;
+          if (id !== 'all_items') {
+            this.creativeSearchQuery = '';
+            if (this.creativeSearchInput) this.creativeSearchInput.value = '';
+          }
+          this.renderCreativeTabs();
+          this.renderCreativeItems();
+        };
+
+        btn.onmouseenter = (e) => {
+          this.showTooltip(e.clientX, e.clientY, tabDef.name, `Switch to ${tabDef.name}`);
+        };
+        btn.onmouseleave = () => this.hideTooltip();
+
+        container.appendChild(btn);
+      });
+    };
+
+    renderTabRow(this.creativeTabsTop, topTabIds);
+    renderTabRow(this.creativeTabsBottom, bottomTabIds);
+  }
+
+  renderCreativeItems() {
+    if (!this.creativeItemGrid) return;
+    this.creativeItemGrid.innerHTML = '';
+
+    if (this.activeCreativeTab === 'survival_inventory') {
+      if (this.creativeTabTitle) this.creativeTabTitle.textContent = 'Survival Inventory';
+      if (this.creativeItemCount) this.creativeItemCount.textContent = '(Carried Storage)';
+
+      // Render 27 storage slots inside grid
+      this.inv.storage.forEach((item, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'inv-slot';
+        this.renderSlotContent(slot, item);
+
+        slot.onclick = (e) => {
+          this.inv.handleSlotClick(this.inv.storage, idx, e.button === 2, e.shiftKey);
+          this.renderCreativeItems();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+        };
+        slot.oncontextmenu = (e) => {
+          e.preventDefault();
+          this.inv.handleSlotClick(this.inv.storage, idx, true, e.shiftKey);
+          this.renderCreativeItems();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+        };
+        if (item) {
+          const meta = this.inv.getItemMeta(item);
+          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+          slot.onmouseleave = () => this.hideTooltip();
+        }
+        this.creativeItemGrid.appendChild(slot);
+      });
+      return;
+    }
+
+    const items = searchCreativeItems(this.creativeSearchQuery, this.activeCreativeTab);
+    const tabDef = CREATIVE_TABS.find(t => t.id === this.activeCreativeTab);
+    const tabName = this.creativeSearchQuery ? `Search: "${this.creativeSearchQuery}"` : (tabDef ? tabDef.name : 'Items');
+
+    if (this.creativeTabTitle) this.creativeTabTitle.textContent = tabName;
+    if (this.creativeItemCount) this.creativeItemCount.textContent = `(${items.length} items)`;
+
+    items.forEach(item => {
+      const slot = document.createElement('div');
+      slot.className = 'inv-slot creative-slot';
+
+      const img = document.createElement('img');
+      img.className = 'slot-icon';
+      img.src = item.icon;
+      img.alt = item.name;
+      slot.appendChild(img);
+
+      if (item.count > 1) {
+        const countSpan = document.createElement('span');
+        countSpan.className = 'slot-count';
+        countSpan.textContent = item.count;
+        slot.appendChild(countSpan);
+      }
+
+      slot.onclick = (e) => {
+        if (e.shiftKey) {
+          // Transfer directly into first empty hotbar slot
+          for (let i = 0; i < 9; i++) {
+            if (!this.inv.hotbar[i]) {
+              this.inv.hotbar[i] = { id: item.id, isBlock: item.isBlock, count: item.count };
+              this.sounds.playClick();
+              this.renderCreativeHotbar();
+              this.updateHotbar();
+              return;
+            }
+          }
+          // If hotbar full, replace active slot
+          this.inv.hotbar[this.inv.activeSlot] = { id: item.id, isBlock: item.isBlock, count: item.count };
+          this.sounds.playClick();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+        } else {
+          // Left click: pickup full stack to cursor
+          this.inv.cursorItem = { id: item.id, isBlock: item.isBlock, count: item.count };
+          this.sounds.playClick();
+          this.updateFloatingCursor();
+        }
+      };
+
+      slot.oncontextmenu = (e) => {
+        e.preventDefault();
+        // Right click: pickup single item to cursor
+        this.inv.cursorItem = { id: item.id, isBlock: item.isBlock, count: 1 };
+        this.sounds.playClick();
+        this.updateFloatingCursor();
+      };
+
+      slot.onmouseenter = (e) => {
+        const sub = item.isBlock ? 'Block' : (item.id.replace(/_/g, ' '));
+        this.showTooltip(e.clientX, e.clientY, item.name, sub);
+      };
+      slot.onmousemove = (e) => {
+        this.positionTooltip(e.clientX, e.clientY);
+      };
+      slot.onmouseleave = () => this.hideTooltip();
+
+      this.creativeItemGrid.appendChild(slot);
+    });
+  }
+
+  renderCreativeHotbar() {
+    if (!this.creativeHotbarGrid) return;
+    this.creativeHotbarGrid.innerHTML = '';
+
+    for (let i = 0; i < 9; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'inv-slot' + (i === this.inv.activeSlot ? ' active' : '');
+      const item = this.inv.hotbar[i];
+      this.renderSlotContent(slot, item);
+
+      slot.onclick = (e) => {
+        this.inv.handleSlotClick(this.inv.hotbar, i, e.button === 2, e.shiftKey);
+        this.renderCreativeHotbar();
+        this.updateHotbar();
+      };
+
+      slot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.handleSlotClick(this.inv.hotbar, i, true, e.shiftKey);
+        this.renderCreativeHotbar();
+        this.updateHotbar();
+      };
+
+      if (item) {
+        const meta = this.inv.getItemMeta(item);
+        slot.onmouseenter = (e) => {
+          this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+        };
+        slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+        slot.onmouseleave = () => this.hideTooltip();
+      }
+
+      this.creativeHotbarGrid.appendChild(slot);
+    }
+  }
+
+  showTooltip(x, y, title, subtitle = '') {
+    if (!this.mcTooltip) return;
+    if (this.mcTooltipTitle) this.mcTooltipTitle.textContent = title;
+    if (this.mcTooltipSub) {
+      this.mcTooltipSub.textContent = subtitle;
+      this.mcTooltipSub.style.display = subtitle ? 'block' : 'none';
+    }
+    this.mcTooltip.classList.remove('hidden');
+    this.positionTooltip(x, y);
+  }
+
+  positionTooltip(x, y) {
+    if (!this.mcTooltip) return;
+    const pad = 14;
+    let left = x + pad;
+    let top = y + pad;
+    if (left + 180 > window.innerWidth) left = x - 180 - pad;
+    if (top + 60 > window.innerHeight) top = y - 60 - pad;
+    this.mcTooltip.style.left = `${Math.max(4, left)}px`;
+    this.mcTooltip.style.top = `${Math.max(4, top)}px`;
+  }
+
+  hideTooltip() {
+    if (this.mcTooltip) this.mcTooltip.classList.add('hidden');
+  }
+
 
   openCraftingTable() {
     document.exitPointerLock();
@@ -575,11 +898,19 @@ export class UIManager {
     };
 
     const btnGamemode = document.getElementById('btn-gamemode');
-    btnGamemode.onclick = () => {
-      this.player.gamemode = (this.player.gamemode === 'survival') ? 'creative' : 'survival';
+    if (btnGamemode) {
       btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
-      this.addChatMessage(`Set game mode to ${this.player.gamemode} mode`, 'system');
-    };
+      btnGamemode.onclick = () => {
+        this.player.gamemode = (this.player.gamemode === 'survival') ? 'creative' : 'survival';
+        btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
+        this.addChatMessage(`Set game mode to ${this.player.gamemode} mode`, 'system');
+
+        if (this.player.gamemode === 'creative') {
+          this.closeAllModals();
+          this.openCreativeInventory();
+        }
+      };
+    }
 
     const btnTime = document.getElementById('btn-time');
     btnTime.onclick = () => {
