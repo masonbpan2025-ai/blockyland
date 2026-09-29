@@ -114,6 +114,7 @@ class Game {
 
     // 2. Initialize Player & Controls
     this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds);
+    this.player.game = this;
     this.scene.add(this.player.model);
     this.player.model.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
 

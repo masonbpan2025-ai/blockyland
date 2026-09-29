@@ -152,6 +152,14 @@ test('Punch Attack (Key U): punches forward, deals melee damage and knockback', 
   // Verify cooldown prevents immediate double punch
   const spamPunch = player.triggerPunch();
   assert.equal(spamPunch, false, 'Punch on cooldown should be rejected');
+
+  // Advance time so punch completes and cooldown expires (dt is clamped to 0.1)
+  for (let i = 0; i < 4; i++) {
+    player.update(0.1);
+  }
+  assert.equal(player.isPunching, false, 'isPunching must reset to false after punch animation completes');
+  const secondPunch = player.triggerPunch();
+  assert.equal(secondPunch, true, 'Subsequent punch should trigger after cooldown');
 });
 
 test('Dodge Roll (Key N): bursts forward with invulnerability frames and triggers cooldown', () => {

@@ -106,7 +106,7 @@ export class Player {
       }
 
       // U: Punch Attack
-      if (e.code === 'KeyU' && !e.repeat) {
+      if ((e.code === 'KeyU' || e.key === 'u' || e.key === 'U') && !e.repeat) {
         if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
           this.triggerPunch();
         }
@@ -141,7 +141,11 @@ export class Player {
     if (this.isPunching || this.punchCooldown > 0 || this.isGatheringKi) return false;
     this.isPunching = true;
     this.punchTimer = this.punchDuration;
-    this.punchCooldown = 0.32;
+    this.punchCooldown = 0.28;
+    this.sounds?.playPunch?.();
+    if (this.game?.heldItemRenderer && this.perspective === 0 && !this.isDungeonMode) {
+      this.game.heldItemRenderer.swing();
+    }
     if (this.onPunch) this.onPunch();
     return true;
   }
@@ -203,27 +207,40 @@ export class Player {
     torso.position.y = 0.9;
     group.add(torso);
 
-    // Left Arm
-    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
-    leftArm.position.set(-0.38, 0.9, 0);
+    // Left Arm (Shoulder Pivot Group)
+    const leftArm = new THREE.Group();
+    leftArm.position.set(-0.38, 1.25, 0);
+    const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
+    leftArmMesh.position.set(0, -0.375, 0);
+    leftArm.add(leftArmMesh);
     group.add(leftArm);
 
-    // Right Arm
-    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
-    rightArm.position.set(0.38, 0.9, 0);
+    // Right Arm (Shoulder Pivot Group)
+    const rightArm = new THREE.Group();
+    rightArm.position.set(0.38, 1.25, 0);
+    const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
+    rightArmMesh.position.set(0, -0.375, 0);
+    rightArm.add(rightArmMesh);
     group.add(rightArm);
 
-    // Left Leg
-    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
-    leftLeg.position.set(-0.13, 0.38, 0);
+    // Left Leg (Hip Pivot Group)
+    const leftLeg = new THREE.Group();
+    leftLeg.position.set(-0.13, 0.75, 0);
+    const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
+    leftLegMesh.position.set(0, -0.375, 0);
+    leftLeg.add(leftLegMesh);
     group.add(leftLeg);
 
-    // Right Leg
-    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
-    rightLeg.position.set(0.13, 0.38, 0);
+    // Right Leg (Hip Pivot Group)
+    const rightLeg = new THREE.Group();
+    rightLeg.position.set(0.13, 0.75, 0);
+    const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
+    rightLegMesh.position.set(0, -0.375, 0);
+    rightLeg.add(rightLegMesh);
     group.add(rightLeg);
 
     group.head = head;
+    group.torso = torso;
     group.leftArm = leftArm;
     group.rightArm = rightArm;
     group.leftLeg = leftLeg;
@@ -271,7 +288,12 @@ export class Player {
     // Cooldown countdowns
     if (this.rollCooldown > 0) this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.punchCooldown > 0) this.punchCooldown = Math.max(0, this.punchCooldown - dt);
-    if (this.punchTimer > 0) this.punchTimer = Math.max(0, this.punchTimer - dt);
+    if (this.punchTimer > 0) {
+      this.punchTimer = Math.max(0, this.punchTimer - dt);
+      if (this.punchTimer <= 0) {
+        this.isPunching = false;
+      }
+    }
 
     // If rolling (Dodge Roll), override horizontal movement with roll impulse
     if (this.isRolling) {
@@ -531,16 +553,26 @@ export class Player {
 
         this.model.leftLeg.rotation.x = legSwing;
         this.model.rightLeg.rotation.x = -legSwing;
-        this.model.leftArm.rotation.x = -legSwing;
-        this.model.rightArm.rotation.x = legSwing;
-
         // Punch arm forward thrust animation
         if (this.isPunching && this.punchTimer > 0) {
           const punchProg = Math.sin((1.0 - this.punchTimer / this.punchDuration) * Math.PI);
-          this.model.rightArm.rotation.x = -Math.PI / 2 * punchProg - 0.2;
-          this.model.rightArm.position.z = -0.35 * punchProg;
+          // Torso rotates into punch
+          if (this.model.torso) this.model.torso.rotation.y = -0.4 * punchProg;
+          // Right arm raises horizontally and punches forward from shoulder
+          this.model.rightArm.rotation.x = -Math.PI / 2 - 0.25 * punchProg;
+          this.model.rightArm.rotation.y = -0.25 * punchProg;
+          this.model.rightArm.position.set(0.38, 1.25, -0.6 * punchProg);
+          // Left arm raises into martial arts guard stance
+          this.model.leftArm.rotation.x = -0.8 * punchProg;
+          this.model.leftArm.position.set(-0.38, 1.25, 0.25 * punchProg);
         } else {
-          this.model.rightArm.position.z = 0;
+          if (this.model.torso) this.model.torso.rotation.y = 0;
+          this.model.leftArm.rotation.x = -legSwing;
+          this.model.rightArm.rotation.x = legSwing;
+          this.model.leftArm.rotation.y = 0;
+          this.model.rightArm.rotation.y = 0;
+          this.model.leftArm.position.set(-0.38, 1.25, 0);
+          this.model.rightArm.position.set(0.38, 1.25, 0);
         }
 
         this.model.head.rotation.x = this.isDungeonMode ? 0 : this.pitch;

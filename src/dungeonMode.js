@@ -71,9 +71,25 @@ export class DungeonModeManager {
   executePunch() {
     this.sounds?.playPunch?.();
 
-    // Facing vector of the player
-    const facing = new THREE.Vector3(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw)).normalize();
-    const punchOrigin = this.player.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+    // Facing vector & origin: adapts to 1st Person or Dungeon Mode
+    const facing = new THREE.Vector3();
+    const punchOrigin = new THREE.Vector3();
+
+    if (this.player.isDungeonMode) {
+      facing.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw)).normalize();
+      punchOrigin.copy(this.player.position).add(new THREE.Vector3(0, 1.1, 0));
+    } else {
+      this.game.camera.getWorldDirection(facing);
+      punchOrigin.copy(this.game.camera.position).add(facing.clone().multiplyScalar(0.4));
+    }
+
+    // 1. Spawn vibrant 3D martial arts punch energy shockwave
+    this.spawnPunchWave(punchOrigin, facing);
+
+    // 2. Also trigger 1st person hand swing if in 1st person view
+    if (this.player.perspective === 0 && !this.player.isDungeonMode) {
+      this.game.heldItemRenderer?.swing?.();
+    }
 
     let hitAny = false;
     if (this.game.mobs?.mobs) {
@@ -96,7 +112,11 @@ export class DungeonModeManager {
             mob.velocity.y += 3.5;
 
             // Spawn punch impact particle sparks
-            this.game.dragonballSkills?.spawnEnergySparks?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 10, 0xfacc15);
+            this.game.dragonballSkills?.spawnEnergySparks?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 12, 0xfacc15);
+
+            this.game.ui?.addChatMessage?.(
+              `<span style="color:#facc15;font-weight:bold;">👊 PUNCH HIT!</span> Dealt 14 damage!`
+            );
           }
         }
       }
@@ -104,6 +124,87 @@ export class DungeonModeManager {
 
     if (hitAny) {
       this.sounds?.playHit?.();
+    }
+  }
+
+  // 3D Sonic Punch Shockwave & Burst Particles
+  spawnPunchWave(origin, direction) {
+    if (!this.scene) return;
+    const waveGroup = new THREE.Group();
+
+    // Golden / Cyan Energy Punch Slash Arc
+    const ringGeo = new THREE.TorusGeometry(0.52, 0.08, 8, 20, Math.PI * 0.95);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.z = Math.PI / 2;
+    waveGroup.add(ringMesh);
+
+    // White Core Fist Flash
+    const coreGeo = new THREE.SphereGeometry(0.22, 12, 12);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    waveGroup.add(coreMesh);
+
+    const startPos = origin.clone().add(direction.clone().multiplyScalar(0.7));
+    waveGroup.position.copy(startPos);
+    waveGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction.clone().normalize());
+    this.scene.add(waveGroup);
+
+    // Fast expansion & surge forward
+    let life = 0.22;
+    const updateWave = () => {
+      life -= 0.032;
+      const progress = 1.0 - Math.max(0, life / 0.22);
+      waveGroup.position.addScaledVector(direction, 0.22);
+      const scale = 1.0 + progress * 2.4;
+      waveGroup.scale.set(scale, scale, scale);
+      ringMat.opacity = (1.0 - progress) * 0.95;
+      coreMat.opacity = (1.0 - progress) * 0.95;
+
+      if (life > 0) {
+        if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(updateWave);
+      } else {
+        this.scene.remove(waveGroup);
+        ringGeo.dispose();
+        ringMat.dispose();
+        coreGeo.dispose();
+        coreMat.dispose();
+      }
+    };
+    updateWave();
+
+    // Forward air punch speed streak particles
+    if (this.game.entities?.particles) {
+      for (let i = 0; i < 7; i++) {
+        const pGeo = new THREE.BoxGeometry(0.1, 0.1, 0.2);
+        const pMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.9 });
+        const pMesh = new THREE.Mesh(pGeo, pMat);
+        pMesh.position.copy(startPos).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.4,
+          (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.4
+        ));
+        this.scene.add(pMesh);
+
+        const pVel = direction.clone().multiplyScalar(7.0 + Math.random() * 4.0);
+        pVel.x += (Math.random() - 0.5) * 2.0;
+        pVel.y += (Math.random() - 0.5) * 1.5;
+        pVel.z += (Math.random() - 0.5) * 2.0;
+
+        this.game.entities.particles.push({
+          mesh: pMesh,
+          velocity: pVel,
+          life: 0.18,
+          maxLife: 0.18,
+          spark: false,
+          fade: true
+        });
+      }
     }
   }
 
