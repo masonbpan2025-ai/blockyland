@@ -262,13 +262,34 @@ class Game {
   }
 
   bindEvents() {
-    // Start Overlay Click
+    // Start Overlay Action Buttons
     const startOverlay = document.getElementById('start-overlay');
-    startOverlay.addEventListener('click', () => {
-      startOverlay.style.display = 'none';
-      this.sounds.init();
-      this.renderer.domElement.requestPointerLock();
-    });
+    const btnNewWorld = document.getElementById('btn-start-new-world');
+    const btnLoadWorld = document.getElementById('btn-start-load-world');
+
+    if (btnNewWorld) {
+      btnNewWorld.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (startOverlay) startOverlay.style.display = 'none';
+        this.sounds.init();
+        this.renderer.domElement.requestPointerLock();
+      });
+    }
+
+    if (btnLoadWorld) {
+      btnLoadWorld.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (startOverlay) startOverlay.style.display = 'none';
+        this.sounds.init();
+        if (this.ui) {
+          this.ui.closeAllModals();
+          if (this.ui.mapModal) {
+            this.ui.mapModal.classList.remove('hidden');
+            this.ui.switchMapTab('load');
+          }
+        }
+      });
+    }
 
     this.renderer.domElement.addEventListener('click', () => {
       if (!this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
