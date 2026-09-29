@@ -68,6 +68,14 @@ export class TextureManager {
     this.lightMaterial = this.opaqueMaterial.clone();
     this.lightMaterial.alphaTest = 0.2;
     enableBlockEmission(this.lightMaterial);
+    // Luminous blocks cast sunlight and other lamps' shadows, but not their own.
+    this.lightDistanceMaterial = new THREE.MeshDistanceMaterial({ map: this.atlasTexture, alphaTest: 0.2 });
+    this.lightDistanceMaterial.onBeforeCompile = shader => {
+      shader.vertexShader = 'attribute vec3 lightOrigin; varying vec3 vLightOrigin;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('void main() {', 'void main() {\nvLightOrigin = lightOrigin;');
+      shader.fragmentShader = 'varying vec3 vLightOrigin;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {\nif (distance(vLightOrigin, referencePosition) < 0.01) discard;');
+    };
 
     this.waterMaterial = createWaterMaterial();
     this.waterUniforms = this.waterMaterial.uniforms;
@@ -112,13 +120,6 @@ export class TextureManager {
 
     this.tileCoords[fileName] = { col, row, u0, v0, u1, v1 };
 
-    if (fileName === 'soul_torch.png') {
-      // Small pixel-art variant, generated in the atlas so no missing asset is requested.
-      this.ctx.fillStyle = '#68513a'; this.ctx.fillRect(x + 7, y + 8, 2, 8);
-      this.ctx.fillStyle = '#16b8db'; this.ctx.fillRect(x + 7, y + 6, 2, 3);
-      this.ctx.fillStyle = '#c1ffff'; this.ctx.fillRect(x + 7, y + 7, 1, 2);
-      return;
-    }
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 export class Player {
@@ -311,7 +312,7 @@ export class Player {
 
     // Check if player is standing in water
     const blockAtFeet = this.world.getVoxel(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
-    this.inWater = (blockAtFeet === BLOCKS.WATER);
+    this.inWater = blockAtFeet === BLOCKS.WATER && this.position.y % 1 < waterHeight(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
 
     // Determine current speed mode
     this.isSneaking = !!this.keys['ShiftLeft'];
@@ -369,8 +370,9 @@ export class Player {
 
     // Horizontal acceleration
     const accel = this.onGround ? 12.0 : 4.0;
-    const targetVx = moveDir.x * targetSpeed;
-    const targetVz = moveDir.z * targetSpeed;
+    const current = this.inWater && !this.isFlying ? waterCurrent(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z)) : {x:0,y:0,z:0};
+    const targetVx = moveDir.x * targetSpeed + current.x * 0.65;
+    const targetVz = moveDir.z * targetSpeed + current.z * 0.65;
 
     this.velocity.x += (targetVx - this.velocity.x) * Math.min(1.0, accel * dt);
     this.velocity.z += (targetVz - this.velocity.z) * Math.min(1.0, accel * dt);

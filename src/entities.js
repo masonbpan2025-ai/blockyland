@@ -1,11 +1,19 @@
 import * as THREE from 'three';
+import { waterHeight, waterCurrent } from './waterGeometry.js';
+import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
+import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
 export class EntityManager {
-  constructor(scene, world, sounds) {
+  constructor(scene, world, sounds, textures = null) {
     this.scene = scene;
     this.world = world;
     this.sounds = sounds;
+    this.textures = textures;
+    this.itemVisuals = new ItemVisuals(textures);
+    this.blastLight = new THREE.PointLight(0xffb351, 0, 16, 1);
+    this.scene.add(this.blastLight);
+    this.blastLife = 0;
     this.droppedItems = [];
     this.tntEntities = [];
     this.particles = [];
@@ -94,21 +102,7 @@ export class EntityManager {
   // Spawn spinning dropped item in 3D world
   spawnDroppedItem(pos, itemType, isBlock = true, count = 1, options = {}) {
     const group = new THREE.Group();
-    let mesh;
-
-    if (isBlock) {
-      const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-      const mat = new THREE.MeshLambertMaterial({ color: itemType === BLOCKS.WHITE_WOOL ? 0xf1eee4 : 0x88aa55 });
-      mesh = new THREE.Mesh(geo, mat);
-    } else {
-      const geo = new THREE.PlaneGeometry(0.35, 0.35);
-      const tex = new THREE.TextureLoader().load(ITEMS[itemType] ? ITEMS[itemType].icon : '/assets/items/stick.png');
-      tex.magFilter = THREE.NearestFilter;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide });
-      mesh = new THREE.Mesh(geo, mat);
-    }
-
+    const mesh = this.itemVisuals.create(itemType, isBlock);
     group.add(mesh);
     group.position.copy(pos);
     this.scene.add(group);
@@ -124,7 +118,7 @@ export class EntityManager {
         (Math.random() - 0.5) * 2
       ),
       age: 0,
-      pickupDelay: options.pickupDelay ?? 0.4
+      pickupDelay: options.pickupDelay ?? 1.0
     });
   }
 
@@ -140,18 +134,21 @@ export class EntityManager {
 
   // Spawn Primed TNT
   spawnPrimedTNT(pos, onExplodeCallback) {
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
+    const geo = this.textures ? createBlockGeometry(BLOCKS.TNT, this.textures) : new THREE.BoxGeometry(1, 1, 1);
+    if (this.textures) geo.translate(-0.5, -0.5, -0.5);
+    const mat = this.textures ? this.textures.opaqueMaterial.clone() : new THREE.MeshLambertMaterial({ color: 0xff3333 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.copy(pos).add(new THREE.Vector3(0.5, 0.5, 0.5));
     this.scene.add(mesh);
 
+    mesh.castShadow = mesh.receiveShadow = true;
     this.sounds.playBowShoot(); // fuse hiss/ignite
 
     this.tntEntities.push({
       mesh: mesh,
       velocity: new THREE.Vector3((Math.random() - 0.5) * 1.5, 4.0, (Math.random() - 0.5) * 1.5),
       timer: 3.2,
+      smokeTimer: 0,
       onExplode: onExplodeCallback
     });
   }
@@ -192,36 +189,102 @@ export class EntityManager {
     }
   }
 
+  spawnSmoke(pos, size = 0.5, life = 1.8) {
+    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1),
+      new THREE.MeshLambertMaterial({ color: 0x77716b, transparent: true, opacity: 0.6, depthWrite: false }));
+    mesh.position.copy(pos);
+    this.scene.add(mesh);
+    this.particles.push({ mesh, velocity: new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.5, (Math.random() - 0.5) * 1.5), life, maxLife: life, smoke: true, growth: 1.4 });
+  }
+
+  spawnBlastDebris(pos, blockId, center) {
+    if (!this.textures) return;
+    const mesh = this.itemVisuals.create(blockId, true, 0.10 + Math.random() * 0.13);
+    mesh.position.copy(pos);
+    mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    this.scene.add(mesh);
+    const velocity = pos.clone().sub(center).normalize().multiplyScalar(4 + Math.random() * 4);
+    velocity.y += 3;
+    this.particles.push({ mesh, velocity, life: 0.7 + Math.random() * 0.4, sharedMaterial: true });
+  }
+
+  spawnExplosion(center) {
+    this.blastLight.position.copy(center);
+    this.blastLife = 0.3;
+    this.blastLight.intensity = 12;
+    // A brief hot core, expanding pressure ring, then rising billows and sparks.
+    for (const ring of [false, true]) {
+      const mesh = new THREE.Mesh(ring ? new THREE.RingGeometry(0.85, 1, 48) : new THREE.IcosahedronGeometry(0.7, 2),
+        new THREE.MeshBasicMaterial({ color: ring ? 0xffd59a : 0xffedbd, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      mesh.position.copy(center);
+      if (ring) mesh.rotation.x = -Math.PI / 2;
+      this.scene.add(mesh);
+      const life = ring ? 0.45 : 0.22;
+      this.particles.push({ mesh, velocity: new THREE.Vector3(), life, maxLife: life, blast: true, growth: ring ? 14 : 9 });
+    }
+    for (let i = 0; i < 18; i++) {
+      const offset = new THREE.Vector3().randomDirection().multiplyScalar(Math.random() * 2);
+      this.spawnSmoke(center.clone().add(offset), 0.35 + Math.random() * 0.4, 1.3 + Math.random() * 1.2);
+      this.particles.at(-1).velocity.addScaledVector(offset, 2);
+    }
+    for (let i = 0; i < 28; i++) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.18),
+        new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffc14d : 0xff672d, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      mesh.position.copy(center);
+      this.scene.add(mesh);
+      const velocity = new THREE.Vector3().randomDirection().multiplyScalar(5 + Math.random() * 8);
+      velocity.y += 2;
+      this.particles.push({ mesh, velocity, life: 0.6 + Math.random() * 0.5, maxLife: 1.1, spark: true });
+    }
+  }
+
   update(dt, player, inventory) {
+    dt = Math.min(dt, 0.1);
+    this.blastLife = Math.max(0, this.blastLife - dt);
+    this.blastLight.intensity = 12 * (this.blastLife / 0.3) ** 2;
     // 1. Update Dropped Items
     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
       const item = this.droppedItems[i];
       item.age += dt;
 
-      // Rest on the contact plane without repeatedly falling and snapping upward.
-      const below = this.world.getVoxel(Math.floor(item.group.position.x), Math.floor(item.group.position.y - 0.15), Math.floor(item.group.position.z));
-      if (item.grounded && (below === BLOCKS.AIR || below === BLOCKS.WATER)) item.grounded = false;
-      if (!item.grounded) item.velocity.y -= 18 * dt;
-
-      item.group.position.x += item.velocity.x * dt;
-      item.group.position.z += item.velocity.z * dt;
-      item.group.position.y += item.velocity.y * dt;
-
-      // Floor collision
-      const bX = Math.floor(item.group.position.x);
-      const bY = Math.floor(item.group.position.y);
-      const bZ = Math.floor(item.group.position.z);
-      const block = this.world.getVoxel(bX, bY, bZ);
-
-      if (block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
-        item.group.position.y = bY + 1.1;
-        item.velocity.set(0, 0, 0);
-        item.grounded = true;
+      // Small steps keep loot from tunneling through the ground or a wall.
+      const steps = Math.max(1, Math.ceil(dt / 0.016));
+      const step = dt / steps, radius = 0.18;
+      const solid = (x, y, z) => {
+        const def = BLOCK_DEFS[this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z))];
+        return def && def.solid !== false && !def.plant;
+      };
+      for (let j = 0; j < steps; j++) {
+        const pos = item.group.position;
+        if (item.grounded && !solid(pos.x, pos.y - radius - 0.03, pos.z)) item.grounded = false;
+        const wx=Math.floor(pos.x), wy=Math.floor(pos.y), wz=Math.floor(pos.z);
+        const waterY=this.world.getVoxel(wx,wy,wz)===BLOCKS.WATER?wy:wy-1;
+        const surface=waterY+waterHeight(this.world,wx,waterY,wz);
+        if(this.world.getVoxel(wx,waterY,wz)===BLOCKS.WATER && pos.y-radius<surface) {
+          item.grounded=false;
+          const flow=waterCurrent(this.world,wx,waterY,wz);
+          item.velocity.x+=(flow.x*1.2-item.velocity.x)*Math.min(1,step*4);
+          item.velocity.z+=(flow.z*1.2-item.velocity.z)*Math.min(1,step*4);
+          item.velocity.y+=(Math.min(2,(surface+.08-pos.y)*7)-item.velocity.y)*Math.min(1,step*7);
+        } else if (!item.grounded) item.velocity.y -= 18 * step;
+        for (const axis of ['x', 'z']) {
+          const next = pos.clone(); next[axis] += item.velocity[axis] * step;
+          const edge = next.clone(); edge[axis] += Math.sign(item.velocity[axis]) * radius;
+          if (solid(edge.x, edge.y, edge.z)) item.velocity[axis] *= -0.25;
+          else pos[axis] = next[axis];
+        }
+        const nextY = pos.y + item.velocity.y * step;
+        if (item.velocity.y <= 0 && solid(pos.x, nextY - radius, pos.z)) {
+          pos.y = Math.floor(nextY - radius) + 1 + radius;
+          item.velocity.set(0, 0, 0); item.grounded = true;
+        } else if (item.velocity.y > 0 && solid(pos.x, nextY + radius, pos.z)) {
+          item.velocity.y = 0;
+        } else pos.y = nextY;
       }
 
       // Spin & Bob
       item.group.rotation.y += 2.5 * dt;
-      item.group.children[0].position.y = Math.sin(item.age * 3) * 0.08;
+      item.group.children[0].position.y = 0.06 + Math.sin(item.age * 3) * 0.045;
 
       // Pickup detection
       const playerPos = player.position.clone().add(new THREE.Vector3(0, 0.8, 0));
@@ -237,8 +300,7 @@ export class EntityManager {
           this.onItemPickup?.(item.itemType, added);
         }
         if (item.count === 0) {
-          this.scene.remove(item.group);
-          item.group.traverse(child => { child.geometry?.dispose(); child.material?.map?.dispose(); child.material?.dispose(); });
+          this.itemVisuals.release(item.group);
           this.droppedItems.splice(i, 1);
         }
       }
@@ -254,16 +316,22 @@ export class EntityManager {
       tnt.mesh.position.addScaledVector(tnt.velocity, dt);
 
       // Floor check
-      const bY = Math.floor(tnt.mesh.position.y);
+      const bY = Math.floor(tnt.mesh.position.y - 0.5);
       const b = this.world.getVoxel(Math.floor(tnt.mesh.position.x), bY, Math.floor(tnt.mesh.position.z));
       if (b !== BLOCKS.AIR && b !== BLOCKS.WATER) {
-        tnt.mesh.position.y = bY + 1;
+        tnt.mesh.position.y = bY + 1.5;
         tnt.velocity.set(0, 0, 0);
       }
 
       // Flash & swell animation
       const flash = Math.sin(tnt.timer * 16) > 0;
-      tnt.mesh.material.color.setHex(flash ? 0xffffff : 0xff2222);
+      tnt.mesh.material.emissive.setHex(flash ? 0xffffff : 0x000000);
+      tnt.mesh.material.emissiveIntensity = flash ? 0.9 : 0;
+      tnt.smokeTimer -= dt;
+      if (tnt.smokeTimer <= 0) {
+        tnt.smokeTimer = 0.1;
+        this.spawnSmoke(tnt.mesh.position.clone().add(new THREE.Vector3(0, 0.6, 0)), 0.10, 0.65);
+      }
       const scale = 1.0 + (3.2 - tnt.timer) * 0.08;
       tnt.mesh.scale.set(scale, scale, scale);
 
@@ -272,6 +340,8 @@ export class EntityManager {
         this.sounds.playExplosion();
         const center = tnt.mesh.position.clone();
         this.scene.remove(tnt.mesh);
+        tnt.mesh.geometry.dispose(); tnt.mesh.material.dispose();
+        this.spawnExplosion(center);
         this.tntEntities.splice(i, 1);
 
         // Explode blocks in 3.5 radius
@@ -280,6 +350,7 @@ export class EntityManager {
         const cy = Math.floor(center.y);
         const cz = Math.floor(center.z);
 
+        let debris = 0;
         for (let x = cx - 4; x <= cx + 4; x++) {
           for (let y = cy - 4; y <= cy + 4; y++) {
             for (let z = cz - 4; z <= cz + 4; z++) {
@@ -288,9 +359,10 @@ export class EntityManager {
                 const voxel = this.world.getVoxel(x, y, z);
                 if (voxel !== BLOCKS.AIR && voxel !== BLOCKS.BEDROCK) {
                   this.world.setVoxel(x, y, z, BLOCKS.AIR);
-                  if (Math.random() < 0.25) {
-                    this.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), voxel, true, 1);
-                  }
+                  const pos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+                  if (debris++ < 24) this.spawnBlastDebris(pos, voxel, center);
+                  const drop = getBlockDrop(voxel);
+                  if (drop && Math.random() < 0.25) this.spawnDroppedItem(pos, drop.id, drop.isBlock, 1);
                 }
               }
             }
@@ -382,7 +454,14 @@ export class EntityManager {
       const p = this.particles[i];
       p.life -= dt;
 
-      if (p.spark) {
+      if (p.smoke) {
+        p.velocity.multiplyScalar(Math.exp(-1.4 * dt)); p.velocity.y += dt * 0.8;
+        p.mesh.scale.addScalar(dt * p.growth);
+        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife) * 0.6;
+      } else if (p.blast) {
+        p.mesh.scale.addScalar(dt * p.growth);
+        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);
+      } else if (p.spark) {
         p.velocity.x *= Math.exp(-2.2 * dt);
         p.velocity.z *= Math.exp(-2.2 * dt);
         p.velocity.y -= 4.5 * dt; // gentle gravity for sparks
@@ -406,8 +485,9 @@ export class EntityManager {
 
       if (p.life <= 0) {
         this.scene.remove(p.mesh);
-        p.mesh.geometry?.dispose();
-        p.mesh.material?.dispose();
+        if (p.sharedMaterial) p.mesh.traverse(child => child.geometry?.dispose());
+        else p.mesh.geometry?.dispose();
+        if (!p.sharedMaterial) p.mesh.material?.dispose();
         this.particles.splice(i, 1);
       }
     }

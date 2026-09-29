@@ -210,3 +210,53 @@ test('Dungeon Mode exits automatically when all enemies in the zone are defeated
   assert.equal(player.isDungeonMode, false, 'Camera should return to standard view');
   assert.ok(dungeon.clearedZones.has('kamehameha'), 'Zone should be marked as cleared');
 });
+
+test('Punch Attack damages hostile mobs at point-blank range even when opponent is very close', () => {
+  const { game, player, mobs } = createMockGame();
+  const dungeon = new DungeonModeManager(game);
+  dungeon.isActive = true;
+  player.isDungeonMode = true;
+
+  player.position.set(45, 21, 0);
+  player.yaw = 0; // facing North (-Z)
+
+  // Place enemy very close (distXZ = 0.5) slightly offset to the side/rear (X: 45.4, Z: 0.3)
+  const closeTargetMesh = new THREE.Mesh();
+  closeTargetMesh.position.set(45.4, 21.0, 0.3);
+  const closeTargetMob = {
+    type: 'zombie',
+    health: 35,
+    maxHealth: 35,
+    mesh: closeTargetMesh,
+    velocity: new THREE.Vector3()
+  };
+  mobs.mobs.push(closeTargetMob);
+
+  // Execute punch
+  dungeon.executePunch();
+  assert.equal(closeTargetMob.health, 21, 'Point-blank enemy within 1.8 blocks must take punch damage (35 - 14 = 21)');
+});
+
+test('Hostile mobs in training sites are identified for overhead health display', () => {
+  const { game } = createMockGame();
+  const mobsManager = game.mobs;
+
+  const zombieInPunchingYard = {
+    type: 'zombie',
+    mesh: { position: new THREE.Vector3(45, 21, 0) }
+  };
+  assert.equal(mobsManager.isTrainingSiteMob(zombieInPunchingYard), true, 'Zombie in punching yard is a training site mob');
+
+  const skeletonInKamehameha = {
+    type: 'skeleton',
+    mesh: { position: new THREE.Vector3(-50, 22, 0) }
+  };
+  assert.equal(mobsManager.isTrainingSiteMob(skeletonInKamehameha), true, 'Skeleton in kamehameha range is a training site mob');
+
+  const villagerInPunchingYard = {
+    type: 'villager',
+    mesh: { position: new THREE.Vector3(45, 21, 0) }
+  };
+  assert.equal(mobsManager.isTrainingSiteMob(villagerInPunchingYard), false, 'Friendly villager is not a hostile training mob');
+});
+

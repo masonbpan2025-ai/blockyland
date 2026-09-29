@@ -6,7 +6,7 @@ export const WATER_COLORS = Object.fromEntries(Object.entries({
 }).map(([biome, color]) => [biome, new THREE.Color(color)]));
 
 export function createWaterMaterial() {
-  const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+  const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, THREE.UniformsLib.lights, {
     uTime: { value: 0 },
     uSunDirection: { value: new THREE.Vector3(0, 1, 0) },
     uSunColor: { value: new THREE.Color('#fff5db') },
@@ -16,16 +16,20 @@ export function createWaterMaterial() {
     uIsUnderwater: { value: 0 },
   }]);
   return new THREE.ShaderMaterial({
-    uniforms, vertexColors: true, transparent: true, depthWrite: false,
+    uniforms, lights: true, vertexColors: true, transparent: true, depthWrite: false,
     side: THREE.DoubleSide, forceSinglePass: true, fog: true,
     vertexShader: `
       attribute float waterDepth;
+      attribute vec2 waterFlow;
+      varying vec2 vFlow;
       varying vec3 vWorldPos, vWorldNormal, vTint;
       varying float vDepth;
       #include <common>
       #include <fog_pars_vertex>
+      #include <shadowmap_pars_vertex>
       void main() {
         vTint = color;
+        vFlow = waterFlow;
         vDepth = waterDepth;
         vWorldNormal = normalize(mat3(modelMatrix) * normal);
         // Keep boundary vertices fixed: moving only top faces leaves cracks at banks and glass.
@@ -34,15 +38,21 @@ export function createWaterMaterial() {
         vec4 mvPosition = viewMatrix * worldPosition;
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
+        vec3 transformedNormal = normalMatrix * normal;
+        #include <shadowmap_vertex>
       }
     `,
     fragmentShader: `
+      varying vec2 vFlow;
       uniform float uTime, uSunIntensity, uIsUnderwater;
       uniform vec3 uSunDirection, uSunColor, uSkyColor, uHorizonColor;
       varying vec3 vWorldPos, vWorldNormal, vTint;
       varying float vDepth;
       #include <common>
       #include <fog_pars_fragment>
+      #include <packing>
+      #include <lights_pars_begin>
+      #include <shadowmap_pars_fragment>
 
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -61,6 +71,7 @@ export function createWaterMaterial() {
         vec3 normal = normalize(vWorldNormal);
         bool surface = abs(normal.y) > 0.5;
         vec2 p = surface ? vWorldPos.xz : vec2(vWorldPos.x + vWorldPos.z, vWorldPos.y - uTime * 0.16);
+        if (surface) p -= vFlow * uTime * 0.65;
         float h = ripple(p);
         vec2 slope = vec2(ripple(p + vec2(0.08,0)) - h, ripple(p + vec2(0,0.08)) - h) / 0.08;
         // Reduce distant detail before it aliases into shimmering stripes.
@@ -74,7 +85,12 @@ export function createWaterMaterial() {
         float depth = max(vDepth, 0.15);
         float absorption = 1.0 - exp(-depth * 0.22);
         float daylight = clamp(dot(uSkyColor, vec3(0.2126,0.7152,0.0722)) * 1.8, 0.0, 1.0);
-        float lighting = 0.12 + daylight * 0.6 + min(uSunIntensity, 1.0) * 0.28;
+        float sunShadow = 1.0;
+        #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+          DirectionalLightShadow ds = directionalLightShadows[0];
+          sunShadow = getShadow(directionalShadowMap[0], ds.shadowMapSize, ds.shadowIntensity, ds.shadowBias, ds.shadowRadius, vDirectionalShadowCoord[0]);
+        #endif
+        float lighting = 0.12 + daylight * 0.6 + min(uSunIntensity, 1.0) * 0.28 * sunShadow;
         vec3 shallow = vTint * vec3(0.85, 1.12, 1.03);
         vec3 deep = vTint * vec3(0.28, 0.46, 0.65);
         vec3 water = mix(shallow, deep, absorption) * lighting;
@@ -85,7 +101,29 @@ export function createWaterMaterial() {
         vec3 result = mix(water, reflection, fresnel * 0.68);
         vec3 halfDirection = normalize(normalize(uSunDirection) + viewDir);
         float specular = pow(max(dot(normal, halfDirection),0.0), 180.0);
-        result += uSunColor * specular * uSunIntensity * 0.5 * detail;
+        result += uSunColor * specular * uSunIntensity * 0.5 * detail * sunShadow;
+        // Colored lamps and their occlusion also affect the water surface.
+        vec3 viewPosition = (viewMatrix * vec4(vWorldPos, 1.0)).xyz;
+        vec3 viewNormal = normalize(mat3(viewMatrix) * normal);
+        IncidentLight incident;
+        float visibility, diffuse, glint;
+        #if defined(USE_SHADOWMAP) && NUM_POINT_LIGHT_SHADOWS > 0
+          PointLightShadow ps;
+        #endif
+        #pragma unroll_loop_start
+        for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+
+          getPointLightInfo(pointLights[i], viewPosition, incident);
+          visibility = 1.0;
+          #if defined(USE_SHADOWMAP) && UNROLLED_LOOP_INDEX < NUM_POINT_LIGHT_SHADOWS
+            ps = pointLightShadows[i];
+            visibility = getPointShadow(pointShadowMap[i], ps.shadowMapSize, ps.shadowIntensity, ps.shadowBias, ps.shadowRadius, vPointShadowCoord[i], ps.shadowCameraNear, ps.shadowCameraFar);
+          #endif
+          diffuse = max(dot(viewNormal, incident.direction), 0.0);
+          glint = pow(max(dot(viewNormal, normalize(incident.direction + normalize(-viewPosition))), 0.0), 90.0);
+          result += incident.color * visibility * (vTint * diffuse * 0.3 + glint * 0.2);
+        }
+        #pragma unroll_loop_end
 
         // Transparent shallows reveal the actual sand/stone below; deep water absorbs more light.
         float alpha = mix(0.27, 0.82, absorption);

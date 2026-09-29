@@ -101,23 +101,37 @@ export class DungeonModeManager {
         const distXZ = Math.hypot(toMob.x, toMob.z);
         const distY = Math.abs(toMob.y);
 
-        if (distXZ <= 2.8 && distY <= 2.2) {
-          toMob.y = 0;
-          toMob.normalize();
-          // Angle check: within ~75 degree cone in front of player
-          if (toMob.dot(facing) >= 0.28) {
-            hitAny = true;
-            this.game.mobs.damageMob(mob, 14, this.player.position);
-            mob.velocity.add(facing.clone().multiplyScalar(7.0));
-            mob.velocity.y += 3.5;
-
-            // Spawn punch impact particle sparks
-            this.game.dragonballSkills?.spawnEnergySparks?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 12, 0xfacc15);
-
-            this.game.ui?.addChatMessage?.(
-              `<span style="color:#facc15;font-weight:bold;">👊 PUNCH HIT!</span> Dealt 14 damage!`
-            );
+        // Close quarters / Point-blank melee range: distXZ <= 1.8 and distY <= 2.8
+        // Hits opponent regardless of angle when in close contact!
+        // Extended frontal range: 1.8 < distXZ <= 3.2 and in front hemisphere
+        let canHit = false;
+        if (distY <= 2.8) {
+          if (distXZ <= 1.8) {
+            canHit = true;
+          } else if (distXZ <= 3.2) {
+            toMob.y = 0;
+            if (toMob.lengthSq() > 0.001) toMob.normalize();
+            // Generous >180 degree frontal arc
+            if (toMob.dot(facing) >= -0.15) {
+              canHit = true;
+            }
           }
+        }
+
+        if (canHit) {
+          hitAny = true;
+          this.game.mobs.damageMob(mob, 14, this.player.position, true);
+          mob.velocity.add(facing.clone().multiplyScalar(4.0));
+          mob.velocity.y += 1.8;
+
+          // Spawn punch impact particle sparks
+          this.game.dragonballSkills?.spawnEnergySparks?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 12, 0xfacc15);
+
+          const hpLeft = Math.max(0, Math.ceil(mob.health));
+          const mobName = mob.name || (mob.type.charAt(0).toUpperCase() + mob.type.slice(1));
+          this.game.ui?.addChatMessage?.(
+            `<span style="color:#facc15;font-weight:bold;">👊 PUNCH HIT!</span> Dealt 14 damage to ${mobName}! (HP: ${hpLeft})`
+          );
         }
       }
     }

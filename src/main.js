@@ -12,6 +12,9 @@ import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { GeminiAgent } from './geminiAgent.js';
+import { waterHeight } from './waterGeometry.js';
+import { isBucket, traceBucket, useBucket } from './buckets.js';
+import { getBlockDrop } from './itemVisuals.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
 import {
@@ -53,7 +56,7 @@ class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     // Lighting & Celestial
@@ -119,7 +122,7 @@ class Game {
     this.player.model.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
 
     // 3. Initialize Mobs & Entities
-    this.entities = new EntityManager(this.scene, this.world, this.sounds);
+    this.entities = new EntityManager(this.scene, this.world, this.sounds, this.textures);
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
 
     // 4. Initialize Inventory & UI
@@ -129,6 +132,10 @@ class Game {
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
     this.entities.onItemPickup = () => this.ui.updateHotbar();
+    this.world.water.onDisplace = (x,y,z,id) => {
+      const drop=getBlockDrop(id);
+      if(drop) this.entities.spawnDroppedItem(new THREE.Vector3(x+.5,y+.5,z+.5),drop.id,drop.isBlock);
+    };
 
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
@@ -161,7 +168,8 @@ class Game {
     // 1.002x wireframe box around targeted block
     const wireGeo = new THREE.BoxGeometry(1.002, 1.002, 1.002);
     const wireMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
-    this.targetBoxMesh = new THREE.Mesh(wireGeo, wireMat);
+    this.targetBoxMesh = new THREE.LineSegments(new THREE.EdgesGeometry(wireGeo), new THREE.LineBasicMaterial({ color: 0x202020 }));
+    wireGeo.dispose();
     this.targetBoxMesh.visible = false;
     this.scene.add(this.targetBoxMesh);
 
@@ -199,6 +207,13 @@ class Game {
     }
   }
 
+  refreshDirtyChunks(budget = 4) {
+    const px=this.player.position.x, pz=this.player.position.z;
+    const dirty=[...this.world.chunks.values()].filter(chunk=>chunk.dirty);
+    dirty.sort((a,b)=>(a.cx*16-px)**2+(a.cz*16-pz)**2-((b.cx*16-px)**2+(b.cz*16-pz)**2));
+    for(const chunk of dirty.slice(0,budget)) this.rebuildChunkMesh(chunk);
+  }
+
   rebuildChunkMesh(chunk) {
     for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
       if (chunk[key]) { this.scene.remove(chunk[key]); chunk[key].geometry.dispose(); chunk[key] = null; }
@@ -209,6 +224,8 @@ class Game {
     this.blockLighting.setChunk(chunk.cx, chunk.cz, lightGeo?.userData.sources || []);
     if (lightGeo) {
       chunk.lightMesh = new THREE.Mesh(lightGeo, this.textures.lightMaterial);
+      chunk.lightMesh.castShadow = chunk.lightMesh.receiveShadow = true;
+      chunk.lightMesh.customDistanceMaterial = this.textures.lightDistanceMaterial;
       this.scene.add(chunk.lightMesh);
     }
     if (opaqueGeo) {
@@ -219,6 +236,7 @@ class Game {
     if (waterGeo) {
       chunk.waterMesh = new THREE.Mesh(waterGeo, this.textures.waterMaterial);
       chunk.waterMesh.renderOrder = 1;
+      chunk.waterMesh.receiveShadow = true;
       this.scene.add(chunk.waterMesh);
     }
     if (transparentGeo) {
@@ -299,6 +317,13 @@ class Game {
 
     // Mouse Down (Left click mine/attack, Right click place/interact)
     window.addEventListener('mousedown', (e) => {
+      if (this.dungeonMode?.isActive) {
+        if (e.button === 0 && !this.ui.isModalOpen() && !this.ui.isChatOpen) {
+          this.player.triggerPunch();
+        }
+        return;
+      }
+
       if (document.pointerLockElement !== this.renderer.domElement) return;
 
       if (e.button === 0) {
@@ -380,6 +405,18 @@ class Game {
       return;
     }
 
+    const bucketItem = this.inventory.getActiveItem();
+    if (isBucket(bucketItem)) {
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      const hit = traceBucket(this.world, this.camera.position, direction, bucketItem.id === 'bucket');
+      const result = useBucket(this.world, this.inventory, this.player.gamemode, hit,
+        id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false));
+      if (result) {
+        this.sounds.playWater(); this.ui.updateHotbar();
+        this.refreshDirtyChunks();
+      }
+      return;
+    }
     // Interacting with Villager
     if (this.targetMob && this.targetMob.type === 'villager') {
       this.sounds.playVillager();
@@ -427,24 +464,6 @@ class Game {
           }
           return;
         }
-      }
-
-      // Water / Lava Buckets
-      if (it && (activeItem.id === 'water_bucket' || activeItem.id === 'lava_bucket')) {
-        const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
-        const px = bX + norm.x;
-        const py = bY + norm.y;
-        const pz = bZ + norm.z;
-        const isWater = (activeItem.id === 'water_bucket');
-        this.world.setVoxel(px, py, pz, isWater ? BLOCKS.WATER : BLOCKS.LAVA);
-        if (isWater) this.sounds.playWater(); else this.sounds.playStone();
-        const chunk = this.world.getChunk(Math.floor(px / 16), Math.floor(pz / 16));
-        if (chunk) this.rebuildChunkMesh(chunk);
-        if (this.player.gamemode !== 'creative') {
-          this.inventory.hotbar[this.inventory.activeSlot] = { id: 'bucket', isBlock: false, count: 1 };
-          this.ui.updateHotbar();
-        }
-        return;
       }
 
       // Spawn Eggs
@@ -561,11 +580,8 @@ class Game {
 
     // In survival, drop item
     if (this.player.gamemode === 'survival') {
-      if (def && def.drop !== null) {
-        const dropId = def.dropItem || def.drop;
-        const isBlock = !def.dropItem;
-        this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), dropId, isBlock, 1);
-      }
+      const drop = getBlockDrop(blockId);
+      if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.isBlock, 1);
     }
 
     // Set air in world
@@ -669,7 +685,9 @@ class Game {
     if (hit && !this.targetMob) {
       const bId = this.world.getVoxel(x, y, z);
       this.targetBlock = { x, y, z, normal, blockId: bId };
-      this.targetBoxMesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+      const torchTarget = BLOCK_DEFS[this.world.getVoxel(x, y, z)]?.shape === 'torch';
+      this.targetBoxMesh.scale.set(torchTarget ? 0.125 : 1, torchTarget ? 0.625 : 1, torchTarget ? 0.125 : 1);
+      this.targetBoxMesh.position.set(x + 0.5, y + (torchTarget ? 0.3125 : 0.5), z + 0.5);
       this.targetBoxMesh.visible = true;
     } else {
       this.targetBlock = null;
@@ -713,7 +731,8 @@ class Game {
 
     if (this.textures.destroyMaterials[stage]) {
       this.breakOverlayMesh.material = this.textures.destroyMaterials[stage];
-      this.breakOverlayMesh.position.set(this.targetBlock.x + 0.5, this.targetBlock.y + 0.5, this.targetBlock.z + 0.5);
+      this.breakOverlayMesh.position.copy(this.targetBoxMesh.position);
+      this.breakOverlayMesh.scale.copy(this.targetBoxMesh.scale);
       this.breakOverlayMesh.visible = true;
     }
 
@@ -754,7 +773,7 @@ class Game {
       Math.floor(camPos.z)
     );
     const wasUnderwater = this.isUnderwater;
-    this.isUnderwater = (blockAtCamera === BLOCKS.WATER);
+    this.isUnderwater = blockAtCamera === BLOCKS.WATER && camPos.y % 1 < waterHeight(this.world, Math.floor(camPos.x), Math.floor(camPos.y), Math.floor(camPos.z));
 
     if (this.isUnderwater) {
       // Switch to Minecraft underwater fog: dense blue fog with short range
@@ -971,6 +990,9 @@ class Game {
     if (this.dungeonMode) {
       this.dungeonMode.update(dt);
     }
+
+    this.world.water.update(dt);
+    this.refreshDirtyChunks();
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader
     this.updateDayNightCycle(dt);

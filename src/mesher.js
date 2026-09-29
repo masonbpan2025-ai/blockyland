@@ -3,6 +3,7 @@ import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from './world.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createBlockGeometry } from './blockGeometry.js';
+import { waterCornerHeight, waterCurrent } from './waterGeometry.js';
 import { WATER_COLORS } from './water.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
@@ -55,6 +56,7 @@ export class ChunkMesher {
     const wtCol = [];
     const wtIdx = [];
     const wtDepth = [];
+    const wtFlow = [];
     let wtVertCount = 0;
     const depthCache = new Map();
     const tintCache = new Map();
@@ -101,8 +103,8 @@ export class ChunkMesher {
           const wz = worldOffsetZ + lz;
 
           if (def?.light) {
-            // Keep emitters out of the shadow casters: a point light inside its
-            // own opaque voxel would otherwise shadow all of its illumination.
+            // Separate emitters so their distance-shadow material can suppress
+            // self-shadowing while retaining shadows from the sun/other lamps.
             const exposed = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => {
               const neighbor = BLOCK_DEFS[world.getVoxel(wx + dx, wy + dy, wz + dz)];
               return !neighbor || neighbor.transparent;
@@ -110,6 +112,9 @@ export class ChunkMesher {
             if (exposed) {
               const geometry = createBlockGeometry(blockId, this.tm);
               geometry.translate(wx, wy, wz);
+              const origin = new Float32Array(geometry.attributes.position.count * 3);
+              for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);
+              geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
               lightGeometries.push(geometry);
               lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: def.light, color: def.lightColor || 0xffc477 });
             }
@@ -159,6 +164,9 @@ export class ChunkMesher {
               if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) return;
             }
 
+            if (isWater && face !== 'bottom') {
+              positions = positions.map(([x,y,z]) => [x, y > wy ? wy + waterCornerHeight(world, Math.round(x), wy, Math.round(z)) : y, z]);
+            }
             const uv = this.tm.getFaceUVs(blockId, face);
 
             // Compute Ambient Occlusion for the 4 vertices of this face
@@ -240,6 +248,8 @@ export class ChunkMesher {
                 const corner = waterCorner(Math.round(position[0]), wy, Math.round(position[2]));
                 wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
                 wtDepth.push(corner.depth);
+                const flow = waterCurrent(world, wx, wy, wz);
+                wtFlow.push(flow.x, flow.z);
               }
             } else {
             tCol.push(
@@ -339,7 +349,10 @@ export class ChunkMesher {
     };
 
     const waterGeo = createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx);
-    if (waterGeo) waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
+    if (waterGeo) {
+      waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
+      waterGeo.setAttribute('waterFlow', new THREE.Float32BufferAttribute(wtFlow, 2));
+    }
     const lightGeo = lightGeometries.length ? mergeGeometries(lightGeometries) : null;
     if (lightGeo) lightGeo.userData.sources = lightSources;
     for (const geometry of lightGeometries) geometry.dispose();

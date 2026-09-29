@@ -557,7 +557,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.SOUL_TORCH]: {
     name: 'Soul Torch', hardness: 0, sound: 'wood', light: 10,
     lightColor: 0x61eaff, shape: 'torch', transparent: true, solid: false,
-    drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.png' }
+    drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' }
   },
   [BLOCKS.ANVIL]: {
     name: 'Anvil',

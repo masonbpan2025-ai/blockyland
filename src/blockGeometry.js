@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCK_DEFS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 // Geometry is in voxel coordinates, shared by world meshes and the held item.
 export function createBlockGeometry(id, textures) {
@@ -10,6 +10,7 @@ export function createBlockGeometry(id, textures) {
   const uv = geo.attributes.uv;
   const faces = ['east', 'west', 'top', 'bottom', 'north', 'south'];
   const emission = new Float32Array(24);
+  const colors = new Float32Array(72).fill(1);
   for (let face = 0; face < 6; face++) {
     const tile = textures.getFaceUVs(id, faces[face]);
     for (let v = 0; v < 4; v++) {
@@ -22,10 +23,14 @@ export function createBlockGeometry(id, textures) {
         t = face === 2 ? (8 + t * 2) / 16 : face === 3 ? t * 2 / 16 : t * 10 / 16;
       }
       uv.setXY(i, THREE.MathUtils.lerp(tile.u0, tile.u1, u), THREE.MathUtils.lerp(tile.v0, tile.v1, t));
-      emission[i] = def.light ? (torch ? (face === 2 ? 1 : face === 3 ? 0 : uv.getY(i) > tile.v0 + (tile.v1 - tile.v0) * 0.5 ? 1 : 0) : 0.8) : 0;
+      const torchGlow = face === 2 ? 1 : face === 3 ? 0 : t > 0.5 ? 1 : 0;
+      const cubeGlow = id === BLOCKS.LIT_FURNACE ? (face === 4 ? 0.8 : 0) : id === BLOCKS.ENCHANTING_TABLE ? 0.2 : 0.8;
+      emission[i] = def.light ? (torch ? torchGlow : cubeGlow) : 0;
+      if (id === BLOCKS.OAK_LEAVES) colors.set([0.35, 0.65, 0.22], i * 3);
+      if (id === BLOCKS.GRASS && face === 2) colors.set([0.48, 0.74, 0.31], i * 3);
     }
   }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(72).fill(1), 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('emission', new THREE.Float32BufferAttribute(emission, 1));
   return geo;
 }

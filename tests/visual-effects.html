@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Lighting, loot and TNT visual check</title><style>body{margin:0;background:#101827;color:white;font:14px system-ui}nav{position:absolute;z-index:2;padding:12px;background:#142034dd}button{padding:8px;margin-right:8px}</style></head><body><nav><button id="night">Night</button><button id="day">Day</button><button id="blast">Explode TNT</button><button id="snapshot">Blast snapshot</button><button id="pause">Pause</button><span id="status">Loading…</span></nav><script type="module">
+import * as THREE from 'three';
+import {World,Chunk} from '../src/world.js';
+import {BLOCKS} from '../src/blocks.js';
+import {TextureManager} from '../src/textures.js';
+import {ChunkMesher} from '../src/mesher.js';
+import {BlockLighting,configureSunShadows,followSun} from '../src/lighting.js';
+import {EntityManager} from '../src/entities.js';
+import {Sky} from '../src/sky.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#182337');scene.fog=new THREE.Fog('#182337',40,100);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;document.body.appendChild(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,1000);camera.position.set(12,7,17);camera.lookAt(7,1.8,6);
+const sky=new Sky(scene);let time=18000;sky.setTime(time);
+const sun=new THREE.DirectionalLight(0xffebae,0);scene.add(sun);configureSunShadows(sun,scene);
+const ambient=new THREE.AmbientLight(0xffffff,.10);scene.add(ambient);
+const tm=new TextureManager();await tm.init();const mesher=new ChunkMesher(tm), world=new World();world.chunks.set('0,0',new Chunk(0,0));
+for(let x=0;x<16;x++)for(let z=0;z<16;z++)world.setVoxel(x,0,z,BLOCKS.STONE_BRICKS);
+for(let y=1;y<4;y++)for(let z=3;z<8;z++)world.setVoxel(7,y,z,BLOCKS.OAK_PLANKS);
+for(const [id,x,z] of [[BLOCKS.TORCH,5,6],[BLOCKS.SOUL_TORCH,10,5],[BLOCKS.GLOWSTONE,3,3],[BLOCKS.SEA_LANTERN,12,3],[BLOCKS.REDSTONE_TORCH,3,8],[BLOCKS.REDSTONE_LAMP,11,8],[BLOCKS.LIT_FURNACE,9,2]])world.setVoxel(x,1,z,id);
+for(let x=9;x<13;x++)for(let z=10;z<13;z++)world.setVoxel(x,1,z,BLOCKS.WATER);
+const lighting=new BlockLighting(scene);const meshes=[];
+function rebuild(){for(const m of meshes){scene.remove(m);m.geometry.dispose()}meshes.length=0;const g=mesher.meshChunk(world.getChunk(0,0),world);for(const [key,material] of [['opaqueGeo',tm.opaqueMaterial],['transparentGeo',tm.transparentMaterial],['waterGeo',tm.waterMaterial],['lightGeo',tm.lightMaterial]]){if(!g[key])continue;const mesh=new THREE.Mesh(g[key],material);mesh.castShadow=key!=='waterGeo';mesh.receiveShadow=true;if(key==='lightGeo')mesh.customDistanceMaterial=tm.lightDistanceMaterial;scene.add(mesh);meshes.push(mesh)}lighting.setChunk(0,0,g.lightGeo?.userData.sources||[])}rebuild();
+const sounds=new Proxy({}, {get:()=>()=>{}});const entities=new EntityManager(scene,world,sounds,tm);
+for(const [id,isBlock,x] of [[BLOCKS.OAK_LOG,true,4],[BLOCKS.DIRT,true,5],[BLOCKS.COBBLESTONE,true,6],['diamond',false,7],['porkchop',false,8]])entities.spawnDroppedItem(new THREE.Vector3(x,1.8,10),id,isBlock,1,{pickupDelay:999});
+const player={position:new THREE.Vector3(100,1,100),takeDamage(){}};let paused=false;
+document.querySelector('#night').onclick=()=>{time=18000};document.querySelector('#day').onclick=()=>{time=3000};
+document.querySelector('#pause').onclick=()=>{paused=!paused};
+document.querySelector('#blast').onclick=()=>entities.spawnPrimedTNT(new THREE.Vector3(6,1,11),rebuild);
+document.querySelector('#snapshot').onclick=()=>{entities.spawnPrimedTNT(new THREE.Vector3(6,1,11),rebuild);entities.tntEntities.at(-1).timer=.01;entities.update(.02,player,{addItem:()=>false});entities.update(.10,player,{addItem:()=>false});paused=true;};
+const clock=new THREE.Clock();
+function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);if(!paused)entities.update(dt,player,{addItem:()=>false});sky.setTime(time);sky.update(dt,camera,{rainIntensity:0,isFlashing:false},false);sun.intensity=time===18000?0:.9;ambient.intensity=time===18000?.10:.48;followSun(sun,sky.sunDirection,camera.position);lighting.update(dt,camera.position);tm.update(dt,sun,scene.background,scene.fog);renderer.render(scene,camera);document.querySelector('#status').textContent=`${entities.droppedItems.length} pickups · ${entities.particles.length} particles`;}frame();
+</script></body></html>

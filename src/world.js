@@ -1,4 +1,5 @@
 import { BLOCKS } from './blocks.js';
+import { WaterSimulation } from './waterSimulation.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -169,6 +170,7 @@ export class Chunk {
     this.cx = cx;
     this.cz = cz;
     this.voxels = new Uint8Array(CHUNK_SIZE_X * CHUNK_HEIGHT * CHUNK_SIZE_Z);
+    this.waterLevels = new Uint8Array(this.voxels.length);
     this.opaqueMesh = null;
     this.transparentMesh = null;
     this.waterMesh = null;
@@ -190,7 +192,9 @@ export class Chunk {
     if (lx < 0 || lx >= CHUNK_SIZE_X || ly < 0 || ly >= CHUNK_HEIGHT || lz < 0 || lz >= CHUNK_SIZE_Z) {
       return;
     }
-    this.voxels[this.getIndex(lx, ly, lz)] = blockId;
+    const index = this.getIndex(lx, ly, lz);
+    this.voxels[index] = blockId;
+    this.waterLevels[index] = 0;
     this.dirty = true;
   }
 }
@@ -203,6 +207,7 @@ export class World {
     this.biomeNoise = new FastNoise(seed + 202);
     this.chunks = new Map(); // key -> Chunk
     this.seaLevel = 22;
+    this.water = new WaterSimulation(this);
   }
 
   reseed(seed = 4289) {
@@ -227,6 +232,7 @@ export class World {
       chunk = new Chunk(cx, cz);
       this.generateChunkTerrain(chunk);
       this.chunks.set(key, chunk);
+      this.water.initChunk(chunk);
     }
     return chunk;
   }
@@ -449,7 +455,13 @@ export class World {
     return chunk.getVoxel(lx, wy, lz);
   }
 
-  setVoxel(wx, wy, wz, blockId) {
+  getWaterLevel(wx, wy, wz) {
+    if (this.getVoxel(wx, wy, wz) !== BLOCKS.WATER) return -1;
+    const chunk = this.getChunk(Math.floor(wx / 16), Math.floor(wz / 16));
+    return chunk.waterLevels[chunk.getIndex(((wx % 16) + 16) % 16, wy, ((wz % 16) + 16) % 16)];
+  }
+
+  setVoxel(wx, wy, wz, blockId, waterLevel = 0, fluidUpdate = false) {
     if (wy < 0 || wy >= CHUNK_HEIGHT) return;
     const cx = Math.floor(wx / CHUNK_SIZE_X);
     const cz = Math.floor(wz / CHUNK_SIZE_Z);
@@ -457,7 +469,12 @@ export class World {
 
     const lx = ((wx % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((wz % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
+    const level = blockId === BLOCKS.WATER ? Math.max(0, Math.min(8, waterLevel)) : 0;
+    const index = chunk.getIndex(lx, wy, lz);
+    if (chunk.voxels[index] === blockId && chunk.waterLevels[index] === level) return;
     chunk.setVoxel(lx, wy, lz, blockId);
+    chunk.waterLevels[index] = level;
+    this.water.notify(wx, wy, wz, !fluidUpdate);
 
     // If voxel is at border of chunk, mark neighbor chunks dirty too
     if (lx === 0) {

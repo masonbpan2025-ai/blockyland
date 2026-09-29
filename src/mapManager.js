@@ -47,7 +47,8 @@ export function serializeWorld(game, mapName = 'World 1') {
     chunksData.push({
       cx: chunk.cx,
       cz: chunk.cz,
-      voxels: encodeVoxelsRLE(chunk.voxels)
+      voxels: encodeVoxelsRLE(chunk.voxels),
+      waterLevels: encodeVoxelsRLE(chunk.waterLevels)
     });
   }
 
@@ -137,6 +138,7 @@ export function deserializeWorld(game, mapData) {
     }
   }
   game.world.chunks.clear();
+  game.world.water?.reset();
 
   // 2. Clean up dynamic block lights
   if (game.blockLighting?.chunks) {
@@ -157,9 +159,13 @@ export function deserializeWorld(game, mapData) {
   for (const chunkData of mapData.chunks) {
     const chunk = new Chunk(chunkData.cx, chunkData.cz);
     decodeVoxelsRLE(chunkData.voxels, chunk.voxels);
+    if (chunkData.waterLevels) decodeVoxelsRLE(chunkData.waterLevels, chunk.waterLevels);
+    for (let i=0; i<chunk.waterLevels.length; i++) if (chunk.waterLevels[i]>8) chunk.waterLevels[i]=0;
     chunk.dirty = true;
     game.world.chunks.set(game.world.chunkKey(chunk.cx, chunk.cz), chunk);
   }
+
+  for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
 
   // 6. Restore player state
   if (mapData.player) {
@@ -215,7 +221,11 @@ export function deserializeWorld(game, mapData) {
   if (mapData.mobs && mapData.mobs.length > 0 && game.mobs?.spawnMob) {
     for (const m of mapData.mobs) {
       try {
-        game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
+        const spawned = game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
+        if (spawned && m.health) {
+          spawned.health = m.health;
+          spawned.maxHealth = Math.max(spawned.maxHealth || m.health, m.health);
+        }
       } catch (err) {
         console.warn(`Could not spawn mob ${m.type}:`, err);
       }

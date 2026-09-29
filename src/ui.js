@@ -1347,7 +1347,11 @@ export class UIManager {
   addChatMessage(msg, type = 'normal') {
     const el = document.createElement('div');
     el.className = `chat-msg ${type}`;
-    el.textContent = msg;
+    if (typeof msg === 'string' && msg.includes('<') && msg.includes('>')) {
+      el.innerHTML = msg;
+    } else {
+      el.textContent = msg;
+    }
     this.chatMessages.appendChild(el);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
 

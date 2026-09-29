@@ -1575,10 +1575,148 @@ export class MobManager {
     });
   }
 
-  damageMob(mob, amount, knockbackOrigin) {
-    if (mob.health <= 0 || mob.dying || mob.hitCooldown > 0) return;
+  isTrainingSiteMob(mob) {
+    if (!mob || !mob.mesh) return false;
+    const hostileTypes = ['zombie', 'skeleton', 'pillager', 'creeper', 'enderman'];
+    if (!hostileTypes.includes(mob.type)) return false;
+
+    if (this.game?.dungeonMode?.isActive) return true;
+
+    const x = mob.mesh.position.x;
+    const z = mob.mesh.position.z;
+    // Punching Yard: x [28, 72], z [-18, 18]
+    if (x >= 28 && x <= 72 && z >= -18 && z <= 18) return true;
+    // Kamehameha Range: x [-72, -28], z [-18, 18]
+    if (x >= -72 && x <= -28 && z >= -18 && z <= 18) return true;
+    // Genki Dama Crater: x [-18, 18], z [-72, -28]
+    if (x >= -18 && x <= 18 && z >= -72 && z <= -28) return true;
+    // South Parkour: x [-18, 18], z [28, 72]
+    if (x >= -18 && x <= 18 && z >= 28 && z <= 72) return true;
+    // Central Tournament Arena: x [-32, 32], z [-32, 32]
+    if (x >= -32 && x <= 32 && z >= -32 && z <= 32) return true;
+
+    return false;
+  }
+
+  ensureHealthBar(mob) {
+    if (typeof document === 'undefined') return;
+    if (mob.healthBarSprite) return;
+
+    const hostileTypes = ['zombie', 'skeleton', 'pillager', 'creeper', 'enderman'];
+    if (!hostileTypes.includes(mob.type)) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(1.5, 0.42, 1.0);
+
+    // Height offset based on mob dimensions
+    let headY = 2.25;
+    if (mob.type === 'enderman') headY = 3.25;
+    else if (mob.type === 'creeper') headY = 1.95;
+
+    sprite.position.set(0, headY, 0);
+    mob.mesh.add(sprite);
+
+    mob.healthBarCanvas = canvas;
+    mob.healthBarCtx = ctx;
+    mob.healthBarTexture = texture;
+    mob.healthBarSprite = sprite;
+    mob.lastRenderedHealth = -999;
+
+    this.renderHealthBar(mob);
+  }
+
+  renderHealthBar(mob) {
+    if (!mob.healthBarCanvas || !mob.healthBarCtx) return;
+    const ctx = mob.healthBarCtx;
+    const currentHealth = Math.max(0, Math.ceil(mob.health));
+    const maxHealth = mob.maxHealth || 30;
+
+    ctx.clearRect(0, 0, 256, 64);
+
+    // 1. Dark container pill
+    ctx.fillStyle = 'rgba(12, 14, 20, 0.88)';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 3;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(8, 8, 240, 48, 8);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillRect(8, 8, 240, 48);
+      ctx.strokeRect(8, 8, 240, 48);
+    }
+
+    // 2. Name & HP text
+    ctx.font = 'bold 16px "Minecraft", "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 4;
+    const mobName = mob.type === 'enderman' ? 'Enderman' : (mob.name || (mob.type.charAt(0).toUpperCase() + mob.type.slice(1)));
+    ctx.fillText(mobName, 18, 26);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ff4d4d';
+    ctx.fillText(`❤ ${currentHealth} / ${maxHealth}`, 238, 26);
+
+    // 3. Health bar background
+    const barX = 18;
+    const barY = 33;
+    const barW = 220;
+    const barH = 15;
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#300808';
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW, barH, 4);
+      ctx.fill();
+    } else {
+      ctx.fillRect(barX, barY, barW, barH);
+    }
+
+    // 4. Health bar fill with color tiering
+    const pct = Math.max(0, Math.min(1.0, currentHealth / maxHealth));
+    if (pct > 0) {
+      let fillColor = '#22c55e'; // Green
+      if (pct <= 0.25) fillColor = '#ef4444'; // Red
+      else if (pct <= 0.55) fillColor = '#f59e0b'; // Amber
+
+      ctx.fillStyle = fillColor;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW * pct, barH, 4);
+        ctx.fill();
+      } else {
+        ctx.fillRect(barX, barY, barW * pct, barH);
+      }
+    }
+
+    mob.healthBarTexture.needsUpdate = true;
+    mob.lastRenderedHealth = mob.health;
+  }
+
+  damageMob(mob, amount, knockbackOrigin, isPunch = false) {
+    if (mob.health <= 0 || mob.dying) return false;
+    if (!isPunch && mob.hitCooldown > 0) return false;
     mob.health -= amount;
-    mob.hitCooldown = 0.35;
+    mob.hitCooldown = isPunch ? 0.15 : 0.35;
 
     // Flash red
     if (mob.mat?.color) {
@@ -1586,16 +1724,22 @@ export class MobManager {
     }
     mob.hurtTime = 0.18;
 
+    // Update floating health bar immediately on damage
+    if (this.isTrainingSiteMob(mob)) {
+      this.ensureHealthBar(mob);
+      this.renderHealthBar(mob);
+    }
+
     // Apply knockback
     if (knockbackOrigin) {
       mob.fleeFrom = knockbackOrigin.clone();
       mob.fleeTime = 2.5;
       const kbDir = mob.mesh.position.clone().sub(knockbackOrigin);
       kbDir.y = 0;
-      kbDir.normalize();
-      mob.knockback = kbDir.multiplyScalar(6);
-      mob.velocity.y += 4;
-
+      if (kbDir.lengthSq() > 0.001) kbDir.normalize();
+      else kbDir.set(0, 0, 1);
+      mob.knockback = kbDir.multiplyScalar(isPunch ? 3.5 : 6);
+      mob.velocity.y += isPunch ? 1.8 : 4;
     }
 
     if (mob.type === 'iron_golem') this.sounds.playIronGolem();
@@ -1613,11 +1757,13 @@ export class MobManager {
         }, 90);
       }
     }
+    return true;
   }
 
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
+      if (mob.healthBarSprite) mob.healthBarSprite.visible = false;
       mob.deathTime = 0;
       mob.velocity.x = mob.velocity.z = 0;
       mob.deathRotation = mob.mesh.rotation.z;
@@ -1708,6 +1854,22 @@ export class MobManager {
 
       mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);
       if (mob.hurtTime === 0 && !mob.dying) mob.mat.color.setRGB(1, 1, 1);
+
+      // Overhead health bar for training & combat mobs
+      if (this.isTrainingSiteMob(mob)) {
+        this.ensureHealthBar(mob);
+        if (mob.healthBarSprite) {
+          if (mob.health <= 0 || mob.dying) {
+            mob.healthBarSprite.visible = false;
+          } else {
+            mob.healthBarSprite.visible = true;
+            if (mob.health !== mob.lastRenderedHealth) {
+              this.renderHealthBar(mob);
+            }
+          }
+        }
+      }
+
       if (mob.health <= 0) {
         this.updateDeath(mob, dt);
         continue;
