@@ -65,9 +65,47 @@ export class MobManager {
       salmon: this.createAquaticTexture('salmon'),
       dolphin: this.createAquaticTexture('dolphin'),
       octopus: this.createAquaticTexture('octopus'),
-      axolotl: this.createAquaticTexture('axolotl')
+      axolotl: this.createAquaticTexture('axolotl'),
+      tournament_host: this.createHostTexture(),
+      enderman: this.createEndermanTexture()
     };
   }
+
+  clearMobs() {
+    for (const mob of this.mobs) {
+      if (mob.mesh) {
+        this.scene.remove(mob.mesh);
+        mob.mesh.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+        });
+      }
+    }
+    this.mobs = [];
+  }
+
+  spawnMob(type, x, y, z) {
+    switch (type) {
+      case 'villager': return this.spawnVillager(x, y, z);
+      case 'tournament_host': return this.spawnTournamentHost(x, y, z);
+      case 'enderman': return this.spawnEnderman(x, y, z);
+      case 'iron_golem': return this.spawnIronGolem(x, y, z);
+      case 'pillager': return this.spawnPillager(x, y, z);
+      case 'zombie': return this.spawnZombie(x, y, z);
+      case 'skeleton': return this.spawnSkeleton(x, y, z);
+      case 'creeper': return this.spawnCreeper(x, y, z);
+      case 'pig': return this.spawnPig(x, y, z);
+      case 'cow': return this.spawnCow(x, y, z);
+      case 'sheep': return this.spawnSheep(x, y, z);
+      case 'chicken': return this.spawnChicken(x, y, z);
+      case 'salmon': return this.spawnSalmon(x, y, z);
+      case 'dolphin': return this.spawnDolphin(x, y, z);
+      case 'octopus':
+      case 'squid': return this.spawnOctopus(x, y, z);
+      case 'axolotl': return this.spawnAxolotl(x, y, z);
+      default: return this.spawnVillager(x, y, z);
+    }
+  }
+
 
   createAquaticTexture(type) {
     const canvas = document.createElement('canvas');
@@ -186,6 +224,114 @@ export class MobManager {
     return tex;
   }
 
+  createHostTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    // Default dark base
+    ctx.fillStyle = '#1c1c1f';
+    ctx.fillRect(0, 0, 64, 64);
+
+    // 1. Head (0,0) to (32, 16)
+    // Blonde swept-back hair on top, back, sides
+    ctx.fillStyle = '#f0c74d';
+    ctx.fillRect(0, 0, 32, 16);
+    // Face (8, 8, 8, 8)
+    // Skin tone
+    ctx.fillStyle = '#f8c29d';
+    ctx.fillRect(8, 8, 8, 8);
+    // Hair bangs
+    ctx.fillStyle = '#e5b83b';
+    ctx.fillRect(8, 8, 8, 2);
+    // Iconic black sunglasses across eyes
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(8, 10, 8, 3);
+    // Glass reflection white glints
+    ctx.fillStyle = '#777777';
+    ctx.fillRect(10, 10, 1, 1);
+    ctx.fillRect(14, 10, 1, 1);
+    // Confident announcer smile
+    ctx.fillStyle = '#b36d52';
+    ctx.fillRect(10, 14, 4, 1);
+
+    // 2. Torso (16, 16, 24, 16)
+    // Black tailored suit jacket
+    ctx.fillStyle = '#141416';
+    ctx.fillRect(16, 16, 24, 16);
+    // White shirt collar V
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(22, 20, 4, 3);
+    // Bright red tournament tie
+    ctx.fillStyle = '#d31b1b';
+    ctx.fillRect(23, 21, 2, 8);
+    // Gold tie clip
+    ctx.fillStyle = '#f5c842';
+    ctx.fillRect(23, 25, 2, 1);
+
+    // 3. Legs & Arms
+    // Suit pants & sleeves
+    ctx.fillStyle = '#18181a';
+    ctx.fillRect(0, 16, 16, 32);
+    ctx.fillRect(40, 16, 16, 32);
+    // Hands
+    ctx.fillStyle = '#f8c29d';
+    ctx.fillRect(44, 28, 4, 4);
+    // Shoes
+    ctx.fillStyle = '#080808';
+    ctx.fillRect(4, 28, 4, 4);
+    ctx.fillRect(12, 28, 4, 4);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  createEndermanTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    // Deep black/obsidian base with subtle pixel noise
+    ctx.fillStyle = '#121214';
+    ctx.fillRect(0, 0, 64, 64);
+
+    for (let x = 0; x < 64; x += 2) {
+      for (let y = 0; y < 64; y += 2) {
+        const rand = Math.random();
+        if (rand < 0.25) {
+          ctx.fillStyle = '#0a0a0c';
+          ctx.fillRect(x, y, 2, 2);
+        } else if (rand > 0.75) {
+          ctx.fillStyle = '#1c1c20';
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+    }
+
+    // Glowing purple eyes on head front (8, 8, 8, 8)
+    ctx.fillStyle = '#9333ea';
+    ctx.fillRect(8, 12, 3, 1);
+    ctx.fillRect(13, 12, 3, 1);
+    ctx.fillStyle = '#d946ef';
+    ctx.fillRect(9, 12, 1, 1);
+    ctx.fillRect(14, 12, 1, 1);
+    ctx.fillStyle = '#f5d0fe';
+    ctx.fillRect(9, 12, 1, 1);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   loadTexture(path) {
     const tex = this.textureLoader.load(path);
     tex.magFilter = THREE.NearestFilter;
@@ -216,6 +362,8 @@ export class MobManager {
       case 'octopus':
       case 'squid': return { width: 0.7, height: 0.9 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
+      case 'tournament_host': return { width: 0.6, height: 1.95 };
+      case 'enderman': return { width: 0.6, height: 2.9 };
       case 'villager':
       default:
         return { width: 0.6, height: 1.95 };
@@ -759,6 +907,203 @@ export class MobManager {
     return mob;
   }
 
+  // --- DRAGON BALL WORLD MARTIAL ARTS TOURNAMENT HOST (ANNOUNCER) ---
+  spawnTournamentHost(x, y, z) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.tournament_host || this.textures.villager,
+      transparent: true,
+      alphaTest: 0.1
+    });
+
+    // Head (8x8x8)
+    const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64, 8, 8, 8);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.y = 1.35;
+    group.add(head);
+
+    // Torso (8x12x4)
+    const torsoGeo = createBoxWithUV(0.5, 0.75, 0.25, 16, 16, 64, 64, 8, 12, 4);
+    const torso = new THREE.Mesh(torsoGeo, mat);
+    torso.position.y = 0.75;
+    group.add(torso);
+
+    // Left Arm (at side)
+    const armGeo = createBoxWithUV(0.22, 0.75, 0.22, 40, 16, 64, 64, 4, 12, 4);
+    const leftArm = new THREE.Mesh(armGeo, mat);
+    leftArm.position.set(-0.37, 0.75, 0);
+    group.add(leftArm);
+
+    // Right Arm (holding microphone up)
+    const rightArm = new THREE.Mesh(armGeo, mat);
+    rightArm.position.set(0.37, 0.75, 0);
+    rightArm.rotation.x = -Math.PI / 3;
+    rightArm.rotation.z = -0.12;
+    group.add(rightArm);
+
+    // Microphone in hand
+    const micGroup = new THREE.Group();
+    const micHandle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.24, 6),
+      new THREE.MeshLambertMaterial({ color: 0x111111 })
+    );
+    micHandle.position.y = 0.1;
+    micGroup.add(micHandle);
+
+    const micHead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 6, 6),
+      new THREE.MeshLambertMaterial({ color: 0xc8c8c8 })
+    );
+    micHead.position.y = 0.22;
+    micGroup.add(micHead);
+
+    micGroup.position.set(0, -0.38, 0.08);
+    micGroup.rotation.x = Math.PI / 2.2;
+    rightArm.add(micGroup);
+
+    // Legs
+    const legGeo = createBoxWithUV(0.24, 0.75, 0.24, 0, 16, 64, 64, 4, 12, 4);
+    const leftLeg = new THREE.Mesh(legGeo, mat);
+    leftLeg.position.set(-0.13, 0.38, 0);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, mat);
+    rightLeg.position.set(0.13, 0.38, 0);
+    group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'tournament_host',
+      name: 'Tournament Announcer',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      mat: mat,
+      health: 100,
+      maxHealth: 100,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'host',
+      timer: 0,
+      hitCooldown: 0,
+      noLoot: true
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- ENDERMAN (TOURNAMENT CHALLENGER BOSS) ---
+  spawnEnderman(x, y, z) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.enderman,
+      transparent: true,
+      alphaTest: 0.1
+    });
+
+    // Enderman height: ~2.9 blocks tall, slender
+    // Head (8x8x8) -> 0.44 x 0.44 x 0.44
+    const headGeo = createBoxWithUV(0.44, 0.44, 0.44, 0, 0, 64, 64, 8, 8, 8);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.y = 2.45;
+    group.add(head);
+
+    // Glowing purple eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.02), eyeMat);
+    eyeL.position.set(-0.1, 0, 0.23);
+    head.add(eyeL);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.02), eyeMat);
+    eyeR.position.set(0.1, 0, 0.23);
+    head.add(eyeR);
+
+    // Torso (0.38 x 0.72 x 0.22)
+    const torsoGeo = createBoxWithUV(0.38, 0.72, 0.22, 16, 16, 64, 64, 8, 12, 4);
+    const torso = new THREE.Mesh(torsoGeo, mat);
+    torso.position.y = 1.85;
+    group.add(torso);
+
+    // Arms: Long slender (0.13 x 1.6 x 0.13)
+    const armGeo = createBoxWithUV(0.13, 1.6, 0.13, 40, 16, 64, 64, 2, 16, 2);
+    const leftArm = new THREE.Mesh(armGeo, mat);
+    leftArm.position.set(-0.28, 1.45, 0);
+    group.add(leftArm);
+
+    const rightArm = new THREE.Mesh(armGeo, mat);
+    rightArm.position.set(0.28, 1.45, 0);
+    group.add(rightArm);
+
+    // Legs: Long slender (0.13 x 1.7 x 0.13)
+    const legGeo = createBoxWithUV(0.13, 1.7, 0.13, 0, 16, 64, 64, 2, 16, 2);
+    const leftLeg = new THREE.Mesh(legGeo, mat);
+    leftLeg.position.set(-0.11, 0.85, 0);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, mat);
+    rightLeg.position.set(0.11, 0.85, 0);
+    group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'enderman',
+      name: 'World Martial Arts Challenger: The Enderman',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      mat: mat,
+      eyeMat: eyeMat,
+      health: 60,
+      maxHealth: 60,
+      isBoss: true,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'combat',
+      timer: 0,
+      teleportCooldown: 4.5,
+      attackCooldown: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  teleportEnderman(mob, targetX = null, targetY = null, targetZ = null) {
+    if (!mob || !mob.mesh) return;
+    const oldPos = mob.mesh.position.clone();
+    this.entities?.spawnEndermanParticles(oldPos.clone().add(new THREE.Vector3(0, 1.4, 0)), 22);
+
+    let newX = targetX;
+    let newY = targetY;
+    let newZ = targetZ;
+
+    if (newX === null || newZ === null) {
+      // Pick a location on the arena stage
+      newX = (Math.random() - 0.5) * 14;
+      newZ = (Math.random() - 0.5) * 14;
+      newY = 24.5;
+    }
+
+    mob.mesh.position.set(newX, newY, newZ);
+    mob.velocity.set(0, 0, 0);
+
+    this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0)), 22);
+    if (this.sounds?.playEndermanTeleport) {
+      this.sounds.playEndermanTeleport();
+    }
+  }
+
   // --- AQUATIC: SALMON ---
   spawnSalmon(x, y, z) {
     const group = new THREE.Group();
@@ -1121,6 +1466,17 @@ export class MobManager {
     else if (mob.type === 'villager') this.sounds.playVillager();
     else if (mob.type === 'pillager') this.sounds.playPillager();
     else if (mob.type === 'zombie') this.sounds.playZombie();
+    else if (mob.type === 'enderman') {
+      if (this.sounds?.playEndermanHurt) this.sounds.playEndermanHurt();
+      // 45% chance to teleport away on hit to evade combos
+      if (Math.random() < 0.45 && mob.health > 0) {
+        setTimeout(() => {
+          if (mob && mob.health > 0 && !mob.dying) {
+            this.teleportEnderman(mob);
+          }
+        }, 90);
+      }
+    }
   }
 
   updateDeath(mob, dt) {
@@ -1570,6 +1926,56 @@ export class MobManager {
           }
         } else {
           wanderMob(this, mob, dt, 0.8);
+        }
+      } else if (mob.type === 'tournament_host') {
+        // Face player if near, stationary announcer posture
+        if (distToPlayer < 7.0) {
+          mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+        }
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        // Subtle breathing & mic motion
+        if (mob.rightArm) {
+          mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(Date.now() * 0.003) * 0.04;
+        }
+      } else if (mob.type === 'enderman') {
+        mob.teleportCooldown = (mob.teleportCooldown || 4.5) - dt;
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        mob.particleTimer = (mob.particleTimer || 0) - dt;
+
+        // Subtle ambient purple portal particles
+        if (mob.particleTimer <= 0) {
+          mob.particleTimer = 0.35;
+          this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 2);
+        }
+
+        // Periodic arena teleportation
+        if (mob.teleportCooldown <= 0) {
+          mob.teleportCooldown = 4.0 + Math.random() * 3.5;
+          this.teleportEnderman(mob);
+        }
+
+        // Aggressively pursue player
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 0.1) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          const endermanSpeed = 3.2;
+          mob.velocity.x = dir.x * endermanSpeed;
+          mob.velocity.z = dir.z * endermanSpeed;
+        }
+
+        // Melee attack
+        if (dist < 1.7 && mob.attackCooldown <= 0) {
+          player.takeDamage(4);
+          this.sounds?.playZombie?.();
+          mob.attackCooldown = 1.0;
+          if (mob.leftArm && mob.rightArm) {
+            mob.leftArm.rotation.x = -Math.PI / 2.2;
+            mob.rightArm.rotation.x = -Math.PI / 2.2;
+          }
         }
       }
 

@@ -344,6 +344,24 @@ export class SoundEngine {
     osc.stop(now + 0.03);
   }
 
+  playPop() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(420 + Math.random() * 40, now);
+    osc.frequency.exponentialRampToValueAtTime(1100, now + 0.07);
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.07);
+  }
+
+
   playLevelUp() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;
@@ -473,5 +491,175 @@ export class SoundEngine {
       osc.stop(start + 0.2);
     });
   }
+
+  // Enderman teleport warp sound
+  playEndermanTeleport() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(480, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.22);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.35);
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(650, now);
+    filter.Q.setValueAtTime(4.0, now);
+
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.35);
+
+    this.noiseBurst(0.2, 1200, 3, 0.2);
+  }
+
+  // Enderman growl / hurt sound
+  playEndermanHurt() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.linearRampToValueAtTime(85, now + 0.25);
+
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(450, now);
+
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+    osc.connect(f);
+    f.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.25);
+  }
+
+  // Tournament Host microphone speak sound
+  playHostSpeak() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Mic chime
+    const notes = [440, 554.37, 659.25]; // A4, C#5, E5
+    notes.forEach((freq, idx) => {
+      const start = now + idx * 0.08;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+      g.gain.setValueAtTime(0.2, start);
+      g.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(start);
+      osc.stop(start + 0.18);
+    });
+  }
+
+  // Firework rocket launch sound (rising whistling whoosh)
+  playFireworkLaunch() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.6);
+    g.gain.setValueAtTime(0.05, now);
+    g.gain.linearRampToValueAtTime(0.25, now + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.6);
+
+    this.noiseBurst(0.5, 900, 1.0, 0.15);
+  }
+
+  // Firework burst / explosion sound (deep crackle & blast)
+  playFireworkExplode() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Deep blast
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.4);
+    g.gain.setValueAtTime(0.4, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.4);
+
+    // Crackling sparkles
+    this.noiseBurst(0.45, 1600, 1.5, 0.4);
+    setTimeout(() => {
+      if (this.ctx) this.noiseBurst(0.25, 2200, 2.5, 0.25);
+    }, 120);
+  }
+
+  // Grand Victory Fanfare for World Martial Arts Champion
+  playVictoryFanfare() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Triumphant motif: C4, E4, G4, C5, high G5, high C6 chord
+    const sequence = [
+      { f: 261.63, t: 0.0, d: 0.15 },
+      { f: 329.63, t: 0.15, d: 0.15 },
+      { f: 392.00, t: 0.30, d: 0.15 },
+      { f: 523.25, t: 0.45, d: 0.35 },
+      { f: 392.00, t: 0.85, d: 0.18 },
+      { f: 523.25, t: 1.05, d: 0.65 },
+      { f: 659.25, t: 1.05, d: 0.65 },
+      { f: 783.99, t: 1.05, d: 0.85 },
+      { f: 1046.50, t: 1.05, d: 1.0 }
+    ];
+
+    sequence.forEach(item => {
+      const start = now + item.t;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(item.f, start);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400, start);
+
+      g.gain.setValueAtTime(0.28, start);
+      g.gain.exponentialRampToValueAtTime(0.001, start + item.d);
+
+      osc.connect(filter);
+      filter.connect(g);
+      g.connect(this.masterGain);
+      osc.start(start);
+      osc.stop(start + item.d);
+    });
+  }
 }
+
 

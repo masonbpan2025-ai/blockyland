@@ -205,6 +205,13 @@ export class World {
     this.seaLevel = 22;
   }
 
+  reseed(seed = 4289) {
+    this.seed = seed;
+    this.noise = new FastNoise(seed);
+    this.caveNoise = new FastNoise(seed + 101);
+    this.biomeNoise = new FastNoise(seed + 202);
+  }
+
   chunkKey(cx, cz) {
     return `${cx},${cz}`;
   }

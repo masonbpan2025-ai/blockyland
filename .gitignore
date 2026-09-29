@@ -28,3 +28,9 @@ Thumbs.db
 # Scratch and temporary screenshots
 scratch*
 *.tmp
+
+# User Saved Maps
+saves/*.json
+!saves/.gitkeep
+!saves/World_Martial_Arts_Tournament.json
+

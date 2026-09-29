@@ -1,14 +1,24 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems } from './creativeCatalog.js';
+import {
+  getDefaultPathInfo,
+  fetchSavedMaps,
+  saveMapToDefault,
+  loadMapFromDefault,
+  deleteSavedMap,
+  saveMapToCustomFile,
+  loadMapFromCustomFile
+} from './mapManager.js';
 
 export class UIManager {
-  constructor(inventory, player, world, mobs, sounds) {
+  constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
     this.player = player;
     this.world = world;
     this.mobs = mobs;
     this.sounds = sounds;
+    this.game = game;
 
     // Elements
     this.hotbarEl = document.getElementById('hotbar-wrapper');
@@ -87,6 +97,27 @@ export class UIManager {
     this.chatInput = document.getElementById('chat-input');
     this.isChatOpen = false;
 
+    // Map Manager Modal Elements
+    this.mapModal = document.getElementById('map-modal');
+    this.mapDefaultPathDisplay = document.getElementById('map-default-path-display');
+    this.tabSaveMap = document.getElementById('tab-save-map');
+    this.tabLoadMap = document.getElementById('tab-load-map');
+    this.mapTabSaveContent = document.getElementById('map-tab-save-content');
+    this.mapTabLoadContent = document.getElementById('map-tab-load-content');
+    this.mapSaveNameInput = document.getElementById('map-save-name-input');
+    this.btnSaveDefault = document.getElementById('btn-save-default');
+    this.btnSaveCustom = document.getElementById('btn-save-custom');
+    this.mapSaveFeedback = document.getElementById('map-save-feedback');
+    this.btnOpenCustomFile = document.getElementById('btn-open-custom-file');
+    this.btnRefreshSaves = document.getElementById('btn-refresh-saves');
+    this.mapFileUploadInput = document.getElementById('map-file-upload-input');
+    this.mapSavesList = document.getElementById('map-saves-list');
+    this.mapSavesCount = document.getElementById('map-saves-count');
+    this.mapLoadFeedback = document.getElementById('map-load-feedback');
+    this.btnCloseMapModal = document.getElementById('btn-close-map-modal');
+    this.btnSaveMap = document.getElementById('btn-save-map');
+    this.btnOpenMap = document.getElementById('btn-open-map');
+
     // Callbacks
     this.onCommand = null;
 
@@ -100,6 +131,7 @@ export class UIManager {
     this.bindCreativeEvents();
     this.bindVillagerTradeEvents();
     this.bindPauseEvents();
+    this.bindMapModalEvents();
     this.bindChatEvents();
     this.bindFloatingCursor();
 
@@ -171,6 +203,7 @@ export class UIManager {
            (!this.craftModal.classList.contains('hidden')) ||
            (!this.villagerModal.classList.contains('hidden')) ||
            (!this.pauseModal.classList.contains('hidden')) ||
+           (this.mapModal && !this.mapModal.classList.contains('hidden')) ||
            this.isGeminiOpen();
   }
 
@@ -180,6 +213,7 @@ export class UIManager {
     this.craftModal.classList.add('hidden');
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
+    if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
     this.hideTooltip();
 
@@ -188,6 +222,14 @@ export class UIManager {
       this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
       this.inv.cursorItem = null;
       this.updateFloatingCursor();
+    }
+  }
+
+  playPopSound() {
+    if (this.sounds && typeof this.sounds.playPop === 'function') {
+      this.sounds.playPop();
+    } else if (this.sounds && typeof this.sounds.playClick === 'function') {
+      this.sounds.playClick();
     }
   }
 
@@ -381,7 +423,7 @@ export class UIManager {
     if (this.btnClearHotbar) {
       this.btnClearHotbar.onclick = () => {
         this.inv.hotbar.fill(null);
-        this.sounds.playPop();
+        this.playPopSound();
         this.renderCreativeHotbar();
         this.updateHotbar();
       };
@@ -391,15 +433,16 @@ export class UIManager {
       this.creativeDestroySlot.onclick = (e) => {
         if (e.shiftKey) {
           this.inv.hotbar.fill(null);
-          this.sounds.playPop();
+          this.playPopSound();
           this.renderCreativeHotbar();
           this.updateHotbar();
         } else if (this.inv.cursorItem) {
           this.inv.cursorItem = null;
           this.updateFloatingCursor();
-          this.sounds.playPop();
+          this.playPopSound();
         }
       };
+
 
       this.creativeDestroySlot.onmouseenter = (e) => {
         this.showTooltip(e.clientX, e.clientY, 'Destroy Item', 'Click with held item, or Shift+Click to clear hotbar');
@@ -941,7 +984,327 @@ export class UIManager {
     document.getElementById('btn-reset').onclick = () => {
       window.location.reload();
     };
+
+    if (this.btnSaveMap) {
+      this.btnSaveMap.onclick = () => this.openMapModal('save');
+    }
+
+    if (this.btnOpenMap) {
+      this.btnOpenMap.onclick = () => this.openMapModal('load');
+    }
   }
+
+  // Map Manager Modal Management
+  openMapModal(initialTab = 'save') {
+    document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.mapModal) return;
+
+    this.mapModal.classList.remove('hidden');
+    this.updateDefaultPathDisplay();
+
+    if (this.mapSaveNameInput && !this.mapSaveNameInput.value) {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      this.mapSaveNameInput.value = `World_${dateStr}`;
+    }
+
+    this.switchMapTab(initialTab);
+  }
+
+  closeMapModal() {
+    if (this.mapModal) this.mapModal.classList.add('hidden');
+    if (this.mapSaveFeedback) this.mapSaveFeedback.classList.add('hidden');
+    if (this.mapLoadFeedback) this.mapLoadFeedback.classList.add('hidden');
+  }
+
+  switchMapTab(tab) {
+    if (tab === 'save') {
+      if (this.tabSaveMap) this.tabSaveMap.classList.add('active');
+      if (this.tabLoadMap) this.tabLoadMap.classList.remove('active');
+      if (this.mapTabSaveContent) this.mapTabSaveContent.classList.remove('hidden');
+      if (this.mapTabLoadContent) this.mapTabLoadContent.classList.add('hidden');
+      if (this.mapSaveNameInput) {
+        setTimeout(() => this.mapSaveNameInput.focus(), 60);
+      }
+    } else {
+      if (this.tabLoadMap) this.tabLoadMap.classList.add('active');
+      if (this.tabSaveMap) this.tabSaveMap.classList.remove('active');
+      if (this.mapTabLoadContent) this.mapTabLoadContent.classList.remove('hidden');
+      if (this.mapTabSaveContent) this.mapTabSaveContent.classList.add('hidden');
+      this.refreshSavedMapsList();
+    }
+  }
+
+  async updateDefaultPathDisplay() {
+    if (!this.mapDefaultPathDisplay) return;
+    try {
+      const path = await getDefaultPathInfo();
+      this.mapDefaultPathDisplay.textContent = path;
+    } catch (e) {
+      this.mapDefaultPathDisplay.textContent = 'saves/ (Local Computer Folder)';
+    }
+  }
+
+  showMapFeedback(tab, message, isError = false) {
+    const el = tab === 'save' ? this.mapSaveFeedback : this.mapLoadFeedback;
+    if (!el) return;
+    el.textContent = message;
+    el.className = `map-feedback ${isError ? 'error' : 'success'}`;
+    el.classList.remove('hidden');
+    setTimeout(() => {
+      if (el) el.classList.add('hidden');
+    }, 5500);
+  }
+
+  async refreshSavedMapsList() {
+    if (!this.mapSavesList) return;
+    this.mapSavesList.innerHTML = '<div class="map-saves-loading">Scanning default saves directory on local computer...</div>';
+
+    try {
+      const { saves, defaultPath } = await fetchSavedMaps();
+      if (this.mapDefaultPathDisplay && defaultPath) {
+        this.mapDefaultPathDisplay.textContent = defaultPath;
+      }
+
+      if (this.mapSavesCount) {
+        this.mapSavesCount.textContent = `${saves.length} map${saves.length === 1 ? '' : 's'}`;
+      }
+
+      if (!saves || saves.length === 0) {
+        this.mapSavesList.innerHTML = `
+          <div class="map-saves-empty">
+            No saved maps found in default location yet.<br>
+            <span style="font-size:11px; opacity:0.8;">Switch to the "Save Current Map" tab to save your world!</span>
+          </div>
+        `;
+        return;
+      }
+
+      this.mapSavesList.innerHTML = '';
+      for (const save of saves) {
+        const card = document.createElement('div');
+        card.className = 'map-save-card';
+
+        const info = document.createElement('div');
+        info.className = 'map-card-info';
+
+        const title = document.createElement('div');
+        title.className = 'map-card-title';
+        title.textContent = save.name || save.filename;
+
+        const meta = document.createElement('div');
+        meta.className = 'map-card-meta';
+
+        const dateStr = save.savedAt ? new Date(save.savedAt).toLocaleString() : 'Unknown Date';
+        const kb = save.size ? Math.round(save.size / 1024) : 0;
+        const sizeStr = kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+
+        const modeBadge = document.createElement('span');
+        modeBadge.className = 'map-card-badge';
+        modeBadge.textContent = save.gamemode || 'creative';
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = dateStr;
+
+        const sizeSpan = document.createElement('span');
+        sizeSpan.textContent = sizeStr;
+
+        meta.append(modeBadge, dateSpan, sizeSpan);
+
+        if (save.seed !== undefined) {
+          const seedSpan = document.createElement('span');
+          seedSpan.textContent = `Seed: ${save.seed}`;
+          meta.appendChild(seedSpan);
+        }
+
+        info.append(title, meta);
+
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'map-card-actions';
+
+        // Load Button
+        const btnLoad = document.createElement('button');
+        btnLoad.className = 'map-card-btn mc-btn-green';
+        btnLoad.textContent = 'Load';
+        btnLoad.onclick = async () => {
+          if (!this.game) {
+            this.showMapFeedback('load', 'Game instance not ready', true);
+            return;
+          }
+          btnLoad.disabled = true;
+          btnLoad.textContent = 'Loading...';
+          try {
+            await loadMapFromDefault(this.game, save.filename);
+            this.playPopSound();
+            this.showMapFeedback('load', `Map "${save.name}" loaded successfully!`, false);
+            setTimeout(() => {
+              this.closeAllModals();
+            }, 800);
+          } catch (err) {
+            btnLoad.disabled = false;
+            btnLoad.textContent = 'Load';
+            this.showMapFeedback('load', `Load failed: ${err.message}`, true);
+          }
+        };
+
+        // Export / Download Button
+        const btnExport = document.createElement('button');
+        btnExport.className = 'map-card-btn';
+        btnExport.textContent = 'Export';
+        btnExport.title = 'Save copy to custom file / download';
+        btnExport.onclick = async () => {
+          try {
+            const res = await fetch(`/api/saves/${encodeURIComponent(save.filename)}`);
+            if (res.ok) {
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = save.filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              this.showMapFeedback('load', `Exported "${save.filename}" to downloads!`, false);
+            }
+          } catch (e) {
+            this.showMapFeedback('load', `Export failed: ${e.message}`, true);
+          }
+        };
+
+        // Delete Button
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'map-card-btn mc-btn-red';
+        btnDelete.textContent = 'Delete';
+        btnDelete.onclick = async () => {
+          if (confirm(`Are you sure you want to delete map "${save.name}" from local storage?`)) {
+            try {
+              await deleteSavedMap(save.filename);
+              this.playPopSound();
+              this.refreshSavedMapsList();
+              this.showMapFeedback('load', `Deleted "${save.name}".`, false);
+            } catch (err) {
+              this.showMapFeedback('load', `Delete failed: ${err.message}`, true);
+            }
+          }
+        };
+
+        actions.append(btnLoad, btnExport, btnDelete);
+        card.append(info, actions);
+        this.mapSavesList.appendChild(card);
+      }
+    } catch (err) {
+      this.mapSavesList.innerHTML = `<div class="map-saves-empty" style="color:#ef5350;">Failed to scan saves: ${err.message}</div>`;
+    }
+  }
+
+  bindMapModalEvents() {
+    if (this.tabSaveMap) {
+      this.tabSaveMap.onclick = () => this.switchMapTab('save');
+    }
+    if (this.tabLoadMap) {
+      this.tabLoadMap.onclick = () => this.switchMapTab('load');
+    }
+
+    if (this.btnCloseMapModal) {
+      this.btnCloseMapModal.onclick = () => {
+        this.closeAllModals();
+        const canvas = document.getElementById('canvas-container');
+        if (canvas) canvas.requestPointerLock();
+      };
+    }
+
+    if (this.btnRefreshSaves) {
+      this.btnRefreshSaves.onclick = () => this.refreshSavedMapsList();
+    }
+
+    // Save to Default Location
+    if (this.btnSaveDefault) {
+      this.btnSaveDefault.onclick = async () => {
+        if (!this.game) {
+          this.showMapFeedback('save', 'Game instance not ready', true);
+          return;
+        }
+        const name = (this.mapSaveNameInput?.value || '').trim() || 'World 1';
+        this.btnSaveDefault.disabled = true;
+        this.btnSaveDefault.textContent = 'Saving to disk...';
+
+        try {
+          const res = await saveMapToDefault(this.game, name);
+          this.playPopSound();
+          this.showMapFeedback('save', `Map saved successfully to: ${res.path}`, false);
+          this.addChatMessage(`Saved map "${name}" to local path: ${res.path}`, 'system');
+        } catch (err) {
+          this.showMapFeedback('save', `Save failed: ${err.message}`, true);
+        } finally {
+          this.btnSaveDefault.disabled = false;
+          this.btnSaveDefault.textContent = '💾 Save to Default Path (Recommended)';
+        }
+      };
+    }
+
+    // Save to Custom File (Pick Path)
+    if (this.btnSaveCustom) {
+      this.btnSaveCustom.onclick = async () => {
+        if (!this.game) {
+          this.showMapFeedback('save', 'Game instance not ready', true);
+          return;
+        }
+        const name = (this.mapSaveNameInput?.value || '').trim() || 'World 1';
+        this.btnSaveCustom.disabled = true;
+        this.btnSaveCustom.textContent = 'Opening file dialog...';
+
+        try {
+          const res = await saveMapToCustomFile(this.game, name);
+          if (res.cancelled) {
+            // User cancelled file picker
+          } else {
+            this.playPopSound();
+            this.showMapFeedback('save', `Map exported to custom file: ${res.name}`, false);
+            this.addChatMessage(`Saved map to custom file "${res.name}"`, 'system');
+          }
+        } catch (err) {
+          this.showMapFeedback('save', `Export failed: ${err.message}`, true);
+        } finally {
+          this.btnSaveCustom.disabled = false;
+          this.btnSaveCustom.textContent = '📁 Save to Custom File / Pick Path...';
+        }
+      };
+    }
+
+    // Open Custom File from Computer
+    if (this.btnOpenCustomFile && this.mapFileUploadInput) {
+      this.btnOpenCustomFile.onclick = () => {
+        this.mapFileUploadInput.value = '';
+        this.mapFileUploadInput.click();
+      };
+
+      this.mapFileUploadInput.onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (!this.game) {
+          this.showMapFeedback('load', 'Game instance not ready', true);
+          return;
+        }
+
+        try {
+          this.showMapFeedback('load', `Loading file "${file.name}"...`, false);
+          await loadMapFromCustomFile(this.game, file);
+          this.playPopSound();
+          this.showMapFeedback('load', `Map "${file.name}" loaded successfully!`, false);
+          setTimeout(() => {
+            this.closeAllModals();
+          }, 800);
+        } catch (err) {
+          this.showMapFeedback('load', `Failed to load file: ${err.message}`, true);
+        }
+      };
+    }
+  }
+
+
 
   // Chat / Commands
   bindChatEvents() {

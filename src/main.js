@@ -14,6 +14,14 @@ import { WeatherManager } from './weather.js';
 import { GeminiAgent } from './geminiAgent.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
+import {
+  saveMapToDefault,
+  loadMapFromDefault,
+  saveMapToCustomFile,
+  loadMapFromCustomFile
+} from './mapManager.js';
+import { TournamentManager } from './tournament.js';
+
 
 class Game {
   constructor() {
@@ -75,6 +83,7 @@ class Game {
     this.inventory = null;
     this.ui = null;
     this.heldItemRenderer = null;
+    this.tournament = null;
 
     // Raycast & Mining state
     this.raycaster = new THREE.Raycaster();
@@ -111,13 +120,17 @@ class Game {
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
-    this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds);
+    this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds, this);
+    this.ui.game = this;
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
     this.entities.onItemPickup = () => this.ui.updateHotbar();
 
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
+
+    // 5b. Initialize Tournament Manager
+    this.tournament = new TournamentManager(this);
 
     // 6. Build Target Highlighting Box & Break Crack Mesh
     this.buildTargetHighlightMeshes();
@@ -320,6 +333,14 @@ class Game {
   }
 
   handleRightClick() {
+    // Interacting with Tournament Host
+    if (this.targetMob && this.targetMob.type === 'tournament_host') {
+      if (this.tournament) {
+        this.tournament.talkToHost();
+      }
+      return;
+    }
+
     // Interacting with Villager
     if (this.targetMob && this.targetMob.type === 'villager') {
       this.sounds.playVillager();
@@ -733,13 +754,42 @@ class Game {
     if (root === '/help') {
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for Gemini AI Terminal (Build, weather, summon mobs!)', 'help');
+      this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
+      this.ui.addChatMessage('/load <name> - Load map from local computer', 'help');
+      this.ui.addChatMessage('/maps - Open World Map Manager GUI', 'help');
       this.ui.addChatMessage('/weather <clear|rain|thunder> - Change weather', 'help');
       this.ui.addChatMessage('/gamemode <creative|survival> - Switch game mode', 'help');
       this.ui.addChatMessage('/time set <day|night> - Change world time', 'help');
       this.ui.addChatMessage('/summon <villager|iron_golem|pillager|zombie|pig|cow|sheep|creeper|skeleton> - Spawn mob', 'help');
       this.ui.addChatMessage('/give <item_name> [amount] - Add items to inventory', 'help');
       this.ui.addChatMessage('/clear - Clear chat', 'help');
+    } else if (root === '/save') {
+      const now = new Date();
+      const defaultName = `World_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const name = parts.slice(1).join(' ') || defaultName;
+      this.ui.addChatMessage(`Saving map "${name}" to local computer...`, 'system');
+      saveMapToDefault(this, name).then(res => {
+        this.ui.addChatMessage(`Saved map successfully! Location: ${res.path}`, 'system');
+      }).catch(err => {
+        this.ui.addChatMessage(`Save failed: ${err.message}`, 'error');
+      });
+    } else if (root === '/load') {
+      const name = parts.slice(1).join(' ');
+      if (!name) {
+        this.ui.addChatMessage('Usage: /load <filename> (or type /maps to browse)', 'error');
+      } else {
+        const filename = name.endsWith('.json') ? name : `${name}.json`;
+        this.ui.addChatMessage(`Loading map "${filename}"...`, 'system');
+        loadMapFromDefault(this, filename).then(res => {
+          this.ui.addChatMessage(`Map "${res.name}" loaded successfully!`, 'system');
+        }).catch(err => {
+          this.ui.addChatMessage(`Load failed: ${err.message}`, 'error');
+        });
+      }
+    } else if (root === '/maps' || root === '/saves') {
+      this.ui.openMapModal('load');
     } else if (root === '/weather') {
+
       const type = parts[1] ? parts[1].toLowerCase() : 'clear';
       if (type === 'rain' || type === 'clear' || type === 'thunder') {
         this.weather.setWeather(type);
@@ -800,8 +850,14 @@ class Game {
       } else if (mobType === 'axolotl') {
         this.mobs.spawnAxolotl(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned new Axolotl', 'system');
+      } else if (mobType === 'tournament_host' || mobType === 'host') {
+        this.mobs.spawnTournamentHost(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned Tournament Announcer Host', 'system');
+      } else if (mobType === 'enderman') {
+        this.mobs.spawnEnderman(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned Enderman Challenger Boss', 'system');
       } else {
-        this.ui.addChatMessage('Unknown mob. Try: villager, iron_golem, pillager, zombie, pig, salmon, dolphin, octopus, axolotl', 'error');
+        this.ui.addChatMessage('Unknown mob. Try: villager, tournament_host, enderman, iron_golem, pillager, zombie, pig, salmon, dolphin, octopus, axolotl', 'error');
       }
     } else if (root === '/give') {
       const itName = parts[1] ? parts[1].toLowerCase() : '';
@@ -858,6 +914,11 @@ class Game {
 
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);
+
+    // 5b. Update World Martial Arts Tournament Manager
+    if (this.tournament) {
+      this.tournament.update(dt, this.player);
+    }
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader
     this.updateDayNightCycle(dt);

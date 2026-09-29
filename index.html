@@ -13,6 +13,37 @@
   <div id="underwater-overlay"></div>
   <div id="crosshair"></div>
 
+  <!-- Boss Health Bar -->
+  <div id="boss-bar-container" class="hidden">
+    <div class="boss-bar-title" id="boss-bar-name">World Martial Arts Challenger: The Enderman</div>
+    <div class="boss-bar-frame">
+      <div class="boss-bar-fill" id="boss-bar-fill" style="width: 100%;"></div>
+    </div>
+  </div>
+
+  <!-- Tournament Announcer Dialogue Banner -->
+  <div id="announcer-dialogue" class="hidden">
+    <div class="announcer-card">
+      <div class="announcer-badge">🎤 ANNOUNCER</div>
+      <div class="announcer-body">
+        <div class="announcer-title">World Martial Arts Tournament Host</div>
+        <div class="announcer-text" id="announcer-text">"Welcome to the World Martial Arts Tournament! If you defeat the enderman, you will be the world champion!"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- World Martial Arts Tournament Victory Overlay -->
+  <div id="champion-overlay" class="hidden">
+    <div class="champion-content">
+      <div class="champion-trophy">🏆</div>
+      <div class="champion-stars">★ ★ ★ ★ ★</div>
+      <h1 class="champion-title">WORLD CHAMPION!</h1>
+      <div class="champion-subtitle">Tenkaichi Budokai Victor</div>
+      <div class="champion-quote" id="champion-quote">"LADIES AND GENTLEMEN, WE HAVE A NEW WORLD CHAMPION!"</div>
+      <div class="champion-firework-text">🎆 CELEBRATORY FIREWORKS IN THE SKY 🎆</div>
+    </div>
+  </div>
+
   <!-- HUD -->
   <div id="hud">
     <div id="status-bars">
@@ -188,6 +219,8 @@
     <div class="mc-menu-card">
       <div class="mc-title">Game Paused</div>
       <button class="mc-btn" id="btn-resume">Back to Game</button>
+      <button class="mc-btn" id="btn-save-map">💾 Save Map</button>
+      <button class="mc-btn" id="btn-open-map">📂 Load / Manage Maps</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
       <button class="mc-btn" id="btn-time">Time: Set Day</button>
       <button class="mc-btn" id="btn-spawn-golem">Spawn Iron Golem</button>
@@ -197,6 +230,82 @@
       <button class="mc-btn" id="btn-reset">Regenerate World</button>
     </div>
   </div>
+
+  <!-- Map Manager Modal (Save & Load Worlds) -->
+  <div id="map-modal" class="game-modal hidden">
+    <div class="map-modal-card">
+      <div class="mc-title">World Maps & Saves</div>
+
+      <!-- Default Path Indicator Banner -->
+      <div class="map-path-banner">
+        <div class="map-path-header">
+          <span class="map-path-icon">📁</span>
+          <span class="map-path-title">Default Save Location (Local Computer):</span>
+        </div>
+        <div class="map-path-box" id="map-default-path-display">
+          Loading default path...
+        </div>
+        <div class="map-path-hint">
+          Maps are saved directly as files on your computer. Use the default path with one click, or pick any custom location.
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="map-tabs-nav">
+        <button class="map-tab-btn active" id="tab-save-map">💾 Save Current Map</button>
+        <button class="map-tab-btn" id="tab-load-map">📂 Load Saved Map</button>
+      </div>
+
+      <!-- Tab 1: Save Current Map -->
+      <div class="map-tab-content" id="map-tab-save-content">
+        <div class="map-input-group">
+          <label for="map-save-name-input">Map / World Name:</label>
+          <input type="text" id="map-save-name-input" placeholder="e.g. My Creative World" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="map-action-buttons">
+          <button class="mc-btn mc-btn-green" id="btn-save-default">
+            💾 Save to Default Path (Recommended)
+          </button>
+          <button class="mc-btn" id="btn-save-custom">
+            📁 Save to Custom File / Pick Path...
+          </button>
+        </div>
+
+        <div id="map-save-feedback" class="map-feedback hidden"></div>
+      </div>
+
+      <!-- Tab 2: Load Saved Map -->
+      <div class="map-tab-content hidden" id="map-tab-load-content">
+        <div class="map-load-actions">
+          <button class="mc-btn mc-btn-blue" id="btn-open-custom-file">
+            📂 Open Custom File from Computer...
+          </button>
+          <button class="mc-btn" id="btn-refresh-saves">
+            🔄 Refresh List
+          </button>
+          <input type="file" id="map-file-upload-input" accept=".json,.mcworld" style="display:none">
+        </div>
+
+        <div class="map-saves-header">
+          <span>Saved Maps in Default Location:</span>
+          <span id="map-saves-count">0 maps</span>
+        </div>
+
+        <div id="map-saves-list" class="map-saves-list">
+          <div class="map-saves-loading">Scanning default saves directory...</div>
+        </div>
+
+        <div id="map-load-feedback" class="map-feedback hidden"></div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="map-modal-footer">
+        <button class="mc-btn" id="btn-close-map-modal">Back to Game</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Gemini AI Terminal Modal (C) -->
   <div id="gemini-modal" class="game-modal hidden">

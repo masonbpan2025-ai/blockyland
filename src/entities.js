@@ -9,6 +9,86 @@ export class EntityManager {
     this.droppedItems = [];
     this.tntEntities = [];
     this.particles = [];
+    this.fireworkRockets = [];
+  }
+
+  // Spawn purple/magenta Enderman portal particles
+  spawnEndermanParticles(pos, count = 20) {
+    const purpleShades = [0x9333ea, 0xa855f7, 0xc084fc, 0xd946ef, 0xec4899];
+    for (let i = 0; i < count; i++) {
+      const color = purpleShades[Math.floor(Math.random() * purpleShades.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.08, 0.08),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
+      );
+      mesh.position.copy(pos).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.9,
+        (Math.random() - 0.5) * 1.5,
+        (Math.random() - 0.5) * 0.9
+      ));
+      this.scene.add(mesh);
+      this.particles.push({
+        mesh,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 1.2,
+          Math.random() * 1.5 + 0.5,
+          (Math.random() - 0.5) * 1.2
+        ),
+        life: 0.8 + Math.random() * 0.6,
+        maxLife: 1.4,
+        fade: true
+      });
+    }
+  }
+
+  // Spawn a Firework Rocket that shoots into the sky and bursts into colorful sparks
+  spawnFireworkRocket(pos, targetHeight = null, colors = null) {
+    const startY = pos.y;
+    const burstY = targetHeight || (startY + 22 + Math.random() * 14);
+    const fireworkColors = colors || [0xff2244, 0xffd700, 0x00f0ff, 0x33ff66, 0xd946ef, 0xffffff, 0xff8800];
+
+    const rocketGeo = new THREE.BoxGeometry(0.12, 0.35, 0.12);
+    const rocketMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const mesh = new THREE.Mesh(rocketGeo, rocketMat);
+    mesh.position.copy(pos);
+    this.scene.add(mesh);
+
+    if (this.sounds?.playFireworkLaunch) {
+      this.sounds.playFireworkLaunch();
+    }
+
+    this.fireworkRockets.push({
+      mesh,
+      targetY: burstY,
+      speed: 24 + Math.random() * 6,
+      colors: fireworkColors,
+      trailTimer: 0
+    });
+  }
+
+  // Launch a celebratory volley of tournament fireworks across the arena
+  launchTournamentFireworks(centerPos = new THREE.Vector3(0, 24, 0), count = 6) {
+    const arenaColors = [
+      [0xff0044, 0xffd700, 0xffffff],
+      [0x00ffff, 0x3b82f6, 0x60a5fa],
+      [0xa855f7, 0xec4899, 0xf43f5e],
+      [0x22c55e, 0x10b981, 0xfacc15],
+      [0xf97316, 0xeab308, 0xffffff]
+    ];
+
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const offset = new THREE.Vector3(
+          (Math.random() - 0.5) * 22,
+          0,
+          (Math.random() - 0.5) * 22
+        );
+        const startPos = centerPos.clone().add(offset);
+        const burstHeight = startPos.y + 24 + Math.random() * 16;
+        const colorSet = arenaColors[Math.floor(Math.random() * arenaColors.length)];
+        this.spawnFireworkRocket(startPos, burstHeight, colorSet);
+      }, i * 220 + Math.random() * 100);
+    }
   }
 
   // Spawn spinning dropped item in 3D world
@@ -228,17 +308,106 @@ export class EntityManager {
       }
     }
 
-    // 3. Update Particles
+    // 3. Update Firework Rockets
+    for (let i = this.fireworkRockets.length - 1; i >= 0; i--) {
+      const rocket = this.fireworkRockets[i];
+      rocket.mesh.position.y += rocket.speed * dt;
+      rocket.trailTimer = (rocket.trailTimer || 0) + dt;
+
+      // Spark trail
+      if (rocket.trailTimer >= 0.04) {
+        rocket.trailTimer = 0;
+        const trailMat = new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.85 });
+        const trail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), trailMat);
+        trail.position.copy(rocket.mesh.position).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.1,
+          -0.2,
+          (Math.random() - 0.5) * 0.1
+        ));
+        this.scene.add(trail);
+        this.particles.push({
+          mesh: trail,
+          velocity: new THREE.Vector3((Math.random() - 0.5) * 0.5, -1.5, (Math.random() - 0.5) * 0.5),
+          life: 0.35,
+          maxLife: 0.35,
+          fade: true
+        });
+      }
+
+      // Detonate at target height
+      if (rocket.mesh.position.y >= rocket.targetY) {
+        if (this.sounds?.playFireworkExplode) {
+          this.sounds.playFireworkExplode();
+        }
+
+        const center = rocket.mesh.position.clone();
+        const sparkCount = 50 + Math.floor(Math.random() * 20);
+        const colorPalette = rocket.colors;
+
+        for (let s = 0; s < sparkCount; s++) {
+          const col = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+          const sparkGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+          const sparkMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 1.0 });
+          const spark = new THREE.Mesh(sparkGeo, sparkMat);
+          spark.position.copy(center);
+          this.scene.add(spark);
+
+          // Spherical burst velocity
+          const phi = Math.acos(2 * Math.random() - 1);
+          const theta = Math.random() * Math.PI * 2;
+          const speed = 4.0 + Math.random() * 7.5;
+          const vx = Math.sin(phi) * Math.cos(theta) * speed;
+          const vy = Math.cos(phi) * speed + 1.5;
+          const vz = Math.sin(phi) * Math.sin(theta) * speed;
+
+          this.particles.push({
+            mesh: spark,
+            velocity: new THREE.Vector3(vx, vy, vz),
+            life: 1.2 + Math.random() * 0.8,
+            maxLife: 2.0,
+            spark: true,
+            fade: true
+          });
+        }
+
+        this.scene.remove(rocket.mesh);
+        rocket.mesh.geometry?.dispose();
+        rocket.mesh.material?.dispose();
+        this.fireworkRockets.splice(i, 1);
+      }
+    }
+
+    // 4. Update Particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
-      p.velocity.y -= (p.death ? 0.5 : 16) * dt;
-      if (p.death) p.mesh.material.opacity = Math.max(0, p.life / 0.6) * 0.8;
+
+      if (p.spark) {
+        p.velocity.x *= Math.exp(-2.2 * dt);
+        p.velocity.z *= Math.exp(-2.2 * dt);
+        p.velocity.y -= 4.5 * dt; // gentle gravity for sparks
+        if (p.mesh.material) {
+          const ratio = Math.max(0, p.life / (p.maxLife || 1.6));
+          p.mesh.material.opacity = ratio;
+          // Sparkle flicker
+          if (Math.random() < 0.2) p.mesh.material.opacity = Math.min(1.0, ratio * 1.5);
+        }
+      } else if (p.death) {
+        p.velocity.y -= 0.5 * dt;
+        if (p.mesh.material) p.mesh.material.opacity = Math.max(0, p.life / 0.6) * 0.8;
+      } else if (p.fade) {
+        p.velocity.y -= 1.0 * dt;
+        if (p.mesh.material) p.mesh.material.opacity = Math.max(0, p.life / (p.maxLife || 1.0));
+      } else {
+        p.velocity.y -= 16 * dt;
+      }
+
       p.mesh.position.addScaledVector(p.velocity, dt);
 
       if (p.life <= 0) {
         this.scene.remove(p.mesh);
-        if (p.death) { p.mesh.geometry.dispose(); p.mesh.material.dispose(); }
+        p.mesh.geometry?.dispose();
+        p.mesh.material?.dispose();
         this.particles.splice(i, 1);
       }
     }
