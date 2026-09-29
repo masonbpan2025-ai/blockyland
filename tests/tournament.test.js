@@ -5,6 +5,7 @@ import { TournamentManager, TOURNAMENT_STATE } from '../src/tournament.js';
 import { MobManager } from '../src/mobs.js';
 import { EntityManager } from '../src/entities.js';
 import { BLOCKS } from '../src/blocks.js';
+import { Inventory } from '../src/inventory.js';
 
 function fixture() {
   const world = { getVoxel: () => BLOCKS.AIR, chunks: new Map() };
@@ -145,4 +146,25 @@ test('World Martial Arts Tournament map is Survival mode only and contains acces
 
   // 2. Verify chunks are present and contain blocks
   assert.ok(content.chunks.length > 50, 'Map should contain full tournament world chunks');
+});
+
+test('Player starts with fist in hand (no sword in hand) in both new world and tournament map', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  // 1. New World Inventory
+  const inv = new Inventory({});
+  assert.equal(inv.activeSlot, 0, 'Initial activeSlot must be 0');
+  assert.equal(inv.getActiveItem(), null, 'Active item at start of new world must be null (fist)');
+  assert.equal(inv.hotbar[0], null, 'Hotbar slot 0 must be empty so player starts with just fist');
+  assert.ok(inv.storage.some(it => it && it.id === 'diamond_sword'), 'Sword is safely stored in inventory storage, not in hand');
+
+  // 2. Tournament Map
+  const savePath = path.resolve(__dirname, '..', 'saves', 'World_Martial_Arts_Tournament.json');
+  const content = JSON.parse(fs.readFileSync(savePath, 'utf8'));
+  assert.equal(content.inventory.activeSlot, 0, 'Tournament activeSlot must be 0');
+  assert.equal(content.inventory.hotbar[0], null, 'Tournament hotbar slot 0 must be empty so player starts with fist');
+  assert.ok(content.inventory.storage.some(it => it && it.id === 'diamond_sword'), 'Tournament map has sword in storage rather than in hand');
 });

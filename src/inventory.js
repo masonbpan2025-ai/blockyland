@@ -24,8 +24,8 @@ export class Inventory {
   }
 
   initDefaultItems() {
-    // Starting items for immediate fun & testing
-    this.hotbar[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
+    // Starting items: hotbar[0] is null so player starts with just bare fist in hand
+    this.hotbar[0] = null;
     this.hotbar[1] = { id: 'diamond_pickaxe', isBlock: false, count: 1 };
     this.hotbar[2] = { id: BLOCKS.OAK_LOG, isBlock: true, count: 32 };
     this.hotbar[3] = { id: BLOCKS.COBBLESTONE, isBlock: true, count: 64 };
@@ -34,6 +34,9 @@ export class Inventory {
     this.hotbar[6] = { id: 'bread', isBlock: false, count: 10 };
     this.hotbar[7] = { id: 'emerald', isBlock: false, count: 15 };
     this.hotbar[8] = { id: 'wheat', isBlock: false, count: 20 };
+
+    // Move sword to storage inventory so player does not start with sword in hand
+    this.storage[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
   }
 
   getItemMeta(item) {

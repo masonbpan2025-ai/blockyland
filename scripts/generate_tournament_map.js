@@ -665,13 +665,14 @@ const mobsData = [
 // 9. PLAYER INVENTORY & MAP OBJECT
 // ========================================================
 const hotbar = Array(9).fill(null);
-hotbar[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
+hotbar[0] = null; // Fist in hand at start
 hotbar[1] = { id: 'golden_apple', isBlock: false, count: 16 };
 hotbar[2] = { id: 'firework_rocket', isBlock: false, count: 64 };
 hotbar[3] = { id: BLOCKS.GOLD_ORE, isBlock: true, count: 64 };
 hotbar[4] = { id: BLOCKS.STONE_BRICKS, isBlock: true, count: 64 };
 
 const storage = Array(27).fill(null);
+storage[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
 
 const tournamentMapData = {
   format: 'minecraft-web-map',
