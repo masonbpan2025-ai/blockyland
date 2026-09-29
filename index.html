@@ -350,34 +350,75 @@
   </div>
 
 
-  <!-- Gemini AI Terminal Modal (C) -->
+  <!-- AI World Agent Terminal Modal (C) -->
   <div id="gemini-modal" class="game-modal hidden">
     <div class="gemini-terminal-card">
       <!-- Header -->
       <div class="gemini-header">
         <div class="gemini-title-group">
           <span class="gemini-sparkle">✦</span>
-          <span class="gemini-title">Gemini AI Command Terminal</span>
+          <span class="gemini-title">AI World Agent Terminal</span>
           <span class="gemini-pill" id="gemini-status-pill">
             <span class="gemini-dot"></span> <span id="gemini-status-text">READY</span>
           </span>
         </div>
         <div class="gemini-header-actions">
-          <button class="gemini-icon-btn" id="gemini-toggle-key" title="Configure Gemini for free-form prompts">⚙️ API Key</button>
+          <button class="gemini-icon-btn" id="gemini-toggle-key" title="Choose vendor, model and API key">⚙️ Settings</button>
           <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
         </div>
       </div>
 
-      <!-- Optional API Key Drawer -->
+      <!-- Vendor / model / key / view settings drawer -->
       <div id="gemini-key-drawer" class="gemini-key-drawer hidden">
         <div class="gemini-key-desc">
-          <span>Google Gemini API Key (For Live Multimodal Vision & Dynamic Builds):</span>
-          <small>Add a key from <strong style="color: #60a5fa;">aistudio.google.com</strong> for free-form prompts and contextual edits. Without a key, only limited offline presets are available.</small>
+          <span>AI Vendor</span>
+          <small>Pick one vendor and model. The agent sends your prompt, the conversation, the world state and a live screenshot of your view.</small>
+        </div>
+        <div class="gemini-vendor-row" id="gemini-vendor-row">
+          <button type="button" class="gemini-vendor-btn" data-vendor="gemini">
+            <span class="gemini-vendor-name">Gemini</span>
+            <span class="gemini-vendor-key-state" data-key-state="gemini">key needed</span>
+          </button>
+          <button type="button" class="gemini-vendor-btn" data-vendor="deepseek">
+            <span class="gemini-vendor-name">DeepSeek</span>
+            <span class="gemini-vendor-key-state" data-key-state="deepseek">key needed</span>
+          </button>
+          <button type="button" class="gemini-vendor-btn" data-vendor="chatgpt">
+            <span class="gemini-vendor-name">ChatGPT</span>
+            <span class="gemini-vendor-key-state" data-key-state="chatgpt">key needed</span>
+          </button>
+        </div>
+        <div class="gemini-controls-row">
+          <label class="gemini-field">
+            <span class="gemini-field-label">Model</span>
+            <select id="gemini-model-select"></select>
+          </label>
+          <label class="gemini-field" id="gemini-effort-field">
+            <span class="gemini-field-label">Reasoning effort</span>
+            <select id="gemini-effort-select">
+              <option value="minimal">Minimal</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="max">Max</option>
+            </select>
+          </label>
         </div>
         <div class="gemini-key-row">
-          <input type="password" id="gemini-key-input" placeholder="AIzaSy..." autocomplete="off">
-          <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Key</button>
-          <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear</button>
+          <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
+          <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
+          <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
+        </div>
+        <div class="gemini-view-row">
+          <label class="gemini-check" for="gemini-view-toggle">
+            <input type="checkbox" id="gemini-view-toggle" checked>
+            <span>Send a screenshot of my current view with every request</span>
+          </label>
+          <label class="gemini-check" for="gemini-thinking-toggle">
+            <input type="checkbox" id="gemini-thinking-toggle" checked>
+            <span>Show live thinking and elapsed time in the terminal</span>
+          </label>
+          <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
         </div>
       </div>
 
@@ -402,17 +443,17 @@
 
       <!-- Console / Terminal Feed -->
       <div class="gemini-terminal-body" id="gemini-log-feed">
-        <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Add an API key for free-form Gemini prompts; otherwise the terminal uses offline presets.</div>
+        <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
         <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
-        <div class="gemini-log-entry hint">📷 Tip: You can paste screenshots (Ctrl+V) or upload reference images for Gemini to analyze and build!</div>
+        <div class="gemini-log-entry hint">📷 The agent receives your world state and a screenshot of your current view, so "build a bridge over that water" works. You can also paste (Ctrl+V) or upload a reference image.</div>
       </div>
 
       <!-- Attached Image Preview Container -->
       <div id="gemini-image-preview-container" class="gemini-image-preview-container hidden">
         <img id="gemini-image-preview" src="" alt="Attached Screenshot">
         <div class="gemini-image-info">
-          <span class="gemini-image-badge">📷 Image Attached</span>
-          <span class="gemini-image-subtext">Ready for Gemini Vision / 3D Voxelizer</span>
+          <span class="gemini-image-badge" id="gemini-image-badge">📷 Image Attached</span>
+          <span class="gemini-image-subtext">Sent to the agent as reference</span>
         </div>
         <button type="button" id="gemini-image-remove-btn" class="gemini-image-remove-btn" title="Remove attached image">✕</button>
       </div>
@@ -431,7 +472,7 @@
         <input 
           type="text" 
           id="gemini-prompt-input" 
-          placeholder="Ask Gemini to build anything on the fly, paste a screenshot (Ctrl+V)..." 
+          placeholder="Ask the agent to build anything on the fly, paste a screenshot (Ctrl+V)..." 
           autocomplete="off" 
           spellcheck="false"
         >

@@ -1577,6 +1577,7 @@ export class MobManager {
 
   isTrainingSiteMob(mob) {
     if (!mob || !mob.mesh) return false;
+    if (this.game && !this.game.tournament?.isTournamentMap) return false;
     const hostileTypes = ['zombie', 'skeleton', 'pillager', 'creeper', 'enderman'];
     if (!hostileTypes.includes(mob.type)) return false;
 

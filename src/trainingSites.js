@@ -55,6 +55,7 @@ export class TrainingSitesManager {
   }
 
   ensureSiteManagers() {
+    if (!this.game?.tournament?.isTournamentMap) return;
     if (this.managersSpawned || !this.game.mobs) return;
 
     for (const site of this.sites) {
@@ -74,6 +75,8 @@ export class TrainingSitesManager {
   }
 
   triggerSiteIntroduction(site) {
+    if (!this.game?.tournament?.isTournamentMap) return;
+
     const now = Date.now();
     const lastSpoke = this.siteCooldowns[site.id] || 0;
     if (now - lastSpoke < 12000) return; // Prevent spamming within 12s
@@ -98,6 +101,7 @@ export class TrainingSitesManager {
   }
 
   update(dt, player) {
+    if (!this.game?.tournament?.isTournamentMap) return;
     if (!player) return;
     this.ensureSiteManagers();
 
@@ -118,6 +122,24 @@ export class TrainingSitesManager {
       this.triggerSiteIntroduction(active);
     } else if (!active) {
       this.currentSite = null;
+    }
+  }
+
+  cleanup() {
+    this.currentSite = null;
+    this.visitedSites.clear();
+    this.siteCooldowns = {};
+    this.managersSpawned = false;
+    if (this.game?.mobs?.mobs) {
+      for (let i = this.game.mobs.mobs.length - 1; i >= 0; i--) {
+        const m = this.game.mobs.mobs[i];
+        if (m.type === 'site_manager') {
+          if (m.mesh && this.game.scene) {
+            this.game.scene.remove(m.mesh);
+          }
+          this.game.mobs.mobs.splice(i, 1);
+        }
+      }
     }
   }
 

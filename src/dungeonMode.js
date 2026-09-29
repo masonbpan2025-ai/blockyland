@@ -318,6 +318,10 @@ export class DungeonModeManager {
 
   update(dt) {
     if (!this.player) return;
+    if (!this.game?.tournament?.isTournamentMap) {
+      if (this.isActive) this.exitDungeonMode(false);
+      return;
+    }
 
     // Check Dodge Roll cooldown indicator on HUD
     if (this.rollCdEl && this.isActive) {

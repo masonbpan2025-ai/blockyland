@@ -2,24 +2,37 @@
 
 Run `npm install` and `npm run dev`, then open http://localhost:3000.
 
-## Gemini world editing
+## AI world editing
 
-Press **C**, open **API Key**, and save a valid Google Gemini API key. The key is stored in this browser's localStorage and requests go directly to Google. The status shows **GEMINI READY** when a key is configured (connection is checked when a request runs).
+Press **C** to open the AI World Agent terminal. Open **⚙️ Settings**, pick a vendor, pick a model, and save that vendor's API key. Keys and choices are stored in this browser's localStorage and requests go directly from the browser to the vendor — no proxy. The status pill shows **DEEPSEEK READY**, **CHATGPT READY**, **GEMINI READY**, **OFFLINE**, or **ERROR**.
 
-Every prompt is sent to Gemini with recent conversation turns, stable structure IDs, names, positions, attachments, and current block data. Examples:
+| Vendor | Default model | Default effort | Key |
+| --- | --- | --- | --- |
+| **DeepSeek** (default) | `deepseek-flash` (DeepSeek-V4.1-Flash) | `high` | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| ChatGPT | `gpt-6-astra` | `medium` | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Gemini | `gemini-3.8-flash` | not applicable | [aistudio.google.com](https://aistudio.google.com/apikey) |
+
+Each vendor keeps its own key, model, and reasoning effort. Switching vendors never clears another vendor's settings. Reasoning effort (`minimal`…`max`) is sent to DeepSeek and ChatGPT and hidden for Gemini. A pre-existing `gemini_api_key` from the older Gemini-only build is adopted automatically. Set `VITE_DEEPSEEK_MODEL`, `VITE_OPENAI_MODEL`, or `VITE_GEMINI_MODEL` in `.env.local` to override a default model, then restart Vite.
+
+Every prompt is sent with the recent conversation turns, stable structure IDs, names, positions, attachments, **the local terrain around the player, and a live screenshot of the player's current first-person view**. That means spatial requests work:
 
 - “Build a lighthouse overlooking the water.”
 - “Replace its stone walls with brick, keeping the windows.”
+- “Bridge that gap in front of me.”
 - “Add a viewing platform to the lighthouse.”
 - “Destroy the lighthouse.”
+
+Wires used: DeepSeek and ChatGPT use OpenAI-compatible `POST /chat/completions` with `response_format: {"type":"json_object"}` (DeepSeek also sends `thinking: {"type":"enabled"}` with `reasoning_effort`); Gemini uses `generateContent` with `responseMimeType: application/json`. The player's view is captured from the WebGL canvas, downscaled to 1024 px and JPEG-encoded before being attached; uncheck the settings checkbox to send world state only.
+
+**Progress and long requests.** Every request is streamed, so the terminal shows the model's reasoning as it arrives — one live `🧠 thinking (12.3s)` line that reports the elapsed time, the reasoning-token count and the final trace. A status line updates every 0.5 s with either "waiting for DeepSeek to start responding" or how long it has been receiving output, and the progress bar creeps forward while the model thinks, so a slow request is never indistinguishable from a hang.
+
+Output budgets allow for reasoning: DeepSeek gets 64K tokens in thinking mode (its documented default) and 8K with thinking off, ChatGPT 32K. Reasoning tokens are billed against that budget, so if a model still exhausts it while thinking and returns no JSON, the agent **retries once with thinking mode off** instead of failing. A request is aborted only after 60 s of complete silence (not a total-duration limit), and HTTP failures say what to do — rejected key, no credit, rate limit, or unavailable model. Uncheck "show live thinking" in ⚙️ Settings to hide the reasoning display.
 
 The planner supports custom voxel builds, edits in place, removal, stairs, water, mobs, weather, time, inventory, and compound requests. It can answer or ask for clarification when a request cannot be represented by the available game actions. It does not execute model-generated JavaScript.
 
 Structures track the blocks they change, including foundations and attachments. Removal restores the original blocks while preserving later player changes whose block values differ. Memory lasts for the current world session; reloading resets both the world and agent memory. Large structure snapshots are explicitly marked when truncated.
 
-Without a key, the status shows **OFFLINE**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a working Gemini connection. API errors remain visible and never silently execute an offline substitute.
-
-The default model is `gemini-3.8-flash`, from Google's [model catalog](https://ai.google.dev/gemini-api/docs/models). To use another compatible model, set `VITE_GEMINI_MODEL` in `.env.local` and restart Vite. The request follows the [generateContent API](https://ai.google.dev/api/generate-content).
+Without a key, the status shows **OFFLINE**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a key for the selected vendor. API errors remain visible and never silently execute an offline substitute.
 
 ## Lighting and visual effects
 

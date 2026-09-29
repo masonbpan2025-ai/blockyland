@@ -46,7 +46,8 @@ function createMockGame() {
   };
 
   const tournament = {
-    state: 'WAITING_FOR_TALK'
+    state: 'WAITING_FOR_TALK',
+    isTournamentMap: true
   };
 
   const dragonballSkills = {

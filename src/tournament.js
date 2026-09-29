@@ -42,6 +42,7 @@ export class TournamentManager {
 
   // Create high-resolution 3D sign "天下一武道会" and Dragon Ball gate decorations
   ensureDecorations() {
+    if (!this.isTournamentMap) return;
     if (this.decorationsGroup || !this.game?.scene) return;
     if (typeof document === 'undefined') return;
 
@@ -200,6 +201,7 @@ export class TournamentManager {
 
   // Find or spawn tournament host
   ensureHost() {
+    if (!this.isTournamentMap) return;
     this.ensureDecorations();
     if (!this.game?.mobs) return;
     this.hostMob = this.game.mobs.mobs.find(m => m.type === 'tournament_host');
@@ -214,6 +216,7 @@ export class TournamentManager {
 
   // Triggered when player right-clicks or approaches the Host
   talkToHost() {
+    if (!this.isTournamentMap) return;
     if (this.state === TOURNAMENT_STATE.FIGHTING || this.state === TOURNAMENT_STATE.VICTORY) return;
 
     this.hasTalked = true;
@@ -251,6 +254,7 @@ export class TournamentManager {
 
   // Trigger Enderman Boss spawn on stage
   startFight() {
+    if (!this.isTournamentMap) return;
     if (this.state === TOURNAMENT_STATE.FIGHTING || this.state === TOURNAMENT_STATE.VICTORY) return;
     this.state = TOURNAMENT_STATE.FIGHTING;
 
@@ -336,6 +340,7 @@ export class TournamentManager {
 
   // Update loop called every frame
   update(dt, player) {
+    if (!this.isTournamentMap) return;
     if (!player) return;
 
     // Fade out dialogue timer
@@ -390,6 +395,30 @@ export class TournamentManager {
           this.game.entities.launchTournamentFireworks(new THREE.Vector3(0, 24, 0), 6);
         }
       }
+    }
+  }
+
+  // Full cleanup of tournament elements (e.g. when in or switching to normal world)
+  cleanup() {
+    this.hideDialogue();
+    if (this.bossBarContainer) this.bossBarContainer.classList.add('hidden');
+    if (this.championOverlay) {
+      this.championOverlay.classList.remove('visible');
+      this.championOverlay.classList.add('hidden');
+    }
+    if (this.decorationsGroup && this.game?.scene) {
+      this.game.scene.remove(this.decorationsGroup);
+      this.decorationsGroup = null;
+    }
+    if (this.hostMob && this.game?.mobs?.mobs) {
+      const idx = this.game.mobs.mobs.indexOf(this.hostMob);
+      if (idx !== -1) {
+        if (this.hostMob.mesh && this.game.scene) {
+          this.game.scene.remove(this.hostMob.mesh);
+        }
+        this.game.mobs.mobs.splice(idx, 1);
+      }
+      this.hostMob = null;
     }
   }
 

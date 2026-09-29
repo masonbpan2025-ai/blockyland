@@ -85,6 +85,7 @@ test('Tournament Host and Enderman mobs spawn with authentic properties', () => 
 test('TournamentManager state machine progresses from talk to battle to victory', () => {
   const { game } = fixture();
   const tm = new TournamentManager(game);
+  tm.isTournamentMap = true;
 
   // 1. Initial State
   assert.equal(tm.state, TOURNAMENT_STATE.WAITING_FOR_TALK);
@@ -114,6 +115,19 @@ test('TournamentManager state machine progresses from talk to battle to victory'
   tm.reset();
   assert.equal(tm.state, TOURNAMENT_STATE.WAITING_FOR_TALK);
   assert.equal(tm.hasTalked, false);
+});
+
+test('Tournament host, decorations, and announcements NEVER trigger in a normal world', () => {
+  const { game } = fixture();
+  const tm = new TournamentManager(game);
+  assert.equal(tm.isTournamentMap, false);
+
+  // In a normal world, update, talkToHost, and ensureHost do nothing
+  tm.update(0.1, game.player);
+  assert.equal(tm.hasTalked, false);
+  assert.equal(tm.state, TOURNAMENT_STATE.WAITING_FOR_TALK);
+  assert.equal(tm.hostMob, null);
+  assert.equal(tm.decorationsGroup, null);
 });
 
 test('Fireworks rockets ascend and burst into colorful particles', () => {

@@ -48,6 +48,7 @@ function createMockGame() {
   };
 
   const tournament = {
+    isTournamentMap: true,
     showDialogue: (title, text) => {}
   };
 

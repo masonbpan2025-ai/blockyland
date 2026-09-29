@@ -11,7 +11,8 @@ import { Inventory } from './inventory.js';
 import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
-import { GeminiAgent } from './geminiAgent.js';
+import { WorldAgent } from './worldAgent.js';
+import { encodeScreenshotDataUrl } from './agentProviders.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { getBlockDrop } from './itemVisuals.js';
@@ -81,7 +82,7 @@ class Game {
     this.textures = new TextureManager();
     this.world = new World();
     this.weather = new WeatherManager(this.scene, this.sounds);
-    this.geminiAgent = new GeminiAgent(this);
+    this.geminiAgent = new WorldAgent(this);
     this.mesher = null;
     this.player = null;
     this.mobs = null;
@@ -124,6 +125,7 @@ class Game {
     // 3. Initialize Mobs & Entities
     this.entities = new EntityManager(this.scene, this.world, this.sounds, this.textures);
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
+    this.mobs.game = this;
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
@@ -131,6 +133,8 @@ class Game {
     this.ui.game = this;
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
+    // Let every agent request carry a live screenshot of the player's view.
+    this.geminiAgent.viewCaptureProvider = () => this.captureCurrentView();
     this.entities.onItemPickup = () => this.ui.updateHotbar();
     this.world.water.onDisplace = (x,y,z,id) => {
       const drop=getBlockDrop(id);
@@ -290,6 +294,18 @@ class Game {
         e.stopPropagation();
         if (startOverlay) startOverlay.style.display = 'none';
         this.sounds.init();
+        if (this.tournament) {
+          this.tournament.isTournamentMap = false;
+          this.tournament.cleanup?.();
+          this.tournament.reset?.();
+        }
+        if (this.trainingSites) {
+          this.trainingSites.cleanup?.();
+          this.trainingSites.reset?.();
+        }
+        if (this.dungeonMode) {
+          this.dungeonMode.reset?.();
+        }
         this.renderer.domElement.requestPointerLock();
       });
     }
@@ -811,7 +827,7 @@ class Game {
 
     if (root === '/help') {
       this.ui.addChatMessage('Available Commands:', 'help');
-      this.ui.addChatMessage('Press [C] for Gemini AI Terminal (Build, weather, summon mobs!)', 'help');
+      this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
       this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
       this.ui.addChatMessage('/load <name> - Load map from local computer', 'help');
       this.ui.addChatMessage('/maps - Open World Map Manager GUI', 'help');
@@ -1013,6 +1029,28 @@ class Game {
     // 9. Render 1st person held item overlay (Hidden in Dungeon Mode)
     if (this.player.perspective === 0 && !this.player.isDungeonMode && !this.dungeonMode?.isActive) {
       this.heldItemRenderer.render(this.renderer);
+    }
+  }
+
+  /**
+   * Snapshot what the player is currently looking at, for the agent terminal.
+   * The held item is hidden for the capture so the image matches the player's
+   * unobstructed view, and it is restored immediately afterwards.
+   */
+  captureCurrentView(options = {}) {
+    const showHeldItem = this.player?.perspective === 0 && !this.player?.isDungeonMode && !this.dungeonMode?.isActive;
+    const container = this.heldItemRenderer?.container;
+
+    try {
+      if (showHeldItem && container) container.visible = false;
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+      return encodeScreenshotDataUrl(this.renderer.domElement, options);
+    } catch (err) {
+      console.warn('Current-view capture failed:', err);
+      return null;
+    } finally {
+      if (container) container.visible = true;
     }
   }
 }

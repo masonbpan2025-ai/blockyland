@@ -39,7 +39,7 @@ export class UIManager {
     this.startOverlay = document.getElementById('start-overlay');
     this.geminiModal = document.getElementById('gemini-modal');
 
-    // Gemini Terminal Elements
+    // AI Agent Terminal Elements
     this.geminiLogFeed = document.getElementById('gemini-log-feed');
     this.geminiForm = document.getElementById('gemini-form');
     this.geminiPromptInput = document.getElementById('gemini-prompt-input');
@@ -55,8 +55,16 @@ export class UIManager {
     this.geminiClearKeyBtn = document.getElementById('gemini-clear-key-btn');
     this.geminiToggleKeyBtn = document.getElementById('gemini-toggle-key');
     this.geminiCloseBtn = document.getElementById('gemini-close-btn');
+    this.geminiVendorRow = document.getElementById('gemini-vendor-row');
+    this.geminiVendorButtons = Array.from(document.querySelectorAll('.gemini-vendor-btn'));
+    this.geminiModelSelect = document.getElementById('gemini-model-select');
+    this.geminiEffortField = document.getElementById('gemini-effort-field');
+    this.geminiEffortSelect = document.getElementById('gemini-effort-select');
+    this.geminiViewToggle = document.getElementById('gemini-view-toggle');
+    this.geminiThinkingToggle = document.getElementById('gemini-thinking-toggle');
+    this.geminiVendorHint = document.getElementById('gemini-vendor-hint');
 
-    // Gemini Image Attachment Elements
+    // Attached-image (vision) elements
     this.geminiImagePreviewContainer = document.getElementById('gemini-image-preview-container');
     this.geminiImagePreview = document.getElementById('gemini-image-preview');
     this.geminiImageBadge = document.getElementById('gemini-image-badge');
@@ -65,6 +73,10 @@ export class UIManager {
     this.geminiFileInput = document.getElementById('gemini-file-input');
     this.geminiTerminalCard = document.querySelector('.gemini-terminal-card');
     this.currentAttachedImage = null;
+
+    // Live thinking display state
+    this.liveThoughtEntry = null;
+    this.lastLiveThoughtAt = 0;
 
     this.geminiAgent = null;
 
@@ -156,7 +168,7 @@ export class UIManager {
         this.toggleInventory();
       }
 
-      // C: Open/close Gemini Terminal
+          // C: Open/close the AI Agent Terminal
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
@@ -1361,7 +1373,7 @@ export class UIManager {
     }, 8000);
   }
 
-  // --- Gemini AI Terminal Management ---
+  // --- AI World Agent terminal management ---
   isGeminiOpen() {
     return this.geminiModal && !this.geminiModal.classList.contains('hidden');
   }
@@ -1397,21 +1409,137 @@ export class UIManager {
 
   initGemini(geminiAgent) {
     this.geminiAgent = geminiAgent;
+
+    const vendorLabel = () => {
+      const config = geminiAgent.constructor.vendors?.[geminiAgent.vendor];
+      return config?.label || geminiAgent.vendor;
+    };
+
     const refreshAgentStatus = () => {
       if (this.geminiStatusText && !geminiAgent.isExecuting) {
-        this.geminiStatusText.textContent = geminiAgent.lastError ? 'ERROR' : (geminiAgent.apiKey ? 'GEMINI READY' : 'OFFLINE');
+        this.geminiStatusText.textContent = geminiAgent.lastError
+          ? 'ERROR'
+          : (geminiAgent.apiKey ? `${vendorLabel().toUpperCase()} READY` : 'OFFLINE');
       }
     };
-    refreshAgentStatus();
 
-    // Load saved API key into input
-    if (this.geminiKeyInput && geminiAgent.apiKey) {
-      this.geminiKeyInput.value = geminiAgent.apiKey;
-    }
+    const refreshModelOptions = () => {
+      if (!this.geminiModelSelect) return;
+      const models = geminiAgent.getVendorModels();
+      const active = geminiAgent.model;
+      this.geminiModelSelect.innerHTML = '';
+      for (const model of models) {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.note ? `${model.label} — ${model.note}` : model.label;
+        this.geminiModelSelect.appendChild(option);
+      }
+      // A custom model id (env override or hand-edited storage) must stay selectable.
+      if (active && !models.some(model => model.id === active)) {
+        const option = document.createElement('option');
+        option.value = active;
+        option.textContent = `${active} (custom)`;
+        this.geminiModelSelect.appendChild(option);
+      }
+      this.geminiModelSelect.value = active;
+    };
+
+    const refreshEffortOptions = () => {
+      const supported = geminiAgent.constructor.supportsEffort(geminiAgent.vendor);
+      if (this.geminiEffortField) this.geminiEffortField.classList.toggle('hidden', !supported);
+      if (!this.geminiEffortSelect) return;
+      this.geminiEffortSelect.disabled = !supported;
+      const effort = geminiAgent.effort;
+      if (supported && effort) this.geminiEffortSelect.value = effort;
+    };
+
+    const refreshKeyState = () => {
+      if (this.geminiKeyInput) {
+        const key = geminiAgent.apiKey;
+        const focused = document.activeElement === this.geminiKeyInput;
+        if (!focused) this.geminiKeyInput.value = '';
+        this.geminiKeyInput.placeholder = geminiAgent.apiKey
+          ? `Saved key ••••${geminiAgent.apiKey.slice(-4)} (type to replace)`
+          : (geminiAgent.constructor.vendors?.[geminiAgent.vendor]?.keyPlaceholder || 'API key');
+        this.geminiKeyInput.dataset.hasKey = key ? 'true' : 'false';
+      }
+      if (this.geminiVendorButtons) {
+        for (const button of this.geminiVendorButtons) {
+          const vendorId = button.getAttribute('data-vendor');
+          const config = geminiAgent.constructor.vendors?.[vendorId];
+          button.classList.toggle('active', vendorId === geminiAgent.vendor);
+          if (config) {
+            const defaultModel = geminiAgent.constructor.defaultModelFor(vendorId);
+            const effort = geminiAgent.constructor.supportsEffort(vendorId)
+              ? `, effort ${geminiAgent.constructor.defaultEffortFor(vendorId) || 'high'}`
+              : '';
+            button.title = `Use ${config.label} — default ${defaultModel}${effort}`;
+          }
+          const state = button.querySelector('[data-key-state]');
+          if (state) {
+            const hasKey = !!geminiAgent.getApiKey(vendorId);
+            state.textContent = hasKey ? 'key saved' : 'key needed';
+            state.classList.toggle('ready', hasKey);
+          }
+        }
+      }
+      if (this.geminiVendorHint) {
+        const config = geminiAgent.constructor.vendors?.[geminiAgent.vendor];
+        this.geminiVendorHint.innerHTML = config
+          ? `Add a key from <a href="${config.docsUrl}" target="_blank" rel="noopener">${config.docsLabel}</a> for free-form prompts. ${config.keyHint}`
+          : '';
+      }
+    };
+
+    const refreshAgentControls = () => {
+      refreshModelOptions();
+      refreshEffortOptions();
+      refreshKeyState();
+      refreshAgentStatus();
+    };
+
+    const applyVendor = (vendorId) => {
+      if (!vendorId || vendorId === geminiAgent.vendor) return;
+      geminiAgent.setVendor(vendorId);
+      refreshAgentControls();
+      this.addGeminiLog(`Vendor switched to ${vendorLabel()} (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}).`, 'info');
+    };
+
+    refreshAgentControls();
 
     // Connect agent callbacks
     geminiAgent.onLog = (msg, type) => {
       this.addGeminiLog(msg, type);
+    };
+
+    // Live reasoning: one line that is rewritten as tokens stream in, so a long
+    // chain of thought never floods the terminal but always shows activity.
+    geminiAgent.onThought = ({ phase, reasoning, content, elapsedMs }) => {
+      if (!geminiAgent.thinkingEnabled) return;
+      const now = Date.now();
+      const force = phase === 'start' || phase === 'end';
+      if (!force && now - this.lastLiveThoughtAt < 350) return;
+      this.lastLiveThoughtAt = now;
+
+      if (phase === 'start') {
+        this.liveThoughtEntry = null;
+        return;
+      }
+
+      const seconds = (Math.max(0, elapsedMs || 0) / 1000).toFixed(1);
+      const text = (reasoning || content || '').trim();
+      const body = text
+        ? (text.length > 1200 ? `…${text.slice(-1200)}` : text)
+        : 'connected, waiting for the model\'s first tokens';
+      const label = `🧠 thinking (${seconds}s): `;
+      const message = `${label}${body}`;
+
+      if (!this.liveThoughtEntry) {
+        this.liveThoughtEntry = this.addGeminiLog(message, 'thought');
+        return;
+      }
+      this.liveThoughtEntry.textContent = message;
+      if (this.geminiLogFeed) this.geminiLogFeed.scrollTop = this.geminiLogFeed.scrollHeight;
     };
 
     geminiAgent.onProgress = (pct, label) => {
@@ -1441,8 +1569,10 @@ export class UIManager {
       }, 1500);
       if (this.geminiStatusPill) {
         this.geminiStatusPill.classList.remove('busy');
-        refreshAgentStatus();
       }
+      this.liveThoughtEntry = null;
+      refreshAgentStatus();
+      refreshKeyState();
       if (this.geminiExecBtn) {
         this.geminiExecBtn.disabled = false;
       }
@@ -1453,6 +1583,7 @@ export class UIManager {
         this.geminiStatusPill.classList.remove('busy');
         this.geminiStatusText.textContent = 'ERROR';
       }
+      this.liveThoughtEntry = null;
       if (this.geminiExecBtn) {
         this.geminiExecBtn.disabled = false;
       }
@@ -1463,7 +1594,7 @@ export class UIManager {
       this.geminiCloseBtn.onclick = () => this.closeGeminiTerminal();
     }
 
-    // Toggle API Key Drawer
+    // Toggle the settings drawer
     if (this.geminiToggleKeyBtn) {
       this.geminiToggleKeyBtn.onclick = () => {
         if (this.geminiKeyDrawer) {
@@ -1472,26 +1603,100 @@ export class UIManager {
       };
     }
 
-    // Save API key
-    if (this.geminiSaveKeyBtn) {
-      this.geminiSaveKeyBtn.onclick = () => {
-        const key = this.geminiKeyInput.value.trim();
-        geminiAgent.setApiKey(key);
+    // Vendor picker
+    for (const button of this.geminiVendorButtons) {
+      button.onclick = () => applyVendor(button.getAttribute('data-vendor'));
+    }
+
+    // Model picker (applies and persists immediately)
+    if (this.geminiModelSelect) {
+      this.geminiModelSelect.onchange = () => {
+        geminiAgent.setModel(this.geminiModelSelect.value);
         geminiAgent.lastError = null;
         refreshAgentStatus();
-        this.addGeminiLog(key ? '✓ API key saved. Free-form Gemini prompts enabled.' : 'API key cleared. Offline preset mode enabled.', 'success');
-        this.geminiKeyDrawer.classList.add('hidden');
+        this.addGeminiLog(`Model set to ${geminiAgent.model} for ${vendorLabel()}.`, 'info');
       };
     }
 
-    // Clear API key
+    // Reasoning effort picker
+    if (this.geminiEffortSelect) {
+      this.geminiEffortSelect.onchange = () => {
+        geminiAgent.setEffort(this.geminiEffortSelect.value);
+        this.addGeminiLog(`Reasoning effort set to ${geminiAgent.effort} for ${vendorLabel()}.`, 'info');
+      };
+    }
+
+    // Current-view screenshot toggle
+    if (this.geminiViewToggle) {
+      this.geminiViewToggle.checked = this.isViewCaptureEnabled();
+      this.geminiViewToggle.onchange = () => {
+        this.viewCaptureEnabled = this.geminiViewToggle.checked;
+        try {
+          localStorage.setItem('mc_agent_capture_view', this.viewCaptureEnabled ? '1' : '0');
+        } catch {
+          // Storage unavailable; the preference just will not persist.
+        }
+        this.addGeminiLog(
+          this.viewCaptureEnabled
+            ? 'Current-view screenshots enabled: every request will include what you are looking at.'
+            : 'Current-view screenshots disabled: the agent will rely on world state only.',
+          'info'
+        );
+      };
+    }
+
+    // Live thinking display toggle
+    if (this.geminiThinkingToggle) {
+      geminiAgent.thinkingEnabled = this.isThinkingDisplayEnabled();
+      this.geminiThinkingToggle.checked = geminiAgent.thinkingEnabled;
+      this.geminiThinkingToggle.onchange = () => {
+        geminiAgent.thinkingEnabled = this.geminiThinkingToggle.checked;
+        try {
+          localStorage.setItem('mc_agent_show_thinking', geminiAgent.thinkingEnabled ? '1' : '0');
+        } catch {
+          // Storage unavailable; the preference just will not persist.
+        }
+        this.addGeminiLog(
+          geminiAgent.thinkingEnabled
+            ? 'Live thinking display enabled: the terminal shows the model\'s reasoning and elapsed time.'
+            : 'Live thinking display disabled.',
+          'info'
+        );
+      };
+    }
+
+    // A new turn always starts with a fresh live line.
+    if (this.geminiForm) {
+      this.geminiForm.addEventListener('submit', () => {
+        this.liveThoughtEntry = null;
+      });
+    }
+
+    // Save settings for the active vendor
+    if (this.geminiSaveKeyBtn) {
+      this.geminiSaveKeyBtn.onclick = () => {
+        const key = (this.geminiKeyInput?.value || '').trim();
+        if (key) geminiAgent.setApiKey(key);
+        geminiAgent.lastError = null;
+        refreshAgentControls();
+        this.addGeminiLog(
+          geminiAgent.apiKey
+            ? `✓ ${vendorLabel()} saved (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}). Free-form prompts enabled.`
+            : `No API key set for ${vendorLabel()}. Offline preset mode remains active.`,
+          geminiAgent.apiKey ? 'success' : 'warning'
+        );
+        if (this.geminiKeyDrawer) this.geminiKeyDrawer.classList.add('hidden');
+      };
+    }
+
+    // Clear the stored key for the active vendor only
     if (this.geminiClearKeyBtn) {
       this.geminiClearKeyBtn.onclick = () => {
         if (this.geminiKeyInput) this.geminiKeyInput.value = '';
         geminiAgent.setApiKey('');
         geminiAgent.lastError = null;
-        refreshAgentStatus();
-        this.addGeminiLog('API key removed. Offline mode supports limited presets; free-form prompts require Gemini.', 'info');
+        refreshAgentControls();
+        this.addGeminiLog(`${vendorLabel()} API key removed. Offline preset mode supports limited commands.`, 'info');
       };
     }
 
@@ -1525,7 +1730,7 @@ export class UIManager {
       }
     });
 
-    // Drag & Drop onto Gemini Terminal
+    // Drag & Drop onto the terminal card
     if (this.geminiTerminalCard) {
       this.geminiTerminalCard.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -1577,13 +1782,57 @@ export class UIManager {
         const prompt = this.geminiPromptInput.value.trim();
         const image = this.currentAttachedImage;
 
+        // Capture the player's current view synchronously, before the modal
+        // loses focus and the world keeps moving.
+        const viewImage = this.captureCurrentView();
+
         if (!prompt && !image) return;
 
         const effectivePrompt = prompt || (image ? 'Reconstruct this image in 3D Minecraft voxels' : '');
         this.geminiPromptInput.value = '';
         this.clearAttachedImage();
-        geminiAgent.executePrompt(effectivePrompt, image);
+        if (viewImage) this.addGeminiLog('📷 Attached a screenshot of your current view.', 'info');
+        geminiAgent.executePrompt(effectivePrompt, image, { viewImage });
       };
+    }
+  }
+
+  /** Whether each request should carry a screenshot of the player's view. */
+  isViewCaptureEnabled() {
+    if (typeof this.viewCaptureEnabled === 'boolean') return this.viewCaptureEnabled;
+    try {
+      const stored = localStorage.getItem('mc_agent_capture_view');
+      this.viewCaptureEnabled = stored === null ? true : stored === '1';
+    } catch {
+      this.viewCaptureEnabled = true;
+    }
+    return this.viewCaptureEnabled;
+  }
+
+  /** Whether the terminal should show the model's reasoning as it streams in. */
+  isThinkingDisplayEnabled() {
+    if (typeof this.thinkingDisplayEnabled === 'boolean') return this.thinkingDisplayEnabled;
+    try {
+      const stored = localStorage.getItem('mc_agent_show_thinking');
+      this.thinkingDisplayEnabled = stored === null ? true : stored === '1';
+    } catch {
+      this.thinkingDisplayEnabled = true;
+    }
+    return this.thinkingDisplayEnabled;
+  }
+
+  /** Ask the game for a framed screenshot; returns null when unavailable. */
+  captureCurrentView() {
+    const agent = this.geminiAgent;
+    if (!agent || !this.isViewCaptureEnabled()) return null;
+    if (!agent.constructor.vendors?.[agent.vendor]?.supportsImages) return null;
+    const provider = agent.viewCaptureProvider || this.viewCaptureProvider;
+    if (typeof provider !== 'function') return null;
+    try {
+      return provider() || null;
+    } catch (err) {
+      console.warn('Current-view capture failed:', err);
+      return null;
     }
   }
 
@@ -1612,7 +1861,7 @@ export class UIManager {
         this.geminiImagePreviewContainer.classList.remove('hidden');
       }
 
-      this.addGeminiLog(`📸 Attached image "${this.currentAttachedImage.name}". Gemini multimodal vision active!`, 'info');
+      this.addGeminiLog(`📸 Attached image "${this.currentAttachedImage.name}". It will be sent with your next request.`, 'info');
       if (this.geminiPromptInput) {
         if (!this.geminiPromptInput.value.trim()) {
           this.geminiPromptInput.value = 'Reconstruct this in 3D Minecraft voxels';
@@ -1634,7 +1883,7 @@ export class UIManager {
   }
 
   addGeminiLog(msg, type = 'info') {
-    if (!this.geminiLogFeed) return;
+    if (!this.geminiLogFeed) return null;
     const entry = document.createElement('div');
     entry.className = `gemini-log-entry ${type}`;
 
@@ -1646,5 +1895,6 @@ export class UIManager {
 
     this.geminiLogFeed.appendChild(entry);
     this.geminiLogFeed.scrollTop = this.geminiLogFeed.scrollHeight;
+    return entry;
   }
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GeminiAgent } from '../src/geminiAgent.js';
+import { GeminiAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
 import { validatePlan } from '../src/agentPlans.js';
 
@@ -17,6 +17,8 @@ function fixture() {
     rebuildChunkMesh() {}, weather: { setWeather() {} },
   };
   const agent = new GeminiAgent(game);
+  // This file covers the Google Gemini wire format specifically.
+  agent.setVendor('gemini');
   const logs = [];
   agent.onLog = (message, type) => logs.push({ message, type });
   return { agent, game, cells, natural, logs };

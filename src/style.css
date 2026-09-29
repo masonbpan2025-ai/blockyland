@@ -1018,6 +1018,137 @@ html, body {
   background: #4a6eb5;
 }
 
+/* Vendor picker */
+.gemini-vendor-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gemini-vendor-btn {
+  flex: 1 1 96px;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: rgba(35, 45, 75, 0.7);
+  border: 1px solid #445577;
+  color: #b9c9e8;
+  border-radius: 5px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-family: 'Minecraft', monospace;
+  font-size: 12px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.gemini-vendor-btn:hover {
+  background: rgba(52, 68, 110, 0.85);
+}
+
+.gemini-vendor-btn.active {
+  background: rgba(59, 89, 152, 0.95);
+  border-color: #7aa2ff;
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(122, 162, 255, 0.35) inset;
+}
+
+.gemini-vendor-name {
+  font-weight: bold;
+}
+
+.gemini-vendor-key-state {
+  font-size: 10px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.gemini-vendor-btn.active .gemini-vendor-key-state {
+  opacity: 0.9;
+}
+
+.gemini-vendor-key-state.ready {
+  color: #7ee787;
+  opacity: 1;
+}
+
+/* Model & effort controls */
+.gemini-controls-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gemini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.gemini-field.hidden,
+.gemini-check.hidden {
+  display: none;
+}
+
+.gemini-field-label {
+  font-size: 10px;
+  color: #8899b5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gemini-field select {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #445577;
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+  font-family: 'Minecraft', monospace;
+  cursor: pointer;
+}
+
+.gemini-field select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Current-view capture toggle */
+.gemini-view-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gemini-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #aac4ff;
+  cursor: pointer;
+}
+
+.gemini-check input {
+  accent-color: #4a6eb5;
+  cursor: pointer;
+}
+
+.gemini-vendor-hint {
+  font-size: 10px;
+  color: #778ca3;
+  line-height: 1.4;
+}
+
+.gemini-vendor-hint a {
+  color: #60a5fa;
+}
+
 /* Quick Prompt Chips */
 .gemini-chips-container {
   display: flex;
@@ -1125,6 +1256,15 @@ html, body {
 .gemini-log-entry.hint {
   color: #6ee7b7;
   font-size: 12px;
+}
+
+.gemini-log-entry.thought {
+  color: #8b9dc3;
+  font-style: italic;
+  font-size: 11px;
+  border-left: 2px solid rgba(122, 162, 255, 0.35);
+  padding-left: 8px;
+  white-space: pre-wrap;
 }
 
 /* Progress bar */

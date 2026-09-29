@@ -186,6 +186,10 @@ export function deserializeWorld(game, mapData) {
       game.player.gamemode = p.gamemode || 'survival';
       if (game.tournament) {
         game.tournament.isTournamentMap = false;
+        game.tournament.cleanup?.();
+      }
+      if (game.trainingSites) {
+        game.trainingSites.cleanup?.();
       }
     }
     game.player.health = p.health ?? 20;
@@ -266,14 +270,22 @@ export function deserializeWorld(game, mapData) {
   // 13. Tournament & Skills Managers reset
   if (game.tournament) {
     game.tournament.reset();
-    game.tournament.ensureHost();
+    if (isTournament) {
+      game.tournament.ensureHost();
+    } else {
+      game.tournament.cleanup?.();
+    }
   }
   if (game.dragonballSkills) {
     game.dragonballSkills.reset();
   }
   if (game.trainingSites) {
     game.trainingSites.reset();
-    game.trainingSites.ensureSiteManagers();
+    if (isTournament) {
+      game.trainingSites.ensureSiteManagers();
+    } else {
+      game.trainingSites.cleanup?.();
+    }
   }
   if (game.dungeonMode) {
     game.dungeonMode.reset();
