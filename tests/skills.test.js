@@ -166,6 +166,38 @@ test('Genki Dama creates growing celestial orb and detonates on impact with AoE 
   assert.ok(targetMob.health < 50, 'Mob in blast radius should take AoE damage');
 });
 
+test('Genki Dama throwing distance and damaging power reduce as key pressing time gets shorter', () => {
+  const { game } = createMockGame();
+  const skills = new DragonballSkillsManager(game);
+
+  // Short tap: 0.2s charge
+  skills.startCharge('genki_dama');
+  skills.update(0.2);
+  skills.releaseCharge();
+  assert.equal(skills.activeBombs.length, 1);
+  const quickBomb = skills.activeBombs[0];
+  const quickDamage = quickBomb.damage;
+  const quickSpeed = Math.hypot(quickBomb.velocity.x, quickBomb.velocity.z);
+
+  // Clear bombs
+  skills.activeBombs = [];
+
+  // Full hold: 3.0s charge
+  skills.startCharge('genki_dama');
+  skills.update(3.0);
+  skills.releaseCharge();
+  assert.equal(skills.activeBombs.length, 1);
+  const fullBomb = skills.activeBombs[0];
+  const fullDamage = fullBomb.damage;
+  const fullSpeed = Math.hypot(fullBomb.velocity.x, fullBomb.velocity.z);
+
+  // Verify scaling
+  assert.ok(quickDamage < fullDamage, `Quick tap damage (${quickDamage}) should be much lower than full charge damage (${fullDamage})`);
+  assert.ok(quickSpeed < fullSpeed, `Quick tap velocity (${quickSpeed.toFixed(2)}) should be much slower than full charge (${fullSpeed.toFixed(2)})`);
+  assert.ok(quickSpeed < 6.0, `Quick tap launch speed should stay very close (~4-5 blocks/sec)`);
+  assert.ok(fullSpeed <= 12.0, `Full charge speed should stay restrained (~11-12 blocks/sec)`);
+});
+
 test('TrainingSitesManager defines 4 cardinal sites and introduces managers when entered', () => {
   const { game, player } = createMockGame();
   const training = new TrainingSitesManager(game);

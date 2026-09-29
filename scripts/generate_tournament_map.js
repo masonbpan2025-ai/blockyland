@@ -195,6 +195,34 @@ for (let step = 0; step < 4; step++) {
   builder.fillBox(-2, y, z, 2, y, z, BLOCKS.SANDSTONE);
 }
 
+// Grand Access Stairs from Courtyard (Y=20) up to Stage Surface (Y=24)
+// 1. South Stage Stairs (facing entrance and announcer)
+for (let step = 0; step < 4; step++) {
+  const z = 9 + step;
+  const y = 23 - step;
+  builder.fillBox(-4, 20, z, 4, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-4, y, z, 4, y, z, BLOCKS.SANDSTONE);
+}
+builder.fillBox(-4, 24, 8, 4, 24, 8, BLOCKS.STONE_BRICKS); // Clear red rim for smooth south walk-in
+
+// 2. East Stage Stairs (facing Punching Yard)
+for (let step = 0; step < 4; step++) {
+  const x = 9 + step;
+  const y = 23 - step;
+  builder.fillBox(x, 20, -4, x, y, 4, BLOCKS.STONE_BRICKS);
+  builder.fillBox(x, y, -4, x, y, 4, BLOCKS.SANDSTONE);
+}
+builder.fillBox(8, 24, -4, 8, 24, 4, BLOCKS.STONE_BRICKS); // Clear red rim for smooth east walk-in
+
+// 3. West Stage Stairs (facing Kamehameha Range)
+for (let step = 0; step < 4; step++) {
+  const x = -9 - step;
+  const y = 23 - step;
+  builder.fillBox(x, 20, -4, x, y, 4, BLOCKS.STONE_BRICKS);
+  builder.fillBox(x, y, -4, x, y, 4, BLOCKS.SANDSTONE);
+}
+builder.fillBox(-8, 24, -4, -8, 24, 4, BLOCKS.STONE_BRICKS); // Clear red rim for smooth west walk-in
+
 // Red Gateway & Demon Monster Wall Reliefs (Z: -13 to -16, X: -12 to 12)
 builder.fillBox(-3, 24, -14, -3, 30, -14, BLOCKS.STONE_BRICKS);
 builder.fillBox(3, 24, -14, 3, 30, -14, BLOCKS.STONE_BRICKS);
@@ -306,6 +334,11 @@ builder.fillBox(-4, 21, 28, 4, 24, 28, BLOCKS.AIR); // South opening
 console.log('Building Site 1: South Parkour Park...');
 // Starting Entrance Terrace (Z: 30..33, X: -6..6)
 builder.fillBox(-6, 21, 30, 6, 21, 33, BLOCKS.SANDSTONE);
+
+// Entrance stairs from Courtyard walkway (Y=20) up to Terrace (Y=21)
+builder.fillBox(-4, 20, 28, 4, 20, 28, BLOCKS.SANDSTONE);
+builder.fillBox(-4, 20, 29, 4, 21, 29, BLOCKS.SANDSTONE);
+
 // Torii Entrance Gateposts
 builder.fillBox(-4, 21, 31, -4, 26, 31, BLOCKS.RED_WOOL);
 builder.fillBox(4, 21, 31, 4, 26, 31, BLOCKS.RED_WOOL);
@@ -319,6 +352,23 @@ builder.fillBox(-15, 18, 33, 15, 20, 69, BLOCKS.WATER);        // deep water poo
 builder.fillBox(-15, 18, 33, -15, 21, 69, BLOCKS.STONE_BRICKS);
 builder.fillBox(15, 18, 33, 15, 21, 69, BLOCKS.STONE_BRICKS);
 builder.fillBox(-15, 18, 69, 15, 21, 69, BLOCKS.STONE_BRICKS);
+
+// Basin Exit Stairs: easy staircase out of water basin back up to starting terrace (Y=18 to Y=21)
+for (let step = 0; step < 4; step++) {
+  const z = 33 + step;
+  const y = 21 - step;
+  builder.fillBox(-3, 17, z, 3, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-3, y, z, 3, y, z, BLOCKS.SANDSTONE);
+}
+// Basin Side Staircases (along West and East walls so players can climb out anywhere)
+for (let step = 0; step < 4; step++) {
+  const z = 35 + step;
+  const y = 21 - step;
+  builder.fillBox(-14, 17, z, -13, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-14, y, z, -13, y, z, BLOCKS.SANDSTONE);
+  builder.fillBox(13, 17, z, 14, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(13, y, z, 14, y, z, BLOCKS.SANDSTONE);
+}
 
 // Parkour Jumps (Challenging elevation and gap progression)
 // Jump 1: X=0, Z=36, Y=22 (Sandstone 2x2)
@@ -355,22 +405,33 @@ builder.setVoxel(0, 35, 66, BLOCKS.GLOWSTONE);
 // 4. SITE 2: EAST - PUNCHING TRAINING SITE (X: 30..70, Z: -16..16)
 // ========================================================
 console.log('Building Site 2: East Punching Combat Yard...');
-// Entrance Platform at X: 30..33, Z: -4..4
+// Entrance Platform at X: 30..33, Z: -4..4, Y=21
 builder.fillBox(30, 21, -4, 33, 21, 4, BLOCKS.SANDSTONE);
+
+// Entrance Stairs from Courtyard walkway (Y=20) up to Dojo Gate (Y=21)
+builder.fillBox(28, 20, -4, 28, 20, 4, BLOCKS.SANDSTONE);
+builder.fillBox(29, 20, -4, 29, 21, 4, BLOCKS.SANDSTONE);
+
 // Dojo Gate
 builder.fillBox(31, 21, -4, 31, 26, -4, BLOCKS.OAK_LOG);
 builder.fillBox(31, 21, 4, 31, 26, 4, BLOCKS.OAK_LOG);
 builder.fillBox(31, 26, -4, 31, 26, 4, BLOCKS.OAK_PLANKS);
 
+// Clear, step-free passage from Dojo Gate straight into the Sparring Yard (X: 33..36, Z: -4..4)
+builder.fillBox(33, 20, -4, 36, 21, 4, BLOCKS.SANDSTONE);
+
 // Wide Sparring Arena (X: 36..66, Z: -14..14, floor Y=20..21)
 builder.fillBox(36, 21, -14, 66, 21, 14, BLOCKS.SAND); // Sand sparring pit
-// Border curb around the combat yard
+// Border curb around the combat yard with stepping stones
 for (let x = 35; x <= 67; x++) {
   builder.setVoxel(x, 22, -15, BLOCKS.STONE_BRICKS);
   builder.setVoxel(x, 22, 15, BLOCKS.STONE_BRICKS);
+  builder.setVoxel(x, 21, -16, BLOCKS.STONE_BRICKS);
+  builder.setVoxel(x, 21, 16, BLOCKS.STONE_BRICKS);
 }
 for (let z = -15; z <= 15; z++) {
   builder.setVoxel(67, 22, z, BLOCKS.STONE_BRICKS);
+  builder.setVoxel(68, 21, z, BLOCKS.STONE_BRICKS);
 }
 
 // Punching Practice Dummies (Oak logs + wool head)
@@ -400,6 +461,16 @@ console.log('Building Site 3: West Kamehameha Target Range...');
 // Elevated Firing Platform (X: -35..-31, Z: -6..6, Y=22)
 builder.fillBox(-35, 21, -6, -31, 22, 6, BLOCKS.STONE_BRICKS);
 builder.fillBox(-34, 22, -5, -31, 22, 5, BLOCKS.SANDSTONE);
+
+// Entrance Stairs from Courtyard walkway (Y=20) up to Elevated Firing Platform (Y=22)
+builder.fillBox(-29, 20, -4, -29, 20, 4, BLOCKS.SANDSTONE);
+builder.fillBox(-30, 20, -4, -30, 21, 4, BLOCKS.STONE_BRICKS);
+builder.fillBox(-30, 21, -4, -30, 21, 4, BLOCKS.SANDSTONE);
+
+// Descending Stairs from Firing Platform (Y=22) down into Target Shooting Lane (Y=20)
+builder.fillBox(-36, 20, -4, -36, 21, 4, BLOCKS.STONE_BRICKS);
+builder.fillBox(-36, 21, -4, -36, 21, 4, BLOCKS.SANDSTONE);
+builder.fillBox(-37, 20, -4, -37, 20, 4, BLOCKS.SANDSTONE);
 
 // Firing station canopy / banner posts
 builder.fillBox(-31, 23, -5, -31, 27, -5, BLOCKS.BLUE_WOOL);
@@ -445,9 +516,30 @@ console.log('Building Site 4: North Genki Dama Crater...');
 // Overlook Platform (Z: -33..-29, X: -6..6, Y=24..25)
 builder.fillBox(-6, 21, -33, 6, 24, -29, BLOCKS.STONE_BRICKS);
 builder.fillBox(-5, 24, -32, 5, 24, -30, BLOCKS.SANDSTONE);
-// Railing along overlook cliff edge
-builder.fillBox(-6, 25, -34, 6, 25, -34, BLOCKS.STONE_BRICKS);
-builder.setVoxel(0, 25, -34, BLOCKS.AIR); // viewpoint opening
+
+// 1. Entrance Stairs from Courtyard walkway (Y=20) up to Overlook Platform (Y=24)
+for (let step = 0; step < 4; step++) {
+  const z = -26 - step;
+  const y = 21 + step;
+  builder.fillBox(-4, 20, z, 4, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-4, y, z, 4, y, z, BLOCKS.SANDSTONE);
+}
+
+// Railing along overlook cliff edge with wide staircase opening at center (X: -2..2)
+builder.fillBox(-6, 25, -34, -3, 25, -34, BLOCKS.STONE_BRICKS);
+builder.fillBox(3, 25, -34, 6, 25, -34, BLOCKS.STONE_BRICKS);
+
+// 2. Grand Descending Staircase from Overlook (Y=24) down into the Sunken Crater Floor (Y=18)
+for (let step = 0; step < 7; step++) {
+  const z = -34 - step;
+  const y = 24 - step;
+  builder.fillBox(-3, 18, z, 3, y, z, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-3, y, z, 3, y, z, BLOCKS.SANDSTONE);
+  if (step % 2 === 0) {
+    builder.setVoxel(-4, y + 1, z, BLOCKS.SEA_LANTERN);
+    builder.setVoxel(4, y + 1, z, BLOCKS.SEA_LANTERN);
+  }
+}
 
 // Sunken Crater Basin (Z: -66..-36, X: -14..14, floor sunk to Y=18..19)
 for (let x = -14; x <= 14; x++) {
@@ -456,8 +548,9 @@ for (let x = -14; x <= 14; x++) {
     const cz = -51;
     const r = Math.hypot(x - cx, (z - cz) * 0.9);
     if (r <= 13) {
-      // Clear out air above crater floor
-      for (let y = 19; y <= 23; y++) {
+      // Clear out air above crater floor (except for staircase)
+      for (let y = 19; y <= 26; y++) {
+        if (z > -41 && Math.abs(x) <= 3) continue; // preserve descending staircase
         builder.setVoxel(x, y, z, BLOCKS.AIR);
       }
       // Crater bed (Obsidian, Netherrack, Cobblestone scorch marks)
@@ -465,6 +558,17 @@ for (let x = -14; x <= 14; x++) {
     }
   }
 }
+
+// Crater Rim Exit Steps: allowing players to climb out on West, East, and North rims (Y=18 up to Y=20)
+// West rim steps (X = -13..-11, Z = -52..-50)
+builder.fillBox(-12, 18, -52, -12, 19, -50, BLOCKS.STONE_BRICKS);
+builder.fillBox(-13, 18, -52, -13, 20, -50, BLOCKS.STONE_BRICKS);
+// East rim steps (X = 11..13, Z = -52..-50)
+builder.fillBox(12, 18, -52, 12, 19, -50, BLOCKS.STONE_BRICKS);
+builder.fillBox(13, 18, -52, 13, 20, -50, BLOCKS.STONE_BRICKS);
+// North rim steps (Z = -65..-63, X = -2..2)
+builder.fillBox(-2, 18, -64, 2, 19, -64, BLOCKS.STONE_BRICKS);
+builder.fillBox(-2, 18, -65, 2, 20, -65, BLOCKS.STONE_BRICKS);
 
 // Glowing energy crystals / sea lanterns embedded in crater floor
 builder.setVoxel(-6, 18, -51, BLOCKS.SEA_LANTERN);
@@ -581,11 +685,11 @@ const tournamentMapData = {
     rainIntensity: 0
   },
   player: {
-    position: { x: 0.0, y: 24.0, z: 12.0 },
+    position: { x: 0.0, y: 22.0, z: 12.0 },
     velocity: { x: 0, y: 0, z: 0 },
     yaw: 3.14159,
     pitch: -0.05,
-    gamemode: 'creative',
+    gamemode: 'survival', // World Martial Arts Tournament is Survival Mode Only
     health: 20,
     hunger: 20,
     exp: 100,

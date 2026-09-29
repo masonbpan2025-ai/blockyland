@@ -817,6 +817,10 @@ class Game {
     } else if (root === '/gamemode') {
       const mode = parts[1] ? parts[1].toLowerCase() : '';
       if (mode === 'creative' || mode === 'c' || mode === '1') {
+        if (this.tournament?.isTournamentMap) {
+          this.ui.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
+          return;
+        }
         this.player.gamemode = 'creative';
         this.ui.addChatMessage('Set game mode to Creative Mode', 'system');
         this.ui.openCreativeInventory();
@@ -962,8 +966,8 @@ class Game {
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
 
-    // 9. Render 1st person held item overlay
-    if (this.player.perspective === 0) {
+    // 9. Render 1st person held item overlay (Hidden in Dungeon Mode)
+    if (this.player.perspective === 0 && !this.player.isDungeonMode && !this.dungeonMode?.isActive) {
       this.heldItemRenderer.render(this.renderer);
     }
   }

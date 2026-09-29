@@ -37,6 +37,7 @@ export class TournamentManager {
     this.championOverlay = hasDoc ? document.getElementById('champion-overlay') : null;
 
     this.decorationsGroup = null;
+    this.isTournamentMap = false;
   }
 
   // Create high-resolution 3D sign "天下一武道会" and Dragon Ball gate decorations

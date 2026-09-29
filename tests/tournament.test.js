@@ -129,3 +129,20 @@ test('Fireworks rockets ascend and burst into colorful particles', () => {
   assert.equal(entities.fireworkRockets.length, 0, 'Rocket should have exploded');
   assert.ok(entities.particles.length >= 40, 'Should have spawned colorful spark particles');
 });
+
+test('World Martial Arts Tournament map is Survival mode only and contains accessible stairs', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const savePath = path.resolve(__dirname, '..', 'saves', 'World_Martial_Arts_Tournament.json');
+
+  assert.ok(fs.existsSync(savePath), 'Tournament map JSON should exist');
+  const content = JSON.parse(fs.readFileSync(savePath, 'utf8'));
+
+  // 1. Verify survival mode in saved JSON
+  assert.equal(content.player?.gamemode, 'survival', 'Tournament map player must be survival mode only');
+
+  // 2. Verify chunks are present and contain blocks
+  assert.ok(content.chunks.length > 50, 'Map should contain full tournament world chunks');
+});

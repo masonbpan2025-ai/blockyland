@@ -168,7 +168,20 @@ export function deserializeWorld(game, mapData) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    game.player.gamemode = p.gamemode || 'creative';
+    const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
+                         (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
+    if (isTournament) {
+      game.player.gamemode = 'survival';
+      game.player.isFlying = false;
+      if (game.tournament) {
+        game.tournament.isTournamentMap = true;
+      }
+    } else {
+      game.player.gamemode = p.gamemode || 'survival';
+      if (game.tournament) {
+        game.tournament.isTournamentMap = false;
+      }
+    }
     game.player.health = p.health ?? 20;
     game.player.hunger = p.hunger ?? 20;
     game.player.exp = p.exp ?? 0;

@@ -258,20 +258,31 @@ export class DragonballSkillsManager {
 
   // --- GENKI DAMA (Spirit Bomb) ---
   launchGenkiDama(chargeTime) {
-    const power = Math.min(1.0, chargeTime / 3.5);
-    const damage = Math.round(18 + power * 45); // 18 to 63 AoE damage
-    const bombRadius = 0.8 + power * 1.8; // 0.8 to 2.6 blocks radius
-    const aoeRadius = 5.0 + power * 5.0; // 5 to 10 blocks AoE explosion
+    // Power scales with charge time: light tap = 0.08, up to 3.0s full charge = 1.0
+    const power = Math.min(1.0, Math.max(0.08, chargeTime / 3.0));
+    // Damaging power scales directly with hold duration: 8 on quick tap up to 55 on max charge
+    const damage = Math.round(8 + power * 47);
+    const bombRadius = 0.4 + power * 1.6; // 0.4 to 2.0 blocks radius
+    const aoeRadius = 2.5 + power * 5.5; // 2.7 to 8.0 blocks AoE explosion
 
     const launchDir = new THREE.Vector3();
     let startPos = new THREE.Vector3();
 
+    // Throwing distance scales with charge time and stays much closer
+    // Quick tap: speed 4.0, upSpeed 1.2 => lands ~3-4 blocks ahead
+    // Full charge: speed 11.5, upSpeed 3.2 => arcs ~12-14 blocks ahead
+    const speed = 4.0 + power * 7.5;
+    const upSpeed = 1.2 + power * 2.0;
+
     if (this.player.isDungeonMode) {
-      launchDir.set(-Math.sin(this.player.yaw), 0.18, -Math.cos(this.player.yaw)).normalize();
-      startPos.copy(this.player.position).add(new THREE.Vector3(0, 2.6, 0));
+      launchDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw)).normalize();
+      startPos.copy(this.player.position).add(new THREE.Vector3(0, 2.0, 0));
     } else {
       this.game.camera.getWorldDirection(launchDir);
-      startPos = this.player.position.clone().add(new THREE.Vector3(0, 2.8, 0));
+      launchDir.y = 0;
+      if (launchDir.lengthSq() > 0.001) launchDir.normalize();
+      else launchDir.set(0, 0, -1);
+      startPos = this.player.position.clone().add(new THREE.Vector3(0, 2.2, 0));
     }
 
     // Throw Sound
@@ -288,9 +299,9 @@ export class DragonballSkillsManager {
     mesh.position.copy(startPos);
     this.scene.add(mesh);
 
-    // Initial velocity forward
-    const speed = 18.0;
+    // Initial velocity forward with scaled upward arc
     const velocity = launchDir.clone().multiplyScalar(speed);
+    velocity.y = upSpeed;
 
     this.activeBombs.push({
       mesh,
@@ -303,7 +314,7 @@ export class DragonballSkillsManager {
     });
 
     this.game.ui?.addChatMessage?.(
-      `<span style="color:#38bdf8;font-weight:bold;">☀️ GENKI DAMA LAUNCHED!</span> (Charge: ${Math.round(power * 100)}% | Blast Radius: ${aoeRadius.toFixed(1)}m)`
+      `<span style="color:#38bdf8;font-weight:bold;">☀️ GENKI DAMA LAUNCHED!</span> (Charge: ${Math.round(power * 100)}% | Damage: ${damage} | Blast: ${aoeRadius.toFixed(1)}m)`
     );
   }
 
@@ -488,8 +499,9 @@ export class DragonballSkillsManager {
       bomb.life -= dt;
       bomb.trailTimer += dt;
 
-      // Slight downward arc
-      bomb.velocity.y -= 3.0 * dt;
+      // Scaled downward parabolic gravity arc so lighter charges drop quickly and close to the player
+      const gravity = 7.0 + (1.0 - (bomb.power ?? 0.5)) * 3.5;
+      bomb.velocity.y -= gravity * dt;
       bomb.mesh.position.addScaledVector(bomb.velocity, dt);
 
       // Trailing sparks

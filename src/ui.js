@@ -944,6 +944,10 @@ export class UIManager {
     if (btnGamemode) {
       btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
       btnGamemode.onclick = () => {
+        if (this.game.tournament?.isTournamentMap) {
+          this.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
+          return;
+        }
         this.player.gamemode = (this.player.gamemode === 'survival') ? 'creative' : 'survival';
         btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
         this.addChatMessage(`Set game mode to ${this.player.gamemode} mode`, 'system');
