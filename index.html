@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Web Edition - 3D Browser Replica</title>
+  <meta name="description" content="High performance Minecraft replica in browser featuring 3D voxel terrain, procedural generation, mobs like villagers, iron golems, and pillagers, authentic physics, and crafting.">
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="icon" type="image/png" href="/assets/blocks/grass_block_side.png">
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="underwater-overlay"></div>
+  <div id="crosshair"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="status-bars">
+      <div id="health-bar" class="stat-row"></div>
+      <div id="hunger-bar" class="stat-row"></div>
+    </div>
+    <div id="exp-container">
+      <div id="exp-bar"></div>
+      <span id="exp-level">0</span>
+    </div>
+    <div id="hotbar-wrapper"></div>
+  </div>
+
+  <!-- Debug Screen (F3) -->
+  <div id="debug-screen">
+    <div>Minecraft 1.20.2 (WebGL Browser Edition)</div>
+    <div id="dbg-fps">60 fps</div>
+    <div id="dbg-pos">XYZ: 0.00 / 0.00 / 0.00</div>
+    <div id="dbg-block">Block: 0 0 0</div>
+    <div id="dbg-chunk">Chunk: 0, 0</div>
+    <div id="dbg-facing">Facing: north (Towards negative Z)</div>
+    <div id="dbg-biome">Biome: Plains</div>
+    <div id="dbg-light">Light: 15 (15 sky, 0 block)</div>
+  </div>
+  <div id="debug-screen-right">
+    <div>Antigravity High-Performance Voxel Engine</div>
+    <div id="dbg-mem">Draw Calls: 2 | Chunks: 0</div>
+    <div id="dbg-entities">Entities: 0</div>
+    <div id="dbg-mode">Mode: Survival</div>
+    <div>Renderer: Three.js WebGL2</div>
+  </div>
+
+  <!-- Chat / Commands -->
+  <div id="chat-container">
+    <div id="chat-messages"></div>
+    <div id="chat-input-wrapper">
+      <input id="chat-input" type="text" placeholder="Type a message or /help..." autocomplete="off">
+    </div>
+  </div>
+
+  <!-- Inventory GUI (E) -->
+  <div id="inventory-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 390px;">
+      <div class="gui-header">
+        <span>Crafting</span>
+        <span class="close-btn" id="close-inv">✕</span>
+      </div>
+      <!-- Crafting 2x2 -->
+      <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 14px;">
+        <div style="width: 80px; height: 90px; background: #555; border: 2px solid #333; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; text-align: center;">
+          Player<br>Preview
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="grid-slots" style="grid-template-columns: repeat(2, 36px);">
+            <div class="inv-slot" data-craft="0"></div>
+            <div class="inv-slot" data-craft="1"></div>
+            <div class="inv-slot" data-craft="2"></div>
+            <div class="inv-slot" data-craft="3"></div>
+          </div>
+          <span style="font-size: 20px; font-weight: bold; color: #333;">➔</span>
+          <div class="inv-slot" id="craft2x2-result" style="width: 44px; height: 44px; border-width: 3px;"></div>
+        </div>
+      </div>
+
+      <div class="gui-header"><span>Inventory</span></div>
+      <!-- 27 storage slots -->
+      <div class="grid-slots" id="inv-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <!-- 9 hotbar slots -->
+      <div class="grid-slots" id="inv-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Crafting Table GUI (3x3) -->
+  <div id="crafting-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 390px;">
+      <div class="gui-header">
+        <span>Crafting Table (3x3)</span>
+        <span class="close-btn" id="close-crafting">✕</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 16px 0;">
+        <div class="grid-slots" style="grid-template-columns: repeat(3, 36px);">
+          <div class="inv-slot" data-craft3="0"></div>
+          <div class="inv-slot" data-craft3="1"></div>
+          <div class="inv-slot" data-craft3="2"></div>
+          <div class="inv-slot" data-craft3="3"></div>
+          <div class="inv-slot" data-craft3="4"></div>
+          <div class="inv-slot" data-craft3="5"></div>
+          <div class="inv-slot" data-craft3="6"></div>
+          <div class="inv-slot" data-craft3="7"></div>
+          <div class="inv-slot" data-craft3="8"></div>
+        </div>
+        <span style="font-size: 24px; font-weight: bold; color: #333;">➔</span>
+        <div class="inv-slot" id="craft3x3-result" style="width: 48px; height: 48px; border-width: 3px;"></div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="craft-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="grid-slots" id="craft-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Villager Trade GUI -->
+  <div id="villager-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 420px;">
+      <div class="gui-header">
+        <span>Villager Trading</span>
+        <span class="close-btn" id="close-villager">✕</span>
+      </div>
+      <div class="trade-list" id="villager-trades"></div>
+      <div class="gui-header"><span>Your Inventory</span></div>
+      <div class="grid-slots" id="villager-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="grid-slots" id="villager-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Pause Menu (ESC) -->
+  <div id="pause-menu" class="game-modal hidden">
+    <div class="mc-menu-card">
+      <div class="mc-title">Game Paused</div>
+      <button class="mc-btn" id="btn-resume">Back to Game</button>
+      <button class="mc-btn" id="btn-gamemode">Game Mode: Survival</button>
+      <button class="mc-btn" id="btn-time">Time: Set Day</button>
+      <button class="mc-btn" id="btn-spawn-golem">Spawn Iron Golem</button>
+      <button class="mc-btn" id="btn-spawn-villager">Spawn Villager</button>
+      <button class="mc-btn" id="btn-spawn-pillager">Spawn Pillager</button>
+      <button class="mc-btn" id="btn-distance">Render Distance: 4 Chunks</button>
+      <button class="mc-btn" id="btn-reset">Regenerate World</button>
+    </div>
+  </div>
+
+  <!-- Gemini AI Terminal Modal (C) -->
+  <div id="gemini-modal" class="game-modal hidden">
+    <div class="gemini-terminal-card">
+      <!-- Header -->
+      <div class="gemini-header">
+        <div class="gemini-title-group">
+          <span class="gemini-sparkle">✦</span>
+          <span class="gemini-title">Gemini AI Command Terminal</span>
+          <span class="gemini-pill" id="gemini-status-pill">
+            <span class="gemini-dot"></span> <span id="gemini-status-text">READY</span>
+          </span>
+        </div>
+        <div class="gemini-header-actions">
+          <button class="gemini-icon-btn" id="gemini-toggle-key" title="Configure Gemini for free-form prompts">⚙️ API Key</button>
+          <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
+        </div>
+      </div>
+
+      <!-- Optional API Key Drawer -->
+      <div id="gemini-key-drawer" class="gemini-key-drawer hidden">
+        <div class="gemini-key-desc">
+          <span>Google Gemini API Key (For Live Multimodal Vision & Dynamic Builds):</span>
+          <small>Add a key from <strong style="color: #60a5fa;">aistudio.google.com</strong> for free-form prompts and contextual edits. Without a key, only limited offline presets are available.</small>
+        </div>
+        <div class="gemini-key-row">
+          <input type="password" id="gemini-key-input" placeholder="AIzaSy..." autocomplete="off">
+          <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Key</button>
+          <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear</button>
+        </div>
+      </div>
+
+      <!-- Quick Prompt Suggestions Chips -->
+      <div class="gemini-chips-container">
+        <span class="gemini-chips-label">Quick Prompts & Ideas:</span>
+        <div class="gemini-chips-list">
+          <button type="button" class="gemini-chip" data-prompt="build a large glass aquarium with sand bottom, water, and sea plants">🐟 Aquarium</button>
+          <button type="button" class="gemini-chip" data-prompt="build a modern glass skyscraper tower">🏢 Skyscraper</button>
+          <button type="button" class="gemini-chip" data-prompt="build a lush greenhouse garden with glass dome and flowers">🌿 Greenhouse</button>
+          <button type="button" class="gemini-chip" data-prompt="build a medieval castle with corner towers and battlements">🏰 Castle</button>
+          <button type="button" class="gemini-chip" data-prompt="build a cozy cottage with gabled roof and garden">🏡 Cozy House</button>
+          <button type="button" class="gemini-chip" data-prompt="build a tall stone watchtower with torches">🗼 Watchtower</button>
+          <button type="button" class="gemini-chip" data-prompt="build a futuristic spaceship UFO with glowing lights">🛸 Spaceship</button>
+          <button type="button" class="gemini-chip" data-prompt="build a sandstone pyramid with gold treasure">🔺 Pyramid</button>
+          <button type="button" class="gemini-chip" data-prompt="make it rain">🌧️ Make It Rain</button>
+          <button type="button" class="gemini-chip" data-prompt="clear weather and make it sunny">☀️ Clear Weather</button>
+          <button type="button" class="gemini-chip" data-prompt="summon 2 iron golems and 3 villagers">🛡️ Summon Golems</button>
+          <button type="button" class="gemini-chip" data-prompt="give me 64 diamonds and diamond sword">💎 Diamond Gear</button>
+        </div>
+      </div>
+
+      <!-- Console / Terminal Feed -->
+      <div class="gemini-terminal-body" id="gemini-log-feed">
+        <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Add an API key for free-form Gemini prompts; otherwise the terminal uses offline presets.</div>
+        <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
+        <div class="gemini-log-entry hint">📷 Tip: You can paste screenshots (Ctrl+V) or upload reference images for Gemini to analyze and build!</div>
+      </div>
+
+      <!-- Attached Image Preview Container -->
+      <div id="gemini-image-preview-container" class="gemini-image-preview-container hidden">
+        <img id="gemini-image-preview" src="" alt="Attached Screenshot">
+        <div class="gemini-image-info">
+          <span class="gemini-image-badge">📷 Image Attached</span>
+          <span class="gemini-image-subtext">Ready for Gemini Vision / 3D Voxelizer</span>
+        </div>
+        <button type="button" id="gemini-image-remove-btn" class="gemini-image-remove-btn" title="Remove attached image">✕</button>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="gemini-progress-wrapper" id="gemini-progress-wrapper">
+        <div class="gemini-progress-bar" id="gemini-progress-bar"></div>
+        <div class="gemini-progress-label" id="gemini-progress-label">Ready</div>
+      </div>
+
+      <!-- Terminal Input Form -->
+      <form class="gemini-input-bar" id="gemini-form">
+        <div class="gemini-prompt-prefix">✦</div>
+        <button type="button" class="gemini-attach-btn" id="gemini-attach-btn" title="Paste (Ctrl+V) or click to upload screenshot/image">📷</button>
+        <input type="file" id="gemini-file-input" accept="image/*" style="display: none;">
+        <input 
+          type="text" 
+          id="gemini-prompt-input" 
+          placeholder="Ask Gemini to build anything on the fly, paste a screenshot (Ctrl+V)..." 
+          autocomplete="off" 
+          spellcheck="false"
+        >
+        <button type="submit" class="gemini-exec-btn" id="gemini-exec-btn">
+          <span>Run</span>
+          <span class="gemini-exec-arrow">➔</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Floating cursor item for inventory dragging -->
+  <div id="floating-cursor-item" class="hidden">
+    <img class="slot-icon" src="" alt="">
+    <span class="slot-count"></span>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="item-tooltip"></div>
+
+  <!-- Start Overlay -->
+  <div id="start-overlay">
+    <div class="mc-logo">MINECRAFT</div>
+    <div class="mc-subtitle">Browser WebGL Edition!</div>
+    <button class="mc-btn" style="width: 320px; height: 50px; font-size: 20px;">Click to Play</button>
+    
+    <div class="controls-guide">
+      <div style="font-weight: bold; color: #ffff55; margin-bottom: 8px;">Controls:</div>
+      <div><span class="key-badge">W A S D</span> Walk &nbsp;|&nbsp; <span class="key-badge">Space</span> Jump / Swim &nbsp;|&nbsp; <span class="key-badge">Left Shift</span> Sneak</div>
+      <div style="margin-top: 4px;"><span class="key-badge">Left Ctrl</span> Sprint &nbsp;|&nbsp; <span class="key-badge">Double-Tap Space</span> Fly (Creative)</div>
+      <div style="margin-top: 4px;"><span class="key-badge">Left Click</span> Mine / Attack &nbsp;|&nbsp; <span class="key-badge">Right Click</span> Place / Interact</div>
+      <div style="margin-top: 4px;"><span class="key-badge">1 - 9</span> or <span class="key-badge">Mouse Wheel</span> Select Hotbar Slot</div>
+      <div style="margin-top: 4px;"><span class="key-badge">E</span> Inventory / Crafting &nbsp;|&nbsp; <span class="key-badge">Q</span> Drop Item &nbsp;|&nbsp; <span class="key-badge">F3</span> Debug &nbsp;|&nbsp; <span class="key-badge">F5</span> Perspective</div>
+      <div style="margin-top: 4px;"><span class="key-badge">C</span> Gemini AI Terminal &nbsp;|&nbsp; <span class="key-badge">/</span> or <span class="key-badge">T</span> Chat / Commands &nbsp;|&nbsp; <span class="key-badge">ESC</span> Pause Menu</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

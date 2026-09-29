@@ -1,0 +1,1043 @@
+@font-face {
+  font-family: 'Minecraft';
+  src: url('/assets/fonts/Minecraft.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+  font-family: 'Minecraft', monospace, sans-serif;
+  color: #fff;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+#canvas-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Minecraft Underwater Overlay - iconic blue tint + fog when camera is submerged */
+#underwater-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: radial-gradient(ellipse at center,
+    rgba(15, 40, 120, 0.32) 0%,
+    rgba(10, 30, 90, 0.48) 45%,
+    rgba(5, 18, 60, 0.68) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+#underwater-overlay.active {
+  opacity: 1;
+}
+
+/* Subtle animated caustic wobble on the underwater overlay */
+@keyframes underwaterWobble {
+  0%   { transform: scale(1.0) translate(0px, 0px); }
+  25%  { transform: scale(1.01) translate(1px, -1px); }
+  50%  { transform: scale(1.0) translate(-1px, 1px); }
+  75%  { transform: scale(1.01) translate(1px, 1px); }
+  100% { transform: scale(1.0) translate(0px, 0px); }
+}
+
+#underwater-overlay.active {
+  animation: underwaterWobble 4s ease-in-out infinite;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  z-index: 10;
+  mix-blend-mode: difference;
+}
+
+#crosshair::before, #crosshair::after {
+  content: '';
+  position: absolute;
+  background: white;
+}
+
+#crosshair::before {
+  top: 0;
+  left: 7px;
+  width: 2px;
+  height: 16px;
+}
+
+#crosshair::after {
+  top: 7px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+}
+
+/* HUD Overlay */
+#hud {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 20;
+  padding-bottom: 8px;
+}
+
+/* Status Bars: Health, Armor, Hunger */
+#status-bars {
+  display: flex;
+  justify-content: space-between;
+  width: 364px;
+  margin-bottom: 6px;
+  pointer-events: none;
+}
+
+.stat-row {
+  display: flex;
+  gap: 2px;
+}
+
+.stat-icon {
+  width: 18px;
+  height: 18px;
+  background-size: cover;
+  image-rendering: pixelated;
+}
+
+/* Experience Bar */
+#exp-container {
+  position: relative;
+  width: 364px;
+  height: 10px;
+  background: #111;
+  border: 1px solid #000;
+  margin-bottom: 4px;
+}
+
+#exp-bar {
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(to bottom, #80ff00, #55aa00);
+}
+
+#exp-level {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #80ff20;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Hotbar */
+#hotbar-wrapper {
+  position: relative;
+  width: 364px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid #3c3c3c;
+  display: flex;
+  padding: 2px;
+  gap: 4px;
+}
+
+.hotbar-slot {
+  width: 36px;
+  height: 36px;
+  background: rgba(139, 139, 139, 0.5);
+  border: 2px solid #373737;
+  border-top-color: #8b8b8b;
+  border-left-color: #8b8b8b;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.hotbar-slot.active {
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+  transform: scale(1.06);
+  z-index: 2;
+}
+
+.slot-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.slot-count {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 13px;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #3f3f3f, 2px 2px 0 #000;
+}
+
+/* Debug Screen (F3) */
+#debug-screen {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+  font-size: 14px;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+}
+
+#debug-screen-right {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+  font-size: 14px;
+  text-align: right;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+}
+
+/* Screens / Modals */
+.game-modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Pause Menu */
+#pause-menu {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mc-menu-card {
+  background: #c6c6c6;
+  border: 3px solid #ffffff;
+  border-right-color: #555555;
+  border-bottom-color: #555555;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+  min-width: 380px;
+}
+
+.mc-title {
+  color: #ffff55;
+  text-shadow: 2px 2px 0 #3f3f00;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.mc-btn {
+  width: 280px;
+  height: 38px;
+  background: #8b8b8b;
+  border: 2px solid #ffffff;
+  border-right-color: #373737;
+  border-bottom-color: #373737;
+  color: #e0e0e0;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 16px;
+  text-shadow: 1px 1px 0 #252525;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.05s ease;
+}
+
+.mc-btn:hover {
+  background: #a0a0a0;
+  color: #ffffa0;
+}
+
+.mc-btn:active {
+  border-top-color: #373737;
+  border-left-color: #373737;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  transform: translateY(1px);
+}
+
+/* Inventory & Crafting GUI */
+.container-gui {
+  background: #c6c6c6;
+  border: 4px solid #ffffff;
+  border-right-color: #555555;
+  border-bottom-color: #555555;
+  padding: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+  color: #3f3f3f;
+  position: relative;
+}
+
+.gui-header {
+  font-size: 16px;
+  color: #3f3f3f;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.close-btn {
+  cursor: pointer;
+  font-weight: bold;
+  color: #aa0000;
+  padding: 0 4px;
+}
+
+.grid-slots {
+  display: grid;
+  gap: 3px;
+}
+
+.inv-slot {
+  width: 36px;
+  height: 36px;
+  background: #8b8b8b;
+  border: 2px solid #373737;
+  border-top-color: #373737;
+  border-left-color: #373737;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.inv-slot:hover {
+  background: #a2a2a2;
+}
+
+.inv-slot .slot-icon {
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
+.inv-slot .slot-count {
+  pointer-events: none;
+}
+
+/* Floating cursor item when dragging */
+#floating-cursor-item {
+  position: fixed;
+  pointer-events: none;
+  z-index: 999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+}
+
+/* Chat overlay */
+#chat-container {
+  position: absolute;
+  bottom: 56px;
+  left: 10px;
+  width: 480px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+#chat-messages {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.chat-msg {
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 6px;
+  border-radius: 2px;
+  font-size: 14px;
+  text-shadow: 1px 1px 0 #000;
+  color: #fff;
+  word-break: break-word;
+}
+
+.chat-msg.system {
+  color: #ffff55;
+}
+
+.chat-msg.help {
+  color: #55ffff;
+}
+
+.chat-msg.error {
+  color: #ff5555;
+}
+
+#chat-input-wrapper {
+  display: none;
+  width: 100%;
+  pointer-events: auto;
+}
+
+#chat-input {
+  width: 100%;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #555;
+  color: #fff;
+  font-family: 'Minecraft', monospace;
+  font-size: 14px;
+  padding: 0 8px;
+  outline: none;
+}
+
+/* Click to play overlay */
+#start-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  cursor: pointer;
+  text-align: center;
+}
+
+.mc-logo {
+  font-size: 48px;
+  color: #e0e0e0;
+  text-shadow: 3px 3px 0 #3f3f3f, 6px 6px 0 #000000;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.mc-subtitle {
+  color: #ffff55;
+  font-size: 18px;
+  margin-bottom: 28px;
+  animation: splashPulse 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes splashPulse {
+  0% { transform: scale(1) rotate(-3deg); }
+  100% { transform: scale(1.08) rotate(-3deg); }
+}
+
+.controls-guide {
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid #555;
+  padding: 16px 24px;
+  max-width: 600px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #ddd;
+  line-height: 1.6;
+  margin-top: 14px;
+}
+
+.key-badge {
+  background: #444;
+  border: 1px solid #777;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #ffff55;
+  font-weight: bold;
+}
+
+/* Tooltip */
+#item-tooltip {
+  position: fixed;
+  background: rgba(16, 0, 16, 0.92);
+  border: 2px solid #28005a;
+  border-image: linear-gradient(to bottom, #5000ff, #28007f) 1;
+  padding: 4px 8px;
+  color: #ffffff;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+  text-shadow: 1px 1px 0 #3f3f3f;
+}
+
+/* Villager Trade GUI */
+.trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.trade-row {
+  display: flex;
+  align-items: center;
+  background: #a0a0a0;
+  border: 2px solid #373737;
+  padding: 6px 10px;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.trade-row:hover {
+  background: #b5b5b5;
+}
+
+.trade-arrow {
+  font-size: 20px;
+  color: #222;
+  font-weight: bold;
+}
+
+/* ==========================================================================
+   Gemini AI Command Terminal (C)
+   ========================================================================== */
+.gemini-terminal-card {
+  width: 680px;
+  max-width: 95vw;
+  background: rgba(12, 16, 28, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 2px solid rgba(90, 150, 255, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 35px rgba(66, 133, 244, 0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  gap: 12px;
+  position: relative;
+  font-family: 'Minecraft', monospace;
+  animation: geminiFadeIn 0.22s ease-out;
+}
+
+@keyframes geminiFadeIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Header */
+.gemini-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 10px;
+}
+
+.gemini-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gemini-sparkle {
+  font-size: 20px;
+  background: linear-gradient(135deg, #4285f4, #9b72cb, #d96570);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sparkleRotate 3s infinite linear;
+}
+
+@keyframes sparkleRotate {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.gemini-title {
+  font-size: 17px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #f0f4ff;
+  text-shadow: 0 0 10px rgba(66, 133, 244, 0.4);
+}
+
+.gemini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 45, 75, 0.8);
+  border: 1px solid rgba(66, 133, 244, 0.5);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #70b5ff;
+  font-weight: bold;
+}
+
+.gemini-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+  animation: geminiPulse 1.8s infinite;
+}
+
+.gemini-pill.busy .gemini-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+@keyframes geminiPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.gemini-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gemini-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #bbb;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Minecraft', monospace;
+}
+
+.gemini-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.gemini-close-btn {
+  background: rgba(255, 60, 60, 0.15);
+  border: 1px solid rgba(255, 60, 60, 0.4);
+  color: #ff7777;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.15s ease;
+}
+
+.gemini-close-btn:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+/* Optional API Key Drawer */
+.gemini-key-drawer {
+  background: rgba(18, 25, 45, 0.8);
+  border: 1px solid rgba(66, 133, 244, 0.3);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gemini-key-desc {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: #aac4ff;
+}
+
+.gemini-key-desc small {
+  color: #778ca3;
+  font-size: 11px;
+}
+
+.gemini-key-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gemini-key-row input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #445577;
+  color: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.gemini-btn-sm {
+  background: #3b5998;
+  border: 1px solid #5a7ec8;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Minecraft', monospace;
+}
+
+.gemini-btn-sm:hover {
+  background: #4a6eb5;
+}
+
+/* Quick Prompt Chips */
+.gemini-chips-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gemini-chips-label {
+  font-size: 11px;
+  color: #8899b5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gemini-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.gemini-chip {
+  background: rgba(35, 45, 75, 0.7);
+  border: 1px solid rgba(80, 130, 220, 0.35);
+  color: #c0d4ff;
+  padding: 4px 8px;
+  border-radius: 14px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  font-family: 'Minecraft', monospace;
+}
+
+.gemini-chip:hover {
+  background: rgba(66, 133, 244, 0.35);
+  border-color: #64b5f6;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Terminal Feed */
+.gemini-terminal-body {
+  height: 200px;
+  background: rgba(6, 9, 16, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.gemini-terminal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gemini-terminal-body::-webkit-scrollbar-thumb {
+  background: #2a3550;
+  border-radius: 3px;
+}
+
+.gemini-log-entry {
+  word-break: break-word;
+}
+
+.gemini-log-entry.system {
+  color: #9bbcf4;
+}
+
+.gemini-log-entry.prompt {
+  color: #ffffff;
+  font-weight: bold;
+  border-left: 2px solid #4285f4;
+  padding-left: 6px;
+}
+
+.gemini-log-entry.info {
+  color: #b0c0db;
+}
+
+.gemini-log-entry.heading {
+  color: #ffff77;
+  font-weight: bold;
+}
+
+.gemini-log-entry.success {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+.gemini-log-entry.warning {
+  color: #fbbf24;
+}
+
+.gemini-log-entry.error {
+  color: #f87171;
+  font-weight: bold;
+}
+
+.gemini-log-entry.hint {
+  color: #6ee7b7;
+  font-size: 12px;
+}
+
+/* Progress bar */
+.gemini-progress-wrapper {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 4px 6px;
+  border: 1px solid #2a3550;
+}
+
+.gemini-progress-wrapper.active {
+  display: flex;
+}
+
+.gemini-progress-bar {
+  width: 0%;
+  height: 8px;
+  background: linear-gradient(90deg, #4285f4, #9b72cb, #34a853);
+  border-radius: 4px;
+  transition: width 0.15s ease-out;
+  box-shadow: 0 0 10px rgba(66, 133, 244, 0.6);
+}
+
+.gemini-progress-label {
+  font-size: 11px;
+  color: #a5b4fc;
+}
+
+/* Input Bar */
+.gemini-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(18, 25, 45, 0.95);
+  border: 1px solid rgba(80, 130, 240, 0.5);
+  border-radius: 6px;
+  padding: 4px 8px 4px 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gemini-input-bar:focus-within {
+  border-color: #60a5fa;
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.4);
+}
+
+.gemini-prompt-prefix {
+  font-size: 16px;
+  color: #60a5fa;
+}
+
+#gemini-prompt-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 14px;
+  font-family: 'Minecraft', monospace;
+  padding: 8px 0;
+}
+
+#gemini-prompt-input::placeholder {
+  color: #607292;
+  font-size: 13px;
+}
+
+.gemini-exec-btn {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: 'Minecraft', monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.gemini-exec-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.6);
+}
+
+.gemini-exec-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.gemini-exec-arrow {
+  font-size: 14px;
+}
+
+/* Image Attachment Preview */
+.gemini-image-preview-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(22, 32, 58, 0.95);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 6px;
+  padding: 6px 12px;
+  animation: geminiFadeIn 0.2s ease;
+}
+
+#gemini-image-preview {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #000;
+}
+
+.gemini-image-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+
+.gemini-image-badge {
+  font-size: 12px;
+  font-weight: bold;
+  color: #60a5fa;
+}
+
+.gemini-image-subtext {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.gemini-image-remove-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ff8888;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.gemini-image-remove-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Attach button in input bar */
+.gemini-attach-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.gemini-attach-btn:hover {
+  background: rgba(66, 133, 244, 0.35);
+  border-color: #60a5fa;
+  transform: scale(1.05);
+}
+
+.gemini-terminal-card.drag-over {
+  border-color: #60a5fa;
+  box-shadow: 0 0 35px rgba(96, 165, 250, 0.6);
+}
+
+

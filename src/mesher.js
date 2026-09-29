@@ -1,0 +1,293 @@
+import * as THREE from 'three';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from './world.js';
+
+const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
+
+// Vertex AO calculation: returns 0..3 based on solid neighbors
+function vertexAO(side1, side2, corner) {
+  if (side1 && side2) return 0;
+  return 3 - (side1 + side2 + corner);
+}
+
+function isSolidBlock(blockId) {
+  if (blockId === BLOCKS.AIR || blockId === BLOCKS.WATER) return 0;
+  const def = BLOCK_DEFS[blockId];
+  return (def && def.solid !== false && !def.plant) ? 1 : 0;
+}
+
+export class ChunkMesher {
+  constructor(textureManager) {
+    this.tm = textureManager;
+  }
+
+  meshChunk(chunk, world) {
+    const cx = chunk.cx;
+    const cz = chunk.cz;
+    const worldOffsetX = cx * CHUNK_SIZE_X;
+    const worldOffsetZ = cz * CHUNK_SIZE_Z;
+
+    // Buffers for opaque blocks
+    const opPos = [];
+    const opNorm = [];
+    const opUv = [];
+    const opCol = [];
+    const opIdx = [];
+    let opVertCount = 0;
+
+    // Buffers for transparent blocks (glass, leaves, plants)
+    const trPos = [];
+    const trNorm = [];
+    const trUv = [];
+    const trCol = [];
+    const trIdx = [];
+    let trVertCount = 0;
+
+    // Buffers for water
+    const wtPos = [];
+    const wtNorm = [];
+    const wtUv = [];
+    const wtCol = [];
+    const wtIdx = [];
+    let wtVertCount = 0;
+
+    // Helper to get voxel from world for seamless chunk borders
+    const getVoxelWorld = (x, y, z) => {
+      return world.getVoxel(x, y, z);
+    };
+
+    for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+      for (let ly = 0; ly < CHUNK_HEIGHT; ly++) {
+        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+          const blockId = chunk.getVoxel(lx, ly, lz);
+          if (blockId === BLOCKS.AIR) continue;
+
+          const def = BLOCK_DEFS[blockId];
+          const isWater = blockId === BLOCKS.WATER;
+          const isPlant = def && def.plant;
+          const isTransparent = def && (def.transparent || isPlant);
+
+          const wx = worldOffsetX + lx;
+          const wy = ly;
+          const wz = worldOffsetZ + lz;
+
+          // Cross-quad rendering for flowers (Poppy, Dandelion)
+          if (isPlant) {
+            const uv = this.tm.getFaceUVs(blockId, 'all');
+            const addCrossQuad = (p1, p2, p3, p4) => {
+              const baseIdx = trVertCount;
+              trPos.push(...p1, ...p2, ...p3, ...p4);
+              trNorm.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+              trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+              trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
+              trVertCount += 4;
+            };
+            addCrossQuad([wx, wy, wz], [wx + 1, wy, wz + 1], [wx + 1, wy + 1, wz + 1], [wx, wy + 1, wz]);
+            addCrossQuad([wx, wy, wz + 1], [wx + 1, wy, wz], [wx + 1, wy + 1, wz], [wx, wy + 1, wz + 1]);
+            continue;
+          }
+
+          // Check all 6 faces
+          const neighbors = {
+            top: getVoxelWorld(wx, wy + 1, wz),
+            bottom: getVoxelWorld(wx, wy - 1, wz),
+            north: getVoxelWorld(wx, wy, wz + 1),
+            south: getVoxelWorld(wx, wy, wz - 1),
+            east: getVoxelWorld(wx + 1, wy, wz),
+            west: getVoxelWorld(wx - 1, wy, wz)
+          };
+
+          const addFace = (face, positions, normal) => {
+            const neighborId = neighbors[face];
+            const nDef = BLOCK_DEFS[neighborId];
+
+            // Culling condition
+            if (isWater) {
+              if (neighborId === BLOCKS.WATER) return; // cull water adjacent to water
+              if (nDef && !nDef.transparent) return; // cull water against solid blocks
+            } else if (isTransparent) {
+              if (neighborId === blockId) return;
+              if (nDef && !nDef.transparent) return;
+            } else {
+              // Opaque block: only render face if neighbor is transparent or air
+              if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) return;
+            }
+
+            const uv = this.tm.getFaceUVs(blockId, face);
+
+            // Compute Ambient Occlusion for the 4 vertices of this face
+            let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
+            if (!isWater && !isTransparent) {
+              if (face === 'top') {
+                const s1 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz));
+                const s2 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz));
+                const s3 = isSolidBlock(getVoxelWorld(wx, wy + 1, wz - 1));
+                const s4 = isSolidBlock(getVoxelWorld(wx, wy + 1, wz + 1));
+                const c1 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz - 1));
+                const c2 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz - 1));
+                const c3 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz + 1));
+                const c4 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz + 1));
+                ao0 = vertexAO(s1, s4, c4);
+                ao1 = vertexAO(s2, s4, c3);
+                ao2 = vertexAO(s2, s3, c2);
+                ao3 = vertexAO(s1, s3, c1);
+              } else if (face === 'bottom') {
+                const s1 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz));
+                const s2 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz));
+                const s3 = isSolidBlock(getVoxelWorld(wx, wy - 1, wz - 1));
+                const s4 = isSolidBlock(getVoxelWorld(wx, wy - 1, wz + 1));
+                const c1 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz - 1));
+                const c2 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz - 1));
+                const c3 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz + 1));
+                const c4 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz + 1));
+                ao0 = vertexAO(s1, s3, c1);
+                ao1 = vertexAO(s2, s3, c2);
+                ao2 = vertexAO(s2, s4, c3);
+                ao3 = vertexAO(s1, s4, c4);
+              }
+            }
+
+            // Biome Tinting
+            let baseR = 1.0, baseG = 1.0, baseB = 1.0;
+            if (blockId === BLOCKS.GRASS && face === 'top') {
+              baseR = 0.48; baseG = 0.74; baseB = 0.31;
+            } else if (blockId === BLOCKS.OAK_LEAVES) {
+              baseR = 0.35; baseG = 0.65; baseB = 0.22;
+            } else if (blockId === BLOCKS.WATER) {
+              // Water shader computes vibrant azure coloring; vertex colors carry ambient light
+              baseR = 1.0; baseG = 1.0; baseB = 1.0;
+            }
+
+            const light0 = AO_CURVE[ao0];
+            const light1 = AO_CURVE[ao1];
+            const light2 = AO_CURVE[ao2];
+            const light3 = AO_CURVE[ao3];
+
+            // Select Target Buffers
+            let tPos = opPos, tNorm = opNorm, tUv = opUv, tCol = opCol, tIdx = opIdx;
+            let vCount = opVertCount;
+            if (isWater) {
+              tPos = wtPos; tNorm = wtNorm; tUv = wtUv; tCol = wtCol; tIdx = wtIdx;
+              vCount = wtVertCount;
+            } else if (isTransparent) {
+              tPos = trPos; tNorm = trNorm; tUv = trUv; tCol = trCol; tIdx = trIdx;
+              vCount = trVertCount;
+            }
+
+            // Push Positions
+            for (let i = 0; i < 4; i++) {
+              tPos.push(positions[i][0], positions[i][1], positions[i][2]);
+              tNorm.push(normal[0], normal[1], normal[2]);
+            }
+
+            // Push UVs
+            tUv.push(
+              uv.u0, uv.v0,
+              uv.u1, uv.v0,
+              uv.u1, uv.v1,
+              uv.u0, uv.v1
+            );
+
+            // Push Vertex Colors (AO * Tint)
+            tCol.push(
+              baseR * light0, baseG * light0, baseB * light0,
+              baseR * light1, baseG * light1, baseB * light1,
+              baseR * light2, baseG * light2, baseB * light2,
+              baseR * light3, baseG * light3, baseB * light3
+            );
+
+            // Push Quad Indices (flipping diagonal if AO requires smooth shading)
+            if (ao0 + ao2 > ao1 + ao3) {
+              tIdx.push(vCount, vCount + 1, vCount + 2, vCount, vCount + 2, vCount + 3);
+            } else {
+              tIdx.push(vCount + 1, vCount + 2, vCount + 3, vCount + 1, vCount + 3, vCount);
+            }
+
+            if (isWater) wtVertCount += 4;
+            else if (isTransparent) trVertCount += 4;
+            else opVertCount += 4;
+          };
+
+          // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
+          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
+          const topY = isWater
+            ? (neighbors.top === BLOCKS.AIR ? (wy + 0.90) : (neighbors.top === BLOCKS.GLASS ? (wy + 0.995) : (wy + 1)))
+            : (wy + 1);
+          const botY = (isWater && neighbors.bottom === BLOCKS.GLASS) ? (wy + 0.005) : wy;
+          const northZ = (isWater && neighbors.north === BLOCKS.GLASS) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && neighbors.south === BLOCKS.GLASS) ? (wz + 0.005) : wz;
+          const eastX = (isWater && neighbors.east === BLOCKS.GLASS) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && neighbors.west === BLOCKS.GLASS) ? (wx + 0.005) : wx;
+
+          // Top face (+Y)
+          addFace('top', [
+            [wx, topY, wz + 1],
+            [wx + 1, topY, wz + 1],
+            [wx + 1, topY, wz],
+            [wx, topY, wz]
+          ], [0, 1, 0]);
+
+          // Bottom face (-Y)
+          addFace('bottom', [
+            [wx, botY, wz],
+            [wx + 1, botY, wz],
+            [wx + 1, botY, wz + 1],
+            [wx, botY, wz + 1]
+          ], [0, -1, 0]);
+
+          // North face (+Z)
+          addFace('north', [
+            [wx, wy, northZ],
+            [wx + 1, wy, northZ],
+            [wx + 1, topY, northZ],
+            [wx, topY, northZ]
+          ], [0, 0, 1]);
+
+          // South face (-Z)
+          addFace('south', [
+            [wx + 1, wy, southZ],
+            [wx, wy, southZ],
+            [wx, topY, southZ],
+            [wx + 1, topY, southZ]
+          ], [0, 0, -1]);
+
+          // East face (+X)
+          addFace('east', [
+            [eastX, wy, wz + 1],
+            [eastX, wy, wz],
+            [eastX, topY, wz],
+            [eastX, topY, wz + 1]
+          ], [1, 0, 0]);
+
+          // West face (-X)
+          addFace('west', [
+            [westX, wy, wz],
+            [westX, wy, wz + 1],
+            [westX, topY, wz + 1],
+            [westX, topY, wz]
+          ], [-1, 0, 0]);
+        }
+      }
+    }
+
+    // Helper to create Three.js BufferGeometry
+    const createGeo = (pos, norm, uv, col, idx) => {
+      if (pos.length === 0) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      geo.setIndex(idx);
+      geo.computeBoundingSphere();
+      return geo;
+    };
+
+    return {
+      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx),
+      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx),
+      waterGeo: createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx)
+    };
+  }
+}
