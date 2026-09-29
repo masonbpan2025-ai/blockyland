@@ -21,6 +21,37 @@
     </div>
   </div>
 
+  <!-- Minecraft Dungeons Style Combat Overlay -->
+  <div id="dungeon-mode-hud" class="hidden">
+    <div class="dungeon-banner">
+      <div class="dungeon-header-row">
+        <span class="dungeon-badge">⚔️ DUNGEON COMBAT MODE</span>
+        <span class="dungeon-zone-title" id="dungeon-zone-title">Punching Combat Yard</span>
+      </div>
+      <div class="dungeon-enemies-row">
+        <span class="dungeon-enemy-icon">👹</span>
+        <span class="dungeon-enemy-label">Enemies Remaining:</span>
+        <span class="dungeon-enemy-count" id="dungeon-enemy-count">0</span>
+      </div>
+      <div class="dungeon-controls-bar">
+        <div class="dungeon-ctrl-item"><span class="dungeon-key">WASD</span> Move</div>
+        <div class="dungeon-ctrl-item"><span class="dungeon-key">U</span> Punch</div>
+        <div class="dungeon-ctrl-item"><span class="dungeon-key">N</span> Dodge Roll <span id="dungeon-roll-cd" class="dungeon-cd-badge">READY</span></div>
+        <div class="dungeon-ctrl-item"><span class="dungeon-key db-key">J</span> Kamehameha</div>
+        <div class="dungeon-ctrl-item"><span class="dungeon-key db-key">K</span> Genki Dama</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dungeon Cleared Banner -->
+  <div id="dungeon-cleared-banner" class="hidden">
+    <div class="dungeon-cleared-card">
+      <div class="dungeon-cleared-stars">★ ★ ★</div>
+      <div class="dungeon-cleared-title">AREA CLEARED!</div>
+      <div class="dungeon-cleared-sub" id="dungeon-cleared-sub">All Enemies Defeated — Exiting Dungeon Mode</div>
+    </div>
+  </div>
+
   <!-- Ki Energy Charge Meter (Kamehameha / Genki Dama) -->
   <div id="ki-charge-container" class="hidden">
     <div class="ki-charge-header">
@@ -434,6 +465,7 @@
       <div style="margin-top: 4px;"><span class="key-badge">Left Click</span> Mine / Attack &nbsp;|&nbsp; <span class="key-badge">Right Click</span> Place / Interact</div>
       <div style="margin-top: 4px;"><span class="key-badge">1 - 9</span> or <span class="key-badge">Mouse Wheel</span> Select Hotbar Slot</div>
       <div style="margin-top: 4px;"><span class="key-badge">E</span> Inventory / Crafting &nbsp;|&nbsp; <span class="key-badge">Q</span> Drop Item &nbsp;|&nbsp; <span class="key-badge">F3</span> Debug &nbsp;|&nbsp; <span class="key-badge">F5</span> Perspective</div>
+      <div style="margin-top: 4px; color: #f59e0b;"><span class="key-badge" style="background:#b45309; color:#fff; border-color:#f59e0b;">U</span> <strong>Punch</strong> &nbsp;|&nbsp; <span class="key-badge" style="background:#b45309; color:#fff; border-color:#f59e0b;">N</span> <strong>Dodge Roll</strong> (Dungeon / Combat)</div>
       <div style="margin-top: 4px; color: #67e8f9;"><span class="key-badge" style="background:#0284c7; color:#fff; border-color:#38bdf8;">J</span> <strong>Kamehameha</strong> (Hold Ki & Release) &nbsp;|&nbsp; <span class="key-badge" style="background:#0284c7; color:#fff; border-color:#38bdf8;">K</span> <strong>Genki Dama</strong> (Hold Ki & Release)</div>
       <div style="margin-top: 4px;"><span class="key-badge">C</span> Gemini AI Terminal &nbsp;|&nbsp; <span class="key-badge">/</span> or <span class="key-badge">T</span> Chat / Commands &nbsp;|&nbsp; <span class="key-badge">ESC</span> Pause Menu</div>
     </div>

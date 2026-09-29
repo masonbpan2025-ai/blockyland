@@ -812,6 +812,54 @@ export class SoundEngine {
 
     this.noiseBurst(0.3, 2400, 3.0, 0.35);
   }
+
+  // Melee Punch Swoosh & Impact
+  playPunch() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.12);
+
+    this.noiseBurst(0.09, 1100, 1.5, 0.25);
+  }
+
+  // Minecraft Dungeons Dodge Roll Whoosh
+  playRoll() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.linearRampToValueAtTime(320, now + 0.15);
+    osc.frequency.linearRampToValueAtTime(120, now + 0.32);
+
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.35);
+
+    this.noiseBurst(0.28, 1600, 2.0, 0.22);
+  }
 }
+
 
 

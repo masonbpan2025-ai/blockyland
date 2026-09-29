@@ -23,6 +23,7 @@ import {
 import { TournamentManager } from './tournament.js';
 import { DragonballSkillsManager } from './dragonballSkills.js';
 import { TrainingSitesManager } from './trainingSites.js';
+import { DungeonModeManager } from './dungeonMode.js';
 
 
 class Game {
@@ -135,6 +136,7 @@ class Game {
     this.tournament = new TournamentManager(this);
     this.dragonballSkills = new DragonballSkillsManager(this);
     this.trainingSites = new TrainingSitesManager(this);
+    this.dungeonMode = new DungeonModeManager(this);
 
     // 6. Build Target Highlighting Box & Break Crack Mesh
     this.buildTargetHighlightMeshes();
@@ -939,6 +941,9 @@ class Game {
     }
     if (this.trainingSites) {
       this.trainingSites.update(dt, this.player);
+    }
+    if (this.dungeonMode) {
+      this.dungeonMode.update(dt);
     }
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader

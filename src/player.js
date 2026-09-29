@@ -59,6 +59,26 @@ export class Player {
     this.isGatheringKi = false;
     this.onKiInterrupted = null;
 
+    // Minecraft Dungeons mode & combat states
+    this.isDungeonMode = false;
+    this.dungeonCameraOffset = new THREE.Vector3(0, 14.5, 12.0);
+
+    // Dodge Roll state (Key N)
+    this.isRolling = false;
+    this.rollTimer = 0;
+    this.rollDuration = 0.35;
+    this.rollCooldown = 0;
+    this.maxRollCooldown = 1.0;
+    this.rollDirection = new THREE.Vector3(0, 0, -1);
+    this.onRoll = null;
+
+    // Punch state (Key U)
+    this.isPunching = false;
+    this.punchTimer = 0;
+    this.punchDuration = 0.22;
+    this.punchCooldown = 0;
+    this.onPunch = null;
+
     this.setupInputs();
   }
 
@@ -84,6 +104,20 @@ export class Player {
         e.preventDefault();
         this.perspective = (this.perspective + 1) % 3;
       }
+
+      // U: Punch Attack
+      if (e.code === 'KeyU' && !e.repeat) {
+        if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
+          this.triggerPunch();
+        }
+      }
+
+      // N: Dodge Roll
+      if (e.code === 'KeyN' && !e.repeat) {
+        if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
+          this.triggerDodgeRoll();
+        }
+      }
     });
 
     window.addEventListener('keyup', (e) => {
@@ -91,6 +125,7 @@ export class Player {
     });
 
     window.addEventListener('mousemove', (e) => {
+      if (this.isDungeonMode) return; // In Dungeon Top-Down mode, facing is controlled by movement
       if (document.pointerLockElement !== this.domElement) return;
       const sensitivity = 0.0022;
       this.yaw -= e.movementX * sensitivity;
@@ -100,6 +135,53 @@ export class Player {
       const maxPitch = Math.PI / 2 - 0.01;
       this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
     });
+  }
+
+  triggerPunch() {
+    if (this.isPunching || this.punchCooldown > 0 || this.isGatheringKi) return false;
+    this.isPunching = true;
+    this.punchTimer = this.punchDuration;
+    this.punchCooldown = 0.32;
+    if (this.onPunch) this.onPunch();
+    return true;
+  }
+
+  triggerDodgeRoll() {
+    if (this.isRolling || this.rollCooldown > 0 || this.isGatheringKi) return false;
+    this.isRolling = true;
+    this.rollTimer = this.rollDuration;
+    this.rollCooldown = this.maxRollCooldown;
+    this.invulnerableTimer = 0.38;
+
+    const rollDir = new THREE.Vector3();
+    if (this.isDungeonMode) {
+      if (this.keys['KeyW']) rollDir.z -= 1;
+      if (this.keys['KeyS']) rollDir.z += 1;
+      if (this.keys['KeyA']) rollDir.x -= 1;
+      if (this.keys['KeyD']) rollDir.x += 1;
+    } else {
+      let moveForward = 0;
+      let moveRight = 0;
+      if (this.keys['KeyW']) moveForward += 1;
+      if (this.keys['KeyS']) moveForward -= 1;
+      if (this.keys['KeyD']) moveRight += 1;
+      if (this.keys['KeyA']) moveRight -= 1;
+      const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
+      const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).normalize();
+      if (moveForward !== 0 || moveRight !== 0) {
+        rollDir.addScaledVector(forward, moveForward);
+        rollDir.addScaledVector(right, moveRight);
+      }
+    }
+
+    if (rollDir.lengthSq() < 0.001) {
+      rollDir.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    }
+    rollDir.normalize();
+    this.rollDirection.copy(rollDir);
+
+    if (this.onRoll) this.onRoll();
+    return true;
   }
 
   createPlayerModel() {
@@ -186,6 +268,25 @@ export class Player {
       this.invulnerableTimer -= dt;
     }
 
+    // Cooldown countdowns
+    if (this.rollCooldown > 0) this.rollCooldown = Math.max(0, this.rollCooldown - dt);
+    if (this.punchCooldown > 0) this.punchCooldown = Math.max(0, this.punchCooldown - dt);
+    if (this.punchTimer > 0) this.punchTimer = Math.max(0, this.punchTimer - dt);
+
+    // If rolling (Dodge Roll), override horizontal movement with roll impulse
+    if (this.isRolling) {
+      this.rollTimer -= dt;
+      const rollSpeed = 14.5;
+      this.velocity.x = this.rollDirection.x * rollSpeed;
+      this.velocity.z = this.rollDirection.z * rollSpeed;
+      if (this.rollTimer <= 0) {
+        this.isRolling = false;
+      }
+      this.moveWithCollision(dt);
+      this.updateCameraAndModel(dt);
+      return;
+    }
+
     // Check if player is standing in water
     const blockAtFeet = this.world.getVoxel(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
     this.inWater = (blockAtFeet === BLOCKS.WATER);
@@ -225,10 +326,23 @@ export class Player {
     }
 
     const moveDir = new THREE.Vector3();
-    if (moveForward !== 0 || moveRight !== 0) {
-      moveDir.addScaledVector(forward, moveForward);
-      moveDir.addScaledVector(right, moveRight);
-      moveDir.normalize();
+    if (this.isDungeonMode) {
+      // Minecraft Dungeons WASD cardinal direction control
+      if (this.keys['KeyW']) moveDir.z -= 1;
+      if (this.keys['KeyS']) moveDir.z += 1;
+      if (this.keys['KeyA']) moveDir.x -= 1;
+      if (this.keys['KeyD']) moveDir.x += 1;
+
+      if (moveDir.lengthSq() > 0.001) {
+        moveDir.normalize();
+        this.yaw = Math.atan2(-moveDir.x, -moveDir.z);
+      }
+    } else {
+      if (moveForward !== 0 || moveRight !== 0) {
+        moveDir.addScaledVector(forward, moveForward);
+        moveDir.addScaledVector(right, moveRight);
+        moveDir.normalize();
+      }
     }
 
     // Horizontal acceleration
@@ -400,22 +514,49 @@ export class Player {
       this.model.position.copy(this.position);
       this.model.rotation.y = this.yaw;
 
-      const speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
-      const walkTime = performance.now() * 0.008;
-      const legSwing = Math.sin(walkTime) * Math.min(1.0, speed * 0.3);
+      if (this.isRolling) {
+        // Full 360 forward flip roll animation
+        const rollProgress = Math.max(0, Math.min(1.0, 1.0 - (this.rollTimer / this.rollDuration)));
+        this.model.rotation.x = rollProgress * Math.PI * 2;
+        this.model.leftLeg.rotation.x = -1.2;
+        this.model.rightLeg.rotation.x = -1.2;
+        this.model.leftArm.rotation.x = 1.5;
+        this.model.rightArm.rotation.x = 1.5;
+        this.model.head.rotation.x = 0;
+      } else {
+        this.model.rotation.x = 0;
+        const speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
+        const walkTime = performance.now() * 0.008;
+        const legSwing = Math.sin(walkTime) * Math.min(1.0, speed * 0.3);
 
-      this.model.leftLeg.rotation.x = legSwing;
-      this.model.rightLeg.rotation.x = -legSwing;
-      this.model.leftArm.rotation.x = -legSwing;
-      this.model.rightArm.rotation.x = legSwing;
-      this.model.head.rotation.x = this.pitch;
+        this.model.leftLeg.rotation.x = legSwing;
+        this.model.rightLeg.rotation.x = -legSwing;
+        this.model.leftArm.rotation.x = -legSwing;
+        this.model.rightArm.rotation.x = legSwing;
 
-      // Hide model in 1st person
-      this.model.visible = (this.perspective !== 0);
+        // Punch arm forward thrust animation
+        if (this.isPunching && this.punchTimer > 0) {
+          const punchProg = Math.sin((1.0 - this.punchTimer / this.punchDuration) * Math.PI);
+          this.model.rightArm.rotation.x = -Math.PI / 2 * punchProg - 0.2;
+          this.model.rightArm.position.z = -0.35 * punchProg;
+        } else {
+          this.model.rightArm.position.z = 0;
+        }
+
+        this.model.head.rotation.x = this.isDungeonMode ? 0 : this.pitch;
+      }
+
+      // Hide model in 1st person UNLESS in Dungeon Mode
+      this.model.visible = (this.perspective !== 0 || this.isDungeonMode);
     }
 
-    // Position Camera based on perspective
-    if (this.perspective === 0) {
+    // Position Camera based on Dungeon Mode or perspective
+    if (this.isDungeonMode) {
+      // Minecraft Dungeons Style Top-Down Isometric View
+      const targetCamPos = this.position.clone().add(this.dungeonCameraOffset);
+      this.camera.position.lerp(targetCamPos, Math.min(1.0, 8.0 * (dt || 0.016)));
+      this.camera.lookAt(this.position.x, this.position.y + 0.8, this.position.z);
+    } else if (this.perspective === 0) {
       // 1st Person
       this.camera.position.set(this.position.x, eyeY, this.position.z);
       this.camera.rotation.order = 'YXZ';

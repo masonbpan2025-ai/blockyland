@@ -1976,6 +1976,188 @@ html, body {
   100% { transform: translateX(100%); }
 }
 
+/* ========================================================
+   MINECRAFT DUNGEONS TOP-DOWN COMBAT MODE HUD
+   ======================================================== */
+#dungeon-mode-hud {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  pointer-events: none;
+  animation: dropIn 0.35s ease-out;
+}
+
+#dungeon-mode-hud.hidden {
+  display: none !important;
+}
+
+.dungeon-banner {
+  background: rgba(18, 18, 24, 0.92);
+  border: 2px solid #f59e0b;
+  border-top-color: #fde047;
+  border-radius: 6px;
+  padding: 8px 18px 10px 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.75), 0 0 16px rgba(245, 158, 11, 0.35);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.dungeon-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dungeon-badge {
+  background: linear-gradient(135deg, #b45309, #d97706);
+  color: #fff;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.5);
+}
+
+.dungeon-zone-title {
+  color: #fef08a;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.dungeon-enemies-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 13px;
+}
+
+.dungeon-enemy-label {
+  color: #d1d5db;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.dungeon-enemy-count {
+  color: #ef4444;
+  font-size: 15px;
+  font-weight: 900;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid #ef4444;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-shadow: 0 0 6px #ef4444;
+}
+
+.dungeon-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dungeon-ctrl-item {
+  color: #cbd5e1;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.dungeon-key {
+  background: #334155;
+  color: #f8fafc;
+  border: 1px solid #64748b;
+  border-bottom: 2px solid #1e293b;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.dungeon-key.db-key {
+  background: #0369a1;
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.dungeon-cd-badge {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border: 1px solid #16a34a;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Dungeon Cleared Victory Banner */
+#dungeon-cleared-banner {
+  position: fixed;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 95;
+  pointer-events: none;
+  animation: clearedBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#dungeon-cleared-banner.hidden {
+  display: none !important;
+}
+
+.dungeon-cleared-card {
+  background: rgba(15, 23, 42, 0.95);
+  border: 3px solid #eab308;
+  border-radius: 8px;
+  padding: 16px 36px;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(234, 179, 8, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.dungeon-cleared-stars {
+  color: #facc15;
+  font-size: 24px;
+  letter-spacing: 6px;
+  text-shadow: 0 0 10px #f59e0b;
+}
+
+.dungeon-cleared-title {
+  color: #fef08a;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin: 4px 0;
+  text-shadow: 2px 2px 0 #000, 0 0 15px #eab308;
+}
+
+.dungeon-cleared-sub {
+  color: #94a3b8;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 14px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+@keyframes clearedBounce {
+  0% { transform: translate(-50%, -80px) scale(0.6); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+}
+
+
 
 
 

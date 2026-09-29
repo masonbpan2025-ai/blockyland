@@ -252,6 +252,9 @@ export function deserializeWorld(game, mapData) {
     game.trainingSites.reset();
     game.trainingSites.ensureSiteManagers();
   }
+  if (game.dungeonMode) {
+    game.dungeonMode.reset();
+  }
 
   return true;
 }

@@ -174,10 +174,17 @@ export class DragonballSkillsManager {
     const beamLength = 48;
     const beamRadius = 0.5 + power * 1.0; // 0.5 to 1.5 blocks wide
 
-    // Camera Direction
-    const camDir = new THREE.Vector3();
-    this.game.camera.getWorldDirection(camDir);
-    const eyePos = this.game.camera.position.clone().add(camDir.clone().multiplyScalar(0.4));
+    // Shooting Direction & Origin (Adapts to 1st Person or Dungeon Mode)
+    const shootDir = new THREE.Vector3();
+    let eyePos = new THREE.Vector3();
+
+    if (this.player.isDungeonMode) {
+      shootDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw)).normalize();
+      eyePos.copy(this.player.position).add(new THREE.Vector3(0, 1.2, 0)).add(shootDir.clone().multiplyScalar(0.6));
+    } else {
+      this.game.camera.getWorldDirection(shootDir);
+      eyePos = this.game.camera.position.clone().add(shootDir.clone().multiplyScalar(0.4));
+    }
 
     // Sound
     this.sounds?.playKamehameha?.();
@@ -207,9 +214,9 @@ export class DragonballSkillsManager {
     beamGroup.add(headMesh);
 
     // Orient cylinder along look vector (Three.js cylinder defaults along Y axis)
-    const midPoint = eyePos.clone().add(camDir.clone().multiplyScalar(beamLength / 2));
+    const midPoint = eyePos.clone().add(shootDir.clone().multiplyScalar(beamLength / 2));
     beamGroup.position.copy(midPoint);
-    beamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), camDir.clone().normalize());
+    beamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), shootDir.clone().normalize());
 
     this.scene.add(beamGroup);
 
@@ -226,15 +233,15 @@ export class DragonballSkillsManager {
       for (const mob of this.game.mobs.mobs) {
         if (mob.health <= 0 || mob.dying) continue;
         const toMob = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(eyePos);
-        const proj = toMob.dot(camDir);
+        const proj = toMob.dot(shootDir);
 
         if (proj > 0.5 && proj < beamLength) {
-          const perp = toMob.clone().sub(camDir.clone().multiplyScalar(proj)).length();
+          const perp = toMob.clone().sub(shootDir.clone().multiplyScalar(proj)).length();
           if (perp < beamRadius + 0.8) {
             // Mob is caught inside the Kamehameha beam!
             this.game.mobs.damageMob(mob, damage, eyePos);
             // Extra energy knockback in beam direction
-            mob.velocity.add(camDir.clone().multiplyScalar(8.0 + power * 10.0));
+            mob.velocity.add(shootDir.clone().multiplyScalar(8.0 + power * 10.0));
             mob.velocity.y += 3.5;
 
             // Spawn blue energy impact sparks
@@ -256,9 +263,16 @@ export class DragonballSkillsManager {
     const bombRadius = 0.8 + power * 1.8; // 0.8 to 2.6 blocks radius
     const aoeRadius = 5.0 + power * 5.0; // 5 to 10 blocks AoE explosion
 
-    const camDir = new THREE.Vector3();
-    this.game.camera.getWorldDirection(camDir);
-    const startPos = this.player.position.clone().add(new THREE.Vector3(0, 2.8, 0));
+    const launchDir = new THREE.Vector3();
+    let startPos = new THREE.Vector3();
+
+    if (this.player.isDungeonMode) {
+      launchDir.set(-Math.sin(this.player.yaw), 0.18, -Math.cos(this.player.yaw)).normalize();
+      startPos.copy(this.player.position).add(new THREE.Vector3(0, 2.6, 0));
+    } else {
+      this.game.camera.getWorldDirection(launchDir);
+      startPos = this.player.position.clone().add(new THREE.Vector3(0, 2.8, 0));
+    }
 
     // Throw Sound
     this.sounds?.playGenkiDamaLaunch?.();
@@ -276,7 +290,7 @@ export class DragonballSkillsManager {
 
     // Initial velocity forward
     const speed = 18.0;
-    const velocity = camDir.clone().multiplyScalar(speed);
+    const velocity = launchDir.clone().multiplyScalar(speed);
 
     this.activeBombs.push({
       mesh,
@@ -416,10 +430,15 @@ export class DragonballSkillsManager {
 
       // Visual Updates
       if (this.activeSkill === 'kamehameha' && this.auraMesh) {
-        const camDir = new THREE.Vector3();
-        this.game.camera.getWorldDirection(camDir);
-        // Position aura at chest level in front of player
-        const auraPos = this.game.camera.position.clone().add(camDir.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, -0.3, 0));
+        let auraPos = new THREE.Vector3();
+        if (this.player.isDungeonMode) {
+          const facing = new THREE.Vector3(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
+          auraPos.copy(this.player.position).add(new THREE.Vector3(0, 1.1, 0)).add(facing.multiplyScalar(0.7));
+        } else {
+          const camDir = new THREE.Vector3();
+          this.game.camera.getWorldDirection(camDir);
+          auraPos = this.game.camera.position.clone().add(camDir.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, -0.3, 0));
+        }
         this.auraMesh.position.copy(auraPos);
         const pulse = 0.3 + Math.sin(Date.now() * 0.02) * 0.08 + (powerPct / 100) * 0.35;
         this.auraMesh.scale.set(pulse, pulse, pulse);
