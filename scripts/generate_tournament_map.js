@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Blocks definitions
+// Blocks definitions matching src/blocks.js
 const BLOCKS = {
   AIR: 0,
   GRASS: 1,
@@ -61,7 +61,7 @@ function encodeVoxelsRLE(voxels) {
   return rle;
 }
 
-// World grid container using the EXACT indexing formula from Chunk in world.js
+// World grid container using the EXACT indexing formula from Chunk in world.js: (ly * 16 + lz) * 16 + lx
 class WorldBuilder {
   constructor() {
     this.chunks = new Map();
@@ -82,7 +82,6 @@ class WorldBuilder {
     const lx = ((x % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((z % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
     const chunk = this.getChunk(cx, cz);
-    // CRITICAL: Must match Chunk.getIndex(lx, ly, lz) = (ly * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx
     const idx = (y * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx;
     chunk[idx] = blockId;
   }
@@ -109,15 +108,16 @@ class WorldBuilder {
   }
 }
 
-console.log('Building authentic Dragon Ball World Martial Arts Tournament Map (Tenkaichi Budokai)...');
+console.log('Generating Dragon Ball World Martial Arts Tournament Map with 4 Training Sites...');
 const builder = new WorldBuilder();
 
-// 1. Terrain Base (Chunks CX: -2..2, CZ: -2..2 -> X: -36..36, Z: -36..36)
-// NO ceiling stone! Y=21..63 is open air.
-const minX = -36;
-const maxX = 36;
-const minZ = -36;
-const maxZ = 36;
+// 1. Terrain Base (Chunks covering X: -72..72, Z: -72..72)
+// Bedrock at Y=0, Stone at Y=1..15, Dirt at Y=16..19, Ground surface at Y=20.
+// Open air above Y=20 (NO stone ceiling).
+const minX = -72;
+const maxX = 72;
+const minZ = -72;
+const maxZ = 72;
 
 for (let x = minX; x <= maxX; x++) {
   for (let z = minZ; z <= maxZ; z++) {
@@ -128,117 +128,122 @@ for (let x = minX; x <= maxX; x++) {
     for (let y = 16; y <= 19; y++) {
       builder.setVoxel(x, y, z, BLOCKS.DIRT);
     }
-    // Ground level at Y=20
+
+    // Default surface: Grass
+    builder.setVoxel(x, 20, z, BLOCKS.GRASS);
+
+    // Central Arena courtyard
     const dist = Math.hypot(x, z);
     if (dist < 26) {
-      // Paved courtyard in front of and around the stage
       if (Math.abs(x) <= 3 || z >= 9 || (Math.abs(x) >= 9 && Math.abs(x) <= 12)) {
         builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
       } else {
         builder.setVoxel(x, 20, z, BLOCKS.COBBLESTONE);
       }
-    } else {
-      builder.setVoxel(x, 20, z, BLOCKS.GRASS);
+    }
+
+    // Connecting stone walkways from central courtyard to the 4 training sites
+    // South walkway (to Parkour Park)
+    if (Math.abs(x) <= 2 && z >= 24 && z <= 32) {
+      builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
+    }
+    // East walkway (to Punching Yard)
+    if (Math.abs(z) <= 2 && x >= 24 && x <= 32) {
+      builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
+    }
+    // West walkway (to Kamehameha Range)
+    if (Math.abs(z) <= 2 && x <= -24 && x >= -32) {
+      builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
+    }
+    // North walkway (around pavilion to Genki Dama Crater)
+    if (Math.abs(x) <= 2 && z <= -26 && z >= -34) {
+      builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
     }
   }
 }
 
-// 2. The Tournament Fighting Stage (Exact match to Dragon Ball Screenshot 2 & 3)
-// 16x16 square elevated stage: X: -8 to 8, Z: -8 to 8
-// Elevated 4 blocks above ground (ground Y=20, stage top Y=24)
-
-// Foundation interior (solid stone)
+// ========================================================
+// 2. CENTRAL WORLD MARTIAL ARTS TOURNAMENT ARENA
+// ========================================================
+// 16x16 square elevated stage: X: -8 to 8, Z: -8 to 8, elevated to Y=24
 builder.fillBox(-8, 21, -8, 8, 23, 8, BLOCKS.STONE);
 
-// Blue vertical base rim (Screenshot 2 & 3: solid blue vertical wall on all 4 sides)
+// Blue vertical base rim (all 4 sides)
 builder.fillBox(-8, 21, -8, 8, 23, -8, BLOCKS.BLUE_WOOL); // North edge
 builder.fillBox(-8, 21, 8, 8, 23, 8, BLOCKS.BLUE_WOOL);   // South edge
 builder.fillBox(-8, 21, -8, -8, 23, 8, BLOCKS.BLUE_WOOL); // West edge
 builder.fillBox(8, 21, -8, 8, 23, 8, BLOCKS.BLUE_WOOL);  // East edge
 
-// Stage Surface (Y = 24):
-// Outer perimeter has a thin red edge lip (just like Screenshot 2 & 3)
+// Stage Surface (Y = 24)
 for (let x = -8; x <= 8; x++) {
   for (let z = -8; z <= 8; z++) {
     const isEdge = (Math.abs(x) === 8 || Math.abs(z) === 8);
     if (isEdge) {
       builder.setVoxel(x, 24, z, BLOCKS.RED_WOOL); // Red rim lip
     } else {
-      // Light gray tiled floor with grid lines
       const isGrid = (x % 2 === 0 || z % 2 === 0);
       builder.setVoxel(x, 24, z, isGrid ? BLOCKS.STONE_BRICKS : BLOCKS.STONE);
     }
   }
 }
 
-// 3. Center Entrance Stairs from Stage into Gate (Z: -8 to -13, X: -2 to 2)
-// In Screenshot 2 & 3, purple/stone steps lead up from the back of the stage into the red gateway
+// Center Entrance Stairs from Stage into Gate (Z: -8 to -13, X: -2 to 2)
 for (let step = 0; step < 4; step++) {
   const z = -9 - step;
   const y = 24 + step;
   builder.fillBox(-2, 21, z, 2, y, z, BLOCKS.STONE_BRICKS);
-  builder.fillBox(-2, y, z, 2, y, z, BLOCKS.SANDSTONE); // step tread
+  builder.fillBox(-2, y, z, 2, y, z, BLOCKS.SANDSTONE);
 }
 
-// 4. Red Gateway & Demon Monster Wall Reliefs (Screenshot 2 & 3)
-// Located at Z: -13 to -16, X: -12 to 12
-// Gateposts framing the center entrance
+// Red Gateway & Demon Monster Wall Reliefs (Z: -13 to -16, X: -12 to 12)
 builder.fillBox(-3, 24, -14, -3, 30, -14, BLOCKS.STONE_BRICKS);
 builder.fillBox(3, 24, -14, 3, 30, -14, BLOCKS.STONE_BRICKS);
 builder.setVoxel(-3, 31, -14, BLOCKS.RED_WOOL);
 builder.setVoxel(3, 31, -14, BLOCKS.RED_WOOL);
-
-// Gate Arch / Lintel
 builder.fillBox(-3, 29, -14, 3, 29, -14, BLOCKS.RED_WOOL);
 builder.fillBox(-3, 30, -14, 3, 30, -14, BLOCKS.STONE_BRICKS);
 
-// Red walls on left (X: -11 to -4) and right (X: 4 to 11) at Z = -14
-// Wall foundation (Y = 24..27)
+// Red walls on left and right
 builder.fillBox(-11, 21, -14, -4, 27, -14, BLOCKS.RED_WOOL);
 builder.fillBox(4, 21, -14, 11, 27, -14, BLOCKS.RED_WOOL);
-// Sandstone / white border frame around the red wall panels
 builder.fillBox(-11, 27, -14, -4, 27, -14, BLOCKS.SANDSTONE);
 builder.fillBox(4, 27, -14, 11, 27, -14, BLOCKS.SANDSTONE);
 builder.fillBox(-12, 21, -14, -12, 28, -14, BLOCKS.STONE_BRICKS);
 builder.fillBox(12, 21, -14, 12, 28, -14, BLOCKS.STONE_BRICKS);
 
-// Demon Head Reliefs on the red walls (Screenshot 2 & 3)
-// Left demon head at X = -7..-9, Y = 24..26
+// Demon Head Reliefs
+// Left demon head
 builder.fillBox(-9, 24, -13, -7, 26, -13, BLOCKS.STONE);
-builder.setVoxel(-8, 25, -13, BLOCKS.COBBLESTONE); // nose/snout
-builder.setVoxel(-9, 26, -13, BLOCKS.BLACK_WOOL);  // left eye
-builder.setVoxel(-7, 26, -13, BLOCKS.BLACK_WOOL);  // right eye
-builder.setVoxel(-10, 27, -14, BLOCKS.WHITE_WOOL); // left horn
-builder.setVoxel(-6, 27, -14, BLOCKS.WHITE_WOOL);  // right horn
-
-// Right demon head at X = 7..9, Y = 24..26
+builder.setVoxel(-8, 25, -13, BLOCKS.COBBLESTONE);
+builder.setVoxel(-9, 26, -13, BLOCKS.BLACK_WOOL);
+builder.setVoxel(-7, 26, -13, BLOCKS.BLACK_WOOL);
+builder.setVoxel(-10, 27, -14, BLOCKS.WHITE_WOOL);
+builder.setVoxel(-6, 27, -14, BLOCKS.WHITE_WOOL);
+// Right demon head
 builder.fillBox(7, 24, -13, 9, 26, -13, BLOCKS.STONE);
-builder.setVoxel(8, 25, -13, BLOCKS.COBBLESTONE);  // nose/snout
-builder.setVoxel(7, 26, -13, BLOCKS.BLACK_WOOL);   // left eye
-builder.setVoxel(9, 26, -13, BLOCKS.BLACK_WOOL);   // right eye
-builder.setVoxel(6, 27, -14, BLOCKS.WHITE_WOOL);   // left horn
-builder.setVoxel(10, 27, -14, BLOCKS.WHITE_WOOL);  // right horn
+builder.setVoxel(8, 25, -13, BLOCKS.COBBLESTONE);
+builder.setVoxel(7, 26, -13, BLOCKS.BLACK_WOOL);
+builder.setVoxel(9, 26, -13, BLOCKS.BLACK_WOOL);
+builder.setVoxel(6, 27, -14, BLOCKS.WHITE_WOOL);
+builder.setVoxel(10, 27, -14, BLOCKS.WHITE_WOOL);
 
-// 5. The Main Tournament House (Screenshot 2 & 3)
-// Located at Z: -16 to -27, X: -18 to 18
-// White walls (Y = 24..28)
-builder.fillBox(-18, 21, -27, 18, 28, -27, BLOCKS.WHITE_WOOL); // Back wall
-builder.fillBox(-18, 21, -26, -18, 28, -16, BLOCKS.WHITE_WOOL); // West wall
-builder.fillBox(18, 21, -26, 18, 28, -16, BLOCKS.WHITE_WOOL);  // East wall
-builder.fillBox(-18, 21, -16, 18, 28, -16, BLOCKS.WHITE_WOOL);  // Front wall
+// Main Tournament House (Z: -16 to -27, X: -18 to 18)
+builder.fillBox(-18, 21, -27, 18, 28, -27, BLOCKS.WHITE_WOOL);
+builder.fillBox(-18, 21, -26, -18, 28, -16, BLOCKS.WHITE_WOOL);
+builder.fillBox(18, 21, -26, 18, 28, -16, BLOCKS.WHITE_WOOL);
+builder.fillBox(-18, 21, -16, 18, 28, -16, BLOCKS.WHITE_WOOL);
 
-// Red horizontal accent band on the white wall (Y = 28)
+// Red horizontal band
 builder.fillBox(-18, 28, -16, 18, 28, -16, BLOCKS.RED_WOOL);
 builder.fillBox(-18, 28, -27, 18, 28, -27, BLOCKS.RED_WOOL);
 
-// Blue rectangular windows (Screenshot 2 & 3) at Y = 26
+// Windows
 builder.fillBox(-14, 26, -16, -11, 26, -16, BLOCKS.BLUE_WOOL);
 builder.fillBox(-7, 26, -16, -4, 26, -16, BLOCKS.BLUE_WOOL);
 builder.fillBox(4, 26, -16, 7, 26, -16, BLOCKS.BLUE_WOOL);
 builder.fillBox(11, 26, -16, 14, 26, -16, BLOCKS.BLUE_WOOL);
 
-// 6. Thatched Straw Roof (Golden-Brown / Amber, Screenshot 2 & 3)
-// Slopes upwards from Y = 29 to Y = 34
+// Thatched Roof
 for (let layer = 0; layer < 6; layer++) {
   const y = 29 + layer;
   const xSpan = 20 - layer * 2;
@@ -247,44 +252,37 @@ for (let layer = 0; layer < 6; layer++) {
   for (let x = -xSpan; x <= xSpan; x++) {
     for (let z = zMin; z <= zMax; z++) {
       const isPerimeter = (Math.abs(x) === xSpan || z === zMin || z === zMax);
-      // Outer perimeter is golden sandstone thatch, interior is oak planks
       builder.setVoxel(x, y, z, isPerimeter ? BLOCKS.SANDSTONE : BLOCKS.OAK_PLANKS);
     }
   }
 }
 
-// 7. Center Upper Roof Cupola with White Horns (Screenshot 2 & 3)
-// At Y = 35..37, X: -6 to 6, Z: -23 to -19
+// Center Upper Roof Cupola with White Horns
 builder.fillBox(-6, 35, -23, 6, 36, -19, BLOCKS.SANDSTONE);
 builder.fillBox(-5, 37, -22, 5, 37, -20, BLOCKS.OAK_PLANKS);
-
-// White Crescent Horns pointing upwards on cupola top
-// Left horn
+// Horns
 builder.setVoxel(-4, 37, -21, BLOCKS.WHITE_WOOL);
 builder.setVoxel(-5, 38, -21, BLOCKS.WHITE_WOOL);
 builder.setVoxel(-6, 39, -21, BLOCKS.WHITE_WOOL);
-// Right horn
 builder.setVoxel(4, 37, -21, BLOCKS.WHITE_WOOL);
 builder.setVoxel(5, 38, -21, BLOCKS.WHITE_WOOL);
 builder.setVoxel(6, 39, -21, BLOCKS.WHITE_WOOL);
 
-// 8. Spectator Bleachers (East & West)
-// West Bleachers: X: -24 to -14, Z: -12 to 12
+// Spectator Bleachers
 for (let r = 0; r < 5; r++) {
   const x = -14 - r * 2;
   const y = 21 + r;
   builder.fillBox(x - 1, 21, -12, x, y, 12, BLOCKS.STONE_BRICKS);
-  builder.fillBox(x - 1, y, -12, x, y, 12, BLOCKS.OAK_PLANKS); // wooden seating bench
+  builder.fillBox(x - 1, y, -12, x, y, 12, BLOCKS.OAK_PLANKS);
 }
-// East Bleachers: X: 14 to 24, Z: -12 to 12
 for (let r = 0; r < 5; r++) {
   const x = 14 + r * 2;
   const y = 21 + r;
   builder.fillBox(x, 21, -12, x + 1, y, 12, BLOCKS.STONE_BRICKS);
-  builder.fillBox(x, y, -12, x + 1, y, 12, BLOCKS.OAK_PLANKS); // wooden seating bench
+  builder.fillBox(x, y, -12, x + 1, y, 12, BLOCKS.OAK_PLANKS);
 }
 
-// 9. Tropical Palm Trees flanking the pavilion (Screenshot 2 & 3)
+// Palm Trees around the courtyard
 const palmSpots = [
   [-22, -18], [-26, -22], [-20, -28],
   [22, -18], [26, -22], [20, -28],
@@ -297,13 +295,186 @@ for (const [px, pz] of palmSpots) {
   builder.fillBox(px, 27, pz - 3, px, 27, pz + 3, BLOCKS.OAK_LEAVES);
 }
 
-// 10. Low Courtyard Perimeter Wall
+// Low Courtyard Perimeter Wall
 builder.fillBox(-30, 21, 28, 30, 23, 28, BLOCKS.STONE_BRICKS);
-builder.fillBox(-30, 24, 28, 30, 24, 28, BLOCKS.SANDSTONE); // coping
-// South Entrance Gap
-builder.fillBox(-4, 21, 28, 4, 24, 28, BLOCKS.AIR);
+builder.fillBox(-30, 24, 28, 30, 24, 28, BLOCKS.SANDSTONE);
+builder.fillBox(-4, 21, 28, 4, 24, 28, BLOCKS.AIR); // South opening
 
-// 11. RLE Encode All Generated Chunks
+// ========================================================
+// 3. SITE 1: SOUTH - PARKOUR TRAINING GROUND (Z: 30..70, X: -16..16)
+// ========================================================
+console.log('Building Site 1: South Parkour Park...');
+// Starting Entrance Terrace (Z: 30..33, X: -6..6)
+builder.fillBox(-6, 21, 30, 6, 21, 33, BLOCKS.SANDSTONE);
+// Torii Entrance Gateposts
+builder.fillBox(-4, 21, 31, -4, 26, 31, BLOCKS.RED_WOOL);
+builder.fillBox(4, 21, 31, 4, 26, 31, BLOCKS.RED_WOOL);
+builder.fillBox(-5, 26, 31, 5, 26, 31, BLOCKS.RED_WOOL);
+builder.fillBox(-6, 27, 31, 6, 27, 31, BLOCKS.GOLD_ORE);
+
+// Deep Parkour Water Basin below (X: -14..14, Z: 34..68, sunken to Y=17..19, filled with water)
+builder.fillBox(-15, 17, 33, 15, 17, 69, BLOCKS.STONE_BRICKS); // basin floor
+builder.fillBox(-15, 18, 33, 15, 20, 69, BLOCKS.WATER);        // deep water pool
+// Basin perimeter walls
+builder.fillBox(-15, 18, 33, -15, 21, 69, BLOCKS.STONE_BRICKS);
+builder.fillBox(15, 18, 33, 15, 21, 69, BLOCKS.STONE_BRICKS);
+builder.fillBox(-15, 18, 69, 15, 21, 69, BLOCKS.STONE_BRICKS);
+
+// Parkour Jumps (Challenging elevation and gap progression)
+// Jump 1: X=0, Z=36, Y=22 (Sandstone 2x2)
+builder.fillBox(-1, 18, 36, 1, 22, 37, BLOCKS.SANDSTONE);
+builder.fillBox(-1, 22, 36, 1, 22, 37, BLOCKS.OAK_PLANKS);
+
+// Jump 2: X=3, Z=41, Y=23 (Stone Bricks 2x2)
+builder.fillBox(2, 18, 40, 4, 23, 41, BLOCKS.STONE_BRICKS);
+
+// Jump 3: X=-3, Z=45, Y=24 (Oak Planks 2x2)
+builder.fillBox(-4, 18, 44, -2, 24, 45, BLOCKS.OAK_PLANKS);
+
+// Jump 4: X=1, Z=49, Y=25 (Gold Ore 1x1 precision jump)
+builder.fillBox(1, 18, 49, 1, 25, 49, BLOCKS.GOLD_ORE);
+
+// Jump 5: X=-4, Z=53, Y=25 (Sandstone 2x1)
+builder.fillBox(-4, 18, 53, -3, 25, 53, BLOCKS.SANDSTONE);
+
+// Jump 6: X=0, Z=57, Y=26 (Red Wool 1x1)
+builder.fillBox(0, 18, 57, 0, 26, 57, BLOCKS.RED_WOOL);
+
+// Jump 7: X=4, Z=61, Y=27 (Sea Lantern 1x1 glowing leap)
+builder.fillBox(4, 18, 61, 4, 27, 61, BLOCKS.SEA_LANTERN);
+
+// Final Victory Platform (X: -3..3, Z: 64..68, Y: 28)
+builder.fillBox(-3, 18, 64, 3, 28, 68, BLOCKS.STONE_BRICKS);
+builder.fillBox(-3, 28, 64, 3, 28, 68, BLOCKS.SANDSTONE);
+// Golden Beacon Tower
+builder.fillBox(-1, 29, 66, 1, 33, 66, BLOCKS.GOLD_ORE);
+builder.setVoxel(0, 34, 66, BLOCKS.SEA_LANTERN);
+builder.setVoxel(0, 35, 66, BLOCKS.GLOWSTONE);
+
+// ========================================================
+// 4. SITE 2: EAST - PUNCHING TRAINING SITE (X: 30..70, Z: -16..16)
+// ========================================================
+console.log('Building Site 2: East Punching Combat Yard...');
+// Entrance Platform at X: 30..33, Z: -4..4
+builder.fillBox(30, 21, -4, 33, 21, 4, BLOCKS.SANDSTONE);
+// Dojo Gate
+builder.fillBox(31, 21, -4, 31, 26, -4, BLOCKS.OAK_LOG);
+builder.fillBox(31, 21, 4, 31, 26, 4, BLOCKS.OAK_LOG);
+builder.fillBox(31, 26, -4, 31, 26, 4, BLOCKS.OAK_PLANKS);
+
+// Wide Sparring Arena (X: 36..66, Z: -14..14, floor Y=20..21)
+builder.fillBox(36, 21, -14, 66, 21, 14, BLOCKS.SAND); // Sand sparring pit
+// Border curb around the combat yard
+for (let x = 35; x <= 67; x++) {
+  builder.setVoxel(x, 22, -15, BLOCKS.STONE_BRICKS);
+  builder.setVoxel(x, 22, 15, BLOCKS.STONE_BRICKS);
+}
+for (let z = -15; z <= 15; z++) {
+  builder.setVoxel(67, 22, z, BLOCKS.STONE_BRICKS);
+}
+
+// Punching Practice Dummies (Oak logs + wool head)
+const dummySpots = [
+  [40, -8], [40, 8], [48, -10], [48, 10], [58, -8], [58, 8]
+];
+for (const [dx, dz] of dummySpots) {
+  builder.setVoxel(dx, 22, dz, BLOCKS.OAK_LOG);
+  builder.setVoxel(dx, 23, dz, BLOCKS.OAK_LOG);
+  builder.setVoxel(dx, 24, dz, BLOCKS.YELLOW_WOOL);
+}
+
+// Corner Torches / Sea Lanterns for bright lighting
+builder.fillBox(36, 22, -14, 36, 24, -14, BLOCKS.STONE_BRICKS);
+builder.setVoxel(36, 25, -14, BLOCKS.GLOWSTONE);
+builder.fillBox(36, 22, 14, 36, 24, 14, BLOCKS.STONE_BRICKS);
+builder.setVoxel(36, 25, 14, BLOCKS.GLOWSTONE);
+builder.fillBox(66, 22, -14, 66, 24, -14, BLOCKS.STONE_BRICKS);
+builder.setVoxel(66, 25, -14, BLOCKS.GLOWSTONE);
+builder.fillBox(66, 22, 14, 66, 24, 14, BLOCKS.STONE_BRICKS);
+builder.setVoxel(66, 25, 14, BLOCKS.GLOWSTONE);
+
+// ========================================================
+// 5. SITE 3: WEST - KAMEHAMEHA TARGET RANGE (X: -70..-30, Z: -16..16)
+// ========================================================
+console.log('Building Site 3: West Kamehameha Target Range...');
+// Elevated Firing Platform (X: -35..-31, Z: -6..6, Y=22)
+builder.fillBox(-35, 21, -6, -31, 22, 6, BLOCKS.STONE_BRICKS);
+builder.fillBox(-34, 22, -5, -31, 22, 5, BLOCKS.SANDSTONE);
+
+// Firing station canopy / banner posts
+builder.fillBox(-31, 23, -5, -31, 27, -5, BLOCKS.BLUE_WOOL);
+builder.fillBox(-31, 23, 5, -31, 27, 5, BLOCKS.BLUE_WOOL);
+builder.fillBox(-31, 27, -5, -31, 27, 5, BLOCKS.BLUE_WOOL);
+
+// Long Firing Range Floor (X: -68..-36, Z: -12..12)
+builder.fillBox(-68, 20, -12, -36, 20, 12, BLOCKS.STONE_BRICKS);
+// Luminous Blue Guiding Strips down the target lane
+for (let x = -68; x <= -36; x++) {
+  builder.setVoxel(x, 21, -12, BLOCKS.BLUE_WOOL);
+  builder.setVoxel(x, 21, 12, BLOCKS.BLUE_WOOL);
+  if (x % 3 === 0) {
+    builder.setVoxel(x, 21, 0, BLOCKS.SEA_LANTERN);
+  }
+}
+
+// Distance Marker Lines:
+// 10m Marker (X = -45)
+builder.fillBox(-45, 21, -11, -45, 21, 11, BLOCKS.YELLOW_WOOL);
+// 20m Marker (X = -55)
+builder.fillBox(-55, 21, -11, -55, 21, 11, BLOCKS.YELLOW_WOOL);
+// 30m Marker (X = -65)
+builder.fillBox(-65, 21, -11, -65, 21, 11, BLOCKS.RED_WOOL);
+
+// Target Platforms for Hostile Mobs:
+// Platform 1 (X: -46..-44, Z: -2..2, Y=21..22)
+builder.fillBox(-46, 21, -2, -44, 21, 2, BLOCKS.STONE_BRICKS);
+// Platform 2 (X: -56..-54, Z: -5..-1, Y=21..22)
+builder.fillBox(-56, 21, -5, -54, 21, -1, BLOCKS.STONE_BRICKS);
+// Platform 3 (X: -56..-54, Z: 1..5, Y=21..22)
+builder.fillBox(-56, 21, 1, -54, 21, 5, BLOCKS.STONE_BRICKS);
+// Platform 4 (X: -66..-64, Z: -3..3, Y=21..22)
+builder.fillBox(-66, 21, -3, -64, 21, 3, BLOCKS.RED_WOOL);
+
+// Rear Blast Wall to stop beams safely
+builder.fillBox(-69, 21, -12, -69, 26, 12, BLOCKS.OBSIDIAN);
+
+// ========================================================
+// 6. SITE 4: NORTH - GENKI DAMA (SPIRIT BOMB) CRATER (Z: -70..-30, X: -16..16)
+// ========================================================
+console.log('Building Site 4: North Genki Dama Crater...');
+// Overlook Platform (Z: -33..-29, X: -6..6, Y=24..25)
+builder.fillBox(-6, 21, -33, 6, 24, -29, BLOCKS.STONE_BRICKS);
+builder.fillBox(-5, 24, -32, 5, 24, -30, BLOCKS.SANDSTONE);
+// Railing along overlook cliff edge
+builder.fillBox(-6, 25, -34, 6, 25, -34, BLOCKS.STONE_BRICKS);
+builder.setVoxel(0, 25, -34, BLOCKS.AIR); // viewpoint opening
+
+// Sunken Crater Basin (Z: -66..-36, X: -14..14, floor sunk to Y=18..19)
+for (let x = -14; x <= 14; x++) {
+  for (let z = -66; z <= -36; z++) {
+    const cx = 0;
+    const cz = -51;
+    const r = Math.hypot(x - cx, (z - cz) * 0.9);
+    if (r <= 13) {
+      // Clear out air above crater floor
+      for (let y = 19; y <= 23; y++) {
+        builder.setVoxel(x, y, z, BLOCKS.AIR);
+      }
+      // Crater bed (Obsidian, Netherrack, Cobblestone scorch marks)
+      builder.setVoxel(x, 18, z, (r > 10) ? BLOCKS.OBSIDIAN : (Math.random() < 0.3 ? BLOCKS.NETHERRACK : BLOCKS.COBBLESTONE));
+    }
+  }
+}
+
+// Glowing energy crystals / sea lanterns embedded in crater floor
+builder.setVoxel(-6, 18, -51, BLOCKS.SEA_LANTERN);
+builder.setVoxel(6, 18, -51, BLOCKS.SEA_LANTERN);
+builder.setVoxel(0, 18, -57, BLOCKS.SEA_LANTERN);
+builder.setVoxel(0, 18, -45, BLOCKS.SEA_LANTERN);
+
+// ========================================================
+// 7. RLE ENCODE ALL GENERATED CHUNKS
+// ========================================================
 const chunksData = [];
 for (const [key, voxels] of builder.chunks.entries()) {
   const [cx, cz] = key.split(',').map(Number);
@@ -314,11 +485,14 @@ for (const [key, voxels] of builder.chunks.entries()) {
   });
 }
 
-// 12. Custom Mobs (Host standing proudly facing the stage, Spectators)
+// ========================================================
+// 8. MOBS & NPCS (Host, Spectators, Site Managers, Training Mobs)
+// ========================================================
 const mobsData = [
+  // 1. World Martial Arts Tournament Host
   {
     type: 'tournament_host',
-    position: { x: 0.0, y: 24.0, z: -8.0 }, // Standing on stage in front of the gate (Screenshot 3)
+    position: { x: 0.0, y: 24.0, z: -8.0 },
     yaw: 0,
     health: 100
   },
@@ -326,10 +500,66 @@ const mobsData = [
   { type: 'villager', position: { x: -16.0, y: 23.0, z: -4.0 }, yaw: Math.PI / 2, health: 20 },
   { type: 'villager', position: { x: -18.0, y: 24.0, z: 2.0 }, yaw: Math.PI / 2, health: 20 },
   { type: 'villager', position: { x: 16.0, y: 23.0, z: -2.0 }, yaw: -Math.PI / 2, health: 20 },
-  { type: 'villager', position: { x: 18.0, y: 24.0, z: 5.0 }, yaw: -Math.PI / 2, health: 20 }
+  { type: 'villager', position: { x: 18.0, y: 24.0, z: 5.0 }, yaw: -Math.PI / 2, health: 20 },
+
+  // 2. The 4 Dedicated Site Managers
+  // South - Parkour Master
+  {
+    type: 'site_manager',
+    siteId: 'parkour',
+    position: { x: 0.0, y: 21.0, z: 32.0 },
+    yaw: 0,
+    health: 100
+  },
+  // East - Punching Combat Master
+  {
+    type: 'site_manager',
+    siteId: 'punching',
+    position: { x: 32.0, y: 21.0, z: 0.0 },
+    yaw: -Math.PI / 2,
+    health: 100
+  },
+  // West - Kamehameha Grandmaster
+  {
+    type: 'site_manager',
+    siteId: 'kamehameha',
+    position: { x: -32.0, y: 21.0, z: 0.0 },
+    yaw: Math.PI / 2,
+    health: 100
+  },
+  // North - Spirit Bomb Tutor
+  {
+    type: 'site_manager',
+    siteId: 'genki_dama',
+    position: { x: 0.0, y: 24.0, z: -32.0 },
+    yaw: Math.PI,
+    health: 100
+  },
+
+  // 3. Punching Site Hostile Mobs (Sparring combatants to chase and punch)
+  { type: 'zombie', position: { x: 42.0, y: 21.0, z: -4.0 }, yaw: 0, health: 30 },
+  { type: 'zombie', position: { x: 48.0, y: 21.0, z: 5.0 }, yaw: 0, health: 30 },
+  { type: 'pillager', position: { x: 54.0, y: 21.0, z: -3.0 }, yaw: 0, health: 30 },
+  { type: 'zombie', position: { x: 58.0, y: 21.0, z: 4.0 }, yaw: 0, health: 30 },
+
+  // 4. Kamehameha Target Range Hostile Mobs (Targets lined up down the lane)
+  { type: 'skeleton', position: { x: -45.0, y: 22.0, z: 0.0 }, yaw: Math.PI / 2, health: 25 },
+  { type: 'zombie', position: { x: -55.0, y: 22.0, z: -3.0 }, yaw: Math.PI / 2, health: 30 },
+  { type: 'skeleton', position: { x: -55.0, y: 22.0, z: 3.0 }, yaw: Math.PI / 2, health: 25 },
+  { type: 'zombie', position: { x: -65.0, y: 22.0, z: 0.0 }, yaw: Math.PI / 2, health: 40 },
+
+  // 5. Genki Dama Crater Hostile Mobs (Dense cluster in the sunken basin for AoE)
+  { type: 'zombie', position: { x: -3.0, y: 19.0, z: -48.0 }, yaw: 0, health: 35 },
+  { type: 'zombie', position: { x: 3.0, y: 19.0, z: -48.0 }, yaw: 0, health: 35 },
+  { type: 'skeleton', position: { x: 0.0, y: 19.0, z: -52.0 }, yaw: 0, health: 30 },
+  { type: 'zombie', position: { x: -4.0, y: 19.0, z: -54.0 }, yaw: 0, health: 35 },
+  { type: 'pillager', position: { x: 4.0, y: 19.0, z: -54.0 }, yaw: 0, health: 35 },
+  { type: 'zombie', position: { x: 0.0, y: 19.0, z: -58.0 }, yaw: 0, health: 40 }
 ];
 
-// 13. Player Inventory
+// ========================================================
+// 9. PLAYER INVENTORY & MAP OBJECT
+// ========================================================
 const hotbar = Array(9).fill(null);
 hotbar[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
 hotbar[1] = { id: 'golden_apple', isBlock: false, count: 16 };
@@ -339,22 +569,21 @@ hotbar[4] = { id: BLOCKS.STONE_BRICKS, isBlock: true, count: 64 };
 
 const storage = Array(27).fill(null);
 
-// 14. Final Map Object
 const tournamentMapData = {
   format: 'minecraft-web-map',
   version: 1,
   name: 'World Martial Arts Tournament',
   savedAt: new Date().toISOString(),
   seed: 777777,
-  worldTime: 6000, // Bright sunny midday
+  worldTime: 6000,
   weather: {
     isRaining: false,
     rainIntensity: 0
   },
   player: {
-    position: { x: 0.0, y: 24.0, z: 12.0 }, // Standing in front of the stage looking north at the host and building
+    position: { x: 0.0, y: 24.0, z: 12.0 },
     velocity: { x: 0, y: 0, z: 0 },
-    yaw: 3.14159, // Looking north
+    yaw: 3.14159,
     pitch: -0.05,
     gamemode: 'creative',
     health: 20,
@@ -375,10 +604,10 @@ const tournamentMapData = {
         id: 'tournament_arena_1',
         name: 'World Martial Arts Tournament',
         type: 'tournament_arena',
-        min: { x: -30, y: 20, z: -28 },
-        max: { x: 30, y: 39, z: 28 },
+        min: { x: -70, y: 17, z: -70 },
+        max: { x: 70, y: 39, z: 70 },
         center: { x: 0, y: 24, z: 0 },
-        createdPrompt: 'Dragon Ball World Martial Arts Tournament (Tenkaichi Budokai)',
+        createdPrompt: 'Dragon Ball World Martial Arts Tournament with 4 Training Sites',
         timestamp: Date.now()
       }
     ],
@@ -387,7 +616,6 @@ const tournamentMapData = {
   }
 };
 
-// 15. Save Map File directly in default saves directory
 const defaultSaveDir = path.resolve(__dirname, '..', 'saves');
 if (!fs.existsSync(defaultSaveDir)) {
   fs.mkdirSync(defaultSaveDir, { recursive: true });
@@ -396,5 +624,5 @@ if (!fs.existsSync(defaultSaveDir)) {
 const outputPath = path.join(defaultSaveDir, 'World_Martial_Arts_Tournament.json');
 fs.writeFileSync(outputPath, JSON.stringify(tournamentMapData, null, 2), 'utf-8');
 
-console.log(`Successfully generated and saved tournament map to: ${outputPath}`);
+console.log(`Successfully generated and saved tournament map with 4 training sites to: ${outputPath}`);
 console.log(`Total Chunks: ${chunksData.length}, Total Mobs: ${mobsData.length}`);

@@ -67,7 +67,8 @@ export class MobManager {
       octopus: this.createAquaticTexture('octopus'),
       axolotl: this.createAquaticTexture('axolotl'),
       tournament_host: this.createHostTexture(),
-      enderman: this.createEndermanTexture()
+      enderman: this.createEndermanTexture(),
+      site_manager: this.createTrainerTexture()
     };
   }
 
@@ -87,6 +88,7 @@ export class MobManager {
     switch (type) {
       case 'villager': return this.spawnVillager(x, y, z);
       case 'tournament_host': return this.spawnTournamentHost(x, y, z);
+      case 'site_manager': return this.spawnSiteManager(x, y, z);
       case 'enderman': return this.spawnEnderman(x, y, z);
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
@@ -332,6 +334,70 @@ export class MobManager {
     return tex;
   }
 
+  createTrainerTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    // Orange Gi Base
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(0, 0, 64, 64);
+
+    // Head (0,0, 32, 16)
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(0, 0, 32, 16);
+    // Face (8, 8, 8, 8)
+    ctx.fillStyle = '#f8c29d';
+    ctx.fillRect(8, 8, 8, 8);
+    // Eyes & bushy eyebrows
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(9, 10, 2, 1);
+    ctx.fillRect(13, 10, 2, 1);
+    // White beard / mustache
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(10, 13, 4, 3);
+
+    // Torso (16, 16, 24, 16)
+    ctx.fillStyle = '#ea580c'; // Orange Gi
+    ctx.fillRect(16, 16, 24, 16);
+    // Dark Blue Undershirt V
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillRect(22, 20, 4, 4);
+    // Martial Arts Circular Kanji Badge on Chest
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(22, 23, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(21, 22, 2, 2);
+    // Dark Blue Belt / Sash at waist
+    ctx.fillStyle = '#1e3a8a';
+    ctx.fillRect(16, 28, 24, 4);
+
+    // Arms: Orange sleeves with blue wristbands
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(40, 16, 16, 32);
+    ctx.fillStyle = '#1d4ed8'; // blue wristbands
+    ctx.fillRect(40, 26, 16, 2);
+    ctx.fillStyle = '#f8c29d'; // skin hands
+    ctx.fillRect(44, 28, 4, 4);
+
+    // Legs: Orange pants with dark boots
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(0, 16, 16, 32);
+    ctx.fillStyle = '#111111'; // black martial shoes
+    ctx.fillRect(4, 28, 4, 4);
+    ctx.fillRect(12, 28, 4, 4);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   loadTexture(path) {
     const tex = this.textureLoader.load(path);
     tex.magFilter = THREE.NearestFilter;
@@ -363,6 +429,7 @@ export class MobManager {
       case 'squid': return { width: 0.7, height: 0.9 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
       case 'tournament_host': return { width: 0.6, height: 1.95 };
+      case 'site_manager': return { width: 0.6, height: 1.95 };
       case 'enderman': return { width: 0.6, height: 2.9 };
       case 'villager':
       default:
@@ -998,6 +1065,73 @@ export class MobManager {
     return mob;
   }
 
+  // --- DRAGON BALL TRAINING SITE MANAGERS ---
+  spawnSiteManager(x, y, z, siteInfo = {}) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.site_manager || this.textures.villager,
+      transparent: true,
+      alphaTest: 0.1
+    });
+
+    const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64, 8, 8, 8);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.y = 1.35;
+    group.add(head);
+
+    const torsoGeo = createBoxWithUV(0.5, 0.75, 0.25, 16, 16, 64, 64, 8, 12, 4);
+    const torso = new THREE.Mesh(torsoGeo, mat);
+    torso.position.y = 0.75;
+    group.add(torso);
+
+    const armGeo = createBoxWithUV(0.22, 0.75, 0.22, 40, 16, 64, 64, 4, 12, 4);
+    const leftArm = new THREE.Mesh(armGeo, mat);
+    leftArm.position.set(-0.37, 0.75, 0);
+    group.add(leftArm);
+
+    const rightArm = new THREE.Mesh(armGeo, mat);
+    rightArm.position.set(0.37, 0.75, 0);
+    group.add(rightArm);
+
+    const legGeo = createBoxWithUV(0.24, 0.75, 0.24, 0, 16, 64, 64, 4, 12, 4);
+    const leftLeg = new THREE.Mesh(legGeo, mat);
+    leftLeg.position.set(-0.13, 0.38, 0);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, mat);
+    rightLeg.position.set(0.13, 0.38, 0);
+    group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'site_manager',
+      siteId: siteInfo.id || 'general',
+      name: siteInfo.managerName || 'Training Site Master',
+      role: siteInfo.managerRole || 'Instructor',
+      dialogue: siteInfo.dialogue || '',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      mat: mat,
+      health: 100,
+      maxHealth: 100,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'trainer',
+      timer: 0,
+      hitCooldown: 0,
+      noLoot: true
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
   // --- ENDERMAN (TOURNAMENT CHALLENGER BOSS) ---
   spawnEnderman(x, y, z) {
     const group = new THREE.Group();
@@ -1447,7 +1581,9 @@ export class MobManager {
     mob.hitCooldown = 0.35;
 
     // Flash red
-    mob.mat.color.setRGB(1.0, 0.2, 0.2);
+    if (mob.mat?.color) {
+      mob.mat.color.setRGB(1.0, 0.2, 0.2);
+    }
     mob.hurtTime = 0.18;
 
     // Apply knockback

@@ -55,10 +55,15 @@ export class Player {
     // 3D Player Mesh (shown in 3rd person and inventory preview)
     this.model = this.createPlayerModel();
 
+    // Dragon Ball Ki Gathering state
+    this.isGatheringKi = false;
+    this.onKiInterrupted = null;
+
     this.setupInputs();
   }
 
   setupInputs() {
+    if (typeof window === 'undefined') return;
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
@@ -207,6 +212,18 @@ export class Player {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).normalize();
 
+    // If gathering Ki, player is frozen in place and cannot move or jump
+    if (this.isGatheringKi) {
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+      if (!this.isFlying) {
+        this.velocity.y -= this.gravity * dt;
+        if (this.velocity.y < -78) this.velocity.y = -78;
+      }
+      this.moveWithCollision(dt);
+      return;
+    }
+
     const moveDir = new THREE.Vector3();
     if (moveForward !== 0 || moveRight !== 0) {
       moveDir.addScaledVector(forward, moveForward);
@@ -352,15 +369,26 @@ export class Player {
     if (this.gamemode === 'creative') return;
     if (this.invulnerableTimer > 0) return;
 
+    // Critical counter-hit: taking damage while gathering Ki cancels skill and deals 1.5x damage
+    if (this.isGatheringKi) {
+      amount = Math.round(amount * 1.5);
+      this.isGatheringKi = false;
+      if (this.onKiInterrupted) {
+        this.onKiInterrupted();
+      }
+    }
+
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = 0.5;
     this.sounds.playHurt();
 
     // Damage red flash indicator
-    const canvas = document.getElementById('canvas-container');
-    if (canvas) {
-      canvas.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg)';
-      setTimeout(() => { canvas.style.filter = 'none'; }, 150);
+    if (typeof document !== 'undefined') {
+      const canvas = document.getElementById('canvas-container');
+      if (canvas) {
+        canvas.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg)';
+        setTimeout(() => { canvas.style.filter = 'none'; }, 150);
+      }
     }
   }
 

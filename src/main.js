@@ -21,6 +21,8 @@ import {
   loadMapFromCustomFile
 } from './mapManager.js';
 import { TournamentManager } from './tournament.js';
+import { DragonballSkillsManager } from './dragonballSkills.js';
+import { TrainingSitesManager } from './trainingSites.js';
 
 
 class Game {
@@ -129,8 +131,10 @@ class Game {
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
 
-    // 5b. Initialize Tournament Manager
+    // 5b. Initialize Tournament & Dragon Ball Skills
     this.tournament = new TournamentManager(this);
+    this.dragonballSkills = new DragonballSkillsManager(this);
+    this.trainingSites = new TrainingSitesManager(this);
 
     // 6. Build Target Highlighting Box & Break Crack Mesh
     this.buildTargetHighlightMeshes();
@@ -337,6 +341,17 @@ class Game {
     if (this.targetMob && this.targetMob.type === 'tournament_host') {
       if (this.tournament) {
         this.tournament.talkToHost();
+      }
+      return;
+    }
+
+    // Interacting with Training Site Manager
+    if (this.targetMob && this.targetMob.type === 'site_manager') {
+      if (this.trainingSites) {
+        const site = this.trainingSites.sites.find(s => s.id === this.targetMob.siteId);
+        if (site) {
+          this.trainingSites.triggerSiteIntroduction(site);
+        }
       }
       return;
     }
@@ -915,9 +930,15 @@ class Game {
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);
 
-    // 5b. Update World Martial Arts Tournament Manager
+    // 5b. Update World Martial Arts Tournament & Dragon Ball Skills
     if (this.tournament) {
       this.tournament.update(dt, this.player);
+    }
+    if (this.dragonballSkills) {
+      this.dragonballSkills.update(dt);
+    }
+    if (this.trainingSites) {
+      this.trainingSites.update(dt, this.player);
     }
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader

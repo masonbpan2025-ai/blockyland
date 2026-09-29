@@ -240,10 +240,17 @@ export function deserializeWorld(game, mapData) {
     }
   }
 
-  // 13. Tournament Manager reset & host check
+  // 13. Tournament & Skills Managers reset
   if (game.tournament) {
     game.tournament.reset();
     game.tournament.ensureHost();
+  }
+  if (game.dragonballSkills) {
+    game.dragonballSkills.reset();
+  }
+  if (game.trainingSites) {
+    game.trainingSites.reset();
+    game.trainingSites.ensureSiteManagers();
   }
 
   return true;
