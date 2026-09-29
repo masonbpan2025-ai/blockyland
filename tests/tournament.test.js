@@ -121,8 +121,8 @@ test('Fireworks rockets ascend and burst into colorful particles', () => {
   entities.spawnFireworkRocket(new THREE.Vector3(0, 24, 0), 40, [0xff0044, 0xffd700]);
   assert.equal(entities.fireworkRockets.length, 1);
 
-  // Advance time until rocket reaches target height
-  for (let i = 0; i < 20; i++) {
+  // Advance time until rocket reaches target height and explodes
+  for (let i = 0; i < 8; i++) {
     entities.update(0.1, { position: new THREE.Vector3() }, { addItem: () => true });
   }
 

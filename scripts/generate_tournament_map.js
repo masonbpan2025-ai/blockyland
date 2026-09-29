@@ -61,10 +61,10 @@ function encodeVoxelsRLE(voxels) {
   return rle;
 }
 
-// World grid container
+// World grid container using the EXACT indexing formula from Chunk in world.js
 class WorldBuilder {
   constructor() {
-    this.chunks = new Map(); // key -> Uint8Array(16*64*16)
+    this.chunks = new Map();
   }
 
   getChunk(cx, cz) {
@@ -82,7 +82,8 @@ class WorldBuilder {
     const lx = ((x % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((z % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
     const chunk = this.getChunk(cx, cz);
-    const idx = lx + lyIndex(y) + lz * (CHUNK_SIZE_X * CHUNK_SIZE_Y);
+    // CRITICAL: Must match Chunk.getIndex(lx, ly, lz) = (ly * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx
+    const idx = (y * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx;
     chunk[idx] = blockId;
   }
 
@@ -93,7 +94,7 @@ class WorldBuilder {
     const lx = ((x % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((z % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
     const chunk = this.getChunk(cx, cz);
-    const idx = lx + lyIndex(y) + lz * (CHUNK_SIZE_X * CHUNK_SIZE_Y);
+    const idx = (y * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx;
     return chunk[idx];
   }
 
@@ -108,18 +109,15 @@ class WorldBuilder {
   }
 }
 
-function lyIndex(y) {
-  return y * CHUNK_SIZE_X;
-}
-
-console.log('Generating Dragon Ball World Martial Arts Tournament Map...');
+console.log('Building authentic Dragon Ball World Martial Arts Tournament Map (Tenkaichi Budokai)...');
 const builder = new WorldBuilder();
 
-// 1. Build Base Terrain across Chunks CX: -3..3, CZ: -3..3 (from X: -48 to 48, Z: -48 to 48)
-const minX = -48;
-const maxX = 48;
-const minZ = -48;
-const maxZ = 48;
+// 1. Terrain Base (Chunks CX: -2..2, CZ: -2..2 -> X: -36..36, Z: -36..36)
+// NO ceiling stone! Y=21..63 is open air.
+const minX = -36;
+const maxX = 36;
+const minZ = -36;
+const maxZ = 36;
 
 for (let x = minX; x <= maxX; x++) {
   for (let z = minZ; z <= maxZ; z++) {
@@ -130,14 +128,14 @@ for (let x = minX; x <= maxX; x++) {
     for (let y = 16; y <= 19; y++) {
       builder.setVoxel(x, y, z, BLOCKS.DIRT);
     }
-    // Ground surface at Y=20: Courtyard stone pavement near center, green lawn on outer
-    const distFromCenter = Math.hypot(x, z);
-    if (distFromCenter < 28) {
-      // Paved courtyard pattern: Sandstone / Cobblestone walkways
-      if (Math.abs(x) <= 3 || Math.abs(z) <= 3 || (Math.abs(x) >= 10 && Math.abs(x) <= 12) || (Math.abs(z) >= 10 && Math.abs(z) <= 12)) {
-        builder.setVoxel(x, 20, z, BLOCKS.COBBLESTONE);
-      } else {
+    // Ground level at Y=20
+    const dist = Math.hypot(x, z);
+    if (dist < 26) {
+      // Paved courtyard in front of and around the stage
+      if (Math.abs(x) <= 3 || z >= 9 || (Math.abs(x) >= 9 && Math.abs(x) <= 12)) {
         builder.setVoxel(x, 20, z, BLOCKS.SANDSTONE);
+      } else {
+        builder.setVoxel(x, 20, z, BLOCKS.COBBLESTONE);
       }
     } else {
       builder.setVoxel(x, 20, z, BLOCKS.GRASS);
@@ -145,170 +143,167 @@ for (let x = minX; x <= maxX; x++) {
   }
 }
 
-// 2. Tenkaichi Budokai Elevated Fighting Stage (The Ring)
-// 18x18 arena: X: -9 to 9, Z: -9 to 9
-// Solid foundation from Y=21 to Y=23
-builder.fillBox(-9, 21, -9, 9, 23, 9, BLOCKS.STONE_BRICKS);
+// 2. The Tournament Fighting Stage (Exact match to Dragon Ball Screenshot 2 & 3)
+// 16x16 square elevated stage: X: -8 to 8, Z: -8 to 8
+// Elevated 4 blocks above ground (ground Y=20, stage top Y=24)
 
-// Stage Surface at Y=24
-for (let x = -9; x <= 9; x++) {
-  for (let z = -9; z <= 9; z++) {
-    const isBorder = (Math.abs(x) === 9 || Math.abs(z) === 9);
-    if (isBorder) {
-      // Iconic White ring boundary lines
-      builder.setVoxel(x, 24, z, BLOCKS.WHITE_WOOL);
+// Foundation interior (solid stone)
+builder.fillBox(-8, 21, -8, 8, 23, 8, BLOCKS.STONE);
+
+// Blue vertical base rim (Screenshot 2 & 3: solid blue vertical wall on all 4 sides)
+builder.fillBox(-8, 21, -8, 8, 23, -8, BLOCKS.BLUE_WOOL); // North edge
+builder.fillBox(-8, 21, 8, 8, 23, 8, BLOCKS.BLUE_WOOL);   // South edge
+builder.fillBox(-8, 21, -8, -8, 23, 8, BLOCKS.BLUE_WOOL); // West edge
+builder.fillBox(8, 21, -8, 8, 23, 8, BLOCKS.BLUE_WOOL);  // East edge
+
+// Stage Surface (Y = 24):
+// Outer perimeter has a thin red edge lip (just like Screenshot 2 & 3)
+for (let x = -8; x <= 8; x++) {
+  for (let z = -8; z <= 8; z++) {
+    const isEdge = (Math.abs(x) === 8 || Math.abs(z) === 8);
+    if (isEdge) {
+      builder.setVoxel(x, 24, z, BLOCKS.RED_WOOL); // Red rim lip
     } else {
-      // Elegant checkered stone tiles
-      const checker = (Math.abs(x) + Math.abs(z)) % 2 === 0;
-      builder.setVoxel(x, 24, z, checker ? BLOCKS.STONE : BLOCKS.STONE_BRICKS);
+      // Light gray tiled floor with grid lines
+      const isGrid = (x % 2 === 0 || z % 2 === 0);
+      builder.setVoxel(x, 24, z, isGrid ? BLOCKS.STONE_BRICKS : BLOCKS.STONE);
     }
   }
 }
 
-// Center Dragon Ball Martial Arts Ring Crest at (0, 24, 0)
-builder.setVoxel(0, 24, 0, BLOCKS.GOLD_ORE);
-builder.setVoxel(1, 24, 0, BLOCKS.RED_WOOL);
-builder.setVoxel(-1, 24, 0, BLOCKS.RED_WOOL);
-builder.setVoxel(0, 24, 1, BLOCKS.RED_WOOL);
-builder.setVoxel(0, 24, -1, BLOCKS.RED_WOOL);
-
-// 3. Four Grand Staircases leading up to the stage
-// South stairs (Front / Player approach): X: -2..2, Z: 10..13
+// 3. Center Entrance Stairs from Stage into Gate (Z: -8 to -13, X: -2 to 2)
+// In Screenshot 2 & 3, purple/stone steps lead up from the back of the stage into the red gateway
 for (let step = 0; step < 4; step++) {
-  const z = 10 + step;
-  const y = 23 - step;
+  const z = -9 - step;
+  const y = 24 + step;
   builder.fillBox(-2, 21, z, 2, y, z, BLOCKS.STONE_BRICKS);
-}
-// North stairs (towards pavilion): X: -2..2, Z: -10..-13
-for (let step = 0; step < 4; step++) {
-  const z = -10 - step;
-  const y = 23 - step;
-  builder.fillBox(-2, 21, z, 2, y, z, BLOCKS.STONE_BRICKS);
-}
-// East stairs: X: 10..13, Z: -2..2
-for (let step = 0; step < 4; step++) {
-  const x = 10 + step;
-  const y = 23 - step;
-  builder.fillBox(x, 21, -2, x, y, 2, BLOCKS.STONE_BRICKS);
-}
-// West stairs: X: -10..-13, Z: -2..2
-for (let step = 0; step < 4; step++) {
-  const x = -10 - step;
-  const y = 23 - step;
-  builder.fillBox(x, 21, -2, x, y, 2, BLOCKS.STONE_BRICKS);
+  builder.fillBox(-2, y, z, 2, y, z, BLOCKS.SANDSTONE); // step tread
 }
 
-// 4. Tenkaichi Budokai Main Temple Pavilion (Behind the Stage, Z: -15 to -28)
-// Foundation Terrace (Y=21..24)
-builder.fillBox(-15, 21, -28, 15, 24, -15, BLOCKS.STONE_BRICKS);
-builder.fillBox(-14, 24, -27, 14, 24, -16, BLOCKS.OAK_PLANKS);
+// 4. Red Gateway & Demon Monster Wall Reliefs (Screenshot 2 & 3)
+// Located at Z: -13 to -16, X: -12 to 12
+// Gateposts framing the center entrance
+builder.fillBox(-3, 24, -14, -3, 30, -14, BLOCKS.STONE_BRICKS);
+builder.fillBox(3, 24, -14, 3, 30, -14, BLOCKS.STONE_BRICKS);
+builder.setVoxel(-3, 31, -14, BLOCKS.RED_WOOL);
+builder.setVoxel(3, 31, -14, BLOCKS.RED_WOOL);
 
-// Vermilion Red Columns / Pillars (Y=25..31)
-const columnPositions = [
-  [-13, -17], [-7, -17], [-1, -17], [1, -17], [7, -17], [13, -17],
-  [-13, -23], [-7, -23], [7, -23], [13, -23],
-  [-13, -27], [-7, -27], [0, -27], [7, -27], [13, -27]
-];
-for (const [cx, cz] of columnPositions) {
-  builder.fillBox(cx, 25, cz, cx, 31, cz, BLOCKS.RED_WOOL);
-}
+// Gate Arch / Lintel
+builder.fillBox(-3, 29, -14, 3, 29, -14, BLOCKS.RED_WOOL);
+builder.fillBox(-3, 30, -14, 3, 30, -14, BLOCKS.STONE_BRICKS);
 
-// Walls of the Pavilion (Y=25..31)
-builder.fillBox(-14, 25, -28, 14, 31, -28, BLOCKS.BRICKS); // Back wall
-builder.fillBox(-14, 25, -27, -14, 31, -17, BLOCKS.BRICKS); // West wall
-builder.fillBox(14, 25, -27, 14, 31, -17, BLOCKS.BRICKS);  // East wall
+// Red walls on left (X: -11 to -4) and right (X: 4 to 11) at Z = -14
+// Wall foundation (Y = 24..27)
+builder.fillBox(-11, 21, -14, -4, 27, -14, BLOCKS.RED_WOOL);
+builder.fillBox(4, 21, -14, 11, 27, -14, BLOCKS.RED_WOOL);
+// Sandstone / white border frame around the red wall panels
+builder.fillBox(-11, 27, -14, -4, 27, -14, BLOCKS.SANDSTONE);
+builder.fillBox(4, 27, -14, 11, 27, -14, BLOCKS.SANDSTONE);
+builder.fillBox(-12, 21, -14, -12, 28, -14, BLOCKS.STONE_BRICKS);
+builder.fillBox(12, 21, -14, 12, 28, -14, BLOCKS.STONE_BRICKS);
 
-// Front Archway & Dragon Ball Sign Board: "TENKAICHI BUDOKAI"
-builder.fillBox(-6, 30, -17, 6, 31, -17, BLOCKS.GOLD_ORE);
-builder.fillBox(-4, 31, -17, 4, 31, -17, BLOCKS.RED_WOOL);
-builder.setVoxel(0, 31, -16, BLOCKS.SEA_LANTERN); // Glowing central crest
+// Demon Head Reliefs on the red walls (Screenshot 2 & 3)
+// Left demon head at X = -7..-9, Y = 24..26
+builder.fillBox(-9, 24, -13, -7, 26, -13, BLOCKS.STONE);
+builder.setVoxel(-8, 25, -13, BLOCKS.COBBLESTONE); // nose/snout
+builder.setVoxel(-9, 26, -13, BLOCKS.BLACK_WOOL);  // left eye
+builder.setVoxel(-7, 26, -13, BLOCKS.BLACK_WOOL);  // right eye
+builder.setVoxel(-10, 27, -14, BLOCKS.WHITE_WOOL); // left horn
+builder.setVoxel(-6, 27, -14, BLOCKS.WHITE_WOOL);  // right horn
 
-// Tier 1 Pagoda Roof with Swept Eaves (Y=32..33, X: -16..16, Z: -29..-14)
-for (let x = -16; x <= 16; x++) {
-  for (let z = -29; z <= -14; z++) {
-    const isEave = (Math.abs(x) >= 15 || z <= -28 || z >= -15);
-    builder.setVoxel(x, 32, z, isEave ? BLOCKS.NETHERRACK : BLOCKS.OAK_PLANKS);
+// Right demon head at X = 7..9, Y = 24..26
+builder.fillBox(7, 24, -13, 9, 26, -13, BLOCKS.STONE);
+builder.setVoxel(8, 25, -13, BLOCKS.COBBLESTONE);  // nose/snout
+builder.setVoxel(7, 26, -13, BLOCKS.BLACK_WOOL);   // left eye
+builder.setVoxel(9, 26, -13, BLOCKS.BLACK_WOOL);   // right eye
+builder.setVoxel(6, 27, -14, BLOCKS.WHITE_WOOL);   // left horn
+builder.setVoxel(10, 27, -14, BLOCKS.WHITE_WOOL);  // right horn
+
+// 5. The Main Tournament House (Screenshot 2 & 3)
+// Located at Z: -16 to -27, X: -18 to 18
+// White walls (Y = 24..28)
+builder.fillBox(-18, 21, -27, 18, 28, -27, BLOCKS.WHITE_WOOL); // Back wall
+builder.fillBox(-18, 21, -26, -18, 28, -16, BLOCKS.WHITE_WOOL); // West wall
+builder.fillBox(18, 21, -26, 18, 28, -16, BLOCKS.WHITE_WOOL);  // East wall
+builder.fillBox(-18, 21, -16, 18, 28, -16, BLOCKS.WHITE_WOOL);  // Front wall
+
+// Red horizontal accent band on the white wall (Y = 28)
+builder.fillBox(-18, 28, -16, 18, 28, -16, BLOCKS.RED_WOOL);
+builder.fillBox(-18, 28, -27, 18, 28, -27, BLOCKS.RED_WOOL);
+
+// Blue rectangular windows (Screenshot 2 & 3) at Y = 26
+builder.fillBox(-14, 26, -16, -11, 26, -16, BLOCKS.BLUE_WOOL);
+builder.fillBox(-7, 26, -16, -4, 26, -16, BLOCKS.BLUE_WOOL);
+builder.fillBox(4, 26, -16, 7, 26, -16, BLOCKS.BLUE_WOOL);
+builder.fillBox(11, 26, -16, 14, 26, -16, BLOCKS.BLUE_WOOL);
+
+// 6. Thatched Straw Roof (Golden-Brown / Amber, Screenshot 2 & 3)
+// Slopes upwards from Y = 29 to Y = 34
+for (let layer = 0; layer < 6; layer++) {
+  const y = 29 + layer;
+  const xSpan = 20 - layer * 2;
+  const zMin = -28 + layer;
+  const zMax = -15 - layer;
+  for (let x = -xSpan; x <= xSpan; x++) {
+    for (let z = zMin; z <= zMax; z++) {
+      const isPerimeter = (Math.abs(x) === xSpan || z === zMin || z === zMax);
+      // Outer perimeter is golden sandstone thatch, interior is oak planks
+      builder.setVoxel(x, y, z, isPerimeter ? BLOCKS.SANDSTONE : BLOCKS.OAK_PLANKS);
+    }
   }
 }
-// Upturned curved corner eaves
-builder.setVoxel(-16, 33, -14, BLOCKS.GOLD_ORE);
-builder.setVoxel(16, 33, -14, BLOCKS.GOLD_ORE);
-builder.setVoxel(-16, 33, -29, BLOCKS.GOLD_ORE);
-builder.setVoxel(16, 33, -29, BLOCKS.GOLD_ORE);
 
-// Hanging Lanterns under eaves
-builder.setVoxel(-15, 31, -15, BLOCKS.GLOWSTONE);
-builder.setVoxel(15, 31, -15, BLOCKS.GLOWSTONE);
-builder.setVoxel(-15, 31, -28, BLOCKS.GLOWSTONE);
-builder.setVoxel(15, 31, -28, BLOCKS.GLOWSTONE);
+// 7. Center Upper Roof Cupola with White Horns (Screenshot 2 & 3)
+// At Y = 35..37, X: -6 to 6, Z: -23 to -19
+builder.fillBox(-6, 35, -23, 6, 36, -19, BLOCKS.SANDSTONE);
+builder.fillBox(-5, 37, -22, 5, 37, -20, BLOCKS.OAK_PLANKS);
 
-// Tier 2 Upper Pagoda Roof (Y=34..36, X: -10..10, Z: -26..-17)
-builder.fillBox(-10, 33, -26, 10, 34, -17, BLOCKS.BRICKS);
-for (let x = -11; x <= 11; x++) {
-  for (let z = -27; z <= -16; z++) {
-    builder.setVoxel(x, 35, z, BLOCKS.NETHERRACK);
-  }
-}
-// Golden Roof Spire / Ornamentation at top (Y=36..38)
-builder.fillBox(-8, 36, -24, 8, 36, -19, BLOCKS.GOLD_ORE);
-builder.setVoxel(0, 37, -21, BLOCKS.GOLD_ORE);
-builder.setVoxel(0, 38, -21, BLOCKS.SEA_LANTERN);
+// White Crescent Horns pointing upwards on cupola top
+// Left horn
+builder.setVoxel(-4, 37, -21, BLOCKS.WHITE_WOOL);
+builder.setVoxel(-5, 38, -21, BLOCKS.WHITE_WOOL);
+builder.setVoxel(-6, 39, -21, BLOCKS.WHITE_WOOL);
+// Right horn
+builder.setVoxel(4, 37, -21, BLOCKS.WHITE_WOOL);
+builder.setVoxel(5, 38, -21, BLOCKS.WHITE_WOOL);
+builder.setVoxel(6, 39, -21, BLOCKS.WHITE_WOOL);
 
-// 5. Spectator Bleachers & Viewing Stands (East & West)
-// West Bleachers: X: -22 to -14, Z: -12 to 12
-for (let row = 0; row < 5; row++) {
-  const x = -14 - row * 2;
-  const y = 21 + row;
+// 8. Spectator Bleachers (East & West)
+// West Bleachers: X: -24 to -14, Z: -12 to 12
+for (let r = 0; r < 5; r++) {
+  const x = -14 - r * 2;
+  const y = 21 + r;
   builder.fillBox(x - 1, 21, -12, x, y, 12, BLOCKS.STONE_BRICKS);
-  builder.fillBox(x - 1, y, -12, x, y, 12, BLOCKS.OAK_PLANKS); // wooden seat
+  builder.fillBox(x - 1, y, -12, x, y, 12, BLOCKS.OAK_PLANKS); // wooden seating bench
 }
-// East Bleachers: X: 14 to 22, Z: -12 to 12
-for (let row = 0; row < 5; row++) {
-  const x = 14 + row * 2;
-  const y = 21 + row;
+// East Bleachers: X: 14 to 24, Z: -12 to 12
+for (let r = 0; r < 5; r++) {
+  const x = 14 + r * 2;
+  const y = 21 + r;
   builder.fillBox(x, 21, -12, x + 1, y, 12, BLOCKS.STONE_BRICKS);
-  builder.fillBox(x, y, -12, x + 1, y, 12, BLOCKS.OAK_PLANKS); // wooden seat
+  builder.fillBox(x, y, -12, x + 1, y, 12, BLOCKS.OAK_PLANKS); // wooden seating bench
 }
 
-// Colorful Tournament Banners over bleachers
-const bannerColors = [BLOCKS.RED_WOOL, BLOCKS.YELLOW_WOOL, BLOCKS.BLUE_WOOL];
-for (let z = -10; z <= 10; z += 4) {
-  const col = bannerColors[Math.abs(z) % bannerColors.length];
-  // West banner pole
-  builder.fillBox(-23, 25, z, -23, 29, z, BLOCKS.OAK_LOG);
-  builder.fillBox(-23, 28, z - 1, -23, 29, z + 1, col);
-  // East banner pole
-  builder.fillBox(23, 25, z, 23, 29, z, BLOCKS.OAK_LOG);
-  builder.fillBox(23, 28, z - 1, 23, 29, z + 1, col);
-}
-
-// 6. Tropical Palm Trees in the Courtyard
-const treeSpots = [
-  [-12, 14], [12, 14], [-12, -14], [12, -14],
-  [-24, 20], [24, 20], [-24, -20], [24, -20]
+// 9. Tropical Palm Trees flanking the pavilion (Screenshot 2 & 3)
+const palmSpots = [
+  [-22, -18], [-26, -22], [-20, -28],
+  [22, -18], [26, -22], [20, -28],
+  [-24, 14], [24, 14]
 ];
-for (const [tx, tz] of treeSpots) {
-  // Curved trunk
-  builder.fillBox(tx, 21, tz, tx, 26, tz, BLOCKS.OAK_LOG);
-  builder.setVoxel(tx + 1, 27, tz, BLOCKS.OAK_LOG);
-  // Palm leaves canopy
-  builder.fillBox(tx - 2, 28, tz - 2, tx + 4, 28, tz + 2, BLOCKS.OAK_LEAVES);
-  builder.fillBox(tx - 3, 27, tz, tx + 5, 27, tz, BLOCKS.OAK_LEAVES);
-  builder.fillBox(tx + 1, 27, tz - 3, tx + 1, 27, tz + 3, BLOCKS.OAK_LEAVES);
+for (const [px, pz] of palmSpots) {
+  builder.fillBox(px, 21, pz, px, 27, pz, BLOCKS.OAK_LOG);
+  builder.fillBox(px - 2, 28, pz - 2, px + 2, 28, pz + 2, BLOCKS.OAK_LEAVES);
+  builder.fillBox(px - 3, 27, pz, px + 3, 27, pz, BLOCKS.OAK_LEAVES);
+  builder.fillBox(px, 27, pz - 3, px, 27, pz + 3, BLOCKS.OAK_LEAVES);
 }
 
-// 7. Perimeter Courtyard Wall with Stone Coping
-builder.fillBox(-32, 21, -34, 32, 23, -34, BLOCKS.STONE_BRICKS);
-builder.fillBox(-32, 21, 30, 32, 23, 30, BLOCKS.STONE_BRICKS);
-builder.fillBox(-32, 21, -34, -32, 23, 30, BLOCKS.STONE_BRICKS);
-builder.fillBox(32, 21, -34, 32, 23, 30, BLOCKS.STONE_BRICKS);
-// South Entrance Gate (gap in south wall at X: -4..4)
-builder.fillBox(-4, 21, 30, 4, 23, 30, BLOCKS.AIR);
-builder.fillBox(-5, 21, 30, -5, 26, 30, BLOCKS.RED_WOOL);
-builder.fillBox(5, 21, 30, 5, 26, 30, BLOCKS.RED_WOOL);
-builder.fillBox(-5, 26, 30, 5, 27, 30, BLOCKS.GOLD_ORE);
+// 10. Low Courtyard Perimeter Wall
+builder.fillBox(-30, 21, 28, 30, 23, 28, BLOCKS.STONE_BRICKS);
+builder.fillBox(-30, 24, 28, 30, 24, 28, BLOCKS.SANDSTONE); // coping
+// South Entrance Gap
+builder.fillBox(-4, 21, 28, 4, 24, 28, BLOCKS.AIR);
 
-// 8. RLE Encode All Generated Chunks
+// 11. RLE Encode All Generated Chunks
 const chunksData = [];
 for (const [key, voxels] of builder.chunks.entries()) {
   const [cx, cz] = key.split(',').map(Number);
@@ -319,42 +314,22 @@ for (const [key, voxels] of builder.chunks.entries()) {
   });
 }
 
-// 9. Assemble Custom Mobs (Tournament Host & Spectators)
+// 12. Custom Mobs (Host standing proudly facing the stage, Spectators)
 const mobsData = [
   {
     type: 'tournament_host',
-    position: { x: 3.5, y: 24.0, z: 10.5 },
+    position: { x: 0.0, y: 24.0, z: -8.0 }, // Standing on stage in front of the gate (Screenshot 3)
     yaw: 0,
     health: 100
   },
   // Friendly spectators in the bleachers
-  {
-    type: 'villager',
-    position: { x: -16.0, y: 23.0, z: 0.0 },
-    yaw: Math.PI / 2,
-    health: 20
-  },
-  {
-    type: 'villager',
-    position: { x: -18.0, y: 24.0, z: 4.0 },
-    yaw: Math.PI / 2,
-    health: 20
-  },
-  {
-    type: 'villager',
-    position: { x: 16.0, y: 23.0, z: -2.0 },
-    yaw: -Math.PI / 2,
-    health: 20
-  },
-  {
-    type: 'villager',
-    position: { x: 18.0, y: 24.0, z: 3.0 },
-    yaw: -Math.PI / 2,
-    health: 20
-  }
+  { type: 'villager', position: { x: -16.0, y: 23.0, z: -4.0 }, yaw: Math.PI / 2, health: 20 },
+  { type: 'villager', position: { x: -18.0, y: 24.0, z: 2.0 }, yaw: Math.PI / 2, health: 20 },
+  { type: 'villager', position: { x: 16.0, y: 23.0, z: -2.0 }, yaw: -Math.PI / 2, health: 20 },
+  { type: 'villager', position: { x: 18.0, y: 24.0, z: 5.0 }, yaw: -Math.PI / 2, health: 20 }
 ];
 
-// 10. Player Hotbar and Inventory
+// 13. Player Inventory
 const hotbar = Array(9).fill(null);
 hotbar[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
 hotbar[1] = { id: 'golden_apple', isBlock: false, count: 16 };
@@ -364,7 +339,7 @@ hotbar[4] = { id: BLOCKS.STONE_BRICKS, isBlock: true, count: 64 };
 
 const storage = Array(27).fill(null);
 
-// 11. Final Map Object
+// 14. Final Map Object
 const tournamentMapData = {
   format: 'minecraft-web-map',
   version: 1,
@@ -377,10 +352,10 @@ const tournamentMapData = {
     rainIntensity: 0
   },
   player: {
-    position: { x: 0.0, y: 24.0, z: 16.0 }, // Standing in front of south stairs facing stage
+    position: { x: 0.0, y: 24.0, z: 12.0 }, // Standing in front of the stage looking north at the host and building
     velocity: { x: 0, y: 0, z: 0 },
-    yaw: 3.14159, // Looking directly north towards the stage and host
-    pitch: 0,
+    yaw: 3.14159, // Looking north
+    pitch: -0.05,
     gamemode: 'creative',
     health: 20,
     hunger: 20,
@@ -400,8 +375,8 @@ const tournamentMapData = {
         id: 'tournament_arena_1',
         name: 'World Martial Arts Tournament',
         type: 'tournament_arena',
-        min: { x: -32, y: 20, z: -34 },
-        max: { x: 32, y: 38, z: 30 },
+        min: { x: -30, y: 20, z: -28 },
+        max: { x: 30, y: 39, z: 28 },
         center: { x: 0, y: 24, z: 0 },
         createdPrompt: 'Dragon Ball World Martial Arts Tournament (Tenkaichi Budokai)',
         timestamp: Date.now()
@@ -412,7 +387,7 @@ const tournamentMapData = {
   }
 };
 
-// 12. Save Map to default saves location
+// 15. Save Map File directly in default saves directory
 const defaultSaveDir = path.resolve(__dirname, '..', 'saves');
 if (!fs.existsSync(defaultSaveDir)) {
   fs.mkdirSync(defaultSaveDir, { recursive: true });
