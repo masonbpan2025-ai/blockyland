@@ -55,7 +55,9 @@ export const BLOCKS = {
   REDSTONE_TORCH: 51,
   REDSTONE_LAMP: 52,
   ENCHANTING_TABLE: 53,
-  ANVIL: 54
+  ANVIL: 54,
+  LIT_FURNACE: 55,
+  SOUL_TORCH: 56
 };
 
 export const BLOCK_DEFS = {
@@ -187,6 +189,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.LAVA]: {
     name: 'Lava',
+    lightColor: 0xff7024,
     hardness: 100,
     sound: 'stone',
     transparent: false,
@@ -301,6 +304,8 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.TORCH]: {
     name: 'Torch',
+    shape: 'torch',
+    lightColor: 0xffb958,
     hardness: 0.0,
     sound: 'wood',
     transparent: true,
@@ -420,6 +425,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.SEA_LANTERN]: {
     name: 'Sea Lantern',
+    lightColor: 0xa8f4ed,
     hardness: 0.3,
     sound: 'glass',
     light: 15,
@@ -515,6 +521,8 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.REDSTONE_TORCH]: {
     name: 'Redstone Torch',
+    shape: 'torch',
+    lightColor: 0xff4335,
     hardness: 0.0,
     sound: 'wood',
     transparent: true,
@@ -531,6 +539,8 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.ENCHANTING_TABLE]: {
     name: 'Enchanting Table',
+    light: 7,
+    lightColor: 0xa884ff,
     hardness: 5.0,
     sound: 'stone',
     textures: {
@@ -538,6 +548,16 @@ export const BLOCK_DEFS = {
       side: 'obsidian.png',
       bottom: 'obsidian.png'
     }
+  },
+  [BLOCKS.LIT_FURNACE]: {
+    name: 'Lit Furnace', hardness: 3.5, sound: 'stone', light: 13,
+    lightColor: 0xff983d, drop: BLOCKS.FURNACE,
+    textures: { top: 'furnace_top.png', front: 'furnace_front_on.png', side: 'furnace_side.png', bottom: 'stone.png' }
+  },
+  [BLOCKS.SOUL_TORCH]: {
+    name: 'Soul Torch', hardness: 0, sound: 'wood', light: 10,
+    lightColor: 0x61eaff, shape: 'torch', transparent: true, solid: false,
+    drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.png' }
   },
   [BLOCKS.ANVIL]: {
     name: 'Anvil',

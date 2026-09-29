@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
 export class HeldItemRenderer {
@@ -71,8 +72,10 @@ export class HeldItemRenderer {
 
     if (item.isBlock) {
       // Miniature 3D Block
-      const geo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-      const mesh = new THREE.Mesh(geo, this.tm.opaqueMaterial);
+      const geo = createBlockGeometry(item.id, this.tm);
+      geo.translate(-0.5, -0.5, -0.5);
+      geo.scale(0.5, 0.5, 0.5);
+      const mesh = new THREE.Mesh(geo, BLOCK_DEFS[item.id]?.light ? this.tm.lightMaterial : this.tm.opaqueMaterial);
       mesh.rotation.set(0.3, 0.7, 0);
       this.currentMesh = mesh;
       this.container.add(mesh);

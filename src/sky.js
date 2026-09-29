@@ -84,9 +84,10 @@ export class Sky {
           float sunEdge = max(fwidth(sunDistance), 0.00015);
           float sunDisc = 1.0 - smoothstep(sunRadius - sunEdge, sunRadius + sunEdge, sunDistance);
           float sunAboveHorizon = smoothstep(-0.025, 0.015, uSun.y);
-          vec3 sunColor = mix(vec3(1.0, 0.31, 0.075), vec3(1.0, 0.92, 0.72), smoothstep(0.0, 0.25, uSun.y));
+          vec3 sunColor = mix(vec3(1.0, 0.31, 0.075), vec3(1.0, 0.78, 0.22), smoothstep(0.0, 0.25, uSun.y));
           float halo = exp(-sunDistance * 24.0) * 0.38 + exp(-sunDistance * 5.0) * 0.055;
-          sky += sunColor * (sunDisc * 3.5 + halo) * sunAboveHorizon * (1.0 - uRain * 0.94);
+          sky += sunColor * halo * sunAboveHorizon * (1.0 - uRain * 0.94);
+          sky = mix(sky, sunColor, sunDisc * sunAboveHorizon * (1.0 - uRain * 0.94));
 
           // Moon: spherical shading, dark maria, and individually shaped crater rims.
           vec3 moonDirection = -uSun;

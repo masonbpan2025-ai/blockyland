@@ -287,6 +287,7 @@ export class MobManager {
     group.add(rightLeg);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -355,6 +356,7 @@ export class MobManager {
     group.add(rightLeg);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -435,6 +437,7 @@ export class MobManager {
     group.add(rightLeg);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -499,6 +502,7 @@ export class MobManager {
     group.add(rightLeg);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -551,6 +555,7 @@ export class MobManager {
     const br = new THREE.Mesh(legGeo, mat); br.position.set(0.2, 0.18, -0.3); group.add(br);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -593,6 +598,7 @@ export class MobManager {
     const br = new THREE.Mesh(legGeo, mat); br.position.set(0.24, 0.22, -0.35); group.add(br);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -634,6 +640,7 @@ export class MobManager {
     const br = new THREE.Mesh(legGeo, mat); br.position.set(0.22, 0.2, -0.32); group.add(br);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -680,6 +687,7 @@ export class MobManager {
     const br = new THREE.Mesh(footGeo, mat); br.position.set(0.14, 0.19, -0.16); group.add(br);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -725,6 +733,7 @@ export class MobManager {
     const rightLeg = new THREE.Mesh(legGeo, mat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -802,6 +811,7 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -889,6 +899,7 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -948,6 +959,7 @@ export class MobManager {
     }
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -1036,6 +1048,7 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {

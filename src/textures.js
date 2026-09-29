@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { enableBlockEmission } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createWaterMaterial } from './water.js';
 
@@ -62,6 +63,12 @@ export class TextureManager {
       side: THREE.DoubleSide
     });
 
+    enableBlockEmission(this.opaqueMaterial);
+    enableBlockEmission(this.transparentMaterial);
+    this.lightMaterial = this.opaqueMaterial.clone();
+    this.lightMaterial.alphaTest = 0.2;
+    enableBlockEmission(this.lightMaterial);
+
     this.waterMaterial = createWaterMaterial();
     this.waterUniforms = this.waterMaterial.uniforms;
 
@@ -74,7 +81,7 @@ export class TextureManager {
       this.waterUniforms.uTime.value += dt;
 
       if (sunLight) {
-        this.waterUniforms.uSunDirection.value.copy(sunLight.position).normalize();
+        this.waterUniforms.uSunDirection.value.copy(sunLight.position).sub(sunLight.target.position).normalize();
         this.waterUniforms.uSunColor.value.copy(sunLight.color);
         this.waterUniforms.uSunIntensity.value = sunLight.intensity;
       }
@@ -105,6 +112,13 @@ export class TextureManager {
 
     this.tileCoords[fileName] = { col, row, u0, v0, u1, v1 };
 
+    if (fileName === 'soul_torch.png') {
+      // Small pixel-art variant, generated in the atlas so no missing asset is requested.
+      this.ctx.fillStyle = '#68513a'; this.ctx.fillRect(x + 7, y + 8, 2, 8);
+      this.ctx.fillStyle = '#16b8db'; this.ctx.fillRect(x + 7, y + 6, 2, 3);
+      this.ctx.fillStyle = '#c1ffff'; this.ctx.fillRect(x + 7, y + 7, 1, 2);
+      return;
+    }
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -167,6 +181,7 @@ export class TextureManager {
     }
 
     let texName = def.textures.all;
+    if (face === 'north' && def.textures.front) face = 'front';
     if (def.textures[face]) {
       texName = def.textures[face];
     } else if (def.textures.side && (face === 'north' || face === 'south' || face === 'east' || face === 'west')) {

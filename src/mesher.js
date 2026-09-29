@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from './world.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createBlockGeometry } from './blockGeometry.js';
 import { WATER_COLORS } from './water.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
@@ -23,6 +25,8 @@ export class ChunkMesher {
   }
 
   meshChunk(chunk, world) {
+    const lightGeometries = [];
+    const lightSources = [];
     const cx = chunk.cx;
     const cz = chunk.cz;
     const worldOffsetX = cx * CHUNK_SIZE_X;
@@ -95,6 +99,22 @@ export class ChunkMesher {
           const wx = worldOffsetX + lx;
           const wy = ly;
           const wz = worldOffsetZ + lz;
+
+          if (def?.light) {
+            // Keep emitters out of the shadow casters: a point light inside its
+            // own opaque voxel would otherwise shadow all of its illumination.
+            const exposed = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => {
+              const neighbor = BLOCK_DEFS[world.getVoxel(wx + dx, wy + dy, wz + dz)];
+              return !neighbor || neighbor.transparent;
+            });
+            if (exposed) {
+              const geometry = createBlockGeometry(blockId, this.tm);
+              geometry.translate(wx, wy, wz);
+              lightGeometries.push(geometry);
+              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: def.light, color: def.lightColor || 0xffc477 });
+            }
+            continue;
+          }
 
           // Cross-quad rendering for flowers (Poppy, Dandelion)
           if (isPlant) {
@@ -312,6 +332,7 @@ export class ChunkMesher {
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
       geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
       geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
       geo.setIndex(idx);
       geo.computeBoundingSphere();
       return geo;
@@ -319,7 +340,11 @@ export class ChunkMesher {
 
     const waterGeo = createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx);
     if (waterGeo) waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
+    const lightGeo = lightGeometries.length ? mergeGeometries(lightGeometries) : null;
+    if (lightGeo) lightGeo.userData.sources = lightSources;
+    for (const geometry of lightGeometries) geometry.dispose();
     return {
+      lightGeo,
       opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx),
       transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx),
       waterGeo

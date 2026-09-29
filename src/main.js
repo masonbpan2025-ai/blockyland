@@ -12,6 +12,7 @@ import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { GeminiAgent } from './geminiAgent.js';
+import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
 
 class Game {
@@ -40,6 +41,8 @@ class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     // Lighting & Celestial
@@ -49,6 +52,8 @@ class Game {
     this.sunLight = new THREE.DirectionalLight(0xfffaed, 0.85);
     this.sunLight.position.set(50, 80, 40);
     this.scene.add(this.sunLight);
+    configureSunShadows(this.sunLight, this.scene);
+    this.blockLighting = new BlockLighting(this.scene);
     this.sky = new Sky(this.scene);
     this.moonLight = new THREE.DirectionalLight(0x9db9ee, 0);
     this.scene.add(this.moonLight);
@@ -98,6 +103,7 @@ class Game {
     // 2. Initialize Player & Controls
     this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds);
     this.scene.add(this.player.model);
+    this.player.model.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
 
     // 3. Initialize Mobs & Entities
     this.entities = new EntityManager(this.scene, this.world, this.sounds);
@@ -174,14 +180,20 @@ class Game {
   }
 
   rebuildChunkMesh(chunk) {
-    if (chunk.opaqueMesh) this.scene.remove(chunk.opaqueMesh);
-    if (chunk.transparentMesh) this.scene.remove(chunk.transparentMesh);
-    if (chunk.waterMesh) this.scene.remove(chunk.waterMesh);
+    for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
+      if (chunk[key]) { this.scene.remove(chunk[key]); chunk[key].geometry.dispose(); chunk[key] = null; }
+    }
 
-    const { opaqueGeo, transparentGeo, waterGeo } = this.mesher.meshChunk(chunk, this.world);
+    const { opaqueGeo, transparentGeo, waterGeo, lightGeo } = this.mesher.meshChunk(chunk, this.world);
 
+    this.blockLighting.setChunk(chunk.cx, chunk.cz, lightGeo?.userData.sources || []);
+    if (lightGeo) {
+      chunk.lightMesh = new THREE.Mesh(lightGeo, this.textures.lightMaterial);
+      this.scene.add(chunk.lightMesh);
+    }
     if (opaqueGeo) {
       chunk.opaqueMesh = new THREE.Mesh(opaqueGeo, this.textures.opaqueMaterial);
+      chunk.opaqueMesh.castShadow = chunk.opaqueMesh.receiveShadow = true;
       this.scene.add(chunk.opaqueMesh);
     }
     if (waterGeo) {
@@ -192,6 +204,7 @@ class Game {
     if (transparentGeo) {
       chunk.transparentMesh = new THREE.Mesh(transparentGeo, this.textures.transparentMaterial);
       chunk.transparentMesh.renderOrder = 2;
+      chunk.transparentMesh.castShadow = chunk.transparentMesh.receiveShadow = true;
       this.scene.add(chunk.transparentMesh);
     }
 
@@ -653,14 +666,14 @@ class Game {
   updateDayNightCycle(dt) {
     this.worldTime = (this.worldTime + (24000 / this.dayLengthSeconds) * dt) % 24000;
     this.sky.setTime(this.worldTime);
-    this.sunLight.position.copy(this.sky.sunDirection).multiplyScalar(100);
-    this.moonLight.position.copy(this.sunLight.position).negate();
+    followSun(this.sunLight, this.sky.sunDirection, this.camera.position);
+    this.moonLight.position.copy(this.sky.sunDirection).multiplyScalar(-100);
     const sunHeight = this.sky.sunDirection.y;
     const day = this.sky.uniforms.uDay.value;
     this.normalBgColor.copy(this.sky.horizonColor);
-    this.ambientLight.intensity = 0.2 + day * 0.55;
+    this.ambientLight.intensity = 0.10 + day * 0.38;
     this.sunLight.intensity = 0.9 * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
-    this.sunLight.color.setRGB(1, 0.65 + 0.31 * day, 0.4 + 0.49 * day);
+    this.sunLight.color.setRGB(1, 0.65 + 0.27 * day, 0.28 + 0.44 * day);
     this.moonLight.intensity = 0.17 * Math.max(0, -sunHeight) * (1 - this.weather.rainIntensity * 0.8);
 
     // Apply fog based on underwater state
@@ -851,6 +864,7 @@ class Game {
     this.updateUnderwaterState();
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
     this.sky.update(dt, this.camera, this.weather, this.isUnderwater);
+    this.blockLighting.update(dt, this.camera.position);
     this.textures.update(dt, this.sunLight, this.scene.background, this.scene.fog);
 
     // 7. Update UI Stats & Debug Overlay
