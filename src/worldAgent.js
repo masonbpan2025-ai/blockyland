@@ -18,6 +18,7 @@ import {
   parsePlanWithRecovery,
   supportsEffort
 } from './agentProviders.js';
+import { describeOpenStructure, formatStructureContext } from './structureContext.js';
 
 // A thinking model can be silent for a long time before its first token, so we
 // abort on silence rather than on total duration.
@@ -450,12 +451,29 @@ export class WorldAgent {
     return value;
   }
 
-  /** One-line description of the block the player is currently targeting. */
-  describeTargetBlock() {
+  /** One-line description of the block the player is currently targeting. */  describeTargetBlock() {
     const target = this.game?.targetBlock;
     if (!target) return null;
     const name = BLOCK_DEFS?.[target.blockId]?.name || Object.keys(BLOCKS).find(key => BLOCKS[key] === target.blockId) || `block ${target.blockId}`;
     return { name, coordinates: [target.x, target.y, target.z], face: target.face ?? null };
+  }
+
+  /**
+   * Prompt section describing the structure open in Structure Studio, including
+   * where its ground-level entrances are. Returns an empty string outside Studio.
+   */
+  buildStudioStructureContext() {
+    const studio = this.game?.structureStudio;
+    if (!studio?.isActive || typeof describeOpenStructure !== 'function') return '';
+    try {
+      const info = describeOpenStructure(studio);
+      if (!info) return 'STRUCTURE STUDIO: a structure is open but its geometry could not be measured.';
+      this.lastStudioStructureInfo = info;
+      return formatStructureContext(info);
+    } catch (err) {
+      console.warn('[World] Could not describe the open structure:', err);
+      return 'STRUCTURE STUDIO: a structure is open but its geometry could not be measured.';
+    }
   }
 
   buildSystemPrompt() {
@@ -481,6 +499,12 @@ Legend: ${surfaceMap.legend}`
       ? `The player's crosshair is currently on ${target.name} at (${target.coordinates.join(', ')})${target.face !== null ? `, face ${target.face}` : ''}.`
       : 'The player is not currently targeting a block.';
 
+    // In Structure Studio the structure being edited lives in the studio's own
+    // state, not in builtStructures, so it needs its own context entry. Without
+    // it the model cannot know where the structure is or which way its door
+    // faces, and attaches additions to the wrong side.
+    const studioSection = this.buildStudioStructureContext();
+
     return `You are the World Agent 3D World Architect inside a 3D Minecraft browser voxel engine, running on the ${this.vendorLabel} vendor (model: ${this.model}).
 The player is at XYZ: (${pPos.x.toFixed(1)}, ${pPos.y.toFixed(1)}, ${pPos.z.toFixed(1)}) and facing ${facing}.
 Game mode: ${player?.gamemode || 'creative'}. Weather: ${this.game?.weather?.weatherType || 'clear'}.
@@ -491,6 +515,8 @@ WORLD CONTEXT & PREVIOUSLY BUILT STRUCTURES:
 ${structuresContext}
 Last referenced structure ID: ${this.lastReferencedStructure?.id || this.lastBuiltStructure?.id || 'none'}.
 World height: Y=1..${CHUNK_HEIGHT - 1}. Current time: ${this.game?.worldTime ?? 6000} (0-24000, 6000 midday / 18000 midnight).
+
+${studioSection}
 
 ${surfaceSection}
 
