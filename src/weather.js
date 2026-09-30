@@ -22,7 +22,9 @@ export class WeatherManager {
     this.flashDuration = 0;
 
     // Transition smoothing
-    this.rainIntensity = 0.0; // 0.0 to 1.0
+    this.rainIntensity = 0.0;
+    this.windTime = 0;
+    this.enhanced = false; // 0.0 to 1.0
 
     this.initParticles();
   }
@@ -87,6 +89,7 @@ export class WeatherManager {
   }
 
   update(dt, playerPos, ambientLight, sunLight, fog, background) {
+    this.windTime += dt;
     const targetIntensity = this.isRaining() ? 1.0 : 0.0;
     this.rainIntensity += (targetIntensity - this.rainIntensity) * Math.min(1.0, dt * 2.0);
 
@@ -96,7 +99,8 @@ export class WeatherManager {
     }
 
     this.rainMesh.visible = true;
-    this.rainMaterial.opacity = 0.55 * this.rainIntensity;
+    this.rainMaterial.opacity = (this.enhanced ? .38 : .55) * this.rainIntensity;
+    this.rainMaterial.color.setHex(this.enhanced ? 0xc5dfff : 0x9dc6ff);
 
     // Follow player position
     const px = playerPos.x;
@@ -115,6 +119,7 @@ export class WeatherManager {
       const speed = this.rainVelocities[i];
       const dy = speed * dt;
 
+      if(this.enhanced){const gust=2.0+Math.sin(this.windTime*.6)*1.2;pos[idx]+=gust*dt;pos[idx+3]=pos[idx]-.16-gust*.045;pos[idx+2]+=.5*dt;pos[idx+5]=pos[idx+2]-.09;}
       pos[idx + 1] -= dy;
       pos[idx + 4] -= dy;
 

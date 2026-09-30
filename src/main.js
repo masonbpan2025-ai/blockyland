@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
@@ -65,7 +66,7 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
     this.renderer.shadowMap.enabled = true;
@@ -133,6 +134,8 @@ class Game {
 
     // 1. Initialize Texture Atlas & Materials
     await this.textures.init();
+    this.shader = new LightweightShader(this);
+    this.shader.bindButton(document.getElementById('btn-shader'));
     this.mesher = new ChunkMesher(this.textures);
 
     // 2. Initialize Player & Controls
@@ -932,8 +935,8 @@ class Game {
     const sunHeight = this.sky.sunDirection.y;
     const day = this.sky.uniforms.uDay.value;
     this.normalBgColor.copy(this.sky.horizonColor);
-    this.ambientLight.intensity = 0.10 + day * 0.38;
-    this.sunLight.intensity = 0.9 * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
+    this.ambientLight.intensity = this.shader?.enabled ? 0.08 + day * 0.34 : 0.10 + day * 0.48;
+    this.sunLight.intensity = (this.shader?.enabled ? 1.12 : 0.85) * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
     this.sunLight.color.setRGB(1, 0.65 + 0.27 * day, 0.28 + 0.44 * day);
     this.moonLight.intensity = 0.17 * Math.max(0, -sunHeight) * (1 - this.weather.rainIntensity * 0.8);
 
@@ -1220,9 +1223,8 @@ class Game {
     this.ui.updateStats();
     this.ui.updateDebug(fps, this.renderer.info);
 
-    // 8. Render Main World Scene
-    this.renderer.clear();
-    this.renderer.render(this.scene, this.camera);
+    // 8. Render Main World Scene (held items and DOM UI remain sharp).
+    this.shader.render(dt);
 
     // 9. Render 1st person held item overlay (Hidden in Dungeon Mode)
     if (this.player.perspective === 0 && !this.player.isDungeonMode && !this.dungeonMode?.isActive) {
@@ -1241,8 +1243,7 @@ class Game {
 
     try {
       if (showHeldItem && container) container.visible = false;
-      this.renderer.clear();
-      this.renderer.render(this.scene, this.camera);
+      this.shader.render(0);
       return encodeScreenshotDataUrl(this.renderer.domElement, options);
     } catch (err) {
       console.warn('Current-view capture failed:', err);
