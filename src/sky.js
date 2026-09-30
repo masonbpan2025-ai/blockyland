@@ -8,7 +8,7 @@ export class Sky {
     this.horizonColor = new THREE.Color();
     this.dayHorizon = new THREE.Color('#b4d4e8');
     this.nightHorizon = new THREE.Color('#18233e');
-    this.sunsetHorizon = new THREE.Color('#e6ad87');
+    this.sunsetHorizon = new THREE.Color('#f3b080');
     this.uniforms = {
       uSun: { value: this.sunDirection },
       uHorizon: { value: this.horizonColor },
@@ -69,7 +69,7 @@ export class Sky {
           vec3 sky = mix(uHorizon, zenith, pow(elevation, 0.48));
           if(uEnhanced < 0.5){
             sky=mix(uHorizon,vec3(.19,.43,.70)*uDay,pow(elevation,.6));
-            float sunDisc=1.0-smoothstep(.014,.019,length(ray-uSun));
+            float sunDisc=1.0-smoothstep(.040,.044,length(ray-uSun));
             float moonDisc=1.0-smoothstep(.017,.021,length(ray+uSun));
             sky=mix(sky,vec3(1.0,.85,.35),sunDisc*(1.0-uRain));sky=mix(sky,vec3(.72,.78,.9),moonDisc*(1.0-uDay));
             gl_FragColor=vec4(sky,1.0);
@@ -77,7 +77,7 @@ export class Sky {
             return;
           }
           float horizonGlow = exp(-elevation * 7.0) * pow(facingSun, 5.0) * uTwilight;
-          sky += vec3(0.5, 0.13, 0.035) * horizonGlow;
+          sky += vec3(0.85, 0.30, 0.07) * horizonGlow;
           sky = mix(sky, vec3(0.055, 0.065, 0.085) * (0.2 + uDay * 0.8), uRain * 0.82);
 
           // Tiny, stable stars fade out into the dawn and horizon haze.
@@ -90,14 +90,14 @@ export class Sky {
 
           // Sun: a bright, antialiased circular photosphere and soft atmospheric halo.
           float sunDistance = length(ray - uSun);
-          float sunRadius = 0.016;
+          float sunRadius = 0.042;
           float sunEdge = max(fwidth(sunDistance), 0.00015);
           float sunDisc = 1.0 - smoothstep(sunRadius - sunEdge, sunRadius + sunEdge, sunDistance);
           float sunAboveHorizon = smoothstep(-0.025, 0.015, uSun.y);
-          vec3 sunColor = mix(vec3(1.0, 0.31, 0.075), vec3(1.0, 0.78, 0.22), smoothstep(0.0, 0.25, uSun.y));
-          float halo = exp(-sunDistance * 24.0) * 0.38 + exp(-sunDistance * 5.0) * 0.055;
+          vec3 sunColor = mix(vec3(1.0, 0.56, 0.16), vec3(1.0, 0.88, 0.48), smoothstep(0.0, 0.25, uSun.y));
+          float halo = exp(-sunDistance * 18.0) * 0.85 + exp(-sunDistance * 4.5) * (0.07 + uTwilight * 0.16);
           sky += sunColor * halo * sunAboveHorizon * (1.0 - uRain * 0.94);
-          sky = mix(sky, sunColor, sunDisc * sunAboveHorizon * (1.0 - uRain * 0.94));
+          sky = mix(sky, vec3(1.0, 0.96, 0.72), sunDisc * sunAboveHorizon * (1.0 - uRain * 0.94));
 
           // Moon: spherical shading, dark maria, and individually shaped crater rims.
           vec3 moonDirection = -uSun;
@@ -137,9 +137,12 @@ export class Sky {
             float silver = clamp((density - towardLight) * 5.0 + 0.45, 0.0, 1.0);
             vec3 cloudShade = mix(vec3(0.025, 0.034, 0.062), vec3(0.40, 0.49, 0.60), uDay);
             vec3 cloudLight = mix(vec3(0.095, 0.12, 0.19), vec3(0.96, 0.96, 0.92), uDay);
-            cloudLight = mix(cloudLight, vec3(1.0, 0.50, 0.24), uTwilight * pow(facingSun, 2.0) * 0.75);
+            // Broad peach/gold cloud tops and violet undersides, strongest toward the sun.
+            float sunsetTint = uTwilight * (0.35 + 0.65 * pow(facingSun, 1.5)) * (1.0 - uRain);
+            cloudShade = mix(cloudShade, vec3(0.25, 0.14, 0.27), sunsetTint * 0.8);
+            cloudLight = mix(cloudLight, vec3(1.0, 0.53, 0.19), sunsetTint * 0.95);
             vec3 cloud = mix(cloudShade, cloudLight, silver);
-            cloud += sunColor * pow(facingSun, 16.0) * silver * 0.25 * uDay;
+            cloud += sunColor * pow(facingSun, 16.0) * silver * (0.25 + uTwilight * 0.65) * uDay * (1.0 - uRain);
             cloud *= 1.0 - uRain * 0.57;
             float haze = smoothstep(0.015, 0.19, ray.y);
             sky = mix(sky, cloud, cover * haze * 0.96);
