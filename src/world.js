@@ -457,6 +457,46 @@ export class World {
     return chunk.getVoxel(lx, wy, lz);
   }
 
+  /**
+   * Highest non-air block in a column, or 0 when the column is empty.
+   *
+   * Only consults already-generated chunks: it never creates one, so it is safe
+   * to call from inside chunk generation without recursing.
+   */
+  getHighestSolidY(wx, wz) {
+    const cx = Math.floor(wx / CHUNK_SIZE_X);
+    const cz = Math.floor(wz / CHUNK_SIZE_Z);
+    const chunk = this.getChunk(cx, cz);
+    if (!chunk) return 0;
+
+    const lx = ((wx % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
+    const lz = ((wz % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
+    for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+      const id = chunk.getVoxel(lx, y, lz);
+      if (id !== BLOCKS.AIR) return y;
+    }
+    return 0;
+  }
+
+  /** True when a column is free of water/lava at surface level (safe to stand on). */
+  isDryColumn(wx, wz, groundY) {
+    for (let y = groundY + 1; y <= Math.min(CHUNK_HEIGHT - 1, groundY + 2); y++) {
+      const id = this.getVoxel(wx, y, wz);
+      if (id === BLOCKS.WATER || id === BLOCKS.LAVA) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Y coordinate a player should stand at for a column: one block above the
+   * highest solid block, so their feet rest on the surface rather than inside it.
+   */
+  getSurfaceStandY(wx, wz) {
+    const ground = this.getHighestSolidY(wx, wz);
+    if (ground <= 0) return 0;
+    return Math.min(CHUNK_HEIGHT - 2, ground + 1);
+  }
+
   getLavaLevel(wx, wy, wz) {
     if (this.getVoxel(wx, wy, wz) !== BLOCKS.LAVA) return -1;
     const chunk = this.getChunk(Math.floor(wx/16), Math.floor(wz/16));

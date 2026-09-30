@@ -21,6 +21,7 @@ import {
   loadChunksProgressively,
   yieldToBrowser
 } from './progressOverlay.js';
+import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { getBlockDrop } from './itemVisuals.js';
@@ -212,6 +213,16 @@ class Game {
       }
     }
     await this.loadWorldProgressively();
+
+    // Terrain now exists, so put the player on its surface. Placing them before
+    // generation left them at a hardcoded height that could be inside rock.
+    const spawn = placePlayerOnSurface(this);
+    if (spawn?.found) {
+      console.log(`[World] Spawned the player on the surface at (${spawn.x}, ${spawn.y}, ${spawn.z}); ${spawn.reason}.`);
+    } else {
+      console.warn(`[World] Could not place the player on the surface: ${spawn?.reason || 'unknown'}.`);
+    }
+
     this.spawnVillageMobs();
     if (this.ui) {
       if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();

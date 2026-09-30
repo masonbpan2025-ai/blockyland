@@ -1,0 +1,172 @@
+// Choosing where the player stands when a new world starts.
+//
+// The player used to be spawned at a hardcoded height (y = 27) that happened to
+// suit the built-in village but had no relationship to the terrain. On any seed
+// whose surface sat above that value the player started buried inside rock, and
+// near taller features (a cottage roof, a mountain slope) they could be trapped
+// even on the default seed.
+//
+// The functions here derive the position from the generated terrain instead:
+// probe the column, stand one block above the highest solid block, and refuse
+// candidates that are flooded, blocked, or sitting on a tree.
+
+import { BLOCKS } from './blocks.js';
+
+/** Blocks that are fine to stand on top of. */
+const NATURAL_GROUND = new Set([BLOCKS.GRASS]);
+/** Blocks that are walkable but a sign we may be on a structure or path. */
+const BUILT_GROUND = new Set([BLOCKS.COBBLESTONE, BLOCKS.OAK_PLANKS, BLOCKS.GRAVEL, BLOCKS.SAND, BLOCKS.STONE, BLOCKS.DIRT, BLOCKS.SANDSTONE, BLOCKS.STONE_BRICKS, BLOCKS.SNOW, BLOCKS.CLAY]);
+/** Wood is a tree: standing on it puts the player inside leaves or a trunk. */
+const TREE_BLOCKS = new Set([BLOCKS.OAK_LOG, BLOCKS.OAK_LEAVES]);
+/** Head room required above the feet, in blocks. */
+const HEAD_ROOM = 2;
+
+function isAir(id) {
+  return id === BLOCKS.AIR;
+}
+
+function isHazard(id) {
+  return id === BLOCKS.WATER || id === BLOCKS.LAVA;
+}
+
+/**
+ * Score a candidate column. Higher is better; null means "not usable at all".
+ *
+ * @param {object} world  must expose getHighestSolidY / getVoxel
+ * @param {number} wx
+ * @param {number} wz
+ * @param {{anchorX:number, anchorZ:number}} anchor
+ */
+export function scoreSpawnColumn(world, wx, wz, anchor) {
+  const groundY = world.getHighestSolidY(wx, wz);
+  if (!groundY || groundY <= 0) return null;
+
+  const ground = world.getVoxel(wx, groundY, wz);
+  if (isHazard(ground) || ground === BLOCKS.AIR) return null;
+  if (TREE_BLOCKS.has(ground)) return null;
+
+  // Feet at groundY + 1; the two blocks above must be clear.
+  for (let y = groundY + 1; y <= groundY + HEAD_ROOM; y++) {
+    const id = world.getVoxel(wx, y, wz);
+    if (!isAir(id)) return null;
+  }
+
+  let score = 1000;
+  // Prefer to stay near the requested position.
+  score -= Math.hypot(wx - anchor.anchorX, wz - anchor.anchorZ) * 10;
+  // Prefer natural ground, then any walkable block.
+  if (NATURAL_GROUND.has(ground)) score += 50;
+  else if (BUILT_GROUND.has(ground)) score += 10;
+
+  return { wx, wz, groundY, standY: groundY + 1, ground, score };
+}
+
+/**
+ * Find a safe standing position near `anchor`.
+ *
+ * Only inspects already-generated chunks (it never creates one), so callers must
+ * generate terrain around the anchor first. placePlayerOnSurface() does that.
+ *
+ * @param {object} world
+ * @param {{x:number, z:number, radius?:number}} anchor
+ * @returns {{x:number, y:number, z:number, groundY:number, found:boolean, reason:string}|null}
+ */
+export function findSurfaceSpawn(world, anchor = {}) {
+  if (!world || typeof world.getHighestSolidY !== 'function') return null;
+
+  const anchorX = Math.round(Number.isFinite(anchor.x) ? anchor.x : 0);
+  const anchorZ = Math.round(Number.isFinite(anchor.z) ? anchor.z : 0);
+  const radius = Math.max(1, Math.min(24, Math.floor(anchor.radius) || 8));
+
+  const candidates = [];
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dz = -radius; dz <= radius; dz++) {
+      const scored = scoreSpawnColumn(world, anchorX + dx, anchorZ + dz, { anchorX, anchorZ });
+      if (scored) candidates.push(scored);
+    }
+  }
+
+  if (candidates.length === 0) {
+    return { x: anchorX + 0.5, y: 0, z: anchorZ + 0.5, groundY: 0, found: false, reason: 'no usable column near the anchor' };
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  const moved = Math.hypot(best.wx - anchorX, best.wz - anchorZ);
+  return {
+    x: best.wx + 0.5,
+    y: best.standY,
+    z: best.wz + 0.5,
+    groundY: best.groundY,
+    found: true,
+    reason: moved === 0 ? 'anchor column is clear' : `moved ${moved.toFixed(1)} blocks from the anchor for clear ground`
+  };
+}
+
+/**
+ * Make sure the chunks covering `anchor` plus `radius` exist before probing.
+ *
+ * getHighestSolidY deliberately never generates a chunk, so without this step a
+ * probe of fresh terrain would report every column as empty.
+ */
+function ensureTerrainAround(world, anchorX, anchorZ, radius) {
+  if (typeof world.getOrCreateChunk !== 'function') return;
+  const margin = radius + 2;
+  const minCx = Math.floor((anchorX - margin) / 16);
+  const maxCx = Math.floor((anchorX + margin) / 16);
+  const minCz = Math.floor((anchorZ - margin) / 16);
+  const maxCz = Math.floor((anchorZ + margin) / 16);
+  for (let cx = minCx; cx <= maxCx; cx++) {
+    for (let cz = minCz; cz <= maxCz; cz++) {
+      try {
+        world.getOrCreateChunk(cx, cz);
+      } catch {
+        // A chunk that cannot be generated just leaves its columns unusable.
+      }
+    }
+  }
+}
+
+/**
+ * Move the player onto the surface at their current X/Z (or at `anchor`).
+ *
+ * Generates the terrain around the target if necessary, then places the player
+ * on it. Returns the placement so callers can log it.
+ */
+export function placePlayerOnSurface(game, anchor = {}) {
+  const world = game?.world;
+  const player = game?.player;
+  if (!world || !player || !player.position) {
+    return { found: false, reason: 'no world or player', x: 0, y: 0, z: 0, groundY: 0 };
+  }
+
+  const target = {
+    x: Number.isFinite(anchor.x) ? anchor.x : player.position.x,
+    z: Number.isFinite(anchor.z) ? anchor.z : player.position.z,
+    radius: anchor.radius
+  };
+
+  const radius = Math.max(1, Math.min(24, Math.floor(target.radius) || 8));
+  ensureTerrainAround(world, Math.round(target.x), Math.round(target.z), radius);
+
+  const spawn = findSurfaceSpawn(world, { ...target, radius });
+  if (!spawn || !spawn.found) {
+    return spawn || { found: false, reason: 'no surface found', x: target.x, y: 0, z: target.z, groundY: 0 };
+  }
+
+  player.position.set(spawn.x, spawn.y, spawn.z);
+  if (player.velocity && player.velocity.set) player.velocity.set(0, 0, 0);
+  // onGround is a boolean on Player, so Number.isFinite() would always be false
+  // here and the reset would silently never happen.
+  if (typeof player.onGround === 'boolean' || Number.isFinite(player.onGround)) {
+    player.onGround = false;
+  }
+  // Being teleported onto the surface is a landing, not a fall: clear any
+  // accumulated downward velocity-driven state.
+  if (Number.isFinite(player.fallDistance)) player.fallDistance = 0;
+  if (player.spawnPosition && player.spawnPosition.set) {
+    player.spawnPosition.set(spawn.x, spawn.y, spawn.z);
+  }
+
+  return spawn;
+}
