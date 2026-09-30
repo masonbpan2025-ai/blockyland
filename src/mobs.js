@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { wanderMob, moveGroundMob } from './mobMotion.js';
 
@@ -73,6 +74,7 @@ export class MobManager {
   }
 
   clearMobs() {
+    for (const arrow of [...this.arrows]) removeArrow(this, arrow);
     for (const mob of this.mobs) {
       if (mob.mesh) {
         this.scene.remove(mob.mesh);
@@ -1557,22 +1559,8 @@ export class MobManager {
   }
 
   // --- PROJECTILES: ARROWS ---
-  spawnArrow(origin, direction, shooter) {
-    const geo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 4);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x8b6540 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(origin);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
-
-    this.scene.add(mesh);
-    this.sounds.playBowShoot();
-
-    this.arrows.push({
-      mesh: mesh,
-      velocity: direction.clone().normalize().multiplyScalar(22),
-      shooter: shooter,
-      life: 5.0
-    });
+  spawnArrow(origin, direction, shooter, options) {
+    return spawnArrow(this, origin, direction, shooter, options);
   }
 
   isTrainingSiteMob(mob) {
@@ -1811,41 +1799,7 @@ export class MobManager {
 
   update(dt, player) {
     dt = Math.min(dt, 0.1);
-    // 1. Update Projectiles (Arrows)
-    for (let i = this.arrows.length - 1; i >= 0; i--) {
-      const arrow = this.arrows[i];
-      arrow.life -= dt;
-      arrow.velocity.y -= 9.8 * dt; // gravity arc
-
-      arrow.mesh.position.addScaledVector(arrow.velocity, dt);
-
-      // Hit player check
-      if (arrow.shooter !== 'player') {
-        const distToPlayer = arrow.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
-        if (distToPlayer < 0.8) {
-          player.takeDamage(4);
-          this.scene.remove(arrow.mesh);
-          this.arrows.splice(i, 1);
-          continue;
-        }
-      }
-
-      // Hit block check
-      const bX = Math.floor(arrow.mesh.position.x);
-      const bY = Math.floor(arrow.mesh.position.y);
-      const bZ = Math.floor(arrow.mesh.position.z);
-      const block = this.world.getVoxel(bX, bY, bZ);
-      if (block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
-        this.scene.remove(arrow.mesh);
-        this.arrows.splice(i, 1);
-        continue;
-      }
-
-      if (arrow.life <= 0) {
-        this.scene.remove(arrow.mesh);
-        this.arrows.splice(i, 1);
-      }
-    }
+    updateArrows(this, dt, player);
 
     // 2. Update Mobs AI & Physics
     for (let i = this.mobs.length - 1; i >= 0; i--) {

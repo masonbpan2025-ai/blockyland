@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BowController } from './bow.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
@@ -160,6 +161,7 @@ class Game {
 
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
+    this.bow = new BowController(this);
 
     // 5b. Initialize Tournament & Dragon Ball Skills
     this.tournament = new TournamentManager(this);
@@ -501,6 +503,8 @@ class Game {
         this.heldItemRenderer.swing();
         this.handleLeftClick();
       } else if (e.button === 2) {
+        // Hold right click to draw the bow; release to fire.
+        if (this.bow.start()) return;
         // Right Click: Place / Interact
         this.heldItemRenderer.recoil();
         this.handleRightClick();
@@ -510,7 +514,10 @@ class Game {
       }
     });
 
+    window.addEventListener('blur', () => this.bow?.cancel());
+    document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== this.renderer.domElement) this.bow?.cancel(); });
     window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.bow.release();
       if (e.button === 0) {
         this.isMouseDown = false;
         this.miningTime = 0;
@@ -1148,6 +1155,7 @@ class Game {
     const fps = 1.0 / Math.max(0.0001, dt);
 
     // 1. Update Player Physics & Camera
+    this.bow.update(dt);
     this.player.update(dt);
 
     // 2. Update Held Item in Player Hand

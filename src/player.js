@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
@@ -415,8 +416,8 @@ export class Player {
     }
 
     // FOV animation for sprinting
-    const targetFov = this.isSprinting && (moveForward > 0) ? 82 : this.baseFov;
-    this.currentFov += (targetFov - this.currentFov) * 8 * dt;
+    const targetFov = bowFov(this.isSprinting && (moveForward > 0) ? 82 : this.baseFov, this.bowDraw || 0);
+    this.currentFov += (targetFov - this.currentFov) * (1 - Math.exp(-8 * dt));
     this.camera.fov = this.currentFov;
     this.camera.updateProjectionMatrix();
 
