@@ -58,7 +58,29 @@ export const BLOCKS = {
   ANVIL: 54,
   LIT_FURNACE: 55,
   SOUL_TORCH: 56,
-  FIRE: 57
+  FIRE: 57,
+  REDSTONE_WIRE: 58,
+  REDSTONE_BLOCK: 59,
+  REPEATER: 60,
+  COMPARATOR: 61,
+  OBSERVER: 62,
+  PISTON: 63,
+  STICKY_PISTON: 64,
+  PISTON_HEAD: 65,
+  SLIME_BLOCK: 66,
+  HONEY_BLOCK: 67,
+  STONE_BUTTON: 68,
+  PRESSURE_PLATE: 69,
+  DAYLIGHT_DETECTOR: 70,
+  TARGET_BLOCK: 71,
+  IRON_DOOR: 72,
+  IRON_TRAPDOOR: 73,
+  NOTE_BLOCK: 74,
+  DISPENSER: 75,
+  DROPPER: 76,
+  HOPPER: 77,
+  IRON_DOOR_OPEN: 78,
+  IRON_TRAPDOOR_OPEN: 79
 };
 
 export const BLOCK_DEFS = {
@@ -516,6 +538,7 @@ export const BLOCK_DEFS = {
     textures: { all: 'ladder.png' }
   },
   [BLOCKS.LEVER]: {
+    redstone: true,
     name: 'Lever',
     hardness: 0.5,
     sound: 'wood',
@@ -524,6 +547,7 @@ export const BLOCK_DEFS = {
     textures: { all: 'lever.png' }
   },
   [BLOCKS.REDSTONE_TORCH]: {
+    redstone: true,
     name: 'Redstone Torch',
     shape: 'torch',
     lightColor: 0xff4335,
@@ -535,6 +559,7 @@ export const BLOCK_DEFS = {
     textures: { all: 'redstone_torch.png' }
   },
   [BLOCKS.REDSTONE_LAMP]: {
+    redstone: true,
     name: 'Redstone Lamp',
     hardness: 0.3,
     sound: 'glass',
@@ -743,3 +768,31 @@ export const ITEMS = {
   axolotl_spawn_egg: { name: 'Axolotl Spawn Egg', icon: '/assets/items/axolotl_spawn_egg.png', type: 'spawn_egg', mob: 'axolotl' }
 };
 
+
+BLOCK_DEFS[BLOCKS.REDSTONE_WIRE] = {name: 'Redstone Wire', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_wire.svg'};
+BLOCK_DEFS[BLOCKS.REDSTONE_BLOCK] = {name: 'Redstone Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_block.svg'};
+BLOCK_DEFS[BLOCKS.REPEATER] = {name: 'Repeater', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/repeater.svg'};
+BLOCK_DEFS[BLOCKS.COMPARATOR] = {name: 'Comparator', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/comparator.svg'};
+BLOCK_DEFS[BLOCKS.OBSERVER] = {name: 'Observer', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/observer.svg'};
+BLOCK_DEFS[BLOCKS.PISTON] = {name: 'Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston.svg'};
+BLOCK_DEFS[BLOCKS.STICKY_PISTON] = {name: 'Sticky Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/sticky_piston.svg'};
+BLOCK_DEFS[BLOCKS.PISTON_HEAD] = {name: 'Piston Head', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston_head.svg', internal: true};
+BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
+BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
+BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};
+BLOCK_DEFS[BLOCKS.PRESSURE_PLATE] = {name: 'Pressure Plate', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/pressure_plate.svg'};
+BLOCK_DEFS[BLOCKS.DAYLIGHT_DETECTOR] = {name: 'Daylight Detector', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/daylight_detector.svg'};
+BLOCK_DEFS[BLOCKS.TARGET_BLOCK] = {name: 'Target Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/target_block.svg'};
+BLOCK_DEFS[BLOCKS.IRON_DOOR] = {name: 'Iron Door', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_door.svg'};
+BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR] = {name: 'Iron Trapdoor', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_trapdoor.svg'};
+BLOCK_DEFS[BLOCKS.NOTE_BLOCK] = {name: 'Note Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/note_block.svg'};
+BLOCK_DEFS[BLOCKS.DISPENSER] = {name: 'Dispenser', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/dispenser.svg'};
+BLOCK_DEFS[BLOCKS.DROPPER] = {name: 'Dropper', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/dropper.svg'};
+BLOCK_DEFS[BLOCKS.HOPPER] = {name: 'Hopper', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/hopper.svg'};
+BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN] = {name: 'Iron Door Open', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_door_open.svg', internal: true};
+BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN] = {name: 'Iron Trapdoor Open', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_trapdoor_open.svg', internal: true};
+
+BLOCK_DEFS[BLOCKS.REDSTONE_WIRE].drop='redstone';
+BLOCK_DEFS[BLOCKS.PISTON_HEAD].drop=null;
+BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN].drop=BLOCKS.IRON_DOOR;
+BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN].drop=BLOCKS.IRON_TRAPDOOR;

@@ -19,7 +19,7 @@ export class WaterSimulation {
     this.routes = new Map();
   }
 
-  reset() { if(this!==this.world.lava)this.world.lava?.reset(); this.pending.clear(); this.routes.clear(); this.time = 0; }
+  reset() { if(this===this.world.water)this.world.redstone?.reset(); if(this!==this.world.lava)this.world.lava?.reset(); this.pending.clear(); this.routes.clear(); this.time = 0; }
 
   loaded(x,y,z) { return y >= 0 && y < 64 && !!this.world.getChunk(Math.floor(x / 16), Math.floor(z / 16)); }
   level(x,y,z) { return this.world.getWaterLevel(x,y,z); }
@@ -40,6 +40,7 @@ export class WaterSimulation {
 
   initChunk(chunk) {
     this.world.lava?.initChunk(chunk);
+    this.world.redstone?.initChunk(chunk);
     // Old maps and generated oceans have zero metadata, meaning source water.
     // Wake exposed water, not every interior voxel of a large ocean.
     for (let y=0;y<64;y++) for(let z=0;z<16;z++) for(let x=0;x<16;x++) {

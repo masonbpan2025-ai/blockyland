@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCK_DEFS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 const forward = new THREE.Vector3(0,0,1);
 export function createArrowModel() {
   const group=new THREE.Group();
@@ -37,6 +37,7 @@ export function updateArrows(manager,dt,player){
       const next=arrow.mesh.position.clone().addScaledVector(arrow.velocity,step);
       arrow.mesh.quaternion.setFromUnitVectors(forward,arrow.velocity.clone().normalize());
       if(solid(manager.world,next)){
+        const targetState=manager.world.redstone?.state([Math.floor(next.x),Math.floor(next.y),Math.floor(next.z)]);if(targetState?.id===BLOCKS.TARGET_BLOCK)targetState.until=manager.world.redstone.tickNumber+4;
         arrow.anchor=next.clone();arrow.mesh.position.copy(next);arrow.stuck=true;arrow.life=60;arrow.orientation=arrow.mesh.quaternion.clone();arrow.trail.visible=false;break;
       }
       arrow.mesh.position.copy(next);
