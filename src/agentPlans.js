@@ -50,7 +50,9 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
     if (typeof mob.name !== 'string' || !mob.name.trim() || mob.name.trim().length > 40) throw new Error('A mob needs a name of 1-40 characters.');
 
     const hex = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
-    const modelTypes = ['humanoid', 'quadruped', 'flying', 'golem', 'slime'];
+    // Keep in step with the model types the renderer can actually build, including
+    // biped_creature, which is the chibi/Pikachu-style upright body.
+    const modelTypes = ['humanoid', 'quadruped', 'biped_creature', 'flying', 'golem', 'slime'];
     const look = mob.look || {};
     if (look.modelType !== undefined && !modelTypes.includes(look.modelType)) {
       throw new Error(`Unknown mob model type: ${look.modelType}`);
@@ -59,6 +61,21 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
       if (look[key] !== undefined && !hex(look[key])) throw new Error(`Invalid ${key}; expected #rrggbb.`);
     }
     if (look.scale !== undefined && (!Number.isFinite(look.scale) || look.scale < 0.3 || look.scale > 3)) throw new Error('Mob scale must be between 0.3 and 3.');
+
+    // Silhouette and face features. These are what make a requested character
+    // recognisable: a flat colour and a body type alone produce a generic blob.
+    if (look.ears !== undefined && !['pointed', 'long', 'round', 'none'].includes(look.ears)) {
+      throw new Error(`Unknown ear style: ${look.ears} (use pointed, long, round or none).`);
+    }
+    if (look.tail !== undefined && !['lightning', 'long', 'none'].includes(look.tail)) {
+      throw new Error(`Unknown tail style: ${look.tail} (use lightning, long or none).`);
+    }
+    for (const key of ['earTipColor', 'cheekColor', 'tailColor']) {
+      if (look[key] !== undefined && !hex(look[key])) throw new Error(`Invalid ${key}; expected #rrggbb.`);
+    }
+    for (const key of ['hasCheekPatches', 'hasMouth', 'hasNose']) {
+      if (look[key] !== undefined && typeof look[key] !== 'boolean') throw new Error(`${key} must be true or false.`);
+    }
 
     const behavior = mob.behavior || {};
     if (behavior.type !== undefined && !['hostile', 'neutral', 'passive', 'pet', 'boss'].includes(behavior.type)) {

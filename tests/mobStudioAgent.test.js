@@ -138,7 +138,9 @@ test('"make a Pikachu" now reaches the model and produces a Pikachu-shaped mob',
 
   // And the definition must land on the mob being edited.
   assert.equal(studio.currentMob.name, 'Pikachu');
-  assert.equal(studio.currentMob.look.modelType, 'quadruped', 'a mouse is not a humanoid');
+  // biped_creature is the upright chibi body; either it or quadruped reads as a mouse.
+  assert.ok(['biped_creature', 'quadruped'].includes(studio.currentMob.look.modelType),
+    `expected an upright or four-legged creature body, got ${studio.currentMob.look.modelType}`);
   assert.equal(studio.currentMob.look.mainColor, '#f7d02c', 'yellow body');
   assert.equal(studio.currentMob.look.accentColor, '#8b4513', 'brown markings');
   assert.equal(studio.currentMob.look.scale, 0.8);
@@ -183,7 +185,8 @@ test('a mob designed outside Mob Studio is saved to the library', async t => {
 
   const saved = [];
   agent.game.mobLibrary = {
-    saveCustomMob(data) { saved.push(data); return { success: true, name: data.name }; }
+    // Mirror the real return shape: { success, mob }.
+    saveCustomMob(data) { saved.push(data); return { success: true, mob: { name: data.name } }; }
   };
   t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify(PIKACHU_PLAN)));
 
