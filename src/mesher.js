@@ -3,7 +3,7 @@ import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from './world.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createBlockGeometry } from './blockGeometry.js';
-import { waterCornerHeight, waterCurrent } from './waterGeometry.js';
+import { lavaCornerHeight, waterCornerHeight, waterCurrent } from './waterGeometry.js';
 import { WATER_COLORS } from './water.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
@@ -111,6 +111,11 @@ export class ChunkMesher {
             });
             if (exposed) {
               const geometry = createBlockGeometry(blockId, this.tm);
+              if(blockId===BLOCKS.LAVA){
+                const pos=geometry.attributes.position;
+
+                for(let i=0;i<pos.count;i++)if(pos.getY(i)>.5)pos.setY(i,lavaCornerHeight(world,wx+Math.round(pos.getX(i)),wy,wz+Math.round(pos.getZ(i))));
+              }
               geometry.translate(wx, wy, wz);
               const origin = new Float32Array(geometry.attributes.position.count * 3);
               for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);

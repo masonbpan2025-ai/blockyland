@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
 
 export function wanderMob(manager, mob, dt, speed) {
@@ -35,6 +36,7 @@ export function wanderMob(manager, mob, dt, speed) {
 }
 
 export function moveGroundMob(manager, mob, dt) {
+  if(mob.health>0)applyHeat(manager.world,mob,mob.mesh.position,dt,n=>manager.damageMob(mob,n));
   const start = mob.mesh.position.clone(), pos = mob.mesh.position;
   const collision = p => manager.checkMobCollision(mob, p);
   if (collision(pos)) {

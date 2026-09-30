@@ -70,6 +70,12 @@ export class HeldItemRenderer {
       return;
     }
 
+    if (item.isBlock && item.id === BLOCKS.WATER) {
+      let material=this.cachedMaterials.get('held-water');
+      if(!material){material=new THREE.MeshPhongMaterial({color:0x359ddc,transparent:true,opacity:.72,shininess:100,specular:0xc5eeff,emissive:0x10335a,emissiveIntensity:.3});this.cachedMaterials.set('held-water',material);}
+      this.currentMesh=new THREE.Mesh(new THREE.BoxGeometry(.43,.38,.43),material);
+      this.currentMesh.rotation.set(.3,.7,0);this.container.add(this.currentMesh);return;
+    }
     if (item.isBlock) {
       // Miniature 3D Block
       const geo = createBlockGeometry(item.id, this.tm);

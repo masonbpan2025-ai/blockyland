@@ -1,9 +1,21 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 // Geometry is in voxel coordinates, shared by world meshes and the held item.
 export function createBlockGeometry(id, textures) {
   const def = BLOCK_DEFS[id];
+  if (id === BLOCKS.FIRE) {
+    const planes=[new THREE.PlaneGeometry(.9,1),new THREE.PlaneGeometry(.9,1)];
+    planes[0].rotateY(Math.PI/4);planes[1].rotateY(-Math.PI/4);
+    for(const p of planes)p.translate(.5,.5,.5);
+    const geo=mergeGeometries(planes);planes.forEach(p=>p.dispose());
+    const tile=textures.getFaceUVs(id,'all'),uv=geo.attributes.uv;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,THREE.MathUtils.lerp(tile.u0,tile.u1,uv.getX(i)),THREE.MathUtils.lerp(tile.v0,tile.v1,uv.getY(i)));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(24).fill(1),3));
+    geo.setAttribute('emission',new THREE.Float32BufferAttribute(new Float32Array(8).fill(1),1));
+    geo.setAttribute('flame',new THREE.Float32BufferAttribute(new Float32Array(8).fill(1),1));return geo;
+  }
   const torch = def.shape === 'torch';
   const geo = new THREE.BoxGeometry(torch ? 2 / 16 : 1, torch ? 10 / 16 : 1, torch ? 2 / 16 : 1);
   geo.translate(0.5, torch ? 5 / 16 : 0.5, 0.5);
@@ -32,15 +44,19 @@ export function createBlockGeometry(id, textures) {
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('emission', new THREE.Float32BufferAttribute(emission, 1));
+  geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(24), 1));
   return geo;
 }
 
 export function enableBlockEmission(material) {
+  material.userData.animationTime = { value: 0 };
+  material.defaultAttributeValues = { ...(material.defaultAttributeValues || {}), flame: [0] };
   material.onBeforeCompile = shader => {
-    shader.vertexShader = 'attribute float emission; varying float vBlockEmission;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission;');
+    shader.uniforms.blockTime = material.userData.animationTime;
+    shader.vertexShader = 'attribute float emission; attribute float flame; uniform float blockTime; varying float vBlockEmission;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission; transformed.x += flame * sin(blockTime*8.0 + position.y*5.0 + position.z*3.0) * 0.045 * (0.3 + 0.7 * abs(normal.y));');
     shader.fragmentShader = 'varying float vBlockEmission;\n' + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight = max(outgoingLight, diffuseColor.rgb * vBlockEmission);\n#include <opaque_fragment>');
   };
-  material.customProgramCacheKey = () => 'voxel-emission-v1';
+  material.customProgramCacheKey = () => 'voxel-emission-v2';
 }

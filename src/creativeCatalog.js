@@ -17,9 +17,9 @@ export const CREATIVE_TABS = [
 function blockItem(blockId, tab, customName = null) {
   const def = BLOCK_DEFS[blockId];
   if (!def) return null;
-  const icon = def.textures
+  const icon = def.icon || (def.textures
     ? `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top || 'dirt.png'}`
-    : '/assets/blocks/dirt.png';
+    : '/assets/blocks/dirt.png');
   const name = customName || def.name;
   return {
     id: blockId,

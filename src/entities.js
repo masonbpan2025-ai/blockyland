@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyHeat } from './heat.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
 import { createBlockGeometry } from './blockGeometry.js';
@@ -11,6 +12,7 @@ export class EntityManager {
     this.sounds = sounds;
     this.textures = textures;
     this.itemVisuals = new ItemVisuals(textures);
+    if(world.lava)world.lava.onIgniteTNT=(x,y,z)=>this.spawnPrimedTNT(new THREE.Vector3(x,y,z));
     this.blastLight = new THREE.PointLight(0xffb351, 0, 16, 1);
     this.scene.add(this.blastLight);
     this.blastLife = 0;
@@ -189,6 +191,11 @@ export class EntityManager {
     }
   }
 
+  updateHeat(dt,player) {
+    if(!player?.position)return;
+    applyHeat(this.world,player,player.position,dt,n=>player.takeDamage?.(n));
+  }
+
   spawnSmoke(pos, size = 0.5, life = 1.8) {
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1),
       new THREE.MeshLambertMaterial({ color: 0x77716b, transparent: true, opacity: 0.6, depthWrite: false }));
@@ -242,10 +249,13 @@ export class EntityManager {
     dt = Math.min(dt, 0.1);
     this.blastLife = Math.max(0, this.blastLife - dt);
     this.blastLight.intensity = 12 * (this.blastLife / 0.3) ** 2;
+    this.updateHeat(dt,player);
     // 1. Update Dropped Items
     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
       const item = this.droppedItems[i];
       item.age += dt;
+      const contact=this.world.getVoxel(Math.floor(item.group.position.x),Math.floor(item.group.position.y),Math.floor(item.group.position.z));
+      if(contact===BLOCKS.LAVA||contact===BLOCKS.FIRE){this.itemVisuals.release(item.group);this.droppedItems.splice(i,1);continue;}
 
       // Small steps keep loot from tunneling through the ground or a wall.
       const steps = Math.max(1, Math.ceil(dt / 0.016));

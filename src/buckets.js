@@ -17,7 +17,7 @@ export function traceBucket(world, origin, direction, empty, reach=5.2) {
   while(distance<=reach) {
     const id=world.getVoxel(cell.x,cell.y,cell.z);
     const source=id===BLOCKS.WATER && world.getWaterLevel(cell.x,cell.y,cell.z)===0;
-    if ((empty && (source||id===BLOCKS.LAVA)) || (id!==BLOCKS.AIR && id!==BLOCKS.WATER && id!==BLOCKS.LAVA)) return {...cell,normal:{...normal},blockId:id};
+    if ((empty && (source||(id===BLOCKS.LAVA&&world.getLavaLevel(cell.x,cell.y,cell.z)===0))) || (id!==BLOCKS.AIR && id!==BLOCKS.WATER && id!==BLOCKS.LAVA)) return {...cell,normal:{...normal},blockId:id};
     const axis=next.x<next.y?(next.x<next.z?'x':'z'):(next.y<next.z?'y':'z');
     if(!Number.isFinite(next[axis])) break;
     cell[axis]+=step[axis]; distance=next[axis]; next[axis]+=delta[axis];
@@ -34,7 +34,7 @@ export function useBucket(world, inventory, mode, hit, overflow=()=>{}) {
   if(active.id==='bucket') {
     const id=world.getVoxel(x,y,z);
     if(id===BLOCKS.WATER && world.getWaterLevel(x,y,z)===0) replacement='water_bucket';
-    else if(id===BLOCKS.LAVA) replacement='lava_bucket';
+    else if(id===BLOCKS.LAVA && world.getLavaLevel(x,y,z)===0) replacement='lava_bucket';
     else return false;
     world.setVoxel(x,y,z,BLOCKS.AIR);
   } else {
@@ -48,7 +48,7 @@ export function useBucket(world, inventory, mode, hit, overflow=()=>{}) {
     if(!waterReplaceable(target) && !(target===BLOCKS.LAVA && liquid===BLOCKS.WATER)) return false;
     if(target===liquid && (liquid!==BLOCKS.WATER || world.getWaterLevel(x,y,z)===0)) return false;
     if(target!==BLOCKS.AIR && target!==BLOCKS.WATER && target!==BLOCKS.LAVA) world.water?.onDisplace?.(x,y,z,target);
-    world.setVoxel(x,y,z,target===BLOCKS.LAVA?BLOCKS.OBSIDIAN:liquid);
+    world.setVoxel(x,y,z,target===BLOCKS.LAVA?(world.getLavaLevel(x,y,z)===0?BLOCKS.OBSIDIAN:BLOCKS.COBBLESTONE):target===BLOCKS.WATER&&liquid===BLOCKS.LAVA?BLOCKS.STONE:liquid);
     replacement='bucket';
   }
   if(mode!=='creative') {

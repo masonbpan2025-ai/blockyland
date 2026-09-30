@@ -36,3 +36,13 @@ export function waterCurrent(world,x,y,z) {
   const length=Math.hypot(vx,vz)||1;
   return {x:vx/length,y:level===8?-1:0,z:vz/length};
 }
+
+export function lavaCornerHeight(world,x,y,z){
+  let sum=0,weights=0;
+  for(let dx=-1;dx<=0;dx++)for(let dz=-1;dz<=0;dz++){
+    const id=world.getVoxel(x+dx,y,z+dz);
+    if(id===BLOCKS.LAVA){if(world.getVoxel(x+dx,y+1,z+dz)===BLOCKS.LAVA)return 1;const level=world.getLavaLevel(x+dx,y,z+dz),height=level===8?1:(8-level)/9,weight=height>=8/9?10:1;sum+=height*weight;weights+=weight;}
+    else if(id===BLOCKS.AIR)weights++;
+  }
+  return weights?sum/weights:0;
+}

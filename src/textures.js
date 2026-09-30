@@ -85,6 +85,14 @@ export class TextureManager {
   }
 
   update(dt, sunLight, skyColor, fog) {
+    for(const material of [this.opaqueMaterial,this.transparentMaterial,this.lightMaterial])if(material?.userData.animationTime)material.userData.animationTime.value+=dt;
+    this.lavaClock=(this.lavaClock||0)+dt;
+    if(this.lavaImage && this.lavaClock>.12){
+      this.lavaClock=0;const image=this.lavaImage,frames=Math.floor(image.height/image.width);
+      this.lavaFrame=((this.lavaFrame||0)+1)%frames;
+      const tile=this.tileCoords['lava_still.png'];
+      this.ctx.drawImage(image,0,this.lavaFrame*image.width,image.width,image.width,tile.col*this.tileSize,tile.row*this.tileSize,this.tileSize,this.tileSize);this.atlasTexture.needsUpdate=true;
+    }
     if (this.waterUniforms) {
       this.waterUniforms.uTime.value += dt;
 
@@ -124,6 +132,7 @@ export class TextureManager {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
+        if(fileName==='lava_still.png')this.lavaImage=img;
         // If image is a vertical animation strip (e.g. water_still 16x512, lava_still 16x320),
         // take only the first square frame (0, 0, img.width, img.width) to avoid squashing 32 frames!
         const srcHeight = Math.min(img.width, img.height);

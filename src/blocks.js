@@ -57,10 +57,12 @@ export const BLOCKS = {
   ENCHANTING_TABLE: 53,
   ANVIL: 54,
   LIT_FURNACE: 55,
-  SOUL_TORCH: 56
+  SOUL_TORCH: 56,
+  FIRE: 57
 };
 
 export const BLOCK_DEFS = {
+  [BLOCKS.FIRE]: { name: 'Fire', transparent: true, solid: false, plant: true, light: 15, lightColor: 0xff8b28, drop: null, hardness: 0, textures: { all: 'fire.svg' } },
   [BLOCKS.AIR]: {
     name: 'Air',
     transparent: true,
@@ -177,6 +179,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.WATER]: {
     name: 'Water',
+    icon: '/assets/blocks/water_icon.svg',
     hardness: 100,
     sound: 'water',
     transparent: true,
@@ -189,6 +192,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.LAVA]: {
     name: 'Lava',
+    icon: '/assets/blocks/lava_icon.svg',
     lightColor: 0xff7024,
     hardness: 100,
     sound: 'stone',
