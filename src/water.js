@@ -8,6 +8,7 @@ export const WATER_COLORS = Object.fromEntries(Object.entries({
 export function createWaterMaterial() {
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, THREE.UniformsLib.lights, {
     uTime: { value: 0 },
+    uEnhanced: { value: 1 },
     uSunDirection: { value: new THREE.Vector3(0, 1, 0) },
     uSunColor: { value: new THREE.Color('#fff5db') },
     uSunIntensity: { value: 0.85 },
@@ -44,7 +45,7 @@ export function createWaterMaterial() {
     `,
     fragmentShader: `
       varying vec2 vFlow;
-      uniform float uTime, uSunIntensity, uIsUnderwater;
+      uniform float uTime, uSunIntensity, uIsUnderwater, uEnhanced;
       uniform vec3 uSunDirection, uSunColor, uSkyColor, uHorizonColor;
       varying vec3 vWorldPos, vWorldNormal, vTint;
       varying float vDepth;
@@ -67,6 +68,12 @@ export function createWaterMaterial() {
              + noise(p * 4.2 + drift * 0.8) * 0.15;
       }
       void main() {
+        if(uEnhanced < .5){
+          gl_FragColor=vec4(vTint*(.35+min(uSunIntensity,1.0)*.45),.68);
+          #include <colorspace_fragment>
+          #include <fog_fragment>
+          return;
+        }
         vec3 viewDir = normalize(cameraPosition - vWorldPos);
         vec3 normal = normalize(vWorldNormal);
         bool surface = abs(normal.y) > 0.5;
@@ -98,7 +105,9 @@ export function createWaterMaterial() {
 
         vec3 reflected = reflect(-viewDir, normal);
         vec3 reflection = mix(uHorizonColor, uSkyColor * 0.7, clamp(reflected.y, 0.0, 1.0));
-        vec3 result = mix(water, reflection, fresnel * 0.68);
+        float reflectedCloud=noise(reflected.xz/max(abs(reflected.y),.18)*3.0+vec2(uTime*.008));
+        reflection=mix(reflection,uHorizonColor*1.12,smoothstep(.56,.8,reflectedCloud)*.25*daylight);
+        vec3 result = mix(water, reflection, fresnel * 0.78);
         vec3 halfDirection = normalize(normalize(uSunDirection) + viewDir);
         float specular = pow(max(dot(normal, halfDirection),0.0), 180.0);
         result += uSunColor * specular * uSunIntensity * 0.5 * detail * sunShadow;

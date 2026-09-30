@@ -38,6 +38,7 @@ export class ChunkMesher {
     const opNorm = [];
     const opUv = [];
     const opCol = [];
+    const opWind = [];
     const opIdx = [];
     let opVertCount = 0;
 
@@ -46,6 +47,7 @@ export class ChunkMesher {
     const trNorm = [];
     const trUv = [];
     const trCol = [];
+    const trWind = [];
     const trIdx = [];
     let trVertCount = 0;
 
@@ -144,6 +146,7 @@ export class ChunkMesher {
               trNorm.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
               trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
               trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+              trWind.push(0,0,1,1);
               trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
               trVertCount += 4;
             };
@@ -242,6 +245,8 @@ export class ChunkMesher {
               vCount = trVertCount;
             }
 
+            // Wind moves foliage only; terrain and buildings stay fixed.
+            if(!isWater)(isTransparent?trWind:opWind).push(...new Array(4).fill(blockId===BLOCKS.OAK_LEAVES?1:0));
             // Push Positions
             for (let i = 0; i < 4; i++) {
               tPos.push(positions[i][0], positions[i][1], positions[i][2]);
@@ -349,7 +354,7 @@ export class ChunkMesher {
     }
 
     // Helper to create Three.js BufferGeometry
-    const createGeo = (pos, norm, uv, col, idx) => {
+    const createGeo = (pos, norm, uv, col, idx, wind = null) => {
       if (pos.length === 0) return null;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -357,6 +362,7 @@ export class ChunkMesher {
       geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
       geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
       geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
+      if(wind)geo.setAttribute('wind',new THREE.Float32BufferAttribute(wind,1));
       geo.setIndex(idx);
       geo.computeBoundingSphere();
       return geo;
@@ -372,8 +378,8 @@ export class ChunkMesher {
     for (const geometry of lightGeometries) geometry.dispose();
     return {
       lightGeo,
-      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx),
-      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx),
+      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx, opWind),
+      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx, trWind),
       waterGeo
     };
   }

@@ -13,6 +13,7 @@ export class Sky {
       uSun: { value: this.sunDirection },
       uHorizon: { value: this.horizonColor },
       uDay: { value: 1 },
+      uEnhanced: { value: 1 },
       uTwilight: { value: 0 },
       uRain: { value: 0 },
       uFlash: { value: 0 },
@@ -35,7 +36,7 @@ export class Sky {
         precision highp float;
         varying vec3 vDirection;
         uniform vec3 uSun, uHorizon, uEye;
-        uniform float uDay, uTwilight, uRain, uFlash, uTime;
+        uniform float uDay, uTwilight, uRain, uFlash, uTime, uEnhanced;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -66,6 +67,15 @@ export class Sky {
           float facingSun = max(dot(ray, uSun), 0.0);
           vec3 zenith = mix(vec3(0.002, 0.005, 0.018), vec3(0.055, 0.24, 0.52), uDay);
           vec3 sky = mix(uHorizon, zenith, pow(elevation, 0.48));
+          if(uEnhanced < 0.5){
+            sky=mix(uHorizon,vec3(.19,.43,.70)*uDay,pow(elevation,.6));
+            float sunDisc=1.0-smoothstep(.014,.019,length(ray-uSun));
+            float moonDisc=1.0-smoothstep(.017,.021,length(ray+uSun));
+            sky=mix(sky,vec3(1.0,.85,.35),sunDisc*(1.0-uRain));sky=mix(sky,vec3(.72,.78,.9),moonDisc*(1.0-uDay));
+            gl_FragColor=vec4(sky,1.0);
+            #include <colorspace_fragment>
+            return;
+          }
           float horizonGlow = exp(-elevation * 7.0) * pow(facingSun, 5.0) * uTwilight;
           sky += vec3(0.5, 0.13, 0.035) * horizonGlow;
           sky = mix(sky, vec3(0.055, 0.065, 0.085) * (0.2 + uDay * 0.8), uRain * 0.82);

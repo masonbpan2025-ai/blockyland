@@ -52,13 +52,15 @@ export function createBlockGeometry(id, textures, state = {}) {
 
 export function enableBlockEmission(material) {
   material.userData.animationTime = { value: 0 };
-  material.defaultAttributeValues = { ...(material.defaultAttributeValues || {}), flame: [0] };
+  material.userData.windStrength = { value: 0 };
+  material.defaultAttributeValues = { ...(material.defaultAttributeValues || {}), flame: [0], wind: [0] };
   material.onBeforeCompile = shader => {
     shader.uniforms.blockTime = material.userData.animationTime;
-    shader.vertexShader = 'attribute float emission; attribute float flame; uniform float blockTime; varying float vBlockEmission;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission; transformed.x += flame * sin(blockTime*8.0 + position.y*5.0 + position.z*3.0) * 0.045 * (0.3 + 0.7 * abs(normal.y));');
+    shader.uniforms.windStrength = material.userData.windStrength;
+    shader.vertexShader = 'attribute float wind; uniform float windStrength; attribute float emission; attribute float flame; uniform float blockTime; varying float vBlockEmission;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission; transformed.x += wind * windStrength * (sin(blockTime*1.5+position.x*.65+position.z*.4)*.075); transformed.z += wind * windStrength * sin(blockTime*1.1+position.x*.4)*.04; transformed.x += flame * sin(blockTime*8.0 + position.y*5.0 + position.z*3.0) * 0.045 * (0.3 + 0.7 * abs(normal.y));');
     shader.fragmentShader = 'varying float vBlockEmission;\n' + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight = max(outgoingLight, diffuseColor.rgb * vBlockEmission);\n#include <opaque_fragment>');
   };
-  material.customProgramCacheKey = () => 'voxel-emission-v2';
+  material.customProgramCacheKey = () => 'voxel-emission-wind-v3';
 }
