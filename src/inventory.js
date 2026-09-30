@@ -43,9 +43,9 @@ export class Inventory {
     if (!item) return null;
     if (item.isBlock) {
       const def = BLOCK_DEFS[item.id];
-      const icon = def && def.textures
+      const icon = def?.icon || (def && def.textures
         ? `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top || 'dirt.png'}`
-        : '/assets/blocks/dirt.png';
+        : '/assets/blocks/dirt.png');
       return {
         id: item.id,
         name: def ? def.name : 'Block',

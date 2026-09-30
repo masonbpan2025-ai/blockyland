@@ -1,4 +1,5 @@
 import { BLOCKS } from './blocks.js';
+import { LavaSimulation } from './lavaSimulation.js';
 import { WaterSimulation } from './waterSimulation.js';
 
 // Fast Simplex Noise 2D & 3D implementation
@@ -208,6 +209,7 @@ export class World {
     this.chunks = new Map(); // key -> Chunk
     this.seaLevel = 22;
     this.water = new WaterSimulation(this);
+    this.lava = new LavaSimulation(this);
   }
 
   reseed(seed = 4289) {
@@ -455,6 +457,12 @@ export class World {
     return chunk.getVoxel(lx, wy, lz);
   }
 
+  getLavaLevel(wx, wy, wz) {
+    if (this.getVoxel(wx, wy, wz) !== BLOCKS.LAVA) return -1;
+    const chunk = this.getChunk(Math.floor(wx/16), Math.floor(wz/16));
+    return chunk.waterLevels[chunk.getIndex(((wx%16)+16)%16,wy,((wz%16)+16)%16)];
+  }
+
   getWaterLevel(wx, wy, wz) {
     if (this.getVoxel(wx, wy, wz) !== BLOCKS.WATER) return -1;
     const chunk = this.getChunk(Math.floor(wx / 16), Math.floor(wz / 16));
@@ -469,12 +477,13 @@ export class World {
 
     const lx = ((wx % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((wz % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
-    const level = blockId === BLOCKS.WATER ? Math.max(0, Math.min(8, waterLevel)) : 0;
+    const level = (blockId === BLOCKS.WATER || blockId === BLOCKS.LAVA) ? Math.max(0, Math.min(8, waterLevel)) : 0;
     const index = chunk.getIndex(lx, wy, lz);
     if (chunk.voxels[index] === blockId && chunk.waterLevels[index] === level) return;
     chunk.setVoxel(lx, wy, lz, blockId);
     chunk.waterLevels[index] = level;
     this.water.notify(wx, wy, wz, !fluidUpdate);
+    this.lava.notify(wx, wy, wz, !fluidUpdate);
 
     // If voxel is at border of chunk, mark neighbor chunks dirty too
     if (lx === 0) {

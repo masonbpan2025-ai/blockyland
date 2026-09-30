@@ -8,7 +8,7 @@ const key = (x,y,z) => `${x},${y},${z}`;
 
 export function waterReplaceable(id) {
   const def = BLOCK_DEFS[id];
-  return id === BLOCKS.AIR || id === BLOCKS.WATER || !!def?.plant || def?.shape === 'torch';
+  return id === BLOCKS.AIR || id === BLOCKS.FIRE || id === BLOCKS.WATER || !!def?.plant || def?.shape === 'torch';
 }
 
 export class WaterSimulation {
@@ -19,7 +19,7 @@ export class WaterSimulation {
     this.routes = new Map();
   }
 
-  reset() { this.pending.clear(); this.routes.clear(); this.time = 0; }
+  reset() { if(this!==this.world.lava)this.world.lava?.reset(); this.pending.clear(); this.routes.clear(); this.time = 0; }
 
   loaded(x,y,z) { return y >= 0 && y < 64 && !!this.world.getChunk(Math.floor(x / 16), Math.floor(z / 16)); }
   level(x,y,z) { return this.world.getWaterLevel(x,y,z); }
@@ -39,6 +39,7 @@ export class WaterSimulation {
   }
 
   initChunk(chunk) {
+    this.world.lava?.initChunk(chunk);
     // Old maps and generated oceans have zero metadata, meaning source water.
     // Wake exposed water, not every interior voxel of a large ocean.
     for (let y=0;y<64;y++) for(let z=0;z<16;z++) for(let x=0;x<16;x++) {
@@ -95,6 +96,7 @@ export class WaterSimulation {
   }
 
   update(dt) {
+    this.world.lava?.update(dt);
     this.time=Math.min(this.time+Math.max(0,dt),1);
     let ticks=0, changes=0;
     while(this.time>=WATER_TICK && ticks++<2) { this.time-=WATER_TICK; changes+=this.tick(); }
@@ -113,8 +115,8 @@ export class WaterSimulation {
     // independent of insertion order and render frame rate.
     for(const [x,y,z] of batch) {
       const block=this.world.getVoxel(x,y,z);
-      if(block===BLOCKS.LAVA && NEIGHBORS.slice(1).some(([dx,dy,dz])=>this.level(x+dx,y+dy,z+dz)>=0)) {
-        changes.push([x,y,z,-1,BLOCKS.OBSIDIAN]); continue;
+      if(block===BLOCKS.LAVA && this.world.lava?.touchesWater(x,y,z)) {
+        changes.push([x,y,z,-1,this.world.getLavaLevel(x,y,z)===0?BLOCKS.OBSIDIAN:BLOCKS.COBBLESTONE]); continue;
       }
       if(!this.passable(x,y,z)) continue;
       const level=this.desired(x,y,z);
