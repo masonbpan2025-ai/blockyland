@@ -13,6 +13,12 @@ import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
 import { encodeScreenshotDataUrl } from './agentProviders.js';
+import {
+  DEFAULT_BATCH_SIZE,
+  ProgressOverlay,
+  loadChunksProgressively,
+  yieldToBrowser
+} from './progressOverlay.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { getBlockDrop } from './itemVisuals.js';
@@ -28,6 +34,7 @@ import { TournamentManager } from './tournament.js';
 import { DragonballSkillsManager } from './dragonballSkills.js';
 import { TrainingSitesManager } from './trainingSites.js';
 import { DungeonModeManager } from './dungeonMode.js';
+import { WorldMechanismManager } from './worldMechanisms.js';
 
 
 class Game {
@@ -111,6 +118,7 @@ class Game {
 
   async start() {
     console.log('Initializing Minecraft Web Edition...');
+    this.overlay = new ProgressOverlay(document);
 
     // 1. Initialize Texture Atlas & Materials
     await this.textures.init();
@@ -150,22 +158,103 @@ class Game {
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
 
+    // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
+    this.worldType = 'generated';
+    this.mechanisms = new WorldMechanismManager(this);
+
     // 6. Build Target Highlighting Box & Break Crack Mesh
     this.buildTargetHighlightMeshes();
 
-    // 7. Generate Initial Chunks around spawn (0, 0)
-    this.loadChunksAroundPlayer();
+    // 7. Initial World State: World is NOT generated until user clicks Generate New World or loads a world
+    this.worldGenerated = false;
 
-    // 8. Spawn Initial Mobs in the Village!
-    this.spawnVillageMobs();
-
-    // 9. Bind Mouse Interaction & Click-to-play
+    // 8. Bind Mouse Interaction & Click-to-play
     this.bindEvents();
 
-    // 10. Start Animation Loop
+    // 9. Start Animation Loop
     this.animate();
 
     console.log('Minecraft Web Edition Loaded Successfully!');
+  }
+
+  async generateNewWorld() {
+    if (this.worldGenerated) return;
+    this.worldGenerated = true;
+    this.worldType = 'generated';
+    if (this.mechanisms) {
+      this.mechanisms.setMechanism('default', this);
+    } else {
+      if (this.tournament) {
+        this.tournament.isTournamentMap = false;
+        this.tournament.cleanup?.();
+        this.tournament.reset?.();
+      }
+      if (this.trainingSites) {
+        this.trainingSites.cleanup?.();
+        this.trainingSites.reset?.();
+      }
+      if (this.dungeonMode) {
+        this.dungeonMode.reset?.();
+      }
+    }
+    await this.loadWorldProgressively();
+    this.spawnVillageMobs();
+    if (this.ui) {
+      this.ui.updateHotbar();
+      this.ui.updateHealthBar(this.player.health, this.player.maxHealth);
+      this.ui.updateHungerBar(this.player.hunger, 20);
+    }
+  }
+
+  /**
+   * Build the initial chunks with a visible progress bar.
+   *
+   * This is the fix for the frozen start screen: the synchronous version of this
+   * work could not repaint, because the whole job ran in one task. The overlay is
+   * shown first, revealed to the browser with one yield, and the chunk work is
+   * then done in batches with a yield between each so the bar actually moves.
+   */
+  async loadWorldProgressively(options = {}) {
+    if (!this.overlay) {
+      // No overlay available: fall back to the original synchronous behaviour.
+      this.loadChunksAroundPlayer();
+      return { chunks: this.world.chunks.size };
+    }
+
+    this.overlay.show(options.title || 'Generating World');
+    // Let the browser paint the overlay before any heavy synchronous work.
+    await yieldToBrowser();
+
+    return loadChunksProgressively(this, {
+      overlay: this.overlay,
+      batchSize: options.batchSize || DEFAULT_BATCH_SIZE,
+      label: options.label || 'Generating terrain',
+      chunkSizeX: CHUNK_SIZE_X,
+      chunkSizeZ: CHUNK_SIZE_Z
+    });
+  }
+
+  /**
+   * Wrap a synchronous map load so the user sees progress.
+   *
+   * deserializeWorld must stay synchronous (its callers and tests depend on it),
+   * so the overlay is shown and painted first, then updated between the phases
+   * that function reports through its progress callback.
+   */
+  async loadMapWithProgress(work, options = {}) {
+    if (!this.overlay) return work();
+
+    this.overlay.show(options.title || 'Loading Map');
+    // One yield so the overlay is on screen before the blocking work starts.
+    await yieldToBrowser();
+
+    const onProgress = (percent, stage) => this.overlay.set(percent, stage);
+    const result = await work(onProgress);
+
+    this.overlay.set(100, 'Map loaded');
+    await yieldToBrowser();
+    this.overlay.hide();
+    return result;
   }
 
   buildTargetHighlightMeshes() {
@@ -287,52 +376,59 @@ class Game {
     // Start Overlay Action Buttons
     const startOverlay = document.getElementById('start-overlay');
     const btnNewWorld = document.getElementById('btn-start-new-world');
+    const btnDesignedWorld = document.getElementById('btn-start-designed-world');
     const btnLoadWorld = document.getElementById('btn-start-load-world');
 
     if (btnNewWorld) {
-      btnNewWorld.addEventListener('click', (e) => {
+      btnNewWorld.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (startOverlay) startOverlay.style.display = 'none';
+        if (this._worldStartInFlight) return;
+        this._worldStartInFlight = true;
         this.sounds.init();
-        if (this.tournament) {
-          this.tournament.isTournamentMap = false;
-          this.tournament.cleanup?.();
-          this.tournament.reset?.();
+        btnNewWorld.disabled = true;
+        try {
+          // Await so the start screen stays up (with the progress bar) until the
+          // terrain and meshes are actually ready, then hand over the pointer.
+          await this.generateNewWorld();
+          if (startOverlay) startOverlay.style.display = 'none';
+          this.renderer.domElement.requestPointerLock();
+        } finally {
+          btnNewWorld.disabled = false;
+          this._worldStartInFlight = false;
         }
-        if (this.trainingSites) {
-          this.trainingSites.cleanup?.();
-          this.trainingSites.reset?.();
+      });
+    }
+
+    if (btnDesignedWorld) {
+      btnDesignedWorld.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.sounds.init();
+        if (this.ui) {
+          this.ui.openDesignedWorldsModal();
         }
-        if (this.dungeonMode) {
-          this.dungeonMode.reset?.();
-        }
-        this.renderer.domElement.requestPointerLock();
       });
     }
 
     if (btnLoadWorld) {
       btnLoadWorld.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (startOverlay) startOverlay.style.display = 'none';
         this.sounds.init();
         if (this.ui) {
-          this.ui.closeAllModals();
-          if (this.ui.mapModal) {
-            this.ui.mapModal.classList.remove('hidden');
-            this.ui.switchMapTab('load');
-          }
+          this.ui.openMapModal('load');
         }
       });
     }
 
     this.renderer.domElement.addEventListener('click', () => {
-      if (!this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
+      if (this.player?.isDead) return;
+      if (this.worldGenerated && !this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
         this.renderer.domElement.requestPointerLock();
       }
     });
 
     // Mouse Down (Left click mine/attack, Right click place/interact)
     window.addEventListener('mousedown', (e) => {
+      if (this.player?.isDead) return;
       if (this.dungeonMode?.isActive) {
         if (e.button === 0 && !this.ui.isModalOpen() && !this.ui.isChatOpen) {
           this.player.triggerPunch();
@@ -836,7 +932,19 @@ class Game {
       this.ui.addChatMessage('/time set <day|night> - Change world time', 'help');
       this.ui.addChatMessage('/summon <villager|iron_golem|pillager|zombie|pig|cow|sheep|creeper|skeleton> - Spawn mob', 'help');
       this.ui.addChatMessage('/give <item_name> [amount] - Add items to inventory', 'help');
+      this.ui.addChatMessage('/offline - Toggle the World Agent between API and offline presets', 'help');
       this.ui.addChatMessage('/clear - Clear chat', 'help');
+    } else if (root === '/offline') {
+      const agent = this.geminiAgent;
+      const nowOffline = !agent.offlineMode;
+      agent.setOfflineMode(nowOffline);
+      this.ui.addChatMessage(
+        nowOffline
+          ? `World Agent offline mode ON (${agent.vendorLabel} key kept). Type /offline again to re-enable the API.`
+          : `World Agent offline mode OFF.${agent.apiKey ? '' : ' No API key is saved yet, so the terminal still runs offline.'}`,
+        'system'
+      );
+      this.ui.openAgentSettings();
     } else if (root === '/save') {
       const now = new Date();
       const defaultName = `World_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -854,7 +962,9 @@ class Game {
       } else {
         const filename = name.endsWith('.json') ? name : `${name}.json`;
         this.ui.addChatMessage(`Loading map "${filename}"...`, 'system');
-        loadMapFromDefault(this, filename).then(res => {
+        this.loadMapWithProgress(progress => loadMapFromDefault(this, filename, { progress }), {
+          title: 'Loading Map'
+        }).then(res => {
           this.ui.addChatMessage(`Map "${res.name}" loaded successfully!`, 'system');
         }).catch(err => {
           this.ui.addChatMessage(`Load failed: ${err.message}`, 'error');
@@ -971,6 +1081,13 @@ class Game {
   animate() {
     requestAnimationFrame(() => this.animate());
 
+    if (!this.worldGenerated) {
+      this.clock.getDelta();
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
     const dt = this.clock.getDelta();
     const fps = 1.0 / Math.max(0.0001, dt);
 
@@ -993,17 +1110,20 @@ class Game {
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);
 
-    // 5b. Update World Martial Arts Tournament & Dragon Ball Skills
-    if (this.tournament) {
+    // 5b. Update World Mechanism System & Active World Mechanics
+    if (this.mechanisms) {
+      this.mechanisms.update(dt, this.player);
+    }
+    if (this.tournament && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasTournamentAnnouncer') : this.tournament.isTournamentMap)) {
       this.tournament.update(dt, this.player);
     }
-    if (this.dragonballSkills) {
+    if (this.dragonballSkills && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasDragonBallSkills') : this.dragonballSkills.enabled)) {
       this.dragonballSkills.update(dt);
     }
-    if (this.trainingSites) {
+    if (this.trainingSites && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasTrainingSites') : this.tournament?.isTournamentMap)) {
       this.trainingSites.update(dt, this.player);
     }
-    if (this.dungeonMode) {
+    if (this.dungeonMode && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasDungeonCombatMode') : this.tournament?.isTournamentMap)) {
       this.dungeonMode.update(dt);
     }
 

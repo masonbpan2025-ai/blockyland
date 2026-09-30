@@ -15,9 +15,29 @@
 
   <!-- Boss Health Bar -->
   <div id="boss-bar-container" class="hidden">
-    <div class="boss-bar-title" id="boss-bar-name">World Martial Arts Challenger: The Enderman</div>
+    <div class="boss-bar-title" id="boss-bar-name">World Martial Arts Challenger: Jackie Chun</div>
     <div class="boss-bar-frame">
       <div class="boss-bar-fill" id="boss-bar-fill" style="width: 100%;"></div>
+    </div>
+  </div>
+
+  <!-- Player 2 (Jackie Chun) HUD for Two-Player Mode -->
+  <div id="player2-hud" class="hidden">
+    <div class="p2-card">
+      <div class="p2-header-row">
+        <span class="p2-badge">🎮 PLAYER 2</span>
+        <span class="p2-name">Jackie Chun</span>
+      </div>
+      <div class="p2-health-frame">
+        <div id="p2-health-bar" class="p2-health-fill" style="width: 100%;"></div>
+      </div>
+      <div class="p2-stats-row">
+        <span id="p2-hp-text">HP: 100/100</span>
+        <span id="p2-teleport-badge" class="p2-badge-ready">TELEPORT [Backspace]: READY</span>
+      </div>
+      <div class="p2-controls-hint">
+        [↑↓←→] Move &bull; [\] Punch &bull; [Enter] Kamehameha &bull; [Backspace] Teleport
+      </div>
     </div>
   </div>
 
@@ -84,6 +104,17 @@
       <div class="champion-subtitle">Tenkaichi Budokai Victor</div>
       <div class="champion-quote" id="champion-quote">"LADIES AND GENTLEMEN, WE HAVE A NEW WORLD CHAMPION!"</div>
       <div class="champion-firework-text">🎆 CELEBRATORY FIREWORKS IN THE SKY 🎆</div>
+      <button type="button" class="mc-btn mc-btn-large" id="btn-close-champion" style="margin-top: 18px; pointer-events: auto;">Return to Normal Arena</button>
+    </div>
+  </div>
+
+  <!-- World Martial Arts Tournament Defeat Overlay -->
+  <div id="defeat-overlay" class="hidden">
+    <div class="defeat-content">
+      <div class="defeat-icon">⚔️</div>
+      <h1 class="defeat-title">MATCH DEFEAT</h1>
+      <div class="defeat-message" id="defeat-message">You lost, please try again.</div>
+      <button type="button" class="mc-btn mc-btn-large mc-btn-red" id="btn-defeat-retry" style="margin-top: 18px; pointer-events: auto;">Try Again</button>
     </div>
   </div>
 
@@ -271,13 +302,108 @@
       <button class="mc-btn" id="btn-spawn-pillager">Spawn Pillager</button>
       <button class="mc-btn" id="btn-distance">Render Distance: 4 Chunks</button>
       <button class="mc-btn" id="btn-reset">Regenerate World</button>
+      <button class="mc-btn mc-btn-red" id="btn-title-screen">Back to Main</button>
+    </div>
+  </div>
+
+  <!-- World Martial Arts Tournament Match Setup Modal -->
+  <div id="tournament-setup-modal" class="game-modal hidden">
+    <div class="tournament-modal-card">
+      <div class="tournament-modal-header">
+        <div class="tournament-crest-badge">武</div>
+        <div class="mc-title">World Martial Arts Tournament</div>
+        <div class="tournament-modal-subtitle">Challenger: The Mysterious Jackie Chun</div>
+      </div>
+
+      <div class="tournament-section">
+        <label class="tournament-section-title">Select Match Mode:</label>
+        <div class="tournament-btn-group" id="tournament-mode-group">
+          <button type="button" class="tournament-opt-btn active" id="btn-mode-1p" data-mode="1p">
+            <span class="opt-icon">👤</span>
+            <div class="opt-text">
+              <span class="opt-name">1 Player</span>
+              <span class="opt-desc">Player (Goku) vs Jackie Chun AI</span>
+            </div>
+          </button>
+          <button type="button" class="tournament-opt-btn" id="btn-mode-2p" data-mode="2p">
+            <span class="opt-icon">👥</span>
+            <div class="opt-text">
+              <span class="opt-name">2 Players</span>
+              <span class="opt-desc">Local 1v1: Player 1 vs Player 2</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="tournament-section">
+        <label class="tournament-section-title">Select Difficulty Level:</label>
+        <div class="tournament-btn-group" id="tournament-difficulty-group">
+          <button type="button" class="tournament-opt-btn" id="btn-diff-easy" data-diff="easy">
+            <div class="opt-text">
+              <span class="opt-name" style="color: #4ade80;">Easy</span>
+              <span class="opt-desc">60 HP &bull; Lower Damage &bull; Slower Jutsu</span>
+            </div>
+          </button>
+          <button type="button" class="tournament-opt-btn active" id="btn-diff-normal" data-diff="normal">
+            <div class="opt-text">
+              <span class="opt-name" style="color: #fbbf24;">Normal</span>
+              <span class="opt-desc">100 HP &bull; Standard Agility &bull; Regular Skills</span>
+            </div>
+          </button>
+          <button type="button" class="tournament-opt-btn" id="btn-diff-hard" data-diff="hard">
+            <div class="opt-text">
+              <span class="opt-name" style="color: #f87171;">Hard</span>
+              <span class="opt-desc">160 HP &bull; High Damage &bull; Frequent Jutsu</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls Explainer Banner -->
+      <div class="tournament-controls-card">
+        <div class="tournament-control-block">
+          <span class="control-tag tag-p1">PLAYER 1 (Goku)</span>
+          <span class="control-text">WASD: Move &bull; Space: Jump &bull; U: Punch &bull; J: Kamehameha &bull; K: Genki Dama &bull; N: Roll</span>
+        </div>
+        <div class="tournament-control-block" id="tournament-p2-hint">
+          <span class="control-tag tag-p2">PLAYER 2 (Jackie Chun)</span>
+          <span class="control-text">[↑↓←→]: Move &bull; [\]: Punch &bull; [Enter]: Kamehameha &bull; [Backspace]: Sudden Move</span>
+        </div>
+      </div>
+
+      <div class="map-modal-footer" style="margin-top: 14px;">
+        <button type="button" class="mc-btn mc-btn-large mc-btn-start-fight" id="btn-confirm-start-fight">Enter the Arena &amp; Fight!</button>
+        <button type="button" class="mc-btn" id="btn-close-tournament-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated Designed Worlds Modal Window -->
+  <div id="designed-worlds-modal" class="game-modal hidden">
+    <div class="map-modal-card">
+      <div class="mc-title">Designed Worlds</div>
+
+      <div class="map-saves-header">
+        <span>Available Designed Worlds:</span>
+        <span id="map-designed-count">1 world</span>
+      </div>
+
+      <div id="map-designed-list" class="map-saves-list" style="height: 280px;">
+        <div class="map-saves-loading">Loading designed worlds...</div>
+      </div>
+
+      <div id="map-designed-feedback" class="map-feedback hidden"></div>
+
+      <div class="map-modal-footer">
+        <button class="mc-btn" id="btn-close-designed-modal">Back</button>
+      </div>
     </div>
   </div>
 
   <!-- Map Manager Modal (Save & Load Worlds) -->
   <div id="map-modal" class="game-modal hidden">
     <div class="map-modal-card">
-      <div class="mc-title">World Maps & Saves</div>
+      <div class="mc-title">World Maps &amp; Saves</div>
 
       <!-- Default Path Indicator Banner -->
       <div class="map-path-banner">
@@ -295,8 +421,8 @@
 
       <!-- Navigation Tabs -->
       <div class="map-tabs-nav">
-        <button class="map-tab-btn active" id="tab-save-map">💾 Save Current Map</button>
-        <button class="map-tab-btn" id="tab-load-map">📂 Load Saved Map</button>
+        <button class="map-tab-btn active" id="tab-load-map">📂 Load Saved Map</button>
+        <button class="map-tab-btn" id="tab-save-map">💾 Save Current Map</button>
       </div>
 
       <!-- Tab 1: Save Current Map -->
@@ -408,6 +534,7 @@
           <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
           <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
           <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
+          <button type="button" class="gemini-btn-sm" id="gemini-offline-btn" title="Stop sending requests and use the built-in offline presets. Your key is kept.">Offline Mode</button>
         </div>
         <div class="gemini-view-row">
           <label class="gemini-check" for="gemini-view-toggle">
@@ -493,16 +620,32 @@
   <!-- Tooltip -->
   <div id="item-tooltip"></div>
 
+  <!-- World generation / map loading progress -->
+  <div id="world-progress-overlay" class="hidden" role="status" aria-live="polite">
+    <div class="world-progress-card">
+      <div class="world-progress-title" id="world-progress-title">Generating World</div>
+      <div class="world-progress-track">
+        <div class="world-progress-fill" id="world-progress-fill"></div>
+      </div>
+      <div class="world-progress-row">
+        <span class="world-progress-stage" id="world-progress-stage">Preparing…</span>
+        <span class="world-progress-percent" id="world-progress-percent">0%</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Start Overlay -->
   <div id="start-overlay">
     <div class="mc-logo">MINECRAFT</div>
     <div class="mc-subtitle">Browser WebGL Edition!</div>
     <div class="start-actions-row">
       <button class="mc-btn mc-btn-large" id="btn-start-new-world">Generate New World</button>
+      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
     </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/progressOverlay.js"></script>
 </body>
 </html>

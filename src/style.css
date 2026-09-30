@@ -17,7 +17,12 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #000;
+  background-color: #2b1f14;
+  background-image: 
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.85) 100%),
+    url('/assets/blocks/dirt.png');
+  background-repeat: repeat;
+  background-size: 64px 64px;
   font-family: 'Minecraft', monospace, sans-serif;
   color: #fff;
   image-rendering: pixelated;
@@ -717,12 +722,18 @@ html, body {
 
 /* Start / Title Screen Overlay */
 #start-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.85);
+  width: 100vw;
+  height: 100vh;
+  background-color: #2b1f14;
+  background-image: 
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.85) 100%),
+    url('/assets/blocks/dirt.png');
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  image-rendering: pixelated;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -778,6 +789,19 @@ html, body {
 
 .mc-btn-large:active {
   transform: translateY(1px);
+}
+
+.mc-btn-designed {
+  background: linear-gradient(180deg, #d97706 0%, #b45309 100%) !important;
+  border-color: #fde047 #78350f #78350f #fde047 !important;
+  color: #fffbeb !important;
+  text-shadow: 2px 2px 0 #78350f !important;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.45) !important;
+}
+
+.mc-btn-designed:hover {
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%) !important;
+  filter: brightness(1.15) !important;
 }
 
 /* Tooltip */
@@ -1016,6 +1040,16 @@ html, body {
 
 .gemini-btn-sm:hover {
   background: #4a6eb5;
+}
+
+.gemini-btn-sm.active {
+  background: #b45309;
+  border-color: #f59e0b;
+  color: #fff8e1;
+}
+
+.gemini-btn-sm.active:hover {
+  background: #d97706;
 }
 
 /* Vendor picker */
@@ -1454,13 +1488,14 @@ html, body {
 }
 
 /* ========================================================
-   Map Manager Modal (Save & Load Maps)
+   Map Manager Modal & Dedicated Designed Worlds Modal
    ======================================================== */
-#map-modal {
+#map-modal,
+#designed-worlds-modal {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 105;
+  z-index: 1050;
 }
 
 .map-modal-card {
@@ -1729,6 +1764,59 @@ html, body {
   text-transform: capitalize;
 }
 
+.map-card-mechanism {
+  background: #0f172a;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.map-card-desc {
+  font-size: 11px;
+  color: #cccccc;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.map-designed-header {
+  background: #25282a;
+  border: 2px solid #373737;
+  border-top-color: #1a1a1a;
+  border-left-color: #1a1a1a;
+  padding: 10px 12px;
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-designed-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.8px;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid #f59e0b;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.map-designed-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffff55;
+}
+
+.map-designed-desc {
+  font-size: 11px;
+  color: #aaaaaa;
+  line-height: 1.35;
+}
+
 .map-card-actions {
   display: flex;
   gap: 6px;
@@ -1921,10 +2009,70 @@ html, body {
 
 #champion-overlay.visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 #champion-overlay.hidden {
   display: none !important;
+}
+
+/* World Tournament Defeat Overlay */
+#defeat-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(30, 0, 0, 0.5) 0%, rgba(10, 0, 0, 0.85) 100%);
+  z-index: 2000;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+#defeat-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#defeat-overlay.hidden {
+  display: none !important;
+}
+
+.defeat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: rgba(24, 12, 16, 0.94);
+  border: 4px solid #ef4444;
+  border-radius: 12px;
+  padding: 36px 48px;
+  box-shadow: 0 0 50px rgba(239, 68, 68, 0.6), inset 0 0 30px rgba(239, 68, 68, 0.2);
+  animation: championEntrance 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+.defeat-icon {
+  font-size: 54px;
+  filter: drop-shadow(0 0 12px #ef4444);
+}
+
+.defeat-title {
+  color: #f87171;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin: 6px 0;
+  text-shadow: 2px 2px 0 #000, 0 0 16px #dc2626;
+}
+
+.defeat-message {
+  color: #ffffff;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 18px;
+  margin: 8px 0 12px 0;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .champion-content {
@@ -2304,7 +2452,359 @@ html, body {
   100% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
 }
 
+/* ============================================================
+   PLAYER 2 (JACKIE CHUN) HUD - TWO PLAYER LOCAL PVP MODE
+   ============================================================ */
+#player2-hud {
+  position: fixed;
+  top: 18px;
+  right: 24px;
+  z-index: 1000;
+  pointer-events: none;
+  animation: dropIn 0.35s ease-out;
+}
+
+#player2-hud.hidden {
+  display: none !important;
+}
+
+.p2-card {
+  background: rgba(15, 23, 42, 0.92);
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+  padding: 10px 16px;
+  width: 270px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(245, 158, 11, 0.35);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.p2-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.p2-badge {
+  background: linear-gradient(135deg, #ea580c, #f59e0b);
+  color: #111111;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.p2-name {
+  color: #fef08a;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.p2-health-frame {
+  width: 100%;
+  height: 12px;
+  background: #1e112a;
+  border: 1px solid #7c2d12;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 0 4px #000;
+}
+
+.p2-health-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ea580c, #f97316, #eab308);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: width 0.15s ease-out;
+}
+
+.p2-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 11px;
+}
+
+#p2-hp-text {
+  color: #fed7aa;
+  font-weight: bold;
+}
+
+.p2-badge-ready {
+  color: #4ade80;
+  text-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+}
+
+.p2-badge-cooldown {
+  color: #facc15;
+}
+
+.p2-controls-hint {
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: sans-serif;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 4px;
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* ============================================================
+   WORLD TOURNAMENT MATCH SETUP MODAL
+   ============================================================ */
+#tournament-setup-modal .tournament-modal-card {
+  background: #111827;
+  border: 3px solid #f59e0b;
+  border-radius: 12px;
+  padding: 24px;
+  width: 580px;
+  max-width: 95vw;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.9), 0 0 24px rgba(245, 158, 11, 0.4);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tournament-modal-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+  padding-bottom: 12px;
+}
+
+.tournament-crest-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #dc2626;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
+  margin-bottom: 4px;
+}
+
+.tournament-modal-subtitle {
+  color: #cbd5e1;
+  font-size: 13px;
+  font-family: sans-serif;
+}
+
+.tournament-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tournament-section-title {
+  color: #fef08a;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.tournament-btn-group {
+  display: flex;
+  gap: 10px;
+}
+
+.tournament-opt-btn {
+  flex: 1;
+  background: #1e293b;
+  border: 2px solid #334155;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  color: #f8fafc;
+  text-align: left;
+}
+
+.tournament-opt-btn:hover {
+  background: #334155;
+  border-color: #64748b;
+  transform: translateY(-1px);
+}
+
+.tournament-opt-btn.active {
+  background: #1e1b4b;
+  border-color: #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+.opt-icon {
+  font-size: 22px;
+}
+
+.opt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opt-name {
+  font-family: 'Minecraft', sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.opt-desc {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.tournament-controls-card {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tournament-control-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.control-tag {
+  font-family: 'Minecraft', sans-serif;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.tag-p1 {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.tag-p2 {
+  background: #ea580c;
+  color: #ffffff;
+}
+
+.control-text {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.mc-btn-start-fight {
+  background: linear-gradient(180deg, #f59e0b, #d97706) !important;
+  border-color: #fef08a !important;
+  color: #111111 !important;
+  font-weight: 900 !important;
+  font-size: 15px !important;
+  text-shadow: none !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45) !important;
+}
+
+.mc-btn-start-fight:hover {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b) !important;
+  transform: scale(1.02);
+}
 
 
 
 
+
+
+
+/* --- World generation / map loading progress ------------------------------ */
+
+#world-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 20, 0.82);
+  backdrop-filter: blur(3px);
+}
+
+#world-progress-overlay.hidden {
+  display: none;
+}
+
+.world-progress-card {
+  width: min(520px, 82vw);
+  padding: 22px 24px;
+  background: rgba(14, 20, 34, 0.96);
+  border: 2px solid #4a5b7d;
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  font-family: 'Minecraft', monospace;
+  color: #e6edf7;
+}
+
+.world-progress-title {
+  font-size: 17px;
+  letter-spacing: 0.6px;
+  margin-bottom: 14px;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.world-progress-track {
+  position: relative;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #3d4c69;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.world-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #22c55e, #6ee7b7);
+  box-shadow: 0 0 12px rgba(110, 231, 183, 0.5);
+  transition: width 0.12s linear;
+}
+
+.world-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.world-progress-stage {
+  color: #a8bad6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-progress-percent {
+  color: #6ee7b7;
+  font-weight: bold;
+  flex: 0 0 auto;
+}

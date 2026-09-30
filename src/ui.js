@@ -4,6 +4,8 @@ import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativ
 import {
   getDefaultPathInfo,
   fetchSavedMaps,
+  fetchDesignedWorlds,
+  loadDesignedWorld,
   saveMapToDefault,
   loadMapFromDefault,
   deleteSavedMap,
@@ -53,6 +55,7 @@ export class UIManager {
     this.geminiKeyInput = document.getElementById('gemini-key-input');
     this.geminiSaveKeyBtn = document.getElementById('gemini-save-key-btn');
     this.geminiClearKeyBtn = document.getElementById('gemini-clear-key-btn');
+    this.geminiOfflineBtn = document.getElementById('gemini-offline-btn');
     this.geminiToggleKeyBtn = document.getElementById('gemini-toggle-key');
     this.geminiCloseBtn = document.getElementById('gemini-close-btn');
     this.geminiVendorRow = document.getElementById('gemini-vendor-row');
@@ -109,7 +112,14 @@ export class UIManager {
     this.chatInput = document.getElementById('chat-input');
     this.isChatOpen = false;
 
-    // Map Manager Modal Elements
+    // Dedicated Designed Worlds Modal Elements
+    this.designedWorldsModal = document.getElementById('designed-worlds-modal');
+    this.mapDesignedList = document.getElementById('map-designed-list');
+    this.mapDesignedCount = document.getElementById('map-designed-count');
+    this.mapDesignedFeedback = document.getElementById('map-designed-feedback');
+    this.btnCloseDesignedModal = document.getElementById('btn-close-designed-modal');
+
+    // Map Manager Modal Elements (Saved Worlds)
     this.mapModal = document.getElementById('map-modal');
     this.mapDefaultPathDisplay = document.getElementById('map-default-path-display');
     this.tabSaveMap = document.getElementById('tab-save-map');
@@ -210,12 +220,24 @@ export class UIManager {
   }
 
   isModalOpen() {
+    const defeatOverlay = typeof document !== 'undefined' ? document.getElementById('defeat-overlay') : null;
+    const championOverlay = typeof document !== 'undefined' ? document.getElementById('champion-overlay') : null;
+    const setupModal = typeof document !== 'undefined' ? document.getElementById('tournament-setup-modal') : null;
+
+    const isDefeatOpen = defeatOverlay && !defeatOverlay.classList.contains('hidden') && defeatOverlay.classList.contains('visible');
+    const isChampionOpen = championOverlay && !championOverlay.classList.contains('hidden') && championOverlay.classList.contains('visible');
+    const isSetupOpen = setupModal && !setupModal.classList.contains('hidden');
+
     return (!this.invModal.classList.contains('hidden')) ||
            (this.creativeModal && !this.creativeModal.classList.contains('hidden')) ||
            (!this.craftModal.classList.contains('hidden')) ||
            (!this.villagerModal.classList.contains('hidden')) ||
            (!this.pauseModal.classList.contains('hidden')) ||
+           (this.designedWorldsModal && !this.designedWorldsModal.classList.contains('hidden')) ||
            (this.mapModal && !this.mapModal.classList.contains('hidden')) ||
+           Boolean(isDefeatOpen) ||
+           Boolean(isChampionOpen) ||
+           Boolean(isSetupOpen) ||
            this.isGeminiOpen();
   }
 
@@ -225,6 +247,7 @@ export class UIManager {
     this.craftModal.classList.add('hidden');
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
+    if (this.designedWorldsModal) this.designedWorldsModal.classList.add('hidden');
     if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
     this.hideTooltip();
@@ -1001,6 +1024,56 @@ export class UIManager {
       window.location.reload();
     };
 
+    const btnTitle = document.getElementById('btn-title-screen');
+    if (btnTitle) {
+      btnTitle.onclick = () => {
+        document.exitPointerLock();
+        this.closeAllModals();
+        this.playPopSound();
+        if (this.game) {
+          this.game.worldGenerated = false;
+          for (const chunk of this.game.world.chunks.values()) {
+            for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
+              if (chunk[key]) {
+                this.game.scene.remove(chunk[key]);
+                chunk[key].geometry.dispose();
+                chunk[key] = null;
+              }
+            }
+          }
+          this.game.world.chunks.clear();
+          this.game.world.water?.reset();
+          if (this.game.blockLighting?.chunks) {
+            this.game.blockLighting.chunks.clear();
+            this.game.blockLighting.dirty = true;
+          }
+          if (this.game.mobs?.clearMobs) this.game.mobs.clearMobs();
+          if (this.game.tournament) {
+            this.game.tournament.isTournamentMap = false;
+            this.game.tournament.cleanup?.();
+          }
+          if (this.game.trainingSites) this.game.trainingSites.cleanup?.();
+          if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
+            this.game.dungeonMode.exitDungeonMode(false);
+          }
+          if (this.game.mechanisms) {
+            this.game.mechanisms.setMechanism('default', this.game);
+          }
+          if (this.game.targetBoxMesh) this.game.targetBoxMesh.visible = false;
+          if (this.game.breakOverlayMesh) this.game.breakOverlayMesh.visible = false;
+          this.game.targetBlock = null;
+          this.game.targetMob = null;
+          this.game.isMouseDown = false;
+          this.game.miningTime = 0;
+          if (this.game.player) {
+            this.game.player.position.set(0, 26, 0);
+            this.game.player.velocity.set(0, 0, 0);
+          }
+        }
+        if (this.startOverlay) this.startOverlay.style.display = 'flex';
+      };
+    }
+
     if (this.btnSaveMap) {
       this.btnSaveMap.onclick = () => this.openMapModal('save');
     }
@@ -1010,10 +1083,30 @@ export class UIManager {
     }
   }
 
-  // Map Manager Modal Management
-  openMapModal(initialTab = 'save') {
+  // Dedicated Designed Worlds Modal Management
+  openDesignedWorldsModal() {
     document.exitPointerLock();
     this.closeAllModals();
+    if (this.startOverlay) this.startOverlay.style.display = 'none';
+    if (!this.designedWorldsModal) return;
+
+    this.designedWorldsModal.classList.remove('hidden');
+    this.refreshDesignedWorldsList();
+  }
+
+  closeDesignedWorldsModal() {
+    if (this.designedWorldsModal) this.designedWorldsModal.classList.add('hidden');
+    if (this.mapDesignedFeedback) this.mapDesignedFeedback.classList.add('hidden');
+    if (this.game && !this.game.worldGenerated && this.startOverlay) {
+      this.startOverlay.style.display = 'flex';
+    }
+  }
+
+  // Map Manager Modal Management (Saved Worlds)
+  openMapModal(initialTab = 'load') {
+    document.exitPointerLock();
+    this.closeAllModals();
+    if (this.startOverlay) this.startOverlay.style.display = 'none';
     if (!this.mapModal) return;
 
     this.mapModal.classList.remove('hidden');
@@ -1032,6 +1125,9 @@ export class UIManager {
     if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.mapSaveFeedback) this.mapSaveFeedback.classList.add('hidden');
     if (this.mapLoadFeedback) this.mapLoadFeedback.classList.add('hidden');
+    if (this.game && !this.game.worldGenerated && this.startOverlay) {
+      this.startOverlay.style.display = 'flex';
+    }
   }
 
   switchMapTab(tab) {
@@ -1063,7 +1159,7 @@ export class UIManager {
   }
 
   showMapFeedback(tab, message, isError = false) {
-    const el = tab === 'save' ? this.mapSaveFeedback : this.mapLoadFeedback;
+    const el = tab === 'designed' ? this.mapDesignedFeedback : (tab === 'save' ? this.mapSaveFeedback : this.mapLoadFeedback);
     if (!el) return;
     el.textContent = message;
     el.className = `map-feedback ${isError ? 'error' : 'success'}`;
@@ -1071,6 +1167,109 @@ export class UIManager {
     setTimeout(() => {
       if (el) el.classList.add('hidden');
     }, 5500);
+  }
+
+  async refreshDesignedWorldsList() {
+    if (!this.mapDesignedList) return;
+    this.mapDesignedList.innerHTML = '<div class="map-saves-loading">Loading designed worlds...</div>';
+
+    try {
+      const { worlds } = await fetchDesignedWorlds();
+      if (this.mapDesignedCount) {
+        this.mapDesignedCount.textContent = `${worlds.length} world${worlds.length === 1 ? '' : 's'}`;
+      }
+
+      if (!worlds || worlds.length === 0) {
+        this.mapDesignedList.innerHTML = `
+          <div class="map-saves-empty">
+            No designed worlds available.<br>
+            <span style="font-size:11px; opacity:0.8;">Check the designed_worlds folder.</span>
+          </div>
+        `;
+        return;
+      }
+
+      this.mapDesignedList.innerHTML = '';
+      for (const world of worlds) {
+        const card = document.createElement('div');
+        card.className = 'map-save-card';
+
+        const info = document.createElement('div');
+        info.className = 'map-card-info';
+
+        const title = document.createElement('div');
+        title.className = 'map-card-title';
+        title.textContent = world.name || world.filename;
+
+        const meta = document.createElement('div');
+        meta.className = 'map-card-meta';
+
+        const modeBadge = document.createElement('span');
+        modeBadge.className = 'map-card-badge';
+        modeBadge.textContent = world.gamemode || 'survival';
+
+        const mechBadge = document.createElement('span');
+        mechBadge.className = 'map-card-mechanism';
+        mechBadge.textContent = `⚡ ${world.mechanismName || 'Custom Mechanism'}`;
+
+        meta.append(modeBadge, mechBadge);
+
+        if (world.chunkCount) {
+          const chunkSpan = document.createElement('span');
+          chunkSpan.textContent = `${world.chunkCount} Chunks`;
+          meta.appendChild(chunkSpan);
+        }
+
+        info.append(title, meta);
+
+        if (world.description) {
+          const desc = document.createElement('div');
+          desc.className = 'map-card-desc';
+          desc.textContent = world.description;
+          info.appendChild(desc);
+        }
+
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'map-card-actions';
+
+        const btnPlay = document.createElement('button');
+        btnPlay.className = 'map-card-btn mc-btn-designed';
+        btnPlay.textContent = 'Play World';
+        btnPlay.onclick = async () => {
+          if (!this.game) {
+            this.showMapFeedback('designed', 'Game instance not ready', true);
+            return;
+          }
+          btnPlay.disabled = true;
+          btnPlay.textContent = 'Loading...';
+          try {
+            await this.runWorldLoad(
+              progress => loadDesignedWorld(this.game, world.filename, { progress }),
+              'Loading Designed World'
+            );
+            this.playPopSound();
+            this.showMapFeedback('designed', `Designed world "${world.name}" loaded!`, false);
+            setTimeout(() => {
+              this.closeAllModals();
+              if (this.startOverlay) this.startOverlay.style.display = 'none';
+              const canvas = document.getElementById('canvas-container');
+              if (canvas) canvas.requestPointerLock();
+            }, 300);
+          } catch (err) {
+            btnPlay.disabled = false;
+            btnPlay.textContent = 'Play World';
+            this.showMapFeedback('designed', `Load failed: ${err.message}`, true);
+          }
+        };
+
+        actions.appendChild(btnPlay);
+        card.append(info, actions);
+        this.mapDesignedList.appendChild(card);
+      }
+    } catch (err) {
+      this.mapDesignedList.innerHTML = `<div class="map-saves-empty" style="color:#ef5350;">Failed to load designed worlds: ${err.message}</div>`;
+    }
   }
 
   async refreshSavedMapsList() {
@@ -1134,6 +1333,13 @@ export class UIManager {
           meta.appendChild(seedSpan);
         }
 
+        if (save.mechanism && save.mechanism !== 'default') {
+          const mechBadge = document.createElement('span');
+          mechBadge.className = 'map-card-mechanism';
+          mechBadge.textContent = `⚡ ${save.mechanismName || save.mechanism}`;
+          meta.appendChild(mechBadge);
+        }
+
         info.append(title, meta);
 
         // Actions
@@ -1152,12 +1358,18 @@ export class UIManager {
           btnLoad.disabled = true;
           btnLoad.textContent = 'Loading...';
           try {
-            await loadMapFromDefault(this.game, save.filename);
+            await this.runWorldLoad(
+              progress => loadMapFromDefault(this.game, save.filename, { progress }),
+              'Loading Map'
+            );
             this.playPopSound();
             this.showMapFeedback('load', `Map "${save.name}" loaded successfully!`, false);
             setTimeout(() => {
               this.closeAllModals();
-            }, 800);
+              if (this.startOverlay) this.startOverlay.style.display = 'none';
+              const canvas = document.getElementById('canvas-container');
+              if (canvas) canvas.requestPointerLock();
+            }, 300);
           } catch (err) {
             btnLoad.disabled = false;
             btnLoad.textContent = 'Load';
@@ -1217,6 +1429,12 @@ export class UIManager {
   }
 
   bindMapModalEvents() {
+    if (this.btnCloseDesignedModal) {
+      this.btnCloseDesignedModal.onclick = () => {
+        this.closeDesignedWorldsModal();
+      };
+    }
+
     if (this.tabSaveMap) {
       this.tabSaveMap.onclick = () => this.switchMapTab('save');
     }
@@ -1226,9 +1444,11 @@ export class UIManager {
 
     if (this.btnCloseMapModal) {
       this.btnCloseMapModal.onclick = () => {
-        this.closeAllModals();
-        const canvas = document.getElementById('canvas-container');
-        if (canvas) canvas.requestPointerLock();
+        this.closeMapModal();
+        if (this.game?.worldGenerated) {
+          const canvas = document.getElementById('canvas-container');
+          if (canvas) canvas.requestPointerLock();
+        }
       };
     }
 
@@ -1307,7 +1527,10 @@ export class UIManager {
 
         try {
           this.showMapFeedback('load', `Loading file "${file.name}"...`, false);
-          await loadMapFromCustomFile(this.game, file);
+          await this.runWorldLoad(
+            progress => loadMapFromCustomFile(this.game, file, { progress }),
+            'Loading Map File'
+          );
           this.playPopSound();
           this.showMapFeedback('load', `Map "${file.name}" loaded successfully!`, false);
           setTimeout(() => {
@@ -1386,17 +1609,27 @@ export class UIManager {
     }
   }
 
-  openGeminiTerminal() {
+  openGeminiTerminal(options = {}) {
     document.exitPointerLock();
     this.closeAllModals();
     if (this.geminiModal) {
       this.geminiModal.classList.remove('hidden');
+      if (options.showSettings && this.geminiKeyDrawer) {
+        this.geminiKeyDrawer.classList.remove('hidden');
+      }
       setTimeout(() => {
-        if (this.geminiPromptInput) {
+        if (options.showSettings && this.geminiKeyInput) {
+          this.geminiKeyInput.focus();
+        } else if (this.geminiPromptInput) {
           this.geminiPromptInput.focus();
         }
       }, 50);
     }
+  }
+
+  /** Terminal + settings drawer in one step, for quick offline/API switching. */
+  openAgentSettings() {
+    this.openGeminiTerminal({ showSettings: true });
   }
 
   closeGeminiTerminal() {
@@ -1416,10 +1649,15 @@ export class UIManager {
     };
 
     const refreshAgentStatus = () => {
-      if (this.geminiStatusText && !geminiAgent.isExecuting) {
-        this.geminiStatusText.textContent = geminiAgent.lastError
-          ? 'ERROR'
-          : (geminiAgent.apiKey ? `${vendorLabel().toUpperCase()} READY` : 'OFFLINE');
+      if (!this.geminiStatusText || geminiAgent.isExecuting) return;
+      if (geminiAgent.lastError) {
+        this.geminiStatusText.textContent = 'ERROR';
+      } else if (geminiAgent.offlineMode) {
+        this.geminiStatusText.textContent = 'OFFLINE MODE';
+      } else if (!geminiAgent.apiKey) {
+        this.geminiStatusText.textContent = 'NO KEY';
+      } else {
+        this.geminiStatusText.textContent = `${vendorLabel().toUpperCase()} READY`;
       }
     };
 
@@ -1491,10 +1729,23 @@ export class UIManager {
       }
     };
 
+    // The offline button reflects state: it offers to leave offline mode when
+    // offline, and to enter it when a key is ready to be used.
+    const refreshOfflineButton = () => {
+      if (!this.geminiOfflineBtn) return;
+      const offline = geminiAgent.offlineMode;
+      this.geminiOfflineBtn.textContent = offline ? '✓ Offline Mode' : 'Offline Mode';
+      this.geminiOfflineBtn.classList.toggle('active', offline);
+      this.geminiOfflineBtn.title = offline
+        ? 'Offline mode is ON: built-in presets only. Click to use the API again (key is still saved).'
+        : 'Stop sending requests and use the built-in offline presets. Your key is kept.';
+    };
+
     const refreshAgentControls = () => {
       refreshModelOptions();
       refreshEffortOptions();
       refreshKeyState();
+      refreshOfflineButton();
       refreshAgentStatus();
     };
 
@@ -1506,6 +1757,14 @@ export class UIManager {
     };
 
     refreshAgentControls();
+
+    // Explain a forced-offline start, so a saved key does not look broken.
+    if (geminiAgent.offlineMode) {
+      this.addGeminiLog(
+        `Offline mode is ON: the terminal uses built-in presets and will not call ${vendorLabel()}. Click "✓ Offline Mode" in ⚙️ Settings (or type /offline) to switch back.`,
+        'info'
+      );
+    }
 
     // Connect agent callbacks
     geminiAgent.onLog = (msg, type) => {
@@ -1697,6 +1956,25 @@ export class UIManager {
         geminiAgent.lastError = null;
         refreshAgentControls();
         this.addGeminiLog(`${vendorLabel()} API key removed. Offline preset mode supports limited commands.`, 'info');
+      };
+    }
+
+    // Force offline presets without discarding the saved key
+    if (this.geminiOfflineBtn) {
+      this.geminiOfflineBtn.onclick = () => {
+        const offline = !geminiAgent.offlineMode;
+        geminiAgent.setOfflineMode(offline);
+        refreshAgentControls();
+        if (!offline && !geminiAgent.apiKey) {
+          this.addGeminiLog(`${vendorLabel()} enabled again, but no API key is saved yet — the terminal stays offline until you add one.`, 'warning');
+        } else if (offline) {
+          this.addGeminiLog(
+            `Offline mode ON. Requests go to the built-in presets; your ${vendorLabel()} key is kept. Type /offline to jump back here.`,
+            'success'
+          );
+        } else {
+          this.addGeminiLog(`Offline mode OFF. Free-form ${vendorLabel()} requests are enabled again.`, 'success');
+        }
       };
     }
 
@@ -1896,5 +2174,19 @@ export class UIManager {
     this.geminiLogFeed.appendChild(entry);
     this.geminiLogFeed.scrollTop = this.geminiLogFeed.scrollHeight;
     return entry;
+  }
+
+  /**
+   * Run a world/map load through the game's progress overlay.
+   *
+   * Loading a map decompresses every chunk and re-meshes the whole world, which
+   * blocks the main thread. The overlay is painted first and then updated between
+   * load phases, so the button no longer looks frozen while that happens.
+   */
+  async runWorldLoad(work, title = 'Loading') {
+    if (this.game?.loadMapWithProgress) {
+      return this.game.loadMapWithProgress(work, { title });
+    }
+    return work();
   }
 }

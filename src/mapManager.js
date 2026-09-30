@@ -67,6 +67,9 @@ export function serializeWorld(game, mapName = 'World 1') {
     format: 'minecraft-web-map',
     version: 1,
     name: mapName.trim() || 'World 1',
+    worldType: game.worldType || (game.mechanisms?.currentMechanismId !== 'default' ? 'designed' : 'generated'),
+    mechanism: game.mechanisms?.currentMechanismId || 'default',
+    mechanismName: game.mechanisms?.currentMechanism?.name || 'Default',
     savedAt: new Date().toISOString(),
     seed: game.world.seed,
     worldTime: Math.round(game.worldTime),
@@ -122,10 +125,22 @@ export function serializeWorld(game, mapName = 'World 1') {
 /**
  * Deserializes map data and completely reconstructs the world inside the running game.
  */
-export function deserializeWorld(game, mapData) {
+export function deserializeWorld(game, mapData, options = {}) {
   if (!mapData || !mapData.chunks) {
     throw new Error('Invalid map file format: missing chunks data');
   }
+  // Optional progress hook. Kept synchronous on purpose: callers and tests rely
+  // on the world being fully restored when this returns.
+  const progress = typeof options.progress === 'function' ? options.progress : null;
+  const report = (percent, stage) => { if (progress) progress(percent, stage); };
+
+  const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
+                       (mapData.mechanism === 'dragonball_tournament') ||
+                       (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
+  const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
+  const targetMechanismId = mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default');
+  game.worldType = targetWorldType;
+  game.worldGenerated = true;
 
   // 1. Clean up old chunk meshes from the 3D scene
   for (const chunk of game.world.chunks.values()) {
@@ -155,6 +170,9 @@ export function deserializeWorld(game, mapData) {
   const seed = mapData.seed || 4289;
   game.world.reseed(seed);
 
+  const totalChunks = mapData.chunks.length;
+  report(5, `Reading map data (${totalChunks} chunks)`);
+
   // 5. Reconstruct all chunks with RLE-decompressed voxels
   for (const chunkData of mapData.chunks) {
     const chunk = new Chunk(chunkData.cx, chunkData.cz);
@@ -165,7 +183,11 @@ export function deserializeWorld(game, mapData) {
     game.world.chunks.set(game.world.chunkKey(chunk.cx, chunk.cz), chunk);
   }
 
+  report(45, `Decoded ${totalChunks} chunks`);
+
   for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
+
+  report(60, 'Initialising fluids');
 
   // 6. Restore player state
   if (mapData.player) {
@@ -174,23 +196,11 @@ export function deserializeWorld(game, mapData) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
-                         (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
-    if (isTournament) {
+    if (isTournament || targetMechanismId === 'dragonball_tournament') {
       game.player.gamemode = 'survival';
       game.player.isFlying = false;
-      if (game.tournament) {
-        game.tournament.isTournamentMap = true;
-      }
     } else {
       game.player.gamemode = p.gamemode || 'survival';
-      if (game.tournament) {
-        game.tournament.isTournamentMap = false;
-        game.tournament.cleanup?.();
-      }
-      if (game.trainingSites) {
-        game.trainingSites.cleanup?.();
-      }
     }
     game.player.health = p.health ?? 20;
     game.player.hunger = p.hunger ?? 20;
@@ -198,10 +208,16 @@ export function deserializeWorld(game, mapData) {
     game.player.level = p.level ?? 0;
 
     // Apply rotation to camera
-    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-    euler.x = game.player.pitch;
-    euler.y = game.player.yaw;
-    game.camera.quaternion.setFromEuler(euler);
+    if (game.camera) {
+      if (game.camera.up?.set) game.camera.up.set(0, 1, 0);
+      if (game.camera.rotation?.set) {
+        game.camera.rotation.order = 'YXZ';
+        game.camera.rotation.set(game.player.pitch, game.player.yaw, 0);
+      } else if (game.camera.quaternion?.setFromEuler) {
+        const euler = new THREE.Euler(game.player.pitch, game.player.yaw, 0, 'YXZ');
+        game.camera.quaternion.setFromEuler(euler);
+      }
+    }
     game.player.update(0);
   }
 
@@ -210,19 +226,20 @@ export function deserializeWorld(game, mapData) {
     game.inventory.hotbar = mapData.inventory.hotbar.map(it => (it ? { ...it } : null));
     game.inventory.storage = mapData.inventory.storage.map(it => (it ? { ...it } : null));
     game.inventory.activeSlot = mapData.inventory.activeSlot || 0;
-    game.ui.updateHotbar();
+    if (game.ui?.updateHotbar) game.ui.updateHotbar();
   }
 
   // 8. Restore time and weather
   if (mapData.worldTime !== undefined) {
     game.worldTime = mapData.worldTime;
   }
-  if (mapData.weather && game.weather) {
+  if (mapData.weather && game.weather?.setWeather) {
     game.weather.setWeather(mapData.weather.isRaining ? 'rain' : 'clear');
   }
 
   // 9. Restore mobs
   if (mapData.mobs && mapData.mobs.length > 0 && game.mobs?.spawnMob) {
+    report(72, `Spawning ${mapData.mobs.length} mobs`);
     for (const m of mapData.mobs) {
       try {
         const spawned = game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
@@ -244,10 +261,12 @@ export function deserializeWorld(game, mapData) {
   }
 
   // 11. Re-mesh all loaded chunks around the player
+  report(85, 'Building chunk meshes');
   game.loadChunksAroundPlayer();
   for (const chunk of game.world.chunks.values()) {
     game.rebuildChunkMesh(chunk);
   }
+  report(98, 'Finalising');
 
   // 12. Update UI
   if (game.ui) {
@@ -263,32 +282,40 @@ export function deserializeWorld(game, mapData) {
       }
     }
     if (game.ui.addChatMessage) {
-      game.ui.addChatMessage(`Loaded map: "${mapData.name}"`, 'system');
+      const typeLabel = targetWorldType === 'designed' ? 'Designed World' : 'World';
+      game.ui.addChatMessage(`Loaded ${typeLabel}: "${mapData.name}"`, 'system');
     }
   }
 
-  // 13. Tournament & Skills Managers reset
-  if (game.tournament) {
-    game.tournament.reset();
-    if (isTournament) {
-      game.tournament.ensureHost();
-    } else {
-      game.tournament.cleanup?.();
+  // 13. World Mechanism activation & reset
+  if (game.mechanisms) {
+    game.mechanisms.setMechanism(targetMechanismId, game, mapData);
+  } else {
+    // Fallback if mechanism manager not attached
+    if (game.tournament) {
+      game.tournament.reset();
+      if (isTournament) {
+        game.tournament.isTournamentMap = true;
+        game.tournament.ensureHost();
+      } else {
+        game.tournament.isTournamentMap = false;
+        game.tournament.cleanup?.();
+      }
     }
-  }
-  if (game.dragonballSkills) {
-    game.dragonballSkills.reset();
-  }
-  if (game.trainingSites) {
-    game.trainingSites.reset();
-    if (isTournament) {
-      game.trainingSites.ensureSiteManagers();
-    } else {
-      game.trainingSites.cleanup?.();
+    if (game.dragonballSkills) {
+      game.dragonballSkills.reset();
     }
-  }
-  if (game.dungeonMode) {
-    game.dungeonMode.reset();
+    if (game.trainingSites) {
+      game.trainingSites.reset();
+      if (isTournament) {
+        game.trainingSites.ensureSiteManagers();
+      } else {
+        game.trainingSites.cleanup?.();
+      }
+    }
+    if (game.dungeonMode) {
+      game.dungeonMode.reset();
+    }
   }
 
   return true;
@@ -308,6 +335,35 @@ export async function getDefaultPathInfo() {
     // offline fallback
   }
   return 'saves/ (Local Computer Folder)';
+}
+
+/**
+ * List all designed maps from the designed_worlds folder.
+ */
+export async function fetchDesignedWorlds() {
+  try {
+    const res = await fetch('/api/designed-worlds');
+    if (res.ok) {
+      const data = await res.json();
+      return { worlds: data.worlds || [], defaultPath: data.defaultPath || 'designed_worlds/' };
+    }
+  } catch (e) {
+    console.warn('Backend /api/designed-worlds unreachable');
+  }
+  return { worlds: [], defaultPath: 'designed_worlds/' };
+}
+
+/**
+ * Load a designed world by filename.
+ */
+export async function loadDesignedWorld(game, filename, options = {}) {
+  const res = await fetch(`/api/designed-worlds/${encodeURIComponent(filename)}`);
+  if (!res.ok) {
+    throw new Error(`Failed to load designed world "${filename}"`);
+  }
+  const mapData = await res.json();
+  deserializeWorld(game, mapData, { progress: options.progress });
+  return { success: true, name: mapData.name || filename, mechanism: mapData.mechanism };
 }
 
 /**
@@ -390,12 +446,12 @@ export async function saveMapToDefault(game, name) {
 /**
  * Load map from default path.
  */
-export async function loadMapFromDefault(game, filename) {
+export async function loadMapFromDefault(game, filename, options = {}) {
   try {
     const res = await fetch(`/api/saves/${encodeURIComponent(filename)}`);
     if (res.ok) {
       const mapData = await res.json();
-      deserializeWorld(game, mapData);
+      deserializeWorld(game, mapData, { progress: options.progress });
       return { success: true, name: mapData.name || filename };
     }
   } catch (err) {
@@ -407,7 +463,7 @@ export async function loadMapFromDefault(game, filename) {
   const localRaw = localStorage.getItem(`mc_map_save_${safeName}`);
   if (localRaw) {
     const mapData = JSON.parse(localRaw);
-    deserializeWorld(game, mapData);
+    deserializeWorld(game, mapData, { progress: options.progress });
     return { success: true, name: mapData.name || safeName };
   }
 
@@ -477,10 +533,10 @@ export async function saveMapToCustomFile(game, name = 'MyWorld') {
 /**
  * Load map from any custom file selected by the user.
  */
-export async function loadMapFromCustomFile(game, file) {
+export async function loadMapFromCustomFile(game, file, options = {}) {
   if (!file) throw new Error('No file provided');
   const text = await file.text();
   const mapData = JSON.parse(text);
-  deserializeWorld(game, mapData);
+  deserializeWorld(game, mapData, { progress: options.progress });
   return { success: true, name: mapData.name || file.name };
 }
