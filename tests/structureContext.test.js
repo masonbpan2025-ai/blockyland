@@ -76,7 +76,8 @@ test('the structure description reaches the model prompt', () => {
   const prompt = agent.buildSystemPrompt();
 
   assert.match(prompt, /STRUCTURE STUDIO/, 'the prompt must carry a studio section');
-  assert.match(prompt, /"Castle" \(id: castle\)/, 'it names the open structure');
+  assert.match(prompt, /"Castle" \(id: studio_castle\)/, 'it names the open structure and its editable id');
+  assert.match(prompt, /NEVER invent a structure id/, 'and warns against inventing one');
   assert.match(prompt, /Local coordinate frame: local \(0,0,0\) is world/, 'it gives the coordinate frame');
   assert.match(prompt, /entrance/i, 'it lists the entrance');
   assert.match(prompt, /faces south/, 'and the direction the entrance faces');

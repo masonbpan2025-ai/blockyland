@@ -511,20 +511,32 @@ export class WorldAgent {
 Current draft: "${mob.name}" — model type ${mob.look?.modelType}, main colour ${mob.look?.mainColor}, accent ${mob.look?.accentColor}, eyes ${mob.look?.eyeColor}, scale ${mob.look?.scale}, wings ${!!mob.look?.hasWings}, horns ${!!mob.look?.hasHorns}, glowing eyes ${!!mob.look?.hasGlowingEyes}.
 Behaviour: ${mob.behavior?.type}, health ${mob.behavior?.health}, attack ${mob.behavior?.attack}, speed ${mob.behavior?.speed}, skills [${(mob.skills || []).join(', ')}].
 To create or redesign this mob, return action "create_mob" with a "mob" object. Do NOT use "build" or "summon" for a custom creature.
-The renderer draws mobs from primitive boxes, so express appearance through the fields below rather than describing a silhouette in prose. Pick the model type that best matches the request: humanoid, quadruped, flying, golem or slime.
+The renderer draws mobs from primitive boxes. Colour and body type alone are NOT enough: a request for a specific character must also set its silhouette and face features, otherwise the result is a generic blob. Use this anatomy:
+- "ears": "pointed" (tall, angled out), "long" (rabbit-like, upright), "round" (short, stubby) or "none".
+- "earTipColor": hex, paints the outer tip of the ears (for example the black tips of a lightning mouse).
+- "tail": "lightning" (a zigzag bolt), "long" (a thin hanging tail) or "none".
+- "hasCheekPatches" plus "cheekColor": round cheek circles on the face.
+- "hasMouth" and "hasNose": small dark markings so the face is not blank.
+Pick the model type that matches the character's body: humanoid (upright biped), quadruped (four-legged animal), flying, golem or slime.
 {
   "action": "create_mob",
   "mob": {
     "name": "Pikachu",
-    "description": "Short one-line description",
-    "look": { "modelType": "quadruped", "mainColor": "#f7d02c", "accentColor": "#8b4513", "eyeColor": "#1a1a1a", "scale": 0.8, "hasWings": false, "hasHorns": false, "hasGlowingEyes": false },
+    "description": "Small yellow electric mouse",
+    "look": {
+      "modelType": "quadruped", "mainColor": "#f7d02c", "accentColor": "#8b4513",
+      "eyeColor": "#1a1a1a", "scale": 0.8,
+      "ears": "pointed", "earTipColor": "#1a1a1a", "tail": "lightning", "tailColor": "#f7d02c",
+      "hasCheekPatches": true, "cheekColor": "#e3342f", "hasMouth": true, "hasNose": true,
+      "hasWings": false, "hasHorns": false, "hasGlowingEyes": false
+    },
     "behavior": { "type": "pet", "health": 35, "attack": 4, "speed": 3.4, "followPlayer": true, "range": 16 },
     "skills": ["lightning"],
     "eggColors": { "primary": "#f7d02c", "secondary": "#8b4513" }
   }
 }
+Worked example above: that combination is what makes a lightning mouse look like itself. Copy its structure when a request names a character, and take the colours from that character's real palette.
 Colours must be #rrggbb hex. modelType is one of humanoid|quadruped|flying|golem|slime. behaviour.type is one of hostile|neutral|passive|pet|boss. Skills are limited to: fireball, teleport, leap, laser, heal, lightning, freeze. Scale is 0.3-3, health 1-500, attack 0-60, speed 0.2-8.
-Choose colours from the character's actual palette: a yellow electric mouse needs a yellow body, brown accent and dark eyes — a purple humanoid is wrong.
 When the player asks to change one property of the current draft, return the whole mob object with that property changed and the rest preserved.`;
   }
 
@@ -1709,9 +1721,24 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     this.activeStructure = null;
     if (plan.targetStructure) {
       const target = this.resolveStructure(plan.targetStructure);
-      if (!target) throw new Error(`Structure not found: ${typeof plan.targetStructure === 'string' ? plan.targetStructure : plan.targetStructure.id}`);
-      plan = { ...plan, targetStructure: target };
-      this.lastReferencedStructure = target;
+      if (target) {
+        plan = { ...plan, targetStructure: target };
+        this.lastReferencedStructure = target;
+      } else {
+        // A model will sometimes invent an id. With a structure open in Structure
+        // Studio there is exactly one thing it can mean, so use it rather than
+        // failing the entire plan with "Structure not found".
+        const studioStructure = this.getStudioStructure();
+        const editable = ['edit', 'destroy', 'build_stairs', 'build_ladder'].includes(plan.action);
+        if (studioStructure && editable) {
+          const requested = typeof plan.targetStructure === 'string' ? plan.targetStructure : 'that structure';
+          this.log(`"${requested}" is not a known structure; applying this to "${studioStructure.name}" from Structure Studio instead.`, 'warning');
+          plan = { ...plan, targetStructure: studioStructure };
+          this.lastReferencedStructure = studioStructure;
+        } else {
+          throw new Error(`Structure not found: ${typeof plan.targetStructure === 'string' ? plan.targetStructure : plan.targetStructure.id}`);
+        }
+      }
     }
     this.log(`Plan: ${plan.explanation || plan.action}`, 'heading');
 
@@ -1911,8 +1938,10 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       return false;
     }
 
-    this.updateProgress(100, `Created ${result.name || mobDefinition.name}`);
-    this.log(`✓ ${result.name || mobDefinition.name} added to the mob library.`, 'success');
+    // saveCustomMob returns { success, mob } — the saved record is nested.
+    const createdName = result.mob?.name || mobDefinition.name;
+    this.updateProgress(100, `Created ${createdName}`);
+    this.log(`✓ ${createdName} added to the mob library.`, 'success');
     return true;
   }
 
@@ -2956,9 +2985,54 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   }
 
   // Find a previously built structure based on prompt keywords or anaphoric context
+  /**
+   * The structure currently open in Structure Studio, presented in the same shape
+   * as a recorded structure so it can be a plan target.
+   *
+   * The studio edits a library structure directly and never records it in
+   * builtStructures, which meant the model had no valid edit target: asked to
+   * "add a bridge to the entrance of the castle" it invented an id, and the plan
+   * died with "Structure not found".
+   */
+  getStudioStructure() {
+    const studio = this.game?.structureStudio;
+    if (!studio?.isActive || !studio.currentStructure) return null;
+    const info = this.lastStudioStructureInfo;
+    const origin = studio.buildOrigin || { x: 0, y: 5, z: 8 };
+    return {
+      id: `studio_${studio.currentStructure.id}`,
+      name: studio.currentStructure.name,
+      type: studio.currentStructure.id,
+      isStudioStructure: true,
+      startX: origin.x + (info?.bounds?.minX ?? 0),
+      baseY: origin.y + (info?.bounds?.minY ?? 0),
+      startZ: origin.z + (info?.bounds?.minZ ?? 0),
+      width: info?.size?.width ?? 1,
+      height: info?.size?.height ?? 1,
+      depth: info?.size?.depth ?? 1,
+      voxels: new Map(),
+      attachments: []
+    };
+  }
+
   resolveStructure(reference) {
-    if (reference && typeof reference === 'object') return this.builtStructures.find(s => s.id === reference.id) || null;
+    const studioStructure = this.getStudioStructure();
+
+    if (reference && typeof reference === 'object') {
+      if (reference.isStudioStructure) return studioStructure;
+      return this.builtStructures.find(s => s.id === reference.id) || null;
+    }
     const text = String(reference || '').toLowerCase().trim().replace(/^(the|a|an)\s+/, '');
+
+    // In Structure Studio the open structure is the thing being worked on, so the
+    // usual pronouns and "the open structure" resolve to it first.
+    if (studioStructure && /^(it|that|this|that one|this one|previous one|last one|structure|building|the open structure|open structure|current structure)$/.test(text)) {
+      return studioStructure;
+    }
+    if (studioStructure && [studioStructure.id.toLowerCase(), studioStructure.name.toLowerCase(), studioStructure.type].includes(text)) {
+      return studioStructure;
+    }
+
     if (text === 'last') return this.lastBuiltStructure;
     if (/^(it|that|this|that one|this one|previous one|last one|structure|building)$/.test(text)) return this.lastReferencedStructure || this.lastBuiltStructure;
     const exact = this.builtStructures.filter(s => [s.id.toLowerCase(), s.name.toLowerCase(), s.type].includes(text));
@@ -2986,6 +3060,29 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   }
 
   async executeDestroy(target) {
+    // A structure open in Structure Studio is a live library instance, not a
+    // recorded one, so there are no tracked "before" blocks to restore. Clearing
+    // the preview is the meaningful equivalent of removing it.
+    if (target?.isStudioStructure) {
+      const studio = this.game?.structureStudio;
+      if (studio) {
+        if (typeof studio.clearCurrentStructure === 'function') {
+          studio.clearCurrentStructure();
+        } else if (Array.isArray(studio.placedVoxels)) {
+          // Fall back to reverting the blocks this session placed.
+          for (const v of studio.placedVoxels) {
+            const groundId = v.y === 0 ? BLOCKS.BEDROCK : (v.y <= 3 ? BLOCKS.DIRT : (v.y === 4 ? BLOCKS.GRASS : BLOCKS.AIR));
+            if (typeof this.game.world?.setVoxel === 'function') this.game.world.setVoxel(v.x, v.y, v.z, groundId);
+          }
+          studio.placedVoxels = [];
+          studio.currentStructure = null;
+          this.game.refreshDirtyChunks?.(24);
+        }
+        this.updateProgress(100, 'Cleared the Structure Studio preview');
+        this.log(`✓ Cleared "${target.name}" from Structure Studio.`, 'success');
+        return;
+      }
+    }
     if (!target?.voxels?.size) throw new Error('No tracked blocks exist for this structure.');
     const blocks = [];
     for (const [key, v] of target.voxels) {

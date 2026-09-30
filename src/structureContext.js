@@ -217,7 +217,8 @@ export function formatStructureContext(info) {
     : '  - no opening was detected at ground level; the structure is enclosed.';
 
   return `STRUCTURE STUDIO — the structure currently open for editing:
-"${info.name}" (id: ${info.id})${info.description ? ` — ${info.description}` : ''}
+"${info.name}" (id: studio_${info.id})
+THIS is the structure to edit. For any change to it use targetStructure "studio_${info.id}", or the exact name "${info.name}". NEVER invent a structure id: an id that is not shown here does not exist and the request will fail with "Structure not found".${info.description ? ` — ${info.description}` : ''}
 Blocks: ${info.blockCount}. Size: ${info.size.width} wide (X) x ${info.size.height} tall (Y) x ${info.size.depth} deep (Z).
 Local coordinate frame: local (0,0,0) is world (${info.origin.x}, ${info.origin.y}, ${info.origin.z}).
 Local bounds: X ${info.bounds.minX}..${info.bounds.maxX}, Y ${info.bounds.minY}..${info.bounds.maxY}, Z ${info.bounds.minZ}..${info.bounds.maxZ}. Anything outside those bounds is beside the structure.
