@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 // Geometry is in voxel coordinates, shared by world meshes and the held item.
-export function createBlockGeometry(id, textures) {
+export function createBlockGeometry(id, textures, state = {}) {
+  if (BLOCK_DEFS[id]?.redstone && id !== BLOCKS.REDSTONE_TORCH) return redstoneGeometry(id, textures, state);
   const def = BLOCK_DEFS[id];
   if (id === BLOCKS.FIRE) {
     const planes=[new THREE.PlaneGeometry(.9,1),new THREE.PlaneGeometry(.9,1)];
@@ -37,7 +39,7 @@ export function createBlockGeometry(id, textures) {
       uv.setXY(i, THREE.MathUtils.lerp(tile.u0, tile.u1, u), THREE.MathUtils.lerp(tile.v0, tile.v1, t));
       const torchGlow = face === 2 ? 1 : face === 3 ? 0 : t > 0.5 ? 1 : 0;
       const cubeGlow = id === BLOCKS.LIT_FURNACE ? (face === 4 ? 0.8 : 0) : id === BLOCKS.ENCHANTING_TABLE ? 0.2 : 0.8;
-      emission[i] = def.light ? (torch ? torchGlow : cubeGlow) : 0;
+      emission[i] = id === BLOCKS.REDSTONE_TORCH && state.output === 0 ? 0 : def.light ? (torch ? torchGlow : cubeGlow) : 0;
       if (id === BLOCKS.OAK_LEAVES) colors.set([0.35, 0.65, 0.22], i * 3);
       if (id === BLOCKS.GRASS && face === 2) colors.set([0.48, 0.74, 0.31], i * 3);
     }

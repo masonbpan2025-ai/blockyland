@@ -64,6 +64,7 @@ export function serializeWorld(game, mapName = 'World 1') {
   }));
 
   const mapData = {
+    redstone: game.world.redstone?.serialize() || [],
     format: 'minecraft-web-map',
     version: 1,
     name: mapName.trim() || 'World 1',
@@ -190,6 +191,7 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
 
+  game.world.redstone?.restore(mapData.redstone);
   report(60, 'Initialising fluids');
 
   // 6. Restore player state

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BowController } from './bow.js';
+import { buildRedstoneDemo } from './redstoneDemos.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
@@ -605,6 +606,8 @@ class Game {
     const bY = this.targetBlock.y;
     const bZ = this.targetBlock.z;
     const clickedBlock = this.world.getVoxel(bX, bY, bZ);
+    const control=this.world.redstone.interact([bX,bY,bZ],this.player.isSneaking,this.inventory.getActiveItem());
+    if(control){for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
 
     // Crafting Table interaction
     if (clickedBlock === BLOCKS.CRAFTING_TABLE) {
@@ -625,7 +628,8 @@ class Game {
     }
 
     // Eating Food, Buckets, and Spawn Eggs
-    const activeItem = this.inventory.getActiveItem();
+    let activeItem = this.inventory.getActiveItem();
+    if(activeItem?.id==='redstone'&&!activeItem.isBlock)activeItem={...activeItem,id:BLOCKS.REDSTONE_WIRE,isBlock:true};
     if (activeItem && !activeItem.isBlock) {
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
@@ -696,6 +700,9 @@ class Game {
 
       if (!collidesWithPlayer) {
         this.world.setVoxel(placeX, placeY, placeZ, activeItem.id);
+        const look=this.camera.getWorldDirection(new THREE.Vector3());
+        const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
+        this.world.redstone.configure([placeX,placeY,placeZ],dir);
 
         const def = BLOCK_DEFS[activeItem.id];
         this.sounds.playPlace(def ? def.sound : 'wood');
@@ -984,7 +991,11 @@ class Game {
     const parts = cmd.trim().split(/\s+/);
     const root = parts[0].toLowerCase();
 
+    if(root==='/redstone'){
+      try{if(parts[1]!=='demo')throw new Error('Use /redstone demo elevator or /redstone demo flyer');const p=this.player.position;buildRedstoneDemo(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);this.refreshDirtyChunks();this.ui.addChatMessage(parts[2]==='flyer'?'Flying engine started. Place obsidian ahead to stop it.':'Elevator built. Right-click its lever to raise/lower the slime platform.','system');}catch(error){this.ui.addChatMessage(error.message,'error');}return;
+    }
     if (root === '/help') {
+      this.ui.addChatMessage('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate','help');
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
       this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
@@ -1155,6 +1166,9 @@ class Game {
     const fps = 1.0 / Math.max(0.0001, dt);
 
     // 1. Update Player Physics & Camera
+    this.world.redstone.game=this;
+    this.world.redstone.daylight=Math.max(0,Math.sin((this.worldTime/24000)*Math.PI*2));
+    this.world.redstone.update(dt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
     this.bow.update(dt);
     this.player.update(dt);
 

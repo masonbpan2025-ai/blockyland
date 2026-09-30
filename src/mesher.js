@@ -102,6 +102,15 @@ export class ChunkMesher {
           const wy = ly;
           const wz = worldOffsetZ + lz;
 
+          if (def?.redstone) {
+            const state=world.redstone?.state([wx,wy,wz]) || {};
+            const geometry=createBlockGeometry(blockId,this.tm,state);geometry.translate(wx,wy,wz);
+            const origin=new Float32Array(geometry.attributes.position.count*3);for(let i=0;i<origin.length;i+=3)origin.set([wx+.5,wy+.5,wz+.5],i);
+            geometry.setAttribute('lightOrigin',new THREE.Float32BufferAttribute(origin,3));lightGeometries.push(geometry);
+            const level=blockId===BLOCKS.REDSTONE_LAMP&&state.on?15:blockId===BLOCKS.REDSTONE_TORCH&&state.output?7:0;
+            if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.5,wz+.5),level,color:blockId===BLOCKS.REDSTONE_TORCH?0xff4335:0xffc477});
+            continue;
+          }
           if (def?.light) {
             // Separate emitters so their distance-shadow material can suppress
             // self-shadowing while retaining shadows from the sun/other lamps.

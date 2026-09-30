@@ -106,6 +106,7 @@ export function buildCreativeCatalog() {
 
   // 5. Redstone Blocks & Mechanisms
   const redstoneBlocksList = [
+    ...Object.keys(BLOCK_DEFS).map(Number).filter(id => id >= BLOCKS.REDSTONE_WIRE && BLOCK_DEFS[id].redstone && !BLOCK_DEFS[id].internal),
     BLOCKS.REDSTONE_TORCH, BLOCKS.LEVER, BLOCKS.REDSTONE_LAMP, BLOCKS.TNT, BLOCKS.REDSTONE_ORE
   ];
   for (const b of redstoneBlocksList) {

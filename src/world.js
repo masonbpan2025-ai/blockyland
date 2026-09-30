@@ -1,4 +1,5 @@
 import { BLOCKS } from './blocks.js';
+import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
 import { WaterSimulation } from './waterSimulation.js';
 
@@ -210,6 +211,7 @@ export class World {
     this.seaLevel = 22;
     this.water = new WaterSimulation(this);
     this.lava = new LavaSimulation(this);
+    this.redstone = new Redstone(this);
   }
 
   reseed(seed = 4289) {
@@ -524,6 +526,7 @@ export class World {
     chunk.waterLevels[index] = level;
     this.water.notify(wx, wy, wz, !fluidUpdate);
     this.lava.notify(wx, wy, wz, !fluidUpdate);
+    this.redstone.notify(wx, wy, wz);
 
     // If voxel is at border of chunk, mark neighbor chunks dirty too
     if (lx === 0) {
