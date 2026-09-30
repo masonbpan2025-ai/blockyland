@@ -28,11 +28,15 @@ Wires used: DeepSeek and ChatGPT use OpenAI-compatible `POST /chat/completions` 
 
 Output budgets allow for reasoning: DeepSeek gets 64K tokens in thinking mode (its documented default) and 8K with thinking off, ChatGPT 32K. Reasoning tokens are billed against that budget, so if a model still exhausts it while thinking and returns no JSON, the agent **retries once with thinking mode off** instead of failing. A request is aborted only after 60 s of complete silence (not a total-duration limit), and HTTP failures say what to do — rejected key, no credit, rate limit, or unavailable model. Uncheck "show live thinking" in ⚙️ Settings to hide the reasoning display.
 
+### Offline mode
+
+**Offline Mode** in ⚙️ Settings (or the `/offline` chat command) switches the agent to the built-in preset planner without deleting anything. Your API key, vendor, model and effort stay saved, no requests are sent, and the status pill reads **OFFLINE MODE**. Press the highlighted **✓ Offline Mode** button or run `/offline` again to hand control back to the API. The choice persists across reloads, and because it is separate from the key, "no key yet" (**NO KEY**) and "deliberately offline" never look the same. Offline mode is not a language model: it handles the preset builds and basic world commands listed below.
+
 The planner supports custom voxel builds, edits in place, removal, stairs, water, mobs, weather, time, inventory, and compound requests. It can answer or ask for clarification when a request cannot be represented by the available game actions. It does not execute model-generated JavaScript.
 
 Structures track the blocks they change, including foundations and attachments. Removal restores the original blocks while preserving later player changes whose block values differ. Memory lasts for the current world session; reloading resets both the world and agent memory. Large structure snapshots are explicitly marked when truncated.
 
-Without a key, the status shows **OFFLINE**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a key for the selected vendor. API errors remain visible and never silently execute an offline substitute.
+Without a key, the status shows **NO KEY**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a key for the selected vendor. API errors remain visible and never silently execute an offline substitute.
 
 ## Lighting and visual effects
 
@@ -61,3 +65,18 @@ Open `/tests/water-flow.html` on the development server to test aquarium breache
 `npm test` runs regression tests with mocked Gemini responses and the real voxel execution code. Requires Node.js 22 or later with `--test-isolation=none` support (tested with Node.js 24).
 
 `npm run build` creates the production bundle. The automated tests do not make billable API requests; live Gemini quality and account access require a configured key.
+
+## World loading progress
+
+Generating a new world and loading a save both show a progress overlay with a
+percentage and the current stage ("Generating terrain — chunk 40/81", "Building
+meshes", "Decoding chunks"). The start button stays disabled until generation
+finishes, so you are never dropped into a half-built world.
+
+This is not just cosmetic. The work used to run as one synchronous block, which
+meant the browser had no chance to repaint: the start screen simply froze for a
+few seconds with no feedback. Terrain generation and meshing are now split into
+batches with a real yield to the browser between them, so the bar actually
+advances. `deserializeWorld()` remains synchronous for its callers and tests, but
+reports progress through an optional hook; the overlay is painted before that
+blocking call starts. See `src/progressOverlay.js`.
