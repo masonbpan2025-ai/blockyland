@@ -62,14 +62,15 @@ export function createWaterMaterial() {
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
       }
       float ripple(vec2 p) {
-        vec2 drift = vec2(uTime * 0.035, uTime * 0.018);
+        vec2 drift = vec2(uTime * 0.24, uTime * 0.13);
         return noise(p * 0.7 + drift) * 0.55
              + noise(p * 1.8 - drift * 1.3) * 0.3
              + noise(p * 4.2 + drift * 0.8) * 0.15;
       }
       void main() {
         if(uEnhanced < .5){
-          gl_FragColor=vec4(vTint*(.35+min(uSunIntensity,1.0)*.45),.68);
+          float waves = sin(vWorldPos.x * 2.4 + uTime * 1.7) * sin(vWorldPos.z * 1.7 - uTime * 1.2);
+          gl_FragColor=vec4(vTint*(.35+min(uSunIntensity,1.0)*.45)*(1.0+waves*.09),.68);
           #include <colorspace_fragment>
           #include <fog_fragment>
           return;
@@ -83,7 +84,11 @@ export function createWaterMaterial() {
         vec2 slope = vec2(ripple(p + vec2(0.08,0)) - h, ripple(p + vec2(0,0.08)) - h) / 0.08;
         // Reduce distant detail before it aliases into shimmering stripes.
         float detail = 1.0 / (1.0 + length(fwidth(p)) * 3.0);
-        if (surface) normal = normalize(normal + vec3(-slope.x, 0, -slope.y) * 0.12 * detail);
+        // Analytic gradients of two small crossing waves animate broad highlights.
+        // Shade waves without displacing bank vertices or opening cracks in flowing water.
+        vec2 waveSlope = vec2(.075 * cos(p.x * 2.4 + p.y * .7 - uTime * 1.7),
+                             .055 * cos(p.y * 2.0 - p.x * .5 + uTime * 1.35));
+        if (surface) normal = normalize(normal + vec3(-slope.x * .18 - waveSlope.x, 0, -slope.y * .18 - waveSlope.y) * detail);
         else normal = normalize(normal + vec3(0, slope.y * 0.055 * detail, 0));
         if (!gl_FrontFacing) normal = -normal;
 

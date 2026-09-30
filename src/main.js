@@ -1,3 +1,4 @@
+import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
@@ -134,6 +135,7 @@ class Game {
 
     // 1. Initialize Texture Atlas & Materials
     await this.textures.init();
+    this.waterSplashes = new WaterSplashes(this.scene, this.world);
     this.shader = new LightweightShader(this);
     this.shader.bindButton(document.getElementById('btn-shader'));
     this.mesher = new ChunkMesher(this.textures);
@@ -1174,6 +1176,7 @@ class Game {
     this.world.redstone.update(dt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
     this.bow.update(dt);
     this.player.update(dt);
+    this.waterSplashes.update(dt, this.player.position);
 
     // 2. Update Held Item in Player Hand
     const activeItem = this.inventory.getActiveItem();
