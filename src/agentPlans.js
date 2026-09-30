@@ -4,7 +4,7 @@ import { BLOCKS } from './blocks.js';
 export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0 }) {
   if (++budget.steps > 64) throw new Error('Plan has too many steps.');
   if (!plan || typeof plan !== 'object' || Array.isArray(plan) || depth > 4) throw new Error('Invalid agent plan.');
-  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art'];
+  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art', 'create_mob'];
   if (!actions.includes(plan.action)) throw new Error(`Unsupported action: ${plan.action}`);
   const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
   const vector = (v, size = 3) => Array.isArray(v) && v.length === size && v.every(n => integer(n, -64, 64));
@@ -41,5 +41,40 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
   for (const key of ['radius', 'depth']) if (plan[key] !== undefined && !integer(plan[key], 0, 32)) throw new Error(`Invalid ${key}.`);
   if (plan.action === 'summon' && (!Array.isArray(plan.mobs) || plan.mobs.length > 16 || !plan.mobs.every(m => ['villager', 'iron_golem', 'pillager', 'zombie', 'pig', 'cow', 'sheep', 'creeper', 'skeleton', 'salmon', 'dolphin', 'octopus', 'axolotl'].includes(m.type) && integer(m.count, 1, 30)))) throw new Error('Invalid mobs.');
   if (plan.action === 'give' && (!Array.isArray(plan.giveItems) || plan.giveItems.length > 32 || !plan.giveItems.every(i => typeof i.name === 'string' && integer(i.count, 1, 640)))) throw new Error('Invalid items.');
+
+  // Custom mob design. Colours are hex strings, and the model type must be one the
+  // renderer knows how to build.
+  if (plan.action === 'create_mob') {
+    const mob = plan.mob;
+    if (!mob || typeof mob !== 'object' || Array.isArray(mob)) throw new Error('create_mob needs a mob object.');
+    if (typeof mob.name !== 'string' || !mob.name.trim() || mob.name.trim().length > 40) throw new Error('A mob needs a name of 1-40 characters.');
+
+    const hex = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
+    const modelTypes = ['humanoid', 'quadruped', 'flying', 'golem', 'slime'];
+    const look = mob.look || {};
+    if (look.modelType !== undefined && !modelTypes.includes(look.modelType)) {
+      throw new Error(`Unknown mob model type: ${look.modelType}`);
+    }
+    for (const key of ['mainColor', 'accentColor', 'eyeColor']) {
+      if (look[key] !== undefined && !hex(look[key])) throw new Error(`Invalid ${key}; expected #rrggbb.`);
+    }
+    if (look.scale !== undefined && (!Number.isFinite(look.scale) || look.scale < 0.3 || look.scale > 3)) throw new Error('Mob scale must be between 0.3 and 3.');
+
+    const behavior = mob.behavior || {};
+    if (behavior.type !== undefined && !['hostile', 'neutral', 'passive', 'pet', 'boss'].includes(behavior.type)) {
+      throw new Error(`Unknown mob behaviour: ${behavior.type}`);
+    }
+    for (const [key, min, max] of [['health', 1, 500], ['attack', 0, 60], ['speed', 0.2, 8], ['range', 1, 48]]) {
+      if (behavior[key] !== undefined && (!Number.isFinite(behavior[key]) || behavior[key] < min || behavior[key] > max)) {
+        throw new Error(`Mob ${key} must be between ${min} and ${max}.`);
+      }
+    }
+    if (mob.skills !== undefined) {
+      const known = ['fireball', 'teleport', 'leap', 'laser', 'heal', 'lightning', 'freeze'];
+      if (!Array.isArray(mob.skills) || mob.skills.length > 8 || !mob.skills.every(s => known.includes(s))) {
+        throw new Error(`Mob skills must be from: ${known.join(', ')}`);
+      }
+    }
+  }
   return plan;
 }

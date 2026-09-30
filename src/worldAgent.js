@@ -56,7 +56,7 @@ function surfaceGlyph(id) {
 }
 
 const PLAN_JSON_SCHEMA = `{
-  "action": "build" | "edit" | "destroy" | "message" | "build_stairs" | "build_ladder" | "weather" | "summon" | "time" | "give" | "gamemode" | "heal" | "clear" | "light" | "multi" | "fill_water",
+  "action": "build" | "edit" | "destroy" | "message" | "build_stairs" | "build_ladder" | "weather" | "summon" | "time" | "give" | "gamemode" | "heal" | "clear" | "light" | "multi" | "fill_water" | "create_mob",
   "name": "Short descriptive structure name",
   "offset": [0, 0, 0],
   "mode": "creative" | "survival",
@@ -316,17 +316,40 @@ export class WorldAgent {
     try {
       let plan = null;
 
+      // Mob Studio can configure a mob from a plain stat/behaviour description
+      // without a model round-trip. It declines anything character-shaped, which
+      // then falls through to the language model below.
+      if (this.game?.mobStudio?.isActive && cleanPrompt) {
+        const handledByMobStudio = this.game.mobStudio.handleAgentPrompt(cleanPrompt);
+        if (handledByMobStudio) {
+          this.log(`[Mob Studio] Configured the mob from your description: "${cleanPrompt}".`, 'success');
+          // Explain the missing reasoning trace: no model was consulted, so there
+          // is no chain of thought to show. It is also the opt-in cue.
+          this.logThought('No model call was made', 'Mob Studio matched this description with its built-in parser, so there is no reasoning trace. Name a specific character (for example "make a Pikachu") to have the AI design the mob instead.');
+          this.updateProgress(100, 'Mob updated from the description!');
+          this.isExecuting = false;
+          this.conversationHistory.push(
+            { role: 'user', text: cleanPrompt, timestamp: Date.now() },
+            { role: 'assistant', text: `Configured a mob in Mob Studio from: ${cleanPrompt}`, timestamp: Date.now() }
+          );
+          if (this.onComplete) this.onComplete();
+          return;
+        }
+      }
+
       // Check if Structure Studio is active and prompt configures a parametric structure
       if (this.game?.structureStudio?.isActive && cleanPrompt) {
         const handledByStudio = this.game.structureStudio.handleAgentPrompt(cleanPrompt);
         if (handledByStudio) {
           this.log(`[Structure Studio] Loaded parametric structure for: "${cleanPrompt}"`, 'success');
+          this.logThought('No model call was made', 'Structure Studio matched this prompt with its built-in parser, so there is no reasoning trace. Describe a structure it does not know (for example in another language) to have the AI build it instead.');
           this.updateProgress(100, 'Structure updated with parameters!');
           this.isExecuting = false;
           this.conversationHistory.push(
             { role: 'user', text: cleanPrompt, timestamp: Date.now() },
             { role: 'assistant', text: `Loaded parametric structure in Structure Studio: ${cleanPrompt}`, timestamp: Date.now() }
           );
+          if (this.onComplete) this.onComplete();
           return;
         }
       }
@@ -476,6 +499,35 @@ export class WorldAgent {
     }
   }
 
+  /**
+   * Prompt section describing the mob being edited in Mob Studio, plus the shape
+   * of a create_mob definition. Empty outside Mob Studio.
+   */
+  buildMobStudioContext() {
+    const studio = this.game?.mobStudio;
+    if (!studio?.isActive || !studio.currentMob) return '';
+    const mob = studio.currentMob;
+    return `MOB STUDIO — you are designing a custom mob, not building blocks:
+Current draft: "${mob.name}" — model type ${mob.look?.modelType}, main colour ${mob.look?.mainColor}, accent ${mob.look?.accentColor}, eyes ${mob.look?.eyeColor}, scale ${mob.look?.scale}, wings ${!!mob.look?.hasWings}, horns ${!!mob.look?.hasHorns}, glowing eyes ${!!mob.look?.hasGlowingEyes}.
+Behaviour: ${mob.behavior?.type}, health ${mob.behavior?.health}, attack ${mob.behavior?.attack}, speed ${mob.behavior?.speed}, skills [${(mob.skills || []).join(', ')}].
+To create or redesign this mob, return action "create_mob" with a "mob" object. Do NOT use "build" or "summon" for a custom creature.
+The renderer draws mobs from primitive boxes, so express appearance through the fields below rather than describing a silhouette in prose. Pick the model type that best matches the request: humanoid, quadruped, flying, golem or slime.
+{
+  "action": "create_mob",
+  "mob": {
+    "name": "Pikachu",
+    "description": "Short one-line description",
+    "look": { "modelType": "quadruped", "mainColor": "#f7d02c", "accentColor": "#8b4513", "eyeColor": "#1a1a1a", "scale": 0.8, "hasWings": false, "hasHorns": false, "hasGlowingEyes": false },
+    "behavior": { "type": "pet", "health": 35, "attack": 4, "speed": 3.4, "followPlayer": true, "range": 16 },
+    "skills": ["lightning"],
+    "eggColors": { "primary": "#f7d02c", "secondary": "#8b4513" }
+  }
+}
+Colours must be #rrggbb hex. modelType is one of humanoid|quadruped|flying|golem|slime. behaviour.type is one of hostile|neutral|passive|pet|boss. Skills are limited to: fireball, teleport, leap, laser, heal, lightning, freeze. Scale is 0.3-3, health 1-500, attack 0-60, speed 0.2-8.
+Choose colours from the character's actual palette: a yellow electric mouse needs a yellow body, brown accent and dark eyes — a purple humanoid is wrong.
+When the player asks to change one property of the current draft, return the whole mob object with that property changed and the rest preserved.`;
+  }
+
   buildSystemPrompt() {
     const player = this.game?.player;
     const pPos = player?.position || { x: 0, y: 0, z: 0 };
@@ -504,6 +556,7 @@ Legend: ${surfaceMap.legend}`
     // it the model cannot know where the structure is or which way its door
     // faces, and attaches additions to the wrong side.
     const studioSection = this.buildStudioStructureContext();
+    const mobSection = this.buildMobStudioContext();
 
     return `You are the World Agent 3D World Architect inside a 3D Minecraft browser voxel engine, running on the ${this.vendorLabel} vendor (model: ${this.model}).
 The player is at XYZ: (${pPos.x.toFixed(1)}, ${pPos.y.toFixed(1)}, ${pPos.z.toFixed(1)}) and facing ${facing}.
@@ -517,6 +570,7 @@ Last referenced structure ID: ${this.lastReferencedStructure?.id || this.lastBui
 World height: Y=1..${CHUNK_HEIGHT - 1}. Current time: ${this.game?.worldTime ?? 6000} (0-24000, 6000 midday / 18000 midnight).
 
 ${studioSection}
+${mobSection}
 
 ${surfaceSection}
 
@@ -1699,6 +1753,11 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         break;
       }
 
+      case 'create_mob': {
+        await this.executeCreateMob(plan.mob);
+        break;
+      }
+
       case 'give': {
         this.executeGive(plan.giveItems);
         break;
@@ -1805,6 +1864,58 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   }
 
   // --- Mob Summoning with Spatial & Interior Placement ---
+  /**
+   * Create a custom mob from a model-designed definition.
+   *
+   * In Mob Studio the definition is applied to the live preview and parameter
+   * panel so the user can iterate on it before saving. Outside the studio it is
+   * saved straight to the global mob library and summoned nearby.
+   *
+   * Returns false when the definition could not be used, so the caller can report
+   * a readable message instead of a raw exception.
+   */
+  async executeCreateMob(mobDefinition) {
+    if (!mobDefinition || typeof mobDefinition !== 'object') {
+      this.log('The model did not provide a mob definition, so nothing was created.', 'error');
+      return false;
+    }
+
+    const studio = this.game?.mobStudio;
+    if (studio?.isActive && typeof studio.applyMobDefinition === 'function') {
+      if (!studio.applyMobDefinition(mobDefinition)) {
+        this.log('The mob definition was incomplete, so the preview was left unchanged.', 'error');
+        return false;
+      }
+      this.updateProgress(100, `Designed ${studio.currentMob.name}`);
+      this.log(`✓ ${studio.currentMob.name} is ready in the preview — adjust the panel, then Save to add it to the library.`, 'success');
+      return true;
+    }
+
+    const library = this.game?.mobLibrary;
+    if (!library?.saveCustomMob) {
+      this.log('The mob library is unavailable, so the mob could not be saved.', 'error');
+      return false;
+    }
+
+    const result = library.saveCustomMob({
+      name: mobDefinition.name,
+      description: mobDefinition.description,
+      look: mobDefinition.look,
+      behavior: mobDefinition.behavior,
+      skills: mobDefinition.skills,
+      eggColors: mobDefinition.eggColors
+    });
+
+    if (!result || result.success === false) {
+      this.log(result?.message || 'That mob name is already taken; choose another.', 'error');
+      return false;
+    }
+
+    this.updateProgress(100, `Created ${result.name || mobDefinition.name}`);
+    this.log(`✓ ${result.name || mobDefinition.name} added to the mob library.`, 'success');
+    return true;
+  }
+
   async executeSummon(mobList, targetLocation = 'near_player', targetStructure = null) {
     if (!mobList || mobList.length === 0) return;
 
