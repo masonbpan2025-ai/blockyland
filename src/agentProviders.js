@@ -514,3 +514,83 @@ export function parseAgentPlanJson(text) {
   const cleaned = String(text).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   return JSON.parse(cleaned);
 }
+
+/** Remove trailing commas before a closing brace/bracket, which JSON forbids. */
+function stripTrailingCommas(text) {
+  let out = String(text);
+  let previous;
+  do {
+    previous = out;
+    out = out.replace(/,\s*([}\]])/g, '$1');
+  } while (out !== previous);
+  return out;
+}
+
+/**
+ * Close whatever braces and brackets are still open, dropping any half-written
+ * trailing value so the result is parseable.
+ *
+ * Streaming responses can be cut off mid-object — the model runs out of tokens
+ * with `finish_reason: "length"` — and throwing the whole plan away is wasteful
+ * when a single `}` is all that is missing.
+ */
+function closeUnbalanced(text) {
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{' || char === '[') stack.push(char);
+    else if (char === '}' || char === ']') stack.pop();
+  }
+
+  let candidate = text;
+  if (inString) candidate += '"';
+  // A dangling separator or key leaves the tail invalid; drop back to the last
+  // safe boundary before closing the remaining containers. The `:?` also covers
+  // a trailing key with no value at all, e.g. `{"action":"build","name"`.
+  candidate = candidate.replace(/,\s*$/, '');
+  candidate = candidate.replace(/,\s*"[^"]*"\s*:?\s*$/, '');
+  candidate = candidate.replace(/:\s*$/, ': null');
+  candidate = stripTrailingCommas(candidate);
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    candidate += stack[i] === '{' ? '}' : ']';
+  }
+  return candidate;
+}
+
+/**
+ * Parse a planner reply, recovering from a truncated tail when possible.
+ *
+ * @returns {{plan: object|null, repaired: boolean, error: Error|null}}
+ *   `repaired: true` means the text was incomplete and had to be closed; the
+ *   caller should tell the user the result may be partial.
+ */
+export function parsePlanWithRecovery(text) {
+  const raw = String(text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  if (!raw) {
+    return { plan: null, repaired: false, error: new Error('Empty response from the language model') };
+  }
+
+  try {
+    return { plan: JSON.parse(raw), repaired: false, error: null };
+  } catch (firstError) {
+    try {
+      const repairedPlan = JSON.parse(closeUnbalanced(raw));
+      return { plan: repairedPlan, repaired: true, error: null };
+    } catch {
+      // Report the original failure: it points at the real problem, whereas the
+      // repair attempt only reports its own closing braces.
+      return { plan: null, repaired: false, error: firstError };
+    }
+  }
+}

@@ -15,6 +15,7 @@ import {
   getVendorModels,
   isTokenExhausted,
   parseAgentPlanJson,
+  parsePlanWithRecovery,
   supportsEffort
 } from './agentProviders.js';
 
@@ -23,6 +24,8 @@ import {
 const IDLE_TIMEOUT_MS = 60000;
 // Reasoning shown live in the terminal, and kept in full afterwards.
 const THOUGHT_DISPLAY_LIMIT = 4000;
+// Forced-offline preference; the API key itself is stored per vendor.
+const OFFLINE_MODE_STORAGE = 'mc_agent_offline';
 
 // Short glyphs used by the compact surface map embedded in the system prompt.
 const SURFACE_GLYPHS = [
@@ -115,6 +118,8 @@ export class WorldAgent {
     // request is in flight. Wired by the UI, optional everywhere else.
     this.onThought = null;
     this.thinkingEnabled = true;
+    // Forced offline mode: keep the key, but use the built-in presets.
+    this.#readOfflineMode();
     this.#requestStartedAt = 0;
     this.#streamStartedAt = null;
     this.#requestVendor = this.settings.vendor;
@@ -156,6 +161,60 @@ export class WorldAgent {
 
   get isConfigured() {
     return !!this.apiKey;
+  }
+
+  /**
+   * Whether a request may actually be sent. Forced offline mode keeps the stored
+   * API key (so switching back is one click) but routes every prompt to the
+   * built-in offline presets instead of the vendor.
+   */
+  get canUseApi() {
+    return !this.offlineMode && !!this.apiKey;
+  }
+
+  get isOffline() {
+    return !this.canUseApi;
+  }
+
+  /** Reload the forced-offline flag from the active settings store. */
+  #readOfflineMode() {
+    this.offlineMode = false;
+    const store = this.settings?.store;
+    if (!store) return;
+    try {
+      this.offlineMode = store.getItem(OFFLINE_MODE_STORAGE) === '1';
+    } catch {
+      this.offlineMode = false;
+    }
+  }
+
+  /**
+   * Re-read persisted preferences (vendor, model, effort, keys, offline mode).
+   * Exposed so a page load or a fresh settings store cannot leave stale state
+   * behind, and so tests can exercise the reload path directly.
+   */
+  reloadSettings() {
+    this.#readOfflineMode();
+    return this.offlineMode;
+  }
+
+  /** Force offline presets on, or hand control back to the API when a key exists. */
+  setOfflineMode(offline) {
+    this.offlineMode = !!offline;
+    this.lastError = null;
+    const store = this.settings?.store;
+    if (store) {
+      try {
+        if (this.offlineMode) {
+          store.setItem(OFFLINE_MODE_STORAGE, '1');
+        } else {
+          store.removeItem(OFFLINE_MODE_STORAGE);
+        }
+      } catch {
+        // Storage unavailable; the mode just will not persist across reloads.
+      }
+    }
+    return this.offlineMode;
   }
 
   getVendorModels(vendorId = this.settings.vendor) {
@@ -256,9 +315,41 @@ export class WorldAgent {
     try {
       let plan = null;
 
+      // Check if Structure Studio is active and prompt configures a parametric structure
+      if (this.game?.structureStudio?.isActive && cleanPrompt) {
+        const handledByStudio = this.game.structureStudio.handleAgentPrompt(cleanPrompt);
+        if (handledByStudio) {
+          this.log(`[Structure Studio] Loaded parametric structure for: "${cleanPrompt}"`, 'success');
+          this.updateProgress(100, 'Structure updated with parameters!');
+          this.isExecuting = false;
+          this.conversationHistory.push(
+            { role: 'user', text: cleanPrompt, timestamp: Date.now() },
+            { role: 'assistant', text: `Loaded parametric structure in Structure Studio: ${cleanPrompt}`, timestamp: Date.now() }
+          );
+          return;
+        }
+      }
+
+      // Check if Mob Studio is active and prompt configures a custom mob
+      if (this.game?.mobStudio?.isActive && cleanPrompt) {
+        const handledByMobStudio = this.game.mobStudio.handleAgentPrompt(cleanPrompt);
+        if (handledByMobStudio) {
+          this.log(`[Mob Studio] Configured mob for: "${cleanPrompt}"`, 'success');
+          this.updateProgress(100, 'Custom mob updated in Mob Studio!');
+          this.isExecuting = false;
+          this.conversationHistory.push(
+            { role: 'user', text: cleanPrompt, timestamp: Date.now() },
+            { role: 'assistant', text: `Updated custom mob in Mob Studio: ${cleanPrompt}`, timestamp: Date.now() }
+          );
+          return;
+        }
+      }
+
       // Every prompt goes to the language model when configured, without keyword gating.
-      if (this.apiKey) {
+      if (this.canUseApi) {
         plan = await this.queryLanguageModel(cleanPrompt, imageAttachment, options);
+      } else if (this.offlineMode && this.apiKey) {
+        this.log(`Offline mode is on: using built-in presets instead of ${vendorLabel}. Turn it off in Settings to use the API.`, 'info');
       }
 
       // Offline presets are used only when no API key is configured.
@@ -275,6 +366,16 @@ export class WorldAgent {
       // 3. Execute the resulting plan
       validatePlan(plan);
       await this.runPlan(plan, cleanPrompt);
+
+      // In Structure Studio, hand the result to the parameter panel so the user
+      // can tune it. That is the whole point of the Studio: without this the
+      // model's structure would be built but impossible to iterate on.
+      if (this.game?.structureStudio?.isActive && typeof this.game.structureStudio.adoptFromPlan === 'function') {
+        const adopted = this.game.structureStudio.adoptFromPlan(plan);
+        if (adopted) {
+          this.log(`[Structure Studio] Loaded "${plan.structureType || plan.name}" into the parameter panel — adjust the sliders to rebuild it.`, 'success');
+        }
+      }
 
       // Record assistant response in conversation history
       this.conversationHistory.push({
@@ -724,7 +825,25 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
     }
 
-    return { plan: validatePlan(parseAgentPlanJson(text)), truncated: false, usage, emptyError: null };
+    // A cut-off response is still worth salvaging: a single missing brace should
+    // not throw away an otherwise usable plan, and a raw "Expected ',' or '}'"
+    // SyntaxError tells the player nothing.
+    const outcome = parsePlanWithRecovery(text);
+    if (!outcome.plan) {
+      const truncated = isTokenExhausted({ finishReason, usage });
+      const kind = truncated ? 'truncated' : 'malformed';
+      this.log(`The reply from ${this.vendorLabel} was ${kind} at character ${outcome.error?.position ?? '?'}; nothing was built. Try again, or ask for a simpler structure.`, 'error');
+      const plan = {
+        action: 'message',
+        explanation: `${this.vendorLabel} returned incomplete JSON (${kind}) and nothing was executed. Try rephrasing, or ask for a smaller structure.`
+      };
+      return { plan: validatePlan(plan), truncated, usage, emptyError: null };
+    }
+
+    if (outcome.repaired) {
+      this.log('Recovered an incomplete JSON reply by closing the truncated braces; please double-check the result.', 'warning');
+    }
+    return { plan: validatePlan(outcome.plan), truncated: false, usage, emptyError: null };
   }
 
   /** Progress creeps from 15% to 32% while the model thinks, so the bar moves. */

@@ -1,6 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { VILLAGER_TRADES } from './crafting.js';
-import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems } from './creativeCatalog.js';
+import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import {
   getDefaultPathInfo,
   fetchSavedMaps,
@@ -167,18 +167,24 @@ export class UIManager {
       }
 
       // Hotbar selection 1-9
-      if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen) {
-        this.inv.activeSlot = parseInt(e.code.replace('Digit', '')) - 1;
-        this.updateHotbar();
+      if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          this.inv.activeSlot = parseInt(e.code.replace('Digit', '')) - 1;
+          this.updateHotbar();
+        }
       }
 
       // E: Open/close inventory
-      if (e.code === 'KeyE' && !this.isChatOpen && !this.isGeminiOpen()) {
-        e.preventDefault();
-        this.toggleInventory();
+      if (e.code === 'KeyE' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          e.preventDefault();
+          this.toggleInventory();
+        }
       }
 
-          // C: Open/close the AI Agent Terminal
+      // C: Open/close the AI Agent Terminal
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
@@ -188,9 +194,12 @@ export class UIManager {
       }
 
       // T or /: Open chat
-      if ((e.code === 'KeyT' || e.code === 'Slash') && !this.isModalOpen() && !this.isChatOpen) {
-        e.preventDefault();
-        this.openChat(e.code === 'Slash' ? '/' : '');
+      if ((e.code === 'KeyT' || e.code === 'Slash') && !this.isModalOpen() && !this.isChatOpen && !this.isGeminiOpen()) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          e.preventDefault();
+          this.openChat(e.code === 'Slash' ? '/' : '');
+        }
       }
 
       // ESC: Close open modals or toggle pause menu
@@ -209,7 +218,7 @@ export class UIManager {
 
     // Mouse scroll wheel cycles hotbar slots
     window.addEventListener('wheel', (e) => {
-      if (this.isModalOpen() || this.isChatOpen) return;
+      if (this.isModalOpen() || this.isChatOpen || this.isGeminiOpen()) return;
       if (e.deltaY > 0) {
         this.inv.activeSlot = (this.inv.activeSlot + 1) % 9;
       } else if (e.deltaY < 0) {
@@ -256,8 +265,10 @@ export class UIManager {
     if (this.inv.cursorItem) {
       this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
       this.inv.cursorItem = null;
-      this.updateFloatingCursor();
     }
+    // Always sync the ghost icon, whether or not an item was held: this is the
+    // single place every close path funnels through, so it cannot be left visible.
+    this.updateFloatingCursor();
   }
 
   playPopSound() {
@@ -313,9 +324,12 @@ export class UIManager {
   }
 
   initStatusBarsDOM() {
-    // 10 Hearts
+    const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
+    const maxHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
+
+    // Hearts (30 in tournament mode = 3x long, 10 in standard mode)
     this.healthBarEl.innerHTML = '';
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < maxHearts; i++) {
       const heart = document.createElement('div');
       heart.className = 'stat-icon';
       heart.style.backgroundImage = 'radial-gradient(circle, #ff2222 60%, #880000 90%)';
@@ -342,10 +356,25 @@ export class UIManager {
     if (expContainer) expContainer.style.display = isCreative ? 'none' : 'block';
     if (isCreative) return;
 
+    const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
+    const expectedHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
+
+    if (this.healthBarEl.children.length !== expectedHearts) {
+      this.initStatusBarsDOM();
+    }
+
+    if (statusBars) {
+      if (isTournament) {
+        statusBars.classList.add('tournament-mode');
+      } else {
+        statusBars.classList.remove('tournament-mode');
+      }
+    }
+
     // Health hearts
     const hearts = this.healthBarEl.children;
     const hp = Math.ceil(this.player.health);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < hearts.length; i++) {
       const heartVal = (i + 1) * 2;
       if (hp >= heartVal) {
         hearts[i].style.opacity = '1';
@@ -362,7 +391,7 @@ export class UIManager {
     // Hunger drumsticks
     const drumsticks = this.hungerBarEl.children;
     const hunger = Math.ceil(this.player.hunger);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < drumsticks.length; i++) {
       const val = (i + 1) * 2;
       drumsticks[i].style.opacity = (hunger >= val) ? '1' : '0.35';
     }
@@ -425,6 +454,7 @@ export class UIManager {
     document.exitPointerLock();
     this.closeAllModals();
     if (!this.creativeModal) return;
+    refreshCreativeCatalog();
     this.creativeModal.classList.remove('hidden');
     this.renderCreativeTabs();
     this.renderCreativeItems();
@@ -489,8 +519,8 @@ export class UIManager {
   renderCreativeTabs() {
     if (!this.creativeTabsTop || !this.creativeTabsBottom) return;
 
-    // Top Tabs: first 6
-    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'all_items'];
+    // Top Tabs: building, colored, natural, functional, redstone, structure, search/all
+    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'structure', 'all_items'];
     // Bottom Tabs: tools_utilities, combat, food_drinks, ingredients, spawn_eggs, survival_inventory
     const bottomTabIds = ['tools_utilities', 'combat', 'food_drinks', 'ingredients', 'spawn_eggs', 'survival_inventory'];
 
@@ -597,11 +627,19 @@ export class UIManager {
       }
 
       slot.onclick = (e) => {
+        const itemObj = {
+          id: item.id,
+          isBlock: item.isBlock,
+          count: item.count,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
+          icon: item.icon
+        };
         if (e.shiftKey) {
           // Transfer directly into first empty hotbar slot
           for (let i = 0; i < 9; i++) {
             if (!this.inv.hotbar[i]) {
-              this.inv.hotbar[i] = { id: item.id, isBlock: item.isBlock, count: item.count };
+              this.inv.hotbar[i] = itemObj;
               this.sounds.playClick();
               this.renderCreativeHotbar();
               this.updateHotbar();
@@ -609,13 +647,13 @@ export class UIManager {
             }
           }
           // If hotbar full, replace active slot
-          this.inv.hotbar[this.inv.activeSlot] = { id: item.id, isBlock: item.isBlock, count: item.count };
+          this.inv.hotbar[this.inv.activeSlot] = itemObj;
           this.sounds.playClick();
           this.renderCreativeHotbar();
           this.updateHotbar();
         } else {
           // Left click: pickup full stack to cursor
-          this.inv.cursorItem = { id: item.id, isBlock: item.isBlock, count: item.count };
+          this.inv.cursorItem = itemObj;
           this.sounds.playClick();
           this.updateFloatingCursor();
         }
@@ -624,13 +662,20 @@ export class UIManager {
       slot.oncontextmenu = (e) => {
         e.preventDefault();
         // Right click: pickup single item to cursor
-        this.inv.cursorItem = { id: item.id, isBlock: item.isBlock, count: 1 };
+        this.inv.cursorItem = {
+          id: item.id,
+          isBlock: item.isBlock,
+          count: 1,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
+          icon: item.icon
+        };
         this.sounds.playClick();
         this.updateFloatingCursor();
       };
 
       slot.onmouseenter = (e) => {
-        const sub = item.isBlock ? 'Block' : (item.id.replace(/_/g, ' '));
+        const sub = item.isStructure ? 'Structure' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
         this.showTooltip(e.clientX, e.clientY, item.name, sub);
       };
       slot.onmousemove = (e) => {
@@ -866,6 +911,10 @@ export class UIManager {
 
   bindFloatingCursor() {
     window.addEventListener('mousemove', (e) => {
+      // Remember the pointer position: without it the ghost icon would keep the
+      // coordinates of the last mousemove even after the modal that owned it closed.
+      this.lastPointerX = e.clientX;
+      this.lastPointerY = e.clientY;
       if (this.inv.cursorItem) {
         this.floatingItem.style.left = `${e.clientX}px`;
         this.floatingItem.style.top = `${e.clientY}px`;
@@ -874,14 +923,44 @@ export class UIManager {
   }
 
   updateFloatingCursor() {
-    if (!this.inv.cursorItem) {
+    if (!this.floatingItem) return;
+
+    const meta = this.inv.cursorItem ? this.inv.getItemMeta(this.inv.cursorItem) : null;
+
+    // Hide whenever there is no usable item. Clearing src matters: a stale icon
+    // with a live src rendered a leftover item image (a "ghost") pinned to the
+    // last known cursor position, which is what got stuck on screen before.
+    if (!meta) {
       this.floatingItem.classList.add('hidden');
-    } else {
-      this.floatingItem.classList.remove('hidden');
-      const meta = this.inv.getItemMeta(this.inv.cursorItem);
-      this.floatingItem.querySelector('.slot-icon').src = meta.icon;
-      this.floatingItem.querySelector('.slot-count').textContent = meta.count > 1 ? meta.count : '';
+      const icon = this.floatingItem.querySelector('.slot-icon');
+      if (icon) {
+        icon.removeAttribute('src');
+        icon.alt = '';
+      }
+      const count = this.floatingItem.querySelector('.slot-count');
+      if (count) count.textContent = '';
+      return;
     }
+
+    const icon = this.floatingItem.querySelector('.slot-icon');
+    const count = this.floatingItem.querySelector('.slot-count');
+    // Only reveal once the icon is valid, so a broken image can never be shown.
+    if (icon) {
+      icon.src = meta.icon || '';
+      icon.alt = meta.name || '';
+      if (!icon.src) {
+        this.floatingItem.classList.add('hidden');
+        return;
+      }
+    }
+    if (count) count.textContent = meta.count > 1 ? meta.count : '';
+
+    // Keep the ghost under the pointer, even if no mousemove arrives after this.
+    if (Number.isFinite(this.lastPointerX) && Number.isFinite(this.lastPointerY)) {
+      this.floatingItem.style.left = `${this.lastPointerX}px`;
+      this.floatingItem.style.top = `${this.lastPointerY}px`;
+    }
+    this.floatingItem.classList.remove('hidden');
   }
 
   // Villager Trades
@@ -1055,6 +1134,12 @@ export class UIManager {
           if (this.game.trainingSites) this.game.trainingSites.cleanup?.();
           if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
             this.game.dungeonMode.exitDungeonMode(false);
+          }
+          if (this.game.structureStudio) {
+            this.game.structureStudio.exitStudio();
+          }
+          if (this.game.world) {
+            this.game.world.isFlatWorld = false;
           }
           if (this.game.mechanisms) {
             this.game.mechanisms.setMechanism('default', this.game);
@@ -1568,6 +1653,11 @@ export class UIManager {
     this.chatInputWrapper.style.display = 'block';
     this.chatInput.value = initialText;
     this.chatInput.focus();
+    if (this.player) {
+      this.player.keys = {};
+      this.player.velocity.x = 0;
+      this.player.velocity.z = 0;
+    }
   }
 
   closeChat() {
@@ -1575,8 +1665,13 @@ export class UIManager {
     this.chatInputWrapper.style.display = 'none';
     this.chatInput.value = '';
     this.chatInput.blur();
+    if (this.player) {
+      this.player.keys = {};
+    }
     const canvas = document.getElementById('canvas-container');
-    canvas.requestPointerLock();
+    if (canvas && !this.isModalOpen() && !this.isGeminiOpen()) {
+      canvas.requestPointerLock();
+    }
   }
 
   addChatMessage(msg, type = 'normal') {
@@ -1612,6 +1707,11 @@ export class UIManager {
   openGeminiTerminal(options = {}) {
     document.exitPointerLock();
     this.closeAllModals();
+    if (this.player) {
+      this.player.keys = {};
+      this.player.velocity.x = 0;
+      this.player.velocity.z = 0;
+    }
     if (this.geminiModal) {
       this.geminiModal.classList.remove('hidden');
       if (options.showSettings && this.geminiKeyDrawer) {
@@ -1636,8 +1736,13 @@ export class UIManager {
     if (this.geminiModal) {
       this.geminiModal.classList.add('hidden');
     }
+    if (this.player) {
+      this.player.keys = {};
+    }
     const canvas = document.getElementById('canvas-container');
-    if (canvas) canvas.requestPointerLock();
+    if (canvas && !this.isModalOpen() && !this.isChatOpen) {
+      canvas.requestPointerLock();
+    }
   }
 
   initGemini(geminiAgent) {
@@ -1978,18 +2083,6 @@ export class UIManager {
       };
     }
 
-    // Quick suggestion chips
-    const chips = document.querySelectorAll('.gemini-chip');
-    chips.forEach(chip => {
-      chip.onclick = () => {
-        const prompt = chip.getAttribute('data-prompt');
-        if (this.geminiPromptInput) {
-          this.geminiPromptInput.value = prompt;
-          this.geminiPromptInput.focus();
-        }
-      };
-    });
-
     // Image paste (Ctrl+V) listener
     window.addEventListener('paste', (e) => {
       if (!this.geminiModal || this.geminiModal.classList.contains('hidden')) return;
@@ -2071,6 +2164,12 @@ export class UIManager {
         this.clearAttachedImage();
         if (viewImage) this.addGeminiLog('📷 Attached a screenshot of your current view.', 'info');
         geminiAgent.executePrompt(effectivePrompt, image, { viewImage });
+      };
+    }
+
+    if (this.geminiCloseBtn) {
+      this.geminiCloseBtn.onclick = () => {
+        this.closeGeminiTerminal();
       };
     }
   }
