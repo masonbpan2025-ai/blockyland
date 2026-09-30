@@ -16,6 +16,8 @@ import { encodeScreenshotDataUrl } from './agentProviders.js';
 import {
   DEFAULT_BATCH_SIZE,
   ProgressOverlay,
+  REQUIRED_UI_METHODS,
+  findMissingMethods,
   loadChunksProgressively,
   yieldToBrowser
 } from './progressOverlay.js';
@@ -114,11 +116,17 @@ class Game {
     this.clock = new THREE.Clock();
     this.fpsHistory = [];
     this.renderDistance = 4; // chunks radius
+
+    // Created here rather than in start() so the start-overlay handlers can
+    // always use it, even if start() is still awaiting textures.
+    this.overlay = typeof document !== 'undefined' ? new ProgressOverlay(document) : null;
+    this._worldStartInFlight = false;
+    // Set once the initial chunks exist and it is safe to enter the world.
+    this.worldReady = false;
   }
 
   async start() {
     console.log('Initializing Minecraft Web Edition...');
-    this.overlay = new ProgressOverlay(document);
 
     // 1. Initialize Texture Atlas & Materials
     await this.textures.init();
@@ -181,6 +189,12 @@ class Game {
     if (this.worldGenerated) return;
     this.worldGenerated = true;
     this.worldType = 'generated';
+    // Catch a missing UI method up front: previously such a call threw late in
+    // this method and silently aborted the start flow.
+    const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
+    if (missingUi.length) {
+      console.warn(`[World] UIManager is missing: ${missingUi.join(', ')}. Skipping those updates.`);
+    }
     if (this.mechanisms) {
       this.mechanisms.setMechanism('default', this);
     } else {
@@ -200,10 +214,34 @@ class Game {
     await this.loadWorldProgressively();
     this.spawnVillageMobs();
     if (this.ui) {
-      this.ui.updateHotbar();
-      this.ui.updateHealthBar(this.player.health, this.player.maxHealth);
-      this.ui.updateHungerBar(this.player.hunger, 20);
+      if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
+      if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
     }
+    // Only now is it safe to leave the start screen. Pointer lock is requested on
+    // the player's next canvas click, because user activation does not survive the
+    // awaits above and a pointer-lock request here would be rejected.
+    this.worldReady = true;
+  }
+
+  /**
+   * Roll back a failed world start so the player is never stranded on a full
+   * progress bar: hide the overlay, restore the start screen and say what broke.
+   */
+  failWorldStart(err) {
+    const message = err && err.message ? err.message : String(err);
+    this.worldReady = false;
+    if (this.overlay) this.overlay.hide();
+    else if (typeof document !== 'undefined') document.getElementById('world-progress-overlay')?.classList.add('hidden');
+
+    if (typeof document !== 'undefined') {
+      const startOverlay = document.getElementById('start-overlay');
+      if (startOverlay) startOverlay.style.display = 'flex';
+    }
+
+    if (this.ui?.addChatMessage) {
+      this.ui.addChatMessage(`Could not start the world: ${message}`, 'error');
+    }
+    return message;
   }
 
   /**
@@ -391,10 +429,17 @@ class Game {
           // terrain and meshes are actually ready, then hand over the pointer.
           await this.generateNewWorld();
           if (startOverlay) startOverlay.style.display = 'none';
-          this.renderer.domElement.requestPointerLock();
+        } catch (err) {
+          // Never strand the player on a full progress bar: undo the start and
+          // report what happened.
+          console.error('[World] Failed to start a new world:', err);
+          this.failWorldStart(err);
         } finally {
           btnNewWorld.disabled = false;
           this._worldStartInFlight = false;
+          // The overlay only hides once the world is really running; on failure
+          // failWorldStart() has already taken it down.
+          if (this.worldReady) this.overlay?.hide();
         }
       });
     }

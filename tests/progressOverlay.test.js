@@ -8,7 +8,9 @@ import path from 'node:path';
 import {
   DEFAULT_BATCH_SIZE,
   ProgressOverlay,
+  REQUIRED_UI_METHODS,
   clampPercent,
+  findMissingMethods,
   loadChunksProgressively,
   runBatches
 } from '../src/progressOverlay.js';
@@ -236,3 +238,62 @@ test('the stylesheet defines the overlay so it is actually visible', () => {
   assert.match(css, /#world-progress-overlay/);
   assert.match(css, /\.world-progress-fill/);
 });
+
+// --- the stuck-at-100% regression -------------------------------------------
+
+test('findMissingMethods reports the methods a target does not implement', () => {
+  const ui = { updateHotbar() {}, updateStats() {} };
+  assert.deepEqual(findMissingMethods(ui, ['updateHotbar', 'updateStats']), []);
+  // The exact bug that froze the start screen: two methods that never existed.
+  assert.deepEqual(
+    findMissingMethods(ui, ['updateHotbar', 'updateHealthBar', 'updateHungerBar']),
+    ['updateHealthBar', 'updateHungerBar']
+  );
+  assert.deepEqual(findMissingMethods(null, ['a', 'b']), ['a', 'b'], 'a missing target reports everything');
+  assert.deepEqual(findMissingMethods(ui, []), []);
+});
+
+test('UIManager really implements every method the world-start path requires', () => {
+  const ui = fs.readFileSync(path.join(process.cwd(), 'src/ui.js'), 'utf8');
+  for (const name of REQUIRED_UI_METHODS) {
+    assert.match(ui, new RegExp(`(^|\\s)${name}\\s*\\(`), `UIManager is missing ${name}()`);
+  }
+});
+
+test('the world-start path never calls an undefined UIManager method', () => {
+  const ui = fs.readFileSync(path.join(process.cwd(), 'src/ui.js'), 'utf8');
+  const main = fs.readFileSync(path.join(process.cwd(), 'src/main.js'), 'utf8');
+
+  // These two were called in generateNewWorld() but exist nowhere. Each call was a
+  // TypeError that aborted the flow after the bar had reached 100%.
+  assert.doesNotMatch(ui, /updateHealthBar\s*\(/, 'updateHealthBar must not appear in ui.js');
+  assert.doesNotMatch(ui, /updateHungerBar\s*\(/, 'updateHungerBar must not appear in ui.js');
+  assert.doesNotMatch(main, /updateHealthBar\s*\(/, 'main.js must not call updateHealthBar()');
+  assert.doesNotMatch(main, /updateHungerBar\s*\(/, 'main.js must not call updateHungerBar()');
+});
+
+test('a failed world start cannot strand the player on a full progress bar', () => {
+  const css = fs.readFileSync(path.join(process.cwd(), 'src/style.css'), 'utf8');
+  assert.match(css, /#world-progress-overlay/);
+
+  const main = fs.readFileSync(path.join(process.cwd(), 'src/main.js'), 'utf8');
+  // There must be a catch, not just a finally: a finally alone let an exception
+  // escape with the overlay still on screen.
+  const handler = main.slice(main.indexOf("btnNewWorld.addEventListener"));
+  const body = handler.slice(0, handler.indexOf('if (btnDesignedWorld)'));
+  assert.match(body, /catch \(err\)/, 'the start handler needs a catch block');
+  assert.match(body, /failWorldStart\(err\)/, 'the catch must roll the start screen back');
+  assert.match(body, /finally \{/, 'cleanup must still run');
+  assert.match(body, /if \(this\.worldReady\)/, 'the overlay may only hide once the world is actually ready');
+  assert.match(main, /failWorldStart\s*\(err\)\s*\{/, 'failWorldStart must be defined');
+});
+
+test('pointer lock is not requested after an await, where activation has expired', () => {
+  const main = fs.readFileSync(path.join(process.cwd(), 'src/main.js'), 'utf8');
+  const handler = main.slice(main.indexOf("btnNewWorld.addEventListener"));
+  const body = handler.slice(0, handler.indexOf('if (btnDesignedWorld)'));
+  assert.doesNotMatch(body, /requestPointerLock/, 'a post-await lock request is rejected by the browser');
+  // It is still requested from a real user gesture on the canvas.
+  assert.match(main, /domElement\.addEventListener\('click',[\s\S]{0,400}requestPointerLock\(\)/);
+});
+

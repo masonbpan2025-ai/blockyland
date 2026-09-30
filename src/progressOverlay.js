@@ -40,6 +40,23 @@ export function clampPercent(value) {
 }
 
 /**
+ * Which of `names` are absent as methods on `target`.
+ *
+ * Exists because a call to a UI method that does not exist throws inside the
+ * world-start path, which previously left the progress overlay pinned at 100%
+ * with no error shown anywhere. Callers use this to detect that class of bug
+ * rather than discovering it as a frozen start screen.
+ */
+export function findMissingMethods(target, names) {
+  const list = Array.isArray(names) ? names : [];
+  if (!target) return list.slice();
+  return list.filter(name => typeof target[name] !== 'function');
+}
+
+/** UI surface the world-start path touches. Keep in sync with Game#generateNewWorld. */
+export const REQUIRED_UI_METHODS = ['updateHotbar', 'updateStats'];
+
+/**
  * Drive the loading overlay.
  *
  * The element lookups happen per call rather than in the constructor so the

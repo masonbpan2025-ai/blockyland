@@ -141,6 +141,9 @@ export function deserializeWorld(game, mapData, options = {}) {
   const targetMechanismId = mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default');
   game.worldType = targetWorldType;
   game.worldGenerated = true;
+  // Marks the world as safe to enter, so the entry point does not hide the
+  // progress overlay while blocks are still being restored.
+  game.worldReady = true;
 
   // 1. Clean up old chunk meshes from the 3D scene
   for (const chunk of game.world.chunks.values()) {
