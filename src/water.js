@@ -110,6 +110,21 @@ export function createWaterMaterial() {
         vec3 result = mix(water, reflection, fresnel * 0.78);
         vec3 halfDirection = normalize(normalize(uSunDirection) + viewDir);
         float specular = pow(max(dot(normal, halfDirection),0.0), 180.0);
+        // An elongated solar glitter path: ripple normals break it into moving flecks.
+        // Normalize out the low-angle diffuse intensity so sunset reflections remain bright.
+        float sunHeight = uSunDirection.y;
+        float solarVisibility = smoothstep(-0.025, 0.015, sunHeight)
+          * clamp(uSunIntensity / max(smoothstep(-0.025, 0.5, sunHeight), 0.02), 0.0, 1.0);
+        float twilight = 1.0 - smoothstep(0.0, 0.32, abs(sunHeight));
+        float azimuth = length(normalize(reflected.xz + vec2(0.00001)) - normalize(uSunDirection.xz + vec2(0.00001)));
+        float elevationError = reflected.y - sunHeight;
+        float glitterPath = exp(-pow(azimuth / 0.075, 2.0) - pow(elevationError / 0.28, 2.0));
+        float flecks = smoothstep(0.30, 0.72, h + slope.y * 0.35);
+        float solarDisc = 1.0 - smoothstep(0.035, 0.060, length(reflected - uSunDirection));
+        vec3 goldenSun = mix(uSunColor, vec3(1.0, 0.52, 0.13), twilight * 0.85);
+        float solarGlint = surface && gl_FrontFacing ? solarVisibility * sunShadow
+          * (solarDisc * 1.5 + glitterPath * (0.18 + flecks * 1.5) * (0.3 + twilight * 0.7)) : 0.0;
+        result += goldenSun * solarGlint;
         result += uSunColor * specular * uSunIntensity * 0.5 * detail * sunShadow;
         // Colored lamps and their occlusion also affect the water surface.
         vec3 viewPosition = (viewMatrix * vec4(vWorldPos, 1.0)).xyz;
@@ -137,6 +152,7 @@ export function createWaterMaterial() {
         // Transparent shallows reveal the actual sand/stone below; deep water absorbs more light.
         float alpha = mix(0.27, 0.82, absorption);
         alpha = mix(alpha, 0.88, fresnel * 0.75);
+        alpha = max(alpha, clamp(solarGlint, 0.0, 0.92));
         if (!surface) alpha *= 0.8;
         if (uIsUnderwater > 0.5) {
           result = mix(vTint * 0.18, reflection, fresnel * 0.65);
