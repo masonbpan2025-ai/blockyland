@@ -55,10 +55,10 @@ export function buildCreativeCatalog() {
 
   // 1. Building Blocks
   const buildingBlocksList = [
-    BLOCKS.STONE, BLOCKS.COBBLESTONE, BLOCKS.MOSSY_COBBLESTONE, BLOCKS.STONE_BRICKS,
+    BLOCKS.STONE, BLOCKS.SMOOTH_STONE, BLOCKS.COBBLESTONE, BLOCKS.MOSSY_COBBLESTONE, BLOCKS.STONE_BRICKS,
     BLOCKS.BRICKS, BLOCKS.SANDSTONE, BLOCKS.OAK_PLANKS, BLOCKS.BOOKSHELF,
     BLOCKS.GLASS, BLOCKS.OBSIDIAN, BLOCKS.BEDROCK, BLOCKS.CLAY,
-    BLOCKS.NETHERRACK, BLOCKS.SOUL_SAND, BLOCKS.END_STONE
+    BLOCKS.NETHERRACK, BLOCKS.SOUL_SAND, BLOCKS.END_STONE, BLOCKS.COAL_BLOCK
   ];
   for (const b of buildingBlocksList) {
     const entry = blockItem(b, 'building_blocks');
@@ -92,7 +92,7 @@ export function buildCreativeCatalog() {
 
   // 4. Functional Blocks
   const functionalBlocksList = [
-    BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.LADDER,
+    BLOCKS.CHEST, BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.RED_BED_FOOT, BLOCKS.LADDER,
     BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL
   ];
   for (const b of functionalBlocksList) {
@@ -100,7 +100,7 @@ export function buildCreativeCatalog() {
     if (entry) catalog.push(entry);
   }
   const functionalItemsList = [
-    'armor_stand', 'item_frame', 'painting', 'brewing_stand', 'cauldron'
+    'chest', 'red_bed', 'armor_stand', 'item_frame', 'painting', 'brewing_stand', 'cauldron'
   ];
   for (const it of functionalItemsList) {
     const entry = itemEntry(it, 'functional_blocks');
@@ -166,7 +166,10 @@ export function buildCreativeCatalog() {
   const foodList = [
     'golden_apple', 'apple', 'bread',
     'cooked_beef', 'beef', 'cooked_porkchop', 'porkchop',
+    'cooked_chicken', 'chicken', 'cooked_mutton', 'mutton',
+    'cooked_rabbit', 'rabbit',
     'cooked_salmon', 'salmon', 'cooked_cod', 'cod',
+    'dried_kelp', 'kelp',
     'golden_carrot', 'carrot', 'baked_potato', 'potato', 'poisonous_potato',
     'beetroot_soup', 'beetroot', 'mushroom_stew',
     'cookie', 'melon_slice', 'glistering_melon_slice',
@@ -181,10 +184,12 @@ export function buildCreativeCatalog() {
   // 9. Ingredients
   const ingredientsList = [
     'netherite_ingot', 'diamond', 'emerald', 'gold_ingot', 'iron_ingot', 'copper_ingot',
+    'raw_iron', 'raw_gold', 'raw_copper',
     'coal', 'charcoal', 'lapis_lazuli', 'quartz', 'amethyst_shard',
     'redstone', 'glowstone_dust',
     'stick', 'string', 'feather', 'gunpowder', 'wheat',
     'bone', 'bone_meal', 'sugar', 'leather', 'paper', 'book',
+    'clay_ball', 'brick', 'nether_brick', 'green_dye',
     'ender_pearl', 'ender_eye', 'blaze_rod', 'blaze_powder', 'magma_cream', 'slime_ball',
     'snowball', 'egg', 'fire_charge'
   ];

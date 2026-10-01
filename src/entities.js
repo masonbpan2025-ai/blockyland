@@ -204,6 +204,43 @@ export class EntityManager {
     this.particles.push({ mesh, velocity: new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.5, (Math.random() - 0.5) * 1.5), life, maxLife: life, smoke: true, growth: 1.4 });
   }
 
+  spawnFurnaceParticles(pos) {
+    // Subtle rising smoke
+    if (Math.random() < 0.45) {
+      const smokeOffset = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.4,
+        0.5 + Math.random() * 0.3,
+        (Math.random() - 0.5) * 0.4
+      );
+      this.spawnSmoke(pos.clone().add(smokeOffset), 0.08 + Math.random() * 0.06, 0.8 + Math.random() * 0.5);
+    }
+    // Fire sparks from burning fuel
+    const sparkCount = 1 + (Math.random() < 0.35 ? 1 : 0);
+    for (let i = 0; i < sparkCount; i++) {
+      const col = Math.random() < 0.5 ? 0xff7700 : (Math.random() < 0.5 ? 0xffaa00 : 0xff3300);
+      const sparkGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+      const sparkMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95 });
+      const spark = new THREE.Mesh(sparkGeo, sparkMat);
+      spark.position.copy(pos).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        0.1 + (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 0.5
+      ));
+      this.scene.add(spark);
+      this.particles.push({
+        mesh: spark,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 0.5,
+          0.8 + Math.random() * 0.9,
+          (Math.random() - 0.5) * 0.5
+        ),
+        life: 0.45 + Math.random() * 0.3,
+        maxLife: 0.75,
+        spark: true
+      });
+    }
+  }
+
   spawnBlastDebris(pos, blockId, center) {
     if (!this.textures) return;
     const mesh = this.itemVisuals.create(blockId, true, 0.10 + Math.random() * 0.13);

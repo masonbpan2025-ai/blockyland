@@ -274,6 +274,52 @@
     </div>
   </div>
 
+  <!-- Furnace GUI -->
+  <div id="furnace-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 390px;">
+      <div class="gui-header">
+        <span>Furnace</span>
+        <span class="close-btn" id="close-furnace">✕</span>
+      </div>
+      <div class="furnace-main-area">
+        <div class="furnace-column">
+          <div class="inv-slot" id="furnace-input-slot" title="Ingredient / Raw Food"></div>
+          <div class="furnace-flame-container" title="Fuel Burn Progress">
+            <div class="furnace-flame-bg">🔥</div>
+            <div class="furnace-flame-active" id="furnace-flame-active">🔥</div>
+          </div>
+          <div class="inv-slot" id="furnace-fuel-slot" title="Fuel (Coal, Wood, Lava...)"></div>
+        </div>
+
+        <div class="furnace-arrow-container" title="Smelting Progress">
+          <div class="furnace-arrow-bg">➔</div>
+          <div class="furnace-arrow-fill" id="furnace-arrow-fill">➔</div>
+        </div>
+
+        <div class="furnace-output-wrapper">
+          <div class="inv-slot furnace-output-slot" id="furnace-output-slot" style="width: 50px; height: 50px; border-width: 3px;" title="Result"></div>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="furnace-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="grid-slots" id="furnace-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Chest GUI (Single & Double) -->
+  <div id="chest-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 390px;">
+      <div class="gui-header">
+        <span id="chest-title">Chest</span>
+        <span class="close-btn" id="close-chest">✕</span>
+      </div>
+      <div class="grid-slots" id="chest-slots-grid" style="grid-template-columns: repeat(9, 36px); margin: 6px 0 14px 0;"></div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="chest-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="grid-slots" id="chest-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
   <!-- Villager Trade GUI -->
   <div id="villager-modal" class="game-modal hidden">
     <div class="container-gui" style="width: 420px;">
@@ -1017,6 +1063,12 @@
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
       <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
       <button class="mc-btn mc-btn-large mc-btn-mob-studio" id="btn-start-mob-studio">Mob Studio</button>
+    </div>
+  <!-- Sleeping Overlay (Minecraft authentic bed sleep screen) -->
+  <div id="sleeping-overlay" class="sleeping-overlay hidden">
+    <div class="sleeping-content">
+      <div class="sleeping-title">Sleeping...</div>
+      <button id="leave-bed-btn" class="mc-btn mc-btn-large">Leave Bed</button>
     </div>
   </div>
 

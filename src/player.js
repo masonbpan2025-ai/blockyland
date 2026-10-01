@@ -36,6 +36,9 @@ export class Player {
     this.invulnerableTimer = 0;
     this.isDead = false;
     this.spawnPosition = new THREE.Vector3(1.5, 27.0, -1.5);
+    this.bedSpawnPosition = null;
+    this.isSleeping = false;
+    this.fallDistance = 0;
 
     // Movement speeds (blocks/sec)
     this.walkSpeed = 4.3;
@@ -88,7 +91,7 @@ export class Player {
   }
 
   areControlsDisabled(e = null) {
-    if (this.controlsDisabled) return true;
+    if (this.controlsDisabled || this.isSleeping) return true;
     if (e && e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
       return true;
     }
@@ -553,14 +556,22 @@ export class Player {
     this.onGround = false;
     if (this.checkCollision(newPos)) {
       if (this.velocity.y < 0) {
-        this.onGround = true;
-        // Snap to top of block
-        newPos.y = Math.ceil(newPos.y);
+        // Bed bounce check
+        const blockBelow = this.world?.getVoxel(Math.floor(this.position.x), Math.floor(newPos.y - 0.1), Math.floor(this.position.z));
+        if (this.game?.bedManager?.handleBedBounce(this, blockBelow)) {
+          this.onGround = false;
+        } else {
+          this.onGround = true;
+          // Snap to top of block
+          newPos.y = Math.ceil(newPos.y);
+          this.velocity.y = 0;
+          this.fallDistance = 0;
+        }
       } else {
         // Bump head
         newPos.y = Math.floor(newPos.y + (this.isSneaking ? 1.5 : this.height)) - (this.isSneaking ? 1.5 : this.height);
+        this.velocity.y = 0;
       }
-      this.velocity.y = 0;
     }
 
     // Prevent player from leaving the battle stage during tournament combat
@@ -690,6 +701,19 @@ export class Player {
       this.position.copy(targetPos);
       this.game.tournament.reset?.();
     } else {
+      if (this.bedSpawnPosition) {
+        const bx = Math.floor(this.bedSpawnPosition.x);
+        const by = Math.floor(this.bedSpawnPosition.y);
+        const bz = Math.floor(this.bedSpawnPosition.z);
+        const v = this.world?.getVoxel(bx, by, bz);
+        if (v === BLOCKS.RED_BED_FOOT || v === BLOCKS.RED_BED_HEAD || this.game?.bedManager?.getBed(bx, by, bz)) {
+          this.position.copy(this.bedSpawnPosition);
+          return;
+        } else {
+          this.game?.ui?.addChatMessage?.('Your home bed was missing or obstructed', 'system');
+          this.bedSpawnPosition = null;
+        }
+      }
       this.position.copy(this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5));
     }
   }

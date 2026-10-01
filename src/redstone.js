@@ -65,7 +65,7 @@ export class Redstone {
     }return power;
   }
   rear(s){return add(s.p,DIRECTIONS[s.dir],-1);}
-  signalAt(p,to){const s=this.state(p);if(s?.inventory?.length){const total=s.inventory.reduce((n,i)=>n+i.count,0);return 1+Math.floor(14*total/((s.id===B.HOPPER?5:9)*64));}return this.output(s,to);}
+  signalAt(p,to){const s=this.state(p);if(s?.inventory?.length){const total=s.inventory.reduce((n,i)=>n+i.count,0);return 1+Math.floor(14*total/((s.id===B.HOPPER?5:9)*64));}if(this.id(p)===B.CHEST&&this.game?.chestManager)return this.game.chestManager.getRedstoneSignal(...p);return this.output(s,to);}
   tick(actors=[]){
     this.tickNumber++;const list=[...this.states.values()];
     for(const s of list){const old=s.output;
@@ -90,10 +90,13 @@ export class Redstone {
     for(const s of list){if(this.state(s.p)!==s)continue;const input=this.input(s.p,[B.PISTON,B.STICKY_PISTON].includes(s.id)?add(s.p,DIRECTIONS[s.dir]):null);
       if(s.id===B.REDSTONE_WIRE){const connections=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].filter(d=>[-1,0,1].some(dy=>this.state(add(add(s.p,d),[0,dy,0]))));if(JSON.stringify(connections)!==JSON.stringify(s.connections)){s.connections=connections;this.mark(s.p);}if(s.drawPower!==s.power){s.drawPower=s.power;this.mark(s.p);}continue;}
       let desired;
-      // Only recompute a torch from its input when that input is actually present.
-      // Computing it unconditionally lets a lit torch power the block beneath it,
-      // which powers the torch again: it oscillates 15/0 every tick instead of
-      // staying lit. A torch that has never been driven is lit by `notify`.
+      // Recompute a torch from its input when that input is present. A torch that
+      // has never been driven is lit by `notify`.
+      //
+      // NOTE: reading the base block with the up direction removed does NOT stop the
+      // 15/0 flicker (the feedback also arrives through the conduction path), and
+      // filtering delivery there broke the flying-machine demo. The flicker is a
+      // pre-existing flaw in this solver and is left alone deliberately.
       if(s.id===B.REDSTONE_TORCH)desired=this.input(add(s.p,[0,-1,0]),s.p)>0?0:15;
       if(s.id===B.REPEATER||s.id===B.COMPARATOR){const rear=this.signalAt(this.rear(s),s.p),d=DIRECTIONS[s.dir];let side=0;for(const e of DIRECTIONS)if(e[1]===0&&e[0]*d[0]+e[2]*d[2]===0)side=Math.max(side,this.signalAt(add(s.p,e),s.p));
         if(s.id===B.REPEATER){if(side>0)continue;desired=rear?15:0;}else desired=s.subtract?Math.max(0,rear-side):(rear>=side?rear:0);

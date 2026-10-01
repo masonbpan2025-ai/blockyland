@@ -225,6 +225,8 @@ export class TextureManager {
     else if (n.includes('wood') || n.includes('log')) baseColor = '#6b5335';
     else if (n.includes('leaves')) baseColor = '#2c591e';
     else if (n.includes('water')) baseColor = '#3f76e4';
+    else if (n.includes('chest_lock')) baseColor = '#e5e7eb';
+    else if (n.includes('chest')) baseColor = '#a16207';
 
     this.ctx.fillStyle = baseColor;
     this.ctx.fillRect(x, y, s, s);

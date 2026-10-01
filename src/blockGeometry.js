@@ -2,11 +2,24 @@ import * as THREE from 'three';
 import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { createBedGeometry } from './bed.js';
+import { createChestGeometry } from './chest.js';
 
 // Geometry is in voxel coordinates, shared by world meshes and the held item.
 export function createBlockGeometry(id, textures, state = {}) {
   if (BLOCK_DEFS[id]?.redstone && id !== BLOCKS.REDSTONE_TORCH) return redstoneGeometry(id, textures, state);
   const def = BLOCK_DEFS[id];
+  if (def?.bed || id === BLOCKS.RED_BED_FOOT || id === BLOCKS.RED_BED_HEAD) {
+    const isHead = (id === BLOCKS.RED_BED_HEAD) || Boolean(def?.isHead);
+    const dir = state.dir !== undefined ? state.dir : 3;
+    return createBedGeometry(isHead, dir, textures);
+  }
+  if (def?.chest || id === BLOCKS.CHEST) {
+    const isDouble = Boolean(state.isDouble);
+    const isLeft = Boolean(state.isLeft);
+    const facing = state.facing !== undefined ? state.facing : 0;
+    return createChestGeometry(isDouble, isLeft, facing, textures);
+  }
   if (id === BLOCKS.FIRE) {
     const planes=[new THREE.PlaneGeometry(.9,1),new THREE.PlaneGeometry(.9,1)];
     planes[0].rotateY(Math.PI/4);planes[1].rotateY(-Math.PI/4);

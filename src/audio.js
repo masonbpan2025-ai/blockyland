@@ -397,6 +397,65 @@ export class SoundEngine {
     osc.stop(now + 0.07);
   }
 
+  playBedBounce() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.15);
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.2);
+  }
+
+  playSleep() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(160, now + 0.4);
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.5);
+  }
+
+  playFurnaceCrackle() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.04);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1400 + Math.random() * 600;
+    filter.Q.value = 2.5;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    noise.start();
+  }
+
 
   playLevelUp() {
     this.ensureContext();
@@ -894,6 +953,52 @@ export class SoundEngine {
     osc.stop(now + 0.35);
 
     this.noiseBurst(0.28, 1600, 2.0, 0.22);
+  }
+
+  // Minecraft Chest Open (creaking wooden lid opening)
+  playChestOpen() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(310, now + 0.26);
+
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.3);
+
+    this.noiseBurst(0.22, 950, 2.5, 0.16);
+  }
+
+  // Minecraft Chest Close (solid wooden lid snap/thump)
+  playChestClose() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, now);
+    osc.frequency.exponentialRampToValueAtTime(55, now + 0.12);
+
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.14);
+
+    this.noiseBurst(0.1, 750, 1.8, 0.24);
   }
 }
 

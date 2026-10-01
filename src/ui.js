@@ -2,6 +2,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
+import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
 import {
   getDefaultPathInfo,
   fetchSavedMaps,
@@ -37,6 +38,20 @@ export class UIManager {
     // Modals
     this.invModal = document.getElementById('inventory-modal');
     this.craftModal = document.getElementById('crafting-modal');
+    this.furnaceModal = document.getElementById('furnace-modal');
+    this.closeFurnaceBtn = document.getElementById('close-furnace');
+    this.furnaceInputSlot = document.getElementById('furnace-input-slot');
+    this.furnaceFuelSlot = document.getElementById('furnace-fuel-slot');
+    this.furnaceOutputSlot = document.getElementById('furnace-output-slot');
+    this.furnaceFlameActive = document.getElementById('furnace-flame-active');
+    this.furnaceArrowFill = document.getElementById('furnace-arrow-fill');
+    this.currentFurnacePos = null;
+
+    this.chestModal = document.getElementById('chest-modal');
+    this.closeChestBtn = document.getElementById('close-chest');
+    this.chestTitle = document.getElementById('chest-title');
+    this.chestSlotsGrid = document.getElementById('chest-slots-grid');
+    this.currentChestPos = null;
     this.villagerModal = document.getElementById('villager-modal');
     this.pauseModal = document.getElementById('pause-menu');
     this.startOverlay = document.getElementById('start-overlay');
@@ -175,6 +190,22 @@ export class UIManager {
     this.bindChatEvents();
     this.bindFloatingCursor();
 
+    const leaveBedBtn = document.getElementById('leave-bed-btn');
+    if (leaveBedBtn) {
+      leaveBedBtn.onclick = () => {
+        if (this.game?.bedManager?.isSleeping) {
+          this.game.bedManager.leaveBed();
+        }
+      };
+    }
+
+    if (this.closeFurnaceBtn) {
+      this.closeFurnaceBtn.onclick = () => this.closeFurnaceModal();
+    }
+    if (this.closeChestBtn) {
+      this.closeChestBtn.onclick = () => this.closeChestModal();
+    }
+
     window.addEventListener('keydown', (e) => {
       // Toggle F3 Debug
       if (e.code === 'F3') {
@@ -193,12 +224,16 @@ export class UIManager {
         }
       }
 
-      // E: Open/close inventory
-      if (e.code === 'KeyE' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
+      // E: Open/close inventory or close current open modal
+      if (e.code === 'KeyE' && !this.isChatOpen && !this.isGeminiOpen()) {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
           e.preventDefault();
-          this.toggleInventory();
+          if (this.isModalOpen()) {
+            this.closeAllModals();
+          } else {
+            this.toggleInventory();
+          }
         }
       }
 
@@ -222,7 +257,10 @@ export class UIManager {
 
       // ESC: Close open modals or toggle pause menu
       if (e.code === 'Escape') {
-        if (this.isChatOpen) {
+        if (this.game?.bedManager?.isSleeping) {
+          this.game.bedManager.leaveBed();
+          return;
+        } else if (this.isChatOpen) {
           this.closeChat();
         } else if (this.isGeminiOpen()) {
           this.closeGeminiTerminal();
@@ -263,6 +301,8 @@ export class UIManager {
     return (!this.invModal.classList.contains('hidden')) ||
            (this.creativeModal && !this.creativeModal.classList.contains('hidden')) ||
            (!this.craftModal.classList.contains('hidden')) ||
+           (this.furnaceModal && !this.furnaceModal.classList.contains('hidden')) ||
+           (this.chestModal && !this.chestModal.classList.contains('hidden')) ||
            (!this.villagerModal.classList.contains('hidden')) ||
            (!this.pauseModal.classList.contains('hidden')) ||
            (this.designedWorldsModal && !this.designedWorldsModal.classList.contains('hidden')) ||
@@ -278,6 +318,12 @@ export class UIManager {
     this.invModal.classList.add('hidden');
     if (this.creativeModal) this.creativeModal.classList.add('hidden');
     this.craftModal.classList.add('hidden');
+    if (this.furnaceModal) this.furnaceModal.classList.add('hidden');
+    if (this.game?.furnaceManager) this.game.furnaceManager.closeOpenFurnace();
+    this.currentFurnacePos = null;
+    if (this.chestModal) this.chestModal.classList.add('hidden');
+    if (this.game?.chestManager) this.game.chestManager.closeChest();
+    this.currentChestPos = null;
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
     if (this.designedWorldsModal) this.designedWorldsModal.classList.add('hidden');
@@ -802,6 +848,7 @@ export class UIManager {
   bindInventoryEvents() {
     document.getElementById('close-inv').onclick = () => this.closeAllModals();
     document.getElementById('close-crafting').onclick = () => this.closeAllModals();
+    if (this.closeFurnaceBtn) this.closeFurnaceBtn.onclick = () => this.closeAllModals();
     document.getElementById('close-villager').onclick = () => this.closeAllModals();
 
     // 2x2 Craft Result
@@ -890,6 +937,488 @@ export class UIManager {
     const resSlot = document.getElementById('craft3x3-result');
     this.renderSlotContent(resSlot, this.inv.craft3x3Result);
     this.updateFloatingCursor();
+  }
+
+  openFurnace(x, y, z) {
+    document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.furnaceModal) return;
+    this.currentFurnacePos = { x, y, z };
+    if (this.game?.furnaceManager) {
+      this.game.furnaceManager.openFurnaceAt(x, y, z);
+    }
+    this.furnaceModal.classList.remove('hidden');
+    this.renderFurnaceGrids();
+  }
+
+  closeFurnaceModal() {
+    if (this.furnaceModal) this.furnaceModal.classList.add('hidden');
+    this.currentFurnacePos = null;
+    if (this.game?.furnaceManager) this.game.furnaceManager.closeOpenFurnace();
+  }
+
+  renderFurnaceGrids() {
+    const furnace = this.game?.furnaceManager?.getOpenFurnace();
+    if (!furnace) return;
+
+    // 1. Input Slot
+    if (this.furnaceInputSlot) {
+      this.renderSlotContent(this.furnaceInputSlot, furnace.input);
+      this.furnaceInputSlot.onclick = (e) => {
+        this.handleFurnaceSlotClick(furnace, 'input', e.button === 2, e.shiftKey);
+      };
+      this.furnaceInputSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.handleFurnaceSlotClick(furnace, 'input', true, e.shiftKey);
+      };
+    }
+
+    // 2. Fuel Slot
+    if (this.furnaceFuelSlot) {
+      this.renderSlotContent(this.furnaceFuelSlot, furnace.fuel);
+      this.furnaceFuelSlot.onclick = (e) => {
+        this.handleFurnaceSlotClick(furnace, 'fuel', e.button === 2, e.shiftKey);
+      };
+      this.furnaceFuelSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.handleFurnaceSlotClick(furnace, 'fuel', true, e.shiftKey);
+      };
+    }
+
+    // 3. Output Slot
+    if (this.furnaceOutputSlot) {
+      this.renderSlotContent(this.furnaceOutputSlot, furnace.output);
+      this.furnaceOutputSlot.onclick = (e) => {
+        this.handleFurnaceOutputClick(furnace, e.button === 2, e.shiftKey);
+      };
+      this.furnaceOutputSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.handleFurnaceOutputClick(furnace, true, e.shiftKey);
+      };
+    }
+
+    // 4. Storage Grid
+    this.renderSlotGrid('furnace-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToFurnace(this.inv.storage, idx, furnace);
+      } else {
+        this.inv.handleSlotClick(this.inv.storage, idx, right, false);
+      }
+      this.renderFurnaceGrids();
+      this.updateHotbar();
+    });
+
+    // 5. Hotbar Grid
+    this.renderSlotGrid('furnace-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToFurnace(this.inv.hotbar, idx, furnace);
+      } else {
+        this.inv.handleSlotClick(this.inv.hotbar, idx, right, false);
+      }
+      this.renderFurnaceGrids();
+      this.updateHotbar();
+    });
+
+    this.updateFurnaceProgress(furnace);
+    this.updateFloatingCursor();
+  }
+
+  handleFurnaceSlotClick(furnace, slotKey, isRightClick, isShiftClick) {
+    const target = furnace[slotKey];
+    this.sounds.playClick();
+
+    // Shift-click moves item into player inventory
+    if (isShiftClick && target) {
+      this.inv.addItem(target.id, target.isBlock, target.count);
+      furnace[slotKey] = null;
+      this.renderFurnaceGrids();
+      this.updateHotbar();
+      return;
+    }
+
+    if (!this.inv.cursorItem) {
+      if (!target) return;
+      if (isRightClick) {
+        const half = Math.ceil(target.count / 2);
+        this.inv.cursorItem = { ...target, count: half };
+        target.count -= half;
+        if (target.count <= 0) furnace[slotKey] = null;
+      } else {
+        this.inv.cursorItem = target;
+        furnace[slotKey] = null;
+      }
+    } else {
+      if (!target) {
+        if (isRightClick) {
+          furnace[slotKey] = { ...this.inv.cursorItem, count: 1 };
+          this.inv.cursorItem.count--;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+        } else {
+          furnace[slotKey] = this.inv.cursorItem;
+          this.inv.cursorItem = null;
+        }
+      } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+        if (isRightClick) {
+          if (target.count < 64) {
+            target.count++;
+            this.inv.cursorItem.count--;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          }
+        } else {
+          const space = 64 - target.count;
+          const transfer = Math.min(space, this.inv.cursorItem.count);
+          target.count += transfer;
+          this.inv.cursorItem.count -= transfer;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+        }
+      } else {
+        const tmp = furnace[slotKey];
+        furnace[slotKey] = this.inv.cursorItem;
+        this.inv.cursorItem = tmp;
+      }
+    }
+
+    this.renderFurnaceGrids();
+    this.updateHotbar();
+  }
+
+  handleFurnaceOutputClick(furnace, isRightClick, isShiftClick) {
+    const target = furnace.output;
+    if (!target) return;
+    this.sounds.playClick();
+
+    if (isShiftClick) {
+      this.inv.addItem(target.id, target.isBlock, target.count);
+      furnace.output = null;
+      this.renderFurnaceGrids();
+      this.updateHotbar();
+      return;
+    }
+
+    if (!this.inv.cursorItem) {
+      if (isRightClick) {
+        const half = Math.ceil(target.count / 2);
+        this.inv.cursorItem = { ...target, count: half };
+        target.count -= half;
+        if (target.count <= 0) furnace.output = null;
+      } else {
+        this.inv.cursorItem = target;
+        furnace.output = null;
+      }
+    } else if (this.inv.cursorItem.id === target.id && this.inv.cursorItem.isBlock === target.isBlock) {
+      const space = 64 - this.inv.cursorItem.count;
+      const transfer = Math.min(space, target.count);
+      this.inv.cursorItem.count += transfer;
+      target.count -= transfer;
+      if (target.count <= 0) furnace.output = null;
+    }
+
+    this.renderFurnaceGrids();
+    this.updateHotbar();
+  }
+
+  quickMoveToFurnace(list, idx, furnace) {
+    const item = list[idx];
+    if (!item) return;
+
+    const burnTime = getFuelBurnTime(item);
+    const recipe = getSmeltingRecipe(item);
+
+    // If item is fuel and fuel slot can take it
+    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < 64))) {
+      this.transferToFurnaceSlot(list, idx, furnace, 'fuel');
+      this.sounds.playClick();
+      return;
+    }
+
+    // If item is cookable and input slot can take it
+    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < 64))) {
+      this.transferToFurnaceSlot(list, idx, furnace, 'input');
+      this.sounds.playClick();
+      return;
+    }
+
+    // Default hotbar <-> storage shift
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  transferToFurnaceSlot(fromList, fromIdx, furnace, slotKey) {
+    const item = fromList[fromIdx];
+    if (!item) return;
+    const dest = furnace[slotKey];
+    if (!dest) {
+      furnace[slotKey] = { ...item };
+      fromList[fromIdx] = null;
+    } else if (dest.id === item.id && dest.isBlock === item.isBlock) {
+      const space = 64 - dest.count;
+      const transfer = Math.min(space, item.count);
+      dest.count += transfer;
+      item.count -= transfer;
+      if (item.count <= 0) fromList[fromIdx] = null;
+    }
+  }
+
+  updateFurnaceProgress(furnace) {
+    if (!furnace || !this.furnaceModal || this.furnaceModal.classList.contains('hidden')) return;
+
+    // 1. Flame progress (drains downwards)
+    if (this.furnaceFlameActive) {
+      const flamePct = furnace.maxBurnTime > 0 ? (furnace.burnTime / furnace.maxBurnTime) * 100 : 0;
+      this.furnaceFlameActive.style.clipPath = `inset(${Math.max(0, 100 - flamePct)}% 0 0 0)`;
+      this.furnaceFlameActive.style.opacity = flamePct > 0 ? '1' : '0';
+    }
+
+    // 2. Arrow progress (fills left to right)
+    if (this.furnaceArrowFill) {
+      const cookPct = (furnace.cookTime / furnace.cookDuration) * 100;
+      this.furnaceArrowFill.style.clipPath = `inset(0 ${Math.max(0, 100 - cookPct)}% 0 0)`;
+      this.furnaceArrowFill.style.opacity = cookPct > 0 ? '1' : '0.2';
+    }
+
+    // 3. Keep slot visuals in sync if counts updated during live cooking
+    if (this.furnaceInputSlot) {
+      this.renderSlotContent(this.furnaceInputSlot, furnace.input);
+    }
+    if (this.furnaceFuelSlot) {
+      this.renderSlotContent(this.furnaceFuelSlot, furnace.fuel);
+    }
+    if (this.furnaceOutputSlot) {
+      this.renderSlotContent(this.furnaceOutputSlot, furnace.output);
+    }
+  }
+
+  // --- Chest GUI (Single & Double Chest) -----------------------------------
+  openChest(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.chestModal) return;
+    this.currentChestPos = { x, y, z };
+    const chest = this.game?.chestManager?.getChest(x, y, z);
+    if (this.chestTitle) {
+      this.chestTitle.textContent = chest?.isDouble ? 'Large Chest' : 'Chest';
+    }
+    this.chestModal.classList.remove('hidden');
+    this.renderChestGrids();
+  }
+
+  closeChestModal() {
+    if (this.chestModal) this.chestModal.classList.add('hidden');
+    if (this.game?.chestManager) this.game.chestManager.closeChest();
+    this.currentChestPos = null;
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderChestGrids() {
+    if (!this.currentChestPos || !this.game?.chestManager) return;
+    const { x, y, z } = this.currentChestPos;
+    const chest = this.game.chestManager.getChest(x, y, z);
+    if (!chest) return;
+
+    const items = this.game.chestManager.getCombinedItems(x, y, z);
+    const totalSlots = items.length;
+
+    // 1. Chest slots grid (27 slots for single, 54 slots for double)
+    if (this.chestSlotsGrid) {
+      this.chestSlotsGrid.innerHTML = '';
+      for (let i = 0; i < totalSlots; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot';
+        slotEl.dataset.chestSlot = i;
+        const item = items[i];
+        this.renderSlotContent(slotEl, item);
+
+        slotEl.onclick = (e) => {
+          this.handleChestSlotClick(x, y, z, i, e.button === 2, e.shiftKey);
+        };
+        slotEl.oncontextmenu = (e) => {
+          e.preventDefault();
+          this.handleChestSlotClick(x, y, z, i, true, e.shiftKey);
+        };
+        this.chestSlotsGrid.appendChild(slotEl);
+      }
+    }
+
+    // 2. Player storage grid
+    this.renderSlotGrid('chest-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToChest(this.inv.storage, idx, x, y, z);
+      } else {
+        this.inv.handleSlotClick(this.inv.storage, idx, right, false);
+      }
+      this.renderChestGrids();
+      this.updateHotbar();
+    });
+
+    // 3. Player hotbar grid
+    this.renderSlotGrid('chest-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToChest(this.inv.hotbar, idx, x, y, z);
+      } else {
+        this.inv.handleSlotClick(this.inv.hotbar, idx, right, false);
+      }
+      this.renderChestGrids();
+      this.updateHotbar();
+    });
+
+    this.updateFloatingCursor();
+  }
+
+  handleChestSlotClick(x, y, z, slotIdx, isRightClick, isShiftClick) {
+    this.sounds.playClick();
+    const target = this.game.chestManager.getCombinedSlot(x, y, z, slotIdx);
+
+    // Shift-click: move from chest to player inventory
+    if (isShiftClick && target) {
+      this.quickMoveChestToPlayer(x, y, z, slotIdx);
+      this.renderChestGrids();
+      this.updateHotbar();
+      return;
+    }
+
+    if (!this.inv.cursorItem) {
+      if (!target) return;
+      if (isRightClick) {
+        const half = Math.ceil(target.count / 2);
+        this.inv.cursorItem = { ...target, count: half };
+        target.count -= half;
+        if (target.count <= 0) {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+        } else {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
+        }
+      } else {
+        this.inv.cursorItem = target;
+        this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+      }
+    } else {
+      if (!target) {
+        if (isRightClick) {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, { ...this.inv.cursorItem, count: 1 });
+          this.inv.cursorItem.count--;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+        } else {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, this.inv.cursorItem);
+          this.inv.cursorItem = null;
+        }
+      } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+        if (isRightClick) {
+          if (target.count < 64) {
+            target.count++;
+            this.inv.cursorItem.count--;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+            this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
+          }
+        } else {
+          const space = 64 - target.count;
+          const transfer = Math.min(space, this.inv.cursorItem.count);
+          target.count += transfer;
+          this.inv.cursorItem.count -= transfer;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
+        }
+      } else {
+        const tmp = target;
+        this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, this.inv.cursorItem);
+        this.inv.cursorItem = tmp;
+      }
+    }
+
+    this.renderChestGrids();
+    this.updateHotbar();
+  }
+
+  quickMoveChestToPlayer(x, y, z, slotIdx) {
+    const item = this.game.chestManager.getCombinedSlot(x, y, z, slotIdx);
+    if (!item || item.count <= 0) return;
+
+    // 1. Try stacking into player hotbar
+    for (let i = 0; i < 9; i++) {
+      const slot = this.inv.hotbar[i];
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
+        const add = Math.min(space, item.count);
+        slot.count += add;
+        item.count -= add;
+        if (item.count <= 0) {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+          return;
+        }
+      }
+    }
+
+    // 2. Try stacking into player storage
+    for (let i = 0; i < 27; i++) {
+      const slot = this.inv.storage[i];
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
+        const add = Math.min(space, item.count);
+        slot.count += add;
+        item.count -= add;
+        if (item.count <= 0) {
+          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+          return;
+        }
+      }
+    }
+
+    // 3. Put into empty hotbar slot
+    for (let i = 0; i < 9; i++) {
+      if (!this.inv.hotbar[i]) {
+        this.inv.hotbar[i] = { ...item };
+        this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+        return;
+      }
+    }
+
+    // 4. Put into empty storage slot
+    for (let i = 0; i < 27; i++) {
+      if (!this.inv.storage[i]) {
+        this.inv.storage[i] = { ...item };
+        this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, null);
+        return;
+      }
+    }
+
+    // Update remaining count if partially moved
+    this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, item);
+  }
+
+  quickMoveToChest(list, slotIdx, x, y, z) {
+    const item = list[slotIdx];
+    if (!item || item.count <= 0) return;
+
+    const items = this.game.chestManager.getCombinedItems(x, y, z);
+    const totalSlots = items.length;
+
+    // 1. Try stacking into existing matching chest slots
+    for (let i = 0; i < totalSlots; i++) {
+      const slot = items[i];
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
+        const add = Math.min(space, item.count);
+        slot.count += add;
+        item.count -= add;
+        this.game.chestManager.setCombinedSlot(x, y, z, i, slot);
+        if (item.count <= 0) {
+          list[slotIdx] = null;
+          return;
+        }
+      }
+    }
+
+    // 2. Put into first empty chest slot
+    for (let i = 0; i < totalSlots; i++) {
+      if (!items[i]) {
+        this.game.chestManager.setCombinedSlot(x, y, z, i, { ...item });
+        list[slotIdx] = null;
+        return;
+      }
+    }
   }
 
   renderSlotGrid(containerId, list, onClickCallback) {

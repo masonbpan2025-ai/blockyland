@@ -51,6 +51,7 @@ import { MobStudioManager } from './mobStudio.js';
 import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
+import { ChestManager } from './chest.js';
 
 
 class Game {
@@ -193,6 +194,7 @@ class Game {
     this.mobStudio = new MobStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
+    this.chestManager = new ChestManager(this);
 
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
     this.worldType = 'generated';
@@ -881,6 +883,14 @@ class Game {
       return;
     }
 
+    // Chest interaction (Open Single or Double Chest GUI)
+    if (clickedBlock === BLOCKS.CHEST) {
+      if (this.chestManager) {
+        this.chestManager.interact(bX, bY, bZ, this.player);
+      }
+      return;
+    }
+
     // TNT ignition on right click
     if (clickedBlock === BLOCKS.TNT) {
       this.world.setVoxel(bX, bY, bZ, BLOCKS.AIR);
@@ -1053,6 +1063,21 @@ class Game {
       );
 
       if (!collidesWithPlayer) {
+        if (activeItem.id === BLOCKS.CHEST || activeItem.id === 'chest') {
+          const facing = this.chestManager ? this.chestManager.getFacingFromCamera(this.camera) : 0;
+          if (this.chestManager) {
+            this.chestManager.placeChest(this.world, [placeX, placeY, placeZ], facing);
+          } else {
+            this.world.setVoxel(placeX, placeY, placeZ, BLOCKS.CHEST);
+          }
+          this.sounds.playPlace('wood');
+          if (this.player.gamemode !== 'creative') {
+            this.inventory.consumeActiveItem();
+            this.ui.updateHotbar();
+          }
+          return;
+        }
+
         this.world.setVoxel(placeX, placeY, placeZ, activeItem.id);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
@@ -1122,6 +1147,10 @@ class Game {
 
     if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
       if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
+    }
+
+    if (blockId === BLOCKS.CHEST) {
+      if (this.chestManager) this.chestManager.onBlockBroken(x, y, z);
     }
 
     if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD) {

@@ -164,7 +164,8 @@ export const BLOCKS = {
   OAK_TRAPDOOR_OPEN: 158,
   RED_BED_FOOT: 159,
   RED_BED_HEAD: 160,
-  RED_BED: 159
+  RED_BED: 159,
+  CHEST: 161
 };
 
 export const BLOCK_DEFS = {
@@ -942,6 +943,7 @@ export const ITEMS = {
   // --- Functional / Decorative Items ---
   red_bed: { name: 'Red Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   bed: { name: 'Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
+  chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.CHEST },
   armor_stand: { name: 'Armor Stand', icon: '/assets/items/armor_stand.png', type: 'utility' },
   item_frame: { name: 'Item Frame', icon: '/assets/items/item_frame.png', type: 'utility' },
   painting: { name: 'Painting', icon: '/assets/items/painting.png', type: 'utility' },
@@ -1039,3 +1041,21 @@ BLOCK_DEFS[BLOCKS.RED_BED_HEAD] = {
   icon: '/assets/items/red_bed.png'
 };
 
+// --- Chest Block ------------------------------------------------------------
+BLOCK_DEFS[BLOCKS.CHEST] = {
+  name: 'Chest',
+  chest: true,
+  hardness: 2.5,
+  sound: 'wood',
+  transparent: true,
+  solid: true,
+  dropItem: 'chest',
+  textures: {
+    top: 'chest_top.png',
+    bottom: 'chest_top.png',
+    side: 'chest_side.png',
+    front: 'chest_front.png',
+    all: 'chest_side.png'
+  },
+  icon: '/assets/items/chest.png'
+};

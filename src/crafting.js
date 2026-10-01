@@ -43,6 +43,31 @@ export const RECIPES_3X3 = [
     ],
     result: { id: BLOCKS.FURNACE, isBlock: true, count: 1 }
   },
+  // 8 Planks -> 1 Chest
+  {
+    pattern: [
+      [BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS],
+      [BLOCKS.OAK_PLANKS, null, BLOCKS.OAK_PLANKS],
+      [BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS]
+    ],
+    result: { id: BLOCKS.CHEST, isBlock: true, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.BIRCH_PLANKS, BLOCKS.BIRCH_PLANKS, BLOCKS.BIRCH_PLANKS],
+      [BLOCKS.BIRCH_PLANKS, null, BLOCKS.BIRCH_PLANKS],
+      [BLOCKS.BIRCH_PLANKS, BLOCKS.BIRCH_PLANKS, BLOCKS.BIRCH_PLANKS]
+    ],
+    result: { id: BLOCKS.CHEST, isBlock: true, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.SPRUCE_PLANKS, BLOCKS.SPRUCE_PLANKS, BLOCKS.SPRUCE_PLANKS],
+      [BLOCKS.SPRUCE_PLANKS, null, BLOCKS.SPRUCE_PLANKS],
+      [BLOCKS.SPRUCE_PLANKS, BLOCKS.SPRUCE_PLANKS, BLOCKS.SPRUCE_PLANKS]
+    ],
+    result: { id: BLOCKS.CHEST, isBlock: true, count: 1 }
+  },
   // 3 Red Wool + 3 Planks -> Red Bed
   {
     pattern: [

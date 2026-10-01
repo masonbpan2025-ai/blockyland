@@ -430,6 +430,117 @@ html, body {
   transform: translate(-50%, -50%);
 }
 
+/* Furnace GUI Layout */
+.furnace-main-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin: 14px 0 18px 0;
+  padding: 10px 18px;
+  background: #b5b5b5;
+  border: 2px solid #373737;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  border-radius: 2px;
+}
+
+.furnace-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.furnace-flame-container {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+}
+
+.furnace-flame-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: grayscale(100%) brightness(55%);
+  opacity: 0.5;
+}
+
+.furnace-flame-active {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 5px #ff6a00);
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.1s linear;
+}
+
+.furnace-arrow-container {
+  position: relative;
+  width: 36px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: bold;
+  user-select: none;
+}
+
+.furnace-arrow-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #727272;
+}
+
+.furnace-arrow-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  filter: drop-shadow(0 0 5px #ffff77);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.1s linear;
+}
+
+.furnace-output-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.furnace-output-slot {
+  background: #8b8b8b;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.4);
+}
+
 /* =========================================
    CREATIVE MODE INVENTORY GUI
    ========================================= */
@@ -3580,4 +3691,48 @@ html, body {
   border-color: #60a5fa;
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
 }
+
+/* ========================================================
+   Sleeping Overlay (Minecraft Bed Sleep System)
+   ======================================================== */
+.sleeping-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sleeping-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sleeping-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.sleeping-title {
+  color: #f1f5f9;
+  font-family: 'Minecraft', monospace, sans-serif;
+  font-size: 28px;
+  font-weight: bold;
+  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 1.5px;
+  animation: pulse-sleep 2s infinite ease-in-out;
+}
+
+@keyframes pulse-sleep {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
 
