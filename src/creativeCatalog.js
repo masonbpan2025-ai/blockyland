@@ -149,12 +149,15 @@ export function buildCreativeCatalog() {
     // Swords
     'netherite_sword', 'diamond_sword', 'golden_sword', 'iron_sword', 'stone_sword', 'wooden_sword',
     'trident', 'bow', 'crossbow', 'arrow',
-    'totem_of_undying',
+    'shield', 'totem_of_undying',
     // Armor
+    'netherite_helmet', 'netherite_chestplate', 'netherite_leggings', 'netherite_boots',
     'diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots',
     'iron_helmet', 'iron_chestplate', 'iron_leggings', 'iron_boots',
     'golden_helmet', 'golden_chestplate', 'golden_leggings', 'golden_boots',
-    'chainmail_chestplate', 'leather_chestplate',
+    'chainmail_helmet', 'chainmail_chestplate', 'chainmail_leggings', 'chainmail_boots',
+    'leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots',
+    'turtle_helmet',
     'diamond_horse_armor', 'golden_horse_armor', 'iron_horse_armor'
   ];
   for (const it of combatList) {

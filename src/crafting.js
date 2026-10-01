@@ -246,5 +246,19 @@ RECIPES_3X3.push(
   {pattern:[['iron_ingot','stick','iron_ingot']],result:{id:BLOCKS.RAIL,isBlock:true,count:16}},
   {pattern:[[BLOCKS.OAK_PLANKS,null,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:'oak_boat',isBlock:false,count:1}},
   {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_DOOR,isBlock:true,count:3}},
-  {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_TRAPDOOR,isBlock:true,count:2}}
+  {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_TRAPDOOR,isBlock:true,count:2}},
+  // Shield
+  {pattern:[[BLOCKS.OAK_PLANKS,'iron_ingot',BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[null,BLOCKS.OAK_PLANKS,null]],result:{id:'shield',isBlock:false,count:1}},
+  // Helmets
+  {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:'iron_helmet',isBlock:false,count:1}},
+  {pattern:[['diamond','diamond','diamond'],['diamond',null,'diamond']],result:{id:'diamond_helmet',isBlock:false,count:1}},
+  // Chestplates
+  {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot','iron_ingot','iron_ingot']],result:{id:'iron_chestplate',isBlock:false,count:1}},
+  {pattern:[['diamond',null,'diamond'],['diamond','diamond','diamond'],['diamond','diamond','diamond']],result:{id:'diamond_chestplate',isBlock:false,count:1}},
+  // Leggings
+  {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot',null,'iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:'iron_leggings',isBlock:false,count:1}},
+  {pattern:[['diamond','diamond','diamond'],['diamond',null,'diamond'],['diamond',null,'diamond']],result:{id:'diamond_leggings',isBlock:false,count:1}},
+  // Boots
+  {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:'iron_boots',isBlock:false,count:1}},
+  {pattern:[['diamond',null,'diamond'],['diamond',null,'diamond']],result:{id:'diamond_boots',isBlock:false,count:1}}
 );

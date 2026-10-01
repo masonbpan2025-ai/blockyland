@@ -87,7 +87,19 @@ export class Player {
     this.punchCooldown = 0;
     this.onPunch = null;
 
+    // Shield blocking state
+    this.isBlocking = false;
+    this._inventory = null;
+
     this.setupInputs();
+  }
+
+  get inventory() {
+    return this._inventory || this.game?.inventory;
+  }
+
+  set inventory(inv) {
+    this._inventory = inv;
   }
 
   areControlsDisabled(e = null) {
@@ -144,6 +156,15 @@ export class Player {
       if (e.code === 'F5') {
         e.preventDefault();
         this.perspective = (this.perspective + 1) % 3;
+      }
+
+      // F: Swap held item with off-hand
+      if (e.code === 'KeyF' && !e.repeat) {
+        if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
+          this.inventory?.swapOffhand();
+          this.game?.ui?.updateHotbar?.();
+          this.game?.ui?.updateStats?.();
+        }
       }
 
       // U: Punch Attack
@@ -381,12 +402,20 @@ export class Player {
       this.isSprinting = false;
     }
 
+    // Validate shield blocking state
+    const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
+                      (this.inventory?.getActiveItem()?.id === 'shield');
+    if (this.isBlocking && !hasShield) {
+      this.isBlocking = false;
+    }
+
     // Determine current speed mode
     this.isSneaking = !controlsDisabled && !!this.keys['ShiftLeft'];
-    this.isSprinting = !controlsDisabled && !!this.keys['ControlLeft'] && !this.isSneaking;
+    this.isSprinting = !controlsDisabled && !!this.keys['ControlLeft'] && !this.isSneaking && !this.isBlocking;
 
     let targetSpeed = this.walkSpeed;
     if (this.isFlying) targetSpeed = this.flySpeed;
+    else if (this.isBlocking) targetSpeed = this.sneakSpeed;
     else if (this.isSprinting) targetSpeed = this.sprintSpeed;
     else if (this.isSneaking) targetSpeed = this.sneakSpeed;
     else if (this.inWater) targetSpeed = this.walkSpeed * 0.65;
@@ -612,10 +641,31 @@ export class Player {
     return (def && def.sound) ? def.sound : 'grass';
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, sourcePos = null, damageType = 'generic') {
     if (this.gamemode === 'creative') return;
     if (this.isDead) return;
     if (this.invulnerableTimer > 0) return;
+
+    // Shield blocking check: 100% deflection within frontal 180° cone
+    const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
+                      (this.inventory?.getActiveItem()?.id === 'shield');
+    if (this.isBlocking && hasShield && damageType !== 'fall' && damageType !== 'starvation' && damageType !== 'void') {
+      let blocked = true;
+      if (sourcePos) {
+        const toSource = new THREE.Vector3(sourcePos.x - this.position.x, 0, sourcePos.z - this.position.z).normalize();
+        const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
+        // Dot product >= 0 means source is within frontal 180-degree cone
+        if (forward.dot(toSource) < 0) {
+          blocked = false;
+        }
+      }
+
+      if (blocked) {
+        this.sounds.playShieldBlock?.();
+        this.invulnerableTimer = 0.2;
+        return;
+      }
+    }
 
     // Critical counter-hit: taking damage while gathering Ki cancels skill and deals 1.5x damage
     if (this.isGatheringKi) {
@@ -623,6 +673,18 @@ export class Player {
       this.isGatheringKi = false;
       if (this.onKiInterrupted) {
         this.onKiInterrupted();
+      }
+    }
+
+    // Armor damage mitigation (Minecraft Java Edition formula)
+    // Formula: A_eff = max(A / 5, A - D / (2 + T / 4)), DamageReduction = min(20, max(0, A_eff)) / 25
+    if (damageType !== 'void' && damageType !== 'starvation' && damageType !== 'fall') {
+      const armor = this.inventory ? this.inventory.getTotalArmorPoints() : 0;
+      const toughness = this.inventory ? this.inventory.getTotalArmorToughness() : 0;
+      if (armor > 0) {
+        const effectiveArmor = Math.max(armor / 5, armor - amount / (2 + toughness / 4));
+        const damageReduction = Math.min(20, Math.max(0, effectiveArmor)) / 25;
+        amount = amount * (1 - damageReduction);
       }
     }
 

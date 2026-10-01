@@ -165,6 +165,7 @@ class Game {
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
+    this.player.inventory = this.inventory;
     this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds, this);
     this.ui.game = this;
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
@@ -733,6 +734,13 @@ class Game {
         this.heldItemRenderer.swing();
         this.handleLeftClick();
       } else if (e.button === 2) {
+        // Shield blocking check: if holding shield in off-hand or main hand
+        const hasShield = (this.inventory.getOffhandItem()?.id === 'shield') ||
+                          (this.inventory.getActiveItem()?.id === 'shield');
+        if (hasShield) {
+          this.player.isBlocking = true;
+        }
+
         // Hold right click to draw the bow; release to fire.
         if (this.bow.start()) return;
         // Right Click: Place / Interact
@@ -744,10 +752,21 @@ class Game {
       }
     });
 
-    window.addEventListener('blur', () => this.bow?.cancel());
-    document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== this.renderer.domElement) this.bow?.cancel(); });
+    window.addEventListener('blur', () => {
+      this.bow?.cancel();
+      this.player.isBlocking = false;
+    });
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement !== this.renderer.domElement) {
+        this.bow?.cancel();
+        this.player.isBlocking = false;
+      }
+    });
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 2) this.bow.release();
+      if (e.button === 2) {
+        this.bow.release();
+        this.player.isBlocking = false;
+      }
       if (e.button === 0) {
         this.isMouseDown = false;
         this.miningTime = 0;
@@ -852,6 +871,16 @@ class Game {
       }
     }
 
+    let activeItem = this.inventory.getActiveItem();
+    // Auto-equip armor when right clicking in hand
+    if (activeItem && this.inventory.getItemMeta(activeItem)?.armorSlot) {
+      if (this.inventory.equipArmorItem(true)) {
+        this.ui.updateHotbar();
+        this.ui.updateStats();
+        return;
+      }
+    }
+
     if (!this.targetBlock) return;
 
     const bX = this.targetBlock.x;
@@ -903,7 +932,7 @@ class Game {
     }
 
     // Eating Food, Buckets, and Spawn Eggs
-    let activeItem = this.inventory.getActiveItem();
+    activeItem = this.inventory.getActiveItem();
 
     // Place structure from Structure Library
     if (activeItem && (activeItem.isStructure || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_')))) {

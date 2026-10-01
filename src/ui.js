@@ -27,7 +27,9 @@ export class UIManager {
     // Elements
     this.hotbarEl = document.getElementById('hotbar-wrapper');
     this.healthBarEl = document.getElementById('health-bar');
+    this.armorBarEl = document.getElementById('armor-bar');
     this.hungerBarEl = document.getElementById('hunger-bar');
+    this.offhandHudEl = document.getElementById('offhand-hud-slot');
     this.expBarEl = document.getElementById('exp-bar');
     this.expLevelEl = document.getElementById('exp-level');
 
@@ -368,9 +370,11 @@ export class UIManager {
   }
 
   updateHotbar() {
+    if (!this.hotbarEl) return;
     const slots = this.hotbarEl.children;
     for (let i = 0; i < 9; i++) {
       const slot = slots[i];
+      if (!slot) continue;
       slot.className = 'hotbar-slot' + (i === this.inv.activeSlot ? ' active' : '');
       slot.innerHTML = '';
 
@@ -392,30 +396,70 @@ export class UIManager {
         }
       }
     }
+
+    // Off-hand HUD slot update
+    const offhandSlot = document.getElementById('offhand-hud-slot') || this.offhandHudEl;
+    if (offhandSlot) {
+      offhandSlot.innerHTML = '';
+      const offhandItem = this.inv.getOffhandItem ? this.inv.getOffhandItem() : this.inv.offhand;
+      if (offhandItem) {
+        offhandSlot.style.display = 'flex';
+        const meta = this.inv.getItemMeta(offhandItem);
+        if (meta) {
+          const img = document.createElement('img');
+          img.className = 'slot-icon';
+          img.src = meta.icon;
+          offhandSlot.appendChild(img);
+
+          if (meta.count > 1) {
+            const count = document.createElement('span');
+            count.className = 'slot-count';
+            count.textContent = meta.count;
+            offhandSlot.appendChild(count);
+          }
+        }
+      } else {
+        offhandSlot.style.display = 'none';
+      }
+    }
   }
 
   initStatusBarsDOM() {
     const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
     const maxHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
+    // Armor shields (10 shields = up to 20 armor points)
+    if (this.armorBarEl) {
+      this.armorBarEl.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const shield = document.createElement('div');
+        shield.className = 'stat-icon armor-icon';
+        this.armorBarEl.appendChild(shield);
+      }
+    }
+
     // Hearts (30 in tournament mode = 3x long, 10 in standard mode)
-    this.healthBarEl.innerHTML = '';
-    for (let i = 0; i < maxHearts; i++) {
-      const heart = document.createElement('div');
-      heart.className = 'stat-icon';
-      heart.style.backgroundImage = 'radial-gradient(circle, #ff2222 60%, #880000 90%)';
-      heart.style.borderRadius = '3px';
-      this.healthBarEl.appendChild(heart);
+    if (this.healthBarEl) {
+      this.healthBarEl.innerHTML = '';
+      for (let i = 0; i < maxHearts; i++) {
+        const heart = document.createElement('div');
+        heart.className = 'stat-icon';
+        heart.style.backgroundImage = 'radial-gradient(circle, #ff2222 60%, #880000 90%)';
+        heart.style.borderRadius = '3px';
+        this.healthBarEl.appendChild(heart);
+      }
     }
 
     // 10 Drumsticks
-    this.hungerBarEl.innerHTML = '';
-    for (let i = 0; i < 10; i++) {
-      const drum = document.createElement('div');
-      drum.className = 'stat-icon';
-      drum.style.backgroundImage = 'radial-gradient(circle, #c87834 60%, #5a2e0a 90%)';
-      drum.style.borderRadius = '3px';
-      this.hungerBarEl.appendChild(drum);
+    if (this.hungerBarEl) {
+      this.hungerBarEl.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const drum = document.createElement('div');
+        drum.className = 'stat-icon';
+        drum.style.backgroundImage = 'radial-gradient(circle, #c87834 60%, #5a2e0a 90%)';
+        drum.style.borderRadius = '3px';
+        this.hungerBarEl.appendChild(drum);
+      }
     }
   }
 
@@ -430,7 +474,7 @@ export class UIManager {
     const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
     const expectedHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
-    if (this.healthBarEl.children.length !== expectedHearts) {
+    if (this.healthBarEl && this.healthBarEl.children.length !== expectedHearts) {
       this.initStatusBarsDOM();
     }
 
@@ -439,6 +483,33 @@ export class UIManager {
         statusBars.classList.add('tournament-mode');
       } else {
         statusBars.classList.remove('tournament-mode');
+      }
+    }
+
+    // Armor Bar calculation
+    const armorPoints = this.inv?.getTotalArmorPoints ? this.inv.getTotalArmorPoints() : 0;
+    if (this.armorBarEl) {
+      if (armorPoints <= 0) {
+        this.armorBarEl.style.display = 'none';
+      } else {
+        this.armorBarEl.style.display = 'flex';
+        const shields = this.armorBarEl.children;
+        for (let i = 0; i < shields.length; i++) {
+          const val = (i + 1) * 2;
+          if (armorPoints >= val) {
+            shields[i].style.opacity = '1';
+            shields[i].style.background = 'radial-gradient(circle, #f1f5f9 60%, #94a3b8 90%)';
+            shields[i].style.border = '1px solid #475569';
+          } else if (armorPoints >= val - 1) {
+            shields[i].style.opacity = '1';
+            shields[i].style.background = 'linear-gradient(to right, #f1f5f9 50%, rgba(30, 41, 59, 0.4) 50%)';
+            shields[i].style.border = '1px solid #475569';
+          } else {
+            shields[i].style.opacity = '0.25';
+            shields[i].style.background = '#1e293b';
+            shields[i].style.border = '1px solid #0f172a';
+          }
+        }
       }
     }
 
@@ -901,6 +972,49 @@ export class UIManager {
     // 2x2 Result slot
     const resSlot = document.getElementById('craft2x2-result');
     this.renderSlotContent(resSlot, this.inv.craft2x2Result);
+
+    // Armor equipment slots
+    ['head', 'chest', 'legs', 'feet'].forEach(slotKey => {
+      const slot = document.getElementById(`armor-slot-${slotKey}`);
+      if (slot) {
+        const item = this.inv.armor ? this.inv.armor[slotKey] : null;
+        this.renderSlotContent(slot, item);
+        slot.onclick = (e) => {
+          this.inv.handleArmorSlotClick?.(slotKey, e.button === 2, e.shiftKey);
+          this.renderInventoryGrids();
+          this.updateHotbar();
+          this.updateStats();
+        };
+        slot.oncontextmenu = (e) => {
+          e.preventDefault();
+          this.inv.handleArmorSlotClick?.(slotKey, true, e.shiftKey);
+          this.renderInventoryGrids();
+          this.updateHotbar();
+          this.updateStats();
+        };
+      }
+    });
+
+    // Off-hand equipment slot
+    const offhandSlot = document.getElementById('inv-offhand-slot');
+    if (offhandSlot) {
+      const item = this.inv.offhand;
+      this.renderSlotContent(offhandSlot, item);
+      offhandSlot.onclick = (e) => {
+        this.inv.handleOffhandSlotClick?.(e.button === 2, e.shiftKey);
+        this.renderInventoryGrids();
+        this.updateHotbar();
+        this.updateStats();
+      };
+      offhandSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.handleOffhandSlotClick?.(true, e.shiftKey);
+        this.renderInventoryGrids();
+        this.updateHotbar();
+        this.updateStats();
+      };
+    }
+
     this.updateFloatingCursor();
   }
 

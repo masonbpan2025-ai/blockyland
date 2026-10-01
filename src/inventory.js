@@ -12,6 +12,12 @@ export class Inventory {
     this.storage = new Array(27).fill(null);
     this.activeSlot = 0;
 
+    // Armor slots: head, chest, legs, feet
+    this.armor = { head: null, chest: null, legs: null, feet: null };
+
+    // Off-hand slot
+    this.offhand = null;
+
     // Crafting grids
     this.craft2x2 = new Array(4).fill(null);
     this.craft2x2Result = null;
@@ -94,7 +100,13 @@ export class Inventory {
         name: it ? it.name : item.id,
         icon: it ? it.icon : '/assets/items/stick.png',
         isBlock: false,
-        count: item.count
+        count: item.count,
+        armor: it?.armor || 0,
+        toughness: it?.toughness || 0,
+        knockbackResistance: it?.knockbackResistance || 0,
+        armorSlot: it?.armorSlot || null,
+        type: it?.type || null,
+        offhand: it?.offhand || false,
       };
     }
   }
@@ -103,12 +115,165 @@ export class Inventory {
     return this.hotbar[this.activeSlot];
   }
 
+  getOffhandItem() {
+    return this.offhand;
+  }
+
   consumeActiveItem() {
     const item = this.hotbar[this.activeSlot];
     if (!item) return;
     item.count--;
     if (item.count <= 0) {
       this.hotbar[this.activeSlot] = null;
+    }
+  }
+
+  getTotalArmorPoints() {
+    let total = 0;
+    for (const key of ['head', 'chest', 'legs', 'feet']) {
+      const item = this.armor[key];
+      if (item) {
+        const meta = this.getItemMeta(item);
+        if (meta && typeof meta.armor === 'number') {
+          total += meta.armor;
+        }
+      }
+    }
+    return total;
+  }
+
+  getTotalArmorToughness() {
+    let total = 0;
+    for (const key of ['head', 'chest', 'legs', 'feet']) {
+      const item = this.armor[key];
+      if (item) {
+        const meta = this.getItemMeta(item);
+        if (meta && typeof meta.toughness === 'number') {
+          total += meta.toughness;
+        }
+      }
+    }
+    return total;
+  }
+
+  getTotalKnockbackResistance() {
+    let total = 0;
+    for (const key of ['head', 'chest', 'legs', 'feet']) {
+      const item = this.armor[key];
+      if (item) {
+        const meta = this.getItemMeta(item);
+        if (meta && typeof meta.knockbackResistance === 'number') {
+          total += meta.knockbackResistance;
+        }
+      }
+    }
+    return total;
+  }
+
+  swapOffhand() {
+    const active = this.hotbar[this.activeSlot];
+    this.hotbar[this.activeSlot] = this.offhand;
+    this.offhand = active;
+    this.sounds.playClick?.();
+  }
+
+  equipArmorItem(fromActive = true) {
+    const item = fromActive ? this.hotbar[this.activeSlot] : null;
+    if (!item) return false;
+    const meta = this.getItemMeta(item);
+    if (!meta || !meta.armorSlot) return false;
+
+    const slotKey = meta.armorSlot;
+    const currentEquipped = this.armor[slotKey];
+
+    if (item.count === 1) {
+      this.armor[slotKey] = item;
+      this.hotbar[this.activeSlot] = currentEquipped;
+    } else {
+      if (currentEquipped) return false;
+      this.armor[slotKey] = { ...item, count: 1 };
+      item.count--;
+      if (item.count <= 0) this.hotbar[this.activeSlot] = null;
+    }
+
+    this.sounds.playArmorEquip?.();
+    return true;
+  }
+
+  handleArmorSlotClick(slotKey, isRightClick = false, isShiftClick = false) {
+    this.sounds.playClick?.();
+    const current = this.armor[slotKey];
+
+    // Shift-click: quick-move from armor to hotbar/storage
+    if (isShiftClick && current) {
+      for (let i = 0; i < 9; i++) {
+        if (!this.hotbar[i]) {
+          this.hotbar[i] = current;
+          this.armor[slotKey] = null;
+          this.sounds.playArmorEquip?.();
+          return;
+        }
+      }
+      for (let i = 0; i < 27; i++) {
+        if (!this.storage[i]) {
+          this.storage[i] = current;
+          this.armor[slotKey] = null;
+          this.sounds.playArmorEquip?.();
+          return;
+        }
+      }
+      return;
+    }
+
+    if (!this.cursorItem) {
+      if (current) {
+        this.cursorItem = current;
+        this.armor[slotKey] = null;
+        this.sounds.playArmorEquip?.();
+      }
+    } else {
+      const meta = this.getItemMeta(this.cursorItem);
+      if (meta?.armorSlot === slotKey) {
+        const temp = this.armor[slotKey];
+        this.armor[slotKey] = this.cursorItem;
+        this.cursorItem = temp;
+        this.sounds.playArmorEquip?.();
+      }
+    }
+  }
+
+  handleOffhandSlotClick(isRightClick = false, isShiftClick = false) {
+    this.sounds.playClick?.();
+    const current = this.offhand;
+
+    // Shift-click: quick-move from offhand to hotbar/storage
+    if (isShiftClick && current) {
+      for (let i = 0; i < 9; i++) {
+        if (!this.hotbar[i]) {
+          this.hotbar[i] = current;
+          this.offhand = null;
+          return;
+        }
+      }
+      for (let i = 0; i < 27; i++) {
+        if (!this.storage[i]) {
+          this.storage[i] = current;
+          this.offhand = null;
+          return;
+        }
+      }
+      return;
+    }
+
+    if (!this.cursorItem) {
+      if (current) {
+        this.cursorItem = current;
+        this.offhand = null;
+      }
+    } else {
+      const temp = this.offhand;
+      this.offhand = this.cursorItem;
+      this.cursorItem = temp;
     }
   }
 
@@ -146,13 +311,30 @@ export class Inventory {
 
   // Handle slot click with cursor dragging & right click split
   handleSlotClick(list, index, isRightClick = false, isShiftClick = false) {
-    this.sounds.playClick();
+    this.sounds.playClick?.();
     const target = list[index];
 
-    // Shift click: Quick transfer between hotbar & storage
+    // Shift click: Quick transfer
     if (isShiftClick && target) {
+      const meta = this.getItemMeta(target);
+
+      // Auto-equip armor if matching slot is empty
+      if (meta?.armorSlot && !this.armor[meta.armorSlot]) {
+        this.armor[meta.armorSlot] = target;
+        list[index] = null;
+        this.sounds.playArmorEquip?.();
+        return;
+      }
+
+      // Auto-equip off-hand if shield and off-hand slot empty
+      if (meta?.offhand && !this.offhand) {
+        this.offhand = target;
+        list[index] = null;
+        return;
+      }
+
+      // Transfer between hotbar & storage
       if (list === this.hotbar) {
-        // Move to storage
         for (let i = 0; i < 27; i++) {
           if (!this.storage[i]) {
             this.storage[i] = target;
@@ -161,7 +343,6 @@ export class Inventory {
           }
         }
       } else if (list === this.storage) {
-        // Move to hotbar
         for (let i = 0; i < 9; i++) {
           if (!this.hotbar[i]) {
             this.hotbar[i] = target;

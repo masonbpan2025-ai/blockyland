@@ -1000,6 +1000,52 @@ export class SoundEngine {
 
     this.noiseBurst(0.1, 750, 1.8, 0.24);
   }
+
+  // Minecraft Shield Block (heavy wooden impact and metallic ring)
+  playShieldBlock() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(70, now + 0.16);
+
+    g.gain.setValueAtTime(0.4, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.18);
+
+    this.noiseBurst(0.14, 1350, 2.2, 0.32);
+  }
+
+  // Minecraft Armor Equip (metallic/leather clink and buckle)
+  playArmorEquip() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(580, now + 0.08);
+
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.1);
+
+    this.noiseBurst(0.08, 2200, 1.8, 0.2);
+  }
 }
 
 

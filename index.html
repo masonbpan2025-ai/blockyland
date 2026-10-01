@@ -121,14 +121,22 @@
   <!-- HUD -->
   <div id="hud">
     <div id="status-bars">
-      <div id="health-bar" class="stat-row"></div>
-      <div id="hunger-bar" class="stat-row"></div>
+      <div class="status-left">
+        <div id="armor-bar" class="stat-row"></div>
+        <div id="health-bar" class="stat-row"></div>
+      </div>
+      <div class="status-right">
+        <div id="hunger-bar" class="stat-row"></div>
+      </div>
     </div>
     <div id="exp-container">
       <div id="exp-bar"></div>
       <span id="exp-level">0</span>
     </div>
-    <div id="hotbar-wrapper"></div>
+    <div id="hud-bottom-row" style="position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <div id="offhand-hud-slot" class="hud-slot" title="Off-hand (Press F to swap)"></div>
+      <div id="hotbar-wrapper"></div>
+    </div>
   </div>
 
   <!-- Debug Screen (F3) -->
@@ -165,20 +173,40 @@
         <span>Crafting</span>
         <span class="close-btn" id="close-inv">✕</span>
       </div>
-      <!-- Crafting 2x2 -->
-      <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 14px;">
-        <div style="width: 80px; height: 90px; background: #555; border: 2px solid #333; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; text-align: center;">
-          Player<br>Preview
+      <!-- Equipment, Player Preview & Crafting 2x2 -->
+      <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 14px; justify-content: space-between;">
+        <!-- Armor Slots Column -->
+        <div class="armor-slots-column" style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="inv-slot armor-slot" id="armor-slot-head" data-armor-slot="head" title="Helmet Slot"></div>
+          <div class="inv-slot armor-slot" id="armor-slot-chest" data-armor-slot="chest" title="Chestplate Slot"></div>
+          <div class="inv-slot armor-slot" id="armor-slot-legs" data-armor-slot="legs" title="Leggings Slot"></div>
+          <div class="inv-slot armor-slot" id="armor-slot-feet" data-armor-slot="feet" title="Boots Slot"></div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div class="grid-slots" style="grid-template-columns: repeat(2, 36px);">
-            <div class="inv-slot" data-craft="0"></div>
-            <div class="inv-slot" data-craft="1"></div>
-            <div class="inv-slot" data-craft="2"></div>
-            <div class="inv-slot" data-craft="3"></div>
+
+        <!-- Player Preview -->
+        <div id="player-preview-box" style="width: 76px; height: 156px; background: #2b2b2b; border: 2px solid #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #aaa; font-size: 11px; text-align: center; border-radius: 2px;">
+          <span style="font-size: 32px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🧍</span>
+          <span style="font-size: 10px; color: #888; margin-top: 6px;">Player</span>
+        </div>
+
+        <!-- Off-hand Slot -->
+        <div style="display: flex; flex-direction: column; justify-content: flex-end; height: 156px;">
+          <div class="inv-slot offhand-slot" id="inv-offhand-slot" title="Off-hand Slot (Shield / Item)"></div>
+        </div>
+
+        <!-- Crafting 2x2 -->
+        <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+          <div style="font-size: 11px; color: #333; font-weight: bold; width: 100%;">Crafting</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="grid-slots" style="grid-template-columns: repeat(2, 36px);">
+              <div class="inv-slot" data-craft="0"></div>
+              <div class="inv-slot" data-craft="1"></div>
+              <div class="inv-slot" data-craft="2"></div>
+              <div class="inv-slot" data-craft="3"></div>
+            </div>
+            <span style="font-size: 18px; font-weight: bold; color: #333;">➔</span>
+            <div class="inv-slot" id="craft2x2-result" style="width: 44px; height: 44px; border-width: 3px;"></div>
           </div>
-          <span style="font-size: 20px; font-weight: bold; color: #333;">➔</span>
-          <div class="inv-slot" id="craft2x2-result" style="width: 44px; height: 44px; border-width: 3px;"></div>
         </div>
       </div>
 

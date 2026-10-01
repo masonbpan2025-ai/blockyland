@@ -791,21 +791,40 @@ export const ITEMS = {
   trident: { name: 'Trident', attack: 9, icon: '/assets/items/trident.png', type: 'weapon' },
   totem_of_undying: { name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png', type: 'special' },
 
-  // --- Armor ---
-  diamond_helmet: { name: 'Diamond Helmet', armor: 3, icon: '/assets/items/diamond_helmet.png', type: 'armor' },
-  diamond_chestplate: { name: 'Diamond Chestplate', armor: 8, icon: '/assets/items/diamond_chestplate.png', type: 'armor' },
-  diamond_leggings: { name: 'Diamond Leggings', armor: 6, icon: '/assets/items/diamond_leggings.png', type: 'armor' },
-  diamond_boots: { name: 'Diamond Boots', armor: 3, icon: '/assets/items/diamond_boots.png', type: 'armor' },
-  iron_helmet: { name: 'Iron Helmet', armor: 2, icon: '/assets/items/iron_helmet.png', type: 'armor' },
-  iron_chestplate: { name: 'Iron Chestplate', armor: 6, icon: '/assets/items/iron_chestplate.png', type: 'armor' },
-  iron_leggings: { name: 'Iron Leggings', armor: 5, icon: '/assets/items/iron_leggings.png', type: 'armor' },
-  iron_boots: { name: 'Iron Boots', armor: 2, icon: '/assets/items/iron_boots.png', type: 'armor' },
-  golden_helmet: { name: 'Golden Helmet', armor: 2, icon: '/assets/items/golden_helmet.png', type: 'armor' },
-  golden_chestplate: { name: 'Golden Chestplate', armor: 5, icon: '/assets/items/golden_chestplate.png', type: 'armor' },
-  golden_leggings: { name: 'Golden Leggings', armor: 3, icon: '/assets/items/golden_leggings.png', type: 'armor' },
-  golden_boots: { name: 'Golden Boots', armor: 1, icon: '/assets/items/golden_boots.png', type: 'armor' },
-  chainmail_chestplate: { name: 'Chainmail Chestplate', armor: 5, icon: '/assets/items/chainmail_chestplate.png', type: 'armor' },
-  leather_chestplate: { name: 'Leather Tunic', armor: 3, icon: '/assets/items/leather_chestplate.png', type: 'armor' },
+  // --- Armor & Shield ---
+  netherite_helmet: { name: 'Netherite Helmet', armor: 3, toughness: 3, knockbackResistance: 1, armorSlot: 'head', icon: '/assets/items/netherite_helmet.png', type: 'armor' },
+  netherite_chestplate: { name: 'Netherite Chestplate', armor: 8, toughness: 3, knockbackResistance: 1, armorSlot: 'chest', icon: '/assets/items/netherite_chestplate.png', type: 'armor' },
+  netherite_leggings: { name: 'Netherite Leggings', armor: 6, toughness: 3, knockbackResistance: 1, armorSlot: 'legs', icon: '/assets/items/netherite_leggings.png', type: 'armor' },
+  netherite_boots: { name: 'Netherite Boots', armor: 3, toughness: 3, knockbackResistance: 1, armorSlot: 'feet', icon: '/assets/items/netherite_boots.png', type: 'armor' },
+
+  diamond_helmet: { name: 'Diamond Helmet', armor: 3, toughness: 2, armorSlot: 'head', icon: '/assets/items/diamond_helmet.png', type: 'armor' },
+  diamond_chestplate: { name: 'Diamond Chestplate', armor: 8, toughness: 2, armorSlot: 'chest', icon: '/assets/items/diamond_chestplate.png', type: 'armor' },
+  diamond_leggings: { name: 'Diamond Leggings', armor: 6, toughness: 2, armorSlot: 'legs', icon: '/assets/items/diamond_leggings.png', type: 'armor' },
+  diamond_boots: { name: 'Diamond Boots', armor: 3, toughness: 2, armorSlot: 'feet', icon: '/assets/items/diamond_boots.png', type: 'armor' },
+
+  iron_helmet: { name: 'Iron Helmet', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/iron_helmet.png', type: 'armor' },
+  iron_chestplate: { name: 'Iron Chestplate', armor: 6, toughness: 0, armorSlot: 'chest', icon: '/assets/items/iron_chestplate.png', type: 'armor' },
+  iron_leggings: { name: 'Iron Leggings', armor: 5, toughness: 0, armorSlot: 'legs', icon: '/assets/items/iron_leggings.png', type: 'armor' },
+  iron_boots: { name: 'Iron Boots', armor: 2, toughness: 0, armorSlot: 'feet', icon: '/assets/items/iron_boots.png', type: 'armor' },
+
+  golden_helmet: { name: 'Golden Helmet', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/golden_helmet.png', type: 'armor' },
+  golden_chestplate: { name: 'Golden Chestplate', armor: 5, toughness: 0, armorSlot: 'chest', icon: '/assets/items/golden_chestplate.png', type: 'armor' },
+  golden_leggings: { name: 'Golden Leggings', armor: 3, toughness: 0, armorSlot: 'legs', icon: '/assets/items/golden_leggings.png', type: 'armor' },
+  golden_boots: { name: 'Golden Boots', armor: 1, toughness: 0, armorSlot: 'feet', icon: '/assets/items/golden_boots.png', type: 'armor' },
+
+  chainmail_helmet: { name: 'Chainmail Helmet', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/chainmail_helmet.png', type: 'armor' },
+  chainmail_chestplate: { name: 'Chainmail Chestplate', armor: 5, toughness: 0, armorSlot: 'chest', icon: '/assets/items/chainmail_chestplate.png', type: 'armor' },
+  chainmail_leggings: { name: 'Chainmail Leggings', armor: 4, toughness: 0, armorSlot: 'legs', icon: '/assets/items/chainmail_leggings.png', type: 'armor' },
+  chainmail_boots: { name: 'Chainmail Boots', armor: 1, toughness: 0, armorSlot: 'feet', icon: '/assets/items/chainmail_boots.png', type: 'armor' },
+
+  leather_helmet: { name: 'Leather Cap', armor: 1, toughness: 0, armorSlot: 'head', icon: '/assets/items/leather_helmet.png', type: 'armor' },
+  leather_chestplate: { name: 'Leather Tunic', armor: 3, toughness: 0, armorSlot: 'chest', icon: '/assets/items/leather_chestplate.png', type: 'armor' },
+  leather_leggings: { name: 'Leather Pants', armor: 2, toughness: 0, armorSlot: 'legs', icon: '/assets/items/leather_leggings.png', type: 'armor' },
+  leather_boots: { name: 'Leather Boots', armor: 1, toughness: 0, armorSlot: 'feet', icon: '/assets/items/leather_boots.png', type: 'armor' },
+
+  turtle_helmet: { name: 'Turtle Shell', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/turtle_helmet.png', type: 'armor' },
+  shield: { name: 'Shield', icon: '/assets/items/shield.png', type: 'shield', offhand: true },
+
   diamond_horse_armor: { name: 'Diamond Horse Armor', icon: '/assets/items/diamond_horse_armor.png', type: 'armor' },
   golden_horse_armor: { name: 'Golden Horse Armor', icon: '/assets/items/golden_horse_armor.png', type: 'armor' },
   iron_horse_armor: { name: 'Iron Horse Armor', icon: '/assets/items/iron_horse_armor.png', type: 'armor' },
