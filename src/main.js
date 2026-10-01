@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
+import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
@@ -12,6 +13,7 @@ import { SoundEngine } from './audio.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { EntityManager } from './entities.js';
+import { RailSystem } from './rails.js';
 import { Inventory } from './inventory.js';
 import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
@@ -47,6 +49,8 @@ import { StructureStudioManager } from './structureStudio.js';
 import { StructureLibrary } from './structureLibrary.js';
 import { MobStudioManager } from './mobStudio.js';
 import { MobLibrary } from './mobLibrary.js';
+import { FurnaceManager } from './furnace.js';
+import { BedManager } from './bed.js';
 
 
 class Game {
@@ -175,6 +179,9 @@ class Game {
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
     this.bow = new BowController(this);
+    // Rails, minecarts and boats: real physics for carts and floating props.
+    this.railSystem = new RailSystem(this.world, this);
+    this.riding = null;
 
     // 5b. Initialize Tournament & Dragon Ball Skills
     this.tournament = new TournamentManager(this);
@@ -184,6 +191,8 @@ class Game {
     this.dungeonMode = new DungeonModeManager(this);
     this.structureStudio = new StructureStudioManager(this);
     this.mobStudio = new MobStudioManager(this);
+    this.furnaceManager = new FurnaceManager(this);
+    this.bedManager = new BedManager(this);
 
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
     this.worldType = 'generated';
@@ -818,6 +827,29 @@ class Game {
       return;
     }
 
+    // Mount a nearby minecart or boat before anything block-related, so a cart can
+    // be boarded even while the crosshair is on the rail beneath it.
+    if (this.railSystem) {
+      if (this.riding) {
+        this.dismount();
+        this.sounds.playClick();
+        return;
+      }
+      const look = new THREE.Vector3();
+      this.camera.getWorldDirection(look);
+      const reach = this.player.position.clone().addScaledVector(look, 3);
+      const vehicle = this.railSystem.nearestVehicle(reach, 3);
+      if (vehicle) {
+        this.riding = vehicle;
+        vehicle.rider = this.player;
+        this.sounds.playClick();
+        this.ui?.addChatMessage?.(vehicle.kind === 'boat'
+          ? 'Boarding the boat — W to row, sneak to step off.'
+          : 'Boarded the minecart — sneak to step off.', 'system');
+        return;
+      }
+    }
+
     if (!this.targetBlock) return;
 
     const bX = this.targetBlock.x;
@@ -831,6 +863,21 @@ class Game {
     if (clickedBlock === BLOCKS.CRAFTING_TABLE) {
       this.sounds.playClick();
       this.ui.openCraftingTable();
+      return;
+    }
+
+    // Furnace interaction
+    if (clickedBlock === BLOCKS.FURNACE || clickedBlock === BLOCKS.LIT_FURNACE) {
+      this.sounds.playClick();
+      this.ui.openFurnace(bX, bY, bZ);
+      return;
+    }
+
+    // Bed interaction (Sleep or explode in Nether)
+    if (clickedBlock === BLOCKS.RED_BED_FOOT || clickedBlock === BLOCKS.RED_BED_HEAD) {
+      if (this.bedManager) {
+        this.bedManager.interact(bX, bY, bZ, this.player);
+      }
       return;
     }
 
@@ -888,7 +935,36 @@ class Game {
         }
       }
 
-      // Spawn Eggs
+      // Minecarts, rails and boats are props rather than blocks: a cart is placed onto
+    // the rail it is aimed at, and a boat is put down on water.
+    if (!activeItem?.isBlock && activeItem && (activeItem.id === 'minecart' || activeItem.id === 'chest_minecart' || activeItem.id === 'oak_boat')) {
+      const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
+      const px = bX + norm.x + 0.5;
+      const py = bY + norm.y + 0.05;
+      const pz = bZ + norm.z + 0.5;
+
+      if (activeItem.id === 'oak_boat') {
+        this.railSystem.spawnBoat([px, py, pz]);
+        this.ui?.addChatMessage?.('Boat placed. Right-click it to ride.', 'system');
+      } else {
+        // A cart needs rail under it; offer to lay one if there is none.
+        if (!this.railSystem.nearestRail([bX, bY, bZ], 1)) {
+          this.world.setVoxel(bX, bY, bZ, BLOCKS.RAIL);
+          this.world.redstone.configure([bX, bY, bZ], 0);
+          this.refreshDirtyChunks();
+        }
+        this.railSystem.spawnCart([px, py, pz]);
+        this.ui?.addChatMessage?.('Minecart placed. Right-click it to ride.', 'system');
+      }
+      this.sounds.playPlace('stone');
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem();
+        this.ui.updateHotbar();
+      }
+      return;
+    }
+
+    // Spawn Eggs
       if ((it && it.type === 'spawn_egg') || activeItem.isSpawnEgg || activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_'))) {
         const customMobId = activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_') ? activeItem.id.replace('spawn_egg_', '') : null);
         const customDef = activeItem.mobDef || (customMobId ? MobLibrary.getMob(customMobId) : null);
@@ -923,6 +999,35 @@ class Game {
         }
         return;
       }
+    }
+
+    // Place Bed (occupies 2 blocks: foot and head)
+    if (activeItem && (activeItem.id === 'red_bed' || activeItem.id === 'bed' || activeItem.id === BLOCKS.RED_BED_FOOT) && this.targetBlock.normal) {
+      const placeX = bX + this.targetBlock.normal.x;
+      const placeY = bY + this.targetBlock.normal.y;
+      const placeZ = bZ + this.targetBlock.normal.z;
+
+      // Determine horizontal facing direction (0: East +X, 1: West -X, 2: South +Z, 3: North -Z)
+      const look = new THREE.Vector3();
+      this.camera.getWorldDirection(look);
+      let dir = 3;
+      if (Math.abs(look.x) > Math.abs(look.z)) {
+        dir = look.x > 0 ? 0 : 1;
+      } else {
+        dir = look.z > 0 ? 2 : 3;
+      }
+
+      const res = this.bedManager.placeBed(this.world, [placeX, placeY, placeZ], dir);
+      if (res.success) {
+        this.sounds.playPlace('wood');
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+      } else {
+        this.ui?.addChatMessage?.(res.reason || 'Bed cannot be placed here', 'error');
+      }
+      return;
     }
 
     // Place Block on adjacent targeted face
@@ -1013,6 +1118,23 @@ class Game {
     if (this.player.gamemode === 'survival') {
       const drop = getBlockDrop(blockId);
       if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.isBlock, 1);
+    }
+
+    if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
+      if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
+    }
+
+    if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD) {
+      if (this.bedManager) this.bedManager.onBlockBroken(x, y, z);
+      this.world.setVoxel(x, y, z, BLOCKS.AIR);
+      const cx = Math.floor(x / 16);
+      const cz = Math.floor(z / 16);
+      const chunk = this.world.getChunk(cx, cz);
+      if (chunk) this.rebuildChunkMesh(chunk);
+      this.targetBlock = null;
+      this.targetBoxMesh.visible = false;
+      this.breakOverlayMesh.visible = false;
+      return;
     }
 
     // Set air in world
@@ -1241,10 +1363,25 @@ class Game {
     const root = parts[0].toLowerCase();
 
     if(root==='/redstone'){
-      try{if(parts[1]!=='demo')throw new Error('Use /redstone demo elevator or /redstone demo flyer');const p=this.player.position;buildRedstoneDemo(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);this.refreshDirtyChunks();this.ui.addChatMessage(parts[2]==='flyer'?'Flying engine started. Place obsidian ahead to stop it.':'Elevator built. Right-click its lever to raise/lower the slime platform.','system');}catch(error){this.ui.addChatMessage(error.message,'error');}return;
+      try{
+        if(parts[1]==='demo'){
+          const p=this.player.position;buildRedstoneDemo(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);this.refreshDirtyChunks();
+          this.ui.addChatMessage(parts[2]==='flyer'?'Flying engine started. Place obsidian ahead to stop it.':'Elevator built. Right-click its lever to raise/lower the slime platform.','system');
+        }else if(parts[1]==='game'){
+          const p=this.player.position;
+          const built=buildRedstoneGame(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);
+          this.refreshDirtyChunks();
+          this.ui.addChatMessage(`${built.name} built. ${built.probe}`,'system');
+        }else if(parts[1]==='list'||!parts[1]){
+          this.ui.addChatMessage('Redstone games you can build:','help');
+          for(const g of listRedstoneGames())this.ui.addChatMessage(`  /redstone game ${g.key} - ${g.name}: ${g.blurb}`,'help');
+        }else throw new Error('Use /redstone demo <elevator|flyer>, /redstone game <name>, or /redstone list');
+      }catch(error){this.ui.addChatMessage(error.message,'error');}
+      return;
     }
     if (root === '/help') {
       this.ui.addChatMessage('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate','help');
+      this.ui.addChatMessage('/redstone game <name> - Build a playable redstone machine; /redstone list to see them','help');
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
       this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
@@ -1401,6 +1538,42 @@ class Game {
     }
   }
 
+  /**
+   * Step off whatever vehicle the player is riding.
+   */
+  dismount() {
+    const vehicle = this.riding;
+    if (!vehicle) return;
+    vehicle.rider = null;
+    this.player.position.set(vehicle.position.x, vehicle.position.y + 1.2, vehicle.position.z);
+    this.player.velocity?.set?.(0, 0, 0);
+    this.riding = null;
+    this.ui?.addChatMessage?.('Stepped off.', 'system');
+  }
+
+  /**
+   * Keep the player attached to their vehicle, and let a boat be steered.
+   *
+   * Steering reuses the player's yaw so the same WASD handling as the rest of the
+   * game drives the boat.
+   */
+  updateRiding() {
+    const vehicle = this.riding;
+    if (!vehicle) return;
+    this.player.position.set(
+      vehicle.position.x,
+      vehicle.position.y + (vehicle.kind === 'boat' ? 0.6 : 0.9),
+      vehicle.position.z
+    );
+    this.player.velocity?.set?.(0, 0, 0);
+    vehicle.rider = this.player;
+    if (vehicle.kind === 'boat') {
+      const input = this.input || this.controls;
+      if (input && (input.forward || input.backward)) vehicle.yaw = this.player.yaw;
+    }
+    if (this.player.isSneaking) this.dismount();
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
 
@@ -1418,6 +1591,10 @@ class Game {
     this.world.redstone.game=this;
     this.world.redstone.daylight=Math.max(0,Math.sin((this.worldTime/24000)*Math.PI*2));
     this.world.redstone.update(dt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
+    // Carts and boats move on their own clock, after redstone so powered rails have
+    // their signal for this frame.
+    this.railSystem?.update(dt);
+    if (this.riding) this.updateRiding();
     this.bow.update(dt);
     this.player.update(dt);
     this.waterSplashes.update(dt, this.player.position);
@@ -1441,6 +1618,16 @@ class Game {
 
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);
+
+    // 5a. Update Furnaces (cooking progress, fuel consumption, lighting & particles)
+    if (this.furnaceManager) {
+      this.furnaceManager.update(dt);
+    }
+
+    // 5a2. Update Beds (sleeping timer, transitions, wake-up)
+    if (this.bedManager) {
+      this.bedManager.update(dt);
+    }
 
     // 5b. Update World Mechanism System & Active World Mechanics
     if (this.mechanisms) {

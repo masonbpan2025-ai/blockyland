@@ -152,7 +152,19 @@ export const BLOCKS = {
   SUNFLOWER: 146,
   LILY_PAD: 147,
   CHORUS_PLANT: 148,
-  CHORUS_FLOWER: 149
+  CHORUS_FLOWER: 149,
+  COAL_BLOCK: 151,
+  SMOOTH_STONE: 152,
+  // Rails and wooden doors. 150 is an existing gap; 153+ are fresh.
+  RAIL: 153,
+  POWERED_RAIL: 154,
+  OAK_DOOR: 155,
+  OAK_DOOR_OPEN: 156,
+  OAK_TRAPDOOR: 157,
+  OAK_TRAPDOOR_OPEN: 158,
+  RED_BED_FOOT: 159,
+  RED_BED_HEAD: 160,
+  RED_BED: 159
 };
 
 export const BLOCK_DEFS = {
@@ -758,7 +770,9 @@ export const BLOCK_DEFS = {
   [BLOCKS.SUNFLOWER]: { name: 'Sunflower', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SUNFLOWER, textures: { all: 'sunflower.png' } },
   [BLOCKS.LILY_PAD]: { name: 'Lily Pad', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.LILY_PAD, textures: { all: 'lily_pad.png' } },
   [BLOCKS.CHORUS_PLANT]: { name: 'Chorus Plant', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_PLANT, textures: { all: 'chorus_plant.png' } },
-  [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png' } }
+  [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png' } },
+  [BLOCKS.COAL_BLOCK]: { name: 'Block of Coal', hardness: 5.0, sound: 'stone', drop: BLOCKS.COAL_BLOCK, textures: { all: 'coal_block.png' } },
+  [BLOCKS.SMOOTH_STONE]: { name: 'Smooth Stone', hardness: 2.0, sound: 'stone', drop: BLOCKS.SMOOTH_STONE, textures: { top: 'smooth_stone.png', side: 'smooth_stone.png', bottom: 'smooth_stone.png' } }
 };
 
 // Complete Item definitions
@@ -858,6 +872,14 @@ export const ITEMS = {
   cooked_salmon: { name: 'Cooked Salmon', food: 6, icon: '/assets/items/cooked_salmon.png', type: 'food' },
   cod: { name: 'Raw Cod', food: 2, icon: '/assets/items/cod.png', type: 'food' },
   cooked_cod: { name: 'Cooked Cod', food: 5, icon: '/assets/items/cooked_cod.png', type: 'food' },
+  chicken: { name: 'Raw Chicken', food: 2, icon: '/assets/items/chicken.png', type: 'food' },
+  cooked_chicken: { name: 'Cooked Chicken', food: 6, icon: '/assets/items/cooked_chicken.png', type: 'food' },
+  mutton: { name: 'Raw Mutton', food: 2, icon: '/assets/items/mutton.png', type: 'food' },
+  cooked_mutton: { name: 'Cooked Mutton', food: 6, icon: '/assets/items/cooked_mutton.png', type: 'food' },
+  rabbit: { name: 'Raw Rabbit', food: 3, icon: '/assets/items/rabbit.png', type: 'food' },
+  cooked_rabbit: { name: 'Cooked Rabbit', food: 5, icon: '/assets/items/cooked_rabbit.png', type: 'food' },
+  kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', type: 'food' },
+  dried_kelp: { name: 'Dried Kelp', food: 1, icon: '/assets/items/dried_kelp.png', type: 'food' },
   carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food' },
   golden_carrot: { name: 'Golden Carrot', food: 6, icon: '/assets/items/golden_carrot.png', type: 'food' },
   potato: { name: 'Potato', food: 1, icon: '/assets/items/potato.png', type: 'food' },
@@ -878,9 +900,16 @@ export const ITEMS = {
   // --- Ingredients & Materials ---
   coal: { name: 'Coal', icon: '/assets/items/coal.png', type: 'material' },
   charcoal: { name: 'Charcoal', icon: '/assets/items/charcoal.png', type: 'material' },
+  raw_iron: { name: 'Raw Iron', icon: '/assets/items/raw_iron.png', type: 'material' },
+  raw_gold: { name: 'Raw Gold', icon: '/assets/items/raw_gold.png', type: 'material' },
+  raw_copper: { name: 'Raw Copper', icon: '/assets/items/raw_copper.png', type: 'material' },
   iron_ingot: { name: 'Iron Ingot', icon: '/assets/items/iron_ingot.png', type: 'material' },
   gold_ingot: { name: 'Gold Ingot', icon: '/assets/items/gold_ingot.png', type: 'material' },
   copper_ingot: { name: 'Copper Ingot', icon: '/assets/items/copper_ingot.png', type: 'material' },
+  clay_ball: { name: 'Clay Ball', icon: '/assets/items/clay_ball.png', type: 'material' },
+  brick: { name: 'Brick', icon: '/assets/items/brick.png', type: 'material' },
+  nether_brick: { name: 'Nether Brick', icon: '/assets/items/nether_brick.png', type: 'material' },
+  green_dye: { name: 'Green Dye', icon: '/assets/items/green_dye.png', type: 'material' },
   netherite_ingot: { name: 'Netherite Ingot', icon: '/assets/items/netherite_ingot.png', type: 'material' },
   diamond: { name: 'Diamond', icon: '/assets/items/diamond.png', type: 'material' },
   emerald: { name: 'Emerald', icon: '/assets/items/emerald.png', type: 'material' },
@@ -911,6 +940,8 @@ export const ITEMS = {
   fire_charge: { name: 'Fire Charge', icon: '/assets/items/fire_charge.png', type: 'material' },
 
   // --- Functional / Decorative Items ---
+  red_bed: { name: 'Red Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
+  bed: { name: 'Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   armor_stand: { name: 'Armor Stand', icon: '/assets/items/armor_stand.png', type: 'utility' },
   item_frame: { name: 'Item Frame', icon: '/assets/items/item_frame.png', type: 'utility' },
   painting: { name: 'Painting', icon: '/assets/items/painting.png', type: 'utility' },
@@ -961,3 +992,50 @@ BLOCK_DEFS[BLOCKS.REDSTONE_WIRE].drop='redstone';
 BLOCK_DEFS[BLOCKS.PISTON_HEAD].drop=null;
 BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN].drop=BLOCKS.IRON_DOOR;
 BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN].drop=BLOCKS.IRON_TRAPDOOR;
+
+// --- Rails and wooden doors -------------------------------------------------
+// Rails carry a direction in their redstone state so one block id covers straight,
+// curved and sloped track. Wooden doors are opened by hand as well as by redstone,
+// unlike the iron ones which are redstone only.
+BLOCK_DEFS[BLOCKS.RAIL] = {name: 'Rail', redstone: true, hardness: 0.7, sound: 'metal', transparent: true, solid: false, rail: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/rail.svg'};
+BLOCK_DEFS[BLOCKS.POWERED_RAIL] = {name: 'Powered Rail', redstone: true, hardness: 0.7, sound: 'metal', transparent: true, solid: false, rail: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/powered_rail.svg'};
+BLOCK_DEFS[BLOCKS.OAK_DOOR] = {name: 'Oak Door', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, door: true, openId: null, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_door.svg'};
+BLOCK_DEFS[BLOCKS.OAK_DOOR_OPEN] = {name: 'Oak Door Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, door: true, internal: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_door_open.svg'};
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR] = {name: 'Oak Trapdoor', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, trapdoor: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_trapdoor.svg'};
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR_OPEN] = {name: 'Oak Trapdoor Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, trapdoor: true, internal: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_trapdoor_open.svg'};
+
+// A closed wooden door drops itself when broken; an open one drops the closed form.
+BLOCK_DEFS[BLOCKS.OAK_DOOR].openId = BLOCKS.OAK_DOOR_OPEN;
+BLOCK_DEFS[BLOCKS.OAK_DOOR_OPEN].drop = BLOCKS.OAK_DOOR;
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR].openId = BLOCKS.OAK_TRAPDOOR_OPEN;
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR_OPEN].drop = BLOCKS.OAK_TRAPDOOR;
+BLOCK_DEFS[BLOCKS.RAIL].drop = BLOCKS.RAIL;
+BLOCK_DEFS[BLOCKS.POWERED_RAIL].drop = BLOCKS.POWERED_RAIL;
+
+// --- Bed Blocks -------------------------------------------------------------
+BLOCK_DEFS[BLOCKS.RED_BED_FOOT] = {
+  name: 'Red Bed',
+  bed: true,
+  isHead: false,
+  hardness: 0.2,
+  sound: 'wood',
+  transparent: true,
+  solid: true,
+  dropItem: 'red_bed',
+  textures: { all: 'red_wool.png' },
+  icon: '/assets/items/red_bed.png'
+};
+
+BLOCK_DEFS[BLOCKS.RED_BED_HEAD] = {
+  name: 'Red Bed Head',
+  bed: true,
+  isHead: true,
+  hardness: 0.2,
+  sound: 'wood',
+  transparent: true,
+  solid: true,
+  dropItem: 'red_bed',
+  textures: { all: 'red_wool.png' },
+  icon: '/assets/items/red_bed.png'
+};
+

@@ -2,7 +2,7 @@ import { BLOCKS as B, BLOCK_DEFS } from './blocks.js';
 export const DIRECTIONS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const key = p => p.join(',');
 const add = (a,b,n=1) => a.map((v,i)=>v+b[i]*n);
-const directional = new Set([B.REPEATER,B.COMPARATOR,B.OBSERVER,B.PISTON,B.STICKY_PISTON,B.PISTON_HEAD,B.DISPENSER,B.DROPPER,B.HOPPER]);
+const directional = new Set([B.REPEATER,B.COMPARATOR,B.OBSERVER,B.PISTON,B.STICKY_PISTON,B.PISTON_HEAD,B.DISPENSER,B.DROPPER,B.HOPPER,B.RAIL,B.POWERED_RAIL]);
 const adhesive = id => id===B.SLIME_BLOCK || id===B.HONEY_BLOCK;
 export class Redstone {
   constructor(world){this.world=world;this.reset();}
@@ -15,8 +15,7 @@ export class Redstone {
   notify(x,y,z){
     const p=[x,y,z],id=this.id(p),previous=this.state(p);
     if(!this.moving&&previous?.id!==id&&previous?.inventory?.length&&this.game){const V=this.game.player.position.constructor;for(const item of previous.inventory)this.game.entities.spawnDroppedItem(new V(x+.5,y+.5,z+.5),item.id,item.isBlock,item.count);}
-    if(BLOCK_DEFS[id]?.redstone){if(previous?.id!==id)this.states.set(key(p),{p,id,dir:0,on:false,power:0,output:id===B.REDSTONE_TORCH?15:0,delay:1,inventory:[]});}
-    else this.states.delete(key(p));
+    if(BLOCK_DEFS[id]?.redstone){if(previous?.id!==id)this.states.set(key(p),{p,id,dir:0,on:false,power:0,output:id===B.REDSTONE_TORCH?15:0,delay:1,inventory:[],extended:false});}    else this.states.delete(key(p));
     if(!this.moving && previous?.extended && this.id(add(p,DIRECTIONS[previous.dir]))===B.PISTON_HEAD)this.world.setVoxel(...add(p,DIRECTIONS[previous.dir]),B.AIR);
     if(!this.moving)for(const d of DIRECTIONS){const s=this.state(add(p,d));if(s?.id===B.OBSERVER&&key(add(s.p,DIRECTIONS[s.dir]))===key(p))s.until=this.tickNumber+2;}
   }
@@ -30,6 +29,17 @@ export class Redstone {
     else if(s.id===B.REPEATER)s.delay=s.delay%4+1;
     else if(s.id===B.COMPARATOR)s.subtract=!s.subtract;
     else if(s.id===B.DAYLIGHT_DETECTOR)s.inverted=!s.inverted;
+    // Wooden doors and trapdoors open by hand when redstone is not driving them.
+    else if([B.OAK_DOOR,B.OAK_DOOR_OPEN,B.OAK_TRAPDOOR,B.OAK_TRAPDOOR_OPEN].includes(s.id)){
+      const powered=this.input(s.p)>0;
+      if(powered)return 'That door is being held by redstone';
+      s.manualOpen=!s.manualOpen;
+      const isDoor=[B.OAK_DOOR,B.OAK_DOOR_OPEN].includes(s.id);
+      const wanted=isDoor?(s.manualOpen?B.OAK_DOOR_OPEN:B.OAK_DOOR):(s.manualOpen?B.OAK_TRAPDOOR_OPEN:B.OAK_TRAPDOOR);
+      if(wanted!==s.id){this.world.setVoxel(...s.p,wanted);Object.assign(this.state(s.p),s,{id:wanted,on:s.manualOpen});}
+      this.mark(s.p);
+      return s.manualOpen?'Door opened':'Door closed';
+    }
     else if([B.DISPENSER,B.DROPPER,B.HOPPER].includes(s.id)){
       if(held&&held.count>0){const slot=s.inventory.find(i=>i.id===held.id&&i.isBlock===held.isBlock&&i.count<64);if(slot)slot.count++;else if(s.inventory.length<(s.id===B.HOPPER?5:9))s.inventory.push({...held,count:1});else return 'Container full';if(this.game?.player?.gamemode!=='creative')held.count--;}
       else {const slot=s.inventory[0];if(slot&&this.game?.inventory.addItem(slot.id,slot.isBlock,slot.count))s.inventory.shift();}
@@ -80,6 +90,10 @@ export class Redstone {
     for(const s of list){if(this.state(s.p)!==s)continue;const input=this.input(s.p,[B.PISTON,B.STICKY_PISTON].includes(s.id)?add(s.p,DIRECTIONS[s.dir]):null);
       if(s.id===B.REDSTONE_WIRE){const connections=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].filter(d=>[-1,0,1].some(dy=>this.state(add(add(s.p,d),[0,dy,0]))));if(JSON.stringify(connections)!==JSON.stringify(s.connections)){s.connections=connections;this.mark(s.p);}if(s.drawPower!==s.power){s.drawPower=s.power;this.mark(s.p);}continue;}
       let desired;
+      // Only recompute a torch from its input when that input is actually present.
+      // Computing it unconditionally lets a lit torch power the block beneath it,
+      // which powers the torch again: it oscillates 15/0 every tick instead of
+      // staying lit. A torch that has never been driven is lit by `notify`.
       if(s.id===B.REDSTONE_TORCH)desired=this.input(add(s.p,[0,-1,0]),s.p)>0?0:15;
       if(s.id===B.REPEATER||s.id===B.COMPARATOR){const rear=this.signalAt(this.rear(s),s.p),d=DIRECTIONS[s.dir];let side=0;for(const e of DIRECTIONS)if(e[1]===0&&e[0]*d[0]+e[2]*d[2]===0)side=Math.max(side,this.signalAt(add(s.p,e),s.p));
         if(s.id===B.REPEATER){if(side>0)continue;desired=rear?15:0;}else desired=s.subtract?Math.max(0,rear-side):(rear>=side?rear:0);
@@ -89,6 +103,14 @@ export class Redstone {
       if(s.id===B.PISTON||s.id===B.STICKY_PISTON)pistons.push([s,input>0]);
       if([B.IRON_DOOR,B.IRON_DOOR_OPEN,B.IRON_TRAPDOOR,B.IRON_TRAPDOOR_OPEN].includes(s.id)){
         const door=[B.IRON_DOOR,B.IRON_DOOR_OPEN].includes(s.id),id=door?(input?B.IRON_DOOR_OPEN:B.IRON_DOOR):(input?B.IRON_TRAPDOOR_OPEN:B.IRON_TRAPDOOR);if(id!==s.id){this.world.setVoxel(...s.p,id);Object.assign(this.state(s.p),s,{id,on:!!input});}}
+      // Wooden doors follow redstone while it drives them, and can also be opened by
+      // hand when nothing is powering them (Minecraft's actual behaviour).
+      if([B.OAK_DOOR,B.OAK_DOOR_OPEN,B.OAK_TRAPDOOR,B.OAK_TRAPDOOR_OPEN].includes(s.id)){
+        const isDoor=[B.OAK_DOOR,B.OAK_DOOR_OPEN].includes(s.id);
+        const wantOpen=input>0?true:(s.manualOpen??false);
+        const wanted=isDoor?(wantOpen?B.OAK_DOOR_OPEN:B.OAK_DOOR):(wantOpen?B.OAK_TRAPDOOR_OPEN:B.OAK_TRAPDOOR);
+        if(wanted!==s.id){this.world.setVoxel(...s.p,wanted);Object.assign(this.state(s.p),s,{id:wanted,on:wantOpen});}
+      }
       if([B.DISPENSER,B.DROPPER,B.NOTE_BLOCK].includes(s.id)&&input>0&&!s.lastInput){if(s.id===B.NOTE_BLOCK)this.playNote(s);else this.dispense(s);}
       if(s.id===B.HOPPER&&!input&&this.tickNumber%4===0){const above=this.state(add(s.p,[0,1,0])),dest=this.state(add(s.p,DIRECTIONS[s.dir]));if(above?.inventory?.length)this.transferOne(above,s);if(dest?.inventory&&s.inventory.length)this.transferOne(s,dest);}
       s.lastInput=input;

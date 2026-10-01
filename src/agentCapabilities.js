@@ -50,8 +50,22 @@ export const CAPABILITIES = {
     summary: 'I can hand you items, and crafting and villager trading both work.',
     alternatives: ['press E for the creative inventory and search for what you want']
   },
+  redstone: {
+    summary: 'Redstone is fully simulated. Levers, buttons, pressure plates, redstone wire, torches, repeaters, comparators, observers, redstone lamps, pistons and sticky pistons, dispensers, droppers, hoppers, note blocks, daylight detectors, target blocks, powered TNT and iron doors all work, and signals propagate with ticks and delays like the real thing.',
+    alternatives: [
+      'ask for a circuit by what it should do — "a piston door", "a lamp that turns on at night", "a floor that opens"',
+      'or ask for a hidden door, a trap, an automatic farm or a redstone game'
+    ]
+  },
+  transport: {
+    summary: 'Rails, minecarts and boats are being built out.',
+    alternatives: [
+      'ask for a rail line and I will lay it',
+      'or ask for a boat on a lake'
+    ]
+  },
   agentLimits: {
-    summary: 'This is a single-player voxel game in your browser, so there is no redstone logic, no scripting, no multiplayer, and the world generator itself is fixed.',
+    summary: 'This is a single-player voxel game in your browser. There is no scripting, no multiplayer, and the world generator itself is fixed.',
     alternatives: [
       'tell me what you are actually after and I will find the closest thing that works',
       'build a visual version — most ideas look great even without the mechanics'
@@ -127,11 +141,11 @@ const IMPOSSIBLE_PATTERNS = [
     ]
   },
   {
-    match: /\b(redstone (circuit|logic|machine|contraption)|logic gate|piston (machine|door)|automate|automation|wireless)\b/i,
-    summary: 'Redstone here lights up but it does not think — there is no circuit simulation, so a machine like that cannot actually run.',
+    match: /\b(redstone (logic|circuit)|logic circuit|circuit that counts|computer|cpu)\b/i,
+    summary: 'The redstone here powers lamps, doors and pistons, but it does not think — full logic circuits are beyond what this simulator can do.',
     alternatives: [
-      'I can build a decorative version of it, which usually looks great from a distance',
-      'or place lamps and torches so it reads as powered'
+      'ask for simpler wiring with levers, repeaters and pistons',
+      'or build the layout visually as a decorative machine'
     ]
   },
   {
