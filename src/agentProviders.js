@@ -575,6 +575,35 @@ function closeUnbalanced(text) {
  *   `repaired: true` means the text was incomplete and had to be closed; the
  *   caller should tell the user the result may be partial.
  */
+/**
+ * Make sure a parsed reply has an action.
+ *
+ * Models answering a question often emit the "message" shape but omit the
+ * `action` field, e.g. `{"explanation":"You are standing on grass..."}`. That is a
+ * complete answer, yet the validator rejected it with "Unsupported action:
+ * undefined". Anything carrying explanation-style text and no world action is
+ * treated as the message it plainly is.
+ *
+ * @returns {object|null} the normalised plan, or null when there is nothing usable
+ */
+export function normalizePlanShape(plan) {
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return plan ?? null;
+  if (typeof plan.action === 'string' && plan.action.trim()) return plan;
+
+  // An action-less reply is conversational. Recover the text from whichever field
+  // the model chose and present it as a message.
+  for (const field of ['explanation', 'message', 'reply', 'answer', 'text', 'response', 'content']) {
+    const value = plan[field];
+    if (typeof value === 'string' && value.trim()) {
+      return { ...plan, action: 'message', explanation: value.trim() };
+    }
+  }
+
+  // No action and no text: leave it to the validator to reject, since it is
+  // genuinely unusable rather than merely chatty.
+  return plan;
+}
+
 export function parsePlanWithRecovery(text) {
   const raw = String(text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   if (!raw) {
@@ -582,10 +611,10 @@ export function parsePlanWithRecovery(text) {
   }
 
   try {
-    return { plan: JSON.parse(raw), repaired: false, prose: false, error: null };
+    return { plan: normalizePlanShape(JSON.parse(raw)), repaired: false, prose: false, error: null };
   } catch (firstError) {
     try {
-      const repairedPlan = JSON.parse(closeUnbalanced(raw));
+      const repairedPlan = normalizePlanShape(JSON.parse(closeUnbalanced(raw)));
       return { plan: repairedPlan, repaired: true, prose: false, error: null };
     } catch {
       // Not JSON and not repairable. Keep the model's own words: for a question

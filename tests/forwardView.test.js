@@ -112,9 +112,12 @@ test('an open view is described as open rather than left blank', () => {
 test('the prompt insists that questions are answered as JSON, using the world state', () => {
   const prompt = agentWith(wallWorld()).buildSystemPrompt();
   assert.match(prompt, /EVERY reply must be that JSON object/, 'JSON is the envelope for every reply');
-  assert.match(prompt, /what's in front of me\?/, 'the question is given as an example');
-  assert.match(prompt, /explanation" field of an action "message"/, 'and told where the answer goes');
+  assert.match(prompt, /"action" field is mandatory/, 'the action field is required, not optional');
+  assert.match(prompt, /what's in front of me\?/, 'a question is given as an example');
+  assert.match(prompt, /tell me about this world/, 'including the one that previously failed');
+  assert.match(prompt, /put the full answer in "explanation"/, 'and told where the answer goes');
   assert.match(prompt, /never say you cannot see the world/i, 'the model is told the world state is its eyes');
+  assert.match(prompt, /Never ask the player to describe their own surroundings/i, 'and not to deflect');
 });
 
 test('the prompt keeps the player position, facing and terrain map', () => {
