@@ -16,6 +16,7 @@ import {
   isTokenExhausted,
   parseAgentPlanJson,
   parsePlanWithRecovery,
+  describePlanShape,
   supportsEffort
 } from './agentProviders.js';
 import { describeOpenStructure, formatStructureContext } from './structureContext.js';
@@ -1014,15 +1015,43 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
       return { plan: validatePlan(plan), truncated, usage, emptyError: null };
     }
-    if (outcome.prose) {
-      // The model answered in words rather than JSON. That is a normal reply to a
-      // question, so show the answer instead of reporting a failure.
-      this.log('Replied in prose rather than a plan; showing the answer below.', 'info');
+
+    // A reply that parsed but cannot become a valid plan is rejected, never turned
+    // into a cheerful message: a malformed "multi" or an unknown action must not be
+    // reported as success. The one exception is a plan with no action at all that
+    // still carries text — that is an answer, not a broken instruction.
+    try {
+      const validated = validatePlan(outcome.plan);
+      if (outcome.prose) {
+        // The model answered in words rather than JSON. That is a normal reply to
+        // a question, so show the answer instead of reporting a failure.
+        this.log('Replied in prose rather than a plan; showing the answer below.', 'info');
+      }
+      if (outcome.repaired) {
+        this.log('Recovered an incomplete JSON reply by closing the truncated braces; please double-check the result.', 'warning');
+      }
+      return { plan: validated, truncated: false, usage, emptyError: null };
+    } catch (planError) {
+      const shape = describePlanShape(outcome.plan);
+      const hasText = typeof outcome.plan?.explanation === 'string' && outcome.plan.explanation.trim();
+      const missingAction = !outcome.plan?.action && hasText;
+
+      if (!missingAction) {
+        // Structurally invalid: reject it so nothing is silently "succeeded".
+        this.log(`The reply from ${this.vendorLabel} could not be used as a plan (${planError.message}). It arrived as ${shape}.`, 'error');
+        return {
+          plan: null,
+          truncated: false,
+          usage,
+          emptyError: new Error(`The reply from ${this.vendorLabel} was not a usable plan: ${planError.message} (arrived as ${shape}). Nothing was executed.`)
+        };
+      }
+
+      // Action-less but with text: treat it as the message it is.
+      const message = { action: 'message', explanation: String(outcome.plan.explanation).trim() };
+      this.log(`Replied without an action field; showing it as a message. It arrived as ${shape}.`, 'info');
+      return { plan: validatePlan(message), truncated: false, usage, emptyError: null };
     }
-    if (outcome.repaired) {
-      this.log('Recovered an incomplete JSON reply by closing the truncated braces; please double-check the result.', 'warning');
-    }
-    return { plan: validatePlan(outcome.plan), truncated: false, usage, emptyError: null };
   }
 
   /** Progress creeps from 15% to 32% while the model thinks, so the bar moves. */

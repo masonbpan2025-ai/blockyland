@@ -6,8 +6,66 @@
 // rejected it with "Unsupported action: undefined", discarding a good answer.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizePlanShape, parsePlanWithRecovery } from '../src/agentProviders.js';
+import { normalizePlanShape, parsePlanWithRecovery, describePlanShape } from '../src/agentProviders.js';
 import { validatePlan } from '../src/agentPlans.js';
+
+// --- plans that lost their wrapper -------------------------------------------
+
+test('a bare array of steps becomes a multi plan', () => {
+  // The model reasons "multi steps: summon salmon, give fishing rod" and emits the
+  // steps without the wrapper, which used to validate as an invalid plan.
+  const reply = JSON.stringify([
+    { action: 'summon', mobs: [{ type: 'salmon', count: 12 }] },
+    { action: 'give', giveItems: [{ name: 'fishing_rod', count: 1 }] }
+  ]);
+
+  const outcome = parsePlanWithRecovery(reply);
+  assert.equal(outcome.error, null);
+  assert.equal(outcome.plan.action, 'multi');
+  assert.equal(outcome.plan.steps.length, 2);
+  assert.doesNotThrow(() => validatePlan(outcome.plan), 'a multi plan is valid');
+});
+
+test('steps without an action field become a multi plan', () => {
+  const outcome = parsePlanWithRecovery(JSON.stringify({
+    steps: [{ action: 'summon', mobs: [{ type: 'salmon', count: 12 }] }]
+  }));
+  assert.equal(outcome.plan.action, 'multi');
+  assert.doesNotThrow(() => validatePlan(outcome.plan));
+});
+
+test('a plan wrapped in an envelope is unwrapped', () => {
+  for (const key of ['plan', 'agentPlan', 'result']) {
+    const outcome = parsePlanWithRecovery(JSON.stringify({ [key]: { action: 'message', explanation: 'hello' } }));
+    assert.equal(outcome.plan.action, 'message', `${key} should be unwrapped`);
+    assert.equal(outcome.plan.explanation, 'hello');
+  }
+});
+
+test('an empty array or a non-object array is left for the validator', () => {
+  assert.deepEqual(normalizePlanShape([]), []);
+  // An array of scalars is not a step list.
+  assert.deepEqual(normalizePlanShape([1, 2, 3]), [1, 2, 3]);
+  assert.throws(() => validatePlan(normalizePlanShape([1, 2, 3])));
+});
+
+test('describePlanShape names what actually arrived, for a useful error', () => {
+  assert.equal(describePlanShape(null), 'null');
+  assert.equal(describePlanShape([1, 2]), 'array(2)');
+  assert.equal(describePlanShape('text'), 'string');
+  assert.match(describePlanShape({ foo: 1, bar: 2 }), /with no action field/);
+  assert.match(describePlanShape({ foo: 1 }), /object\{foo\}/);
+  assert.match(describePlanShape({ action: 'wrong' }), /action="wrong"/);
+});
+
+test('a reply that parses but cannot be planned still yields a usable message', () => {
+  // Numbers only: no action, no text. The agent must report rather than crash.
+  const outcome = parsePlanWithRecovery('{"counts":[1,2,3]}');
+  assert.ok(outcome.plan, 'it parsed');
+  assert.throws(() => validatePlan(outcome.plan), /Unsupported action/, 'and the validator rejects it');
+  // Which the agent turns into a message plan rather than an exception.
+  assert.match(describePlanShape(outcome.plan), /counts/);
+});
 
 // --- the exact failing shape -------------------------------------------------
 

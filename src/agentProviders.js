@@ -587,12 +587,38 @@ function closeUnbalanced(text) {
  * @returns {object|null} the normalised plan, or null when there is nothing usable
  */
 export function normalizePlanShape(plan) {
-  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return plan ?? null;
+  if (!plan || typeof plan !== 'object') return plan ?? null;
+
+  // A bare array is a list of steps: the model returned the contents of a "multi"
+  // plan without its wrapper. Its reasoning often says "multi steps: ..." while the
+  // JSON it emits is just the steps.
+  if (Array.isArray(plan)) {
+    if (plan.length === 0) return plan;
+    if (plan.every(step => step && typeof step === 'object' && !Array.isArray(step))) {
+      return { action: 'multi', steps: plan.slice(0, 16), explanation: 'Multiple steps' };
+    }
+    return plan;
+  }
+
   if (typeof plan.action === 'string' && plan.action.trim()) return plan;
+
+  // Some replies wrap the plan in an envelope: { "plan": {...} } or { "response": {...} }.
+  for (const key of ['plan', 'agentPlan', 'result']) {
+    const nested = plan[key];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const inner = normalizePlanShape(nested);
+      if (inner && typeof inner === 'object' && !Array.isArray(inner) && typeof inner.action === 'string') return inner;
+    }
+  }
+
+  // "steps" without an action is a multi plan that lost its wrapper.
+  if (Array.isArray(plan.steps) && plan.steps.length) {
+    return { ...plan, action: 'multi' };
+  }
 
   // An action-less reply is conversational. Recover the text from whichever field
   // the model chose and present it as a message.
-  for (const field of ['explanation', 'message', 'reply', 'answer', 'text', 'response', 'content']) {
+  for (const field of ['explanation', 'message', 'reply', 'answer', 'text', 'response', 'content', 'description', 'summary']) {
     const value = plan[field];
     if (typeof value === 'string' && value.trim()) {
       return { ...plan, action: 'message', explanation: value.trim() };
@@ -602,6 +628,16 @@ export function normalizePlanShape(plan) {
   // No action and no text: leave it to the validator to reject, since it is
   // genuinely unusable rather than merely chatty.
   return plan;
+}
+
+/** Describe a reply's shape, for a useful error when nothing could be salvaged. */
+export function describePlanShape(plan) {
+  if (plan === null) return 'null';
+  if (Array.isArray(plan)) return `array(${plan.length})`;
+  if (typeof plan !== 'object') return typeof plan;
+  const keys = Object.keys(plan);
+  const action = 'action' in plan ? ` action=${JSON.stringify(plan.action)}` : ' with no action field';
+  return `object{${keys.slice(0, 10).join(', ') || 'empty'}}${action}`;
 }
 
 export function parsePlanWithRecovery(text) {
