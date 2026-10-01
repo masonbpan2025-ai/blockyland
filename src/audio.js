@@ -1046,7 +1046,293 @@ export class SoundEngine {
 
     this.noiseBurst(0.08, 2200, 1.8, 0.2);
   }
+
+  // Minecraft Hoe Tilling (earthy scrape and crisp thud)
+  playHoe() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Resonant dirt scrape
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(260 + Math.random() * 40, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.12);
+
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.14);
+
+    this.noiseBurst(0.12, 1100 + Math.random() * 200, 1.5, 0.3);
+  }
+
+  // Minecraft Crop Planting (soft crisp rustle)
+  playPlant() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400 + Math.random() * 80, now);
+    osc.frequency.exponentialRampToValueAtTime(220, now + 0.09);
+
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.09);
+
+    this.noiseBurst(0.07, 2400 + Math.random() * 400, 2.0, 0.22);
+  }
+
+  // Minecraft Bone Meal Sparkle / Chime
+  playBoneMeal() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 3 ascending magical twinkle frequencies
+    const notes = [620, 880, 1175];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      const noteStart = now + idx * 0.045;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, noteStart);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.08, noteStart + 0.12);
+
+      g.gain.setValueAtTime(0.18, noteStart);
+      g.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.14);
+
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(noteStart);
+      osc.stop(noteStart + 0.14);
+    });
+
+    this.noiseBurst(0.09, 3200, 3.0, 0.12);
+  }
+
+  // Minecraft Experience Orb Pickup Ding
+  playXpPickup(pitchMultiplier = 1.0) {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    const baseFreq = (850 + Math.random() * 80) * Math.min(2.0, Math.max(0.6, pitchMultiplier));
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.05, now + 0.08);
+
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.1);
+  }
+
+  // Minecraft Player Level Up Fanfare
+  playLevelUp() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Harmonic fanfare notes: C5, E5, G5, C6
+    const chord = [523.25, 659.25, 783.99, 1046.50];
+    chord.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      const noteStart = now + idx * 0.08;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, noteStart);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.02, noteStart + 0.35);
+
+      g.gain.setValueAtTime(0.22, noteStart);
+      g.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.4);
+
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(noteStart);
+      osc.stop(noteStart + 0.4);
+    });
+  }
+
+  // Minecraft Enchanting Table Sound (ethereal magical sweep)
+  playEnchant() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Mystic resonance
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(980, now + 0.22);
+    osc.frequency.exponentialRampToValueAtTime(440, now + 0.45);
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, now);
+    filter.frequency.exponentialRampToValueAtTime(2400, now + 0.25);
+    filter.Q.setValueAtTime(4.0, now);
+
+    g.gain.setValueAtTime(0.3, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(now + 0.5);
+
+    this.noiseBurst(0.18, 4200, 3.5, 0.2);
+  }
+
+  // --- Nether Portal Audio Effects ------------------------------------------
+
+  playPortalIgnite() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Flint strike click
+    this.noiseBurst(0.06, 3400, 3.0, 0.3);
+
+    // Eerie dimensional ignition whoosh
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(380, now + 0.35);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.7);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(300, now);
+    filter.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+    filter.frequency.exponentialRampToValueAtTime(250, now + 0.7);
+    filter.Q.setValueAtTime(3.5, now);
+
+    g.gain.setValueAtTime(0.01, now);
+    g.gain.linearRampToValueAtTime(0.35, now + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(now + 0.75);
+  }
+
+  playPortalTravel() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Dimensional warp drone & frequency glide
+    const freqs = [65.4, 98.0, 130.8, 196.0];
+    freqs.forEach((baseFreq, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = i % 2 === 0 ? 'sawtooth' : 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.5);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, now + 1.2);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(300 + i * 200, now);
+      filter.frequency.exponentialRampToValueAtTime(800 + i * 400, now + 0.6);
+      filter.frequency.exponentialRampToValueAtTime(200, now + 1.2);
+      filter.Q.setValueAtTime(4.0, now);
+
+      g.gain.setValueAtTime(0.02, now);
+      g.gain.linearRampToValueAtTime(0.18, now + 0.4);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+
+      osc.connect(filter);
+      filter.connect(g);
+      g.connect(this.masterGain);
+
+      osc.start();
+      osc.stop(now + 1.3);
+    });
+
+    // Swirling ethereal wind burst
+    this.noiseBurst(1.1, 850, 1.8, 0.25);
+  }
+
+  playPortalAmbience() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(75, now);
+    osc.frequency.linearRampToValueAtTime(88, now + 0.5);
+    osc.frequency.linearRampToValueAtTime(72, now + 1.0);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(280, now);
+    filter.Q.setValueAtTime(2.0, now);
+
+    g.gain.setValueAtTime(0.01, now);
+    g.gain.linearRampToValueAtTime(0.12, now + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(now + 1.0);
+  }
+
+  playPortalBreak() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // High crystalline glass break
+    this.noiseBurst(0.25, 2600, 2.5, 0.35);
+
+    // Ethereal dissolving pitch
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
+
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(now + 0.3);
+  }
 }
-
-
 

@@ -277,23 +277,28 @@ export class Inventory {
     }
   }
 
-  addItem(itemId, isBlock = true, count = 1) {
-    // 1. Try to merge into existing stacks
-    const allSlots = [...this.hotbar, ...this.storage];
-    for (const slot of allSlots) {
-      if (slot && slot.id === itemId && slot.isBlock === isBlock && slot.count < 64) {
-        const canTake = 64 - slot.count;
-        const add = Math.min(canTake, count);
-        slot.count += add;
-        count -= add;
-        if (count <= 0) return true;
+  addItem(itemId, isBlock = true, count = 1, enchantments = null) {
+    // 1. Try to merge into existing stacks (only if unenchanted)
+    if (!enchantments) {
+      const allSlots = [...this.hotbar, ...this.storage];
+      for (const slot of allSlots) {
+        if (slot && slot.id === itemId && slot.isBlock === isBlock && !slot.enchantments && slot.count < 64) {
+          const canTake = 64 - slot.count;
+          const add = Math.min(canTake, count);
+          slot.count += add;
+          count -= add;
+          if (count <= 0) return true;
+        }
       }
     }
+
+    const itemObj = { id: itemId, isBlock, count };
+    if (enchantments) itemObj.enchantments = enchantments;
 
     // 2. Put into empty hotbar slot
     for (let i = 0; i < 9; i++) {
       if (!this.hotbar[i]) {
-        this.hotbar[i] = { id: itemId, isBlock, count };
+        this.hotbar[i] = itemObj;
         return true;
       }
     }
@@ -301,7 +306,7 @@ export class Inventory {
     // 3. Put into empty storage slot
     for (let i = 0; i < 27; i++) {
       if (!this.storage[i]) {
-        this.storage[i] = { id: itemId, isBlock, count };
+        this.storage[i] = itemObj;
         return true;
       }
     }

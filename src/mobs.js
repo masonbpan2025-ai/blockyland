@@ -3199,8 +3199,15 @@ export class MobManager {
         iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
         pillager: [['arrow', false, 1, 2]],
       };
-      if (!mob.noLoot) for (const [id, isBlock, min, max] of loot[mob.type] || []) {
-        this.entities?.spawnDroppedItem(pos, id, isBlock, min + Math.floor(Math.random() * (max - min + 1)), { pickupDelay: 1.2 });
+      if (!mob.noLoot) {
+        for (const [id, isBlock, min, max] of loot[mob.type] || []) {
+          this.entities?.spawnDroppedItem(pos, id, isBlock, min + Math.floor(Math.random() * (max - min + 1)), { pickupDelay: 1.2 });
+        }
+        if (this.entities?.spawnXpOrbs) {
+          const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze'].includes(mob.type);
+          const xpVal = hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
+        }
       }
       this.entities?.spawnDeathParticles(pos);
     }

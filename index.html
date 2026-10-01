@@ -118,6 +118,9 @@
     </div>
   </div>
 
+  <!-- Nether Portal Screen Distortion and Warp Overlay -->
+  <div id="portal-overlay" class="portal-overlay"></div>
+
   <!-- HUD -->
   <div id="hud">
     <div id="status-bars">
@@ -359,6 +362,66 @@
       <div class="gui-header"><span>Your Inventory</span></div>
       <div class="grid-slots" id="villager-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
       <div class="grid-slots" id="villager-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Enchanting Table GUI -->
+  <div id="enchanting-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 440px;">
+      <div class="gui-header">
+        <span id="enchanting-title">Enchant</span>
+        <span class="close-btn" id="close-enchanting">✕</span>
+      </div>
+      <div class="enchanting-main-area">
+        <div class="enchanting-inputs">
+          <div class="enchanting-slot-wrapper">
+            <div class="inv-slot" id="enchant-item-slot" title="Item to enchant (Sword, Pickaxe, Armor, Bow, Book)"></div>
+            <span class="slot-hint-label">Item</span>
+          </div>
+          <div class="enchanting-slot-wrapper">
+            <div class="inv-slot" id="enchant-lapis-slot" title="Lapis Lazuli (1-3 required)"></div>
+            <span class="slot-hint-label">Lapis</span>
+          </div>
+          <div class="enchanting-bookshelf-indicator" id="enchant-bookshelf-count" title="Effective Bookshelves nearby (max 15)">
+            📚 <span id="enchant-bookshelves-num">0</span>/15
+          </div>
+        </div>
+        <div class="enchanting-offers" id="enchanting-offers">
+          <div class="enchant-offer disabled" data-slot="0" id="enchant-offer-0">
+            <div class="enchant-offer-left">
+              <span class="enchant-cost-badge">1</span>
+              <span class="enchant-runes" id="enchant-runes-0">ᔑ ʖ ᓵ</span>
+            </div>
+            <div class="enchant-offer-info">
+              <span class="enchant-hint" id="enchant-hint-0">Insert item...</span>
+              <span class="enchant-req" id="enchant-req-0">Req: 1 Lvl</span>
+            </div>
+          </div>
+          <div class="enchant-offer disabled" data-slot="1" id="enchant-offer-1">
+            <div class="enchant-offer-left">
+              <span class="enchant-cost-badge">2</span>
+              <span class="enchant-runes" id="enchant-runes-1">⎓ ⊣ ⍑</span>
+            </div>
+            <div class="enchant-offer-info">
+              <span class="enchant-hint" id="enchant-hint-1">Insert item...</span>
+              <span class="enchant-req" id="enchant-req-1">Req: 2 Lvl</span>
+            </div>
+          </div>
+          <div class="enchant-offer disabled" data-slot="2" id="enchant-offer-2">
+            <div class="enchant-offer-left">
+              <span class="enchant-cost-badge">3</span>
+              <span class="enchant-runes" id="enchant-runes-2">ᒲ リ 𝙹</span>
+            </div>
+            <div class="enchant-offer-info">
+              <span class="enchant-hint" id="enchant-hint-2">Insert item...</span>
+              <span class="enchant-req" id="enchant-req-2">Req: 3 Lvl</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="enchant-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="grid-slots" id="enchant-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
     </div>
   </div>
 

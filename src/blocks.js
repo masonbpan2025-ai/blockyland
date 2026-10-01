@@ -165,7 +165,31 @@ export const BLOCKS = {
   RED_BED_FOOT: 159,
   RED_BED_HEAD: 160,
   RED_BED: 159,
-  CHEST: 161
+  CHEST: 161,
+
+  // Agriculture & Crops
+  FARMLAND: 162,
+  FARMLAND_MOIST: 163,
+  WHEAT_STAGE_0: 164,
+  WHEAT_STAGE_1: 165,
+  WHEAT_STAGE_2: 166,
+  WHEAT_STAGE_3: 167,
+  WHEAT_STAGE_4: 168,
+  WHEAT_STAGE_5: 169,
+  WHEAT_STAGE_6: 170,
+  WHEAT_STAGE_7: 171,
+  CARROTS_STAGE_0: 172,
+  CARROTS_STAGE_1: 173,
+  CARROTS_STAGE_2: 174,
+  CARROTS_STAGE_3: 175,
+  POTATOES_STAGE_0: 176,
+  POTATOES_STAGE_1: 177,
+  POTATOES_STAGE_2: 178,
+  POTATOES_STAGE_3: 179,
+  WHEAT: 171,
+  CARROTS: 175,
+  POTATOES: 179,
+  NETHER_PORTAL: 180
 };
 
 export const BLOCK_DEFS = {
@@ -659,7 +683,7 @@ export const BLOCK_DEFS = {
     sound: 'stone',
     textures: {
       top: 'enchanting_table_top.png',
-      side: 'obsidian.png',
+      side: 'enchanting_table_side.png',
       bottom: 'obsidian.png'
     }
   },
@@ -773,7 +797,53 @@ export const BLOCK_DEFS = {
   [BLOCKS.CHORUS_PLANT]: { name: 'Chorus Plant', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_PLANT, textures: { all: 'chorus_plant.png' } },
   [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png' } },
   [BLOCKS.COAL_BLOCK]: { name: 'Block of Coal', hardness: 5.0, sound: 'stone', drop: BLOCKS.COAL_BLOCK, textures: { all: 'coal_block.png' } },
-  [BLOCKS.SMOOTH_STONE]: { name: 'Smooth Stone', hardness: 2.0, sound: 'stone', drop: BLOCKS.SMOOTH_STONE, textures: { top: 'smooth_stone.png', side: 'smooth_stone.png', bottom: 'smooth_stone.png' } }
+  [BLOCKS.SMOOTH_STONE]: { name: 'Smooth Stone', hardness: 2.0, sound: 'stone', drop: BLOCKS.SMOOTH_STONE, textures: { top: 'smooth_stone.png', side: 'smooth_stone.png', bottom: 'smooth_stone.png' } },
+
+  // --- Agriculture & Farmland ---
+  [BLOCKS.FARMLAND]: {
+    name: 'Farmland',
+    hardness: 0.6,
+    sound: 'gravel',
+    drop: BLOCKS.DIRT,
+    textures: {
+      top: 'farmland_dry.png',
+      side: 'dirt.png',
+      bottom: 'dirt.png'
+    }
+  },
+  [BLOCKS.FARMLAND_MOIST]: {
+    name: 'Moist Farmland',
+    hardness: 0.6,
+    sound: 'gravel',
+    drop: BLOCKS.DIRT,
+    textures: {
+      top: 'farmland_moist.png',
+      side: 'dirt.png',
+      bottom: 'dirt.png'
+    }
+  },
+
+  // Wheat Crop Stages 0-7
+  [BLOCKS.WHEAT_STAGE_0]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 0, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_0.png' } },
+  [BLOCKS.WHEAT_STAGE_1]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 1, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_1.png' } },
+  [BLOCKS.WHEAT_STAGE_2]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 2, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_2.png' } },
+  [BLOCKS.WHEAT_STAGE_3]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 3, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_3.png' } },
+  [BLOCKS.WHEAT_STAGE_4]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 4, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_4.png' } },
+  [BLOCKS.WHEAT_STAGE_5]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 5, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_5.png' } },
+  [BLOCKS.WHEAT_STAGE_6]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 6, dropItem: 'wheat_seeds', textures: { all: 'wheat_stage_6.png' } },
+  [BLOCKS.WHEAT_STAGE_7]: { name: 'Wheat Crops', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'wheat', stage: 7, mature: true, dropItem: 'wheat', textures: { all: 'wheat_stage_7.png' } },
+
+  // Carrots Crop Stages 0-3
+  [BLOCKS.CARROTS_STAGE_0]: { name: 'Carrots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'carrots', stage: 0, dropItem: 'carrot', textures: { all: 'carrots_stage_0.png' } },
+  [BLOCKS.CARROTS_STAGE_1]: { name: 'Carrots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'carrots', stage: 1, dropItem: 'carrot', textures: { all: 'carrots_stage_1.png' } },
+  [BLOCKS.CARROTS_STAGE_2]: { name: 'Carrots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'carrots', stage: 2, dropItem: 'carrot', textures: { all: 'carrots_stage_2.png' } },
+  [BLOCKS.CARROTS_STAGE_3]: { name: 'Carrots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'carrots', stage: 3, mature: true, dropItem: 'carrot', textures: { all: 'carrots_stage_3.png' } },
+
+  // Potatoes Crop Stages 0-3
+  [BLOCKS.POTATOES_STAGE_0]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 0, dropItem: 'potato', textures: { all: 'potatoes_stage_0.png' } },
+  [BLOCKS.POTATOES_STAGE_1]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 1, dropItem: 'potato', textures: { all: 'potatoes_stage_1.png' } },
+  [BLOCKS.POTATOES_STAGE_2]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 2, dropItem: 'potato', textures: { all: 'potatoes_stage_2.png' } },
+  [BLOCKS.POTATOES_STAGE_3]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 3, mature: true, dropItem: 'potato', textures: { all: 'potatoes_stage_3.png' } }
 };
 
 // Complete Item definitions
@@ -900,11 +970,12 @@ export const ITEMS = {
   cooked_rabbit: { name: 'Cooked Rabbit', food: 5, icon: '/assets/items/cooked_rabbit.png', type: 'food' },
   kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', type: 'food' },
   dried_kelp: { name: 'Dried Kelp', food: 1, icon: '/assets/items/dried_kelp.png', type: 'food' },
-  carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food' },
+  carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food', crop: 'carrots' },
   golden_carrot: { name: 'Golden Carrot', food: 6, icon: '/assets/items/golden_carrot.png', type: 'food' },
-  potato: { name: 'Potato', food: 1, icon: '/assets/items/potato.png', type: 'food' },
+  potato: { name: 'Potato', food: 1, icon: '/assets/items/potato.png', type: 'food', crop: 'potatoes' },
   baked_potato: { name: 'Baked Potato', food: 5, icon: '/assets/items/baked_potato.png', type: 'food' },
   poisonous_potato: { name: 'Poisonous Potato', food: 2, icon: '/assets/items/poisonous_potato.png', type: 'food' },
+  wheat_seeds: { name: 'Wheat Seeds', icon: '/assets/items/wheat_seeds.png', type: 'seed', crop: 'wheat' },
   beetroot: { name: 'Beetroot', food: 1, icon: '/assets/items/beetroot.png', type: 'food' },
   beetroot_soup: { name: 'Beetroot Soup', food: 6, icon: '/assets/items/beetroot_soup.png', type: 'food' },
   mushroom_stew: { name: 'Mushroom Stew', food: 6, icon: '/assets/items/mushroom_stew.png', type: 'food' },
@@ -949,6 +1020,8 @@ export const ITEMS = {
   leather: { name: 'Leather', icon: '/assets/items/leather.png', type: 'material' },
   paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
   book: { name: 'Book', icon: '/assets/items/book.png', type: 'material' },
+  enchanted_book: { name: 'Enchanted Book', icon: '/assets/items/enchanted_book.png', type: 'utility' },
+  experience_bottle: { name: 'Bottle o\' Enchanting', icon: '/assets/items/experience_bottle.png', type: 'utility' },
   ender_pearl: { name: 'Ender Pearl', icon: '/assets/items/ender_pearl.png', type: 'material' },
   ender_eye: { name: 'Eye of Ender', icon: '/assets/items/ender_eye.png', type: 'material' },
   blaze_rod: { name: 'Blaze Rod', icon: '/assets/items/blaze_rod.png', type: 'material' },
@@ -1077,4 +1150,20 @@ BLOCK_DEFS[BLOCKS.CHEST] = {
     all: 'chest_side.png'
   },
   icon: '/assets/items/chest.png'
+};
+
+// --- Nether Portal Block ----------------------------------------------------
+BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {
+  name: 'Nether Portal',
+  portal: true,
+  hardness: 0,
+  sound: 'glass',
+  transparent: true,
+  solid: false,
+  light: 11,
+  lightColor: 0x9333ea,
+  drop: null,
+  textures: {
+    all: 'nether_portal.png'
+  }
 };

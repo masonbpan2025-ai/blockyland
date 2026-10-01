@@ -249,10 +249,13 @@ export class ChunkMesher {
               baseR = 1.0; baseG = 1.0; baseB = 1.0;
             }
 
-            const light0 = AO_CURVE[ao0];
-            const light1 = AO_CURVE[ao1];
-            const light2 = AO_CURVE[ao2];
-            const light3 = AO_CURVE[ao3];
+            let light0 = AO_CURVE[ao0];
+            let light1 = AO_CURVE[ao1];
+            let light2 = AO_CURVE[ao2];
+            let light3 = AO_CURVE[ao3];
+            if (def?.portal) {
+              light0 = light1 = light2 = light3 = 1.0;
+            }
 
             // Select Target Buffers
             let tPos = opPos, tNorm = opNorm, tUv = opUv, tCol = opCol, tIdx = opIdx;
@@ -266,7 +269,8 @@ export class ChunkMesher {
             }
 
             // Wind moves foliage only; terrain and buildings stay fixed.
-            if(!isWater)(isTransparent?trWind:opWind).push(...new Array(4).fill(blockId===BLOCKS.OAK_LEAVES?1:0));
+            const isFoliage = Boolean(def && def.name && def.name.toLowerCase().includes('leaves'));
+            if(!isWater)(isTransparent?trWind:opWind).push(...new Array(4).fill(isFoliage?1:0));
             // Push Positions
             for (let i = 0; i < 4; i++) {
               tPos.push(positions[i][0], positions[i][1], positions[i][2]);

@@ -581,6 +581,9 @@ export class Player {
     }
 
     // 3. Move Y
+    if (this.velocity.y < 0) {
+      this.fallDistance += Math.abs(this.velocity.y * dt);
+    }
     newPos.y += this.velocity.y * dt;
     this.onGround = false;
     if (this.checkCollision(newPos)) {
@@ -591,6 +594,13 @@ export class Player {
           this.onGround = false;
         } else {
           this.onGround = true;
+          // Farmland trample check (landing from jump or height on farmland)
+          const belowX = Math.floor(this.position.x);
+          const belowY = Math.floor(newPos.y - 0.1);
+          const belowZ = Math.floor(this.position.z);
+          if (this.game?.farmingManager?.checkTrample) {
+            this.game.farmingManager.checkTrample(this, belowX, belowY, belowZ, this.fallDistance);
+          }
           // Snap to top of block
           newPos.y = Math.ceil(newPos.y);
           this.velocity.y = 0;
@@ -685,6 +695,34 @@ export class Player {
         const effectiveArmor = Math.max(armor / 5, armor - amount / (2 + toughness / 4));
         const damageReduction = Math.min(20, Math.max(0, effectiveArmor)) / 25;
         amount = amount * (1 - damageReduction);
+      }
+
+      // Protection enchantment reduction (4% per level, up to 80%)
+      if (this.inventory?.armor) {
+        let epf = 0;
+        for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
+          const piece = this.inventory.armor[slotKey];
+          if (piece && Array.isArray(piece.enchantments)) {
+            for (const ench of piece.enchantments) {
+              if (ench.id === 'protection') epf += ench.level;
+            }
+          }
+        }
+        if (epf > 0) {
+          const protReduction = Math.min(0.8, epf * 0.04);
+          amount = amount * (1 - protReduction);
+        }
+      }
+    }
+
+    // Feather Falling enchantment mitigation on fall damage
+    if (damageType === 'fall' && this.inventory?.armor?.feet) {
+      const boots = this.inventory.armor.feet;
+      if (Array.isArray(boots.enchantments)) {
+        const ff = boots.enchantments.find(e => e.id === 'feather_falling');
+        if (ff) {
+          amount = amount * Math.max(0.1, 1 - ff.level * 0.15);
+        }
       }
     }
 

@@ -206,7 +206,9 @@ export class World {
   constructor(seed = 4289, selectedBiome = 'all') {
     this.seed = seed;
     this.selectedBiome = selectedBiome || 'all';
+    this.dimension = 'overworld';
     this.chunks = new Map(); // key -> Chunk
+    this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
     this.seaLevel = 22;
     this.isFlatWorld = false;
     this.water = new WaterSimulation(this);
@@ -225,9 +227,29 @@ export class World {
     this.detailNoise = new FastNoise(seed + 303);
     this.featureNoise = new FastNoise(seed + 404);
     this.chunks.clear();
+    this.dimension = 'overworld';
+    this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
 
     const def = getBiomeDef(this.selectedBiome);
     this.seaLevel = def.seaLevel !== undefined ? def.seaLevel : 22;
+  }
+
+  switchDimension(newDim) {
+    if (this.dimension === newDim) return;
+    this.dimensionChunks[this.dimension] = this.chunks;
+    this.dimension = newDim;
+    if (!this.dimensionChunks[newDim]) {
+      this.dimensionChunks[newDim] = new Map();
+    }
+    this.chunks = this.dimensionChunks[newDim];
+    this.currentDimension = newDim;
+    this.isNether = (newDim === 'nether');
+    if (newDim === 'nether') {
+      this.seaLevel = 14;
+    } else {
+      const def = getBiomeDef(this.selectedBiome);
+      this.seaLevel = def.seaLevel !== undefined ? def.seaLevel : 22;
+    }
   }
 
   chunkKey(cx, cz) {
@@ -251,6 +273,19 @@ export class World {
   }
 
   getBiome(wx, wz) {
+    if (this.dimension === 'nether' || this.currentDimension === 'nether') {
+      if (this.selectedBiome && getBiomeDef(this.selectedBiome)?.isNether) {
+        return this.selectedBiome;
+      }
+      const netherNoise = this.biomeNoise.noise2D(wx * 0.005, wz * 0.005);
+      const detail = this.detailNoise.noise2D(wx * 0.005 + 200, wz * 0.005 + 200);
+      if (netherNoise < -0.3) return 'soul_sand_valley';
+      if (netherNoise < 0.0) return 'crimson_forest';
+      if (netherNoise < 0.3) return 'warped_forest';
+      if (detail > 0.25) return 'basalt_deltas';
+      return 'nether_wastes';
+    }
+
     // If user selected a specific biome, every chunk faithfully generates that biome
     if (this.selectedBiome && this.selectedBiome !== 'all') {
       return this.selectedBiome;

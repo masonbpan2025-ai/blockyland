@@ -29,6 +29,13 @@ export const RECIPES_2X2 = [
       ['stick']
     ],
     result: { id: BLOCKS.TORCH, isBlock: true, count: 4 }
+  },
+  // 1 Bone -> 3 Bone Meal
+  {
+    pattern: [
+      ['bone']
+    ],
+    result: { id: 'bone_meal', isBlock: false, count: 3 }
   }
 ];
 
@@ -144,6 +151,87 @@ export const RECIPES_3X3 = [
       ['wheat', 'wheat', 'wheat']
     ],
     result: { id: 'bread', isBlock: false, count: 1 }
+  },
+  // Hoes (Diamond, Iron, Stone, Wooden, Golden) - Left & Right Facing
+  {
+    pattern: [
+      ['diamond', 'diamond'],
+      [null, 'stick'],
+      [null, 'stick']
+    ],
+    result: { id: 'diamond_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      ['diamond', 'diamond'],
+      ['stick', null],
+      ['stick', null]
+    ],
+    result: { id: 'diamond_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      ['iron_ingot', 'iron_ingot'],
+      [null, 'stick'],
+      [null, 'stick']
+    ],
+    result: { id: 'iron_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      ['iron_ingot', 'iron_ingot'],
+      ['stick', null],
+      ['stick', null]
+    ],
+    result: { id: 'iron_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.COBBLESTONE, BLOCKS.COBBLESTONE],
+      [null, 'stick'],
+      [null, 'stick']
+    ],
+    result: { id: 'stone_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.COBBLESTONE, BLOCKS.COBBLESTONE],
+      ['stick', null],
+      ['stick', null]
+    ],
+    result: { id: 'stone_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS],
+      [null, 'stick'],
+      [null, 'stick']
+    ],
+    result: { id: 'wooden_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      [BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS],
+      ['stick', null],
+      ['stick', null]
+    ],
+    result: { id: 'wooden_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      ['gold_ingot', 'gold_ingot'],
+      [null, 'stick'],
+      [null, 'stick']
+    ],
+    result: { id: 'golden_hoe', isBlock: false, count: 1 }
+  },
+  {
+    pattern: [
+      ['gold_ingot', 'gold_ingot'],
+      ['stick', null],
+      ['stick', null]
+    ],
+    result: { id: 'golden_hoe', isBlock: false, count: 1 }
   },
   // 5 Coal + 4 Sand -> TNT
   {

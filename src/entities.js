@@ -4,6 +4,7 @@ import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
 import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { addPlayerExperience } from './experience.js';
 
 export class EntityManager {
   constructor(scene, world, sounds, textures = null) {
@@ -20,6 +21,7 @@ export class EntityManager {
     this.tntEntities = [];
     this.particles = [];
     this.fireworkRockets = [];
+    this.xpOrbs = [];
   }
 
   // Spawn purple/magenta Enderman portal particles
@@ -46,6 +48,35 @@ export class EntityManager {
         ),
         life: 0.8 + Math.random() * 0.6,
         maxLife: 1.4,
+        fade: true
+      });
+    }
+  }
+
+  // Spawn vibrant green sparkle Bone Meal particles
+  spawnBoneMealParticles(pos, count = 18) {
+    const greenShades = [0x22c55e, 0x4ade80, 0x86efac, 0x16a34a, 0xa3e635, 0xffffff];
+    for (let i = 0; i < count; i++) {
+      const color = greenShades[Math.floor(Math.random() * greenShades.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.07, 0.07),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 })
+      );
+      mesh.position.copy(pos).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.8,
+        Math.random() * 0.6 + 0.1,
+        (Math.random() - 0.5) * 0.8
+      ));
+      this.scene.add(mesh);
+      this.particles.push({
+        mesh,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 0.6,
+          Math.random() * 1.0 + 0.4,
+          (Math.random() - 0.5) * 0.6
+        ),
+        life: 0.5 + Math.random() * 0.4,
+        maxLife: 0.9,
         fade: true
       });
     }
@@ -122,6 +153,50 @@ export class EntityManager {
       age: 0,
       pickupDelay: options.pickupDelay ?? 1.0
     });
+  }
+
+  // Spawn glowing XP orb entity
+  spawnXpOrb(pos, value = 1) {
+    const geo = new THREE.DodecahedronGeometry(0.12, 0);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x88ff00,
+      transparent: true,
+      opacity: 0.95
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos).add(new THREE.Vector3(
+      (Math.random() - 0.5) * 0.2,
+      0.1 + Math.random() * 0.2,
+      (Math.random() - 0.5) * 0.2
+    ));
+    this.scene.add(mesh);
+
+    const orb = {
+      mesh,
+      value: Math.max(1, Math.floor(value)),
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 2.0,
+        Math.random() * 2.5 + 1.5,
+        (Math.random() - 0.5) * 2.0
+      ),
+      age: 0,
+      pickupDelay: 0.5,
+      grounded: false
+    };
+
+    this.xpOrbs.push(orb);
+    return orb;
+  }
+
+  // Spawn multiple XP orbs totaling totalXp
+  spawnXpOrbs(pos, totalXp = 1) {
+    if (totalXp <= 0) return;
+    let remaining = Math.floor(totalXp);
+    while (remaining > 0) {
+      const take = Math.min(remaining, Math.random() < 0.4 ? 1 : (Math.random() < 0.5 ? 2 : 3));
+      this.spawnXpOrb(pos, take);
+      remaining -= take;
+    }
   }
 
   spawnDeathParticles(pos) {
@@ -350,6 +425,83 @@ export class EntityManager {
           this.itemVisuals.release(item.group);
           this.droppedItems.splice(i, 1);
         }
+      }
+    }
+
+    // 1b. Update XP Orbs (Magnetism, physics, and collection)
+    const playerTarget = player?.position ? player.position.clone().add(new THREE.Vector3(0, 0.8, 0)) : null;
+    for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
+      const orb = this.xpOrbs[i];
+      orb.age += dt;
+
+      // Pulse color between yellow-green, lime, and bright yellow
+      if (orb.mesh.material) {
+        const hue = 0.22 + Math.sin(orb.age * 10) * 0.08;
+        orb.mesh.material.color.setHSL(hue, 1.0, 0.55);
+      }
+      orb.mesh.rotation.x += 4 * dt;
+      orb.mesh.rotation.y += 5 * dt;
+
+      // Player magnet attraction (within 7.5 blocks)
+      let attracted = false;
+      if (playerTarget && !player.isDead) {
+        const dist = orb.mesh.position.distanceTo(playerTarget);
+
+        // Pickup detection (< 1.25 blocks)
+        if (dist < 1.25 && orb.age > orb.pickupDelay) {
+          addPlayerExperience(player, orb.value, this.sounds, this.ui || player.ui);
+          if (this.sounds?.playXpPickup) {
+            this.sounds.playXpPickup(0.8 + Math.random() * 0.5);
+          }
+          this.scene.remove(orb.mesh);
+          orb.mesh.geometry?.dispose();
+          orb.mesh.material?.dispose();
+          this.xpOrbs.splice(i, 1);
+          continue;
+        }
+
+        if (dist < 7.5) {
+          attracted = true;
+          const pull = playerTarget.clone().sub(orb.mesh.position).normalize();
+          const speed = (1 - dist / 7.5) * 11 + 3.5;
+          orb.velocity.lerp(pull.multiplyScalar(speed), dt * 6.5);
+          orb.mesh.position.addScaledVector(orb.velocity, dt);
+        }
+      }
+
+      // Physics when not magnetically flying
+      if (!attracted) {
+        // Gravity
+        orb.velocity.y -= 18 * dt;
+
+        // Ground check
+        const nextY = orb.mesh.position.y + orb.velocity.y * dt;
+        const bx = Math.floor(orb.mesh.position.x);
+        const by = Math.floor(nextY - 0.1);
+        const bz = Math.floor(orb.mesh.position.z);
+        const block = this.world.getVoxel(bx, by, bz);
+        const def = BLOCK_DEFS[block];
+        const isSolid = def && def.solid !== false && !def.plant;
+
+        if (isSolid && orb.velocity.y <= 0) {
+          orb.mesh.position.y = by + 1.12;
+          orb.velocity.set(0, 0, 0);
+          orb.grounded = true;
+        } else {
+          orb.mesh.position.y = nextY;
+          orb.mesh.position.x += orb.velocity.x * dt;
+          orb.mesh.position.z += orb.velocity.z * dt;
+          orb.velocity.x *= Math.exp(-2.5 * dt);
+          orb.velocity.z *= Math.exp(-2.5 * dt);
+        }
+      }
+
+      // Despawn after 5 minutes (300s) like vanilla Minecraft
+      if (orb.age > 300) {
+        this.scene.remove(orb.mesh);
+        orb.mesh.geometry?.dispose();
+        orb.mesh.material?.dispose();
+        this.xpOrbs.splice(i, 1);
       }
     }
 

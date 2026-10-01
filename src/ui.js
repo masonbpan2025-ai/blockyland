@@ -14,6 +14,13 @@ import {
   saveMapToCustomFile,
   loadMapFromCustomFile
 } from './mapManager.js';
+import {
+  isEnchantableItem,
+  calculateBookshelfCount,
+  generateEnchantmentOffers,
+  applyEnchantment
+} from './enchanting.js';
+import { getExpProgress } from './experience.js';
 
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
@@ -54,6 +61,17 @@ export class UIManager {
     this.chestTitle = document.getElementById('chest-title');
     this.chestSlotsGrid = document.getElementById('chest-slots-grid');
     this.currentChestPos = null;
+
+    this.enchantingModal = document.getElementById('enchanting-modal');
+    this.closeEnchantingBtn = document.getElementById('close-enchanting');
+    this.enchantItemSlot = document.getElementById('enchant-item-slot');
+    this.enchantLapisSlot = document.getElementById('enchant-lapis-slot');
+    this.enchantBookshelvesNum = document.getElementById('enchant-bookshelves-num');
+    this.currentEnchantingPos = null;
+    this.enchantSlottedItem = null;
+    this.enchantSlottedLapis = null;
+    this.currentOffers = [];
+
     this.villagerModal = document.getElementById('villager-modal');
     this.pauseModal = document.getElementById('pause-menu');
     this.startOverlay = document.getElementById('start-overlay');
@@ -207,6 +225,9 @@ export class UIManager {
     if (this.closeChestBtn) {
       this.closeChestBtn.onclick = () => this.closeChestModal();
     }
+    if (this.closeEnchantingBtn) {
+      this.closeEnchantingBtn.onclick = () => this.closeEnchantingModal();
+    }
 
     window.addEventListener('keydown', (e) => {
       // Toggle F3 Debug
@@ -305,6 +326,7 @@ export class UIManager {
            (!this.craftModal.classList.contains('hidden')) ||
            (this.furnaceModal && !this.furnaceModal.classList.contains('hidden')) ||
            (this.chestModal && !this.chestModal.classList.contains('hidden')) ||
+           (this.enchantingModal && !this.enchantingModal.classList.contains('hidden')) ||
            (!this.villagerModal.classList.contains('hidden')) ||
            (!this.pauseModal.classList.contains('hidden')) ||
            (this.designedWorldsModal && !this.designedWorldsModal.classList.contains('hidden')) ||
@@ -326,6 +348,9 @@ export class UIManager {
     if (this.chestModal) this.chestModal.classList.add('hidden');
     if (this.game?.chestManager) this.game.chestManager.closeChest();
     this.currentChestPos = null;
+    if (this.enchantingModal && !this.enchantingModal.classList.contains('hidden')) {
+      this.closeEnchantingModal();
+    }
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
     if (this.designedWorldsModal) this.designedWorldsModal.classList.add('hidden');
@@ -539,8 +564,13 @@ export class UIManager {
     }
 
     // Experience
-    this.expLevelEl.textContent = this.player.level;
-    this.expBarEl.style.width = `${Math.min(100, (this.player.exp % 100))}%`;
+    if (this.expLevelEl) {
+      this.expLevelEl.textContent = this.player.level > 0 ? this.player.level : '';
+    }
+    if (this.expBarEl) {
+      const progress = getExpProgress(this.player);
+      this.expBarEl.style.width = `${Math.min(100, Math.max(0, progress * 100))}%`;
+    }
   }
 
   updateDebug(fps, rendererInfo) {
@@ -865,12 +895,18 @@ export class UIManager {
     }
   }
 
-  showTooltip(x, y, title, subtitle = '') {
+  showTooltip(x, y, title, subtitle = '', enchantments = []) {
     if (!this.mcTooltip) return;
     if (this.mcTooltipTitle) this.mcTooltipTitle.textContent = title;
     if (this.mcTooltipSub) {
-      this.mcTooltipSub.textContent = subtitle;
-      this.mcTooltipSub.style.display = subtitle ? 'block' : 'none';
+      let content = subtitle ? `<div>${subtitle}</div>` : '';
+      if (Array.isArray(enchantments) && enchantments.length > 0) {
+        for (const e of enchantments) {
+          content += `<div class="mc-tooltip-ench">${e.name || e.id}</div>`;
+        }
+      }
+      this.mcTooltipSub.innerHTML = content;
+      this.mcTooltipSub.style.display = content ? 'block' : 'none';
     }
     this.mcTooltip.classList.remove('hidden');
     this.positionTooltip(x, y);
@@ -1535,6 +1571,278 @@ export class UIManager {
     }
   }
 
+  // --- Enchanting Table GUI ------------------------------------------------
+  openEnchantingTable(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.enchantingModal) return;
+
+    this.currentEnchantingPos = { x, y, z };
+    this.enchantingModal.classList.remove('hidden');
+
+    const bookshelfCount = this.game?.enchantingManager
+      ? this.game.enchantingManager.getBookshelvesAround(x, y, z)
+      : calculateBookshelfCount(this.world, x, y, z);
+
+    if (this.enchantBookshelvesNum) {
+      this.enchantBookshelvesNum.textContent = bookshelfCount;
+    }
+
+    if (this.enchantSlottedItem) {
+      this.currentOffers = generateEnchantmentOffers(this.enchantSlottedItem, bookshelfCount);
+    } else {
+      this.currentOffers = [];
+    }
+
+    this.renderEnchantingGUI();
+  }
+
+  closeEnchantingModal() {
+    if (this.enchantingModal) this.enchantingModal.classList.add('hidden');
+    this.currentEnchantingPos = null;
+
+    if (this.enchantSlottedItem) {
+      this.inv.addItem(this.enchantSlottedItem.id, this.enchantSlottedItem.isBlock, this.enchantSlottedItem.count, this.enchantSlottedItem.enchantments);
+      this.enchantSlottedItem = null;
+    }
+    if (this.enchantSlottedLapis) {
+      this.inv.addItem(this.enchantSlottedLapis.id, this.enchantSlottedLapis.isBlock, this.enchantSlottedLapis.count);
+      this.enchantSlottedLapis = null;
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count, this.inv.cursorItem.enchantments);
+      this.inv.cursorItem = null;
+    }
+    this.currentOffers = [];
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderEnchantingGUI() {
+    if (!this.enchantingModal || this.enchantingModal.classList.contains('hidden')) return;
+
+    const bookshelfCount = this.currentEnchantingPos
+      ? (this.game?.enchantingManager
+          ? this.game.enchantingManager.getBookshelvesAround(this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z)
+          : calculateBookshelfCount(this.world, this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z))
+      : 0;
+
+    if (this.enchantBookshelvesNum) {
+      this.enchantBookshelvesNum.textContent = bookshelfCount;
+    }
+
+    // 1. Item Slot
+    if (this.enchantItemSlot) {
+      this.renderSlotContent(this.enchantItemSlot, this.enchantSlottedItem);
+      this.enchantItemSlot.onclick = (e) => {
+        this.handleEnchantSlotClick('item', e.button === 2, e.shiftKey);
+      };
+      this.enchantItemSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.handleEnchantSlotClick('item', true, e.shiftKey);
+      };
+    }
+
+    // 2. Lapis Slot
+    if (this.enchantLapisSlot) {
+      this.renderSlotContent(this.enchantLapisSlot, this.enchantSlottedLapis);
+      this.enchantLapisSlot.onclick = (e) => {
+        this.handleEnchantSlotClick('lapis', e.button === 2, e.shiftKey);
+      };
+      this.enchantLapisSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.handleEnchantSlotClick('lapis', true, e.shiftKey);
+      };
+    }
+
+    // 3. Offers
+    for (let slotIdx = 0; slotIdx < 3; slotIdx++) {
+      const offerEl = document.getElementById(`enchant-offer-${slotIdx}`);
+      const runesEl = document.getElementById(`enchant-runes-${slotIdx}`);
+      const hintEl = document.getElementById(`enchant-hint-${slotIdx}`);
+      const reqEl = document.getElementById(`enchant-req-${slotIdx}`);
+      const offer = this.currentOffers[slotIdx];
+
+      if (!offer || !this.enchantSlottedItem) {
+        if (offerEl) {
+          offerEl.className = 'enchant-offer disabled';
+          offerEl.onclick = null;
+        }
+        if (hintEl) hintEl.textContent = 'Insert item & lapis...';
+        if (reqEl) reqEl.textContent = `Req: ${slotIdx + 1} Lvl`;
+      } else {
+        const hasLevel = (this.player?.level || 0) >= offer.levelRequirement;
+        const hasLapis = (this.enchantSlottedLapis?.count || 0) >= offer.lapisCost;
+        const canAfford = hasLevel && hasLapis;
+
+        if (offerEl) {
+          offerEl.className = `enchant-offer ${canAfford ? '' : 'disabled'}`;
+          offerEl.onclick = canAfford ? () => this.selectEnchantOffer(slotIdx) : null;
+        }
+        if (runesEl) runesEl.textContent = offer.runes;
+        if (hintEl) hintEl.textContent = offer.hint;
+        if (reqEl) {
+          reqEl.textContent = `Req: ${offer.levelRequirement} Lvl, Cost: ${offer.levelCost} Lvl + ${offer.lapisCost} Lapis`;
+        }
+      }
+    }
+
+    // 4. Storage & Hotbar Grids
+    this.renderSlotGrid('enchant-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToEnchanting(this.inv.storage, idx);
+      } else {
+        this.inv.handleSlotClick(this.inv.storage, idx, right, false);
+      }
+      this.renderEnchantingGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('enchant-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) {
+        this.quickMoveToEnchanting(this.inv.hotbar, idx);
+      } else {
+        this.inv.handleSlotClick(this.inv.hotbar, idx, right, false);
+      }
+      this.renderEnchantingGUI();
+      this.updateHotbar();
+    });
+
+    this.updateFloatingCursor();
+  }
+
+  handleEnchantSlotClick(slotType, isRightClick = false, isShiftClick = false) {
+    this.sounds.playClick?.();
+    const bookshelfCount = this.currentEnchantingPos
+      ? (this.game?.enchantingManager
+          ? this.game.enchantingManager.getBookshelvesAround(this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z)
+          : calculateBookshelfCount(this.world, this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z))
+      : 0;
+
+    if (slotType === 'item') {
+      if (!this.inv.cursorItem) {
+        if (this.enchantSlottedItem) {
+          this.inv.cursorItem = this.enchantSlottedItem;
+          this.enchantSlottedItem = null;
+          this.currentOffers = [];
+        }
+      } else {
+        if (isEnchantableItem(this.inv.cursorItem)) {
+          const temp = this.enchantSlottedItem;
+          this.enchantSlottedItem = this.inv.cursorItem;
+          this.inv.cursorItem = temp;
+          this.currentOffers = generateEnchantmentOffers(this.enchantSlottedItem, bookshelfCount);
+        }
+      }
+    } else if (slotType === 'lapis') {
+      const isLapis = (item) => item && (item.id === 'lapis_lazuli' || item.id === BLOCKS.LAPIS_LAZULI);
+      if (!this.inv.cursorItem) {
+        if (this.enchantSlottedLapis) {
+          if (isRightClick) {
+            const half = Math.ceil(this.enchantSlottedLapis.count / 2);
+            this.inv.cursorItem = { ...this.enchantSlottedLapis, count: half };
+            this.enchantSlottedLapis.count -= half;
+            if (this.enchantSlottedLapis.count <= 0) this.enchantSlottedLapis = null;
+          } else {
+            this.inv.cursorItem = this.enchantSlottedLapis;
+            this.enchantSlottedLapis = null;
+          }
+        }
+      } else if (isLapis(this.inv.cursorItem)) {
+        if (!this.enchantSlottedLapis) {
+          if (isRightClick) {
+            this.enchantSlottedLapis = { ...this.inv.cursorItem, count: 1 };
+            this.inv.cursorItem.count--;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          } else {
+            this.enchantSlottedLapis = this.inv.cursorItem;
+            this.inv.cursorItem = null;
+          }
+        } else {
+          const space = 64 - this.enchantSlottedLapis.count;
+          if (isRightClick) {
+            if (space > 0) {
+              this.enchantSlottedLapis.count++;
+              this.inv.cursorItem.count--;
+              if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+            }
+          } else {
+            const transfer = Math.min(space, this.inv.cursorItem.count);
+            this.enchantSlottedLapis.count += transfer;
+            this.inv.cursorItem.count -= transfer;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          }
+        }
+      }
+    }
+
+    this.renderEnchantingGUI();
+    this.updateHotbar();
+  }
+
+  selectEnchantOffer(offerIndex) {
+    if (!this.enchantSlottedItem || !this.currentOffers[offerIndex]) return;
+    const offer = this.currentOffers[offerIndex];
+
+    if ((this.player?.level || 0) < offer.levelRequirement) return;
+    if (!this.enchantSlottedLapis || this.enchantSlottedLapis.count < offer.lapisCost) return;
+
+    // Deduct lapis lazuli
+    this.enchantSlottedLapis.count -= offer.lapisCost;
+    if (this.enchantSlottedLapis.count <= 0) {
+      this.enchantSlottedLapis = null;
+    }
+
+    // Apply enchantment
+    applyEnchantment(this.enchantSlottedItem, offer, this.player, this, this.sounds);
+
+    // After enchant, offers for this item become empty (cannot re-enchant on table)
+    this.currentOffers = [];
+
+    this.renderEnchantingGUI();
+    this.updateHotbar();
+    this.updateStats();
+  }
+
+  quickMoveToEnchanting(list, idx) {
+    const item = list[idx];
+    if (!item) return;
+
+    const isLapis = item.id === 'lapis_lazuli' || item.id === BLOCKS.LAPIS_LAZULI;
+    if (isLapis) {
+      if (!this.enchantSlottedLapis) {
+        this.enchantSlottedLapis = item;
+        list[idx] = null;
+        this.sounds.playClick?.();
+        return;
+      } else if (this.enchantSlottedLapis.count < 64) {
+        const space = 64 - this.enchantSlottedLapis.count;
+        const add = Math.min(space, item.count);
+        this.enchantSlottedLapis.count += add;
+        item.count -= add;
+        if (item.count <= 0) list[idx] = null;
+        this.sounds.playClick?.();
+        return;
+      }
+    }
+
+    if (isEnchantableItem(item) && !this.enchantSlottedItem) {
+      this.enchantSlottedItem = item;
+      list[idx] = null;
+      const bookshelfCount = this.currentEnchantingPos
+        ? (this.game?.enchantingManager
+            ? this.game.enchantingManager.getBookshelvesAround(this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z)
+            : calculateBookshelfCount(this.world, this.currentEnchantingPos.x, this.currentEnchantingPos.y, this.currentEnchantingPos.z))
+        : 0;
+      this.currentOffers = generateEnchantmentOffers(this.enchantSlottedItem, bookshelfCount);
+      this.sounds.playClick?.();
+      return;
+    }
+
+    // Regular hotbar <-> storage shift transfer
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
   renderSlotGrid(containerId, list, onClickCallback) {
     const el = document.getElementById(containerId);
     if (!el) return;
@@ -1544,6 +1852,15 @@ export class UIManager {
       const slot = document.createElement('div');
       slot.className = 'inv-slot';
       this.renderSlotContent(slot, item);
+
+      if (item) {
+        const meta = this.inv.getItemMeta(item);
+        slot.onmouseenter = (e) => {
+          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, item.count > 1 ? `Count: ${item.count}` : '', item.enchantments || []);
+        };
+        slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+        slot.onmouseleave = () => this.hideTooltip();
+      }
 
       slot.addEventListener('click', (e) => {
         onClickCallback(i, false, e.shiftKey);
@@ -1566,6 +1883,9 @@ export class UIManager {
 
     const img = document.createElement('img');
     img.className = 'slot-icon';
+    if (item.enchantments && item.enchantments.length > 0) {
+      img.classList.add('enchanted-item');
+    }
     img.src = meta.icon;
     slotEl.appendChild(img);
 

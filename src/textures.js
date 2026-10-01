@@ -193,6 +193,7 @@ export class TextureManager {
     else if (n.includes('ice')) baseColor = '#bae6fd';
     else if (n.includes('red_mushroom_block')) baseColor = '#dc2626';
     else if (n.includes('brown_mushroom_block')) baseColor = '#78350f';
+    else if (n.includes('nether_portal') || n.includes('portal')) baseColor = '#9333ea';
     else if (n.includes('mushroom_stem')) baseColor = '#f5f5f4';
     else if (n.includes('crimson_nylium')) baseColor = '#9f1239';
     else if (n.includes('crimson_stem')) baseColor = '#500724';
@@ -232,15 +233,52 @@ export class TextureManager {
     this.ctx.fillRect(x, y, s, s);
 
     // Subtle pixel-art details
-    if (n.includes('cherry_leaves')) {
-      this.ctx.fillStyle = '#ec4899';
-      this.ctx.fillRect(x + 3, y + 3, 3, 3);
-      this.ctx.fillRect(x + 10, y + 8, 3, 3);
-      this.ctx.fillRect(x + 6, y + 12, 2, 2);
+    if (n.includes('leaves')) {
+      // Leaf foliage dapples and cutouts
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      this.ctx.fillRect(x + 2, y + 1, 2, 2);
+      this.ctx.fillRect(x + 8, y + 3, 3, 2);
+      this.ctx.fillRect(x + 13, y + 7, 2, 2);
+      this.ctx.fillRect(x + 3, y + 9, 3, 2);
+      this.ctx.fillRect(x + 10, y + 12, 2, 3);
+      this.ctx.fillRect(x + 1, y + 14, 2, 2);
+
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      this.ctx.fillRect(x + 5, y + 2, 2, 2);
+      this.ctx.fillRect(x + 12, y + 2, 2, 2);
+      this.ctx.fillRect(x + 1, y + 6, 2, 2);
+      this.ctx.fillRect(x + 8, y + 8, 3, 2);
+      this.ctx.fillRect(x + 6, y + 13, 2, 2);
+      this.ctx.fillRect(x + 13, y + 13, 2, 2);
+
+      if (n.includes('cherry_leaves')) {
+        this.ctx.fillStyle = '#ec4899';
+        this.ctx.fillRect(x + 3, y + 3, 3, 3);
+        this.ctx.fillRect(x + 10, y + 8, 3, 3);
+        this.ctx.fillRect(x + 6, y + 12, 2, 2);
+      }
+    } else if (n.includes('planks')) {
+      // Plank horizontal border lines and nail details
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      this.ctx.fillRect(x, y + 3, s, 1);
+      this.ctx.fillRect(x, y + 7, s, 1);
+      this.ctx.fillRect(x, y + 11, s, 1);
+      this.ctx.fillRect(x, y + 15, s, 1);
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      this.ctx.fillRect(x + 2, y + 1, 1, 1);
+      this.ctx.fillRect(x + 14, y + 5, 1, 1);
+      this.ctx.fillRect(x + 3, y + 9, 1, 1);
+      this.ctx.fillRect(x + 13, y + 13, 1, 1);
     } else if (n.includes('birch_log')) {
       this.ctx.fillStyle = '#1e293b';
       this.ctx.fillRect(x + 2, y + 4, 4, 2);
       this.ctx.fillRect(x + 9, y + 10, 5, 2);
+      this.ctx.fillRect(x + 4, y + 13, 3, 1);
+    } else if (n.includes('log') || n.includes('stem')) {
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      this.ctx.fillRect(x + 3, y, 2, s);
+      this.ctx.fillRect(x + 9, y, 2, s);
+      this.ctx.fillRect(x + 13, y, 1, s);
     } else if (n.includes('sculk')) {
       this.ctx.fillStyle = '#06b6d4';
       this.ctx.fillRect(x + 4, y + 5, 2, 2);

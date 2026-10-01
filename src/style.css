@@ -605,6 +605,161 @@ html, body {
 }
 
 /* =========================================
+   ENCHANTING TABLE GUI & EFFECTS
+   ========================================= */
+.enchanting-main-area {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 16px 0;
+  padding: 12px 14px;
+  background: #2b2233;
+  border: 2px solid #1a1420;
+  border-radius: 4px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+}
+
+.enchanting-inputs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 90px;
+}
+
+.enchanting-slot-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.slot-hint-label {
+  font-size: 10px;
+  color: #c4b5fd;
+  font-family: 'Minecraft', monospace;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.enchanting-bookshelf-indicator {
+  font-size: 10px;
+  color: #e9d5ff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid #7e22ce;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.enchanting-offers {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 250px;
+}
+
+.enchant-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #3b2d4a;
+  border: 2px solid #6b5282;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.enchant-offer:hover:not(.disabled) {
+  background: #583f73;
+  border-color: #c084fc;
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.45);
+  transform: translateX(3px);
+}
+
+.enchant-offer.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #251e2e;
+  border-color: #433752;
+}
+
+.enchant-offer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enchant-cost-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 13px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+}
+
+.enchant-offer.disabled .enchant-cost-badge {
+  background: #4b5563;
+  color: #1f2937;
+  box-shadow: none;
+}
+
+.enchant-runes {
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #d8b4fe;
+  font-family: 'Minecraft', monospace;
+  text-shadow: 0 0 4px #a855f7;
+}
+
+.enchant-offer-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.enchant-hint {
+  font-size: 12px;
+  color: #fde047;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.enchant-req {
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
+@keyframes enchant-glint {
+  0% { filter: drop-shadow(0 0 2px #c084fc) brightness(1.1); }
+  50% { filter: drop-shadow(0 0 7px #e879f9) drop-shadow(0 0 12px #a855f7) brightness(1.35); }
+  100% { filter: drop-shadow(0 0 2px #c084fc) brightness(1.1); }
+}
+
+.enchanted-item {
+  animation: enchant-glint 2.2s ease-in-out infinite;
+}
+
+.mc-tooltip-ench {
+  color: #c084fc;
+  font-size: 12px;
+  text-shadow: 1px 1px 0 #2e1065;
+  margin-top: 2px;
+}
+
+/* =========================================
    CREATIVE MODE INVENTORY GUI
    ========================================= */
 .creative-gui-wrapper {
@@ -3797,5 +3952,37 @@ html, body {
   0%, 100% { opacity: 0.85; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.04); }
 }
+
+/* --- Nether Portal Screen Distortion and Warp Overlay --- */
+.portal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 998;
+  opacity: 0;
+  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.45) 0%, rgba(107, 33, 168, 0.75) 60%, rgba(59, 7, 100, 0.95) 100%);
+  mix-blend-mode: screen;
+  transition: opacity 0.15s ease-out;
+}
+
+.portal-overlay.active {
+  animation: portalDistortion 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes portalDistortion {
+  0% {
+    filter: hue-rotate(0deg) contrast(150%) saturate(200%);
+  }
+  50% {
+    filter: hue-rotate(25deg) contrast(190%) saturate(240%);
+  }
+  100% {
+    filter: hue-rotate(-20deg) contrast(170%) saturate(210%);
+  }
+}
+
 
 

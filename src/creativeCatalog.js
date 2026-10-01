@@ -77,7 +77,7 @@ export function buildCreativeCatalog() {
 
   // 3. Natural Blocks
   const naturalBlocksList = [
-    BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.SAND, BLOCKS.GRAVEL,
+    BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST, BLOCKS.SAND, BLOCKS.GRAVEL,
     BLOCKS.OAK_LOG, BLOCKS.OAK_LEAVES, BLOCKS.CACTUS, BLOCKS.SNOW, BLOCKS.ICE,
     BLOCKS.POPPY, BLOCKS.DANDELION,
     BLOCKS.COAL_ORE, BLOCKS.IRON_ORE, BLOCKS.GOLD_ORE, BLOCKS.DIAMOND_ORE,
@@ -137,7 +137,8 @@ export function buildCreativeCatalog() {
     'fishing_rod', 'flint_and_steel', 'shears',
     'compass', 'clock', 'lead', 'name_tag', 'saddle',
     'oak_boat', 'minecart', 'chest_minecart',
-    'elytra', 'firework_rocket'
+    'elytra', 'firework_rocket',
+    'experience_bottle', 'enchanted_book'
   ];
   for (const it of toolsList) {
     const entry = itemEntry(it, 'tools_utilities');
@@ -190,7 +191,7 @@ export function buildCreativeCatalog() {
     'raw_iron', 'raw_gold', 'raw_copper',
     'coal', 'charcoal', 'lapis_lazuli', 'quartz', 'amethyst_shard',
     'redstone', 'glowstone_dust',
-    'stick', 'string', 'feather', 'gunpowder', 'wheat',
+    'stick', 'string', 'feather', 'gunpowder', 'wheat', 'wheat_seeds',
     'bone', 'bone_meal', 'sugar', 'leather', 'paper', 'book',
     'clay_ball', 'brick', 'nether_brick', 'green_dye',
     'ender_pearl', 'ender_eye', 'blaze_rod', 'blaze_powder', 'magma_cream', 'slime_ball',

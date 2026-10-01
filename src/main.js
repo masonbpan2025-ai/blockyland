@@ -52,6 +52,9 @@ import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
 import { ChestManager } from './chest.js';
+import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
+import { EnchantingManager } from './enchanting.js';
+import { NetherPortalManager } from './netherPortal.js';
 
 
 class Game {
@@ -117,6 +120,8 @@ class Game {
     this.tournament = null;
     this.structureStudio = null;
     this.mobStudio = null;
+    this.portalManager = null;
+    this.currentDimension = 'overworld';
 
     // Raycast & Mining state
     this.raycaster = new THREE.Raycaster();
@@ -168,6 +173,7 @@ class Game {
     this.player.inventory = this.inventory;
     this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds, this);
     this.ui.game = this;
+    this.entities.ui = this.ui;
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
     // Let every agent request carry a live screenshot of the player's view.
@@ -196,6 +202,10 @@ class Game {
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
     this.chestManager = new ChestManager(this);
+    this.farmingManager = new FarmingManager(this);
+    this.enchantingManager = new EnchantingManager(this);
+    this.portalManager = new NetherPortalManager(this);
+    this.currentDimension = 'overworld';
 
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
     this.worldType = 'generated';
@@ -521,6 +531,71 @@ class Game {
     }
   }
 
+  switchDimension(newDim, targetPos = null) {
+    if (!this.world) return;
+
+    // 1. Remove all active chunk meshes from scene
+    for (const chunk of this.world.chunks.values()) {
+      for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
+        if (chunk[key]) {
+          this.scene.remove(chunk[key]);
+          chunk[key].geometry.dispose();
+          chunk[key] = null;
+        }
+      }
+    }
+
+    // 2. Clear mobs in current dimension
+    if (this.mobs?.mobs) {
+      for (const mob of this.mobs.mobs) {
+        if (mob.mesh) this.scene.remove(mob.mesh);
+      }
+      this.mobs.mobs = [];
+    }
+
+    // 3. Switch world dimension
+    this.world.switchDimension(newDim);
+    this.currentDimension = newDim;
+
+    // 4. Update atmosphere (sky, fog, lighting)
+    if (newDim === 'nether') {
+      if (this.sky?.mesh) this.sky.mesh.visible = false;
+      this.normalBgColor = new THREE.Color(0x330808);
+      this.scene.background.copy(this.normalBgColor);
+      this.scene.fog.color.copy(new THREE.Color(0x471010));
+      this.normalFogNear = 15;
+      this.normalFogFar = 55;
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
+      this.ambientLight.color.setHex(0x662222);
+      this.ambientLight.intensity = 0.55;
+      this.sunLight.intensity = 0;
+      this.moonLight.intensity = 0;
+    } else {
+      if (this.sky?.mesh) this.sky.mesh.visible = true;
+      this.normalBgColor = new THREE.Color(0x78a7ff);
+      this.scene.background.copy(this.normalBgColor);
+      this.scene.fog.color.copy(this.normalBgColor);
+      this.normalFogNear = 45;
+      this.normalFogFar = 95;
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
+      this.ambientLight.color.setHex(0xffffff);
+      this.ambientLight.intensity = 0.65;
+    }
+
+    // 5. Position player
+    if (targetPos && this.player?.position) {
+      this.player.position.set(targetPos.x, targetPos.y, targetPos.z);
+      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
+    }
+
+    // 6. Immediately load chunks around destination
+    this.loadChunksAroundPlayer();
+    this.spawnVillageMobs();
+    if (this.ui?.updateStats) this.ui.updateStats();
+  }
+
   refreshDirtyChunks(budget = 4) {
     const px=this.player.position.x, pz=this.player.position.z;
     const dirty=[...this.world.chunks.values()].filter(chunk=>chunk.dirty);
@@ -798,6 +873,15 @@ class Game {
       if (activeItem && !activeItem.isBlock) {
         const it = ITEMS[activeItem.id];
         if (it && it.attack) damage = it.attack;
+        if (Array.isArray(activeItem.enchantments)) {
+          for (const ench of activeItem.enchantments) {
+            if (ench.id === 'sharpness') {
+              damage += 0.5 * ench.level + 0.5;
+            } else if (ench.id === 'smite' && ['zombie', 'skeleton'].includes(this.targetMob.type)) {
+              damage += 2.5 * ench.level;
+            }
+          }
+        }
       }
       this.mobs.damageMob(this.targetMob, damage, this.player.position);
       return;
@@ -920,6 +1004,16 @@ class Game {
       return;
     }
 
+    // Enchanting Table interaction (Open Enchanting Table GUI)
+    if (clickedBlock === BLOCKS.ENCHANTING_TABLE) {
+      if (this.enchantingManager) {
+        this.enchantingManager.interact(bX, bY, bZ, this.player);
+      } else if (this.ui?.openEnchantingTable) {
+        this.ui.openEnchantingTable(bX, bY, bZ);
+      }
+      return;
+    }
+
     // TNT ignition on right click
     if (clickedBlock === BLOCKS.TNT) {
       this.world.setVoxel(bX, bY, bZ, BLOCKS.AIR);
@@ -931,8 +1025,55 @@ class Game {
       return;
     }
 
+    // Mature crop right-click harvest & replant
+    if (this.farmingManager && this.farmingManager.harvest(bX, bY, bZ, this.player)) {
+      return;
+    }
+
+    // Flint and steel ignition (Nether Portal activation or fire placement)
+    if (activeItem && activeItem.id === 'flint_and_steel') {
+      const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
+      if (this.portalManager?.ignitePortal(this.world, bX, bY, bZ, norm, this.player)) {
+        return;
+      }
+      const placeX = bX + (norm.x || 0);
+      const placeY = bY + (norm.y !== undefined ? norm.y : 1);
+      const placeZ = bZ + (norm.z || 0);
+      if (this.world.getVoxel(placeX, placeY, placeZ) === BLOCKS.AIR) {
+        this.world.setVoxel(placeX, placeY, placeZ, BLOCKS.FIRE);
+        if (this.sounds?.playPortalIgnite) this.sounds.playPortalIgnite();
+        else this.sounds.playPlace('grass');
+        const cx = Math.floor(placeX / 16);
+        const cz = Math.floor(placeZ / 16);
+        const chunk = this.world.getChunk(cx, cz);
+        if (chunk) this.rebuildChunkMesh(chunk);
+        return;
+      }
+    }
+
     // Eating Food, Buckets, and Spawn Eggs
     activeItem = this.inventory.getActiveItem();
+
+    // Farming: Hoe tilling on tillable ground (grass, dirt, podzol, mycelium, moss)
+    if (activeItem && isHoe(activeItem.id) && this.farmingManager) {
+      if (this.farmingManager.till(bX, bY, bZ, this.player)) {
+        return;
+      }
+    }
+
+    // Farming: Bone Meal fertilization on crops or grass
+    if (activeItem && activeItem.id === 'bone_meal' && this.farmingManager) {
+      if (this.farmingManager.applyBoneMeal(bX, bY, bZ, this.player)) {
+        return;
+      }
+    }
+
+    // Farming: Planting seeds and vegetable crops (wheat_seeds, carrot, potato)
+    if (activeItem && getSeedCrop(activeItem.id) && this.farmingManager) {
+      if (this.farmingManager.plant(bX, bY, bZ, activeItem.id, this.player)) {
+        return;
+      }
+    }
 
     // Place structure from Structure Library
     if (activeItem && (activeItem.isStructure || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_')))) {
@@ -960,6 +1101,23 @@ class Game {
     }
     if(activeItem?.id==='redstone'&&!activeItem.isBlock)activeItem={...activeItem,id:BLOCKS.REDSTONE_WIRE,isBlock:true};
     if (activeItem && !activeItem.isBlock) {
+      // Experience Bottle throw & shatter
+      if (activeItem.id === 'experience_bottle') {
+        const look = new THREE.Vector3();
+        this.camera.getWorldDirection(look);
+        const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(look, 2.0);
+        const xpPoints = 3 + Math.floor(Math.random() * 9); // 3-11 XP points (Minecraft wiki)
+        if (this.entities?.spawnXpOrbs) {
+          this.entities.spawnXpOrbs(spawnPos, xpPoints);
+        }
+        this.sounds.playBowShoot?.();
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+        return;
+      }
+
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
         if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
@@ -1170,8 +1328,42 @@ class Game {
 
     // In survival, drop item
     if (this.player.gamemode === 'survival') {
-      const drop = getBlockDrop(blockId);
-      if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.isBlock, 1);
+      const cropInfo = getCropInfo(blockId);
+      if (cropInfo) {
+        if (this.farmingManager) {
+          this.farmingManager.handleCropBreak(x, y, z, blockId, this.player.gamemode);
+        }
+      } else {
+        const drop = getBlockDrop(blockId);
+        if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.isBlock, 1);
+      }
+
+      // Ore experience drops matching Minecraft wiki
+      const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+      if (this.entities?.spawnXpOrbs) {
+        let oreXp = 0;
+        if (blockId === BLOCKS.COAL_ORE) oreXp = Math.floor(Math.random() * 3); // 0-2 XP
+        else if (blockId === BLOCKS.DIAMOND_ORE) oreXp = 3 + Math.floor(Math.random() * 5); // 3-7 XP
+        else if (blockId === BLOCKS.EMERALD_ORE) oreXp = 3 + Math.floor(Math.random() * 5); // 3-7 XP
+        else if (blockId === BLOCKS.REDSTONE_ORE || blockId === BLOCKS.LIT_REDSTONE_ORE) oreXp = 1 + Math.floor(Math.random() * 5); // 1-5 XP
+        else if (blockId === BLOCKS.LAPIS_ORE) oreXp = 2 + Math.floor(Math.random() * 4); // 2-5 XP
+        else if (blockId === BLOCKS.NETHER_QUARTZ_ORE) oreXp = 2 + Math.floor(Math.random() * 4); // 2-5 XP
+        if (oreXp > 0) this.entities.spawnXpOrbs(dropPos, oreXp);
+      }
+    } else {
+      if (this.farmingManager) {
+        this.farmingManager.unregisterCrop(x, y, z);
+      }
+    }
+
+    if (blockId === BLOCKS.OBSIDIAN || blockId === BLOCKS.NETHER_PORTAL) {
+      if (this.portalManager?.onBlockBroken(x, y, z, blockId)) {
+        // Contiguous portal blocks shattered
+      }
+    }
+
+    if (blockId === BLOCKS.FARMLAND || blockId === BLOCKS.FARMLAND_MOIST) {
+      if (this.farmingManager) this.farmingManager.unregisterFarmland(x, y, z);
     }
 
     if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
@@ -1323,6 +1515,13 @@ class Game {
     if (activeItem && !activeItem.isBlock) {
       const it = ITEMS[activeItem.id];
       if (it && it.speed) speedMult = it.speed;
+      // Efficiency enchantment: adds (level^2 + 1) to digging speed (Minecraft wiki)
+      if (Array.isArray(activeItem.enchantments)) {
+        const eff = activeItem.enchantments.find(e => e.id === 'efficiency');
+        if (eff) {
+          speedMult += (eff.level * eff.level + 1);
+        }
+      }
     }
 
     const breakDuration = Math.max(0.15, def.hardness / speedMult);
@@ -1354,6 +1553,14 @@ class Game {
   }
 
   updateDayNightCycle(dt) {
+    if (this.currentDimension === 'nether') {
+      this.scene.background.copy(this.normalBgColor);
+      this.scene.fog.color.copy(new THREE.Color(0x471010));
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
+      return;
+    }
+
     this.worldTime = (this.worldTime + (24000 / this.dayLengthSeconds) * dt) % 24000;
     this.sky.setTime(this.worldTime);
     followSun(this.sunLight, this.sky.sunDirection, this.camera.position);
@@ -1685,6 +1892,16 @@ class Game {
     // 5a2. Update Beds (sleeping timer, transitions, wake-up)
     if (this.bedManager) {
       this.bedManager.update(dt);
+    }
+
+    // 5a3. Update Agriculture (crop growth ticks, farmland hydration)
+    if (this.farmingManager) {
+      this.farmingManager.update(dt, this.player.position);
+    }
+
+    // 5a4. Update Nether Portal & Dimensional Travel
+    if (this.portalManager) {
+      this.portalManager.update(dt, this.player, this);
     }
 
     // 5b. Update World Mechanism System & Active World Mechanics
