@@ -130,7 +130,10 @@ test('API failures remain errors, release the terminal, and never execute a loca
   assert.equal(agent.isExecuting, false);
   assert.equal(completed, true);
   assert.equal(cells.size, 0);
-  assert.match(agent.conversationHistory.at(-1).text, /^Failed:/);
+  // The failure is recorded as a failure, with the technical reason retained. The
+  // message also carries advice, so it is not the bare "Failed: ..." it once was.
+  assert.match(agent.conversationHistory.at(-1).text, /Could not do that:/);
+  assert.match(agent.conversationHistory.at(-1).text, /HTTP 403/);
 });
 
 test('invalid model plans are rejected before any step mutates the world', async t => {
