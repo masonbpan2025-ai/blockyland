@@ -1,172 +1,211 @@
-// Turn an agent failure into advice the player can act on.
+// Explain a failure the way a helpful senior player would.
 //
-// Why this exists: when a request could not be carried out the terminal printed the
-// raw reason — "Unsupported action: execute_javascript", "Structure not found:
-// made_up_id" — which tells the player what the code objected to, not what they can
-// do instead. Every failure should name the limitation and offer a way forward.
+// The agent should feel like an experienced friend sitting next to you: it says
+// what went wrong in plain words, reassures when it is not your fault, and always
+// offers the next thing to try. It never answers with a bare error, and it never
+// makes the player decode jargon to find out what to do.
 
-/** What the world engine genuinely supports, and what to try instead. */
+/** What the world engine genuinely supports, in plain terms. */
 export const CAPABILITIES = {
   build: {
-    summary: 'You can build and edit voxel structures: any shape expressible as boxes, cylinders, spheres, domes and frames, from a template or described in words.',
+    summary: 'I can build and edit pretty much anything — any shape you can make from boxes, cylinders, spheres, domes and frames, either from a template or just described in words.',
     alternatives: [
-      'describe the shape in terms of blocks and sizes ("a 20-block oak pier over the water")',
-      'ask for it with an explicit structure type ("build a castle")'
+      'describe it in blocks and sizes, like "a 20-block oak pier out over the water"',
+      'or name a ready-made one — castle, tower, lighthouse, bridge, house, pyramid and more'
     ]
   },
   edit: {
-    summary: 'Existing structures can be edited in place: add, remove, replace blocks, extend them, or attach stairs and ladders.',
+    summary: 'Anything you have built I can change in place: add to it, trim it, swap the blocks, or bolt on stairs and ladders.',
     alternatives: [
-      'name the structure you mean, or say "the one I just built"',
-      'open it in Structure Studio and change its parameters there'
+      'name the build you mean, or just say "the one I just made"',
+      'open it in Structure Studio and drag the sliders to reshape it'
     ]
   },
   fluids: {
-    summary: 'Source water and lava flow, spread, fall and can be placed or collected with buckets. Water solidifies lava into obsidian.',
+    summary: 'Water and lava behave properly here — they spread and fall, and you can scoop them up with a bucket. Water turns lava into obsidian, same as you would expect.',
     alternatives: [
-      'ask for a pond, pool or aquarium, which come pre-filled',
-      'place water with a bucket and let it spread'
+      'ask for a pond, pool or aquarium and I will fill it for you',
+      'or place water with a bucket and let it run'
     ]
   },
   terrain: {
-    summary: 'Terrain can be cleared, levelled and lit, but the world generator itself is fixed.',
-    alternatives: ['clear an area and build on the flat ground', 'start a new world for different terrain']
+    summary: 'I can clear ground, level it and light it up — but I cannot rewrite the landscape generator itself.',
+    alternatives: [
+      'clear a patch and build on the flat ground',
+      'start a fresh world if you want different scenery'
+    ]
   },
   mobs: {
-    summary: 'Built-in mobs can be summoned and custom mobs designed in Mob Studio, with body type, colours, ears, tails, face markings, behaviour and a few skills.',
+    summary: 'I can summon the usual creatures, and design brand new ones with you in Mob Studio — body shape, colours, ears, tails, face markings, how it behaves, a few special skills.',
     alternatives: [
-      'design the creature in Mob Studio and adjust it with the parameter sliders',
-      'summon one of the built-in mobs instead'
+      'design it in Mob Studio and nudge the sliders until it looks right',
+      'or just tell me the creature and I will have a go at it'
     ]
   },
   weather: {
-    summary: 'Weather can be set to clear, rain or thunder, and the time of day changed.',
-    alternatives: ['use the chips-free terminal: "make it rain", "set time to night"']
+    summary: 'I can change the weather and the time of day whenever you like.',
+    alternatives: ['just say "make it rain" or "set it to night"']
   },
   inventory: {
-    summary: 'Items can be given, and crafting and villager trades are available.',
-    alternatives: ['open the creative inventory with E and search for the item']
+    summary: 'I can hand you items, and crafting and villager trading both work.',
+    alternatives: ['press E for the creative inventory and search for what you want']
   },
   agentLimits: {
-    summary: 'This is a single-player voxel game running in the browser. There is no redstone logic simulation, no scripting, no multiplayer and no persistence beyond saved worlds.',
+    summary: 'This is a single-player voxel game in your browser, so there is no redstone logic, no scripting, no multiplayer, and the world generator itself is fixed.',
     alternatives: [
-      'build something visual that suggests the behaviour',
-      'save the world with /save and load it again later'
+      'tell me what you are actually after and I will find the closest thing that works',
+      'build a visual version — most ideas look great even without the mechanics'
     ]
   }
 };
 
-/** Things players commonly ask for that the engine cannot do, with a way forward. */
+/**
+ * Requests that cannot be satisfied as asked.
+ *
+ * Ordered deliberately: connection and key problems are checked before the general
+ * feature rules, because "DeepSeek API HTTP 401" contains "API" and would otherwise
+ * be answered with advice about running code.
+ */
 const IMPOSSIBLE_PATTERNS = [
-  // Transport and credential failures come first. "DeepSeek API HTTP 401" contains
-  // "API", which the scripting rule below would otherwise match, answering an auth
-  // failure with advice about code.
   {
     match: /API HTTP (401|403)/i,
-    summary: 'The API key was rejected.',
-    alternatives: ['re-enter the key in Settings', 'switch to another vendor that has a key saved']
+    summary: 'The key was turned down, so nothing was ever sent. That is a settings thing, not something you did.',
+    alternatives: [
+      're-enter the key in ⚙️ Settings',
+      'or switch to another vendor whose key already works'
+    ]
   },
   {
     match: /API HTTP 402/i,
-    summary: 'The account is out of credit.',
-    alternatives: ['top up with the vendor', 'switch to another vendor', 'switch to Offline Mode in Settings']
+    summary: 'The account has run out of credit, so the request never went through.',
+    alternatives: [
+      'top up with the vendor and ask me again',
+      'switch to another vendor',
+      'or flip on Offline Mode in Settings and I will build from my built-in rules instead'
+    ]
   },
   {
     match: /API HTTP 429/i,
-    summary: 'The vendor is rate limiting requests.',
-    alternatives: ['wait a moment and retry', 'lower the reasoning effort in Settings']
+    summary: 'The vendor is asking us to slow down — that is a temporary limit on their side, not a problem with your request.',
+    alternatives: [
+      'give it a few seconds and ask again',
+      'lower the reasoning effort in Settings so each request costs less'
+    ]
   },
   {
     match: /API HTTP 400/i,
-    summary: 'The vendor rejected the request itself.',
-    alternatives: ['confirm this model is available on the key', 'pick a different model in Settings']
+    summary: 'The vendor refused the request itself. Most of the time that means the model selected in Settings is not available on this key.',
+    alternatives: [
+      'pick a different model in Settings',
+      'or switch vendor'
+    ]
   },
   {
-    match: /sent nothing|stopped sending data|failed after/i,
-    summary: 'The connection to the vendor stalled or failed.',
-    alternatives: ['retry the request', 'check the network or the API status page', 'switch vendor or use Offline Mode']
+    match: /sent nothing|stopped sending data|failed after|idle timeout|network|fetch failed/i,
+    summary: 'The connection dropped part-way through. Nothing in your world was changed.',
+    alternatives: [
+      'ask me again — this nearly always works on the retry',
+      'if it keeps happening, check your connection',
+      'or switch to Offline Mode, which needs no connection at all'
+    ]
   },
   {
     match: /no json plan|not a usable plan|empty response|was malformed|was truncated|finish reason/i,
-    summary: 'The model did not return a usable instruction.',
-    alternatives: ['try again — this is usually transient', 'use a shorter, more direct request', 'adjust the reasoning effort in Settings']
+    summary: 'The model got itself in a tangle and never sent me a usable instruction, so nothing was executed. Nothing is broken.',
+    alternatives: [
+      'ask again — this is almost always a one-off',
+      'say it in fewer words, which gives the model less to trip over',
+      'or change the reasoning effort in Settings'
+    ]
   },
   {
     match: /\b(multiplayer|multi-player|another player|other players|with (my )?friends?|play together|play with me|co-?op|pvp|lan|join (my|a) (friend|server)|server)\b/i,
-    summary: 'There is no multiplayer — each browser tab is its own isolated single-player world.',
-    alternatives: ['save the world with /save and share the file', 'build the arena anyway so it is ready if that ever changes']
+    summary: 'I have to be straight with you: there is no multiplayer here. Each browser tab is its own single-player world, so nobody can drop in.',
+    alternatives: [
+      'save the world with /save and pass the file to a friend so they can have a look',
+      'or build the arena anyway — it will be ready if that ever changes'
+    ]
   },
   {
     match: /\b(redstone (circuit|logic|machine|contraption)|logic gate|piston (machine|door)|automate|automation|wireless)\b/i,
-    summary: 'There is no redstone logic simulation: lamps and torches light up, but circuits do not compute.',
-    alternatives: ['build a decorative version of the machine', 'place redstone lamps and torches for the look of it']
+    summary: 'Redstone here lights up but it does not think — there is no circuit simulation, so a machine like that cannot actually run.',
+    alternatives: [
+      'I can build a decorative version of it, which usually looks great from a distance',
+      'or place lamps and torches so it reads as powered'
+    ]
   },
   {
-    match: /\b(script|javascript|typescript|python|program|plugin|mods?\b|shaderpack|compile)\b|execute_javascript|unsupported action/i,
-    summary: 'The agent cannot run code or install mods — it only issues the game\u2019s own build and world actions.',
+    match: /\b(script|javascript|typescript|python|program|plugin|mods?\b|shaderpack|compile)\b|execute_javascript|unsupported action|unsupported voxel/i,
+    summary: 'I cannot run code or install mods — I only work through the game\u2019s own building blocks.',
     alternatives: [
-      'describe the result you want in blocks and the agent will build it',
-      'ask for an existing structure type by name',
-      'ask a question about the world, which is always answerable'
+      'tell me the end result you want and I will build it directly',
+      'or name an existing structure and I will place it',
+      'and ask me anything about the world — questions always work'
     ]
   },
   {
     match: /\b(port(al)?|new dimension|nether|end dimension|another world)\b/i,
-    summary: 'There is one generated overworld; extra dimensions and portals are not implemented.',
-    alternatives: ['build a portal frame as a landmark', 'start a new world for a different landscape']
+    summary: 'There is one world here — extra dimensions and working portals are not something this engine has.',
+    alternatives: [
+      'I can build a portal frame as a landmark, which looks the part',
+      'or start a new world when you want a different landscape'
+    ]
   },
   {
     match: /\b(music|sound ?track|song|import(ing)?\b[^.!?]{0,24}\b(model|texture|skin|asset)|custom (model|texture|skin|asset)|upload)\b/i,
-    summary: 'Sounds are synthesised and block textures come from a fixed atlas, so nothing can be imported.',
-    alternatives: ['ask for the build itself', 'use one of the existing block textures to approximate the look']
+    summary: 'The sounds are generated in code and the block textures come from a fixed set, so I cannot bring in outside files.',
+    alternatives: [
+      'I can still build the thing itself',
+      'or pick the nearest existing block texture — at a distance it reads the same'
+    ]
   },
   {
     match: /\b(golem army|spawn \d{3,}|hundreds of|thousands of|infinite)\b/i,
-    summary: 'There are practical limits: 30 mobs per summon group and 256 operations per request.',
-    alternatives: ['ask for them in several smaller requests', 'build a smaller representative scene']
-  },
-  {
-    match: /execute_javascript|eval|unsupported action/i,
-    summary: 'The model asked for an action this game does not have.',
+    summary: 'That is more than one request can carry — I cap out at 30 of a creature per group and 256 building operations at a time.',
     alternatives: [
-      'rephrase as a build ("build a lighthouse")',
-      'ask a question about the world, which is always answerable',
-      'say what you want to happen in plain words and the agent will pick a supported action'
+      'ask me in a few smaller batches and we will get there',
+      'or I can build a smaller scene that reads the same way'
     ]
   },
   {
     match: /structure not found/i,
-    summary: 'That structure is not in the agent\u2019s memory for this session.',
+    summary: 'I have lost track of that build — it is not one I made this session, so I cannot safely change it.',
     alternatives: [
-      'name a structure you built in this session',
-      'open it in Structure Studio, where the agent can see and edit it',
-      'build it first, then edit it'
+      'name a structure I built while we have been playing',
+      'open it in Structure Studio, where I can see and edit it properly',
+      'or build it again and I will take it from there'
     ]
   },
   {
     match: /no tracked blocks|did not select any blocks/i,
-    summary: 'There was nothing the agent could change there.',
-    alternatives: ['check the coordinates are inside the build', 'name the structure you want changed']
+    summary: 'There was nothing of mine to change in that spot, so I left it alone rather than guessing.',
+    alternatives: [
+      'check the coordinates actually land inside the build',
+      'or name the structure you want changed'
+    ]
   },
   {
     match: /exceeds world height/i,
-    summary: 'The build would go outside the world, which is 1 to 63 blocks tall.',
-    alternatives: ['ask for a shorter structure', 'build it in several pieces from the ground up']
+    summary: 'That would run out of world — there are 63 blocks of height to play with.',
+    alternatives: [
+      'ask me for a shorter version',
+      'or we can build it in stages from the ground up'
+    ]
   }
 ];
 
 /**
- * Explain a failure and suggest what to do next.
+ * Explain a failure the way a senior player would.
  *
  * @param {Error|string} error
  * @param {{prompt?:string}} [context]
- * @returns {{summary:string, alternatives:string[], advice:string}}
+ * @returns {{summary:string, alternatives:string[], advice:string, technical:string, reason:string}}
  */
 export function explainFailure(error, context = {}) {
-  const raw = typeof error === 'string' ? error : (error?.message || String(error || 'Unknown error'));
+  const raw = typeof error === 'string' ? error : (error?.message || String(error || 'Something went wrong'));
   const prompt = String(context.prompt || '');
 
-  // A request-level impossibility is more useful than the generic message.
+  // A limitation of the game is more useful to name than the generic message.
   for (const entry of IMPOSSIBLE_PATTERNS) {
     if (entry.match.test(raw) || entry.match.test(prompt)) {
       return finalise(entry.summary, entry.alternatives, raw);
@@ -174,7 +213,7 @@ export function explainFailure(error, context = {}) {
   }
 
   return finalise(
-    'That request could not be carried out with the actions this game provides.',
+    'I could not pull that one off with the tools I have here, and I would rather tell you than pretend it worked.',
     CAPABILITIES.agentLimits.alternatives,
     raw
   );
@@ -183,12 +222,28 @@ export function explainFailure(error, context = {}) {
 function finalise(summary, alternatives, raw) {
   const list = (alternatives || []).filter(Boolean);
   const advice = [summary, ...list.map(item => `• ${item}`)].join('\n');
-  return { summary, alternatives: list, advice, reason: raw };
+  return { summary, alternatives: list, advice, technical: raw, reason: raw };
 }
 
-/** One-line version for the chat HUD, where a bulleted list would be noise. */
+/**
+ * One line for the chat HUD, where a bulleted list is noise.
+ *
+ * Keeps the voice but trims to a single suggestion so the HUD stays readable.
+ */
 export function explainFailureBriefly(error, context = {}) {
   const { summary, alternatives } = explainFailure(error, context);
-  const first = alternatives[0] ? ` Try: ${alternatives[0]}.` : '';
+  const first = alternatives[0] ? ` Try this: ${alternatives[0]}` : '';
   return `${summary}${first}`;
+}
+
+/**
+ * Is this failure the machinery misbehaving rather than the player's own doing?
+ *
+ * Used to keep the tone honest and kind: a dropped connection or a confused model
+ * should be visibly not their fault, whereas a limitation of the game is simply a
+ * limitation.
+ */
+export function isExternalFailure(error) {
+  const raw = typeof error === 'string' ? error : (error?.message || '');
+  return /API HTTP|sent nothing|stopped sending data|failed after|idle timeout|network|fetch failed|finish reason|no json plan|was malformed|was truncated/i.test(raw);
 }

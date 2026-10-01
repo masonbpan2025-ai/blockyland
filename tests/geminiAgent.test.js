@@ -131,8 +131,9 @@ test('API failures remain errors, release the terminal, and never execute a loca
   assert.equal(completed, true);
   assert.equal(cells.size, 0);
   // The failure is recorded as a failure, with the technical reason retained. The
-  // message also carries advice, so it is not the bare "Failed: ..." it once was.
-  assert.match(agent.conversationHistory.at(-1).text, /Could not do that:/);
+  // player-facing wording is now plain and, for a rejected key, says it was not
+  // their fault; the raw status is kept for diagnosis.
+  assert.match(agent.conversationHistory.at(-1).text, /not your fault|I could not do that one/);
   assert.match(agent.conversationHistory.at(-1).text, /HTTP 403/);
 });
 

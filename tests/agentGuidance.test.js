@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import {
   CAPABILITIES,
   explainFailure,
-  explainFailureBriefly
+  explainFailureBriefly,
+  isExternalFailure
 } from '../src/agentCapabilities.js';
 import { WorldAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
@@ -45,22 +46,49 @@ test('every failure explanation offers at least one way forward', () => {
 test('credential and rate-limit failures are not mistaken for scripting requests', () => {
   // "API HTTP 401" contains "API"; an earlier version matched it as a scripting
   // request and answered an auth failure with advice about running code.
-  assert.match(explainFailure(new Error('DeepSeek API HTTP 401: Unauthorized')).summary, /API key was rejected/);
-  assert.match(explainFailure(new Error('OpenAI API HTTP 429')).summary, /rate limiting/);
-  assert.match(explainFailure(new Error('DeepSeek API HTTP 402')).summary, /out of credit/);
+  assert.match(explainFailure(new Error('DeepSeek API HTTP 401: Unauthorized')).summary, /key was turned down/i);
+  assert.match(explainFailure(new Error('OpenAI API HTTP 429')).summary, /slow down/i);
+  assert.match(explainFailure(new Error('DeepSeek API HTTP 402')).summary, /out of credit/i);
   // And a genuine scripting request still routes to the scripting advice.
-  assert.match(explainFailure(new Error('Unsupported action: execute_javascript')).summary, /cannot run code/);
-  assert.match(explainFailure(new Error('ok'), { prompt: 'run this javascript for me' }).summary, /cannot run code/);
+  assert.match(explainFailure(new Error('Unsupported action: execute_javascript')).summary, /cannot run code/i);
+  assert.match(explainFailure(new Error('ok'), { prompt: 'run this javascript for me' }).summary, /cannot run code/i);
+});
+
+test('the player-facing wording avoids jargon a new player would not know', () => {
+  const reasons = [
+    'API HTTP 401', 'API HTTP 402', 'API HTTP 429', 'API HTTP 400',
+    'idle timeout', 'no json plan was returned', 'was malformed',
+    'Unsupported action: execute_javascript', 'Structure not found: x',
+    'no tracked blocks', 'exceeds world height', 'something odd'
+  ];
+  for (const reason of reasons) {
+    const { summary, alternatives } = explainFailure(new Error(reason), { prompt: 'make a redstone computer' });
+    const jargon = /HTTP|JSON|token|endpoint|stack trace|undefined|null/i;
+    assert.doesNotMatch(summary, jargon, `summary must stay plain for: ${reason}`);
+    for (const alternative of alternatives) {
+      assert.doesNotMatch(alternative, jargon, `alternative must stay plain for: ${reason}`);
+    }
+  }
+});
+
+test('an external failure is distinguishable from the player asking the impossible', () => {
+  // Used to decide whether to say "that was not your fault".
+  assert.equal(isExternalFailure(new Error('DeepSeek API HTTP 402')), true);
+  assert.equal(isExternalFailure(new Error('idle timeout')), true);
+  assert.equal(isExternalFailure(new Error('The reply was malformed')), true);
+  // A limit of the game is not a malfunction.
+  assert.equal(isExternalFailure(new Error('Unsupported action: execute_javascript')), false);
+  assert.equal(isExternalFailure(new Error('Structure not found: x')), false);
 });
 
 test('a request naming something the engine lacks is explained, not just refused', () => {
   const cases = [
     ['can we play together?', /no multiplayer/i],
-    ['make a redstone logic circuit that counts', /no redstone logic/i],
+    ['make a redstone logic circuit that counts', /does not think/i],
     ['install a shaderpack', /cannot run code/i],
-    ['build a nether portal to another dimension', /one generated overworld/i],
-    ['import a custom model', /fixed atlas/i],
-    ['spawn 500 golems', /practical limits/i]
+    ['build a nether portal to another dimension', /one world here/i],
+    ['import a custom model', /fixed set/i],
+    ['spawn 500 golems', /more than one request can carry/i]
   ];
   for (const [prompt, expected] of cases) {
     const explanation = explainFailure(new Error('unsupported'), { prompt });
@@ -72,7 +100,22 @@ test('a request naming something the engine lacks is explained, not just refused
 test('the brief form is one line with a concrete suggestion', () => {
   const brief = explainFailureBriefly(new Error('Unsupported action: execute_javascript'));
   assert.doesNotMatch(brief, /\n/, 'no line breaks');
-  assert.match(brief, /Try: /, 'and it suggests something');
+  assert.match(brief, /Try this: /, 'and it suggests something');
+});
+
+test('the persona reaches the model as a helpful player sitting alongside', () => {
+  const { agent } = fixture();
+  const prompt = agent.buildSystemPrompt();
+
+  assert.match(prompt, /WHO YOU ARE/);
+  assert.match(prompt, /experienced Minecraft player sitting next to the player/);
+  assert.match(prompt, /Never sound like a program, a form or a status report/);
+  assert.match(prompt, /Always be helpful, even when the answer is no/, 'helpfulness is unconditional');
+  assert.match(prompt, /No jargon, no error codes, no stack traces/, 'plain language is required');
+  assert.match(prompt, /Never shame the player and never blame them/);
+  assert.match(prompt, /Never answer with a bare error or a refusal/, 'and never just throw an error');
+  assert.match(prompt, /Offer the nearest thing that IS possible/, 'always offer a way forward');
+  assert.match(prompt, /never claim you did something you did not do/, 'without overclaiming');
 });
 
 test('the capability catalogue documents the main systems with alternatives', () => {
@@ -141,10 +184,27 @@ test('a failure the model reported as an unknown action reaches the player as gu
   assert.ok(agent.lastError, 'the failure is still recorded honestly');
   const guidance = logs.filter(entry => entry.type === 'info' && entry.message.startsWith('• '));
   assert.ok(guidance.length >= 1, 'the player is given suggestions, not just an error');
-  assert.ok(logs.some(entry => /Could not do that:/.test(entry.message)), 'and told what could not be done');
-  // The conversation memory keeps the advice for the next turn.
-  assert.match(agent.conversationHistory.at(-1).text, /Could not do that:/);
+  assert.ok(logs.some(entry => /could not do that one/i.test(entry.message)), 'and told plainly what happened');
+  // The conversation memory keeps the advice, plus the reason for diagnosing.
+  assert.match(agent.conversationHistory.at(-1).text, /I could not do that one/);
   assert.match(agent.conversationHistory.at(-1).text, /technical reason/);
+});
+
+test('a failure that was not the player\u2019s doing says so', async t => {
+  const { agent } = fixture();
+  t.mock.method(console, 'error', () => {});
+  const logs = [];
+  agent.onLog = (message, type) => logs.push({ message, type });
+  t.mock.method(globalThis, 'fetch', async () => {
+    const error = new Error('simulated drop');
+    error.name = 'TypeError';
+    throw error;
+  });
+
+  await agent.executePrompt('build a castle');
+  assert.ok(agent.lastError, 'still recorded');
+  assert.ok(logs.some(entry => /not your fault/i.test(entry.message)),
+    'a dropped connection is visibly not the player\u2019s fault');
 });
 
 test('a network failure gives recovery steps rather than a bare status', async t => {
