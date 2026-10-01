@@ -52,13 +52,34 @@ test('trailing commas are tolerated', () => {
   assert.deepEqual(result.plan, { action: 'message', explanation: 'hi' });
 });
 
-test('genuinely unparseable input reports the original error, not the repair error', () => {
-  const result = parsePlanWithRecovery('not json at all');
-  assert.equal(result.plan, null);
+test('a prose reply is kept as an answer instead of being reported as an error', () => {
+  // Regression guard: asking "what's in front of me?" made the model answer in
+  // plain words, which used to surface as "malformed at character ?" and threw the
+  // answer away. For a question the prose IS the answer.
+  const result = parsePlanWithRecovery('You are standing on grass, with a stone wall about 6 blocks ahead of you.');
+  assert.equal(result.prose, true, 'flagged as prose');
   assert.equal(result.repaired, false);
-  assert.ok(result.error, 'an error is reported');
-  // The original parse failure is more informative than the repair attempt.
-  assert.match(result.error.message, /JSON/i);
+  assert.equal(result.error, null, 'prose is not an error');
+  assert.equal(result.plan.action, 'message', 'it becomes a message plan so the words are shown');
+  assert.match(result.plan.explanation, /stone wall about 6 blocks ahead/);
+});
+
+test('prose with braces in it is still treated as prose', () => {
+  const result = parsePlanWithRecovery('The wall is shaped like { } and the "gate" is open.');
+  assert.equal(result.prose, true);
+  assert.match(result.plan.explanation, /shaped like/);
+});
+
+test('prose after an opening fence is cleaned before being kept', () => {
+  const result = parsePlanWithRecovery('```text\nThere is water ahead.\n```');
+  assert.equal(result.prose, true);
+  assert.match(result.plan.explanation, /There is water ahead/);
+});
+
+test('a JSON plan is never mistaken for prose', () => {
+  const result = parsePlanWithRecovery('{"action":"build","structureType":"castle"}');
+  assert.equal(result.prose, false);
+  assert.equal(result.plan.action, 'build');
 });
 
 test('empty input is rejected rather than treated as an empty plan', () => {

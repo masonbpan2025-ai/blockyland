@@ -578,19 +578,26 @@ function closeUnbalanced(text) {
 export function parsePlanWithRecovery(text) {
   const raw = String(text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   if (!raw) {
-    return { plan: null, repaired: false, error: new Error('Empty response from the language model') };
+    return { plan: null, repaired: false, prose: false, error: new Error('Empty response from the language model') };
   }
 
   try {
-    return { plan: JSON.parse(raw), repaired: false, error: null };
+    return { plan: JSON.parse(raw), repaired: false, prose: false, error: null };
   } catch (firstError) {
     try {
       const repairedPlan = JSON.parse(closeUnbalanced(raw));
-      return { plan: repairedPlan, repaired: true, error: null };
+      return { plan: repairedPlan, repaired: true, prose: false, error: null };
     } catch {
+      // Not JSON and not repairable. Keep the model's own words: for a question
+      // like "what's in front of me?" the prose IS the answer, and replacing it
+      // with a parsing complaint helps nobody.
+      const prose = raw.replace(/^```[a-z]*\s*/i, '').trim();
+      if (prose) {
+        return { plan: { action: 'message', explanation: prose }, repaired: false, prose: true, error: null };
+      }
       // Report the original failure: it points at the real problem, whereas the
       // repair attempt only reports its own closing braces.
-      return { plan: null, repaired: false, error: firstError };
+      return { plan: null, repaired: false, prose: false, error: firstError };
     }
   }
 }

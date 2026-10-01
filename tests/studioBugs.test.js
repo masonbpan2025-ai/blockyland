@@ -70,19 +70,32 @@ test('bug 1: a truncated model reply no longer surfaces as a raw JSON SyntaxErro
   assert.match(agent.conversationHistory.at(-1).text, /completed/, 'the recovered plan ran');
 });
 
-test('bug 1: truly malformed JSON reports a readable message instead of throwing', async t => {
+test('bug 1: a prose answer is shown to the player, not reported as a failure', async t => {
   const { agent } = fixture();
+  // Asking a question makes models answer in words. That used to be discarded.
   t.mock.method(globalThis, 'fetch', async () => sse({
-    choices: [{ delta: { content: 'this is not json {"at all' } }],
-    usage: { completion_tokens: 10 }
+    choices: [{ delta: { content: 'You are standing on grass with a stone wall a few blocks ahead.' } }],
+    usage: { completion_tokens: 24 }
+  }));
+
+  await agent.executePrompt("what's in front of me?");
+
+  assert.equal(agent.lastError, null, 'prose is not an error');
+  const plan = JSON.parse(agent.conversationHistory.at(-1).text).plan;
+  assert.equal(plan.action, 'message');
+  assert.match(plan.explanation, /stone wall a few blocks ahead/, 'the answer reaches the player');
+});
+
+test('bug 1: an empty reply still fails cleanly rather than pretending to answer', async t => {
+  const { agent } = fixture();
+  t.mock.method(console, 'error', () => {});
+  t.mock.method(globalThis, 'fetch', async () => sse({
+    choices: [{ delta: { content: '' }, finish_reason: 'stop' }]
   }));
 
   await agent.executePrompt('do something odd');
-
-  assert.equal(agent.lastError, null, 'malformed JSON must not raise a SyntaxError to the player');
-  const plan = JSON.parse(agent.conversationHistory.at(-1).text).plan;
-  assert.equal(plan.action, 'message', 'the player is told what happened');
-  assert.match(plan.explanation, /incomplete JSON|smaller/i);
+  assert.ok(agent.lastError, 'an empty reply is still an error');
+  assert.match(agent.lastError.message, /No JSON plan was returned|finish reason/);
 });
 
 test('bug 2: the floating cursor icon is always synced and cleared', () => {
