@@ -34,6 +34,8 @@ export class Player {
     this.exp = 0;
     this.level = 0;
     this.invulnerableTimer = 0;
+    this.isDead = false;
+    this.spawnPosition = new THREE.Vector3(1.5, 27.0, -1.5);
 
     // Movement speeds (blocks/sec)
     this.walkSpeed = 4.3;
@@ -53,6 +55,7 @@ export class Player {
     this.keys = {};
     this.lastSpacePress = 0;
     this.stepDistance = 0;
+    this.controlsDisabled = false;
 
     // 3D Player Mesh (shown in 3rd person and inventory preview)
     this.model = this.createPlayerModel();
@@ -84,9 +87,42 @@ export class Player {
     this.setupInputs();
   }
 
+  areControlsDisabled(e = null) {
+    if (this.controlsDisabled) return true;
+    if (e && e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+      return true;
+    }
+    const ui = this.game?.ui || this.ui;
+    if (ui) {
+      if (ui.isChatOpen || (typeof ui.isGeminiOpen === 'function' && ui.isGeminiOpen()) || (typeof ui.isModalOpen === 'function' && ui.isModalOpen())) {
+        return true;
+      }
+    }
+    if (typeof document !== 'undefined') {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return true;
+      }
+      const geminiModal = document.getElementById('gemini-modal');
+      if (geminiModal && !geminiModal.classList.contains('hidden')) {
+        return true;
+      }
+      const chatWrapper = document.getElementById('chat-input-wrapper');
+      if (chatWrapper && chatWrapper.style.display !== 'none' && chatWrapper.style.display !== '') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   setupInputs() {
     if (typeof window === 'undefined') return;
     window.addEventListener('keydown', (e) => {
+      if (this.areControlsDisabled(e)) {
+        this.keys = {};
+        return;
+      }
+
       this.keys[e.code] = true;
 
       // Double tap space to toggle creative flight
@@ -110,24 +146,33 @@ export class Player {
       // U: Punch Attack
       if ((e.code === 'KeyU' || e.key === 'u' || e.key === 'U') && !e.repeat) {
         if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
-          this.triggerPunch();
+          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') || this.game.mechanisms.isFeatureEnabled('allowFistPunchAttack')) {
+            this.triggerPunch();
+          }
         }
       }
 
       // N: Dodge Roll
       if (e.code === 'KeyN' && !e.repeat) {
         if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
-          this.triggerDodgeRoll();
+          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') || this.game.mechanisms.isFeatureEnabled('allowDodgeRoll')) {
+            this.triggerDodgeRoll();
+          }
         }
       }
     });
 
     window.addEventListener('keyup', (e) => {
+      if (this.areControlsDisabled(e)) {
+        this.keys = {};
+        return;
+      }
       this.keys[e.code] = false;
     });
 
     window.addEventListener('mousemove', (e) => {
       if (this.isDungeonMode) return; // In Dungeon Top-Down mode, facing is controlled by movement
+      if (this.areControlsDisabled(e)) return;
       if (document.pointerLockElement !== this.domElement) return;
       const sensitivity = 0.0022;
       this.yaw -= e.movementX * sensitivity;
@@ -140,7 +185,7 @@ export class Player {
   }
 
   triggerPunch() {
-    if (this.isPunching || this.punchCooldown > 0 || this.isGatheringKi) return false;
+    if (this.areControlsDisabled() || this.isPunching || this.punchCooldown > 0 || this.isGatheringKi) return false;
     this.isPunching = true;
     this.punchTimer = this.punchDuration;
     this.punchCooldown = 0.28;
@@ -153,7 +198,7 @@ export class Player {
   }
 
   triggerDodgeRoll() {
-    if (this.isRolling || this.rollCooldown > 0 || this.isGatheringKi) return false;
+    if (this.areControlsDisabled() || this.isRolling || this.rollCooldown > 0 || this.isGatheringKi) return false;
     this.isRolling = true;
     this.rollTimer = this.rollDuration;
     this.rollCooldown = this.maxRollCooldown;
@@ -282,6 +327,17 @@ export class Player {
   update(dt) {
     if (dt > 0.1) dt = 0.1; // clamp delta to prevent tunneling
 
+    if (this.health <= 0 && !this.isDead && this.gamemode !== 'creative') {
+      this.die();
+      return;
+    }
+
+    if (this.isDead) {
+      if (this.velocity) this.velocity.set(0, 0, 0);
+      this.updateCameraAndModel(dt);
+      return;
+    }
+
     // Invulnerability timer countdown
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer -= dt;
@@ -315,9 +371,16 @@ export class Player {
     const blockAtFeet = this.world.getVoxel(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
     this.inWater = blockAtFeet === BLOCKS.WATER && this.position.y % 1 < waterHeight(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
 
+    const controlsDisabled = this.areControlsDisabled();
+    if (controlsDisabled) {
+      this.keys = {};
+      this.isSneaking = false;
+      this.isSprinting = false;
+    }
+
     // Determine current speed mode
-    this.isSneaking = !!this.keys['ShiftLeft'];
-    this.isSprinting = !!this.keys['ControlLeft'] && !this.isSneaking;
+    this.isSneaking = !controlsDisabled && !!this.keys['ShiftLeft'];
+    this.isSprinting = !controlsDisabled && !!this.keys['ControlLeft'] && !this.isSneaking;
 
     let targetSpeed = this.walkSpeed;
     if (this.isFlying) targetSpeed = this.flySpeed;
@@ -328,10 +391,12 @@ export class Player {
     // Movement direction input
     let moveForward = 0;
     let moveRight = 0;
-    if (this.keys['KeyW']) moveForward += 1;
-    if (this.keys['KeyS']) moveForward -= 1;
-    if (this.keys['KeyD']) moveRight += 1;
-    if (this.keys['KeyA']) moveRight -= 1;
+    if (!controlsDisabled) {
+      if (this.keys['KeyW']) moveForward += 1;
+      if (this.keys['KeyS']) moveForward -= 1;
+      if (this.keys['KeyD']) moveRight += 1;
+      if (this.keys['KeyA']) moveRight -= 1;
+    }
 
     // Calculate forward/right vectors based on Yaw
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
@@ -352,10 +417,12 @@ export class Player {
     const moveDir = new THREE.Vector3();
     if (this.isDungeonMode) {
       // Minecraft Dungeons WASD cardinal direction control
-      if (this.keys['KeyW']) moveDir.z -= 1;
-      if (this.keys['KeyS']) moveDir.z += 1;
-      if (this.keys['KeyA']) moveDir.x -= 1;
-      if (this.keys['KeyD']) moveDir.x += 1;
+      if (!controlsDisabled) {
+        if (this.keys['KeyW']) moveDir.z -= 1;
+        if (this.keys['KeyS']) moveDir.z += 1;
+        if (this.keys['KeyA']) moveDir.x -= 1;
+        if (this.keys['KeyD']) moveDir.x += 1;
+      }
 
       if (moveDir.lengthSq() > 0.001) {
         moveDir.normalize();
@@ -377,16 +444,20 @@ export class Player {
 
     this.velocity.x += (targetVx - this.velocity.x) * Math.min(1.0, accel * dt);
     this.velocity.z += (targetVz - this.velocity.z) * Math.min(1.0, accel * dt);
+    if (Math.abs(this.velocity.x) < 1e-4) this.velocity.x = 0;
+    if (Math.abs(this.velocity.z) < 1e-4) this.velocity.z = 0;
 
     // Vertical Movement (Gravity & Jump)
     if (this.isFlying) {
       this.velocity.y = 0;
-      if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
-      if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
+      if (!controlsDisabled) {
+        if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
+        if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
+      }
     } else if (this.inWater) {
       this.velocity.y -= this.gravity * 0.2 * dt;
       if (this.velocity.y < -3.0) this.velocity.y = -3.0;
-      if (this.keys['Space']) {
+      if (!controlsDisabled && this.keys['Space']) {
         this.velocity.y = 4.0; // swim upwards
       }
     } else {
@@ -394,7 +465,7 @@ export class Player {
       this.velocity.y -= this.gravity * dt;
       if (this.velocity.y < -78) this.velocity.y = -78;
 
-      if (this.onGround && this.keys['Space']) {
+      if (!controlsDisabled && this.onGround && this.keys['Space']) {
         this.velocity.y = this.jumpForce;
         this.onGround = false;
         this.sounds.playStep(this.getBlockBelowSound());
@@ -422,14 +493,16 @@ export class Player {
     this.camera.updateProjectionMatrix();
 
     // Natural regeneration in survival
-    if (this.gamemode === 'survival') {
-      if (this.hunger >= 18 && this.health < this.maxHealth) {
+    if (this.gamemode === 'survival' && !this.isDead) {
+      if (this.hunger >= 18 && this.health < this.maxHealth && this.health > 0) {
         this.health = Math.min(this.maxHealth, this.health + dt * 0.3);
       }
       if (this.position.y < -10) {
         this.takeDamage(10);
-        this.position.set(8.5, 35, 8.5);
-        this.velocity.set(0, 0, 0);
+        if (!this.isDead) {
+          this.position.set(8.5, 35, 8.5);
+          this.velocity.set(0, 0, 0);
+        }
       }
     }
 
@@ -490,6 +563,30 @@ export class Player {
       this.velocity.y = 0;
     }
 
+    // Prevent player from leaving the battle stage during tournament combat
+    if (this.game?.tournament?.isTournamentMap && this.game.tournament.state === 'FIGHTING') {
+      const tm = this.game.tournament;
+      const minX = (tm.stageMinX ?? -8.5) + 0.35;
+      const maxX = (tm.stageMaxX ?? 8.5) - 0.35;
+      const minZ = (tm.stageMinZ ?? -8.5) + 0.35;
+      const maxZ = (tm.stageMaxZ ?? 8.5) - 0.35;
+      const minY = tm.stageMinY ?? 24.0;
+
+      if (newPos.x < minX) { newPos.x = minX; if (this.velocity.x < 0) this.velocity.x = 0; }
+      else if (newPos.x > maxX) { newPos.x = maxX; if (this.velocity.x > 0) this.velocity.x = 0; }
+
+      if (newPos.z < minZ) { newPos.z = minZ; if (this.velocity.z < 0) this.velocity.z = 0; }
+      else if (newPos.z > maxZ) { newPos.z = maxZ; if (this.velocity.z > 0) this.velocity.z = 0; }
+
+      if (newPos.y < minY) {
+        newPos.y = minY;
+        if (this.velocity.y < 0) {
+          this.velocity.y = 0;
+          this.onGround = true;
+        }
+      }
+    }
+
     this.position.copy(newPos);
   }
 
@@ -506,6 +603,7 @@ export class Player {
 
   takeDamage(amount) {
     if (this.gamemode === 'creative') return;
+    if (this.isDead) return;
     if (this.invulnerableTimer > 0) return;
 
     // Critical counter-hit: taking damage while gathering Ki cancels skill and deals 1.5x damage
@@ -521,6 +619,10 @@ export class Player {
     this.invulnerableTimer = 0.5;
     this.sounds.playHurt();
 
+    if (this.health <= 0) {
+      this.die();
+    }
+
     // Damage red flash indicator
     if (typeof document !== 'undefined') {
       const canvas = document.getElementById('canvas-container');
@@ -528,6 +630,67 @@ export class Player {
         canvas.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg)';
         setTimeout(() => { canvas.style.filter = 'none'; }, 150);
       }
+    }
+  }
+
+  die() {
+    if (this.isDead) return;
+    this.isDead = true;
+    this.health = 0;
+    if (this.velocity) this.velocity.set(0, 0, 0);
+
+    // Cancel ongoing actions
+    this.isGatheringKi = false;
+    this.isRolling = false;
+
+    // Exit dungeon mode to normal mode
+    if (this.game?.dungeonMode?.isActive) {
+      this.game.dungeonMode.exitDungeonMode(false);
+    }
+    this.isDungeonMode = false;
+
+    if (this.game?.tournament?.isTournamentMap) {
+      this.game.tournament.handlePlayerDeath?.();
+    } else {
+      // Normal mode death: show defeat message and overlay
+      this.game?.ui?.addChatMessage?.(
+        '<span style="color:#ef4444;font-weight:bold;font-size:15px;">★ You lost, please try again. ★</span>'
+      );
+      if (typeof document !== 'undefined') {
+        const defeatOverlay = document.getElementById('defeat-overlay');
+        const defeatMsg = document.getElementById('defeat-message');
+        if (defeatMsg) defeatMsg.textContent = 'You lost, please try again.';
+        if (defeatOverlay) {
+          defeatOverlay.classList.remove('hidden');
+          defeatOverlay.classList.add('visible');
+        }
+        if (document.exitPointerLock) document.exitPointerLock();
+      }
+    }
+  }
+
+  respawn() {
+    this.isDead = false;
+    this.health = this.maxHealth || 20;
+    this.hunger = 20;
+    this.invulnerableTimer = 1.0;
+    if (this.velocity) this.velocity.set(0, 0, 0);
+    this.isDungeonMode = false;
+
+    if (typeof document !== 'undefined') {
+      const defeatOverlay = document.getElementById('defeat-overlay');
+      if (defeatOverlay) {
+        defeatOverlay.classList.remove('visible');
+        defeatOverlay.classList.add('hidden');
+      }
+    }
+
+    if (this.game?.tournament?.isTournamentMap) {
+      const targetPos = this.game.tournament.hostPosition || new THREE.Vector3(3.5, 24, 10.5);
+      this.position.copy(targetPos);
+      this.game.tournament.reset?.();
+    } else {
+      this.position.copy(this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5));
     }
   }
 
@@ -594,9 +757,11 @@ export class Player {
     } else if (this.perspective === 0) {
       // 1st Person
       this.camera.position.set(this.position.x, eyeY, this.position.z);
+      if (this.camera.up?.set) this.camera.up.set(0, 1, 0);
       this.camera.rotation.order = 'YXZ';
       this.camera.rotation.y = this.yaw;
       this.camera.rotation.x = this.pitch;
+      this.camera.rotation.z = 0;
     } else if (this.perspective === 1) {
       // 3rd Person Back
       const dist = 3.5;

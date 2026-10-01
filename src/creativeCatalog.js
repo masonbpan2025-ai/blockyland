@@ -1,4 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { StructureLibrary } from './structureLibrary.js';
+import { MobLibrary } from './mobLibrary.js';
 
 export const CREATIVE_TABS = [
   { id: 'building_blocks', name: 'Building Blocks', icon: '/assets/blocks/bricks.png' },
@@ -11,6 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
+  { id: 'structure', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -202,10 +205,72 @@ export function buildCreativeCatalog() {
     if (entry) catalog.push(entry);
   }
 
+  // Custom & Library Mobs Spawn Eggs
+  if (typeof MobLibrary !== 'undefined' && typeof MobLibrary.getAllMobs === 'function') {
+    for (const mob of MobLibrary.getAllMobs()) {
+      if (mob.isBuiltin && spawnEggsList.includes(`${mob.id}_spawn_egg`)) {
+        continue;
+      }
+      const primary = mob.eggColors?.primary || mob.look?.mainColor || '#7c3aed';
+      const secondary = mob.eggColors?.secondary || mob.look?.accentColor || '#ec4899';
+      const customEggIcon = MobLibrary.generateEggIcon ? MobLibrary.generateEggIcon(primary, secondary) : '/assets/items/spawn_egg.png';
+      catalog.push({
+        id: `spawn_egg_${mob.id}`,
+        name: `${mob.name} Spawn Egg`,
+        icon: '/assets/items/spawn_egg.png',
+        customEggIcon,
+        isBlock: false,
+        isSpawnEgg: true,
+        customMobId: mob.id,
+        mobDef: mob,
+        type: 'spawn_egg',
+        tab: 'spawn_eggs',
+        category: 'spawn_eggs',
+        count: 64,
+        searchTerms: `${mob.name.toLowerCase()} spawn egg mob custom ${mob.id} ${(mob.skills || []).join(' ')} ${mob.behavior?.type || ''}`
+      });
+    }
+  }
+
+  // 11. Structures
+  if (typeof StructureLibrary !== 'undefined') {
+    for (const st of StructureLibrary.getAllStructures()) {
+      catalog.push({
+        id: `structure_${st.id}`,
+        name: st.name,
+        icon: st.icon || '/assets/blocks/crafting_table_top.png',
+        isBlock: false,
+        isStructure: true,
+        structureId: st.id,
+        tab: 'structure',
+        category: 'structure',
+        count: 1,
+        searchTerms: `${st.name.toLowerCase()} structure build ${st.id}`
+      });
+    }
+  }
+
   return catalog;
 }
 
-export const ALL_CREATIVE_ITEMS = buildCreativeCatalog();
+export let ALL_CREATIVE_ITEMS = buildCreativeCatalog();
+
+export function refreshCreativeCatalog() {
+  ALL_CREATIVE_ITEMS = buildCreativeCatalog();
+  return ALL_CREATIVE_ITEMS;
+}
+
+if (typeof StructureLibrary !== 'undefined' && typeof StructureLibrary.subscribe === 'function') {
+  StructureLibrary.subscribe(() => {
+    refreshCreativeCatalog();
+  });
+}
+
+if (typeof MobLibrary !== 'undefined' && typeof MobLibrary.subscribe === 'function') {
+  MobLibrary.subscribe(() => {
+    refreshCreativeCatalog();
+  });
+}
 
 export function getCreativeItemsByTab(tabId) {
   if (tabId === 'all_items') {

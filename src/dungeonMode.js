@@ -38,7 +38,7 @@ export class DungeonModeManager {
         id: 'arena',
         name: 'World Martial Arts Boss Arena',
         bounds: { minX: -14, maxX: 14, minZ: -14, maxZ: 14 },
-        hint: 'Defeat the Enderman Challenger to become World Champion!'
+        hint: 'Defeat Jackie Chun to become World Champion!'
       }
     ];
 
@@ -84,7 +84,11 @@ export class DungeonModeManager {
     }
 
     // 1. Spawn vibrant 3D martial arts punch energy shockwave
-    this.spawnPunchWave(punchOrigin, facing);
+    if (this.game.dragonballSkills?.spawnPunchWave) {
+      this.game.dragonballSkills.spawnPunchWave(punchOrigin, facing, 0xfacc15);
+    } else {
+      this.spawnPunchWave(punchOrigin, facing);
+    }
 
     // 2. Also trigger 1st person hand swing if in 1st person view
     if (this.player.perspective === 0 && !this.player.isDungeonMode) {
@@ -246,8 +250,8 @@ export class DungeonModeManager {
       if (!p) continue;
 
       if (zone.id === 'arena') {
-        // In arena, the target is the Enderman Boss
-        if (mob.type === 'enderman' && mob.health > 0) {
+        // In arena, the target is Jackie Chun Boss
+        if ((mob.type === 'jackie_chun' || mob.type === 'enderman') && mob.health > 0 && !mob.isClone) {
           count++;
         }
       } else if (p.x >= b.minX && p.x <= b.maxX && p.z >= b.minZ && p.z <= b.maxZ) {

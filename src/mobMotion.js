@@ -48,7 +48,7 @@ export function moveGroundMob(manager, mob, dt) {
   const knockback = mob.knockback || new THREE.Vector3();
   mob.avoidTime = Math.max(0, (mob.avoidTime || 0) - dt);
   if (mob.avoidTime > 0 && !mob.dying) {
-    const speed = Math.hypot(mob.velocity.x, mob.velocity.z);
+    const speed = Math.hypot(mob.velocity.x, mob.velocity.z) || 2.2;
     mob.velocity.x = Math.sin(mob.avoidYaw) * speed;
     mob.velocity.z = Math.cos(mob.avoidYaw) * speed;
     mob.yaw = mob.avoidYaw;
@@ -103,4 +103,72 @@ export function moveGroundMob(manager, mob, dt) {
   const turn = Math.atan2(Math.sin(mob.yaw - mob.mesh.rotation.y), Math.cos(mob.yaw - mob.mesh.rotation.y));
   mob.mesh.rotation.y += turn * (1 - Math.exp(-7 * dt));
   return Math.hypot(pos.x - start.x, pos.z - start.z) / Math.max(dt, 0.0001);
+}
+
+export function moveFlyingMob(manager, mob, dt) {
+  if (mob.health > 0) applyHeat(manager.world, mob, mob.mesh.position, dt, n => manager.damageMob(mob, n));
+  const pos = mob.mesh.position;
+  const collision = p => manager.checkMobCollision(mob, p);
+
+  // If inside solid blocks, unstuck upward
+  if (collision(pos)) {
+    for (let lift = 0.5; lift <= 6; lift += 0.5) {
+      const candidate = pos.clone(); candidate.y += lift;
+      if (!collision(candidate)) { pos.copy(candidate); break; }
+    }
+  }
+
+  const knockback = mob.knockback || new THREE.Vector3();
+  const vx = mob.velocity.x + knockback.x;
+  const vy = mob.velocity.y + knockback.y;
+  const vz = mob.velocity.z + knockback.z;
+
+  const candidate = pos.clone().add(new THREE.Vector3(vx * dt, vy * dt, vz * dt));
+  if (!collision(candidate)) {
+    pos.copy(candidate);
+  } else {
+    // Axis glide on collision
+    const tryX = pos.clone(); tryX.x = candidate.x;
+    if (!collision(tryX)) pos.x = candidate.x; else mob.velocity.x *= -0.3;
+
+    const tryY = pos.clone(); tryY.y = candidate.y;
+    if (!collision(tryY)) pos.y = candidate.y;
+    else {
+      if (mob.velocity.y < 0) mob.velocity.y = Math.abs(mob.velocity.y) * 0.6 + 2.0; // deflect upward away from ground
+      else mob.velocity.y *= -0.3;
+    }
+
+    const tryZ = pos.clone(); tryZ.z = candidate.z;
+    if (!collision(tryZ)) pos.z = candidate.z; else mob.velocity.z *= -0.3;
+  }
+
+  if (mob.knockback) mob.knockback.multiplyScalar(Math.exp(-6 * dt));
+
+  // Banking, pitch and rotation for realistic 3D flight
+  const horizSpeed = Math.hypot(mob.velocity.x, mob.velocity.z);
+  if (horizSpeed > 0.1) {
+    const targetYaw = Math.atan2(mob.velocity.x, mob.velocity.z);
+    const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+    mob.yaw += turn * (1 - Math.exp(-6 * dt));
+    mob.mesh.rotation.y = mob.yaw;
+
+    // Bank into turns
+    const targetRoll = -Math.max(-0.4, Math.min(0.4, turn * 1.6));
+    mob.mesh.rotation.z += (targetRoll - mob.mesh.rotation.z) * (1 - Math.exp(-5 * dt));
+
+    // Pitch for diving or climbing
+    const targetPitch = Math.atan2(-mob.velocity.y, Math.max(0.1, horizSpeed));
+    mob.mesh.rotation.x += (targetPitch - mob.mesh.rotation.x) * (1 - Math.exp(-6 * dt));
+  }
+
+  // Wing flapping speed tied to velocity
+  const flightSpeed = Math.hypot(mob.velocity.x, mob.velocity.y, mob.velocity.z);
+  mob.walkCycle = (mob.walkCycle || 0) + Math.max(1.2, flightSpeed) * dt * 3.5;
+  if (mob.wings) {
+    const flap = Math.sin((mob.walkCycle || 0) * 2.2 + Date.now() * 0.008) * 0.55;
+    mob.wings.left.rotation.z = flap;
+    mob.wings.right.rotation.z = -flap;
+  }
+
+  return flightSpeed;
 }

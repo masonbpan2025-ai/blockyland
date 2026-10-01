@@ -41,9 +41,11 @@ test('the agent terminal exposes the multi-vendor controls', () => {
     'gemini-model-select',
     'gemini-effort-select',
     'gemini-view-toggle',
+    'gemini-thinking-toggle',
     'gemini-key-input',
     'gemini-save-key-btn',
-    'gemini-clear-key-btn'
+    'gemini-clear-key-btn',
+    'gemini-offline-btn'
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
   }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { MobLibrary } from './mobLibrary.js';
+import { showConfirmDialog } from './dialogUtils.js';
 
 export class MobStudioManager {
   constructor(game) {
@@ -21,6 +22,15 @@ export class MobStudioManager {
         accentColor: '#ec4899',
         eyeColor: '#facc15',
         scale: 1.0,
+        ears: 'none',
+        earTipColor: null,
+        tail: 'none',
+        tailColor: null,
+        hasCheekPatches: false,
+        cheekColor: '#e3342f',
+        hasMouth: false,
+        hasNose: false,
+        hasBackStripes: false,
         hasWings: false,
         hasHorns: false,
         hasGlowingEyes: true
@@ -53,6 +63,9 @@ export class MobStudioManager {
     this.checkWings = hasDoc ? document.getElementById('mob-check-wings') : null;
     this.checkHorns = hasDoc ? document.getElementById('mob-check-horns') : null;
     this.checkGlowingEyes = hasDoc ? document.getElementById('mob-check-glowing-eyes') : null;
+    this.checkPointedEars = hasDoc ? document.getElementById('mob-check-pointed-ears') : null;
+    this.checkCheekPatches = hasDoc ? document.getElementById('mob-check-cheek-patches') : null;
+    this.checkLightningTail = hasDoc ? document.getElementById('mob-check-lightning-tail') : null;
 
     this.behaviorSelect = hasDoc ? document.getElementById('mob-select-behavior') : null;
     this.healthSlider = hasDoc ? document.getElementById('mob-slider-health') : null;
@@ -149,6 +162,28 @@ export class MobStudioManager {
 
     this.checkGlowingEyes?.addEventListener('change', (e) => {
       this.currentMob.look.hasGlowingEyes = e.target.checked;
+      this.updatePreviewMob();
+    });
+
+    this.checkPointedEars?.addEventListener('change', (e) => {
+      this.currentMob.look.ears = e.target.checked ? 'pointed' : 'none';
+      if (e.target.checked && !this.currentMob.look.earTipColor) {
+        this.currentMob.look.earTipColor = '#111111';
+      }
+      this.updatePreviewMob();
+    });
+
+    this.checkCheekPatches?.addEventListener('change', (e) => {
+      this.currentMob.look.hasCheekPatches = e.target.checked;
+      if (e.target.checked) {
+        this.currentMob.look.hasMouth = true;
+        this.currentMob.look.hasNose = true;
+      }
+      this.updatePreviewMob();
+    });
+
+    this.checkLightningTail?.addEventListener('change', (e) => {
+      this.currentMob.look.tail = e.target.checked ? 'lightning' : 'none';
       this.updatePreviewMob();
     });
 
@@ -373,6 +408,9 @@ export class MobStudioManager {
     if (this.checkWings) this.checkWings.checked = Boolean(this.currentMob.look.hasWings);
     if (this.checkHorns) this.checkHorns.checked = Boolean(this.currentMob.look.hasHorns);
     if (this.checkGlowingEyes) this.checkGlowingEyes.checked = Boolean(this.currentMob.look.hasGlowingEyes);
+    if (this.checkPointedEars) this.checkPointedEars.checked = (this.currentMob.look.ears === 'pointed');
+    if (this.checkCheekPatches) this.checkCheekPatches.checked = Boolean(this.currentMob.look.hasCheekPatches);
+    if (this.checkLightningTail) this.checkLightningTail.checked = (this.currentMob.look.tail === 'lightning');
 
     if (this.behaviorSelect) this.behaviorSelect.value = this.currentMob.behavior.type || 'hostile';
 
@@ -541,7 +579,7 @@ export class MobStudioManager {
     }
 
     const look = mob.look || {};
-    const modelTypes = ['humanoid', 'quadruped', 'flying', 'golem', 'slime'];
+    const modelTypes = ['biped_creature', 'humanoid', 'quadruped', 'flying', 'golem', 'slime'];
     if (modelTypes.includes(look.modelType)) this.currentMob.look.modelType = look.modelType;
     this.currentMob.look.mainColor = hex(look.mainColor, this.currentMob.look.mainColor);
     this.currentMob.look.accentColor = hex(look.accentColor, this.currentMob.look.accentColor);
@@ -551,6 +589,35 @@ export class MobStudioManager {
     if (typeof look.hasGlowingEyes === 'boolean') this.currentMob.look.hasGlowingEyes = look.hasGlowingEyes;
     const scale = Number(look.scale);
     if (Number.isFinite(scale)) this.currentMob.look.scale = Math.min(3, Math.max(0.3, scale));
+
+    // Anatomy and character feature attributes
+    if (['pointed', 'long', 'round', 'none'].includes(look.ears)) this.currentMob.look.ears = look.ears;
+    if (look.earTipColor) this.currentMob.look.earTipColor = hex(look.earTipColor, this.currentMob.look.earTipColor);
+    if (['lightning', 'long', 'none'].includes(look.tail)) this.currentMob.look.tail = look.tail;
+    if (look.tailColor) this.currentMob.look.tailColor = hex(look.tailColor, this.currentMob.look.tailColor);
+    if (typeof look.hasCheekPatches === 'boolean') this.currentMob.look.hasCheekPatches = look.hasCheekPatches;
+    if (look.cheekColor) this.currentMob.look.cheekColor = hex(look.cheekColor, this.currentMob.look.cheekColor);
+    if (typeof look.hasMouth === 'boolean') this.currentMob.look.hasMouth = look.hasMouth;
+    if (typeof look.hasNose === 'boolean') this.currentMob.look.hasNose = look.hasNose;
+    if (typeof look.hasBackStripes === 'boolean') this.currentMob.look.hasBackStripes = look.hasBackStripes;
+    if (typeof look.hasSnout === 'boolean') this.currentMob.look.hasSnout = look.hasSnout;
+
+    // Pikachu enrichment: ensure authentic mascot features if not specified
+    if (/pikachu/i.test(this.currentMob.name)) {
+      if (!look.ears) this.currentMob.look.ears = 'pointed';
+      if (!look.earTipColor) this.currentMob.look.earTipColor = '#111111';
+      if (!look.tail) this.currentMob.look.tail = 'lightning';
+      if (!look.tailColor) this.currentMob.look.tailColor = '#f7d02c';
+      if (typeof look.hasCheekPatches !== 'boolean') this.currentMob.look.hasCheekPatches = true;
+      if (!look.cheekColor) this.currentMob.look.cheekColor = '#e3342f';
+      if (typeof look.hasMouth !== 'boolean') this.currentMob.look.hasMouth = true;
+      if (typeof look.hasNose !== 'boolean') this.currentMob.look.hasNose = true;
+      if (typeof look.hasBackStripes !== 'boolean') this.currentMob.look.hasBackStripes = true;
+      if (typeof look.hasSnout !== 'boolean') this.currentMob.look.hasSnout = false;
+      if (!this.currentMob.skills || !this.currentMob.skills.includes('lightning')) {
+        this.currentMob.skills = ['lightning'];
+      }
+    }
 
     const behavior = mob.behavior || {};
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -640,13 +707,28 @@ export class MobStudioManager {
       return;
     }
 
-    // Check global namespace conflict
-    if (MobLibrary.hasMob(cleanName)) {
-      if (this.saveConflictMsg) {
-        this.saveConflictMsg.textContent = `A mob named "${cleanName}" already exists in the global library. Please choose a different name.`;
-        this.saveConflictMsg.classList.remove('hidden');
+    // Check if mob of the same name already exists
+    let overwrite = false;
+    const existing = MobLibrary.getMob(cleanName);
+    if (existing) {
+      if (existing.isBuiltin) {
+        if (this.saveConflictMsg) {
+          this.saveConflictMsg.textContent = `Cannot overwrite built-in mob "${cleanName}". Please choose a different name.`;
+          this.saveConflictMsg.classList.remove('hidden');
+        }
+        return;
       }
-      return;
+      const wantsOverwrite = typeof confirm === 'function'
+        ? confirm(`A mob named "${cleanName}" already exists. Do you want to overwrite it?`)
+        : false;
+      if (!wantsOverwrite) {
+        if (this.saveConflictMsg) {
+          this.saveConflictMsg.textContent = `A mob named "${cleanName}" already exists in the global library. Please choose a different name or confirm overwrite.`;
+          this.saveConflictMsg.classList.remove('hidden');
+        }
+        return;
+      }
+      overwrite = true;
     }
 
     // Save to Mob Library
@@ -658,12 +740,13 @@ export class MobStudioManager {
       behavior: this.currentMob.behavior,
       skills: this.currentMob.skills,
       eggColors: this.currentMob.eggColors
-    });
+    }, overwrite);
 
     if (res.success) {
       this.hideSaveModal();
+      const actionText = res.overwritten ? 'overwrote' : 'saved';
       this.game.ui?.addChatMessage?.(
-        `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> Successfully saved "${cleanName}" to Mob Library! Its spawn egg is now available in Creative Mode.`
+        `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> Successfully ${actionText} "${cleanName}" to Mob Library! Its spawn egg is now available in Creative Mode.`
       );
     } else {
       if (this.saveConflictMsg) {
@@ -717,6 +800,74 @@ export class MobStudioManager {
       title.className = 'studio-open-card-name';
       title.textContent = mob.name;
 
+      if (!mob.isBuiltin) {
+        title.title = 'Double-click to rename';
+        title.style.cursor = 'pointer';
+        title.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          if (title.querySelector('input')) return;
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'mc-input-text studio-rename-input';
+          input.value = mob.name;
+
+          let committed = false;
+          const finish = (commit) => {
+            if (committed) return;
+            committed = true;
+            if (!commit) {
+              title.textContent = mob.name;
+              return;
+            }
+            const newName = input.value.trim();
+            if (!newName) {
+              if (typeof alert === 'function') alert('Please enter a mob name.');
+              title.textContent = mob.name;
+              return;
+            }
+            if (newName === mob.name) {
+              title.textContent = mob.name;
+              return;
+            }
+            const res = MobLibrary.renameMob(mob.id, newName);
+            if (res.success) {
+              mob.name = newName;
+              title.textContent = newName;
+              if (this.currentMob?.id === mob.id) {
+                this.currentMob.name = newName;
+                if (this.saveInput) this.saveInput.value = newName;
+              }
+              this.game?.ui?.addChatMessage?.(
+                `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> Renamed mob to "${newName}".`
+              );
+            } else {
+              if (typeof alert === 'function') alert(res.message || 'Failed to rename mob.');
+              title.textContent = mob.name;
+            }
+          };
+
+          input.addEventListener('keydown', (ke) => {
+            if (ke.key === 'Enter') {
+              ke.preventDefault();
+              finish(true);
+            } else if (ke.key === 'Escape') {
+              ke.preventDefault();
+              finish(false);
+            }
+          });
+
+          input.addEventListener('blur', () => {
+            finish(true);
+          });
+
+          title.innerHTML = '';
+          title.appendChild(input);
+          input.focus();
+          input.select();
+        });
+      }
+
       const desc = document.createElement('div');
       desc.className = 'studio-open-card-desc';
       desc.textContent = mob.description || `${mob.behavior.health} HP • ${mob.behavior.type.toUpperCase()}`;
@@ -731,14 +882,61 @@ export class MobStudioManager {
       const btnLoad = document.createElement('button');
       btnLoad.type = 'button';
       btnLoad.className = 'mc-btn studio-btn-card-load';
-      btnLoad.textContent = 'Load Mob';
+      btnLoad.textContent = 'Open';
+      btnLoad.title = `Open "${mob.name}" in studio`;
 
       btnLoad.onclick = () => {
         this.loadMob(mob);
         this.hideOpenModal();
       };
 
-      card.append(img, info, btnLoad);
+      // Delete sits next to Load. Built-in mobs live in code, not in the saved
+      // library, so they cannot be removed and the button is disabled for them.
+      const btnDelete = document.createElement('button');
+      btnDelete.type = 'button';
+      btnDelete.className = 'mc-btn studio-btn-card-delete';
+      btnDelete.textContent = 'Delete';
+
+      if (mob.isBuiltin) {
+        btnDelete.disabled = true;
+        btnDelete.title = 'Built-in mobs cannot be deleted';
+      } else {
+        btnDelete.title = `Delete "${mob.name}" from the library`;
+        btnDelete.onclick = (e) => {
+          e?.stopPropagation?.();
+          showConfirmDialog({
+            title: '⚠️ Confirm Deletion',
+            message: `Are you sure you want to delete "${mob.name}"? This cannot be undone.`,
+            confirmText: 'Yes, Delete',
+            cancelText: 'Cancel',
+            onConfirm: () => {
+              const removed = MobLibrary.deleteMob(mob.id);
+              if (removed) {
+                // If the deleted mob is the one open in the studio, clear the draft.
+                if (this.currentMob?.id === mob.id) {
+                  this.currentMob = {
+                    ...this.currentMob,
+                    id: 'custom_mob_preview',
+                    name: 'Custom Mob'
+                  };
+                  this.syncPanelFromState();
+                  this.updatePreviewMob();
+                }
+                this.game?.ui?.addChatMessage?.(
+                  `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> Deleted "${mob.name}" from the mob library.`
+                );
+              } else {
+                this.game?.ui?.addChatMessage?.(
+                  `<span style="color:#ef4444;font-weight:bold;">[Mob Studio]</span> Could not delete "${mob.name}".`
+                );
+              }
+              this.renderOpenMobList(query);
+            }
+          });
+        };
+      }
+
+      card.append(img, info, btnLoad, btnDelete);
       this.openList.appendChild(card);
     }
   }

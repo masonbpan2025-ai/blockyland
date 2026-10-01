@@ -296,10 +296,6 @@
       <button class="mc-btn" id="btn-save-map">💾 Save Map</button>
       <button class="mc-btn" id="btn-open-map">📂 Load / Manage Maps</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
-      <button class="mc-btn" id="btn-time">Time: Set Day</button>
-      <button class="mc-btn" id="btn-spawn-golem">Spawn Iron Golem</button>
-      <button class="mc-btn" id="btn-spawn-villager">Spawn Villager</button>
-      <button class="mc-btn" id="btn-spawn-pillager">Spawn Pillager</button>
       <button class="mc-btn" id="btn-shader" aria-pressed="false" title="Lightweight lighting, bloom, water and atmosphere">Lightweight Shader: OFF</button>
       <button class="mc-btn" id="btn-distance">Render Distance: 4 Chunks</button>
       <button class="mc-btn" id="btn-reset">Regenerate World</button>
@@ -373,8 +369,147 @@
       </div>
 
       <div class="map-modal-footer" style="margin-top: 14px;">
-        <button type="button" class="mc-btn mc-btn-large mc-btn-start-fight" id="btn-confirm-start-fight">Enter the Arena &amp; Fight!</button>
+        <button type="button" class="mc-btn mc-btn-large mc-btn-start-fight" id="btn-confirm-start-fight">Get into Arena</button>
         <button type="button" class="mc-btn" id="btn-close-tournament-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- World Generation / Biome Selection Modal -->
+  <div id="world-biome-modal" class="game-modal hidden">
+    <div class="map-modal-card biome-modal-card">
+      <div class="mc-title">Generate New World</div>
+      <div class="biome-modal-subtitle">Choose a biome and generation seed</div>
+
+      <div class="biome-form-section">
+        <label for="world-biome-select" class="biome-field-label">Select Biome:</label>
+        <div class="biome-select-wrapper">
+          <select id="world-biome-select" class="biome-select-input">
+            <option value="all">🌍 All Biomes (Dynamic Multi-Biome World)</option>
+            <optgroup label="🌊 Offshore Biomes">
+              <option value="ocean">Ocean</option>
+              <option value="deep_ocean">Deep Ocean</option>
+              <option value="warm_ocean">Warm Ocean</option>
+              <option value="lukewarm_ocean">Lukewarm Ocean</option>
+              <option value="deep_lukewarm_ocean">Deep Lukewarm Ocean</option>
+              <option value="cold_ocean">Cold Ocean</option>
+              <option value="deep_cold_ocean">Deep Cold Ocean</option>
+              <option value="frozen_ocean">Frozen Ocean</option>
+              <option value="deep_frozen_ocean">Deep Frozen Ocean</option>
+              <option value="mushroom_fields">Mushroom Fields</option>
+            </optgroup>
+            <optgroup label="🏔️ Highland & Mountain Biomes">
+              <option value="meadow">Meadow</option>
+              <option value="cherry_grove">Cherry Grove</option>
+              <option value="grove">Grove</option>
+              <option value="snowy_slopes">Snowy Slopes</option>
+              <option value="jagged_peaks">Jagged Peaks</option>
+              <option value="frozen_peaks">Frozen Peaks</option>
+              <option value="stony_peaks">Stony Peaks</option>
+              <option value="windswept_hills">Windswept Hills</option>
+              <option value="windswept_gravelly_hills">Windswept Gravelly Hills</option>
+              <option value="windswept_forest">Windswept Forest</option>
+            </optgroup>
+            <optgroup label="🌲 Woodland & Forest Biomes">
+              <option value="forest">Forest</option>
+              <option value="flower_forest">Flower Forest</option>
+              <option value="birch_forest">Birch Forest</option>
+              <option value="old_growth_birch_forest">Old Growth Birch Forest</option>
+              <option value="dark_forest">Dark Forest</option>
+              <option value="pale_garden">Pale Garden</option>
+              <option value="taiga">Taiga</option>
+              <option value="old_growth_pine_taiga">Old Growth Pine Taiga</option>
+              <option value="old_growth_spruce_taiga">Old Growth Spruce Taiga</option>
+              <option value="snowy_taiga">Snowy Taiga</option>
+              <option value="jungle">Jungle</option>
+              <option value="sparse_jungle">Sparse Jungle</option>
+              <option value="bamboo_jungle">Bamboo Jungle</option>
+              <option value="dappled_forest">Dappled Forest</option>
+            </optgroup>
+            <optgroup label="🌿 Wetland & River Biomes">
+              <option value="river">River</option>
+              <option value="frozen_river">Frozen River</option>
+              <option value="swamp">Swamp</option>
+              <option value="mangrove_swamp">Mangrove Swamp</option>
+            </optgroup>
+            <optgroup label="🌾 Flatland & Plains Biomes">
+              <option value="plains">Plains</option>
+              <option value="sunflower_plains">Sunflower Plains</option>
+              <option value="snowy_plains">Snowy Plains</option>
+              <option value="ice_spikes">Ice Spikes</option>
+            </optgroup>
+            <optgroup label="🏜️ Arid-land & Desert Biomes">
+              <option value="desert">Desert</option>
+              <option value="savanna">Savanna</option>
+              <option value="savanna_plateau">Savanna Plateau</option>
+              <option value="windswept_savanna">Windswept Savanna</option>
+              <option value="badlands">Badlands</option>
+              <option value="wooded_badlands">Wooded Badlands</option>
+              <option value="eroded_badlands">Eroded Badlands</option>
+              <option value="beach">Beach</option>
+              <option value="snowy_beach">Snowy Beach</option>
+              <option value="stony_shore">Stony Shore</option>
+            </optgroup>
+            <optgroup label="🕳️ Cave & Subterranean Biomes">
+              <option value="deep_dark">Deep Dark</option>
+              <option value="dripstone_caves">Dripstone Caves</option>
+              <option value="lush_caves">Lush Caves</option>
+              <option value="sulfur_caves">Sulfur Caves</option>
+              <option value="ice_caves">Ice Caves</option>
+              <option value="the_void">The Void</option>
+            </optgroup>
+            <optgroup label="🔥 The Nether Biomes">
+              <option value="nether_wastes">Nether Wastes</option>
+              <option value="soul_sand_valley">Soul Sand Valley</option>
+              <option value="crimson_forest">Crimson Forest</option>
+              <option value="warped_forest">Warped Forest</option>
+              <option value="basalt_deltas">Basalt Deltas</option>
+            </optgroup>
+            <optgroup label="🌌 The End Biomes">
+              <option value="the_end">The End</option>
+              <option value="small_end_islands">Small End Islands</option>
+              <option value="end_midlands">End Midlands</option>
+              <option value="end_highlands">End Highlands</option>
+              <option value="end_barrens">End Barrens</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <!-- Biome Information Card -->
+      <div id="biome-info-card" class="biome-info-card">
+        <div class="biome-info-header">
+          <span id="biome-info-icon" class="biome-info-icon">🌍</span>
+          <div class="biome-info-titles">
+            <div id="biome-info-name" class="biome-info-name">All Biomes</div>
+            <div id="biome-info-dimension" class="biome-info-badge">Overworld</div>
+          </div>
+        </div>
+        <div id="biome-info-desc" class="biome-info-desc">
+          Generates a vast natural Minecraft world seamlessly transitioning across multiple biomes.
+        </div>
+        <div class="biome-info-tags">
+          <span class="biome-tag" id="biome-tag-category">Category: Multi-Biome</span>
+          <span class="biome-tag" id="biome-tag-blocks">Blocks: Natural Variety</span>
+          <span class="biome-tag" id="biome-tag-mobs">Native Mobs: Diverse Spawns</span>
+        </div>
+      </div>
+
+      <!-- Seed Input Section -->
+      <div class="biome-form-section">
+        <div class="biome-seed-header">
+          <label for="world-seed-input" class="biome-field-label">World Seed (Optional):</label>
+          <button type="button" id="btn-randomize-seed" class="mc-btn mc-btn-mini">🎲 New Random</button>
+        </div>
+        <input type="text" id="world-seed-input" class="mc-input biome-seed-input" placeholder="Leave empty for unique random world" autocomplete="off" spellcheck="false">
+        <div class="biome-field-hint">
+          Each world generation produces a substantially different landscape and layout.
+        </div>
+      </div>
+
+      <div class="map-modal-footer">
+        <button type="button" class="mc-btn mc-btn-large mc-btn-green" id="btn-create-world-confirm">Create World</button>
+        <button type="button" class="mc-btn" id="btn-close-biome-modal">Cancel</button>
       </div>
     </div>
   </div>
@@ -477,138 +612,375 @@
   </div>
 
 
-  <!-- AI World Agent Terminal Modal (C) -->
+  <!-- AI World Agent Terminal Modal (C) & Structure Studio Parameter Panel -->
   <div id="gemini-modal" class="game-modal hidden">
-    <div class="gemini-terminal-card">
-      <!-- Header -->
-      <div class="gemini-header">
-        <div class="gemini-title-group">
-          <span class="gemini-sparkle">✦</span>
-          <span class="gemini-title">AI World Agent Terminal</span>
-          <span class="gemini-pill" id="gemini-status-pill">
-            <span class="gemini-dot"></span> <span id="gemini-status-text">READY</span>
-          </span>
+    <div class="studio-workspace-wrapper">
+      <!-- Structure Studio Parameter Panel (Left Side) -->
+      <div id="structure-parameter-panel" class="structure-parameter-panel hidden">
+        <div class="studio-panel-header">
+          <div class="studio-panel-title-group">
+            <span class="studio-panel-icon">📐</span>
+            <span class="studio-panel-title">Structure Studio</span>
+          </div>
+          <span class="studio-structure-badge" id="studio-current-structure-name">No Structure</span>
         </div>
-        <div class="gemini-header-actions">
-          <button class="gemini-icon-btn" id="gemini-toggle-key" title="Choose vendor, model and API key">⚙️ Settings</button>
-          <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
+
+        <div class="studio-panel-body" id="studio-parameter-controls">
+          <div class="studio-empty-params" id="studio-empty-params">
+            <span class="studio-empty-icon">✦</span>
+            <p>No parameters yet.</p>
+            <small>Ask the Agent on the right to build a structure with parameters, e.g.:<br>
+              <em>"build a stair with a height parameter"</em><br>
+              <em>"build a stair with a height H"</em><br>
+              <em>"build an aquarium with width 14 and height 8"</em>
+            </small>
+          </div>
+        </div>
+
+        <div class="studio-panel-footer">
+          <button type="button" class="mc-btn studio-btn-save" id="btn-studio-save">💾 Save</button>
+          <button type="button" class="mc-btn studio-btn-open" id="btn-studio-open">📂 Open</button>
         </div>
       </div>
 
-      <!-- Vendor / model / key / view settings drawer -->
-      <div id="gemini-key-drawer" class="gemini-key-drawer hidden">
-        <div class="gemini-key-desc">
-          <span>AI Vendor</span>
-          <small>Pick one vendor and model. The agent sends your prompt, the conversation, the world state and a live screenshot of your view.</small>
+      <!-- Mob Studio Parameter Panel (Left Side) -->
+      <div id="mob-parameter-panel" class="mob-parameter-panel hidden">
+        <div class="studio-panel-header">
+          <div class="studio-panel-title-group">
+            <span class="studio-panel-icon">👾</span>
+            <span class="studio-panel-title">Mob Studio</span>
+          </div>
+          <span class="studio-structure-badge" id="studio-current-mob-name">Custom Mob</span>
         </div>
-        <div class="gemini-vendor-row" id="gemini-vendor-row">
-          <button type="button" class="gemini-vendor-btn" data-vendor="gemini">
-            <span class="gemini-vendor-name">Gemini</span>
-            <span class="gemini-vendor-key-state" data-key-state="gemini">key needed</span>
-          </button>
-          <button type="button" class="gemini-vendor-btn" data-vendor="deepseek">
-            <span class="gemini-vendor-name">DeepSeek</span>
-            <span class="gemini-vendor-key-state" data-key-state="deepseek">key needed</span>
-          </button>
-          <button type="button" class="gemini-vendor-btn" data-vendor="chatgpt">
-            <span class="gemini-vendor-name">ChatGPT</span>
-            <span class="gemini-vendor-key-state" data-key-state="chatgpt">key needed</span>
-          </button>
-        </div>
-        <div class="gemini-controls-row">
-          <label class="gemini-field">
-            <span class="gemini-field-label">Model</span>
-            <select id="gemini-model-select"></select>
-          </label>
-          <label class="gemini-field" id="gemini-effort-field">
-            <span class="gemini-field-label">Reasoning effort</span>
-            <select id="gemini-effort-select">
-              <option value="minimal">Minimal</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="max">Max</option>
+
+        <div class="studio-panel-body" id="studio-mob-controls">
+          <!-- Mob Name -->
+          <div class="studio-param-group">
+            <label class="studio-param-label" for="mob-input-name">Mob Name</label>
+            <input type="text" id="mob-input-name" class="mc-input-text" value="Custom Mob" autocomplete="off">
+          </div>
+
+          <!-- Section: Look & Model -->
+          <div class="studio-section-header">Look & Model</div>
+          <div class="studio-param-group">
+            <label class="studio-param-label" for="mob-select-model">Model Type</label>
+            <select id="mob-select-model" class="studio-param-select">
+              <option value="humanoid">Humanoid</option>
+              <option value="biped_creature">Biped Creature (Pikachu/Chibi)</option>
+              <option value="quadruped">Quadruped (Beast/Pet)</option>
+              <option value="golem">Golem (Colossus)</option>
+              <option value="flying">Flying (Dragon/Bird)</option>
+              <option value="slime">Slime (Gelatinous)</option>
             </select>
-          </label>
+          </div>
+
+          <!-- Colors -->
+          <div class="studio-color-row">
+            <div class="studio-color-field">
+              <label for="mob-color-main">Main</label>
+              <input type="color" id="mob-color-main" value="#7c3aed">
+            </div>
+            <div class="studio-color-field">
+              <label for="mob-color-accent">Accent</label>
+              <input type="color" id="mob-color-accent" value="#ec4899">
+            </div>
+            <div class="studio-color-field">
+              <label for="mob-color-eye">Eyes</label>
+              <input type="color" id="mob-color-eye" value="#facc15">
+            </div>
+          </div>
+
+          <!-- Scale -->
+          <div class="studio-param-group">
+            <div class="studio-param-label-row">
+              <label for="mob-slider-scale">Scale</label>
+              <span class="studio-param-value" id="mob-badge-scale">1.0x</span>
+            </div>
+            <input type="range" id="mob-slider-scale" min="0.5" max="2.5" step="0.1" value="1.0" class="studio-slider">
+          </div>
+
+          <!-- Visual Toggles -->
+          <div class="studio-checkboxes-row">
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-wings"> Wings
+            </label>
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-horns"> Horns
+            </label>
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-glowing-eyes" checked> Glowing Eyes
+            </label>
+          </div>
+          <div class="studio-checkboxes-row" style="margin-top: 6px;">
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-pointed-ears"> Pointed Ears
+            </label>
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-cheek-patches"> Cheeks
+            </label>
+            <label class="studio-check-label">
+              <input type="checkbox" id="mob-check-lightning-tail"> Lightning Tail
+            </label>
+          </div>
+
+          <!-- Section: Behavior & Stats -->
+          <div class="studio-section-header">Behavior & Stats</div>
+          <div class="studio-param-group">
+            <label class="studio-param-label" for="mob-select-behavior">Behavior Type</label>
+            <select id="mob-select-behavior" class="studio-param-select">
+              <option value="hostile">Hostile (Attacks Player)</option>
+              <option value="neutral">Neutral (Peaceful unless hit)</option>
+              <option value="passive">Passive (Harmless)</option>
+              <option value="pet">Pet (Follows & Protects Player)</option>
+              <option value="boss">Boss (High Health & Range)</option>
+            </select>
+          </div>
+
+          <!-- Health -->
+          <div class="studio-param-group">
+            <div class="studio-param-label-row">
+              <label for="mob-slider-health">Health (HP)</label>
+              <span class="studio-param-value" id="mob-badge-health">40 HP</span>
+            </div>
+            <input type="range" id="mob-slider-health" min="10" max="300" step="5" value="40" class="studio-slider">
+          </div>
+
+          <!-- Speed -->
+          <div class="studio-param-group">
+            <div class="studio-param-label-row">
+              <label for="mob-slider-speed">Move Speed</label>
+              <span class="studio-param-value" id="mob-badge-speed">2.6</span>
+            </div>
+            <input type="range" id="mob-slider-speed" min="1.0" max="5.0" step="0.2" value="2.6" class="studio-slider">
+          </div>
+
+          <!-- Attack Damage -->
+          <div class="studio-param-group">
+            <div class="studio-param-label-row">
+              <label for="mob-slider-attack">Attack Damage</label>
+              <span class="studio-param-value" id="mob-badge-attack">5</span>
+            </div>
+            <input type="range" id="mob-slider-attack" min="1" max="25" step="1" value="5" class="studio-slider">
+          </div>
+
+          <!-- Section: Skills -->
+          <div class="studio-section-header">Skills & Abilities</div>
+          <div class="studio-skills-grid" id="mob-skills-checkboxes">
+            <label class="studio-skill-chip"><input type="checkbox" value="fireball" checked> 🔥 Fireball</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="teleport"> 🌀 Teleport</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="leap"> ⚡ Leap Slam</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="laser"> 💫 Laser Beam</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="heal"> 💖 Self Heal</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="lightning"> 🌩️ Lightning</label>
+            <label class="studio-skill-chip"><input type="checkbox" value="freeze"> ❄️ Freeze</label>
+          </div>
+
+          <!-- Test Action Button -->
+          <button type="button" class="mc-btn studio-btn-test" id="btn-mob-test-attack" style="margin-top: 10px; width: 100%;">⚔️ Test Action / Animate</button>
         </div>
-        <div class="gemini-key-row">
-          <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
-          <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
-          <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
-          <button type="button" class="gemini-btn-sm" id="gemini-offline-btn" title="Stop sending requests and use the built-in offline presets. Your key is kept.">Offline Mode</button>
-        </div>
-        <div class="gemini-view-row">
-          <label class="gemini-check" for="gemini-view-toggle">
-            <input type="checkbox" id="gemini-view-toggle" checked>
-            <span>Send a screenshot of my current view with every request</span>
-          </label>
-          <label class="gemini-check" for="gemini-thinking-toggle">
-            <input type="checkbox" id="gemini-thinking-toggle" checked>
-            <span>Show live thinking and elapsed time in the terminal</span>
-          </label>
-          <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
+
+        <div class="studio-panel-footer">
+          <button type="button" class="mc-btn studio-btn-save" id="btn-mob-studio-save">💾 Save</button>
+          <button type="button" class="mc-btn studio-btn-open" id="btn-mob-studio-open">📂 Open</button>
         </div>
       </div>
 
-      <!-- Quick Prompt Suggestions Chips -->
-      <div class="gemini-chips-container">
-        <span class="gemini-chips-label">Quick Prompts & Ideas:</span>
-        <div class="gemini-chips-list">
-          <button type="button" class="gemini-chip" data-prompt="build a large glass aquarium with sand bottom, water, and sea plants">🐟 Aquarium</button>
-          <button type="button" class="gemini-chip" data-prompt="build a modern glass skyscraper tower">🏢 Skyscraper</button>
-          <button type="button" class="gemini-chip" data-prompt="build a lush greenhouse garden with glass dome and flowers">🌿 Greenhouse</button>
-          <button type="button" class="gemini-chip" data-prompt="build a medieval castle with corner towers and battlements">🏰 Castle</button>
-          <button type="button" class="gemini-chip" data-prompt="build a cozy cottage with gabled roof and garden">🏡 Cozy House</button>
-          <button type="button" class="gemini-chip" data-prompt="build a tall stone watchtower with torches">🗼 Watchtower</button>
-          <button type="button" class="gemini-chip" data-prompt="build a futuristic spaceship UFO with glowing lights">🛸 Spaceship</button>
-          <button type="button" class="gemini-chip" data-prompt="build a sandstone pyramid with gold treasure">🔺 Pyramid</button>
-          <button type="button" class="gemini-chip" data-prompt="make it rain">🌧️ Make It Rain</button>
-          <button type="button" class="gemini-chip" data-prompt="clear weather and make it sunny">☀️ Clear Weather</button>
-          <button type="button" class="gemini-chip" data-prompt="summon 2 iron golems and 3 villagers">🛡️ Summon Golems</button>
-          <button type="button" class="gemini-chip" data-prompt="give me 64 diamonds and diamond sword">💎 Diamond Gear</button>
+      <!-- AI World Agent Terminal Card (Right Side) -->
+      <div class="gemini-terminal-card">
+        <!-- Header -->
+        <div class="gemini-header">
+          <div class="gemini-title-group">
+            <span class="gemini-sparkle">✦</span>
+            <span class="gemini-title">AI World Agent Terminal</span>
+            <span class="gemini-pill" id="gemini-status-pill">
+              <span class="gemini-dot"></span> <span id="gemini-status-text">READY</span>
+            </span>
+          </div>
+          <div class="gemini-header-actions">
+            <button class="gemini-icon-btn" id="gemini-toggle-key" title="Choose vendor, model and API key">⚙️ Settings</button>
+            <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
+          </div>
+        </div>
+
+        <!-- Vendor / model / key / view settings drawer -->
+        <div id="gemini-key-drawer" class="gemini-key-drawer hidden">
+          <div class="gemini-key-desc">
+            <span>AI Vendor</span>
+            <small>Pick one vendor and model. The agent sends your prompt, the conversation, the world state and a live screenshot of your view.</small>
+          </div>
+          <div class="gemini-vendor-row" id="gemini-vendor-row">
+            <button type="button" class="gemini-vendor-btn" data-vendor="gemini">
+              <span class="gemini-vendor-name">Gemini</span>
+              <span class="gemini-vendor-key-state" data-key-state="gemini">key needed</span>
+            </button>
+            <button type="button" class="gemini-vendor-btn" data-vendor="deepseek">
+              <span class="gemini-vendor-name">DeepSeek</span>
+              <span class="gemini-vendor-key-state" data-key-state="deepseek">key needed</span>
+            </button>
+            <button type="button" class="gemini-vendor-btn" data-vendor="chatgpt">
+              <span class="gemini-vendor-name">ChatGPT</span>
+              <span class="gemini-vendor-key-state" data-key-state="chatgpt">key needed</span>
+            </button>
+          </div>
+          <div class="gemini-controls-row">
+            <label class="gemini-field">
+              <span class="gemini-field-label">Model</span>
+              <select id="gemini-model-select"></select>
+            </label>
+            <label class="gemini-field" id="gemini-effort-field">
+              <span class="gemini-field-label">Reasoning effort</span>
+              <select id="gemini-effort-select">
+                <option value="minimal">Minimal</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="max">Max</option>
+              </select>
+            </label>
+          </div>
+          <div class="gemini-key-row">
+            <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
+            <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
+            <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
+            <button type="button" class="gemini-btn-sm" id="gemini-offline-btn" title="Stop sending requests and use the built-in offline presets. Your key is kept.">Offline Mode</button>
+          </div>
+          <div class="gemini-view-row">
+            <label class="gemini-check" for="gemini-view-toggle">
+              <input type="checkbox" id="gemini-view-toggle" checked>
+              <span>Send a screenshot of my current view with every request</span>
+            </label>
+            <label class="gemini-check" for="gemini-thinking-toggle">
+              <input type="checkbox" id="gemini-thinking-toggle" checked>
+              <span>Show live thinking and elapsed time in the terminal</span>
+            </label>
+            <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
+          </div>
+        </div>
+
+        <!-- Console / Terminal Feed -->
+        <div class="gemini-terminal-body" id="gemini-log-feed">
+          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
+          <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
+          <div class="gemini-log-entry hint">📷 The agent receives your world state and a screenshot of your current view, so "build a bridge over that water" works. You can also paste (Ctrl+V) or upload a reference image.</div>
+        </div>
+
+        <!-- Attached Image Preview Container -->
+        <div id="gemini-image-preview-container" class="gemini-image-preview-container hidden">
+          <img id="gemini-image-preview" src="" alt="Attached Screenshot">
+          <div class="gemini-image-info">
+            <span class="gemini-image-badge" id="gemini-image-badge">📷 Image Attached</span>
+            <span class="gemini-image-subtext">Sent to the agent as reference</span>
+          </div>
+          <button type="button" id="gemini-image-remove-btn" class="gemini-image-remove-btn" title="Remove attached image">✕</button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="gemini-progress-wrapper" id="gemini-progress-wrapper">
+          <div class="gemini-progress-bar" id="gemini-progress-bar"></div>
+          <div class="gemini-progress-label" id="gemini-progress-label">Ready</div>
+        </div>
+
+        <!-- Terminal Input Form -->
+        <form class="gemini-input-bar" id="gemini-form">
+          <div class="gemini-prompt-prefix">✦</div>
+          <button type="button" class="gemini-attach-btn" id="gemini-attach-btn" title="Paste (Ctrl+V) or click to upload screenshot/image">📷</button>
+          <input type="file" id="gemini-file-input" accept="image/*" style="display: none;">
+          <input 
+            type="text" 
+            id="gemini-prompt-input" 
+            placeholder="Ask the agent to build anything on the fly, paste a screenshot (Ctrl+V)..." 
+            autocomplete="off" 
+            spellcheck="false"
+          >
+          <button type="submit" class="gemini-exec-btn" id="gemini-exec-btn">
+            <span>Run</span>
+            <span class="gemini-exec-arrow">➔</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Structure Modal -->
+  <div id="modal-save-structure" class="game-modal hidden">
+    <div class="mc-dialog-card">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title">💾 Save to Structure Library</span>
+        <button class="gemini-close-btn" id="btn-cancel-save-structure">✕</button>
+      </div>
+      <div class="mc-dialog-body">
+        <label class="mc-dialog-label" for="input-save-structure-name">Structure Name:</label>
+        <input type="text" id="input-save-structure-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
+        <div id="save-structure-conflict-msg" class="mc-dialog-error hidden"></div>
+      </div>
+      <div class="mc-dialog-footer">
+        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-structure">Save Structure</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open Structure Modal -->
+  <div id="modal-open-structure" class="game-modal hidden">
+    <div class="mc-dialog-card mc-dialog-large">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title">📂 Structure Library</span>
+        <button class="gemini-close-btn" id="btn-close-open-structure">✕</button>
+      </div>
+      <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="input-search-open-structure" class="mc-input-text" placeholder="Search structures..." autocomplete="off" style="flex: 1;">
+        <button id="btn-restore-default-structures" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in structures">Reset Defaults</button>
+      </div>
+      <div class="studio-open-list" id="studio-open-structure-list"></div>
+    </div>
+  </div>
+
+  <!-- Save Mob Modal -->
+  <div id="modal-save-mob" class="game-modal hidden">
+    <div class="mc-dialog-card">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title">💾 Save to Mob Library</span>
+        <button class="gemini-close-btn" id="btn-cancel-save-mob">✕</button>
+      </div>
+      <div class="mc-dialog-body">
+        <label class="mc-dialog-label" for="input-save-mob-name">Mob Name:</label>
+        <input type="text" id="input-save-mob-name" class="mc-input-text" placeholder="e.g. Fire Dragon, Shadow Ninja" autocomplete="off">
+        <div id="save-mob-conflict-msg" class="mc-dialog-error hidden"></div>
+      </div>
+      <div class="mc-dialog-footer">
+        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-mob">Save Mob</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open Mob Modal -->
+  <div id="modal-open-mob" class="game-modal hidden">
+    <div class="mc-dialog-card mc-dialog-large">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title">📂 Mob Library</span>
+        <button class="gemini-close-btn" id="btn-close-open-mob">✕</button>
+      </div>
+      <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="input-search-open-mob" class="mc-input-text" placeholder="Search mobs..." autocomplete="off" style="flex: 1;">
+        <button id="btn-restore-default-mobs" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in mobs">Reset Defaults</button>
+      </div>
+      <div class="studio-open-list" id="studio-open-mob-list"></div>
+    </div>
+  </div>
+
+  <!-- In-game Delete Confirmation Modal -->
+  <div id="modal-confirm-delete" class="game-modal hidden" style="z-index: 10006;">
+    <div class="mc-dialog-card" style="max-width: 440px; text-align: center;">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title" id="confirm-delete-title">⚠️ Confirm Deletion</span>
+        <button class="gemini-close-btn" id="btn-cancel-confirm-delete">✕</button>
+      </div>
+      <div class="mc-dialog-body" style="padding: 20px 24px;">
+        <p id="confirm-delete-message" style="color: #f1f5f9; font-size: 14px; margin-bottom: 22px; line-height: 1.5;"></p>
+        <div style="display: flex; justify-content: center; gap: 14px;">
+          <button type="button" id="btn-confirm-delete-cancel" class="mc-btn mc-btn-secondary" style="min-width: 90px; padding: 6px 14px;">Cancel</button>
+          <button type="button" id="btn-confirm-delete-yes" class="mc-btn studio-btn-card-delete" style="min-width: 90px; padding: 6px 14px;">Yes, Delete</button>
         </div>
       </div>
-
-      <!-- Console / Terminal Feed -->
-      <div class="gemini-terminal-body" id="gemini-log-feed">
-        <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
-        <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
-        <div class="gemini-log-entry hint">📷 The agent receives your world state and a screenshot of your current view, so "build a bridge over that water" works. You can also paste (Ctrl+V) or upload a reference image.</div>
-      </div>
-
-      <!-- Attached Image Preview Container -->
-      <div id="gemini-image-preview-container" class="gemini-image-preview-container hidden">
-        <img id="gemini-image-preview" src="" alt="Attached Screenshot">
-        <div class="gemini-image-info">
-          <span class="gemini-image-badge" id="gemini-image-badge">📷 Image Attached</span>
-          <span class="gemini-image-subtext">Sent to the agent as reference</span>
-        </div>
-        <button type="button" id="gemini-image-remove-btn" class="gemini-image-remove-btn" title="Remove attached image">✕</button>
-      </div>
-
-      <!-- Progress Bar -->
-      <div class="gemini-progress-wrapper" id="gemini-progress-wrapper">
-        <div class="gemini-progress-bar" id="gemini-progress-bar"></div>
-        <div class="gemini-progress-label" id="gemini-progress-label">Ready</div>
-      </div>
-
-      <!-- Terminal Input Form -->
-      <form class="gemini-input-bar" id="gemini-form">
-        <div class="gemini-prompt-prefix">✦</div>
-        <button type="button" class="gemini-attach-btn" id="gemini-attach-btn" title="Paste (Ctrl+V) or click to upload screenshot/image">📷</button>
-        <input type="file" id="gemini-file-input" accept="image/*" style="display: none;">
-        <input 
-          type="text" 
-          id="gemini-prompt-input" 
-          placeholder="Ask the agent to build anything on the fly, paste a screenshot (Ctrl+V)..." 
-          autocomplete="off" 
-          spellcheck="false"
-        >
-        <button type="submit" class="gemini-exec-btn" id="gemini-exec-btn">
-          <span>Run</span>
-          <span class="gemini-exec-arrow">➔</span>
-        </button>
-      </form>
     </div>
   </div>
 
@@ -643,6 +1015,8 @@
       <button class="mc-btn mc-btn-large" id="btn-start-new-world">Generate New World</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
+      <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
+      <button class="mc-btn mc-btn-large mc-btn-mob-studio" id="btn-start-mob-studio">Mob Studio</button>
     </div>
   </div>
 

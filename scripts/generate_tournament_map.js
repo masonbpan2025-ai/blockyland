@@ -678,6 +678,10 @@ const tournamentMapData = {
   format: 'minecraft-web-map',
   version: 1,
   name: 'World Martial Arts Tournament',
+  description: 'Authentic Tenkaichi Budokai arena with 4 training sites, Goku Ki skills (Kamehameha/Genki Dama), and top-down dungeon battle mode.',
+  worldType: 'designed',
+  mechanism: 'dragonball_tournament',
+  mechanismName: 'Dragon Ball World Tournament',
   savedAt: new Date().toISOString(),
   seed: 777777,
   worldTime: 6000,
@@ -721,13 +725,13 @@ const tournamentMapData = {
   }
 };
 
-const defaultSaveDir = path.resolve(__dirname, '..', 'saves');
-if (!fs.existsSync(defaultSaveDir)) {
-  fs.mkdirSync(defaultSaveDir, { recursive: true });
+const designedWorldsDir = path.resolve(__dirname, '..', 'designed_worlds');
+if (!fs.existsSync(designedWorldsDir)) {
+  fs.mkdirSync(designedWorldsDir, { recursive: true });
 }
 
-const outputPath = path.join(defaultSaveDir, 'World_Martial_Arts_Tournament.json');
+const outputPath = path.join(designedWorldsDir, 'World_Martial_Arts_Tournament.json');
 fs.writeFileSync(outputPath, JSON.stringify(tournamentMapData, null, 2), 'utf-8');
 
-console.log(`Successfully generated and saved tournament map with 4 training sites to: ${outputPath}`);
+console.log(`Successfully generated and saved tournament map to designed worlds: ${outputPath}`);
 console.log(`Total Chunks: ${chunksData.length}, Total Mobs: ${mobsData.length}`);

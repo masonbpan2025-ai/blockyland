@@ -342,6 +342,19 @@ export async function getDefaultPathInfo() {
   return 'saves/ (Local Computer Folder)';
 }
 
+export const CURATED_DESIGNED_WORLDS = [
+  {
+    name: 'World Martial Arts Tournament',
+    filename: 'World_Martial_Arts_Tournament.json',
+    description: 'Authentic Tenkaichi Budokai arena with 4 training sites, Goku Ki skills (Kamehameha/Genki Dama), Jackie Chun boss battle, and 2-Player mode.',
+    worldType: 'designed',
+    mechanism: 'dragonball_tournament',
+    mechanismName: 'Dragon Ball World Tournament',
+    gamemode: 'survival',
+    path: 'designed_worlds/World_Martial_Arts_Tournament.json'
+  }
+];
+
 /**
  * List all designed maps from the designed_worlds folder.
  */
@@ -350,23 +363,57 @@ export async function fetchDesignedWorlds() {
     const res = await fetch('/api/designed-worlds');
     if (res.ok) {
       const data = await res.json();
-      return { worlds: data.worlds || [], defaultPath: data.defaultPath || 'designed_worlds/' };
+      if (data.worlds && data.worlds.length > 0) {
+        return { worlds: data.worlds, defaultPath: data.defaultPath || 'designed_worlds/' };
+      }
     }
   } catch (e) {
-    console.warn('Backend /api/designed-worlds unreachable');
+    console.warn('Backend /api/designed-worlds unreachable, using curated designed worlds fallback');
   }
-  return { worlds: [], defaultPath: 'designed_worlds/' };
+
+  // Fallback to curated designed worlds so designed maps are always available!
+  return { worlds: CURATED_DESIGNED_WORLDS, defaultPath: 'designed_worlds/' };
 }
 
 /**
  * Load a designed world by filename.
  */
 export async function loadDesignedWorld(game, filename, options = {}) {
-  const res = await fetch(`/api/designed-worlds/${encodeURIComponent(filename)}`);
-  if (!res.ok) {
+  let mapData = null;
+
+  // 1. Try backend API first
+  try {
+    const res = await fetch(`/api/designed-worlds/${encodeURIComponent(filename)}`);
+    if (res.ok) {
+      mapData = await res.json();
+    }
+  } catch (e) {}
+
+  // 2. Try static public path fallback
+  if (!mapData) {
+    try {
+      const res = await fetch(`/designed_worlds/${encodeURIComponent(filename)}`);
+      if (res.ok) {
+        mapData = await res.json();
+      }
+    } catch (e) {}
+  }
+
+  // 3. Try raw path fallback
+  if (!mapData) {
+    try {
+      const cleanPath = filename.startsWith('/') ? filename : `/${filename}`;
+      const res = await fetch(cleanPath);
+      if (res.ok) {
+        mapData = await res.json();
+      }
+    } catch (e) {}
+  }
+
+  if (!mapData) {
     throw new Error(`Failed to load designed world "${filename}"`);
   }
-  const mapData = await res.json();
+
   deserializeWorld(game, mapData, { progress: options.progress });
   return { success: true, name: mapData.name || filename, mechanism: mapData.mechanism };
 }

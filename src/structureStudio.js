@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { StructureLibrary } from './structureLibrary.js';
+import { showConfirmDialog } from './dialogUtils.js';
 
 export class StructureStudioManager {
   constructor(game) {
@@ -10,6 +11,9 @@ export class StructureStudioManager {
     this.currentParameters = {};
     this.placedVoxels = []; // Array of { x, y, z, prevId } to clear upon re-building
     this.buildOrigin = new THREE.Vector3(0, 5, 8); // in front of player spawn (0, 5, 0)
+    this.isCustomVoxelBuild = false;
+    this.customBuildBlocks = [];
+    this.customBuildName = null;
 
     // DOM Elements
     const hasDoc = typeof document !== 'undefined';
@@ -29,6 +33,7 @@ export class StructureStudioManager {
     this.openList = hasDoc ? document.getElementById('studio-open-structure-list') : null;
     this.openSearch = hasDoc ? document.getElementById('input-search-open-structure') : null;
     this.btnCloseOpen = hasDoc ? document.getElementById('btn-close-open-structure') : null;
+    this.btnRestoreDefaults = hasDoc ? document.getElementById('btn-restore-default-structures') : null;
 
     if (hasDoc) {
       this.bindEvents();
@@ -61,6 +66,22 @@ export class StructureStudioManager {
 
     this.btnCloseOpen?.addEventListener('click', () => {
       this.hideOpenModal();
+    });
+
+    this.btnRestoreDefaults?.addEventListener('click', () => {
+      showConfirmDialog({
+        title: '⚠️ Restore Defaults',
+        message: 'Restore all default structures to their original names and restore any deleted defaults?',
+        confirmText: 'Yes, Restore',
+        cancelText: 'Cancel',
+        onConfirm: () => {
+          StructureLibrary.restoreDefaults();
+          this.game?.ui?.addChatMessage?.(
+            '<span style="color:#10b981;font-weight:bold;">✦ Default structures restored!</span>'
+          );
+          this.renderOpenStructureList(this.openSearch?.value || '');
+        }
+      });
     });
 
     this.openSearch?.addEventListener('input', (e) => {
@@ -128,8 +149,100 @@ export class StructureStudioManager {
    *
    * @returns {boolean} true when a library structure was adopted
    */
+  adoptCustomBuild({ name, blocks, plan }) {
+    this.isCustomVoxelBuild = true;
+    this.customBuildBlocks = Array.isArray(blocks) ? [...blocks] : [];
+    this.customBuildName = name || 'Custom Structure';
+    this.placedVoxels = (blocks || []).map(b => ({ x: b.x, y: b.y, z: b.z, prevId: b.prevId }));
+    this.currentStructure = {
+      id: `custom_${(name || 'structure').toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      name: name || 'Custom Structure',
+      isCustom: true,
+      parameters: [],
+      icon: '/assets/blocks/crafting_table_top.png'
+    };
+    this.currentParameters = {};
+
+    if (this.structureNameBadge) {
+      this.structureNameBadge.textContent = name || 'Custom Structure';
+    }
+
+    if (this.controlsContainer) {
+      this.controlsContainer.innerHTML = `
+        <div class="studio-empty-params">
+          <span class="studio-empty-icon">✦</span>
+          <p style="color:#38bdf8;font-weight:bold;font-size:14px;margin-bottom:6px;">${name || 'Custom Structure'}</p>
+          <small style="color:#94a3b8;line-height:1.4;">
+            AI 3D build active (${(blocks || []).length} voxels).<br>
+            Click <strong style="color:#10b981;">💾 Save</strong> to store it in your Structure Library.
+          </small>
+        </div>
+      `;
+    }
+  }
+
+  captureCurrentVoxels() {
+    const blocks = [];
+    const candidateCoords = new Map();
+
+    if (Array.isArray(this.placedVoxels)) {
+      for (const v of this.placedVoxels) {
+        candidateCoords.set(`${v.x},${v.y},${v.z}`, { x: v.x, y: v.y, z: v.z });
+      }
+    }
+
+    if (Array.isArray(this.customBuildBlocks)) {
+      for (const b of this.customBuildBlocks) {
+        candidateCoords.set(`${b.x},${b.y},${b.z}`, { x: b.x, y: b.y, z: b.z, id: b.id });
+      }
+    }
+
+    if (this.game?.world?.getVoxel) {
+      if (candidateCoords.size > 0) {
+        for (const v of candidateCoords.values()) {
+          const id = this.game.world.getVoxel(v.x, v.y, v.z);
+          if (id !== undefined && id !== BLOCKS.AIR) {
+            blocks.push({ x: v.x, y: v.y, z: v.z, id });
+          } else if (v.id && id !== BLOCKS.AIR) {
+            blocks.push(v);
+          }
+        }
+      }
+    } else if (Array.isArray(this.customBuildBlocks) && this.customBuildBlocks.length > 0) {
+      return [...this.customBuildBlocks];
+    }
+
+    return blocks.length > 0 ? blocks : (this.customBuildBlocks || []);
+  }
+
+  generateCodeFromVoxels(blocks, origin) {
+    const orig = origin || this.buildOrigin;
+    const relBlocks = blocks.map(b => [b.x - orig.x, b.y - orig.y, b.z - orig.z, b.id]);
+    return `
+const V = ${JSON.stringify(relBlocks)};
+function generate(origin, params, B) {
+  const res = [];
+  for (let i = 0; i < V.length; i++) {
+    const item = V[i];
+    res.push({
+      x: origin.x + item[0],
+      y: origin.y + item[1],
+      z: origin.z + item[2],
+      id: item[3]
+    });
+  }
+  return res;
+}
+`.trim();
+  }
+
   adoptFromPlan(plan) {
     if (!plan || typeof plan !== 'object') return false;
+
+    // Plans with explicit operations are custom volumetric builds, not library templates.
+    if (Array.isArray(plan.operations) && plan.operations.length > 0) {
+      return false;
+    }
 
     const type = String(plan.structureType || plan.structureId || '').toLowerCase().trim();
     if (!type) return false;
@@ -137,12 +250,12 @@ export class StructureStudioManager {
     const all = StructureLibrary.getAllStructures();
     const norm = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
-    // Exact id, then exact name, then a contains-match in either direction.
+    // Exact id, then exact name. Decline unknown structures without substring guessing.
     let structure = StructureLibrary.getStructure(type);
     if (!structure) structure = all.find(st => norm(st.name) === norm(type));
     if (!structure) {
-      structure = all.find(st => norm(st.id).includes(norm(type)) || norm(type).includes(norm(st.id)))
-        || all.find(st => norm(st.name).includes(norm(type)) || norm(type).includes(norm(st.name)));
+      structure = all.find(st => norm(st.id) === norm(type))
+        || all.find(st => norm(st.name) === norm(type));
     }
     if (!structure) return false;
 
@@ -299,6 +412,9 @@ export class StructureStudioManager {
     if (!structure) return;
     this.currentStructure = structure;
     this.currentParameters = {};
+    this.isCustomVoxelBuild = false;
+    this.customBuildBlocks = [];
+    this.customBuildName = null;
 
     if (Array.isArray(structure.parameters)) {
       for (const p of structure.parameters) {
@@ -473,7 +589,7 @@ export class StructureStudioManager {
 
   // --- Save to Structure Library Modal ---
   showSaveModal() {
-    if (!this.currentStructure) {
+    if (!this.currentStructure && !this.isCustomVoxelBuild && (!this.placedVoxels || this.placedVoxels.length === 0)) {
       alert('Please prompt or open a structure first before saving.');
       return;
     }
@@ -482,7 +598,8 @@ export class StructureStudioManager {
       this.saveConflictMsg.textContent = '';
     }
     if (this.saveInput) {
-      this.saveInput.value = this.currentStructure.name || '';
+      const defaultName = this.customBuildName || (this.currentStructure?.isBuiltin ? `Custom ${this.currentStructure.name}` : (this.currentStructure?.name || ''));
+      this.saveInput.value = defaultName;
     }
     if (this.saveModal) {
       this.saveModal.classList.remove('hidden');
@@ -506,14 +623,70 @@ export class StructureStudioManager {
       return;
     }
 
+    // Check if structure of the same name already exists
+    let overwrite = false;
+    const existing = StructureLibrary.getStructure(name);
+    if (existing) {
+      if (existing.isBuiltin) {
+        if (this.saveConflictMsg) {
+          this.saveConflictMsg.textContent = `Cannot overwrite built-in structure "${name}". Please choose a different name.`;
+          this.saveConflictMsg.classList.remove('hidden');
+        }
+        return;
+      }
+      const wantsOverwrite = typeof confirm === 'function'
+        ? confirm(`A structure named "${name}" already exists. Do you want to overwrite it?`)
+        : false;
+      if (!wantsOverwrite) {
+        if (this.saveConflictMsg) {
+          this.saveConflictMsg.textContent = `A structure named "${name}" already exists. Please choose a different name or confirm overwrite.`;
+          this.saveConflictMsg.classList.remove('hidden');
+        }
+        return;
+      }
+      overwrite = true;
+    }
+
+    let code = '';
+    let parameters = [];
+    let icon = this.currentStructure?.icon || '/assets/blocks/crafting_table_top.png';
+    let description = `Custom ${name} structure`;
+
+    const isParametric = !this.isCustomVoxelBuild &&
+      this.currentStructure &&
+      !this.currentStructure.isCustom &&
+      typeof this.currentStructure.code === 'string' &&
+      this.currentStructure.code.trim().length > 0 &&
+      Array.isArray(this.currentStructure.parameters) &&
+      this.currentStructure.parameters.length > 0;
+
+    if (isParametric) {
+      code = this.currentStructure.code;
+      parameters = (this.currentStructure.parameters || []).map(p => ({
+        ...p,
+        default: this.currentParameters[p.id] !== undefined ? this.currentParameters[p.id] : p.default
+      }));
+      description = `Custom ${name} with ${parameters.length} parameters`;
+    } else {
+      const voxels = this.captureCurrentVoxels();
+      if (voxels.length > 0) {
+        code = this.generateCodeFromVoxels(voxels, this.buildOrigin);
+        parameters = [];
+        description = `Custom ${name} (${voxels.length} voxels)`;
+      } else if (this.currentStructure?.code) {
+        code = this.currentStructure.code;
+        parameters = this.currentStructure.parameters || [];
+      }
+    }
+
     // Save with StructureLibrary
     const result = StructureLibrary.saveStructure({
       name,
-      parameters: this.currentStructure.parameters || [],
-      code: this.currentStructure.code || '',
-      icon: this.currentStructure.icon || '/assets/blocks/crafting_table_top.png',
-      description: `Custom ${name} with ${Object.keys(this.currentParameters).length} parameters`
-    });
+      parameters,
+      code,
+      icon,
+      description
+    }, overwrite);
 
     if (!result.success) {
       if (this.saveConflictMsg) {
@@ -527,9 +700,12 @@ export class StructureStudioManager {
     if (this.structureNameBadge) {
       this.structureNameBadge.textContent = name;
     }
+    this.currentStructure = result.structure;
+    this.isCustomVoxelBuild = false;
 
+    const actionText = result.overwritten ? 'overwritten in' : 'saved to';
     this.game.ui?.addChatMessage?.(
-      `<span style="color:#10b981;font-weight:bold;">✦ Structure "${name}" successfully saved to Structure Library!</span>`
+      `<span style="color:#10b981;font-weight:bold;">✦ Structure "${name}" successfully ${actionText} Structure Library!</span>`
     );
   }
 
@@ -538,6 +714,7 @@ export class StructureStudioManager {
     if (this.openModal) {
       this.openModal.classList.remove('hidden');
       if (this.openSearch) this.openSearch.value = '';
+      this.updateRestoreButtonVisibility();
       this.renderOpenStructureList('');
     }
   }
@@ -548,9 +725,20 @@ export class StructureStudioManager {
     }
   }
 
+  updateRestoreButtonVisibility() {
+    if (this.btnRestoreDefaults) {
+      if (StructureLibrary.hasDeletedOrRenamedDefaults?.()) {
+        this.btnRestoreDefaults.classList.remove('hidden');
+      } else {
+        this.btnRestoreDefaults.classList.add('hidden');
+      }
+    }
+  }
+
   renderOpenStructureList(query = '') {
     if (!this.openList) return;
     this.openList.innerHTML = '';
+    this.updateRestoreButtonVisibility();
 
     const q = query.trim().toLowerCase();
     const allStructures = StructureLibrary.getAllStructures();
@@ -578,6 +766,80 @@ export class StructureStudioManager {
       const nameEl = document.createElement('div');
       nameEl.className = 'studio-open-card-name';
       nameEl.textContent = st.name;
+      nameEl.title = 'Double-click to rename';
+      nameEl.style.cursor = 'pointer';
+
+      nameEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        if (nameEl.querySelector('input')) return;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'mc-input-text studio-rename-input';
+        input.value = st.name;
+
+        // Prevent events from bubbling to cards or parent modals
+        input.addEventListener('click', (ev) => ev.stopPropagation());
+        input.addEventListener('mousedown', (ev) => ev.stopPropagation());
+        input.addEventListener('dblclick', (ev) => ev.stopPropagation());
+        input.addEventListener('keyup', (ev) => ev.stopPropagation());
+
+        let committed = false;
+        const finish = (commit) => {
+          if (committed) return;
+          committed = true;
+          if (!commit) {
+            nameEl.textContent = st.name;
+            return;
+          }
+          const newName = input.value.trim();
+          if (!newName) {
+            if (typeof alert === 'function') alert('Please enter a structure name.');
+            nameEl.textContent = st.name;
+            return;
+          }
+          if (newName === st.name) {
+            nameEl.textContent = st.name;
+            return;
+          }
+          const res = StructureLibrary.renameStructure(st.id, newName);
+          if (res.success) {
+            st.name = newName;
+            nameEl.textContent = newName;
+            if (this.currentStructure?.id === st.id) {
+              this.currentStructure.name = newName;
+              if (this.structureNameBadge) this.structureNameBadge.textContent = newName;
+            }
+            this.game.ui?.addChatMessage?.(
+              `<span style="color:#10b981;font-weight:bold;">✦ Renamed structure to "${newName}"!</span>`
+            );
+            this.updateRestoreButtonVisibility();
+          } else {
+            if (typeof alert === 'function') alert(res.message || 'Failed to rename structure.');
+            nameEl.textContent = st.name;
+          }
+        };
+
+        input.addEventListener('keydown', (ke) => {
+          ke.stopPropagation();
+          if (ke.key === 'Enter') {
+            ke.preventDefault();
+            finish(true);
+          } else if (ke.key === 'Escape') {
+            ke.preventDefault();
+            finish(false);
+          }
+        });
+
+        input.addEventListener('blur', () => {
+          finish(true);
+        });
+
+        nameEl.innerHTML = '';
+        nameEl.appendChild(input);
+        input.focus();
+        input.select();
+      });
 
       const descEl = document.createElement('div');
       descEl.className = 'studio-open-card-desc';
@@ -595,7 +857,8 @@ export class StructureStudioManager {
       const btnOpenThis = document.createElement('button');
       btnOpenThis.type = 'button';
       btnOpenThis.className = 'mc-btn studio-btn-card-load';
-      btnOpenThis.textContent = 'Open in Studio';
+      btnOpenThis.textContent = 'Open';
+      btnOpenThis.title = `Open "${st.name}" in studio`;
       btnOpenThis.onclick = () => {
         this.hideOpenModal();
         this.loadStructure(st);
@@ -604,9 +867,42 @@ export class StructureStudioManager {
         );
       };
 
+      const btnDelete = document.createElement('button');
+      btnDelete.type = 'button';
+      btnDelete.className = 'mc-btn studio-btn-card-delete';
+      btnDelete.textContent = 'Delete';
+      btnDelete.disabled = false;
+      btnDelete.title = `Delete "${st.name}" from the library`;
+      btnDelete.onclick = (e) => {
+        e.stopPropagation();
+        showConfirmDialog({
+          title: '⚠️ Confirm Deletion',
+          message: `Are you sure you want to delete "${st.name}"? This cannot be undone.`,
+          confirmText: 'Yes, Delete',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            const removed = StructureLibrary.deleteStructure(st.id);
+            if (removed) {
+              if (this.currentStructure?.id === st.id) {
+                this.clearCurrentStructure();
+              }
+              this.game?.ui?.addChatMessage?.(
+                `<span style="color:#38bdf8;font-weight:bold;">✦ Deleted "${st.name}" from the structure library.</span>`
+              );
+            } else {
+              this.game?.ui?.addChatMessage?.(
+                `<span style="color:#ef4444;font-weight:bold;">✦ Could not delete "${st.name}".</span>`
+              );
+            }
+            this.renderOpenStructureList(query);
+          }
+        });
+      };
+
       card.appendChild(iconImg);
       card.appendChild(infoDiv);
       card.appendChild(btnOpenThis);
+      card.appendChild(btnDelete);
 
       this.openList.appendChild(card);
     }

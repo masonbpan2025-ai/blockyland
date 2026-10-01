@@ -9,11 +9,11 @@ import {
 } from '../src/creativeCatalog.js';
 
 test('Creative Catalog includes all official tabs', () => {
-  assert.strictEqual(CREATIVE_TABS.length, 11);
+  assert.strictEqual(CREATIVE_TABS.length, 12);
   const expectedTabs = [
     'building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks',
     'redstone_blocks', 'tools_utilities', 'combat', 'food_drinks',
-    'ingredients', 'spawn_eggs', 'all_items'
+    'ingredients', 'spawn_eggs', 'structure', 'all_items'
   ];
   for (const id of expectedTabs) {
     const found = CREATIVE_TABS.find(t => t.id === id);
@@ -52,5 +52,17 @@ test('All item and block definitions have valid names and icons', () => {
     assert.ok(item.name && item.name.length > 0, 'Item must have a name');
     assert.ok(item.icon && item.icon.startsWith('/assets/'), `Icon must be in assets: ${item.icon}`);
     assert.ok(item.count === 64 || item.count === 1, `Count must be 64 or 1, got ${item.count}`);
+  }
+});
+
+test('Structure category has all library structures and is accessible via getCreativeItemsByTab', () => {
+  const structureItems = getCreativeItemsByTab('structure');
+  assert.ok(structureItems.length >= 9, 'Should have at least 9 structures');
+  for (const st of structureItems) {
+    assert.strictEqual(st.tab, 'structure');
+    assert.strictEqual(st.isStructure, true);
+    assert.ok(st.structureId);
+    assert.ok(st.name);
+    assert.ok(st.icon.startsWith('/assets/'));
   }
 });

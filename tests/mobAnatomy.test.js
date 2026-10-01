@@ -330,3 +330,97 @@ test('Builtin Pikachu preset exists in MobLibrary with biped_creature model', ()
   assert.strictEqual(pika.look.hasCheekPatches, true);
   assert.ok(pika.skills.includes('lightning'));
 });
+
+test('Pikachu biped_creature updates and walks without crashing render loop', () => {
+  const mgr = Object.assign(Object.create(MobManager.prototype), {
+    scene: new THREE.Scene(),
+    world: { getVoxel: () => 0 },
+    sounds: {},
+    mobs: [],
+    arrows: [],
+    createCustomMobTexture: () => new THREE.Texture(),
+    checkMobCollision: () => false,
+    isBlockSolid: () => true
+  });
+  const pika = MobLibrary.getMob('pikachu');
+  const mob = mgr.spawnCustomMob(pika, 0, 4, 6);
+  const mockPlayer = { position: new THREE.Vector3(0, 4, 0), takeDamage() {} };
+
+  assert.doesNotThrow(() => {
+    for (let frame = 0; frame < 30; frame++) {
+      mgr.update(0.016, mockPlayer);
+    }
+  }, 'Pikachu update loop must not throw undefined rotation errors');
+  assert.ok(typeof mob.leftLeg.rotation.x === 'number', 'Leg rotation should animate as a number');
+});
+
+test('Pikachu behaves like a bunny (hops around near player, follows player, retaliates with lightning on attack)', () => {
+  let thunderPlayed = false;
+  let playerDamageReceived = 0;
+  let chatNotifications = [];
+
+  const mockPlayer = {
+    position: new THREE.Vector3(0, 4, 2),
+    velocity: new THREE.Vector3(),
+    takeDamage(amount) {
+      playerDamageReceived += amount;
+    }
+  };
+
+  const mgr = Object.assign(Object.create(MobManager.prototype), {
+    scene: new THREE.Scene(),
+    world: { getVoxel: () => 0 },
+    sounds: {
+      playThunder: () => { thunderPlayed = true; },
+      playPop: () => {},
+      playHurt: () => {}
+    },
+    mobs: [],
+    arrows: [],
+    createCustomMobTexture: () => new THREE.Texture(),
+    checkMobCollision: (m, p) => p.y <= 4,
+    isBlockSolid: () => true
+  });
+
+  mgr.game = {
+    player: mockPlayer,
+    ui: {
+      addChatMessage: (msg) => chatNotifications.push(msg)
+    }
+  };
+
+  const pika = MobLibrary.getMob('pikachu');
+  const mob = mgr.spawnCustomMob(pika, 0, 4.05, 0);
+  assert.ok(mob.isPikachu, 'Pikachu is identified for bunny behavior');
+
+  // 1. Hopping around near player
+  let observedHop = false;
+  for (let frame = 0; frame < 50; frame++) {
+    mgr.update(0.04, mockPlayer);
+    if (mob.velocity.y > 2.0) {
+      observedHop = true;
+    }
+  }
+  assert.ok(observedHop, 'Pikachu must perform bunny hops into the air');
+
+  // 2. Following player when player moves away
+  mockPlayer.position.set(12, 4, 12);
+  let movedTowardPlayer = false;
+  for (let frame = 0; frame < 30; frame++) {
+    mgr.update(0.04, mockPlayer);
+    if (mob.velocity.length() > 0.5) {
+      movedTowardPlayer = true;
+    }
+  }
+  assert.ok(movedTowardPlayer, 'Pikachu must hop towards distant player to follow');
+
+  // 3. Retaliate with lightning when attacked by player
+  mockPlayer.position.set(mob.mesh.position.x + 1, mob.mesh.position.y, mob.mesh.position.z + 1);
+  const success = mgr.damageMob(mob, 4, mockPlayer.position, false);
+  assert.ok(success, 'Pikachu received damage');
+  assert.ok(thunderPlayed, 'Thunder sound should play during retaliation');
+  assert.ok(playerDamageReceived > 0, 'Player should receive lightning retaliation damage');
+  assert.ok(chatNotifications.some(msg => msg.includes('Pikachu retaliated with Thunderbolt')), 'Chat notification should announce Thunderbolt');
+});
+
+

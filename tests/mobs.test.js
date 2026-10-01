@@ -6,14 +6,25 @@ import { EntityManager } from '../src/entities.js';
 import { Inventory } from '../src/inventory.js';
 import { BLOCKS } from '../src/blocks.js';
 import { moveGroundMob } from '../src/mobMotion.js';
+import { MobLibrary } from '../src/mobLibrary.js';
 
 function fixture(terrain = (x,y,z) => y < 1 ? BLOCKS.STONE : BLOCKS.AIR) {
   const world = { getVoxel: terrain }, scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
   const entities = new EntityManager(scene, world, sounds);
   // Use real mob models/AI without browser texture loading.
-  const manager = Object.assign(Object.create(MobManager.prototype), { world, scene, sounds, entities, mobs: [], arrows: [], textures: { pig: new THREE.Texture(), salmon: new THREE.Texture() } });
-  const player = { position: new THREE.Vector3(100,1,100), takeDamage() {} };
+  const manager = Object.assign(Object.create(MobManager.prototype), {
+    world,
+    scene,
+    sounds,
+    entities,
+    mobs: [],
+    arrows: [],
+    customProjectiles: [],
+    textures: { pig: new THREE.Texture(), salmon: new THREE.Texture(), enderman: new THREE.Texture() },
+    isBlockSolid: (x, y, z) => world.getVoxel(x, y, z) === BLOCKS.STONE
+  });
+  const player = { position: new THREE.Vector3(100,1,100), gamemode: 'survival', takeDamage() {} };
   return { manager, entities, player, sounds };
 }
 
@@ -92,3 +103,64 @@ test('fish swim without leaving their water volume or clipping aquarium walls', 
   }
   assert.ok(travelled>2,'fish should travel rather than jitter in one location');
 });
+
+test('enderman teleports locally in normal world and pursues without jittering into player', () => {
+  const { manager, player } = fixture();
+  player.position.set(50, 1, 50);
+  const enderman = manager.spawnEnderman(40, 1, 40);
+  assert.equal(enderman.width, 0.5);
+  assert.equal(enderman.height, 2.85);
+
+  // In a normal world, teleportEnderman should NOT teleport to arena coordinates (0, 24.5, 0)
+  manager.teleportEnderman(enderman);
+  const distFromSpawn = enderman.mesh.position.distanceTo(new THREE.Vector3(40, 1, 40));
+  const distFromArenaCenter = enderman.mesh.position.distanceTo(new THREE.Vector3(0, 24.5, 0));
+  assert.ok(distFromSpawn < 30, `Enderman should teleport locally, actual pos: ${JSON.stringify(enderman.mesh.position)}`);
+  assert.ok(distFromArenaCenter > 20, 'Enderman should not snap to tournament arena (0, 24.5, 0)');
+
+  // Test pursuit without 60Hz jitter
+  enderman.mesh.position.set(45, 1, 50);
+  manager.update(0.1, player);
+  assert.ok(enderman.velocity.x > 0, 'Enderman pursues towards player');
+  const yawBefore = enderman.yaw;
+  manager.update(0.1, player);
+  assert.ok(Math.abs(enderman.yaw - yawBefore) < 0.2, 'Enderman yaw should be stable without alternating thrash');
+});
+
+test('fire_dragon has boss-tier stats, large scale, and enters flight/combat states in survival', () => {
+  const preset = MobLibrary.getMob('fire_dragon');
+  assert.ok(preset, 'fire_dragon preset exists');
+  assert.ok(preset.look.scale >= 2.5, 'Fire dragon scale should be >= 2.5 (significantly bigger)');
+  assert.ok(preset.behavior.health >= 250, 'Fire dragon health should be boss tier (>= 250)');
+  assert.equal(preset.behavior.type, 'boss');
+
+  const { manager, player } = fixture();
+  player.position.set(0, 1, 0);
+  player.gamemode = 'survival';
+
+  const dragon = manager.spawnCustomMob(preset, 0, 15, 0);
+  assert.equal(dragon.isFlying, true);
+  assert.ok(dragon.health >= 250);
+
+  // Update in survival mode should initialize dragon combat AI
+  manager.update(0.1, player);
+  assert.ok(['circling', 'swooping', 'ascending'].includes(dragon.dragonState), 'Dragon should enter combat state machine in survival mode');
+
+  // Trigger swooping state to test dive
+  dragon.dragonState = 'swooping';
+  dragon.dragonStateTimer = 4.0;
+  manager.update(0.1, player);
+  assert.ok(dragon.velocity.length() > 5.0, 'Dragon swoops towards player at high velocity');
+
+  // Test dragon fireball spawning
+  manager.spawnDragonFireball(dragon.mesh.position, player.position, 15);
+  assert.ok(manager.customProjectiles.length > 0, 'Dragon fireball projectile spawned');
+  const fb = manager.customProjectiles[manager.customProjectiles.length - 1];
+  assert.equal(fb.isDragonFireball, true);
+
+  // Creative mode: dragon enters peaceful cruising
+  player.gamemode = 'creative';
+  manager.update(0.1, player);
+  assert.ok(dragon.isFlying);
+});
+

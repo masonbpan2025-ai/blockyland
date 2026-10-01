@@ -149,14 +149,126 @@ export class TextureManager {
   }
 
   drawFallbackTile(name, x, y) {
-    this.ctx.fillStyle = '#888';
-    if (name.includes('grass')) this.ctx.fillStyle = '#5b8e3a';
-    else if (name.includes('dirt')) this.ctx.fillStyle = '#866043';
-    else if (name.includes('sand')) this.ctx.fillStyle = '#dbcf9a';
-    else if (name.includes('wood') || name.includes('log')) this.ctx.fillStyle = '#6b5335';
-    else if (name.includes('leaves')) this.ctx.fillStyle = '#2c591e';
-    else if (name.includes('water')) this.ctx.fillStyle = '#3f76e4';
-    this.ctx.fillRect(x, y, this.tileSize, this.tileSize);
+    const s = this.tileSize;
+    const n = name.toLowerCase();
+
+    // Default base color
+    let baseColor = '#737373';
+
+    if (n.includes('cherry_leaves')) baseColor = '#f472b6';
+    else if (n.includes('cherry_log')) baseColor = '#3f2824';
+    else if (n.includes('cherry_planks')) baseColor = '#fbcfe8';
+    else if (n.includes('birch_log')) baseColor = '#f1f5f9';
+    else if (n.includes('birch_leaves')) baseColor = '#84cc16';
+    else if (n.includes('birch_planks')) baseColor = '#fef08a';
+    else if (n.includes('spruce_log')) baseColor = '#3e2723';
+    else if (n.includes('spruce_leaves')) baseColor = '#14532d';
+    else if (n.includes('spruce_planks')) baseColor = '#78350f';
+    else if (n.includes('jungle_log')) baseColor = '#5c4033';
+    else if (n.includes('jungle_leaves')) baseColor = '#15803d';
+    else if (n.includes('jungle_planks')) baseColor = '#b45309';
+    else if (n.includes('acacia_log')) baseColor = '#52525b';
+    else if (n.includes('acacia_leaves')) baseColor = '#4d7c0f';
+    else if (n.includes('acacia_planks')) baseColor = '#ea580c';
+    else if (n.includes('dark_oak_log')) baseColor = '#27180e';
+    else if (n.includes('dark_oak_leaves')) baseColor = '#164e63';
+    else if (n.includes('dark_oak_planks')) baseColor = '#451a03';
+    else if (n.includes('mangrove_log') || n.includes('mangrove_roots')) baseColor = '#451a03';
+    else if (n.includes('mangrove_leaves')) baseColor = '#15803d';
+    else if (n.includes('mangrove_planks')) baseColor = '#7c2d12';
+    else if (n.includes('mud')) baseColor = '#382e2b';
+    else if (n.includes('pale_oak_log') || n.includes('pale_oak_planks')) baseColor = '#e2e8f0';
+    else if (n.includes('pale_oak_leaves')) baseColor = '#94a3b8';
+    else if (n.includes('mycelium')) baseColor = '#6b5770';
+    else if (n.includes('podzol')) baseColor = '#573d26';
+    else if (n.includes('red_sandstone') || n.includes('red_sand')) baseColor = '#c2410c';
+    else if (n.includes('red_terracotta')) baseColor = '#8e3d2c';
+    else if (n.includes('orange_terracotta')) baseColor = '#a05325';
+    else if (n.includes('yellow_terracotta')) baseColor = '#ba8523';
+    else if (n.includes('white_terracotta')) baseColor = '#d1b399';
+    else if (n.includes('brown_terracotta')) baseColor = '#4d3324';
+    else if (n.includes('terracotta')) baseColor = '#985f46';
+    else if (n.includes('packed_ice')) baseColor = '#93c5fd';
+    else if (n.includes('blue_ice')) baseColor = '#38bdf8';
+    else if (n.includes('ice')) baseColor = '#bae6fd';
+    else if (n.includes('red_mushroom_block')) baseColor = '#dc2626';
+    else if (n.includes('brown_mushroom_block')) baseColor = '#78350f';
+    else if (n.includes('mushroom_stem')) baseColor = '#f5f5f4';
+    else if (n.includes('crimson_nylium')) baseColor = '#9f1239';
+    else if (n.includes('crimson_stem')) baseColor = '#500724';
+    else if (n.includes('nether_wart_block')) baseColor = '#be123c';
+    else if (n.includes('warped_nylium')) baseColor = '#0f766e';
+    else if (n.includes('warped_stem')) baseColor = '#115e59';
+    else if (n.includes('warped_wart_block')) baseColor = '#14b8a6';
+    else if (n.includes('soul_soil')) baseColor = '#3f2e24';
+    else if (n.includes('basalt')) baseColor = '#3f3f46';
+    else if (n.includes('blackstone')) baseColor = '#18181b';
+    else if (n.includes('magma')) baseColor = '#b91c1c';
+    else if (n.includes('sculk_catalyst')) baseColor = '#022c22';
+    else if (n.includes('sculk')) baseColor = '#030712';
+    else if (n.includes('deepslate')) baseColor = '#1e293b';
+    else if (n.includes('moss_block') || n.includes('azalea')) baseColor = '#4d7c0f';
+    else if (n.includes('dripstone')) baseColor = '#854d0e';
+    else if (n.includes('sulfur')) baseColor = '#eab308';
+    else if (n.includes('calcite')) baseColor = '#e2e8f0';
+    else if (n.includes('tuff')) baseColor = '#52525b';
+    else if (n.includes('dark_prismarine')) baseColor = '#064e3b';
+    else if (n.includes('prismarine')) baseColor = '#0d9488';
+    else if (n.includes('bamboo')) baseColor = '#22c55e';
+    else if (n.includes('sunflower')) baseColor = '#facc15';
+    else if (n.includes('lily_pad')) baseColor = '#15803d';
+    else if (n.includes('chorus_flower')) baseColor = '#e879f9';
+    else if (n.includes('chorus_plant')) baseColor = '#86198f';
+    else if (n.includes('grass')) baseColor = '#5b8e3a';
+    else if (n.includes('dirt')) baseColor = '#866043';
+    else if (n.includes('sand')) baseColor = '#dbcf9a';
+    else if (n.includes('wood') || n.includes('log')) baseColor = '#6b5335';
+    else if (n.includes('leaves')) baseColor = '#2c591e';
+    else if (n.includes('water')) baseColor = '#3f76e4';
+
+    this.ctx.fillStyle = baseColor;
+    this.ctx.fillRect(x, y, s, s);
+
+    // Subtle pixel-art details
+    if (n.includes('cherry_leaves')) {
+      this.ctx.fillStyle = '#ec4899';
+      this.ctx.fillRect(x + 3, y + 3, 3, 3);
+      this.ctx.fillRect(x + 10, y + 8, 3, 3);
+      this.ctx.fillRect(x + 6, y + 12, 2, 2);
+    } else if (n.includes('birch_log')) {
+      this.ctx.fillStyle = '#1e293b';
+      this.ctx.fillRect(x + 2, y + 4, 4, 2);
+      this.ctx.fillRect(x + 9, y + 10, 5, 2);
+    } else if (n.includes('sculk')) {
+      this.ctx.fillStyle = '#06b6d4';
+      this.ctx.fillRect(x + 4, y + 5, 2, 2);
+      this.ctx.fillRect(x + 11, y + 11, 2, 2);
+    } else if (n.includes('magma')) {
+      this.ctx.fillStyle = '#f97316';
+      this.ctx.fillRect(x + 2, y + 6, 6, 2);
+      this.ctx.fillRect(x + 8, y + 12, 5, 2);
+      this.ctx.fillStyle = '#facc15';
+      this.ctx.fillRect(x + 4, y + 6, 2, 2);
+    } else if (n.includes('red_mushroom_block')) {
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillRect(x + 3, y + 3, 3, 3);
+      this.ctx.fillRect(x + 10, y + 9, 3, 3);
+    } else if (n.includes('sunflower')) {
+      this.ctx.fillStyle = '#78350f';
+      this.ctx.fillRect(x + 6, y + 6, 4, 4);
+    } else if (n.includes('mycelium')) {
+      this.ctx.fillStyle = '#a855f7';
+      this.ctx.fillRect(x + 4, y + 4, 2, 2);
+      this.ctx.fillRect(x + 10, y + 7, 2, 2);
+    } else if (n.includes('warped_nylium')) {
+      this.ctx.fillStyle = '#2dd4bf';
+      this.ctx.fillRect(x + 5, y + 5, 2, 2);
+      this.ctx.fillRect(x + 11, y + 9, 2, 2);
+    } else if (n.includes('crimson_nylium')) {
+      this.ctx.fillStyle = '#f43f5e';
+      this.ctx.fillRect(x + 4, y + 6, 2, 2);
+      this.ctx.fillRect(x + 9, y + 10, 2, 2);
+    }
   }
 
   async loadDestroyStages() {

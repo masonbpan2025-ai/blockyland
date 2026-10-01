@@ -51,9 +51,11 @@ function fixture(storage = memoryStorage()) {
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {} },
     rebuildChunkMesh() {}
   };
+  // Construct the agent against the supplied storage so persisted preferences
+  // (vendor, keys, offline mode) are read the way a page reload would read them.
   const agent = new WorldAgent(game);
-  agent.settings.store = storage;
-  agent.settings = new AgentSettings(storage, agent.settings.vendor);
+  agent.settings = new AgentSettings(storage);
+  agent.reloadSettings();
   const fetchCalls = [];
   const mockFetch = (payloads, { ok = true, status = 200, statusText = 'OK' } = {}) => {
     const queue = Array.isArray(payloads) ? [...payloads] : [payloads];
@@ -604,6 +606,68 @@ test('streaming explains key and quota failures in actionable terms', async t =>
     assert.match(agent.lastError.message, /Nothing was executed/);
     t.mock.restoreAll();
   }
+});
+
+test('forced offline mode keeps the key but stops calling the vendor', async t => {
+  const { agent, world, fetchCalls } = fixture();
+  const { fetchImpl, calls } = streamingMockFetch(() => sseResponse(deepseekDeltas));
+  t.mock.method(globalThis, 'fetch', fetchImpl);
+  agent.setApiKey('ds-key');
+
+  // Save a key, then deliberately drop back to the offline presets.
+  agent.setOfflineMode(true);
+  assert.equal(agent.offlineMode, true);
+  assert.equal(agent.apiKey, 'ds-key', 'the key is retained');
+  assert.equal(agent.canUseApi, false);
+  assert.equal(agent.isOffline, true);
+
+  const logs = [];
+  agent.onLog = (message, type) => logs.push({ message, type });
+
+  await agent.executePrompt('build a lighthouse');
+  assert.equal(calls.length, 0, 'no network call while offline');
+  assert.equal(fetchCalls.length, 0, 'the fixture fetch was never reached');
+  assert.equal(agent.lastError, null, 'offline presets are not an error');
+  assert.ok(world.saved.size > 0, 'the preset still built something');
+  assert.ok(logs.some(entry => /Offline mode is on/.test(entry.message)));
+
+  // Switching back re-enables the API with the same key.
+  agent.setOfflineMode(false);
+  assert.equal(agent.canUseApi, true);
+  await agent.executePrompt('build a lighthouse');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://api.deepseek.com/chat/completions');
+});
+
+test('offline mode survives a reload and is cleared when turned off', () => {
+  const storage = memoryStorage();
+  const first = fixture(storage).agent;
+  first.setOfflineMode(true);
+  assert.equal(storage.getItem('mc_agent_offline'), '1');
+  assert.equal(fixture(storage).agent.offlineMode, true, 'reload keeps offline mode');
+
+  const second = fixture(storage).agent;
+  second.setOfflineMode(false);
+  assert.equal(storage.getItem('mc_agent_offline'), null);
+  assert.equal(fixture(storage).agent.offlineMode, false, 'reload keeps the API switch');
+});
+
+test('offline mode is not confused with a missing key', () => {
+  const { agent } = fixture();
+  // No key, offline mode off: offline because there is nothing to call with.
+  assert.equal(agent.offlineMode, false);
+  assert.equal(agent.canUseApi, false);
+  assert.equal(agent.isOffline, true);
+
+  // Key present, offline mode off: the API is used.
+  agent.setApiKey('ds-key');
+  assert.equal(agent.canUseApi, true);
+  assert.equal(agent.isOffline, false);
+
+  // Offline mode on overrides a present key.
+  agent.setOfflineMode(true);
+  assert.equal(agent.canUseApi, false);
+  assert.equal(agent.apiKey, 'ds-key');
 });
 
 test('the legacy GeminiAgent import keeps working', () => {

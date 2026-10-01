@@ -206,6 +206,42 @@ export class SoundEngine {
     this.noiseBurst(0.9, 350, 0.7, 0.6);
   }
 
+  playDragonRoar() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(75, now + 0.6);
+    osc.frequency.linearRampToValueAtTime(40, now + 1.2);
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(450, now);
+    filter.frequency.linearRampToValueAtTime(850, now + 0.35);
+    filter.frequency.linearRampToValueAtTime(180, now + 1.2);
+
+    g.gain.setValueAtTime(0.55, now);
+    g.gain.exponentialRampToValueAtTime(0.005, now + 1.2);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 1.2);
+
+    this.noiseBurst(1.1, 260, 1.2, 0.5);
+  }
+
+  playDragonFlap() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    this.noiseBurst(0.22, 160, 0.8, 0.3);
+  }
+
   playBowShoot() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;

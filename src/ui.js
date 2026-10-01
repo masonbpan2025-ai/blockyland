@@ -1,4 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import {
@@ -140,6 +141,22 @@ export class UIManager {
     this.btnSaveMap = document.getElementById('btn-save-map');
     this.btnOpenMap = document.getElementById('btn-open-map');
 
+    // Biome Selection Modal Elements
+    this.biomeModal = document.getElementById('world-biome-modal');
+    this.worldBiomeSelect = document.getElementById('world-biome-select');
+    this.worldSeedInput = document.getElementById('world-seed-input');
+    this.btnRandomizeSeed = document.getElementById('btn-randomize-seed');
+    this.btnCreateWorldConfirm = document.getElementById('btn-create-world-confirm');
+    this.btnCloseBiomeModal = document.getElementById('btn-close-biome-modal');
+    this.biomeInfoCard = document.getElementById('biome-info-card');
+    this.biomeInfoIcon = document.getElementById('biome-info-icon');
+    this.biomeInfoName = document.getElementById('biome-info-name');
+    this.biomeInfoDimension = document.getElementById('biome-info-dimension');
+    this.biomeInfoDesc = document.getElementById('biome-info-desc');
+    this.biomeTagCategory = document.getElementById('biome-tag-category');
+    this.biomeTagBlocks = document.getElementById('biome-tag-blocks');
+    this.biomeTagMobs = document.getElementById('biome-tag-mobs');
+
     // Callbacks
     this.onCommand = null;
 
@@ -154,6 +171,7 @@ export class UIManager {
     this.bindVillagerTradeEvents();
     this.bindPauseEvents();
     this.bindMapModalEvents();
+    this.bindBiomeModalEvents();
     this.bindChatEvents();
     this.bindFloatingCursor();
 
@@ -237,6 +255,11 @@ export class UIManager {
     const isChampionOpen = championOverlay && !championOverlay.classList.contains('hidden') && championOverlay.classList.contains('visible');
     const isSetupOpen = setupModal && !setupModal.classList.contains('hidden');
 
+    if (typeof document !== 'undefined') {
+      const anyGameModal = document.querySelector('.game-modal:not(.hidden)');
+      if (anyGameModal) return true;
+    }
+
     return (!this.invModal.classList.contains('hidden')) ||
            (this.creativeModal && !this.creativeModal.classList.contains('hidden')) ||
            (!this.craftModal.classList.contains('hidden')) ||
@@ -244,6 +267,7 @@ export class UIManager {
            (!this.pauseModal.classList.contains('hidden')) ||
            (this.designedWorldsModal && !this.designedWorldsModal.classList.contains('hidden')) ||
            (this.mapModal && !this.mapModal.classList.contains('hidden')) ||
+           (this.biomeModal && !this.biomeModal.classList.contains('hidden')) ||
            Boolean(isDefeatOpen) ||
            Boolean(isChampionOpen) ||
            Boolean(isSetupOpen) ||
@@ -258,6 +282,7 @@ export class UIManager {
     this.pauseModal.classList.add('hidden');
     if (this.designedWorldsModal) this.designedWorldsModal.classList.add('hidden');
     if (this.mapModal) this.mapModal.classList.add('hidden');
+    if (this.biomeModal) this.biomeModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
     this.hideTooltip();
 
@@ -1073,32 +1098,6 @@ export class UIManager {
       };
     }
 
-    const btnTime = document.getElementById('btn-time');
-    btnTime.onclick = () => {
-      if (this.onCommand) this.onCommand('/time set day');
-    };
-
-    document.getElementById('btn-spawn-golem').onclick = () => {
-      const p = this.player.position;
-      this.mobs.spawnIronGolem(p.x + 2, p.y + 1, p.z + 2);
-      this.sounds.playIronGolem();
-      this.addChatMessage('Spawned Iron Golem!', 'system');
-    };
-
-    document.getElementById('btn-spawn-villager').onclick = () => {
-      const p = this.player.position;
-      this.mobs.spawnVillager(p.x + 2, p.y + 1, p.z + 2);
-      this.sounds.playVillager();
-      this.addChatMessage('Spawned Villager!', 'system');
-    };
-
-    document.getElementById('btn-spawn-pillager').onclick = () => {
-      const p = this.player.position;
-      this.mobs.spawnPillager(p.x + 4, p.y + 1, p.z + 4);
-      this.sounds.playPillager();
-      this.addChatMessage('Spawned Pillager!', 'system');
-    };
-
     document.getElementById('btn-reset').onclick = () => {
       window.location.reload();
     };
@@ -1165,6 +1164,149 @@ export class UIManager {
 
     if (this.btnOpenMap) {
       this.btnOpenMap.onclick = () => this.openMapModal('load');
+    }
+  }
+
+  // Biome Selection Modal Management
+  bindBiomeModalEvents() {
+    if (this.worldBiomeSelect) {
+      this.worldBiomeSelect.addEventListener('change', () => {
+        this.updateBiomeInfoCard();
+      });
+    }
+
+    if (this.btnRandomizeSeed) {
+      this.btnRandomizeSeed.addEventListener('click', () => {
+        this.playPopSound();
+        if (this.worldSeedInput) {
+          const randSeed = Math.floor(Math.random() * 2147483647) + 1;
+          this.worldSeedInput.value = String(randSeed);
+        }
+      });
+    }
+
+    if (this.btnCloseBiomeModal) {
+      this.btnCloseBiomeModal.addEventListener('click', () => {
+        this.playPopSound();
+        this.closeBiomeModal();
+      });
+    }
+
+    if (this.btnCreateWorldConfirm) {
+      this.btnCreateWorldConfirm.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        this.playPopSound();
+        if (!this.game) return;
+        if (this.game._worldStartInFlight) return;
+
+        this.game._worldStartInFlight = true;
+        this.sounds?.init();
+        this.btnCreateWorldConfirm.disabled = true;
+
+        try {
+          const biomeId = this.worldBiomeSelect ? this.worldBiomeSelect.value : 'all';
+          const seedVal = this.worldSeedInput ? this.worldSeedInput.value.trim() : '';
+          let seedNum;
+          if (!seedVal) {
+            // Generate a fresh random seed so every generation is substantially different!
+            seedNum = Math.floor(Math.random() * 2147483647) + 1;
+          } else if (/^-?\d+$/.test(seedVal)) {
+            seedNum = parseInt(seedVal, 10);
+          } else {
+            let h = 0;
+            for (let i = 0; i < seedVal.length; i++) {
+              h = ((h << 5) - h + seedVal.charCodeAt(i)) | 0;
+            }
+            seedNum = Math.abs(h) || 1337;
+          }
+
+          // Reseed world with chosen/random seed and biome
+          this.game.world.reseed(seedNum, biomeId);
+
+          this.closeBiomeModal();
+
+          await this.game.generateNewWorld();
+          if (this.startOverlay) this.startOverlay.style.display = 'none';
+        } catch (err) {
+          console.error('[World] Failed to generate world with biome:', err);
+          this.game.failWorldStart?.(err);
+        } finally {
+          this.btnCreateWorldConfirm.disabled = false;
+          this.game._worldStartInFlight = false;
+          if (this.game.worldReady) this.game.overlay?.hide();
+        }
+      });
+    }
+  }
+
+  openBiomeModal() {
+    document.exitPointerLock();
+    this.closeAllModals();
+    if (this.startOverlay) this.startOverlay.style.display = 'none';
+    if (!this.biomeModal) return;
+
+    this.biomeModal.classList.remove('hidden');
+    if (this.worldSeedInput) {
+      this.worldSeedInput.value = '';
+    }
+    this.updateBiomeInfoCard();
+  }
+
+  closeBiomeModal() {
+    if (this.biomeModal) this.biomeModal.classList.add('hidden');
+    if (this.game && !this.game.worldGenerated && this.startOverlay) {
+      this.startOverlay.style.display = 'flex';
+    }
+  }
+
+  updateBiomeInfoCard() {
+    if (!this.worldBiomeSelect) return;
+    const biomeId = this.worldBiomeSelect.value || 'all';
+    const def = getBiomeDef(biomeId);
+
+    const icons = {
+      all: '🌍',
+      offshore: '🌊',
+      highland: '🏔️',
+      woodland: '🌲',
+      wetland: '🌿',
+      flatland: '🌾',
+      arid: '🏜️',
+      cave: '🕳️',
+      nether: '🔥',
+      end: '🌌'
+    };
+
+    if (this.biomeInfoIcon) {
+      this.biomeInfoIcon.textContent = icons[def.category] || '🗺️';
+    }
+    if (this.biomeInfoName) {
+      this.biomeInfoName.textContent = def.name;
+    }
+    if (this.biomeInfoDimension) {
+      const dim = def.dimension ? def.dimension.toUpperCase() : 'OVERWORLD';
+      this.biomeInfoDimension.textContent = dim;
+      if (def.isNether) {
+        this.biomeInfoDimension.style.background = '#dc2626';
+      } else if (def.isEnd) {
+        this.biomeInfoDimension.style.background = '#7c3aed';
+      } else {
+        this.biomeInfoDimension.style.background = '#2563eb';
+      }
+    }
+    if (this.biomeInfoDesc) {
+      this.biomeInfoDesc.textContent = def.description || 'Authentic Minecraft biome with native terrain generation, blocks, and wildlife.';
+    }
+    if (this.biomeTagCategory) {
+      this.biomeTagCategory.textContent = `Category: ${def.category ? def.category.charAt(0).toUpperCase() + def.category.slice(1) : 'Overworld'}`;
+    }
+    if (this.biomeTagBlocks) {
+      const blocksText = def.surfaceBlock ? `Surface: ${BLOCK_DEFS[def.surfaceBlock]?.name || 'Natural'}` : 'Varied';
+      this.biomeTagBlocks.textContent = `Blocks: ${blocksText}`;
+    }
+    if (this.biomeTagMobs) {
+      const mobsList = (def.mobs && def.mobs.length > 0) ? def.mobs.slice(0, 3).join(', ') : 'Natural wildlife';
+      this.biomeTagMobs.textContent = `Native Mobs: ${mobsList}`;
     }
   }
 

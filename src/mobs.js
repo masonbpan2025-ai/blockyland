@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
-import { wanderMob, moveGroundMob } from './mobMotion.js';
+import { wanderMob, moveGroundMob, moveFlyingMob } from './mobMotion.js';
+import { MobLibrary } from './mobLibrary.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
 function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
@@ -69,12 +70,23 @@ export class MobManager {
       axolotl: this.createAquaticTexture('axolotl'),
       tournament_host: this.createHostTexture(),
       enderman: this.createEndermanTexture(),
+      jackie_chun: this.createJackieChunTexture(),
       site_manager: this.createTrainerTexture()
     };
   }
 
   clearMobs() {
     for (const arrow of [...this.arrows]) removeArrow(this, arrow);
+    if (this.customProjectiles) {
+      for (const p of this.customProjectiles) {
+        if (p.mesh) {
+          this.scene.remove(p.mesh);
+          p.mesh.geometry?.dispose();
+          p.mesh.material?.dispose();
+        }
+      }
+      this.customProjectiles = [];
+    }
     for (const mob of this.mobs) {
       if (mob.mesh) {
         this.scene.remove(mob.mesh);
@@ -87,10 +99,18 @@ export class MobManager {
   }
 
   spawnMob(type, x, y, z) {
+    if (typeof type === 'object' && type !== null) {
+      return this.spawnCustomMob(type, x, y, z);
+    }
+    if (typeof type === 'string' && (type.startsWith('custom_') || MobLibrary.getMob(type))) {
+      const def = MobLibrary.getMob(type);
+      if (def) return this.spawnCustomMob(def, x, y, z);
+    }
     switch (type) {
       case 'villager': return this.spawnVillager(x, y, z);
       case 'tournament_host': return this.spawnTournamentHost(x, y, z);
       case 'site_manager': return this.spawnSiteManager(x, y, z);
+      case 'jackie_chun': return this.spawnJackieChun(x, y, z);
       case 'enderman': return this.spawnEnderman(x, y, z);
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
@@ -106,9 +126,558 @@ export class MobManager {
       case 'octopus':
       case 'squid': return this.spawnOctopus(x, y, z);
       case 'axolotl': return this.spawnAxolotl(x, y, z);
-      default: return this.spawnVillager(x, y, z);
+      case 'mooshroom': return this.spawnMooshroom(x, y, z);
+      case 'polar_bear': return this.spawnPolarBear(x, y, z);
+      case 'panda': return this.spawnPanda(x, y, z);
+      case 'warden': return this.spawnWarden(x, y, z);
+      case 'blaze': return this.spawnBlaze(x, y, z);
+      case 'piglin': return this.spawnPiglin(x, y, z);
+      case 'ghast': return this.spawnGhast(x, y, z);
+      case 'magma_cube': return this.spawnMagmaCube(x, y, z);
+      case 'shulker': return this.spawnShulker(x, y, z);
+      default:
+        if (typeof type === 'string' && MobLibrary.getMob(type)) {
+          return this.spawnCustomMob(MobLibrary.getMob(type), x, y, z);
+        }
+        return this.spawnVillager(x, y, z);
     }
   }
+
+  /**
+   * Build the 64x64 texture for a custom mob.
+   *
+   * @param {object} look appearance definition
+   * @param {Function} [createCanvas] canvas factory, defaulting to
+   *   document.createElement. Injectable so tests can supply a stub without
+   *   assigning a global `document`, which would leak across the shared test
+   *   process and break unrelated files.
+   */
+  createCustomMobTexture(look = {}, createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    const main = look.mainColor || '#7c3aed';
+    const accent = look.accentColor || '#ec4899';
+    const eye = look.eyeColor || '#facc15';
+
+    // 1. Base Fill
+    ctx.fillStyle = main;
+    ctx.fillRect(0, 0, 64, 64);
+
+    // 2. Texture details / shading grid
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    for (let x = 0; x < 64; x += 4) {
+      for (let y = 0; y < 64; y += 4) {
+        if ((x + y) % 8 === 0) {
+          ctx.fillRect(x, y, 4, 4);
+        }
+      }
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    for (let x = 2; x < 64; x += 8) {
+      for (let y = 2; y < 64; y += 8) {
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+
+    // 3. Head details (Head block at u:0, v:0; Front face spans x:8..15, y:8..15)
+    // Only draw crown/crest if not a character mob with ears or cheek markings
+    if (!look.hasCheekPatches && !look.ears) {
+      ctx.fillStyle = accent;
+      ctx.fillRect(8, 0, 8, 4); // crown / crest
+    }
+
+    const headFrontX = 8;
+    const headFrontY = 8;
+
+    // Eyes: 2x2 pupils with white shine gleam
+    ctx.fillStyle = eye;
+    ctx.fillRect(headFrontX + 1, headFrontY + 1, 2, 2); // Left eye: x 9..10, y 9..10
+    ctx.fillRect(headFrontX + 5, headFrontY + 1, 2, 2); // Right eye: x 13..14, y 9..10
+
+    // White shine gleam on upper-left of each eye
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(headFrontX + 1, headFrontY + 1, 1, 1); // Left shine: (9, 9)
+    ctx.fillRect(headFrontX + 5, headFrontY + 1, 1, 1); // Right shine: (13, 9)
+
+    // Nose: small dark dot centered between eyes and mouth
+    if (look.hasNose) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillRect(headFrontX + 3, headFrontY + 3, 2, 1); // (11..12, 11)
+    }
+
+    // Cheeks: 2x2 bright red circular patches on lower cheeks (no overlap with eyes!)
+    if (look.hasCheekPatches) {
+      ctx.fillStyle = look.cheekColor || '#e3342f';
+      ctx.fillRect(headFrontX + 0, headFrontY + 4, 2, 2); // Left cheek: (8..9, 12..13)
+      ctx.fillRect(headFrontX + 6, headFrontY + 4, 2, 2); // Right cheek: (14..15, 12..13)
+    }
+
+    // Cute cat mouth (3-shaped smile)
+    if (look.hasMouth) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.fillRect(headFrontX + 3, headFrontY + 5, 2, 1);
+      ctx.fillRect(headFrontX + 2, headFrontY + 6, 4, 1);
+    }
+
+    // 4. Torso accents
+    if (look.hasBackStripes || look.ears === 'pointed' || (look.mainColor === '#f7d02c' && look.accentColor === '#8b4513')) {
+      // Signature brown back stripes (Torso back face spans x:38..45, y:27..36)
+      const stripeCol = look.accentColor || '#8b4513';
+      ctx.fillStyle = stripeCol;
+      ctx.fillRect(39, 29, 6, 2); // Upper horizontal back stripe
+      ctx.fillRect(39, 33, 6, 2); // Lower horizontal back stripe
+    } else {
+      // Humanoid chestplate and belt
+      ctx.fillStyle = accent;
+      ctx.fillRect(20, 18, 8, 12);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.fillRect(22, 28, 4, 2);
+    }
+
+    // 5. Limbs accents
+    if (!look.hasCheekPatches && look.modelType !== 'biped_creature') {
+      ctx.fillStyle = accent;
+      ctx.fillRect(0, 24, 8, 4);
+      ctx.fillRect(40, 24, 8, 4);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  spawnCustomMob(mobDef, x, y, z) {
+    if (!mobDef) return null;
+    const group = new THREE.Group();
+    const look = mobDef.look || {};
+    const behavior = mobDef.behavior || {};
+    let modelType = look.modelType || 'humanoid';
+
+    const isPikachuOrBipedCreature = (mobDef.name && /pikachu/i.test(mobDef.name)) ||
+      (look.ears === 'pointed' && look.tail === 'lightning') ||
+      modelType === 'biped_creature';
+
+    if (isPikachuOrBipedCreature) {
+      modelType = 'biped_creature';
+    }
+
+    const tex = this.createCustomMobTexture(look);
+    const mat = new THREE.MeshLambertMaterial({
+      map: tex,
+      transparent: modelType === 'slime',
+      opacity: modelType === 'slime' ? 0.75 : 1.0,
+      alphaTest: modelType === 'slime' ? 0.05 : 0.1
+    });
+
+    let head = null;
+    let leftArm = null;
+    let rightArm = null;
+    let leftLeg = null;
+    let rightLeg = null;
+    let legs = null;
+    let wings = null;
+
+    if (modelType === 'biped_creature') {
+      // Authentic biped mascot creature (Pikachu/cute chibi characters)
+      // Head (0.54 x 0.52 x 0.48)
+      const headGeo = createBoxWithUV(0.54, 0.52, 0.48, 0, 0, 64, 64, 8, 8, 8);
+      head = new THREE.Mesh(headGeo, mat);
+      head.position.set(0, 1.05, 0.04);
+      group.add(head);
+
+      // Torso / Chubby Body (0.52 x 0.54 x 0.44)
+      const torsoGeo = createBoxWithUV(0.52, 0.54, 0.44, 16, 20, 64, 64, 8, 10, 7);
+      const torso = new THREE.Mesh(torsoGeo, mat);
+      torso.position.set(0, 0.54, 0);
+      group.add(torso);
+
+      // Folded Arms / Little Paws resting in front (like Pikachu reference)
+      const armGeo = createBoxWithUV(0.14, 0.30, 0.14, 40, 46, 64, 64, 3, 7, 3);
+      leftArm = new THREE.Mesh(armGeo, mat);
+      leftArm.position.set(-0.22, 0.58, 0.14);
+      leftArm.rotation.set(0.65, 0.25, -0.45);
+      group.add(leftArm);
+
+      const rArmGeo = createBoxWithUV(0.14, 0.30, 0.14, 40, 46, 64, 64, 3, 7, 3);
+      rightArm = new THREE.Mesh(rArmGeo, mat);
+      rightArm.position.set(0.22, 0.58, 0.14);
+      rightArm.rotation.set(0.65, -0.25, 0.45);
+      group.add(rightArm);
+
+      // Flat Little Feet
+      const footGeo = createBoxWithUV(0.18, 0.14, 0.28, 0, 22, 64, 64, 4, 3, 6);
+      leftLeg = new THREE.Mesh(footGeo, mat);
+      leftLeg.position.set(-0.16, 0.07, 0.06);
+      group.add(leftLeg);
+
+      const rFootGeo = createBoxWithUV(0.18, 0.14, 0.28, 0, 22, 64, 64, 4, 3, 6);
+      rightLeg = new THREE.Mesh(rFootGeo, mat);
+      rightLeg.position.set(0.16, 0.07, 0.06);
+      group.add(rightLeg);
+      legs = null;
+    } else if (modelType === 'quadruped') {
+      // Body (Horizontal 0.7 x 0.6 x 1.0)
+      const bodyGeo = createBoxWithUV(0.7, 0.6, 1.0, 16, 20, 64, 64, 11, 10, 16);
+      const body = new THREE.Mesh(bodyGeo, mat);
+      body.position.y = 0.65;
+      group.add(body);
+
+      // Head (0.5 x 0.5 x 0.5)
+      const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64, 8, 8, 8);
+      head = new THREE.Mesh(headGeo, mat);
+      head.position.set(0, 0.95, 0.55);
+      group.add(head);
+
+      // Snout (only for animals, suppress if snout is false or pointed ears or cheeks)
+      if (look.hasSnout !== false && look.ears !== 'pointed' && !look.hasCheekPatches) {
+        const snoutGeo = createBoxWithUV(0.25, 0.2, 0.25, 24, 0, 64, 64, 4, 3, 4);
+        const snout = new THREE.Mesh(snoutGeo, mat);
+        snout.position.set(0, -0.1, 0.35);
+        head.add(snout);
+      }
+
+      // 4 Legs
+      const legGeo = createBoxWithUV(0.24, 0.45, 0.24, 0, 22, 64, 64, 4, 8, 4);
+      const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.25, 0.22, 0.35); group.add(fl);
+      const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.25, 0.22, 0.35); group.add(fr);
+      const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.25, 0.22, -0.35); group.add(bl);
+      const br = new THREE.Mesh(legGeo, mat); br.position.set(0.25, 0.22, -0.35); group.add(br);
+      legs = [fl, fr, bl, br];
+
+      // Tail (only if no custom tail like lightning is specified)
+      if (!look.tail || look.tail === 'none') {
+        const tailGeo = createBoxWithUV(0.12, 0.12, 0.45, 40, 0, 64, 64, 2, 2, 7);
+        const tail = new THREE.Mesh(tailGeo, mat);
+        tail.position.set(0, 0.7, -0.6);
+        tail.rotation.x = -Math.PI / 4;
+        group.add(tail);
+      }
+    } else if (modelType === 'golem') {
+      // Heavy Torso (1.3 x 0.9 x 0.8)
+      const torsoGeo = createBoxWithUV(1.3, 0.9, 0.8, 0, 40, 64, 64, 18, 12, 11);
+      const torso = new THREE.Mesh(torsoGeo, mat);
+      torso.position.y = 1.6;
+      group.add(torso);
+
+      // Golem Head
+      const headGeo = createBoxWithUV(0.65, 0.75, 0.65, 0, 0, 64, 64, 8, 10, 8);
+      head = new THREE.Mesh(headGeo, mat);
+      head.position.y = 2.25;
+      group.add(head);
+
+      // Huge Arms
+      const armGeo = createBoxWithUV(0.35, 1.45, 0.4, 40, 21, 64, 64, 4, 24, 6);
+      leftArm = new THREE.Mesh(armGeo, mat); leftArm.position.set(-0.9, 1.4, 0); group.add(leftArm);
+      rightArm = new THREE.Mesh(armGeo, mat); rightArm.position.set(0.9, 1.4, 0); group.add(rightArm);
+
+      // Sturdy Legs
+      const legGeo = createBoxWithUV(0.42, 0.9, 0.42, 37, 0, 64, 64, 6, 14, 5);
+      leftLeg = new THREE.Mesh(legGeo, mat); leftLeg.position.set(-0.35, 0.45, 0); group.add(leftLeg);
+      rightLeg = new THREE.Mesh(legGeo, mat); rightLeg.position.set(0.35, 0.45, 0); group.add(rightLeg);
+    } else if (modelType === 'flying') {
+      // Aerodynamic dragon/bird body
+      const bodyGeo = createBoxWithUV(0.6, 0.45, 0.95, 16, 20, 64, 64, 9, 7, 15);
+      const body = new THREE.Mesh(bodyGeo, mat);
+      body.position.y = 1.15;
+      group.add(body);
+
+      // Head
+      const headGeo = createBoxWithUV(0.45, 0.42, 0.5, 0, 0, 64, 64, 7, 7, 8);
+      head = new THREE.Mesh(headGeo, mat);
+      head.position.set(0, 1.35, 0.6);
+      group.add(head);
+
+      // Snout / Beak
+      const beakGeo = createBoxWithUV(0.2, 0.15, 0.35, 24, 0, 64, 64, 3, 2, 5);
+      const beak = new THREE.Mesh(beakGeo, mat);
+      beak.position.set(0, -0.08, 0.35);
+      head.add(beak);
+
+      // Tail fin
+      const tailGeo = createBoxWithUV(0.12, 0.3, 0.65, 40, 0, 64, 64, 2, 5, 10);
+      const tail = new THREE.Mesh(tailGeo, mat);
+      tail.position.set(0, 1.25, -0.65);
+      tail.rotation.x = -0.2;
+      group.add(tail);
+
+      // Large Flapping Wings
+      const wingGeo = createBoxWithUV(0.85, 0.08, 0.5, 0, 48, 64, 64, 14, 2, 8);
+      const lWing = new THREE.Mesh(wingGeo, mat); lWing.position.set(-0.6, 1.25, 0.05); group.add(lWing);
+      const rWing = new THREE.Mesh(wingGeo, mat); rWing.position.set(0.6, 1.25, 0.05); group.add(rWing);
+      wings = { left: lWing, right: rWing };
+    } else if (modelType === 'slime') {
+      // Outer translucent cube
+      const outerGeo = createBoxWithUV(0.85, 0.85, 0.85, 0, 0, 64, 64, 14, 14, 14);
+      const outerCube = new THREE.Mesh(outerGeo, mat);
+      outerCube.position.y = 0.42;
+      group.add(outerCube);
+
+      // Inner solid core cube
+      const coreMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.accentColor || '#ec4899') });
+      const coreGeo = createBoxWithUV(0.45, 0.45, 0.45, 16, 16, 64, 64, 8, 8, 8);
+      const coreCube = new THREE.Mesh(coreGeo, coreMat);
+      coreCube.position.y = 0.42;
+      group.add(coreCube);
+
+      head = outerCube;
+    } else {
+      // Standard humanoid
+      const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64, 8, 8, 8);
+      head = new THREE.Mesh(headGeo, mat);
+      head.position.y = 1.35;
+      group.add(head);
+
+      const torsoGeo = createBoxWithUV(0.5, 0.75, 0.35, 16, 20, 64, 64, 8, 12, 6);
+      const torso = new THREE.Mesh(torsoGeo, mat);
+      torso.position.y = 0.75;
+      group.add(torso);
+
+      const armGeo = createBoxWithUV(0.24, 0.7, 0.24, 40, 46, 64, 64, 4, 12, 4);
+      leftArm = new THREE.Mesh(armGeo, mat); leftArm.position.set(-0.38, 0.75, 0); group.add(leftArm);
+      rightArm = new THREE.Mesh(armGeo, mat); rightArm.position.set(0.38, 0.75, 0); group.add(rightArm);
+
+      const legGeo = createBoxWithUV(0.24, 0.45, 0.24, 0, 22, 64, 64, 4, 12, 4);
+      leftLeg = new THREE.Mesh(legGeo, mat); leftLeg.position.set(-0.13, 0.22, 0); group.add(leftLeg);
+      rightLeg = new THREE.Mesh(legGeo, mat); rightLeg.position.set(0.13, 0.22, 0); group.add(rightLeg);
+    }
+
+    // Add Wings if requested and not already flying model
+    if (look.hasWings && !wings) {
+      const wingMat = new THREE.MeshLambertMaterial({
+        color: new THREE.Color(look.accentColor || '#ec4899'),
+        side: THREE.DoubleSide
+      });
+      const wingGeo = createBoxWithUV(0.65, 0.06, 0.45, 0, 48, 64, 64, 10, 2, 7);
+      const lWing = new THREE.Mesh(wingGeo, wingMat);
+      lWing.position.set(-0.45, head ? head.position.y - 0.25 : 0.8, -0.2);
+      lWing.rotation.y = 0.3;
+      group.add(lWing);
+
+      const rWing = new THREE.Mesh(wingGeo, wingMat);
+      rWing.position.set(0.45, head ? head.position.y - 0.25 : 0.8, -0.2);
+      rWing.rotation.y = -0.3;
+      group.add(rWing);
+      wings = { left: lWing, right: rWing };
+    }
+
+    // Add Horns if requested
+    if (look.hasHorns && head) {
+      const hornMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.accentColor || '#ec4899') });
+      const hornGeo = new THREE.BoxGeometry(0.08, 0.25, 0.08);
+      const lHorn = new THREE.Mesh(hornGeo, hornMat);
+      lHorn.position.set(-0.2, 0.32, 0);
+      lHorn.rotation.z = 0.35;
+      head.add(lHorn);
+
+      const rHorn = new THREE.Mesh(hornGeo, hornMat);
+      rHorn.position.set(0.2, 0.32, 0);
+      rHorn.rotation.z = -0.35;
+      head.add(rHorn);
+    }
+
+    // Ears. A character is recognised by its silhouette far more than by colour,
+    // and without these a "Pikachu" was just a coloured box with a snout.
+    this.addMobEars(group, head, look);
+
+    // Signature tails (a lightning bolt is not a stub).
+    const tail = this.addMobTail(group, look, modelType);
+
+    // Add Glowing Eyes if requested
+    if (look.hasGlowingEyes && head) {
+      const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(look.eyeColor || '#facc15') });      const eyeGeo = new THREE.BoxGeometry(0.09, 0.09, 0.04);
+      const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+      lEye.position.set(-0.12, 0.05, 0.26);
+      head.add(lEye);
+
+      const rEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rEye.position.set(0.12, 0.05, 0.26);
+      head.add(rEye);
+    }
+
+    // Apply scale
+    const scale = look.scale || 1.0;
+    group.scale.set(scale, scale, scale);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => {
+      if (obj.isMesh) obj.castShadow = obj.receiveShadow = true;
+    });
+    this.scene.add(group);
+
+    const mob = {
+      type: mobDef.id || 'custom',
+      name: mobDef.name || 'Custom Mob',
+      isCustomMob: true,
+      isPikachu: isPikachuOrBipedCreature,
+      customDef: mobDef,
+      mesh: group,
+      head,
+      leftLeg,
+      rightLeg,
+      leftArm,
+      rightArm,
+      legs,
+      wings,
+      tail,
+      tailMesh: tail?.tailGroup || (Array.isArray(tail) ? tail[0] : tail),
+      mat,
+      health: behavior.health || 40,
+      maxHealth: behavior.health || 40,
+      speed: behavior.speed || 2.6,
+      attackDamage: behavior.attack || 5,
+      behaviorType: behavior.type || 'hostile',
+      followPlayer: Boolean(behavior.followPlayer),
+      skills: [...(mobDef.skills || [])],
+      look,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      pitch: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0,
+      skillCooldown: 2.5,
+      isFlying: modelType === 'flying',
+      width: modelType === 'flying' ? 1.0 * scale : (modelType === 'golem' ? 1.0 * scale : 0.6 * scale),
+      height: modelType === 'flying' ? 0.9 * scale : (modelType === 'golem' ? 2.4 * scale : (modelType === 'slime' ? 0.85 * scale : 1.85 * scale))
+    };
+
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Attach ears to a custom mob's head.
+   *
+   * Silhouette is what makes a character recognisable at a glance — two tall
+   * pointed ears read as "Pikachu" long before the colour does. An ear is a thin
+   * box rotated outward, optionally tipped in a contrasting colour (the black tips
+   * of a lightning mouse), and attached to the head so it animates with it.
+   */
+  addMobEars(group, head, look = {}) {
+    const style = look.ears;
+    if (!style || style === 'none') return null;
+
+    const target = head || group;
+    const mainMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.mainColor || '#7c3aed') });
+    const tipMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.earTipColor || '#111111') });
+    const hasTip = Boolean(look.earTipColor) || style === 'pointed';
+
+    const specs = {
+      pointed: { length: 0.44, width: 0.11, depth: 0.08, tiltZ: 0.55, tiltX: -0.18, tip: 0.38, offsetX: 0.20, lift: 0.26 },
+      long: { length: 0.55, width: 0.09, depth: 0.08, tiltZ: 0.16, tiltX: 0, tip: 0.22, offsetX: 0.14, lift: 0.28 },
+      round: { length: 0.14, width: 0.16, depth: 0.08, tiltZ: 0.10, tiltX: 0, tip: 0, offsetX: 0.18, lift: 0.25 }
+    };
+    const spec = specs[style];
+    if (!spec) return null;
+
+    const ears = [];
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(
+        new THREE.BoxGeometry(spec.width, spec.length, spec.depth),
+        mainMat
+      );
+      ear.position.set(side * spec.offsetX, spec.lift + spec.length / 2, -0.02);
+      ear.rotation.z = -side * spec.tiltZ;
+      ear.rotation.x = spec.tiltX;
+
+      if (hasTip && spec.tip > 0) {
+        const tipLength = spec.length * spec.tip;
+        const tip = new THREE.Mesh(
+          new THREE.BoxGeometry(spec.width * 1.02, tipLength, spec.depth * 1.02),
+          tipMat
+        );
+        tip.position.y = spec.length / 2 - tipLength / 2;
+        ear.add(tip);
+      }
+
+      target.add(ear);
+      ears.push(ear);
+    }
+    return ears;
+  }
+
+  /**
+   * Attach a signature tail.
+   *
+   * The default quadruped tail is a short stub, and "lightning bolt" is an iconic
+   * 3D zigzag bolt featuring a brown base segment and expanding into a wide blade.
+   */
+  addMobTail(group, look = {}, modelType = 'humanoid') {
+    const style = look.tail;
+    if (style !== 'lightning' && style !== 'long') return null;
+    if (modelType === 'flying') return null;
+
+    const tailColor = look.tailColor || look.mainColor || '#f7d02c';
+    const rootColor = look.accentColor || '#8b4513';
+    const tailMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(tailColor) });
+    const rootMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(rootColor) });
+
+    const backZ = modelType === 'quadruped' ? -0.55 : (modelType === 'biped_creature' ? -0.22 : -0.20);
+    const baseY = modelType === 'quadruped' ? 0.70 : (modelType === 'biped_creature' ? 0.42 : 0.65);
+
+    if (style === 'long') {
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.5), tailMat);
+      seg.position.set(0, baseY, backZ - 0.22);
+      seg.rotation.x = -Math.PI / 5;
+      group.add(seg);
+      const arr = [seg];
+      arr.traverse = (fn) => seg.traverse(fn);
+      return arr;
+    }
+
+    // 3D Zigzag Lightning Bolt Tail (Authentic Pikachu Tail)
+    const tailGroup = new THREE.Group();
+    tailGroup.position.set(0, baseY, backZ);
+
+    // Segment 1: Brown root segment extending up and back from lower spine
+    const seg1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.10, 0.22), rootMat);
+    seg1.position.set(0, 0.05, -0.10);
+    seg1.rotation.x = -0.4;
+    tailGroup.add(seg1);
+
+    // Segment 2: Stepping upward and back, yellow
+    const seg2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.16), tailMat);
+    seg2.position.set(0.04, 0.18, -0.24);
+    seg2.rotation.x = -0.2;
+    seg2.rotation.y = 0.15;
+    tailGroup.add(seg2);
+
+    // Segment 3: Zigzag step outward / up
+    const seg3 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.18), tailMat);
+    seg3.position.set(-0.04, 0.32, -0.36);
+    seg3.rotation.x = -0.3;
+    seg3.rotation.y = -0.15;
+    tailGroup.add(seg3);
+
+    // Segment 4: Zigzag step up / back
+    const seg4 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.20), tailMat);
+    seg4.position.set(0.06, 0.48, -0.48);
+    seg4.rotation.x = -0.25;
+    seg4.rotation.y = 0.12;
+    tailGroup.add(seg4);
+
+    // Segment 5: Wide lightning bolt blade tip!
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.26, 0.08), tailMat);
+    blade.position.set(-0.02, 0.68, -0.62);
+    blade.rotation.x = -0.35;
+    blade.rotation.z = 0.25;
+    tailGroup.add(blade);
+
+    const bolts = [seg1, seg2, seg3, seg4, blade];
+    bolts.traverse = (fn) => tailGroup.traverse(fn);
+    bolts.tailGroup = tailGroup;
+    group.add(tailGroup);
+    return bolts;
+  }
+
 
 
   createAquaticTexture(type) {
@@ -400,6 +969,82 @@ export class MobManager {
     return tex;
   }
 
+  createJackieChunTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Dark navy kung fu changshan robe base
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, 64, 64);
+
+    // 2. Head (0,0 to 32,16)
+    // Bald tan head top and back
+    ctx.fillStyle = '#f5cba7';
+    ctx.fillRect(0, 0, 32, 16);
+    // White hair side puffs (ears and back)
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 8, 8, 8); // Right side hair
+    ctx.fillRect(16, 8, 8, 8); // Left side hair
+    ctx.fillRect(24, 8, 8, 8); // Back hair
+
+    // Face front (8, 8, 8, 8)
+    ctx.fillStyle = '#f5cba7';
+    ctx.fillRect(8, 8, 8, 8);
+    // Dark sunglasses across face
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(8, 9, 8, 3);
+    // Sunglasses white glint reflection
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(9, 9, 1, 1);
+    ctx.fillRect(13, 9, 1, 1);
+    // Thick bushy white mustache below sunglasses
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(8, 12, 8, 2);
+    // White beard goatee extending to chin
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(10, 14, 4, 2);
+
+    // 3. Torso (16, 16, 24, 16)
+    // Dark kung fu jacket
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(16, 16, 24, 16);
+    // White center seam & button closures
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(23, 16, 2, 16);
+    // White sash around waist
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(16, 28, 24, 4);
+
+    // 4. Arms & Legs
+    // Sleeves with bold white cuffs
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(40, 16, 16, 32);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(40, 26, 16, 6); // Cuffs
+    // Tan bare hands
+    ctx.fillStyle = '#f5cba7';
+    ctx.fillRect(44, 28, 4, 4);
+
+    // Kung fu trousers (navy) and black kung fu slippers with white socks
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 16, 16, 32);
+    // White ankle socks
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 42, 16, 3);
+    // Black martial arts slippers
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(0, 45, 16, 3);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   loadTexture(path) {
     const tex = this.textureLoader.load(path);
     tex.magFilter = THREE.NearestFilter;
@@ -417,7 +1062,11 @@ export class MobManager {
 
   getMobDimensions(type) {
     switch (type) {
-      case 'iron_golem': return { width: 1.4, height: 2.7 };
+      case 'iron_golem':
+      case 'golem': return { width: 1.4, height: 2.7 };
+      case 'quadruped': return { width: 0.9, height: 1.2 };
+      case 'flying': return { width: 1.0, height: 1.2 };
+      case 'slime': return { width: 0.8, height: 0.8 };
       case 'pig': return { width: 0.9, height: 0.9 };
       case 'cow': return { width: 0.9, height: 1.4 };
       case 'sheep': return { width: 0.9, height: 1.3 };
@@ -432,7 +1081,8 @@ export class MobManager {
       case 'axolotl': return { width: 0.5, height: 0.35 };
       case 'tournament_host': return { width: 0.6, height: 1.95 };
       case 'site_manager': return { width: 0.6, height: 1.95 };
-      case 'enderman': return { width: 0.6, height: 2.9 };
+      case 'jackie_chun': return { width: 0.6, height: 1.85 };
+      case 'enderman': return { width: 0.5, height: 2.85 };
       case 'villager':
       default:
         return { width: 0.6, height: 1.95 };
@@ -976,6 +1626,381 @@ export class MobManager {
     return mob;
   }
 
+  // --- BIOME MOBS ---
+  spawnMooshroom(x, y, z) {
+    const group = new THREE.Group();
+    const redMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), redMat);
+    body.position.y = 0.75;
+    group.add(body);
+
+    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), redMat);
+    head.position.set(0, 1.05, 0.65);
+    group.add(head);
+
+    // Mushrooms on back
+    const shroomGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+    const m1 = new THREE.Mesh(shroomGeo, redMat); m1.position.set(0.15, 1.25, 0.1); group.add(m1);
+    const m2 = new THREE.Mesh(shroomGeo, redMat); m2.position.set(-0.15, 1.25, -0.2); group.add(m2);
+
+    const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
+    const fl = new THREE.Mesh(legGeo, redMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, redMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, redMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
+    const br = new THREE.Mesh(legGeo, redMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'mooshroom',
+      name: 'Mooshroom',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      health: 14,
+      maxHealth: 14,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnPolarBear(x, y, z) {
+    const group = new THREE.Group();
+    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.85, 1.4), whiteMat);
+    body.position.y = 0.85;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.6), whiteMat);
+    head.position.set(0, 1.15, 0.85);
+    group.add(head);
+
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), darkMat);
+    snout.position.set(0, 1.05, 1.2);
+    group.add(snout);
+
+    const legGeo = new THREE.BoxGeometry(0.3, 0.55, 0.3);
+    const fl = new THREE.Mesh(legGeo, whiteMat); fl.position.set(-0.32, 0.28, 0.45); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, whiteMat); fr.position.set(0.32, 0.28, 0.45); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, whiteMat); bl.position.set(-0.32, 0.28, -0.45); group.add(bl);
+    const br = new THREE.Mesh(legGeo, whiteMat); br.position.set(0.32, 0.28, -0.45); group.add(br);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'polar_bear',
+      name: 'Polar Bear',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      health: 30,
+      maxHealth: 30,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnPanda(x, y, z) {
+    const group = new THREE.Group();
+    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
+    const blackMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.85, 1.2), whiteMat);
+    body.position.y = 0.8;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.55, 0.55), whiteMat);
+    head.position.set(0, 1.1, 0.75);
+    group.add(head);
+
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.25), blackMat);
+    snout.position.set(0, 0.98, 1.05);
+    group.add(snout);
+
+    const legGeo = new THREE.BoxGeometry(0.28, 0.5, 0.28);
+    const fl = new THREE.Mesh(legGeo, blackMat); fl.position.set(-0.3, 0.25, 0.4); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, blackMat); fr.position.set(0.3, 0.25, 0.4); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, blackMat); bl.position.set(-0.3, 0.25, -0.4); group.add(bl);
+    const br = new THREE.Mesh(legGeo, blackMat); br.position.set(0.3, 0.25, -0.4); group.add(br);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'panda',
+      name: 'Panda',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      health: 20,
+      maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnWarden(x, y, z) {
+    const group = new THREE.Group();
+    const sculkMat = new THREE.MeshLambertMaterial({ color: 0x0f2e3a });
+    const cyanMat = new THREE.MeshLambertMaterial({ color: 0x06b6d4 });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.7), sculkMat);
+    torso.position.y = 1.9;
+    group.add(torso);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 0.7), sculkMat);
+    head.position.set(0, 2.9, 0);
+    group.add(head);
+
+    // Horns
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.4, 0); group.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.4, 0); group.add(hornR);
+
+    // Glowing core
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.1), cyanMat); core.position.set(0, 2.0, 0.36); group.add(core);
+
+    const armGeo = new THREE.BoxGeometry(0.4, 1.5, 0.4);
+    const leftArm = new THREE.Mesh(armGeo, sculkMat); leftArm.position.set(-0.85, 1.8, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, sculkMat); rightArm.position.set(0.85, 1.8, 0); group.add(rightArm);
+
+    const legGeo = new THREE.BoxGeometry(0.45, 1.2, 0.45);
+    const leftLeg = new THREE.Mesh(legGeo, sculkMat); leftLeg.position.set(-0.35, 0.6, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, sculkMat); rightLeg.position.set(0.35, 0.6, 0); group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'warden',
+      name: 'Warden',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      health: 500,
+      maxHealth: 500,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      attackCooldown: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnBlaze(x, y, z) {
+    const group = new THREE.Group();
+    const blazeMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+    const rodMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24 });
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), blazeMat);
+    head.position.y = 1.3;
+    group.add(head);
+
+    // Orbiting blaze rods
+    const rodGeo = new THREE.BoxGeometry(0.12, 0.6, 0.12);
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const rod = new THREE.Mesh(rodGeo, rodMat);
+      rod.position.set(Math.cos(angle) * 0.45, 1.0 + (i % 2) * 0.25, Math.sin(angle) * 0.45);
+      group.add(rod);
+    }
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'blaze',
+      name: 'Blaze',
+      mesh: group,
+      head: head,
+      isFlying: true,
+      health: 20,
+      maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnPiglin(x, y, z) {
+    const group = new THREE.Group();
+    const pigMat = new THREE.MeshLambertMaterial({ color: 0xf472b6 });
+    const goldMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 0.55), pigMat);
+    head.position.y = 1.6;
+    group.add(head);
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.28), goldMat);
+    body.position.y = 0.95;
+    group.add(body);
+
+    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftArm = new THREE.Mesh(armGeo, pigMat); leftArm.position.set(-0.35, 0.95, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, pigMat); rightArm.position.set(0.35, 0.95, 0); group.add(rightArm);
+
+    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftLeg = new THREE.Mesh(legGeo, goldMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, goldMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'piglin',
+      name: 'Piglin',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      health: 16,
+      maxHealth: 16,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnGhast(x, y, z) {
+    const group = new THREE.Group();
+    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), whiteMat);
+    body.position.y = 1.8;
+    group.add(body);
+
+    // Tentacles
+    const tentacleGeo = new THREE.BoxGeometry(0.15, 0.8, 0.15);
+    for (let i = 0; i < 9; i++) {
+      const t = new THREE.Mesh(tentacleGeo, whiteMat);
+      t.position.set(((i % 3) - 1) * 0.5, 0.5, (Math.floor(i / 3) - 1) * 0.5);
+      group.add(t);
+    }
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'ghast',
+      name: 'Ghast',
+      mesh: group,
+      isFlying: true,
+      health: 10,
+      maxHealth: 10,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnMagmaCube(x, y, z) {
+    const group = new THREE.Group();
+    const cubeMat = new THREE.MeshLambertMaterial({ color: 0xc2410c });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), cubeMat);
+    body.position.y = 0.4;
+    group.add(body);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'magma_cube',
+      name: 'Magma Cube',
+      mesh: group,
+      health: 16,
+      maxHealth: 16,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnShulker(x, y, z) {
+    const group = new THREE.Group();
+    const purpurMat = new THREE.MeshLambertMaterial({ color: 0x9333ea });
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), purpurMat);
+    shell.position.y = 0.35;
+    group.add(shell);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), headMat);
+    head.position.y = 0.45;
+    group.add(head);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'shulker',
+      name: 'Shulker',
+      mesh: group,
+      health: 30,
+      maxHealth: 30,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
   // --- DRAGON BALL WORLD MARTIAL ARTS TOURNAMENT HOST (ANNOUNCER) ---
   spawnTournamentHost(x, y, z) {
     const group = new THREE.Group();
@@ -1134,6 +2159,276 @@ export class MobManager {
     return mob;
   }
 
+  // --- JACKIE CHUN (WORLD TOURNAMENT CHALLENGER) ---
+  spawnJackieChun(x, y, z, options = {}) {
+    const difficulty = options.difficulty || 'normal';
+    const isClone = !!options.isClone;
+    const isPlayerControlled = !!options.isPlayerControlled;
+
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.jackie_chun || this.createJackieChunTexture(),
+      transparent: true,
+      alphaTest: 0.1
+    });
+
+    // Master Roshi / Jackie Chun dimensions:
+    // Head: 0.44 x 0.44 x 0.44
+    const headGeo = createBoxWithUV(0.44, 0.44, 0.44, 0, 0, 64, 64, 8, 8, 8);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.y = 1.48;
+    group.add(head);
+
+    // 3D Sunglasses Frame across front of head
+    const glassesMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
+    const glassesMesh = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.11, 0.06), glassesMat);
+    glassesMesh.position.set(0, 0.03, 0.23);
+    head.add(glassesMesh);
+
+    // Gold temples on sides of glasses
+    const goldMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    const templeL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.2), goldMat);
+    templeL.position.set(-0.23, 0.03, 0.12);
+    head.add(templeL);
+    const templeR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.2), goldMat);
+    templeR.position.set(0.23, 0.03, 0.12);
+    head.add(templeR);
+
+    // 3D Bushy White Mustache
+    const hairMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const mustache = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.08), hairMat);
+    mustache.position.set(0, -0.06, 0.24);
+    head.add(mustache);
+
+    // 3D White Goatee Beard
+    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.08), hairMat);
+    beard.position.set(0, -0.16, 0.23);
+    head.add(beard);
+
+    // White Hair side puffs
+    const hairPuffL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.24), hairMat);
+    hairPuffL.position.set(-0.23, -0.02, 0);
+    head.add(hairPuffL);
+    const hairPuffR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.24), hairMat);
+    hairPuffR.position.set(0.23, -0.02, 0);
+    head.add(hairPuffR);
+
+    // Torso: 0.44 x 0.62 x 0.24
+    const torsoGeo = createBoxWithUV(0.44, 0.62, 0.24, 16, 16, 64, 64, 8, 12, 4);
+    const torso = new THREE.Mesh(torsoGeo, mat);
+    torso.position.y = 0.98;
+    group.add(torso);
+
+    // Arms: 0.16 x 0.62 x 0.16
+    const armGeo = createBoxWithUV(0.16, 0.62, 0.16, 40, 16, 64, 64, 4, 12, 4);
+    const leftArm = new THREE.Mesh(armGeo, mat);
+    leftArm.position.set(-0.31, 0.98, 0);
+    group.add(leftArm);
+
+    const rightArm = new THREE.Mesh(armGeo, mat);
+    rightArm.position.set(0.31, 0.98, 0);
+    group.add(rightArm);
+
+    // Legs: 0.18 x 0.68 x 0.18
+    const legGeo = createBoxWithUV(0.18, 0.68, 0.18, 0, 16, 64, 64, 4, 12, 4);
+    const leftLeg = new THREE.Mesh(legGeo, mat);
+    leftLeg.position.set(-0.11, 0.34, 0);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, mat);
+    rightLeg.position.set(0.11, 0.34, 0);
+    group.add(rightLeg);
+
+    // If clone, slight ethereal shimmer
+    if (isClone) {
+      mat.opacity = 0.88;
+    }
+    // 3D Luminous Ki Aura (Martial Arts Energy Field around Jackie Chun)
+    const auraGeo = new THREE.CylinderGeometry(0.55, 0.65, 1.85, 16, 1, true);
+    const auraMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const kiAuraMesh = new THREE.Mesh(auraGeo, auraMat);
+    kiAuraMesh.position.y = 0.95;
+    group.add(kiAuraMesh);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    let baseHp = 100;
+    let punchDmg = 4;
+    let kameDmg = 12;
+    let teleCd = 4.5;
+    let splitCd = 18;
+
+    if (difficulty === 'easy') {
+      baseHp = 60;
+      punchDmg = 2;
+      kameDmg = 8;
+      teleCd = 6.0;
+      splitCd = 28;
+    } else if (difficulty === 'hard') {
+      baseHp = 160;
+      punchDmg = 6;
+      kameDmg = 18;
+      teleCd = 2.8;
+      splitCd = 12;
+    }
+
+    const maxHp = isClone ? Math.max(1, Math.round(baseHp / 4)) : baseHp;
+    const actualPunch = isClone ? Math.max(1, Math.floor(punchDmg / 3)) : punchDmg;
+    const actualKame = isClone ? Math.max(2, Math.floor(kameDmg / 4)) : kameDmg;
+
+    const mob = {
+      type: 'jackie_chun',
+      name: isClone ? 'Jackie Chun (Illusion Clone)' : 'World Martial Arts Challenger: Jackie Chun',
+      mesh: group,
+      head,
+      leftArm,
+      rightArm,
+      leftLeg,
+      rightLeg,
+      mat,
+      kiAuraMesh,
+      kiAuraMat: auraMat,
+      auraSparkTimer: 0,
+      chargeSphereGroup: null,
+      health: maxHp,
+      maxHealth: maxHp,
+      difficulty,
+      isBoss: !isClone,
+      isClone,
+      isPlayerControlled,
+      punchDamage: actualPunch,
+      kamehamehaDamage: actualKame,
+      teleportCooldown: teleCd,
+      baseTeleportCooldown: teleCd,
+      shadowSplitCooldown: splitCd,
+      baseShadowSplitCooldown: splitCd,
+      kamehamehaCooldown: 2.2 + Math.random() * 1.5,
+      kamehamehaChargeTimer: 0,
+      isChargingKamehameha: false,
+      attackCooldown: 0,
+      hitCooldown: 0,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      clones: []
+    };
+
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  ensureJackieChargeSphere(mob) {
+    if (!mob || !mob.mesh) return null;
+    if (mob.chargeSphereGroup) return mob.chargeSphereGroup;
+
+    const group = new THREE.Group();
+    // Inner pure white core
+    const coreGeo = new THREE.SphereGeometry(0.18, 16, 16);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    group.add(core);
+
+    // Outer luminous cyan plasma
+    const outerGeo = new THREE.SphereGeometry(0.32, 16, 16);
+    const outerMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.85 });
+    const outer = new THREE.Mesh(outerGeo, outerMat);
+    group.add(outer);
+
+    group.position.set(0, 0.95, 0.55);
+    mob.mesh.add(group);
+    mob.chargeSphereGroup = group;
+    mob.chargeSphereCore = core;
+    mob.chargeSphereOuter = outer;
+    return group;
+  }
+
+  removeJackieChargeSphere(mob) {
+    if (!mob || !mob.chargeSphereGroup) return;
+    mob.mesh.remove(mob.chargeSphereGroup);
+    mob.chargeSphereGroup.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+    mob.chargeSphereGroup = null;
+    mob.chargeSphereCore = null;
+    mob.chargeSphereOuter = null;
+  }
+
+  teleportJackieChun(mob, targetX = null, targetY = null, targetZ = null) {
+    if (!mob || !mob.mesh) return;
+    const oldPos = mob.mesh.position.clone();
+    this.entities?.spawnEndermanParticles(oldPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 22);
+
+    let newX = targetX;
+    let newY = targetY;
+    let newZ = targetZ;
+
+    if (newX === null || newZ === null) {
+      newX = (Math.random() - 0.5) * 13;
+      newZ = (Math.random() - 0.5) * 13;
+      newY = 24.5;
+    }
+
+    mob.mesh.position.set(newX, newY, newZ);
+    mob.velocity.set(0, 0, 0);
+
+    this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 22);
+    if (this.sounds?.playEndermanTeleport) {
+      this.sounds.playEndermanTeleport();
+    }
+  }
+
+  shadowSplit(mob) {
+    if (!mob || mob.isClone || mob.isPlayerControlled) return [];
+    if (mob.clones && mob.clones.length > 0) {
+      for (const cl of mob.clones) {
+        if (cl && cl.mesh) {
+          this.scene.remove(cl.mesh);
+          const idx = this.mobs.indexOf(cl);
+          if (idx !== -1) this.mobs.splice(idx, 1);
+        }
+      }
+      mob.clones = [];
+    }
+
+    const posOffsets = [
+      { x: -4.5, z: -4.5 },
+      { x: 4.5, z: -4.5 },
+      { x: -4.5, z: 4.5 },
+      { x: 4.5, z: 4.5 }
+    ];
+
+    const spots = [...posOffsets].sort(() => Math.random() - 0.5);
+    const realSpot = spots[0];
+    this.teleportJackieChun(mob, realSpot.x, 24.5, realSpot.z);
+
+    const createdClones = [];
+    for (let i = 1; i < 4; i++) {
+      const s = spots[i];
+      const clone = this.spawnJackieChun(s.x, 24.5, s.z, {
+        difficulty: mob.difficulty,
+        isClone: true
+      });
+      this.entities?.spawnEndermanParticles(clone.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 20);
+      createdClones.push(clone);
+    }
+
+    mob.clones = createdClones;
+    mob.shadowSplitCooldown = mob.baseShadowSplitCooldown || 18;
+
+    if (this.game?.ui?.addChatMessage) {
+      this.game.ui.addChatMessage('<span style="color:#38bdf8;font-weight:bold;">[Jackie Chun]</span> Zanzoken! Shadow Split illusion has created 4 Jackie Chuns!');
+    }
+    return createdClones;
+  }
+
   // --- ENDERMAN (TOURNAMENT CHALLENGER BOSS) ---
   spawnEnderman(x, y, z) {
     const group = new THREE.Group();
@@ -1200,6 +2495,8 @@ export class MobManager {
       rightLeg: rightLeg,
       mat: mat,
       eyeMat: eyeMat,
+      width: 0.5,
+      height: 2.85,
       health: 60,
       maxHealth: 60,
       isBoss: true,
@@ -1225,10 +2522,43 @@ export class MobManager {
     let newZ = targetZ;
 
     if (newX === null || newZ === null) {
-      // Pick a location on the arena stage
-      newX = (Math.random() - 0.5) * 14;
-      newZ = (Math.random() - 0.5) * 14;
-      newY = 24.5;
+      if (this.game?.tournamentActive) {
+        // Tournament arena stage coordinates
+        newX = (Math.random() - 0.5) * 14;
+        newZ = (Math.random() - 0.5) * 14;
+        newY = 24.5;
+      } else {
+        // Normal world: teleport around mob or player to a safe, valid ground block
+        const refPos = (this.game?.player?.position && Math.random() < 0.6)
+          ? this.game.player.position
+          : mob.mesh.position;
+        let found = false;
+        for (let attempt = 0; attempt < 24; attempt++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 6 + Math.random() * 10;
+          const tx = Math.floor(refPos.x + Math.sin(angle) * dist);
+          const tz = Math.floor(refPos.z + Math.cos(angle) * dist);
+          const baseY = Math.floor(refPos.y);
+          for (let ty = baseY + 5; ty >= baseY - 6; ty--) {
+            if (this.isBlockSolid(tx, ty, tz) &&
+                !this.isBlockSolid(tx, ty + 1, tz) &&
+                !this.isBlockSolid(tx, ty + 2, tz) &&
+                !this.isBlockSolid(tx, ty + 3, tz)) {
+              newX = tx + 0.5;
+              newY = ty + 1.0;
+              newZ = tz + 0.5;
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+        if (!found) {
+          newX = mob.mesh.position.x + (Math.random() - 0.5) * 8;
+          newZ = mob.mesh.position.z + (Math.random() - 0.5) * 8;
+          newY = mob.mesh.position.y;
+        }
+      }
     }
 
     mob.mesh.position.set(newX, newY, newZ);
@@ -1727,14 +3057,66 @@ export class MobManager {
       kbDir.y = 0;
       if (kbDir.lengthSq() > 0.001) kbDir.normalize();
       else kbDir.set(0, 0, 1);
-      mob.knockback = kbDir.multiplyScalar(isPunch ? 3.5 : 6);
-      mob.velocity.y += isPunch ? 1.8 : 4;
+      const isHeavyOrFlying = mob.isBoss || mob.isFlying || /dragon/i.test(mob.name || '');
+      const kbFactor = isHeavyOrFlying ? 0.25 : 1.0;
+      mob.knockback = kbDir.multiplyScalar((isPunch ? 3.5 : 6) * kbFactor);
+      mob.velocity.y += (isPunch ? 1.8 : 4) * kbFactor;
+    }
+
+    const isDragon = mob.isFlying && (
+      mob.customDef?.id === 'fire_dragon' ||
+      /dragon/i.test(mob.name || '') ||
+      /dragon/i.test(mob.customDef?.name || '')
+    );
+    if (isDragon && mob.health > 0) {
+      if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
+      // Counter-attack: if circling, high chance to immediately enrage into dive swoop!
+      if (mob.dragonState === 'circling' && Math.random() < 0.65) {
+        mob.dragonState = 'swooping';
+        mob.dragonStateTimer = 4.0;
+        mob.swoopTarget = knockbackOrigin ? knockbackOrigin.clone() : (this.game?.player?.position?.clone() || null);
+      } else {
+        mob.fireballCooldown = 0; // immediate counter fireball
+      }
     }
 
     if (mob.type === 'iron_golem') this.sounds.playIronGolem();
     else if (mob.type === 'villager') this.sounds.playVillager();
     else if (mob.type === 'pillager') this.sounds.playPillager();
     else if (mob.type === 'zombie') this.sounds.playZombie();
+    else if (mob.type === 'jackie_chun') {
+      if (this.sounds?.playHit) this.sounds.playHit();
+      // Clone death check
+      if (mob.isClone && mob.health <= 0) {
+        this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 18);
+        this.entities?.spawnDeathParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)));
+        this.scene.remove(mob.mesh);
+        const idx = this.mobs.indexOf(mob);
+        if (idx !== -1) this.mobs.splice(idx, 1);
+        return true;
+      }
+      // If real boss died, dispel clones
+      if (!mob.isClone && mob.health <= 0 && mob.clones) {
+        for (const cl of mob.clones) {
+          if (cl && cl.mesh) {
+            this.entities?.spawnEndermanParticles(cl.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 14);
+            this.scene.remove(cl.mesh);
+            const clIdx = this.mobs.indexOf(cl);
+            if (clIdx !== -1) this.mobs.splice(clIdx, 1);
+          }
+        }
+        mob.clones = [];
+      }
+      // Sudden teleport evasion on hit
+      const evadeChance = (mob.difficulty === 'hard' ? 0.60 : mob.difficulty === 'easy' ? 0.25 : 0.45);
+      if (Math.random() < evadeChance && mob.health > 0 && !mob.isPlayerControlled) {
+        setTimeout(() => {
+          if (mob && mob.health > 0 && !mob.dying) {
+            this.teleportJackieChun(mob);
+          }
+        }, 90);
+      }
+    }
     else if (mob.type === 'enderman') {
       if (this.sounds?.playEndermanHurt) this.sounds.playEndermanHurt();
       // 45% chance to teleport away on hit to evade combos
@@ -1744,6 +3126,45 @@ export class MobManager {
             this.teleportEnderman(mob);
           }
         }, 90);
+      }
+    }
+
+    // Pikachu retaliation: if attacked, it immediately retaliates with a Thunderbolt lightning attack on the attacker!
+    const isPikachu = mob.isPikachu || Boolean(
+      (mob.name && /pikachu/i.test(mob.name)) ||
+      mob.type === 'pikachu' ||
+      mob.customDef?.id === 'pikachu' ||
+      (mob.look?.ears === 'pointed' && mob.look?.tail === 'lightning')
+    );
+
+    if (isPikachu && mob.health > 0) {
+      this.entities?.spawnEndermanParticles?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.7, 0)), 18);
+      const player = this.game?.player;
+      const targetPos = player?.position ? player.position.clone() : (knockbackOrigin ? knockbackOrigin.clone() : null);
+
+      if (targetPos) {
+        // Face player
+        const toPlayer = targetPos.clone().sub(mob.mesh.position);
+        mob.yaw = Math.atan2(toPlayer.x, toPlayer.z);
+        if (mob.mesh) mob.mesh.rotation.y = mob.yaw;
+
+        // Startled defensive hop backward
+        const retreat = toPlayer.clone().negate();
+        retreat.y = 0;
+        if (retreat.lengthSq() > 0.01) retreat.normalize(); else retreat.set(0, 0, 1);
+        mob.velocity.x = retreat.x * 5.0;
+        mob.velocity.z = retreat.z * 5.0;
+        mob.velocity.y = 4.2;
+        mob.onGround = false;
+        mob.wasInAir = true;
+
+        // Strike lightning right on the attacker/player!
+        this.strikeLightning(targetPos, 6, true);
+
+        // Chat notification
+        if (this.game?.ui?.addChatMessage) {
+          this.game.ui.addChatMessage('<span style="color:#facc15;font-weight:bold;">⚡ Pikachu retaliated with Thunderbolt!</span>', 'system');
+        }
       }
     }
     return true;
@@ -1811,7 +3232,11 @@ export class MobManager {
       if (mob.hurtTime === 0 && !mob.dying) mob.mat.color.setRGB(1, 1, 1);
 
       // Overhead health bar for training & combat mobs
-      if (this.isTrainingSiteMob(mob)) {
+      const showHealthBars = this.game?.mechanisms
+        ? this.game.mechanisms.isFeatureEnabled('hasOverheadHealthBars')
+        : (this.game?.tournament?.isTournamentMap ?? true);
+
+      if (showHealthBars && this.isTrainingSiteMob(mob)) {
         this.ensureHealthBar(mob);
         if (mob.healthBarSprite) {
           if (mob.health <= 0 || mob.dying) {
@@ -1823,6 +3248,8 @@ export class MobManager {
             }
           }
         }
+      } else if (mob.healthBarSprite) {
+        mob.healthBarSprite.visible = false;
       }
 
       if (mob.health <= 0) {
@@ -2115,10 +3542,20 @@ export class MobManager {
         if (targetPos) {
           const dir = targetPos.clone().sub(mob.mesh.position);
           dir.y = 0;
-          dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-          mob.velocity.x = dir.x * 2.8;
-          mob.velocity.z = dir.z * 2.8;
+          const dist = dir.length();
+          if (dist > 1.2) {
+            dir.normalize();
+            const targetYaw = Math.atan2(dir.x, dir.z);
+            const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+            mob.yaw += turn * Math.min(1.0, 9 * dt);
+            if (!mob.avoidTime || mob.avoidTime <= 0) {
+              mob.velocity.x = Math.sin(mob.yaw) * 2.8;
+              mob.velocity.z = Math.cos(mob.yaw) * 2.8;
+            }
+          } else {
+            mob.velocity.x *= 0.5;
+            mob.velocity.z *= 0.5;
+          }
 
           // Attack player
           if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
@@ -2141,10 +3578,20 @@ export class MobManager {
         if (distToPlayer < 16) {
           const dir = player.position.clone().sub(mob.mesh.position);
           dir.y = 0;
-          dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-          mob.velocity.x = dir.x * 2.5;
-          mob.velocity.z = dir.z * 2.5;
+          const dist = dir.length();
+          if (dist > 1.2) {
+            dir.normalize();
+            const targetYaw = Math.atan2(dir.x, dir.z);
+            const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+            mob.yaw += turn * Math.min(1.0, 9 * dt);
+            if (!mob.avoidTime || mob.avoidTime <= 0) {
+              mob.velocity.x = Math.sin(mob.yaw) * 2.5;
+              mob.velocity.z = Math.cos(mob.yaw) * 2.5;
+            }
+          } else {
+            mob.velocity.x *= 0.5;
+            mob.velocity.z *= 0.5;
+          }
 
           if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
             player.takeDamage(10);
@@ -2191,6 +3638,197 @@ export class MobManager {
         if (mob.rightArm) {
           mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(Date.now() * 0.003) * 0.04;
         }
+      } else if (mob.type === 'jackie_chun') {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown ?? 0) - dt);
+        mob.teleportCooldown = (mob.teleportCooldown ?? 4.5) - dt;
+
+        // --- 1. Jackie Chun Martial Arts Ki Aura & Energy Sparks (Visual Effects like Goku) ---
+        const isCharging = mob.isChargingKamehameha || (this.game?.tournament?.bossMob === mob && this.game?.tournament?.p2IsChargingKamehameha);
+        if (mob.kiAuraMesh) {
+          mob.kiAuraMesh.rotation.y += dt * 2.5;
+          if (isCharging) {
+            const flare = 1.25 + Math.sin(Date.now() * 0.02) * 0.18;
+            mob.kiAuraMesh.scale.set(flare, 1.05, flare);
+            if (mob.kiAuraMat) {
+              mob.kiAuraMat.opacity = 0.65 + Math.sin(Date.now() * 0.025) * 0.15;
+              mob.kiAuraMat.color.setHex(0x38bdf8);
+            }
+          } else {
+            const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.06;
+            mob.kiAuraMesh.scale.set(pulse, 1.0, pulse);
+            if (mob.kiAuraMat) {
+              mob.kiAuraMat.opacity = 0.28 + Math.sin(Date.now() * 0.004) * 0.08;
+              mob.kiAuraMat.color.setHex(0x00f0ff);
+            }
+          }
+
+          // Rising Ki sparks around Jackie Chun (just like Goku)
+          mob.auraSparkTimer = (mob.auraSparkTimer ?? 0) - dt;
+          if (mob.auraSparkTimer <= 0) {
+            mob.auraSparkTimer = isCharging ? 0.08 : 0.35;
+            const sparkPos = mob.mesh.position.clone().add(new THREE.Vector3(
+              (Math.random() - 0.5) * 0.7,
+              0.2 + Math.random() * 1.3,
+              (Math.random() - 0.5) * 0.7
+            ));
+            const skillsMgr = this.game.skills || this.game.dragonballSkills;
+            skillsMgr?.spawnEnergySparks?.(sparkPos, isCharging ? 3 : 1, isCharging ? 0x38bdf8 : 0x00f0ff);
+          }
+        }
+
+        if (mob.isPlayerControlled) {
+          // Controlled by Player 2 keyboard inputs (handled via tournament.js)
+        } else {
+          mob.kamehamehaCooldown = (mob.kamehamehaCooldown ?? 3.5) - dt;
+          if (!mob.isClone) {
+            // Aggressive Shadow Split: count down faster in 1P mode to keep intense match pressure
+            mob.shadowSplitCooldown = (mob.shadowSplitCooldown ?? 12.0) - dt * 1.6;
+
+            // If all illusion clones were dispelled, Jackie Chun fast-tracks Zanzoken Shadow Split!
+            if (mob.clones && mob.clones.length > 0) {
+              const activeClones = mob.clones.filter(c => c.health > 0 && !c.dying && this.mobs.includes(c));
+              if (activeClones.length === 0 && mob.shadowSplitCooldown > 3.0) {
+                mob.shadowSplitCooldown = 2.5;
+              }
+            }
+          }
+
+          // 1. Shadow Split (Real Jackie Chun only)
+          if (!mob.isClone && mob.shadowSplitCooldown <= 0) {
+            this.shadowSplit(mob);
+            // Dynamic aggressive reuse cooldown once performed
+            mob.shadowSplitCooldown = (mob.difficulty === 'hard' ? 6.0 : mob.difficulty === 'easy' ? 12.0 : 8.5);
+          }
+
+          // 2. Sudden position change (teleport)
+          if (mob.teleportCooldown <= 0) {
+            mob.teleportCooldown = (mob.baseTeleportCooldown || 4.5) + Math.random() * 2.0;
+            this.teleportJackieChun(mob);
+          }
+
+          // 3. Kamehameha charging & shooting (Aggressive in 1P mode)
+          if (mob.isChargingKamehameha) {
+            mob.kamehamehaChargeTimer -= dt;
+            mob.velocity.x *= 0.82;
+            mob.velocity.z *= 0.82;
+            const toP = player.position.clone().sub(mob.mesh.position);
+            toP.y = 0;
+            if (toP.lengthSq() > 0.01) mob.yaw = Math.atan2(toP.x, toP.z);
+            mob.mesh.rotation.y = mob.yaw;
+
+            if (mob.leftArm && mob.rightArm) {
+              mob.leftArm.rotation.set(-Math.PI / 2.3, 0.15, 0.25);
+              mob.rightArm.rotation.set(-Math.PI / 2.3, -0.15, -0.25);
+            }
+
+            // Visual charge sphere in hands
+            const sphere = mob.chargeSphereGroup || this.ensureJackieChargeSphere(mob);
+            if (sphere) {
+              const chargeProg = Math.max(0, 1.0 - (mob.kamehamehaChargeTimer / 0.85));
+              const pulse = 0.5 + chargeProg * 0.8 + Math.sin(Date.now() * 0.03) * 0.12;
+              sphere.scale.set(pulse, pulse, pulse);
+
+              if (Math.random() < 0.45) {
+                const worldPos = new THREE.Vector3();
+                sphere.getWorldPosition(worldPos);
+                const skillsMgr = this.game.skills || this.game.dragonballSkills;
+                skillsMgr?.spawnEnergySparks?.(worldPos, 2, 0x00f0ff);
+              }
+            }
+
+            if (mob.kamehamehaChargeTimer <= 0) {
+              mob.isChargingKamehameha = false;
+              this.removeJackieChargeSphere(mob);
+
+              if (mob.leftArm && mob.rightArm) {
+                mob.leftArm.rotation.set(-Math.PI / 2.0, 0, 0.05);
+                mob.rightArm.rotation.set(-Math.PI / 2.0, 0, -0.05);
+                setTimeout(() => {
+                  if (mob && !mob.isChargingKamehameha) {
+                    if (mob.leftArm) mob.leftArm.rotation.set(0, 0, 0);
+                    if (mob.rightArm) mob.rightArm.rotation.set(0, 0, 0);
+                  }
+                }, 350);
+              }
+
+              // Aggressive cooldown: 2.6s - 4.5s in 1P mode
+              mob.kamehamehaCooldown = (mob.difficulty === 'hard' ? 2.6 : mob.difficulty === 'easy' ? 4.8 : 3.4) + Math.random() * 1.4;
+              const origin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+              const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(origin).normalize();
+
+              // Jackie Chun's Kamehameha is 1.5x the width of Goku's beam (Goku max radius: 1.5 -> Jackie Chun: 2.25)
+              const beamRadius = mob.isClone ? 1.5 : 2.25;
+              const skillsMgr = this.game.skills || this.game.dragonballSkills;
+              skillsMgr?.shootOpponentKamehameha?.(origin, shootDir, mob.kamehamehaDamage, beamRadius, mob);
+              if (skillsMgr) {
+                skillsMgr.shakeIntensity = 0.55;
+              }
+              this.sounds?.playKamehameha?.();
+              skillsMgr?.spawnEnergySparks?.(origin.clone().add(shootDir.clone().multiplyScalar(1.2)), 16, 0x00f0ff);
+            }
+          } else if (mob.kamehamehaCooldown <= 0) {
+            // Aggressive trigger: if player is very close, do a swift backstep leap before charging
+            if (distToPlayer <= 2.2) {
+              const backDir = player.position.clone().sub(mob.mesh.position).normalize();
+              mob.velocity.x = -backDir.x * 4.5;
+              mob.velocity.z = -backDir.z * 4.5;
+              mob.velocity.y = 1.8;
+            } else {
+              mob.velocity.set(0, 0, 0);
+            }
+            mob.isChargingKamehameha = true;
+            mob.kamehamehaChargeTimer = 0.85;
+            this.ensureJackieChargeSphere(mob);
+            this.sounds?.playKiCharge?.(false);
+          } else {
+            // 4. Martial Arts pursuit & Punch
+            const dir = player.position.clone().sub(mob.mesh.position);
+            dir.y = 0;
+            const dist = dir.length();
+            if (dist > 1.2) {
+              dir.normalize();
+              const targetYaw = Math.atan2(dir.x, dir.z);
+              const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+              mob.yaw += turn * Math.min(1.0, 10 * dt);
+              if (!mob.avoidTime || mob.avoidTime <= 0) {
+                const speed = (mob.difficulty === 'hard' ? 3.4 : mob.difficulty === 'easy' ? 2.6 : 3.0);
+                mob.velocity.x = Math.sin(mob.yaw) * speed;
+                mob.velocity.z = Math.cos(mob.yaw) * speed;
+              }
+            } else {
+              mob.velocity.x *= 0.5;
+              mob.velocity.z *= 0.5;
+            }
+
+            // Punch when close: Yellow shock waves visual effect identical to Goku's punch!
+            if (dist < 2.0 && mob.attackCooldown <= 0) {
+              player.takeDamage(mob.punchDamage);
+              if (this.sounds?.playPunch) this.sounds.playPunch();
+              if (this.sounds?.playHit) this.sounds.playHit();
+              else this.sounds?.playZombie?.();
+              mob.attackCooldown = (mob.difficulty === 'hard' ? 0.65 : mob.difficulty === 'easy' ? 1.0 : 0.78);
+              if (mob.leftArm && mob.rightArm) {
+                mob.rightArm.rotation.x = -Math.PI / 1.8;
+                mob.leftArm.rotation.x = -Math.PI / 3.0;
+                setTimeout(() => {
+                  if (mob.rightArm) mob.rightArm.rotation.x = 0;
+                  if (mob.leftArm) mob.leftArm.rotation.x = 0;
+                }, 180);
+              }
+
+              // Spawn yellow martial arts punch shock wave forward towards player
+              const punchDir = player.position.clone().sub(mob.mesh.position);
+              punchDir.y = 0;
+              if (punchDir.lengthSq() > 0.001) punchDir.normalize();
+              else punchDir.set(Math.sin(mob.yaw), 0, Math.cos(mob.yaw));
+              const punchOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+
+              const skillsMgr = this.game.skills || this.game.dragonballSkills;
+              skillsMgr?.spawnPunchWave?.(punchOrigin, punchDir, 0xfacc15);
+              skillsMgr?.spawnEnergySparks?.(player.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 12, 0xfacc15);
+            }
+          }
+        }
       } else if (mob.type === 'enderman') {
         mob.teleportCooldown = (mob.teleportCooldown || 4.5) - dt;
         mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
@@ -2212,39 +3850,725 @@ export class MobManager {
         const dir = player.position.clone().sub(mob.mesh.position);
         dir.y = 0;
         const dist = dir.length();
-        if (dist > 0.1) {
+        if (dist > 1.2) {
           dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-          const endermanSpeed = 3.2;
-          mob.velocity.x = dir.x * endermanSpeed;
-          mob.velocity.z = dir.z * endermanSpeed;
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, 9 * dt);
+          if (!mob.avoidTime || mob.avoidTime <= 0) {
+            const endermanSpeed = 3.4;
+            mob.velocity.x = Math.sin(mob.yaw) * endermanSpeed;
+            mob.velocity.z = Math.cos(mob.yaw) * endermanSpeed;
+          }
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          mob.yaw = targetYaw;
         }
 
         // Melee attack
-        if (dist < 1.7 && mob.attackCooldown <= 0) {
-          player.takeDamage(4);
-          this.sounds?.playZombie?.();
-          mob.attackCooldown = 1.0;
+        if (dist < 1.8 && mob.attackCooldown <= 0) {
+          player.takeDamage(5);
+          if (this.sounds?.playZombie) this.sounds.playZombie();
+          mob.attackCooldown = 0.9;
           if (mob.leftArm && mob.rightArm) {
             mob.leftArm.rotation.x = -Math.PI / 2.2;
             mob.rightArm.rotation.x = -Math.PI / 2.2;
           }
         }
+      } else if (mob.isCustomMob) {
+        if (mob.isPreview) {
+          mob.velocity.set(0, 0, 0);
+          if (mob.wings) {
+            const flap = Math.sin(Date.now() * 0.005) * 0.25;
+            mob.wings.left.rotation.z = flap;
+            mob.wings.right.rotation.z = -flap;
+          }
+          continue;
+        }
+        this.updateCustomMobAI(mob, dt, player);
       }
 
-      const moveSpeed = moveGroundMob(this, mob, dt);
-      mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
-      const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
-      if (mob.leftLeg && mob.rightLeg) {
-        mob.leftLeg.rotation.x = legSwing;
-        mob.rightLeg.rotation.x = -legSwing;
+      if (mob.isFlying) {
+        moveFlyingMob(this, mob, dt);
+      } else {
+        const moveSpeed = moveGroundMob(this, mob, dt);
+        mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
+        const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
+        if (mob.isPikachu) {
+          // Pikachu bunny hop leg posture: tucked when airborne, flat when on ground
+          if (!mob.onGround || mob.wasInAir) {
+            if (mob.leftLeg && mob.rightLeg) {
+              mob.leftLeg.rotation.x = 0.45;
+              mob.rightLeg.rotation.x = 0.45;
+            }
+          } else {
+            if (mob.leftLeg && mob.rightLeg) {
+              mob.leftLeg.rotation.x = 0;
+              mob.rightLeg.rotation.x = 0;
+            }
+          }
+        } else if (mob.leftLeg && mob.rightLeg) {
+          mob.leftLeg.rotation.x = legSwing;
+          mob.rightLeg.rotation.x = -legSwing;
+        } else if (Array.isArray(mob.legs)) {
+          if (mob.legs.length === 4) {
+            mob.legs[0].rotation.x = legSwing;
+            mob.legs[1].rotation.x = -legSwing;
+            mob.legs[2].rotation.x = -legSwing;
+            mob.legs[3].rotation.x = legSwing;
+          } else {
+            for (let i = 0; i < mob.legs.length; i++) {
+              if (mob.legs[i]) {
+                mob.legs[i].rotation.x = (i % 2 === 0 ? legSwing : -legSwing);
+              }
+            }
+          }
+        }
       }
-      if (mob.legs) {
-        mob.legs[0].rotation.x = legSwing;
-        mob.legs[1].rotation.x = -legSwing;
-        mob.legs[2].rotation.x = -legSwing;
-        mob.legs[3].rotation.x = legSwing;
+    }
+
+    // Update custom projectiles (fireballs, etc.)
+    if (this.customProjectiles && this.customProjectiles.length > 0) {
+      for (let pIdx = this.customProjectiles.length - 1; pIdx >= 0; pIdx--) {
+        const p = this.customProjectiles[pIdx];
+        p.life -= dt;
+        p.mesh.position.addScaledVector(p.velocity, dt);
+
+        let hit = false;
+        const hitThreshold = p.isDragonFireball ? 1.8 : 1.0;
+        if (player && p.mesh.position.distanceTo(player.position) < hitThreshold) {
+          player.takeDamage(p.damage);
+          if (p.isDragonFireball && player.velocity) {
+            const knock = p.velocity.clone().normalize();
+            player.velocity.x += knock.x * 8;
+            player.velocity.y += 6;
+            player.velocity.z += knock.z * 8;
+          }
+          hit = true;
+        }
+        if (p.life <= 0 || hit) {
+          if (p.isDragonFireball) {
+            this.entities?.spawnDeathParticles?.(p.mesh.position.clone());
+            if (this.sounds?.playExplosion) this.sounds.playExplosion();
+          } else {
+            this.entities?.spawnEndermanParticles(p.mesh.position, 8);
+          }
+          this.scene.remove(p.mesh);
+          p.mesh.traverse?.(node => {
+            if (node.isMesh) {
+              node.geometry?.dispose();
+              node.material?.dispose();
+            }
+          });
+          this.customProjectiles.splice(pIdx, 1);
+        }
+      }
+    }
+  }
+
+  updateCustomMobAI(mob, dt, player) {
+    const isDragon = mob.isFlying && (
+      mob.customDef?.id === 'fire_dragon' ||
+      /dragon/i.test(mob.name || '') ||
+      /dragon/i.test(mob.customDef?.name || '')
+    );
+    const isSurvival = player && player.gamemode !== 'creative';
+
+    if (isDragon) {
+      if (isSurvival) {
+        this.updateDragonCombatAI(mob, dt, player);
+      } else {
+        this.updateDragonPeacefulAI(mob, dt, player);
+      }
+      return;
+    }
+
+    // 1. Wing flap animation
+    if (mob.wings) {
+      const flapSpeed = mob.isFlying ? 12.0 : 6.0;
+      const flap = Math.sin((mob.walkCycle || 0) * flapSpeed + Date.now() * 0.006) * 0.4;
+      mob.wings.left.rotation.z = flap;
+      mob.wings.right.rotation.z = -flap;
+    }
+
+    // 2. Flying altitude control
+    if (mob.isFlying) {
+      const targetY = (player ? player.position.y : 5) + 1.8;
+      mob.velocity.y += (targetY - mob.mesh.position.y) * 2.0 * dt;
+      mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
+    }
+
+    const distToPlayer = player ? mob.mesh.position.distanceTo(player.position) : 999;
+
+    // 3. Behavior Type logic
+    if (mob.behaviorType === 'pet' || mob.followPlayer) {
+      // Teleport if too far
+      if (distToPlayer > 28 && player) {
+        mob.mesh.position.set(
+          player.position.x + (Math.random() - 0.5) * 3,
+          player.position.y + 0.1,
+          player.position.z + (Math.random() - 0.5) * 3
+        );
+        this.entities?.spawnEndermanParticles(mob.mesh.position, 12);
+        this.sounds?.playPop?.();
+      }
+
+      // Find nearby hostile mobs to defend player
+      let targetMob = null;
+      let closestDist = 14;
+      for (const m of this.mobs) {
+        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'skeleton' || m.type === 'creeper' || m.type === 'enderman')) {
+          const d = mob.mesh.position.distanceTo(m.mesh.position);
+          if (d < closestDist) {
+            closestDist = d;
+            targetMob = m;
+          }
+        }
+      }
+
+      if (mob.isPikachu) {
+        // --- Pikachu Bunny Hop & Loyal Pet AI ---
+        mob.hopTimer = (mob.hopTimer || 0) - dt;
+
+        // Cute tail wiggle
+        if (mob.tailMesh) {
+          mob.tailMesh.rotation.y = Math.sin(Date.now() * 0.012) * 0.22;
+        }
+
+        // Check if just landed from a hop
+        if (mob.onGround && mob.wasInAir) {
+          mob.wasInAir = false;
+          mob.mesh.rotation.x = 0;
+          if (mob.leftLeg && mob.rightLeg) {
+            mob.leftLeg.rotation.x = 0;
+            mob.rightLeg.rotation.x = 0;
+          }
+          if (mob.head) mob.head.rotation.x = 0;
+          mob.velocity.x *= 0.25;
+          mob.velocity.z *= 0.25;
+          // Hop interval: short pause if following/chasing, longer playful pause if nearby
+          mob.hopTimer = (distToPlayer > 3.2 || targetMob) ? (0.16 + Math.random() * 0.12) : (0.75 + Math.random() * 0.9);
+        }
+
+        if (targetMob) {
+          // Bunny leap towards hostile mob to defend owner
+          const dir = targetMob.mesh.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.mesh.rotation.y = mob.yaw;
+
+          if (mob.onGround && mob.hopTimer <= 0) {
+            mob.velocity.y = 4.8;
+            mob.velocity.x = dir.x * (mob.speed * 1.3);
+            mob.velocity.z = dir.z * (mob.speed * 1.3);
+            mob.wasInAir = true;
+            mob.hopTimer = 0.35;
+            this.sounds?.playPop?.();
+          }
+
+          if (closestDist < 2.2 && mob.hitCooldown <= 0) {
+            this.damageMob(targetMob, mob.attackDamage, mob.mesh.position);
+            mob.hitCooldown = 0.8;
+            this.handleMobSkills(mob, targetMob.mesh.position, dt);
+          }
+        } else if (player) {
+          const dirToPlayer = player.position.clone().sub(mob.mesh.position);
+          dirToPlayer.y = 0;
+
+          if (distToPlayer > 3.2) {
+            // Far from player: hop actively to follow you!
+            dirToPlayer.normalize();
+            mob.yaw = Math.atan2(dirToPlayer.x, dirToPlayer.z);
+            mob.mesh.rotation.y = mob.yaw;
+            if (mob.hopTimer > 0.12) {
+              mob.hopTimer = 0.05;
+            }
+
+            if (mob.onGround && mob.hopTimer <= 0) {
+              const hopSpeed = (distToPlayer > 8) ? (mob.speed * 1.4) : (mob.speed * 1.1);
+              mob.velocity.y = 4.6 + Math.random() * 0.5;
+              mob.velocity.x = dirToPlayer.x * hopSpeed;
+              mob.velocity.z = dirToPlayer.z * hopSpeed;
+              mob.wasInAir = true;
+              mob.hopTimer = 0.35;
+              this.sounds?.playPop?.();
+            }
+          } else {
+            // Near player: hop around playfully like a cute bunny!
+            if (mob.onGround) {
+              // Always look toward the player while resting on ground
+              if (dirToPlayer.lengthSq() > 0.01) {
+                mob.yaw = Math.atan2(dirToPlayer.x, dirToPlayer.z);
+                mob.mesh.rotation.y = mob.yaw;
+              }
+              mob.velocity.x *= Math.exp(-6 * dt);
+              mob.velocity.z *= Math.exp(-6 * dt);
+
+              if (mob.hopTimer <= 0) {
+                // Hop playfully in player's vicinity
+                let hopAngle;
+                if (distToPlayer < 1.5) {
+                  // Polite spacing: hop back/sideways
+                  const away = mob.mesh.position.clone().sub(player.position);
+                  away.y = 0;
+                  if (away.lengthSq() > 0.01) away.normalize(); else away.set(1, 0, 0);
+                  hopAngle = Math.atan2(away.x, away.z) + (Math.random() - 0.5) * 1.0;
+                } else {
+                  // Hop in an arc around the player
+                  hopAngle = mob.yaw + (Math.random() - 0.5) * 2.2;
+                }
+                mob.yaw = hopAngle;
+                mob.mesh.rotation.y = hopAngle;
+                const hopDir = new THREE.Vector3(Math.sin(hopAngle), 0, Math.cos(hopAngle));
+                const hopSpd = 1.9 + Math.random() * 0.8;
+                mob.velocity.y = 3.9 + Math.random() * 0.5;
+                mob.velocity.x = hopDir.x * hopSpd;
+                mob.velocity.z = hopDir.z * hopSpd;
+                mob.wasInAir = true;
+                mob.hopTimer = 0.35;
+                this.sounds?.playPop?.();
+              }
+            }
+          }
+
+          // Self-heal if hurt
+          if (mob.skills.includes('heal') && mob.health < mob.maxHealth * 0.7) {
+            this.handleMobSkills(mob, null, dt);
+          }
+        }
+
+        // Air pose while bunny hopping
+        if (!mob.onGround || mob.wasInAir) {
+          mob.mesh.rotation.x = -0.22;
+          if (mob.leftLeg && mob.rightLeg) {
+            mob.leftLeg.rotation.x = 0.45;
+            mob.rightLeg.rotation.x = 0.45;
+          }
+          if (mob.head) mob.head.rotation.x = -0.12;
+        }
+      } else if (targetMob) {
+        // Chase & attack hostile mob
+        const dir = targetMob.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.velocity.x = dir.x * (mob.speed * 1.2);
+        mob.velocity.z = dir.z * (mob.speed * 1.2);
+
+        if (closestDist < 1.8 && mob.hitCooldown <= 0) {
+          this.damageMob(targetMob, mob.attackDamage, mob.mesh.position);
+          mob.hitCooldown = 0.8;
+          if (mob.leftArm && mob.rightArm) {
+            mob.leftArm.rotation.x = -Math.PI / 2.2;
+            mob.rightArm.rotation.x = -Math.PI / 2.2;
+          }
+        }
+        this.handleMobSkills(mob, targetMob.mesh.position, dt);
+      } else {
+        // Follow player gently
+        if (distToPlayer > 3.5 && player) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * mob.speed;
+          mob.velocity.z = dir.z * mob.speed;
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        }
+        // Self-heal if hurt
+        if (mob.skills.includes('heal') && mob.health < mob.maxHealth * 0.7) {
+          this.handleMobSkills(mob, null, dt);
+        }
+      }
+    } else if (mob.behaviorType === 'hostile' || mob.behaviorType === 'boss') {
+      const detectRange = mob.customDef?.behavior?.range || (mob.behaviorType === 'boss' ? 24 : 18);
+      if (distToPlayer < detectRange && player) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1.3) {
+          dir.normalize();
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, 9 * dt);
+          if (!mob.avoidTime || mob.avoidTime <= 0) {
+            mob.velocity.x = Math.sin(mob.yaw) * mob.speed;
+            mob.velocity.z = Math.cos(mob.yaw) * mob.speed;
+          }
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        }
+
+        // Melee attack
+        if (distToPlayer < 1.7 && mob.hitCooldown <= 0) {
+          player.takeDamage(mob.attackDamage);
+          mob.hitCooldown = 1.0;
+          if (mob.leftArm && mob.rightArm) {
+            mob.leftArm.rotation.x = -Math.PI / 2.2;
+            mob.rightArm.rotation.x = -Math.PI / 2.2;
+          }
+          this.sounds?.playZombie?.();
+        }
+
+        // Skills
+        this.handleMobSkills(mob, player.position, dt);
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+      }
+    } else if (mob.behaviorType === 'neutral') {
+      if (mob.targetEntity && mob.targetEntity.position) {
+        const dir = mob.targetEntity.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.velocity.x = dir.x * mob.speed;
+        mob.velocity.z = dir.z * mob.speed;
+        const d = mob.mesh.position.distanceTo(mob.targetEntity.position);
+        if (d < 1.7 && mob.hitCooldown <= 0) {
+          if (mob.targetEntity.takeDamage) {
+            mob.targetEntity.takeDamage(mob.attackDamage);
+          } else {
+            this.damageMob(mob.targetEntity, mob.attackDamage, mob.mesh.position);
+          }
+          mob.hitCooldown = 1.0;
+        }
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+      }
+    } else {
+      // Passive
+      wanderMob(this, mob, dt, 1.0);
+      if (mob.fleeTime > 0 && mob.fleeFrom) {
+        mob.fleeTime -= dt;
+        const escape = mob.mesh.position.clone().sub(mob.fleeFrom);
+        escape.y = 0;
+        escape.normalize();
+        mob.yaw = Math.atan2(escape.x, escape.z);
+        mob.velocity.x = escape.x * (mob.speed * 1.3);
+        mob.velocity.z = escape.z * (mob.speed * 1.3);
+      }
+    }
+  }
+
+  updateDragonPeacefulAI(mob, dt, player) {
+    const center = player ? player.position : new THREE.Vector3(0, 10, 0);
+    mob.orbitAngle = (mob.orbitAngle || 0) + 0.35 * dt;
+    const targetX = center.x + Math.sin(mob.orbitAngle) * 26;
+    const targetZ = center.z + Math.cos(mob.orbitAngle) * 26;
+    const targetY = center.y + 16 + Math.sin(Date.now() * 0.001) * 2;
+
+    const toTarget = new THREE.Vector3(targetX - mob.mesh.position.x, targetY - mob.mesh.position.y, targetZ - mob.mesh.position.z);
+    mob.velocity.x += (toTarget.x * 0.8 - mob.velocity.x) * 2.0 * dt;
+    mob.velocity.y += (toTarget.y * 1.2 - mob.velocity.y) * 2.0 * dt;
+    mob.velocity.z += (toTarget.z * 0.8 - mob.velocity.z) * 2.0 * dt;
+  }
+
+  updateDragonCombatAI(mob, dt, player) {
+    mob.dragonState = mob.dragonState || 'circling';
+    mob.dragonStateTimer = (mob.dragonStateTimer || 6.0) - dt;
+    mob.fireballCooldown = (mob.fireballCooldown || 3.0) - dt;
+    mob.roarCooldown = (mob.roarCooldown || 5.0) - dt;
+
+    if (mob.roarCooldown <= 0) {
+      mob.roarCooldown = 7.0 + Math.random() * 5.0;
+      if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
+      else if (this.sounds?.playExplosion) this.sounds.playExplosion();
+    }
+
+    // Trailing fiery breath/particles
+    this.entities?.spawnFireParticles?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 1);
+
+    const distToPlayer = mob.mesh.position.distanceTo(player.position);
+
+    if (mob.dragonState === 'circling') {
+      mob.orbitAngle = (mob.orbitAngle || 0) + (mob.speed * 0.55 / 20) * dt;
+      const targetPos = player.position.clone().add(new THREE.Vector3(
+        Math.sin(mob.orbitAngle) * 20,
+        14 + Math.sin(Date.now() * 0.002) * 2.5,
+        Math.cos(mob.orbitAngle) * 20
+      ));
+      const toTarget = targetPos.sub(mob.mesh.position);
+      mob.velocity.x += (toTarget.x * 2.2 - mob.velocity.x) * 2.5 * dt;
+      mob.velocity.y += (toTarget.y * 2.0 - mob.velocity.y) * 2.5 * dt;
+      mob.velocity.z += (toTarget.z * 2.2 - mob.velocity.z) * 2.5 * dt;
+
+      // Launch dragon fireball from high altitude
+      if (mob.fireballCooldown <= 0) {
+        mob.fireballCooldown = 3.5 + Math.random() * 2.5;
+        const snoutPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.3, 0));
+        this.spawnDragonFireball(snoutPos, player.position.clone().add(new THREE.Vector3(0, 0.5, 0)), mob.attackDamage || 15);
+      }
+
+      // Transition to swooping dive attack
+      if (mob.dragonStateTimer <= 0) {
+        mob.dragonState = 'swooping';
+        mob.dragonStateTimer = 4.5;
+        mob.swoopTarget = player.position.clone();
+        if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
+      }
+    } else if (mob.dragonState === 'swooping') {
+      const toPlayer = player.position.clone().sub(mob.mesh.position);
+      const dist = toPlayer.length();
+      toPlayer.normalize();
+      const diveSpeed = Math.max(9.5, (mob.speed || 4.6) * 2.2);
+
+      mob.velocity.x += (toPlayer.x * diveSpeed - mob.velocity.x) * 3.8 * dt;
+      mob.velocity.y += (toPlayer.y * diveSpeed - mob.velocity.y) * 3.8 * dt;
+      mob.velocity.z += (toPlayer.z * diveSpeed - mob.velocity.z) * 3.8 * dt;
+
+      // Strike player with dive swoop
+      if (dist < 3.2) {
+        player.takeDamage(mob.attackDamage || 15);
+        const knock = mob.velocity.clone().normalize();
+        if (player.velocity) {
+          player.velocity.x += knock.x * 14;
+          player.velocity.y += 9.5;
+          player.velocity.z += knock.z * 14;
+        }
+        if (this.sounds?.playExplosion) this.sounds.playExplosion();
+        this.entities?.spawnDeathParticles?.(player.position.clone().add(new THREE.Vector3(0, 1.0, 0)));
+        mob.dragonState = 'ascending';
+        mob.dragonStateTimer = 3.2;
+        mob.velocity.y = 8.5;
+      } else if (mob.mesh.position.y <= player.position.y + 0.8 || mob.dragonStateTimer <= 0) {
+        // Close to ground or timed out, pull up
+        mob.dragonState = 'ascending';
+        mob.dragonStateTimer = 3.2;
+        mob.velocity.y = 8.5;
+      }
+    } else if (mob.dragonState === 'ascending') {
+      mob.velocity.y += (8.5 - mob.velocity.y) * 4.0 * dt;
+      if (mob.mesh.position.y >= player.position.y + 14 || mob.dragonStateTimer <= 0) {
+        mob.dragonState = 'circling';
+        mob.dragonStateTimer = 6.0 + Math.random() * 4.0;
+        mob.orbitAngle = Math.atan2(mob.mesh.position.x - player.position.x, mob.mesh.position.z - player.position.z);
+      }
+    }
+  }
+
+  spawnDragonFireball(fromPos, toPos, damage = 15) {
+    const dir = toPos.clone().sub(fromPos).normalize();
+    const group = new THREE.Group();
+    // Outer fiery shell
+    const outerMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0xff2200 })
+    );
+    // Inner brilliant core
+    const innerMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffdd00 })
+    );
+    group.add(outerMesh);
+    group.add(innerMesh);
+    group.position.copy(fromPos);
+    this.scene.add(group);
+
+    this.customProjectiles = this.customProjectiles || [];
+    this.customProjectiles.push({
+      mesh: group,
+      velocity: dir.multiplyScalar(16),
+      damage,
+      life: 3.5,
+      isDragonFireball: true
+    });
+    if (this.sounds?.playBowShoot) this.sounds.playBowShoot();
+  }
+
+  handleMobSkills(mob, targetPos, dt) {
+    if (!mob.skills || mob.skills.length === 0) return;
+    mob.skillCooldown = (mob.skillCooldown || 3.0) - dt;
+    if (mob.skillCooldown > 0) return;
+
+    const skill = mob.skills[Math.floor(Math.random() * mob.skills.length)];
+
+    if (skill === 'heal') {
+      mob.health = Math.min(mob.maxHealth, mob.health + Math.round(mob.maxHealth * 0.25));
+      this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 12);
+      this.sounds?.playPop?.();
+      mob.skillCooldown = 5.0;
+      return;
+    }
+
+    if (!targetPos) return;
+
+    if (skill === 'teleport') {
+      const dir = targetPos.clone().sub(mob.mesh.position);
+      dir.y = 0;
+      dir.normalize();
+      this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 10);
+      mob.mesh.position.set(targetPos.x - dir.x * 2.2, targetPos.y, targetPos.z - dir.z * 2.2);
+      this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 10);
+      this.sounds?.playEndermanTeleport?.();
+      mob.skillCooldown = 4.5;
+    } else if (skill === 'leap') {
+      const dir = targetPos.clone().sub(mob.mesh.position);
+      dir.y = 0;
+      dir.normalize();
+      mob.velocity.y = 6.5;
+      mob.velocity.x = dir.x * 4.5;
+      mob.velocity.z = dir.z * 4.5;
+      this.sounds?.playZombie?.();
+      mob.skillCooldown = 4.0;
+    } else if (skill === 'fireball') {
+      this.spawnFireball(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), targetPos, (mob.attackDamage || 4) * 1.5);
+      mob.skillCooldown = 3.5;
+    } else if (skill === 'laser') {
+      this.spawnLaserBeam(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), targetPos, (mob.attackDamage || 4) * 1.2);
+      mob.skillCooldown = 4.0;
+    } else if (skill === 'lightning') {
+      this.strikeLightning(targetPos, (mob.attackDamage || 4) * 1.5);
+      mob.skillCooldown = 5.0;
+    } else if (skill === 'freeze') {
+      this.entities?.spawnEndermanParticles(targetPos, 14);
+      mob.skillCooldown = 4.5;
+    }
+  }
+
+  spawnFireball(fromPos, toPos, damage = 6) {
+    const dir = toPos.clone().sub(fromPos).normalize();
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff4500 })
+    );
+    mesh.position.copy(fromPos);
+    this.scene.add(mesh);
+    this.customProjectiles = this.customProjectiles || [];
+    this.customProjectiles.push({
+      mesh,
+      velocity: dir.multiplyScalar(14),
+      damage,
+      life: 2.5
+    });
+  }
+
+  spawnLaserBeam(fromPos, toPos, damage = 6) {
+    const points = [fromPos, toPos];
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3 });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+    this.entities?.spawnEndermanParticles(toPos, 8);
+    setTimeout(() => {
+      this.scene.remove(line);
+      geo.dispose();
+      mat.dispose();
+    }, 180);
+  }
+
+  strikeLightning(targetPos, damage = 8, isCounterAttack = false) {
+    if (!targetPos) return;
+
+    // 1. Audio: thunder crack
+    if (this.sounds?.playThunder) {
+      this.sounds.playThunder();
+    } else if (this.sounds?.playFireworkExplode) {
+      this.sounds.playFireworkExplode();
+    }
+
+    // 2. 3D Visual Lightning Bolt
+    if (this.scene && typeof this.scene.add === 'function') {
+      const boltGroup = new THREE.Group();
+      const startY = targetPos.y + 24;
+      const steps = 8;
+      const points = [];
+      let curX = targetPos.x;
+      let curZ = targetPos.z;
+
+      for (let s = 0; s <= steps; s++) {
+        const ratio = s / steps;
+        const y = startY - ratio * 24;
+        const jX = (s === steps) ? 0 : (Math.random() - 0.5) * 1.2;
+        const jZ = (s === steps) ? 0 : (Math.random() - 0.5) * 1.2;
+        points.push(new THREE.Vector3(curX + jX, y, curZ + jZ));
+      }
+
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const glowMat = new THREE.MeshBasicMaterial({ color: 0xffea00, transparent: true, opacity: 0.85 });
+
+      for (let s = 0; s < steps; s++) {
+        const p1 = points[s];
+        const p2 = points[s + 1];
+        const dist = p1.distanceTo(p2);
+        const mid = p1.clone().add(p2).multiplyScalar(0.5);
+        const dir = p2.clone().sub(p1).normalize();
+        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+
+        // Core white bolt
+        const cGeo = new THREE.BoxGeometry(0.16, dist, 0.16);
+        const cMesh = new THREE.Mesh(cGeo, coreMat);
+        cMesh.position.copy(mid);
+        cMesh.quaternion.copy(quat);
+        boltGroup.add(cMesh);
+
+        // Electric yellow glow sheath
+        const gGeo = new THREE.BoxGeometry(0.36, dist, 0.36);
+        const gMesh = new THREE.Mesh(gGeo, glowMat);
+        gMesh.position.copy(mid);
+        gMesh.quaternion.copy(quat);
+        boltGroup.add(gMesh);
+      }
+
+      // Bright point light flash on ground
+      const light = new THREE.PointLight(0xffea00, 7, 24);
+      light.position.set(targetPos.x, targetPos.y + 2, targetPos.z);
+      boltGroup.add(light);
+
+      this.scene.add(boltGroup);
+
+      // Fast flicker and removal
+      let flicker = 0;
+      const interval = setInterval(() => {
+        flicker++;
+        boltGroup.visible = (flicker % 2 === 0);
+        if (flicker >= 6) {
+          clearInterval(interval);
+          this.scene.remove(boltGroup);
+          boltGroup.traverse(obj => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) obj.material.dispose();
+          });
+        }
+      }, 35);
+    }
+
+    // 3. Particles
+    this.entities?.spawnFireworkRocket?.(targetPos, targetPos.y + 8, [0xffffff, 0xfacc15, 0x38bdf8]);
+    this.entities?.spawnEndermanParticles?.(targetPos.clone().add(new THREE.Vector3(0, 1, 0)), 20);
+
+    // 4. Damage player if struck
+    const player = this.game?.player;
+    if (player && player.position && player.position.distanceTo(targetPos) < 3.2) {
+      if (player.takeDamage) {
+        player.takeDamage(damage);
+      }
+      if (player.velocity) {
+        player.velocity.y = Math.max(player.velocity.y || 0, 4.2);
+        const knock = player.position.clone().sub(targetPos);
+        knock.y = 0;
+        if (knock.lengthSq() > 0.01) knock.normalize(); else knock.set(0, 0, 1);
+        player.velocity.x += knock.x * 3.5;
+        player.velocity.z += knock.z * 3.5;
+      }
+    }
+
+    // 5. Damage any nearby mobs (e.g. hostiles)
+    if (this.mobs && Array.isArray(this.mobs)) {
+      for (const m of this.mobs) {
+        if (m && m.health > 0 && m.mesh && m.mesh.position) {
+          const d = m.mesh.position.distanceTo(targetPos);
+          if (d < 2.8 && !m.isCustomMob) {
+            this.damageMob(m, damage, targetPos);
+          }
+        }
       }
     }
   }
 }
+

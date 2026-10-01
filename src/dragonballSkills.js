@@ -15,6 +15,9 @@ export class DragonballSkillsManager {
     this.auraMesh = null;
     this.spiritBombMesh = null;
 
+    this.isTournamentMap = false;
+    this.enabled = true;
+
     // Active Beams & Projectiles
     this.activeBeams = [];
     this.activeBombs = [];
@@ -44,6 +47,7 @@ export class DragonballSkillsManager {
       // Don't trigger if typing in chat, terminal, or modals
       if (this.game.ui?.isModalOpen?.() || this.game.ui?.isChatOpen) return;
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (this.game?.mechanisms ? !this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') : !this.enabled) return;
 
       if (e.code === 'KeyJ' && !e.repeat && !this.activeSkill) {
         this.startCharge('kamehameha');
@@ -256,6 +260,68 @@ export class DragonballSkillsManager {
     );
   }
 
+  // --- OPPONENT / JACKIE CHUN KAMEHAMEHA ---
+  // Jackie Chun's Kamehameha is 1.5x the width of Goku's beam (Goku max radius: 1.5 -> Jackie Chun: 2.25)
+  shootOpponentKamehameha(origin, shootDir, damage = 12, beamRadius = 2.25, attacker = null) {
+    const beamLength = 48;
+    const cleanDir = shootDir.clone().normalize();
+
+    this.sounds?.playKamehameha?.();
+    this.shakeIntensity = 0.55;
+
+    const beamGroup = new THREE.Group();
+
+    // 1. Inner Pure White Core Cylinder
+    const coreGeo = new THREE.CylinderGeometry(beamRadius * 0.45, beamRadius * 0.45, beamLength, 20);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+
+    // 2. Outer Luminous Cyan/Blue Plasma Cylinder (1.5x width of Goku's)
+    const outerGeo = new THREE.CylinderGeometry(beamRadius, beamRadius, beamLength, 20);
+    const outerMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.78 });
+    const outerMesh = new THREE.Mesh(outerGeo, outerMat);
+
+    // 3. Spherical Blast Head
+    const headGeo = new THREE.SphereGeometry(beamRadius * 1.35, 20, 20);
+    const headMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92 });
+    const headMesh = new THREE.Mesh(headGeo, headMat);
+    headMesh.position.y = beamLength / 2;
+
+    beamGroup.add(coreMesh);
+    beamGroup.add(outerMesh);
+    beamGroup.add(headMesh);
+
+    const midPoint = origin.clone().add(cleanDir.clone().multiplyScalar(beamLength / 2));
+    beamGroup.position.copy(midPoint);
+    beamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), cleanDir);
+
+    this.scene.add(beamGroup);
+
+    this.activeBeams.push({
+      group: beamGroup,
+      materials: [coreMat, outerMat, headMat],
+      life: 0.72,
+      maxLife: 0.72
+    });
+
+    // Check hit against Player 1 with expanded 1.5x beam width hit detection
+    if (this.player) {
+      const toPlayer = this.player.position.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(origin);
+      const proj = toPlayer.dot(cleanDir);
+      if (proj > 0.4 && proj < beamLength) {
+        const perp = toPlayer.clone().sub(cleanDir.clone().multiplyScalar(proj)).length();
+        if (perp < beamRadius + 0.95) {
+          this.player.takeDamage(damage);
+          if (this.player.velocity) {
+            this.player.velocity.add(cleanDir.clone().multiplyScalar(7.5));
+            this.player.velocity.y += 3.2;
+          }
+          this.spawnEnergySparks(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 18, 0x00f0ff);
+        }
+      }
+    }
+  }
+
   // --- GENKI DAMA (Spirit Bomb) ---
   launchGenkiDama(chargeTime) {
     // Power scales with charge time: light tap = 0.08, up to 3.0s full charge = 1.0
@@ -418,7 +484,94 @@ export class DragonballSkillsManager {
     }
   }
 
+  // 3D Sonic Punch Shockwave & Burst Particles (Used for Goku & Jackie Chun martial arts punches)
+  spawnPunchWave(origin, direction, colorHex = 0xfacc15) {
+    if (!this.scene) return;
+    const waveGroup = new THREE.Group();
+    const cleanDir = direction.clone().normalize();
+
+    // 1. Golden / Yellow Energy Punch Slash Arc
+    const ringGeo = new THREE.TorusGeometry(0.55, 0.09, 8, 20, Math.PI * 0.95);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.z = Math.PI / 2;
+    waveGroup.add(ringMesh);
+
+    // 2. White Core Fist Flash
+    const coreGeo = new THREE.SphereGeometry(0.24, 12, 12);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    waveGroup.add(coreMesh);
+
+    const startPos = origin.clone().add(cleanDir.clone().multiplyScalar(0.7));
+    waveGroup.position.copy(startPos);
+    waveGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), cleanDir);
+    this.scene.add(waveGroup);
+
+    // Fast expansion & surge forward
+    let life = 0.22;
+    const updateWave = () => {
+      life -= 0.032;
+      const progress = 1.0 - Math.max(0, life / 0.22);
+      waveGroup.position.addScaledVector(cleanDir, 0.24);
+      const scale = 1.0 + progress * 2.5;
+      waveGroup.scale.set(scale, scale, scale);
+      ringMat.opacity = (1.0 - progress) * 0.95;
+      coreMat.opacity = (1.0 - progress) * 0.95;
+
+      if (life > 0) {
+        if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(updateWave);
+      } else {
+        this.scene.remove(waveGroup);
+        ringGeo.dispose();
+        ringMat.dispose();
+        coreGeo.dispose();
+        coreMat.dispose();
+      }
+    };
+    updateWave();
+
+    // Forward air punch speed streak particles
+    if (this.game.entities?.particles) {
+      for (let i = 0; i < 7; i++) {
+        const pGeo = new THREE.BoxGeometry(0.1, 0.1, 0.22);
+        const pMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.9 });
+        const pMesh = new THREE.Mesh(pGeo, pMat);
+        pMesh.position.copy(startPos).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.4,
+          (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.4
+        ));
+        this.scene.add(pMesh);
+
+        const pVel = cleanDir.clone().multiplyScalar(7.0 + Math.random() * 4.0);
+        pVel.x += (Math.random() - 0.5) * 2.0;
+        pVel.y += (Math.random() - 0.5) * 1.5;
+        pVel.z += (Math.random() - 0.5) * 2.0;
+
+        this.game.entities.particles.push({
+          mesh: pMesh,
+          velocity: pVel,
+          life: 0.18,
+          maxLife: 0.18,
+          spark: false,
+          fade: true
+        });
+      }
+    }
+  }
+
   update(dt) {
+    if (this.game?.mechanisms ? !this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') : !this.enabled) {
+      if (this.activeSkill) this.interruptCharge();
+      return;
+    }
+
     // 1. Update Ki Gathering & Visuals
     if (this.activeSkill) {
       this.chargeTime += dt;

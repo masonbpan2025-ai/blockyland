@@ -247,3 +247,68 @@ test('every library structure is offered in the creative Structures tab', () => 
     assert.ok(st.icon && st.icon.startsWith('/assets/'), `${st.id} needs an icon`);
   }
 });
+
+test('custom on-the-fly builds with operations are not hijacked by built-in structures and save custom voxels', () => {
+  const manager = studio();
+  const worldBlocks = new Map();
+  manager.game = {
+    world: {
+      getVoxel: (x, y, z) => worldBlocks.get(`${x},${y},${z}`) ?? BLOCKS.AIR,
+      setVoxel: (x, y, z, id) => worldBlocks.set(`${x},${y},${z}`, id)
+    }
+  };
+
+  // 1. plan with operations should NOT be adopted by adoptFromPlan as a built-in template
+  const plan = {
+    action: 'build',
+    structureType: 'castle_with_bridge',
+    name: 'Bodiam Moat Castle with Bridge',
+    operations: [
+      { type: 'fill_box', min: [0, 0, 0], max: [10, 5, 10], block: 'stone' }
+    ]
+  };
+
+  const adopted = manager.adoptFromPlan(plan);
+  assert.equal(adopted, false, 'plan with operations must not be adopted as a built-in template');
+
+  // 2. Instead, adoptCustomBuild adopts it as a custom voxel build
+  const customBlocks = [
+    { x: 0, y: 5, z: 8, id: BLOCKS.COBBLESTONE },
+    { x: 1, y: 5, z: 8, id: BLOCKS.OAK_PLANKS },
+    { x: 2, y: 6, z: 8, id: BLOCKS.BRICKS }
+  ];
+  for (const b of customBlocks) {
+    manager.game.world.setVoxel(b.x, b.y, b.z, b.id);
+  }
+  manager.adoptCustomBuild({
+    name: 'castle_with_bridge',
+    blocks: customBlocks,
+    plan
+  });
+
+  assert.equal(manager.isCustomVoxelBuild, true);
+  assert.equal(manager.currentStructure.name, 'castle_with_bridge');
+  assert.notEqual(manager.currentStructure.id, 'castle');
+
+  // 3. Confirm save generates custom voxel code rather than built-in castle code
+  manager.saveInput = { value: 'castle_with_bridge' };
+  manager.confirmSave();
+
+  const saved = StructureLibrary.getStructure('castle_with_bridge');
+  assert.ok(saved, 'castle_with_bridge should be saved in StructureLibrary');
+  assert.equal(saved.name, 'castle_with_bridge');
+  assert.ok(saved.code.includes('const V ='), 'saved code should serialize the custom voxels');
+  assert.ok(!saved.code.includes('createCastle'), 'saved code must NOT be the built-in castle code');
+
+  // 4. Test generating the saved structure
+  const genBlocks = saved.generate({ x: 10, y: 10, z: 10 }, {}, BLOCKS);
+  assert.equal(genBlocks.length, customBlocks.length);
+  assert.equal(genBlocks[0].x, 10);
+  assert.equal(genBlocks[0].id, BLOCKS.COBBLESTONE);
+  assert.equal(genBlocks[1].id, BLOCKS.OAK_PLANKS);
+  assert.equal(genBlocks[2].id, BLOCKS.BRICKS);
+
+  // Clean up
+  StructureLibrary.deleteStructure(saved.id);
+});
+

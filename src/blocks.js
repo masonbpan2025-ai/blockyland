@@ -80,7 +80,79 @@ export const BLOCKS = {
   DROPPER: 76,
   HOPPER: 77,
   IRON_DOOR_OPEN: 78,
-  IRON_TRAPDOOR_OPEN: 79
+  IRON_TRAPDOOR_OPEN: 79,
+
+  // Biome-specific Blocks
+  CHERRY_LOG: 80,
+  CHERRY_LEAVES: 81,
+  CHERRY_PLANKS: 82,
+  BIRCH_LOG: 83,
+  BIRCH_LEAVES: 84,
+  BIRCH_PLANKS: 85,
+  SPRUCE_LOG: 86,
+  SPRUCE_LEAVES: 87,
+  SPRUCE_PLANKS: 88,
+  JUNGLE_LOG: 89,
+  JUNGLE_LEAVES: 90,
+  JUNGLE_PLANKS: 91,
+  ACACIA_LOG: 92,
+  ACACIA_LEAVES: 93,
+  ACACIA_PLANKS: 94,
+  DARK_OAK_LOG: 95,
+  DARK_OAK_LEAVES: 96,
+  DARK_OAK_PLANKS: 97,
+  MANGROVE_LOG: 98,
+  MANGROVE_LEAVES: 99,
+  MANGROVE_ROOTS: 100,
+  MANGROVE_PLANKS: 101,
+  MUD: 102,
+  PALE_OAK_LOG: 103,
+  PALE_OAK_LEAVES: 104,
+  PALE_OAK_PLANKS: 105,
+  MYCELIUM: 106,
+  RED_MUSHROOM_BLOCK: 107,
+  BROWN_MUSHROOM_BLOCK: 108,
+  MUSHROOM_STEM: 109,
+  PODZOL: 110,
+  RED_SAND: 111,
+  RED_SANDSTONE: 112,
+  TERRACOTTA: 113,
+  RED_TERRACOTTA: 114,
+  ORANGE_TERRACOTTA: 115,
+  YELLOW_TERRACOTTA: 116,
+  WHITE_TERRACOTTA: 117,
+  BROWN_TERRACOTTA: 118,
+  PACKED_ICE: 119,
+  BLUE_ICE: 120,
+  CRIMSON_NYLIUM: 121,
+  CRIMSON_STEM: 122,
+  NETHER_WART_BLOCK: 123,
+  WARPED_NYLIUM: 124,
+  WARPED_STEM: 125,
+  WARPED_WART_BLOCK: 126,
+  SOUL_SOIL: 127,
+  BASALT: 128,
+  BLACKSTONE: 129,
+  MAGMA_BLOCK: 130,
+  SCULK: 131,
+  SCULK_CATALYST: 132,
+  DEEPSLATE: 133,
+  MOSS_BLOCK: 134,
+  MOSS_CARPET: 135,
+  AZALEA_LEAVES: 136,
+  DRIPSTONE_BLOCK: 137,
+  POINTED_DRIPSTONE: 138,
+  SULFUR_BLOCK: 139,
+  CALCITE: 140,
+  TUFF: 141,
+  PRISMARINE: 142,
+  PRISMARINE_BRICKS: 143,
+  DARK_PRISMARINE: 144,
+  BAMBOO: 145,
+  SUNFLOWER: 146,
+  LILY_PAD: 147,
+  CHORUS_PLANT: 148,
+  CHORUS_FLOWER: 149
 };
 
 export const BLOCK_DEFS = {
@@ -593,7 +665,100 @@ export const BLOCK_DEFS = {
     hardness: 5.0,
     sound: 'stone',
     textures: { all: 'anvil.png' }
-  }
+  },
+
+  // Wood variants
+  [BLOCKS.CHERRY_LOG]: { name: 'Cherry Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.CHERRY_LOG, textures: { side: 'cherry_log.png', top: 'cherry_log_top.png', bottom: 'cherry_log_top.png' } },
+  [BLOCKS.CHERRY_LEAVES]: { name: 'Cherry Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.CHERRY_LEAVES, textures: { all: 'cherry_leaves.png' } },
+  [BLOCKS.CHERRY_PLANKS]: { name: 'Cherry Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.CHERRY_PLANKS, textures: { all: 'cherry_planks.png' } },
+
+  [BLOCKS.BIRCH_LOG]: { name: 'Birch Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.BIRCH_LOG, textures: { side: 'birch_log.png', top: 'birch_log_top.png', bottom: 'birch_log_top.png' } },
+  [BLOCKS.BIRCH_LEAVES]: { name: 'Birch Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.BIRCH_LEAVES, textures: { all: 'birch_leaves.png' } },
+  [BLOCKS.BIRCH_PLANKS]: { name: 'Birch Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.BIRCH_PLANKS, textures: { all: 'birch_planks.png' } },
+
+  [BLOCKS.SPRUCE_LOG]: { name: 'Spruce Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.SPRUCE_LOG, textures: { side: 'spruce_log.png', top: 'spruce_log_top.png', bottom: 'spruce_log_top.png' } },
+  [BLOCKS.SPRUCE_LEAVES]: { name: 'Spruce Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.SPRUCE_LEAVES, textures: { all: 'spruce_leaves.png' } },
+  [BLOCKS.SPRUCE_PLANKS]: { name: 'Spruce Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.SPRUCE_PLANKS, textures: { all: 'spruce_planks.png' } },
+
+  [BLOCKS.JUNGLE_LOG]: { name: 'Jungle Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.JUNGLE_LOG, textures: { side: 'jungle_log.png', top: 'jungle_log_top.png', bottom: 'jungle_log_top.png' } },
+  [BLOCKS.JUNGLE_LEAVES]: { name: 'Jungle Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.JUNGLE_LEAVES, textures: { all: 'jungle_leaves.png' } },
+  [BLOCKS.JUNGLE_PLANKS]: { name: 'Jungle Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.JUNGLE_PLANKS, textures: { all: 'jungle_planks.png' } },
+
+  [BLOCKS.ACACIA_LOG]: { name: 'Acacia Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.ACACIA_LOG, textures: { side: 'acacia_log.png', top: 'acacia_log_top.png', bottom: 'acacia_log_top.png' } },
+  [BLOCKS.ACACIA_LEAVES]: { name: 'Acacia Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.ACACIA_LEAVES, textures: { all: 'acacia_leaves.png' } },
+  [BLOCKS.ACACIA_PLANKS]: { name: 'Acacia Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.ACACIA_PLANKS, textures: { all: 'acacia_planks.png' } },
+
+  [BLOCKS.DARK_OAK_LOG]: { name: 'Dark Oak Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.DARK_OAK_LOG, textures: { side: 'dark_oak_log.png', top: 'dark_oak_log_top.png', bottom: 'dark_oak_log_top.png' } },
+  [BLOCKS.DARK_OAK_LEAVES]: { name: 'Dark Oak Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.DARK_OAK_LEAVES, textures: { all: 'dark_oak_leaves.png' } },
+  [BLOCKS.DARK_OAK_PLANKS]: { name: 'Dark Oak Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.DARK_OAK_PLANKS, textures: { all: 'dark_oak_planks.png' } },
+
+  [BLOCKS.MANGROVE_LOG]: { name: 'Mangrove Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.MANGROVE_LOG, textures: { side: 'mangrove_log.png', top: 'mangrove_log_top.png', bottom: 'mangrove_log_top.png' } },
+  [BLOCKS.MANGROVE_LEAVES]: { name: 'Mangrove Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.MANGROVE_LEAVES, textures: { all: 'mangrove_leaves.png' } },
+  [BLOCKS.MANGROVE_ROOTS]: { name: 'Mangrove Roots', hardness: 0.7, sound: 'wood', transparent: true, solid: true, drop: BLOCKS.MANGROVE_ROOTS, textures: { all: 'mangrove_roots.png' } },
+  [BLOCKS.MANGROVE_PLANKS]: { name: 'Mangrove Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.MANGROVE_PLANKS, textures: { all: 'mangrove_planks.png' } },
+  [BLOCKS.MUD]: { name: 'Mud', hardness: 0.5, sound: 'gravel', drop: BLOCKS.MUD, textures: { all: 'mud.png' } },
+
+  [BLOCKS.PALE_OAK_LOG]: { name: 'Pale Oak Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.PALE_OAK_LOG, textures: { side: 'pale_oak_log.png', top: 'pale_oak_log_top.png', bottom: 'pale_oak_log_top.png' } },
+  [BLOCKS.PALE_OAK_LEAVES]: { name: 'Pale Oak Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.PALE_OAK_LEAVES, textures: { all: 'pale_oak_leaves.png' } },
+  [BLOCKS.PALE_OAK_PLANKS]: { name: 'Pale Oak Planks', hardness: 2.0, sound: 'wood', drop: BLOCKS.PALE_OAK_PLANKS, textures: { all: 'pale_oak_planks.png' } },
+
+  // Soil & Terrain
+  [BLOCKS.MYCELIUM]: { name: 'Mycelium', hardness: 0.6, sound: 'grass', drop: BLOCKS.DIRT, textures: { top: 'mycelium_top.png', side: 'mycelium_side.png', bottom: 'dirt.png' } },
+  [BLOCKS.PODZOL]: { name: 'Podzol', hardness: 0.5, sound: 'gravel', drop: BLOCKS.DIRT, textures: { top: 'podzol_top.png', side: 'podzol_side.png', bottom: 'dirt.png' } },
+  [BLOCKS.RED_SAND]: { name: 'Red Sand', hardness: 0.5, sound: 'sand', drop: BLOCKS.RED_SAND, textures: { all: 'red_sand.png' } },
+  [BLOCKS.RED_SANDSTONE]: { name: 'Red Sandstone', hardness: 0.8, sound: 'stone', drop: BLOCKS.RED_SANDSTONE, textures: { side: 'red_sandstone.png', top: 'red_sandstone_top.png', bottom: 'red_sandstone_bottom.png' } },
+  [BLOCKS.TERRACOTTA]: { name: 'Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.TERRACOTTA, textures: { all: 'terracotta.png' } },
+  [BLOCKS.RED_TERRACOTTA]: { name: 'Red Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.RED_TERRACOTTA, textures: { all: 'red_terracotta.png' } },
+  [BLOCKS.ORANGE_TERRACOTTA]: { name: 'Orange Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.ORANGE_TERRACOTTA, textures: { all: 'orange_terracotta.png' } },
+  [BLOCKS.YELLOW_TERRACOTTA]: { name: 'Yellow Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.YELLOW_TERRACOTTA, textures: { all: 'yellow_terracotta.png' } },
+  [BLOCKS.WHITE_TERRACOTTA]: { name: 'White Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.WHITE_TERRACOTTA, textures: { all: 'white_terracotta.png' } },
+  [BLOCKS.BROWN_TERRACOTTA]: { name: 'Brown Terracotta', hardness: 1.25, sound: 'stone', drop: BLOCKS.BROWN_TERRACOTTA, textures: { all: 'brown_terracotta.png' } },
+
+  // Ice & Frozen
+  [BLOCKS.PACKED_ICE]: { name: 'Packed Ice', hardness: 0.5, sound: 'stone', drop: BLOCKS.PACKED_ICE, textures: { all: 'packed_ice.png' } },
+  [BLOCKS.BLUE_ICE]: { name: 'Blue Ice', hardness: 2.8, sound: 'stone', drop: BLOCKS.BLUE_ICE, textures: { all: 'blue_ice.png' } },
+
+  // Mushrooms
+  [BLOCKS.RED_MUSHROOM_BLOCK]: { name: 'Red Mushroom Block', hardness: 0.2, sound: 'wood', drop: BLOCKS.RED_MUSHROOM_BLOCK, textures: { all: 'red_mushroom_block.png' } },
+  [BLOCKS.BROWN_MUSHROOM_BLOCK]: { name: 'Brown Mushroom Block', hardness: 0.2, sound: 'wood', drop: BLOCKS.BROWN_MUSHROOM_BLOCK, textures: { all: 'brown_mushroom_block.png' } },
+  [BLOCKS.MUSHROOM_STEM]: { name: 'Mushroom Stem', hardness: 0.2, sound: 'wood', drop: BLOCKS.MUSHROOM_STEM, textures: { all: 'mushroom_stem.png' } },
+
+  // Nether Biome Blocks
+  [BLOCKS.CRIMSON_NYLIUM]: { name: 'Crimson Nylium', hardness: 1.0, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'crimson_nylium.png', side: 'crimson_nylium_side.png', bottom: 'netherrack.png' } },
+  [BLOCKS.CRIMSON_STEM]: { name: 'Crimson Stem', hardness: 2.0, sound: 'wood', drop: BLOCKS.CRIMSON_STEM, textures: { side: 'crimson_stem.png', top: 'crimson_stem_top.png', bottom: 'crimson_stem_top.png' } },
+  [BLOCKS.NETHER_WART_BLOCK]: { name: 'Nether Wart Block', hardness: 1.0, sound: 'wood', drop: BLOCKS.NETHER_WART_BLOCK, textures: { all: 'nether_wart_block.png' } },
+  [BLOCKS.WARPED_NYLIUM]: { name: 'Warped Nylium', hardness: 1.0, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'warped_nylium.png', side: 'warped_nylium_side.png', bottom: 'netherrack.png' } },
+  [BLOCKS.WARPED_STEM]: { name: 'Warped Stem', hardness: 2.0, sound: 'wood', drop: BLOCKS.WARPED_STEM, textures: { side: 'warped_stem.png', top: 'warped_stem_top.png', bottom: 'warped_stem_top.png' } },
+  [BLOCKS.WARPED_WART_BLOCK]: { name: 'Warped Wart Block', hardness: 1.0, sound: 'wood', drop: BLOCKS.WARPED_WART_BLOCK, textures: { all: 'warped_wart_block.png' } },
+  [BLOCKS.SOUL_SOIL]: { name: 'Soul Soil', hardness: 0.5, sound: 'gravel', drop: BLOCKS.SOUL_SOIL, textures: { all: 'soul_soil.png' } },
+  [BLOCKS.BASALT]: { name: 'Basalt', hardness: 1.25, sound: 'stone', drop: BLOCKS.BASALT, textures: { side: 'basalt_side.png', top: 'basalt_top.png', bottom: 'basalt_top.png' } },
+  [BLOCKS.BLACKSTONE]: { name: 'Blackstone', hardness: 1.5, sound: 'stone', drop: BLOCKS.BLACKSTONE, textures: { side: 'blackstone.png', top: 'blackstone_top.png', bottom: 'blackstone_top.png' } },
+  [BLOCKS.MAGMA_BLOCK]: { name: 'Magma Block', hardness: 0.5, sound: 'stone', light: 3, lightColor: 0xff6600, drop: BLOCKS.MAGMA_BLOCK, textures: { all: 'magma.png' } },
+
+  // Cave & Underground Blocks
+  [BLOCKS.SCULK]: { name: 'Sculk', hardness: 0.6, sound: 'grass', drop: BLOCKS.SCULK, textures: { all: 'sculk.png' } },
+  [BLOCKS.SCULK_CATALYST]: { name: 'Sculk Catalyst', hardness: 3.0, sound: 'stone', light: 6, lightColor: 0x06b6d4, drop: BLOCKS.SCULK_CATALYST, textures: { side: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png', bottom: 'sculk_catalyst_bottom.png' } },
+  [BLOCKS.DEEPSLATE]: { name: 'Deepslate', hardness: 3.0, sound: 'stone', drop: BLOCKS.COBBLESTONE, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
+  [BLOCKS.MOSS_BLOCK]: { name: 'Moss Block', hardness: 0.1, sound: 'grass', drop: BLOCKS.MOSS_BLOCK, textures: { all: 'moss_block.png' } },
+  [BLOCKS.MOSS_CARPET]: { name: 'Moss Carpet', hardness: 0.1, sound: 'grass', transparent: true, solid: false, drop: BLOCKS.MOSS_CARPET, textures: { all: 'moss_block.png' } },
+  [BLOCKS.AZALEA_LEAVES]: { name: 'Azalea Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.AZALEA_LEAVES, textures: { all: 'azalea_leaves.png' } },
+  [BLOCKS.DRIPSTONE_BLOCK]: { name: 'Dripstone Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DRIPSTONE_BLOCK, textures: { all: 'dripstone_block.png' } },
+  [BLOCKS.POINTED_DRIPSTONE]: { name: 'Pointed Dripstone', hardness: 1.5, sound: 'stone', transparent: true, solid: false, drop: BLOCKS.POINTED_DRIPSTONE, textures: { all: 'pointed_dripstone.png' } },
+  [BLOCKS.SULFUR_BLOCK]: { name: 'Sulfur Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.SULFUR_BLOCK, textures: { all: 'sulfur_block.png' } },
+  [BLOCKS.CALCITE]: { name: 'Calcite', hardness: 0.75, sound: 'stone', drop: BLOCKS.CALCITE, textures: { all: 'calcite.png' } },
+  [BLOCKS.TUFF]: { name: 'Tuff', hardness: 1.5, sound: 'stone', drop: BLOCKS.TUFF, textures: { all: 'tuff.png' } },
+
+  // Ocean Monument
+  [BLOCKS.PRISMARINE]: { name: 'Prismarine', hardness: 1.5, sound: 'stone', drop: BLOCKS.PRISMARINE, textures: { all: 'prismarine.png' } },
+  [BLOCKS.PRISMARINE_BRICKS]: { name: 'Prismarine Bricks', hardness: 1.5, sound: 'stone', drop: BLOCKS.PRISMARINE_BRICKS, textures: { all: 'prismarine_bricks.png' } },
+  [BLOCKS.DARK_PRISMARINE]: { name: 'Dark Prismarine', hardness: 1.5, sound: 'stone', drop: BLOCKS.DARK_PRISMARINE, textures: { all: 'dark_prismarine.png' } },
+
+  // Plants & Flowers
+  [BLOCKS.BAMBOO]: { name: 'Bamboo', hardness: 1.0, sound: 'wood', transparent: true, solid: false, plant: true, drop: BLOCKS.BAMBOO, textures: { all: 'bamboo.png' } },
+  [BLOCKS.SUNFLOWER]: { name: 'Sunflower', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SUNFLOWER, textures: { all: 'sunflower.png' } },
+  [BLOCKS.LILY_PAD]: { name: 'Lily Pad', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.LILY_PAD, textures: { all: 'lily_pad.png' } },
+  [BLOCKS.CHORUS_PLANT]: { name: 'Chorus Plant', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_PLANT, textures: { all: 'chorus_plant.png' } },
+  [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png' } }
 };
 
 // Complete Item definitions

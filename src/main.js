@@ -4,6 +4,7 @@ import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
 import { ChunkMesher } from './mesher.js';
@@ -42,6 +43,10 @@ import { DragonballSkillsManager } from './dragonballSkills.js';
 import { TrainingSitesManager } from './trainingSites.js';
 import { DungeonModeManager } from './dungeonMode.js';
 import { WorldMechanismManager } from './worldMechanisms.js';
+import { StructureStudioManager } from './structureStudio.js';
+import { StructureLibrary } from './structureLibrary.js';
+import { MobStudioManager } from './mobStudio.js';
+import { MobLibrary } from './mobLibrary.js';
 
 
 class Game {
@@ -105,6 +110,8 @@ class Game {
     this.ui = null;
     this.heldItemRenderer = null;
     this.tournament = null;
+    this.structureStudio = null;
+    this.mobStudio = null;
 
     // Raycast & Mining state
     this.raycaster = new THREE.Raycaster();
@@ -172,8 +179,11 @@ class Game {
     // 5b. Initialize Tournament & Dragon Ball Skills
     this.tournament = new TournamentManager(this);
     this.dragonballSkills = new DragonballSkillsManager(this);
+    this.skills = this.dragonballSkills;
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
+    this.structureStudio = new StructureStudioManager(this);
+    this.mobStudio = new MobStudioManager(this);
 
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
     this.worldType = 'generated';
@@ -198,6 +208,9 @@ class Game {
     if (this.worldGenerated) return;
     this.worldGenerated = true;
     this.worldType = 'generated';
+    this.world.isFlatWorld = false;
+    this.structureStudio?.exitStudio();
+    this.mobStudio?.exitStudio();
     // Catch a missing UI method up front: previously such a call threw late in
     // this method and silently aborted the start flow.
     const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
@@ -220,6 +233,29 @@ class Game {
         this.dungeonMode.reset?.();
       }
     }
+
+    // Apply atmospheric sky & fog colors matching the biome
+    const def = getBiomeDef(this.world.selectedBiome);
+    if (def && def.skyColor !== undefined) {
+      this.normalBgColor = new THREE.Color(def.skyColor);
+      this.scene.background.copy(this.normalBgColor);
+    } else {
+      this.normalBgColor = new THREE.Color(0x78a7ff);
+      this.scene.background.copy(this.normalBgColor);
+    }
+    if (def && def.fogColor !== undefined) {
+      this.scene.fog.color = new THREE.Color(def.fogColor);
+      if (def.isNether || def.isCavern) {
+        this.normalFogNear = 20;
+        this.normalFogFar = 65;
+      } else {
+        this.normalFogNear = 45;
+        this.normalFogFar = 95;
+      }
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
+    }
+
     await this.loadWorldProgressively();
 
     // Terrain now exists, so put the player on its surface. Placing them before
@@ -240,6 +276,122 @@ class Game {
     // the player's next canvas click, because user activation does not survive the
     // awaits above and a pointer-lock request here would be rejected.
     this.worldReady = true;
+  }
+
+  async startStructureStudio() {
+    if (this._worldStartInFlight) return;
+    this._worldStartInFlight = true;
+    this.sounds.init();
+    const btnStudio = document.getElementById('btn-start-structure-studio');
+    if (btnStudio) btnStudio.disabled = true;
+
+    try {
+      this.worldGenerated = true;
+      this.worldType = 'structure_studio';
+      this.world.isFlatWorld = true;
+
+      if (this.mechanisms) {
+        this.mechanisms.setMechanism('default', this);
+      } else {
+        if (this.tournament) {
+          this.tournament.isTournamentMap = false;
+          this.tournament.cleanup?.();
+          this.tournament.reset?.();
+        }
+        if (this.trainingSites) {
+          this.trainingSites.cleanup?.();
+          this.trainingSites.reset?.();
+        }
+        if (this.dungeonMode) {
+          this.dungeonMode.reset?.();
+        }
+      }
+
+      await this.loadWorldProgressively();
+
+      // Put player on surface in creative mode facing the build origin
+      this.player.position.set(0, 5, 0);
+      this.player.gamemode = 'creative';
+      this.player.yaw = 0; // facing +Z towards (0, 5, 8)
+      this.player.pitch = 0;
+      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
+
+      const startOverlay = document.getElementById('start-overlay');
+      if (startOverlay) startOverlay.style.display = 'none';
+
+      if (this.ui) {
+        if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
+        if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
+      }
+
+      this.worldReady = true;
+      this.structureStudio?.enterStudio();
+    } catch (err) {
+      console.error('[Structure Studio] Failed to enter Structure Studio:', err);
+      this.failWorldStart(err);
+    } finally {
+      if (btnStudio) btnStudio.disabled = false;
+      this._worldStartInFlight = false;
+      if (this.worldReady) this.overlay?.hide();
+    }
+  }
+
+  async startMobStudio() {
+    if (this._worldStartInFlight) return;
+    this._worldStartInFlight = true;
+    this.sounds.init();
+    const btnMobStudio = document.getElementById('btn-start-mob-studio');
+    if (btnMobStudio) btnMobStudio.disabled = true;
+
+    try {
+      this.worldGenerated = true;
+      this.worldType = 'mob_studio';
+      this.world.isFlatWorld = true;
+
+      if (this.mechanisms) {
+        this.mechanisms.setMechanism('default', this);
+      } else {
+        if (this.tournament) {
+          this.tournament.isTournamentMap = false;
+          this.tournament.cleanup?.();
+          this.tournament.reset?.();
+        }
+        if (this.trainingSites) {
+          this.trainingSites.cleanup?.();
+          this.trainingSites.reset?.();
+        }
+        if (this.dungeonMode) {
+          this.dungeonMode.reset?.();
+        }
+      }
+
+      await this.loadWorldProgressively();
+
+      // Put player on surface in creative mode facing the pedestal
+      this.player.position.set(0, 5, 0);
+      this.player.gamemode = 'creative';
+      this.player.yaw = 0; // facing +Z towards (0, 5, 6)
+      this.player.pitch = 0;
+      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
+
+      const startOverlay = document.getElementById('start-overlay');
+      if (startOverlay) startOverlay.style.display = 'none';
+
+      if (this.ui) {
+        if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
+        if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
+      }
+
+      this.worldReady = true;
+      this.mobStudio?.enterStudio();
+    } catch (err) {
+      console.error('[Mob Studio] Failed to enter Mob Studio:', err);
+      this.failWorldStart(err);
+    } finally {
+      if (btnMobStudio) btnMobStudio.disabled = false;
+      this._worldStartInFlight = false;
+      if (this.worldReady) this.overlay?.hide();
+    }
   }
 
   /**
@@ -405,12 +557,53 @@ class Game {
       const iz = Math.floor(z);
       for (let y = 50; y >= 1; y--) {
         const v = this.world.getVoxel(ix, y, iz);
-        if (v !== BLOCKS.AIR && v !== BLOCKS.WATER) {
+        if (v !== BLOCKS.AIR && v !== BLOCKS.WATER && v !== BLOCKS.LAVA) {
           return y + 1.01;
         }
       }
       return 26;
     };
+
+    const biomeId = this.world.selectedBiome;
+    const def = getBiomeDef(biomeId);
+
+    if (biomeId && biomeId !== 'all') {
+      if (biomeId === 'mushroom_fields') {
+        this.mobs.spawnMooshroom(3.5, getGround(3.5, 3.5), 3.5);
+        this.mobs.spawnMooshroom(6.5, getGround(6.5, -2.5), -2.5);
+        this.mobs.spawnMooshroom(8.5, getGround(8.5, 2.5), 2.5);
+        return;
+      }
+      if (biomeId === 'deep_dark') {
+        this.mobs.spawnWarden(5.0, getGround(5.0, 5.0), 5.0);
+        return;
+      }
+      if (def?.isNether) {
+        this.mobs.spawnBlaze(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnPiglin(7.0, getGround(7.0, 2.0), 2.0);
+        this.mobs.spawnGhast(10.0, getGround(10.0, 8.0) + 4, 8.0);
+        this.mobs.spawnMagmaCube(2.0, getGround(2.0, -4.0), -4.0);
+        return;
+      }
+      if (def?.isEnd) {
+        this.mobs.spawnEnderman(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnEnderman(7.0, getGround(7.0, -2.0), -2.0);
+        this.mobs.spawnShulker(2.0, getGround(2.0, 6.0), 6.0);
+        this.mobs.spawnShulker(8.0, getGround(8.0, 8.0), 8.0);
+        return;
+      }
+      if (biomeId === 'bamboo_jungle' || biomeId === 'sparse_jungle') {
+        this.mobs.spawnPanda(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnPanda(8.0, getGround(8.0, -3.0), -3.0);
+        this.mobs.spawnPig(6.5, getGround(6.5, 2.5), 2.5);
+        return;
+      }
+      if (['snowy_plains', 'ice_spikes', 'frozen_ocean', 'frozen_peaks', 'grove'].includes(biomeId)) {
+        this.mobs.spawnPolarBear(5.0, getGround(5.0, 4.0), 4.0);
+        this.mobs.spawnPolarBear(8.0, getGround(8.0, -2.0), -2.0);
+        return;
+      }
+    }
 
     // Villagers near path and house
     this.mobs.spawnVillager(2.0, getGround(2.0, 3.5), 3.5);
@@ -439,9 +632,13 @@ class Game {
     if (btnNewWorld) {
       btnNewWorld.addEventListener('click', async (e) => {
         e.stopPropagation();
+        this.sounds.init();
+        if (this.ui?.openBiomeModal) {
+          this.ui.openBiomeModal();
+          return;
+        }
         if (this._worldStartInFlight) return;
         this._worldStartInFlight = true;
-        this.sounds.init();
         btnNewWorld.disabled = true;
         try {
           // Await so the start screen stays up (with the progress bar) until the
@@ -480,6 +677,22 @@ class Game {
         if (this.ui) {
           this.ui.openMapModal('load');
         }
+      });
+    }
+
+    const btnStructureStudio = document.getElementById('btn-start-structure-studio');
+    if (btnStructureStudio) {
+      btnStructureStudio.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await this.startStructureStudio();
+      });
+    }
+
+    const btnMobStudio = document.getElementById('btn-start-mob-studio');
+    if (btnMobStudio) {
+      btnMobStudio.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await this.startMobStudio();
       });
     }
 
@@ -634,6 +847,31 @@ class Game {
 
     // Eating Food, Buckets, and Spawn Eggs
     let activeItem = this.inventory.getActiveItem();
+
+    // Place structure from Structure Library
+    if (activeItem && (activeItem.isStructure || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_')))) {
+      const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
+      const placeX = bX + (norm.x || 0);
+      const placeY = bY + (norm.y !== undefined ? (norm.y > 0 ? 1 : (norm.y < 0 ? -1 : 0)) : 1);
+      const placeZ = bZ + (norm.z || 0);
+
+      const structureId = activeItem.structureId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_') ? activeItem.id.replace('structure_', '') : activeItem.id);
+      const struct = StructureLibrary.getStructure(structureId);
+      if (struct) {
+        const defaultParams = {};
+        if (Array.isArray(struct.parameters)) {
+          for (const p of struct.parameters) {
+            defaultParams[p.id || p.name] = p.default ?? p.defaultValue ?? 10;
+          }
+        }
+        StructureLibrary.executeStructureBuild(struct, { x: placeX, y: placeY, z: placeZ }, defaultParams, this.world);
+        this.sounds.playPlace('stone');
+        this.loadChunksAroundPlayer();
+        this.refreshDirtyChunks();
+        this.ui?.addChatMessage?.(`Placed structure "${struct.name}"`, 'system');
+      }
+      return;
+    }
     if(activeItem?.id==='redstone'&&!activeItem.isBlock)activeItem={...activeItem,id:BLOCKS.REDSTONE_WIRE,isBlock:true};
     if (activeItem && !activeItem.isBlock) {
       const it = ITEMS[activeItem.id];
@@ -651,14 +889,19 @@ class Game {
       }
 
       // Spawn Eggs
-      if (it && it.type === 'spawn_egg') {
-        const mobType = it.mob;
+      if ((it && it.type === 'spawn_egg') || activeItem.isSpawnEgg || activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_'))) {
+        const customMobId = activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_') ? activeItem.id.replace('spawn_egg_', '') : null);
+        const customDef = activeItem.mobDef || (customMobId ? MobLibrary.getMob(customMobId) : null);
+        const mobType = it?.mob || (typeof activeItem.id === 'string' ? activeItem.id.replace('_spawn_egg', '') : 'zombie');
         const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
         const sx = bX + norm.x + 0.5;
         const sy = bY + norm.y + 0.05;
         const sz = bZ + norm.z + 0.5;
 
-        if (mobType === 'villager') this.mobs.spawnVillager(sx, sy, sz);
+        if (customDef) {
+          this.mobs.spawnCustomMob(customDef, sx, sy, sz);
+          this.entities?.spawnEndermanParticles(new THREE.Vector3(sx, sy + 0.5, sz), 10);
+        } else if (mobType === 'villager') this.mobs.spawnVillager(sx, sy, sz);
         else if (mobType === 'iron_golem') this.mobs.spawnIronGolem(sx, sy, sz);
         else if (mobType === 'pillager') this.mobs.spawnPillager(sx, sy, sz);
         else if (mobType === 'zombie') this.mobs.spawnZombie(sx, sy, sz);
@@ -671,6 +914,7 @@ class Game {
         else if (mobType === 'dolphin') this.mobs.spawnDolphin(sx, sy, sz);
         else if (mobType === 'octopus') this.mobs.spawnOctopus(sx, sy, sz);
         else if (mobType === 'axolotl') this.mobs.spawnAxolotl(sx, sy, sz);
+        else this.mobs.spawnMob(mobType, sx, sy, sz);
 
         this.sounds.playPop();
         if (this.player.gamemode !== 'creative') {
@@ -1189,7 +1433,11 @@ class Game {
     this.updateMining(dt);
 
     // 4. Update Mobs AI & Projectiles
-    this.mobs.update(dt, this.player);
+    try {
+      this.mobs.update(dt, this.player);
+    } catch (err) {
+      console.error('Error updating mobs:', err);
+    }
 
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);

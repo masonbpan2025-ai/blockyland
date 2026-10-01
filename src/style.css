@@ -141,6 +141,41 @@ html, body {
   image-rendering: pixelated;
 }
 
+/* Tournament Mode 3x Long Health Bar */
+#status-bars.tournament-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  max-width: 90vw;
+  margin-bottom: 6px;
+  gap: 4px;
+}
+
+#status-bars.tournament-mode #health-bar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 2px;
+  background: rgba(18, 6, 8, 0.85);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 2px solid rgba(239, 68, 68, 0.75);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45), inset 0 0 8px rgba(239, 68, 68, 0.2);
+}
+
+#status-bars.tournament-mode #health-bar .stat-icon {
+  width: 18px;
+  height: 18px;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+#status-bars.tournament-mode #hunger-bar {
+  display: flex;
+  gap: 2px;
+  opacity: 0.85;
+}
+
 /* Experience Bar */
 #exp-container {
   position: relative;
@@ -1491,11 +1526,184 @@ html, body {
    Map Manager Modal & Dedicated Designed Worlds Modal
    ======================================================== */
 #map-modal,
-#designed-worlds-modal {
+#designed-worlds-modal,
+#world-biome-modal {
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1050;
+}
+
+/* Biome Selection Modal Styles */
+.biome-modal-card {
+  width: 600px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.biome-modal-subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: #4a4a4a;
+  margin-top: -6px;
+  margin-bottom: 2px;
+}
+
+.biome-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.biome-field-label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #222222;
+}
+
+.biome-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.biome-select-input {
+  width: 100%;
+  background: #1e1e1e;
+  color: #ffffff;
+  border: 2px solid #555555;
+  border-top-color: #111111;
+  border-left-color: #111111;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.biome-select-input:focus {
+  border-color: #55ff55;
+}
+
+.biome-select-input optgroup {
+  font-weight: bold;
+  color: #ffff55;
+  background: #141414;
+}
+
+.biome-select-input option {
+  font-weight: normal;
+  color: #f0f0f0;
+  background: #252525;
+  padding: 4px;
+}
+
+.biome-info-card {
+  background: #202020;
+  border: 2px solid #383838;
+  border-top-color: #111111;
+  border-left-color: #111111;
+  padding: 12px 14px;
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.biome-info-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.biome-info-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.biome-info-titles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.biome-info-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #55ff55;
+  letter-spacing: 0.5px;
+}
+
+.biome-info-badge {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.biome-info-desc {
+  font-size: 12px;
+  color: #d1d1d1;
+  line-height: 1.4;
+}
+
+.biome-info-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.biome-tag {
+  font-size: 11px;
+  background: #2c2c2c;
+  color: #ffda6a;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid #3f3f3f;
+}
+
+.biome-seed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.biome-seed-input {
+  background: #141414;
+  color: #55ffff;
+  border: 2px solid #444444;
+  border-top-color: #111111;
+  border-left-color: #111111;
+  padding: 7px 10px;
+  font-family: monospace;
+  font-size: 13px;
+  border-radius: 2px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.biome-seed-input:focus {
+  border-color: #55ffff;
+  outline: none;
+}
+
+.biome-field-hint {
+  font-size: 11px;
+  color: #5a5a5a;
+  font-style: italic;
+}
+
+.mc-btn-mini {
+  padding: 2px 8px;
+  font-size: 11px;
+  height: auto;
 }
 
 .map-modal-card {
@@ -2808,3 +3016,568 @@ html, body {
   font-weight: bold;
   flex: 0 0 auto;
 }
+
+/* ==========================================================================
+   Structure Studio (Parametric CAD Studio)
+   ========================================================================== */
+.mc-btn-studio {
+  background: linear-gradient(180deg, #0284c7, #0369a1);
+  border-color: #38bdf8 !important;
+  color: #f0f9ff !important;
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.mc-btn-studio:hover {
+  background: linear-gradient(180deg, #0369a1, #0284c7);
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-2px);
+}
+
+.mc-btn-mob-studio {
+  background: linear-gradient(180deg, #9333ea, #7c3aed);
+  border-color: #c084fc !important;
+  color: #faf5ff !important;
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.mc-btn-mob-studio:hover {
+  background: linear-gradient(180deg, #7c3aed, #9333ea);
+  box-shadow: 0 6px 22px rgba(192, 132, 252, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-2px);
+}
+
+.studio-workspace-wrapper {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: stretch;
+  justify-content: center;
+  max-width: 96vw;
+  max-height: 90vh;
+}
+
+/* Hide Quick Prompts & Ideas in Structure Studio Mode */
+.studio-mode .gemini-chips-container {
+  display: none !important;
+}
+
+/* Structure Studio Parameter Panel */
+.structure-parameter-panel {
+  width: 320px;
+  background: rgba(12, 16, 28, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 2px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 35px rgba(14, 165, 233, 0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  font-family: 'Minecraft', monospace;
+  color: #f8fafc;
+  animation: geminiFadeIn 0.22s ease-out;
+}
+
+.structure-parameter-panel.hidden {
+  display: none !important;
+}
+
+/* Mob Studio Parameter Panel */
+.mob-parameter-panel {
+  width: 330px;
+  background: rgba(18, 12, 28, 0.95);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 2px solid rgba(192, 132, 252, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  font-family: 'Minecraft', monospace;
+  color: #f8fafc;
+  animation: geminiFadeIn 0.22s ease-out;
+}
+
+.mob-parameter-panel.hidden {
+  display: none !important;
+}
+
+.studio-section-header {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #c084fc;
+  border-bottom: 1px solid rgba(192, 132, 252, 0.2);
+  padding-bottom: 4px;
+  margin-top: 6px;
+}
+
+.studio-color-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.studio-color-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.studio-color-field input[type="color"] {
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: #0f172a;
+  cursor: pointer;
+}
+
+.studio-checkboxes-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.studio-check-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: #e2e8f0;
+}
+
+.studio-skills-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.studio-skill-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(192, 132, 252, 0.25);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.studio-skill-chip:hover {
+  background: rgba(147, 51, 234, 0.25);
+  border-color: #c084fc;
+}
+
+.studio-btn-test {
+  background: linear-gradient(180deg, #ec4899, #be185d);
+  border-color: #f472b6 !important;
+  color: #fff !important;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.studio-btn-test:hover {
+  background: linear-gradient(180deg, #be185d, #ec4899);
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.5);
+}
+
+.studio-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 10px;
+}
+
+.studio-panel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-panel-icon {
+  font-size: 18px;
+}
+
+.studio-panel-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+}
+
+.studio-structure-badge {
+  background: #0369a1;
+  color: #e0f2fe;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  border: 1px solid #38bdf8;
+}
+
+.studio-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 480px;
+  padding-right: 4px;
+}
+
+.studio-empty-params {
+  text-align: center;
+  color: #94a3b8;
+  padding: 40px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-empty-icon {
+  font-size: 28px;
+  color: #38bdf8;
+  animation: sparkleRotate 3s infinite linear;
+}
+
+.studio-empty-params p {
+  font-size: 14px;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.studio-empty-params small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.studio-empty-params em {
+  color: #38bdf8;
+  font-style: normal;
+}
+
+.studio-param-row {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-param-label-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.studio-param-label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #e2e8f0;
+}
+
+.studio-param-badge {
+  background: #0284c7;
+  color: #f0f9ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: bold;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+}
+
+.studio-param-controls-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.studio-slider {
+  flex: 1;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.studio-num-input {
+  width: 50px;
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  color: #fff;
+  border-radius: 4px;
+  padding: 4px 2px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.studio-panel-footer {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 12px;
+}
+
+.studio-btn-save {
+  flex: 1;
+  background: #059669;
+  border-color: #10b981;
+  color: #ecfdf5;
+  font-size: 13px;
+  padding: 8px;
+}
+
+.studio-btn-save:hover {
+  background: #047857;
+}
+
+.studio-btn-open {
+  flex: 1;
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #eff6ff;
+  font-size: 13px;
+  padding: 8px;
+}
+
+.studio-btn-open:hover {
+  background: #2563eb;
+}
+
+/* Dialog Modals */
+.mc-dialog-card {
+  width: 440px;
+  max-width: 90vw;
+  background: rgba(15, 23, 42, 0.96);
+  border: 2px solid #38bdf8;
+  border-radius: 8px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(56, 189, 248, 0.3);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: 'Minecraft', monospace;
+  color: #f8fafc;
+}
+
+.mc-dialog-card.mc-dialog-large {
+  width: 580px;
+  max-height: 80vh;
+}
+
+.mc-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding-bottom: 8px;
+}
+
+.mc-dialog-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+.mc-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mc-dialog-label {
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.mc-input-text {
+  width: 100%;
+  background: #020617;
+  border: 1px solid #475569;
+  color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.mc-input-text:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.mc-dialog-error {
+  color: #ef4444;
+  font-size: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.mc-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.mc-dialog-search-bar {
+  margin-bottom: 6px;
+}
+
+.studio-open-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.studio-open-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 14px;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.studio-open-card:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: #38bdf8;
+}
+
+.studio-open-card-icon {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.studio-open-card-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 140px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 10px;
+}
+
+.studio-open-card-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-open-card-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.studio-open-card-meta {
+  font-size: 10px;
+  color: #38bdf8;
+}
+
+.studio-btn-card-load,
+.studio-btn-card-delete {
+  width: auto !important;
+  min-width: 52px !important;
+  max-width: 65px !important;
+  height: 28px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+.studio-btn-card-load {
+  background: #0284c7 !important;
+  border-color: #38bdf8 !important;
+  color: #fff !important;
+  margin-left: auto !important;
+}
+
+.studio-btn-card-load:hover {
+  background: #0369a1 !important;
+  color: #fff !important;
+}
+
+.studio-open-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 24px;
+  font-size: 13px;
+}
+
+.studio-btn-card-delete {
+  background: linear-gradient(180deg, #b91c1c, #991b1b) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+  margin-left: 6px !important;
+}
+
+.studio-btn-card-delete:hover:not(:disabled) {
+  background: linear-gradient(180deg, #dc2626, #b91c1c) !important;
+  color: #fff !important;
+}
+
+.studio-btn-card-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.studio-rename-input {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 3px 6px;
+  background: #0f172a;
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+  border-radius: 2px;
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+  max-width: 200px;
+  box-sizing: border-box;
+}
+
+.studio-rename-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+}
+

@@ -1,5 +1,7 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
+import { StructureLibrary } from './structureLibrary.js';
+import { MobLibrary } from './mobLibrary.js';
 
 export class Inventory {
   constructor(sounds) {
@@ -41,6 +43,38 @@ export class Inventory {
 
   getItemMeta(item) {
     if (!item) return null;
+    if (item.isStructure || (typeof item.id === 'string' && item.id.startsWith('structure_'))) {
+      const structId = item.structureId || item.id.replace('structure_', '');
+      const st = StructureLibrary?.getStructure(structId);
+      return {
+        id: item.id,
+        name: st ? st.name : (item.name || 'Structure'),
+        icon: st?.icon || item.icon || '/assets/blocks/crafting_table_top.png',
+        isBlock: false,
+        isStructure: true,
+        structureId: st?.id || structId,
+        count: item.count || 1
+      };
+    }
+    if (item.isSpawnEgg || item.customMobId || (typeof item.id === 'string' && item.id.startsWith('spawn_egg_') && !ITEMS[item.id])) {
+      const mobId = item.customMobId || item.id.replace('spawn_egg_', '');
+      const mobDef = MobLibrary?.getMob(mobId);
+      if (mobDef) {
+        const primary = mobDef.eggColors?.primary || mobDef.look?.mainColor || '#7c3aed';
+        const secondary = mobDef.eggColors?.secondary || mobDef.look?.accentColor || '#ec4899';
+        const icon = item.icon || (MobLibrary.generateEggIcon ? MobLibrary.generateEggIcon(primary, secondary) : '/assets/items/spawn_egg.png');
+        return {
+          id: item.id,
+          name: `${mobDef.name} Spawn Egg`,
+          icon,
+          isBlock: false,
+          isSpawnEgg: true,
+          customMobId: mobDef.id,
+          mobDef: mobDef,
+          count: item.count || 64
+        };
+      }
+    }
     if (item.isBlock) {
       const def = BLOCK_DEFS[item.id];
       const icon = def?.icon || (def && def.textures

@@ -2,6 +2,7 @@ import { BLOCKS } from './blocks.js';
 import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
 import { WaterSimulation } from './waterSimulation.js';
+import { BIOMES, getBiomeDef } from './biomes.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -202,23 +203,31 @@ export class Chunk {
 }
 
 export class World {
-  constructor(seed = 4289) {
+  constructor(seed = 4289, selectedBiome = 'all') {
     this.seed = seed;
-    this.noise = new FastNoise(seed);
-    this.caveNoise = new FastNoise(seed + 101);
-    this.biomeNoise = new FastNoise(seed + 202);
+    this.selectedBiome = selectedBiome || 'all';
     this.chunks = new Map(); // key -> Chunk
     this.seaLevel = 22;
+    this.isFlatWorld = false;
     this.water = new WaterSimulation(this);
     this.lava = new LavaSimulation(this);
     this.redstone = new Redstone(this);
+
+    this.reseed(seed, selectedBiome);
   }
 
-  reseed(seed = 4289) {
+  reseed(seed = 4289, selectedBiome = this.selectedBiome) {
     this.seed = seed;
+    this.selectedBiome = selectedBiome || 'all';
     this.noise = new FastNoise(seed);
     this.caveNoise = new FastNoise(seed + 101);
     this.biomeNoise = new FastNoise(seed + 202);
+    this.detailNoise = new FastNoise(seed + 303);
+    this.featureNoise = new FastNoise(seed + 404);
+    this.chunks.clear();
+
+    const def = getBiomeDef(this.selectedBiome);
+    this.seaLevel = def.seaLevel !== undefined ? def.seaLevel : 22;
   }
 
   chunkKey(cx, cz) {
@@ -242,89 +251,302 @@ export class World {
   }
 
   getBiome(wx, wz) {
-    const b = this.biomeNoise.noise2D(wx * 0.005, wz * 0.005);
-    if (b < -0.2) return 'desert';
-    if (b > 0.3) return 'mountains';
-    if (b > 0.05) return 'forest';
+    // If user selected a specific biome, every chunk faithfully generates that biome
+    if (this.selectedBiome && this.selectedBiome !== 'all') {
+      return this.selectedBiome;
+    }
+
+    // Dynamic Multi-Biome Overworld generator
+    const temp = this.biomeNoise.noise2D(wx * 0.003, wz * 0.003);
+    const humid = this.detailNoise.noise2D(wx * 0.003 + 500, wz * 0.003 + 500);
+    const elev = this.noise.noise2D(wx * 0.0035 + 1000, wz * 0.0035 + 1000);
+
+    if (elev > 0.45) {
+      if (temp < -0.2) return 'frozen_peaks';
+      if (temp < 0.1) return 'jagged_peaks';
+      if (humid > 0.2) return 'cherry_grove';
+      if (humid > -0.1) return 'meadow';
+      return 'stony_peaks';
+    }
+
+    if (elev < -0.38) {
+      if (temp < -0.25) return 'frozen_ocean';
+      if (temp > 0.35) return 'warm_ocean';
+      if (temp > 0.15) return 'lukewarm_ocean';
+      if (humid < -0.25 && Math.abs(elev) > 0.5) return 'mushroom_fields';
+      return 'ocean';
+    }
+
+    if (temp < -0.3) return 'snowy_plains';
+    if (temp < -0.15) return 'taiga';
+
+    if (temp > 0.35) {
+      if (humid < -0.2) return 'badlands';
+      if (humid < 0.1) return 'desert';
+      if (humid < 0.3) return 'savanna';
+      return 'jungle';
+    }
+
+    if (humid > 0.35) return 'swamp';
+    if (humid > 0.15) return 'dark_forest';
+    if (humid > 0.0) return 'forest';
+    if (humid > -0.15) return 'flower_forest';
     return 'plains';
   }
 
-  getHeight(wx, wz, biome) {
-    const base = this.noise.noise2D(wx * 0.015, wz * 0.015);
-    const detail = this.noise.noise2D(wx * 0.05, wz * 0.05) * 0.3;
+  getHeight(wx, wz, biomeId) {
+    const def = getBiomeDef(biomeId);
+    const base = this.noise.noise2D(wx * 0.012, wz * 0.012);
+    const detail = this.detailNoise.noise2D(wx * 0.04, wz * 0.04) * 0.35;
 
-    if (biome === 'mountains') {
-      const peak = Math.pow(Math.max(0, this.noise.noise2D(wx * 0.02, wz * 0.02)), 2);
-      return Math.floor(28 + base * 12 + peak * 22 + detail * 6);
-    } else if (biome === 'desert') {
-      return Math.floor(23 + base * 4 + detail * 2);
-    } else if (biome === 'forest') {
-      return Math.floor(26 + base * 6 + detail * 3);
-    } else {
-      // plains
-      return Math.floor(25 + base * 5 + detail * 2);
+    if (def.isNether) {
+      return Math.floor(def.baseHeight + base * 8 + detail * 4);
     }
+
+    if (def.isEnd) {
+      // Floating island height
+      const distFromOrigin = Math.hypot(wx, wz);
+      if (distFromOrigin < 45) {
+        return Math.floor(28 + base * 4 + detail * 2);
+      }
+      const islandNoise = this.noise.noise2D(wx * 0.015, wz * 0.015);
+      return Math.floor(26 + islandNoise * 8 + detail * 3);
+    }
+
+    if (def.isVoid) {
+      return 30;
+    }
+
+    if (def.isCavern) {
+      return Math.floor(def.baseHeight + base * 6 + detail * 3);
+    }
+
+    if (def.isJagged) {
+      const peak = Math.pow(Math.abs(this.noise.noise2D(wx * 0.018, wz * 0.018)), 1.6);
+      return Math.floor(def.baseHeight + peak * 26 + base * 8 + detail * 5);
+    }
+
+    if (def.isPlateau) {
+      const mesa = Math.min(8, Math.max(-2, base * 12));
+      return Math.floor(def.baseHeight + mesa + detail * 2);
+    }
+
+    if (def.isWindswept) {
+      return Math.floor(def.baseHeight + base * 14 + detail * 8);
+    }
+
+    if (def.category === 'offshore') {
+      return Math.floor(def.baseHeight + base * 4 + detail * 2);
+    }
+
+    if (def.category === 'highland') {
+      return Math.floor(def.baseHeight + base * 8 + detail * 4);
+    }
+
+    return Math.floor((def.baseHeight || 25) + base * (def.heightScale || 5) + detail * 3);
   }
 
   generateChunkTerrain(chunk) {
+    if (this.isFlatWorld) {
+      for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+          chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
+          chunk.setVoxel(lx, 1, lz, BLOCKS.DIRT);
+          chunk.setVoxel(lx, 2, lz, BLOCKS.DIRT);
+          chunk.setVoxel(lx, 3, lz, BLOCKS.DIRT);
+          chunk.setVoxel(lx, 4, lz, BLOCKS.GRASS);
+        }
+      }
+      return;
+    }
+
     const cx = chunk.cx;
     const cz = chunk.cz;
 
+    // First sample chunk center to get representative biome
+    const centerBiomeId = this.getBiome(cx * CHUNK_SIZE_X + 8, cz * CHUNK_SIZE_Z + 8);
+    const centerDef = getBiomeDef(centerBiomeId);
+
+    // --- 1. SPECIAL DIMENSION: THE VOID ---
+    if (centerDef.isVoid) {
+      if (cx === 0 && cz === 0) {
+        for (let x = 4; x <= 11; x++) {
+          for (let z = 4; z <= 11; z++) {
+            const isCenter = (x === 7 || x === 8) && (z === 7 || z === 8);
+            chunk.setVoxel(x, 30, z, isCenter ? BLOCKS.OBSIDIAN : BLOCKS.BEDROCK);
+          }
+        }
+      }
+      return;
+    }
+
+    // --- 2. SPECIAL DIMENSION: THE END ---
+    if (centerDef.isEnd) {
+      for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+          const wx = cx * CHUNK_SIZE_X + lx;
+          const wz = cz * CHUNK_SIZE_Z + lz;
+          const dist = Math.hypot(wx, wz);
+
+          let hasIsland = false;
+          let topY = 28;
+          let botY = 18;
+
+          if (centerBiomeId === 'the_end' && dist < 55) {
+            hasIsland = true;
+            topY = Math.floor(28 + Math.cos(dist * 0.05) * 4);
+            botY = Math.max(14, Math.floor(20 - Math.cos(dist * 0.05) * 4));
+          } else if (dist >= 60 || centerBiomeId !== 'the_end') {
+            const islandMask = this.noise.noise2D(wx * 0.02, wz * 0.02);
+            if (islandMask > 0.15) {
+              hasIsland = true;
+              topY = Math.floor(26 + islandMask * 8);
+              botY = Math.max(16, Math.floor(20 - islandMask * 5));
+            }
+          }
+
+          if (hasIsland) {
+            for (let y = botY; y <= topY; y++) {
+              chunk.setVoxel(lx, y, lz, BLOCKS.END_STONE);
+            }
+
+            // Chorus plants on outer islands
+            if (dist > 60 || centerBiomeId.includes('highlands') || centerBiomeId.includes('midlands')) {
+              const plantHash = Math.abs(Math.sin(wx * 43.12 + wz * 71.9));
+              if (plantHash < 0.025 && topY < CHUNK_HEIGHT - 12) {
+                this.generateChorusPlant(chunk, lx, topY + 1, lz);
+              }
+            }
+          }
+        }
+      }
+
+      // Obsidian pillars on central End Island
+      if (centerBiomeId === 'the_end' && cx === 0 && cz === 0) {
+        for (let y = 28; y <= 46; y++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            for (let oz = -1; oz <= 1; oz++) {
+              chunk.setVoxel(8 + ox, y, 8 + oz, BLOCKS.OBSIDIAN);
+            }
+          }
+        }
+        chunk.setVoxel(8, 47, 8, BLOCKS.SEA_LANTERN);
+      }
+      return;
+    }
+
+    // --- 3. SPECIAL DIMENSION: THE NETHER ---
+    if (centerDef.isNether) {
+      for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+          const wx = cx * CHUNK_SIZE_X + lx;
+          const wz = cz * CHUNK_SIZE_Z + lz;
+          const bId = this.getBiome(wx, wz);
+          const def = getBiomeDef(bId);
+
+          // Bedrock floor & ceiling
+          chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
+          chunk.setVoxel(lx, CHUNK_HEIGHT - 1, lz, BLOCKS.BEDROCK);
+
+          const floorHeight = Math.min(38, Math.max(8, this.getHeight(wx, wz, bId)));
+          const ceilHeight = Math.max(floorHeight + 12, Math.min(CHUNK_HEIGHT - 2, 54));
+
+          // Floor strata
+          for (let y = 1; y <= floorHeight; y++) {
+            if (y === floorHeight) {
+              chunk.setVoxel(lx, y, lz, def.surfaceBlock || BLOCKS.NETHERRACK);
+            } else if (y > floorHeight - 3) {
+              chunk.setVoxel(lx, y, lz, def.subsurfaceBlock || BLOCKS.NETHERRACK);
+            } else {
+              chunk.setVoxel(lx, y, lz, def.deepBlock || BLOCKS.NETHERRACK);
+            }
+          }
+
+          // Lava sea below seaLevel=14
+          if (floorHeight < 14) {
+            for (let y = floorHeight + 1; y <= 14; y++) {
+              chunk.setVoxel(lx, y, lz, BLOCKS.LAVA);
+            }
+          }
+
+          // Nether ceiling
+          for (let y = ceilHeight; y < CHUNK_HEIGHT - 1; y++) {
+            chunk.setVoxel(lx, y, lz, BLOCKS.NETHERRACK);
+          }
+
+          // Ceiling Glowstone clusters
+          if (Math.abs(Math.sin(wx * 28.1 + wz * 19.3)) < 0.035) {
+            for (let dy = 0; dy <= 3; dy++) {
+              chunk.setVoxel(lx, ceilHeight - dy, lz, BLOCKS.GLOWSTONE);
+            }
+          }
+
+          // Floor flora
+          if (floorHeight >= 14 && floorHeight < CHUNK_HEIGHT - 12) {
+            const hash = Math.abs(Math.sin(wx * 54.12 + wz * 31.98));
+            if (bId === 'soul_sand_valley' && hash < 0.05) {
+              chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.SOUL_TORCH);
+            } else if (bId === 'crimson_forest' && hash < 0.06) {
+              this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'crimson');
+            } else if (bId === 'warped_forest' && hash < 0.06) {
+              this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'warped');
+            } else if (bId === 'basalt_deltas' && hash < 0.08) {
+              this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    // --- 4. STANDARD & CAVE OVERWORLD GENERATION ---
     for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
       for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
         const wx = cx * CHUNK_SIZE_X + lx;
         const wz = cz * CHUNK_SIZE_Z + lz;
 
-        const biome = this.getBiome(wx, wz);
-        const height = Math.min(CHUNK_HEIGHT - 6, Math.max(5, this.getHeight(wx, wz, biome)));
+        const bId = this.getBiome(wx, wz);
+        const def = getBiomeDef(bId);
+        const height = Math.min(CHUNK_HEIGHT - 6, Math.max(4, this.getHeight(wx, wz, bId)));
 
         // Bedrock layer
         chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
 
-        // Stone & underground layers
+        // Stone & underground strata
         for (let y = 1; y <= height; y++) {
-          // 3D Cave carving: preserve a solid surface crust (at least 6 blocks)
-          const isCave = y < height - 6 && y > 3 && this.caveNoise.noise3D(wx * 0.05, y * 0.07, wz * 0.05) > 0.58;
-
-          if (isCave) {
-            continue; // air inside cave
-          }
+          // 3D Cave carving: preserve solid surface crust
+          const isCave = !def.isCavern && y < height - 6 && y > 3 && this.caveNoise.noise3D(wx * 0.05, y * 0.07, wz * 0.05) > 0.58;
+          if (isCave) continue;
 
           if (y === height) {
             // Surface block
-            if (biome === 'desert') {
-              chunk.setVoxel(lx, y, lz, BLOCKS.SAND);
-            } else if (biome === 'mountains' && y > 42) {
-              chunk.setVoxel(lx, y, lz, BLOCKS.SNOW);
-            } else if (height <= this.seaLevel + 1) {
-              chunk.setVoxel(lx, y, lz, BLOCKS.SAND);
-            } else {
-              chunk.setVoxel(lx, y, lz, BLOCKS.GRASS);
-            }
+            let surf = def.surfaceBlock || BLOCKS.GRASS;
+            if (def.isJagged && y > 42) surf = BLOCKS.SNOW;
+            else if (height <= this.seaLevel + 1 && def.category === 'offshore') surf = BLOCKS.SAND;
+            chunk.setVoxel(lx, y, lz, surf);
           } else if (y > height - 4) {
-            // Subsurface dirt / sandstone
-            if (biome === 'desert') {
-              chunk.setVoxel(lx, y, lz, BLOCKS.SAND);
+            // Subsurface layer
+            if (def.hasTerracottaBands) {
+              const band = (y + Math.floor(Math.sin(wx * 0.1) * 2)) % 12;
+              if (band < 2) chunk.setVoxel(lx, y, lz, BLOCKS.RED_TERRACOTTA);
+              else if (band < 4) chunk.setVoxel(lx, y, lz, BLOCKS.ORANGE_TERRACOTTA);
+              else if (band < 6) chunk.setVoxel(lx, y, lz, BLOCKS.YELLOW_TERRACOTTA);
+              else if (band < 8) chunk.setVoxel(lx, y, lz, BLOCKS.WHITE_TERRACOTTA);
+              else chunk.setVoxel(lx, y, lz, BLOCKS.TERRACOTTA);
             } else {
-              chunk.setVoxel(lx, y, lz, BLOCKS.DIRT);
+              chunk.setVoxel(lx, y, lz, def.subsurfaceBlock || BLOCKS.DIRT);
             }
           } else {
-            // Deep stone with ores
-            let block = BLOCKS.STONE;
+            // Deep underground stone / ores
+            let block = def.deepBlock || BLOCKS.STONE;
             const oreHash = Math.sin(wx * 12.9898 + y * 78.233 + wz * 43.1415) * 43758.5453;
             const oreVal = oreHash - Math.floor(oreHash);
 
-            if (y < 14 && oreVal < 0.015) {
-              block = BLOCKS.DIAMOND_ORE;
-            } else if (y < 18 && oreVal < 0.025) {
-              block = BLOCKS.REDSTONE_ORE;
-            } else if (y < 28 && oreVal < 0.035) {
-              block = BLOCKS.GOLD_ORE;
-            } else if (y < 45 && oreVal < 0.065) {
-              block = BLOCKS.IRON_ORE;
-            } else if (oreVal < 0.1) {
-              block = BLOCKS.COAL_ORE;
-            }
+            if (y < 14 && oreVal < 0.015) block = BLOCKS.DIAMOND_ORE;
+            else if (y < 18 && oreVal < 0.025) block = BLOCKS.REDSTONE_ORE;
+            else if (y < 28 && oreVal < 0.035) block = BLOCKS.GOLD_ORE;
+            else if (y < 45 && oreVal < 0.065) block = BLOCKS.IRON_ORE;
+            else if (oreVal < 0.1) block = BLOCKS.COAL_ORE;
 
             chunk.setVoxel(lx, y, lz, block);
           }
@@ -332,72 +554,198 @@ export class World {
 
         // Water in oceans / rivers below seaLevel
         if (height < this.seaLevel) {
+          const fluid = def.waterBlock || BLOCKS.WATER;
           for (let y = height + 1; y <= this.seaLevel; y++) {
-            chunk.setVoxel(lx, y, lz, BLOCKS.WATER);
+            if (y === this.seaLevel && def.hasIceSheet) {
+              chunk.setVoxel(lx, y, lz, BLOCKS.ICE);
+            } else {
+              chunk.setVoxel(lx, y, lz, fluid);
+            }
           }
         }
 
         // Surface flora and decorations
         if (height >= this.seaLevel && height < CHUNK_HEIGHT - 10) {
           const plantHash = Math.abs(Math.sin(wx * 54.123 + wz * 31.987));
-          if (biome === 'plains') {
+          if (def.floraType === 'sunflowers' && plantHash < 0.3) {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.SUNFLOWER);
+          } else if (def.floraType === 'cherry_petals' && plantHash < 0.25) {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.POPPY);
+          } else if (def.floraType === 'wildflowers' || def.floraType === 'dense_flowers') {
+            if (plantHash < 0.12) chunk.setVoxel(lx, height + 1, lz, BLOCKS.POPPY);
+            else if (plantHash < 0.24) chunk.setVoxel(lx, height + 1, lz, BLOCKS.DANDELION);
+          } else if (def.floraType === 'cactus' && plantHash < 0.02) {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.CACTUS);
+            chunk.setVoxel(lx, height + 2, lz, BLOCKS.CACTUS);
+          } else if (def.floraType === 'lily_pads' && height <= this.seaLevel + 1 && plantHash < 0.15) {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.LILY_PAD);
+          } else if (bId === 'plains') {
             if (plantHash < 0.02) chunk.setVoxel(lx, height + 1, lz, BLOCKS.POPPY);
             else if (plantHash < 0.04) chunk.setVoxel(lx, height + 1, lz, BLOCKS.DANDELION);
-          } else if (biome === 'desert') {
-            if (plantHash < 0.015) {
-              // 2-3 block cactus
-              chunk.setVoxel(lx, height + 1, lz, BLOCKS.CACTUS);
-              chunk.setVoxel(lx, height + 2, lz, BLOCKS.CACTUS);
-            }
           }
         }
       }
     }
 
-    // Trees generation
+    // --- 5. BIOME TREES & GIANT VEGETATION ---
     for (let lx = 3; lx < CHUNK_SIZE_X - 3; lx += 4) {
       for (let lz = 3; lz < CHUNK_SIZE_Z - 3; lz += 4) {
         const wx = cx * CHUNK_SIZE_X + lx;
         const wz = cz * CHUNK_SIZE_Z + lz;
-        const biome = this.getBiome(wx, wz);
-        if (biome === 'desert') continue;
+        const bId = this.getBiome(wx, wz);
+        const def = getBiomeDef(bId);
 
-        const treeChance = (biome === 'forest') ? 0.65 : 0.18;
-        const hash = Math.abs(Math.sin(wx * 91.23 + wz * 43.12));
-        if (hash < treeChance) {
-          const height = this.getHeight(wx, wz, biome);
-          if (height >= this.seaLevel && height < CHUNK_HEIGHT - 10) {
-            this.generateTree(chunk, lx, height + 1, lz);
+        if (def.treeDensity <= 0 || def.treeType === 'none') continue;
+
+        const hash = Math.abs(Math.sin(wx * 91.23 + wz * 43.12 + this.seed * 0.01));
+        if (hash < def.treeDensity) {
+          const height = this.getHeight(wx, wz, bId);
+          if (height >= this.seaLevel && height < CHUNK_HEIGHT - 12) {
+            this.generateTree(chunk, lx, height + 1, lz, def.treeType);
           }
         }
       }
     }
 
-    // Village generation in Chunk (0, 0)
-    if (cx === 0 && cz === 0) {
+    // --- 6. VILLAGE GENERATION IN CHUNK (0, 0) ---
+    // Civilised Overworld biomes get a starting village
+    const allowsVillage = centerDef.dimension === 'overworld' &&
+      !centerDef.isCavern &&
+      !centerDef.isVoid &&
+      centerDef.category !== 'offshore';
+
+    if (cx === 0 && cz === 0 && allowsVillage) {
       this.generateVillage(chunk);
     }
   }
 
-  generateTree(chunk, lx, baseY, lz) {
+  generateTree(chunk, lx, baseY, lz, treeType = 'oak') {
+    switch (treeType) {
+      case 'cherry':
+        this.generateCherryTree(chunk, lx, baseY, lz);
+        break;
+      case 'birch':
+        this.generateBirchTree(chunk, lx, baseY, lz, false);
+        break;
+      case 'tall_birch':
+        this.generateBirchTree(chunk, lx, baseY, lz, true);
+        break;
+      case 'spruce':
+      case 'snowy_spruce':
+        this.generateSpruceTree(chunk, lx, baseY, lz, false, treeType === 'snowy_spruce');
+        break;
+      case 'mega_spruce':
+        this.generateSpruceTree(chunk, lx, baseY, lz, true, false);
+        break;
+      case 'jungle':
+        this.generateJungleTree(chunk, lx, baseY, lz);
+        break;
+      case 'bamboo':
+        this.generateBambooGrove(chunk, lx, baseY, lz);
+        break;
+      case 'dark_oak':
+        this.generateDarkOakTree(chunk, lx, baseY, lz);
+        break;
+      case 'acacia':
+        this.generateAcaciaTree(chunk, lx, baseY, lz);
+        break;
+      case 'mangrove':
+        this.generateMangroveTree(chunk, lx, baseY, lz);
+        break;
+      case 'pale_oak':
+        this.generatePaleOakTree(chunk, lx, baseY, lz);
+        break;
+      case 'huge_mushroom':
+        this.generateHugeMushroom(chunk, lx, baseY, lz, Math.random() > 0.5 ? 'red' : 'brown');
+        break;
+      case 'ice_spike':
+        this.generateIceSpike(chunk, lx, baseY, lz);
+        break;
+      case 'oak_and_birch':
+        if (Math.random() < 0.4) this.generateBirchTree(chunk, lx, baseY, lz);
+        else this.generateOakTree(chunk, lx, baseY, lz);
+        break;
+      case 'spruce_and_oak':
+        if (Math.random() < 0.5) this.generateSpruceTree(chunk, lx, baseY, lz);
+        else this.generateOakTree(chunk, lx, baseY, lz);
+        break;
+      default:
+        this.generateOakTree(chunk, lx, baseY, lz);
+        break;
+    }
+  }
+
+  generateOakTree(chunk, lx, baseY, lz) {
     const trunkHeight = 5;
-    // Trunk
     for (let y = 0; y < trunkHeight; y++) {
       chunk.setVoxel(lx, baseY + y, lz, BLOCKS.OAK_LOG);
     }
-
-    // Leaves crown
     for (let dy = trunkHeight - 2; dy <= trunkHeight + 1; dy++) {
       const radius = dy >= trunkHeight ? 1 : 2;
       for (let dx = -radius; dx <= radius; dx++) {
         for (let dz = -radius; dz <= radius; dz++) {
           if (Math.abs(dx) === radius && Math.abs(dz) === radius && dy === trunkHeight + 1) continue;
-          const x = lx + dx;
-          const z = lz + dz;
-          const y = baseY + dy;
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.OAK_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateCherryTree(chunk, lx, baseY, lz) {
+    const trunkHeight = 5;
+    for (let y = 0; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.CHERRY_LOG);
+    }
+    for (let dy = trunkHeight - 2; dy <= trunkHeight + 1; dy++) {
+      const radius = dy >= trunkHeight ? 1 : 2;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          if (Math.abs(dx) === radius && Math.abs(dz) === radius && dy === trunkHeight + 1) continue;
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.CHERRY_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateBirchTree(chunk, lx, baseY, lz, isTall = false) {
+    const trunkHeight = isTall ? 8 : 6;
+    for (let y = 0; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.BIRCH_LOG);
+    }
+    for (let dy = trunkHeight - 3; dy <= trunkHeight + 1; dy++) {
+      const radius = dy >= trunkHeight ? 1 : 2;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          if (Math.abs(dx) === radius && Math.abs(dz) === radius && dy === trunkHeight + 1) continue;
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.BIRCH_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateSpruceTree(chunk, lx, baseY, lz, isMega = false, isSnowy = false) {
+    const trunkHeight = isMega ? 10 : 7;
+    for (let y = 0; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.SPRUCE_LOG);
+    }
+    for (let dy = 2; dy <= trunkHeight + 1; dy++) {
+      const radius = Math.max(0, Math.floor((trunkHeight + 1 - dy) * 0.45));
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
           if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
             if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) {
-              chunk.setVoxel(x, y, z, BLOCKS.OAK_LEAVES);
+              chunk.setVoxel(x, y, z, BLOCKS.SPRUCE_LEAVES);
+              if (isSnowy && y + 1 < CHUNK_HEIGHT) chunk.setVoxel(x, y + 1, z, BLOCKS.SNOW);
             }
           }
         }
@@ -405,12 +753,198 @@ export class World {
     }
   }
 
+  generateJungleTree(chunk, lx, baseY, lz) {
+    const trunkHeight = 11;
+    for (let y = 0; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.JUNGLE_LOG);
+    }
+    for (let dy = trunkHeight - 3; dy <= trunkHeight + 1; dy++) {
+      const radius = dy >= trunkHeight ? 1 : 3;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.JUNGLE_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateBambooGrove(chunk, lx, baseY, lz) {
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oz = -1; oz <= 1; oz++) {
+        const x = lx + ox, z = lz + oz;
+        if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z) {
+          const h = 4 + Math.floor(Math.random() * 5);
+          for (let y = 0; y < h; y++) {
+            if (baseY + y < CHUNK_HEIGHT) chunk.setVoxel(x, baseY + y, z, BLOCKS.BAMBOO);
+          }
+        }
+      }
+    }
+  }
+
+  generateDarkOakTree(chunk, lx, baseY, lz) {
+    const trunkHeight = 6;
+    for (let y = 0; y < trunkHeight; y++) {
+      for (let dx = 0; dx <= 1; dx++) {
+        for (let dz = 0; dz <= 1; dz++) {
+          const x = lx + dx, z = lz + dz;
+          if (x < CHUNK_SIZE_X && z < CHUNK_SIZE_Z) chunk.setVoxel(x, baseY + y, z, BLOCKS.DARK_OAK_LOG);
+        }
+      }
+    }
+    for (let dy = trunkHeight - 2; dy <= trunkHeight + 1; dy++) {
+      const radius = 3;
+      for (let dx = -radius; dx <= radius + 1; dx++) {
+        for (let dz = -radius; dz <= radius + 1; dz++) {
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.DARK_OAK_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateAcaciaTree(chunk, lx, baseY, lz) {
+    const trunkHeight = 6;
+    for (let y = 0; y < trunkHeight; y++) {
+      const ox = y > 3 ? 1 : 0;
+      const x = lx + ox;
+      if (x < CHUNK_SIZE_X) chunk.setVoxel(x, baseY + y, lz, BLOCKS.ACACIA_LOG);
+    }
+    const topX = Math.min(CHUNK_SIZE_X - 1, lx + 1);
+    const topY = baseY + trunkHeight;
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        const x = topX + dx, z = lz + dz;
+        if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && topY < CHUNK_HEIGHT) {
+          if (chunk.getVoxel(x, topY, z) === BLOCKS.AIR) chunk.setVoxel(x, topY, z, BLOCKS.ACACIA_LEAVES);
+        }
+      }
+    }
+  }
+
+  generateMangroveTree(chunk, lx, baseY, lz) {
+    // Root cage
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const x = lx + dx, z = lz + dz;
+        if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z) {
+          chunk.setVoxel(x, baseY, z, BLOCKS.MANGROVE_ROOTS);
+          chunk.setVoxel(x, baseY + 1, z, BLOCKS.MANGROVE_ROOTS);
+        }
+      }
+    }
+    const trunkHeight = 6;
+    for (let y = 2; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.MANGROVE_LOG);
+    }
+    for (let dy = trunkHeight - 2; dy <= trunkHeight + 1; dy++) {
+      const radius = dy >= trunkHeight ? 1 : 2;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.MANGROVE_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generatePaleOakTree(chunk, lx, baseY, lz) {
+    const trunkHeight = 6;
+    for (let y = 0; y < trunkHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.PALE_OAK_LOG);
+    }
+    for (let dy = trunkHeight - 2; dy <= trunkHeight + 1; dy++) {
+      const radius = dy >= trunkHeight ? 1 : 2;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const x = lx + dx, z = lz + dz, y = baseY + dy;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
+            if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) chunk.setVoxel(x, y, z, BLOCKS.PALE_OAK_LEAVES);
+          }
+        }
+      }
+    }
+  }
+
+  generateHugeMushroom(chunk, lx, baseY, lz, type = 'red') {
+    const stemHeight = 5;
+    const blockId = type === 'red' ? BLOCKS.RED_MUSHROOM_BLOCK : BLOCKS.BROWN_MUSHROOM_BLOCK;
+    for (let y = 0; y < stemHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, BLOCKS.MUSHROOM_STEM);
+    }
+    const capY = baseY + stemHeight;
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        const x = lx + dx, z = lz + dz;
+        if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && capY < CHUNK_HEIGHT) {
+          chunk.setVoxel(x, capY, z, blockId);
+          if (type === 'red') chunk.setVoxel(x, capY - 1, z, blockId);
+        }
+      }
+    }
+  }
+
+  generateNetherFungus(chunk, lx, baseY, lz, type = 'crimson') {
+    const stemId = type === 'crimson' ? BLOCKS.CRIMSON_STEM : BLOCKS.WARPED_STEM;
+    const wartId = type === 'crimson' ? BLOCKS.NETHER_WART_BLOCK : BLOCKS.WARPED_WART_BLOCK;
+    const stemHeight = 4 + Math.floor(Math.random() * 3);
+    for (let y = 0; y < stemHeight; y++) {
+      chunk.setVoxel(lx, baseY + y, lz, stemId);
+    }
+    const capY = baseY + stemHeight;
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        const x = lx + dx, z = lz + dz;
+        if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && capY < CHUNK_HEIGHT) {
+          chunk.setVoxel(x, capY, z, wartId);
+        }
+      }
+    }
+  }
+
+  generateIceSpike(chunk, lx, baseY, lz) {
+    const spikeHeight = 12 + Math.floor(Math.random() * 12);
+    for (let y = 0; y < spikeHeight; y++) {
+      const radius = y > spikeHeight - 3 ? 0 : (y > spikeHeight - 6 ? 1 : 2);
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const x = lx + dx, z = lz + dz, wy = baseY + y;
+          if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && wy < CHUNK_HEIGHT) {
+            chunk.setVoxel(x, wy, z, BLOCKS.PACKED_ICE);
+          }
+        }
+      }
+    }
+  }
+
+  generateChorusPlant(chunk, lx, baseY, lz) {
+    const h = 4 + Math.floor(Math.random() * 4);
+    for (let y = 0; y < h; y++) {
+      if (baseY + y < CHUNK_HEIGHT) {
+        chunk.setVoxel(lx, baseY + y, lz, y === h - 1 ? BLOCKS.CHORUS_FLOWER : BLOCKS.CHORUS_PLANT);
+      }
+    }
+  }
+
+  generateBasaltPillar(chunk, lx, baseY, lz) {
+    const h = 5 + Math.floor(Math.random() * 6);
+    for (let y = 0; y < h; y++) {
+      if (baseY + y < CHUNK_HEIGHT) chunk.setVoxel(lx, baseY + y, lz, BLOCKS.BASALT);
+    }
+  }
+
   generateVillage(chunk) {
-    // House 1: Cozy Cobblestone & Wood Cottage at lx: 4, lz: 4
     const h1Y = 25;
     for (let x = 3; x <= 8; x++) {
       for (let z = 3; z <= 8; z++) {
-        chunk.setVoxel(x, h1Y, z, BLOCKS.COBBLESTONE); // floor
+        chunk.setVoxel(x, h1Y, z, BLOCKS.COBBLESTONE);
         for (let y = 1; y <= 4; y++) {
           const isCorner = (x === 3 || x === 8) && (z === 3 || z === 8);
           const isWall = x === 3 || x === 8 || z === 3 || z === 8;
@@ -459,12 +993,6 @@ export class World {
     return chunk.getVoxel(lx, wy, lz);
   }
 
-  /**
-   * Highest non-air block in a column, or 0 when the column is empty.
-   *
-   * Only consults already-generated chunks: it never creates one, so it is safe
-   * to call from inside chunk generation without recursing.
-   */
   getHighestSolidY(wx, wz) {
     const cx = Math.floor(wx / CHUNK_SIZE_X);
     const cz = Math.floor(wz / CHUNK_SIZE_Z);
@@ -480,7 +1008,6 @@ export class World {
     return 0;
   }
 
-  /** True when a column is free of water/lava at surface level (safe to stand on). */
   isDryColumn(wx, wz, groundY) {
     for (let y = groundY + 1; y <= Math.min(CHUNK_HEIGHT - 1, groundY + 2); y++) {
       const id = this.getVoxel(wx, y, wz);
@@ -489,10 +1016,6 @@ export class World {
     return true;
   }
 
-  /**
-   * Y coordinate a player should stand at for a column: one block above the
-   * highest solid block, so their feet rest on the surface rather than inside it.
-   */
   getSurfaceStandY(wx, wz) {
     const ground = this.getHighestSolidY(wx, wz);
     if (ground <= 0) return 0;
@@ -501,13 +1024,15 @@ export class World {
 
   getLavaLevel(wx, wy, wz) {
     if (this.getVoxel(wx, wy, wz) !== BLOCKS.LAVA) return -1;
-    const chunk = this.getChunk(Math.floor(wx/16), Math.floor(wz/16));
-    return chunk.waterLevels[chunk.getIndex(((wx%16)+16)%16,wy,((wz%16)+16)%16)];
+    const chunk = this.getChunk(Math.floor(wx / 16), Math.floor(wz / 16));
+    if (!chunk) return -1;
+    return chunk.waterLevels[chunk.getIndex(((wx % 16) + 16) % 16, wy, ((wz % 16) + 16) % 16)];
   }
 
   getWaterLevel(wx, wy, wz) {
     if (this.getVoxel(wx, wy, wz) !== BLOCKS.WATER) return -1;
     const chunk = this.getChunk(Math.floor(wx / 16), Math.floor(wz / 16));
+    if (!chunk) return -1;
     return chunk.waterLevels[chunk.getIndex(((wx % 16) + 16) % 16, wy, ((wz % 16) + 16) % 16)];
   }
 
@@ -543,7 +1068,6 @@ export class World {
       const neighbor = this.getChunk(cx, cz + 1);
       if (neighbor) neighbor.dirty = true;
     }
-    // Water depth is averaged across all four columns at shared corners.
     const dx = lx === 0 ? -1 : (lx === CHUNK_SIZE_X - 1 ? 1 : 0);
     const dz = lz === 0 ? -1 : (lz === CHUNK_SIZE_Z - 1 ? 1 : 0);
     if (dx && dz) {
