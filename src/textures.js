@@ -152,6 +152,39 @@ export class TextureManager {
     const s = this.tileSize;
     const n = name.toLowerCase();
 
+    if (n.includes('fire')) {
+      // Never draw opaque grey box for fire!
+      this.ctx.clearRect(x, y, s, s);
+
+      // Layer 1: Fiery red-orange contour
+      this.ctx.fillStyle = '#eb5011';
+      this.ctx.fillRect(x + 1, y + 8, 14, 8);
+      this.ctx.fillRect(x + 3, y + 4, 2, 5);
+      this.ctx.fillRect(x + 7, y + 2, 2, 7);
+      this.ctx.fillRect(x + 9, y + 0, 2, 9);
+      this.ctx.fillRect(x + 13, y + 4, 2, 5);
+
+      // Layer 2: Golden orange middle
+      this.ctx.fillStyle = '#ff8811';
+      this.ctx.fillRect(x + 2, y + 9, 12, 7);
+      this.ctx.fillRect(x + 3, y + 6, 2, 4);
+      this.ctx.fillRect(x + 5, y + 7, 2, 3);
+      this.ctx.fillRect(x + 7, y + 4, 2, 6);
+      this.ctx.fillRect(x + 9, y + 5, 2, 5);
+      this.ctx.fillRect(x + 11, y + 7, 2, 3);
+
+      // Layer 3: Vibrant yellow core
+      this.ctx.fillStyle = '#ffb827';
+      this.ctx.fillRect(x + 4, y + 10, 8, 6);
+      this.ctx.fillRect(x + 7, y + 6, 2, 5);
+
+      // Layer 4: Glowing white-yellow heart
+      this.ctx.fillStyle = '#fff29b';
+      this.ctx.fillRect(x + 6, y + 11, 4, 5);
+      this.ctx.fillRect(x + 7, y + 8, 2, 4);
+      return;
+    }
+
     // Default base color
     let baseColor = '#737373';
 

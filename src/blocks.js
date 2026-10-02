@@ -233,7 +233,11 @@ export const BLOCKS = {
 };
 
 export const BLOCK_DEFS = {
-  [BLOCKS.FIRE]: { name: 'Fire', transparent: true, solid: false, plant: true, light: 15, lightColor: 0xff8b28, drop: null, hardness: 0, textures: { all: 'fire.svg' } },
+  [BLOCKS.FIRE]: {
+    name: 'Fire', hardness: 0, sound: 'wool', light: 15,
+    lightColor: 0xff8833, shape: 'cross', transparent: true, solid: false, plant: true,
+    drop: null, textures: { all: 'fire.png' }
+  },
   [BLOCKS.AIR]: {
     name: 'Air',
     transparent: true,
@@ -736,11 +740,6 @@ export const BLOCK_DEFS = {
     name: 'Soul Torch', hardness: 0, sound: 'wood', light: 10,
     lightColor: 0x61eaff, shape: 'torch', transparent: true, solid: false,
     drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' }
-  },
-  [BLOCKS.FIRE]: {
-    name: 'Fire', hardness: 0, sound: 'wool', light: 15,
-    lightColor: 0xff8833, shape: 'cross', transparent: true, solid: false, plant: true,
-    drop: null, textures: { all: 'fire.png' }
   },
   [BLOCKS.ANVIL]: {
     name: 'Anvil',

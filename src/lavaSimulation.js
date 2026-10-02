@@ -84,8 +84,16 @@ export class LavaSimulation extends WaterSimulation {
         }
       }
       for(const [dx,dy,dz]of NEIGHBORS)if(this.random()<.12)this.ignite(x+dx,y+dy,z+dz);
-      const eternal=this.world.getVoxel(x,y-1,z)===BLOCKS.NETHERRACK;
-      if(!eternal&&(!fuel||fire.age>20)&&this.random()<.35)this.world.setVoxel(x,y,z,BLOCKS.AIR);
+      const eternal = this.world.getVoxel(x, y - 1, z) === BLOCKS.NETHERRACK || this.world.getVoxel(x, y - 1, z) === BLOCKS.MAGMA_BLOCK;
+      const isRaining = Boolean(this.world.game?.weather?.isRaining?.() || this.world.weather?.isRaining?.());
+      if (!eternal && isRaining && this.world.getHighestSolidY) {
+        const topY = this.world.getHighestSolidY(x, z);
+        if (y >= topY) {
+          this.world.setVoxel(x, y, z, BLOCKS.AIR);
+          continue;
+        }
+      }
+      if (!eternal && (!fuel || fire.age > 20) && this.random() < 0.35) this.world.setVoxel(x, y, z, BLOCKS.AIR);
     }
   }
   update(dt){
