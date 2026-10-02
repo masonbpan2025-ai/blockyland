@@ -236,7 +236,9 @@ export const BLOCK_DEFS = {
   [BLOCKS.FIRE]: {
     name: 'Fire', hardness: 0, sound: 'wool', light: 15,
     lightColor: 0xff8833, shape: 'cross', transparent: true, solid: false, plant: true,
-    drop: null, textures: { all: 'fire.png' }
+    // fire.png is not shipped; using the SVG keeps the atlas lookup from
+    // falling back to the gray placeholder tile.
+    drop: null, textures: { all: 'fire.svg' }
   },
   [BLOCKS.AIR]: {
     name: 'Air',

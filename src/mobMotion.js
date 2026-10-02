@@ -148,7 +148,7 @@ export function moveFlyingMob(manager, mob, dt) {
 
   // Banking, pitch and rotation for realistic 3D flight
   const horizSpeed = Math.hypot(mob.velocity.x, mob.velocity.z);
-  if (horizSpeed > 0.1) {
+  if (horizSpeed > 0.1 && (!mob.hasPlayerTarget || mob.type !== 'ghast')) {
     const targetYaw = Math.atan2(mob.velocity.x, mob.velocity.z);
     const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
     mob.yaw += turn * (1 - Math.exp(-6 * dt));

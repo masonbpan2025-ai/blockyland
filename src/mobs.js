@@ -94,6 +94,9 @@ export class MobManager {
       fireball: this.createNetherTexture('fireball'),
       blaze_head: this.createNetherTexture('blaze_head'),
       blaze: this.createNetherTexture('blaze'),
+      // Ravagers are raid mobs and need an actual skin rather than the
+      // untextured gray placeholder that used to be used by spawnRavager.
+      ravager: this.createRavagerTexture(),
       piglin: this.createNetherTexture('piglin'),
       zombified_piglin: this.createNetherTexture('zombified_piglin'),
       hoglin: this.createNetherTexture('hoglin'),
@@ -1437,6 +1440,67 @@ export class MobManager {
     return tex;
   }
 
+  /**
+   * Build a small nearest-neighbour Ravager skin.  The raid mob used to be
+   * assembled entirely from one gray material, which made it look like an
+   * unskinned white placeholder in bright worlds.  The sheet deliberately
+   * includes the dark muzzle, brow, scars and warm hide shading so it remains
+   * readable at Minecraft's normal render distance.
+   */
+  createRavagerTexture(createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    // Base hide and pixel-level shading.
+    ctx.fillStyle = '#59636b';
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = '#707b82';
+    ctx.fillRect(0, 0, 64, 10);
+    ctx.fillStyle = '#414a52';
+    ctx.fillRect(0, 48, 64, 16);
+    for (let x = 2; x < 64; x += 8) {
+      ctx.fillStyle = x % 16 === 2 ? '#7f898f' : '#4b555d';
+      ctx.fillRect(x, 14, 4, 3);
+      ctx.fillRect(x + 2, 28, 3, 3);
+      ctx.fillRect(x - 1, 40, 5, 2);
+    }
+
+    // Muzzle and nose are intentionally high contrast so the face is visible
+    // even when the mob is viewed from a distance or in shadow.
+    ctx.fillStyle = '#252b31';
+    ctx.fillRect(20, 34, 24, 14);
+    ctx.fillStyle = '#11161b';
+    ctx.fillRect(27, 40, 10, 6);
+    ctx.fillStyle = '#a8b0b5';
+    ctx.fillRect(22, 35, 5, 3);
+    ctx.fillRect(37, 35, 5, 3);
+
+    // Red-brown brow and scar accents match the hostile raid variant.
+    ctx.fillStyle = '#8f3e36';
+    ctx.fillRect(9, 20, 14, 5);
+    ctx.fillRect(41, 20, 14, 5);
+    ctx.fillRect(13, 52, 9, 4);
+    ctx.fillRect(43, 52, 9, 4);
+    ctx.fillStyle = '#d7dde0';
+    ctx.fillRect(19, 22, 5, 5);
+    ctx.fillRect(40, 22, 5, 5);
+    ctx.fillStyle = '#0b0d0f';
+    ctx.fillRect(21, 23, 2, 3);
+    ctx.fillRect(41, 23, 2, 3);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   createNetherTexture(type) {
     if (typeof document === 'undefined') return new THREE.Texture();
     const canvas = document.createElement('canvas');
@@ -1444,69 +1508,138 @@ export class MobManager {
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
 
-    if (type === 'ghast_plain') {
-      // Creamy white base with subtle ghost creases and folds (NO face)
+    if (type === 'ghast_plain' || type === 'ghast' || type === 'ghast_shooting') {
+      // 1. Pale ethereal ghostly mottled base across 64x64 canvas (16x16 Minecraft pixels, 4x4 canvas pixels each)
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#e2e8f0';
-      for (let x = 0; x < 64; x += 4) {
-        for (let y = 0; y < 64; y += 4) {
-          if ((x * 7 + y * 13) % 5 === 0) ctx.fillRect(x, y, 4, 4);
+
+      // Subtle ghost skin mottling and shading
+      for (let gx = 0; gx < 16; gx++) {
+        for (let gy = 0; gy < 16; gy++) {
+          const n = (gx * 37 + gy * 73 + (gx ^ gy) * 11) % 19;
+          if (n === 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(gx * 4, gy * 4, 4, 4);
+          } else if (n === 1 || n === 2) {
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillRect(gx * 4, gy * 4, 4, 4);
+          } else if (n === 3) {
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(gx * 4, gy * 4, 4, 4);
+          } else if (n === 4 && gy > 7) {
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(gx * 4, gy * 4, 4, 4);
+          }
         }
       }
-      ctx.fillStyle = '#cbd5e1';
-      for (let x = 8; x < 56; x += 8) {
-        ctx.fillRect(x, 12, 2, 40);
+      // Soft bottom seam gradient where body meets tentacles
+      ctx.fillStyle = '#94a3b8';
+      for (let gx = 0; gx < 16; gx += 2) {
+        ctx.fillRect(gx * 4, 60, 4, 4);
       }
-    } else if (type === 'ghast' || type === 'ghast_shooting') {
-      // Creamy white base with ghost creases
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#e2e8f0';
-      for (let x = 0; x < 64; x += 4) {
-        for (let y = 0; y < 64; y += 4) {
-          if ((x * 7 + y * 13) % 5 === 0) ctx.fillRect(x, y, 4, 4);
-        }
-      }
-      ctx.fillStyle = '#cbd5e1';
-      for (let x = 8; x < 56; x += 8) {
-        ctx.fillRect(x, 12, 2, 40);
-      }
-      if (type === 'ghast_shooting') {
-        // Glowing red open eyes with pupils
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(12, 16, 10, 10);
-        ctx.fillRect(42, 16, 10, 10);
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(14, 18, 6, 6);
-        ctx.fillRect(44, 18, 6, 6);
-        ctx.fillStyle = '#7f1d1d';
-        ctx.fillRect(16, 20, 2, 2);
-        ctx.fillRect(46, 20, 2, 2);
-        // Tear tracks running down
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(16, 26, 3, 14);
-        ctx.fillRect(45, 26, 3, 14);
-        // Gaping dark red mouth
-        ctx.fillStyle = '#7f1d1d';
-        ctx.fillRect(22, 34, 20, 16);
-        ctx.fillStyle = '#b91c1c';
-        ctx.fillRect(26, 38, 12, 8);
-      } else {
-        // Droopy crying slit eyes
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(14, 20, 8, 4);
-        ctx.fillRect(42, 20, 8, 4);
-        // Tear tracks running down under eyes
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(16, 24, 4, 16);
-        ctx.fillRect(44, 24, 4, 16);
-        ctx.fillStyle = '#cbd5e1';
-        ctx.fillRect(18, 26, 2, 12);
-        ctx.fillRect(46, 26, 2, 12);
-        // Small sad mouth
+
+      if (type === 'ghast') {
+        // 2. Iconic Crying Ghast Face: Closed sad drooping slit eyes, dark tear tracks, sad closed mouth
+        // Left Eye Fold & Slit (cols 3..5, rows 4..5 -> x: 12..24, y: 16..24)
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(12, 16, 12, 4);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(12, 20, 12, 4);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(14, 21, 8, 2);
+
+        // Right Eye Fold & Slit (cols 10..12, rows 4..5 -> x: 40..52, y: 16..24)
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(40, 16, 12, 4);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(40, 20, 12, 4);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(42, 21, 8, 2);
+
+        // Tear tracks running down cheeks from under eyes
+        // Left Tear (col 4: x: 16..20, with col 3: x: 12..16 shadow)
         ctx.fillStyle = '#334155';
-        ctx.fillRect(26, 38, 12, 5);
+        ctx.fillRect(16, 24, 4, 16);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(16, 40, 4, 14);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(16, 54, 4, 6);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(12, 28, 4, 16);
+
+        // Right Tear (col 11: x: 44..48, with col 12: x: 48..52 shadow)
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(44, 24, 4, 16);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(44, 40, 4, 14);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(44, 54, 4, 6);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(48, 28, 4, 16);
+
+        // Sad downturned closed mouth (cols 6..9, rows 10..11 -> x: 24..40, y: 44..49)
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(24, 44, 16, 4);
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(24, 46, 4, 3);
+        ctx.fillRect(36, 46, 4, 3);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(26, 45, 12, 2);
+      } else if (type === 'ghast_shooting') {
+        // 3. Charging/Shooting Face: Snapped wide open fiery eyes, weeping tear streaks, gaping flaming maw!
+        // Left Open Fiery Eye (x: 12..24, y: 16..28)
+        ctx.fillStyle = '#1c1917';
+        ctx.fillRect(12, 16, 12, 12);
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(14, 18, 8, 8);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(16, 20, 4, 4);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(17, 21, 2, 2);
+
+        // Right Open Fiery Eye (x: 40..52, y: 16..28)
+        ctx.fillStyle = '#1c1917';
+        ctx.fillRect(40, 16, 12, 12);
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(42, 18, 8, 8);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(44, 20, 4, 4);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(45, 21, 2, 2);
+
+        // Tear tracks running down
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(16, 28, 4, 14);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(16, 42, 4, 12);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(16, 54, 4, 6);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(12, 30, 4, 14);
+
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(44, 28, 4, 14);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(44, 42, 4, 12);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(44, 54, 4, 6);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(48, 30, 4, 14);
+
+        // Gaping Wide Open Mouth with charging fireball core (x: 20..44, y: 36..56)
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(20, 36, 24, 20);
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(22, 38, 20, 16);
+        ctx.fillStyle = '#b91c1c';
+        ctx.fillRect(24, 40, 16, 12);
+        // Blazing charging flame inside mouth
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(26, 42, 12, 8);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(28, 44, 8, 4);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(30, 45, 4, 2);
       }
     } else if (type === 'fireball') {
       // Blazing fireball texture: fiery white-hot core radiating outward to flame swirls
@@ -3308,11 +3441,13 @@ export class MobManager {
     const group = new THREE.Group();
     const plainMat = new THREE.MeshLambertMaterial({
       map: this.textures?.ghast_plain || this.textures?.ghast,
-      color: 0xffffff
+      color: 0xffffff,
+      emissive: 0x181820
     });
     const headMat = new THREE.MeshLambertMaterial({
       map: this.textures?.ghast,
-      color: 0xffffff
+      color: 0xffffff,
+      emissive: 0x181820
     });
 
     // 4.0 x 4.0 x 4.0 white body cube with multi-materials [+X, -X, +Y, -Y, +Z, -Z]
@@ -3323,8 +3458,12 @@ export class MobManager {
     group.add(body);
 
     // 9 dangling tentacles hanging below the body
-    const tentacleMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
-    const tentacleGeo = new THREE.BoxGeometry(0.3, 1.8, 0.3);
+    const tentacleMat = new THREE.MeshLambertMaterial({
+      map: this.textures?.ghast_plain || this.textures?.ghast,
+      color: 0xf8fafc,
+      emissive: 0x121216
+    });
+    const tentacleGeo = new THREE.BoxGeometry(0.35, 1.8, 0.35);
     const tentacles = [];
     for (let i = 0; i < 9; i++) {
       const t = new THREE.Mesh(tentacleGeo, tentacleMat);
@@ -3336,6 +3475,18 @@ export class MobManager {
     }
 
     group.position.set(x, y, z);
+
+    // Initial orientation: face player if player exists, otherwise random yaw
+    let initialYaw = Math.random() * Math.PI * 2;
+    const playerObj = this.entities?.player || this.world?.game?.player;
+    if (playerObj?.position) {
+      const dx = playerObj.position.x - x;
+      const dz = playerObj.position.z - z;
+      if (Math.hypot(dx, dz) > 0.1) {
+        initialYaw = Math.atan2(dx, dz);
+      }
+    }
+    group.rotation.y = initialYaw;
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
@@ -3345,16 +3496,20 @@ export class MobManager {
       mesh: group,
       head: body,
       headMat: headMat,
+      plainMat: plainMat,
       tentacles: tentacles,
       isFlying: true,
       fireImmune: true,
       health: 10,
       maxHealth: 10,
       velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
+      yaw: initialYaw,
       state: 'idle',
       timer: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      fireballCooldown: 3.0 + Math.random() * 2.0,
+      isChargingFireball: false,
+      isShooting: false
     };
     this.mobs.push(mob);
     return mob;
@@ -4522,8 +4677,13 @@ export class MobManager {
 
   spawnRavager(x, y, z) {
     const group = new THREE.Group();
-    const ravagerMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+    const ravagerMat = new THREE.MeshLambertMaterial({
+      map: this.textures.ravager || this.createRavagerTexture(),
+      color: 0xffffff
+    });
     const hornMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+    const faceMat = new THREE.MeshLambertMaterial({ color: 0x1b2228 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xe5e7eb });
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.0), ravagerMat);
     body.position.y = 1.4;
@@ -4532,6 +4692,16 @@ export class MobManager {
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), ravagerMat);
     head.position.set(0, 1.8, 1.3);
     group.add(head);
+
+    // The texture provides the hide pattern; these small modeled details keep
+    // the face readable from any camera angle instead of looking like a white
+    // cube when the atlas is still loading.
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.12), faceMat);
+    muzzle.position.set(0, 1.62, 1.76);
+    group.add(muzzle);
+    const eyeGeo = new THREE.BoxGeometry(0.12, 0.1, 0.05);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.23, 2.03, 1.74); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.23, 2.03, 1.74); group.add(eyeR);
 
     // Horns
     const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornL.position.set(-0.55, 2.3, 1.2); group.add(hornL);
@@ -5725,11 +5895,40 @@ export class MobManager {
     mob.health -= amount;
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
 
-    // Flash red
-    if (mob.mat?.color) {
-      mob.mat.color.setRGB(1.0, 0.2, 0.2);
+    // Flash every visible material red. Ghasts (and several textured mobs) do
+    // not expose the single `mob.mat` field used by older mobs, so only checking
+    // that field made hits look completely invisible.
+    // Preserve the first hit's originals when rapid melee hits refresh the flash.
+    // Otherwise a second hit would save the already-red color and leave the mob red.
+    const hurtMaterials = mob.hurtMaterials || [];
+    mob.mesh?.traverse(child => {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!material?.color || hurtMaterials.some(entry => entry.material === material)) continue;
+        const entry = {
+          material,
+          color: material.color.clone(),
+          emissive: material.emissive?.clone?.() || null,
+          emissiveIntensity: material.emissiveIntensity
+        };
+        hurtMaterials.push(entry);
+        material.color.setRGB(1.0, 0.16, 0.12);
+        if (material.emissive?.setRGB) {
+          material.emissive.setRGB(0.65, 0.03, 0.01);
+          material.emissiveIntensity = Math.max(0.8, material.emissiveIntensity || 0);
+        }
+      }
+    });
+    if (mob.mat?.color && !hurtMaterials.some(entry => entry.material === mob.mat)) {
+      hurtMaterials.push({ material: mob.mat, color: mob.mat.color.clone(), emissive: mob.mat.emissive?.clone?.() || null, emissiveIntensity: mob.mat.emissiveIntensity });
+      mob.mat.color.setRGB(1.0, 0.16, 0.12);
     }
+    mob.hurtMaterials = hurtMaterials;
     mob.hurtTime = 0.18;
+    if (mob.mesh) {
+      mob.hurtScaleBase = mob.hurtScaleBase || mob.mesh.scale.clone();
+      mob.hurtScalePulse = 0.045;
+    }
 
     if (mob.type === 'glow_squid') {
       this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 10);
@@ -5995,12 +6194,30 @@ export class MobManager {
       if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
       mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);
+      if (mob.hurtScaleBase && mob.mesh) {
+        if (mob.hurtTime > 0 && !mob.dying) {
+          const progress = 1 - mob.hurtTime / 0.18;
+          const pulse = Math.sin(Math.min(1, progress) * Math.PI) * (mob.hurtScalePulse || 0.045);
+          mob.mesh.scale.copy(mob.hurtScaleBase).multiplyScalar(1 + pulse);
+        } else {
+          mob.mesh.scale.copy(mob.hurtScaleBase);
+          mob.hurtScaleBase = null;
+        }
+      }
       // Restore the mob's colour once its hurt flash ends. Not every mob type builds
       // a shared material — 28 of the 49 spawners leave `mat` undefined — and this
       // line used to throw for those. Because the whole mob update ran inside a
       // single try/catch, one such mob froze every mob in the world: nothing moved
       // and nothing reacted to being hit.
-      if (mob.hurtTime === 0 && !mob.dying && mob.mat?.color) mob.mat.color.setRGB(1, 1, 1);
+      if (mob.hurtTime === 0 && !mob.dying && mob.hurtMaterials) {
+        for (const entry of mob.hurtMaterials) {
+          if (!entry.material?.color) continue;
+          entry.material.color.copy(entry.color);
+          if (entry.emissive && entry.material.emissive?.copy) entry.material.emissive.copy(entry.emissive);
+          if (entry.emissiveIntensity !== undefined) entry.material.emissiveIntensity = entry.emissiveIntensity;
+        }
+        mob.hurtMaterials = null;
+      }
 
       // Overhead health bar for training & combat mobs
       const showHealthBars = this.game?.mechanisms
@@ -7129,6 +7346,13 @@ export class MobManager {
       }
 
       if (mob.isFlying) {
+        if (mob.type === 'ghast') {
+          const baseHeight = (player ? player.position.y : 20) + 8.5;
+          const bob = Math.sin((mob.ghastAnimTimer || 0) * 0.8) * 1.0;
+          const targetY = baseHeight + bob;
+          mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
+          mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
+        }
         moveFlyingMob(this, mob, dt);
       } else {
         const moveSpeed = moveGroundMob(this, mob, dt);
@@ -7177,15 +7401,24 @@ export class MobManager {
       if (mob.type === 'ghast') {
         mob.ghastAnimTimer = (mob.ghastAnimTimer || 0) + dt * 2.5;
         if (mob.tentacles) {
+          const vx = (mob.velocity ? mob.velocity.x : 0);
+          const vz = (mob.velocity ? mob.velocity.z : 0);
+          const dragX = -Math.max(-0.35, Math.min(0.35, vx * 0.12));
+          const dragZ = -Math.max(-0.35, Math.min(0.35, vz * 0.12));
           for (let tIdx = 0; tIdx < mob.tentacles.length; tIdx++) {
-            mob.tentacles[tIdx].rotation.x = Math.sin(mob.ghastAnimTimer + tIdx * 0.7) * 0.25;
-            mob.tentacles[tIdx].rotation.z = Math.cos(mob.ghastAnimTimer + tIdx * 0.5) * 0.15;
+            const wave = Math.sin(mob.ghastAnimTimer + tIdx * 0.7) * 0.22;
+            const sway = Math.cos(mob.ghastAnimTimer + tIdx * 0.5) * 0.14;
+            mob.tentacles[tIdx].rotation.x = wave + dragZ;
+            mob.tentacles[tIdx].rotation.z = sway - dragX;
           }
         }
         if (mob.headMat) {
-          const isShooting = (mob.fireballCooldown !== undefined && mob.fireballCooldown > 4.2);
-          mob.headMat.map = isShooting ? this.textures.ghast_shooting : this.textures.ghast;
-          mob.headMat.needsUpdate = true;
+          const isShooting = (mob.isChargingFireball || mob.isShooting || (mob.fireballCooldown !== undefined && mob.fireballCooldown > 4.2));
+          const targetTex = isShooting ? this.textures.ghast_shooting : this.textures.ghast;
+          if (mob.headMat.map !== targetTex && targetTex) {
+            mob.headMat.map = targetTex;
+            mob.headMat.needsUpdate = true;
+          }
         }
       } else if (mob.type === 'blaze' && mob.tiers) {
         if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
@@ -7281,8 +7514,15 @@ export class MobManager {
 
     // 2. Flying altitude control
     if (mob.isFlying) {
-      const targetY = (player ? player.position.y : 5) + 1.8;
-      mob.velocity.y += (targetY - mob.mesh.position.y) * 2.0 * dt;
+      let targetY;
+      if (mob.type === 'ghast') {
+        const baseHeight = player ? player.position.y + 8.5 : 32.0;
+        const bob = Math.sin((mob.ghastAnimTimer || 0) * 0.8) * 1.0;
+        targetY = baseHeight + bob;
+      } else {
+        targetY = (player ? player.position.y : 5) + 1.8;
+      }
+      mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
       mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
     }
 

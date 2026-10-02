@@ -22,6 +22,19 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
   manager.scene.add(mesh,trail);manager.sounds?.playBowShoot?.();
   const arrow={mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
 }
+
+function projectileHitBounds(manager, target) {
+  const dims = manager.getMobDimensions?.(target.type);
+  const width = Number(target.width ?? dims?.width ?? 0.6);
+  const height = Number(target.height ?? dims?.height ?? 1.8);
+  // A ghast's damageable hitbox is its body. Its tentacles are visual appendages
+  // and should not make low arrows register as hits (Minecraft Wiki hitbox rule).
+  if (target.type === 'ghast') {
+    return { minY: target.mesh.position.y + 1.0, maxY: target.mesh.position.y + 4.6, halfWidth: 1.8 };
+  }
+  return { minY: target.mesh.position.y, maxY: target.mesh.position.y + height, halfWidth: width / 2 };
+}
+
 export function updateArrows(manager,dt,player){
   for(const arrow of [...manager.arrows]){
     arrow.life-=dt;if(arrow.life<=0){removeArrow(manager,arrow);continue;}
@@ -48,9 +61,14 @@ export function updateArrows(manager,dt,player){
       arrow.mesh.position.copy(next);
       const targets=arrow.shooter==='player'?manager.mobs.filter(m=>m.health>0&&!m.dying):[player];
       for(const target of targets){
-        const pos=target.mesh?.position??target.position,height=target.height??1.8;
-        if(Math.abs(next.x-pos.x)<(target.width??.6)/2+.12&&Math.abs(next.z-pos.z)<(target.width??.6)/2+.12&&next.y>=pos.y&&next.y<=pos.y+height){
-          if(target===player)player.takeDamage(arrow.damage);else manager.damageMob(target,arrow.damage);
+        const pos=target.mesh?.position??target.position;
+        const bounds = target.mesh ? projectileHitBounds(manager, target) : { minY: pos.y, maxY: pos.y + 1.8, halfWidth: target.width ?? .6 };
+        if(Math.abs(next.x-pos.x)<bounds.halfWidth+.12&&Math.abs(next.z-pos.z)<bounds.halfWidth+.12&&next.y>=bounds.minY&&next.y<=bounds.maxY){
+          if(target===player)player.takeDamage(arrow.damage);
+          else {
+            const hitDirection = arrow.velocity.clone().normalize();
+            manager.damageMob(target, arrow.damage, next.clone().sub(hitDirection));
+          }
           removeArrow(manager,arrow);removed=true;break;
         }
       }

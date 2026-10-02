@@ -211,14 +211,86 @@ export class HostileMobBehaviors {
         }
       }
 
-      // C. Ghast AI: Flying, Launching Explosive Fireball
+      // C. Ghast AI: Flying, Player Tracking, Charging & Launching Explosive Fireball
       if (mob.type === 'ghast') {
-        mob.fireballCooldown = (mob.fireballCooldown || 4.5) - dt;
-        const dist = mob.mesh.position.distanceTo(player.position);
-        if (dist < 35 && mob.fireballCooldown <= 0) {
-          mob.fireballCooldown = 5.0 + Math.random() * 3.0;
-          this.spawnGhastFireball(mob, player);
+        const dist = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
+
+        // 1. Orient to face player when within aggro range (up to 64 blocks)
+        if (player?.position && dist < 64 && mob.health > 0) {
+          mob.hasPlayerTarget = true;
+          const dx = player.position.x - mob.mesh.position.x;
+          const dz = player.position.z - mob.mesh.position.z;
+          const distXZ = Math.hypot(dx, dz);
+          const targetYaw = Math.atan2(dx, dz);
+
+          // Face the player (+Z front face)
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, dt * 4.0);
+          if (mob.mesh) mob.mesh.rotation.y = mob.yaw;
+
+          const dy = (player.position.y + 1.2) - (mob.mesh.position.y + 2.2);
+          const targetPitch = Math.atan2(-dy, Math.max(2.0, distXZ));
+          const clampedPitch = Math.max(-0.35, Math.min(0.35, targetPitch));
+          if (mob.mesh) mob.mesh.rotation.x += (clampedPitch - mob.mesh.rotation.x) * Math.min(1.0, dt * 3.0);
+
+          // Hover distance control (maintain ~14-28 blocks)
+          if (distXZ < 14) {
+            mob.velocity.x -= Math.sin(mob.yaw) * 1.5 * dt;
+            mob.velocity.z -= Math.cos(mob.yaw) * 1.5 * dt;
+          } else if (distXZ > 28) {
+            mob.velocity.x += Math.sin(mob.yaw) * 1.5 * dt;
+            mob.velocity.z += Math.cos(mob.yaw) * 1.5 * dt;
+          } else {
+            const strafeDir = (Math.sin(Date.now() * 0.001 + (mob.mesh?.id || 0)) > 0 ? 1 : -1);
+            mob.velocity.x += Math.cos(mob.yaw) * strafeDir * 0.8 * dt;
+            mob.velocity.z -= Math.sin(mob.yaw) * strafeDir * 0.8 * dt;
+          }
+          mob.velocity.x *= 0.96;
+          mob.velocity.z *= 0.96;
+        } else {
+          mob.hasPlayerTarget = false;
+        }
+
+        // 2. Charging & Shooting state machine
+        mob.fireballCooldown = (mob.fireballCooldown !== undefined ? mob.fireballCooldown : 3.5) - dt;
+
+        if (mob.isChargingFireball) {
+          mob.chargeTimer = (mob.chargeTimer || 0) - dt;
+
+          // Mouth sparks / flame particle burst while charging
+          if (Math.random() < 0.4 && this.mobManager.spawnParticleBurst) {
+            const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), mob.yaw);
+            const mouthPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 2.2, 0)).add(forward.multiplyScalar(1.9));
+            this.mobManager.spawnParticleBurst(mouthPos, 0xff7700, 2);
+          }
+
+          if (mob.chargeTimer <= 0) {
+            mob.isChargingFireball = false;
+            mob.isShooting = true;
+            mob.shootingTimer = 0.4;
+            mob.fireballCooldown = 4.5 + Math.random() * 2.5;
+            this.spawnGhastFireball(mob, player);
+            if (this.sounds?.playGhast) this.sounds.playGhast();
+          }
+        } else if (mob.isShooting) {
+          mob.shootingTimer = (mob.shootingTimer || 0) - dt;
+          if (mob.shootingTimer <= 0) {
+            mob.isShooting = false;
+          }
+        } else if (player?.position && dist < 48 && mob.fireballCooldown <= 0 && mob.health > 0) {
+          mob.isChargingFireball = true;
+          mob.chargeTimer = 1.0;
           if (this.sounds?.playGhast) this.sounds.playGhast();
+        }
+
+        // 3. Dynamic face texture: eyes and mouth open when charging/shooting
+        const shouldShowShooting = mob.isChargingFireball || mob.isShooting;
+        if (mob.headMat && this.mobManager.textures) {
+          const targetTex = shouldShowShooting ? this.mobManager.textures.ghast_shooting : this.mobManager.textures.ghast;
+          if (mob.headMat.map !== targetTex && targetTex) {
+            mob.headMat.map = targetTex;
+            mob.headMat.needsUpdate = true;
+          }
         }
       }
 
@@ -506,8 +578,9 @@ export class HostileMobBehaviors {
 
   spawnGhastFireball(ghast, player) {
     if (!this.mobManager.customProjectiles) this.mobManager.customProjectiles = [];
-    const dir = player.position.clone().sub(ghast.mesh.position);
-    dir.normalize();
+    const dir = player.position.clone().sub(ghast.mesh.position).normalize();
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), ghast.yaw || ghast.mesh?.rotation?.y || 0);
+    const mouthPos = ghast.mesh.position.clone().add(new THREE.Vector3(0, 2.2, 0)).add(forward.clone().multiplyScalar(1.9));
 
     const group = new THREE.Group();
     const coreMat = new THREE.MeshLambertMaterial({
@@ -532,7 +605,7 @@ export class HostileMobBehaviors {
     group.add(q1);
     group.add(q2);
 
-    group.position.copy(ghast.mesh.position).add(new THREE.Vector3(0, 0.5, 0));
+    group.position.copy(mouthPos);
     this.mobManager.scene.add(group);
 
     this.mobManager.customProjectiles.push({
@@ -691,12 +764,16 @@ export class HostileMobBehaviors {
       // If deflected Ghast fireball hits a mob (especially Ghast)
       if (p.deflected && p.isGhastFireball) {
         for (const mob of this.mobManager.mobs) {
-          if (mob.health > 0 && p.position.distanceTo(mob.mesh.position) < 2.5) {
-            hit = true;
-            this.mobManager.damageMob(mob, 35, p.position);
-            if (this.sounds?.playExplosion) this.sounds.playExplosion();
-            this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);
-            break;
+          if (mob.health > 0) {
+            const targetCenter = (mob.type === 'ghast') ? mob.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 0)) : mob.mesh.position;
+            const hitDist = (mob.type === 'ghast') ? 3.5 : 2.5;
+            if (p.position.distanceTo(targetCenter) < hitDist) {
+              hit = true;
+              this.mobManager.damageMob(mob, 35, p.position);
+              if (this.sounds?.playExplosion) this.sounds.playExplosion();
+              this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);
+              break;
+            }
           }
         }
       }
