@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- Wooden Ties -->
+  <rect x="2" y="2" width="12" height="2" fill="#85542e" />
+  <rect x="2" y="3" width="12" height="1" fill="#5c3814" />
+  <rect x="2" y="7" width="12" height="2" fill="#85542e" />
+  <rect x="2" y="8" width="12" height="1" fill="#5c3814" />
+  <rect x="2" y="12" width="12" height="2" fill="#85542e" />
+  <rect x="2" y="13" width="12" height="1" fill="#5c3814" />
+
+  <!-- Iron Rails (Left & Right) -->
+  <rect x="3" y="0" width="2" height="16" fill="#a0a0a0" />
+  <rect x="3" y="0" width="1" height="16" fill="#e0e0e0" />
+  <rect x="4" y="0" width="1" height="16" fill="#606060" />
+
+  <rect x="11" y="0" width="2" height="16" fill="#a0a0a0" />
+  <rect x="11" y="0" width="1" height="16" fill="#e0e0e0" />
+  <rect x="12" y="0" width="1" height="16" fill="#606060" />
+</svg>

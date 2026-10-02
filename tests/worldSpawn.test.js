@@ -107,6 +107,16 @@ test('when nothing nearby is usable it reports failure instead of guessing', () 
   assert.match(spawn.reason, /no usable column/);
 });
 
+test('ocean biomes place player at the sea surface instead of falling back to y=0', () => {
+  const oceanCols = flatGround(5, { ground: 24, block: BLOCKS.WATER });
+  const world = stubWorld(oceanCols);
+  const spawn = findSurfaceSpawn(world, { x: 0, z: 0, radius: 4 });
+  assert.equal(spawn.found, true, 'must find the water surface');
+  assert.equal(spawn.y, 25, 'stands right above the sea level at 24');
+  assert.equal(spawn.groundY, 24);
+  assert.match(spawn.reason, /sea surface/);
+});
+
 // --- placement effects ------------------------------------------------------
 
 test('placePlayerOnSurface moves the player, zeroes velocity and updates the respawn point', () => {

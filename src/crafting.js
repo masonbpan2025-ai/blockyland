@@ -244,28 +244,24 @@ export const RECIPES_3X3 = [
   }
 ];
 
-export const VILLAGER_TRADES = [
-  {
-    cost: { id: 'wheat', isBlock: false, count: 10, name: '10 Wheat', icon: '/assets/items/wheat.png' },
-    reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }
-  },
-  {
-    cost: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' },
-    reward: { id: 'bread', isBlock: false, count: 6, name: '6 Bread', icon: '/assets/items/bread.png' }
-  },
-  {
-    cost: { id: 'emerald', isBlock: false, count: 5, name: '5 Emeralds', icon: '/assets/items/emerald.png' },
-    reward: { id: 'diamond_sword', isBlock: false, count: 1, name: 'Diamond Sword', icon: '/assets/items/diamond_sword.png' }
-  },
-  {
-    cost: { id: 'iron_ingot', isBlock: false, count: 3, name: '3 Iron Ingots', icon: '/assets/items/iron_ingot.png' },
-    reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }
-  },
-  {
-    cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' },
-    reward: { id: 'totem_of_undying', isBlock: false, count: 1, name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png' }
-  }
-];
+export {
+  PROFESSIONS,
+  WORKSTATION_TO_PROFESSION,
+  VILLAGER_LEVELS,
+  PROFESSION_TRADES,
+  initVillagerEconomy,
+  unlockTradesForLevel,
+  calculateTradeCost,
+  executeTrade,
+  restockVillager,
+  updateVillagerWorkstation,
+  startZombieVillagerCure,
+  updateZombieVillagerCuring
+} from './villagerEconomy.js';
+
+import { PROFESSION_TRADES } from './villagerEconomy.js';
+
+export const VILLAGER_TRADES = PROFESSION_TRADES.farmer.slice(0, 5);
 
 // Helper to check 2D grid matching against a recipe
 export function findMatchingRecipe(grid, width, height, recipesList) {
@@ -330,9 +326,14 @@ RECIPES_3X3.push(...RECIPES_2X2.slice(-4),{pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OA
 // Minecraft, so a station can be built from scratch.
 RECIPES_3X3.push(
   {pattern:[['iron_ingot',null,null],['iron_ingot','stick',null],['iron_ingot',null,null]],result:{id:'minecart',isBlock:false,count:1}},
+  {pattern:[['chest'],['minecart']],result:{id:'chest_minecart',isBlock:false,count:1}},
+  {pattern:[[BLOCKS.FURNACE],['minecart']],result:{id:'furnace_minecart',isBlock:false,count:1}},
+  {pattern:[[BLOCKS.HOPPER],['minecart']],result:{id:'hopper_minecart',isBlock:false,count:1}},
+  {pattern:[[BLOCKS.TNT],['minecart']],result:{id:'tnt_minecart',isBlock:false,count:1}},
   {pattern:[['redstone','iron_ingot','redstone'],['iron_ingot','stick','iron_ingot'],['iron_ingot','stick','iron_ingot']],result:{id:BLOCKS.POWERED_RAIL,isBlock:true,count:6}},
   {pattern:[['iron_ingot','stick','iron_ingot']],result:{id:BLOCKS.RAIL,isBlock:true,count:16}},
   {pattern:[[BLOCKS.OAK_PLANKS,null,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:'oak_boat',isBlock:false,count:1}},
+  {pattern:[['chest'],['oak_boat']],result:{id:'chest_boat',isBlock:false,count:1}},
   {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_DOOR,isBlock:true,count:3}},
   {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_TRAPDOOR,isBlock:true,count:2}},
   // Shield

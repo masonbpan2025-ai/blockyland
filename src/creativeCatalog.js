@@ -43,7 +43,8 @@ function itemEntry(itemId, tab, customName = null) {
     id: itemId,
     name,
     icon: def.icon,
-    isBlock: false,
+    isBlock: Boolean(def.isBlock),
+    blockId: def.blockId,
     tab,
     count: (def.type === 'tool' || def.type === 'weapon' || def.type === 'armor' || def.type === 'special') ? 1 : 64,
     searchTerms: `${name.toLowerCase()} ${def.type || ''} ${tab.replace('_', ' ')}`
@@ -192,6 +193,7 @@ export function buildCreativeCatalog() {
     'coal', 'charcoal', 'lapis_lazuli', 'quartz', 'amethyst_shard',
     'redstone', 'glowstone_dust',
     'stick', 'string', 'feather', 'gunpowder', 'wheat', 'wheat_seeds',
+    'pumpkin_seeds', 'melon_seeds', 'beetroot_seeds',
     'bone', 'bone_meal', 'sugar', 'leather', 'paper', 'book',
     'clay_ball', 'brick', 'nether_brick', 'green_dye',
     'ender_pearl', 'ender_eye', 'blaze_rod', 'blaze_powder', 'magma_cream', 'slime_ball',
@@ -206,8 +208,12 @@ export function buildCreativeCatalog() {
   const spawnEggsList = [
     'villager_spawn_egg', 'iron_golem_spawn_egg', 'pillager_spawn_egg',
     'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg',
-    'pig_spawn_egg', 'cow_spawn_egg', 'sheep_spawn_egg',
-    'salmon_spawn_egg', 'dolphin_spawn_egg', 'octopus_spawn_egg', 'axolotl_spawn_egg'
+    'pig_spawn_egg', 'cow_spawn_egg', 'sheep_spawn_egg', 'chicken_spawn_egg',
+    'salmon_spawn_egg', 'cod_spawn_egg', 'dolphin_spawn_egg', 'squid_spawn_egg', 'glow_squid_spawn_egg', 'guardian_spawn_egg', 'elder_guardian_spawn_egg', 'drowned_spawn_egg', 'octopus_spawn_egg', 'axolotl_spawn_egg',
+    'horse_spawn_egg', 'donkey_spawn_egg', 'wolf_spawn_egg', 'cat_spawn_egg',
+    'slime_spawn_egg', 'magma_cube_spawn_egg', 'witch_spawn_egg',
+    'ghast_spawn_egg', 'blaze_spawn_egg', 'wither_skeleton_spawn_egg', 'piglin_spawn_egg', 'zombified_piglin_spawn_egg', 'zombie_pigman_spawn_egg', 'hoglin_spawn_egg', 'strider_spawn_egg',
+    'phantom_spawn_egg', 'vindicator_spawn_egg', 'evoker_spawn_egg', 'ravager_spawn_egg', 'warden_spawn_egg', 'ender_dragon_spawn_egg', 'wither_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');

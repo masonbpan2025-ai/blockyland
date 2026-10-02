@@ -21,14 +21,14 @@ function createChestBox(minX, minY, minZ, maxX, maxY, maxZ, tm, frontFace = 'fro
   geo.translate(minX + width / 2, minY + height / 2, minZ + depth / 2);
 
   const uv = geo.attributes.uv;
-  // Faces order in Three.js BoxGeometry: +X (east/0), -X (west/1), +Y (top/2), -Y (bottom/3), +Z (south/4), -Z (north/5)
+  const isLock = frontFace === 'chest_lock.png';
   const faceTextures = {
-    0: 'chest_side.png',
-    1: 'chest_side.png',
-    2: 'chest_top.png',
-    3: 'chest_top.png',
+    0: isLock ? 'chest_lock.png' : 'chest_side.png',
+    1: isLock ? 'chest_lock.png' : 'chest_side.png',
+    2: isLock ? 'chest_lock.png' : 'chest_top.png',
+    3: isLock ? 'chest_lock.png' : 'chest_top.png',
     4: frontFace === 'front' ? 'chest_front.png' : frontFace,
-    5: 'chest_side.png'
+    5: isLock ? 'chest_lock.png' : 'chest_side.png'
   };
 
   for (let face = 0; face < 6; face++) {
@@ -215,7 +215,7 @@ export class ChestManager {
 
           // Rebuild neighbor chunk mesh to render connected double chest half
           const nChunk = world.getChunk(Math.floor(nx / 16), Math.floor(nz / 16));
-          if (nChunk) this.game.rebuildChunkMesh(nChunk);
+          if (nChunk && this.game?.rebuildChunkMesh) this.game.rebuildChunkMesh(nChunk);
           break;
         }
       }
@@ -225,7 +225,7 @@ export class ChestManager {
     world.setVoxel(x, y, z, BLOCKS.CHEST);
 
     const chunk = world.getChunk(Math.floor(x / 16), Math.floor(z / 16));
-    if (chunk) this.game.rebuildChunkMesh(chunk);
+    if (chunk && this.game?.rebuildChunkMesh) this.game.rebuildChunkMesh(chunk);
 
     return chest;
   }
@@ -333,6 +333,50 @@ export class ChestManager {
   getCombinedSlot(x, y, z, slotIdx) {
     const items = this.getCombinedItems(x, y, z);
     return items[slotIdx] || null;
+  }
+
+  addItem(x, y, z, id, isBlock = false, count = 1) {
+    const items = this.getCombinedItems(x, y, z);
+    let remaining = count;
+    // 1. Stack into existing slots
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < 64) {
+        const canAdd = Math.min(remaining, 64 - it.count);
+        it.count += canAdd;
+        this.setCombinedSlot(x, y, z, i, it);
+        remaining -= canAdd;
+        if (remaining <= 0) return true;
+      }
+    }
+    // 2. Put into first empty slot
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i]) {
+        const toPut = Math.min(remaining, 64);
+        this.setCombinedSlot(x, y, z, i, { id, isBlock, count: toPut });
+        remaining -= toPut;
+        if (remaining <= 0) return true;
+      }
+    }
+    return remaining < count;
+  }
+
+  extractItem(x, y, z) {
+    const items = this.getCombinedItems(x, y, z);
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it && it.count > 0) {
+        const extracted = { id: it.id, isBlock: it.isBlock, count: 1 };
+        it.count--;
+        if (it.count <= 0) {
+          this.setCombinedSlot(x, y, z, i, null);
+        } else {
+          this.setCombinedSlot(x, y, z, i, it);
+        }
+        return extracted;
+      }
+    }
+    return null;
   }
 
   onBlockBroken(x, y, z) {

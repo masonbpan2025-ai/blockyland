@@ -1,6 +1,7 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
+import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
 import {
@@ -21,6 +22,7 @@ import {
   applyEnchantment
 } from './enchanting.js';
 import { getExpProgress } from './experience.js';
+import { renderPlayerDoll } from './playerDoll.js';
 
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
@@ -126,6 +128,11 @@ export class UIManager {
     this.creativeModal = document.getElementById('creative-modal');
     this.creativeTabsTop = document.getElementById('creative-tabs-top');
     this.creativeTabsBottom = document.getElementById('creative-tabs-bottom');
+    this.creativeSlotsScroll = document.getElementById('creative-slots-scroll');
+    this.creativeSurvivalView = document.getElementById('creative-survival-view');
+    this.creativeStorageGrid = document.getElementById('creative-storage-grid');
+    this.creativePlayerPreview = document.getElementById('creative-player-preview');
+    this.creativeSearchWrapper = document.getElementById('creative-search-wrapper');
     this.creativeItemGrid = document.getElementById('creative-item-grid');
     this.creativeHotbarGrid = document.getElementById('creative-hotbar-grid');
     this.creativeSearchInput = document.getElementById('creative-search-input');
@@ -135,6 +142,7 @@ export class UIManager {
     this.creativeDestroySlot = document.getElementById('creative-destroy-slot');
     this.btnClearHotbar = document.getElementById('btn-clear-hotbar');
     this.closeCreative = document.getElementById('close-creative');
+    this.playerPreviewBox = document.getElementById('player-preview-box');
     this.mcTooltip = document.getElementById('mc-tooltip');
     this.mcTooltipTitle = document.getElementById('mc-tooltip-title');
     this.mcTooltipSub = document.getElementById('mc-tooltip-sub');
@@ -601,6 +609,86 @@ export class UIManager {
     document.getElementById('dbg-mode').textContent = `Mode: ${this.player.gamemode.toUpperCase()}`;
   }
 
+  setBossBar(id, title, progress, color = '#a855f7') {
+    if (typeof document === 'undefined') return;
+    let container = document.getElementById('boss-bars-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'boss-bars-container';
+      container.style.position = 'fixed';
+      container.style.top = '12px';
+      container.style.left = '50%';
+      container.style.transform = 'translateX(-50%)';
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '8px';
+      container.style.alignItems = 'center';
+      container.style.zIndex = '9999';
+      container.style.pointerEvents = 'none';
+      document.body.appendChild(container);
+    }
+
+    let barEl = document.getElementById(`boss-bar-${id}`);
+    if (!barEl) {
+      barEl = document.createElement('div');
+      barEl.id = `boss-bar-${id}`;
+      barEl.style.width = '360px';
+      barEl.style.display = 'flex';
+      barEl.style.flexDirection = 'column';
+      barEl.style.alignItems = 'center';
+      barEl.innerHTML = `
+        <div class="boss-bar-title" style="color:#ffffff;font-size:13px;font-weight:bold;text-shadow:1px 1px 2px #000;margin-bottom:3px;font-family:sans-serif;">${title}</div>
+        <div class="boss-bar-track" style="width:100%;height:10px;background:#18181b;border:2px solid #27272a;box-shadow:0 0 6px rgba(0,0,0,0.8);border-radius:2px;overflow:hidden;">
+          <div class="boss-bar-fill" style="width:${Math.round(progress * 100)}%;height:100%;background:${color};transition:width 0.15s ease-out;"></div>
+        </div>
+      `;
+      container.appendChild(barEl);
+    } else {
+      const titleEl = barEl.querySelector('.boss-bar-title');
+      const fillEl = barEl.querySelector('.boss-bar-fill');
+      if (titleEl) titleEl.textContent = title;
+      if (fillEl) {
+        fillEl.style.width = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`;
+        if (color) fillEl.style.background = color;
+      }
+    }
+  }
+
+  removeBossBar(id) {
+    if (typeof document === 'undefined') return;
+    const barEl = document.getElementById(`boss-bar-${id}`);
+    if (barEl) barEl.remove();
+  }
+
+  setHorseJumpMeter(charge) {
+    if (typeof document === 'undefined') return;
+    let meter = document.getElementById('horse-jump-meter');
+    if (charge <= 0) {
+      if (meter) meter.style.display = 'none';
+      return;
+    }
+    if (!meter) {
+      meter = document.createElement('div');
+      meter.id = 'horse-jump-meter';
+      meter.style.position = 'fixed';
+      meter.style.bottom = '85px';
+      meter.style.left = '50%';
+      meter.style.transform = 'translateX(-50%)';
+      meter.style.width = '240px';
+      meter.style.height = '8px';
+      meter.style.background = '#1e293b';
+      meter.style.border = '2px solid #475569';
+      meter.style.borderRadius = '3px';
+      meter.style.zIndex = '9999';
+      meter.style.overflow = 'hidden';
+      meter.innerHTML = `<div class="jump-fill" style="width:0%;height:100%;background:#38bdf8;"></div>`;
+      document.body.appendChild(meter);
+    }
+    meter.style.display = 'block';
+    const fill = meter.querySelector('.jump-fill');
+    if (fill) fill.style.width = `${Math.round(charge * 100)}%`;
+  }
+
   // Inventory Modal Management
   toggleInventory() {
     if (this.player.gamemode === 'creative') {
@@ -662,6 +750,9 @@ export class UIManager {
         this.inv.hotbar.fill(null);
         this.playPopSound();
         this.renderCreativeHotbar();
+        if (this.activeCreativeTab === 'survival_inventory') {
+          this.renderCreativeSurvivalView();
+        }
         this.updateHotbar();
       };
     }
@@ -672,6 +763,9 @@ export class UIManager {
           this.inv.hotbar.fill(null);
           this.playPopSound();
           this.renderCreativeHotbar();
+          if (this.activeCreativeTab === 'survival_inventory') {
+            this.renderCreativeSurvivalView();
+          }
           this.updateHotbar();
         } else if (this.inv.cursorItem) {
           this.inv.cursorItem = null;
@@ -702,7 +796,7 @@ export class UIManager {
         const tabDef = CREATIVE_TABS.find(t => t.id === id) || (id === 'survival_inventory' ? {
           id: 'survival_inventory',
           name: 'Survival Inventory',
-          icon: '/assets/gui/inventory.png'
+          icon: '/assets/items/chest.png'
         } : null);
         if (!tabDef) return;
 
@@ -737,42 +831,29 @@ export class UIManager {
   }
 
   renderCreativeItems() {
-    if (!this.creativeItemGrid) return;
-    this.creativeItemGrid.innerHTML = '';
-
     if (this.activeCreativeTab === 'survival_inventory') {
+      if (this.creativeSlotsScroll) this.creativeSlotsScroll.classList.add('hidden');
+      if (this.creativeSurvivalView) this.creativeSurvivalView.classList.remove('hidden');
+      if (this.creativeSearchWrapper) this.creativeSearchWrapper.style.visibility = 'hidden';
       if (this.creativeTabTitle) this.creativeTabTitle.textContent = 'Survival Inventory';
-      if (this.creativeItemCount) this.creativeItemCount.textContent = '(Carried Storage)';
+      if (this.creativeItemCount) this.creativeItemCount.textContent = '';
+      if (this.creativeDestroySlot) {
+        this.creativeDestroySlot.innerHTML = '<span class="destroy-x-icon">✕</span>';
+      }
 
-      // Render 27 storage slots inside grid
-      this.inv.storage.forEach((item, idx) => {
-        const slot = document.createElement('div');
-        slot.className = 'inv-slot';
-        this.renderSlotContent(slot, item);
-
-        slot.onclick = (e) => {
-          this.inv.handleSlotClick(this.inv.storage, idx, e.button === 2, e.shiftKey);
-          this.renderCreativeItems();
-          this.renderCreativeHotbar();
-          this.updateHotbar();
-        };
-        slot.oncontextmenu = (e) => {
-          e.preventDefault();
-          this.inv.handleSlotClick(this.inv.storage, idx, true, e.shiftKey);
-          this.renderCreativeItems();
-          this.renderCreativeHotbar();
-          this.updateHotbar();
-        };
-        if (item) {
-          const meta = this.inv.getItemMeta(item);
-          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
-          slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
-          slot.onmouseleave = () => this.hideTooltip();
-        }
-        this.creativeItemGrid.appendChild(slot);
-      });
+      this.renderCreativeSurvivalView();
       return;
     }
+
+    if (this.creativeSlotsScroll) this.creativeSlotsScroll.classList.remove('hidden');
+    if (this.creativeSurvivalView) this.creativeSurvivalView.classList.add('hidden');
+    if (this.creativeSearchWrapper) this.creativeSearchWrapper.style.visibility = 'visible';
+    if (this.creativeDestroySlot) {
+      this.creativeDestroySlot.innerHTML = '<img src="/assets/items/lava_bucket.png" alt="Destroy" class="slot-icon">';
+    }
+
+    if (!this.creativeItemGrid) return;
+    this.creativeItemGrid.innerHTML = '';
 
     const items = searchCreativeItems(this.creativeSearchQuery, this.activeCreativeTab);
     const tabDef = CREATIVE_TABS.find(t => t.id === this.activeCreativeTab);
@@ -859,6 +940,95 @@ export class UIManager {
     });
   }
 
+  renderCreativeSurvivalView() {
+    // 1. Render Armor Slots
+    const slotKeys = ['head', 'chest', 'legs', 'feet'];
+    const slotNames = { head: 'Helmet', chest: 'Chestplate', legs: 'Leggings', feet: 'Boots' };
+
+    slotKeys.forEach(slotKey => {
+      const slot = document.getElementById(`creative-armor-slot-${slotKey}`);
+      if (!slot) return;
+      const item = this.inv.armor ? this.inv.armor[slotKey] : null;
+      this.renderSlotContent(slot, item);
+      slot.classList.toggle('has-item', Boolean(item));
+
+      slot.onclick = (e) => {
+        this.inv.handleArmorSlotClick?.(slotKey, e.button === 2, e.shiftKey);
+        this.renderCreativeSurvivalView();
+        this.renderCreativeHotbar();
+        this.updateHotbar();
+        this.updateStats();
+      };
+      slot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.handleArmorSlotClick?.(slotKey, true, e.shiftKey);
+        this.renderCreativeSurvivalView();
+        this.renderCreativeHotbar();
+        this.updateHotbar();
+        this.updateStats();
+      };
+
+      if (item) {
+        const meta = this.inv.getItemMeta(item);
+        slot.onmouseenter = (e) => {
+          let desc = `Armor: +${meta.armor || 0}`;
+          if (meta.toughness) desc += ` | Toughness: +${meta.toughness}`;
+          this.showTooltip(e.clientX, e.clientY, meta.name, desc);
+        };
+        slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+        slot.onmouseleave = () => this.hideTooltip();
+      } else {
+        slot.onmouseenter = (e) => {
+          this.showTooltip(e.clientX, e.clientY, `${slotNames[slotKey]} Slot`, 'Click with armor or shift-click from inventory to equip');
+        };
+        slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+        slot.onmouseleave = () => this.hideTooltip();
+      }
+    });
+
+    // 2. Render Player Character Doll with equipped armor
+    const dollContainer = document.getElementById('creative-player-preview');
+    if (dollContainer) {
+      renderPlayerDoll(dollContainer, this.inv.armor);
+    }
+
+    // 3. Render 27 Storage Slots
+    const storageGrid = document.getElementById('creative-storage-grid');
+    if (storageGrid) {
+      storageGrid.innerHTML = '';
+      this.inv.storage.forEach((item, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'inv-slot';
+        this.renderSlotContent(slot, item);
+
+        slot.onclick = (e) => {
+          this.inv.handleSlotClick(this.inv.storage, idx, e.button === 2, e.shiftKey);
+          this.renderCreativeSurvivalView();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+          this.updateStats();
+        };
+        slot.oncontextmenu = (e) => {
+          e.preventDefault();
+          this.inv.handleSlotClick(this.inv.storage, idx, true, e.shiftKey);
+          this.renderCreativeSurvivalView();
+          this.renderCreativeHotbar();
+          this.updateHotbar();
+          this.updateStats();
+        };
+        if (item) {
+          const meta = this.inv.getItemMeta(item);
+          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+          slot.onmouseleave = () => this.hideTooltip();
+        }
+        storageGrid.appendChild(slot);
+      });
+    }
+
+    this.updateFloatingCursor();
+  }
+
   renderCreativeHotbar() {
     if (!this.creativeHotbarGrid) return;
     this.creativeHotbarGrid.innerHTML = '';
@@ -872,14 +1042,22 @@ export class UIManager {
       slot.onclick = (e) => {
         this.inv.handleSlotClick(this.inv.hotbar, i, e.button === 2, e.shiftKey);
         this.renderCreativeHotbar();
+        if (this.activeCreativeTab === 'survival_inventory') {
+          this.renderCreativeSurvivalView();
+        }
         this.updateHotbar();
+        this.updateStats();
       };
 
       slot.oncontextmenu = (e) => {
         e.preventDefault();
         this.inv.handleSlotClick(this.inv.hotbar, i, true, e.shiftKey);
         this.renderCreativeHotbar();
+        if (this.activeCreativeTab === 'survival_inventory') {
+          this.renderCreativeSurvivalView();
+        }
         this.updateHotbar();
+        this.updateStats();
       };
 
       if (item) {
@@ -1010,11 +1188,14 @@ export class UIManager {
     this.renderSlotContent(resSlot, this.inv.craft2x2Result);
 
     // Armor equipment slots
+    const slotNames = { head: 'Helmet', chest: 'Chestplate', legs: 'Leggings', feet: 'Boots' };
     ['head', 'chest', 'legs', 'feet'].forEach(slotKey => {
       const slot = document.getElementById(`armor-slot-${slotKey}`);
       if (slot) {
         const item = this.inv.armor ? this.inv.armor[slotKey] : null;
         this.renderSlotContent(slot, item);
+        slot.classList.toggle('has-item', Boolean(item));
+
         slot.onclick = (e) => {
           this.inv.handleArmorSlotClick?.(slotKey, e.button === 2, e.shiftKey);
           this.renderInventoryGrids();
@@ -1028,14 +1209,37 @@ export class UIManager {
           this.updateHotbar();
           this.updateStats();
         };
+
+        if (item) {
+          const meta = this.inv.getItemMeta(item);
+          slot.onmouseenter = (e) => {
+            let desc = `Armor: +${meta.armor || 0}`;
+            if (meta.toughness) desc += ` | Toughness: +${meta.toughness}`;
+            this.showTooltip(e.clientX, e.clientY, meta.name, desc);
+          };
+          slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+          slot.onmouseleave = () => this.hideTooltip();
+        } else {
+          slot.onmouseenter = (e) => {
+            this.showTooltip(e.clientX, e.clientY, `${slotNames[slotKey]} Slot`, 'Click with armor or shift-click from inventory to equip');
+          };
+          slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
+          slot.onmouseleave = () => this.hideTooltip();
+        }
       }
     });
+
+    // Player character preview doll in survival modal
+    if (this.playerPreviewBox) {
+      renderPlayerDoll(this.playerPreviewBox, this.inv.armor);
+    }
 
     // Off-hand equipment slot
     const offhandSlot = document.getElementById('inv-offhand-slot');
     if (offhandSlot) {
       const item = this.inv.offhand;
       this.renderSlotContent(offhandSlot, item);
+      offhandSlot.classList.toggle('has-item', Boolean(item));
       offhandSlot.onclick = (e) => {
         this.inv.handleOffhandSlotClick?.(e.button === 2, e.shiftKey);
         this.renderInventoryGrids();
@@ -1355,12 +1559,67 @@ export class UIManager {
     if (this.chestModal) this.chestModal.classList.add('hidden');
     if (this.game?.chestManager) this.game.chestManager.closeChest();
     this.currentChestPos = null;
+    this.currentVehicle = null;
     if (this.inv.cursorItem) {
       this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
       this.inv.cursorItem = null;
     }
     this.updateFloatingCursor();
     this.updateHotbar();
+  }
+
+  openVehicleChestModal(vehicle) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.chestModal) return;
+    this.currentVehicle = vehicle;
+    this.currentChestPos = null;
+    if (this.chestTitle) {
+      this.chestTitle.textContent = vehicle.kind === 'boat' ? 'Boat with Chest' : 'Minecart with Chest';
+    }
+    this.chestModal.classList.remove('hidden');
+    this.renderVehicleChestGrids();
+  }
+
+  renderVehicleChestGrids() {
+    if (!this.currentVehicle) return;
+    const items = this.currentVehicle.chestItems || this.currentVehicle.items;
+    if (!items) return;
+    const totalSlots = items.length;
+
+    if (this.chestSlotsGrid) {
+      this.chestSlotsGrid.innerHTML = '';
+      for (let i = 0; i < totalSlots; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot';
+        slotEl.dataset.chestSlot = i;
+        const item = items[i];
+        this.renderSlotContent(slotEl, item);
+
+        slotEl.onclick = (e) => {
+          this.inv.handleSlotClick(items, i, e.button === 2, false);
+          this.renderVehicleChestGrids();
+        };
+        slotEl.oncontextmenu = (e) => {
+          e.preventDefault();
+          this.inv.handleSlotClick(items, i, true, false);
+          this.renderVehicleChestGrids();
+        };
+        this.chestSlotsGrid.appendChild(slotEl);
+      }
+    }
+
+    this.renderSlotGrid('chest-storage-grid', this.inv.storage, (idx, right) => {
+      this.inv.handleSlotClick(this.inv.storage, idx, right, false);
+      this.renderVehicleChestGrids();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('chest-hotbar-grid', this.inv.hotbar, (idx, right) => {
+      this.inv.handleSlotClick(this.inv.hotbar, idx, right, false);
+      this.renderVehicleChestGrids();
+      this.updateHotbar();
+    });
   }
 
   renderChestGrids() {
@@ -1958,34 +2217,105 @@ export class UIManager {
 
   renderVillagerTrades(villagerMob) {
     const list = document.getElementById('villager-trades');
+    if (!list) return;
     list.innerHTML = '';
 
-    VILLAGER_TRADES.forEach((trade) => {
+    const mob = villagerMob || this.activeVillager;
+    if (mob) this.activeVillager = mob;
+
+    const profId = mob?.profession || 'farmer';
+    const profDef = PROFESSIONS[profId] || { name: 'Farmer', workstationName: 'Composter' };
+    const levelNum = mob?.level || 1;
+    const levelDef = VILLAGER_LEVELS.find(l => l.level === levelNum) || VILLAGER_LEVELS[0];
+
+    // Update Header and Badges
+    const titleEl = document.getElementById('villager-title');
+    if (titleEl) titleEl.textContent = `${levelDef.title} ${profDef.name}`;
+
+    const descEl = document.getElementById('villager-profession-desc');
+    if (descEl) descEl.textContent = `(${profDef.workstationName})`;
+
+    const badgeEl = document.getElementById('villager-badge');
+    if (badgeEl) {
+      badgeEl.textContent = `${levelDef.title} (${levelDef.badge})`;
+      badgeEl.style.background = levelDef.badgeColor;
+    }
+
+    // Update XP Bar
+    const xpTextEl = document.getElementById('villager-xp-text');
+    const xpFillEl = document.getElementById('villager-xp-fill');
+    const currentXp = mob?.xp || 0;
+    const nextLevel = VILLAGER_LEVELS.find(l => l.level === levelNum + 1);
+
+    if (nextLevel) {
+      const prevXp = levelDef.xpRequired;
+      const progress = Math.min(100, Math.max(0, ((currentXp - prevXp) / (nextLevel.xpRequired - prevXp)) * 100));
+      if (xpTextEl) xpTextEl.textContent = `${currentXp} / ${nextLevel.xpRequired} XP`;
+      if (xpFillEl) xpFillEl.style.width = `${progress}%`;
+    } else {
+      if (xpTextEl) xpTextEl.textContent = `${currentXp} XP (Master Tier)`;
+      if (xpFillEl) xpFillEl.style.width = `100%`;
+    }
+
+    // Trades
+    const trades = (mob && mob.trades && mob.trades.length > 0) ? mob.trades : VILLAGER_TRADES;
+
+    trades.forEach((trade) => {
       const row = document.createElement('div');
-      row.className = 'trade-row';
+      const isOutOfStock = (trade.uses !== undefined && trade.maxUses !== undefined && trade.uses >= trade.maxUses) || trade.disabled;
+      row.className = `trade-row ${isOutOfStock ? 'out-of-stock' : ''}`;
+
+      const { effectiveCount, originalCount, discounted, markup } = calculateTradeCost(trade, mob, {
+        heroOfTheVillage: this.player?.hasStatusEffect?.('hero_of_the_village')
+      });
+
+      const costDisplay = discounted
+        ? `<span class="trade-price-orig">${originalCount}</span><span style="color:#10b981; font-weight:bold;">${effectiveCount}</span><span class="trade-discount-badge">SALE</span>`
+        : markup
+          ? `<span style="color:#ef4444; font-weight:bold;">${effectiveCount}</span><span class="trade-demand-badge">HIGH</span>`
+          : `<span>${effectiveCount}</span>`;
+
+      const secondaryCostHtml = trade.cost2 ? `
+        <span style="color:#94a3b8; font-size:12px;">+</span>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <img class="slot-icon" src="${trade.cost2.icon}">
+          <span>${trade.cost2.count}</span>
+        </div>
+      ` : '';
+
+      const usesTagHtml = trade.maxUses !== undefined ? `
+        <span class="trade-uses-tag">${isOutOfStock ? '❌ Sold Out' : `${trade.maxUses - trade.uses}/${trade.maxUses}`}</span>
+      ` : '';
 
       row.innerHTML = `
         <div style="display: flex; align-items: center; gap: 8px;">
           <img class="slot-icon" src="${trade.cost.icon}">
-          <span>${trade.cost.name}</span>
+          <div style="display:flex; align-items:center; gap: 4px;">
+            ${costDisplay}
+            <span style="margin-left: 2px;">${trade.cost.name.replace(/^\\d+\\s*/, '')}</span>
+          </div>
+          ${secondaryCostHtml}
         </div>
-        <span class="trade-arrow">➔</span>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <img class="slot-icon" src="${trade.reward.icon}">
-          <span>${trade.reward.name}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="trade-arrow">➔</span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <img class="slot-icon" src="${trade.reward.icon}">
+            <span style="font-weight: 500;">${trade.reward.name}</span>
+          </div>
+          ${usesTagHtml}
         </div>
       `;
 
       row.onclick = () => {
-        // Check if player has the cost items
-        if (this.consumePlayerItem(trade.cost.id, trade.cost.isBlock, trade.cost.count)) {
-          this.inv.addItem(trade.reward.id, trade.reward.isBlock, trade.reward.count);
-          this.sounds.playLevelUp();
-          this.sounds.playVillager();
-          this.renderVillagerTrades(villagerMob);
+        if (isOutOfStock) {
+          this.sounds?.playHurt?.();
+          return;
+        }
+
+        const result = executeTrade(trade, mob, this.inv, this.sounds);
+        if (result.success) {
+          this.renderVillagerTrades(mob);
           this.updateHotbar();
-        } else {
-          this.sounds.playHurt();
         }
       };
 
@@ -1994,13 +2324,13 @@ export class UIManager {
 
     this.renderSlotGrid('villager-storage-grid', this.inv.storage, (idx, right, shift) => {
       this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
-      this.renderVillagerTrades(villagerMob);
+      this.renderVillagerTrades(mob);
       this.updateHotbar();
     });
 
     this.renderSlotGrid('villager-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
       this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
-      this.renderVillagerTrades(villagerMob);
+      this.renderVillagerTrades(mob);
       this.updateHotbar();
     });
   }
@@ -2882,14 +3212,23 @@ export class UIManager {
         option.textContent = model.note ? `${model.label} — ${model.note}` : model.label;
         this.geminiModelSelect.appendChild(option);
       }
-      // A custom model id (env override or hand-edited storage) must stay selectable.
+      // A custom model id (env override or hand-edited storage) must stay selectable,
+      // but migrate fictional gemini-3.x models to the valid default.
       if (active && !models.some(model => model.id === active)) {
-        const option = document.createElement('option');
-        option.value = active;
-        option.textContent = `${active} (custom)`;
-        this.geminiModelSelect.appendChild(option);
+        if (/^gemini-3\./i.test(active)) {
+          const fallback = models[0]?.id || 'gemini-2.5-flash';
+          geminiAgent.model = fallback;
+          this.geminiModelSelect.value = fallback;
+        } else {
+          const option = document.createElement('option');
+          option.value = active;
+          option.textContent = `${active} (custom)`;
+          this.geminiModelSelect.appendChild(option);
+          this.geminiModelSelect.value = active;
+        }
+      } else {
+        this.geminiModelSelect.value = active;
       }
-      this.geminiModelSelect.value = active;
     };
 
     const refreshEffortOptions = () => {

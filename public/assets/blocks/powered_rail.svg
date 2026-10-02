@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- Wooden Ties -->
+  <rect x="2" y="2" width="12" height="2" fill="#85542e" />
+  <rect x="2" y="7" width="12" height="2" fill="#85542e" />
+  <rect x="2" y="12" width="12" height="2" fill="#85542e" />
+
+  <!-- Redstone Core Power Line in center -->
+  <rect x="7" y="0" width="2" height="16" fill="#dc2626" />
+  <rect x="7" y="0" width="1" height="16" fill="#f87171" />
+
+  <!-- Gold Rails (Left & Right) -->
+  <rect x="3" y="0" width="2" height="16" fill="#facc15" />
+  <rect x="3" y="0" width="1" height="16" fill="#fef08a" />
+  <rect x="4" y="0" width="1" height="16" fill="#ca8a04" />
+
+  <rect x="11" y="0" width="2" height="16" fill="#facc15" />
+  <rect x="11" y="0" width="1" height="16" fill="#fef08a" />
+  <rect x="12" y="0" width="1" height="16" fill="#ca8a04" />
+</svg>

@@ -90,27 +90,29 @@ const IMPOSSIBLE_PATTERNS = [
     ]
   },
   {
-    match: /API HTTP 402/i,
+    match: /API HTTP 402|insufficient_quota|out of credit|current quota/i,
     summary: 'The account has run out of credit, so the request never went through.',
     alternatives: [
-      'top up with the vendor and ask me again',
-      'switch to another vendor',
+      'top up your credit balance with the vendor and ask me again',
+      'switch to Google Gemini in Settings (Google AI Studio provides a free tier without a credit card)',
       'or flip on Offline Mode in Settings and I will build from my built-in rules instead'
     ]
   },
   {
     match: /API HTTP 429/i,
-    summary: 'The vendor is asking us to slow down — that is a temporary limit on their side, not a problem with your request.',
+    summary: 'The vendor is asking us to slow down — that is a temporary limit, or an account with no credit balance.',
     alternatives: [
+      'if using OpenAI, make sure your account has a positive credit balance in Billing',
+      'switch to Google Gemini in Settings (it includes a free tier with no payment needed)',
       'give it a few seconds and ask again',
       'lower the reasoning effort in Settings so each request costs less'
     ]
   },
   {
-    match: /API HTTP 400/i,
-    summary: 'The vendor refused the request itself. Most of the time that means the model selected in Settings is not available on this key.',
+    match: /API HTTP (400|404)/i,
+    summary: 'The vendor refused the request or the model was not found. Most of the time that means the model selected in Settings is not available on this key.',
     alternatives: [
-      'pick a different model in Settings',
+      'pick a different model in Settings (such as Gemini 2.5 Flash)',
       'or switch vendor'
     ]
   },

@@ -77,7 +77,9 @@ export function moveGroundMob(manager, mob, dt) {
         else pos.copy(candidate);
       }
     }
-    mob.velocity.y = Math.max(-40, mob.velocity.y - 24 * step);
+    const maxFall = mob.maxFallSpeed !== undefined ? mob.maxFallSpeed : (mob.type === 'chicken' ? -1.5 : -40);
+    const gravity = mob.gravity !== undefined ? mob.gravity : (mob.type === 'chicken' ? 8 : 24);
+    mob.velocity.y = Math.max(maxFall, mob.velocity.y - gravity * step);
     const candidate = pos.clone(); candidate.y += mob.velocity.y * step;
     mob.onGround = false;
     if (collision(candidate)) {

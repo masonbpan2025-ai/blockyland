@@ -104,6 +104,27 @@ export class ChunkMesher {
           const wy = ly;
           const wz = worldOffsetZ + lz;
 
+          if (def?.door) {
+            const doorMgr = world.game?.doorManager || this.game?.doorManager || world.doorManager;
+            const state = doorMgr?.getDoor(wx, wy, wz) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
+          if (def?.trapdoor) {
+            const state = world.redstone?.state([wx, wy, wz]) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
           if (def?.redstone) {
             const state=world.redstone?.state([wx,wy,wz]) || {};
             const geometry=createBlockGeometry(blockId,this.tm,state);geometry.translate(wx,wy,wz);
@@ -123,8 +144,9 @@ export class ChunkMesher {
             lightGeometries.push(geometry);
             continue;
           }
-          if (def?.chest) {
-            const state = world.game?.chestManager?.getChest(wx, wy, wz) || {};
+          if (def?.chest || blockId === BLOCKS.CHEST) {
+            const chestMgr = world.game?.chestManager || this.game?.chestManager || world.chestManager;
+            const state = chestMgr?.getChest(wx, wy, wz) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);
             const origin = new Float32Array(geometry.attributes.position.count * 3);

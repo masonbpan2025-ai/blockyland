@@ -182,7 +182,11 @@ export class Sky {
     this.uniforms.uRain.value = weather.rainIntensity;
     this.uniforms.uFlash.value = weather.isFlashing && weather.weatherType === 'thunder' ? 1 : 0;
     this.mesh.position.copy(camera.position);
-    this.mesh.visible = !underwater;
+    if (this.disabled) {
+      this.mesh.visible = false;
+    } else {
+      this.mesh.visible = !underwater;
+    }
   }
 
   dispose() {

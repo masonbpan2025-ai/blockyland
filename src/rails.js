@@ -1,9 +1,7 @@
-// Rails, minecarts and boats.
+// Rails, minecarts and boats with advanced physics and vehicle subtypes.
 //
-// These were previously decorative only: `minecart` and `oak_boat` existed as item
-// icons with no behaviour, and there were no rail blocks at all. This module gives
-// them real physics — carts follow connected rail, powered rails accelerate, and
-// boats float on water — so redstone machines and mini-games can actually run.
+// Boats: 2-passenger rowing, high-speed gliding on ice/packed ice/blue ice, Boat with Chest.
+// Minecarts: Standard, Chest, Furnace, Hopper, TNT; slope momentum, collision bouncing.
 
 import * as THREE from 'three';
 import { BLOCKS as B, BLOCK_DEFS } from './blocks.js';
@@ -13,15 +11,32 @@ const DIRECTIONS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0,
 /** One redstone tick, matching the simulator. */
 const TICK = 0.1;
 /** How fast a cart may travel along a rail, in blocks per second. */
-const MAX_CART_SPEED = 8;
+const MAX_CART_SPEED = 10;
 const CART_ACCEL = 6;
-/** Constant deceleration on plain rail, in blocks/s², so carts actually stop. */
-const ROLLING_FRICTION = 3.5;
-const POWERED_ACCEL = 14;
-/** Boats drift slowly and are pushed by the rider. */
-const BOAT_MAX_SPEED = 4.5;
-const BOAT_ACCEL = 5;
-const BOAT_DRAG = 0.94;
+/** Constant deceleration on plain rail, in blocks/s², so carts coast authentically. */
+const ROLLING_FRICTION = 2.0;
+const POWERED_ACCEL = 16;
+
+/** Boat speed and friction parameters across surfaces */
+const BOAT_WATER_MAX_SPEED = 8.0;
+const BOAT_WATER_ACCEL = 6.5;
+const BOAT_WATER_DRAG = 0.94;
+
+const BOAT_LAND_MAX_SPEED = 2.2;
+const BOAT_LAND_ACCEL = 2.5;
+const BOAT_LAND_DRAG = 0.65;
+
+const BOAT_ICE_MAX_SPEED = 40.0;
+const BOAT_ICE_ACCEL = 18.0;
+const BOAT_ICE_DRAG = 0.985;
+
+const BOAT_PACKED_ICE_MAX_SPEED = 55.0;
+const BOAT_PACKED_ICE_ACCEL = 24.0;
+const BOAT_PACKED_ICE_DRAG = 0.99;
+
+const BOAT_BLUE_ICE_MAX_SPEED = 72.0;
+const BOAT_BLUE_ICE_ACCEL = 32.0;
+const BOAT_BLUE_ICE_DRAG = 0.995;
 
 const same = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -41,7 +56,7 @@ export class RailSystem {
     this.listeners = new Set();
   }
 
-  /** Notify on interesting events (arrival, launch) for mini-games to hook. */
+  /** Notify on interesting events (arrival, launch, collision, explosion) */
   onEvent(fn) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -49,7 +64,7 @@ export class RailSystem {
 
   emit(type, detail) {
     for (const fn of this.listeners) {
-      try { fn(type, detail); } catch { /* a listener must never break physics */ }
+      try { fn(type, detail); } catch { /* listener must not break physics */ }
     }
   }
 
@@ -77,26 +92,16 @@ export class RailSystem {
     return (this.world.redstone?.input(p) || 0) > 0;
   }
 
-  /**
-   * Where a cart goes next from a rail.
-   *
-   * Direction 2 climbs and 3 descends, so those are one-way; the horizontal
-   * directions are two-way. Neighbours are preferred in the order straight-ahead,
-   * then the sides — which keeps a cart on its line through a junction instead of
-   * being flung off at every branch.
-   */
   nextRail(from, previous = null, preferred = null) {
     const dir = this.railDir(from);
     const forward = this.#forwardVector(dir);
     const candidates = [];
 
     if (forward) candidates.push(add(from, forward));
-    // Both halves of the axis the rail lies along.
     const axis = dir === 0 || dir === 1 ? [[1, 0, 0], [-1, 0, 0]]
       : dir === 4 || dir === 5 ? [[0, 0, 1], [0, 0, -1]]
         : null;
     if (axis) for (const d of axis) candidates.push(add(from, d));
-    // Slopes also connect to the flat rail one block below their low end.
     if (!flat(this.#dirVector(dir))) {
       candidates.push(add(from, [0, -1, 0]));
       candidates.push(add(add(from, this.#dirVector(dir)), [0, -1, 0]));
@@ -114,12 +119,10 @@ export class RailSystem {
     }
     if (!options.length) return null;
 
-    // Continue in the same direction if that rail is available.
     if (preferred) {
       const wanted = options.find(o => same(o, add(from, preferred)));
       if (wanted) return wanted;
     }
-    // Otherwise prefer travelling away from where we came from.
     if (previous) {
       const away = options.find(o => {
         const step = [o[0] - from[0], o[1] - from[1], o[2] - from[2]];
@@ -130,7 +133,6 @@ export class RailSystem {
     return options[0];
   }
 
-  /** Unit vector for a horizontal-ish direction id, or null when it is vertical. */
   #dirVector(dir) {
     if (dir === 0) return [1, 0, 0];
     if (dir === 1) return [-1, 0, 0];
@@ -141,20 +143,15 @@ export class RailSystem {
     return null;
   }
 
-  /** The horizontal travel direction, treating slopes as their flat component. */
   #forwardVector(dir) {
     const v = this.#dirVector(dir);
     if (!v) return null;
-    if (v[1] !== 0) {
-      // A slope's travel is horizontal; the rise is handled by the rail it leads to.
-      return null;
-    }
+    if (v[1] !== 0) return null;
     return v;
   }
 
   // --- carts ----------------------------------------------------------------
 
-  /** Lay a straight line of rail. @returns {Array<number[]>} the cells placed */
   layTrack(from, to, { powered = false, every = 0 } = {}) {
     const cells = [];
     const step = [Math.sign(to[0] - from[0]), Math.sign(to[1] - from[1]), Math.sign(to[2] - from[2])];
@@ -163,7 +160,6 @@ export class RailSystem {
       const p = [from[0] + step[0] * i, from[1] + step[1] * i, from[2] + step[2] * i];
       const isPowered = powered || (every > 0 && i % every === 0);
       this.world.setVoxel(...p, isPowered ? B.POWERED_RAIL : B.RAIL);
-      // 0/1 run east-west, 4/5 run north-south, 2/3 slope up and down.
       let dir = 0;
       if (step[0] < 0) dir = 1;
       else if (step[0] > 0) dir = 0;
@@ -177,24 +173,31 @@ export class RailSystem {
     return cells;
   }
 
-  /** Place a cart on (or near) a rail. */
-  spawnCart(p, { rider = null } = {}) {
+  /**
+   * Place a cart on (or near) a rail.
+   * Supports subtypes: 'minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart'.
+   */
+  spawnCart(p, { rider = null, subType = 'minecart' } = {}) {
     let rail = this.nearestRail(p.map(v => Math.floor(v))) || p.map(v => Math.floor(v));
     const cart = {
       kind: 'minecart',
+      subType,
       rail,
       position: new THREE.Vector3(rail[0] + 0.5, rail[1] + 0.35, rail[2] + 0.5),
       speed: 0,
       heading: null,
       rider: rider || null,
-      mesh: this.#cartMesh()
+      items: ['chest_minecart', 'hopper_minecart'].includes(subType) ? new Array(subType === 'hopper_minecart' ? 5 : 27).fill(null) : null,
+      fuelTime: subType === 'furnace_minecart' ? 0 : 0,
+      primed: false,
+      mesh: this.#cartMesh(subType)
     };
     if (cart.mesh && this.game?.scene) this.game.scene.add(cart.mesh);
     this.carts.push(cart);
     return cart;
   }
 
-  #cartMesh() {
+  #cartMesh(subType = 'minecart') {
     if (typeof document === 'undefined') return null;
     const group = new THREE.Group();
     const body = new THREE.Mesh(
@@ -203,10 +206,40 @@ export class RailSystem {
     );
     body.position.y = 0.25;
     group.add(body);
+
+    if (subType === 'chest_minecart') {
+      const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.45, 0.6),
+        new THREE.MeshLambertMaterial({ color: 0x92400e })
+      );
+      chest.position.y = 0.55;
+      group.add(chest);
+    } else if (subType === 'furnace_minecart') {
+      const furnace = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.5, 0.6),
+        new THREE.MeshLambertMaterial({ color: 0x4b5563 })
+      );
+      furnace.position.y = 0.55;
+      group.add(furnace);
+    } else if (subType === 'hopper_minecart') {
+      const hopper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.65, 0.35, 0.65),
+        new THREE.MeshLambertMaterial({ color: 0x374151 })
+      );
+      hopper.position.y = 0.48;
+      group.add(hopper);
+    } else if (subType === 'tnt_minecart') {
+      const tnt = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.5, 0.6),
+        new THREE.MeshLambertMaterial({ color: 0xdc2626 })
+      );
+      tnt.position.y = 0.55;
+      group.add(tnt);
+    }
+
     return group;
   }
 
-  /** Closest rail within a small radius, for placing and re-railing carts. */
   nearestRail(p, radius = 2) {
     for (let r = 0; r <= radius; r++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -221,18 +254,78 @@ export class RailSystem {
     return null;
   }
 
-  /**
-   * Advance every cart.
-   *
-   * A cart travels along its rail, and on reaching the end of a segment it hands
-   * over to the next connected rail. Powered rails accelerate it; ordinary rail
-   * applies friction so it coasts to a stop, which is what makes a boost loop or a
-   * station work.
-   */
+  addCartItem(cart, id, isBlock = false, count = 1) {
+    if (!cart.items) return false;
+    let remaining = count;
+    for (let i = 0; i < cart.items.length; i++) {
+      const it = cart.items[i];
+      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < 64) {
+        const can = Math.min(remaining, 64 - it.count);
+        it.count += can;
+        remaining -= can;
+        if (remaining <= 0) return true;
+      }
+    }
+    for (let i = 0; i < cart.items.length; i++) {
+      if (!cart.items[i]) {
+        const toPut = Math.min(remaining, 64);
+        cart.items[i] = { id, isBlock, count: toPut };
+        remaining -= toPut;
+        if (remaining <= 0) return true;
+      }
+    }
+    return remaining < count;
+  }
+
+  extractCartItem(cart) {
+    if (!cart.items) return null;
+    for (let i = 0; i < cart.items.length; i++) {
+      const it = cart.items[i];
+      if (it && it.count > 0) {
+        const res = { id: it.id, isBlock: it.isBlock, count: 1 };
+        if (--it.count <= 0) cart.items[i] = null;
+        return res;
+      }
+    }
+    return null;
+  }
+
+  addFuel(cart, amount = 3600) {
+    if (cart.subType !== 'furnace_minecart') return false;
+    cart.fuelTime = (cart.fuelTime || 0) + amount;
+    return true;
+  }
+
+  explodeTntCart(cart) {
+    if (cart.exploded) return;
+    cart.exploded = true;
+    const pos = cart.position.clone();
+    this.game?.sounds?.playExplosion?.();
+    const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (dx * dx + dy * dy + dz * dz <= 5) {
+            const p = [bx + dx, by + dy, bz + dz];
+            const id = this.world.getVoxel(...p);
+            if (id !== B.AIR && id !== B.BEDROCK && id !== B.OBSIDIAN) {
+              this.world.setVoxel(...p, B.AIR);
+            }
+          }
+        }
+      }
+    }
+    this.remove(cart);
+    this.emit('cart_explode', { cart, position: pos });
+  }
+
   updateCarts(dt) {
     const steps = Math.max(1, Math.ceil(dt / TICK));
     const sub = dt / steps;
-    for (let i = 0; i < steps; i++) this.#cartStep(sub);
+    for (let i = 0; i < steps; i++) {
+      this.#cartStep(sub);
+      this.#cartCollisions();
+    }
   }
 
   #cartStep(dt) {
@@ -241,11 +334,69 @@ export class RailSystem {
       const dir = this.railDir(cart.rail);
       let forward = this.#cartHeading(cart, dir);
 
-      // Gravity on a slope, in whichever direction the rail descends.
+      // Slope momentum: gravity accelerates downhill, decelerates uphill
       const slope = this.#slopeEffect(cart.rail, dir);
-      if (slope) cart.speed += slope * dt;
+      if (slope) {
+        cart.speed += slope * dt;
+        if (cart.speed < 0 && forward) {
+          // Reversing on slope
+          cart.heading = [-forward[0], 0, -forward[2]];
+          forward = cart.heading;
+          cart.speed = Math.abs(cart.speed);
+        }
+      }
 
-      // Powered rail launches, unpowered powered-rail brakes.
+      // Furnace Minecart locomotive thrust
+      if (cart.subType === 'furnace_minecart' && (cart.fuelTime || 0) > 0) {
+        cart.fuelTime -= dt * 20;
+        const thrust = 7.5;
+        cart.speed = Math.min(MAX_CART_SPEED, (cart.speed || 0) + thrust * dt);
+        if (!forward) forward = this.#dirVector(dir) || [1, 0, 0];
+        if (this.game?.entities?.spawnSmoke && Math.random() < 0.15) {
+          this.game.entities.spawnSmoke(cart.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0.15, 0.6);
+        }
+      }
+
+      // Hopper Minecart: item suction and container transfer
+      if (cart.subType === 'hopper_minecart') {
+        if (this.game?.entities?.droppedItems) {
+          const dropped = this.game.entities.droppedItems;
+          for (let i = dropped.length - 1; i >= 0; i--) {
+            const it = dropped[i];
+            const p = it.group?.position;
+            if (p && p.distanceTo(cart.position) < 1.8) {
+              if (this.addCartItem(cart, it.itemType, it.isBlock, 1)) {
+                it.count--;
+                if (it.count <= 0) {
+                  this.game.entities.itemVisuals?.release?.(it.group);
+                  this.game.entities.scene?.remove?.(it.group);
+                  dropped.splice(i, 1);
+                }
+                break;
+              }
+            }
+          }
+        }
+        // Pull from container above
+        const above = [cart.rail[0], cart.rail[1] + 1, cart.rail[2]];
+        if (this.world.getVoxel(...above) === B.CHEST && this.game?.chestManager) {
+          const ex = this.game.chestManager.extractItem(...above);
+          if (ex) this.addCartItem(cart, ex.id, ex.isBlock, 1);
+        }
+        // Deposit into hopper below rail
+        const below = [cart.rail[0], cart.rail[1] - 1, cart.rail[2]];
+        if (this.world.getVoxel(...below) === B.HOPPER && this.world.redstone) {
+          const hs = this.world.redstone.state(below);
+          if (hs && cart.items?.length) {
+            const slot = cart.items.find(Boolean);
+            if (slot && this.world.redstone.addHopperItem(hs, slot.id, slot.isBlock, 1)) {
+              if (--slot.count <= 0) cart.items[cart.items.indexOf(slot)] = null;
+            }
+          }
+        }
+      }
+
+      // Powered rail boosts, unpowered acts as an active brake
       if (this.isPoweredRail(cart.rail)) {
         if (this.railIsPowered(cart.rail)) {
           const push = forward || this.#dirVector(dir) || [1, 0, 0];
@@ -253,30 +404,44 @@ export class RailSystem {
           if (!forward) forward = push;
           cart.atEnd = false;
         } else {
-          cart.speed *= 0.94;
+          cart.speed *= 0.65;
         }
       }
-      // Rolling friction is a constant deceleration, not a multiplier: a multiplier
-      // never quite reaches zero, so a cart would creep along the track forever
-      // instead of coming to rest.
+
+      // Rolling friction
       if (cart.speed > 0) cart.speed = Math.max(0, cart.speed - ROLLING_FRICTION * dt);
       else if (cart.speed < 0) cart.speed = Math.min(0, cart.speed + ROLLING_FRICTION * dt);
 
       cart.speed = Math.max(-MAX_CART_SPEED, Math.min(MAX_CART_SPEED, cart.speed));
-      if (Math.abs(cart.speed) < 0.02) { cart.speed = 0; }
+      if (Math.abs(cart.speed) < 0.02) cart.speed = 0;
+      if (!forward) cart.speed *= 0.8;
 
-      if (!forward) { cart.speed *= 0.8; }
-
-      // Move one rail at a time, so the cart never skips over a block.
       cart.progress = (cart.progress || 0) + Math.abs(cart.speed) * dt;
       while (cart.progress >= 1) {
         cart.progress -= 1;
         const next = forward ? this.nextRail(cart.rail, cart.previousRail, forward) : null;
         if (!next) {
-          // Ran out of track: stop at the end rather than drifting off.
-          cart.speed = 0;
-          cart.progress = 0;
-          if (!cart.atEnd) { cart.atEnd = true; this.emit('cart_stop', { cart }); }
+          const ahead = forward ? add(cart.rail, forward) : null;
+          const hasBufferBlock = ahead && this.world.getVoxel(...ahead) !== B.AIR;
+          if (hasBufferBlock && Math.abs(cart.speed) > 1.0) {
+            // Buffer stop / barrier rebound
+            const prevSpeed = cart.speed;
+            cart.speed = -prevSpeed * 0.55;
+            cart.progress = 0;
+            if (cart.heading) cart.heading = [-cart.heading[0], 0, -cart.heading[2]];
+            this.emit('cart_bounce', { cart, speed: cart.speed });
+            if (cart.subType === 'tnt_minecart' && Math.abs(prevSpeed) >= 4.0) {
+              this.explodeTntCart(cart);
+            }
+          } else {
+            // Open end of track: cart stops at the end
+            if (cart.subType === 'tnt_minecart' && Math.abs(cart.speed) >= 4.5) {
+              this.explodeTntCart(cart);
+            }
+            cart.speed = 0;
+            cart.progress = 0;
+            if (!cart.atEnd) { cart.atEnd = true; this.emit('cart_stop', { cart }); }
+          }
           break;
         }
         cart.atEnd = false;
@@ -298,12 +463,73 @@ export class RailSystem {
     }
   }
 
-  /** Keep a cart's heading, defaulting to the rail's own direction. */
+  #cartCollisions() {
+    for (let i = 0; i < this.carts.length; i++) {
+      for (let j = i + 1; j < this.carts.length; j++) {
+        const a = this.carts[i], b = this.carts[j];
+        if (!a.rail || !b.rail) continue;
+        const dist = a.position.distanceTo(b.position);
+        if (dist < 0.95) {
+          const now = this.time || 0;
+          if (a._lastCollCart === b && Math.abs(now - (a._lastCollTime || 0)) < 0.35) {
+            continue;
+          }
+          a._lastCollCart = b;
+          a._lastCollTime = now;
+          b._lastCollCart = a;
+          b._lastCollTime = now;
+
+          const vA = a.speed || 0;
+          const vB = b.speed || 0;
+
+          // Compute relative displacement along track
+          const dx = b.position.x - a.position.x;
+          const dz = b.position.z - a.position.z;
+          const dirX = Math.sign(Math.round(dx));
+          const dirZ = Math.sign(Math.round(dz));
+
+          if (Math.abs(vA) > 0.5 && Math.abs(vB) <= 0.5) {
+            // Cart A hits stationary/slow Cart B -> A transfers momentum to B and rebounds
+            b.speed = Math.max(Math.abs(vA) * 0.85, 2.0);
+            b.heading = [dirX || a.heading?.[0] || 1, 0, dirZ || a.heading?.[2] || 0];
+            b.atEnd = false;
+            b.progress = (b.progress || 0) + 0.1;
+
+            a.speed = Math.abs(vA) * 0.35;
+            if (a.heading) a.heading = [-a.heading[0], 0, -a.heading[2]];
+          } else if (Math.abs(vB) > 0.5 && Math.abs(vA) <= 0.5) {
+            // Cart B hits stationary Cart A
+            a.speed = Math.max(Math.abs(vB) * 0.85, 2.0);
+            a.heading = [-dirX || b.heading?.[0] || -1, 0, -dirZ || b.heading?.[2] || 0];
+            a.atEnd = false;
+            a.progress = (a.progress || 0) + 0.1;
+
+            b.speed = Math.abs(vB) * 0.35;
+            if (b.heading) b.heading = [-b.heading[0], 0, -b.heading[2]];
+          } else {
+            // Head-on or mutual collision: exchange momentum and bounce
+            const newSpeedA = Math.max(Math.abs(vB) * 0.85, 1.5);
+            const newSpeedB = Math.max(Math.abs(vA) * 0.85, 1.5);
+            a.speed = newSpeedA;
+            b.speed = newSpeedB;
+            if (a.heading) a.heading = [-a.heading[0], 0, -a.heading[2]];
+            if (b.heading) b.heading = [-b.heading[0], 0, -b.heading[2]];
+          }
+
+          this.emit('cart_collision', { cartA: a, cartB: b });
+          if ((a.subType === 'tnt_minecart' || b.subType === 'tnt_minecart') && (Math.abs(vA) > 3.0 || Math.abs(vB) > 3.0)) {
+            if (a.subType === 'tnt_minecart') this.explodeTntCart(a);
+            if (b.subType === 'tnt_minecart') this.explodeTntCart(b);
+          }
+        }
+      }
+    }
+  }
+
   #cartHeading(cart, dir) {
     if (cart.heading) return cart.heading;
     const v = this.#forwardVector(dir);
     if (v) return v;
-    // Vertical/slope rail: derive from whichever neighbour is a rail.
     const next = this.nextRail(cart.rail, cart.previousRail);
     if (next) {
       return [Math.sign(next[0] - cart.rail[0]), 0, Math.sign(next[2] - cart.rail[2])];
@@ -311,15 +537,13 @@ export class RailSystem {
     return null;
   }
 
-  /** Slopes pull carts downhill. */
   #slopeEffect(rail, dir) {
     const v = this.#dirVector(dir);
     if (!v || v[1] === 0) return 0;
-    // Going up costs speed, going down gains it.
-    return v[1] > 0 ? -CART_ACCEL * 0.5 : CART_ACCEL * 0.5;
+    // Going downhill adds speed, uphill opposes speed
+    return v[1] > 0 ? -CART_ACCEL * 0.6 : CART_ACCEL * 0.6;
   }
 
-  /** Launch a cart by hand or from a game script. */
   boost(cart, speed = MAX_CART_SPEED) {
     cart.speed = speed;
     return cart;
@@ -331,97 +555,189 @@ export class RailSystem {
     return this.world.getVoxel(...p) === B.WATER;
   }
 
-  /** Put a boat in the water at (or just above) the given point. */
-  spawnBoat(p, { rider = null } = {}) {
+  /**
+   * Put a boat on water or ice at the given point.
+   * Supports 2-passenger rowing, high-speed gliding on ice, and Boat with Chest.
+   */
+  spawnBoat(p, { rider = null, subType = 'oak_boat', hasChest = false } = {}) {
     const at = p.map(v => Math.floor(v));
+    const isChestBoat = hasChest || subType === 'chest_boat' || subType === 'oak_chest_boat';
+    const meshObj = this.#boatMesh(isChestBoat);
     const boat = {
       kind: 'boat',
+      subType: isChestBoat ? 'chest_boat' : 'oak_boat',
+      hasChest: isChestBoat,
+      chestItems: isChestBoat ? new Array(27).fill(null) : null,
       position: new THREE.Vector3(at[0] + 0.5, at[1] + 0.1, at[2] + 0.5),
       velocity: new THREE.Vector3(),
       yaw: 0,
-      rider: rider || null,
-      mesh: this.#boatMesh()
+      rider: rider || null,         // Seat 0 (primary driver/rower)
+      passenger: null,              // Seat 1 (secondary passenger or mob)
+      rowTime: 0,
+      mesh: meshObj?.group || meshObj,
+      leftOar: meshObj?.leftOar || null,
+      rightOar: meshObj?.rightOar || null
     };
     if (boat.mesh && this.game?.scene) this.game.scene.add(boat.mesh);
     this.boats.push(boat);
     return boat;
   }
 
-  #boatMesh() {
+  #boatMesh(hasChest = false) {
     if (typeof document === 'undefined') return null;
     const group = new THREE.Group();
+    // Wooden boat hull
     const hull = new THREE.Mesh(
       new THREE.BoxGeometry(1.0, 0.35, 1.6),
       new THREE.MeshLambertMaterial({ color: 0xb45309 })
     );
     group.add(hull);
-    return group;
+
+    // Left and right oars
+    const oarGeo = new THREE.BoxGeometry(0.1, 0.1, 0.9);
+    const oarMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+    const leftOar = new THREE.Mesh(oarGeo, oarMat);
+    leftOar.position.set(-0.6, 0.15, 0.1);
+    leftOar.rotation.z = 0.25;
+    group.add(leftOar);
+
+    const rightOar = new THREE.Mesh(oarGeo, oarMat);
+    rightOar.position.set(0.6, 0.15, 0.1);
+    rightOar.rotation.z = -0.25;
+    group.add(rightOar);
+
+    if (hasChest) {
+      const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.4, 0.5),
+        new THREE.MeshLambertMaterial({ color: 0x92400e })
+      );
+      chest.position.set(0, 0.3, 0.4);
+      group.add(chest);
+    }
+
+    return { group, leftOar, rightOar };
   }
 
-  /**
-   * Boats float on the surface and drift with their momentum, with a little drag
-   * from the water. Steering comes from the rider.
-   */
+  #getSurfaceProperties(boat) {
+    const p = [Math.floor(boat.position.x), Math.floor(boat.position.y), Math.floor(boat.position.z)];
+    const under = [p[0], Math.floor(boat.position.y - 0.2), p[2]];
+    const vAt = this.world.getVoxel(...p);
+    const vUnder = this.world.getVoxel(...under);
+
+    if (vAt === B.BLUE_ICE || vUnder === B.BLUE_ICE) {
+      return { type: 'blue_ice', maxSpeed: BOAT_BLUE_ICE_MAX_SPEED, accel: BOAT_BLUE_ICE_ACCEL, drag: BOAT_BLUE_ICE_DRAG };
+    }
+    if (vAt === B.PACKED_ICE || vUnder === B.PACKED_ICE) {
+      return { type: 'packed_ice', maxSpeed: BOAT_PACKED_ICE_MAX_SPEED, accel: BOAT_PACKED_ICE_ACCEL, drag: BOAT_PACKED_ICE_DRAG };
+    }
+    if (vAt === B.ICE || vUnder === B.ICE) {
+      return { type: 'ice', maxSpeed: BOAT_ICE_MAX_SPEED, accel: BOAT_ICE_ACCEL, drag: BOAT_ICE_DRAG };
+    }
+    if (vAt === B.WATER || vUnder === B.WATER || this.isWater(p) || this.isWater(under)) {
+      return { type: 'water', maxSpeed: BOAT_WATER_MAX_SPEED, accel: BOAT_WATER_ACCEL, drag: BOAT_WATER_DRAG };
+    }
+    return { type: 'land', maxSpeed: BOAT_LAND_MAX_SPEED, accel: BOAT_LAND_ACCEL, drag: BOAT_LAND_DRAG };
+  }
+
   updateBoats(dt) {
     for (const boat of this.boats) {
       const cell = [Math.floor(boat.position.x), Math.floor(boat.position.y), Math.floor(boat.position.z)];
-      const onWater = this.isWater(cell) || this.isWater([cell[0], cell[1] - 1, cell[2]]);
+      const props = this.#getSurfaceProperties(boat);
+      boat.surface = props.type;
 
-      // Settle onto the water surface when floating; sink gently when not.
-      const surfaceY = this.#waterSurfaceY(cell);
+      // Surface height settling (water or solid ice/ground)
+      const surfaceY = this.#surfaceY(cell);
       if (surfaceY !== null) {
-        boat.position.y += (surfaceY - boat.position.y) * Math.min(1, dt * 4);
+        boat.position.y += (surfaceY - boat.position.y) * Math.min(1, dt * 5);
         boat.velocity.y = 0;
-        boat.velocity.multiplyScalar(BOAT_DRAG);
       } else {
         boat.velocity.y -= 9.8 * dt;
       }
 
-      // Steering: the rider's input pushes the boat forwards.
-      const input = this.game?.input;
+      // Steering & Rowing from the rider
+      const input = this.game?.input || this.game?.controls;
       if (boat.rider && input) {
-        const yaw = boat.rider.yaw ?? 0;
+        if (input.left) boat.yaw += 2.4 * dt;
+        if (input.right) boat.yaw -= 2.4 * dt;
+
         let thrust = 0;
         if (input.forward) thrust += 1;
-        if (input.backward) thrust -= 1;
-        if (thrust) {
-          boat.velocity.x += -Math.sin(yaw) * BOAT_ACCEL * thrust * dt;
-          boat.velocity.z += -Math.cos(yaw) * BOAT_ACCEL * thrust * dt;
-          boat.yaw = yaw;
+        if (input.backward) thrust -= 0.6;
+        if (thrust !== 0) {
+          const fX = -Math.sin(boat.yaw);
+          const fZ = -Math.cos(boat.yaw);
+          boat.velocity.x += fX * props.accel * thrust * dt;
+          boat.velocity.z += fZ * props.accel * thrust * dt;
         }
       }
 
+      // Drag and speed capping
       const horizontal = Math.hypot(boat.velocity.x, boat.velocity.z);
-      if (horizontal > BOAT_MAX_SPEED) {
-        boat.velocity.x *= BOAT_MAX_SPEED / horizontal;
-        boat.velocity.z *= BOAT_MAX_SPEED / horizontal;
+      if (horizontal > props.maxSpeed) {
+        boat.velocity.x *= props.maxSpeed / horizontal;
+        boat.velocity.z *= props.maxSpeed / horizontal;
       }
+      boat.velocity.x *= props.drag;
+      boat.velocity.z *= props.drag;
 
       boat.position.addScaledVector(boat.velocity, dt);
 
-      // Solid blocks stop a boat rather than letting it pass through.
-      const ahead = [Math.floor(boat.position.x), Math.floor(boat.position.y), Math.floor(boat.position.z)];
+      // Solid block collision
+      const ahead = [Math.floor(boat.position.x), Math.floor(boat.position.y + 0.1), Math.floor(boat.position.z)];
       const id = this.world.getVoxel(...ahead);
-      if (id !== B.AIR && id !== B.WATER && BLOCK_DEFS[id]?.solid !== false) {
+      if (id !== B.AIR && id !== B.WATER && id !== B.ICE && id !== B.PACKED_ICE && id !== B.BLUE_ICE && BLOCK_DEFS[id]?.solid !== false) {
         boat.velocity.set(0, 0, 0);
-        boat.position.x -= Math.sign(boat.velocity.x);
       }
 
+      // Visual updates & oar animations
       if (boat.mesh) {
         boat.mesh.position.copy(boat.position);
         boat.mesh.rotation.y = boat.yaw;
       }
+      if (boat.leftOar && boat.rightOar && horizontal > 0.1) {
+        boat.rowTime = (boat.rowTime || 0) + dt * Math.min(horizontal, 10);
+        const oarAngle = Math.sin(boat.rowTime * 6) * 0.35;
+        boat.leftOar.rotation.y = oarAngle;
+        boat.rightOar.rotation.y = -oarAngle;
+      }
+
+      // 2-Passenger Seat Positions (Seat 0 = driver, Seat 1 = passenger)
+      const fX = -Math.sin(boat.yaw);
+      const fZ = -Math.cos(boat.yaw);
       if (boat.rider) {
-        boat.rider.position.set(boat.position.x, boat.position.y + 0.6, boat.position.z);
+        const rPos = boat.rider.position || boat.rider.mesh?.position;
+        if (rPos) rPos.set(boat.position.x + fX * 0.2, boat.position.y + 0.55, boat.position.z + fZ * 0.2);
+      }
+      if (boat.passenger) {
+        const pPos = boat.passenger.position || boat.passenger.mesh?.position;
+        if (pPos) pPos.set(boat.position.x - fX * 0.4, boat.position.y + 0.45, boat.position.z - fZ * 0.4);
+      }
+
+      // Mob embarkation into empty secondary seat (if not a chest boat)
+      if (!boat.passenger && !boat.hasChest && this.game?.mobs?.mobs) {
+        for (const mob of this.game.mobs.mobs) {
+          if (!mob.isRiding && mob.health > 0) {
+            const mPos = mob.position || mob.mesh?.position;
+            if (mPos && mPos.distanceTo(boat.position) < 1.3) {
+              boat.passenger = mob;
+              mob.isRiding = true;
+              mob.ridingBoat = boat;
+              break;
+            }
+          }
+        }
       }
     }
   }
 
-  /** World y of the water surface for a column, or null when there is no water. */
-  #waterSurfaceY(p) {
-    for (let y = Math.min(63, p[1] + 3); y >= Math.max(0, p[1] - 3); y--) {
-      if (this.world.getVoxel(p[0], y, p[2]) === B.WATER && this.world.getVoxel(p[0], y + 1, p[2]) !== B.WATER) {
+  #surfaceY(p) {
+    for (let y = Math.min(63, p[1] + 2); y >= Math.max(0, p[1] - 2); y--) {
+      const v = this.world.getVoxel(p[0], y, p[2]);
+      if (v === B.WATER && this.world.getVoxel(p[0], y + 1, p[2]) !== B.WATER) {
         return y + 0.05;
+      }
+      if (v !== B.AIR && v !== B.WATER && this.world.getVoxel(p[0], y + 1, p[2]) === B.AIR) {
+        return y + 1.0;
       }
     }
     return null;
@@ -435,7 +751,6 @@ export class RailSystem {
     this.updateBoats(dt);
   }
 
-  /** Remove a cart or boat and its mesh. */
   remove(vehicle) {
     if (vehicle.mesh && this.game?.scene) this.game.scene.remove(vehicle.mesh);
     let i = this.carts.indexOf(vehicle);
@@ -451,7 +766,6 @@ export class RailSystem {
     this.time = 0;
   }
 
-  /** Did a cart pass through this cell? Used by mini-games to score laps. */
   cartAt(cell, tolerance = 0.5) {
     return this.carts.find(cart => (
       Math.abs(cart.position.x - (cell[0] + 0.5)) <= tolerance
@@ -460,7 +774,6 @@ export class RailSystem {
     )) || null;
   }
 
-  /** Nearest cart or boat to a point, for mounting. */
   nearestVehicle(point, maxDistance = 3) {
     let best = null;
     let bestDistance = maxDistance;
@@ -472,5 +785,12 @@ export class RailSystem {
   }
 }
 
-export const RAIL_LIMITS = { MAX_CART_SPEED, BOAT_MAX_SPEED, TICK };
+export const RAIL_LIMITS = {
+  MAX_CART_SPEED,
+  BOAT_WATER_MAX_SPEED,
+  BOAT_ICE_MAX_SPEED,
+  BOAT_PACKED_ICE_MAX_SPEED,
+  BOAT_BLUE_ICE_MAX_SPEED,
+  TICK
+};
 export { DIRECTIONS };

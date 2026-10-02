@@ -118,6 +118,7 @@ export const BIOME_CATEGORIES = [
     name: 'The Nether Biomes',
     icon: '🔥',
     biomes: [
+      'nether',
       'nether_wastes',
       'soul_sand_valley',
       'crimson_forest',
@@ -156,6 +157,7 @@ export const BIOMES = {
     name: 'Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -169,13 +171,14 @@ export const BIOMES = {
     floraDensity: 0.12,
     skyColor: 0x78a7ff,
     fogColor: 0x4770b8,
-    mobs: ['salmon', 'dolphin', 'squid']
+    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned']
   },
   deep_ocean: {
     id: 'deep_ocean',
     name: 'Deep Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -189,13 +192,14 @@ export const BIOMES = {
     floraDensity: 0.18,
     skyColor: 0x709cee,
     fogColor: 0x224488,
-    mobs: ['salmon', 'dolphin', 'squid']
+    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned', 'guardian']
   },
   warm_ocean: {
     id: 'warm_ocean',
     name: 'Warm Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.SAND,
     subsurfaceBlock: BLOCKS.SAND,
     deepBlock: BLOCKS.STONE,
@@ -209,13 +213,14 @@ export const BIOMES = {
     floraDensity: 0.08,
     skyColor: 0x82b2ff,
     fogColor: 0x438699,
-    mobs: ['dolphin', 'salmon']
+    mobs: ['dolphin', 'salmon', 'squid', 'drowned']
   },
   lukewarm_ocean: {
     id: 'lukewarm_ocean',
     name: 'Lukewarm Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.SAND,
     subsurfaceBlock: BLOCKS.SAND,
     deepBlock: BLOCKS.STONE,
@@ -229,13 +234,14 @@ export const BIOMES = {
     floraDensity: 0.1,
     skyColor: 0x7faaff,
     fogColor: 0x437cb0,
-    mobs: ['salmon', 'dolphin']
+    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned']
   },
   deep_lukewarm_ocean: {
     id: 'deep_lukewarm_ocean',
     name: 'Deep Lukewarm Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.SAND,
     subsurfaceBlock: BLOCKS.SAND,
     deepBlock: BLOCKS.STONE,
@@ -249,13 +255,14 @@ export const BIOMES = {
     floraDensity: 0.14,
     skyColor: 0x7faaff,
     fogColor: 0x316294,
-    mobs: ['salmon', 'dolphin']
+    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned', 'guardian']
   },
   cold_ocean: {
     id: 'cold_ocean',
     name: 'Cold Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -269,13 +276,14 @@ export const BIOMES = {
     floraDensity: 0.08,
     skyColor: 0x6e96eb,
     fogColor: 0x27497d,
-    mobs: ['salmon', 'squid']
+    mobs: ['cod', 'salmon', 'squid', 'glow_squid', 'dolphin', 'drowned']
   },
   deep_cold_ocean: {
     id: 'deep_cold_ocean',
     name: 'Deep Cold Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -289,13 +297,14 @@ export const BIOMES = {
     floraDensity: 0.12,
     skyColor: 0x6890e0,
     fogColor: 0x1f3c69,
-    mobs: ['salmon', 'squid']
+    mobs: ['cod', 'salmon', 'squid', 'glow_squid', 'dolphin', 'drowned', 'guardian']
   },
   frozen_ocean: {
     id: 'frozen_ocean',
     name: 'Frozen Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -310,13 +319,14 @@ export const BIOMES = {
     floraDensity: 0,
     skyColor: 0x93b4e6,
     fogColor: 0xa8c4e0,
-    mobs: ['polar_bear', 'salmon']
+    mobs: ['polar_bear', 'salmon', 'squid', 'glow_squid', 'drowned']
   },
   deep_frozen_ocean: {
     id: 'deep_frozen_ocean',
     name: 'Deep Frozen Ocean',
     category: 'offshore',
     dimension: 'overworld',
+    isOcean: true,
     surfaceBlock: BLOCKS.GRAVEL,
     subsurfaceBlock: BLOCKS.GRAVEL,
     deepBlock: BLOCKS.STONE,
@@ -331,7 +341,7 @@ export const BIOMES = {
     floraDensity: 0,
     skyColor: 0x90b0e0,
     fogColor: 0xa0c0e0,
-    mobs: ['polar_bear', 'salmon']
+    mobs: ['polar_bear', 'salmon', 'squid', 'glow_squid', 'drowned', 'guardian']
   },
   mushroom_fields: {
     id: 'mushroom_fields',
@@ -1348,6 +1358,27 @@ export const BIOMES = {
   },
 
   // --- THE NETHER BIOMES ---
+  nether: {
+    id: 'nether',
+    name: 'The Nether',
+    category: 'nether',
+    dimension: 'nether',
+    surfaceBlock: BLOCKS.NETHERRACK,
+    subsurfaceBlock: BLOCKS.NETHERRACK,
+    deepBlock: BLOCKS.NETHERRACK,
+    waterBlock: BLOCKS.LAVA,
+    isNether: true,
+    seaLevel: 14,
+    baseHeight: 24,
+    heightScale: 10,
+    treeType: 'glowstone_cluster',
+    treeDensity: 0.2,
+    floraType: 'fire',
+    floraDensity: 0.05,
+    skyColor: 0x330808,
+    fogColor: 0x471010,
+    mobs: ['zombie_pigman', 'zombified_piglin', 'piglin', 'ghast', 'blaze', 'magma_cube', 'strider', 'hoglin', 'wither_skeleton']
+  },
   nether_wastes: {
     id: 'nether_wastes',
     name: 'Nether Wastes',
@@ -1367,7 +1398,7 @@ export const BIOMES = {
     floraDensity: 0.05,
     skyColor: 0x330808,
     fogColor: 0x471010,
-    mobs: ['zombie_pigman', 'blaze', 'ghast']
+    mobs: ['zombie_pigman', 'zombified_piglin', 'piglin', 'ghast', 'magma_cube', 'strider']
   },
   soul_sand_valley: {
     id: 'soul_sand_valley',
@@ -1388,7 +1419,7 @@ export const BIOMES = {
     floraDensity: 0.08,
     skyColor: 0x142028,
     fogColor: 0x1b3542,
-    mobs: ['skeleton', 'ghast']
+    mobs: ['ghast', 'skeleton', 'strider', 'enderman']
   },
   crimson_forest: {
     id: 'crimson_forest',
@@ -1409,7 +1440,7 @@ export const BIOMES = {
     floraDensity: 0.25,
     skyColor: 0x400c14,
     fogColor: 0x5a121c,
-    mobs: ['piglin', 'hoglin']
+    mobs: ['piglin', 'hoglin', 'zombie_pigman', 'zombified_piglin', 'strider']
   },
   warped_forest: {
     id: 'warped_forest',
@@ -1430,7 +1461,7 @@ export const BIOMES = {
     floraDensity: 0.25,
     skyColor: 0x10282b,
     fogColor: 0x173e44,
-    mobs: ['enderman']
+    mobs: ['enderman', 'strider']
   },
   basalt_deltas: {
     id: 'basalt_deltas',
@@ -1451,7 +1482,7 @@ export const BIOMES = {
     floraDensity: 0.2,
     skyColor: 0x2e272b,
     fogColor: 0x42383e,
-    mobs: ['magma_cube']
+    mobs: ['magma_cube', 'ghast', 'strider']
   },
 
   // --- THE END BIOMES ---

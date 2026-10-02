@@ -52,7 +52,7 @@ export const VENDORS = {
     keyHint: 'Create a key in Google AI Studio.',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     models: [
-      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', note: 'Default. Fast and strong on agentic tasks.' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', note: 'Default. Latest flagship, fast & strong on agentic tasks.' },
       { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview)', note: 'Deepest reasoning, slower.' },
       { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', note: 'Previous generation Flash.' }
     ],
@@ -90,6 +90,9 @@ export const VENDORS = {
     keyHint: 'Create a key on the OpenAI platform.',
     endpoint: 'https://api.openai.com/v1/chat/completions',
     models: [
+      { id: 'gpt-4o', label: 'GPT-4o', note: 'Recommended. Official OpenAI flagship multimodal model.' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o Mini', note: 'Fast, affordable, vision-capable.' },
+      { id: 'o3-mini', label: 'o3-mini', note: 'OpenAI advanced reasoning model.' },
       { id: 'gpt-6-astra', label: 'GPT-6 Astra', note: 'Default. Most capable OpenAI model.' },
       { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', note: 'Balances intelligence and cost.' },
       { id: 'gpt-6-luna', label: 'GPT-6 Luna', note: 'Cheapest, best for high volume.' }
@@ -145,6 +148,9 @@ export function normalizeEffort(effort, fallback = '') {
 export function resolveModel(vendorId, storedModel) {
   const vendor = VENDORS[vendorId];
   if (!vendor) return '';
+  if (vendorId === 'gemini' && (!storedModel || /^gemini-[12]\./i.test(storedModel))) {
+    return vendor.defaultModel;
+  }
   if (isKnownVendorModel(vendorId, storedModel)) return storedModel;
   const override = readEnv(vendor.envVar);
   if (override) return override;
@@ -360,8 +366,8 @@ export function buildAgentRequest({
   const thinkingEnabled = typeof thinking === 'boolean' ? thinking : vendorId === 'deepseek';
 
   if (vendorId === 'gemini') {
-    const base = config.endpoint.replace('{model}', encodeURIComponent(model));
-    const url = stream ? `${base}?alt=sse` : base;
+    const action = stream ? ':streamGenerateContent?alt=sse' : ':generateContent';
+    const url = config.endpoint.replace(':generateContent', action).replace('{model}', encodeURIComponent(model));
     const body = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: buildGeminiContents(history, turn),
@@ -387,7 +393,8 @@ export function buildAgentRequest({
   };
   if (vendorId === 'chatgpt') {
     body.max_completion_tokens = budget;
-    if (activeEffort) body.reasoning_effort = activeEffort;
+    const isStandardModel = /^gpt-[34]/i.test(model);
+    if (activeEffort && !isStandardModel) body.reasoning_effort = activeEffort;
   } else if (vendorId === 'deepseek') {
     body.max_tokens = budget;
     body.thinking = { type: thinkingEnabled ? 'enabled' : 'disabled' };

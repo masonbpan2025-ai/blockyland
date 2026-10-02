@@ -164,3 +164,68 @@ test('fire_dragon has boss-tier stats, large scale, and enters flight/combat sta
   assert.ok(dragon.isFlying);
 });
 
+test('ocean biomes have isOcean flag and authentic ocean mob spawn lists', async () => {
+  const { BIOMES } = await import('../src/biomes.js');
+  const oceanBiomeIds = [
+    'ocean', 'deep_ocean', 'warm_ocean', 'lukewarm_ocean',
+    'deep_lukewarm_ocean', 'cold_ocean', 'deep_cold_ocean',
+    'frozen_ocean', 'deep_frozen_ocean'
+  ];
+
+  for (const id of oceanBiomeIds) {
+    const biome = BIOMES[id];
+    assert.ok(biome, `Biome ${id} should exist`);
+    assert.equal(biome.isOcean, true, `Biome ${id} should have isOcean: true`);
+    assert.ok(Array.isArray(biome.mobs), `Biome ${id} should have mobs list`);
+    assert.ok(biome.mobs.length > 0, `Biome ${id} mobs list should not be empty`);
+  }
+});
+
+test('ocean mobs spawn with authentic models, textures, and aquatic AI updates', () => {
+  const { manager, player } = fixture((x, y, z) => BLOCKS.WATER);
+  player.position.set(0, 10, 0);
+
+  // 1. Guardian
+  const guardian = manager.spawnGuardian(2, 5, 2);
+  assert.ok(guardian, 'Guardian should spawn');
+  assert.equal(guardian.isAquatic, true);
+  assert.equal(guardian.type, 'guardian');
+  assert.ok(guardian.spikes && guardian.spikes.length === 12, 'Guardian should have 12 spikes');
+  assert.ok(guardian.tailSegments && guardian.tailSegments.length === 2, 'Guardian should have 2 tail segments');
+
+  // 2. Elder Guardian
+  const elder = manager.spawnElderGuardian(5, 5, 5);
+  assert.ok(elder, 'Elder Guardian should spawn');
+  assert.equal(elder.isAquatic, true);
+  assert.equal(elder.isElder, true);
+  assert.ok(elder.maxHealth >= 80);
+
+  // 3. Glow Squid
+  const glowSquid = manager.spawnGlowSquid(3, 5, 3);
+  assert.ok(glowSquid, 'Glow Squid should spawn');
+  assert.equal(glowSquid.isAquatic, true);
+  assert.equal(glowSquid.isGlowSquid, true);
+  assert.ok(glowSquid.tentacles && glowSquid.tentacles.length === 8, 'Glow Squid should have 8 tentacles');
+
+  // 4. Cod
+  const cod = manager.spawnCod(4, 5, 4);
+  assert.ok(cod, 'Cod should spawn');
+  assert.equal(cod.isAquatic, true);
+  assert.equal(cod.type, 'cod');
+  assert.ok(cod.tail, 'Cod should have articulated tail');
+
+  // 5. Drowned
+  const drowned = manager.spawnDrowned(6, 5, 6);
+  assert.ok(drowned, 'Drowned should spawn');
+  assert.equal(drowned.isDrowned, true);
+  assert.equal(drowned.isAquatic, true);
+
+  // 6. Verify update cycle runs without errors for all ocean mobs
+  for (let i = 0; i < 5; i++) {
+    manager.update(0.05, player);
+  }
+
+  assert.ok(guardian.tailSegments[0].rotation.y !== undefined);
+  assert.ok(glowSquid.tentacles[0].rotation.x !== undefined);
+});
+

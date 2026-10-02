@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- Wood Baseplate -->
+  <rect x="6" y="3" width="4" height="6" fill="#78350f" />
+  <rect x="6" y="3" width="3" height="5" fill="#a16207" />
+  <rect x="7" y="4" width="2" height="4" fill="#b45309" />
+
+  <!-- Iron Hook Mechanism -->
+  <rect x="7" y="6" width="2" height="2" fill="#9ca3af" />
+  <rect x="7" y="8" width="4" height="2" fill="#6b7280" />
+  <rect x="10" y="8" width="2" height="4" fill="#4b5563" />
+  <rect x="9" y="11" width="2" height="2" fill="#374151" />
+</svg>

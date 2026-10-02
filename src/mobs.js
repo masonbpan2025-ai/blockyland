@@ -3,6 +3,9 @@ import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { wanderMob, moveGroundMob, moveFlyingMob } from './mobMotion.js';
 import { MobLibrary } from './mobLibrary.js';
+import { AnimalBehaviors } from './animalBehaviors.js';
+import { HostileMobBehaviors } from './hostileMobBehaviors.js';
+import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
 function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
@@ -62,17 +65,44 @@ export class MobManager {
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
+      chicken: this.loadTexture('/assets/entity/chicken.png'),
       creeper: this.loadTexture('/assets/entity/creeper.png'),
       skeleton: this.loadTexture('/assets/entity/skeleton.png'),
       salmon: this.createAquaticTexture('salmon'),
       dolphin: this.createAquaticTexture('dolphin'),
       octopus: this.createAquaticTexture('octopus'),
+      squid: this.createAquaticTexture('octopus'),
       axolotl: this.createAquaticTexture('axolotl'),
+      guardian: this.createAquaticTexture('guardian'),
+      elder_guardian: this.createAquaticTexture('elder_guardian'),
+      glow_squid: this.createAquaticTexture('glow_squid'),
+      drowned: this.createAquaticTexture('drowned'),
+      cod: this.createAquaticTexture('cod'),
       tournament_host: this.createHostTexture(),
       enderman: this.createEndermanTexture(),
       jackie_chun: this.createJackieChunTexture(),
-      site_manager: this.createTrainerTexture()
+      site_manager: this.createTrainerTexture(),
+      cat_tuxedo: this.createCatTexture('tuxedo'),
+      cat_tabby: this.createCatTexture('tabby'),
+      cat_siamese: this.createCatTexture('siamese'),
+      cat_british: this.createCatTexture('british'),
+      ocelot: this.createCatTexture('ocelot'),
+      wolf: this.createWolfTexture(),
+      ghast: this.createNetherTexture('ghast'),
+      ghast_shooting: this.createNetherTexture('ghast_shooting'),
+      blaze: this.createNetherTexture('blaze'),
+      piglin: this.createNetherTexture('piglin'),
+      zombified_piglin: this.createNetherTexture('zombified_piglin'),
+      hoglin: this.createNetherTexture('hoglin'),
+      magma_cube: this.createNetherTexture('magma_cube'),
+      magma_cube_core: this.createNetherTexture('magma_cube_core'),
+      strider: this.createNetherTexture('strider'),
+      strider_cold: this.createNetherTexture('strider_cold'),
+      wither_skeleton: this.createNetherTexture('wither_skeleton')
     };
+
+    this.animalBehaviors = new AnimalBehaviors(this, world, sounds, entities);
+    this.hostileBehaviors = new HostileMobBehaviors(this, world, sounds, entities);
   }
 
   clearMobs() {
@@ -88,6 +118,12 @@ export class MobManager {
       this.customProjectiles = [];
     }
     for (const mob of this.mobs) {
+      if (mob.laserLine && this.scene) {
+        this.scene.remove(mob.laserLine);
+        mob.laserLine.geometry?.dispose();
+        mob.laserLine.material?.dispose();
+        mob.laserLine = null;
+      }
       if (mob.mesh) {
         this.scene.remove(mob.mesh);
         mob.mesh.traverse(obj => {
@@ -96,6 +132,47 @@ export class MobManager {
       }
     }
     this.mobs = [];
+  }
+
+  spawnParticleBurst(pos, color = 0xf43f5e, count = 8) {
+    const scene = this.scene || this.entities?.scene;
+    if (!scene) return;
+    for (let i = 0; i < count; i++) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 0.12, 0.12),
+        new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.9 })
+      );
+      mesh.position.copy(pos).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.6,
+        Math.random() * 0.4,
+        (Math.random() - 0.5) * 0.6
+      ));
+      scene.add(mesh);
+      if (this.entities?.particles) {
+        this.entities.particles.push({
+          mesh,
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 1.2,
+            0.8 + Math.random() * 1.5,
+            (Math.random() - 0.5) * 1.2
+          ),
+          life: 0.8,
+          death: true
+        });
+      } else {
+        setTimeout(() => {
+          scene.remove(mesh);
+          mesh.geometry?.dispose();
+          mesh.material?.dispose();
+        }, 800);
+      }
+    }
+  }
+
+  spawnXpOrbs(pos, count = 1) {
+    if (this.entities?.spawnXpOrbs) {
+      this.entities.spawnXpOrbs(pos, count);
+    }
   }
 
   spawnMob(type, x, y, z) {
@@ -115,12 +192,14 @@ export class MobManager {
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
       case 'zombie': return this.spawnZombie(x, y, z);
+      case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
       case 'chicken': return this.spawnChicken(x, y, z);
+      case 'cod': return this.spawnCod(x, y, z);
       case 'salmon': return this.spawnSalmon(x, y, z);
       case 'dolphin': return this.spawnDolphin(x, y, z);
       case 'octopus':
@@ -132,9 +211,32 @@ export class MobManager {
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
+      case 'zombified_piglin':
+      case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z);
+      case 'hoglin': return this.spawnHoglin(x, y, z);
       case 'ghast': return this.spawnGhast(x, y, z);
       case 'magma_cube': return this.spawnMagmaCube(x, y, z);
       case 'shulker': return this.spawnShulker(x, y, z);
+      case 'horse': return this.spawnHorse(x, y, z);
+      case 'donkey': return this.spawnDonkey(x, y, z);
+      case 'wolf': return this.spawnWolf(x, y, z);
+      case 'cat': return this.spawnCat(x, y, z);
+      case 'ocelot': return this.spawnOcelot(x, y, z);
+      case 'slime': return this.spawnSlime(x, y, z);
+      case 'witch': return this.spawnWitch(x, y, z);
+      case 'wither_skeleton': return this.spawnWitherSkeleton(x, y, z);
+      case 'strider': return this.spawnStrider(x, y, z);
+      case 'guardian': return this.spawnGuardian(x, y, z, false);
+      case 'elder_guardian': return this.spawnGuardian(x, y, z, true);
+      case 'drowned': return this.spawnDrowned(x, y, z);
+      case 'glow_squid': return this.spawnGlowSquid(x, y, z);
+      case 'phantom': return this.spawnPhantom(x, y, z);
+      case 'vindicator': return this.spawnVindicator(x, y, z);
+      case 'evoker': return this.spawnEvoker(x, y, z);
+      case 'vex': return this.spawnVex(x, y, z);
+      case 'ravager': return this.spawnRavager(x, y, z);
+      case 'ender_dragon': return this.spawnEnderDragon(x, y, z);
+      case 'wither': return this.spawnWither(x, y, z);
       default:
         if (typeof type === 'string' && MobLibrary.getMob(type)) {
           return this.spawnCustomMob(MobLibrary.getMob(type), x, y, z);
@@ -680,7 +782,286 @@ export class MobManager {
 
 
 
+  createChickenTexture(createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Default white feather fill
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, 64, 32);
+
+    // Subtle feather variations
+    ctx.fillStyle = '#ebebeb';
+    for (let x = 0; x < 64; x += 4) {
+      for (let y = 0; y < 32; y += 4) {
+        if ((x + y) % 8 === 0) ctx.fillRect(x, y, 2, 2);
+      }
+    }
+
+    // 1. Head (0, 0, 14, 9)
+    // Eyes: front face is x: 3..6, y: 3..8
+    ctx.fillStyle = '#141414';
+    ctx.fillRect(3, 5, 1, 1); // left pupil
+    ctx.fillRect(6, 5, 1, 1); // right pupil
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(3, 4, 1, 1); // left gleam
+    ctx.fillRect(6, 4, 1, 1); // right gleam
+
+    // 2. Beak (14, 0, 8, 4)
+    ctx.fillStyle = '#ee9b14';
+    ctx.fillRect(14, 0, 8, 4);
+    ctx.fillStyle = '#cd7d0c';
+    ctx.fillRect(14, 2, 8, 2);
+
+    // 3. Wattle (14, 4, 6, 4)
+    ctx.fillStyle = '#cc2323';
+    ctx.fillRect(14, 4, 6, 4);
+    ctx.fillStyle = '#a01414';
+    ctx.fillRect(14, 6, 6, 2);
+
+    // 4. Legs & Claws (26, 0, 12, 11)
+    ctx.fillStyle = '#eea519';
+    ctx.fillRect(26, 0, 12, 11);
+    ctx.fillStyle = '#d2870f';
+    ctx.fillRect(26, 8, 12, 3);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  createCatTexture(breed = 'tuxedo', createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Breed specific colors:
+    let baseColor = '#1f1f23'; // Tuxedo charcoal black
+    let chestColor = '#f3f4f6'; // Crisp white chest
+    let eyeColor = '#22c55e'; // Emerald green
+    let pupilColor = '#0f172a';
+    let noseColor = '#f472b6'; // Cute pink
+    let innerEarColor = '#f472b6';
+    let pawColor = '#f3f4f6'; // White socks
+    let hasSpots = false;
+    let hasStripes = false;
+
+    if (breed === 'tabby') {
+      baseColor = '#ea580c'; // Warm orange
+      chestColor = '#fed7aa'; // Cream
+      eyeColor = '#84cc16'; // Hazel green
+      pupilColor = '#451a03';
+      noseColor = '#fb7185';
+      innerEarColor = '#fbcfe8';
+      pawColor = '#fed7aa';
+      hasStripes = true;
+    } else if (breed === 'siamese') {
+      baseColor = '#f5ede0'; // Pale cream
+      chestColor = '#fdfbf7';
+      eyeColor = '#0284c7'; // Piercing sapphire blue
+      pupilColor = '#0c4a6e';
+      noseColor = '#3e2723';
+      innerEarColor = '#4e342e';
+      pawColor = '#3e2723'; // Seal brown points
+    } else if (breed === 'british') {
+      baseColor = '#64748b'; // Slate gray
+      chestColor = '#94a3b8';
+      eyeColor = '#f59e0b'; // Amber yellow
+      pupilColor = '#1e293b';
+      noseColor = '#475569';
+      innerEarColor = '#f9a8d4';
+      pawColor = '#64748b';
+    } else if (breed === 'ocelot') {
+      baseColor = '#eab308'; // Ocelot golden yellow
+      chestColor = '#fef08a'; // Pale yellow
+      eyeColor = '#10b981'; // Mint green
+      pupilColor = '#451a03';
+      noseColor = '#ea580c';
+      innerEarColor = '#fbbf24';
+      pawColor = '#eab308';
+      hasSpots = true;
+    }
+
+    // 1. Base coat
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, 64, 32);
+
+    // Fur texture noise
+    ctx.fillStyle = breed === 'tuxedo' ? '#2c2c34' : 'rgba(0, 0, 0, 0.08)';
+    for (let x = 0; x < 64; x += 2) {
+      for (let y = 0; y < 32; y += 2) {
+        if ((x * 3 + y * 7) % 5 === 0) {
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    // 2. Head (u:0, v:0, tw:5, th:4, td:5)
+    // Front face: x: 5 to 9, y: 5 to 8
+    if (breed === 'siamese') {
+      ctx.fillStyle = '#3e2723';
+      ctx.fillRect(5, 5, 5, 4);
+    }
+
+    // Muzzle / Chin patch on face
+    if (breed === 'tuxedo' || breed === 'tabby' || breed === 'ocelot') {
+      ctx.fillStyle = chestColor;
+      ctx.fillRect(6, 7, 3, 2);
+    }
+
+    // Eyes: left eye at (5, 6), right eye at (9, 6)
+    ctx.fillStyle = eyeColor;
+    ctx.fillRect(5, 6, 1, 1);
+    ctx.fillRect(9, 6, 1, 1);
+    // Vertical pupil slit
+    ctx.fillStyle = pupilColor;
+    ctx.fillRect(5, 6, 1, 1);
+    ctx.fillRect(9, 6, 1, 1);
+    ctx.fillStyle = eyeColor;
+    ctx.fillRect(5, 6, 1, 1);
+    ctx.fillRect(9, 6, 1, 1);
+    // Eye shine
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(5, 5, 1, 1);
+    ctx.fillRect(9, 5, 1, 1);
+
+    // Pink nose at (7, 7)
+    ctx.fillStyle = noseColor;
+    ctx.fillRect(7, 7, 1, 1);
+
+    // Whiskers
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillRect(3, 7, 2, 1);
+    ctx.fillRect(10, 7, 2, 1);
+
+    // 3. Snout (u:0, v:24, tw:3, th:2, td:1)
+    ctx.fillStyle = (breed === 'tuxedo' || breed === 'tabby' || breed === 'ocelot') ? chestColor : baseColor;
+    ctx.fillRect(0, 24, 8, 4);
+    ctx.fillStyle = noseColor;
+    ctx.fillRect(2, 25, 1, 1);
+
+    // 4. Ears (Left u:0, v:10; Right u:6, v:10)
+    ctx.fillStyle = innerEarColor;
+    ctx.fillRect(1, 11, 1, 1);
+    ctx.fillRect(7, 11, 1, 1);
+
+    // 5. Body (u:20, v:0, tw:5, th:5, td:12)
+    // Chest bib & belly
+    if (breed === 'tuxedo' || breed === 'tabby' || breed === 'siamese' || breed === 'ocelot') {
+      ctx.fillStyle = chestColor;
+      ctx.fillRect(32, 12, 5, 4);
+      ctx.fillRect(25, 0, 5, 10);
+    }
+
+    // Stripes for Tabby
+    if (hasStripes) {
+      ctx.fillStyle = '#9a3412';
+      ctx.fillRect(22, 12, 1, 5);
+      ctx.fillRect(25, 12, 1, 5);
+      ctx.fillRect(28, 12, 1, 5);
+      ctx.fillRect(38, 12, 1, 5);
+      ctx.fillRect(41, 12, 1, 5);
+    }
+
+    // Spots for Ocelot
+    if (hasSpots) {
+      ctx.fillStyle = '#78350f';
+      for (let sx = 22; sx < 44; sx += 4) {
+        for (let sy = 3; sy < 16; sy += 3) {
+          ctx.fillRect(sx, sy, 2, 2);
+          ctx.fillStyle = '#ca8a04';
+          ctx.fillRect(sx, sy, 1, 1);
+          ctx.fillStyle = '#78350f';
+        }
+      }
+    }
+
+    // 6. Legs (u:40, v:0; u:40, v:12; u:48, v:0; u:48, v:12)
+    ctx.fillStyle = pawColor;
+    ctx.fillRect(40, 6, 8, 2);
+    ctx.fillRect(40, 18, 8, 2);
+    ctx.fillRect(48, 6, 8, 2);
+    ctx.fillRect(48, 18, 8, 2);
+
+    // 7. Tail (u:0, v:15)
+    if (breed === 'tuxedo') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 15, 4, 2);
+    } else if (breed === 'siamese') {
+      ctx.fillStyle = '#3e2723';
+      ctx.fillRect(0, 15, 6, 8);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  createWolfTexture(createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Base light gray
+    ctx.fillStyle = '#d1d5db';
+    ctx.fillRect(0, 0, 64, 32);
+
+    // Fur noise
+    ctx.fillStyle = '#9ca3af';
+    for (let x = 0; x < 64; x += 3) {
+      for (let y = 0; y < 32; y += 3) {
+        if ((x + y) % 6 === 0) ctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    // Head (u:0, v:0) -> Front face at x: 6..11, y: 6..11
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(7, 7, 1, 2);
+    ctx.fillRect(10, 7, 1, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(7, 7, 1, 1);
+    ctx.fillRect(10, 7, 1, 1);
+
+    // Muzzle (u:0, v:10)
+    ctx.fillStyle = '#e5e7eb';
+    ctx.fillRect(0, 10, 14, 7);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(5, 14, 2, 2); // Black nose
+
+    // Ears (u:16, v:14)
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(16, 14, 8, 4);
+
+    // Dorsal fur
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(24, 18, 12, 6);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   createAquaticTexture(type) {
+    if (typeof document === 'undefined') return new THREE.Texture();
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
@@ -788,6 +1169,153 @@ export class MobManager {
       ctx.fillRect(26, 32, 12, 2);
       ctx.fillRect(24, 30, 2, 2);
       ctx.fillRect(38, 30, 2, 2);
+    } else if (type === 'guardian') {
+      // Prismarine teal base with geometric brick segments
+      ctx.fillStyle = '#1e7b75';
+      ctx.fillRect(0, 0, 64, 64);
+      // Darker prismarine mortar grid
+      ctx.fillStyle = '#13544f';
+      for (let x = 0; x < 64; x += 8) ctx.fillRect(x, 0, 1, 64);
+      for (let y = 0; y < 64; y += 8) ctx.fillRect(0, y, 64, 1);
+      // Mottled prismarine scale highlights
+      ctx.fillStyle = '#2db8ad';
+      for (let i = 0; i < 48; i++) {
+        const rx = (Math.floor(i * 13) % 8) * 8 + 2;
+        const ry = (Math.floor(i * 7) % 8) * 8 + 2;
+        ctx.fillRect(rx, ry, 3, 3);
+      }
+      // Eye socket area
+      ctx.fillStyle = '#0e423e';
+      ctx.fillRect(20, 20, 24, 24);
+      // White sclera
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(22, 22, 20, 20);
+      // Red-orange iris & dark pupil
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(26, 26, 12, 12);
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(28, 28, 8, 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(29, 29, 2, 2);
+      // Spikes accent bar
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(0, 56, 64, 8);
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillRect(0, 60, 64, 4);
+    } else if (type === 'elder_guardian') {
+      // Ancient ivory-grey prismarine
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#64748b';
+      for (let x = 0; x < 64; x += 8) ctx.fillRect(x, 0, 1, 64);
+      for (let y = 0; y < 64; y += 8) ctx.fillRect(0, y, 64, 1);
+      ctx.fillStyle = '#94a3b8';
+      for (let i = 0; i < 40; i++) {
+        const rx = (Math.floor(i * 11) % 8) * 8 + 2;
+        const ry = (Math.floor(i * 5) % 8) * 8 + 2;
+        ctx.fillRect(rx, ry, 4, 3);
+      }
+      // Eye socket
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(20, 20, 24, 24);
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(22, 22, 20, 20);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(26, 26, 12, 12);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(28, 28, 8, 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(29, 29, 2, 2);
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(0, 56, 64, 8);
+    } else if (type === 'glow_squid') {
+      // Deep glowing dark cyan-navy mantle
+      ctx.fillStyle = '#07262c';
+      ctx.fillRect(0, 0, 64, 64);
+      // Shading & mantle gradient
+      ctx.fillStyle = '#04171a';
+      ctx.fillRect(0, 0, 64, 14);
+      ctx.fillRect(0, 50, 64, 14);
+      // Bioluminescent spots and constellation of glowing stars
+      ctx.fillStyle = '#06b6d4';
+      for (let x = 4; x < 60; x += 8) {
+        for (let y = 10; y < 54; y += 8) {
+          ctx.fillRect(x + ((y % 16 === 0) ? 0 : 4), y, 3, 3);
+        }
+      }
+      // Vibrant glowing cyan highlights
+      ctx.fillStyle = '#22d3ee';
+      for (let i = 0; i < 30; i++) {
+        const rx = ((i * 17) % 56) + 4;
+        const ry = ((i * 23) % 44) + 10;
+        ctx.fillRect(rx, ry, 2, 2);
+      }
+      // Large squid eyes with glowing cyan iris
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(8, 28, 10, 10);
+      ctx.fillRect(46, 28, 10, 10);
+      ctx.fillStyle = '#0891b2';
+      ctx.fillRect(10, 30, 6, 6);
+      ctx.fillRect(48, 30, 6, 6);
+      ctx.fillStyle = '#021319';
+      ctx.fillRect(12, 32, 3, 3);
+      ctx.fillRect(50, 32, 3, 3);
+    } else if (type === 'drowned') {
+      // Waterlogged decaying green-cyan skin
+      ctx.fillStyle = '#164e4a';
+      ctx.fillRect(0, 0, 64, 64);
+      // Rotting flesh mottling & kelp stains
+      ctx.fillStyle = '#0f3a36';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 3 + y * 7) % 5 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      // Seaweed patches
+      ctx.fillStyle = '#14532d';
+      ctx.fillRect(8, 4, 8, 10);
+      ctx.fillRect(44, 18, 12, 8);
+      // Tattered waterlogged clothes
+      ctx.fillStyle = '#155e75';
+      ctx.fillRect(16, 16, 32, 16);
+      ctx.fillStyle = '#0e7490';
+      ctx.fillRect(20, 20, 24, 12);
+      // Pants
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 32, 64, 16);
+      // Glowing light-cyan undead eyes
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(8, 8, 4, 3);
+      ctx.fillRect(20, 8, 4, 3);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(9, 9, 2, 2);
+      ctx.fillRect(21, 9, 2, 2);
+    } else if (type === 'cod') {
+      // Sandy tan/olive-brown upper body
+      ctx.fillStyle = '#7a6a57';
+      ctx.fillRect(0, 0, 64, 64);
+      // Silvery cream underbelly
+      ctx.fillStyle = '#dcd5c9';
+      ctx.fillRect(0, 38, 64, 26);
+      // Darker olive-brown dorsal ridge
+      ctx.fillStyle = '#594d3f';
+      ctx.fillRect(0, 0, 64, 14);
+      // Mottled scale speckles
+      ctx.fillStyle = '#9e8d78';
+      for (let x = 4; x < 60; x += 6) {
+        for (let y = 14; y < 38; y += 6) {
+          ctx.fillRect(x + (y % 12 === 0 ? 0 : 3), y, 3, 2);
+        }
+      }
+      // Silvery fin strips
+      ctx.fillStyle = '#c4bbb0';
+      ctx.fillRect(46, 18, 14, 10);
+      ctx.fillRect(48, 44, 12, 8);
+      // Eyes
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(6, 18, 4, 4);
+      ctx.fillStyle = '#fafaf9';
+      ctx.fillRect(6, 18, 2, 2);
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -897,6 +1425,240 @@ export class MobManager {
     ctx.fillRect(14, 12, 1, 1);
     ctx.fillStyle = '#f5d0fe';
     ctx.fillRect(9, 12, 1, 1);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  createNetherTexture(type) {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    if (type === 'ghast' || type === 'ghast_shooting') {
+      // Creamy white base with ghost creases
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#e2e8f0';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 7 + y * 13) % 5 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#cbd5e1';
+      for (let x = 8; x < 56; x += 8) {
+        ctx.fillRect(x, 16, 2, 32);
+      }
+      if (type === 'ghast_shooting') {
+        // Glowing red open eyes
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(14, 18, 8, 8);
+        ctx.fillRect(42, 18, 8, 8);
+        ctx.fillStyle = '#f87171';
+        ctx.fillRect(16, 20, 4, 4);
+        ctx.fillRect(44, 20, 4, 4);
+        // Gaping red mouth
+        ctx.fillStyle = '#991b1b';
+        ctx.fillRect(24, 34, 16, 14);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(28, 38, 8, 6);
+      } else {
+        // Droopy closed slit eyes
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(14, 22, 8, 3);
+        ctx.fillRect(42, 22, 8, 3);
+        // Small mouth
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(28, 38, 8, 4);
+      }
+    } else if (type === 'blaze') {
+      // Fiery orange/gold swirl texture
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#d97706';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 11 + y * 7) % 3 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#fbbf24';
+      for (let x = 2; x < 62; x += 8) {
+        ctx.fillRect(x, 0, 4, 64);
+      }
+      // Glowing yellow eyes
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(14, 16, 6, 6);
+      ctx.fillRect(44, 16, 6, 6);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(16, 18, 2, 2);
+      ctx.fillRect(46, 18, 2, 2);
+    } else if (type === 'piglin') {
+      // Warm peach piglin skin
+      ctx.fillStyle = '#d97757';
+      ctx.fillRect(0, 0, 64, 64);
+      // Golden armor/tunic
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(16, 20, 32, 24);
+      ctx.fillStyle = '#ca8a04';
+      ctx.fillRect(24, 20, 16, 24);
+      // Snout and tusks
+      ctx.fillStyle = '#c25838';
+      ctx.fillRect(18, 8, 28, 12);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(18, 16, 4, 6);
+      ctx.fillRect(42, 16, 4, 6);
+      // Eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(16, 4, 6, 4);
+      ctx.fillRect(42, 4, 6, 4);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(18, 4, 3, 4);
+      ctx.fillRect(44, 4, 3, 4);
+    } else if (type === 'zombified_piglin') {
+      // Left piglin, right rotted zombie
+      ctx.fillStyle = '#d97757';
+      ctx.fillRect(0, 0, 32, 64);
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(32, 0, 32, 64);
+      ctx.fillStyle = '#22c55e';
+      for (let x = 32; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 5 + y * 7) % 3 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      // Exposed white skull/bones on right
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(44, 4, 12, 12);
+      ctx.fillRect(38, 24, 16, 4);
+      ctx.fillRect(38, 32, 14, 4);
+      ctx.fillRect(38, 40, 16, 4);
+      // Left tusk
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(14, 14, 4, 6);
+      // Red zombie eye on right, white eye on left
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(48, 8, 4, 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(12, 6, 5, 4);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(14, 6, 3, 4);
+    } else if (type === 'hoglin') {
+      // Deep crimson hide
+      ctx.fillStyle = '#831843';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#9d174d';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 13 + y * 3) % 4 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#500724';
+      ctx.fillRect(24, 0, 16, 64);
+      // Tusks
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(6, 44, 12, 16);
+      ctx.fillRect(46, 44, 12, 16);
+      // Eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(12, 18, 4, 4);
+      ctx.fillRect(48, 18, 4, 4);
+    } else if (type === 'magma_cube') {
+      // Obsidian crust
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#292524';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x + y) % 6 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#ea580c';
+      for (let y = 8; y < 64; y += 16) {
+        ctx.fillRect(0, y, 64, 3);
+      }
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(10, 16, 8, 8);
+      ctx.fillRect(46, 16, 8, 8);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(12, 18, 4, 4);
+      ctx.fillRect(48, 18, 4, 4);
+    } else if (type === 'magma_cube_core') {
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#fde047';
+      for (let x = 0; x < 64; x += 8) {
+        for (let y = 0; y < 64; y += 8) {
+          ctx.fillRect(x + 2, y + 2, 4, 4);
+        }
+      }
+    } else if (type === 'strider') {
+      // Warm crimson skin
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#dc2626';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 7 + y) % 3 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#450a0a';
+      ctx.fillRect(0, 20, 8, 4);
+      ctx.fillRect(0, 32, 8, 4);
+      ctx.fillRect(56, 20, 8, 4);
+      ctx.fillRect(56, 32, 8, 4);
+      ctx.fillRect(16, 42, 32, 4);
+      ctx.fillRect(16, 44, 6, 6);
+      ctx.fillRect(42, 44, 6, 6);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(14, 22, 8, 8);
+      ctx.fillRect(42, 22, 8, 8);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(16, 24, 4, 4);
+      ctx.fillRect(44, 24, 4, 4);
+    } else if (type === 'strider_cold') {
+      // Cold purple shivering skin
+      ctx.fillStyle = '#6b21a8';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#7c3aed';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 7 + y) % 3 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#3b0764';
+      ctx.fillRect(0, 20, 8, 4);
+      ctx.fillRect(0, 32, 8, 4);
+      ctx.fillRect(56, 20, 8, 4);
+      ctx.fillRect(56, 32, 8, 4);
+      ctx.fillRect(16, 42, 32, 4);
+      ctx.fillStyle = '#e9d5ff';
+      ctx.fillRect(14, 22, 8, 8);
+      ctx.fillRect(42, 22, 8, 8);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(16, 24, 4, 4);
+      ctx.fillRect(44, 24, 4, 4);
+    } else if (type === 'wither_skeleton') {
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#27272a';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 9 + y * 5) % 4 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(16, 24, 32, 3);
+      ctx.fillRect(16, 32, 32, 3);
+      ctx.fillRect(16, 40, 32, 3);
+      ctx.fillStyle = '#f4f4f5';
+      ctx.fillRect(16, 16, 6, 6);
+      ctx.fillRect(42, 16, 6, 6);
+    }
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.magFilter = THREE.NearestFilter;
@@ -1046,6 +1808,7 @@ export class MobManager {
   }
 
   loadTexture(path) {
+    if (typeof document === 'undefined') return new THREE.Texture();
     const tex = this.textureLoader.load(path);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
@@ -1053,9 +1816,10 @@ export class MobManager {
     return tex;
   }
 
-  isBlockSolid(x, y, z) {
+  isBlockSolid(x, y, z, mobType = null) {
     const b = this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
     if (b === BLOCKS.AIR || b === BLOCKS.WATER) return false;
+    if (mobType === 'strider' && b === BLOCKS.LAVA) return true;
     const def = BLOCK_DEFS[b];
     return def && def.solid !== false && !def.plant;
   }
@@ -1075,15 +1839,40 @@ export class MobManager {
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
       case 'salmon': return { width: 0.4, height: 0.35 };
+      case 'cod': return { width: 0.35, height: 0.3 };
       case 'dolphin': return { width: 0.9, height: 0.65 };
       case 'octopus':
-      case 'squid': return { width: 0.7, height: 0.9 };
+      case 'squid':
+      case 'glow_squid': return { width: 0.7, height: 0.9 };
+      case 'drowned': return { width: 0.6, height: 1.95 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
+      case 'horse':
+      case 'donkey': return { width: 1.4, height: 1.6 };
+      case 'wolf': return { width: 0.6, height: 0.85 };
+      case 'cat':
+      case 'ocelot': return { width: 0.6, height: 0.7 };
+      case 'chicken': return { width: 0.4, height: 0.7 };
+      case 'ravager': return { width: 1.95, height: 2.2 };
+      case 'warden': return { width: 1.4, height: 2.9 };
+      case 'ender_dragon': return { width: 3.5, height: 1.8 };
+      case 'wither': return { width: 1.8, height: 2.4 };
+      case 'ghast': return { width: 4.0, height: 4.0 };
+      case 'blaze': return { width: 0.6, height: 1.8 };
+      case 'piglin': return { width: 0.6, height: 1.95 };
+      case 'zombified_piglin':
+      case 'zombie_pigman': return { width: 0.6, height: 1.95 };
+      case 'hoglin': return { width: 1.4, height: 1.4 };
+      case 'magma_cube': return { width: 0.8, height: 0.8 };
+      case 'strider': return { width: 0.9, height: 1.7 };
+      case 'wither_skeleton': return { width: 0.7, height: 2.4 };
+      case 'guardian': return { width: 0.85, height: 0.85 };
+      case 'elder_guardian': return { width: 2.0, height: 2.0 };
       case 'tournament_host': return { width: 0.6, height: 1.95 };
       case 'site_manager': return { width: 0.6, height: 1.95 };
       case 'jackie_chun': return { width: 0.6, height: 1.85 };
       case 'enderman': return { width: 0.5, height: 2.85 };
       case 'villager':
+      case 'zombie_villager':
       default:
         return { width: 0.6, height: 1.95 };
     }
@@ -1105,7 +1894,7 @@ export class MobManager {
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
         for (let z = minZ; z <= maxZ; z++) {
-          if (this.isBlockSolid(x, y, z)) {
+          if (this.isBlockSolid(x, y, z, mob?.type)) {
             return true;
           }
         }
@@ -1114,8 +1903,110 @@ export class MobManager {
     return false;
   }
 
+  applyMobCollisions(dt = 0.05) {
+    if (!this.mobs || this.mobs.length < 2) return;
+    const len = this.mobs.length;
+    const checkCol = (m, p) => (typeof this.checkMobCollision === 'function' ? this.checkMobCollision(m, p) : false);
+
+    for (let iter = 0; iter < 2; iter++) {
+      for (let i = 0; i < len; i++) {
+        const mobA = this.mobs[i];
+        if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
+
+        const dimsA = this.getMobDimensions ? this.getMobDimensions(mobA.type) : { width: 0.6, height: 1.0 };
+        const scaleA = mobA.isBaby ? 0.5 : 1.0;
+        const hA = (mobA.height || dimsA?.height || 1.0) * scaleA;
+        const wA = (mobA.width || dimsA?.width || 0.6) * scaleA;
+        const rA = Math.max(0.24, wA * 0.5);
+        const yA = mobA.mesh.position.y;
+
+        for (let j = i + 1; j < len; j++) {
+          const mobB = this.mobs[j];
+          if (!mobB || mobB.health <= 0 || mobB.dying || !mobB.mesh?.position) continue;
+          if (mobA.rider === mobB || mobB.rider === mobA) continue;
+
+          const dimsB = this.getMobDimensions ? this.getMobDimensions(mobB.type) : { width: 0.6, height: 1.0 };
+          const scaleB = mobB.isBaby ? 0.5 : 1.0;
+          const hB = (mobB.height || dimsB?.height || 1.0) * scaleB;
+          const yB = mobB.mesh.position.y;
+
+          // Check vertical overlap
+          if (yA + hA <= yB || yB + hB <= yA) continue;
+
+          const wB = (mobB.width || dimsB?.width || 0.6) * scaleB;
+          const rB = Math.max(0.24, wB * 0.5);
+          const minDist = rA + rB;
+
+          let dx = mobA.mesh.position.x - mobB.mesh.position.x;
+          let dz = mobA.mesh.position.z - mobB.mesh.position.z;
+          let distSq = dx * dx + dz * dz;
+
+          if (distSq < minDist * minDist) {
+            let dist = Math.sqrt(distSq);
+            let nx, nz;
+            if (dist < 1e-4) {
+              const angle = ((i * 17 + j * 31 + iter * 47) % 360) * (Math.PI / 180);
+              nx = Math.cos(angle);
+              nz = Math.sin(angle);
+              dist = 1e-4;
+            } else {
+              nx = dx / dist;
+              nz = dz / dist;
+            }
+
+            const overlap = minDist - dist;
+            const halfPush = overlap * 0.5;
+
+            const testA = mobA.mesh.position.clone();
+            testA.x += nx * halfPush;
+            testA.z += nz * halfPush;
+            const colA = checkCol(mobA, testA);
+
+            const testB = mobB.mesh.position.clone();
+            testB.x -= nx * halfPush;
+            testB.z -= nz * halfPush;
+            const colB = checkCol(mobB, testB);
+
+            if (!colA && !colB) {
+              mobA.mesh.position.x = testA.x;
+              mobA.mesh.position.z = testA.z;
+              mobB.mesh.position.x = testB.x;
+              mobB.mesh.position.z = testB.z;
+            } else if (!colA && colB) {
+              testA.x = mobA.mesh.position.x + nx * overlap;
+              testA.z = mobA.mesh.position.z + nz * overlap;
+              if (!checkCol(mobA, testA)) {
+                mobA.mesh.position.x = testA.x;
+                mobA.mesh.position.z = testA.z;
+              }
+            } else if (colA && !colB) {
+              testB.x = mobB.mesh.position.x - nx * overlap;
+              testB.z = mobB.mesh.position.z - nz * overlap;
+              if (!checkCol(mobB, testB)) {
+                mobB.mesh.position.x = testB.x;
+                mobB.mesh.position.z = testB.z;
+              }
+            }
+
+            if (iter === 0) {
+              const pushV = Math.min(1.0, overlap * 2.0);
+              if (mobA.velocity) {
+                mobA.velocity.x += nx * pushV * 0.25;
+                mobA.velocity.z += nz * pushV * 0.25;
+              }
+              if (mobB.velocity) {
+                mobB.velocity.x -= nx * pushV * 0.25;
+                mobB.velocity.z -= nz * pushV * 0.25;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   // --- VILLAGER ---
-  spawnVillager(x, y, z) {
+  spawnVillager(x, y, z, profession = 'unemployed') {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.villager, transparent: true, alphaTest: 0.1 });
 
@@ -1167,6 +2058,87 @@ export class MobManager {
       mat: mat,
       health: 20,
       maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+
+    initVillagerEconomy(mob, profession);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- ZOMBIE VILLAGER ---
+  spawnZombieVillager(x, y, z) {
+    const group = new THREE.Group();
+    // Green tinted / zombie villager skin
+    const zombieMat = new THREE.MeshLambertMaterial({
+      color: 0x4d7c0f,
+      transparent: true,
+      alphaTest: 0.1
+    });
+    const clothesMat = new THREE.MeshLambertMaterial({
+      color: 0x57534e
+    });
+
+    // Head (8x10x8) with villager brow and zombie tone
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.625, 0.5), zombieMat);
+    head.position.y = 1.35;
+    group.add(head);
+
+    // Long Villager Nose (2x4x2)
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.25, 0.125), zombieMat);
+    nose.position.set(0, -0.15, 0.31);
+    head.add(nose);
+
+    // Torso (8x12x6)
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.375), clothesMat);
+    torso.position.y = 0.75;
+    group.add(torso);
+
+    // Outstretched Zombie Arms
+    const armGeo = new THREE.BoxGeometry(0.18, 0.65, 0.18);
+    const leftArm = new THREE.Mesh(armGeo, zombieMat);
+    leftArm.position.set(-0.32, 0.95, 0.3);
+    leftArm.rotation.x = Math.PI / 2; // outstretched forward
+    group.add(leftArm);
+
+    const rightArm = new THREE.Mesh(armGeo, zombieMat);
+    rightArm.position.set(0.32, 0.95, 0.3);
+    rightArm.rotation.x = Math.PI / 2; // outstretched forward
+    group.add(rightArm);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.24, 0.45, 0.24);
+    const leftLeg = new THREE.Mesh(legGeo, clothesMat);
+    leftLeg.position.set(-0.13, 0.22, 0);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, clothesMat);
+    rightLeg.position.set(0.13, 0.22, 0);
+    group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'zombie_villager',
+      name: 'Zombie Villager',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      mat: zombieMat,
+      health: 20,
+      maxHealth: 20,
+      hasWeakness: false,
+      isCuring: false,
+      cureTimer: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -1458,6 +2430,15 @@ export class MobManager {
     head.position.set(0, 0.95, 0.65);
     group.add(head);
 
+    // Horns
+    const hornGeo = createBoxWithUV(0.08, 0.18, 0.08, 22, 0, 64, 32);
+    const hornL = new THREE.Mesh(hornGeo, mat); hornL.position.set(-0.25, 0.28, 0.05); head.add(hornL);
+    const hornR = new THREE.Mesh(hornGeo, mat); hornR.position.set(0.25, 0.28, 0.05); head.add(hornR);
+
+    // Udder
+    const udderGeo = createBoxWithUV(0.25, 0.15, 0.35, 52, 0, 64, 32);
+    const udder = new THREE.Mesh(udderGeo, mat); udder.position.set(0, 0.42, -0.2); group.add(udder);
+
     const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
     const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
     const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
@@ -1473,10 +2454,12 @@ export class MobManager {
       name: 'Cow',
       mesh: group,
       head: head,
+      horns: [hornL, hornR],
+      udder: udder,
       legs: [fl, fr, bl, br],
       mat: mat,
-      health: 12,
-      maxHealth: 12,
+      health: 10,
+      maxHealth: 10,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -1525,6 +2508,99 @@ export class MobManager {
       timer: 0,
       hitCooldown: 0
     };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- PASSIVE CHICKEN ---
+  spawnChicken(x, y, z) {
+    const group = new THREE.Group();
+    const tex = this.textures?.chicken || (this.createChickenTexture ? this.createChickenTexture() : null);
+    const mat = new THREE.MeshLambertMaterial({ map: tex });
+
+    // Torso / Body (6w, 6h, 8d in pixels)
+    const bodyGeo = createBoxWithUV(0.38, 0.38, 0.5, 0, 9, 64, 32, 6, 6, 8);
+    const body = new THREE.Mesh(bodyGeo, mat);
+    body.position.y = 0.35;
+    group.add(body);
+
+    // Head (4w, 6h, 3d in pixels)
+    const headGeo = createBoxWithUV(0.25, 0.38, 0.2, 0, 0, 64, 32, 4, 6, 3);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.set(0, 0.58, 0.22);
+    group.add(head);
+
+    // Bill / Beak (4w, 2h, 2d in pixels)
+    const billGeo = createBoxWithUV(0.25, 0.12, 0.12, 14, 0, 64, 32, 4, 2, 2);
+    const bill = new THREE.Mesh(billGeo, mat);
+    bill.position.set(0, -0.04, 0.14);
+    head.add(bill);
+
+    // Wattle / Red chin flap (2w, 4h, 2d in pixels)
+    const wattleGeo = createBoxWithUV(0.12, 0.22, 0.12, 14, 4, 64, 32, 2, 4, 2);
+    const wattle = new THREE.Mesh(wattleGeo, mat);
+    wattle.position.set(0, -0.16, 0.08);
+    head.add(wattle);
+
+    // Left Wing (1w, 4h, 6d in pixels)
+    const wingGeo = createBoxWithUV(0.06, 0.25, 0.38, 24, 13, 64, 32, 1, 4, 6);
+    const wingLGroup = new THREE.Group();
+    wingLGroup.position.set(-0.21, 0.44, 0);
+    const wingL = new THREE.Mesh(wingGeo, mat);
+    wingL.position.set(-0.03, -0.1, 0);
+    wingLGroup.add(wingL);
+    group.add(wingLGroup);
+
+    // Right Wing (1w, 4h, 6d in pixels)
+    const wingRGroup = new THREE.Group();
+    wingRGroup.position.set(0.21, 0.44, 0);
+    const wingR = new THREE.Mesh(wingGeo, mat);
+    wingR.position.set(0.03, -0.1, 0);
+    wingRGroup.add(wingR);
+    group.add(wingRGroup);
+
+    // 2 Legs (3w, 5h, 3d in pixels)
+    const legGeo = createBoxWithUV(0.16, 0.28, 0.16, 26, 0, 64, 32, 3, 5, 3);
+    const leftLeg = new THREE.Mesh(legGeo, mat);
+    leftLeg.position.set(-0.1, 0.14, 0.02);
+    group.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, mat);
+    rightLeg.position.set(0.1, 0.14, 0.02);
+    group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'chicken',
+      name: 'Chicken',
+      mesh: group,
+      head: head,
+      bill: bill,
+      wattle: wattle,
+      body: body,
+      wings: { left: wingLGroup, right: wingRGroup },
+      wingL: wingLGroup,
+      wingR: wingRGroup,
+      legs: [leftLeg, rightLeg],
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      mat: mat,
+      health: 4,
+      maxHealth: 4,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0,
+      maxFallSpeed: -1.5,
+      gravity: 8.0,
+      eggTimer: 300 + Math.random() * 300,
+      flapTimer: Math.random() * 10
+    };
+
     this.mobs.push(mob);
     return mob;
   }
@@ -1819,20 +2895,41 @@ export class MobManager {
 
   spawnBlaze(x, y, z) {
     const group = new THREE.Group();
-    const blazeMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
-    const rodMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24 });
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.blaze,
+      color: 0xffffff
+    });
+    const rodMat = new THREE.MeshLambertMaterial({
+      color: 0xfbbf24,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.35
+    });
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), blazeMat);
-    head.position.y = 1.3;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), mat);
+    head.position.y = 1.35;
     group.add(head);
 
-    // Orbiting blaze rods
-    const rodGeo = new THREE.BoxGeometry(0.12, 0.6, 0.12);
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const rod = new THREE.Mesh(rodGeo, rodMat);
-      rod.position.set(Math.cos(angle) * 0.45, 1.0 + (i % 2) * 0.25, Math.sin(angle) * 0.45);
-      group.add(rod);
+    // 12 orbiting rods arranged in 3 tiers
+    const rodGeo = new THREE.BoxGeometry(0.12, 0.55, 0.12);
+    const tiers = [];
+    const tierConfigs = [
+      { count: 4, radius: 0.5, y: 1.25 },
+      { count: 4, radius: 0.65, y: 0.8 },
+      { count: 4, radius: 0.45, y: 0.35 }
+    ];
+
+    for (let t = 0; t < 3; t++) {
+      const cfg = tierConfigs[t];
+      const tierGroup = new THREE.Group();
+      tierGroup.position.y = cfg.y;
+      for (let i = 0; i < cfg.count; i++) {
+        const angle = (i / cfg.count) * Math.PI * 2;
+        const rod = new THREE.Mesh(rodGeo, rodMat);
+        rod.position.set(Math.cos(angle) * cfg.radius, 0, Math.sin(angle) * cfg.radius);
+        tierGroup.add(rod);
+      }
+      group.add(tierGroup);
+      tiers.push(tierGroup);
     }
 
     group.position.set(x, y, z);
@@ -1844,7 +2941,9 @@ export class MobManager {
       name: 'Blaze',
       mesh: group,
       head: head,
+      tiers: tiers,
       isFlying: true,
+      fireImmune: true,
       health: 20,
       maxHealth: 20,
       velocity: new THREE.Vector3(),
@@ -1859,20 +2958,58 @@ export class MobManager {
 
   spawnPiglin(x, y, z) {
     const group = new THREE.Group();
-    const pigMat = new THREE.MeshLambertMaterial({ color: 0xf472b6 });
-    const goldMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+    const skinMat = new THREE.MeshLambertMaterial({
+      map: this.textures.piglin,
+      color: 0xffffff
+    });
+    const goldMat = new THREE.MeshLambertMaterial({
+      color: 0xfacc15
+    });
+    const tuskMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 0.55), pigMat);
+    // Head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 0.58), skinMat);
     head.position.y = 1.6;
     group.add(head);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.28), goldMat);
+    // Snout
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.16), skinMat);
+    snout.position.set(0, -0.1, 0.32);
+    head.add(snout);
+
+    // Tusks
+    const tuskL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), tuskMat);
+    tuskL.position.set(-0.15, -0.04, 0.35);
+    head.add(tuskL);
+    const tuskR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), tuskMat);
+    tuskR.position.set(0.15, -0.04, 0.35);
+    head.add(tuskR);
+
+    // Floppy ears
+    const earGeo = new THREE.BoxGeometry(0.08, 0.32, 0.18);
+    const earL = new THREE.Mesh(earGeo, skinMat);
+    earL.position.set(-0.35, 0, 0);
+    earL.rotation.z = -0.3;
+    head.add(earL);
+    const earR = new THREE.Mesh(earGeo, skinMat);
+    earR.position.set(0.35, 0, 0);
+    earR.rotation.z = 0.3;
+    head.add(earR);
+
+    // Torso with Golden Tunic
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), goldMat);
     body.position.y = 0.95;
     group.add(body);
 
     const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftArm = new THREE.Mesh(armGeo, pigMat); leftArm.position.set(-0.35, 0.95, 0); group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, pigMat); rightArm.position.set(0.35, 0.95, 0); group.add(rightArm);
+    const leftArm = new THREE.Mesh(armGeo, skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
+
+    // Golden Sword in hand
+    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 0.14), goldMat);
+    sword.position.set(0, -0.3, 0.3);
+    sword.rotation.x = Math.PI / 4;
+    rightArm.add(sword);
 
     const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
     const leftLeg = new THREE.Mesh(legGeo, goldMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
@@ -1893,6 +3030,167 @@ export class MobManager {
       rightLeg: rightLeg,
       health: 16,
       maxHealth: 16,
+      fireImmune: false,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnZombifiedPiglin(x, y, z) {
+    const group = new THREE.Group();
+    const skinMat = new THREE.MeshLambertMaterial({
+      map: this.textures.zombified_piglin,
+      color: 0xffffff
+    });
+    const goldMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+    const boneMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
+
+    // Head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 0.58), skinMat);
+    head.position.y = 1.6;
+    group.add(head);
+
+    // Snout
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.16), skinMat);
+    snout.position.set(0, -0.1, 0.32);
+    head.add(snout);
+
+    // Left Tusk
+    const tuskL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), boneMat);
+    tuskL.position.set(-0.15, -0.04, 0.35);
+    head.add(tuskL);
+
+    // Left floppy ear
+    const earGeo = new THREE.BoxGeometry(0.08, 0.32, 0.18);
+    const earL = new THREE.Mesh(earGeo, skinMat);
+    earL.position.set(-0.35, 0, 0);
+    earL.rotation.z = -0.3;
+    head.add(earL);
+
+    // Torso
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), skinMat);
+    body.position.y = 0.95;
+    group.add(body);
+
+    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftArm = new THREE.Mesh(armGeo, skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
+
+    // Golden Sword in hand
+    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 0.14), goldMat);
+    sword.position.set(0, -0.3, 0.3);
+    sword.rotation.x = Math.PI / 4;
+    rightArm.add(sword);
+
+    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftLeg = new THREE.Mesh(legGeo, skinMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, skinMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'zombified_piglin',
+      name: 'Zombified Piglin',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      health: 20,
+      maxHealth: 20,
+      fireImmune: true,
+      angerTimer: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnZombiePigman(x, y, z) {
+    return this.spawnZombifiedPiglin(x, y, z);
+  }
+
+  spawnHoglin(x, y, z) {
+    const group = new THREE.Group();
+    const hideMat = new THREE.MeshLambertMaterial({
+      map: this.textures.hoglin,
+      color: 0xffffff
+    });
+    const tuskMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: 0x3f3f46 });
+
+    // Bulky quadruped body
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.95, 1.5), hideMat);
+    body.position.y = 1.0;
+    group.add(body);
+
+    // Large angled head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.75, 0.8), hideMat);
+    head.position.set(0, 1.15, 0.9);
+    head.rotation.x = 0.2;
+    group.add(head);
+
+    // Curved Ivory Tusks
+    const tuskGeo = new THREE.BoxGeometry(0.14, 0.5, 0.14);
+    const tuskL = new THREE.Mesh(tuskGeo, tuskMat);
+    tuskL.position.set(-0.48, -0.05, 0.35);
+    tuskL.rotation.x = -0.4;
+    tuskL.rotation.z = -0.2;
+    head.add(tuskL);
+
+    const tuskR = new THREE.Mesh(tuskGeo, tuskMat);
+    tuskR.position.set(0.48, -0.05, 0.35);
+    tuskR.rotation.x = -0.4;
+    tuskR.rotation.z = 0.2;
+    head.add(tuskR);
+
+    // Floppy ears
+    const earGeo = new THREE.BoxGeometry(0.08, 0.35, 0.18);
+    const earL = new THREE.Mesh(earGeo, hideMat);
+    earL.position.set(-0.5, 0.1, -0.1);
+    earL.rotation.z = -0.5;
+    head.add(earL);
+    const earR = new THREE.Mesh(earGeo, hideMat);
+    earR.position.set(0.5, 0.1, -0.1);
+    earR.rotation.z = 0.5;
+    head.add(earR);
+
+    // 4 sturdy legs
+    const legGeo = new THREE.BoxGeometry(0.32, 0.65, 0.32);
+    const legFL = new THREE.Mesh(legGeo, hoofMat); legFL.position.set(-0.45, 0.33, 0.5); group.add(legFL);
+    const legFR = new THREE.Mesh(legGeo, hoofMat); legFR.position.set(0.45, 0.33, 0.5); group.add(legFR);
+    const legBL = new THREE.Mesh(legGeo, hoofMat); legBL.position.set(-0.45, 0.33, -0.5); group.add(legBL);
+    const legBR = new THREE.Mesh(legGeo, hoofMat); legBR.position.set(0.45, 0.33, -0.5); group.add(legBR);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'hoglin',
+      name: 'Hoglin',
+      mesh: group,
+      head: head,
+      legFL: legFL,
+      legFR: legFR,
+      legBL: legBL,
+      legBR: legBR,
+      health: 40,
+      maxHealth: 40,
+      fireImmune: false,
+      isQuadruped: true,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -1905,18 +3203,27 @@ export class MobManager {
 
   spawnGhast(x, y, z) {
     const group = new THREE.Group();
-    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+    const headMat = new THREE.MeshLambertMaterial({
+      map: this.textures.ghast,
+      color: 0xffffff
+    });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), whiteMat);
-    body.position.y = 1.8;
+    // 4.0 x 4.0 x 4.0 white body cube
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.6), headMat);
+    body.position.y = 2.8;
     group.add(body);
 
-    // Tentacles
-    const tentacleGeo = new THREE.BoxGeometry(0.15, 0.8, 0.15);
+    // 9 dangling tentacles hanging below the body
+    const tentacleMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
+    const tentacleGeo = new THREE.BoxGeometry(0.3, 1.8, 0.3);
+    const tentacles = [];
     for (let i = 0; i < 9; i++) {
-      const t = new THREE.Mesh(tentacleGeo, whiteMat);
-      t.position.set(((i % 3) - 1) * 0.5, 0.5, (Math.floor(i / 3) - 1) * 0.5);
+      const t = new THREE.Mesh(tentacleGeo, tentacleMat);
+      const col = (i % 3) - 1;
+      const row = Math.floor(i / 3) - 1;
+      t.position.set(col * 1.1, 0.7, row * 1.1);
       group.add(t);
+      tentacles.push(t);
     }
 
     group.position.set(x, y, z);
@@ -1927,7 +3234,11 @@ export class MobManager {
       type: 'ghast',
       name: 'Ghast',
       mesh: group,
+      head: body,
+      headMat: headMat,
+      tentacles: tentacles,
       isFlying: true,
+      fireImmune: true,
       health: 10,
       maxHealth: 10,
       velocity: new THREE.Vector3(),
@@ -1942,11 +3253,29 @@ export class MobManager {
 
   spawnMagmaCube(x, y, z) {
     const group = new THREE.Group();
-    const cubeMat = new THREE.MeshLambertMaterial({ color: 0xc2410c });
+    const crustMat = new THREE.MeshLambertMaterial({
+      map: this.textures.magma_cube,
+      color: 0xffffff
+    });
+    const coreMat = new THREE.MeshBasicMaterial({
+      map: this.textures.magma_cube_core,
+      color: 0xffffff
+    });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), cubeMat);
-    body.position.y = 0.4;
-    group.add(body);
+    // Glowing core
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.55), coreMat);
+    core.position.y = 0.42;
+    group.add(core);
+
+    // 8 segmented crust layers for accordion jump animation
+    const layers = [];
+    const layerGeo = new THREE.BoxGeometry(0.8, 0.08, 0.8);
+    for (let i = 0; i < 8; i++) {
+      const layer = new THREE.Mesh(layerGeo, crustMat);
+      layer.position.y = 0.05 + i * 0.1;
+      group.add(layer);
+      layers.push(layer);
+    }
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -1956,6 +3285,10 @@ export class MobManager {
       type: 'magma_cube',
       name: 'Magma Cube',
       mesh: group,
+      core: core,
+      layers: layers,
+      slimeSize: 4,
+      fireImmune: true,
       health: 16,
       maxHealth: 16,
       velocity: new THREE.Vector3(),
@@ -1993,6 +3326,1235 @@ export class MobManager {
       maxHealth: 30,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- HORSE & DONKEY ---
+  spawnHorse(x, y, z) {
+    const group = new THREE.Group();
+    const coatColors = [0x78350f, 0xf8fafc, 0x18181b, 0xa16207, 0xd97706];
+    const coat = coatColors[Math.floor(Math.random() * coatColors.length)];
+    const horseMat = new THREE.MeshLambertMaterial({ color: coat });
+
+    // Torso
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 1.4), horseMat);
+    body.position.y = 1.1;
+    group.add(body);
+
+    // Neck & Head
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.4), horseMat);
+    neck.position.set(0, 1.6, 0.6);
+    neck.rotation.x = -Math.PI / 6;
+    group.add(neck);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.65), horseMat);
+    head.position.set(0, 1.95, 0.85);
+    group.add(head);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.24, 0.8, 0.24);
+    const fl = new THREE.Mesh(legGeo, horseMat); fl.position.set(-0.3, 0.4, 0.5); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, horseMat); fr.position.set(0.3, 0.4, 0.5); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, horseMat); bl.position.set(-0.3, 0.4, -0.5); group.add(bl);
+    const br = new THREE.Mesh(legGeo, horseMat); br.position.set(0.3, 0.4, -0.5); group.add(br);
+
+    // Saddle mesh (hidden by default)
+    const saddleMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
+    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 0.75), saddleMat);
+    saddle.position.set(0, 1.25, 0);
+    saddle.visible = false;
+    group.add(saddle);
+
+    // Horse armor mesh (hidden by default)
+    const armorMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+    const armor = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.92, 1.42), armorMat);
+    armor.position.y = 1.1;
+    armor.visible = false;
+    group.add(armor);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'horse',
+      name: 'Horse',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      saddleMesh: saddle,
+      armorMesh: armor,
+      health: 30,
+      maxHealth: 30,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnDonkey(x, y, z) {
+    const group = new THREE.Group();
+    const donkeyMat = new THREE.MeshLambertMaterial({ color: 0x71717a });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.85, 1.3), donkeyMat);
+    body.position.y = 1.05;
+    group.add(body);
+
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.65, 0.38), donkeyMat);
+    neck.position.set(0, 1.5, 0.55);
+    neck.rotation.x = -Math.PI / 6;
+    group.add(neck);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.42, 0.6), donkeyMat);
+    head.position.set(0, 1.85, 0.8);
+    group.add(head);
+
+    // Long donkey ears
+    const earGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+    const earL = new THREE.Mesh(earGeo, donkeyMat); earL.position.set(-0.16, 2.2, 0.7); group.add(earL);
+    const earR = new THREE.Mesh(earGeo, donkeyMat); earR.position.set(0.16, 2.2, 0.7); group.add(earR);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.22, 0.75, 0.22);
+    const fl = new THREE.Mesh(legGeo, donkeyMat); fl.position.set(-0.28, 0.38, 0.45); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, donkeyMat); fr.position.set(0.28, 0.38, 0.45); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, donkeyMat); bl.position.set(-0.28, 0.38, -0.45); group.add(bl);
+    const br = new THREE.Mesh(legGeo, donkeyMat); br.position.set(0.28, 0.38, -0.45); group.add(br);
+
+    // Saddlebags (chest mesh)
+    const chestMat = new THREE.MeshLambertMaterial({ color: 0x854d0e });
+    const chestGroup = new THREE.Group();
+    const bagL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), chestMat); bagL.position.set(-0.48, 1.15, 0); chestGroup.add(bagL);
+    const bagR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), chestMat); bagR.position.set(0.48, 1.15, 0); chestGroup.add(bagR);
+    chestGroup.visible = false;
+    group.add(chestGroup);
+
+    // Saddle
+    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), new THREE.MeshLambertMaterial({ color: 0x451a03 }));
+    saddle.position.set(0, 1.18, 0);
+    saddle.visible = false;
+    group.add(saddle);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'donkey',
+      name: 'Donkey',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      saddleMesh: saddle,
+      chestMesh: chestGroup,
+      health: 26,
+      maxHealth: 26,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- WOLF ---
+  spawnWolf(x, y, z) {
+    const group = new THREE.Group();
+    const wolfTex = this.textures?.wolf || this.createWolfTexture();
+    const wolfMat = new THREE.MeshLambertMaterial({ map: wolfTex });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.8), wolfMat);
+    body.position.y = 0.55;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), wolfMat);
+    head.position.set(0, 0.75, 0.5);
+    group.add(head);
+
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.25), wolfMat);
+    muzzle.position.set(0, 0.68, 0.75);
+    group.add(muzzle);
+
+    // Wolf triangular ears
+    const earMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+    const earGeo = new THREE.BoxGeometry(0.1, 0.15, 0.08);
+    const lEar = new THREE.Mesh(earGeo, earMat);
+    lEar.position.set(-0.15, 0.25, -0.05);
+    head.add(lEar);
+
+    const rEar = new THREE.Mesh(earGeo, earMat);
+    rEar.position.set(0.15, 0.25, -0.05);
+    head.add(rEar);
+
+    // Wolf black nose on muzzle
+    const noseMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), noseMat);
+    nose.position.set(0, 0.04, 0.13);
+    muzzle.add(nose);
+
+    // Wolf expressive eyes
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.02);
+    const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+    lEye.position.set(-0.12, 0.05, 0.21);
+    head.add(lEye);
+
+    const rEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rEye.position.set(0.12, 0.05, 0.21);
+    head.add(rEye);
+
+    // Collar mesh (red default, hidden until tamed)
+    const collarMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.42), collarMat);
+    collar.position.set(0, 0.65, 0.45);
+    collar.visible = false;
+    group.add(collar);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.16, 0.4, 0.16);
+    const fl = new THREE.Mesh(legGeo, wolfMat); fl.position.set(-0.18, 0.2, 0.28); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, wolfMat); fr.position.set(0.18, 0.2, 0.28); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, wolfMat); bl.position.set(-0.18, 0.2, -0.28); group.add(bl);
+    const br = new THREE.Mesh(legGeo, wolfMat); br.position.set(0.18, 0.2, -0.28); group.add(br);
+
+    // Tail
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.12), wolfMat);
+    tail.position.set(0, 0.6, -0.45);
+    tail.rotation.x = -Math.PI / 4;
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'wolf',
+      name: 'Wolf',
+      mesh: group,
+      head: head,
+      collarMesh: collar,
+      tailMesh: tail,
+      legs: [fl, fr, bl, br],
+      health: 20,
+      maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- CAT & OCELOT ---
+  spawnCat(x, y, z, breed = null) {
+    const group = new THREE.Group();
+    const breeds = ['tuxedo', 'tabby', 'siamese', 'british'];
+    const chosenBreed = breed || breeds[Math.floor(Math.random() * breeds.length)];
+    const catTex = this.textures?.[`cat_${chosenBreed}`] || this.createCatTexture(chosenBreed);
+    const catMat = new THREE.MeshLambertMaterial({ map: catTex });
+
+    // Body (0.30 x 0.26 x 0.55) - sleek cat body
+    const bodyGeo = createBoxWithUV(0.30, 0.26, 0.55, 20, 0, 64, 32, 5, 5, 12);
+    const body = new THREE.Mesh(bodyGeo, catMat);
+    body.position.set(0, 0.40, -0.05);
+    group.add(body);
+
+    // Head (0.28 x 0.24 x 0.28)
+    const headGeo = createBoxWithUV(0.28, 0.24, 0.28, 0, 0, 64, 32, 5, 4, 5);
+    const head = new THREE.Mesh(headGeo, catMat);
+    head.position.set(0, 0.52, 0.32);
+    group.add(head);
+
+    // Snout / Muzzle (0.16 x 0.08 x 0.08) attached to head
+    const snoutGeo = createBoxWithUV(0.16, 0.08, 0.08, 0, 24, 64, 32, 3, 2, 1);
+    const snout = new THREE.Mesh(snoutGeo, catMat);
+    snout.position.set(0, -0.06, 0.16);
+    head.add(snout);
+
+    // Left and Right Triangular Ears
+    const earGeo = createBoxWithUV(0.06, 0.08, 0.06, 0, 10, 64, 32, 1, 2, 1);
+    const earL = new THREE.Mesh(earGeo, catMat);
+    earL.position.set(-0.08, 0.14, -0.02);
+    head.add(earL);
+
+    const earR = new THREE.Mesh(earGeo, catMat);
+    earR.position.set(0.08, 0.14, -0.02);
+    head.add(earR);
+
+    // Collar mesh (red default, hidden until tamed) attached to head
+    const collarMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.06, 0.30), collarMat);
+    collar.position.set(0, -0.10, -0.02);
+    collar.visible = false;
+    head.add(collar);
+
+    // 4 Legs: fl, fr, bl, br (0.10 x 0.32 x 0.10)
+    const legGeoFL = createBoxWithUV(0.10, 0.32, 0.10, 40, 0, 64, 32, 2, 8, 2);
+    const legGeoFR = createBoxWithUV(0.10, 0.32, 0.10, 40, 12, 64, 32, 2, 8, 2);
+    const legGeoBL = createBoxWithUV(0.10, 0.32, 0.10, 48, 0, 64, 32, 2, 8, 2);
+    const legGeoBR = createBoxWithUV(0.10, 0.32, 0.10, 48, 12, 64, 32, 2, 8, 2);
+
+    const fl = new THREE.Mesh(legGeoFL, catMat); fl.position.set(-0.10, 0.16, 0.18); group.add(fl);
+    const fr = new THREE.Mesh(legGeoFR, catMat); fr.position.set(0.10, 0.16, 0.18); group.add(fr);
+    const bl = new THREE.Mesh(legGeoBL, catMat); bl.position.set(-0.10, 0.16, -0.22); group.add(bl);
+    const br = new THREE.Mesh(legGeoBR, catMat); br.position.set(0.10, 0.16, -0.22); group.add(br);
+
+    // Articulated Tail: Upper tail and Lower tail
+    const tailUpperGeo = createBoxWithUV(0.06, 0.22, 0.06, 0, 15, 64, 32, 1, 6, 1);
+    const tailUpper = new THREE.Mesh(tailUpperGeo, catMat);
+    tailUpper.position.set(0, 0.44, -0.32);
+    tailUpper.rotation.x = -0.55;
+    group.add(tailUpper);
+
+    const tailLowerGeo = createBoxWithUV(0.06, 0.20, 0.06, 0, 15, 64, 32, 1, 6, 1);
+    const tailLower = new THREE.Mesh(tailLowerGeo, catMat);
+    tailLower.position.set(0, -0.18, -0.06);
+    tailLower.rotation.x = 0.35;
+    tailUpper.add(tailLower);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'cat',
+      name: 'Cat',
+      breed: chosenBreed,
+      mesh: group,
+      body: body,
+      head: head,
+      snout: snout,
+      ears: [earL, earR],
+      collarMesh: collar,
+      legs: [fl, fr, bl, br],
+      tailUpper: tailUpper,
+      tailLower: tailLower,
+      tailMesh: tailUpper,
+      health: 10,
+      maxHealth: 10,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0,
+      isSitting: false,
+      isTamed: false,
+      width: 0.6,
+      height: 0.7
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnOcelot(x, y, z) {
+    const mob = this.spawnCat(x, y, z, 'ocelot');
+    mob.type = 'ocelot';
+    mob.name = 'Ocelot';
+    return mob;
+  }
+
+  // --- SLIME ---
+  spawnSlime(x, y, z, size = 4) {
+    const group = new THREE.Group();
+    const outerMat = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.65 });
+    const innerMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
+
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), outerMat);
+    outer.position.y = 0.6;
+    group.add(outer);
+
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), innerMat);
+    inner.position.y = 0.6;
+    group.add(inner);
+
+    const s = size / 4;
+    group.scale.set(s, s, s);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'slime',
+      name: 'Slime',
+      mesh: group,
+      slimeSize: size,
+      health: size * 4,
+      maxHealth: size * 4,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- WITCH ---
+  spawnWitch(x, y, z) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: 0x3b0764 });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+    const hatMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.4), robeMat);
+    body.position.y = 1.05;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+    head.position.y = 1.7;
+    group.add(head);
+
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.15), skinMat);
+    nose.position.set(0, 1.6, 0.32);
+    group.add(nose);
+
+    // Witch Hat
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.08, 0.85), hatMat);
+    brim.position.y = 2.0;
+    group.add(brim);
+
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.35, 0.65, 6), hatMat);
+    cone.position.set(0, 2.35, -0.05);
+    cone.rotation.x = -Math.PI / 12;
+    group.add(cone);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'witch',
+      name: 'Witch',
+      mesh: group,
+      head: head,
+      health: 26,
+      maxHealth: 26,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- WITHER SKELETON ---
+  // --- WITHER SKELETON ---
+  spawnWitherSkeleton(x, y, z) {
+    const group = new THREE.Group();
+    const darkMat = new THREE.MeshLambertMaterial({
+      map: this.textures.wither_skeleton,
+      color: 0xffffff
+    });
+
+    // 2.4 blocks tall dark skeleton
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.9, 0.28), darkMat);
+    body.position.y = 1.45;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.52), darkMat);
+    head.position.y = 2.15;
+    group.add(head);
+
+    const armGeo = new THREE.BoxGeometry(0.18, 0.95, 0.18);
+    const leftArm = new THREE.Mesh(armGeo, darkMat); leftArm.position.set(-0.35, 1.45, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, darkMat); rightArm.position.set(0.35, 1.45, 0); group.add(rightArm);
+
+    const legGeo = new THREE.BoxGeometry(0.18, 1.15, 0.18);
+    const leftLeg = new THREE.Mesh(legGeo, darkMat); leftLeg.position.set(-0.16, 0.58, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, darkMat); rightLeg.position.set(0.16, 0.58, 0); group.add(rightLeg);
+
+    // Stone Sword in hand
+    const swordMat = new THREE.MeshLambertMaterial({ color: 0x52525b });
+    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.95, 0.16), swordMat);
+    sword.position.set(0, -0.35, 0.25);
+    sword.rotation.x = Math.PI / 4;
+    rightArm.add(sword);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'wither_skeleton',
+      name: 'Wither Skeleton',
+      mesh: group,
+      head: head,
+      leftArm: leftArm,
+      rightArm: rightArm,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      health: 20,
+      maxHealth: 20,
+      fireImmune: true,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- STRIDER ---
+  spawnStrider(x, y, z) {
+    const group = new THREE.Group();
+    const striderWarmMat = new THREE.MeshLambertMaterial({
+      map: this.textures.strider,
+      color: 0xffffff
+    });
+    const striderColdMat = new THREE.MeshLambertMaterial({
+      map: this.textures.strider_cold,
+      color: 0xffffff
+    });
+    const hairMat = new THREE.MeshLambertMaterial({ color: 0x450a0a });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.95, 1.0), striderWarmMat);
+    body.position.y = 1.35;
+    group.add(body);
+
+    // Whiskers/hair strands on sides of head
+    const hairGeo = new THREE.BoxGeometry(0.06, 0.28, 0.06);
+    for (let i = 0; i < 3; i++) {
+      const hL = new THREE.Mesh(hairGeo, hairMat);
+      hL.position.set(-0.52, 1.45 - i * 0.18, 0.2 - i * 0.15);
+      hL.rotation.z = -0.3;
+      group.add(hL);
+
+      const hR = new THREE.Mesh(hairGeo, hairMat);
+      hR.position.set(0.52, 1.45 - i * 0.18, 0.2 - i * 0.15);
+      hR.rotation.z = 0.3;
+      group.add(hR);
+    }
+
+    const legGeo = new THREE.BoxGeometry(0.18, 1.1, 0.18);
+    const leftLeg = new THREE.Mesh(legGeo, striderWarmMat); leftLeg.position.set(-0.35, 0.55, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, striderWarmMat); rightLeg.position.set(0.35, 0.55, 0); group.add(rightLeg);
+
+    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), new THREE.MeshLambertMaterial({ color: 0x451a03 }));
+    saddle.position.set(0, 1.85, 0);
+    saddle.visible = false;
+    group.add(saddle);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'strider',
+      name: 'Strider',
+      mesh: group,
+      head: body,
+      bodyMesh: body,
+      striderWarmMat: striderWarmMat,
+      striderColdMat: striderColdMat,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      saddleMesh: saddle,
+      health: 20,
+      maxHealth: 20,
+      fireImmune: true,
+      inLava: true,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- GUARDIAN & ELDER GUARDIAN ---
+  spawnElderGuardian(x, y, z) {
+    return this.spawnGuardian(x, y, z, true);
+  }
+
+  spawnGuardian(x, y, z, isElder = false) {
+    const group = new THREE.Group();
+    const texture = isElder ? this.textures.elder_guardian : this.textures.guardian;
+    const mat = new THREE.MeshLambertMaterial({ map: texture });
+    const spikeColor = isElder ? 0x9a3412 : 0xf97316;
+    const spikeMat = new THREE.MeshLambertMaterial({ color: spikeColor });
+
+    // Main Prismarine Body Box (0.85 x 0.85 x 0.85)
+    const bodyGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+    const body = new THREE.Mesh(bodyGeo, mat);
+    body.position.y = 0.5;
+    group.add(body);
+
+    // Dynamic cyclops eyeball & tracking pupil on front (+Z)
+    const eyeSocket = new THREE.Group();
+    eyeSocket.position.set(0, 0.5, 0.43);
+    const eyeBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.26, 0.26, 0.04),
+      new THREE.MeshLambertMaterial({ color: isElder ? 0xf1f5f9 : 0xffffff })
+    );
+    eyeSocket.add(eyeBase);
+    const pupil = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.06),
+      new THREE.MeshBasicMaterial({ color: isElder ? 0x991b1b : 0xe11d48 })
+    );
+    pupil.position.set(0, 0, 0.01);
+    eyeSocket.add(pupil);
+    group.add(eyeSocket);
+
+    // 12 Spikes on all sides (3 top, 3 bottom, 3 left, 3 right)
+    const spikeGeo = new THREE.BoxGeometry(0.11, 0.36, 0.11);
+    const spikes = [];
+    const spikeConfigs = [
+      // Top (pointing +Y)
+      { pos: [0, 0.95, -0.2], rot: [0, 0, 0], dir: [0, 1, 0] },
+      { pos: [0, 0.95, 0.2], rot: [0, 0, 0], dir: [0, 1, 0] },
+      { pos: [0, 0.95, 0.0], rot: [0, 0, 0], dir: [0, 1, 0] },
+      // Bottom (pointing -Y)
+      { pos: [0, 0.05, -0.2], rot: [Math.PI, 0, 0], dir: [0, -1, 0] },
+      { pos: [0, 0.05, 0.2], rot: [Math.PI, 0, 0], dir: [0, -1, 0] },
+      { pos: [0, 0.05, 0.0], rot: [Math.PI, 0, 0], dir: [0, -1, 0] },
+      // Left (pointing -X)
+      { pos: [-0.45, 0.5, -0.2], rot: [0, 0, Math.PI / 2], dir: [-1, 0, 0] },
+      { pos: [-0.45, 0.5, 0.2], rot: [0, 0, Math.PI / 2], dir: [-1, 0, 0] },
+      { pos: [-0.45, 0.5, 0.0], rot: [0, 0, Math.PI / 2], dir: [-1, 0, 0] },
+      // Right (pointing +X)
+      { pos: [0.45, 0.5, -0.2], rot: [0, 0, -Math.PI / 2], dir: [1, 0, 0] },
+      { pos: [0.45, 0.5, 0.2], rot: [0, 0, -Math.PI / 2], dir: [1, 0, 0] },
+      { pos: [0.45, 0.5, 0.0], rot: [0, 0, -Math.PI / 2], dir: [1, 0, 0] }
+    ];
+
+    for (const sc of spikeConfigs) {
+      const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
+      spikeMesh.position.set(...sc.pos);
+      spikeMesh.rotation.set(...sc.rot);
+      group.add(spikeMesh);
+      spikes.push({
+        mesh: spikeMesh,
+        basePos: new THREE.Vector3(...sc.pos),
+        dir: new THREE.Vector3(...sc.dir)
+      });
+    }
+
+    // Articulated 2-segment tail with vertical tail fin at back (-Z)
+    const tailGroup1 = new THREE.Group();
+    tailGroup1.position.set(0, 0.5, -0.42);
+
+    const tailMesh1 = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.35), mat);
+    tailMesh1.position.set(0, 0, -0.17);
+    tailGroup1.add(tailMesh1);
+
+    const tailGroup2 = new THREE.Group();
+    tailGroup2.position.set(0, 0, -0.34);
+
+    const tailMesh2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.28), mat);
+    tailMesh2.position.set(0, 0, -0.14);
+    tailGroup2.add(tailMesh2);
+
+    const finGeo = new THREE.BoxGeometry(0.04, 0.52, 0.38);
+    const fin = new THREE.Mesh(finGeo, spikeMat);
+    fin.position.set(0, 0, -0.38);
+    tailGroup2.add(fin);
+
+    tailGroup1.add(tailGroup2);
+    group.add(tailGroup1);
+
+    if (isElder) group.scale.set(2.4, 2.4, 2.4);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: isElder ? 'elder_guardian' : 'guardian',
+      name: isElder ? 'Elder Guardian' : 'Guardian',
+      mesh: group,
+      isElder: isElder,
+      isAquatic: true,
+      inWater: true,
+      isHostile: true,
+      tail1: tailGroup1,
+      tail2: tailGroup2,
+      tailSegments: [tailGroup1, tailGroup2],
+      pupil: pupil,
+      spikes: spikes,
+      spikeExtension: 1.0,
+      laserLine: null,
+      laserTimer: 0,
+      laserCharging: false,
+      attackCooldown: 0,
+      health: isElder ? 80 : 30,
+      maxHealth: isElder ? 80 : 30,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      swimCycle: Math.random() * 10,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- DROWNED ---
+  spawnDrowned(x, y, z) {
+    const group = new THREE.Group();
+    const drownedMat = new THREE.MeshLambertMaterial({ map: this.textures.drowned });
+
+    // Torso
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), drownedMat);
+    body.position.y = 1.0;
+    group.add(body);
+
+    // Head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), drownedMat);
+    head.position.y = 1.62;
+    group.add(head);
+
+    // Glowing cyan eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat);
+    eyeL.position.set(-0.12, 1.62, 0.26);
+    group.add(eyeL);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat);
+    eyeR.position.set(0.12, 1.62, 0.26);
+    group.add(eyeR);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftLeg = new THREE.Mesh(legGeo, drownedMat);
+    leftLeg.position.set(-0.14, 0.38, 0);
+    group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, drownedMat);
+    rightLeg.position.set(0.14, 0.38, 0);
+    group.add(rightLeg);
+
+    // Left Arm
+    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+    const leftArm = new THREE.Mesh(armGeo, drownedMat);
+    leftArm.position.set(-0.35, 1.0, 0);
+    group.add(leftArm);
+
+    // Right Arm holding Trident
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(0.35, 1.35, 0);
+    const rightArm = new THREE.Mesh(armGeo, drownedMat);
+    rightArm.position.set(0, -0.35, 0);
+    rightArmGroup.add(rightArm);
+
+    // 3D Trident
+    const tridentGroup = new THREE.Group();
+    tridentGroup.position.set(0, -0.35, 0.25);
+    tridentGroup.rotation.x = -Math.PI / 4;
+
+    const tridentMat = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6), tridentMat);
+    shaft.position.y = 0.2;
+    tridentGroup.add(shaft);
+
+    const crossbar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.04), tridentMat);
+    crossbar.position.y = 0.85;
+    tridentGroup.add(crossbar);
+
+    const prongCenter = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.28, 0.03), tridentMat);
+    prongCenter.position.set(0, 1.0, 0);
+    tridentGroup.add(prongCenter);
+
+    const prongLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.03), tridentMat);
+    prongLeft.position.set(-0.11, 0.96, 0);
+    tridentGroup.add(prongLeft);
+
+    const prongRight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.03), tridentMat);
+    prongRight.position.set(0.11, 0.96, 0);
+    tridentGroup.add(prongRight);
+
+    rightArmGroup.add(tridentGroup);
+    group.add(rightArmGroup);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'drowned',
+      name: 'Drowned',
+      mesh: group,
+      isDrowned: true,
+      isAquatic: true,
+      inWater: true,
+      head: head,
+      leftLeg: leftLeg,
+      rightLeg: rightLeg,
+      leftArm: leftArm,
+      rightArm: rightArmGroup,
+      trident: tridentGroup,
+      isHostile: true,
+      health: 20,
+      maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      state: 'idle',
+      swimCycle: Math.random() * 10,
+      attackCooldown: 0,
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- GLOW SQUID ---
+  spawnGlowSquid(x, y, z) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      map: this.textures.glow_squid,
+      emissive: 0x06b6d4,
+      emissiveIntensity: 0.45
+    });
+
+    // Mantle / Head
+    const mantleGeo = new THREE.BoxGeometry(0.55, 0.72, 0.55);
+    const mantle = new THREE.Mesh(mantleGeo, mat);
+    mantle.position.set(0, 0.65, 0);
+    group.add(mantle);
+
+    // 8 Articulated Tentacles Ring
+    const tentacles = [];
+    const tentacleGeo = new THREE.BoxGeometry(0.1, 0.65, 0.1);
+
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const tPivot = new THREE.Group();
+      tPivot.position.set(Math.sin(angle) * 0.22, 0.32, Math.cos(angle) * 0.22);
+
+      const tMesh = new THREE.Mesh(tentacleGeo, mat);
+      tMesh.position.set(0, -0.32, 0);
+      tPivot.add(tMesh);
+
+      tPivot.rotation.y = angle;
+      group.add(tPivot);
+      tentacles.push(tPivot);
+    }
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'glow_squid',
+      name: 'Glow Squid',
+      mesh: group,
+      isGlowSquid: true,
+      isAquatic: true,
+      inWater: true,
+      tentacles: tentacles,
+      mat: mat,
+      glowParticleTimer: 0,
+      health: 10,
+      maxHealth: 10,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      swimCycle: Math.random() * 10,
+      timer: 0,
+      flopTimer: 0,
+      targetPos: null,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- AQUATIC: COD ---
+  spawnCod(x, y, z) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({ map: this.textures.cod });
+
+    // Main Body
+    const bodyGeo = new THREE.BoxGeometry(0.14, 0.22, 0.42);
+    const body = new THREE.Mesh(bodyGeo, mat);
+    body.position.set(0, 0.12, 0);
+    group.add(body);
+
+    // Head
+    const headGeo = new THREE.BoxGeometry(0.12, 0.18, 0.18);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.set(0, 0.11, 0.26);
+    group.add(head);
+
+    // Dorsal Fin
+    const dorsalGeo = new THREE.BoxGeometry(0.03, 0.12, 0.18);
+    const dorsal = new THREE.Mesh(dorsalGeo, mat);
+    dorsal.position.set(0, 0.26, -0.04);
+    group.add(dorsal);
+
+    // Left and Right Pectoral Fins
+    const finGeo = new THREE.BoxGeometry(0.12, 0.03, 0.1);
+    const finL = new THREE.Mesh(finGeo, mat);
+    finL.position.set(-0.1, 0.06, 0.12);
+    finL.rotation.z = -0.3;
+    group.add(finL);
+
+    const finR = new THREE.Mesh(finGeo, mat);
+    finR.position.set(0.1, 0.06, 0.12);
+    finR.rotation.z = 0.3;
+    group.add(finR);
+
+    // Articulated Tail Section
+    const tailGroup = new THREE.Group();
+    tailGroup.position.set(0, 0.12, -0.21);
+
+    const tailBodyGeo = new THREE.BoxGeometry(0.09, 0.15, 0.22);
+    const tailBody = new THREE.Mesh(tailBodyGeo, mat);
+    tailBody.position.set(0, 0, -0.11);
+    tailGroup.add(tailBody);
+
+    const tailFinGeo = new THREE.BoxGeometry(0.03, 0.28, 0.22);
+    const tailFin = new THREE.Mesh(tailFinGeo, mat);
+    tailFin.position.set(0, 0, -0.3);
+    tailGroup.add(tailFin);
+
+    group.add(tailGroup);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'cod',
+      name: 'Cod',
+      mesh: group,
+      isAquatic: true,
+      inWater: true,
+      tail: tailGroup,
+      finL: finL,
+      finR: finR,
+      mat: mat,
+      health: 3,
+      maxHealth: 3,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      swimCycle: Math.random() * 10,
+      timer: 0,
+      flopTimer: 0,
+      targetPos: null,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- PHANTOM ---
+  spawnPhantom(x, y, z) {
+    const group = new THREE.Group();
+    const phantomMat = new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x84cc16 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.8), phantomMat);
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.35), phantomMat);
+    head.position.set(0, 0, 0.5);
+    group.add(head);
+
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeL.position.set(-0.12, 0.08, 0.65); group.add(eyeL);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeR.position.set(0.12, 0.08, 0.65); group.add(eyeR);
+
+    // Broad wings
+    const wingGeo = new THREE.BoxGeometry(1.6, 0.06, 0.5);
+    const wings = new THREE.Mesh(wingGeo, phantomMat);
+    wings.position.set(0, 0.05, 0);
+    group.add(wings);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'phantom',
+      name: 'Phantom',
+      mesh: group,
+      isFlying: true,
+      health: 20,
+      maxHealth: 20,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- VINDICATOR & EVOKER & VEX & RAVAGER ---
+  spawnVindicator(x, y, z) {
+    const group = new THREE.Group();
+    const illagerMat = new THREE.MeshLambertMaterial({ color: 0x475569 });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.35), illagerMat);
+    body.position.y = 1.0;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+    head.position.y = 1.65;
+    group.add(head);
+
+    // Iron Axe in hand
+    const axeMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+    const axe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.25), axeMat);
+    axe.position.set(0.45, 1.1, 0.2);
+    group.add(axe);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'vindicator',
+      name: 'Vindicator',
+      mesh: group,
+      head: head,
+      health: 24,
+      maxHealth: 24,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnEvoker(x, y, z) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.35), robeMat);
+    body.position.y = 1.0;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+    head.position.y = 1.65;
+    group.add(head);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'evoker',
+      name: 'Evoker',
+      mesh: group,
+      head: head,
+      health: 24,
+      maxHealth: 24,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnVex(x, y, z) {
+    const group = new THREE.Group();
+    const vexMat = new THREE.MeshLambertMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.75 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.25), vexMat);
+    body.position.y = 0.3;
+    group.add(body);
+
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.04, 0.3), vexMat);
+    wings.position.set(0, 0.45, -0.15);
+    group.add(wings);
+
+    group.position.set(x, y, z);
+    this.scene.add(group);
+
+    const mob = {
+      type: 'vex',
+      name: 'Vex',
+      mesh: group,
+      isFlying: true,
+      health: 14,
+      maxHealth: 14,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnRavager(x, y, z) {
+    const group = new THREE.Group();
+    const ravagerMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+    const hornMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.0), ravagerMat);
+    body.position.y = 1.4;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), ravagerMat);
+    head.position.set(0, 1.8, 1.3);
+    group.add(head);
+
+    // Horns
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornL.position.set(-0.55, 2.3, 1.2); group.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornR.position.set(0.55, 2.3, 1.2); group.add(hornR);
+
+    // 4 Heavy Legs
+    const legGeo = new THREE.BoxGeometry(0.45, 1.0, 0.45);
+    const fl = new THREE.Mesh(legGeo, ravagerMat); fl.position.set(-0.5, 0.5, 0.7); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, ravagerMat); fr.position.set(0.5, 0.5, 0.7); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, ravagerMat); bl.position.set(-0.5, 0.5, -0.7); group.add(bl);
+    const br = new THREE.Mesh(legGeo, ravagerMat); br.position.set(0.5, 0.5, -0.7); group.add(br);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'ravager',
+      name: 'Ravager',
+      mesh: group,
+      head: head,
+      legs: [fl, fr, bl, br],
+      health: 100,
+      maxHealth: 100,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- ENDER DRAGON BOSS ---
+  spawnEnderDragon(x, y, z) {
+    const group = new THREE.Group();
+    const dragonMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
+
+    // Body
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 3.2), dragonMat);
+    body.position.y = 1.0;
+    group.add(body);
+
+    // Long Neck
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 1.4), dragonMat);
+    neck.position.set(0, 1.6, 2.0);
+    group.add(neck);
+
+    // Head with purple eyes
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 1.1), dragonMat);
+    head.position.set(0, 1.8, 3.0);
+    group.add(head);
+
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeL.position.set(-0.48, 1.9, 3.2); group.add(eyeL);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeR.position.set(0.48, 1.9, 3.2); group.add(eyeR);
+
+    // Wings
+    const wingGeo = new THREE.BoxGeometry(2.8, 0.08, 1.6);
+    const wingL = new THREE.Mesh(wingGeo, dragonMat); wingL.position.set(-2.0, 1.5, 0.5); group.add(wingL);
+    const wingR = new THREE.Mesh(wingGeo, dragonMat); wingR.position.set(2.0, 1.5, 0.5); group.add(wingR);
+
+    // Segmented Tail
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.5), dragonMat);
+    tail.position.set(0, 0.9, -2.5);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'ender_dragon',
+      name: 'Ender Dragon',
+      mesh: group,
+      head: head,
+      wingL: wingL,
+      wingR: wingR,
+      isFlying: true,
+      isBoss: true,
+      health: 200,
+      maxHealth: 200,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  // --- THE WITHER BOSS ---
+  spawnWither(x, y, z) {
+    const group = new THREE.Group();
+    const witherMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
+
+    // Spine and ribcage
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 0.3), witherMat);
+    spine.position.y = 1.0;
+    group.add(spine);
+
+    const ribs = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 0.4), witherMat);
+    ribs.position.y = 1.3;
+    group.add(ribs);
+
+    // 3 Heads
+    const centerHead = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), witherMat);
+    centerHead.position.set(0, 1.85, 0);
+    group.add(centerHead);
+
+    const sideHeadGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
+    const leftHead = new THREE.Mesh(sideHeadGeo, witherMat); leftHead.position.set(-0.75, 1.7, 0); group.add(leftHead);
+    const rightHead = new THREE.Mesh(sideHeadGeo, witherMat); rightHead.position.set(0.75, 1.7, 0); group.add(rightHead);
+
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'wither',
+      name: 'The Wither',
+      mesh: group,
+      head: centerHead,
+      leftHead: leftHead,
+      rightHead: rightHead,
+      isFlying: true,
+      isBoss: true,
+      health: 300,
+      maxHealth: 300,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
@@ -2797,7 +5359,10 @@ export class MobManager {
   }
 
   spawnSquid(x, y, z) {
-    return this.spawnOctopus(x, y, z);
+    const mob = this.spawnOctopus(x, y, z);
+    mob.type = 'squid';
+    mob.name = 'Squid';
+    return mob;
   }
 
   // --- AQUATIC: AXOLOTL ---
@@ -3043,6 +5608,25 @@ export class MobManager {
     }
     mob.hurtTime = 0.18;
 
+    if (mob.type === 'glow_squid') {
+      this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 10);
+    } else if (mob.type === 'squid' || mob.type === 'octopus') {
+      this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x18181b, 10);
+    }
+
+    if (mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') {
+      this.hostileBehaviors?.angerZombifiedPiglins?.(mob);
+    } else if (mob.type === 'piglin') {
+      mob.aggroToPlayer = true;
+    }
+
+    if (mob.health <= 0 && mob.laserLine && this.scene) {
+      this.scene.remove(mob.laserLine);
+      mob.laserLine.geometry?.dispose();
+      mob.laserLine.material?.dispose();
+      mob.laserLine = null;
+    }
+
     // Update floating health bar immediately on damage
     if (this.isTrainingSiteMob(mob)) {
       this.ensureHealthBar(mob);
@@ -3084,6 +5668,7 @@ export class MobManager {
     else if (mob.type === 'villager') this.sounds.playVillager();
     else if (mob.type === 'pillager') this.sounds.playPillager();
     else if (mob.type === 'zombie') this.sounds.playZombie();
+    else if (mob.type === 'chicken') this.sounds?.playChicken?.();
     else if (mob.type === 'jackie_chun') {
       if (this.sounds?.playHit) this.sounds.playHit();
       // Clone death check
@@ -3173,6 +5758,12 @@ export class MobManager {
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
+      if (mob.laserLine && this.scene) {
+        this.scene.remove(mob.laserLine);
+        mob.laserLine.geometry?.dispose();
+        mob.laserLine.material?.dispose();
+        mob.laserLine = null;
+      }
       if (mob.healthBarSprite) mob.healthBarSprite.visible = false;
       mob.deathTime = 0;
       mob.velocity.x = mob.velocity.z = 0;
@@ -3191,17 +5782,60 @@ export class MobManager {
     mob.mesh.position.y += mob.deathLift;
     if (mob.deathTime >= 0.65 && !mob.lootDropped) {
       mob.lootDropped = true;
+      if (mob.type === 'slime' || mob.type === 'magma_cube') {
+        this.hostileBehaviors?.handleMobDeathSplitting?.(mob);
+      }
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      if (mob.isBaby) {
+        mob.noLoot = true;
+      }
       const loot = {
-        pig: [['porkchop', false, 1, 3]], cow: [['beef', false, 1, 3], ['leather', false, 1, 2]],
-        sheep: [[BLOCKS.WHITE_WOOL, true, 1, 1]], salmon: [['salmon', false, 1, 1]],
-        skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]], creeper: [['gunpowder', false, 1, 2]],
+        pig: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
+        cow: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
+        sheep: [[mob.woolColor ? (BLOCKS[`${mob.woolColor.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL) : BLOCKS.WHITE_WOOL, true, 1, 1], [(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_mutton' : 'mutton', false, 1, 2]],
+        chicken: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
+        horse: [['leather', false, 1, 2]],
+        donkey: [['leather', false, 1, 2]],
+        salmon: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_salmon' : 'salmon', false, 1, 1]],
+        cod: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_cod' : 'cod', false, 1, 1]],
+        dolphin: [['salmon', false, 0, 1]],
+        octopus: [['ink_sac', false, 1, 3]],
+        squid: [['ink_sac', false, 1, 3]],
+        glow_squid: [['glow_ink_sac', false, 1, 3]],
+        skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],
+        creeper: [['gunpowder', false, 1, 2]],
+        zombie: [['rotten_flesh', false, 1, 2]],
+        zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1]],
         iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
         pillager: [['arrow', false, 1, 2]],
+        vindicator: [['emerald', false, 0, 1]],
+        evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
+        blaze: [['blaze_rod', false, 1, 2]],
+        ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
+        piglin: [['gold_nugget', false, 1, 3], ['raw_gold', false, 0, 1], ['golden_sword', false, 0, 1]],
+        zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+        zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+        hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 1, 2]],
+        strider: [['string', false, 2, 5]],
+        magma_cube: [['magma_cream', false, 0, 1]],
+        wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
+        witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
+        guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
+        elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
+        drowned: [['rotten_flesh', false, 1, 2]],
+        phantom: [['phantom_membrane', false, 1, 2]],
+        warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
+        wither: [['nether_star', false, 1, 1]]
       };
+      if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
+        this.game.player.applyStatusEffect('bad_omen', 100);
+      }
       if (!mob.noLoot) {
         for (const [id, isBlock, min, max] of loot[mob.type] || []) {
-          this.entities?.spawnDroppedItem(pos, id, isBlock, min + Math.floor(Math.random() * (max - min + 1)), { pickupDelay: 1.2 });
+          const count = min + Math.floor(Math.random() * (max - min + 1));
+          if (count > 0) {
+            this.entities?.spawnDroppedItem(pos, id, isBlock, count, { pickupDelay: 1.2 });
+          }
         }
         if (this.entities?.spawnXpOrbs) {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze'].includes(mob.type);
@@ -3228,6 +5862,8 @@ export class MobManager {
   update(dt, player) {
     dt = Math.min(dt, 0.1);
     updateArrows(this, dt, player);
+    this.animalBehaviors?.update(dt, player, this.game?.controls || {});
+    this.hostileBehaviors?.update(dt, player);
 
     // 2. Update Mobs AI & Physics
     for (let i = this.mobs.length - 1; i >= 0; i--) {
@@ -3236,7 +5872,12 @@ export class MobManager {
       if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
       mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);
-      if (mob.hurtTime === 0 && !mob.dying) mob.mat.color.setRGB(1, 1, 1);
+      // Restore the mob's colour once its hurt flash ends. Not every mob type builds
+      // a shared material — 28 of the 49 spawners leave `mat` undefined — and this
+      // line used to throw for those. Because the whole mob update ran inside a
+      // single try/catch, one such mob froze every mob in the world: nothing moved
+      // and nothing reacted to being hit.
+      if (mob.hurtTime === 0 && !mob.dying && mob.mat?.color) mob.mat.color.setRGB(1, 1, 1);
 
       // Overhead health bar for training & combat mobs
       const showHealthBars = this.game?.mechanisms
@@ -3413,18 +6054,109 @@ export class MobManager {
           if (mob.tail) mob.tail.rotation.y = tailWiggle;
           if (mob.finL) mob.finL.rotation.z = -0.35 + Math.sin(mob.swimCycle * 9.0) * 0.2;
           if (mob.finR) mob.finR.rotation.z = 0.35 - Math.sin(mob.swimCycle * 9.0) * 0.2;
+        } else if (mob.type === 'cod') {
+          const tailWiggle = Math.sin(mob.swimCycle * 11.0) * (inWater ? 0.45 : 0.8);
+          if (mob.tail) mob.tail.rotation.y = tailWiggle;
+          if (mob.finL) mob.finL.rotation.z = -0.3 + Math.sin(mob.swimCycle * 11.0) * 0.2;
+          if (mob.finR) mob.finR.rotation.z = 0.3 - Math.sin(mob.swimCycle * 11.0) * 0.2;
         } else if (mob.type === 'dolphin') {
           const flukeWave = Math.sin(mob.swimCycle * 6.5) * (inWater ? 0.45 : 0.7);
           if (mob.fluke) mob.fluke.rotation.x = flukeWave;
           if (mob.tail) mob.tail.rotation.x = flukeWave * 0.5;
           if (mob.flipperL) mob.flipperL.rotation.z = -0.4 + Math.sin(mob.swimCycle * 6.5) * 0.15;
           if (mob.flipperR) mob.flipperR.rotation.z = 0.4 - Math.sin(mob.swimCycle * 6.5) * 0.15;
-        } else if (mob.type === 'octopus') {
+        } else if (mob.type === 'octopus' || mob.type === 'squid') {
           const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
           if (mob.tentacles) {
             for (let t = 0; t < mob.tentacles.length; t++) {
               mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
             }
+          }
+        } else if (mob.type === 'glow_squid') {
+          const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
+          if (mob.tentacles) {
+            for (let t = 0; t < mob.tentacles.length; t++) {
+              mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
+            }
+          }
+          mob.glowParticleTimer = (mob.glowParticleTimer || 0) + dt;
+          if (mob.glowParticleTimer > 1.8 && inWater) {
+            mob.glowParticleTimer = 0;
+            this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 3);
+          }
+        } else if (mob.type === 'guardian' || mob.type === 'elder_guardian') {
+          const tailWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.6);
+          if (mob.tail1) mob.tail1.rotation.y = tailWiggle;
+          if (mob.tail2) mob.tail2.rotation.y = tailWiggle * 1.3;
+
+          // Spike retraction when swimming fast vs extended when stopping/attacking/beached
+          const isSpurting = inWater && mob.velocity.length() > 1.2;
+          const targetExt = isSpurting ? 0.3 : 1.0;
+          mob.spikeExtension = THREE.MathUtils.lerp(mob.spikeExtension || 1.0, targetExt, Math.min(1.0, dt * 5.0));
+          if (mob.spikes) {
+            for (const sp of mob.spikes) {
+              sp.mesh.position.copy(sp.basePos).addScaledVector(sp.dir, (mob.spikeExtension - 1.0) * 0.12);
+            }
+          }
+
+          // Pupil eye tracking
+          const distToPlayer = (player?.position) ? mob.mesh.position.distanceTo(player.position) : 999;
+          if (mob.pupil && player?.position && distToPlayer < 20) {
+            const eyeDx = player.position.x - mob.mesh.position.x;
+            const eyeDy = (player.position.y + 0.9) - (mob.mesh.position.y + 0.5);
+            const eyeDz = player.position.z - mob.mesh.position.z;
+            const cosYaw = Math.cos(mob.yaw);
+            const sinYaw = Math.sin(mob.yaw);
+            const localX = eyeDx * cosYaw - eyeDz * sinYaw;
+            mob.pupil.position.x = Math.max(-0.06, Math.min(0.06, localX * 0.015));
+            mob.pupil.position.y = Math.max(-0.06, Math.min(0.06, eyeDy * 0.015));
+          }
+
+          // Laser Attack Behavior
+          mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+          if (player?.position && distToPlayer < 16 && inWater && !player.isFlying && mob.attackCooldown <= 0) {
+            mob.laserTimer = (mob.laserTimer || 0) + dt;
+            const eyePos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+            const playerChest = player.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+
+            if (!mob.laserLine && this.scene) {
+              const geo = new THREE.BufferGeometry().setFromPoints([eyePos, playerChest]);
+              const mat = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 3 });
+              mob.laserLine = new THREE.Line(geo, mat);
+              this.scene.add(mob.laserLine);
+            } else if (mob.laserLine) {
+              mob.laserLine.geometry.setFromPoints([eyePos, playerChest]);
+              const progress = Math.min(1.0, mob.laserTimer / 2.2);
+              mob.laserLine.material.color.setRGB(progress, 1.0 - progress * 0.8, 1.0);
+            }
+
+            if (mob.laserTimer >= 2.2) {
+              const dmg = mob.isElder ? 12 : 6;
+              if (typeof player.takeDamage === 'function') {
+                player.takeDamage(dmg, mob.isElder ? 'Elder Guardian Laser' : 'Guardian Laser');
+              } else if (player.health !== undefined) {
+                player.health = Math.max(0, player.health - dmg);
+              }
+              this.sounds?.playExplosion?.();
+              this.spawnParticleBurst(playerChest, 0x06b6d4, 10);
+
+              if (mob.laserLine && this.scene) {
+                this.scene.remove(mob.laserLine);
+                mob.laserLine.geometry?.dispose();
+                mob.laserLine.material?.dispose();
+                mob.laserLine = null;
+              }
+              mob.laserTimer = 0;
+              mob.attackCooldown = 3.5;
+            }
+          } else {
+            if (mob.laserLine && this.scene) {
+              this.scene.remove(mob.laserLine);
+              mob.laserLine.geometry?.dispose();
+              mob.laserLine.material?.dispose();
+              mob.laserLine = null;
+            }
+            mob.laserTimer = 0;
           }
         } else if (mob.type === 'axolotl') {
           const bodyWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.65);
@@ -3443,16 +6175,111 @@ export class MobManager {
       }
 
       // Distance to player
-      const distToPlayer = mob.mesh.position.distanceTo(player.position);
+      const distToPlayer = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
 
       // --- MOB SPECIFIC AI BEHAVIORS ---
-      if (mob.type === 'villager') {
-        // Look at player if near, or wander peacefully
-        if (distToPlayer < 2.5) {
+      if (mob.type === 'drowned') {
+        const bX = Math.floor(mob.mesh.position.x);
+        const bY = Math.floor(mob.mesh.position.y + 0.5);
+        const bZ = Math.floor(mob.mesh.position.z);
+        const inWater = (this.world.getVoxel(bX, bY, bZ) === BLOCKS.WATER);
+
+        mob.swimCycle = (mob.swimCycle || 0) + dt * (inWater ? 3.0 : 1.5);
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+
+        if (player?.position && distToPlayer < 18) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          mob.yaw = Math.atan2(dir.x, dir.z);
+
+          if (inWater) {
+            const targetSpeed = 2.4;
+            const normDir = dir.clone().normalize();
+            mob.velocity.x = normDir.x * targetSpeed;
+            mob.velocity.y = normDir.y * targetSpeed * 0.8;
+            mob.velocity.z = normDir.z * targetSpeed;
+
+            if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.4;
+            if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.swimCycle * 4.0) * 0.4;
+            if (mob.rightArm) mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(mob.swimCycle * 2.0) * 0.15;
+            if (mob.leftArm) mob.leftArm.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.3;
+
+            mob.mesh.position.addScaledVector(mob.velocity, dt);
+            mob.mesh.rotation.y = mob.yaw;
+          } else {
+            moveGroundMob(this, mob, dt, 1.8);
+            if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin((mob.timer || 0) * 5.0) * 0.6;
+            if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin((mob.timer || 0) * 5.0) * 0.6;
+          }
+
+          if (distToPlayer < 2.0 && mob.attackCooldown <= 0) {
+            mob.attackCooldown = 1.2;
+            const dmg = 5;
+            if (typeof player.takeDamage === 'function') {
+              player.takeDamage(dmg, 'Drowned');
+            } else if (player.health !== undefined) {
+              player.health = Math.max(0, player.health - dmg);
+            }
+            this.sounds?.playZombie?.();
+            this.spawnParticleBurst(player.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x0ea5e9, 8);
+          }
+        } else {
+          if (inWater) {
+            mob.mesh.position.y += Math.sin(mob.swimCycle) * 0.01;
+          } else {
+            wanderMob(this, mob, dt, 1.0);
+          }
+        }
+      } else if (mob.type === 'villager') {
+        // Periodically check workstation claims and restocking
+        mob.workstationCheckTimer = (mob.workstationCheckTimer || 0) - dt;
+        if (mob.workstationCheckTimer <= 0) {
+          mob.workstationCheckTimer = 2.0;
+          updateVillagerWorkstation(mob, this.world, this.mobs);
+        }
+
+        // Flee from nearby zombies or zombie villagers
+        let threat = null;
+        let threatDist = 12;
+        for (const other of this.mobs) {
+          if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager')) {
+            const d = mob.mesh.position.distanceTo(other.mesh.position);
+            if (d < threatDist) {
+              threatDist = d;
+              threat = other;
+            }
+          }
+        }
+        if (threat) {
+          const fleeYaw = Math.atan2(mob.mesh.position.x - threat.mesh.position.x, mob.mesh.position.z - threat.mesh.position.z);
+          mob.yaw = fleeYaw;
+          mob.velocity.x = Math.sin(fleeYaw) * 3.2;
+          mob.velocity.z = Math.cos(fleeYaw) * 3.2;
+        } else if (distToPlayer < 2.5) {
           mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
           mob.velocity.x *= 0.5;
           mob.velocity.z *= 0.5;
-        } else { wanderMob(this, mob, dt, 1.2); }
+        } else {
+          wanderMob(this, mob, dt, 1.2);
+        }
+      } else if (mob.type === 'zombie_villager') {
+        // Check curing progression
+        updateZombieVillagerCuring(mob, dt, this);
+        if (mob.isCuring) {
+          mob.speed = 1.7;
+        }
+        if (distToPlayer < 16) {
+          const targetYaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+          mob.yaw = targetYaw;
+          mob.velocity.x = Math.sin(targetYaw) * (mob.speed || 1.4);
+          mob.velocity.z = Math.cos(targetYaw) * (mob.speed || 1.4);
+          if (distToPlayer < 1.4 && (!mob.hitCooldown || mob.hitCooldown <= 0)) {
+            player.takeDamage?.(3);
+            mob.hitCooldown = 1.0;
+            this.sounds?.playZombie?.();
+          }
+        } else {
+          wanderMob(this, mob, dt, 1.0);
+        }
       } else if (mob.type === 'iron_golem') {
         // Find nearest hostile target (Pillager or Zombie)
         let nearestHostile = null;
@@ -3573,13 +6400,294 @@ export class MobManager {
           // Wander
           wanderMob(this, mob, dt, 1.0);
         }
-      } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep') {
-        wanderMob(this, mob, dt, 1.15);
+      } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
+        let isFollowing = false;
+
+        // If mob is sitting (tamed cat/wolf), freeze movement
+        if (mob.isSitting) {
+          isFollowing = true;
+          mob.wanderGoal = null;
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+        }
+
+        // If mob is in Love mode, preserve matchmaking velocity and prevent wander from hijacking it
+        if (mob.inLove > 0) {
+          isFollowing = true;
+          mob.wanderGoal = null;
+        }
+
+        // Chicken / Animal following player holding seeds or breeding food (main hand or offhand)
+        if (player && player.inventory) {
+          const heldItem = player.inventory.getActiveItem() || player.inventory.getOffhandItem?.();
+          const cleanId = heldItem ? (typeof heldItem.id === 'string' ? heldItem.id : heldItem?.id?.id || '').toLowerCase().trim() : '';
+          const isTempting = heldItem && (!mob.inLove || mob.inLove <= 0) && (
+            this.animalBehaviors?.isBreedingFood(mob.type, cleanId) ||
+            (mob.type === 'chicken' && (cleanId.includes('seed') || cleanId.includes('pod'))) ||
+            (mob.type === 'cow' && cleanId.includes('wheat') && !cleanId.includes('seed'))
+          );
+          if (isTempting) {
+            const dx = player.position.x - mob.mesh.position.x;
+            const dy = Math.abs(player.position.y - mob.mesh.position.y);
+            const dz = player.position.z - mob.mesh.position.z;
+            const horizDist = Math.hypot(dx, dz);
+            if (horizDist < 12.0 && dy < 6.0 && horizDist > 1.8) {
+              isFollowing = true;
+              mob.wanderGoal = null;
+              mob.wanderTimer = 0;
+              mob.avoidTime = 0;
+              const followSpeed = mob.type === 'chicken' ? 2.2 : 2.0;
+              mob.velocity.x = (dx / horizDist) * followSpeed;
+              mob.velocity.z = (dz / horizDist) * followSpeed;
+              mob.yaw = Math.atan2(dx, dz);
+            } else if (horizDist <= 1.8 && dy < 6.0) {
+              isFollowing = true;
+              mob.wanderGoal = null;
+              mob.velocity.x *= 0.2;
+              mob.velocity.z *= 0.2;
+              mob.yaw = Math.atan2(dx, dz);
+            }
+
+            // Head tracking: look attentively at player holding food
+            if (mob.head && horizDist < 12.0 && dy < 6.0) {
+              const lookYaw = Math.atan2(dx, dz) - mob.yaw;
+              const normLookYaw = Math.atan2(Math.sin(lookYaw), Math.cos(lookYaw));
+              mob.head.rotation.y = THREE.MathUtils.clamp(normLookYaw, -0.85, 0.85);
+            }
+          } else if (mob.head && !mob.isBaby) {
+            mob.head.rotation.y = THREE.MathUtils.lerp(mob.head.rotation.y, 0, dt * 5.0);
+          }
+        }
+
+        // Baby animal following parent or adult of same type
+        if (!isFollowing && mob.isBaby) {
+          let followTarget = mob.parent && mob.parent.health > 0 ? mob.parent : null;
+          if (!followTarget) {
+            let nearestDist = 14;
+            for (const other of this.mobs) {
+              if (other !== mob && other.type === mob.type && !other.isBaby && other.health > 0) {
+                const dist = mob.mesh.position.distanceTo(other.mesh.position);
+                if (dist < nearestDist) {
+                  nearestDist = dist;
+                  followTarget = other;
+                }
+              }
+            }
+          }
+          if (followTarget) {
+            const dist = mob.mesh.position.distanceTo(followTarget.mesh.position);
+            if (dist > 1.6) {
+              const dir = followTarget.mesh.position.clone().sub(mob.mesh.position);
+              dir.y = 0;
+              if (dir.lengthSq() > 0.001) dir.normalize();
+              mob.yaw = Math.atan2(dir.x, dir.z);
+              mob.velocity.x = dir.x * 1.8;
+              mob.velocity.z = dir.z * 1.8;
+              isFollowing = true;
+            } else {
+              mob.velocity.x *= 0.5;
+              mob.velocity.z *= 0.5;
+              isFollowing = true;
+            }
+          }
+        }
+
+        if (!isFollowing) {
+          const wanderSpeed = mob.type === 'chicken' ? (mob.isBaby ? 1.3 : 1.0) : (mob.isBaby ? 1.3 : 1.15);
+          wanderMob(this, mob, dt, wanderSpeed);
+        }
+
         if (mob.fleeTime > 0) {
           mob.fleeTime -= dt;
           const escape = mob.mesh.position.clone().sub(mob.fleeFrom); escape.y = 0; escape.normalize();
           mob.yaw = Math.atan2(escape.x, escape.z);
           mob.velocity.x = escape.x * 2.8; mob.velocity.z = escape.z * 2.8;
+        }
+
+        // Chicken specific animation: Slow glide in air, wing flapping, walking animation, ambient clucking
+        if (mob.type === 'chicken') {
+          mob.flapTimer = (mob.flapTimer || 0) + dt;
+          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+          // Cluck ambient sound occasionally
+          mob.cluckTimer = (mob.cluckTimer || (15 + Math.random() * 30)) - dt;
+          if (mob.cluckTimer <= 0) {
+            mob.cluckTimer = 20 + Math.random() * 40;
+            if (distToPlayer < 16 && this.sounds?.playChicken) {
+              this.sounds.playChicken();
+            }
+          }
+
+          if (!mob.onGround) {
+            // Gliding down gently in the air: wings flap rapidly!
+            mob.velocity.y = Math.max(-1.5, mob.velocity.y);
+            const flap = Math.sin(mob.flapTimer * 28.0) * 0.75;
+            if (mob.wingL) mob.wingL.rotation.z = flap;
+            if (mob.wingR) mob.wingR.rotation.z = -flap;
+            if (mob.leftLeg) mob.leftLeg.rotation.x = 0.2;
+            if (mob.rightLeg) mob.rightLeg.rotation.x = 0.2;
+          } else {
+            // On ground: wings tucked, legs swing when walking
+            if (mob.wingL) mob.wingL.rotation.z = THREE.MathUtils.lerp(mob.wingL.rotation.z, 0, dt * 10);
+            if (mob.wingR) mob.wingR.rotation.z = THREE.MathUtils.lerp(mob.wingR.rotation.z, 0, dt * 10);
+
+            if (speedXZ > 0.1) {
+              mob.walkCycle = (mob.walkCycle || 0) + dt * 12.0;
+              if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.walkCycle) * 0.5;
+              if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.walkCycle) * 0.5;
+              if (mob.head) mob.head.position.z = 0.22 + Math.sin(mob.walkCycle) * 0.03;
+            } else {
+              if (mob.leftLeg) mob.leftLeg.rotation.x = 0;
+              if (mob.rightLeg) mob.rightLeg.rotation.x = 0;
+              if (mob.head) mob.head.position.z = 0.22;
+            }
+          }
+        }
+
+        // Quadruped specific animations (cow, pig, sheep): leg swinging & cow ambient moo
+        if (mob.type === 'cow' || mob.type === 'pig' || mob.type === 'sheep') {
+          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+          if (mob.type === 'cow') {
+            mob.mooTimer = (mob.mooTimer || (15 + Math.random() * 30)) - dt;
+            if (mob.mooTimer <= 0) {
+              mob.mooTimer = 20 + Math.random() * 40;
+              if (distToPlayer < 16 && this.sounds?.playCow) {
+                this.sounds.playCow();
+              }
+            }
+          }
+
+          if (mob.legs && mob.legs.length === 4) {
+            const [fl, fr, bl, br] = mob.legs;
+            if (speedXZ > 0.1) {
+              mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
+              const swing = Math.sin(mob.walkCycle) * 0.4;
+              if (fl) fl.rotation.x = swing;
+              if (fr) fr.rotation.x = -swing;
+              if (bl) bl.rotation.x = -swing;
+              if (br) br.rotation.x = swing;
+            } else {
+              if (fl) fl.rotation.x = 0;
+              if (fr) fr.rotation.x = 0;
+              if (bl) bl.rotation.x = 0;
+              if (br) br.rotation.x = 0;
+            }
+          }
+        }
+
+        // Cat & Ocelot animations: ambient meow, sitting posture vs walk & tail swish
+        if (mob.type === 'cat' || mob.type === 'ocelot') {
+          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+          // Ambient meow
+          mob.meowTimer = (mob.meowTimer || (20 + Math.random() * 35)) - dt;
+          if (mob.meowTimer <= 0) {
+            mob.meowTimer = 25 + Math.random() * 45;
+            if (distToPlayer < 16 && this.sounds?.playCat) {
+              this.sounds.playCat();
+            }
+          }
+
+          if (mob.isSitting) {
+            // Sitting posture
+            if (mob.body) {
+              mob.body.position.set(0, 0.30, -0.05);
+              mob.body.rotation.x = -0.55;
+            }
+            if (mob.head) {
+              mob.head.position.set(0, 0.48, 0.22);
+            }
+            if (mob.legs && mob.legs.length === 4) {
+              const [fl, fr, bl, br] = mob.legs;
+              if (fl) { fl.position.set(-0.10, 0.16, 0.18); fl.rotation.x = 0; }
+              if (fr) { fr.position.set(0.10, 0.16, 0.18); fr.rotation.x = 0; }
+              if (bl) { bl.position.set(-0.10, 0.08, -0.06); bl.rotation.x = -Math.PI / 2; }
+              if (br) { br.position.set(0.10, 0.08, -0.06); br.rotation.x = -Math.PI / 2; }
+            }
+            if (mob.tailUpper) {
+              mob.tailUpper.position.set(0, 0.20, -0.22);
+              mob.tailUpper.rotation.x = 1.35;
+            }
+            if (mob.tailLower) {
+              mob.tailLower.rotation.x = 0.5;
+            }
+          } else {
+            // Standing posture
+            if (mob.body) {
+              mob.body.position.set(0, 0.40, -0.05);
+              mob.body.rotation.x = 0;
+            }
+            if (mob.head) {
+              mob.head.position.set(0, 0.52, 0.32);
+            }
+            if (mob.legs && mob.legs.length === 4) {
+              const [fl, fr, bl, br] = mob.legs;
+              if (fl) fl.position.set(-0.10, 0.16, 0.18);
+              if (fr) fr.position.set(0.10, 0.16, 0.18);
+              if (bl) bl.position.set(-0.10, 0.16, -0.22);
+              if (br) br.position.set(0.10, 0.16, -0.22);
+
+              if (speedXZ > 0.1) {
+                mob.walkCycle = (mob.walkCycle || 0) + dt * 11.0;
+                const swing = Math.sin(mob.walkCycle) * 0.45;
+                if (fl) fl.rotation.x = swing;
+                if (fr) fr.rotation.x = -swing;
+                if (bl) bl.rotation.x = -swing;
+                if (br) br.rotation.x = swing;
+              } else {
+                if (fl) fl.rotation.x = 0;
+                if (fr) fr.rotation.x = 0;
+                if (bl) bl.rotation.x = 0;
+                if (br) br.rotation.x = 0;
+              }
+            }
+            // Tail gentle sway
+            mob.tailCycle = (mob.tailCycle || 0) + dt * 2.8;
+            if (mob.tailUpper) {
+              mob.tailUpper.position.set(0, 0.44, -0.32);
+              mob.tailUpper.rotation.x = -0.55 + Math.sin(mob.tailCycle) * 0.1;
+              mob.tailUpper.rotation.y = Math.cos(mob.tailCycle) * 0.15;
+            }
+            if (mob.tailLower) {
+              mob.tailLower.rotation.x = 0.35;
+              mob.tailLower.rotation.y = Math.cos(mob.tailCycle) * 0.2;
+            }
+          }
+        }
+
+        // Wolf animations: leg swing & sitting & tail wag
+        if (mob.type === 'wolf') {
+          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+          if (mob.legs && mob.legs.length === 4) {
+            const [fl, fr, bl, br] = mob.legs;
+            if (mob.isSitting) {
+              if (fl) fl.rotation.x = 0;
+              if (fr) fr.rotation.x = 0;
+              if (bl) bl.rotation.x = -Math.PI / 2;
+              if (br) br.rotation.x = -Math.PI / 2;
+              if (mob.tailMesh) mob.tailMesh.rotation.x = 0.2;
+            } else {
+              if (speedXZ > 0.1) {
+                mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
+                const swing = Math.sin(mob.walkCycle) * 0.4;
+                if (fl) fl.rotation.x = swing;
+                if (fr) fr.rotation.x = -swing;
+                if (bl) bl.rotation.x = -swing;
+                if (br) br.rotation.x = swing;
+              } else {
+                if (fl) fl.rotation.x = 0;
+                if (fr) fr.rotation.x = 0;
+                if (bl) bl.rotation.x = 0;
+                if (br) br.rotation.x = 0;
+              }
+              if (mob.tailMesh) {
+                mob.tailCycle = (mob.tailCycle || 0) + dt * 4.0;
+                mob.tailMesh.rotation.x = -Math.PI / 4;
+                mob.tailMesh.rotation.y = (mob.isTamed ? Math.sin(mob.tailCycle) * 0.25 : 0);
+              }
+            }
+          }
         }
       } else if (mob.type === 'creeper') {
         if (distToPlayer < 16) {
@@ -3678,7 +6786,7 @@ export class MobManager {
               0.2 + Math.random() * 1.3,
               (Math.random() - 0.5) * 0.7
             ));
-            const skillsMgr = this.game.skills || this.game.dragonballSkills;
+            const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
             skillsMgr?.spawnEnergySparks?.(sparkPos, isCharging ? 3 : 1, isCharging ? 0x38bdf8 : 0x00f0ff);
           }
         }
@@ -3738,7 +6846,7 @@ export class MobManager {
               if (Math.random() < 0.45) {
                 const worldPos = new THREE.Vector3();
                 sphere.getWorldPosition(worldPos);
-                const skillsMgr = this.game.skills || this.game.dragonballSkills;
+                const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
                 skillsMgr?.spawnEnergySparks?.(worldPos, 2, 0x00f0ff);
               }
             }
@@ -3765,7 +6873,7 @@ export class MobManager {
 
               // Jackie Chun's Kamehameha is 1.5x the width of Goku's beam (Goku max radius: 1.5 -> Jackie Chun: 2.25)
               const beamRadius = mob.isClone ? 1.5 : 2.25;
-              const skillsMgr = this.game.skills || this.game.dragonballSkills;
+              const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
               skillsMgr?.shootOpponentKamehameha?.(origin, shootDir, mob.kamehamehaDamage, beamRadius, mob);
               if (skillsMgr) {
                 skillsMgr.shakeIntensity = 0.55;
@@ -3830,7 +6938,7 @@ export class MobManager {
               else punchDir.set(Math.sin(mob.yaw), 0, Math.cos(mob.yaw));
               const punchOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
 
-              const skillsMgr = this.game.skills || this.game.dragonballSkills;
+              const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
               skillsMgr?.spawnPunchWave?.(punchOrigin, punchDir, 0xfacc15);
               skillsMgr?.spawnEnergySparks?.(player.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 12, 0xfacc15);
             }
@@ -3916,6 +7024,8 @@ export class MobManager {
               mob.rightLeg.rotation.x = 0;
             }
           }
+        } else if (mob.isSitting) {
+          // Sitting mob maintains tucked posture
         } else if (mob.leftLeg && mob.rightLeg) {
           mob.leftLeg.rotation.x = legSwing;
           mob.rightLeg.rotation.x = -legSwing;
@@ -3932,9 +7042,55 @@ export class MobManager {
               }
             }
           }
+        } else if (mob.type === 'hoglin' && mob.legFL && mob.legFR && mob.legBL && mob.legBR) {
+          mob.legFL.rotation.x = legSwing;
+          mob.legFR.rotation.x = -legSwing;
+          mob.legBL.rotation.x = -legSwing;
+          mob.legBR.rotation.x = legSwing;
+        }
+      }
+
+      // Nether mob dynamic animations
+      if (mob.type === 'ghast') {
+        mob.ghastAnimTimer = (mob.ghastAnimTimer || 0) + dt * 2.5;
+        if (mob.tentacles) {
+          for (let tIdx = 0; tIdx < mob.tentacles.length; tIdx++) {
+            mob.tentacles[tIdx].rotation.x = Math.sin(mob.ghastAnimTimer + tIdx * 0.7) * 0.25;
+            mob.tentacles[tIdx].rotation.z = Math.cos(mob.ghastAnimTimer + tIdx * 0.5) * 0.15;
+          }
+        }
+        if (mob.headMat) {
+          const isShooting = (mob.fireballCooldown !== undefined && mob.fireballCooldown > 4.2);
+          mob.headMat.map = isShooting ? this.textures.ghast_shooting : this.textures.ghast;
+          mob.headMat.needsUpdate = true;
+        }
+      } else if (mob.type === 'blaze' && mob.tiers) {
+        if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
+        if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
+        if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
+      } else if (mob.type === 'magma_cube' && mob.layers) {
+        const isJumping = (mob.velocity && Math.abs(mob.velocity.y) > 0.5);
+        const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
+        for (let lIdx = 0; lIdx < mob.layers.length; lIdx++) {
+          const baseY = 0.05 + lIdx * 0.1;
+          const stretch = (lIdx - 3.5) * 0.07 * expand;
+          mob.layers[lIdx].position.y = baseY + stretch;
+        }
+        if (mob.core) {
+          mob.core.scale.y = 1.0 + expand * 0.7;
+        }
+      } else if (mob.type === 'strider') {
+        if (mob.isCold) {
+          mob.shiverTimer = (mob.shiverTimer || 0) + dt * 35;
+          if (mob.head) mob.head.position.x = Math.sin(mob.shiverTimer) * 0.04;
+        } else if (mob.head) {
+          mob.head.position.x = 0;
         }
       }
     }
+
+    // Apply mob-to-mob soft collision separation so mobs never squeeze/collapse into one position
+    this.applyMobCollisions(dt);
 
     // Update custom projectiles (fireballs, etc.)
     if (this.customProjectiles && this.customProjectiles.length > 0) {
@@ -4142,7 +7298,7 @@ export class MobManager {
           }
 
           // Self-heal if hurt
-          if (mob.skills.includes('heal') && mob.health < mob.maxHealth * 0.7) {
+          if (mob.skills?.includes('heal') && mob.health < mob.maxHealth * 0.7) {
             this.handleMobSkills(mob, null, dt);
           }
         }
@@ -4188,7 +7344,7 @@ export class MobManager {
           mob.velocity.z *= 0.5;
         }
         // Self-heal if hurt
-        if (mob.skills.includes('heal') && mob.health < mob.maxHealth * 0.7) {
+        if (mob.skills?.includes('heal') && mob.health < mob.maxHealth * 0.7) {
           this.handleMobSkills(mob, null, dt);
         }
       }

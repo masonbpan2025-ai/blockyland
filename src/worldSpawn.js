@@ -16,15 +16,15 @@ import { BLOCKS } from './blocks.js';
 const NATURAL_GROUND = new Set([
   BLOCKS.GRASS, BLOCKS.MYCELIUM, BLOCKS.PODZOL, BLOCKS.MOSS_BLOCK, BLOCKS.MUD,
   BLOCKS.RED_SAND, BLOCKS.CRIMSON_NYLIUM, BLOCKS.WARPED_NYLIUM, BLOCKS.END_STONE,
-  BLOCKS.PACKED_ICE, BLOCKS.BLUE_ICE, BLOCKS.SCULK
+  BLOCKS.PACKED_ICE, BLOCKS.BLUE_ICE, BLOCKS.SCULK,
+  BLOCKS.NETHERRACK, BLOCKS.SOUL_SAND, BLOCKS.SOUL_SOIL, BLOCKS.BASALT, BLOCKS.BLACKSTONE
 ]);
 /** Blocks that are walkable but a sign we may be on a structure or path. */
 const BUILT_GROUND = new Set([
   BLOCKS.COBBLESTONE, BLOCKS.OAK_PLANKS, BLOCKS.GRAVEL, BLOCKS.SAND, BLOCKS.STONE,
   BLOCKS.DIRT, BLOCKS.SANDSTONE, BLOCKS.STONE_BRICKS, BLOCKS.SNOW, BLOCKS.CLAY,
   BLOCKS.TERRACOTTA, BLOCKS.RED_TERRACOTTA, BLOCKS.ORANGE_TERRACOTTA, BLOCKS.YELLOW_TERRACOTTA,
-  BLOCKS.WHITE_TERRACOTTA, BLOCKS.BROWN_TERRACOTTA, BLOCKS.NETHERRACK, BLOCKS.SOUL_SAND,
-  BLOCKS.SOUL_SOIL, BLOCKS.BASALT, BLOCKS.BLACKSTONE, BLOCKS.DEEPSLATE, BLOCKS.CALCITE,
+  BLOCKS.WHITE_TERRACOTTA, BLOCKS.BROWN_TERRACOTTA, BLOCKS.DEEPSLATE, BLOCKS.CALCITE,
   BLOCKS.TUFF, BLOCKS.PRISMARINE, BLOCKS.BEDROCK, BLOCKS.CHERRY_PLANKS, BLOCKS.BIRCH_PLANKS,
   BLOCKS.SPRUCE_PLANKS, BLOCKS.JUNGLE_PLANKS, BLOCKS.ACACIA_PLANKS, BLOCKS.DARK_OAK_PLANKS
 ]);
@@ -52,7 +52,7 @@ function isAir(id) {
 }
 
 function isHazard(id) {
-  return id === BLOCKS.WATER || id === BLOCKS.LAVA;
+  return id === BLOCKS.WATER || id === BLOCKS.LAVA || id === BLOCKS.FIRE || id === BLOCKS.SOUL_FIRE;
 }
 
 /**
@@ -62,13 +62,20 @@ function isHazard(id) {
  * @param {number} wx
  * @param {number} wz
  * @param {{anchorX:number, anchorZ:number}} anchor
+ * @param {{allowWater?:boolean}} [options]
  */
-export function scoreSpawnColumn(world, wx, wz, anchor) {
+export function scoreSpawnColumn(world, wx, wz, anchor, options = {}) {
+  const allowWater = !!options.allowWater;
   const groundY = world.getHighestSolidY(wx, wz);
   if (!groundY || groundY <= 0) return null;
 
+  // Never spawn on top of bedrock roof ceiling in caverns / nether
+  const maxHeight = (world.CHUNK_HEIGHT || 64) - 2;
+  if (groundY >= maxHeight) return null;
+
   const ground = world.getVoxel(wx, groundY, wz);
-  if (isHazard(ground) || ground === BLOCKS.AIR) return null;
+  if (ground === BLOCKS.LAVA || ground === BLOCKS.FIRE || ground === BLOCKS.AIR) return null;
+  if (!allowWater && ground === BLOCKS.WATER) return null;
   if (TREE_BLOCKS.has(ground)) return null;
 
   // Feet at groundY + 1; the two blocks above must be clear.
@@ -80,9 +87,13 @@ export function scoreSpawnColumn(world, wx, wz, anchor) {
   let score = 1000;
   // Prefer to stay near the requested position.
   score -= Math.hypot(wx - anchor.anchorX, wz - anchor.anchorZ) * 10;
-  // Prefer natural ground, then any walkable block.
+  // Prefer natural ground, then any walkable block, then water surface as ocean fallback.
   if (NATURAL_GROUND.has(ground)) score += 50;
-  else if (BUILT_GROUND.has(ground)) score += 10;
+  else if (BUILT_GROUND.has(ground)) {
+    if (ground === BLOCKS.BEDROCK) score -= 300;
+    else score += 10;
+  }
+  else if (ground === BLOCKS.WATER) score -= 200;
 
   return { wx, wz, groundY, standY: groundY + 1, ground, score };
 }
@@ -105,27 +116,50 @@ export function findSurfaceSpawn(world, anchor = {}) {
   const radius = Math.max(1, Math.min(24, Math.floor(anchor.radius) || 8));
 
   const candidates = [];
+  // First pass: try to find dry land candidates
   for (let dx = -radius; dx <= radius; dx++) {
     for (let dz = -radius; dz <= radius; dz++) {
-      const scored = scoreSpawnColumn(world, anchorX + dx, anchorZ + dz, { anchorX, anchorZ });
+      const scored = scoreSpawnColumn(world, anchorX + dx, anchorZ + dz, { anchorX, anchorZ }, { allowWater: false });
       if (scored) candidates.push(scored);
     }
   }
 
+  // Second pass: if no dry ground exists anywhere in the radius (e.g. ocean biome),
+  // allow water surface candidates so the player spawns floating at sea level instead of y=0!
   if (candidates.length === 0) {
-    return { x: anchorX + 0.5, y: 0, z: anchorZ + 0.5, groundY: 0, found: false, reason: 'no usable column near the anchor' };
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const scored = scoreSpawnColumn(world, anchorX + dx, anchorZ + dz, { anchorX, anchorZ }, { allowWater: true });
+        if (scored) candidates.push(scored);
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    const fallbackGroundY = (typeof world.getHighestSolidY === 'function' ? world.getHighestSolidY(anchorX, anchorZ) : 0) || world.seaLevel || 24;
+    return {
+      x: anchorX + 0.5,
+      y: Math.max(1, fallbackGroundY + 1),
+      z: anchorZ + 0.5,
+      groundY: fallbackGroundY,
+      found: false,
+      reason: 'no usable column near the anchor'
+    };
   }
 
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
   const moved = Math.hypot(best.wx - anchorX, best.wz - anchorZ);
+  const isWater = best.ground === BLOCKS.WATER;
   return {
     x: best.wx + 0.5,
     y: best.standY,
     z: best.wz + 0.5,
     groundY: best.groundY,
     found: true,
-    reason: moved === 0 ? 'anchor column is clear' : `moved ${moved.toFixed(1)} blocks from the anchor for clear ground`
+    reason: isWater
+      ? 'spawned floating at sea surface'
+      : (moved === 0 ? 'anchor column is clear' : `moved ${moved.toFixed(1)} blocks from the anchor for clear ground`)
   };
 }
 

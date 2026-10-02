@@ -308,6 +308,25 @@ export class TextureManager {
       this.ctx.fillStyle = '#f43f5e';
       this.ctx.fillRect(x + 4, y + 6, 2, 2);
       this.ctx.fillRect(x + 9, y + 10, 2, 2);
+    } else if (n.includes('chest_lock')) {
+      this.ctx.fillStyle = '#1f2937';
+      this.ctx.fillRect(x + 5, y + 5, 6, 6);
+      this.ctx.fillStyle = '#9ca3af';
+      this.ctx.fillRect(x + 6, y + 6, 4, 4);
+    } else if (n.includes('chest')) {
+      // Dark border on chest edges
+      this.ctx.fillStyle = '#4a2810';
+      this.ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
+      // Plank division
+      this.ctx.fillRect(x + 1, y + 5, s - 2, 1);
+      this.ctx.fillRect(x + 1, y + 10, s - 2, 1);
+      if (n.includes('front')) {
+        // Lock latch on front
+        this.ctx.fillStyle = '#e5e7eb';
+        this.ctx.fillRect(x + 6, y + 4, 4, 6);
+        this.ctx.fillStyle = '#1f2937';
+        this.ctx.fillRect(x + 7, y + 7, 2, 2);
+      }
     }
   }
 
@@ -337,6 +356,16 @@ export class TextureManager {
   }
 
   getFaceUVs(blockId, face) {
+    if (typeof blockId === 'string') {
+      const tex = blockId.endsWith('.png') ? blockId : `${blockId}.png`;
+      if (this.tileCoords[tex]) return this.tileCoords[tex];
+      if (this.tileCoords[blockId]) return this.tileCoords[blockId];
+      const upperName = blockId.toUpperCase();
+      if (BLOCKS[upperName] !== undefined && BLOCK_DEFS[BLOCKS[upperName]]) {
+        blockId = BLOCKS[upperName];
+      }
+    }
+
     const def = BLOCK_DEFS[blockId];
     if (!def || !def.textures) {
       return { u0: 0, v0: 0, u1: 1 / 16, v1: 1 / 16 };

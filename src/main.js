@@ -20,6 +20,7 @@ import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
 import { encodeScreenshotDataUrl } from './agentProviders.js';
+import { startZombieVillagerCure } from './villagerEconomy.js';
 import {
   DEFAULT_BATCH_SIZE,
   ProgressOverlay,
@@ -52,9 +53,13 @@ import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
 import { ChestManager } from './chest.js';
+import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { EnchantingManager } from './enchanting.js';
 import { NetherPortalManager } from './netherPortal.js';
+import { RaidManager } from './raids.js';
+import { DeepDarkWardenManager } from './deepDarkWarden.js';
+import { BossFightManager } from './bossFights.js';
 
 
 class Game {
@@ -108,6 +113,7 @@ class Game {
     this.sounds = new SoundEngine();
     this.textures = new TextureManager();
     this.world = new World();
+    this.world.game = this;
     this.weather = new WeatherManager(this.scene, this.sounds);
     this.geminiAgent = new WorldAgent(this);
     this.mesher = null;
@@ -156,6 +162,8 @@ class Game {
     this.shader = new LightweightShader(this);
     this.shader.bindButton(document.getElementById('btn-shader'));
     this.mesher = new ChunkMesher(this.textures);
+    this.mesher.game = this;
+    this.world.game = this;
 
     // 2. Initialize Player & Controls
     this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds);
@@ -202,9 +210,18 @@ class Game {
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
     this.chestManager = new ChestManager(this);
+    this.world.chestManager = this.chestManager;
+    this.doorManager = new DoorManager(this);
+    this.world.doorManager = this.doorManager;
     this.farmingManager = new FarmingManager(this);
     this.enchantingManager = new EnchantingManager(this);
     this.portalManager = new NetherPortalManager(this);
+    this.raidManager = new RaidManager(this.mobs, this.world, this.sounds, this.ui, this.entities);
+    this.raidManager.game = this;
+    this.deepDarkManager = new DeepDarkWardenManager(this.mobs, this.world, this.sounds, this.ui);
+    this.deepDarkManager.game = this;
+    this.bossManager = new BossFightManager(this.mobs, this.world, this.sounds, this.ui, this.entities);
+    this.bossManager.game = this;
     this.currentDimension = 'overworld';
 
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
@@ -276,6 +293,21 @@ class Game {
       }
       this.scene.fog.near = this.normalFogNear;
       this.scene.fog.far = this.normalFogFar;
+    }
+
+    if (def && (def.isNether || this.world.isNether)) {
+      if (this.sky) {
+        this.sky.disabled = true;
+        if (this.sky.mesh) this.sky.mesh.visible = false;
+      }
+      if (this.dirLight) this.dirLight.intensity = 0.2;
+      if (this.ambientLight) {
+        this.ambientLight.color.setHex(def.fogColor || 0x330808);
+        this.ambientLight.intensity = 0.7;
+      }
+    } else if (this.sky) {
+      this.sky.disabled = false;
+      if (this.sky.mesh) this.sky.mesh.visible = true;
     }
 
     await this.loadWorldProgressively();
@@ -571,6 +603,20 @@ class Game {
       this.ambientLight.intensity = 0.55;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
+    } else if (newDim === 'the_end') {
+      if (this.sky?.mesh) this.sky.mesh.visible = false;
+      this.normalBgColor = new THREE.Color(0x0a0515);
+      this.scene.background.copy(this.normalBgColor);
+      this.scene.fog.color.copy(new THREE.Color(0x100820));
+      this.normalFogNear = 20;
+      this.normalFogFar = 75;
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
+      this.ambientLight.color.setHex(0x3b1d54);
+      this.ambientLight.intensity = 0.45;
+      this.sunLight.intensity = 0;
+      this.moonLight.intensity = 0;
+      this.bossManager?.initEndArena();
     } else {
       if (this.sky?.mesh) this.sky.mesh.visible = true;
       this.normalBgColor = new THREE.Color(0x78a7ff);
@@ -656,57 +702,151 @@ class Game {
 
     if (biomeId && biomeId !== 'all') {
       if (biomeId === 'mushroom_fields') {
-        this.mobs.spawnMooshroom(3.5, getGround(3.5, 3.5), 3.5);
-        this.mobs.spawnMooshroom(6.5, getGround(6.5, -2.5), -2.5);
-        this.mobs.spawnMooshroom(8.5, getGround(8.5, 2.5), 2.5);
+        this.mobs.spawnMooshroom?.(3.5, getGround(3.5, 3.5), 3.5);
+        this.mobs.spawnMooshroom?.(6.5, getGround(6.5, -2.5), -2.5);
+        this.mobs.spawnMooshroom?.(8.5, getGround(8.5, 2.5), 2.5);
         return;
       }
       if (biomeId === 'deep_dark') {
-        this.mobs.spawnWarden(5.0, getGround(5.0, 5.0), 5.0);
+        this.mobs.spawnWarden?.(5.0, getGround(5.0, 5.0), 5.0);
         return;
       }
-      if (def?.isNether) {
-        this.mobs.spawnBlaze(4.0, getGround(4.0, 4.0), 4.0);
-        this.mobs.spawnPiglin(7.0, getGround(7.0, 2.0), 2.0);
-        this.mobs.spawnGhast(10.0, getGround(10.0, 8.0) + 4, 8.0);
-        this.mobs.spawnMagmaCube(2.0, getGround(2.0, -4.0), -4.0);
+      if (def?.isNether || this.world.isNether) {
+        const sea = this.world.seaLevel || 14;
+        if (biomeId === 'crimson_forest') {
+          this.mobs.spawnPiglin?.(4.0, getGround(4.0, 4.0), 4.0);
+          this.mobs.spawnPiglin?.(6.0, getGround(6.0, 2.0), 2.0);
+          this.mobs.spawnHoglin?.(8.0, getGround(8.0, -3.0), -3.0);
+          this.mobs.spawnZombifiedPiglin?.(2.0, getGround(2.0, -4.0), -4.0);
+          this.mobs.spawnStrider?.(0.0, sea + 1.01, 10.0);
+          return;
+        }
+        if (biomeId === 'warped_forest') {
+          this.mobs.spawnEnderman?.(4.0, getGround(4.0, 4.0), 4.0);
+          this.mobs.spawnEnderman?.(8.0, getGround(8.0, -3.0), -3.0);
+          this.mobs.spawnEnderman?.(2.0, getGround(2.0, -5.0), -5.0);
+          this.mobs.spawnStrider?.(0.0, sea + 1.01, 10.0);
+          return;
+        }
+        if (biomeId === 'soul_sand_valley') {
+          this.mobs.spawnSkeleton?.(4.0, getGround(4.0, 4.0), 4.0);
+          this.mobs.spawnGhast?.(10.0, getGround(10.0, 8.0) + 4, 8.0);
+          this.mobs.spawnEnderman?.(2.0, getGround(2.0, -4.0), -4.0);
+          this.mobs.spawnStrider?.(0.0, sea + 1.01, 10.0);
+          return;
+        }
+        if (biomeId === 'basalt_deltas') {
+          this.mobs.spawnMagmaCube?.(4.0, getGround(4.0, 4.0), 4.0);
+          this.mobs.spawnMagmaCube?.(7.0, getGround(7.0, 2.0), 2.0);
+          this.mobs.spawnGhast?.(10.0, getGround(10.0, 8.0) + 4, 8.0);
+          this.mobs.spawnStrider?.(0.0, sea + 1.01, 10.0);
+          return;
+        }
+        // nether_wastes & general dynamic nether
+        this.mobs.spawnZombifiedPiglin?.(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnPiglin?.(7.0, getGround(7.0, 2.0), 2.0);
+        this.mobs.spawnHoglin?.(2.0, getGround(2.0, 6.0), 6.0);
+        this.mobs.spawnGhast?.(10.0, getGround(10.0, 8.0) + 4, 8.0);
+        this.mobs.spawnMagmaCube?.(2.0, getGround(2.0, -4.0), -4.0);
+        this.mobs.spawnBlaze?.(5.0, getGround(5.0, -2.0) + 1, -2.0);
+        this.mobs.spawnWitherSkeleton?.(-4.0, getGround(-4.0, -2.0), -2.0);
+        this.mobs.spawnStrider?.(0.0, sea + 1.01, 10.0);
+        return;
+      }
+      if (def?.isOcean || ['ocean', 'deep_ocean', 'warm_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean', 'cold_ocean', 'deep_cold_ocean', 'frozen_ocean', 'deep_frozen_ocean'].includes(biomeId)) {
+        const sea = this.world.seaLevel || 24;
+        const groundY = (x, z) => getGround(x, z);
+
+        if (biomeId === 'frozen_ocean' || biomeId === 'deep_frozen_ocean') {
+          // Polar bears roaming on the ice surface
+          this.mobs.spawnPolarBear?.(4.0, sea + 1.01, 4.0);
+          this.mobs.spawnPolarBear?.(8.0, sea + 1.01, -2.0);
+          // Underwater underneath ice sheet
+          const midY = Math.max(10, Math.floor((sea + groundY(2.0, 5.0)) / 2));
+          this.mobs.spawnSalmon?.(2.0, midY, 5.0);
+          this.mobs.spawnGlowSquid?.(6.0, Math.max(8, midY - 2), 2.0);
+          this.mobs.spawnDrowned?.(5.0, groundY(5.0, -4.0), -4.0);
+          if (biomeId === 'deep_frozen_ocean') {
+            this.mobs.spawnGuardian?.(0.0, Math.max(8, sea - 6), 0.0);
+          }
+          return;
+        }
+
+        if (biomeId === 'warm_ocean') {
+          this.mobs.spawnDolphin?.(6.0, sea - 0.5, 3.0);
+          const midY = Math.max(8, Math.floor((sea + groundY(3.0, 4.0)) / 2));
+          this.mobs.spawnSalmon?.(3.0, midY + 2, 4.0);
+          this.mobs.spawnSalmon?.(4.5, midY + 1, 5.0);
+          this.mobs.spawnSquid?.(2.0, midY, 2.0);
+          this.mobs.spawnDrowned?.(5.0, groundY(5.0, -3.0), -3.0);
+          return;
+        }
+
+        if (biomeId.startsWith('deep_')) {
+          this.mobs.spawnGuardian?.(4.0, Math.max(10, sea - 6), 4.0);
+          this.mobs.spawnGlowSquid?.(2.0, Math.max(8, sea - 8), 5.0);
+          this.mobs.spawnDolphin?.(7.0, sea - 0.5, 2.0);
+          this.mobs.spawnCod?.(1.0, sea - 3, 3.0);
+          this.mobs.spawnSalmon?.(5.0, sea - 4, -2.0);
+          this.mobs.spawnDrowned?.(6.0, groundY(6.0, -2.0), -2.0);
+          return;
+        }
+
+        // Standard Ocean, Lukewarm Ocean, Cold Ocean
+        this.mobs.spawnDolphin?.(7.0, sea - 0.5, 2.0);
+        const midY = Math.max(8, Math.floor((sea + groundY(3.0, 3.0)) / 2));
+        this.mobs.spawnCod?.(2.0, midY + 2, 4.0);
+        this.mobs.spawnSalmon?.(4.0, midY + 1, -2.0);
+        this.mobs.spawnSquid?.(1.0, midY, 2.0);
+        this.mobs.spawnGlowSquid?.(-2.0, Math.max(8, midY - 1), 3.0);
+        this.mobs.spawnDrowned?.(5.0, groundY(5.0, -2.0), -2.0);
         return;
       }
       if (def?.isEnd) {
-        this.mobs.spawnEnderman(4.0, getGround(4.0, 4.0), 4.0);
-        this.mobs.spawnEnderman(7.0, getGround(7.0, -2.0), -2.0);
-        this.mobs.spawnShulker(2.0, getGround(2.0, 6.0), 6.0);
-        this.mobs.spawnShulker(8.0, getGround(8.0, 8.0), 8.0);
+        this.mobs.spawnEnderman?.(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnEnderman?.(7.0, getGround(7.0, -2.0), -2.0);
+        this.mobs.spawnShulker?.(2.0, getGround(2.0, 6.0), 6.0);
+        this.mobs.spawnShulker?.(8.0, getGround(8.0, 8.0), 8.0);
         return;
       }
       if (biomeId === 'bamboo_jungle' || biomeId === 'sparse_jungle') {
-        this.mobs.spawnPanda(4.0, getGround(4.0, 4.0), 4.0);
-        this.mobs.spawnPanda(8.0, getGround(8.0, -3.0), -3.0);
-        this.mobs.spawnPig(6.5, getGround(6.5, 2.5), 2.5);
+        this.mobs.spawnPanda?.(4.0, getGround(4.0, 4.0), 4.0);
+        this.mobs.spawnPanda?.(8.0, getGround(8.0, -3.0), -3.0);
+        this.mobs.spawnPig?.(6.5, getGround(6.5, 2.5), 2.5);
+        this.mobs.spawnOcelot?.(2.0, getGround(2.0, 1.0), 1.0);
         return;
       }
       if (['snowy_plains', 'ice_spikes', 'frozen_ocean', 'frozen_peaks', 'grove'].includes(biomeId)) {
-        this.mobs.spawnPolarBear(5.0, getGround(5.0, 4.0), 4.0);
-        this.mobs.spawnPolarBear(8.0, getGround(8.0, -2.0), -2.0);
+        this.mobs.spawnPolarBear?.(5.0, getGround(5.0, 4.0), 4.0);
+        this.mobs.spawnPolarBear?.(8.0, getGround(8.0, -2.0), -2.0);
         return;
       }
     }
 
     // Villagers near path and house
-    this.mobs.spawnVillager(2.0, getGround(2.0, 3.5), 3.5);
-    this.mobs.spawnVillager(5.5, getGround(5.5, 5.5), 5.5);
-    this.mobs.spawnVillager(7.5, getGround(7.5, 3.5), 3.5);
+    this.mobs.spawnVillager?.(2.0, getGround(2.0, 3.5), 3.5);
+    this.mobs.spawnVillager?.(5.5, getGround(5.5, 5.5), 5.5);
+    this.mobs.spawnVillager?.(7.5, getGround(7.5, 3.5), 3.5);
 
     // Iron Golem village guardian in front of cottage!
-    this.mobs.spawnIronGolem(3.8, getGround(3.8, 1.5), 1.5);
+    this.mobs.spawnIronGolem?.(3.8, getGround(3.8, 1.5), 1.5);
 
-    // Pillager patrol on the meadow outskirts
-    this.mobs.spawnPillager(14.5, getGround(14.5, 12.5), 12.5);
-    this.mobs.spawnPillager(12.5, getGround(12.5, 14.5), 14.5);
+    // Pillager patrol on the meadow outskirts (one is Raid Captain with banner)
+    const captain = this.mobs.spawnPillager?.(14.5, getGround(14.5, 12.5), 12.5);
+    if (captain) {
+      captain.isRaidCaptain = true;
+      captain.hasBanner = true;
+    }
+    this.mobs.spawnPillager?.(12.5, getGround(12.5, 14.5), 14.5);
 
     // Passive animals in meadow
-    this.mobs.spawnPig(6.5, getGround(6.5, -2.5), -2.5);
-    this.mobs.spawnPig(8.5, getGround(8.5, 2.5), 2.5);
+    this.mobs.spawnPig?.(6.5, getGround(6.5, -2.5), -2.5);
+    this.mobs.spawnCow?.(8.5, getGround(8.5, 2.5), 2.5);
+    this.mobs.spawnSheep?.(9.5, getGround(9.5, -1.5), -1.5);
+    this.mobs.spawnChicken?.(4.5, getGround(4.5, -3.5), -3.5);
+    this.mobs.spawnHorse?.(11.5, getGround(11.5, 4.5), 4.5);
+    this.mobs.spawnWolf?.(5.0, getGround(5.0, -5.0), -5.0);
+    this.mobs.spawnCat?.(3.0, getGround(3.0, 1.0), 1.0);
   }
 
   bindEvents() {
@@ -866,6 +1006,19 @@ class Game {
   }
 
   handleLeftClick() {
+    const lookDir = this.camera?.getWorldDirection(new THREE.Vector3()) || new THREE.Vector3(0, 0, -1);
+
+    // 1. Deflect hostile projectiles (e.g. Ghast fireballs)
+    if (this.mobs?.hostileBehaviors?.handlePlayerAttackProjectile(this.player.position, lookDir)) {
+      if (this.sounds?.playPunch) this.sounds.playPunch();
+      return;
+    }
+
+    // 2. Check End Crystal hit
+    if (this.bossManager?.checkCrystalHit(this.camera.position, lookDir)) {
+      return;
+    }
+
     // Attack mob if target mob is looked at
     if (this.targetMob) {
       const activeItem = this.inventory.getActiveItem();
@@ -913,7 +1066,93 @@ class Game {
       return;
     }
 
+    // Piglin bartering
+    if (this.targetMob && this.targetMob.type === 'piglin') {
+      if (this.mobs?.hostileBehaviors?.interactPiglin(this.targetMob, this.player)) {
+        return;
+      }
+    }
+
+    // Animal breeding, taming, milking, shearing, dyeing, sitting, mounting
+    const canInteractWith = (m) => this.mobs?.animalBehaviors?.canInteract ? this.mobs.animalBehaviors.canInteract(m, this.player, this.inventory) : true;
+    let interactMob = (this.targetMob && canInteractWith(this.targetMob)) ? this.targetMob : null;
+
+    if (!interactMob && this.mobs?.mobs) {
+      // Proximity & look cone fallback for interactable animals within reach
+      const camPos = this.camera.position;
+      const camDir = new THREE.Vector3();
+      this.camera.getWorldDirection(camDir);
+      let closestDist = 3.8;
+      for (const m of this.mobs.mobs) {
+        if (m.health <= 0 || m.dying) continue;
+        if (!canInteractWith(m)) continue;
+        const dims = this.mobs?.getMobDimensions ? this.mobs.getMobDimensions(m.type) : { width: 0.9, height: 1.4 };
+        const scale = m.isBaby ? 0.5 : 1.0;
+        const center = m.mesh.position.clone().add(new THREE.Vector3(0, (dims.height || 1.2) * scale * 0.5, 0));
+        const toMob = center.clone().sub(camPos);
+        const dist = toMob.length();
+        if (dist < closestDist) {
+          toMob.normalize();
+          if (toMob.dot(camDir) > 0.45) {
+            closestDist = dist;
+            interactMob = m;
+          }
+        }
+      }
+    }
+    if (!interactMob) interactMob = this.targetMob;
+
+    if (interactMob) {
+      if (this.mobs?.animalBehaviors?.interact(interactMob, this.player)) {
+        this.ui?.updateHotbar?.();
+        return;
+      }
+    }
+
+    // Active item action (throwing egg, boosting pig/strider with carrot/fungus on stick)
+    if (this.mobs?.animalBehaviors?.handleActiveItemUse(this.player, this.inventory)) {
+      return;
+    }
+
+    // Splash Potion of Weakness throwing
+    const splashItem = this.inventory.getActiveItem();
+    if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness')) {
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem(1);
+        this.ui.updateHotbar();
+      }
+      this.sounds?.playBow?.();
+      const splashPos = this.player.position.clone().add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+      for (const m of this.mobs?.mobs || []) {
+        if (m.health > 0 && m.mesh && m.mesh.position.distanceTo(splashPos) < 5.0) {
+          m.hasWeakness = true;
+          m.statusEffects = m.statusEffects || {};
+          m.statusEffects.weakness = 60.0;
+        }
+      }
+      this.mobs?.spawnParticleBurst?.(splashPos, 0x4a044e, 16);
+      this.sounds?.playPotionSplash?.();
+      return;
+    }
+
     const bucketItem = this.inventory.getActiveItem();
+    // Milk bucket drinking (clears status effects)
+    if (bucketItem && bucketItem.id === 'milk_bucket') {
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem(1);
+        this.inventory.addItem('bucket', 1, false);
+      }
+      this.player.clearStatusEffect?.('poison');
+      this.player.clearStatusEffect?.('wither');
+      this.player.clearStatusEffect?.('mining_fatigue');
+      this.player.clearStatusEffect?.('bad_omen');
+      this.player.clearStatusEffect?.('darkness');
+      this.player.clearStatusEffect?.('slowness');
+      if (this.sounds?.playMilk) this.sounds.playMilk();
+      this.ui?.updateHotbar?.();
+      this.ui?.updateStats?.();
+      return;
+    }
     if (isBucket(bucketItem)) {
       const direction = this.camera.getWorldDirection(new THREE.Vector3());
       const hit = traceBucket(this.world, this.camera.position, direction, bucketItem.id === 'bucket');
@@ -932,8 +1171,23 @@ class Game {
       return;
     }
 
-    // Mount a nearby minecart or boat before anything block-related, so a cart can
-    // be boarded even while the crosshair is on the rail beneath it.
+    // Interacting with Zombie Villager (Curing Ritual)
+    if (this.targetMob && this.targetMob.type === 'zombie_villager') {
+      const activeItem = this.inventory.getActiveItem();
+      if ((activeItem?.id === 'golden_apple' || activeItem?.id === 'enchanted_golden_apple') && (this.targetMob.hasWeakness || (this.targetMob.statusEffects && this.targetMob.statusEffects.weakness > 0))) {
+        if (startZombieVillagerCure(this.targetMob, activeItem, this.sounds)) {
+          if (this.player.gamemode !== 'creative') {
+            this.inventory.consumeActiveItem(1);
+            this.ui.updateHotbar();
+          }
+          this.sounds?.playLevelUp?.();
+          this.ui?.addChatMessage?.('Zombie Villager began curing ritual!', 'system');
+          return;
+        }
+      }
+    }
+
+    // Mount or interact with a nearby minecart or boat before anything block-related
     if (this.railSystem) {
       if (this.riding) {
         this.dismount();
@@ -945,11 +1199,34 @@ class Game {
       const reach = this.player.position.clone().addScaledVector(look, 3);
       const vehicle = this.railSystem.nearestVehicle(reach, 3);
       if (vehicle) {
+        let activeItem = this.inventory.getActiveItem();
+        // Fueling furnace minecart with coal/charcoal
+        if (vehicle.subType === 'furnace_minecart' && activeItem && (activeItem.id === 'coal' || activeItem.id === 'charcoal')) {
+          this.railSystem.addFuel(vehicle, 3600);
+          this.sounds.playPlace('stone');
+          if (this.player.gamemode !== 'creative') {
+            this.inventory.consumeActiveItem();
+            this.ui.updateHotbar();
+          }
+          this.ui?.addChatMessage?.('Furnace Minecart fueled with coal.', 'system');
+          return;
+        }
+        // Opening container on Chest Boat or Chest Minecart
+        if ((vehicle.hasChest || vehicle.subType === 'chest_minecart') && (this.player.isSneaking || vehicle.subType === 'chest_minecart')) {
+          this.sounds.playChestOpen?.();
+          this.ui?.openVehicleChestModal?.(vehicle);
+          return;
+        }
+        // Mounting
         this.riding = vehicle;
-        vehicle.rider = this.player;
+        if (!vehicle.rider) {
+          vehicle.rider = this.player;
+        } else if (!vehicle.passenger && !vehicle.hasChest) {
+          vehicle.passenger = this.player;
+        }
         this.sounds.playClick();
         this.ui?.addChatMessage?.(vehicle.kind === 'boat'
-          ? 'Boarding the boat — W to row, sneak to step off.'
+          ? 'Boarded the boat — W/S to row, A/D to steer, sneak to step off.'
           : 'Boarded the minecart — sneak to step off.', 'system');
         return;
       }
@@ -971,6 +1248,30 @@ class Game {
     const bY = this.targetBlock.y;
     const bZ = this.targetBlock.z;
     const clickedBlock = this.world.getVoxel(bX, bY, bZ);
+    const clickedDef = BLOCK_DEFS[clickedBlock];
+
+    // Door interaction (swing open/close)
+    if (clickedDef?.door) {
+      if (this.doorManager) {
+        const res = this.doorManager.toggleDoor(bX, bY, bZ);
+        if (!res.success && res.reason) {
+          this.ui?.addChatMessage?.(res.reason, 'system');
+        }
+      }
+      return;
+    }
+
+    // Trapdoor interaction (swing open/close)
+    if (clickedDef?.trapdoor) {
+      if (this.doorManager) {
+        const res = this.doorManager.toggleTrapdoor(bX, bY, bZ);
+        if (!res.success && res.reason) {
+          this.ui?.addChatMessage?.(res.reason, 'system');
+        }
+      }
+      return;
+    }
+
     const control=this.world.redstone.interact([bX,bY,bZ],this.player.isSneaking,this.inventory.getActiveItem());
     if(control){for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
 
@@ -997,11 +1298,26 @@ class Game {
     }
 
     // Chest interaction (Open Single or Double Chest GUI)
+    // Sneaking while holding a placeable block places against the chest instead of opening it
     if (clickedBlock === BLOCKS.CHEST) {
-      if (this.chestManager) {
-        this.chestManager.interact(bX, bY, bZ, this.player);
+      const isSneaking = Boolean(this.player.isSneaking || this.player.keys?.['ShiftLeft'] || this.player.keys?.['ShiftRight']);
+      const isHoldingPlaceable = Boolean(
+        activeItem && (
+          activeItem.isBlock ||
+          activeItem.id === BLOCKS.CHEST ||
+          activeItem.id === 'chest' ||
+          activeItem.id === 'red_bed' ||
+          activeItem.id === 'bed' ||
+          ITEMS[activeItem.id]?.isBlock ||
+          BLOCK_DEFS[activeItem.id]
+        )
+      );
+      if (!isSneaking || !isHoldingPlaceable) {
+        if (this.chestManager) {
+          this.chestManager.interact(bX, bY, bZ, this.player);
+        }
+        return;
       }
-      return;
     }
 
     // Enchanting Table interaction (Open Enchanting Table GUI)
@@ -1099,7 +1415,10 @@ class Game {
       }
       return;
     }
-    if(activeItem?.id==='redstone'&&!activeItem.isBlock)activeItem={...activeItem,id:BLOCKS.REDSTONE_WIRE,isBlock:true};
+    if (activeItem?.id === 'redstone' && !activeItem.isBlock) activeItem = { ...activeItem, id: BLOCKS.REDSTONE_WIRE, isBlock: true };
+    if ((activeItem?.id === 'chest' || activeItem?.id === BLOCKS.CHEST || ITEMS[activeItem?.id]?.blockId === BLOCKS.CHEST) && !activeItem.isBlock) {
+      activeItem = { ...activeItem, id: BLOCKS.CHEST, isBlock: true };
+    }
     if (activeItem && !activeItem.isBlock) {
       // Experience Bottle throw & shatter
       if (activeItem.id === 'experience_bottle') {
@@ -1132,17 +1451,15 @@ class Game {
         }
       }
 
-      // Minecarts, rails and boats are props rather than blocks: a cart is placed onto
-    // the rail it is aimed at, and a boat is put down on water.
-    if (!activeItem?.isBlock && activeItem && (activeItem.id === 'minecart' || activeItem.id === 'chest_minecart' || activeItem.id === 'oak_boat')) {
+      if (!activeItem?.isBlock && activeItem && ['minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart', 'oak_boat', 'chest_boat'].includes(activeItem.id)) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
       const px = bX + norm.x + 0.5;
       const py = bY + norm.y + 0.05;
       const pz = bZ + norm.z + 0.5;
 
-      if (activeItem.id === 'oak_boat') {
-        this.railSystem.spawnBoat([px, py, pz]);
-        this.ui?.addChatMessage?.('Boat placed. Right-click it to ride.', 'system');
+      if (activeItem.id === 'oak_boat' || activeItem.id === 'chest_boat') {
+        this.railSystem.spawnBoat([px, py, pz], { subType: activeItem.id, hasChest: activeItem.id === 'chest_boat' });
+        this.ui?.addChatMessage?.(activeItem.id === 'chest_boat' ? 'Boat with Chest placed.' : 'Boat placed. Right-click it to ride.', 'system');
       } else {
         // A cart needs rail under it; offer to lay one if there is none.
         if (!this.railSystem.nearestRail([bX, bY, bZ], 1)) {
@@ -1150,8 +1467,9 @@ class Game {
           this.world.redstone.configure([bX, bY, bZ], 0);
           this.refreshDirtyChunks();
         }
-        this.railSystem.spawnCart([px, py, pz]);
-        this.ui?.addChatMessage?.('Minecart placed. Right-click it to ride.', 'system');
+        this.railSystem.spawnCart([px, py, pz], { subType: activeItem.id });
+        const name = ITEMS[activeItem.id]?.name || 'Minecart';
+        this.ui?.addChatMessage?.(`${name} placed. Right-click to interact.`, 'system');
       }
       this.sounds.playPlace('stone');
       if (this.player.gamemode !== 'creative') {
@@ -1181,6 +1499,7 @@ class Game {
         else if (mobType === 'skeleton') this.mobs.spawnSkeleton(sx, sy, sz);
         else if (mobType === 'creeper') this.mobs.spawnCreeper(sx, sy, sz);
         else if (mobType === 'pig') this.mobs.spawnPig(sx, sy, sz);
+        else if (mobType === 'chicken') this.mobs.spawnChicken(sx, sy, sz);
         else if (mobType === 'cow') this.mobs.spawnCow(sx, sy, sz);
         else if (mobType === 'sheep') this.mobs.spawnSheep(sx, sy, sz);
         else if (mobType === 'salmon') this.mobs.spawnSalmon(sx, sy, sz);
@@ -1227,8 +1546,65 @@ class Game {
       return;
     }
 
-    // Place Block on adjacent targeted face
-    if (activeItem && activeItem.isBlock && this.targetBlock.normal) {
+    // Place Door (occupies 2 blocks tall: bottom and top)
+    const isDoorToPlace = Boolean(
+      activeItem && (
+        activeItem.id === 'oak_door' ||
+        activeItem.id === 'iron_door' ||
+        activeItem.id === BLOCKS.OAK_DOOR ||
+        activeItem.id === BLOCKS.IRON_DOOR ||
+        activeItem.blockId === BLOCKS.OAK_DOOR ||
+        activeItem.blockId === BLOCKS.IRON_DOOR ||
+        ITEMS[activeItem.id]?.blockId === BLOCKS.OAK_DOOR ||
+        ITEMS[activeItem.id]?.blockId === BLOCKS.IRON_DOOR
+      )
+    );
+
+    if (isDoorToPlace && this.targetBlock.normal) {
+      const placeX = bX + this.targetBlock.normal.x;
+      const placeY = bY + this.targetBlock.normal.y;
+      const placeZ = bZ + this.targetBlock.normal.z;
+
+      const look = new THREE.Vector3();
+      this.camera.getWorldDirection(look);
+      let dir = 3;
+      if (Math.abs(look.x) > Math.abs(look.z)) {
+        dir = look.x > 0 ? 0 : 1;
+      } else {
+        dir = look.z > 0 ? 2 : 3;
+      }
+
+      const isIron = Boolean(
+        activeItem.id === 'iron_door' ||
+        activeItem.id === BLOCKS.IRON_DOOR ||
+        activeItem.blockId === BLOCKS.IRON_DOOR ||
+        ITEMS[activeItem.id]?.blockId === BLOCKS.IRON_DOOR
+      );
+
+      const res = this.doorManager.placeDoor(this.world, [placeX, placeY, placeZ], dir, isIron);
+      if (res.success) {
+        this.sounds.playPlace(isIron ? 'metal' : 'wood');
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+      } else {
+        this.ui?.addChatMessage?.(res.reason || 'Door cannot be placed here', 'error');
+      }
+      return;
+    }
+
+    // Place Chest (Single or Double Chest)
+    const isChestToPlace = Boolean(
+      activeItem && (
+        activeItem.id === BLOCKS.CHEST ||
+        activeItem.id === 'chest' ||
+        activeItem.blockId === BLOCKS.CHEST ||
+        ITEMS[activeItem.id]?.blockId === BLOCKS.CHEST
+      )
+    );
+
+    if (isChestToPlace && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
       const placeY = bY + this.targetBlock.normal.y;
       const placeZ = bZ + this.targetBlock.normal.z;
@@ -1250,33 +1626,70 @@ class Game {
       );
 
       if (!collidesWithPlayer) {
-        if (activeItem.id === BLOCKS.CHEST || activeItem.id === 'chest') {
-          const facing = this.chestManager ? this.chestManager.getFacingFromCamera(this.camera) : 0;
-          if (this.chestManager) {
-            this.chestManager.placeChest(this.world, [placeX, placeY, placeZ], facing);
-          } else {
-            this.world.setVoxel(placeX, placeY, placeZ, BLOCKS.CHEST);
-          }
-          this.sounds.playPlace('wood');
-          if (this.player.gamemode !== 'creative') {
-            this.inventory.consumeActiveItem();
-            this.ui.updateHotbar();
-          }
-          return;
+        const facing = this.chestManager ? this.chestManager.getFacingFromCamera(this.camera) : 0;
+        if (this.chestManager) {
+          this.chestManager.placeChest(this.world, [placeX, placeY, placeZ], facing);
+        } else {
+          this.world.setVoxel(placeX, placeY, placeZ, BLOCKS.CHEST);
         }
+        this.sounds.playPlace('wood');
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+        const cx = Math.floor(placeX / 16);
+        const cz = Math.floor(placeZ / 16);
+        const chunk = this.world.getChunk(cx, cz);
+        if (chunk) this.rebuildChunkMesh(chunk);
+        this.refreshDirtyChunks();
+        return;
+      }
+      return;
+    }
 
-        this.world.setVoxel(placeX, placeY, placeZ, activeItem.id);
+    // Place Block on adjacent targeted face
+    if (activeItem && (activeItem.isBlock || BLOCK_DEFS[activeItem.id] || ITEMS[activeItem.id]?.isBlock) && this.targetBlock.normal) {
+      const placeX = bX + this.targetBlock.normal.x;
+      const placeY = bY + this.targetBlock.normal.y;
+      const placeZ = bZ + this.targetBlock.normal.z;
+
+      // Check player bounding box collision before placing
+      const playerPos = this.player.position;
+      const hw = this.player.width / 2;
+      const pMinX = playerPos.x - hw;
+      const pMaxX = playerPos.x + hw;
+      const pMinY = playerPos.y;
+      const pMaxY = playerPos.y + this.player.height;
+      const pMinZ = playerPos.z - hw;
+      const pMaxZ = playerPos.z + hw;
+
+      const collidesWithPlayer = (
+        placeX + 1 > pMinX && placeX < pMaxX &&
+        placeY + 1 > pMinY && placeY < pMaxY &&
+        placeZ + 1 > pMinZ && placeZ < pMaxZ
+      );
+
+      if (!collidesWithPlayer) {
+        const blockIdToPlace = activeItem.isBlock ? activeItem.id : (ITEMS[activeItem.id]?.blockId || activeItem.id);
+
+        this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
 
-        const def = BLOCK_DEFS[activeItem.id];
+        const def = BLOCK_DEFS[blockIdToPlace];
         this.sounds.playPlace(def ? def.sound : 'wood');
 
         if (this.player.gamemode !== 'creative') {
           this.inventory.consumeActiveItem();
           this.ui.updateHotbar();
         }
+
+        // Check Wither summon structure
+        this.bossManager?.checkWitherSummon(placeX, placeY, placeZ);
+
+        // Sculk vibration check on block place
+        this.deepDarkManager?.onPlayerVibration(this.player.position, 1.0);
 
         // Rebuild impacted chunks
         const cx = Math.floor(placeX / 16);
@@ -1374,6 +1787,19 @@ class Game {
       if (this.chestManager) this.chestManager.onBlockBroken(x, y, z);
     }
 
+    if (BLOCK_DEFS[blockId]?.door || BLOCK_DEFS[blockId]?.trapdoor) {
+      if (this.doorManager) this.doorManager.onBlockBroken(x, y, z);
+      this.world.setVoxel(x, y, z, BLOCKS.AIR);
+      const cx = Math.floor(x / 16);
+      const cz = Math.floor(z / 16);
+      const chunk = this.world.getChunk(cx, cz);
+      if (chunk) this.rebuildChunkMesh(chunk);
+      this.targetBlock = null;
+      this.targetBoxMesh.visible = false;
+      this.breakOverlayMesh.visible = false;
+      return;
+    }
+
     if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD) {
       if (this.bedManager) this.bedManager.onBlockBroken(x, y, z);
       this.world.setVoxel(x, y, z, BLOCKS.AIR);
@@ -1389,6 +1815,9 @@ class Game {
 
     // Set air in world
     this.world.setVoxel(x, y, z, BLOCKS.AIR);
+
+    // Sculk vibration check on block break
+    this.deepDarkManager?.onPlayerVibration(this.player.position, 1.0);
 
     // Rebuild chunk mesh
     const cx = Math.floor(x / 16);
@@ -1411,12 +1840,17 @@ class Game {
     let closestMobDist = Infinity;
     for (const mob of this.mobs.mobs) {
       if (mob.health <= 0 || mob.dying) continue;
-      const mobPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-      const toMob = mobPos.clone().sub(camPos);
+      const dims = this.mobs?.getMobDimensions ? this.mobs.getMobDimensions(mob.type) : { width: 0.9, height: 1.4 };
+      const scale = mob.isBaby ? 0.5 : 1.0;
+      const width = (dims.width || 0.8) * scale;
+      const height = (dims.height || 1.4) * scale;
+      const center = mob.mesh.position.clone().add(new THREE.Vector3(0, height * 0.5, 0));
+      const toMob = center.clone().sub(camPos);
       const proj = toMob.dot(camDir);
       if (proj > 0 && proj < 4.5) {
         const perpDist = toMob.clone().sub(camDir.clone().multiplyScalar(proj)).length();
-        if (perpDist < 0.7 && proj < closestMobDist) {
+        const hitRadius = Math.max(0.85, (width * 0.5) + 0.4);
+        if (perpDist < hitRadius && proj < closestMobDist) {
           closestMobDist = proj;
           this.targetMob = mob;
         }
@@ -1751,18 +2185,49 @@ class Game {
       } else if (mobType === 'pig') {
         this.mobs.spawnPig(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned new Pig', 'system');
+      } else if (mobType === 'chicken') {
+        this.mobs.spawnChicken(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Chicken', 'system');
+      } else if (mobType === 'cow') {
+        this.mobs.spawnCow(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Cow', 'system');
+      } else if (mobType === 'sheep') {
+        this.mobs.spawnSheep(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Sheep', 'system');
       } else if (mobType === 'salmon' || mobType === 'fish') {
         this.mobs.spawnSalmon(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned new Salmon', 'system');
+      } else if (mobType === 'cod') {
+        this.mobs.spawnCod(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Cod', 'system');
+      } else if (mobType === 'guardian') {
+        this.mobs.spawnGuardian(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Guardian', 'system');
+      } else if (mobType === 'elder_guardian') {
+        this.mobs.spawnElderGuardian(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Elder Guardian', 'system');
+      } else if (mobType === 'drowned') {
+        this.mobs.spawnDrowned(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Drowned', 'system');
+      } else if (mobType === 'glow_squid') {
+        this.mobs.spawnGlowSquid(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Glow Squid', 'system');
       } else if (mobType === 'dolphin') {
         this.mobs.spawnDolphin(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned new Dolphin', 'system');
       } else if (mobType === 'octopus' || mobType === 'squid') {
-        this.mobs.spawnOctopus(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Octopus', 'system');
+        if (this.mobs.spawnSquid) {
+          this.mobs.spawnSquid(p.x + 2, p.y + 1, p.z + 2);
+        } else {
+          this.mobs.spawnOctopus(p.x + 2, p.y + 1, p.z + 2);
+        }
+        this.ui.addChatMessage('Summoned new Squid', 'system');
       } else if (mobType === 'axolotl') {
         this.mobs.spawnAxolotl(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned new Axolotl', 'system');
+      } else if (mobType === 'polar_bear') {
+        this.mobs.spawnPolarBear(p.x + 2, p.y + 1, p.z + 2);
+        this.ui.addChatMessage('Summoned new Polar Bear', 'system');
       } else if (mobType === 'tournament_host' || mobType === 'host') {
         this.mobs.spawnTournamentHost(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned Tournament Announcer Host', 'system');
@@ -1770,7 +2235,7 @@ class Game {
         this.mobs.spawnEnderman(p.x + 2, p.y + 1, p.z + 2);
         this.ui.addChatMessage('Summoned Enderman Challenger Boss', 'system');
       } else {
-        this.ui.addChatMessage('Unknown mob. Try: villager, tournament_host, enderman, iron_golem, pillager, zombie, pig, salmon, dolphin, octopus, axolotl', 'error');
+        this.ui.addChatMessage('Unknown mob. Try: villager, tournament_host, enderman, iron_golem, pillager, zombie, pig, cow, sheep, chicken, salmon, cod, dolphin, squid, glow_squid, guardian, elder_guardian, drowned, polar_bear, axolotl', 'error');
       }
     } else if (root === '/give') {
       const itName = parts[1] ? parts[1].toLowerCase() : '';
@@ -1822,20 +2287,26 @@ class Game {
    * Steering reuses the player's yaw so the same WASD handling as the rest of the
    * game drives the boat.
    */
-  updateRiding() {
+  updateRiding(dt = 0.016) {
     const vehicle = this.riding;
     if (!vehicle) return;
-    this.player.position.set(
-      vehicle.position.x,
-      vehicle.position.y + (vehicle.kind === 'boat' ? 0.6 : 0.9),
-      vehicle.position.z
-    );
-    this.player.velocity?.set?.(0, 0, 0);
-    vehicle.rider = this.player;
     if (vehicle.kind === 'boat') {
-      const input = this.input || this.controls;
-      if (input && (input.forward || input.backward)) vehicle.yaw = this.player.yaw;
+      const fX = -Math.sin(vehicle.yaw), fZ = -Math.cos(vehicle.yaw);
+      const isDriver = vehicle.rider === this.player || !vehicle.rider;
+      if (isDriver) {
+        vehicle.rider = this.player;
+        this.player.position.set(vehicle.position.x + fX * 0.2, vehicle.position.y + 0.55, vehicle.position.z + fZ * 0.2);
+        const input = this.input || this.controls;
+        if (input && (input.forward || input.backward)) vehicle.yaw = this.player.yaw;
+      } else {
+        vehicle.passenger = this.player;
+        this.player.position.set(vehicle.position.x - fX * 0.4, vehicle.position.y + 0.45, vehicle.position.z - fZ * 0.4);
+      }
+    } else {
+      this.player.position.set(vehicle.position.x, vehicle.position.y + 0.55, vehicle.position.z);
+      vehicle.rider = this.player;
     }
+    this.player.velocity?.set?.(0, 0, 0);
     if (this.player.isSneaking) this.dismount();
   }
 
@@ -1875,10 +2346,56 @@ class Game {
     this.updateMining(dt);
 
     // 4. Update Mobs AI & Projectiles
+    // A fault inside one mob must never be silent. This catch used to log to the
+    // console alone, so when one mob type threw — 28 of them did, on an unguarded
+    // `mob.mat.color` — every mob in the world stopped moving and hitting them did
+    // nothing, with no indication why. Surface it once per distinct fault instead.
     try {
       this.mobs.update(dt, this.player);
+      this.mobUpdateError = null;
     } catch (err) {
-      console.error('Error updating mobs:', err);
+      const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
+      if (this.mobUpdateError !== summary) {
+        this.mobUpdateError = summary;
+        console.error('Error updating mobs:', err);
+        this.ui?.addChatMessage?.(
+          `⚠ Mob update failed, so mobs are frozen: ${summary}. See the browser console for the full trace.`,
+          'error'
+        );
+      }
+    }
+
+    // 4b. Update Mob Expansion Managers (Raids, Deep Dark Warden, Bosses)
+    if (this.raidManager) {
+      this.raidManager.update(dt, this.player);
+      // Village entry with Bad Omen triggers Raid
+      if (this.player.hasStatusEffect?.('bad_omen') && !this.raidManager.isRaidActive) {
+        const villager = this.mobs?.mobs?.find(m => m.type === 'villager' && m.mesh?.position?.distanceTo(this.player.position) < 32);
+        if (villager) {
+          this.raidManager.startRaid(this.player, villager.mesh.position);
+        }
+      }
+    }
+    if (this.deepDarkManager) {
+      this.deepDarkManager.update(dt, this.player);
+      if (speed > 4.2 || this.player.velocity.y > 1.0) {
+        this.deepDarkManager.onPlayerVibration(this.player.position, 0.4);
+      }
+    }
+    if (this.bossManager) {
+      this.bossManager.update(dt, this.player);
+    }
+
+    // Dismount when sneaking
+    if (this.player.ridingMob && this.player.isSneaking) {
+      this.mobs?.animalBehaviors?.dismount(this.player);
+    }
+
+    // Horse jump meter
+    if (this.player.ridingMob && ['horse', 'donkey'].includes(this.player.ridingMob.type)) {
+      this.ui?.setHorseJumpMeter?.(this.player.ridingMob.jumpCharge || 0);
+    } else {
+      this.ui?.setHorseJumpMeter?.(0);
     }
 
     // 5. Update Dropped Items, TNT, & Particles

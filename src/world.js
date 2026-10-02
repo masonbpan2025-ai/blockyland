@@ -227,11 +227,27 @@ export class World {
     this.detailNoise = new FastNoise(seed + 303);
     this.featureNoise = new FastNoise(seed + 404);
     this.chunks.clear();
-    this.dimension = 'overworld';
-    this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
 
     const def = getBiomeDef(this.selectedBiome);
-    this.seaLevel = def.seaLevel !== undefined ? def.seaLevel : 22;
+    if (def?.isNether || def?.dimension === 'nether' || this.selectedBiome === 'nether') {
+      this.dimension = 'nether';
+      this.currentDimension = 'nether';
+      this.isNether = true;
+      this.seaLevel = 14;
+      this.dimensionChunks = { overworld: new Map(), nether: this.chunks };
+    } else if (def?.isEnd || def?.dimension === 'end') {
+      this.dimension = 'the_end';
+      this.currentDimension = 'the_end';
+      this.isNether = false;
+      this.seaLevel = 0;
+      this.dimensionChunks = { overworld: new Map(), the_end: this.chunks };
+    } else {
+      this.dimension = 'overworld';
+      this.currentDimension = 'overworld';
+      this.isNether = false;
+      this.seaLevel = def?.seaLevel !== undefined ? def.seaLevel : 22;
+      this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
+    }
   }
 
   switchDimension(newDim) {
@@ -273,8 +289,9 @@ export class World {
   }
 
   getBiome(wx, wz) {
-    if (this.dimension === 'nether' || this.currentDimension === 'nether') {
-      if (this.selectedBiome && getBiomeDef(this.selectedBiome)?.isNether) {
+    const isNetherDim = this.dimension === 'nether' || this.currentDimension === 'nether' || this.isNether || this.selectedBiome === 'nether';
+    if (isNetherDim) {
+      if (this.selectedBiome && this.selectedBiome !== 'all' && this.selectedBiome !== 'nether' && getBiomeDef(this.selectedBiome)?.isNether) {
         return this.selectedBiome;
       }
       const netherNoise = this.biomeNoise.noise2D(wx * 0.005, wz * 0.005);
@@ -471,7 +488,7 @@ export class World {
     }
 
     // --- 3. SPECIAL DIMENSION: THE NETHER ---
-    if (centerDef.isNether) {
+    if (centerDef.isNether || this.isNether || this.dimension === 'nether') {
       for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
         for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
           const wx = cx * CHUNK_SIZE_X + lx;
@@ -483,8 +500,8 @@ export class World {
           chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
           chunk.setVoxel(lx, CHUNK_HEIGHT - 1, lz, BLOCKS.BEDROCK);
 
-          const floorHeight = Math.min(38, Math.max(8, this.getHeight(wx, wz, bId)));
-          const ceilHeight = Math.max(floorHeight + 12, Math.min(CHUNK_HEIGHT - 2, 54));
+          const floorHeight = Math.min(36, Math.max(8, this.getHeight(wx, wz, bId)));
+          const ceilHeight = Math.max(floorHeight + 14, Math.min(CHUNK_HEIGHT - 2, 54));
 
           // Floor strata
           for (let y = 1; y <= floorHeight; y++) {
@@ -494,6 +511,16 @@ export class World {
               chunk.setVoxel(lx, y, lz, def.subsurfaceBlock || BLOCKS.NETHERRACK);
             } else {
               chunk.setVoxel(lx, y, lz, def.deepBlock || BLOCKS.NETHERRACK);
+            }
+
+            // Ore veins inside deep netherrack strata
+            if (y > 2 && y < floorHeight - 1) {
+              const oreHash = Math.abs(Math.sin(wx * 17.3 + y * 41.2 + wz * 13.7));
+              if (oreHash < 0.035) {
+                chunk.setVoxel(lx, y, lz, BLOCKS.GOLD_ORE); // Nether Gold Ore
+              } else if (oreHash < 0.065) {
+                chunk.setVoxel(lx, y, lz, BLOCKS.COAL_ORE); // Nether Quartz Ore
+              }
             }
           }
 
@@ -516,17 +543,43 @@ export class World {
             }
           }
 
-          // Floor flora
+          // Floor features & flora
           if (floorHeight >= 14 && floorHeight < CHUNK_HEIGHT - 12) {
             const hash = Math.abs(Math.sin(wx * 54.12 + wz * 31.98));
-            if (bId === 'soul_sand_valley' && hash < 0.05) {
-              chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.SOUL_TORCH);
-            } else if (bId === 'crimson_forest' && hash < 0.06) {
-              this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'crimson');
-            } else if (bId === 'warped_forest' && hash < 0.06) {
-              this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'warped');
-            } else if (bId === 'basalt_deltas' && hash < 0.08) {
-              this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
+            if (bId === 'nether_wastes' || bId === 'nether') {
+              if (hash < 0.04) {
+                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.FIRE);
+              } else if (hash < 0.08) {
+                chunk.setVoxel(lx, floorHeight, lz, BLOCKS.SOUL_SAND);
+              } else if (hash < 0.12) {
+                chunk.setVoxel(lx, floorHeight, lz, BLOCKS.GRAVEL);
+              }
+            } else if (bId === 'soul_sand_valley') {
+              if (hash < 0.04) {
+                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.SOUL_TORCH);
+              } else if (hash < 0.065) {
+                this.generateBoneFossil(chunk, lx, floorHeight + 1, lz);
+              } else if (hash < 0.1) {
+                this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
+              }
+            } else if (bId === 'crimson_forest') {
+              if (hash < 0.055) {
+                this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'crimson');
+              } else if (hash < 0.12) {
+                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.RED_MUSHROOM_BLOCK);
+              }
+            } else if (bId === 'warped_forest') {
+              if (hash < 0.055) {
+                this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'warped');
+              } else if (hash < 0.12) {
+                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.BROWN_MUSHROOM_BLOCK);
+              }
+            } else if (bId === 'basalt_deltas') {
+              if (hash < 0.08) {
+                this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
+              } else if (hash < 0.16) {
+                chunk.setVoxel(lx, floorHeight, lz, BLOCKS.MAGMA_BLOCK);
+              }
             }
           }
         }
@@ -931,16 +984,36 @@ export class World {
     const wartId = type === 'crimson' ? BLOCKS.NETHER_WART_BLOCK : BLOCKS.WARPED_WART_BLOCK;
     const stemHeight = 4 + Math.floor(Math.random() * 3);
     for (let y = 0; y < stemHeight; y++) {
-      chunk.setVoxel(lx, baseY + y, lz, stemId);
+      if (baseY + y < CHUNK_HEIGHT - 2) {
+        chunk.setVoxel(lx, baseY + y, lz, stemId);
+      }
     }
     const capY = baseY + stemHeight;
     for (let dx = -2; dx <= 2; dx++) {
       for (let dz = -2; dz <= 2; dz++) {
         const x = lx + dx, z = lz + dz;
         if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && capY < CHUNK_HEIGHT) {
-          chunk.setVoxel(x, capY, z, wartId);
+          if (dx === 0 && dz === 0) {
+            chunk.setVoxel(x, capY, z, BLOCKS.GLOWSTONE); // Embedded shroomlight
+          } else {
+            chunk.setVoxel(x, capY, z, wartId);
+          }
         }
       }
+    }
+  }
+
+  generateBoneFossil(chunk, lx, baseY, lz) {
+    const block = BLOCKS.CALCITE || BLOCKS.SMOOTH_STONE;
+    const h = 3;
+    for (let y = 0; y <= h; y++) {
+      if (baseY + y < CHUNK_HEIGHT - 2) {
+        if (lx - 1 >= 0) chunk.setVoxel(lx - 1, baseY + y, lz, block);
+        if (lx + 1 < CHUNK_SIZE_X) chunk.setVoxel(lx + 1, baseY + y, lz, block);
+      }
+    }
+    if (baseY + h < CHUNK_HEIGHT - 2) {
+      chunk.setVoxel(lx, baseY + h, lz, block);
     }
   }
 
@@ -1036,6 +1109,22 @@ export class World {
 
     const lx = ((wx % CHUNK_SIZE_X) + CHUNK_SIZE_X) % CHUNK_SIZE_X;
     const lz = ((wz % CHUNK_SIZE_Z) + CHUNK_SIZE_Z) % CHUNK_SIZE_Z;
+
+    const isNetherCavern = this.isNether || this.dimension === 'nether' || getBiomeDef(this.selectedBiome)?.isNether;
+    if (isNetherCavern) {
+      // Find cavern air space beneath bedrock ceiling (below y=62), then find solid floor under that air space
+      let foundAir = false;
+      for (let y = CHUNK_HEIGHT - 2; y >= 1; y--) {
+        const id = chunk.getVoxel(lx, y, lz);
+        if (id === BLOCKS.AIR) {
+          foundAir = true;
+        } else if (foundAir) {
+          // First solid block under cavern air is the walkable floor
+          return y;
+        }
+      }
+    }
+
     for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
       const id = chunk.getVoxel(lx, y, lz);
       if (id !== BLOCKS.AIR) return y;

@@ -121,8 +121,15 @@
   <!-- Nether Portal Screen Distortion and Warp Overlay -->
   <div id="portal-overlay" class="portal-overlay"></div>
 
+  <!-- Boss Bars (Ender Dragon, The Wither, Village Raids) -->
+  <div id="boss-bars-container" class="boss-bars-container"></div>
+
   <!-- HUD -->
   <div id="hud">
+    <!-- Horse Jump Meter (displays when riding horse) -->
+    <div id="horse-jump-meter" class="hidden">
+      <div class="jump-fill"></div>
+    </div>
     <div id="status-bars">
       <div class="status-left">
         <div id="armor-bar" class="stat-row"></div>
@@ -235,7 +242,7 @@
             <span id="creative-item-count" style="font-size: 12px; color: #666;">(0)</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="creative-search-wrapper">
+            <div class="creative-search-wrapper" id="creative-search-wrapper">
               <input type="text" id="creative-search-input" placeholder="Search..." autocomplete="off">
               <button type="button" id="creative-clear-search-btn" title="Clear Search">✕</button>
             </div>
@@ -243,9 +250,31 @@
           </div>
         </div>
 
-        <!-- Scrollable Creative Item Grid -->
+        <!-- Scrollable Creative Item Grid (Normal Tabs) -->
         <div class="creative-slots-scroll" id="creative-slots-scroll">
           <div class="grid-slots" id="creative-item-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+        </div>
+
+        <!-- Survival Inventory View (Survival Inventory Tab) -->
+        <div class="creative-survival-view hidden" id="creative-survival-view">
+          <div class="creative-survival-top">
+            <div class="creative-armor-column">
+              <div class="inv-slot armor-slot" id="creative-armor-slot-head" data-armor-slot="head" title="Helmet Slot"></div>
+              <div class="inv-slot armor-slot" id="creative-armor-slot-chest" data-armor-slot="chest" title="Chestplate Slot"></div>
+            </div>
+
+            <div class="player-preview-card" id="creative-player-preview-card">
+              <div class="player-preview-inner" id="creative-player-preview"></div>
+            </div>
+
+            <div class="creative-armor-column">
+              <div class="inv-slot armor-slot" id="creative-armor-slot-legs" data-armor-slot="legs" title="Leggings Slot"></div>
+              <div class="inv-slot armor-slot" id="creative-armor-slot-feet" data-armor-slot="feet" title="Boots Slot"></div>
+            </div>
+          </div>
+
+          <!-- 27 storage slots -->
+          <div class="grid-slots" id="creative-storage-grid" style="grid-template-columns: repeat(9, 36px);"></div>
         </div>
 
         <!-- Hotbar & Controls Section -->
@@ -353,14 +382,28 @@
 
   <!-- Villager Trade GUI -->
   <div id="villager-modal" class="game-modal hidden">
-    <div class="container-gui" style="width: 420px;">
+    <div class="container-gui" style="width: 440px;">
       <div class="gui-header">
-        <span>Villager Trading</span>
+        <span id="villager-header-title">Villager Trading</span>
         <span class="close-btn" id="close-villager">✕</span>
       </div>
+      <div id="villager-header-info" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; margin-top: 6px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div>
+          <span id="villager-title" style="font-weight: bold; font-size: 14px; color: #f8fafc;">Farmer</span>
+          <span id="villager-profession-desc" style="font-size: 11px; color: #94a3b8; margin-left: 6px;">(Composter)</span>
+        </div>
+        <span id="villager-badge" style="background: #78716c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">Novice (Level 1)</span>
+      </div>
+      <div style="margin: 6px 0 2px 0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8;">
+        <span>Experience</span>
+        <span id="villager-xp-text">0 / 10 XP</span>
+      </div>
+      <div id="villager-xp-container" style="background: #1e293b; height: 8px; border-radius: 4px; margin-bottom: 8px; overflow: hidden; border: 1px solid #334155;">
+        <div id="villager-xp-fill" style="background: linear-gradient(90deg, #10b981, #06b6d4); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+      </div>
       <div class="trade-list" id="villager-trades"></div>
-      <div class="gui-header"><span>Your Inventory</span></div>
-      <div class="grid-slots" id="villager-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 10px;"></div>
+      <div class="gui-header" style="margin-top: 6px;"><span>Your Inventory</span></div>
+      <div class="grid-slots" id="villager-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
       <div class="grid-slots" id="villager-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
     </div>
   </div>
@@ -596,6 +639,7 @@
               <option value="the_void">The Void</option>
             </optgroup>
             <optgroup label="🔥 The Nether Biomes">
+              <option value="nether">The Nether (Dynamic Multi-Biome Nether)</option>
               <option value="nether_wastes">Nether Wastes</option>
               <option value="soul_sand_valley">Soul Sand Valley</option>
               <option value="crimson_forest">Crimson Forest</option>

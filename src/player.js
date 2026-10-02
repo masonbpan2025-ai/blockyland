@@ -39,6 +39,7 @@ export class Player {
     this.bedSpawnPosition = null;
     this.isSleeping = false;
     this.fallDistance = 0;
+    this.statusEffects = new Map();
 
     // Movement speeds (blocks/sec)
     this.walkSpeed = 4.3;
@@ -367,6 +368,25 @@ export class Player {
       this.invulnerableTimer -= dt;
     }
 
+    // Update active status effects (poison, wither, slowness, dolphins_grace, etc.)
+    for (const [effect, data] of this.statusEffects.entries()) {
+      data.duration -= dt;
+      data.tickTimer = (data.tickTimer || 0) + dt;
+      if (effect === 'poison' && data.tickTimer >= 1.25) {
+        data.tickTimer = 0;
+        if (this.health > 1) {
+          this.health = Math.max(1, this.health - 1);
+          this.sounds?.playHurt?.();
+        }
+      } else if (effect === 'wither' && data.tickTimer >= 1.0) {
+        data.tickTimer = 0;
+        this.takeDamage(1, null, 'wither');
+      }
+      if (data.duration <= 0) {
+        this.statusEffects.delete(effect);
+      }
+    }
+
     // Cooldown countdowns
     if (this.rollCooldown > 0) this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.punchCooldown > 0) this.punchCooldown = Math.max(0, this.punchCooldown - dt);
@@ -418,7 +438,14 @@ export class Player {
     else if (this.isBlocking) targetSpeed = this.sneakSpeed;
     else if (this.isSprinting) targetSpeed = this.sprintSpeed;
     else if (this.isSneaking) targetSpeed = this.sneakSpeed;
-    else if (this.inWater) targetSpeed = this.walkSpeed * 0.65;
+    else if (this.inWater) {
+      targetSpeed = this.walkSpeed * 0.65;
+      if (this.hasStatusEffect('dolphins_grace')) targetSpeed *= 2.2;
+    }
+
+    if (this.hasStatusEffect('slowness')) {
+      targetSpeed *= 0.6;
+    }
 
     // Movement direction input
     let moveForward = 0;
@@ -816,6 +843,23 @@ export class Player {
       }
       this.position.copy(this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5));
     }
+    this.statusEffects.clear();
+  }
+
+  applyStatusEffect(effect, duration = 30, level = 1) {
+    this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
+    if (this.game?.ui?.addChatMessage) {
+      const name = effect.replace(/_/g, ' ').toUpperCase();
+      this.game.ui.addChatMessage(`<span style="color:#c084fc;">[Effect] Applied ${name} (${Math.round(duration)}s)</span>`, 'system');
+    }
+  }
+
+  clearStatusEffect(effect) {
+    this.statusEffects.delete(effect);
+  }
+
+  hasStatusEffect(effect) {
+    return this.statusEffects.has(effect);
   }
 
   updateCameraAndModel(dt) {

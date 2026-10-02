@@ -171,6 +171,70 @@ export class FurnaceManager {
     this.openFurnaceKey = null;
   }
 
+  addItem(x, y, z, id, isBlock = false, count = 1, slotType = 'input') {
+    const furnace = this.getOrCreateFurnace(x, y, z);
+    if (!furnace) return false;
+
+    if (slotType === 'fuel') {
+      if (getFuelBurnTime(id) <= 0 && (!furnace.fuel || furnace.fuel.id !== id)) {
+        return false;
+      }
+      if (!furnace.fuel) {
+        furnace.fuel = { id, isBlock, count: Math.min(count, 64) };
+        return true;
+      } else if (furnace.fuel.id === id && !!furnace.fuel.isBlock === !!isBlock && furnace.fuel.count < 64) {
+        const canAdd = Math.min(count, 64 - furnace.fuel.count);
+        furnace.fuel.count += canAdd;
+        return true;
+      }
+      return false;
+    } else {
+      if (!furnace.input) {
+        furnace.input = { id, isBlock, count: Math.min(count, 64) };
+        return true;
+      } else if (furnace.input.id === id && !!furnace.input.isBlock === !!isBlock && furnace.input.count < 64) {
+        const canAdd = Math.min(count, 64 - furnace.input.count);
+        furnace.input.count += canAdd;
+        return true;
+      }
+      return false;
+    }
+  }
+
+  extractItem(x, y, z, slotType = 'output') {
+    const furnace = this.getFurnace(x, y, z);
+    if (!furnace) return null;
+
+    const target = slotType === 'output' ? furnace.output : (slotType === 'fuel' ? furnace.fuel : furnace.input);
+    if (target && target.count > 0) {
+      const extracted = { id: target.id, isBlock: target.isBlock, count: 1 };
+      target.count--;
+      if (target.count <= 0) {
+        if (slotType === 'output') furnace.output = null;
+        else if (slotType === 'fuel') furnace.fuel = null;
+        else furnace.input = null;
+      }
+      return extracted;
+    }
+    return null;
+  }
+
+  getRedstoneSignal(x, y, z) {
+    const furnace = this.getFurnace(x, y, z);
+    if (!furnace) return 0;
+    const slots = [furnace.input, furnace.fuel, furnace.output];
+    let totalItems = 0;
+    let hasAny = false;
+    for (const s of slots) {
+      if (s && s.count > 0) {
+        hasAny = true;
+        totalItems += s.count;
+      }
+    }
+    if (!hasAny) return 0;
+    return Math.min(15, Math.floor(1 + (totalItems / (3 * 64)) * 14));
+  }
+
   onBlockBroken(x, y, z) {
     const key = this.getKey(x, y, z);
     const furnace = this.furnaces.get(key);

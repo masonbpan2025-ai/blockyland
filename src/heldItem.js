@@ -70,18 +70,23 @@ export class HeldItemRenderer {
       return;
     }
 
-    if (item.isBlock && item.id === BLOCKS.WATER) {
+    const numericId = typeof item.id === 'string' ? (BLOCKS[item.id.toUpperCase()] ?? (item.id === 'chest' ? BLOCKS.CHEST : item.id)) : item.id;
+    const isBlock = Boolean(item.isBlock || BLOCK_DEFS[numericId] !== undefined || ITEMS[item.id]?.isBlock || item.id === 'chest');
+
+    if (isBlock && (numericId === BLOCKS.WATER || item.id === BLOCKS.WATER)) {
       let material=this.cachedMaterials.get('held-water');
       if(!material){material=new THREE.MeshPhongMaterial({color:0x359ddc,transparent:true,opacity:.72,shininess:100,specular:0xc5eeff,emissive:0x10335a,emissiveIntensity:.3});this.cachedMaterials.set('held-water',material);}
       this.currentMesh=new THREE.Mesh(new THREE.BoxGeometry(.43,.38,.43),material);
       this.currentMesh.rotation.set(.3,.7,0);this.container.add(this.currentMesh);return;
     }
-    if (item.isBlock) {
+    if (isBlock) {
       // Miniature 3D Block
-      const geo = createBlockGeometry(item.id, this.tm);
+      const blockId = numericId !== undefined && BLOCK_DEFS[numericId] ? numericId : item.id;
+      const geo = createBlockGeometry(blockId, this.tm);
       geo.translate(-0.5, -0.5, -0.5);
       geo.scale(0.5, 0.5, 0.5);
-      const mesh = new THREE.Mesh(geo, BLOCK_DEFS[item.id]?.light ? this.tm.lightMaterial : this.tm.opaqueMaterial);
+      const mat = BLOCK_DEFS[blockId]?.light ? this.tm.lightMaterial : this.tm.opaqueMaterial;
+      const mesh = new THREE.Mesh(geo, mat);
       mesh.rotation.set(0.3, 0.7, 0);
       this.currentMesh = mesh;
       this.container.add(mesh);

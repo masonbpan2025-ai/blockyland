@@ -3,6 +3,7 @@
 export const BLOCKS = {
   AIR: 0,
   GRASS: 1,
+  GRASS_BLOCK: 1,
   DIRT: 2,
   STONE: 3,
   COBBLESTONE: 4,
@@ -188,8 +189,33 @@ export const BLOCKS = {
   POTATOES_STAGE_3: 179,
   WHEAT: 171,
   CARROTS: 175,
-  POTATOES: 179,
-  NETHER_PORTAL: 180
+  NETHER_PORTAL: 180,
+  SCULK_SENSOR: 181,
+  SCULK_SHRIEKER: 182,
+  DRAGON_EGG: 183,
+  END_PORTAL: 184,
+  WITHER_SKELETON_SKULL_BLOCK: 185,
+  TRIPWIRE_HOOK: 186,
+  TRIPWIRE: 187,
+  OAK_DOOR_TOP: 188,
+  OAK_DOOR_TOP_OPEN: 189,
+  IRON_DOOR_TOP: 190,
+  IRON_DOOR_TOP_OPEN: 191,
+
+  // Workstation Blocks (13 Professions)
+  BLAST_FURNACE: 192,
+  SMOKER: 193,
+  CARTOGRAPHY_TABLE: 194,
+  BREWING_STAND: 195,
+  COMPOSTER: 196,
+  BARREL: 197,
+  FLETCHING_TABLE: 198,
+  CAULDRON: 199,
+  LECTERN: 200,
+  STONECUTTER: 201,
+  LOOM: 202,
+  SMITHING_TABLE: 203,
+  GRINDSTONE: 204
 };
 
 export const BLOCK_DEFS = {
@@ -843,7 +869,29 @@ export const BLOCK_DEFS = {
   [BLOCKS.POTATOES_STAGE_0]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 0, dropItem: 'potato', textures: { all: 'potatoes_stage_0.png' } },
   [BLOCKS.POTATOES_STAGE_1]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 1, dropItem: 'potato', textures: { all: 'potatoes_stage_1.png' } },
   [BLOCKS.POTATOES_STAGE_2]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 2, dropItem: 'potato', textures: { all: 'potatoes_stage_2.png' } },
-  [BLOCKS.POTATOES_STAGE_3]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 3, mature: true, dropItem: 'potato', textures: { all: 'potatoes_stage_3.png' } }
+  [BLOCKS.POTATOES_STAGE_3]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 3, mature: true, dropItem: 'potato', textures: { all: 'potatoes_stage_3.png' } },
+
+  // Specialized & Boss Blocks
+  [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, dropItem: 'sculk_sensor', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
+  [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, dropItem: 'sculk_shrieker', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
+  [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
+  [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
+  [BLOCKS.WITHER_SKELETON_SKULL_BLOCK]: { name: 'Wither Skeleton Skull', hardness: 1.0, sound: 'stone', transparent: true, solid: true, skull: true, dropItem: 'wither_skeleton_skull', textures: { all: 'coal_block.png' } },
+
+  // --- Villager Workstation Blocks ---
+  [BLOCKS.BLAST_FURNACE]: { name: 'Blast Furnace', hardness: 3.5, sound: 'stone', workstation: 'armorer', textures: { top: 'furnace_top.png', front: 'furnace_front.png', side: 'smooth_stone.png', bottom: 'stone.png' } },
+  [BLOCKS.SMOKER]: { name: 'Smoker', hardness: 3.5, sound: 'stone', workstation: 'butcher', textures: { top: 'furnace_top.png', front: 'furnace_front.png', side: 'oak_log.png', bottom: 'stone.png' } },
+  [BLOCKS.CARTOGRAPHY_TABLE]: { name: 'Cartography Table', hardness: 2.5, sound: 'wood', workstation: 'cartographer', textures: { top: 'crafting_table_top.png', front: 'dark_oak_planks.png', side: 'dark_oak_planks.png', bottom: 'dark_oak_planks.png' } },
+  [BLOCKS.BREWING_STAND]: { name: 'Brewing Stand', hardness: 0.5, sound: 'stone', transparent: true, solid: true, workstation: 'cleric', textures: { all: 'obsidian.png' } },
+  [BLOCKS.COMPOSTER]: { name: 'Composter', hardness: 2.0, sound: 'wood', workstation: 'farmer', textures: { top: 'oak_planks.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
+  [BLOCKS.BARREL]: { name: 'Barrel', hardness: 2.5, sound: 'wood', workstation: 'fisherman', textures: { top: 'spruce_planks.png', side: 'spruce_planks.png', bottom: 'spruce_planks.png' } },
+  [BLOCKS.FLETCHING_TABLE]: { name: 'Fletching Table', hardness: 2.5, sound: 'wood', workstation: 'fletcher', textures: { top: 'birch_planks.png', front: 'birch_planks.png', side: 'birch_planks.png', bottom: 'birch_planks.png' } },
+  [BLOCKS.CAULDRON]: { name: 'Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', textures: { all: 'blackstone.png' } },
+  [BLOCKS.LECTERN]: { name: 'Lectern', hardness: 2.5, sound: 'wood', workstation: 'librarian', textures: { top: 'oak_planks.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
+  [BLOCKS.STONECUTTER]: { name: 'Stonecutter', hardness: 3.5, sound: 'stone', workstation: 'mason', textures: { top: 'smooth_stone.png', side: 'stone.png', bottom: 'stone.png' } },
+  [BLOCKS.LOOM]: { name: 'Loom', hardness: 2.5, sound: 'wood', workstation: 'shepherd', textures: { top: 'oak_planks.png', front: 'crafting_table_front.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
+  [BLOCKS.SMITHING_TABLE]: { name: 'Smithing Table', hardness: 2.5, sound: 'wood', workstation: 'toolsmith', textures: { top: 'blackstone_top.png', front: 'blackstone.png', side: 'blackstone.png', bottom: 'oak_planks.png' } },
+  [BLOCKS.GRINDSTONE]: { name: 'Grindstone', hardness: 2.0, sound: 'stone', workstation: 'weaponsmith', textures: { top: 'stone.png', side: 'dark_oak_planks.png', bottom: 'dark_oak_planks.png' } }
 };
 
 // Complete Item definitions
@@ -945,8 +993,13 @@ export const ITEMS = {
   name_tag: { name: 'Name Tag', icon: '/assets/items/name_tag.png', type: 'tool' },
   saddle: { name: 'Saddle', icon: '/assets/items/saddle.png', type: 'tool' },
   oak_boat: { name: 'Oak Boat', icon: '/assets/items/oak_boat.png', type: 'transport' },
+  chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'block', blockId: BLOCKS.CHEST },
+  chest_boat: { name: 'Boat with Chest', icon: '/assets/items/chest_boat.png', type: 'transport' },
   minecart: { name: 'Minecart', icon: '/assets/items/minecart.png', type: 'transport' },
   chest_minecart: { name: 'Minecart with Chest', icon: '/assets/items/chest_minecart.png', type: 'transport' },
+  furnace_minecart: { name: 'Minecart with Furnace', icon: '/assets/items/furnace_minecart.png', type: 'transport' },
+  hopper_minecart: { name: 'Minecart with Hopper', icon: '/assets/items/hopper_minecart.png', type: 'transport' },
+  tnt_minecart: { name: 'Minecart with TNT', icon: '/assets/items/tnt_minecart.png', type: 'transport' },
   elytra: { name: 'Elytra', icon: '/assets/items/elytra.png', type: 'transport' },
   firework_rocket: { name: 'Firework Rocket', icon: '/assets/items/firework_rocket.png', type: 'utility' },
 
@@ -976,6 +1029,17 @@ export const ITEMS = {
   baked_potato: { name: 'Baked Potato', food: 5, icon: '/assets/items/baked_potato.png', type: 'food' },
   poisonous_potato: { name: 'Poisonous Potato', food: 2, icon: '/assets/items/poisonous_potato.png', type: 'food' },
   wheat_seeds: { name: 'Wheat Seeds', icon: '/assets/items/wheat_seeds.png', type: 'seed', crop: 'wheat' },
+  seeds: { name: 'Wheat Seeds', icon: '/assets/items/wheat_seeds.png', type: 'seed', crop: 'wheat' },
+  wheat_seed: { name: 'Wheat Seeds', icon: '/assets/items/wheat_seeds.png', type: 'seed', crop: 'wheat' },
+  seed: { name: 'Wheat Seeds', icon: '/assets/items/wheat_seeds.png', type: 'seed', crop: 'wheat' },
+  pumpkin_seeds: { name: 'Pumpkin Seeds', icon: '/assets/items/pumpkin_seeds.png', type: 'seed' },
+  pumpkin_seed: { name: 'Pumpkin Seeds', icon: '/assets/items/pumpkin_seeds.png', type: 'seed' },
+  melon_seeds: { name: 'Melon Seeds', icon: '/assets/items/melon_seeds.png', type: 'seed' },
+  melon_seed: { name: 'Melon Seeds', icon: '/assets/items/melon_seeds.png', type: 'seed' },
+  beetroot_seeds: { name: 'Beetroot Seeds', icon: '/assets/items/beetroot_seeds.png', type: 'seed' },
+  beetroot_seed: { name: 'Beetroot Seeds', icon: '/assets/items/beetroot_seeds.png', type: 'seed' },
+  torchflower_seeds: { name: 'Torchflower Seeds', icon: '/assets/items/torchflower_seeds.png', type: 'seed' },
+  pitcher_pod: { name: 'Pitcher Pod', icon: '/assets/items/pitcher_pod.png', type: 'seed' },
   beetroot: { name: 'Beetroot', food: 1, icon: '/assets/items/beetroot.png', type: 'food' },
   beetroot_soup: { name: 'Beetroot Soup', food: 6, icon: '/assets/items/beetroot_soup.png', type: 'food' },
   mushroom_stew: { name: 'Mushroom Stew', food: 6, icon: '/assets/items/mushroom_stew.png', type: 'food' },
@@ -1036,11 +1100,28 @@ export const ITEMS = {
   red_bed: { name: 'Red Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   bed: { name: 'Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.CHEST },
+  oak_door: { name: 'Oak Door', icon: '/assets/items/oak_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_DOOR },
+  iron_door: { name: 'Iron Door', icon: '/assets/items/iron_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.IRON_DOOR },
+  oak_trapdoor: { name: 'Oak Trapdoor', icon: '/assets/items/oak_trapdoor.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_TRAPDOOR },
+  iron_trapdoor: { name: 'Iron Trapdoor', icon: '/assets/items/iron_trapdoor.png', type: 'utility', isBlock: true, blockId: BLOCKS.IRON_TRAPDOOR },
   armor_stand: { name: 'Armor Stand', icon: '/assets/items/armor_stand.png', type: 'utility' },
   item_frame: { name: 'Item Frame', icon: '/assets/items/item_frame.png', type: 'utility' },
   painting: { name: 'Painting', icon: '/assets/items/painting.png', type: 'utility' },
-  brewing_stand: { name: 'Brewing Stand', icon: '/assets/items/brewing_stand.png', type: 'utility' },
-  cauldron: { name: 'Cauldron', icon: '/assets/items/cauldron.png', type: 'utility' },
+  brewing_stand: { name: 'Brewing Stand', icon: '/assets/items/brewing_stand.png', type: 'utility', isBlock: true, blockId: BLOCKS.BREWING_STAND },
+  cauldron: { name: 'Cauldron', icon: '/assets/items/cauldron.png', type: 'utility', isBlock: true, blockId: BLOCKS.CAULDRON },
+  blast_furnace: { name: 'Blast Furnace', icon: '/assets/items/furnace.png', type: 'utility', isBlock: true, blockId: BLOCKS.BLAST_FURNACE },
+  smoker: { name: 'Smoker', icon: '/assets/items/furnace.png', type: 'utility', isBlock: true, blockId: BLOCKS.SMOKER },
+  cartography_table: { name: 'Cartography Table', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.CARTOGRAPHY_TABLE },
+  composter: { name: 'Composter', icon: '/assets/items/oak_planks.png', type: 'utility', isBlock: true, blockId: BLOCKS.COMPOSTER },
+  barrel: { name: 'Barrel', icon: '/assets/items/chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.BARREL },
+  fletching_table: { name: 'Fletching Table', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.FLETCHING_TABLE },
+  lectern: { name: 'Lectern', icon: '/assets/items/oak_planks.png', type: 'utility', isBlock: true, blockId: BLOCKS.LECTERN },
+  stonecutter: { name: 'Stonecutter', icon: '/assets/items/stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.STONECUTTER },
+  loom: { name: 'Loom', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.LOOM },
+  smithing_table: { name: 'Smithing Table', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.SMITHING_TABLE },
+  grindstone: { name: 'Grindstone', icon: '/assets/items/stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.GRINDSTONE },
+  splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
+  zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
   // --- Mob Spawn Eggs ---
   villager_spawn_egg: { name: 'Villager Spawn Egg', icon: '/assets/items/villager_spawn_egg.png', type: 'spawn_egg', mob: 'villager' },
@@ -1053,9 +1134,54 @@ export const ITEMS = {
   cow_spawn_egg: { name: 'Cow Spawn Egg', icon: '/assets/items/cow_spawn_egg.png', type: 'spawn_egg', mob: 'cow' },
   sheep_spawn_egg: { name: 'Sheep Spawn Egg', icon: '/assets/items/sheep_spawn_egg.png', type: 'spawn_egg', mob: 'sheep' },
   salmon_spawn_egg: { name: 'Salmon Spawn Egg', icon: '/assets/items/salmon_spawn_egg.png', type: 'spawn_egg', mob: 'salmon' },
+  cod_spawn_egg: { name: 'Cod Spawn Egg', icon: '/assets/items/cod_spawn_egg.png', type: 'spawn_egg', mob: 'cod' },
   dolphin_spawn_egg: { name: 'Dolphin Spawn Egg', icon: '/assets/items/dolphin_spawn_egg.png', type: 'spawn_egg', mob: 'dolphin' },
+  squid_spawn_egg: { name: 'Squid Spawn Egg', icon: '/assets/items/squid_spawn_egg.png', type: 'spawn_egg', mob: 'squid' },
   octopus_spawn_egg: { name: 'Octopus Spawn Egg', icon: '/assets/items/octopus_spawn_egg.png', type: 'spawn_egg', mob: 'octopus' },
-  axolotl_spawn_egg: { name: 'Axolotl Spawn Egg', icon: '/assets/items/axolotl_spawn_egg.png', type: 'spawn_egg', mob: 'axolotl' }
+  axolotl_spawn_egg: { name: 'Axolotl Spawn Egg', icon: '/assets/items/axolotl_spawn_egg.png', type: 'spawn_egg', mob: 'axolotl' },
+
+  // Specialized Mob Drops & Tools
+  wither_skeleton_skull: { name: 'Wither Skeleton Skull', icon: '/assets/items/wither_skeleton_skull.png', type: 'utility', isBlock: true, blockId: BLOCKS.WITHER_SKELETON_SKULL_BLOCK },
+  nether_star: { name: 'Nether Star', icon: '/assets/items/nether_star.png', type: 'material' },
+  ghast_tear: { name: 'Ghast Tear', icon: '/assets/items/ghast_tear.png', type: 'material' },
+  phantom_membrane: { name: 'Phantom Membrane', icon: '/assets/items/phantom_membrane.png', type: 'material' },
+  carrot_on_a_stick: { name: 'Carrot on a Stick', icon: '/assets/items/carrot_on_a_stick.png', type: 'tool' },
+  warped_fungus_on_a_stick: { name: 'Warped Fungus on a Stick', icon: '/assets/items/warped_fungus_on_a_stick.png', type: 'tool' },
+  dragon_egg: { name: 'Dragon Egg', icon: '/assets/items/dragon_egg.png', type: 'utility', isBlock: true, blockId: BLOCKS.DRAGON_EGG },
+  end_crystal: { name: 'End Crystal', icon: '/assets/items/end_crystal.png', type: 'utility' },
+  prismarine_shard: { name: 'Prismarine Shard', icon: '/assets/items/prismarine_shard.png', type: 'material' },
+  prismarine_crystals: { name: 'Prismarine Crystals', icon: '/assets/items/prismarine_crystals.png', type: 'material' },
+  glow_ink_sac: { name: 'Glow Ink Sac', icon: '/assets/items/glow_ink_sac.png', type: 'material' },
+  ink_sac: { name: 'Ink Sac', icon: '/assets/items/ink_sac.png', type: 'material' },
+
+  // Additional Mob Spawn Eggs
+  chicken_spawn_egg: { name: 'Chicken Spawn Egg', icon: '/assets/items/chicken_spawn_egg.png', type: 'spawn_egg', mob: 'chicken' },
+  horse_spawn_egg: { name: 'Horse Spawn Egg', icon: '/assets/items/horse_spawn_egg.png', type: 'spawn_egg', mob: 'horse' },
+  donkey_spawn_egg: { name: 'Donkey Spawn Egg', icon: '/assets/items/donkey_spawn_egg.png', type: 'spawn_egg', mob: 'donkey' },
+  wolf_spawn_egg: { name: 'Wolf Spawn Egg', icon: '/assets/items/wolf_spawn_egg.png', type: 'spawn_egg', mob: 'wolf' },
+  cat_spawn_egg: { name: 'Cat Spawn Egg', icon: '/assets/items/cat_spawn_egg.png', type: 'spawn_egg', mob: 'cat' },
+  slime_spawn_egg: { name: 'Slime Spawn Egg', icon: '/assets/items/slime_spawn_egg.png', type: 'spawn_egg', mob: 'slime' },
+  magma_cube_spawn_egg: { name: 'Magma Cube Spawn Egg', icon: '/assets/items/magma_cube_spawn_egg.png', type: 'spawn_egg', mob: 'magma_cube' },
+  witch_spawn_egg: { name: 'Witch Spawn Egg', icon: '/assets/items/witch_spawn_egg.png', type: 'spawn_egg', mob: 'witch' },
+  ghast_spawn_egg: { name: 'Ghast Spawn Egg', icon: '/assets/items/ghast_spawn_egg.png', type: 'spawn_egg', mob: 'ghast' },
+  blaze_spawn_egg: { name: 'Blaze Spawn Egg', icon: '/assets/items/blaze_spawn_egg.png', type: 'spawn_egg', mob: 'blaze' },
+  wither_skeleton_spawn_egg: { name: 'Wither Skeleton Spawn Egg', icon: '/assets/items/wither_skeleton_spawn_egg.png', type: 'spawn_egg', mob: 'wither_skeleton' },
+  piglin_spawn_egg: { name: 'Piglin Spawn Egg', icon: '/assets/items/piglin_spawn_egg.png', type: 'spawn_egg', mob: 'piglin' },
+  zombified_piglin_spawn_egg: { name: 'Zombified Piglin Spawn Egg', icon: '/assets/items/zombie_pigman_spawn_egg.png', type: 'spawn_egg', mob: 'zombified_piglin' },
+  zombie_pigman_spawn_egg: { name: 'Zombie Pigman Spawn Egg', icon: '/assets/items/zombie_pigman_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_pigman' },
+  hoglin_spawn_egg: { name: 'Hoglin Spawn Egg', icon: '/assets/items/hoglin_spawn_egg.png', type: 'spawn_egg', mob: 'hoglin' },
+  strider_spawn_egg: { name: 'Strider Spawn Egg', icon: '/assets/items/strider_spawn_egg.png', type: 'spawn_egg', mob: 'strider' },
+  guardian_spawn_egg: { name: 'Guardian Spawn Egg', icon: '/assets/items/guardian_spawn_egg.png', type: 'spawn_egg', mob: 'guardian' },
+  elder_guardian_spawn_egg: { name: 'Elder Guardian Spawn Egg', icon: '/assets/items/elder_guardian_spawn_egg.png', type: 'spawn_egg', mob: 'elder_guardian' },
+  drowned_spawn_egg: { name: 'Drowned Spawn Egg', icon: '/assets/items/drowned_spawn_egg.png', type: 'spawn_egg', mob: 'drowned' },
+  glow_squid_spawn_egg: { name: 'Glow Squid Spawn Egg', icon: '/assets/items/glow_squid_spawn_egg.png', type: 'spawn_egg', mob: 'glow_squid' },
+  phantom_spawn_egg: { name: 'Phantom Spawn Egg', icon: '/assets/items/phantom_spawn_egg.png', type: 'spawn_egg', mob: 'phantom' },
+  vindicator_spawn_egg: { name: 'Vindicator Spawn Egg', icon: '/assets/items/vindicator_spawn_egg.png', type: 'spawn_egg', mob: 'vindicator' },
+  evoker_spawn_egg: { name: 'Evoker Spawn Egg', icon: '/assets/items/evoker_spawn_egg.png', type: 'spawn_egg', mob: 'evoker' },
+  ravager_spawn_egg: { name: 'Ravager Spawn Egg', icon: '/assets/items/ravager_spawn_egg.png', type: 'spawn_egg', mob: 'ravager' },
+  warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
+  ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
+  wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' }
 };
 
 
@@ -1073,19 +1199,23 @@ BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardnes
 BLOCK_DEFS[BLOCKS.PRESSURE_PLATE] = {name: 'Pressure Plate', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/pressure_plate.svg'};
 BLOCK_DEFS[BLOCKS.DAYLIGHT_DETECTOR] = {name: 'Daylight Detector', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/daylight_detector.svg'};
 BLOCK_DEFS[BLOCKS.TARGET_BLOCK] = {name: 'Target Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/target_block.svg'};
-BLOCK_DEFS[BLOCKS.IRON_DOOR] = {name: 'Iron Door', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_door.svg'};
-BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR] = {name: 'Iron Trapdoor', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_trapdoor.svg'};
+BLOCK_DEFS[BLOCKS.IRON_DOOR] = {name: 'Iron Door', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: true, door: true, isIron: true, openId: BLOCKS.IRON_DOOR_OPEN, textures: {bottom: 'iron_door_bottom.png', top: 'iron_door_top.png', all: 'iron_door_bottom.png'}, icon: '/assets/items/iron_door.png', dropItem: 'iron_door'};
+BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR] = {name: 'Iron Trapdoor', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: true, trapdoor: true, isIron: true, openId: BLOCKS.IRON_TRAPDOOR_OPEN, textures: {all: 'iron_trapdoor.png'}, icon: '/assets/items/iron_trapdoor.png', dropItem: 'iron_trapdoor'};
 BLOCK_DEFS[BLOCKS.NOTE_BLOCK] = {name: 'Note Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/note_block.svg'};
 BLOCK_DEFS[BLOCKS.DISPENSER] = {name: 'Dispenser', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/dispenser.svg'};
 BLOCK_DEFS[BLOCKS.DROPPER] = {name: 'Dropper', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/dropper.svg'};
 BLOCK_DEFS[BLOCKS.HOPPER] = {name: 'Hopper', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/hopper.svg'};
-BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN] = {name: 'Iron Door Open', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_door_open.svg', internal: true};
-BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN] = {name: 'Iron Trapdoor Open', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/iron_trapdoor_open.svg', internal: true};
+BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN] = {name: 'Iron Door Open', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: false, door: true, isIron: true, internal: true, textures: {bottom: 'iron_door_bottom.png', top: 'iron_door_top.png', all: 'iron_door_bottom.png'}, icon: '/assets/items/iron_door.png', drop: BLOCKS.IRON_DOOR, dropItem: 'iron_door'};
+BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN] = {name: 'Iron Trapdoor Open', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: false, trapdoor: true, isIron: true, internal: true, textures: {all: 'iron_trapdoor.png'}, icon: '/assets/items/iron_trapdoor.png', drop: BLOCKS.IRON_TRAPDOOR, dropItem: 'iron_trapdoor'};
+BLOCK_DEFS[BLOCKS.TRIPWIRE_HOOK] = {name: 'Tripwire Hook', redstone: true, hardness: 0.5, sound: 'wood', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/tripwire_hook.svg'};
+BLOCK_DEFS[BLOCKS.TRIPWIRE] = {name: 'Tripwire', redstone: true, hardness: 0, sound: 'wool', transparent: true, solid: false, drop: 'string', textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/tripwire.svg'};
 
 BLOCK_DEFS[BLOCKS.REDSTONE_WIRE].drop='redstone';
 BLOCK_DEFS[BLOCKS.PISTON_HEAD].drop=null;
 BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN].drop=BLOCKS.IRON_DOOR;
 BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN].drop=BLOCKS.IRON_TRAPDOOR;
+BLOCK_DEFS[BLOCKS.TRIPWIRE_HOOK].drop=BLOCKS.TRIPWIRE_HOOK;
+BLOCK_DEFS[BLOCKS.TRIPWIRE].drop='string';
 
 // --- Rails and wooden doors -------------------------------------------------
 // Rails carry a direction in their redstone state so one block id covers straight,
@@ -1093,10 +1223,16 @@ BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN].drop=BLOCKS.IRON_TRAPDOOR;
 // unlike the iron ones which are redstone only.
 BLOCK_DEFS[BLOCKS.RAIL] = {name: 'Rail', redstone: true, hardness: 0.7, sound: 'metal', transparent: true, solid: false, rail: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/rail.svg'};
 BLOCK_DEFS[BLOCKS.POWERED_RAIL] = {name: 'Powered Rail', redstone: true, hardness: 0.7, sound: 'metal', transparent: true, solid: false, rail: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/powered_rail.svg'};
-BLOCK_DEFS[BLOCKS.OAK_DOOR] = {name: 'Oak Door', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, door: true, openId: null, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_door.svg'};
-BLOCK_DEFS[BLOCKS.OAK_DOOR_OPEN] = {name: 'Oak Door Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, door: true, internal: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_door_open.svg'};
-BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR] = {name: 'Oak Trapdoor', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, trapdoor: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_trapdoor.svg'};
-BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR_OPEN] = {name: 'Oak Trapdoor Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, trapdoor: true, internal: true, textures: {all: 'oak_planks.png'}, icon: '/assets/blocks/oak_trapdoor_open.svg'};
+BLOCK_DEFS[BLOCKS.OAK_DOOR] = {name: 'Oak Door', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, door: true, isIron: false, openId: BLOCKS.OAK_DOOR_OPEN, textures: {bottom: 'oak_door_bottom.png', top: 'oak_door_top.png', all: 'oak_door_bottom.png'}, icon: '/assets/items/oak_door.png', dropItem: 'oak_door'};
+BLOCK_DEFS[BLOCKS.OAK_DOOR_OPEN] = {name: 'Oak Door Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, door: true, isIron: false, internal: true, textures: {bottom: 'oak_door_bottom.png', top: 'oak_door_top.png', all: 'oak_door_bottom.png'}, icon: '/assets/items/oak_door.png', drop: BLOCKS.OAK_DOOR, dropItem: 'oak_door'};
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR] = {name: 'Oak Trapdoor', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, trapdoor: true, isIron: false, openId: BLOCKS.OAK_TRAPDOOR_OPEN, textures: {all: 'oak_trapdoor.png'}, icon: '/assets/items/oak_trapdoor.png', dropItem: 'oak_trapdoor'};
+BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR_OPEN] = {name: 'Oak Trapdoor Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, trapdoor: true, isIron: false, internal: true, textures: {all: 'oak_trapdoor.png'}, icon: '/assets/items/oak_trapdoor.png', drop: BLOCKS.OAK_TRAPDOOR, dropItem: 'oak_trapdoor'};
+
+// Door upper halves (2-block tall doors)
+BLOCK_DEFS[BLOCKS.OAK_DOOR_TOP] = {name: 'Oak Door', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: true, door: true, isTop: true, isIron: false, internal: true, textures: {top: 'oak_door_top.png', all: 'oak_door_top.png'}, icon: '/assets/items/oak_door.png', drop: BLOCKS.OAK_DOOR, dropItem: 'oak_door'};
+BLOCK_DEFS[BLOCKS.OAK_DOOR_TOP_OPEN] = {name: 'Oak Door Open', redstone: true, hardness: 3, sound: 'wood', transparent: true, solid: false, door: true, isTop: true, isIron: false, internal: true, textures: {top: 'oak_door_top.png', all: 'oak_door_top.png'}, icon: '/assets/items/oak_door.png', drop: BLOCKS.OAK_DOOR, dropItem: 'oak_door'};
+BLOCK_DEFS[BLOCKS.IRON_DOOR_TOP] = {name: 'Iron Door', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: true, door: true, isTop: true, isIron: true, internal: true, textures: {top: 'iron_door_top.png', all: 'iron_door_top.png'}, icon: '/assets/items/iron_door.png', drop: BLOCKS.IRON_DOOR, dropItem: 'iron_door'};
+BLOCK_DEFS[BLOCKS.IRON_DOOR_TOP_OPEN] = {name: 'Iron Door Open', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: false, door: true, isTop: true, isIron: true, internal: true, textures: {top: 'iron_door_top.png', all: 'iron_door_top.png'}, icon: '/assets/items/iron_door.png', drop: BLOCKS.IRON_DOOR, dropItem: 'iron_door'};
 
 // A closed wooden door drops itself when broken; an open one drops the closed form.
 BLOCK_DEFS[BLOCKS.OAK_DOOR].openId = BLOCKS.OAK_DOOR_OPEN;
@@ -1147,7 +1283,8 @@ BLOCK_DEFS[BLOCKS.CHEST] = {
     bottom: 'chest_top.png',
     side: 'chest_side.png',
     front: 'chest_front.png',
-    all: 'chest_side.png'
+    all: 'chest_side.png',
+    lock: 'chest_lock.png'
   },
   icon: '/assets/items/chest.png'
 };

@@ -4,8 +4,8 @@ import { StructureLibrary } from './structureLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export class Inventory {
-  constructor(sounds) {
-    this.sounds = sounds;
+  constructor(sounds = {}) {
+    this.sounds = sounds || {};
 
     // 9 Hotbar slots + 27 Main Storage slots
     this.hotbar = new Array(9).fill(null);
@@ -278,6 +278,12 @@ export class Inventory {
   }
 
   addItem(itemId, isBlock = true, count = 1, enchantments = null) {
+    if (typeof itemId === 'object' && itemId !== null) {
+      count = itemId.count !== undefined ? itemId.count : 1;
+      isBlock = itemId.isBlock !== undefined ? itemId.isBlock : false;
+      enchantments = itemId.enchantments || null;
+      itemId = itemId.id;
+    }
     // 1. Try to merge into existing stacks (only if unenchanted)
     if (!enchantments) {
       const allSlots = [...this.hotbar, ...this.storage];

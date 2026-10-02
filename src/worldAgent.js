@@ -25,6 +25,11 @@ import { explainFailure, isExternalFailure } from './agentCapabilities.js';
 // A thinking model can be silent for a long time before its first token, so we
 // abort on silence rather than on total duration.
 const IDLE_TIMEOUT_MS = 60000;
+// Silence is judged more strictly once tokens are flowing than before the first
+// one: a reasoning model at high effort routinely spends over a minute thinking
+// with nothing on the wire, and cutting that off just forces the player to retry.
+// 60s was aborting legitimate answers.
+const FIRST_TOKEN_TIMEOUT_MS = 180000;
 // Reasoning shown live in the terminal, and kept in full afterwards.
 const THOUGHT_DISPLAY_LIMIT = 4000;
 // Forced-offline preference; the API key itself is stored per vendor.
@@ -428,6 +433,9 @@ export class WorldAgent {
       );
       console.error(`${vendorLabel} execution error:`, err);
       this.log(`${opener} ${explanation.summary}`, 'error');
+      if (err.message && !err.message.includes(explanation.summary)) {
+        this.log(`Details: ${err.message}`, 'warning');
+      }
       for (const alternative of explanation.alternatives) {
         this.log(`• ${alternative}`, 'info');
       }
@@ -836,16 +844,28 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     const controller = new AbortController();
     const idleTimeoutMs = this.idleTimeoutMs || IDLE_TIMEOUT_MS;
     let idleTimer = null;
+    // Before the first token we tolerate a long think; afterwards we expect a steady
+    // trickle, so the tighter idle guard applies.
     const armIdleTimeout = () => {
       if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => controller.abort(new Error('idle timeout')), idleTimeoutMs);
+      const window = this.#streamStartedAt ? idleTimeoutMs : (this.firstTokenTimeoutMs || FIRST_TOKEN_TIMEOUT_MS);
+      idleTimer = setTimeout(() => controller.abort(new Error('idle timeout')), window);
     };
+    // The heartbeat exists so a long think never looks like a hang. A reasoning
+    // model can work silently for a minute or more before its first token, so the
+    // label says what is happening and for how long, instead of only moving a bar.
     const heartbeat = setInterval(() => {
       const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
-      const stage = this.#streamStartedAt
-        ? `receiving live output (${((Date.now() - this.#streamStartedAt) / 1000).toFixed(1)}s since first token)`
-        : `waiting for ${this.vendorLabel} to start responding`;
-      this.updateProgress(this.#thinkingProgressPercent(), `Thinking — ${seconds}s elapsed, ${stage}`);
+      const silent = this.#streamStartedAt
+        ? `${((Date.now() - this.#streamStartedAt) / 1000).toFixed(1)}s since its last token`
+        : `no output yet`;
+      const hint = this.thinkingEnabled
+        ? 'reasoning live above'
+        : 'turn on "Show live thinking" in ⚙️ Settings to watch it think';
+      this.updateProgress(
+        this.#thinkingProgressPercent(),
+        `Thinking — ${seconds}s elapsed, ${silent} (${hint})`
+      );
     }, 500);
 
     const finish = () => {
@@ -869,14 +889,27 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           signal: controller.signal,
           body: JSON.stringify(request.body)
         });
+        if (!res.ok && request.stream && request.vendor === 'gemini') {
+          const nonStreamUrl = request.url.replace(':streamGenerateContent?alt=sse', ':generateContent').replace('?alt=sse', '');
+          const fallbackRes = await fetch(nonStreamUrl, {
+            method: 'POST',
+            headers: { ...request.headers, Accept: 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify(request.body)
+          }).catch(() => null);
+          if (fallbackRes && fallbackRes.ok) {
+            res = fallbackRes;
+            request.stream = false;
+          }
+        }
       } catch (err) {
         const reason = controller.signal.aborted
-          ? `${this.vendorLabel} sent nothing for ${idleTimeoutMs / 1000}s (no response and no stream data)`
+          ? `${this.vendorLabel} sent nothing for ${Math.round((this.firstTokenTimeoutMs || FIRST_TOKEN_TIMEOUT_MS) / 1000)}s (no response and no stream data)`
           : err.message;
         throw new Error(`Request to ${this.vendorLabel} failed after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${reason}. Nothing was executed.`);
       }
 
-      if (!res.ok) throw new Error(this.#httpError(res));
+      if (!res.ok) throw new Error(await this.#httpError(res));
 
       const contentType = res.headers?.get?.('content-type') || '';
       const streamed = request.stream && typeof res.body?.getReader === 'function' && contentType.includes('event-stream');
@@ -1095,22 +1128,41 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   }
 
   /** Explain a failed HTTP call in terms of what the user can do about it. */
-  #httpError(res) {
-    const status = res.status;
-    const base = `${this.vendorLabel} API HTTP ${status}`;
-    if (status === 401 || status === 403) {
-      return `${base}: the API key was rejected. Re-enter it in ⚙️ Settings. Nothing was executed.`;
+  async #httpError(res) {
+    const status = res?.status || 500;
+    let detail = '';
+    let errorCode = '';
+    try {
+      if (typeof res?.json === 'function') {
+        const data = await res.json().catch(() => null);
+        if (data) {
+          detail = data?.error?.message || data?.message || '';
+          errorCode = data?.error?.code || data?.code || '';
+        }
+      }
+    } catch {}
+    if (!detail && typeof res?.text === 'function') {
+      try {
+        detail = await res.text().catch(() => '');
+      } catch {}
     }
-    if (status === 402) {
-      return `${base}: the account is out of credit. Top up with ${this.vendorLabel} and retry. Nothing was executed.`;
+
+    const isQuota = status === 402 || errorCode === 'insufficient_quota' || /insufficient_quota|exceeded your current quota|out of credit|billing/i.test(detail);
+    const base = `${this.vendorLabel} API HTTP ${status}`;
+
+    if (isQuota) {
+      return `${base}: the account is out of credit or has insufficient quota (${errorCode || 'insufficient_quota'}). Top up your OpenAI credit balance at https://platform.openai.com/account/billing or switch to Google Gemini in Settings (which has a free tier without a credit card). Nothing was executed.`;
+    }
+    if (status === 401 || status === 403) {
+      return `${base}: the API key was rejected${detail ? ` (${detail})` : ''}. Re-enter it in ⚙️ Settings. Nothing was executed.`;
     }
     if (status === 429) {
-      return `${base}: rate limit or quota exceeded. Wait a moment and retry. Nothing was executed.`;
+      return `${base}: rate limit or quota exceeded${detail ? ` (${detail})` : ''}. If using OpenAI, please ensure your account has a positive credit balance in Billing; otherwise wait a moment and retry. Nothing was executed.`;
     }
-    if (status === 400) {
-      return `${base}: the request was rejected — the selected model may not be available on this key or may not accept the request shape. Nothing was executed.`;
+    if (status === 400 || status === 404) {
+      return `${base}: the request was rejected — the selected model may not be available on this key or may not accept the request shape${detail ? ` (${detail})` : ''}. Nothing was executed.`;
     }
-    return `${base} (${res.statusText || 'request failed'}). Check the key, model access and quota, then retry. Nothing was executed.`;
+    return `${base} (${res?.statusText || 'request failed'})${detail ? ` (${detail})` : ''}. Check the key, model access and quota, then retry. Nothing was executed.`;
   }
 
   /** Backwards compatible alias. */
@@ -1619,8 +1671,8 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     const hasWaterIntent = p.includes('water') || p.includes('fill water') || p.includes('fill with water') || p.includes('put water') || p.includes('add water') || hasWaterFeature;
     const hasBuildIntent = p.includes('build') || p.includes('construct') || p.includes('make a') || p.includes('create a') || p.includes('craft a') || p.includes('erect') || hasWaterFeature;
 
-    const isAquaticMob = (t) => ['salmon', 'dolphin', 'octopus', 'squid', 'axolotl'].includes(t);
-    const hasAquaticMobInList = foundMobs.some(m => isAquaticMob(m.type)) || p.includes('fish') || p.includes('fishi') || p.includes('creature') || p.includes('salmon') || p.includes('axolotl');
+    const isAquaticMob = (t) => ['salmon', 'cod', 'dolphin', 'octopus', 'squid', 'glow_squid', 'guardian', 'elder_guardian', 'drowned', 'axolotl'].includes(t);
+    const hasAquaticMobInList = foundMobs.some(m => isAquaticMob(m.type)) || p.includes('fish') || p.includes('fishi') || p.includes('creature') || p.includes('salmon') || p.includes('cod') || p.includes('axolotl');
 
     if (hasBuildIntent || hasWaterFeature) {
       const isCompound = (p.includes(' and ') || p.includes(' then ') || p.includes(' with ')) && (hasWaterIntent || foundMobs.length > 0 || hasAquaticMobInList);
@@ -2110,7 +2162,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     const yaw = this.game.player.yaw;
     let spawnPoints = [];
     const isInside = targetLocation.startsWith('inside');
-    const isAquaticMob = (t) => ['salmon', 'dolphin', 'octopus', 'squid', 'axolotl'].includes(t);
+    const isAquaticMob = (t) => ['salmon', 'cod', 'dolphin', 'octopus', 'squid', 'glow_squid', 'guardian', 'elder_guardian', 'drowned', 'axolotl'].includes(t);
     const hasAquatic = mobList.some(m => isAquaticMob(m.type));
 
     // If requested inside a house / structure, determine interior floor coordinates
