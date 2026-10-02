@@ -1,3 +1,8 @@
+import { setMagmaSize, updateSnowballs } from './netherCombat.js';
+import { updateBarterEffects } from './barterItems.js';
+import { retaliateHoglins } from './netherMobAI.js';
+import { separatePlayerFromMobs } from './mobPlayerCollision.js';
+import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
@@ -54,6 +59,10 @@ export class MobManager {
     this.sounds = sounds;
     this.mobs = [];
     this.arrows = [];
+    this.customProjectiles = [];
+    // Optional developer overlay. Labels are scene sprites so they remain
+    // readable in 3D and do not affect normal gameplay when disabled.
+    this.debugLabelsEnabled = false;
     this.textureLoader = new THREE.TextureLoader();
 
     // Cache textures
@@ -113,7 +122,13 @@ export class MobManager {
   }
 
   clearMobs() {
+    this.playerContactStart = null;
+    for (const potion of this.splashPotions || []) { potion.mesh.removeFromParent(); potion.mesh.geometry.dispose(); potion.mesh.material.dispose(); }
+    this.splashPotions = [];
+    for (const mob of this.mobs) if (mob.glowOutline) { mob.glowOutline.removeFromParent(); mob.glowOutline.geometry.dispose(); mob.glowOutline.material.dispose(); }
+
     for (const arrow of [...this.arrows]) removeArrow(this, arrow);
+    this.clearDebugLabels();
     if (this.customProjectiles) {
       for (const p of this.customProjectiles) {
         if (p.mesh) {
@@ -139,6 +154,110 @@ export class MobManager {
       }
     }
     this.mobs = [];
+  }
+
+  /**
+   * Enable or disable the mob inspection overlay. The pause menu owns the
+   * toggle, while this method keeps the rendering concern inside MobManager so
+   * labels also work for mobs spawned by raids and custom agents.
+   */
+  setDebugLabelsEnabled(enabled) {
+    this.debugLabelsEnabled = Boolean(enabled);
+    if (!this.debugLabelsEnabled) {
+      this.clearDebugLabels();
+      return false;
+    }
+    for (const mob of this.mobs) this.ensureDebugLabel(mob);
+    return true;
+  }
+
+  clearDebugLabels() {
+    for (const mob of this.mobs || []) {
+      this.removeDebugLabel(mob);
+    }
+  }
+
+  removeDebugLabel(mob) {
+    const label = mob?.debugLabel;
+    if (!label) return;
+    label.parent?.remove(label);
+    label.material?.map?.dispose?.();
+    label.material?.dispose?.();
+    mob.debugLabel = null;
+    mob.debugLabelKey = null;
+  }
+
+  createDebugLabelTexture(text) {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+    ctx.fillRect(4, 4, canvas.width - 8, canvas.height - 8);
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
+  ensureDebugLabel(mob) {
+    if (!mob?.mesh || !this.scene) return null;
+    const health = Number.isFinite(mob.health) ? Math.max(0, mob.health) : null;
+    const maxHealth = Number.isFinite(mob.maxHealth) ? Math.max(1, mob.maxHealth) : null;
+    const name = mob.name || String(mob.type || 'Mob').replace(/_/g, ' ');
+    const title = name.replace(/\b\w/g, char => char.toUpperCase());
+    const text = health === null
+      ? title
+      : `${title}  HP ${Math.ceil(health)}/${Math.ceil(maxHealth || health)}`;
+    const key = `${text}|${this.debugLabelsEnabled}`;
+
+    if (!mob.debugLabel) {
+      const material = new THREE.SpriteMaterial({
+        map: this.createDebugLabelTexture(text),
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+      });
+      const label = new THREE.Sprite(material);
+      label.name = `mob-debug-${mob.type || 'mob'}`;
+      label.renderOrder = 1000;
+      label.scale.set(2.7, 0.52, 1);
+      this.scene.add(label);
+      mob.debugLabel = label;
+    } else if (mob.debugLabelKey !== key) {
+      const nextTexture = this.createDebugLabelTexture(text);
+      const previousTexture = mob.debugLabel.material?.map;
+      mob.debugLabel.material.map = nextTexture;
+      mob.debugLabel.material.needsUpdate = true;
+      previousTexture?.dispose?.();
+    }
+    mob.debugLabelKey = key;
+    mob.debugLabel.visible = this.debugLabelsEnabled && mob.health > 0 && !mob.dying;
+    return mob.debugLabel;
+  }
+
+  /** Update label positions and health text once per rendered frame. */
+  updateDebugLabels() {
+    if (!this.debugLabelsEnabled) return;
+    for (const mob of this.mobs || []) {
+      const label = this.ensureDebugLabel(mob);
+      if (!label || !label.visible) continue;
+      const dims = this.getMobDimensions?.(mob.type) || { height: 1.4 };
+      if (mob.mesh.getWorldPosition) {
+        mob.mesh.getWorldPosition(label.position);
+      } else {
+        label.position.copy(mob.mesh.position);
+      }
+      label.position.y += Number.isFinite(mob.height) ? mob.height + 0.35 : (dims.height || 1.4) + 0.55;
+    }
   }
 
   spawnParticleBurst(pos, color = 0xf43f5e, count = 8) {
@@ -188,7 +307,7 @@ export class MobManager {
     }
     if (typeof type === 'string' && (type.startsWith('custom_') || MobLibrary.getMob(type))) {
       const def = MobLibrary.getMob(type);
-      if (def) return this.spawnCustomMob(def, x, y, z);
+      if (def && !def.isBuiltin) return this.spawnCustomMob(def, x, y, z);
     }
     switch (type) {
       case 'villager': return this.spawnVillager(x, y, z);
@@ -221,6 +340,7 @@ export class MobManager {
       case 'zombified_piglin':
       case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z);
       case 'hoglin': return this.spawnHoglin(x, y, z);
+      case 'zoglin': { const mob = this.spawnHoglin(x, y, z); mob.type = 'zoglin'; mob.name = 'Zoglin'; mob.fireImmune = true; return mob; }
       case 'ghast': return this.spawnGhast(x, y, z);
       case 'magma_cube': return this.spawnMagmaCube(x, y, z);
       case 'shulker': return this.spawnShulker(x, y, z);
@@ -1501,6 +1621,51 @@ export class MobManager {
     return tex;
   }
 
+  /** Generate a lightweight pixel coat for horses and donkeys. */
+  createHorseTexture(coat = 0x78350f, createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const coatColor = new THREE.Color(coat).getStyle();
+    const coatDark = new THREE.Color(coat).multiplyScalar(0.62).getStyle();
+    const coatLight = new THREE.Color(coat).lerp(new THREE.Color(0xffffff), 0.2).getStyle();
+
+    ctx.fillStyle = coatColor;
+    ctx.fillRect(0, 0, 64, 64);
+    // Pixel shading keeps the texture legible on the large torso and legs.
+    ctx.fillStyle = coatLight;
+    ctx.fillRect(0, 0, 64, 8);
+    ctx.fillRect(4, 16, 8, 3);
+    ctx.fillRect(38, 26, 10, 3);
+    ctx.fillStyle = coatDark;
+    ctx.fillRect(0, 48, 64, 16);
+    for (let x = 3; x < 62; x += 9) ctx.fillRect(x, 35 + (x % 3), 4, 3);
+
+    // Dark mane/tail and a contrasting muzzle/eye patch.
+    ctx.fillStyle = '#24170f';
+    ctx.fillRect(3, 8, 8, 36);
+    ctx.fillRect(52, 8, 9, 18);
+    ctx.fillStyle = '#3b261a';
+    ctx.fillRect(20, 42, 24, 12);
+    ctx.fillStyle = '#0b0d0f';
+    ctx.fillRect(21, 25, 6, 5);
+    ctx.fillRect(37, 25, 6, 5);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(23, 26, 2, 2);
+    ctx.fillRect(39, 26, 2, 2);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   createNetherTexture(type) {
     if (typeof document === 'undefined') return new THREE.Texture();
     const canvas = document.createElement('canvas');
@@ -1665,19 +1830,19 @@ export class MobManager {
       ctx.fillRect(28, 28, 8, 8);
     } else if (type === 'blaze_head') {
       // Dark smoky charcoal head with glowing yellow/gold eyes
-      ctx.fillStyle = '#1c1917';
+      ctx.fillStyle = '#dba52d';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#292524';
+      ctx.fillStyle = '#b97e1d';
       for (let x = 0; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
           if ((x * 11 + y * 7) % 3 === 0) ctx.fillRect(x, y, 4, 4);
         }
       }
       // Glowing yellow/gold eyes
-      ctx.fillStyle = '#fef08a';
+      ctx.fillStyle = '#fff09c';
       ctx.fillRect(14, 18, 8, 8);
       ctx.fillRect(42, 18, 8, 8);
-      ctx.fillStyle = '#f59e0b';
+      ctx.fillStyle = '#593416';
       ctx.fillRect(16, 20, 4, 4);
       ctx.fillRect(44, 20, 4, 4);
     } else if (type === 'blaze') {
@@ -1694,13 +1859,6 @@ export class MobManager {
       for (let x = 2; x < 62; x += 8) {
         ctx.fillRect(x, 0, 4, 64);
       }
-      // Glowing yellow eyes
-      ctx.fillStyle = '#fef08a';
-      ctx.fillRect(14, 16, 6, 6);
-      ctx.fillRect(44, 16, 6, 6);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(16, 18, 2, 2);
-      ctx.fillRect(46, 18, 2, 2);
     } else if (type === 'piglin') {
       // Warm peach-tan piglin hide per Minecraft Java texture
       ctx.fillStyle = '#d97757';
@@ -2089,8 +2247,9 @@ export class MobManager {
       case 'piglin': return { width: 0.6, height: 1.95 };
       case 'zombified_piglin':
       case 'zombie_pigman': return { width: 0.6, height: 1.95 };
+      case 'zoglin':
       case 'hoglin': return { width: 1.4, height: 1.4 };
-      case 'magma_cube': return { width: 0.8, height: 0.8 };
+      case 'magma_cube': return { width: 2.04, height: 2.04 };
       case 'strider': return { width: 0.9, height: 1.7 };
       case 'wither_skeleton': return { width: 0.7, height: 2.4 };
       case 'guardian': return { width: 0.85, height: 0.85 };
@@ -2108,8 +2267,9 @@ export class MobManager {
 
   checkMobCollision(mob, pos) {
     const dims = this.getMobDimensions(mob.type);
-    const hw = (mob.width || dims.width) / 2;
-    const h = mob.height || dims.height;
+    const scale = mob.isBaby ? 0.5 : 1;
+    const hw = (mob.width || dims.width) * scale / 2;
+    const h = (mob.height || dims.height) * scale;
 
     // Small inset (0.02) to prevent precision sticking to block walls
     const minX = Math.floor(pos.x - hw + 0.02);
@@ -3136,14 +3296,25 @@ export class MobManager {
       color: 0x1f140e
     });
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), headMat);
+    const sideMat = new THREE.MeshLambertMaterial({color:0xd6a321, map:this.textures?.blaze});
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), [sideMat,sideMat,sideMat,sideMat,headMat,sideMat]);
     head.position.y = 1.35;
     group.add(head);
 
-    // Dark swirling smoke column core
-    const smokeCore = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.24), smokeMat);
-    smokeCore.position.y = 0.8;
-    group.add(smokeCore);
+    const smoke = new THREE.Group();
+    for (let i=0; i<10; i++) {
+      const puff = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.13), new THREE.MeshBasicMaterial({color:0x34302b, transparent:true, opacity:.35, depthWrite:false}));
+      puff.position.set(Math.sin(i*2.4)*.3, i*.18, Math.cos(i*2.4)*.3);
+      smoke.add(puff);
+    }
+    group.add(smoke);
+    const flames = new THREE.Group();
+    for (let i=0;i<6;i++) {
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(.08,.45,5), new THREE.MeshBasicMaterial({color:0xffb52b,transparent:true,opacity:.75,depthWrite:false}));
+      flame.position.set(Math.sin(i)*.35,.4+(i%3)*.35,Math.cos(i)*.35);
+      flames.add(flame);
+    }
+    flames.visible=false; group.add(flames);
 
     // 12 orbiting rods arranged in 3 tiers
     const rodGeo = new THREE.BoxGeometry(0.12, 0.55, 0.12);
@@ -3178,6 +3349,8 @@ export class MobManager {
       mesh: group,
       head: head,
       tiers: tiers,
+      smoke,
+      flames,
       isFlying: true,
       fireImmune: true,
       health: 20,
@@ -3195,13 +3368,15 @@ export class MobManager {
   spawnPiglin(x, y, z) {
     const group = new THREE.Group();
     const skinMat = new THREE.MeshLambertMaterial({
-      map: this.textures.piglin,
+      map: this.textures.piglin_hide ||= piglinTexture(0xdca684),
       color: 0xffffff
     });
     const goldMat = new THREE.MeshLambertMaterial({
       color: 0xfacc15
     });
     const tuskMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+
+    const clothesMat = new THREE.MeshLambertMaterial({ map: this.textures.piglin_clothes ||= piglinTexture(0x533a2b) });
 
     // Head
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 0.58), skinMat);
@@ -3212,6 +3387,14 @@ export class MobManager {
     const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.16), skinMat);
     snout.position.set(0, -0.1, 0.32);
     head.add(snout);
+
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x291c18 });
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.055, 0.025), eyeMat);
+      eye.position.set(side * 0.19, 0.045, 0.3); head.add(eye);
+      const nostril = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.04, 0.02), eyeMat);
+      nostril.position.set(side * 0.09, -0.09, 0.41); head.add(nostril);
+    }
 
     // Tusks
     const tuskL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), tuskMat);
@@ -3232,8 +3415,8 @@ export class MobManager {
     earR.rotation.z = 0.3;
     head.add(earR);
 
-    // Torso with Golden Tunic
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), goldMat);
+    // Brown leather tunic
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), clothesMat);
     body.position.y = 0.95;
     group.add(body);
 
@@ -3241,15 +3424,30 @@ export class MobManager {
     const leftArm = new THREE.Mesh(armGeo, skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
     const rightArm = new THREE.Mesh(armGeo, skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
 
+    const admiredGold = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.12), goldMat);
+    admiredGold.position.set(0, -0.3, 0.14);
+    admiredGold.visible = false;
+    leftArm.add(admiredGold);
+    const weapon = Math.random() < 0.5 ? 'golden_sword' : 'crossbow';
     // Golden Sword in hand
     const sword = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 0.14), goldMat);
     sword.position.set(0, -0.3, 0.3);
     sword.rotation.x = Math.PI / 4;
+    sword.userData.piglinWeapon = 'sword';
     rightArm.add(sword);
+    sword.visible = weapon === 'golden_sword';
+    if (weapon === 'crossbow') {
+      const bow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.09, 0.12), clothesMat);
+      bow.userData.piglinWeapon = 'crossbow';
+      bow.position.set(0, -0.3, 0.3); rightArm.add(bow);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.45), clothesMat);
+      stock.userData.piglinWeapon = 'crossbow';
+      stock.position.set(0, -0.3, 0.2); rightArm.add(stock);
+    }
 
     const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftLeg = new THREE.Mesh(legGeo, goldMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, goldMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
+    const leftLeg = new THREE.Mesh(legGeo, clothesMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, clothesMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -3257,6 +3455,8 @@ export class MobManager {
 
     const mob = {
       type: 'piglin',
+      weapon,
+      admiredGold,
       name: 'Piglin',
       mesh: group,
       head: head,
@@ -3273,6 +3473,11 @@ export class MobManager {
       timer: 0,
       hitCooldown: 0
     };
+    mob.equipment = {};
+    for (const [slot, id] of Object.entries({ head: 'golden_helmet', chest: 'golden_chestplate', legs: 'golden_leggings', feet: 'golden_boots' })) {
+      if (Math.random() < 0.1) mob.equipment[slot] = { id, isBlock: false, count: 1 };
+    }
+    syncPiglinEquipment(mob);
     this.mobs.push(mob);
     return mob;
   }
@@ -3535,7 +3740,11 @@ export class MobManager {
     const layers = [];
     const layerGeo = new THREE.BoxGeometry(0.8, 0.08, 0.8);
     for (let i = 0; i < 8; i++) {
-      const layer = new THREE.Mesh(layerGeo, crustMat);
+      const geo = layerGeo.clone();
+      const uv = geo.attributes.uv;
+      for (let j=0;j<uv.count;j++) uv.setY(j,(i+uv.getY(j))/8);
+      const sideMat = new THREE.MeshLambertMaterial({color:0x30211c, emissive:0x210600});
+      const layer = new THREE.Mesh(geo, [sideMat,sideMat,sideMat,sideMat,crustMat,sideMat]);
       layer.position.y = 0.05 + i * 0.1;
       group.add(layer);
       layers.push(layer);
@@ -3561,6 +3770,7 @@ export class MobManager {
       timer: 0,
       hitCooldown: 0
     };
+    setMagmaSize(mob, 4);
     this.mobs.push(mob);
     return mob;
   }
@@ -3603,7 +3813,17 @@ export class MobManager {
     const group = new THREE.Group();
     const coatColors = [0x78350f, 0xf8fafc, 0x18181b, 0xa16207, 0xd97706];
     const coat = coatColors[Math.floor(Math.random() * coatColors.length)];
-    const horseMat = new THREE.MeshLambertMaterial({ color: coat });
+    const textureCache = this.textures || (this.textures = {});
+    const horseTextureKey = `horse_${coat.toString(16)}`;
+    const horseTexture = textureCache[horseTextureKey]
+      || (textureCache[horseTextureKey] = this.createHorseTexture(coat));
+    const horseMat = new THREE.MeshLambertMaterial({
+      map: horseTexture,
+      color: 0xffffff
+    });
+    const maneMat = new THREE.MeshLambertMaterial({ color: 0x24170f });
+    const muzzleMat = new THREE.MeshLambertMaterial({ color: 0x3b261a });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0b0d0f });
 
     // Torso
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 1.4), horseMat);
@@ -3620,12 +3840,33 @@ export class MobManager {
     head.position.set(0, 1.95, 0.85);
     group.add(head);
 
+    // Ears, mane, muzzle and eyes make the coat read as a horse rather than a
+    // featureless brown placeholder while retaining the blocky silhouette.
+    const earGeo = new THREE.BoxGeometry(0.1, 0.24, 0.12);
+    const earL = new THREE.Mesh(earGeo, maneMat); earL.position.set(-0.15, 2.28, 0.73); group.add(earL);
+    const earR = new THREE.Mesh(earGeo, maneMat); earR.position.set(0.15, 2.28, 0.73); group.add(earR);
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.16), muzzleMat);
+    muzzle.position.set(0, 1.86, 1.19); group.add(muzzle);
+    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.03);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.18, 2.08, 1.13); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.18, 2.08, 1.13); group.add(eyeR);
+    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.75, 0.2), maneMat);
+    mane.position.set(0, 1.72, 0.38); group.add(mane);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.62, 0.16), maneMat);
+    tail.position.set(0, 1.05, -0.78); tail.rotation.x = -Math.PI / 8; group.add(tail);
+
     // Legs
     const legGeo = new THREE.BoxGeometry(0.24, 0.8, 0.24);
     const fl = new THREE.Mesh(legGeo, horseMat); fl.position.set(-0.3, 0.4, 0.5); group.add(fl);
     const fr = new THREE.Mesh(legGeo, horseMat); fr.position.set(0.3, 0.4, 0.5); group.add(fr);
     const bl = new THREE.Mesh(legGeo, horseMat); bl.position.set(-0.3, 0.4, -0.5); group.add(bl);
     const br = new THREE.Mesh(legGeo, horseMat); br.position.set(0.3, 0.4, -0.5); group.add(br);
+    const hoofGeo = new THREE.BoxGeometry(0.25, 0.12, 0.28);
+    for (const [px, pz] of [[-0.3, 0.5], [0.3, 0.5], [-0.3, -0.5], [0.3, -0.5]]) {
+      const hoof = new THREE.Mesh(hoofGeo, maneMat);
+      hoof.position.set(px, 0.04, pz);
+      group.add(hoof);
+    }
 
     // Saddle mesh (hidden by default)
     const saddleMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
@@ -3667,7 +3908,13 @@ export class MobManager {
 
   spawnDonkey(x, y, z) {
     const group = new THREE.Group();
-    const donkeyMat = new THREE.MeshLambertMaterial({ color: 0x71717a });
+    const textureCache = this.textures || (this.textures = {});
+    const donkeyTexture = textureCache.donkey
+      || (textureCache.donkey = this.createHorseTexture(0x71717a));
+    const donkeyMat = new THREE.MeshLambertMaterial({
+      map: donkeyTexture,
+      color: 0xffffff
+    });
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.85, 1.3), donkeyMat);
     body.position.y = 1.05;
@@ -5889,10 +6136,13 @@ export class MobManager {
     mob.lastRenderedHealth = mob.health;
   }
 
-  damageMob(mob, amount, knockbackOrigin, isPunch = false) {
+  damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
+    if (mob.type === 'magma_cube' && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
+    if (attacker === this.game?.player || (!attacker && knockbackOrigin)) mob.playerDamaged = true;
     mob.health -= amount;
+    if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
 
     // Flash every visible material red. Ghasts (and several textured mobs) do
@@ -5939,7 +6189,8 @@ export class MobManager {
     if (mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') {
       this.hostileBehaviors?.angerZombifiedPiglins?.(mob);
     } else if (mob.type === 'piglin') {
-      mob.aggroToPlayer = true;
+      if ((!attacker && knockbackOrigin) || (attacker && attacker === this.game?.player)) angerPiglins(this, mob.mesh.position);
+      else if (attacker) { mob.combatTarget = attacker; mob.retaliationTimer = 30; mob.isBartering = false; }
     }
 
     if (mob.health <= 0 && mob.laserLine && this.scene) {
@@ -5964,7 +6215,7 @@ export class MobManager {
       if (kbDir.lengthSq() > 0.001) kbDir.normalize();
       else kbDir.set(0, 0, 1);
       const isHeavyOrFlying = mob.isBoss || mob.isFlying || /dragon/i.test(mob.name || '');
-      const kbFactor = isHeavyOrFlying ? 0.25 : 1.0;
+      const kbFactor = ['hoglin', 'zoglin'].includes(mob.type) ? 0.4 : isHeavyOrFlying ? 0.25 : 1.0;
       mob.knockback = kbDir.multiplyScalar((isPunch ? 3.5 : 6) * kbFactor);
       mob.velocity.y += (isPunch ? 1.8 : 4) * kbFactor;
     }
@@ -5998,6 +6249,7 @@ export class MobManager {
         this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 18);
         this.entities?.spawnDeathParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)));
         this.scene.remove(mob.mesh);
+        this.removeDebugLabel(mob);
         const idx = this.mobs.indexOf(mob);
         if (idx !== -1) this.mobs.splice(idx, 1);
         return true;
@@ -6008,6 +6260,7 @@ export class MobManager {
           if (cl && cl.mesh) {
             this.entities?.spawnEndermanParticles(cl.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 14);
             this.scene.remove(cl.mesh);
+            this.removeDebugLabel(cl);
             const clIdx = this.mobs.indexOf(cl);
             if (clIdx !== -1) this.mobs.splice(clIdx, 1);
           }
@@ -6110,6 +6363,7 @@ export class MobManager {
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
       if (mob.isBaby) {
         mob.noLoot = true;
+        if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
       }
       const loot = {
         pig: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
@@ -6132,14 +6386,15 @@ export class MobManager {
         pillager: [['arrow', false, 1, 2]],
         vindicator: [['emerald', false, 0, 1]],
         evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
-        blaze: [['blaze_rod', false, 1, 2]],
+        blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1]] : [],
         ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
-        piglin: [['gold_nugget', false, 1, 3], ['raw_gold', false, 0, 1], ['golden_sword', false, 0, 1]],
+        piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
+        zoglin: [['rotten_flesh', false, 1, 3]],
         zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
         zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
-        hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 1, 2]],
+        hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
         strider: [['string', false, 2, 5]],
-        magma_cube: [['magma_cream', false, 0, 1]],
+        magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
         wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
         witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
         guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
@@ -6152,6 +6407,12 @@ export class MobManager {
       if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
         this.game.player.applyStatusEffect('bad_omen', 100);
       }
+      if (mob.type === 'piglin') {
+        for (const item of [...Object.values(mob.equipment || {}), ...(mob.piglinInventory || [])]) {
+          if (item.pickedUp || mob.piglinInventory?.includes(item) || Math.random() < 0.085) this.entities?.spawnDroppedItem(pos, item.id, !!item.isBlock, item.count || 1, { enchantments: item.enchantments });
+        }
+        if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
+      }
       if (!mob.noLoot) {
         for (const [id, isBlock, min, max] of loot[mob.type] || []) {
           const count = min + Math.floor(Math.random() * (max - min + 1));
@@ -6160,8 +6421,8 @@ export class MobManager {
           }
         }
         if (this.entities?.spawnXpOrbs) {
-          const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze'].includes(mob.type);
-          const xpVal = hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6173,6 +6434,7 @@ export class MobManager {
     }
     if (mob.deathTime >= 0.95) {
       this.scene.remove(mob.mesh);
+      this.removeDebugLabel(mob);
       this.mobs.splice(this.mobs.indexOf(mob), 1);
       const geometries = new Set();
       mob.mesh.traverse(child => { if (child.geometry) geometries.add(child.geometry); });
@@ -6183,9 +6445,12 @@ export class MobManager {
 
   update(dt, player) {
     dt = Math.min(dt, 0.1);
+    for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
     updateArrows(this, dt, player);
+    updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
     this.hostileBehaviors?.update(dt, player);
+    updateBarterEffects(this, dt, player);
 
     // 2. Update Mobs AI & Physics
     for (let i = this.mobs.length - 1; i >= 0; i--) {
@@ -6733,7 +6998,7 @@ export class MobManager {
 
           // Attack player
           if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
-            player.takeDamage(3);
+            player.takeDamage(3, mob.mesh.position, mob.type);
             mob.hitCooldown = 1.0;
           }
         } else {
@@ -6742,6 +7007,14 @@ export class MobManager {
         }
       } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
         let isFollowing = false;
+
+        // A ridden pig is steered by AnimalBehaviors. Do not let its ambient
+        // wander/follow AI overwrite the rider's velocity later in this loop.
+        if (mob.rider || this.animalBehaviors?.mount?.mob === mob) {
+          isFollowing = true;
+          mob.wanderGoal = null;
+          mob.wanderTimer = 0;
+        }
 
         // If mob is sitting (tamed cat/wolf), freeze movement
         if (mob.isSitting) {
@@ -7049,10 +7322,11 @@ export class MobManager {
           }
 
           if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
-            player.takeDamage(10);
+            player.takeDamage(10, mob.mesh.position, mob.type);
             this.sounds.playExplosion();
             mob.health = 0; // explode
             mob.noLoot = true;
+        if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
             continue;
           }
         } else {
@@ -7324,7 +7598,7 @@ export class MobManager {
 
         // Melee attack
         if (dist < 1.8 && mob.attackCooldown <= 0) {
-          player.takeDamage(5);
+          player.takeDamage(5, mob.mesh.position, mob.type);
           if (this.sounds?.playZombie) this.sounds.playZombie();
           mob.attackCooldown = 0.9;
           if (mob.leftArm && mob.rightArm) {
@@ -7389,7 +7663,7 @@ export class MobManager {
               }
             }
           }
-        } else if (mob.type === 'hoglin' && mob.legFL && mob.legFR && mob.legBL && mob.legBR) {
+        } else if (['hoglin', 'zoglin'].includes(mob.type) && mob.legFL && mob.legFR && mob.legBL && mob.legBR) {
           mob.legFL.rotation.x = legSwing;
           mob.legFR.rotation.x = -legSwing;
           mob.legBL.rotation.x = -legSwing;
@@ -7397,6 +7671,11 @@ export class MobManager {
         }
       }
 
+      // Tusk wind-up stays separate from locomotion.
+      if (['hoglin', 'zoglin'].includes(mob.type) && mob.head) {
+        mob.tuskAttackTime = Math.max(0, (mob.tuskAttackTime || 0) - dt);
+        mob.head.rotation.x = -Math.sin(mob.tuskAttackTime / 0.3 * Math.PI) * 0.5;
+      }
       // Nether mob dynamic animations
       if (mob.type === 'ghast') {
         mob.ghastAnimTimer = (mob.ghastAnimTimer || 0) + dt * 2.5;
@@ -7421,6 +7700,9 @@ export class MobManager {
           }
         }
       } else if (mob.type === 'blaze' && mob.tiers) {
+        mob.flames.visible = !!mob.charging;
+        mob.flames.rotation.y += dt*2;
+        for (const puff of mob.smoke.children) { puff.position.y = (puff.position.y+dt*.6)%1.9; puff.material.opacity=.4*(1-puff.position.y/1.9); }
         if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
         if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
         if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
@@ -7429,7 +7711,7 @@ export class MobManager {
         const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
         for (let lIdx = 0; lIdx < mob.layers.length; lIdx++) {
           const baseY = 0.05 + lIdx * 0.1;
-          const stretch = (lIdx - 3.5) * 0.07 * expand;
+          const stretch = lIdx * 0.07 * expand;
           mob.layers[lIdx].position.y = baseY + stretch;
         }
         if (mob.core) {
@@ -7447,11 +7729,24 @@ export class MobManager {
 
     // Apply mob-to-mob soft collision separation so mobs never squeeze/collapse into one position
     this.applyMobCollisions(dt);
+    separatePlayerFromMobs(this, player, dt);
+
+    // Apply the final mount pose after the mob and separation passes. Animal
+    // Behaviors sets the rider before locomotion, so syncing at the end avoids
+    // a one-frame lag that looked like jitter behind a moving horse.
+    const activeMount = this.animalBehaviors?.mount;
+    if (activeMount?.mob?.rider === player && player?.position) {
+      const mountOffset = activeMount.type === 'horse' || activeMount.type === 'donkey' ? 1.4 : 0.8;
+      player.position.copy(activeMount.mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
+      player.velocity?.set?.(0, 0, 0);
+      player.updateCameraAndModel?.(0);
+    }
 
     // Update custom projectiles (fireballs, etc.)
     if (this.customProjectiles && this.customProjectiles.length > 0) {
       for (let pIdx = this.customProjectiles.length - 1; pIdx >= 0; pIdx--) {
         const p = this.customProjectiles[pIdx];
+        if (p.isBlazeFireball) continue;
         p.life -= dt;
         p.mesh.position.addScaledVector(p.velocity, dt);
 
@@ -7733,7 +8028,7 @@ export class MobManager {
 
         // Melee attack
         if (distToPlayer < 1.7 && mob.hitCooldown <= 0) {
-          player.takeDamage(mob.attackDamage);
+          player.takeDamage(mob.attackDamage, mob.mesh.position, mob.type);
           mob.hitCooldown = 1.0;
           if (mob.leftArm && mob.rightArm) {
             mob.leftArm.rotation.x = -Math.PI / 2.2;
@@ -7850,7 +8145,7 @@ export class MobManager {
 
       // Strike player with dive swoop
       if (dist < 3.2) {
-        player.takeDamage(mob.attackDamage || 15);
+        player.takeDamage(mob.attackDamage || 15, mob.mesh.position, mob.type);
         const knock = mob.velocity.clone().normalize();
         if (player.velocity) {
           player.velocity.x += knock.x * 14;

@@ -27,6 +27,7 @@ export const SHEEP_COLOR_HEX = {
 
 export const BREEDING_FOODS = {
   cow: ['wheat'],
+  hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
@@ -302,7 +303,7 @@ export class AnimalBehaviors {
     if (this.isBreedingFood(mob.type, itemId)) {
       if (mob.isBaby) {
         // Accelerate baby growth by 10%
-        mob.babyGrowthTimer = (mob.babyGrowthTimer !== undefined ? mob.babyGrowthTimer : 120.0) - 12.0;
+        mob.babyGrowthTimer = mob.type === 'hoglin' ? (mob.babyGrowthTimer ?? 1200) * 0.9 : (mob.babyGrowthTimer ?? 120) - 12;
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (this.mobManager?.spawnParticleBurst) {
           this.mobManager.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22c55e, 6);
@@ -333,7 +334,8 @@ export class AnimalBehaviors {
 
   isBreedingFood(type, itemId) {
     if (!type || !itemId) return false;
-    const cleanId = (typeof itemId === 'string' ? itemId : itemId?.id || '').toLowerCase().trim();
+    if (type === 'hoglin' && (itemId === BLOCKS.CRIMSON_FUNGUS || itemId?.id === BLOCKS.CRIMSON_FUNGUS)) return true;
+    const cleanId = String(typeof itemId === 'string' ? itemId : itemId?.id || '').toLowerCase().trim();
     const foods = BREEDING_FOODS[type];
     if (Array.isArray(foods) && foods.includes(cleanId)) return true;
     if (type === 'chicken' && (cleanId.includes('seed') || cleanId.includes('pod'))) return true;
@@ -452,7 +454,7 @@ export class AnimalBehaviors {
                 const baby = this.mobManager.spawnMob('chicken', p.position.x + ox, Math.max(1, p.position.y), p.position.z + oz);
                 if (baby) {
                   baby.isBaby = true;
-                  baby.babyGrowthTimer = 120.0;
+                  baby.babyGrowthTimer = 120;
                   baby.mesh?.scale?.set?.(0.5, 0.5, 0.5);
                 }
               }
@@ -493,8 +495,8 @@ export class AnimalBehaviors {
       }
 
       // 2. Baby growth timer
-      if (mob.isBaby) {
-        mob.babyGrowthTimer = (mob.babyGrowthTimer || 120) - dt;
+      if (mob.isBaby && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
+        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? (mob.type === 'hoglin' ? 1200 : 120)) - dt;
         if (mob.babyGrowthTimer <= 0) {
           mob.isBaby = false;
           mob.mesh.scale.set(1, 1, 1);
@@ -601,6 +603,21 @@ export class AnimalBehaviors {
     const mob = this.mount.mob;
     const type = this.mount.type;
 
+    // MobManager historically passed an empty controls object because the
+    // player owns keyboard state. Read that state as the fallback so mounts
+    // respond to the same WASD/Space input as on-foot movement. Explicit
+    // control values still win, which keeps this method easy to drive in tests
+    // and by alternate controllers.
+    const keys = player?.keys || {};
+    const movement = {
+      forward: controls.forward !== undefined ? controls.forward : Boolean(keys.KeyW),
+      backward: controls.backward !== undefined ? controls.backward : Boolean(keys.KeyS),
+      left: controls.left !== undefined ? controls.left : Boolean(keys.KeyA),
+      right: controls.right !== undefined ? controls.right : Boolean(keys.KeyD),
+      jump: controls.jump !== undefined ? controls.jump : Boolean(keys.Space),
+      space: controls.space !== undefined ? controls.space : Boolean(keys.Space)
+    };
+
     // If horse is untamed, chance to buck player off
     if ((type === 'horse' || type === 'donkey') && !mob.isTamed) {
       mob.tameTimer = (mob.tameTimer || 3.0) - dt;
@@ -634,10 +651,10 @@ export class AnimalBehaviors {
     const rightDir = new THREE.Vector3(-lookDir.z, 0, lookDir.x);
 
     let moveX = 0, moveZ = 0;
-    if (controls.forward) { moveX += lookDir.x; moveZ += lookDir.z; }
-    if (controls.backward) { moveX -= lookDir.x; moveZ -= lookDir.z; }
-    if (controls.left) { moveX -= rightDir.x; moveZ -= rightDir.z; }
-    if (controls.right) { moveX += rightDir.x; moveZ += rightDir.z; }
+    if (movement.forward) { moveX += lookDir.x; moveZ += lookDir.z; }
+    if (movement.backward) { moveX -= lookDir.x; moveZ -= lookDir.z; }
+    if (movement.left) { moveX -= rightDir.x; moveZ -= rightDir.z; }
+    if (movement.right) { moveX += rightDir.x; moveZ += rightDir.z; }
 
     const inputLen = Math.hypot(moveX, moveZ);
     let speed = (type === 'horse' ? 7.5 : type === 'donkey' ? 5.8 : 3.5);
@@ -664,7 +681,7 @@ export class AnimalBehaviors {
 
     // Jump charging for horses
     if (type === 'horse' || type === 'donkey') {
-      if (controls.jump || controls.space) {
+      if (movement.jump || movement.space) {
         this.isChargingJump = true;
         this.jumpCharge = Math.min(1.0, this.jumpCharge + dt * 1.5);
         mob.jumpCharge = this.jumpCharge;
@@ -705,7 +722,8 @@ export class AnimalBehaviors {
       const other = mobs[i];
       if (other !== mob && other.type === mob.type && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
         const dist = mob.mesh.position.distanceTo(other.mesh.position);
-        if (dist < 10.0 && dist >= 1.2) {
+        const courtshipRange = mob.type === 'hoglin' ? 1.6 : 1.2;
+        if (dist < 10.0 && dist >= courtshipRange) {
           // Approach each other actively
           const dir = other.mesh.position.clone().sub(mob.mesh.position);
           dir.y = 0;
@@ -725,7 +743,7 @@ export class AnimalBehaviors {
           other.wanderGoal = null;
           mob.matingTimer = 0;
           other.matingTimer = 0;
-        } else if (dist < 1.2) {
+        } else if (dist < courtshipRange) {
           // Courtship / Mating mode: face each other, stay close, continuously emit red love hearts
           const dir = other.mesh.position.clone().sub(mob.mesh.position);
           dir.y = 0;
@@ -776,7 +794,7 @@ export class AnimalBehaviors {
             const baby = this.mobManager.spawnMob(mob.type, babyPos.x, babyPos.y, babyPos.z);
             if (baby) {
               baby.isBaby = true;
-              baby.babyGrowthTimer = 120.0;
+              baby.babyGrowthTimer = mob.type === 'hoglin' ? 1200 : 120;
               baby.parent = mob;
               baby.mesh?.scale?.set?.(0.5, 0.5, 0.5);
               if (baby.head) baby.head.scale.set(1.5, 1.5, 1.5);

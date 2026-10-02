@@ -124,7 +124,7 @@ export function calculateAnvilResult(leftItem, rightItem, customName = '', playe
 
     // C. Enchantment Merging (from another item or an Enchanted Book)
     const isEnchantedBook = rightItem.id === 'enchanted_book';
-    const targetCategory = getItemEnchantCategory(leftItem);
+    const targetCategory = getItemEnchantCategory(leftItem.id);
 
     if (rightItem.enchantments && rightItem.enchantments.length > 0) {
       for (const rightEnch of rightItem.enchantments) {
@@ -132,7 +132,8 @@ export function calculateAnvilResult(leftItem, rightItem, customName = '', playe
         if (!enchDef) continue;
 
         // Verify compatibility with item type (unless enchanted book with compatible target)
-        if (!isEnchantedBook && !enchDef.targets.includes(targetCategory)) {
+        const compatible = leftItem.id === 'enchanted_book' || enchDef.targets.includes('all') || enchDef.targets.includes(targetCategory) || (['helmet', 'chestplate', 'leggings', 'boots'].includes(targetCategory) && enchDef.targets.includes('armor'));
+        if (!compatible) {
           continue;
         }
 

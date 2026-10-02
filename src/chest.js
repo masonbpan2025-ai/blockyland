@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { angerPiglins } from './piglin.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
@@ -271,6 +272,7 @@ export class ChestManager {
     }
 
     // Open chest GUI
+    if (player?.gamemode === 'survival' && this.game.mobs) angerPiglins(this.game.mobs, player.position);
     this.openChestPos = [Math.floor(x), Math.floor(y), Math.floor(z)];
     this.game.sounds?.playChestOpen?.();
     this.game.ui?.openChest?.(x, y, z);

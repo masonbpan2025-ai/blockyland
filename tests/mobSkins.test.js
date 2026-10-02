@@ -83,3 +83,15 @@ test('Ravager skin generator degrades safely without a DOM canvas', () => {
   assert.doesNotThrow(() => manager.createRavagerTexture());
   assert.ok(manager.createRavagerTexture() instanceof THREE.Texture);
 });
+
+test('horse and donkey use coat textures instead of flat placeholder colors', () => {
+  const manager = managerFixture();
+  const horse = manager.spawnHorse(0, 1, 0);
+  const donkey = manager.spawnDonkey(2, 1, 0);
+  for (const [mob, label] of [[horse, 'horse'], [donkey, 'donkey']]) {
+    const meshes = meshesOf(mob);
+    assert.ok(meshes.some(mesh => mesh.material?.map instanceof THREE.Texture), `${label} coat should use a texture`);
+    assert.ok(meshes.length >= 8, `${label} should have a complete blocky model`);
+  }
+  assert.doesNotThrow(() => manager.createHorseTexture(0x78350f));
+});

@@ -1,3 +1,4 @@
+import { soulSpeedMultiplier } from './barterItems.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -433,6 +434,18 @@ export class Player {
     this.isSneaking = !controlsDisabled && !!this.keys['ShiftLeft'];
     this.isSprinting = !controlsDisabled && !!this.keys['ControlLeft'] && !this.isSneaking && !this.isBlocking;
 
+    // A mounted player is driven by AnimalBehaviors. Running normal player
+    // gravity/collision here as well made the rider fight the mount every
+    // frame, producing visible jitter and immediately cancelling movement.
+    // Keep input flags (especially sneak, used to dismount) but let the mount
+    // own position, velocity and jump physics.
+    if (this.ridingMob) {
+      this.velocity.set(0, 0, 0);
+      this.onGround = true;
+      this.updateCameraAndModel(dt);
+      return;
+    }
+
     let targetSpeed = this.walkSpeed;
     if (this.isFlying) targetSpeed = this.flySpeed;
     else if (this.isBlocking) targetSpeed = this.sneakSpeed;
@@ -442,6 +455,8 @@ export class Player {
       targetSpeed = this.walkSpeed * 0.65;
       if (this.hasStatusEffect('dolphins_grace')) targetSpeed *= 2.2;
     }
+
+    if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
     if (this.hasStatusEffect('slowness')) {
       targetSpeed *= 0.6;
@@ -683,6 +698,8 @@ export class Player {
     if (this.isDead) return;
     if (this.invulnerableTimer > 0) return;
 
+    if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn'].includes(damageType)) return;
+
     // Shield blocking check: 100% deflection within frontal 180° cone
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
                       (this.inventory?.getActiveItem()?.id === 'shield');
@@ -755,6 +772,11 @@ export class Player {
 
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = 0.5;
+    if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0) {
+      const push = this.position.clone().sub(sourcePos).setY(0).normalize();
+      this.velocity.addScaledVector(push, 3);
+      this.velocity.y = Math.max(this.velocity.y, 2.5);
+    }
     this.sounds.playHurt();
 
     if (this.health <= 0) {

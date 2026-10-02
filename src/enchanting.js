@@ -9,6 +9,7 @@ export const GALACTIC_RUNES = [
 ];
 
 export const ENCHANTMENT_REGISTRY = {
+  soul_speed: { name: 'Soul Speed', maxLevel: 3, targets: ['boots'], roman: ['I', 'II', 'III'], minBaseLvl: [10, 20, 30], treasure: true, desc: 'Move faster on soul sand and soul soil.' },
   // Weapon enchantments
   sharpness: {
     name: 'Sharpness',
@@ -244,6 +245,7 @@ export function generateEnchantmentOffers(item, bookshelfCount) {
   const eligible = [];
 
   for (const [key, def] of Object.entries(ENCHANTMENT_REGISTRY)) {
+    if (def.treasure) continue;
     if (category === 'book' || def.targets.includes('all') || def.targets.includes(category) || (category.startsWith('weapon') && def.targets.includes('weapon')) || (['helmet', 'chestplate', 'leggings', 'boots'].includes(category) && def.targets.includes('armor'))) {
       eligible.push({ key, ...def });
     }

@@ -367,6 +367,7 @@ test('UI - Armor Bar and Off-hand Slot Rendering', async () => {
     return {
       id,
       tagName: tag.toUpperCase(),
+      setAttribute: () => {},
       style: {},
       dataset: {},
       children,

@@ -1,15 +1,10 @@
+import { setMagmaSize, updateBlaze, updateMagmaCube, updateBlazeFireball } from './netherCombat.js';
+import { updateHoglin } from './netherMobAI.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
-export const PIGLIN_BARTER_LOOT = [
-  { id: 'ender_pearl', count: 2 },
-  { id: 'fire_charge', count: 1 },
-  { id: 'quartz', count: 6 },
-  { id: 'glowstone_dust', count: 4 },
-  { id: 'magma_cream', count: 1 },
-  { id: 'iron_boots', count: 1 },
-  { id: 'string', count: 4 }
-];
+import { startBarter, updatePiglin } from './piglin.js';
+export { PIGLIN_BARTER_LOOT } from './piglin.js';
 
 export class HostileMobBehaviors {
   constructor(mobManager, world, sounds, entities) {
@@ -53,6 +48,8 @@ export class HostileMobBehaviors {
    */
   handleMobDeathSplitting(mob) {
     if (mob.type !== 'slime' && mob.type !== 'magma_cube') return false;
+    if (mob.hasSplit) return false;
+    mob.hasSplit = true;
     const size = mob.slimeSize || 4;
     if (size > 1) {
       const nextSize = Math.floor(size / 2);
@@ -71,6 +68,7 @@ export class HostileMobBehaviors {
           child.maxHealth = nextSize * 4;
           const s = nextSize / 4;
           child.mesh.scale.set(s, s, s);
+          if (mob.type === 'magma_cube') setMagmaSize(child, nextSize);
           if (!child.velocity) child.velocity = new THREE.Vector3();
           child.velocity.set(
             (Math.random() - 0.5) * 3,
@@ -81,6 +79,7 @@ export class HostileMobBehaviors {
       }
       return true;
     }
+    if (mob.type === 'magma_cube') return false;
     // Smallest size drops loot
     const dropItem = mob.type === 'magma_cube' ? 'magma_cream' : 'slime_ball';
     this.entities?.spawnDroppedItem(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), dropItem, false);
@@ -90,18 +89,12 @@ export class HostileMobBehaviors {
   /**
    * Bartering with Piglin
    */
-  interactPiglin(mob, player, inventory) {
-    if (mob.type !== 'piglin' || mob.isBartering) return false;
-    const activeItem = inventory.getActiveItem();
-    if (activeItem?.id === 'gold_ingot') {
-      if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-      mob.isBartering = true;
-      mob.barterTimer = 5.0; // 5 seconds examining gold
-      if (this.sounds?.playPop) this.sounds.playPop();
-      this.mobManager.spawnParticleBurst?.(mob.mesh.position, 0xfacc15, 6);
-      return true;
-    }
-    return false;
+  interactPiglin(mob, player, inventory = player?.inventory) {
+    if (mob.type !== 'piglin' || mob.health <= 0 || mob.isBartering || mob.admireDisabledTime > 0 || !inventory) return false;
+    if (inventory.getActiveItem()?.id !== 'gold_ingot') return false;
+    if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+    startBarter(mob);
+    return true;
   }
 
   /**
@@ -142,7 +135,8 @@ export class HostileMobBehaviors {
    * Per-frame update for all hostile & specialized mob behaviors
    */
   update(dt, player) {
-    const mobs = this.mobManager.mobs;
+    // Conversion and splitting can replace entries while behaviors are running.
+    const mobs = [...this.mobManager.mobs];
     this.insomniaTicks += dt * 20; // 20 ticks per second
 
     // 1. Phantom Insomnia Spawning (if >= 72000 ticks = 3 in-game days without sleep)
@@ -165,7 +159,8 @@ export class HostileMobBehaviors {
       if (mob.health <= 0) continue;
 
       // A. Slime & Magma Cube Hopping
-      if (mob.type === 'slime' || mob.type === 'magma_cube') {
+      if (mob.type === 'magma_cube') updateMagmaCube(this.mobManager, mob, player, dt);
+      if (mob.type === 'slime') {
         mob.jumpTimer = (mob.jumpTimer || (1.5 + Math.random())) - dt;
         if (mob.jumpTimer <= 0) {
           mob.jumpTimer = 1.5 + Math.random();
@@ -296,13 +291,7 @@ export class HostileMobBehaviors {
 
       // D. Blaze AI: Triple Fireball Burst
       if (mob.type === 'blaze') {
-        mob.blazeBurstCooldown = (mob.blazeBurstCooldown || 4.0) - dt;
-        const dist = mob.mesh.position.distanceTo(player.position);
-        if (dist < 22 && mob.blazeBurstCooldown <= 0) {
-          mob.blazeBurstCooldown = 5.0;
-          this.shootBlazeBurst(mob, player);
-          if (this.sounds?.playBlaze) this.sounds.playBlaze();
-        }
+        updateBlaze(this.mobManager, mob, player, dt);
       }
 
       // E. Wither Skeleton: Wither Status on Melee
@@ -312,37 +301,14 @@ export class HostileMobBehaviors {
           mob.attackCooldown = (mob.attackCooldown || 0) - dt;
           if (mob.attackCooldown <= 0) {
             mob.attackCooldown = 1.2;
-            player.takeDamage?.(5, 'wither_skeleton');
+            player.takeDamage?.(5, mob.mesh.position, 'wither_skeleton');
             player.applyStatusEffect?.('wither', 10.0, 1);
             if (this.sounds?.playHurt) this.sounds.playHurt();
           }
         }
       }
 
-      // F. Piglin AI: Gold Armor Neutrality & Bartering
-      if (mob.type === 'piglin') {
-        if (mob.isBartering) {
-          mob.velocity.set(0, mob.velocity.y, 0);
-          mob.barterTimer -= dt;
-          if (mob.barterTimer <= 0) {
-            mob.isBartering = false;
-            // Drop barter reward
-            const reward = PIGLIN_BARTER_LOOT[Math.floor(Math.random() * PIGLIN_BARTER_LOOT.length)];
-            const dropPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.6, 0));
-            this.entities?.spawnDroppedItem(dropPos, reward.id, false);
-            if (this.sounds?.playPop) this.sounds.playPop();
-          }
-        } else {
-          // If player wears gold armor, Piglins don't target player unless attacked
-          const wearsGold = this.isPlayerWearingGold(player);
-          if (wearsGold && !mob.aggroToPlayer) {
-            mob.target = null;
-          } else {
-            const dist = mob.mesh.position.distanceTo(player.position);
-            if (dist < 12) mob.target = player;
-          }
-        }
-      }
+      if (mob.type === 'piglin') updatePiglin(this, mob, dt, player);
 
       // F2. Zombified Piglin AI: Pack Retaliation
       if (mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') {
@@ -364,7 +330,7 @@ export class HostileMobBehaviors {
             mob.attackCooldown = (mob.attackCooldown || 0) - dt;
             if (mob.attackCooldown <= 0) {
               mob.attackCooldown = 1.0;
-              player.takeDamage?.(5, 'zombified_piglin');
+              player.takeDamage?.(5, mob.mesh.position, 'zombified_piglin');
               if (this.sounds?.playZombie) this.sounds.playZombie();
             }
           }
@@ -373,70 +339,7 @@ export class HostileMobBehaviors {
         }
       }
 
-      // F3. Hoglin AI: Tusk Charge and Warped Fungus Avoidance
-      if (mob.type === 'hoglin') {
-        let isScared = false;
-        const activeItem = player?.inventory?.getActiveItem?.();
-        if (activeItem?.id === 'warped_fungus' || activeItem?.id === BLOCKS.WARPED_FUNGUS) {
-          if (mob.mesh.position.distanceTo(player.position) < 8) {
-            isScared = true;
-          }
-        }
-        if (!isScared && this.world) {
-          const hx = Math.floor(mob.mesh.position.x);
-          const hy = Math.floor(mob.mesh.position.y);
-          const hz = Math.floor(mob.mesh.position.z);
-          for (let dx = -3; dx <= 3 && !isScared; dx += 2) {
-            for (let dz = -3; dz <= 3 && !isScared; dz += 2) {
-              const blk = this.world.getVoxel(hx + dx, hy, hz + dz);
-              if (blk === BLOCKS.WARPED_FUNGUS) {
-                isScared = true;
-              }
-            }
-          }
-        }
-
-        if (isScared) {
-          mob.target = null;
-          const fleeDir = mob.mesh.position.clone().sub(player.position);
-          fleeDir.y = 0;
-          if (fleeDir.lengthSq() > 0.01) {
-            fleeDir.normalize();
-            mob.velocity.x = fleeDir.x * 4.5;
-            mob.velocity.z = fleeDir.z * 4.5;
-            mob.yaw = Math.atan2(fleeDir.x, fleeDir.z);
-          }
-        } else {
-          const dist = mob.mesh.position.distanceTo(player.position);
-          const isTargetable = player && !player.isCreative && !player.isSpectator && (player.health === undefined || player.health > 0);
-          if (dist < 16 && isTargetable) {
-            mob.target = player;
-            const dir = player.position.clone().sub(mob.mesh.position);
-            dir.y = 0;
-            if (dir.lengthSq() > 0.01) {
-              dir.normalize();
-              const targetYaw = Math.atan2(dir.x, dir.z);
-              if (!mob.avoidTime || mob.avoidTime <= 0) {
-                mob.velocity.x = dir.x * 3.8;
-                mob.velocity.z = dir.z * 3.8;
-                const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-                mob.yaw += turn * Math.min(1.0, 8 * dt);
-              }
-            }
-            if (dist < 2.0) {
-              mob.attackCooldown = (mob.attackCooldown || 0) - dt;
-              if (mob.attackCooldown <= 0) {
-                mob.attackCooldown = 1.4;
-                player.takeDamage?.(6, 'hoglin');
-                const toss = dir.clone().multiplyScalar(5);
-                toss.y = 5.0;
-                if (player.velocity) player.velocity.add(toss);
-                if (this.sounds?.playHit) this.sounds.playHit();
-              }
-            }
-          }
-        }
-      }
+      if (mob.type === 'hoglin' || mob.type === 'zoglin') updateHoglin(this, mob, dt, player);
 
       // F4. Strider AI: Lava walking and shivering when out of lava
       if (mob.type === 'strider') {
@@ -530,7 +433,7 @@ export class HostileMobBehaviors {
           dir.normalize();
           mob.velocity.copy(dir).multiplyScalar(12.0);
           if (mob.mesh.position.distanceTo(player.position) < 1.8) {
-            player.takeDamage?.(6, 'phantom');
+            player.takeDamage?.(6, mob.mesh.position, 'phantom');
             mob.diveTimer = 6.0;
             mob.velocity.y = 8.0; // Swoop back up
             if (this.sounds?.playPhantom) this.sounds.playPhantom();
@@ -620,33 +523,6 @@ export class HostileMobBehaviors {
     });
   }
 
-  shootBlazeBurst(blaze, player) {
-    for (let i = 0; i < 3; i++) {
-      setTimeout(() => {
-        if (!blaze || blaze.health <= 0) return;
-        const dir = player.position.clone().sub(blaze.mesh.position);
-        dir.x += (Math.random() - 0.5) * 0.15;
-        dir.z += (Math.random() - 0.5) * 0.15;
-        dir.normalize();
-
-        const mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.22, 6, 6),
-          new THREE.MeshLambertMaterial({ color: 0xf59e0b, emissive: 0xd97706 })
-        );
-        mesh.position.copy(blaze.mesh.position).add(new THREE.Vector3(0, 1.0, 0));
-        this.mobManager.scene.add(mesh);
-
-        this.mobManager.customProjectiles.push({
-          mesh,
-          position: mesh.position.clone(),
-          velocity: dir.multiplyScalar(18),
-          isBlazeFireball: true,
-          age: 0
-        });
-      }, i * 200);
-    }
-  }
-
   throwTrident(drowned, player) {
     if (!this.mobManager.customProjectiles) this.mobManager.customProjectiles = [];
     const dir = player.position.clone().sub(drowned.mesh.position);
@@ -693,6 +569,10 @@ export class HostileMobBehaviors {
     const remaining = [];
     for (let i = 0; i < this.mobManager.customProjectiles.length; i++) {
       const p = this.mobManager.customProjectiles[i];
+      if (p.isBlazeFireball) {
+        if (updateBlazeFireball(this.mobManager, p, player, dt)) remaining.push(p);
+        continue;
+      }
       p.age += dt;
       p.position.addScaledVector(p.velocity, dt);
       if (p.mesh) p.mesh.position.copy(p.position);

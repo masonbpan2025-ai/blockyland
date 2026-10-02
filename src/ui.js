@@ -111,6 +111,8 @@ export class UIManager {
     this.beaconSelectedSecondary = null;
 
     this.pauseModal = document.getElementById('pause-menu');
+    this.mobDebugButton = document.getElementById('btn-mob-debug');
+    this.mobDebugEnabled = false;
     this.startOverlay = document.getElementById('start-overlay');
     this.geminiModal = document.getElementById('gemini-modal');
 
@@ -3092,6 +3094,24 @@ export class UIManager {
           this.openCreativeInventory();
         }
       };
+    }
+
+    // Mob inspection is intentionally opt-in: it adds scene sprites and is
+    // useful for diagnosing skins, hit points and raid entities while paused.
+    const btnMobDebug = this.mobDebugButton || document.getElementById('btn-mob-debug');
+    if (btnMobDebug) {
+      const updateMobDebugButton = (enabled) => {
+        this.mobDebugEnabled = Boolean(enabled);
+        btnMobDebug.textContent = `Mob Debug Labels: ${this.mobDebugEnabled ? 'ON' : 'OFF'}`;
+        btnMobDebug.setAttribute('aria-pressed', String(this.mobDebugEnabled));
+        this.mobs?.setDebugLabelsEnabled?.(this.mobDebugEnabled);
+      };
+      updateMobDebugButton(false);
+      btnMobDebug.onclick = () => {
+        updateMobDebugButton(!this.mobDebugEnabled);
+        this.playPopSound();
+      };
+      this.setMobDebugLabels = updateMobDebugButton;
     }
 
     document.getElementById('btn-reset').onclick = () => {

@@ -1,3 +1,5 @@
+import { useSnowball } from './netherCombat.js';
+import { useBarterPotion } from './barterItems.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -53,6 +55,7 @@ import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
 import { ChestManager } from './chest.js';
+import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { EnchantingManager } from './enchanting.js';
@@ -1126,6 +1129,9 @@ class Game {
       return;
     }
 
+    if (useSnowball(this)) return;
+    if (useBarterPotion(this)) return;
+
     // Splash Potion of Weakness throwing
     const splashItem = this.inventory.getActiveItem();
     if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness')) {
@@ -1772,6 +1778,9 @@ class Game {
     if (!this.targetBlock) return;
     const { x, y, z, blockId } = this.targetBlock;
     if (blockId === BLOCKS.AIR || blockId === BLOCKS.BEDROCK) return;
+    if (this.player.gamemode === 'survival' && [BLOCKS.GOLD_BLOCK, BLOCKS.GOLD_ORE, BLOCKS.CHEST].includes(blockId)) {
+      angerPiglins(this.mobs, this.player.position);
+    }
 
     const def = BLOCK_DEFS[blockId];
     this.sounds.playBreak(def ? def.sound : 'stone');
@@ -2424,6 +2433,8 @@ class Game {
         );
       }
     }
+    // Keep optional mob inspection labels in sync with movement and damage.
+    this.mobs.updateDebugLabels?.();
 
     // 4b. Update Mob Expansion Managers (Raids, Deep Dark Warden, Bosses)
     if (this.raidManager) {

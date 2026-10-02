@@ -20,7 +20,7 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
   const mesh=createArrowModel();mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(forward,direction.clone().normalize());
   const trail=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffedc2,transparent:true,opacity:.65,vertexColors:true,depthWrite:false}));trail.frustumCulled=false;
   manager.scene.add(mesh,trail);manager.sounds?.playBowShoot?.();
-  const arrow={mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
+  const arrow={spectral:!!options.spectral,target:options.target,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
 }
 
 function projectileHitBounds(manager, target) {
@@ -40,7 +40,7 @@ export function updateArrows(manager,dt,player){
     arrow.life-=dt;if(arrow.life<=0){removeArrow(manager,arrow);continue;}
     if(arrow.stuck){
       if(!solid(manager.world,arrow.anchor)){arrow.stuck=false;arrow.velocity.set(0,-1,0);arrow.life=10;arrow.points=[];continue;}
-      if(arrow.pickup && arrow.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0,.5,0)))<1.4 && manager.game?.inventory?.addItem('arrow',false,1)){manager.game.ui?.updateHotbar();removeArrow(manager,arrow);continue;}
+      if(arrow.pickup && arrow.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0,.5,0)))<1.4 && manager.game?.inventory?.addItem(arrow.spectral?'spectral_arrow':'arrow',false,1)){manager.game.ui?.updateHotbar();removeArrow(manager,arrow);continue;}
       arrow.mesh.quaternion.copy(arrow.orientation);arrow.mesh.rotateZ(Math.sin(arrow.life*65)*.06*Math.max(0,arrow.life-59));continue;
     }
     const steps=Math.max(1,Math.ceil(arrow.velocity.length()*dt/.08)),step=dt/steps;
@@ -59,15 +59,16 @@ export function updateArrows(manager,dt,player){
         arrow.anchor=next.clone();arrow.mesh.position.copy(next);arrow.stuck=true;arrow.life=60;arrow.orientation=arrow.mesh.quaternion.clone();arrow.trail.visible=false;break;
       }
       arrow.mesh.position.copy(next);
-      const targets=arrow.shooter==='player'?manager.mobs.filter(m=>m.health>0&&!m.dying):[player];
+      const targets=arrow.target ? (arrow.target.health > 0 ? [arrow.target] : []) : arrow.shooter==='player'?manager.mobs.filter(m=>m.health>0&&!m.dying):[player];
       for(const target of targets){
         const pos=target.mesh?.position??target.position;
         const bounds = target.mesh ? projectileHitBounds(manager, target) : { minY: pos.y, maxY: pos.y + 1.8, halfWidth: target.width ?? .6 };
         if(Math.abs(next.x-pos.x)<bounds.halfWidth+.12&&Math.abs(next.z-pos.z)<bounds.halfWidth+.12&&next.y>=bounds.minY&&next.y<=bounds.maxY){
-          if(target===player)player.takeDamage(arrow.damage);
+          if(target===player)player.takeDamage(arrow.damage, arrow.shooter?.mesh?.position, 'arrow');
           else {
             const hitDirection = arrow.velocity.clone().normalize();
-            manager.damageMob(target, arrow.damage, next.clone().sub(hitDirection));
+            manager.damageMob(target, arrow.damage, next.clone().sub(hitDirection), false, arrow.shooter === 'player' ? manager.game?.player : arrow.shooter);
+            if (arrow.spectral) target.glowingTime = 10;
           }
           removeArrow(manager,arrow);removed=true;break;
         }

@@ -229,10 +229,22 @@ export const BLOCKS = {
   GOLD_BLOCK: 211,
   DIAMOND_BLOCK: 212,
   EMERALD_BLOCK: 213,
-  NETHERITE_BLOCK: 214
+  NETHERITE_BLOCK: 214,
+  CRYING_OBSIDIAN: 215,
+  WARPED_FUNGUS: 216,
+  CRIMSON_FUNGUS: 217,
+  RESPAWN_ANCHOR: 218,
+  NETHER_BRICKS: 219,
+  DRIED_GHAST: 220
 };
 
 export const BLOCK_DEFS = {
+  [BLOCKS.DRIED_GHAST]: { name: 'Dried Ghast', hardness: 0, sound: 'stone', drop: BLOCKS.DRIED_GHAST, textures: { all: 'dried_ghast.svg' } },
+  [BLOCKS.NETHER_BRICKS]: { name: 'Nether Bricks', hardness: 2, sound: 'stone', drop: BLOCKS.NETHER_BRICKS, textures: { all: 'nether_bricks.svg' } },
+  [BLOCKS.CRYING_OBSIDIAN]: { name: 'Crying Obsidian', hardness: 50, sound: 'stone', light: 10, lightColor: 0x9326ed, drop: BLOCKS.CRYING_OBSIDIAN, textures: { all: 'crying_obsidian.svg' } },
+  [BLOCKS.WARPED_FUNGUS]: { name: 'Warped Fungus', hardness: 0, sound: 'grass', solid: false, transparent: true, plant: true, shape: 'cross', drop: BLOCKS.WARPED_FUNGUS, textures: { all: 'warped_fungus.svg' } },
+  [BLOCKS.CRIMSON_FUNGUS]: { name: 'Crimson Fungus', hardness: 0, sound: 'grass', solid: false, transparent: true, plant: true, shape: 'cross', drop: BLOCKS.CRIMSON_FUNGUS, textures: { all: 'crimson_fungus.svg' } },
+  [BLOCKS.RESPAWN_ANCHOR]: { name: 'Respawn Anchor', hardness: 50, sound: 'stone', drop: BLOCKS.RESPAWN_ANCHOR, textures: { all: 'respawn_anchor.svg' } },
   [BLOCKS.FIRE]: {
     name: 'Fire', hardness: 0, sound: 'wool', light: 15,
     lightColor: 0xff8833, shape: 'cross', transparent: true, solid: false, plant: true,
@@ -930,6 +942,11 @@ export const BLOCK_DEFS = {
 
 // Complete Item definitions
 export const ITEMS = {
+  iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.svg', type: 'material' },
+  nether_brick: { name: 'Nether Brick', icon: '/assets/items/nether_brick.svg', type: 'material' },
+  spectral_arrow: { name: 'Spectral Arrow', icon: '/assets/items/spectral_arrow.svg', type: 'material' },
+  potion_of_fire_resistance: { name: 'Potion of Fire Resistance (3:00)', icon: '/assets/items/fire_resistance.svg', type: 'potion' },
+  splash_potion_of_fire_resistance: { name: 'Splash Potion of Fire Resistance (3:00)', icon: '/assets/items/splash_fire_resistance.svg', type: 'potion' },
   // --- Swords / Weapons ---
   netherite_sword: { name: 'Netherite Sword', attack: 8, icon: '/assets/items/netherite_sword.png', type: 'weapon' },
   diamond_sword: { name: 'Diamond Sword', attack: 7, icon: '/assets/items/diamond_sword.png', type: 'weapon' },

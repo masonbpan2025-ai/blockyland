@@ -47,7 +47,7 @@ export function moveGroundMob(manager, mob, dt) {
   }
   const knockback = mob.knockback || new THREE.Vector3();
   mob.avoidTime = Math.max(0, (mob.avoidTime || 0) - dt);
-  if (mob.avoidTime > 0 && !mob.dying) {
+  if (mob.type !== 'magma_cube' && mob.avoidTime > 0 && !mob.dying) {
     const speed = Math.hypot(mob.velocity.x, mob.velocity.z) || 2.2;
     mob.velocity.x = Math.sin(mob.avoidYaw) * speed;
     mob.velocity.z = Math.cos(mob.avoidYaw) * speed;
@@ -67,13 +67,13 @@ export function moveGroundMob(manager, mob, dt) {
         const raised = candidate.clone(); raised.y = Math.floor(pos.y + 0.05) + 1;
         const clearance = pos.clone(); clearance.y = raised.y;
         const floor = raised.clone(); floor.y -= 0.04;
-        if (!mob.dying && grounded && raised.y - pos.y <= 1.04 && !collision(clearance) && !collision(raised) && collision(floor)) pos.copy(raised);
+        if (mob.type !== 'magma_cube' && !mob.dying && grounded && raised.y - pos.y <= 1.04 && !collision(clearance) && !collision(raised) && collision(floor)) pos.copy(raised);
         else blocked = true;
       } else {
         // Walking AI avoids deep drops and entering water; knockback can still push it off.
         const floor = candidate.clone(); floor.y -= 1.05;
         const water = manager.world.getVoxel(Math.floor(candidate.x), Math.floor(candidate.y), Math.floor(candidate.z)) === BLOCKS.WATER;
-        if (!mob.dying && grounded && knockback.lengthSq() < 0.1 && (!collision(floor) || water)) blocked = true;
+        if (mob.type !== 'magma_cube' && !mob.dying && grounded && knockback.lengthSq() < 0.1 && (!collision(floor) || water)) blocked = true;
         else pos.copy(candidate);
       }
     }
@@ -97,7 +97,7 @@ export function moveGroundMob(manager, mob, dt) {
   }
   if (mob.knockback) mob.knockback.multiplyScalar(Math.exp(-8 * dt));
   mob.stuckTime = blocked ? (mob.stuckTime || 0) + dt : 0;
-  if (mob.stuckTime > 0.5) {
+  if (mob.type !== 'magma_cube' && mob.stuckTime > 0.5) {
     mob.wanderTimer = 0; mob.wanderGoal = null; mob.stuckTime = 0;
     mob.avoidYaw = mob.yaw + (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
     mob.avoidTime = 1.2;
@@ -136,7 +136,8 @@ export function moveFlyingMob(manager, mob, dt) {
     const tryY = pos.clone(); tryY.y = candidate.y;
     if (!collision(tryY)) pos.y = candidate.y;
     else {
-      if (mob.velocity.y < 0) mob.velocity.y = Math.abs(mob.velocity.y) * 0.6 + 2.0; // deflect upward away from ground
+      if (mob.type === 'blaze') mob.velocity.y = 0;
+      else if (mob.velocity.y < 0) mob.velocity.y = Math.abs(mob.velocity.y) * 0.6 + 2.0; // deflect upward away from ground
       else mob.velocity.y *= -0.3;
     }
 
@@ -145,6 +146,8 @@ export function moveFlyingMob(manager, mob, dt) {
   }
 
   if (mob.knockback) mob.knockback.multiplyScalar(Math.exp(-6 * dt));
+
+  if (mob.type === 'blaze') { mob.mesh.rotation.set(0, mob.yaw, 0); return; }
 
   // Banking, pitch and rotation for realistic 3D flight
   const horizSpeed = Math.hypot(mob.velocity.x, mob.velocity.z);

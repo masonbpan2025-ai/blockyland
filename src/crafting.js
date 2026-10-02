@@ -1,6 +1,8 @@
 import { BLOCKS, ITEMS } from './blocks.js';
 
 export const RECIPES_2X2 = [
+  { pattern: [['iron_ingot']], result: { id: 'iron_nugget', isBlock: false, count: 9 } },
+  { pattern: [['nether_brick', 'nether_brick'], ['nether_brick', 'nether_brick']], result: { id: BLOCKS.NETHER_BRICKS, isBlock: true, count: 1 } },
   // 1 Log -> 4 Planks
   {
     pattern: [[BLOCKS.OAK_LOG]],
@@ -40,6 +42,8 @@ export const RECIPES_2X2 = [
 ];
 
 export const RECIPES_3X3 = [
+  { pattern: [['ghast_tear','ghast_tear','ghast_tear'], ['ghast_tear',BLOCKS.SOUL_SAND,'ghast_tear'], ['ghast_tear','ghast_tear','ghast_tear']], result: { id: BLOCKS.DRIED_GHAST, isBlock: true, count: 1 } },
+  { pattern: Array.from({length:3}, () => ['iron_nugget','iron_nugget','iron_nugget']), result: { id: 'iron_ingot', isBlock: false, count: 1 } },
   ...RECIPES_2X2,
   // 8 Cobblestone -> 1 Furnace
   {

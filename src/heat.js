@@ -1,7 +1,7 @@
 import {BLOCKS} from './blocks.js';
 const states=new WeakMap();
 export function applyHeat(world,actor,position,dt,damage){
-  if (actor.fireImmune || actor.isFireImmune) return;
+  if (actor.fireImmune || actor.isFireImmune || actor.fireResistanceTime > 0 || actor.hasStatusEffect?.('fire_resistance')) return;
   const netherImmune = ['blaze', 'ghast', 'magma_cube', 'zombified_piglin', 'zombie_pigman', 'wither_skeleton', 'strider'];
   if (netherImmune.includes(actor.type)) return;
   const state=states.get(actor)||{burn:0,timer:0};
@@ -16,5 +16,14 @@ export function applyHeat(world,actor,position,dt,damage){
     if(state.burn>0&&state.timer<=0){damage(id===BLOCKS.LAVA?4:1);state.timer=id===BLOCKS.LAVA?.5:1;}
     if(id===BLOCKS.LAVA && actor.gamemode!=='creative' && actor.velocity && actor.type!=='strider'){actor.velocity.x*=.65;actor.velocity.z*=.65;actor.velocity.y=Math.max(-2,actor.velocity.y);}
   }
+  actor.fireTicks = state.burn;
+  actor.isOnFire = state.burn > 0;
   states.set(actor,state);
+}
+
+export function igniteActor(actor, seconds) {
+  if (actor.fireImmune || actor.hasStatusEffect?.("fire_resistance")) return;
+  const state = states.get(actor) || {burn:0,timer:1};
+  state.burn = Math.max(state.burn, seconds); states.set(actor,state);
+  actor.fireTicks=state.burn; actor.isOnFire=true;
 }

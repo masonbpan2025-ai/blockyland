@@ -252,8 +252,8 @@ test('Nether Mobs: 3D Models, Anatomy, and Dimensions for all Nether mobs', () =
   assert.ok(Array.isArray(magmaCube.layers) && magmaCube.layers.length === 8, 'Magma cube has 8 crust layers');
   assert.ok(magmaCube.core, 'Magma cube has glowing core');
   const magmaDims = mobs.getMobDimensions('magma_cube');
-  assert.equal(magmaDims.width, 0.8);
-  assert.equal(magmaDims.height, 0.8);
+  assert.equal(magmaDims.width, 2.04);
+  assert.equal(magmaDims.height, 2.04);
 
   // 7. Strider
   const strider = mobs.spawnMob('strider', 0, 15, 0);
@@ -332,9 +332,9 @@ test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin 
       getActiveItem: () => ({ id: 'warped_fungus' })
     }
   };
+  world.getVoxel = (x,y,z) => x === 2 && y === 20 && z === 0 ? BLOCKS.WARPED_FUNGUS : BLOCKS.AIR;
   hostile.update(0.1, dummyPlayer);
-  // When player holds warped fungus, hoglin avoids and runs away (velocity x < 0)
-  assert.ok(hoglin.velocity.x < 0, 'Hoglin flees from player holding warped fungus');
+  assert.ok(hoglin.velocity.x < 0, 'Hoglin flees from placed warped fungus');
 });
 
 test('Nether Atmosphere & Fog: Fog and background color stay locked in Nether and cannot be overridden by Overworld', () => {
