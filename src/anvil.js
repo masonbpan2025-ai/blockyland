@@ -191,8 +191,8 @@ export function calculateAnvilResult(leftItem, rightItem, customName = '', playe
 /**
  * Anvil wear degradation on use (12% chance to degrade)
  */
-export function getAnvilDegradation(currentBlockId) {
-  const degradeRoll = Math.random() < 0.12;
+export function getAnvilDegradation(currentBlockId, forceDegrade = null) {
+  const degradeRoll = forceDegrade !== null ? forceDegrade : (Math.random() < 0.12);
   if (!degradeRoll) return currentBlockId;
 
   if (currentBlockId === BLOCKS.ANVIL) {

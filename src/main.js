@@ -295,16 +295,28 @@ class Game {
       this.scene.fog.far = this.normalFogFar;
     }
 
-    if (def && (def.isNether || this.world.isNether)) {
+    if (def && (def.isNether || this.world.isNether || def.dimension === 'nether')) {
+      this.currentDimension = 'nether';
+      this.world.dimension = 'nether';
+      this.world.isNether = true;
       if (this.sky) {
         this.sky.disabled = true;
         if (this.sky.mesh) this.sky.mesh.visible = false;
       }
+      this.normalBgColor = new THREE.Color(def.skyColor !== undefined ? def.skyColor : 0x330808);
+      this.scene.background.copy(this.normalBgColor);
+      this.scene.fog.color = new THREE.Color(def.fogColor !== undefined ? def.fogColor : 0x471010);
+      this.normalFogNear = 15;
+      this.normalFogFar = 55;
+      this.scene.fog.near = this.normalFogNear;
+      this.scene.fog.far = this.normalFogFar;
       if (this.dirLight) this.dirLight.intensity = 0.2;
       if (this.ambientLight) {
         this.ambientLight.color.setHex(def.fogColor || 0x330808);
         this.ambientLight.intensity = 0.7;
       }
+      if (this.sunLight) this.sunLight.intensity = 0;
+      if (this.moonLight) this.moonLight.intensity = 0;
     } else if (this.sky) {
       this.sky.disabled = false;
       if (this.sky.mesh) this.sky.mesh.visible = true;
@@ -2015,11 +2027,20 @@ class Game {
   }
 
   updateDayNightCycle(dt) {
-    if (this.currentDimension === 'nether') {
-      this.scene.background.copy(this.normalBgColor);
-      this.scene.fog.color.copy(new THREE.Color(0x471010));
-      this.scene.fog.near = this.normalFogNear;
-      this.scene.fog.far = this.normalFogFar;
+    const isNether = this.currentDimension === 'nether' || this.world?.isNether;
+    if (isNether) {
+      const def = getBiomeDef(this.world?.selectedBiome);
+      const bgHex = def?.skyColor !== undefined ? def.skyColor : 0x330808;
+      const fogHex = def?.fogColor !== undefined ? def.fogColor : 0x471010;
+      this.normalBgColor.setHex(bgHex);
+      this.scene.background.setHex(bgHex);
+      this.scene.fog.color.setHex(fogHex);
+      this.scene.fog.near = this.normalFogNear || 15;
+      this.scene.fog.far = this.normalFogFar || 55;
+      if (this.sky) {
+        this.sky.disabled = true;
+        if (this.sky.mesh) this.sky.mesh.visible = false;
+      }
       return;
     }
 
@@ -2067,11 +2088,22 @@ class Game {
         this.underwaterOverlay.classList.add('active');
       }
     } else {
-      // Restore normal sky fog
-      this.scene.background.copy(this.normalBgColor);
-      this.scene.fog.color.copy(this.normalBgColor);
-      this.scene.fog.near = this.normalFogNear;
-      this.scene.fog.far = this.normalFogFar;
+      // Restore normal fog
+      const isNether = this.currentDimension === 'nether' || this.world?.isNether;
+      if (isNether) {
+        const def = getBiomeDef(this.world?.selectedBiome);
+        const bgHex = def?.skyColor !== undefined ? def.skyColor : 0x330808;
+        const fogHex = def?.fogColor !== undefined ? def.fogColor : 0x471010;
+        this.scene.background.setHex(bgHex);
+        this.scene.fog.color.setHex(fogHex);
+        this.scene.fog.near = this.normalFogNear || 15;
+        this.scene.fog.far = this.normalFogFar || 55;
+      } else {
+        this.scene.background.copy(this.normalBgColor);
+        this.scene.fog.color.copy(this.normalBgColor);
+        this.scene.fog.near = this.normalFogNear;
+        this.scene.fog.far = this.normalFogFar;
+      }
 
       // Hide CSS overlay
       if (this.underwaterOverlay) {

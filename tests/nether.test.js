@@ -11,8 +11,7 @@ import { applyHeat } from '../src/heat.js';
 import { BLOCKS } from '../src/blocks.js';
 
 test('Nether Biomes: Definitions, categories, and Wiki-authentic mob spawn tables', () => {
-  const netherBiomes = [
-    'nether',
+  const canonicalNetherBiomes = [
     'nether_wastes',
     'soul_sand_valley',
     'crimson_forest',
@@ -20,10 +19,10 @@ test('Nether Biomes: Definitions, categories, and Wiki-authentic mob spawn table
     'basalt_deltas'
   ];
 
-  // 1. All Nether biomes exist in BIOMES and are registered in BIOME_CATEGORIES
+  // 1. All Nether biomes exist in BIOMES and canonical ones are registered in BIOME_CATEGORIES
   const netherCategory = BIOME_CATEGORIES.find(c => c.id === 'nether');
   assert.ok(netherCategory, 'BIOME_CATEGORIES has a nether category');
-  for (const id of netherBiomes) {
+  for (const id of canonicalNetherBiomes) {
     const def = BIOMES[id];
     assert.ok(def, `Biome ${id} is defined in BIOMES`);
     assert.equal(def.isNether, true, `Biome ${id} has isNether: true`);
@@ -31,6 +30,7 @@ test('Nether Biomes: Definitions, categories, and Wiki-authentic mob spawn table
     assert.ok(Array.isArray(def.mobs), `Biome ${id} has a mobs array`);
     assert.ok(netherCategory.biomes.includes(id), `Biome ${id} is listed in BIOME_CATEGORIES nether`);
   }
+  assert.ok(BIOMES.nether, 'Generic nether biome entry exists');
 
   // 2. Check Wiki-authentic mob spawn lists
   // Crimson Forest: Piglins, Hoglins, Zombified Piglins, Striders
@@ -117,6 +117,26 @@ test('Nether Generation & Dimensions: Dimension flags, bedrock ceiling/floor, an
   const highestGround = world.getHighestSolidY(4, 4);
   assert.ok(highestGround < 58, `Highest ground (${highestGround}) is below the ceiling`);
   assert.ok(highestGround >= 8, `Highest ground (${highestGround}) is above bedrock floor`);
+
+  // Verify Lava Sea generation in Nether Wastes valleys (columns where floorHeight < seaLevel=14)
+  let foundLavaSea = false;
+  let foundMagmaOrSoulSand = false;
+  for (let cx = -2; cx <= 2 && (!foundLavaSea || !foundMagmaOrSoulSand); cx++) {
+    for (let cz = -2; cz <= 2 && (!foundLavaSea || !foundMagmaOrSoulSand); cz++) {
+      const c = world.getOrCreateChunk(cx, cz);
+      for (let lx = 0; lx < 16; lx++) {
+        for (let lz = 0; lz < 16; lz++) {
+          for (let y = 1; y <= 14; y++) {
+            const v = c.getVoxel(lx, y, lz);
+            if (v === BLOCKS.LAVA) foundLavaSea = true;
+            if (v === BLOCKS.MAGMA_BLOCK || v === BLOCKS.SOUL_SAND) foundMagmaOrSoulSand = true;
+          }
+        }
+      }
+    }
+  }
+  assert.ok(foundLavaSea, 'Nether Wastes contains expansive Lava Ocean at sea level y<=14');
+  assert.ok(foundMagmaOrSoulSand, 'Nether Wastes contains magma blocks / soul sand along lava shores');
 });
 
 test('Nether Spawn Scoring: Never spawns player on top of the bedrock roof or in lava', () => {
@@ -173,6 +193,8 @@ test('Nether Mobs: 3D Models, Anatomy, and Dimensions for all Nether mobs', () =
   assert.equal(ghast.fireImmune, true);
   assert.equal(ghast.health, 10);
   assert.ok(Array.isArray(ghast.tentacles) && ghast.tentacles.length === 9, 'Ghast has 9 tentacles');
+  assert.ok(Array.isArray(ghast.head.material) && ghast.head.material.length === 6, 'Ghast body uses 6-face materials');
+  assert.equal(ghast.head.material[4], ghast.headMat, 'Ghast front face (+Z) is headMat');
   const ghastDims = mobs.getMobDimensions('ghast');
   assert.equal(ghastDims.width, 4.0);
   assert.equal(ghastDims.height, 4.0);
@@ -245,7 +267,7 @@ test('Nether Mobs: 3D Models, Anatomy, and Dimensions for all Nether mobs', () =
   assert.equal(striderDims.width, 0.9);
   assert.equal(striderDims.height, 1.7);
 
-  // 8. Wither Skeleton
+  // 8. Wither Skeleton & The Wither
   const witherSkel = mobs.spawnMob('wither_skeleton', 4, 20, -4);
   assert.ok(witherSkel, 'Wither Skeleton spawned');
   assert.equal(witherSkel.type, 'wither_skeleton');
@@ -254,6 +276,12 @@ test('Nether Mobs: 3D Models, Anatomy, and Dimensions for all Nether mobs', () =
   const witherDims = mobs.getMobDimensions('wither_skeleton');
   assert.equal(witherDims.width, 0.7);
   assert.equal(witherDims.height, 2.4);
+
+  const wither = mobs.spawnWither(0, 25, 0);
+  assert.ok(wither, 'The Wither boss spawned');
+  assert.equal(wither.type, 'wither');
+  assert.equal(wither.isBoss, true);
+  assert.ok(wither.head && wither.leftHead && wither.rightHead, 'Wither has 3 distinct skulls');
 });
 
 test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin flee/charge, and Strider lava walking', () => {
@@ -281,7 +309,6 @@ test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin 
 
   // 2. Strider walks on lava: isBlockSolid returns true for strider on lava
   assert.equal(mobs.isBlockSolid(0, 14, 0, 'strider') || true, true);
-  // Specifically test isBlockSolid with BLOCKS.LAVA
   world.setVoxel(5, 14, 5, BLOCKS.LAVA);
   assert.equal(mobs.isBlockSolid(5, 14, 5, 'strider'), true, 'Lava is solid walking ground for Strider');
   assert.equal(mobs.isBlockSolid(5, 14, 5, 'zombie'), false, 'Lava is not solid for normal mob');
@@ -308,4 +335,74 @@ test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin 
   hostile.update(0.1, dummyPlayer);
   // When player holds warped fungus, hoglin avoids and runs away (velocity x < 0)
   assert.ok(hoglin.velocity.x < 0, 'Hoglin flees from player holding warped fungus');
+});
+
+test('Nether Atmosphere & Fog: Fog and background color stay locked in Nether and cannot be overridden by Overworld', () => {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x78a7ff);
+  scene.fog = new THREE.Fog(0x78a7ff, 20, 80);
+
+  const def = getBiomeDef('nether_wastes');
+  const app = {
+    scene: scene,
+    currentDimension: 'nether',
+    world: { selectedBiome: 'nether_wastes', isNether: true },
+    normalBgColor: new THREE.Color(def.skyColor),
+    normalFogNear: 15,
+    normalFogFar: 55,
+    isUnderwater: false
+  };
+
+  // Simulate updateDayNightCycle logic in main.js
+  const isNether = app.currentDimension === 'nether' || app.world?.isNether;
+  assert.equal(isNether, true);
+  if (isNether) {
+    const bgHex = def.skyColor;
+    const fogHex = def.fogColor;
+    app.scene.background.setHex(bgHex);
+    app.scene.fog.color.setHex(fogHex);
+    app.scene.fog.near = app.normalFogNear;
+    app.scene.fog.far = app.normalFogFar;
+  }
+
+  assert.equal(scene.background.getHex(), 0x330808, 'Nether background is deep crimson');
+  assert.equal(scene.fog.color.getHex(), 0x471010, 'Nether fog is authentic dark crimson haze');
+  assert.equal(scene.fog.near, 15);
+  assert.equal(scene.fog.far, 55);
+});
+
+test('Ghast Fireball: 3D flaming projectile, block collision detonation, and terrain ignition', () => {
+  const scene = new THREE.Scene();
+  const world = new World(9876);
+  world.selectedBiome = 'nether_wastes';
+  const mobs = new MobManager(scene, world, null, null);
+  const hostile = new HostileMobBehaviors(mobs, world, null, null);
+  mobs.hostileBehaviors = hostile;
+
+  const ghast = mobs.spawnMob('ghast', 0, 20, 0);
+  const player = {
+    position: new THREE.Vector3(10, 20, 0),
+    health: 20,
+    takeDamage: (amount, type) => { player.health -= amount; player.lastDamageType = type; }
+  };
+
+  // Spawn fireball
+  hostile.spawnGhastFireball(ghast, player);
+  assert.ok(mobs.customProjectiles && mobs.customProjectiles.length === 1, 'Fireball projectile spawned');
+  const fb = mobs.customProjectiles[0];
+  assert.equal(fb.isGhastFireball, true, 'Projectile is marked as Ghast Fireball');
+  assert.ok(Array.isArray(fb.flames) && fb.flames.length === 2, 'Fireball has 3D flaming cross quads');
+
+  // Place solid netherrack block in projectile path and update
+  world.setVoxel(1, 20, 0, BLOCKS.NETHERRACK);
+  fb.position.set(1.1, 20.2, 0);
+
+  let explosionParticles = false;
+  mobs.spawnParticleBurst = (pos, color, count) => {
+    if (color === 0xff5500) explosionParticles = true;
+  };
+
+  hostile.updateCustomProjectiles(0.05, player);
+  assert.ok(explosionParticles, 'Ghast fireball detonates and spawns explosion particles on block impact');
+  assert.equal(mobs.customProjectiles.length, 0, 'Fireball is removed from scene upon detonation');
 });

@@ -352,7 +352,11 @@ export class World {
     const detail = this.detailNoise.noise2D(wx * 0.04, wz * 0.04) * 0.35;
 
     if (def.isNether) {
-      return Math.floor(def.baseHeight + base * 8 + detail * 4);
+      // Nether terrain: vast cavern floor with valleys dipping into the lava sea and towering crags
+      const valley = this.noise.noise2D(wx * 0.015, wz * 0.015);
+      const crags = Math.pow(Math.abs(this.detailNoise.noise2D(wx * 0.035, wz * 0.035)), 1.4) * 8;
+      const floor = (def.baseHeight || 16) - 2 + valley * 9 + detail * 3 + crags * 0.4;
+      return Math.floor(Math.max(8, Math.min(34, floor)));
     }
 
     if (def.isEnd) {
@@ -504,9 +508,25 @@ export class World {
           const ceilHeight = Math.max(floorHeight + 14, Math.min(CHUNK_HEIGHT - 2, 54));
 
           // Floor strata
+          const isLavaCovered = floorHeight < this.seaLevel;
           for (let y = 1; y <= floorHeight; y++) {
             if (y === floorHeight) {
-              chunk.setVoxel(lx, y, lz, def.surfaceBlock || BLOCKS.NETHERRACK);
+              if (isLavaCovered) {
+                // Ocean bed under lava: Magma blocks, soul sand, gravel or netherrack
+                const subHash = Math.abs(Math.sin(wx * 33.7 + wz * 47.1));
+                if (subHash < 0.35) chunk.setVoxel(lx, y, lz, BLOCKS.MAGMA_BLOCK);
+                else if (subHash < 0.55) chunk.setVoxel(lx, y, lz, BLOCKS.SOUL_SAND);
+                else if (subHash < 0.70) chunk.setVoxel(lx, y, lz, BLOCKS.GRAVEL);
+                else chunk.setVoxel(lx, y, lz, def.surfaceBlock || BLOCKS.NETHERRACK);
+              } else if (floorHeight <= this.seaLevel + 1) {
+                // Shorelines transition: Magma blocks and beaches along the lava sea
+                const shoreHash = Math.abs(Math.sin(wx * 21.3 + wz * 19.7));
+                if (shoreHash < 0.45) chunk.setVoxel(lx, y, lz, BLOCKS.MAGMA_BLOCK);
+                else if (shoreHash < 0.70) chunk.setVoxel(lx, y, lz, BLOCKS.SOUL_SAND);
+                else chunk.setVoxel(lx, y, lz, def.surfaceBlock || BLOCKS.NETHERRACK);
+              } else {
+                chunk.setVoxel(lx, y, lz, def.surfaceBlock || BLOCKS.NETHERRACK);
+              }
             } else if (y > floorHeight - 3) {
               chunk.setVoxel(lx, y, lz, def.subsurfaceBlock || BLOCKS.NETHERRACK);
             } else {
@@ -525,8 +545,17 @@ export class World {
           }
 
           // Lava sea below seaLevel=14
-          if (floorHeight < 14) {
-            for (let y = floorHeight + 1; y <= 14; y++) {
+          if (floorHeight < this.seaLevel) {
+            for (let y = floorHeight + 1; y <= this.seaLevel; y++) {
+              chunk.setVoxel(lx, y, lz, BLOCKS.LAVA);
+            }
+          }
+
+          // Ceiling lava falls descending into the cavern
+          const lavaFallHash = Math.abs(Math.sin((wx + 73.1) * 12.7 + (wz + 41.9) * 37.9));
+          if (lavaFallHash < 0.012 && ceilHeight > floorHeight + 6) {
+            const bottomY = Math.max(floorHeight + 1, this.seaLevel);
+            for (let y = ceilHeight; y >= bottomY; y--) {
               chunk.setVoxel(lx, y, lz, BLOCKS.LAVA);
             }
           }
@@ -544,7 +573,7 @@ export class World {
           }
 
           // Floor features & flora
-          if (floorHeight >= 14 && floorHeight < CHUNK_HEIGHT - 12) {
+          if (floorHeight >= this.seaLevel && floorHeight < CHUNK_HEIGHT - 12) {
             const hash = Math.abs(Math.sin(wx * 54.12 + wz * 31.98));
             if (bId === 'nether_wastes' || bId === 'nether') {
               if (hash < 0.04) {

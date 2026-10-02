@@ -88,8 +88,11 @@ export class MobManager {
       cat_british: this.createCatTexture('british'),
       ocelot: this.createCatTexture('ocelot'),
       wolf: this.createWolfTexture(),
+      ghast_plain: this.createNetherTexture('ghast_plain'),
       ghast: this.createNetherTexture('ghast'),
       ghast_shooting: this.createNetherTexture('ghast_shooting'),
+      fireball: this.createNetherTexture('fireball'),
+      blaze_head: this.createNetherTexture('blaze_head'),
       blaze: this.createNetherTexture('blaze'),
       piglin: this.createNetherTexture('piglin'),
       zombified_piglin: this.createNetherTexture('zombified_piglin'),
@@ -98,7 +101,8 @@ export class MobManager {
       magma_cube_core: this.createNetherTexture('magma_cube_core'),
       strider: this.createNetherTexture('strider'),
       strider_cold: this.createNetherTexture('strider_cold'),
-      wither_skeleton: this.createNetherTexture('wither_skeleton')
+      wither_skeleton: this.createNetherTexture('wither_skeleton'),
+      wither_skull: this.createNetherTexture('wither_skull')
     };
 
     this.animalBehaviors = new AnimalBehaviors(this, world, sounds, entities);
@@ -1440,7 +1444,21 @@ export class MobManager {
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
 
-    if (type === 'ghast' || type === 'ghast_shooting') {
+    if (type === 'ghast_plain') {
+      // Creamy white base with subtle ghost creases and folds (NO face)
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#e2e8f0';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 7 + y * 13) % 5 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#cbd5e1';
+      for (let x = 8; x < 56; x += 8) {
+        ctx.fillRect(x, 12, 2, 40);
+      }
+    } else if (type === 'ghast' || type === 'ghast_shooting') {
       // Creamy white base with ghost creases
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, 64, 64);
@@ -1452,30 +1470,83 @@ export class MobManager {
       }
       ctx.fillStyle = '#cbd5e1';
       for (let x = 8; x < 56; x += 8) {
-        ctx.fillRect(x, 16, 2, 32);
+        ctx.fillRect(x, 12, 2, 40);
       }
       if (type === 'ghast_shooting') {
-        // Glowing red open eyes
+        // Glowing red open eyes with pupils
         ctx.fillStyle = '#dc2626';
-        ctx.fillRect(14, 18, 8, 8);
-        ctx.fillRect(42, 18, 8, 8);
-        ctx.fillStyle = '#f87171';
-        ctx.fillRect(16, 20, 4, 4);
-        ctx.fillRect(44, 20, 4, 4);
-        // Gaping red mouth
-        ctx.fillStyle = '#991b1b';
-        ctx.fillRect(24, 34, 16, 14);
+        ctx.fillRect(12, 16, 10, 10);
+        ctx.fillRect(42, 16, 10, 10);
         ctx.fillStyle = '#ef4444';
-        ctx.fillRect(28, 38, 8, 6);
+        ctx.fillRect(14, 18, 6, 6);
+        ctx.fillRect(44, 18, 6, 6);
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(16, 20, 2, 2);
+        ctx.fillRect(46, 20, 2, 2);
+        // Tear tracks running down
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(16, 26, 3, 14);
+        ctx.fillRect(45, 26, 3, 14);
+        // Gaping dark red mouth
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(22, 34, 20, 16);
+        ctx.fillStyle = '#b91c1c';
+        ctx.fillRect(26, 38, 12, 8);
       } else {
-        // Droopy closed slit eyes
+        // Droopy crying slit eyes
         ctx.fillStyle = '#475569';
-        ctx.fillRect(14, 22, 8, 3);
-        ctx.fillRect(42, 22, 8, 3);
-        // Small mouth
+        ctx.fillRect(14, 20, 8, 4);
+        ctx.fillRect(42, 20, 8, 4);
+        // Tear tracks running down under eyes
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(16, 24, 4, 16);
+        ctx.fillRect(44, 24, 4, 16);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(18, 26, 2, 12);
+        ctx.fillRect(46, 26, 2, 12);
+        // Small sad mouth
         ctx.fillStyle = '#334155';
-        ctx.fillRect(28, 38, 8, 4);
+        ctx.fillRect(26, 38, 12, 5);
       }
+    } else if (type === 'fireball') {
+      // Blazing fireball texture: fiery white-hot core radiating outward to flame swirls
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#ea580c';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          const d = Math.hypot(x - 32, y - 32);
+          if (d < 26) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#f59e0b';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          const d = Math.hypot(x - 32, y - 32);
+          if (d < 18) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(24, 24, 16, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(28, 28, 8, 8);
+    } else if (type === 'blaze_head') {
+      // Dark smoky charcoal head with glowing yellow/gold eyes
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#292524';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 11 + y * 7) % 3 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      // Glowing yellow/gold eyes
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(14, 18, 8, 8);
+      ctx.fillRect(42, 18, 8, 8);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(16, 20, 4, 4);
+      ctx.fillRect(44, 20, 4, 4);
     } else if (type === 'blaze') {
       // Fiery orange/gold swirl texture
       ctx.fillStyle = '#f59e0b';
@@ -1498,65 +1569,73 @@ export class MobManager {
       ctx.fillRect(16, 18, 2, 2);
       ctx.fillRect(46, 18, 2, 2);
     } else if (type === 'piglin') {
-      // Warm peach piglin skin
+      // Warm peach-tan piglin hide per Minecraft Java texture
       ctx.fillStyle = '#d97757';
       ctx.fillRect(0, 0, 64, 64);
-      // Golden armor/tunic
-      ctx.fillStyle = '#eab308';
-      ctx.fillRect(16, 20, 32, 24);
-      ctx.fillStyle = '#ca8a04';
-      ctx.fillRect(24, 20, 16, 24);
+      ctx.fillStyle = '#c25838';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 9 + y * 5) % 4 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      // Brown leather harness / tunic
+      ctx.fillStyle = '#543825';
+      ctx.fillRect(16, 22, 32, 24);
+      ctx.fillStyle = '#facc15'; // Golden belt buckle
+      ctx.fillRect(28, 38, 8, 8);
       // Snout and tusks
       ctx.fillStyle = '#c25838';
-      ctx.fillRect(18, 8, 28, 12);
+      ctx.fillRect(18, 10, 28, 12);
       ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(18, 16, 4, 6);
-      ctx.fillRect(42, 16, 4, 6);
+      ctx.fillRect(18, 16, 4, 8);
+      ctx.fillRect(42, 16, 4, 8);
       // Eyes
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(16, 4, 6, 4);
-      ctx.fillRect(42, 4, 6, 4);
+      ctx.fillRect(14, 4, 7, 5);
+      ctx.fillRect(43, 4, 7, 5);
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(18, 4, 3, 4);
-      ctx.fillRect(44, 4, 3, 4);
+      ctx.fillRect(17, 5, 4, 4);
+      ctx.fillRect(43, 5, 4, 4);
     } else if (type === 'zombified_piglin') {
-      // Left piglin, right rotted zombie
+      // Left piglin (warm peach), right rotted olive-moss zombie flesh
       ctx.fillStyle = '#d97757';
       ctx.fillRect(0, 0, 32, 64);
-      ctx.fillStyle = '#4ade80';
+      ctx.fillStyle = '#556b2f';
       ctx.fillRect(32, 0, 32, 64);
-      ctx.fillStyle = '#22c55e';
+      ctx.fillStyle = '#414833';
       for (let x = 32; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
           if ((x * 5 + y * 7) % 3 === 0) ctx.fillRect(x, y, 4, 4);
         }
       }
-      // Exposed white skull/bones on right
+      // Exposed white skull on right side
       ctx.fillStyle = '#f1f5f9';
-      ctx.fillRect(44, 4, 12, 12);
-      ctx.fillRect(38, 24, 16, 4);
-      ctx.fillRect(38, 32, 14, 4);
-      ctx.fillRect(38, 40, 16, 4);
-      // Left tusk
+      ctx.fillRect(40, 4, 16, 14);
+      // Exposed bone ribs on right side
+      ctx.fillRect(36, 24, 18, 3);
+      ctx.fillRect(36, 32, 16, 3);
+      ctx.fillRect(36, 40, 18, 3);
+      // Left ivory tusk
       ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(14, 14, 4, 6);
-      // Red zombie eye on right, white eye on left
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(48, 8, 4, 4);
+      ctx.fillRect(14, 14, 4, 7);
+      // Red glowing zombie eye on right, white eye on left
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(46, 8, 5, 5);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(12, 6, 5, 4);
+      ctx.fillRect(12, 6, 6, 5);
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(14, 6, 3, 4);
+      ctx.fillRect(15, 6, 3, 5);
     } else if (type === 'hoglin') {
       // Deep crimson hide
       ctx.fillStyle = '#831843';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#9d174d';
+      ctx.fillStyle = '#701a75';
       for (let x = 0; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
           if ((x * 13 + y * 3) % 4 === 0) ctx.fillRect(x, y, 4, 4);
         }
       }
+      // Dark spine ridge
       ctx.fillStyle = '#500724';
       ctx.fillRect(24, 0, 16, 64);
       // Tusks
@@ -1597,23 +1676,22 @@ export class MobManager {
         }
       }
     } else if (type === 'strider') {
-      // Warm crimson skin
-      ctx.fillStyle = '#b91c1c';
+      // Warm crimson skin per Minecraft
+      ctx.fillStyle = '#9e3232';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#dc2626';
+      ctx.fillStyle = '#7a2222';
       for (let x = 0; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
           if ((x * 7 + y) % 3 === 0) ctx.fillRect(x, y, 4, 4);
         }
       }
+      // Bristly side hair roots
       ctx.fillStyle = '#450a0a';
       ctx.fillRect(0, 20, 8, 4);
       ctx.fillRect(0, 32, 8, 4);
       ctx.fillRect(56, 20, 8, 4);
       ctx.fillRect(56, 32, 8, 4);
-      ctx.fillRect(16, 42, 32, 4);
-      ctx.fillRect(16, 44, 6, 6);
-      ctx.fillRect(42, 44, 6, 6);
+      // Squinting eyes
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(14, 22, 8, 8);
       ctx.fillRect(42, 22, 8, 8);
@@ -1621,22 +1699,22 @@ export class MobManager {
       ctx.fillRect(16, 24, 4, 4);
       ctx.fillRect(44, 24, 4, 4);
     } else if (type === 'strider_cold') {
-      // Cold purple shivering skin
-      ctx.fillStyle = '#6b21a8';
+      // Cold purple-grey shivering skin
+      ctx.fillStyle = '#5c5265';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#7c3aed';
+      ctx.fillStyle = '#433c4a';
       for (let x = 0; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
           if ((x * 7 + y) % 3 === 0) ctx.fillRect(x, y, 4, 4);
         }
       }
-      ctx.fillStyle = '#3b0764';
+      ctx.fillStyle = '#2f2735';
       ctx.fillRect(0, 20, 8, 4);
       ctx.fillRect(0, 32, 8, 4);
       ctx.fillRect(56, 20, 8, 4);
       ctx.fillRect(56, 32, 8, 4);
-      ctx.fillRect(16, 42, 32, 4);
-      ctx.fillStyle = '#e9d5ff';
+      // Chattering teeth & cold eyes
+      ctx.fillStyle = '#d8b4e2';
       ctx.fillRect(14, 22, 8, 8);
       ctx.fillRect(42, 22, 8, 8);
       ctx.fillStyle = '#1e293b';
@@ -1658,6 +1736,23 @@ export class MobManager {
       ctx.fillStyle = '#f4f4f5';
       ctx.fillRect(16, 16, 6, 6);
       ctx.fillRect(42, 16, 6, 6);
+    } else if (type === 'wither_skull') {
+      // Dark wither skull with hollow glowing white eyes and jagged grim grin
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#27272a';
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          if ((x * 7 + y * 11) % 4 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(14, 18, 8, 8);
+      ctx.fillRect(42, 18, 8, 8);
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillRect(20, 40, 24, 6);
+      ctx.fillStyle = '#18181b';
+      for (let t = 22; t < 44; t += 6) ctx.fillRect(t, 40, 2, 6);
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -1818,7 +1913,7 @@ export class MobManager {
 
   isBlockSolid(x, y, z, mobType = null) {
     const b = this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
-    if (b === BLOCKS.AIR || b === BLOCKS.WATER) return false;
+    if (b === BLOCKS.AIR || b === BLOCKS.WATER || b === BLOCKS.FIRE) return false;
     if (mobType === 'strider' && b === BLOCKS.LAVA) return true;
     const def = BLOCK_DEFS[b];
     return def && def.solid !== false && !def.plant;
@@ -2895,19 +2990,27 @@ export class MobManager {
 
   spawnBlaze(x, y, z) {
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({
-      map: this.textures.blaze,
+    const headMat = new THREE.MeshLambertMaterial({
+      map: this.textures?.blaze_head || this.textures?.blaze,
       color: 0xffffff
     });
     const rodMat = new THREE.MeshLambertMaterial({
       color: 0xfbbf24,
       emissive: 0xd97706,
-      emissiveIntensity: 0.35
+      emissiveIntensity: 0.5
+    });
+    const smokeMat = new THREE.MeshLambertMaterial({
+      color: 0x1f140e
     });
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), mat);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), headMat);
     head.position.y = 1.35;
     group.add(head);
+
+    // Dark swirling smoke column core
+    const smokeCore = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.24), smokeMat);
+    smokeCore.position.y = 0.8;
+    group.add(smokeCore);
 
     // 12 orbiting rods arranged in 3 tiers
     const rodGeo = new THREE.BoxGeometry(0.12, 0.55, 0.12);
@@ -3203,13 +3306,19 @@ export class MobManager {
 
   spawnGhast(x, y, z) {
     const group = new THREE.Group();
+    const plainMat = new THREE.MeshLambertMaterial({
+      map: this.textures?.ghast_plain || this.textures?.ghast,
+      color: 0xffffff
+    });
     const headMat = new THREE.MeshLambertMaterial({
-      map: this.textures.ghast,
+      map: this.textures?.ghast,
       color: 0xffffff
     });
 
-    // 4.0 x 4.0 x 4.0 white body cube
-    const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.6), headMat);
+    // 4.0 x 4.0 x 4.0 white body cube with multi-materials [+X, -X, +Y, -Y, +Z, -Z]
+    // Only the +Z front face displays the crying/shooting face; other 5 faces are plain white ghostly skin
+    const bodyMaterials = [plainMat, plainMat, plainMat, plainMat, headMat, plainMat];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.6), bodyMaterials);
     body.position.y = 2.8;
     group.add(body);
 
@@ -3843,9 +3952,10 @@ export class MobManager {
       group.add(hR);
     }
 
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x27272a });
     const legGeo = new THREE.BoxGeometry(0.18, 1.1, 0.18);
-    const leftLeg = new THREE.Mesh(legGeo, striderWarmMat); leftLeg.position.set(-0.35, 0.55, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, striderWarmMat); rightLeg.position.set(0.35, 0.55, 0); group.add(rightLeg);
+    const leftLeg = new THREE.Mesh(legGeo, legMat); leftLeg.position.set(-0.35, 0.55, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, legMat); rightLeg.position.set(0.35, 0.55, 0); group.add(rightLeg);
 
     const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), new THREE.MeshLambertMaterial({ color: 0x451a03 }));
     saddle.position.set(0, 1.85, 0);
@@ -4519,24 +4629,37 @@ export class MobManager {
   spawnWither(x, y, z) {
     const group = new THREE.Group();
     const witherMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
+    const skullMat = new THREE.MeshLambertMaterial({
+      map: this.textures?.wither_skull || this.textures?.wither_skeleton,
+      color: 0xffffff
+    });
+    const ribMat = new THREE.MeshLambertMaterial({ color: 0x27272a });
 
-    // Spine and ribcage
-    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 0.3), witherMat);
+    // Central spine
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.3, 0.22), witherMat);
     spine.position.y = 1.0;
     group.add(spine);
 
-    const ribs = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 0.4), witherMat);
-    ribs.position.y = 1.3;
-    group.add(ribs);
+    // 3 distinct horizontal rib bars
+    for (let r = 0; r < 3; r++) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.85 - r * 0.15, 0.12, 0.25), ribMat);
+      rib.position.set(0, 1.3 - r * 0.22, 0);
+      group.add(rib);
+    }
 
-    // 3 Heads
-    const centerHead = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), witherMat);
+    // 3 Skulls: Center main skull + Left & Right sub-skulls
+    const centerHead = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), skullMat);
     centerHead.position.set(0, 1.85, 0);
     group.add(centerHead);
 
     const sideHeadGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
-    const leftHead = new THREE.Mesh(sideHeadGeo, witherMat); leftHead.position.set(-0.75, 1.7, 0); group.add(leftHead);
-    const rightHead = new THREE.Mesh(sideHeadGeo, witherMat); rightHead.position.set(0.75, 1.7, 0); group.add(rightHead);
+    const leftHead = new THREE.Mesh(sideHeadGeo, skullMat);
+    leftHead.position.set(-0.75, 1.7, 0);
+    group.add(leftHead);
+
+    const rightHead = new THREE.Mesh(sideHeadGeo, skullMat);
+    rightHead.position.set(0.75, 1.7, 0);
+    group.add(rightHead);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });

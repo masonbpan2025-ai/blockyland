@@ -336,15 +336,20 @@ export class HostileMobBehaviors {
           }
         } else {
           const dist = mob.mesh.position.distanceTo(player.position);
-          if (dist < 16) {
+          const isTargetable = player && !player.isCreative && !player.isSpectator && (player.health === undefined || player.health > 0);
+          if (dist < 16 && isTargetable) {
             mob.target = player;
             const dir = player.position.clone().sub(mob.mesh.position);
             dir.y = 0;
             if (dir.lengthSq() > 0.01) {
               dir.normalize();
-              mob.velocity.x = dir.x * 4.2;
-              mob.velocity.z = dir.z * 4.2;
-              mob.yaw = Math.atan2(dir.x, dir.z);
+              const targetYaw = Math.atan2(dir.x, dir.z);
+              if (!mob.avoidTime || mob.avoidTime <= 0) {
+                mob.velocity.x = dir.x * 3.8;
+                mob.velocity.z = dir.z * 3.8;
+                const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+                mob.yaw += turn * Math.min(1.0, 8 * dt);
+              }
             }
             if (dist < 2.0) {
               mob.attackCooldown = (mob.attackCooldown || 0) - dt;
@@ -504,16 +509,36 @@ export class HostileMobBehaviors {
     const dir = player.position.clone().sub(ghast.mesh.position);
     dir.normalize();
 
-    const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.45, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xff4500, emissive: 0xff2200 })
-    );
-    mesh.position.copy(ghast.mesh.position).add(new THREE.Vector3(0, 0.5, 0));
-    this.mobManager.scene.add(mesh);
+    const group = new THREE.Group();
+    const coreMat = new THREE.MeshLambertMaterial({
+      map: this.mobManager?.textures?.fireball,
+      color: 0xffffff,
+      emissive: 0xff4400,
+      emissiveIntensity: 0.75
+    });
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 10), coreMat);
+    group.add(core);
+
+    // Flaming quads for authentic Minecraft spinning fire silhouette
+    const flameMat = new THREE.MeshBasicMaterial({
+      map: this.mobManager?.textures?.fireball,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    const q1 = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), flameMat);
+    const q2 = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), flameMat);
+    q2.rotation.y = Math.PI / 2;
+    group.add(q1);
+    group.add(q2);
+
+    group.position.copy(ghast.mesh.position).add(new THREE.Vector3(0, 0.5, 0));
+    this.mobManager.scene.add(group);
 
     this.mobManager.customProjectiles.push({
-      mesh,
-      position: mesh.position.clone(),
+      mesh: group,
+      flames: [q1, q2],
+      position: group.position.clone(),
       velocity: dir.multiplyScalar(14),
       isGhastFireball: true,
       deflected: false,
@@ -599,6 +624,18 @@ export class HostileMobBehaviors {
       p.position.addScaledVector(p.velocity, dt);
       if (p.mesh) p.mesh.position.copy(p.position);
 
+      // Ghast Fireball spin and trail animation
+      if (p.isGhastFireball) {
+        if (p.flames) {
+          for (const q of p.flames) q.rotation.z += dt * 6.0;
+        }
+        p.trailTimer = (p.trailTimer || 0) + dt;
+        if (p.trailTimer > 0.08) {
+          p.trailTimer = 0;
+          this.mobManager.spawnParticleBurst?.(p.position, 0xf97316, 2);
+        }
+      }
+
       let hit = false;
       // Check collision with player
       if (!p.deflected && p.position.distanceTo(player.position.clone().add(new THREE.Vector3(0, 1, 0))) < 1.2) {
@@ -606,6 +643,8 @@ export class HostileMobBehaviors {
         if (p.isGhastFireball) {
           player.takeDamage?.(12, 'ghast_fireball');
           if (this.sounds?.playExplosion) this.sounds.playExplosion();
+          this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 16);
+          this.mobManager.spawnParticleBurst?.(p.position, 0x374151, 12);
         } else if (p.isBlazeFireball) {
           player.takeDamage?.(5, 'blaze_fireball');
           player.setOnFire?.(5.0);
@@ -618,6 +657,37 @@ export class HostileMobBehaviors {
         }
       }
 
+      // Check collision with solid blocks for Ghast Fireball (detonates on impact)
+      if (p.isGhastFireball && !hit) {
+        const bx = Math.floor(p.position.x), by = Math.floor(p.position.y), bz = Math.floor(p.position.z);
+        if (this.mobManager.isBlockSolid?.(bx, by, bz)) {
+          hit = true;
+          if (this.sounds?.playExplosion) this.sounds.playExplosion();
+          this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);
+          this.mobManager.spawnParticleBurst?.(p.position, 0x374151, 14);
+          // Splash damage to player if nearby
+          if (player?.position && p.position.distanceTo(player.position) < 3.5) {
+            player.takeDamage?.(12, 'ghast_fireball');
+          }
+          // Ignite fire on terrain surfaces adjacent to impact
+          if (this.world) {
+            for (let ox = -1; ox <= 1; ox++) {
+              for (let oz = -1; oz <= 1; oz++) {
+                if (Math.random() < 0.6) {
+                  const fx = bx + ox, fz = bz + oz;
+                  for (let fy = by - 1; fy <= by + 1; fy++) {
+                    if (this.world.getVoxel(fx, fy, fz) === BLOCKS.AIR && this.mobManager.isBlockSolid(fx, fy - 1, fz)) {
+                      this.world.setVoxel(fx, fy, fz, BLOCKS.FIRE);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       // If deflected Ghast fireball hits a mob (especially Ghast)
       if (p.deflected && p.isGhastFireball) {
         for (const mob of this.mobManager.mobs) {
@@ -625,6 +695,7 @@ export class HostileMobBehaviors {
             hit = true;
             this.mobManager.damageMob(mob, 35, p.position);
             if (this.sounds?.playExplosion) this.sounds.playExplosion();
+            this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);
             break;
           }
         }
@@ -651,8 +722,10 @@ export class HostileMobBehaviors {
       if (hit || p.age > 6.0) {
         if (p.mesh) {
           this.mobManager.scene.remove(p.mesh);
-          p.mesh.geometry?.dispose();
-          p.mesh.material?.dispose();
+          p.mesh.traverse?.(c => {
+            c.geometry?.dispose();
+            c.material?.dispose();
+          });
         }
       } else {
         remaining.push(p);

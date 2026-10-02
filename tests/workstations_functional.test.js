@@ -134,7 +134,11 @@ test('Anvil Engine: Repair, Renaming, Enchantment merging, Prior Work Penalty, a
   assert.equal(creativeCalc.valid, true, 'Allowed in creative mode');
 
   // 5. Anvil Degradation
-  assert.equal(getAnvilDegradation(BLOCKS.ANVIL) === BLOCKS.ANVIL || getAnvilDegradation(BLOCKS.ANVIL) === BLOCKS.CHIPPED_ANVIL, true);
+  const degraded = getAnvilDegradation(BLOCKS.ANVIL);
+  assert.equal(degraded === BLOCKS.ANVIL || degraded === BLOCKS.CHIPPED_ANVIL, true);
+  assert.equal(getAnvilDegradation(BLOCKS.ANVIL, true), BLOCKS.CHIPPED_ANVIL);
+  assert.equal(getAnvilDegradation(BLOCKS.CHIPPED_ANVIL, true), BLOCKS.DAMAGED_ANVIL);
+  assert.equal(getAnvilDegradation(BLOCKS.DAMAGED_ANVIL, true), BLOCKS.AIR);
 });
 
 test('Grindstone Engine: Disenchanting, Combination Repair, and Experience Points Refund', () => {
