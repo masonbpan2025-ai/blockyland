@@ -21,8 +21,12 @@ import {
   generateEnchantmentOffers,
   applyEnchantment
 } from './enchanting.js';
-import { getExpProgress } from './experience.js';
+import { getExpProgress, consumePlayerLevels, addPlayerExperience } from './experience.js';
 import { renderPlayerDoll } from './playerDoll.js';
+import { BrewingStand, getBrewingResult, POTION_DATA } from './brewing.js';
+import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
+import { calculateGrindstoneResult } from './grindstone.js';
+import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
@@ -75,6 +79,37 @@ export class UIManager {
     this.currentOffers = [];
 
     this.villagerModal = document.getElementById('villager-modal');
+
+    // Brewing Stand
+    this.brewingModal = document.getElementById('brewing-modal');
+    this.closeBrewingBtn = document.getElementById('close-brewing');
+    this.brewingStand = new BrewingStand();
+    this.currentBrewingPos = null;
+
+    // Anvil
+    this.anvilModal = document.getElementById('anvil-modal');
+    this.closeAnvilBtn = document.getElementById('close-anvil');
+    this.anvilLeftItem = null;
+    this.anvilRightItem = null;
+    this.anvilCustomName = '';
+    this.currentAnvilPos = null;
+
+    // Grindstone
+    this.grindstoneModal = document.getElementById('grindstone-modal');
+    this.closeGrindstoneBtn = document.getElementById('close-grindstone');
+    this.grindstoneTopItem = null;
+    this.grindstoneBottomItem = null;
+    this.currentGrindstonePos = null;
+
+    // Beacon
+    this.beaconModal = document.getElementById('beacon-modal');
+    this.closeBeaconBtn = document.getElementById('close-beacon');
+    this.beaconPos = null;
+    this.beaconState = null;
+    this.beaconPaymentItem = null;
+    this.beaconSelectedPrimary = null;
+    this.beaconSelectedSecondary = null;
+
     this.pauseModal = document.getElementById('pause-menu');
     this.startOverlay = document.getElementById('start-overlay');
     this.geminiModal = document.getElementById('gemini-modal');
@@ -358,6 +393,18 @@ export class UIManager {
     this.currentChestPos = null;
     if (this.enchantingModal && !this.enchantingModal.classList.contains('hidden')) {
       this.closeEnchantingModal();
+    }
+    if (this.brewingModal && !this.brewingModal.classList.contains('hidden')) {
+      this.closeBrewingModal();
+    }
+    if (this.anvilModal && !this.anvilModal.classList.contains('hidden')) {
+      this.closeAnvilModal();
+    }
+    if (this.grindstoneModal && !this.grindstoneModal.classList.contains('hidden')) {
+      this.closeGrindstoneModal();
+    }
+    if (this.beaconModal && !this.beaconModal.classList.contains('hidden')) {
+      this.closeBeaconModal();
     }
     this.villagerModal.classList.add('hidden');
     this.pauseModal.classList.add('hidden');
@@ -1135,6 +1182,10 @@ export class UIManager {
     document.getElementById('close-crafting').onclick = () => this.closeAllModals();
     if (this.closeFurnaceBtn) this.closeFurnaceBtn.onclick = () => this.closeAllModals();
     document.getElementById('close-villager').onclick = () => this.closeAllModals();
+    document.getElementById('close-brewing')?.addEventListener('click', () => this.closeAllModals());
+    document.getElementById('close-anvil')?.addEventListener('click', () => this.closeAllModals());
+    document.getElementById('close-grindstone')?.addEventListener('click', () => this.closeAllModals());
+    document.getElementById('close-beacon')?.addEventListener('click', () => this.closeAllModals());
 
     // 2x2 Craft Result
     const res2 = document.getElementById('craft2x2-result');
@@ -2100,6 +2151,658 @@ export class UIManager {
 
     // Regular hotbar <-> storage shift transfer
     this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  // --- Brewing Stand GUI ----------------------------------------------------
+  openBrewingStand(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.brewingModal) return;
+
+    this.currentBrewingPos = { x, y, z };
+    this.brewingModal.classList.remove('hidden');
+    this.renderBrewingGUI();
+  }
+
+  closeBrewingModal() {
+    if (this.brewingModal) this.brewingModal.classList.add('hidden');
+    this.currentBrewingPos = null;
+
+    if (this.brewingStand.ingredient) {
+      this.inv.addItem(this.brewingStand.ingredient.id, false, this.brewingStand.ingredient.count);
+      this.brewingStand.ingredient = null;
+    }
+    for (let i = 0; i < 3; i++) {
+      const b = this.brewingStand.bottles[i];
+      if (b) {
+        this.inv.addItem(b.id, false, b.count);
+        this.brewingStand.bottles[i] = null;
+      }
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderBrewingGUI() {
+    if (!this.brewingModal || this.brewingModal.classList.contains('hidden')) return;
+
+    // Fuel slot & fuel bar
+    const fuelSlot = document.getElementById('brewing-fuel-slot');
+    const fuelBar = document.getElementById('brewing-fuel-bar');
+    if (fuelSlot) {
+      const fuelItem = this.brewingStand.fuel > 0 ? { id: 'blaze_powder', count: this.brewingStand.fuel } : null;
+      this.renderSlotContent(fuelSlot, fuelItem);
+      fuelSlot.onclick = () => this.handleBrewingSlotClick('fuel');
+    }
+    if (fuelBar) {
+      const fuelPct = Math.round((this.brewingStand.fuel / this.brewingStand.maxFuel) * 100);
+      fuelBar.style.width = `${fuelPct}%`;
+    }
+
+    // Ingredient slot
+    const ingSlot = document.getElementById('brewing-ingredient-slot');
+    if (ingSlot) {
+      this.renderSlotContent(ingSlot, this.brewingStand.ingredient);
+      ingSlot.onclick = (e) => this.handleBrewingSlotClick('ingredient', e.button === 2, e.shiftKey);
+      ingSlot.oncontextmenu = (e) => { e.preventDefault(); this.handleBrewingSlotClick('ingredient', true, e.shiftKey); };
+    }
+
+    // Progress bar & text
+    const progBar = document.getElementById('brewing-progress-bar');
+    const statusText = document.getElementById('brewing-status-text');
+    if (progBar) {
+      const prog = Math.round(this.brewingStand.getProgress() * 100);
+      progBar.style.width = `${prog}%`;
+    }
+    if (statusText) {
+      statusText.textContent = this.brewingStand.isBrewing ? 'Brewing...' : (this.brewingStand.canBrew() ? 'Ready' : 'Idle');
+    }
+
+    // 3 Bottle slots
+    for (let i = 0; i < 3; i++) {
+      const bottleSlot = document.getElementById(`brewing-bottle-${i}`);
+      if (bottleSlot) {
+        this.renderSlotContent(bottleSlot, this.brewingStand.bottles[i]);
+        bottleSlot.onclick = (e) => this.handleBrewingSlotClick(`bottle-${i}`, e.button === 2, e.shiftKey);
+        bottleSlot.oncontextmenu = (e) => { e.preventDefault(); this.handleBrewingSlotClick(`bottle-${i}`, true, e.shiftKey); };
+      }
+    }
+
+    // Inventory grids
+    this.renderSlotGrid('brewing-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) this.quickMoveToBrewing(this.inv.storage, idx);
+      else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
+      this.renderBrewingGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('brewing-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) this.quickMoveToBrewing(this.inv.hotbar, idx);
+      else this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
+      this.renderBrewingGUI();
+      this.updateHotbar();
+    });
+  }
+
+  handleBrewingSlotClick(slotKey, rightClick = false, shiftClick = false) {
+    if (slotKey === 'fuel') {
+      if (this.inv.cursorItem && this.inv.cursorItem.id === 'blaze_powder') {
+        if (this.brewingStand.addFuel(this.inv.cursorItem)) {
+          this.inv.cursorItem.count -= 1;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          this.sounds.playClick?.();
+        }
+      }
+    } else if (slotKey === 'ingredient') {
+      if (!this.inv.cursorItem) {
+        if (this.brewingStand.ingredient) {
+          this.inv.cursorItem = this.brewingStand.ingredient;
+          this.brewingStand.ingredient = null;
+          this.sounds.playClick?.();
+        }
+      } else {
+        if (!this.brewingStand.ingredient) {
+          this.brewingStand.ingredient = this.inv.cursorItem;
+          this.inv.cursorItem = null;
+          this.sounds.playClick?.();
+        } else if (this.brewingStand.ingredient.id === this.inv.cursorItem.id) {
+          const space = 64 - this.brewingStand.ingredient.count;
+          const add = Math.min(space, this.inv.cursorItem.count);
+          this.brewingStand.ingredient.count += add;
+          this.inv.cursorItem.count -= add;
+          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          this.sounds.playClick?.();
+        } else {
+          const tmp = this.brewingStand.ingredient;
+          this.brewingStand.ingredient = this.inv.cursorItem;
+          this.inv.cursorItem = tmp;
+          this.sounds.playClick?.();
+        }
+      }
+    } else if (slotKey.startsWith('bottle-')) {
+      const idx = parseInt(slotKey.split('-')[1], 10);
+      const currentBottle = this.brewingStand.bottles[idx];
+      if (!this.inv.cursorItem) {
+        if (currentBottle) {
+          this.inv.cursorItem = currentBottle;
+          this.brewingStand.bottles[idx] = null;
+          this.sounds.playClick?.();
+        }
+      } else {
+        if (!currentBottle) {
+          this.brewingStand.bottles[idx] = this.inv.cursorItem;
+          this.inv.cursorItem = null;
+          this.sounds.playClick?.();
+        } else {
+          const tmp = currentBottle;
+          this.brewingStand.bottles[idx] = this.inv.cursorItem;
+          this.inv.cursorItem = tmp;
+          this.sounds.playClick?.();
+        }
+      }
+    }
+
+    this.updateFloatingCursor();
+    this.renderBrewingGUI();
+  }
+
+  quickMoveToBrewing(list, idx) {
+    const item = list[idx];
+    if (!item) return;
+
+    if (item.id === 'blaze_powder') {
+      if (this.brewingStand.fuel < this.brewingStand.maxFuel) {
+        this.brewingStand.addFuel(item);
+        item.count -= 1;
+        if (item.count <= 0) list[idx] = null;
+        this.sounds.playClick?.();
+        return;
+      }
+    }
+
+    if (item.id === 'glass_bottle' || item.id === 'water_bottle' || item.id.includes('potion')) {
+      for (let i = 0; i < 3; i++) {
+        if (!this.brewingStand.bottles[i]) {
+          this.brewingStand.bottles[i] = item;
+          list[idx] = null;
+          this.sounds.playClick?.();
+          return;
+        }
+      }
+    }
+
+    if (!this.brewingStand.ingredient) {
+      this.brewingStand.ingredient = item;
+      list[idx] = null;
+      this.sounds.playClick?.();
+      return;
+    }
+
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  // --- Anvil GUI ------------------------------------------------------------
+  openAnvil(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.anvilModal) return;
+
+    this.currentAnvilPos = { x, y, z };
+    this.anvilLeftItem = null;
+    this.anvilRightItem = null;
+    this.anvilCustomName = '';
+    const nameInput = document.getElementById('anvil-name-input');
+    if (nameInput) {
+      nameInput.value = '';
+      nameInput.oninput = (e) => {
+        this.anvilCustomName = e.target.value;
+        this.renderAnvilGUI();
+      };
+    }
+    this.anvilModal.classList.remove('hidden');
+    this.renderAnvilGUI();
+  }
+
+  closeAnvilModal() {
+    if (this.anvilModal) this.anvilModal.classList.add('hidden');
+    this.currentAnvilPos = null;
+
+    if (this.anvilLeftItem) {
+      this.inv.addItem(this.anvilLeftItem.id, this.anvilLeftItem.isBlock, this.anvilLeftItem.count, this.anvilLeftItem.enchantments);
+      this.anvilLeftItem = null;
+    }
+    if (this.anvilRightItem) {
+      this.inv.addItem(this.anvilRightItem.id, this.anvilRightItem.isBlock, this.anvilRightItem.count, this.anvilRightItem.enchantments);
+      this.anvilRightItem = null;
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count, this.inv.cursorItem.enchantments);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderAnvilGUI() {
+    if (!this.anvilModal || this.anvilModal.classList.contains('hidden')) return;
+
+    const leftSlot = document.getElementById('anvil-left-slot');
+    const rightSlot = document.getElementById('anvil-right-slot');
+    const outputSlot = document.getElementById('anvil-output-slot');
+    const costLabel = document.getElementById('anvil-cost-label');
+
+    if (leftSlot) {
+      this.renderSlotContent(leftSlot, this.anvilLeftItem);
+      leftSlot.onclick = () => this.handleAnvilSlotClick('left');
+    }
+    if (rightSlot) {
+      this.renderSlotContent(rightSlot, this.anvilRightItem);
+      rightSlot.onclick = () => this.handleAnvilSlotClick('right');
+    }
+
+    const calculation = calculateAnvilResult(
+      this.anvilLeftItem,
+      this.anvilRightItem,
+      this.anvilCustomName,
+      this.player?.gamemode
+    );
+
+    if (outputSlot) {
+      this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
+      outputSlot.onclick = () => {
+        if (calculation.valid) {
+          this.takeAnvilOutput(calculation);
+        }
+      };
+    }
+
+    if (costLabel) {
+      if (!this.anvilLeftItem && !this.anvilRightItem) {
+        costLabel.textContent = '';
+      } else if (calculation.tooExpensive) {
+        costLabel.textContent = 'Too Expensive!';
+        costLabel.style.color = '#ef4444';
+      } else if (calculation.valid) {
+        const canAfford = (this.player?.gamemode === 'creative') || (this.player?.level >= calculation.levelCost);
+        costLabel.textContent = `Enchantment Cost: ${calculation.levelCost}`;
+        costLabel.style.color = canAfford ? '#10b981' : '#ef4444';
+      } else {
+        costLabel.textContent = '';
+      }
+    }
+
+    this.renderSlotGrid('anvil-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) this.quickMoveToAnvil(this.inv.storage, idx);
+      else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
+      this.renderAnvilGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('anvil-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) this.quickMoveToAnvil(this.inv.hotbar, idx);
+      else this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
+      this.renderAnvilGUI();
+      this.updateHotbar();
+    });
+  }
+
+  handleAnvilSlotClick(slotType) {
+    if (slotType === 'left') {
+      const tmp = this.anvilLeftItem;
+      this.anvilLeftItem = this.inv.cursorItem;
+      this.inv.cursorItem = tmp;
+      if (this.anvilLeftItem && (!this.anvilCustomName || this.anvilCustomName === '')) {
+        const nameInput = document.getElementById('anvil-name-input');
+        if (nameInput) nameInput.value = this.anvilLeftItem.customName || ITEMS[this.anvilLeftItem.id]?.name || this.anvilLeftItem.id;
+      }
+    } else if (slotType === 'right') {
+      const tmp = this.anvilRightItem;
+      this.anvilRightItem = this.inv.cursorItem;
+      this.inv.cursorItem = tmp;
+    }
+
+    this.updateFloatingCursor();
+    this.renderAnvilGUI();
+  }
+
+  takeAnvilOutput(calculation) {
+    if (!calculation.valid || !calculation.result) return;
+    if (this.player.gamemode !== 'creative' && this.player.level < calculation.levelCost) {
+      this.sounds.playHurt?.();
+      return;
+    }
+
+    if (this.player.gamemode !== 'creative' && calculation.levelCost > 0) {
+      consumePlayerLevels(this.player, calculation.levelCost);
+    }
+
+    this.inv.cursorItem = calculation.result;
+    this.anvilLeftItem = null;
+
+    if (this.anvilRightItem) {
+      const consumed = calculation.materialUnitsConsumed || 1;
+      this.anvilRightItem.count -= consumed;
+      if (this.anvilRightItem.count <= 0) this.anvilRightItem = null;
+    }
+
+    this.sounds.playAnvil?.();
+
+    if (this.currentAnvilPos && this.world) {
+      const curBlock = this.world.getVoxel(this.currentAnvilPos.x, this.currentAnvilPos.y, this.currentAnvilPos.z);
+      const nextBlock = getAnvilDegradation(curBlock);
+      if (nextBlock !== curBlock) {
+        this.world.setVoxel(this.currentAnvilPos.x, this.currentAnvilPos.y, this.currentAnvilPos.z, nextBlock);
+        if (nextBlock === BLOCKS.AIR) {
+          this.closeAnvilModal();
+          return;
+        }
+      }
+    }
+
+    this.updateFloatingCursor();
+    this.renderAnvilGUI();
+    this.updateHotbar();
+    this.updateStats();
+  }
+
+  quickMoveToAnvil(list, idx) {
+    const item = list[idx];
+    if (!item) return;
+
+    if (!this.anvilLeftItem) {
+      this.anvilLeftItem = item;
+      list[idx] = null;
+      this.sounds.playClick?.();
+      return;
+    }
+    if (!this.anvilRightItem) {
+      this.anvilRightItem = item;
+      list[idx] = null;
+      this.sounds.playClick?.();
+      return;
+    }
+
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  // --- Grindstone GUI -------------------------------------------------------
+  openGrindstone(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.grindstoneModal) return;
+
+    this.currentGrindstonePos = { x, y, z };
+    this.grindstoneTopItem = null;
+    this.grindstoneBottomItem = null;
+    this.grindstoneModal.classList.remove('hidden');
+    this.renderGrindstoneGUI();
+  }
+
+  closeGrindstoneModal() {
+    if (this.grindstoneModal) this.grindstoneModal.classList.add('hidden');
+    this.currentGrindstonePos = null;
+
+    if (this.grindstoneTopItem) {
+      this.inv.addItem(this.grindstoneTopItem.id, this.grindstoneTopItem.isBlock, this.grindstoneTopItem.count, this.grindstoneTopItem.enchantments);
+      this.grindstoneTopItem = null;
+    }
+    if (this.grindstoneBottomItem) {
+      this.inv.addItem(this.grindstoneBottomItem.id, this.grindstoneBottomItem.isBlock, this.grindstoneBottomItem.count, this.grindstoneBottomItem.enchantments);
+      this.grindstoneBottomItem = null;
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count, this.inv.cursorItem.enchantments);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderGrindstoneGUI() {
+    if (!this.grindstoneModal || this.grindstoneModal.classList.contains('hidden')) return;
+
+    const topSlot = document.getElementById('grindstone-top-slot');
+    const bottomSlot = document.getElementById('grindstone-bottom-slot');
+    const outputSlot = document.getElementById('grindstone-output-slot');
+    const xpLabel = document.getElementById('grindstone-xp-label');
+
+    if (topSlot) {
+      this.renderSlotContent(topSlot, this.grindstoneTopItem);
+      topSlot.onclick = () => this.handleGrindstoneSlotClick('top');
+    }
+    if (bottomSlot) {
+      this.renderSlotContent(bottomSlot, this.grindstoneBottomItem);
+      bottomSlot.onclick = () => this.handleGrindstoneSlotClick('bottom');
+    }
+
+    const calculation = calculateGrindstoneResult(this.grindstoneTopItem, this.grindstoneBottomItem);
+
+    if (outputSlot) {
+      this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
+      outputSlot.onclick = () => {
+        if (calculation.valid) {
+          this.takeGrindstoneOutput(calculation);
+        }
+      };
+    }
+
+    if (xpLabel) {
+      if (calculation.valid && calculation.xpDrop > 0) {
+        xpLabel.textContent = `+${calculation.xpDrop} Experience Points`;
+      } else {
+        xpLabel.textContent = '';
+      }
+    }
+
+    this.renderSlotGrid('grindstone-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) this.quickMoveToGrindstone(this.inv.storage, idx);
+      else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
+      this.renderGrindstoneGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('grindstone-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) this.quickMoveToGrindstone(this.inv.hotbar, idx);
+      else this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
+      this.renderGrindstoneGUI();
+      this.updateHotbar();
+    });
+  }
+
+  handleGrindstoneSlotClick(slotType) {
+    if (slotType === 'top') {
+      const tmp = this.grindstoneTopItem;
+      this.grindstoneTopItem = this.inv.cursorItem;
+      this.inv.cursorItem = tmp;
+    } else if (slotType === 'bottom') {
+      const tmp = this.grindstoneBottomItem;
+      this.grindstoneBottomItem = this.inv.cursorItem;
+      this.inv.cursorItem = tmp;
+    }
+
+    this.updateFloatingCursor();
+    this.renderGrindstoneGUI();
+  }
+
+  takeGrindstoneOutput(calculation) {
+    if (!calculation.valid || !calculation.result) return;
+
+    this.inv.cursorItem = calculation.result;
+    if (calculation.consumedBoth) {
+      this.grindstoneTopItem = null;
+      this.grindstoneBottomItem = null;
+    } else {
+      if (this.grindstoneTopItem) this.grindstoneTopItem = null;
+      else if (this.grindstoneBottomItem) this.grindstoneBottomItem = null;
+    }
+
+    if (calculation.xpDrop > 0) {
+      addPlayerExperience(this.player, calculation.xpDrop, this.sounds, this);
+    }
+
+    this.sounds.playClick?.();
+    this.updateFloatingCursor();
+    this.renderGrindstoneGUI();
+    this.updateHotbar();
+    this.updateStats();
+  }
+
+  quickMoveToGrindstone(list, idx) {
+    const item = list[idx];
+    if (!item) return;
+
+    if (!this.grindstoneTopItem) {
+      this.grindstoneTopItem = item;
+      list[idx] = null;
+      this.sounds.playClick?.();
+      return;
+    }
+    if (!this.grindstoneBottomItem) {
+      this.grindstoneBottomItem = item;
+      list[idx] = null;
+      this.sounds.playClick?.();
+      return;
+    }
+
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  // --- Beacon GUI -----------------------------------------------------------
+  openBeacon(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.beaconModal) return;
+
+    this.beaconPos = { x, y, z };
+    this.beaconState = calculateBeaconPyramid(this.world, x, y, z);
+    this.beaconPaymentItem = null;
+    this.beaconSelectedPrimary = null;
+    this.beaconSelectedSecondary = null;
+    this.beaconModal.classList.remove('hidden');
+    this.renderBeaconGUI();
+  }
+
+  closeBeaconModal() {
+    if (this.beaconModal) this.beaconModal.classList.add('hidden');
+    this.beaconPos = null;
+
+    if (this.beaconPaymentItem) {
+      this.inv.addItem(this.beaconPaymentItem.id, false, this.beaconPaymentItem.count);
+      this.beaconPaymentItem = null;
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderBeaconGUI() {
+    if (!this.beaconModal || this.beaconModal.classList.contains('hidden')) return;
+
+    const tierLabel = document.getElementById('beacon-tier-label');
+    const rangeLabel = document.getElementById('beacon-range-label');
+    if (tierLabel) {
+      tierLabel.textContent = `Pyramid Tier: ${this.beaconState?.tier || 0} (${this.beaconState?.active ? 'Active' : 'Inactive'})`;
+      tierLabel.style.color = this.beaconState?.active ? '#10b981' : '#ef4444';
+    }
+    if (rangeLabel) {
+      rangeLabel.textContent = `Range: ${this.beaconState?.range || 0}m`;
+    }
+
+    const primaries = ['speed', 'haste', 'resistance', 'jump_boost', 'strength'];
+    for (const p of primaries) {
+      const btn = document.getElementById(`beacon-btn-${p}`);
+      if (btn) {
+        const isAvailable = this.beaconState?.availablePrimaries?.includes(p);
+        btn.disabled = !isAvailable;
+        btn.style.opacity = isAvailable ? '1.0' : '0.4';
+        btn.style.borderColor = (this.beaconSelectedPrimary === p) ? '#10b981' : '';
+        btn.onclick = () => {
+          if (isAvailable) {
+            this.beaconSelectedPrimary = p;
+            this.renderBeaconGUI();
+          }
+        };
+      }
+    }
+
+    const secondaries = ['regeneration', 'level2'];
+    for (const s of secondaries) {
+      const btn = document.getElementById(`beacon-btn-${s}`);
+      if (btn) {
+        const isAvailable = Boolean(this.beaconState?.hasSecondary);
+        btn.disabled = !isAvailable;
+        btn.style.opacity = isAvailable ? '1.0' : '0.4';
+        btn.style.borderColor = (this.beaconSelectedSecondary === s) ? '#10b981' : '';
+        btn.onclick = () => {
+          if (isAvailable) {
+            this.beaconSelectedSecondary = s;
+            this.renderBeaconGUI();
+          }
+        };
+      }
+    }
+
+    const paySlot = document.getElementById('beacon-payment-slot');
+    if (paySlot) {
+      this.renderSlotContent(paySlot, this.beaconPaymentItem);
+      paySlot.onclick = () => {
+        const allowed = ['iron_ingot', 'gold_ingot', 'emerald', 'diamond', 'netherite_ingot'];
+        if (this.inv.cursorItem && allowed.includes(this.inv.cursorItem.id)) {
+          if (!this.beaconPaymentItem) {
+            this.beaconPaymentItem = { ...this.inv.cursorItem, count: 1 };
+            this.inv.cursorItem.count -= 1;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          }
+        } else if (!this.inv.cursorItem && this.beaconPaymentItem) {
+          this.inv.cursorItem = this.beaconPaymentItem;
+          this.beaconPaymentItem = null;
+        }
+        this.updateFloatingCursor();
+        this.renderBeaconGUI();
+      };
+    }
+
+    const actBtn = document.getElementById('beacon-activate-btn');
+    if (actBtn) {
+      actBtn.onclick = () => {
+        if (!this.beaconPaymentItem || !this.beaconSelectedPrimary) {
+          this.sounds.playHurt?.();
+          return;
+        }
+        this.beaconPaymentItem = null;
+        this.sounds.playLevelUp?.();
+        if (this.beaconPos) {
+          this.activeBeaconEffects = this.activeBeaconEffects || {};
+          const key = `${this.beaconPos.x},${this.beaconPos.y},${this.beaconPos.z}`;
+          this.activeBeaconEffects[key] = {
+            ...this.beaconState,
+            primary: this.beaconSelectedPrimary,
+            secondary: this.beaconSelectedSecondary,
+            pos: this.beaconPos
+          };
+        }
+        this.closeBeaconModal();
+      };
+    }
+
+    this.renderSlotGrid('beacon-storage-grid', this.inv.storage, (idx, right, shift) => {
+      this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
+      this.renderBeaconGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('beacon-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
+      this.renderBeaconGUI();
+      this.updateHotbar();
+    });
   }
 
   renderSlotGrid(containerId, list, onClickCallback) {

@@ -1330,6 +1330,34 @@ class Game {
       return;
     }
 
+    // Brewing Stand interaction (Open Brewing GUI)
+    if (clickedBlock === BLOCKS.BREWING_STAND) {
+      this.sounds.playClick?.();
+      this.ui.openBrewingStand(bX, bY, bZ);
+      return;
+    }
+
+    // Anvil interaction (Open Anvil GUI)
+    if (clickedBlock === BLOCKS.ANVIL || clickedBlock === BLOCKS.CHIPPED_ANVIL || clickedBlock === BLOCKS.DAMAGED_ANVIL) {
+      this.sounds.playAnvil?.();
+      this.ui.openAnvil(bX, bY, bZ);
+      return;
+    }
+
+    // Grindstone interaction (Open Grindstone GUI)
+    if (clickedBlock === BLOCKS.GRINDSTONE) {
+      this.sounds.playClick?.();
+      this.ui.openGrindstone(bX, bY, bZ);
+      return;
+    }
+
+    // Beacon interaction (Open Beacon GUI)
+    if (clickedBlock === BLOCKS.BEACON) {
+      this.sounds.playClick?.();
+      this.ui.openBeacon(bX, bY, bZ);
+      return;
+    }
+
     // TNT ignition on right click
     if (clickedBlock === BLOCKS.TNT) {
       this.world.setVoxel(bX, bY, bZ, BLOCKS.AIR);

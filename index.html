@@ -468,6 +468,157 @@
     </div>
   </div>
 
+  <!-- Brewing Stand GUI -->
+  <div id="brewing-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 440px;">
+      <div class="gui-header">
+        <span>Brewing Stand</span>
+        <span class="close-btn" id="close-brewing">✕</span>
+      </div>
+      <div class="brewing-main-area" style="display: flex; flex-direction: column; align-items: center; padding: 12px; background: rgba(0, 0, 0, 0.3); border-radius: 4px; margin: 8px 0; border: 1px solid #334155;">
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 8px;">
+          <!-- Fuel Section -->
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div class="inv-slot" id="brewing-fuel-slot" title="Blaze Powder Fuel"></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 10px; color: #f59e0b; font-weight: bold;">FUEL</span>
+              <div style="width: 40px; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; border: 1px solid #475569;">
+                <div id="brewing-fuel-bar" style="width: 0%; height: 100%; background: #f59e0b; transition: width 0.2s;"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Ingredient Slot -->
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <div class="inv-slot" id="brewing-ingredient-slot" title="Brewing Ingredient (Nether Wart, Redstone, etc.)"></div>
+            <span style="font-size: 10px; color: #94a3b8; margin-top: 2px;">Ingredient</span>
+          </div>
+          <!-- Brew Progress Indicator -->
+          <div style="display: flex; flex-direction: column; align-items: center; width: 70px;">
+            <span id="brewing-status-text" style="font-size: 11px; color: #38bdf8; font-weight: bold;">Idle</span>
+            <div style="width: 60px; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; border: 1px solid #475569; margin-top: 4px;">
+              <div id="brewing-progress-bar" style="width: 0%; height: 100%; background: #38bdf8; transition: width 0.1s linear;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 Bottle Slots -->
+        <div style="display: flex; justify-content: center; gap: 24px; margin-top: 10px;">
+          <div class="inv-slot" id="brewing-bottle-0" title="Potion Bottle 1"></div>
+          <div class="inv-slot" id="brewing-bottle-1" title="Potion Bottle 2" style="position: relative; top: 10px;"></div>
+          <div class="inv-slot" id="brewing-bottle-2" title="Potion Bottle 3"></div>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="brewing-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
+      <div class="grid-slots" id="brewing-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Anvil GUI -->
+  <div id="anvil-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 440px;">
+      <div class="gui-header">
+        <span>Repair & Name</span>
+        <span class="close-btn" id="close-anvil">✕</span>
+      </div>
+      <div style="padding: 10px; background: rgba(0, 0, 0, 0.35); border-radius: 4px; margin: 8px 0; border: 1px solid #334155;">
+        <!-- Item Name Input Field -->
+        <div style="margin-bottom: 10px;">
+          <input type="text" id="anvil-name-input" placeholder="Custom item name..." style="width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; padding: 6px 10px; font-family: inherit; font-size: 13px;" />
+        </div>
+        <!-- Input Slots & Result -->
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+          <div class="inv-slot" id="anvil-left-slot" title="Target Item"></div>
+          <span style="font-size: 16px; color: #94a3b8; font-weight: bold;">+</span>
+          <div class="inv-slot" id="anvil-right-slot" title="Material or Sacrifice Item"></div>
+          <span style="font-size: 18px; color: #10b981; font-weight: bold;">➔</span>
+          <div class="inv-slot" id="anvil-output-slot" title="Result"></div>
+        </div>
+        <!-- Enchantment Cost / Too Expensive -->
+        <div id="anvil-cost-container" style="margin-top: 10px; text-align: center; font-size: 12px; font-weight: bold; min-height: 18px;">
+          <span id="anvil-cost-label" style="color: #10b981;"></span>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="anvil-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
+      <div class="grid-slots" id="anvil-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Grindstone GUI -->
+  <div id="grindstone-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 440px;">
+      <div class="gui-header">
+        <span>Repair & Disenchant</span>
+        <span class="close-btn" id="close-grindstone">✕</span>
+      </div>
+      <div style="padding: 12px; background: rgba(0, 0, 0, 0.35); border-radius: 4px; margin: 8px 0; border: 1px solid #334155;">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="inv-slot" id="grindstone-top-slot" title="Primary Item"></div>
+            <div class="inv-slot" id="grindstone-bottom-slot" title="Secondary Item"></div>
+          </div>
+          <span style="font-size: 20px; color: #10b981; font-weight: bold;">➔</span>
+          <div class="inv-slot" id="grindstone-output-slot" title="Disenchanted / Repaired Result"></div>
+        </div>
+        <div id="grindstone-xp-container" style="margin-top: 8px; text-align: center; font-size: 12px; color: #10b981; font-weight: bold; min-height: 16px;">
+          <span id="grindstone-xp-label"></span>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="grindstone-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
+      <div class="grid-slots" id="grindstone-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
+  <!-- Beacon GUI -->
+  <div id="beacon-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 460px;">
+      <div class="gui-header">
+        <span>Beacon</span>
+        <span class="close-btn" id="close-beacon">✕</span>
+      </div>
+      <div style="padding: 10px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; margin: 8px 0; border: 1px solid #334155;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; color: #94a3b8;">
+          <span id="beacon-tier-label" style="font-weight: bold; color: #38bdf8;">Pyramid Tier: 0 (Inactive)</span>
+          <span id="beacon-range-label">Range: 0m</span>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: space-around; margin-bottom: 10px;">
+          <!-- Primary Powers -->
+          <div style="flex: 1; background: #0f172a; padding: 6px; border-radius: 4px; border: 1px solid #334155;">
+            <div style="font-size: 11px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">Primary Powers</div>
+            <div id="beacon-primary-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+              <button class="mc-btn beacon-power-btn" data-power="speed" id="beacon-btn-speed" style="font-size: 11px; padding: 4px;">Speed</button>
+              <button class="mc-btn beacon-power-btn" data-power="haste" id="beacon-btn-haste" style="font-size: 11px; padding: 4px;">Haste</button>
+              <button class="mc-btn beacon-power-btn" data-power="resistance" id="beacon-btn-resistance" style="font-size: 11px; padding: 4px;">Resistance</button>
+              <button class="mc-btn beacon-power-btn" data-power="jump_boost" id="beacon-btn-jump_boost" style="font-size: 11px; padding: 4px;">Jump Boost</button>
+              <button class="mc-btn beacon-power-btn" data-power="strength" id="beacon-btn-strength" style="font-size: 11px; padding: 4px; grid-column: span 2;">Strength</button>
+            </div>
+          </div>
+          <!-- Secondary Powers -->
+          <div style="flex: 1; background: #0f172a; padding: 6px; border-radius: 4px; border: 1px solid #334155;">
+            <div style="font-size: 11px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">Secondary Powers</div>
+            <div id="beacon-secondary-buttons" style="display: flex; flex-direction: column; gap: 4px;">
+              <button class="mc-btn beacon-power-btn" data-power="regeneration" id="beacon-btn-regeneration" style="font-size: 11px; padding: 4px;">Regeneration</button>
+              <button class="mc-btn beacon-power-btn" data-power="level2" id="beacon-btn-level2" style="font-size: 11px; padding: 4px;">Upgrade Primary (II)</button>
+            </div>
+          </div>
+        </div>
+        <!-- Activation Payment & Confirm -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #334155;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div class="inv-slot" id="beacon-payment-slot" title="Insert Ingot / Gem (Iron, Gold, Emerald, Diamond, Netherite)"></div>
+            <span style="font-size: 11px; color: #94a3b8;">Insert 1 Mineral</span>
+          </div>
+          <button class="mc-btn" id="beacon-activate-btn" style="padding: 6px 16px; font-size: 12px; font-weight: bold;">✔ Activate</button>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="beacon-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
+      <div class="grid-slots" id="beacon-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
   <!-- Pause Menu (ESC) -->
   <div id="pause-menu" class="game-modal hidden">
     <div class="mc-menu-card">

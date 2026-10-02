@@ -215,7 +215,21 @@ export const BLOCKS = {
   STONECUTTER: 201,
   LOOM: 202,
   SMITHING_TABLE: 203,
-  GRINDSTONE: 204
+  GRINDSTONE: 204,
+
+  // Functional Workstations & Energy Blocks
+  ANVIL: 205,
+  CHIPPED_ANVIL: 206,
+  DAMAGED_ANVIL: 207,
+  BEACON: 208,
+  CONDUIT: 209,
+
+  // Mineral Storage Blocks (Beacon Bases)
+  IRON_BLOCK: 210,
+  GOLD_BLOCK: 211,
+  DIAMOND_BLOCK: 212,
+  EMERALD_BLOCK: 213,
+  NETHERITE_BLOCK: 214
 };
 
 export const BLOCK_DEFS = {
@@ -891,7 +905,21 @@ export const BLOCK_DEFS = {
   [BLOCKS.STONECUTTER]: { name: 'Stonecutter', hardness: 3.5, sound: 'stone', workstation: 'mason', textures: { top: 'smooth_stone.png', side: 'stone.png', bottom: 'stone.png' } },
   [BLOCKS.LOOM]: { name: 'Loom', hardness: 2.5, sound: 'wood', workstation: 'shepherd', textures: { top: 'oak_planks.png', front: 'crafting_table_front.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
   [BLOCKS.SMITHING_TABLE]: { name: 'Smithing Table', hardness: 2.5, sound: 'wood', workstation: 'toolsmith', textures: { top: 'blackstone_top.png', front: 'blackstone.png', side: 'blackstone.png', bottom: 'oak_planks.png' } },
-  [BLOCKS.GRINDSTONE]: { name: 'Grindstone', hardness: 2.0, sound: 'stone', workstation: 'weaponsmith', textures: { top: 'stone.png', side: 'dark_oak_planks.png', bottom: 'dark_oak_planks.png' } }
+  [BLOCKS.GRINDSTONE]: { name: 'Grindstone', hardness: 2.0, sound: 'stone', workstation: 'weaponsmith', interactable: true, textures: { top: 'stone.png', side: 'dark_oak_planks.png', bottom: 'dark_oak_planks.png' } },
+
+  // Anvils, Beacons, and Conduits
+  [BLOCKS.ANVIL]: { name: 'Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
+  [BLOCKS.CHIPPED_ANVIL]: { name: 'Chipped Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
+  [BLOCKS.DAMAGED_ANVIL]: { name: 'Damaged Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
+  [BLOCKS.BEACON]: { name: 'Beacon', hardness: 3.0, sound: 'glass', light: 15, transparent: true, interactable: true, textures: { all: 'glass.png' } },
+  [BLOCKS.CONDUIT]: { name: 'Conduit', hardness: 3.0, sound: 'stone', light: 14, transparent: true, interactable: true, textures: { all: 'prismarine_bricks.png' } },
+
+  // Mineral Storage Blocks
+  [BLOCKS.IRON_BLOCK]: { name: 'Block of Iron', hardness: 5.0, sound: 'metal', textures: { all: 'iron_block.png' } },
+  [BLOCKS.GOLD_BLOCK]: { name: 'Block of Gold', hardness: 3.0, sound: 'metal', textures: { all: 'gold_block.png' } },
+  [BLOCKS.DIAMOND_BLOCK]: { name: 'Block of Diamond', hardness: 5.0, sound: 'stone', textures: { all: 'diamond_block.png' } },
+  [BLOCKS.EMERALD_BLOCK]: { name: 'Block of Emerald', hardness: 5.0, sound: 'stone', textures: { all: 'emerald_block.png' } },
+  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } }
 };
 
 // Complete Item definitions
@@ -1120,6 +1148,22 @@ export const ITEMS = {
   loom: { name: 'Loom', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.LOOM },
   smithing_table: { name: 'Smithing Table', icon: '/assets/items/crafting_table.png', type: 'utility', isBlock: true, blockId: BLOCKS.SMITHING_TABLE },
   grindstone: { name: 'Grindstone', icon: '/assets/items/stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.GRINDSTONE },
+  anvil: { name: 'Anvil', icon: '/assets/items/anvil.png', type: 'utility', isBlock: true, blockId: BLOCKS.ANVIL },
+  chipped_anvil: { name: 'Chipped Anvil', icon: '/assets/items/anvil.png', type: 'utility', isBlock: true, blockId: BLOCKS.CHIPPED_ANVIL },
+  damaged_anvil: { name: 'Damaged Anvil', icon: '/assets/items/anvil.png', type: 'utility', isBlock: true, blockId: BLOCKS.DAMAGED_ANVIL },
+  beacon: { name: 'Beacon', icon: '/assets/items/beacon.png', type: 'utility', isBlock: true, blockId: BLOCKS.BEACON },
+  conduit: { name: 'Conduit', icon: '/assets/items/conduit.png', type: 'utility', isBlock: true, blockId: BLOCKS.CONDUIT },
+
+  // Alchemy & Brewing Ingredients
+  nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'material' },
+  fermented_spider_eye: { name: 'Fermented Spider Eye', icon: '/assets/items/fermented_spider_eye.png', type: 'material' },
+  glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/melon.png', type: 'material' },
+  golden_carrot: { name: 'Golden Carrot', icon: '/assets/items/golden_carrot.png', type: 'food' },
+  rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
+  pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
+  dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
+  glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
+  water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
