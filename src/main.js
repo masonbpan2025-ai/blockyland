@@ -2415,10 +2415,12 @@ class Game {
     this.updateMining(dt);
 
     // 4. Update Mobs AI & Projectiles
-    // A fault inside one mob must never be silent. This catch used to log to the
-    // console alone, so when one mob type threw — 28 of them did, on an unguarded
-    // `mob.mat.color` — every mob in the world stopped moving and hitting them did
-    // nothing, with no indication why. Surface it once per distinct fault instead.
+    // A fault inside a single mob is now contained by the loop itself, which reports
+    // and skips just that mob. This catch is the backstop for the shared work around
+    // it (arrows, animal and hostile behaviour passes, collision separation), where a
+    // throw would still stop every mob. It used to log to the console alone, so when
+    // one mob type threw — 28 of them did, on an unguarded `mob.mat.color` — every mob
+    // in the world stopped moving and hitting them did nothing, with no indication why.
     try {
       this.mobs.update(dt, this.player);
       this.mobUpdateError = null;
@@ -2428,7 +2430,7 @@ class Game {
         this.mobUpdateError = summary;
         console.error('Error updating mobs:', err);
         this.ui?.addChatMessage?.(
-          `⚠ Mob update failed, so mobs are frozen: ${summary}. See the browser console for the full trace.`,
+          `⚠ The mob system hit an error: ${summary}. Mobs may stop moving until it clears. See the browser console for the full trace.`,
           'error'
         );
       }

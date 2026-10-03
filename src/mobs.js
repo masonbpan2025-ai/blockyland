@@ -60,6 +60,11 @@ export class MobManager {
     this.mobs = [];
     this.arrows = [];
     this.customProjectiles = [];
+    // Mobs that threw while updating, plus a tally of distinct faults. A broken mob
+    // is skipped rather than retried every frame, and each distinct error is reported
+    // once so the console shows the cause instead of thousands of repeats.
+    this.brokenMobs = new WeakSet();
+    this.mobErrors = new Map();
     // Optional developer overlay. Labels are scene sprites so they remain
     // readable in 3D and do not affect normal gameplay when disabled.
     this.debugLabelsEnabled = false;
@@ -6443,8 +6448,57 @@ export class MobManager {
     }
   }
 
+  /**
+   * Lazily create the per-mob fault tracking.
+   *
+   * This cannot live only in the constructor: tests and other callers build a
+   * MobManager with `Object.create(MobManager.prototype)`, which skips it. Creating
+   * it on first use keeps those callers working. For the same reason this and
+   * reportMobError are plain methods rather than `#private` — private members throw
+   * "Receiver must be an instance of class" on those prototype-only stubs.
+   */
+  ensureFaultTracking() {
+    if (!this.brokenMobs) this.brokenMobs = new WeakSet();
+    if (!this.mobErrors) this.mobErrors = new Map();
+  }
+
+  /**
+   * Report a mob fault once per distinct error.
+   *
+   * A failing mob throws every frame, so logging each occurrence would flood the
+   * console and bury the cause. Repeats are counted instead, and the player is told
+   * once that something is wrong rather than dozens of times a second.
+   *
+   * @returns {string} a one-line summary, also used by tests
+   */
+  reportMobError(err, mob) {
+    this.ensureFaultTracking();
+    const kind = err?.constructor?.name || 'Error';
+    const message = err?.message || String(err);
+    const pos = mob?.mesh?.position;
+    const at = pos ? `${pos.x.toFixed(0)},${pos.y.toFixed(0)},${pos.z.toFixed(0)}` : 'unknown position';
+    const where = `${mob?.type ?? 'unknown'} at ${at}`;
+    const key = `${kind}: ${message}`;
+    const summary = `${where}: ${message}`;
+
+    const seen = this.mobErrors.get(key);
+    if (seen) {
+      seen.count++;
+      seen.mobs.add(where);
+      return summary;
+    }
+    this.mobErrors.set(key, { count: 1, mobs: new Set([where]) });
+    console.error(`[Mobs] ${kind} while updating ${where}: ${message}`, err);
+    this.game?.ui?.addChatMessage?.(
+      `A ${mob?.type ?? 'mob'} hit an error and stopped updating: ${message}. Other mobs are unaffected - see the browser console for the trace.`,
+      'error'
+    );
+    return summary;
+  }
+
   update(dt, player) {
     dt = Math.min(dt, 0.1);
+    this.ensureFaultTracking();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
     updateArrows(this, dt, player);
     updateSnowballs(this, dt);
@@ -6453,8 +6507,14 @@ export class MobManager {
     updateBarterEffects(this, dt, player);
 
     // 2. Update Mobs AI & Physics
+    // Each mob is updated in isolation. Previously a fault in one mob took the whole
+    // loop down with it: every other mob froze mid-step and stopped reacting to hits,
+    // and the only trace was a console line. A mob that faults is now reported once
+    // and skipped, so the rest of the world keeps moving.
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
+      if (this.brokenMobs.has(mob)) continue;
+      try {
 
       if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
@@ -7724,6 +7784,12 @@ export class MobManager {
         } else if (mob.head) {
           mob.head.position.x = 0;
         }
+      }
+      } catch (err) {
+        // One broken mob must not stop the others. Report it once and skip it from
+        // now on, rather than throwing every frame and burying the cause.
+        this.brokenMobs.add(mob);
+        this.reportMobError(err, mob);
       }
     }
 
