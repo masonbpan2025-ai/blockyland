@@ -344,3 +344,36 @@ test('opening the inspector is safe when no window is available', (t) => {
   studio.loadMob(nativeEntry('cow'));
   assert.doesNotThrow(() => studio.openDebugInspector(null), 'headless use must not throw');
 });
+
+// --- reporting behaviour the game does not implement yet --------------------
+
+test('unimplemented scenarios are reported but not counted against the mob', (t) => {
+  const elements = withFakeDocument(t);
+  const game = fakeGame();
+  const studio = new MobStudioManager(game);
+  // A mob whose attack AI does not exist: its attack scenario reports 'unsupported'.
+  studio.loadMob(nativeEntry('vindicator'));
+  studio.testPreviewAction();
+
+  const status = elements.get('mob-showcase-status');
+  assert.match(status.textContent, /not implemented yet/,
+    'the missing behaviour is named, not hidden');
+  // Scored scenarios must not be reduced by the unimplemented one.
+  const summary = status.textContent.split('\n')[0];
+  const [passed, total] = summary.match(/(\d+)\/(\d+)/).slice(1).map(Number);
+  assert.ok(passed > 0, 'the mob still passes the scenarios that apply to it');
+  assert.ok(total <= studio.showcase.results.length,
+    'unsupported scenarios are excluded from the denominator');
+  assert.equal(passed, total,
+    `vindicator should pass everything scored, got ${summary}`);
+});
+
+test('a run with unimplemented scenarios is not shown as a failure', (t) => {
+  const elements = withFakeDocument(t);
+  const studio = new MobStudioManager(fakeGame());
+  studio.loadMob(nativeEntry('vindicator'));
+  studio.testPreviewAction();
+  const status = elements.get('mob-showcase-status');
+  assert.ok(!/❌/.test(status.textContent), 'nothing should be marked as failed');
+  assert.ok(/➖/.test(status.textContent), 'the unimplemented one is marked distinctly');
+});

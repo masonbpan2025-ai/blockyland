@@ -246,7 +246,11 @@ export class AnimalBehaviors {
     }
 
     // 6. Horse / Donkey: Mounting, taming, equipping saddle, armor, donkey chest
-    if (mob.type === 'horse' || mob.type === 'donkey') {
+    // Feeding comes first. This branch ends by mounting and returning, which would
+    // swallow the breeding interaction, so a horse could not be bred by feeding it.
+    if ((mob.type === 'horse' || mob.type === 'donkey') && this.isBreedingFood(mob.type, itemId)) {
+      // fall through to the shared breeding logic below
+    } else if (mob.type === 'horse' || mob.type === 'donkey') {
       // Donkey equipping chest
       if (mob.type === 'donkey' && mob.isTamed && itemId === 'chest' && !mob.hasChest) {
         mob.hasChest = true;
@@ -722,7 +726,13 @@ export class AnimalBehaviors {
       const other = mobs[i];
       if (other !== mob && other.type === mob.type && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
         const dist = mob.mesh.position.distanceTo(other.mesh.position);
-        const courtshipRange = mob.type === 'hoglin' ? 1.6 : 1.2;
+        // Scale with the bodies: a horse is 1.4 wide, so a flat 1.2 threshold was below the
+        // distance two horses can physically reach and they could never mate.
+        const base = mob.type === 'hoglin' ? 1.6 : 1.2;
+        // Width lives in the manager dimension table, not on the mob instance.
+        const dims = (m) => this.mobManager?.getMobDimensions?.(m.type)?.width ?? m.width ?? 0.6;
+        const bodyWidth = (dims(mob) + dims(other)) * 0.5;
+        const courtshipRange = Math.max(base, bodyWidth + 0.5);
         if (dist < 10.0 && dist >= courtshipRange) {
           // Approach each other actively
           const dir = other.mesh.position.clone().sub(mob.mesh.position);

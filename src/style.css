@@ -3925,6 +3925,14 @@ html, body {
   color: #fcd34d;
 }
 
+/* Every scenario passed, but some could not be exercised because the behaviour is not
+   implemented yet. Distinct from partial: nothing failed. */
+.mob-showcase-partial.mob-showcase-skipped {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+}
+
 /* Save button disabled state in view mode */
 .mc-btn:disabled {
   opacity: 0.4;

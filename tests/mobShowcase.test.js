@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { MobShowcase, mobScenarios, mobProperties, studioCatalog } from '../src/mobShowcase.js';
+import { MobShowcase, mobScenarios, mobProperties, studioCatalog, SCENARIO_SKIP } from '../src/mobShowcase.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 import { MobLibrary } from '../src/mobLibrary.js';
 
@@ -164,7 +164,8 @@ test('the showcase runs a mob to completion and reports every scenario', () => {
   assert.ok(final, 'a completion report is delivered');
   assert.equal(final.results.length, showcase.cases.length, 'every scenario reports a result');
   for (const r of final.results) {
-    assert.ok(['observed', 'not observed', 'error'].includes(r.status), `unexpected status ${r.status}`);
+    assert.ok(['observed', 'not observed', 'error', 'unsupported'].includes(r.status),
+      `unexpected status ${r.status}`);
     assert.equal(typeof r.label, 'string');
   }
 });
@@ -223,6 +224,65 @@ test('a scenario that throws is contained and reported as an error, not crashing
   assert.equal(broken.status, 'error');
   assert.match(broken.detail, /boom/);
   assert.equal(final.results.length, showcase.cases.length, 'the remaining scenarios still ran');
+});
+
+// --- honest reporting of behaviour the game does not implement yet ----------
+
+test('a scenario can report that its behaviour is unimplemented instead of failing', () => {
+  const { showcase, finish } = instrumented(session(), 'cow');
+  // The runner treats the SKIP sentinel as "cannot be evaluated", not as a mob failure.
+  for (const c of showcase.cases) c.check = () => SCENARIO_SKIP;
+  const final = finish();
+  assert.ok(final.results.every(r => r.status === 'unsupported'),
+    `expected all unsupported, got ${JSON.stringify([...new Set(final.results.map(r => r.status))])}`);
+  assert.ok(!final.results.some(r => r.status === 'error'), 'a missing feature is not an error');
+});
+
+test('an unimplemented scenario is distinguishable from one that simply did not happen', () => {
+  // The two are deliberately different statuses: one means "no AI for this yet", the other
+  // means "the AI exists but did not fire". Collapsing them hides real gaps.
+  const a = instrumented(session(), 'cow');
+  for (const c of a.showcase.cases) c.check = () => SCENARIO_SKIP;
+  const skipped = a.finish();
+
+  const b = instrumented(session(), 'cow');
+  for (const c of b.showcase.cases) c.check = () => false;
+  const missed = b.finish();
+
+  assert.ok(skipped.results.every(r => r.status === 'unsupported'));
+  assert.ok(missed.results.every(r => r.status === 'not observed'));
+});
+
+test('the attack scenario is honest about which mobs have attack AI', () => {
+  // Mobs with attack AI must be scored; mobs without it must be reported as unimplemented
+  // rather than counted against them.
+  const withAi = ['zombie', 'skeleton', 'creeper', 'ghast'];
+  const withoutAi = ['vindicator', 'evoker', 'shulker', 'warden'];
+  for (const type of [...withAi, ...withoutAi]) {
+    const c = mobScenarios(type).find(x => x.id === 'attack');
+    assert.ok(c, `${type} should have an attack scenario`);
+    const result = runToCompletion(session(), type);
+    const attack = result.results.find(r => r.id === 'attack');
+    if (withAi.includes(type)) {
+      assert.notEqual(attack.status, 'unsupported',
+        `${type} has attack AI, so it must be scored (got ${attack.status})`);
+    } else {
+      assert.equal(attack.status, 'unsupported',
+        `${type} has no attack AI, so it should be reported as unimplemented (got ${attack.status})`);
+    }
+  }
+});
+
+test('a stationary hostile mob is not failed for standing still', () => {
+  // A hostile mob with no target correctly stands still. The movement check must accept
+  // that, or it reports working behaviour as a failure -- which is what it used to do for
+  // 22 mobs.
+  for (const type of ['skeleton', 'wither_skeleton', 'pillager', 'warden']) {
+    const final = runToCompletion(session(), type);
+    const movement = final.results.find(r => r.id === 'movement');
+    assert.equal(movement.status, 'observed',
+      `${type} stands still by design and should still pass movement (got ${movement.status})`);
+  }
 });
 
 test('each scenario starts from a clean mob, so one cannot affect the next', () => {

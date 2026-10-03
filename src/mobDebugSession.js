@@ -25,7 +25,10 @@ export function createMobDebugSession(scene, onEvent=()=>{}) {
     addItem(id,isBlock,count=1){this.storage.push({id,isBlock,count});onEvent(`Received: ${count} x ${id}`);return true;},
     updateUI(){},updateHotbar(){}};
   const player={position:new THREE.Vector3(0,0,6),velocity:new THREE.Vector3(),width:.6,height:1.8,health:100,gamemode:'spectator',yaw:0,inventory,
-    takeDamage(n,from,type){this.health=Math.max(0,this.health-n);onEvent(`Target hit: ${n} (${type || 'attack'})`);},hasStatusEffect:()=>false,applyStatusEffect(id){onEvent(`Target effect: ${id}`);},checkCollision:()=>false,updateCameraAndModel(){}};
+    // Counted so a scenario can tell that damage landed even if the target healed
+    // afterwards, which would otherwise look like nothing happened.
+    damageEvents:0,
+    takeDamage(n,from,type){this.damageEvents++;this.health=Math.max(0,this.health-n);onEvent(`Target hit: ${n} (${type || 'attack'})`);},hasStatusEffect:()=>false,applyStatusEffect(id){onEvent(`Target effect: ${id}`);},checkCollision:()=>false,updateCameraAndModel(){}};
   const manager=new MobManager(scene,world,sounds,entities);
   manager.game={player,inventory,difficulty:'normal',weather:{weatherType:'clear'},mechanisms:{isFeatureEnabled:()=>false}};
   let mob=null,time=0;

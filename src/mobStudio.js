@@ -476,15 +476,26 @@ export class MobStudioManager {
   _onShowcaseReport(report) {
     if (report.done || report.cancelled) {
       const results = report.results || [];
-      const passed = results.filter(r => r.status === 'observed').length;
-      const total = results.length;
+      // Scenarios the game cannot exercise yet are reported but not scored: a missing
+      // feature is not the mob failing its own test.
+      const unsupported = results.filter(r => r.status === 'unsupported').length;
+      const scored = results.filter(r => r.status !== 'unsupported');
+      const passed = scored.filter(r => r.status === 'observed').length;
+      const total = scored.length;
       const cancelled = report.cancelled ? ' (cancelled)' : '';
       const lines = results.map(r => {
-        const icon = r.status === 'observed' ? '✅' : r.status === 'error' ? '⚠️' : '❌';
-        return `${icon} ${r.label}${r.detail ? ' – ' + r.detail : ''}`;
+        const icon = r.status === 'observed' ? '✅'
+          : r.status === 'unsupported' ? '➖'
+          : r.status === 'error' ? '⚠️' : '❌';
+        const note = r.status === 'unsupported' ? ' – not implemented yet' : (r.detail ? ' – ' + r.detail : '');
+        return `${icon} ${r.label}${note}`;
       });
-      const summary = `${passed}/${total} scenarios passed${cancelled}`;
-      this._setShowcaseStatus(summary + '\n' + lines.join('\n'), passed === total ? 'pass' : 'partial');
+      const skipped = unsupported ? `, ${unsupported} not implemented yet` : '';
+      const summary = `${passed}/${total} scenarios passed${skipped}${cancelled}`;
+      // Nothing failed but not everything could be exercised: say so, rather than
+      // showing the same amber 'partial' used for real failures.
+      const state = passed !== total ? 'partial' : (unsupported ? 'partial skipped' : 'pass');
+      this._setShowcaseStatus(summary + '\n' + lines.join('\n'), state);
 
       // Re-freeze mob after showcase finishes in view mode
       if (this.viewMode === 'view' && this.debugSession?.mob) {
