@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { MobLibrary } from './mobLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
+import { createMobDebugSession } from './mobDebugSession.js';
+import { MobShowcase, mobProperties, studioCatalog } from './mobShowcase.js';
 
 export class MobStudioManager {
   constructor(game) {
@@ -10,6 +12,15 @@ export class MobStudioManager {
     this.previewMobInstance = null;
     this.pedestalOrigin = new THREE.Vector3(0, 4, 6);
     this.pedestalBlocks = [];
+
+    // View mode: 'create' for new custom mobs, 'view' for builtin/native mobs (read-only)
+    this.viewMode = 'create';
+    // Debug session used in view mode for builtin mobs (backed by mobDebugSession)
+    this.debugSession = null;
+    // Active showcase runner
+    this.showcase = null;
+    // Showcase tick accumulator
+    this._showcasePending = false;
 
     // Current Mob State being edited
     this.currentMob = {
@@ -80,6 +91,12 @@ export class MobStudioManager {
     this.btnOpen = hasDoc ? document.getElementById('btn-mob-studio-open') : null;
     this.btnTestAttack = hasDoc ? document.getElementById('btn-mob-test-attack') : null;
 
+    // View-mode info panel (read-only property display for native mobs)
+    this.viewInfoPanel = hasDoc ? document.getElementById('mob-view-info') : null;
+    this.viewInfoContent = hasDoc ? document.getElementById('mob-view-info-content') : null;
+    this.showcaseStatus = hasDoc ? document.getElementById('mob-showcase-status') : null;
+    this.btnOpenInspector = hasDoc ? document.getElementById('btn-mob-open-inspector') : null;
+
     this.saveModal = hasDoc ? document.getElementById('modal-save-mob') : null;
     this.saveInput = hasDoc ? document.getElementById('input-save-mob-name') : null;
     this.saveConflictMsg = hasDoc ? document.getElementById('save-mob-conflict-msg') : null;
@@ -104,6 +121,7 @@ export class MobStudioManager {
     this.btnCloseOpen?.addEventListener('click', () => this.hideOpenModal());
 
     this.btnTestAttack?.addEventListener('click', () => this.testPreviewAction());
+    this.btnOpenInspector?.addEventListener('click', () => this.openDebugInspector());
 
     this.saveInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -353,6 +371,8 @@ export class MobStudioManager {
     if (this.previewMobInstance) {
       this.previewMobInstance.isPreview = true;
       this.previewMobInstance.yaw = Math.PI; // Face player at (0, 5, 0)
+      // In create-mode the mob is always frozen so it just poses on the pedestal
+      this.previewMobInstance.frozen = true;
     }
   }
 
@@ -373,22 +393,117 @@ export class MobStudioManager {
   }
 
   testPreviewAction() {
-    if (!this.previewMobInstance) return;
-    // Play demonstration skill animation
-    this.previewMobInstance.animTime = 0;
-    if (this.previewMobInstance.leftArm && this.previewMobInstance.rightArm) {
-      this.previewMobInstance.leftArm.rotation.x = -Math.PI / 1.8;
-      this.previewMobInstance.rightArm.rotation.x = -Math.PI / 1.8;
+    // In view mode: run full MobShowcase scenario suite via the debug session
+    if (this.viewMode === 'view' && this.debugSession) {
+      this._runShowcase();
+      return;
     }
-    if (this.previewMobInstance.wings) {
-      this.previewMobInstance.wings.left.rotation.z = 0.6;
-      this.previewMobInstance.wings.right.rotation.z = -0.6;
+
+    // In create mode: run scenario suite on the custom mob definition
+    if (this.currentMob && this.game.scene) {
+      this._runShowcaseForCustom();
+      return;
     }
-    this.previewMobInstance.velocity.y = 4.5; // Little jump
-    if (this.game.sounds?.playZombie) this.game.sounds.playZombie();
-    if (this.game.entities?.spawnEndermanParticles) {
-      this.game.entities.spawnEndermanParticles(this.previewMobInstance.mesh.position, 16);
+  }
+
+  _runShowcase() {
+    if (!this.debugSession) return;
+    const mobType = this.currentMob?.id;
+    if (!mobType) return;
+
+    // Stop any running showcase
+    if (this.showcase?.running) this.showcase.stop();
+
+    this._setShowcaseStatus('▶ Running test scenarios…', 'running');
+
+    this.showcase = new MobShowcase(this.debugSession, (report) => {
+      this._onShowcaseReport(report);
+    });
+
+    // The mob is un-frozen by MobShowcase.next() as each scenario starts, because
+    // start() resets the session and spawns a fresh mob — clearing the flag here would
+    // be undone immediately.
+
+    this.showcase.start(mobType);
+    this._scheduleShowcaseTicks();
+  }
+
+  _runShowcaseForCustom() {
+    // Build a temporary debug session with the current mob definition
+    if (!this.game.scene) return;
+    if (this.showcase?.running) this.showcase.stop();
+
+    const logLines = [];
+    const onEvent = (msg) => logLines.push(msg);
+    const session = createMobDebugSession(this.game.scene, onEvent);
+
+    this._setShowcaseStatus('▶ Running test scenarios…', 'running');
+
+    this.showcase = new MobShowcase(session, (report) => {
+      this._onShowcaseReport(report);
+    });
+
+    this.showcase.start(this.currentMob);
+    this._scheduleShowcaseTicks();
+  }
+
+  _scheduleShowcaseTicks() {
+    if (!this.showcase?.running) return;
+    const TICK_DT = 1 / 60;
+    const TICKS_PER_FRAME = 6; // advance 100 ms per animation frame
+
+    const step = () => {
+      if (!this.showcase?.running) return;
+      for (let i = 0; i < TICKS_PER_FRAME; i++) {
+        this.showcase.tick(TICK_DT);
+        if (!this.showcase.running) break;
+      }
+      if (this.showcase?.running) requestAnimationFrame(step);
+    };
+
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(step);
+    } else {
+      // Headless fallback for tests: run synchronously to completion
+      const MAX = 60 * 60; // cap at 60 seconds
+      let ticks = 0;
+      while (this.showcase?.running && ticks++ < MAX) {
+        this.showcase.tick(TICK_DT);
+      }
     }
+  }
+
+  _onShowcaseReport(report) {
+    if (report.done || report.cancelled) {
+      const results = report.results || [];
+      const passed = results.filter(r => r.status === 'observed').length;
+      const total = results.length;
+      const cancelled = report.cancelled ? ' (cancelled)' : '';
+      const lines = results.map(r => {
+        const icon = r.status === 'observed' ? '✅' : r.status === 'error' ? '⚠️' : '❌';
+        return `${icon} ${r.label}${r.detail ? ' – ' + r.detail : ''}`;
+      });
+      const summary = `${passed}/${total} scenarios passed${cancelled}`;
+      this._setShowcaseStatus(summary + '\n' + lines.join('\n'), passed === total ? 'pass' : 'partial');
+
+      // Re-freeze mob after showcase finishes in view mode
+      if (this.viewMode === 'view' && this.debugSession?.mob) {
+        this.debugSession.mob.frozen = true;
+        this.debugSession.mob.velocity?.set(0, 0, 0);
+      }
+
+      this.game.ui?.addChatMessage?.(
+        `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> ${summary}`
+      );
+    } else if (report.id) {
+      this._setShowcaseStatus(`▶ (${report.index + 1}/${report.total}) ${report.label}…`, 'running');
+    }
+  }
+
+  _setShowcaseStatus(text, state = 'idle') {
+    if (!this.showcaseStatus) return;
+    this.showcaseStatus.textContent = text;
+    this.showcaseStatus.className = 'mob-showcase-status mob-showcase-' + state;
   }
 
   // --- Sync Controls Panel with Mob State ---
@@ -774,8 +889,9 @@ export class MobStudioManager {
     this.openList.innerHTML = '';
 
     const q = (query || '').toLowerCase().trim();
-    const all = MobLibrary.getAllMobs();
-    const filtered = all.filter(m => !q || m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q));
+    // Use studioCatalog to merge all native (builtin) mobs with custom library mobs
+    const all = studioCatalog(MobLibrary);
+    const filtered = all.filter(m => !q || m.name.toLowerCase().includes(q) || (m.description || '').toLowerCase().includes(q));
 
     if (filtered.length === 0) {
       this.openList.innerHTML = '<div class="studio-open-empty">No mobs found matching your search.</div>';
@@ -870,12 +986,21 @@ export class MobStudioManager {
 
       const desc = document.createElement('div');
       desc.className = 'studio-open-card-desc';
-      desc.textContent = mob.description || `${mob.behavior.health} HP • ${mob.behavior.type.toUpperCase()}`;
+      if (mob.isBuiltin) {
+        desc.textContent = mob.description || 'Native Minecraft mob';
+      } else {
+        desc.textContent = mob.description || `${mob.behavior?.health ?? '?'} HP • ${(mob.behavior?.type || 'hostile').toUpperCase()}`;
+      }
 
       const meta = document.createElement('div');
       meta.className = 'studio-open-card-meta';
-      const skillsStr = mob.skills && mob.skills.length > 0 ? `Skills: ${mob.skills.join(', ')}` : 'Basic Attack';
-      meta.textContent = `${mob.look.modelType} • ${mob.behavior.health} HP • ${skillsStr}`;
+      if (mob.isBuiltin) {
+        meta.textContent = 'Native • View-only';
+        meta.style.color = '#7dd3fc';
+      } else {
+        const skillsStr = mob.skills && mob.skills.length > 0 ? `Skills: ${mob.skills.join(', ')}` : 'Basic Attack';
+        meta.textContent = `${mob.look?.modelType || 'custom'} • ${mob.behavior?.health ?? '?'} HP • ${skillsStr}`;
+      }
 
       info.append(title, desc, meta);
 
@@ -943,19 +1068,158 @@ export class MobStudioManager {
 
   loadMob(mobDef) {
     if (!mobDef) return;
+
+    // Stop any running showcase
+    if (this.showcase?.running) this.showcase.stop();
+    this._setShowcaseStatus('');
+
     this.currentMob = {
       id: mobDef.id,
       name: mobDef.name,
-      description: mobDef.description,
-      look: { ...mobDef.look },
-      behavior: { ...mobDef.behavior },
+      description: mobDef.description || '',
+      look: { ...(mobDef.look || {}) },
+      behavior: { ...(mobDef.behavior || {}) },
       skills: [...(mobDef.skills || [])],
-      eggColors: { ...mobDef.eggColors }
+      eggColors: { ...(mobDef.eggColors || {}) }
     };
+
+    if (mobDef.isBuiltin) {
+      // Native/builtin mob – open in view mode backed by a debug session
+      this._loadBuiltinView(mobDef);
+    } else {
+      // Custom saved mob – open in create mode (editable)
+      this._loadCustomCreate();
+    }
+
+    this.game.ui?.addChatMessage?.(
+      `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> ${
+        mobDef.isBuiltin ? 'Viewing' : 'Loaded'
+      } "${mobDef.name}"${ mobDef.isBuiltin ? ' (read-only)' : ' into studio!' }`
+    );
+  }
+
+  _loadBuiltinView(mobDef) {
+    this.viewMode = 'view';
+
+    // Remove any existing custom preview mesh
+    this.removePreviewMob();
+
+    // Tear down old debug session
+    if (this.debugSession) {
+      try { this.debugSession.manager.clearMobs(); } catch (_) {}
+      this.debugSession = null;
+    }
+
+    if (this.game.scene) {
+      const logLines = [];
+      this.debugSession = createMobDebugSession(this.game.scene, (msg) => logLines.push(msg));
+      // Position the debug player at the standard viewer spot
+      this.debugSession.player.position.set(0, 5, 0);
+      const mob = this.debugSession.reset(mobDef.id);
+      // Freeze mob so it just poses on spawn
+      mob.frozen = true;
+      mob.yaw = Math.PI;
+      if (mob.mesh) {
+        mob.mesh.position.set(
+          this.pedestalOrigin.x,
+          this.pedestalOrigin.y + 1,
+          this.pedestalOrigin.z
+        );
+      }
+    }
+
+    // Render property card for the mob
+    this._renderViewInfo(mobDef);
+
+    // Switch UI to view mode
+    this._applyViewModeUI(true);
+  }
+
+  _loadCustomCreate() {
+    this.viewMode = 'create';
+
+    // Tear down debug session if switching back from view mode
+    if (this.debugSession) {
+      try { this.debugSession.manager.clearMobs(); } catch (_) {}
+      this.debugSession = null;
+    }
+
     this.syncPanelFromState();
     this.updatePreviewMob();
-    this.game.ui?.addChatMessage?.(
-      `<span style="color:#d946ef;font-weight:bold;">[Mob Studio]</span> Loaded "${mobDef.name}" into studio!`
-    );
+
+    // Switch UI back to create mode
+    this._applyViewModeUI(false);
+  }
+
+  /** Show/hide create-mode controls and the read-only info panel. */
+  _applyViewModeUI(isView) {
+    const createControls = document.getElementById('studio-mob-controls');
+    const viewInfo = this.viewInfoPanel;
+    if (createControls) {
+      createControls.style.display = isView ? 'none' : '';
+    }
+    if (viewInfo) {
+      viewInfo.style.display = isView ? '' : 'none';
+    }
+    // Save button should only work in create mode
+    if (this.btnSave) {
+      this.btnSave.disabled = isView;
+      this.btnSave.title = isView ? 'Built-in mobs cannot be saved' : 'Save mob to library';
+    }
+  }
+
+  /**
+   * Open the standalone mob inspector on the mob currently open here.
+   *
+   * The inspector reads its mob from the `mob` query parameter, so this deep-links to
+   * exactly the mob on the pedestal rather than making the user pick it again.
+   *
+   * @param {object} [win] window to open in; injectable so it can be tested
+   * @returns {string|null} the URL opened, or null when there is nothing to open
+   */
+  openDebugInspector(win = (typeof window !== 'undefined' ? window : null)) {
+    const id = this.currentMob?.id;
+    if (!id) return null;
+    const url = `/mob-debug.html?mob=${encodeURIComponent(id)}`;
+    win?.open?.(url, '_blank', 'noopener');
+    return url;
+  }
+
+  /** Render a property card from mobProperties() into the view-info panel. */
+  _renderViewInfo(mobDef) {
+    if (!this.viewInfoContent) return;
+
+    let props = null;
+    if (this.debugSession?.mob) {
+      try {
+        props = mobProperties(this.debugSession.mob, this.debugSession.manager, mobDef);
+      } catch (_) {}
+    }
+
+    const dim = props?.dimensions || {};
+    const breedFoods = props?.breedingFoods || [];
+    const rt = props?.runtime || {};
+
+    const rows = [];
+    if (dim.width) rows.push(`Width: ${dim.width.toFixed ? dim.width.toFixed(2) : dim.width}  ·  Height: ${dim.height?.toFixed ? dim.height.toFixed(2) : dim.height}`);
+    if (typeof rt.health === 'number') rows.push(`Health: ${rt.health} / ${rt.maxHealth}`);
+    if (typeof rt.speed === 'number') rows.push(`Speed: ${rt.speed}`);
+    if (typeof rt.attackDamage === 'number' && rt.attackDamage > 0) rows.push(`Attack: ${rt.attackDamage} dmg`);
+    if (breedFoods.length) rows.push(`Breeds on: ${breedFoods.join(', ')}`);
+    if (rt.fireImmune) rows.push('Fire immune: yes');
+    if (rt.isAquatic) rows.push('Aquatic: yes');
+    if (rt.isBoss) rows.push('Boss: yes');
+    if (Array.isArray(rt.skills) && rt.skills.length) rows.push(`Skills: ${rt.skills.join(', ')}`);
+
+    const desc = mobDef.description || `Native Minecraft mob: ${mobDef.name}`;
+    // Name the mob explicitly: the description alone ("Native game model and behaviors")
+    // is identical for every native mob, so without this the panel never says what you
+    // opened.
+    const title = `<div class="mob-view-name">${mobDef.name}</div>`;
+    this.viewInfoContent.innerHTML =
+      title +
+      `<div class="mob-view-desc">${desc}</div>` +
+      (rows.length ? `<ul class="mob-view-props">${rows.map(r => `<li>${r}</li>`).join('')}</ul>` : '') +
+      `<div class="mob-view-hint">Click <strong>Test Action / Animate</strong> to run behavior scenarios.</div>`;
   }
 }

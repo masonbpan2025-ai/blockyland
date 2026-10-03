@@ -3825,7 +3825,114 @@ html, body {
   background: #2563eb;
 }
 
-/* Dialog Modals */
+/* ---- View-mode property card ---- */
+.mob-view-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.mob-view-info-content {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.mob-view-name {
+  color: #f0abfc;
+  font-weight: bold;
+  font-size: 1.05em;
+  margin-bottom: 2px;
+}
+
+.studio-btn-debug {
+  margin-top: 8px;
+  width: 100%;
+  background: linear-gradient(180deg, #4c1d95, #3b0764) !important;
+  border-color: #a855f7 !important;
+  color: #f5f3ff !important;
+}
+
+.studio-btn-debug:hover {
+  background: linear-gradient(180deg, #6d28d9, #4c1d95) !important;
+}
+
+.mob-view-desc {
+  color: #94a3b8;
+  margin-bottom: 6px;
+  font-style: italic;
+}
+
+.mob-view-props {
+  margin: 0;
+  padding-left: 16px;
+  color: #e2e8f0;
+}
+
+.mob-view-props li {
+  margin-bottom: 2px;
+}
+
+.mob-view-hint {
+  margin-top: 8px;
+  color: #7dd3fc;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ---- Showcase status ---- */
+.mob-showcase-status {
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 5px;
+  padding: 0;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mob-showcase-status:not(:empty) {
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
+.mob-showcase-idle:not(:empty) {
+  background: rgba(255,255,255,0.05);
+  color: #94a3b8;
+}
+
+.mob-showcase-running {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+.mob-showcase-pass {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.mob-showcase-partial {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+/* Save button disabled state in view mode */
+.mc-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+
 .mc-dialog-card {
   width: 440px;
   max-width: 90vw;

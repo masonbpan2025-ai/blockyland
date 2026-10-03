@@ -6601,6 +6601,13 @@ export class MobManager {
       const mob = this.mobs[i];
       if (this.brokenMobs.has(mob)) continue;
       try {
+        // A frozen mob is posed, not simulated: no AI, no physics, no animation. Mob
+        // Studio sets this so a mob stands still while you look at it, and the debug
+        // inspector sets it so a model can be examined without it wandering off.
+        if (mob.frozen) {
+          mob.velocity?.set(0, 0, 0);
+          continue;
+        }
         if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
       mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);

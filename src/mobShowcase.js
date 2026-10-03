@@ -59,7 +59,12 @@ export function mobScenarios(type,definition=null) {
 export class MobShowcase {
   constructor(session,report=()=>{}) {this.session=session;this.report=report;this.running=false;this.results=[];}
   start(selection) {this.selection=selection;this.cases=mobScenarios(typeof selection==='string'?selection:'custom',typeof selection==='object'?selection:null);this.results=[];this.index=-1;this.running=true;this.next();}
-  next(){this.index++;if(this.index>=this.cases.length){this.stop(false);this.report({done:true,results:this.results});return;}const s=this.session;s.reset(this.selection);s.inventory.armor={};s.player.keys={};s.startPosition=s.mob.mesh.position.clone();s.actionAccepted=false;s.feedbackObserved=false;this.elapsed=0;const c=this.cases[this.index];try{c.setup(s);}catch(e){this.finish('error',e.message);return;}this.report({id:c.id,label:c.label,index:this.index,total:this.cases.length,results:this.results});}
+  next(){this.index++;if(this.index>=this.cases.length){this.stop(false);this.report({done:true,results:this.results});return;}const s=this.session;s.reset(this.selection);s.inventory.armor={};s.player.keys={};s.startPosition=s.mob.mesh.position.clone();s.actionAccepted=false;s.feedbackObserved=false;
+    // The mob must be live for a scenario to observe anything. Mob Studio freezes the mob
+    // it opens so it poses on the pedestal, and `reset` can carry that flag onto the fresh
+    // instance, so clear it here — per scenario, since each one spawns a new mob.
+    if(s.mob)s.mob.frozen=false;
+    this.elapsed=0;const c=this.cases[this.index];try{c.setup(s);}catch(e){this.finish('error',e.message);return;}this.report({id:c.id,label:c.label,index:this.index,total:this.cases.length,results:this.results});}
   tick(dt){if(!this.running)return;try{this.session.tick(dt);this.elapsed+=dt;if(this.elapsed>=this.cases[this.index].duration){const ok=this.cases[this.index].check(this.session);this.finish(ok?'observed':'not observed');}}catch(e){this.finish('error',e.message);}}
   finish(status,detail=''){const c=this.cases[this.index];this.results.push({id:c.id,label:c.label,status,detail});this.next();}
   stop(cancelled=true){this.running=false;if(this.selection)this.session.reset(this.selection);if(cancelled)this.report({cancelled:true,results:this.results});}

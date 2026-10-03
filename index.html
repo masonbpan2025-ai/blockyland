@@ -1110,6 +1110,22 @@
 
           <!-- Test Action Button -->
           <button type="button" class="mc-btn studio-btn-test" id="btn-mob-test-attack" style="margin-top: 10px; width: 100%;">⚔️ Test Action / Animate</button>
+
+
+        <!-- View-mode info panel (shown when a native/builtin mob is loaded) -->
+        <div id="mob-view-info" class="mob-view-info" style="display:none;">
+          <div class="studio-section-header">Mob Properties</div>
+          <div id="mob-view-info-content" class="mob-view-info-content">
+            <div class="mob-view-hint">Select a mob to inspect its properties.</div>
+          </div>
+          <!-- Opens the standalone inspector on the mob currently open here, so the
+               full-page tool and the Studio stay in step. -->
+          <button type="button" class="mc-btn studio-btn-debug" id="btn-mob-open-inspector"
+                  title="Open this mob in the full mob debug inspector">🔬 Open in Inspector</button>
+        </div>
+
+        <!-- Showcase status output (always visible, empty when idle) -->
+        <div id="mob-showcase-status" class="mob-showcase-status mob-showcase-idle"></div>
         </div>
 
         <div class="studio-panel-footer">
