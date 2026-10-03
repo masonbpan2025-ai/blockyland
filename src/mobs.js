@@ -6463,6 +6463,92 @@ export class MobManager {
   }
 
   /**
+   * Show, refresh or hide a mob's overhead health bar.
+   *
+   * Only training-site and combat mobs show one; everything else has its sprite
+   * hidden. Lifted out of the update loop unchanged so that loop reads as a sequence
+   * of named steps rather than one long body.
+   */
+  updateMobHealthBar(mob) {
+    const showHealthBars = this.game?.mechanisms
+      ? this.game.mechanisms.isFeatureEnabled('hasOverheadHealthBars')
+      : (this.game?.tournament?.isTournamentMap ?? true);
+
+    if (showHealthBars && this.isTrainingSiteMob(mob)) {
+      this.ensureHealthBar(mob);
+      if (mob.healthBarSprite) {
+        if (mob.health <= 0 || mob.dying) {
+          mob.healthBarSprite.visible = false;
+        } else {
+          mob.healthBarSprite.visible = true;
+          if (mob.health !== mob.lastRenderedHealth) {
+            this.renderHealthBar(mob);
+          }
+        }
+      }
+    } else if (mob.healthBarSprite) {
+      mob.healthBarSprite.visible = false;
+    }
+  }
+
+  /**
+   * Per-type cosmetic animation: ghast tentacles and face, blaze rods and smoke,
+   * magma cube squash, strider shiver.
+   *
+   * Purely visual — no AI and no physics — which is what makes it safe to lift out of
+   * the update loop. `vx`/`vz` are the mob's horizontal velocity, passed in so this
+   * stays independent of locomotion.
+   */
+  updateMobAnimation(mob, dt, vx = 0, vz = 0) {
+    if (mob.type === 'ghast') {
+      mob.ghastAnimTimer = (mob.ghastAnimTimer || 0) + dt * 2.5;
+      if (mob.tentacles) {
+        const dragX = -Math.max(-0.35, Math.min(0.35, vx * 0.12));
+        const dragZ = -Math.max(-0.35, Math.min(0.35, vz * 0.12));
+        for (let tIdx = 0; tIdx < mob.tentacles.length; tIdx++) {
+          const wave = Math.sin(mob.ghastAnimTimer + tIdx * 0.7) * 0.22;
+          const sway = Math.cos(mob.ghastAnimTimer + tIdx * 0.5) * 0.14;
+          mob.tentacles[tIdx].rotation.x = wave + dragZ;
+          mob.tentacles[tIdx].rotation.z = sway - dragX;
+        }
+      }
+      if (mob.headMat) {
+        const isShooting = (mob.isChargingFireball || mob.isShooting || (mob.fireballCooldown !== undefined && mob.fireballCooldown > 4.2));
+        const targetTex = isShooting ? this.textures.ghast_shooting : this.textures.ghast;
+        if (mob.headMat.map !== targetTex && targetTex) {
+          mob.headMat.map = targetTex;
+          mob.headMat.needsUpdate = true;
+        }
+      }
+    } else if (mob.type === 'blaze' && mob.tiers) {
+      mob.flames.visible = !!mob.charging;
+      mob.flames.rotation.y += dt*2;
+      for (const puff of mob.smoke.children) { puff.position.y = (puff.position.y+dt*.6)%1.9; puff.material.opacity=.4*(1-puff.position.y/1.9); }
+      if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
+      if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
+      if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
+    } else if (mob.type === 'magma_cube' && mob.layers) {
+      const isJumping = (mob.velocity && Math.abs(mob.velocity.y) > 0.5);
+      const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
+      for (let lIdx = 0; lIdx < mob.layers.length; lIdx++) {
+        const baseY = 0.05 + lIdx * 0.1;
+        const stretch = lIdx * 0.07 * expand;
+        mob.layers[lIdx].position.y = baseY + stretch;
+      }
+      if (mob.core) {
+        mob.core.scale.y = 1.0 + expand * 0.7;
+      }
+    } else if (mob.type === 'strider') {
+      if (mob.isCold) {
+        mob.shiverTimer = (mob.shiverTimer || 0) + dt * 35;
+        if (mob.head) mob.head.position.x = Math.sin(mob.shiverTimer) * 0.04;
+      } else if (mob.head) {
+        mob.head.position.x = 0;
+      }
+    }
+  }
+
+  /**
    * Report a mob fault once per distinct error.
    *
    * A failing mob throws every frame, so logging each occurrence would flood the
@@ -6515,8 +6601,7 @@ export class MobManager {
       const mob = this.mobs[i];
       if (this.brokenMobs.has(mob)) continue;
       try {
-
-      if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
+        if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 
       mob.hurtTime = Math.max(0, (mob.hurtTime || 0) - dt);
       if (mob.hurtScaleBase && mob.mesh) {
@@ -6545,25 +6630,7 @@ export class MobManager {
       }
 
       // Overhead health bar for training & combat mobs
-      const showHealthBars = this.game?.mechanisms
-        ? this.game.mechanisms.isFeatureEnabled('hasOverheadHealthBars')
-        : (this.game?.tournament?.isTournamentMap ?? true);
-
-      if (showHealthBars && this.isTrainingSiteMob(mob)) {
-        this.ensureHealthBar(mob);
-        if (mob.healthBarSprite) {
-          if (mob.health <= 0 || mob.dying) {
-            mob.healthBarSprite.visible = false;
-          } else {
-            mob.healthBarSprite.visible = true;
-            if (mob.health !== mob.lastRenderedHealth) {
-              this.renderHealthBar(mob);
-            }
-          }
-        }
-      } else if (mob.healthBarSprite) {
-        mob.healthBarSprite.visible = false;
-      }
+      this.updateMobHealthBar(mob);
 
       if (mob.health <= 0) {
         this.updateDeath(mob, dt);
@@ -6571,1220 +6638,23 @@ export class MobManager {
       }
 
       if (mob.isAquatic) {
-        // --- AQUATIC CREATURE AI & 3D SWIMMING PHYSICS ---
-        const bX = Math.floor(mob.mesh.position.x);
-        const bY = Math.floor(mob.mesh.position.y + 0.15);
-        const bZ = Math.floor(mob.mesh.position.z);
-        const currentVoxel = this.world.getVoxel(bX, bY, bZ);
-        const inWater = (currentVoxel === BLOCKS.WATER);
-        mob.inWater = inWater;
-
-        mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
-
-        if (inWater) {
-          // Smoothly restore upright orientation in water
-          mob.mesh.rotation.z = THREE.MathUtils.lerp(mob.mesh.rotation.z, 0, dt * 5.0);
-
-          // 1. Fluid drag
-          mob.velocity.x *= Math.exp(-3.7 * dt);
-          mob.velocity.y *= Math.exp(-5 * dt);
-          mob.velocity.z *= Math.exp(-3.7 * dt);
-
-          // 2. Swim Target Seeking
-          mob.timer -= dt;
-          if (mob.timer <= 0 || !mob.targetPos || mob.mesh.position.distanceTo(mob.targetPos) < 0.8) {
-            mob.timer = 2.5 + Math.random() * 4.0;
-            // Search nearby water voxels within radius 6
-            const waterSpots = [];
-            for (let dx = -5; dx <= 5; dx += 2) {
-              for (let dy = -2; dy <= 2; dy += 1) {
-                for (let dz = -5; dz <= 5; dz += 2) {
-                  const wx = bX + dx;
-                  const wy = bY + dy;
-                  const wz = bZ + dz;
-                  if (this.world.getVoxel(wx, wy, wz) === BLOCKS.WATER) {
-                    const candidate = new THREE.Vector3(wx + 0.5, wy + 0.15, wz + 0.5);
-                    if (!this.checkMobCollision(mob, candidate)) waterSpots.push(candidate);
-                  }
-                }
-              }
-            }
-            if (waterSpots.length > 0) {
-              mob.targetPos = waterSpots[Math.floor(Math.random() * waterSpots.length)];
-            } else {
-              mob.targetPos = mob.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 3));
-            }
-          }
-
-          // 3. Steer towards targetPos
-          if (mob.targetPos) {
-            const dir = mob.targetPos.clone().sub(mob.mesh.position);
-            const dist = dir.length();
-            if (dist > 0.1) {
-              const targetYaw = Math.atan2(dir.x, dir.z);
-              const horizDist = Math.hypot(dir.x, dir.z);
-              const targetPitch = -Math.atan2(dir.y, Math.max(0.1, horizDist));
-
-              let diffYaw = targetYaw - mob.yaw;
-              while (diffYaw < -Math.PI) diffYaw += Math.PI * 2;
-              while (diffYaw > Math.PI) diffYaw -= Math.PI * 2;
-              mob.yaw += diffYaw * Math.min(1.0, dt * 3.5);
-
-              mob.pitch = THREE.MathUtils.lerp(mob.pitch, targetPitch, Math.min(1.0, dt * 3.5));
-
-              const baseSpeed = (mob.type === 'dolphin') ? 3.0 : (mob.type === 'salmon' ? 2.2 : (mob.type === 'axolotl' ? 1.6 : 1.2));
-              // Octopus pulses with rhythmic jet propulsion
-              const thrust = (mob.type === 'octopus') ? (Math.sin(mob.swimCycle * 3.5) > 0.4 ? baseSpeed * 1.8 : 0.2) : baseSpeed;
-
-              const forwardX = Math.sin(mob.yaw) * Math.cos(mob.pitch);
-              const forwardZ = Math.cos(mob.yaw) * Math.cos(mob.pitch);
-              const forwardY = -Math.sin(mob.pitch);
-
-              mob.velocity.x += forwardX * thrust * dt * 3.0;
-              mob.velocity.y += forwardY * thrust * dt * 3.0;
-              mob.velocity.z += forwardZ * thrust * dt * 3.0;
-            }
-          }
-
-          // Keep fish inside water and recover from a blocked route on a cooldown.
-          const canSwimTo = pos => !this.checkMobCollision(mob, pos) && this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.15), Math.floor(pos.z)) === BLOCKS.WATER;
-          let swimBlocked = false;
-          // Move with 3D collision check
-          const stepX = mob.mesh.position.x + mob.velocity.x * dt;
-          const stepY = mob.mesh.position.y + mob.velocity.y * dt;
-          const stepZ = mob.mesh.position.z + mob.velocity.z * dt;
-
-          if (canSwimTo(new THREE.Vector3(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
-            mob.mesh.position.x = stepX;
-          } else {
-            mob.velocity.x = 0;
-            swimBlocked = true;
-          }
-
-          if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
-            mob.mesh.position.y = stepY;
-          } else {
-            mob.velocity.y = 0;
-            swimBlocked = true;
-          }
-
-          if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
-            mob.mesh.position.z = stepZ;
-          } else {
-            mob.velocity.z = 0;
-            swimBlocked = true;
-          }
-
-          mob.swimBlockedTime = swimBlocked ? (mob.swimBlockedTime || 0) + dt : 0;
-          if (mob.swimBlockedTime > 0.4) { mob.timer = 0; mob.targetPos = null; mob.swimBlockedTime = 0; }
-
-          mob.mesh.rotation.y = mob.yaw;
-          mob.mesh.rotation.x = mob.pitch;
-
-        } else {
-          // --- OUT OF WATER: BEACHED FLOPPING ---
-          mob.velocity.y -= 20 * dt; // Gravity
-          mob.flopTimer -= dt;
-
-          if (mob.flopTimer <= 0) {
-            mob.flopTimer = 0.5 + Math.random() * 0.7;
-            mob.velocity.y = 3.5 + Math.random() * 2.0;
-            mob.velocity.x = (Math.random() - 0.5) * 3.0;
-            mob.velocity.z = (Math.random() - 0.5) * 3.0;
-            mob.yaw += (Math.random() - 0.5) * 2.0;
-            this.sounds.playFall();
-          }
-
-          const testPos = mob.mesh.position.clone();
-          testPos.y += mob.velocity.y * dt;
-          if (!this.checkMobCollision(mob, testPos)) {
-            mob.mesh.position.y = testPos.y;
-          } else {
-            mob.velocity.y = 0;
-          }
-
-          mob.mesh.position.x += mob.velocity.x * dt;
-          mob.mesh.position.z += mob.velocity.z * dt;
-          mob.velocity.x *= 0.88;
-          mob.velocity.z *= 0.88;
-
-          mob.mesh.rotation.y = mob.yaw;
-          mob.mesh.rotation.z = Math.PI / 2.6; // beached sideways
-          mob.mesh.rotation.x = 0;
-        }
-
-        // --- SPECIFIC AQUATIC ANIMATIONS ---
-        if (mob.type === 'salmon') {
-          const tailWiggle = Math.sin(mob.swimCycle * 9.0) * (inWater ? 0.45 : 0.8);
-          if (mob.tail) mob.tail.rotation.y = tailWiggle;
-          if (mob.finL) mob.finL.rotation.z = -0.35 + Math.sin(mob.swimCycle * 9.0) * 0.2;
-          if (mob.finR) mob.finR.rotation.z = 0.35 - Math.sin(mob.swimCycle * 9.0) * 0.2;
-        } else if (mob.type === 'cod') {
-          const tailWiggle = Math.sin(mob.swimCycle * 11.0) * (inWater ? 0.45 : 0.8);
-          if (mob.tail) mob.tail.rotation.y = tailWiggle;
-          if (mob.finL) mob.finL.rotation.z = -0.3 + Math.sin(mob.swimCycle * 11.0) * 0.2;
-          if (mob.finR) mob.finR.rotation.z = 0.3 - Math.sin(mob.swimCycle * 11.0) * 0.2;
-        } else if (mob.type === 'dolphin') {
-          const flukeWave = Math.sin(mob.swimCycle * 6.5) * (inWater ? 0.45 : 0.7);
-          if (mob.fluke) mob.fluke.rotation.x = flukeWave;
-          if (mob.tail) mob.tail.rotation.x = flukeWave * 0.5;
-          if (mob.flipperL) mob.flipperL.rotation.z = -0.4 + Math.sin(mob.swimCycle * 6.5) * 0.15;
-          if (mob.flipperR) mob.flipperR.rotation.z = 0.4 - Math.sin(mob.swimCycle * 6.5) * 0.15;
-        } else if (mob.type === 'octopus' || mob.type === 'squid') {
-          const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
-          if (mob.tentacles) {
-            for (let t = 0; t < mob.tentacles.length; t++) {
-              mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
-            }
-          }
-        } else if (mob.type === 'glow_squid') {
-          const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
-          if (mob.tentacles) {
-            for (let t = 0; t < mob.tentacles.length; t++) {
-              mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
-            }
-          }
-          mob.glowParticleTimer = (mob.glowParticleTimer || 0) + dt;
-          if (mob.glowParticleTimer > 1.8 && inWater) {
-            mob.glowParticleTimer = 0;
-            this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 3);
-          }
-        } else if (mob.type === 'guardian' || mob.type === 'elder_guardian') {
-          const tailWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.6);
-          if (mob.tail1) mob.tail1.rotation.y = tailWiggle;
-          if (mob.tail2) mob.tail2.rotation.y = tailWiggle * 1.3;
-
-          // Spike retraction when swimming fast vs extended when stopping/attacking/beached
-          const isSpurting = inWater && mob.velocity.length() > 1.2;
-          const targetExt = isSpurting ? 0.3 : 1.0;
-          mob.spikeExtension = THREE.MathUtils.lerp(mob.spikeExtension || 1.0, targetExt, Math.min(1.0, dt * 5.0));
-          if (mob.spikes) {
-            for (const sp of mob.spikes) {
-              sp.mesh.position.copy(sp.basePos).addScaledVector(sp.dir, (mob.spikeExtension - 1.0) * 0.12);
-            }
-          }
-
-          // Pupil eye tracking
-          const distToPlayer = (player?.position) ? mob.mesh.position.distanceTo(player.position) : 999;
-          if (mob.pupil && player?.position && distToPlayer < 20) {
-            const eyeDx = player.position.x - mob.mesh.position.x;
-            const eyeDy = (player.position.y + 0.9) - (mob.mesh.position.y + 0.5);
-            const eyeDz = player.position.z - mob.mesh.position.z;
-            const cosYaw = Math.cos(mob.yaw);
-            const sinYaw = Math.sin(mob.yaw);
-            const localX = eyeDx * cosYaw - eyeDz * sinYaw;
-            mob.pupil.position.x = Math.max(-0.06, Math.min(0.06, localX * 0.015));
-            mob.pupil.position.y = Math.max(-0.06, Math.min(0.06, eyeDy * 0.015));
-          }
-
-          // Laser Attack Behavior
-          mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
-          if (player?.position && distToPlayer < 16 && inWater && !player.isFlying && mob.attackCooldown <= 0) {
-            mob.laserTimer = (mob.laserTimer || 0) + dt;
-            const eyePos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0));
-            const playerChest = player.position.clone().add(new THREE.Vector3(0, 0.9, 0));
-
-            if (!mob.laserLine && this.scene) {
-              const geo = new THREE.BufferGeometry().setFromPoints([eyePos, playerChest]);
-              const mat = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 3 });
-              mob.laserLine = new THREE.Line(geo, mat);
-              this.scene.add(mob.laserLine);
-            } else if (mob.laserLine) {
-              mob.laserLine.geometry.setFromPoints([eyePos, playerChest]);
-              const progress = Math.min(1.0, mob.laserTimer / 2.2);
-              mob.laserLine.material.color.setRGB(progress, 1.0 - progress * 0.8, 1.0);
-            }
-
-            if (mob.laserTimer >= 2.2) {
-              const dmg = mob.isElder ? 12 : 6;
-              if (typeof player.takeDamage === 'function') {
-                player.takeDamage(dmg, mob.isElder ? 'Elder Guardian Laser' : 'Guardian Laser');
-              } else if (player.health !== undefined) {
-                player.health = Math.max(0, player.health - dmg);
-              }
-              this.sounds?.playExplosion?.();
-              this.spawnParticleBurst(playerChest, 0x06b6d4, 10);
-
-              if (mob.laserLine && this.scene) {
-                this.scene.remove(mob.laserLine);
-                mob.laserLine.geometry?.dispose();
-                mob.laserLine.material?.dispose();
-                mob.laserLine = null;
-              }
-              mob.laserTimer = 0;
-              mob.attackCooldown = 3.5;
-            }
-          } else {
-            if (mob.laserLine && this.scene) {
-              this.scene.remove(mob.laserLine);
-              mob.laserLine.geometry?.dispose();
-              mob.laserLine.material?.dispose();
-              mob.laserLine = null;
-            }
-            mob.laserTimer = 0;
-          }
-        } else if (mob.type === 'axolotl') {
-          const bodyWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.65);
-          if (mob.tail) mob.tail.rotation.y = bodyWiggle;
-          if (mob.gillsL) mob.gillsL.rotation.y = Math.sin(mob.swimCycle * 3.5) * 0.2;
-          if (mob.gillsR) mob.gillsR.rotation.y = -Math.sin(mob.swimCycle * 3.5) * 0.2;
-          if (mob.feet) {
-            mob.feet[0].rotation.y = bodyWiggle * 0.4;
-            mob.feet[1].rotation.y = -bodyWiggle * 0.4;
-            mob.feet[2].rotation.y = -bodyWiggle * 0.4;
-            mob.feet[3].rotation.y = bodyWiggle * 0.4;
-          }
-        }
-
-        continue;
+        if (this.updateAquaticMob(mob, dt, player)) continue;
       }
 
       // Distance to player
       const distToPlayer = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
 
       // --- MOB SPECIFIC AI BEHAVIORS ---
-      if (mob.type === 'drowned') {
-        const bX = Math.floor(mob.mesh.position.x);
-        const bY = Math.floor(mob.mesh.position.y + 0.5);
-        const bZ = Math.floor(mob.mesh.position.z);
-        const inWater = (this.world.getVoxel(bX, bY, bZ) === BLOCKS.WATER);
-
-        mob.swimCycle = (mob.swimCycle || 0) + dt * (inWater ? 3.0 : 1.5);
-        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
-
-        if (player?.position && distToPlayer < 18) {
-          const dir = player.position.clone().sub(mob.mesh.position);
-          mob.yaw = Math.atan2(dir.x, dir.z);
-
-          if (inWater) {
-            const targetSpeed = 2.4;
-            const normDir = dir.clone().normalize();
-            mob.velocity.x = normDir.x * targetSpeed;
-            mob.velocity.y = normDir.y * targetSpeed * 0.8;
-            mob.velocity.z = normDir.z * targetSpeed;
-
-            if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.4;
-            if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.swimCycle * 4.0) * 0.4;
-            if (mob.rightArm) mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(mob.swimCycle * 2.0) * 0.15;
-            if (mob.leftArm) mob.leftArm.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.3;
-
-            mob.mesh.position.addScaledVector(mob.velocity, dt);
-            mob.mesh.rotation.y = mob.yaw;
-          } else {
-            moveGroundMob(this, mob, dt, 1.8);
-            if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin((mob.timer || 0) * 5.0) * 0.6;
-            if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin((mob.timer || 0) * 5.0) * 0.6;
-          }
-
-          if (distToPlayer < 2.0 && mob.attackCooldown <= 0) {
-            mob.attackCooldown = 1.2;
-            const dmg = 5;
-            if (typeof player.takeDamage === 'function') {
-              player.takeDamage(dmg, 'Drowned');
-            } else if (player.health !== undefined) {
-              player.health = Math.max(0, player.health - dmg);
-            }
-            this.sounds?.playZombie?.();
-            this.spawnParticleBurst(player.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x0ea5e9, 8);
-          }
-        } else {
-          if (inWater) {
-            mob.mesh.position.y += Math.sin(mob.swimCycle) * 0.01;
-          } else {
-            wanderMob(this, mob, dt, 1.0);
-          }
-        }
-      } else if (mob.type === 'villager') {
-        // Periodically check workstation claims and restocking
-        mob.workstationCheckTimer = (mob.workstationCheckTimer || 0) - dt;
-        if (mob.workstationCheckTimer <= 0) {
-          mob.workstationCheckTimer = 2.0;
-          updateVillagerWorkstation(mob, this.world, this.mobs);
-        }
-
-        // Flee from nearby zombies or zombie villagers
-        let threat = null;
-        let threatDist = 12;
-        for (const other of this.mobs) {
-          if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager')) {
-            const d = mob.mesh.position.distanceTo(other.mesh.position);
-            if (d < threatDist) {
-              threatDist = d;
-              threat = other;
-            }
-          }
-        }
-        if (threat) {
-          const fleeYaw = Math.atan2(mob.mesh.position.x - threat.mesh.position.x, mob.mesh.position.z - threat.mesh.position.z);
-          mob.yaw = fleeYaw;
-          mob.velocity.x = Math.sin(fleeYaw) * 3.2;
-          mob.velocity.z = Math.cos(fleeYaw) * 3.2;
-        } else if (distToPlayer < 2.5) {
-          mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
-          mob.velocity.x *= 0.5;
-          mob.velocity.z *= 0.5;
-        } else {
-          wanderMob(this, mob, dt, 1.2);
-        }
-      } else if (mob.type === 'zombie_villager') {
-        // Check curing progression
-        updateZombieVillagerCuring(mob, dt, this);
-        if (mob.isCuring) {
-          mob.speed = 1.7;
-        }
-        if (distToPlayer < 16) {
-          const targetYaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
-          mob.yaw = targetYaw;
-          mob.velocity.x = Math.sin(targetYaw) * (mob.speed || 1.4);
-          mob.velocity.z = Math.cos(targetYaw) * (mob.speed || 1.4);
-          if (distToPlayer < 1.4 && (!mob.hitCooldown || mob.hitCooldown <= 0)) {
-            player.takeDamage?.(3);
-            mob.hitCooldown = 1.0;
-            this.sounds?.playZombie?.();
-          }
-        } else {
-          wanderMob(this, mob, dt, 1.0);
-        }
-      } else if (mob.type === 'iron_golem') {
-        // Find nearest hostile target (Pillager or Zombie)
-        let nearestHostile = null;
-        let minDist = 16;
-        for (const other of this.mobs) {
-          if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie')) {
-            const d = mob.mesh.position.distanceTo(other.mesh.position);
-            if (d < minDist) {
-              minDist = d;
-              nearestHostile = other;
-            }
-          }
-        }
-
-        if (nearestHostile) {
-          // Charge at enemy!
-          const dir = nearestHostile.mesh.position.clone().sub(mob.mesh.position);
-          dir.y = 0;
-          dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-          mob.velocity.x = dir.x * 3.8;
-          mob.velocity.z = dir.z * 3.8;
-
-          // Attack when close
-          if (minDist < 2.0 && mob.attackCooldown <= 0) {
-            mob.attackCooldown = 1.0;
-            this.sounds.playIronGolem();
-            // Uppercut punch animation
-            mob.rightArm.rotation.x = -Math.PI / 1.5;
-            setTimeout(() => { if (mob.rightArm) mob.rightArm.rotation.x = 0; }, 300);
-            this.damageMob(nearestHostile, 18, mob.mesh.position);
-          }
-        } else {
-          // Patrol slowly
-          wanderMob(this, mob, dt, 1.0);
-        }
-        if (mob.attackCooldown > 0) mob.attackCooldown -= dt;
-      } else if (mob.type === 'pillager') {
-        // Target player or villagers
-        let targetPos = null;
-        let targetEntity = null;
-        if (distToPlayer < 18) {
-          targetPos = player.position;
-          targetEntity = 'player';
-        } else {
-          for (const other of this.mobs) {
-            if (other.health > 0 && other.type === 'villager' && mob.mesh.position.distanceTo(other.mesh.position) < 16) {
-              targetPos = other.mesh.position;
-              targetEntity = other;
-              break;
-            }
-          }
-        }
-
-        if (targetPos) {
-          const dir = targetPos.clone().sub(mob.mesh.position);
-          dir.y = 0;
-          dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-
-          // Maintain distance ~8 blocks and shoot crossbow
-          const dist = mob.mesh.position.distanceTo(targetPos);
-          if (dist > 10) {
-            mob.velocity.x = dir.x * 2.2;
-            mob.velocity.z = dir.z * 2.2;
-          } else if (dist < 5) {
-            mob.velocity.x = -dir.x * 1.8;
-            mob.velocity.z = -dir.z * 1.8;
-          } else {
-            mob.velocity.x *= 0.5;
-            mob.velocity.z *= 0.5;
-          }
-
-          mob.shootCooldown -= dt;
-          if (mob.shootCooldown <= 0) {
-            mob.shootCooldown = 2.5;
-            const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-            const shootDir = targetPos.clone().add(new THREE.Vector3(0, 1, 0)).sub(shootOrigin).normalize();
-            this.spawnArrow(shootOrigin, shootDir, mob);
-          }
-        } else {
-          // Patrol wander
-          wanderMob(this, mob, dt, 1.2);
-        }
-      } else if (mob.type === 'zombie') {
-        // Chase player or villagers
-        let targetPos = null;
-        let targetEntity = null;
-        if (distToPlayer < 16) {
-          targetPos = player.position;
-          targetEntity = 'player';
-        }
-
-        if (targetPos) {
-          const dir = targetPos.clone().sub(mob.mesh.position);
-          dir.y = 0;
-          const dist = dir.length();
-          if (dist > 1.2) {
-            dir.normalize();
-            const targetYaw = Math.atan2(dir.x, dir.z);
-            const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-            mob.yaw += turn * Math.min(1.0, 9 * dt);
-            if (!mob.avoidTime || mob.avoidTime <= 0) {
-              mob.velocity.x = Math.sin(mob.yaw) * 2.8;
-              mob.velocity.z = Math.cos(mob.yaw) * 2.8;
-            }
-          } else {
-            mob.velocity.x *= 0.5;
-            mob.velocity.z *= 0.5;
-          }
-
-          // Attack player
-          if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
-            player.takeDamage(3, mob.mesh.position, mob.type);
-            mob.hitCooldown = 1.0;
-          }
-        } else {
-          // Wander
-          wanderMob(this, mob, dt, 1.0);
-        }
-      } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
-        let isFollowing = false;
-
-        // A ridden pig is steered by AnimalBehaviors. Do not let its ambient
-        // wander/follow AI overwrite the rider's velocity later in this loop.
-        if (mob.rider || this.animalBehaviors?.mount?.mob === mob) {
-          isFollowing = true;
-          mob.wanderGoal = null;
-          mob.wanderTimer = 0;
-        }
-
-        // If mob is sitting (tamed cat/wolf), freeze movement
-        if (mob.isSitting) {
-          isFollowing = true;
-          mob.wanderGoal = null;
-          mob.velocity.x = 0;
-          mob.velocity.z = 0;
-        }
-
-        // If mob is in Love mode, preserve matchmaking velocity and prevent wander from hijacking it
-        if (mob.inLove > 0) {
-          isFollowing = true;
-          mob.wanderGoal = null;
-        }
-
-        // Chicken / Animal following player holding seeds or breeding food (main hand or offhand)
-        if (player && player.inventory) {
-          const heldItem = player.inventory.getActiveItem() || player.inventory.getOffhandItem?.();
-          const cleanId = heldItem ? (typeof heldItem.id === 'string' ? heldItem.id : heldItem?.id?.id || '').toLowerCase().trim() : '';
-          const isTempting = heldItem && (!mob.inLove || mob.inLove <= 0) && (
-            this.animalBehaviors?.isBreedingFood(mob.type, cleanId) ||
-            (mob.type === 'chicken' && (cleanId.includes('seed') || cleanId.includes('pod'))) ||
-            (mob.type === 'cow' && cleanId.includes('wheat') && !cleanId.includes('seed'))
-          );
-          if (isTempting) {
-            const dx = player.position.x - mob.mesh.position.x;
-            const dy = Math.abs(player.position.y - mob.mesh.position.y);
-            const dz = player.position.z - mob.mesh.position.z;
-            const horizDist = Math.hypot(dx, dz);
-            if (horizDist < 12.0 && dy < 6.0 && horizDist > 1.8) {
-              isFollowing = true;
-              mob.wanderGoal = null;
-              mob.wanderTimer = 0;
-              mob.avoidTime = 0;
-              const followSpeed = mob.type === 'chicken' ? 2.2 : 2.0;
-              mob.velocity.x = (dx / horizDist) * followSpeed;
-              mob.velocity.z = (dz / horizDist) * followSpeed;
-              mob.yaw = Math.atan2(dx, dz);
-            } else if (horizDist <= 1.8 && dy < 6.0) {
-              isFollowing = true;
-              mob.wanderGoal = null;
-              mob.velocity.x *= 0.2;
-              mob.velocity.z *= 0.2;
-              mob.yaw = Math.atan2(dx, dz);
-            }
-
-            // Head tracking: look attentively at player holding food
-            if (mob.head && horizDist < 12.0 && dy < 6.0) {
-              const lookYaw = Math.atan2(dx, dz) - mob.yaw;
-              const normLookYaw = Math.atan2(Math.sin(lookYaw), Math.cos(lookYaw));
-              mob.head.rotation.y = THREE.MathUtils.clamp(normLookYaw, -0.85, 0.85);
-            }
-          } else if (mob.head && !mob.isBaby) {
-            mob.head.rotation.y = THREE.MathUtils.lerp(mob.head.rotation.y, 0, dt * 5.0);
-          }
-        }
-
-        // Baby animal following parent or adult of same type
-        if (!isFollowing && mob.isBaby) {
-          let followTarget = mob.parent && mob.parent.health > 0 ? mob.parent : null;
-          if (!followTarget) {
-            let nearestDist = 14;
-            for (const other of this.mobs) {
-              if (other !== mob && other.type === mob.type && !other.isBaby && other.health > 0) {
-                const dist = mob.mesh.position.distanceTo(other.mesh.position);
-                if (dist < nearestDist) {
-                  nearestDist = dist;
-                  followTarget = other;
-                }
-              }
-            }
-          }
-          if (followTarget) {
-            const dist = mob.mesh.position.distanceTo(followTarget.mesh.position);
-            if (dist > 1.6) {
-              const dir = followTarget.mesh.position.clone().sub(mob.mesh.position);
-              dir.y = 0;
-              if (dir.lengthSq() > 0.001) dir.normalize();
-              mob.yaw = Math.atan2(dir.x, dir.z);
-              mob.velocity.x = dir.x * 1.8;
-              mob.velocity.z = dir.z * 1.8;
-              isFollowing = true;
-            } else {
-              mob.velocity.x *= 0.5;
-              mob.velocity.z *= 0.5;
-              isFollowing = true;
-            }
-          }
-        }
-
-        if (!isFollowing) {
-          const wanderSpeed = mob.type === 'chicken' ? (mob.isBaby ? 1.3 : 1.0) : (mob.isBaby ? 1.3 : 1.15);
-          wanderMob(this, mob, dt, wanderSpeed);
-        }
-
-        if (mob.fleeTime > 0) {
-          mob.fleeTime -= dt;
-          const escape = mob.mesh.position.clone().sub(mob.fleeFrom); escape.y = 0; escape.normalize();
-          mob.yaw = Math.atan2(escape.x, escape.z);
-          mob.velocity.x = escape.x * 2.8; mob.velocity.z = escape.z * 2.8;
-        }
-
-        // Chicken specific animation: Slow glide in air, wing flapping, walking animation, ambient clucking
-        if (mob.type === 'chicken') {
-          mob.flapTimer = (mob.flapTimer || 0) + dt;
-          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
-
-          // Cluck ambient sound occasionally
-          mob.cluckTimer = (mob.cluckTimer || (15 + Math.random() * 30)) - dt;
-          if (mob.cluckTimer <= 0) {
-            mob.cluckTimer = 20 + Math.random() * 40;
-            if (distToPlayer < 16 && this.sounds?.playChicken) {
-              this.sounds.playChicken();
-            }
-          }
-
-          if (!mob.onGround) {
-            // Gliding down gently in the air: wings flap rapidly!
-            mob.velocity.y = Math.max(-1.5, mob.velocity.y);
-            const flap = Math.sin(mob.flapTimer * 28.0) * 0.75;
-            if (mob.wingL) mob.wingL.rotation.z = flap;
-            if (mob.wingR) mob.wingR.rotation.z = -flap;
-            if (mob.leftLeg) mob.leftLeg.rotation.x = 0.2;
-            if (mob.rightLeg) mob.rightLeg.rotation.x = 0.2;
-          } else {
-            // On ground: wings tucked, legs swing when walking
-            if (mob.wingL) mob.wingL.rotation.z = THREE.MathUtils.lerp(mob.wingL.rotation.z, 0, dt * 10);
-            if (mob.wingR) mob.wingR.rotation.z = THREE.MathUtils.lerp(mob.wingR.rotation.z, 0, dt * 10);
-
-            if (speedXZ > 0.1) {
-              mob.walkCycle = (mob.walkCycle || 0) + dt * 12.0;
-              if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.walkCycle) * 0.5;
-              if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.walkCycle) * 0.5;
-              if (mob.head) mob.head.position.z = 0.22 + Math.sin(mob.walkCycle) * 0.03;
-            } else {
-              if (mob.leftLeg) mob.leftLeg.rotation.x = 0;
-              if (mob.rightLeg) mob.rightLeg.rotation.x = 0;
-              if (mob.head) mob.head.position.z = 0.22;
-            }
-          }
-        }
-
-        // Quadruped specific animations (cow, pig, sheep): leg swinging & cow ambient moo
-        if (mob.type === 'cow' || mob.type === 'pig' || mob.type === 'sheep') {
-          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
-
-          if (mob.type === 'cow') {
-            mob.mooTimer = (mob.mooTimer || (15 + Math.random() * 30)) - dt;
-            if (mob.mooTimer <= 0) {
-              mob.mooTimer = 20 + Math.random() * 40;
-              if (distToPlayer < 16 && this.sounds?.playCow) {
-                this.sounds.playCow();
-              }
-            }
-          }
-
-          if (mob.legs && mob.legs.length === 4) {
-            const [fl, fr, bl, br] = mob.legs;
-            if (speedXZ > 0.1) {
-              mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
-              const swing = Math.sin(mob.walkCycle) * 0.4;
-              if (fl) fl.rotation.x = swing;
-              if (fr) fr.rotation.x = -swing;
-              if (bl) bl.rotation.x = -swing;
-              if (br) br.rotation.x = swing;
-            } else {
-              if (fl) fl.rotation.x = 0;
-              if (fr) fr.rotation.x = 0;
-              if (bl) bl.rotation.x = 0;
-              if (br) br.rotation.x = 0;
-            }
-          }
-        }
-
-        // Cat & Ocelot animations: ambient meow, sitting posture vs walk & tail swish
-        if (mob.type === 'cat' || mob.type === 'ocelot') {
-          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
-
-          // Ambient meow
-          mob.meowTimer = (mob.meowTimer || (20 + Math.random() * 35)) - dt;
-          if (mob.meowTimer <= 0) {
-            mob.meowTimer = 25 + Math.random() * 45;
-            if (distToPlayer < 16 && this.sounds?.playCat) {
-              this.sounds.playCat();
-            }
-          }
-
-          if (mob.isSitting) {
-            // Sitting posture
-            if (mob.body) {
-              mob.body.position.set(0, 0.30, -0.05);
-              mob.body.rotation.x = -0.55;
-            }
-            if (mob.head) {
-              mob.head.position.set(0, 0.48, 0.22);
-            }
-            if (mob.legs && mob.legs.length === 4) {
-              const [fl, fr, bl, br] = mob.legs;
-              if (fl) { fl.position.set(-0.10, 0.16, 0.18); fl.rotation.x = 0; }
-              if (fr) { fr.position.set(0.10, 0.16, 0.18); fr.rotation.x = 0; }
-              if (bl) { bl.position.set(-0.10, 0.08, -0.06); bl.rotation.x = -Math.PI / 2; }
-              if (br) { br.position.set(0.10, 0.08, -0.06); br.rotation.x = -Math.PI / 2; }
-            }
-            if (mob.tailUpper) {
-              mob.tailUpper.position.set(0, 0.20, -0.22);
-              mob.tailUpper.rotation.x = 1.35;
-            }
-            if (mob.tailLower) {
-              mob.tailLower.rotation.x = 0.5;
-            }
-          } else {
-            // Standing posture
-            if (mob.body) {
-              mob.body.position.set(0, 0.40, -0.05);
-              mob.body.rotation.x = 0;
-            }
-            if (mob.head) {
-              mob.head.position.set(0, 0.52, 0.32);
-            }
-            if (mob.legs && mob.legs.length === 4) {
-              const [fl, fr, bl, br] = mob.legs;
-              if (fl) fl.position.set(-0.10, 0.16, 0.18);
-              if (fr) fr.position.set(0.10, 0.16, 0.18);
-              if (bl) bl.position.set(-0.10, 0.16, -0.22);
-              if (br) br.position.set(0.10, 0.16, -0.22);
-
-              if (speedXZ > 0.1) {
-                mob.walkCycle = (mob.walkCycle || 0) + dt * 11.0;
-                const swing = Math.sin(mob.walkCycle) * 0.45;
-                if (fl) fl.rotation.x = swing;
-                if (fr) fr.rotation.x = -swing;
-                if (bl) bl.rotation.x = -swing;
-                if (br) br.rotation.x = swing;
-              } else {
-                if (fl) fl.rotation.x = 0;
-                if (fr) fr.rotation.x = 0;
-                if (bl) bl.rotation.x = 0;
-                if (br) br.rotation.x = 0;
-              }
-            }
-            // Tail gentle sway
-            mob.tailCycle = (mob.tailCycle || 0) + dt * 2.8;
-            if (mob.tailUpper) {
-              mob.tailUpper.position.set(0, 0.44, -0.32);
-              mob.tailUpper.rotation.x = -0.55 + Math.sin(mob.tailCycle) * 0.1;
-              mob.tailUpper.rotation.y = Math.cos(mob.tailCycle) * 0.15;
-            }
-            if (mob.tailLower) {
-              mob.tailLower.rotation.x = 0.35;
-              mob.tailLower.rotation.y = Math.cos(mob.tailCycle) * 0.2;
-            }
-          }
-        }
-
-        // Wolf animations: leg swing & sitting & tail wag
-        if (mob.type === 'wolf') {
-          const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
-          if (mob.legs && mob.legs.length === 4) {
-            const [fl, fr, bl, br] = mob.legs;
-            if (mob.isSitting) {
-              if (fl) fl.rotation.x = 0;
-              if (fr) fr.rotation.x = 0;
-              if (bl) bl.rotation.x = -Math.PI / 2;
-              if (br) br.rotation.x = -Math.PI / 2;
-              if (mob.tailMesh) mob.tailMesh.rotation.x = 0.2;
-            } else {
-              if (speedXZ > 0.1) {
-                mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
-                const swing = Math.sin(mob.walkCycle) * 0.4;
-                if (fl) fl.rotation.x = swing;
-                if (fr) fr.rotation.x = -swing;
-                if (bl) bl.rotation.x = -swing;
-                if (br) br.rotation.x = swing;
-              } else {
-                if (fl) fl.rotation.x = 0;
-                if (fr) fr.rotation.x = 0;
-                if (bl) bl.rotation.x = 0;
-                if (br) br.rotation.x = 0;
-              }
-              if (mob.tailMesh) {
-                mob.tailCycle = (mob.tailCycle || 0) + dt * 4.0;
-                mob.tailMesh.rotation.x = -Math.PI / 4;
-                mob.tailMesh.rotation.y = (mob.isTamed ? Math.sin(mob.tailCycle) * 0.25 : 0);
-              }
-            }
-          }
-        }
-      } else if (mob.type === 'creeper') {
-        if (distToPlayer < 16) {
-          const dir = player.position.clone().sub(mob.mesh.position);
-          dir.y = 0;
-          const dist = dir.length();
-          if (dist > 1.2) {
-            dir.normalize();
-            const targetYaw = Math.atan2(dir.x, dir.z);
-            const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-            mob.yaw += turn * Math.min(1.0, 9 * dt);
-            if (!mob.avoidTime || mob.avoidTime <= 0) {
-              mob.velocity.x = Math.sin(mob.yaw) * 2.5;
-              mob.velocity.z = Math.cos(mob.yaw) * 2.5;
-            }
-          } else {
-            mob.velocity.x *= 0.5;
-            mob.velocity.z *= 0.5;
-          }
-
-          if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
-            player.takeDamage(10, mob.mesh.position, mob.type);
-            this.sounds.playExplosion();
-            mob.health = 0; // explode
-            mob.noLoot = true;
-        if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
-            continue;
-          }
-        } else {
-          wanderMob(this, mob, dt, 0.8);
-        }
-      } else if (mob.type === 'skeleton') {
-        if (distToPlayer < 18) {
-          const dir = player.position.clone().sub(mob.mesh.position);
-          dir.y = 0;
-          dir.normalize();
-          mob.yaw = Math.atan2(dir.x, dir.z);
-          if (distToPlayer > 10) {
-            mob.velocity.x = dir.x * 2.0;
-            mob.velocity.z = dir.z * 2.0;
-          } else {
-            mob.velocity.x = 0;
-            mob.velocity.z = 0;
-          }
-
-          mob.shootCooldown -= dt;
-          if (mob.shootCooldown <= 0) {
-            mob.shootCooldown = 2.5;
-            const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-            const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(shootOrigin).normalize();
-            this.spawnArrow(shootOrigin, shootDir, mob);
-          }
-        } else {
-          wanderMob(this, mob, dt, 0.8);
-        }
-      } else if (mob.type === 'tournament_host') {
-        // Face player if near, stationary announcer posture
-        if (distToPlayer < 7.0) {
-          mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
-        }
-        mob.velocity.x = 0;
-        mob.velocity.z = 0;
-        // Subtle breathing & mic motion
-        if (mob.rightArm) {
-          mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(Date.now() * 0.003) * 0.04;
-        }
-      } else if (mob.type === 'jackie_chun') {
-        mob.attackCooldown = Math.max(0, (mob.attackCooldown ?? 0) - dt);
-        mob.teleportCooldown = (mob.teleportCooldown ?? 4.5) - dt;
-
-        // --- 1. Jackie Chun Martial Arts Ki Aura & Energy Sparks (Visual Effects like Goku) ---
-        const isCharging = mob.isChargingKamehameha || (this.game?.tournament?.bossMob === mob && this.game?.tournament?.p2IsChargingKamehameha);
-        if (mob.kiAuraMesh) {
-          mob.kiAuraMesh.rotation.y += dt * 2.5;
-          if (isCharging) {
-            const flare = 1.25 + Math.sin(Date.now() * 0.02) * 0.18;
-            mob.kiAuraMesh.scale.set(flare, 1.05, flare);
-            if (mob.kiAuraMat) {
-              mob.kiAuraMat.opacity = 0.65 + Math.sin(Date.now() * 0.025) * 0.15;
-              mob.kiAuraMat.color.setHex(0x38bdf8);
-            }
-          } else {
-            const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.06;
-            mob.kiAuraMesh.scale.set(pulse, 1.0, pulse);
-            if (mob.kiAuraMat) {
-              mob.kiAuraMat.opacity = 0.28 + Math.sin(Date.now() * 0.004) * 0.08;
-              mob.kiAuraMat.color.setHex(0x00f0ff);
-            }
-          }
-
-          // Rising Ki sparks around Jackie Chun (just like Goku)
-          mob.auraSparkTimer = (mob.auraSparkTimer ?? 0) - dt;
-          if (mob.auraSparkTimer <= 0) {
-            mob.auraSparkTimer = isCharging ? 0.08 : 0.35;
-            const sparkPos = mob.mesh.position.clone().add(new THREE.Vector3(
-              (Math.random() - 0.5) * 0.7,
-              0.2 + Math.random() * 1.3,
-              (Math.random() - 0.5) * 0.7
-            ));
-            const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
-            skillsMgr?.spawnEnergySparks?.(sparkPos, isCharging ? 3 : 1, isCharging ? 0x38bdf8 : 0x00f0ff);
-          }
-        }
-
-        if (mob.isPlayerControlled) {
-          // Controlled by Player 2 keyboard inputs (handled via tournament.js)
-        } else {
-          mob.kamehamehaCooldown = (mob.kamehamehaCooldown ?? 3.5) - dt;
-          if (!mob.isClone) {
-            // Aggressive Shadow Split: count down faster in 1P mode to keep intense match pressure
-            mob.shadowSplitCooldown = (mob.shadowSplitCooldown ?? 12.0) - dt * 1.6;
-
-            // If all illusion clones were dispelled, Jackie Chun fast-tracks Zanzoken Shadow Split!
-            if (mob.clones && mob.clones.length > 0) {
-              const activeClones = mob.clones.filter(c => c.health > 0 && !c.dying && this.mobs.includes(c));
-              if (activeClones.length === 0 && mob.shadowSplitCooldown > 3.0) {
-                mob.shadowSplitCooldown = 2.5;
-              }
-            }
-          }
-
-          // 1. Shadow Split (Real Jackie Chun only)
-          if (!mob.isClone && mob.shadowSplitCooldown <= 0) {
-            this.shadowSplit(mob);
-            // Dynamic aggressive reuse cooldown once performed
-            mob.shadowSplitCooldown = (mob.difficulty === 'hard' ? 6.0 : mob.difficulty === 'easy' ? 12.0 : 8.5);
-          }
-
-          // 2. Sudden position change (teleport)
-          if (mob.teleportCooldown <= 0) {
-            mob.teleportCooldown = (mob.baseTeleportCooldown || 4.5) + Math.random() * 2.0;
-            this.teleportJackieChun(mob);
-          }
-
-          // 3. Kamehameha charging & shooting (Aggressive in 1P mode)
-          if (mob.isChargingKamehameha) {
-            mob.kamehamehaChargeTimer -= dt;
-            mob.velocity.x *= 0.82;
-            mob.velocity.z *= 0.82;
-            const toP = player.position.clone().sub(mob.mesh.position);
-            toP.y = 0;
-            if (toP.lengthSq() > 0.01) mob.yaw = Math.atan2(toP.x, toP.z);
-            mob.mesh.rotation.y = mob.yaw;
-
-            if (mob.leftArm && mob.rightArm) {
-              mob.leftArm.rotation.set(-Math.PI / 2.3, 0.15, 0.25);
-              mob.rightArm.rotation.set(-Math.PI / 2.3, -0.15, -0.25);
-            }
-
-            // Visual charge sphere in hands
-            const sphere = mob.chargeSphereGroup || this.ensureJackieChargeSphere(mob);
-            if (sphere) {
-              const chargeProg = Math.max(0, 1.0 - (mob.kamehamehaChargeTimer / 0.85));
-              const pulse = 0.5 + chargeProg * 0.8 + Math.sin(Date.now() * 0.03) * 0.12;
-              sphere.scale.set(pulse, pulse, pulse);
-
-              if (Math.random() < 0.45) {
-                const worldPos = new THREE.Vector3();
-                sphere.getWorldPosition(worldPos);
-                const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
-                skillsMgr?.spawnEnergySparks?.(worldPos, 2, 0x00f0ff);
-              }
-            }
-
-            if (mob.kamehamehaChargeTimer <= 0) {
-              mob.isChargingKamehameha = false;
-              this.removeJackieChargeSphere(mob);
-
-              if (mob.leftArm && mob.rightArm) {
-                mob.leftArm.rotation.set(-Math.PI / 2.0, 0, 0.05);
-                mob.rightArm.rotation.set(-Math.PI / 2.0, 0, -0.05);
-                setTimeout(() => {
-                  if (mob && !mob.isChargingKamehameha) {
-                    if (mob.leftArm) mob.leftArm.rotation.set(0, 0, 0);
-                    if (mob.rightArm) mob.rightArm.rotation.set(0, 0, 0);
-                  }
-                }, 350);
-              }
-
-              // Aggressive cooldown: 2.6s - 4.5s in 1P mode
-              mob.kamehamehaCooldown = (mob.difficulty === 'hard' ? 2.6 : mob.difficulty === 'easy' ? 4.8 : 3.4) + Math.random() * 1.4;
-              const origin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-              const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(origin).normalize();
-
-              // Jackie Chun's Kamehameha is 1.5x the width of Goku's beam (Goku max radius: 1.5 -> Jackie Chun: 2.25)
-              const beamRadius = mob.isClone ? 1.5 : 2.25;
-              const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
-              skillsMgr?.shootOpponentKamehameha?.(origin, shootDir, mob.kamehamehaDamage, beamRadius, mob);
-              if (skillsMgr) {
-                skillsMgr.shakeIntensity = 0.55;
-              }
-              this.sounds?.playKamehameha?.();
-              skillsMgr?.spawnEnergySparks?.(origin.clone().add(shootDir.clone().multiplyScalar(1.2)), 16, 0x00f0ff);
-            }
-          } else if (mob.kamehamehaCooldown <= 0) {
-            // Aggressive trigger: if player is very close, do a swift backstep leap before charging
-            if (distToPlayer <= 2.2) {
-              const backDir = player.position.clone().sub(mob.mesh.position).normalize();
-              mob.velocity.x = -backDir.x * 4.5;
-              mob.velocity.z = -backDir.z * 4.5;
-              mob.velocity.y = 1.8;
-            } else {
-              mob.velocity.set(0, 0, 0);
-            }
-            mob.isChargingKamehameha = true;
-            mob.kamehamehaChargeTimer = 0.85;
-            this.ensureJackieChargeSphere(mob);
-            this.sounds?.playKiCharge?.(false);
-          } else {
-            // 4. Martial Arts pursuit & Punch
-            const dir = player.position.clone().sub(mob.mesh.position);
-            dir.y = 0;
-            const dist = dir.length();
-            if (dist > 1.2) {
-              dir.normalize();
-              const targetYaw = Math.atan2(dir.x, dir.z);
-              const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-              mob.yaw += turn * Math.min(1.0, 10 * dt);
-              if (!mob.avoidTime || mob.avoidTime <= 0) {
-                const speed = (mob.difficulty === 'hard' ? 3.4 : mob.difficulty === 'easy' ? 2.6 : 3.0);
-                mob.velocity.x = Math.sin(mob.yaw) * speed;
-                mob.velocity.z = Math.cos(mob.yaw) * speed;
-              }
-            } else {
-              mob.velocity.x *= 0.5;
-              mob.velocity.z *= 0.5;
-            }
-
-            // Punch when close: Yellow shock waves visual effect identical to Goku's punch!
-            if (dist < 2.0 && mob.attackCooldown <= 0) {
-              player.takeDamage(mob.punchDamage);
-              if (this.sounds?.playPunch) this.sounds.playPunch();
-              if (this.sounds?.playHit) this.sounds.playHit();
-              else this.sounds?.playZombie?.();
-              mob.attackCooldown = (mob.difficulty === 'hard' ? 0.65 : mob.difficulty === 'easy' ? 1.0 : 0.78);
-              if (mob.leftArm && mob.rightArm) {
-                mob.rightArm.rotation.x = -Math.PI / 1.8;
-                mob.leftArm.rotation.x = -Math.PI / 3.0;
-                setTimeout(() => {
-                  if (mob.rightArm) mob.rightArm.rotation.x = 0;
-                  if (mob.leftArm) mob.leftArm.rotation.x = 0;
-                }, 180);
-              }
-
-              // Spawn yellow martial arts punch shock wave forward towards player
-              const punchDir = player.position.clone().sub(mob.mesh.position);
-              punchDir.y = 0;
-              if (punchDir.lengthSq() > 0.001) punchDir.normalize();
-              else punchDir.set(Math.sin(mob.yaw), 0, Math.cos(mob.yaw));
-              const punchOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-
-              const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
-              skillsMgr?.spawnPunchWave?.(punchOrigin, punchDir, 0xfacc15);
-              skillsMgr?.spawnEnergySparks?.(player.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 12, 0xfacc15);
-            }
-          }
-        }
-      } else if (mob.type === 'enderman') {
-        mob.teleportCooldown = (mob.teleportCooldown || 4.5) - dt;
-        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
-        mob.particleTimer = (mob.particleTimer || 0) - dt;
-
-        // Subtle ambient purple portal particles
-        if (mob.particleTimer <= 0) {
-          mob.particleTimer = 0.35;
-          this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 2);
-        }
-
-        // Periodic arena teleportation
-        if (mob.teleportCooldown <= 0) {
-          mob.teleportCooldown = 4.0 + Math.random() * 3.5;
-          this.teleportEnderman(mob);
-        }
-
-        // Aggressively pursue player
-        const dir = player.position.clone().sub(mob.mesh.position);
-        dir.y = 0;
-        const dist = dir.length();
-        if (dist > 1.2) {
-          dir.normalize();
-          const targetYaw = Math.atan2(dir.x, dir.z);
-          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-          mob.yaw += turn * Math.min(1.0, 9 * dt);
-          if (!mob.avoidTime || mob.avoidTime <= 0) {
-            const endermanSpeed = 3.4;
-            mob.velocity.x = Math.sin(mob.yaw) * endermanSpeed;
-            mob.velocity.z = Math.cos(mob.yaw) * endermanSpeed;
-          }
-        } else {
-          mob.velocity.x *= 0.5;
-          mob.velocity.z *= 0.5;
-          const targetYaw = Math.atan2(dir.x, dir.z);
-          mob.yaw = targetYaw;
-        }
-
-        // Melee attack
-        if (dist < 1.8 && mob.attackCooldown <= 0) {
-          player.takeDamage(5, mob.mesh.position, mob.type);
-          if (this.sounds?.playZombie) this.sounds.playZombie();
-          mob.attackCooldown = 0.9;
-          if (mob.leftArm && mob.rightArm) {
-            mob.leftArm.rotation.x = -Math.PI / 2.2;
-            mob.rightArm.rotation.x = -Math.PI / 2.2;
-          }
-        }
-      } else if (mob.isCustomMob) {
-        if (mob.isPreview) {
-          mob.velocity.set(0, 0, 0);
-          if (mob.wings) {
-            const flap = Math.sin(Date.now() * 0.005) * 0.25;
-            mob.wings.left.rotation.z = flap;
-            mob.wings.right.rotation.z = -flap;
-          }
-          continue;
-        }
-        this.updateCustomMobAI(mob, dt, player);
-      }
-
-      if (mob.isFlying) {
-        if (mob.type === 'ghast') {
-          const baseHeight = (player ? player.position.y : 20) + 8.5;
-          const bob = Math.sin((mob.ghastAnimTimer || 0) * 0.8) * 1.0;
-          const targetY = baseHeight + bob;
-          mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
-          mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
-        }
-        moveFlyingMob(this, mob, dt);
-      } else {
-        const moveSpeed = moveGroundMob(this, mob, dt);
-        mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
-        const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
-        if (mob.isPikachu) {
-          // Pikachu bunny hop leg posture: tucked when airborne, flat when on ground
-          if (!mob.onGround || mob.wasInAir) {
-            if (mob.leftLeg && mob.rightLeg) {
-              mob.leftLeg.rotation.x = 0.45;
-              mob.rightLeg.rotation.x = 0.45;
-            }
-          } else {
-            if (mob.leftLeg && mob.rightLeg) {
-              mob.leftLeg.rotation.x = 0;
-              mob.rightLeg.rotation.x = 0;
-            }
-          }
-        } else if (mob.isSitting) {
-          // Sitting mob maintains tucked posture
-        } else if (mob.leftLeg && mob.rightLeg) {
-          mob.leftLeg.rotation.x = legSwing;
-          mob.rightLeg.rotation.x = -legSwing;
-        } else if (Array.isArray(mob.legs)) {
-          if (mob.legs.length === 4) {
-            mob.legs[0].rotation.x = legSwing;
-            mob.legs[1].rotation.x = -legSwing;
-            mob.legs[2].rotation.x = -legSwing;
-            mob.legs[3].rotation.x = legSwing;
-          } else {
-            for (let i = 0; i < mob.legs.length; i++) {
-              if (mob.legs[i]) {
-                mob.legs[i].rotation.x = (i % 2 === 0 ? legSwing : -legSwing);
-              }
-            }
-          }
-        } else if (['hoglin', 'zoglin'].includes(mob.type) && mob.legFL && mob.legFR && mob.legBL && mob.legBR) {
-          mob.legFL.rotation.x = legSwing;
-          mob.legFR.rotation.x = -legSwing;
-          mob.legBL.rotation.x = -legSwing;
-          mob.legBR.rotation.x = legSwing;
-        }
-      }
+      if (this.updateMobTypeBehavior(mob, dt, player, distToPlayer)) continue;
 
       // Tusk wind-up stays separate from locomotion.
       if (['hoglin', 'zoglin'].includes(mob.type) && mob.head) {
         mob.tuskAttackTime = Math.max(0, (mob.tuskAttackTime || 0) - dt);
         mob.head.rotation.x = -Math.sin(mob.tuskAttackTime / 0.3 * Math.PI) * 0.5;
       }
-      // Nether mob dynamic animations
-      if (mob.type === 'ghast') {
-        mob.ghastAnimTimer = (mob.ghastAnimTimer || 0) + dt * 2.5;
-        if (mob.tentacles) {
-          const vx = (mob.velocity ? mob.velocity.x : 0);
-          const vz = (mob.velocity ? mob.velocity.z : 0);
-          const dragX = -Math.max(-0.35, Math.min(0.35, vx * 0.12));
-          const dragZ = -Math.max(-0.35, Math.min(0.35, vz * 0.12));
-          for (let tIdx = 0; tIdx < mob.tentacles.length; tIdx++) {
-            const wave = Math.sin(mob.ghastAnimTimer + tIdx * 0.7) * 0.22;
-            const sway = Math.cos(mob.ghastAnimTimer + tIdx * 0.5) * 0.14;
-            mob.tentacles[tIdx].rotation.x = wave + dragZ;
-            mob.tentacles[tIdx].rotation.z = sway - dragX;
-          }
-        }
-        if (mob.headMat) {
-          const isShooting = (mob.isChargingFireball || mob.isShooting || (mob.fireballCooldown !== undefined && mob.fireballCooldown > 4.2));
-          const targetTex = isShooting ? this.textures.ghast_shooting : this.textures.ghast;
-          if (mob.headMat.map !== targetTex && targetTex) {
-            mob.headMat.map = targetTex;
-            mob.headMat.needsUpdate = true;
-          }
-        }
-      } else if (mob.type === 'blaze' && mob.tiers) {
-        mob.flames.visible = !!mob.charging;
-        mob.flames.rotation.y += dt*2;
-        for (const puff of mob.smoke.children) { puff.position.y = (puff.position.y+dt*.6)%1.9; puff.material.opacity=.4*(1-puff.position.y/1.9); }
-        if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
-        if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
-        if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
-      } else if (mob.type === 'magma_cube' && mob.layers) {
-        const isJumping = (mob.velocity && Math.abs(mob.velocity.y) > 0.5);
-        const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
-        for (let lIdx = 0; lIdx < mob.layers.length; lIdx++) {
-          const baseY = 0.05 + lIdx * 0.1;
-          const stretch = lIdx * 0.07 * expand;
-          mob.layers[lIdx].position.y = baseY + stretch;
-        }
-        if (mob.core) {
-          mob.core.scale.y = 1.0 + expand * 0.7;
-        }
-      } else if (mob.type === 'strider') {
-        if (mob.isCold) {
-          mob.shiverTimer = (mob.shiverTimer || 0) + dt * 35;
-          if (mob.head) mob.head.position.x = Math.sin(mob.shiverTimer) * 0.04;
-        } else if (mob.head) {
-          mob.head.position.x = 0;
-        }
-      }
+      const vx = mob.velocity ? mob.velocity.x : 0;
+      const vz = mob.velocity ? mob.velocity.z : 0;
+      this.updateMobAnimation(mob, dt, vx, vz);
       } catch (err) {
         // One broken mob must not stop the others. Report it once and skip it from
         // now on, rather than throwing every frame and burying the cause.
@@ -7847,6 +6717,1186 @@ export class MobManager {
       }
     }
   }
+  /**
+   * Per-type AI: one branch per mob family (drowned, villager, iron golem, pillager,
+   * zombie, farm animals, creeper, skeleton, bosses, enderman, custom mobs).
+   *
+   * Lifted verbatim from the update loop. `distToPlayer` is passed in because the
+   * loop computes it just above; everything else it touches is this mob, the
+   * timestep, the player, or this manager.
+   *
+   * @returns {boolean} true when the caller should stop processing this mob
+   */
+  updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    if (mob.type === 'drowned') {
+      const bX = Math.floor(mob.mesh.position.x);
+      const bY = Math.floor(mob.mesh.position.y + 0.5);
+      const bZ = Math.floor(mob.mesh.position.z);
+      const inWater = (this.world.getVoxel(bX, bY, bZ) === BLOCKS.WATER);
+
+      mob.swimCycle = (mob.swimCycle || 0) + dt * (inWater ? 3.0 : 1.5);
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+
+      if (player?.position && distToPlayer < 18) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        mob.yaw = Math.atan2(dir.x, dir.z);
+
+        if (inWater) {
+          const targetSpeed = 2.4;
+          const normDir = dir.clone().normalize();
+          mob.velocity.x = normDir.x * targetSpeed;
+          mob.velocity.y = normDir.y * targetSpeed * 0.8;
+          mob.velocity.z = normDir.z * targetSpeed;
+
+          if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.4;
+          if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.swimCycle * 4.0) * 0.4;
+          if (mob.rightArm) mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(mob.swimCycle * 2.0) * 0.15;
+          if (mob.leftArm) mob.leftArm.rotation.x = Math.sin(mob.swimCycle * 4.0) * 0.3;
+
+          mob.mesh.position.addScaledVector(mob.velocity, dt);
+          mob.mesh.rotation.y = mob.yaw;
+        } else {
+          moveGroundMob(this, mob, dt, 1.8);
+          if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin((mob.timer || 0) * 5.0) * 0.6;
+          if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin((mob.timer || 0) * 5.0) * 0.6;
+        }
+
+        if (distToPlayer < 2.0 && mob.attackCooldown <= 0) {
+          mob.attackCooldown = 1.2;
+          const dmg = 5;
+          if (typeof player.takeDamage === 'function') {
+            player.takeDamage(dmg, 'Drowned');
+          } else if (player.health !== undefined) {
+            player.health = Math.max(0, player.health - dmg);
+          }
+          this.sounds?.playZombie?.();
+          this.spawnParticleBurst(player.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x0ea5e9, 8);
+        }
+      } else {
+        if (inWater) {
+          mob.mesh.position.y += Math.sin(mob.swimCycle) * 0.01;
+        } else {
+          wanderMob(this, mob, dt, 1.0);
+        }
+      }
+    } else if (mob.type === 'villager') {
+      // Periodically check workstation claims and restocking
+      mob.workstationCheckTimer = (mob.workstationCheckTimer || 0) - dt;
+      if (mob.workstationCheckTimer <= 0) {
+        mob.workstationCheckTimer = 2.0;
+        updateVillagerWorkstation(mob, this.world, this.mobs);
+      }
+
+      // Flee from nearby zombies or zombie villagers
+      let threat = null;
+      let threatDist = 12;
+      for (const other of this.mobs) {
+        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager')) {
+          const d = mob.mesh.position.distanceTo(other.mesh.position);
+          if (d < threatDist) {
+            threatDist = d;
+            threat = other;
+          }
+        }
+      }
+      if (threat) {
+        const fleeYaw = Math.atan2(mob.mesh.position.x - threat.mesh.position.x, mob.mesh.position.z - threat.mesh.position.z);
+        mob.yaw = fleeYaw;
+        mob.velocity.x = Math.sin(fleeYaw) * 3.2;
+        mob.velocity.z = Math.cos(fleeYaw) * 3.2;
+      } else if (distToPlayer < 2.5) {
+        mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+        mob.velocity.x *= 0.5;
+        mob.velocity.z *= 0.5;
+      } else {
+        wanderMob(this, mob, dt, 1.2);
+      }
+    } else if (mob.type === 'zombie_villager') {
+      // Check curing progression
+      updateZombieVillagerCuring(mob, dt, this);
+      if (mob.isCuring) {
+        mob.speed = 1.7;
+      }
+      if (distToPlayer < 16) {
+        const targetYaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+        mob.yaw = targetYaw;
+        mob.velocity.x = Math.sin(targetYaw) * (mob.speed || 1.4);
+        mob.velocity.z = Math.cos(targetYaw) * (mob.speed || 1.4);
+        if (distToPlayer < 1.4 && (!mob.hitCooldown || mob.hitCooldown <= 0)) {
+          player.takeDamage?.(3);
+          mob.hitCooldown = 1.0;
+          this.sounds?.playZombie?.();
+        }
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+      }
+    } else if (mob.type === 'iron_golem') {
+      // Find nearest hostile target (Pillager or Zombie)
+      let nearestHostile = null;
+      let minDist = 16;
+      for (const other of this.mobs) {
+        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie')) {
+          const d = mob.mesh.position.distanceTo(other.mesh.position);
+          if (d < minDist) {
+            minDist = d;
+            nearestHostile = other;
+          }
+        }
+      }
+
+      if (nearestHostile) {
+        // Charge at enemy!
+        const dir = nearestHostile.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.velocity.x = dir.x * 3.8;
+        mob.velocity.z = dir.z * 3.8;
+
+        // Attack when close
+        if (minDist < 2.0 && mob.attackCooldown <= 0) {
+          mob.attackCooldown = 1.0;
+          this.sounds.playIronGolem();
+          // Uppercut punch animation
+          mob.rightArm.rotation.x = -Math.PI / 1.5;
+          setTimeout(() => { if (mob.rightArm) mob.rightArm.rotation.x = 0; }, 300);
+          this.damageMob(nearestHostile, 18, mob.mesh.position);
+        }
+      } else {
+        // Patrol slowly
+        wanderMob(this, mob, dt, 1.0);
+      }
+      if (mob.attackCooldown > 0) mob.attackCooldown -= dt;
+    } else if (mob.type === 'pillager') {
+      // Target player or villagers
+      let targetPos = null;
+      let targetEntity = null;
+      if (distToPlayer < 18) {
+        targetPos = player.position;
+        targetEntity = 'player';
+      } else {
+        for (const other of this.mobs) {
+          if (other.health > 0 && other.type === 'villager' && mob.mesh.position.distanceTo(other.mesh.position) < 16) {
+            targetPos = other.mesh.position;
+            targetEntity = other;
+            break;
+          }
+        }
+      }
+
+      if (targetPos) {
+        const dir = targetPos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+
+        // Maintain distance ~8 blocks and shoot crossbow
+        const dist = mob.mesh.position.distanceTo(targetPos);
+        if (dist > 10) {
+          mob.velocity.x = dir.x * 2.2;
+          mob.velocity.z = dir.z * 2.2;
+        } else if (dist < 5) {
+          mob.velocity.x = -dir.x * 1.8;
+          mob.velocity.z = -dir.z * 1.8;
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        }
+
+        mob.shootCooldown -= dt;
+        if (mob.shootCooldown <= 0) {
+          mob.shootCooldown = 2.5;
+          const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+          const shootDir = targetPos.clone().add(new THREE.Vector3(0, 1, 0)).sub(shootOrigin).normalize();
+          this.spawnArrow(shootOrigin, shootDir, mob);
+        }
+      } else {
+        // Patrol wander
+        wanderMob(this, mob, dt, 1.2);
+      }
+    } else if (mob.type === 'zombie') {
+      // Chase player or villagers
+      let targetPos = null;
+      let targetEntity = null;
+      if (distToPlayer < 16) {
+        targetPos = player.position;
+        targetEntity = 'player';
+      }
+
+      if (targetPos) {
+        const dir = targetPos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1.2) {
+          dir.normalize();
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, 9 * dt);
+          if (!mob.avoidTime || mob.avoidTime <= 0) {
+            mob.velocity.x = Math.sin(mob.yaw) * 2.8;
+            mob.velocity.z = Math.cos(mob.yaw) * 2.8;
+          }
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        }
+
+        // Attack player
+        if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
+          player.takeDamage(3, mob.mesh.position, mob.type);
+          mob.hitCooldown = 1.0;
+        }
+      } else {
+        // Wander
+        wanderMob(this, mob, dt, 1.0);
+      }
+    } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
+      let isFollowing = false;
+
+      // A ridden pig is steered by AnimalBehaviors. Do not let its ambient
+      // wander/follow AI overwrite the rider's velocity later in this loop.
+      if (mob.rider || this.animalBehaviors?.mount?.mob === mob) {
+        isFollowing = true;
+        mob.wanderGoal = null;
+        mob.wanderTimer = 0;
+      }
+
+      // If mob is sitting (tamed cat/wolf), freeze movement
+      if (mob.isSitting) {
+        isFollowing = true;
+        mob.wanderGoal = null;
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      }
+
+      // If mob is in Love mode, preserve matchmaking velocity and prevent wander from hijacking it
+      if (mob.inLove > 0) {
+        isFollowing = true;
+        mob.wanderGoal = null;
+      }
+
+      // Chicken / Animal following player holding seeds or breeding food (main hand or offhand)
+      if (player && player.inventory) {
+        const heldItem = player.inventory.getActiveItem() || player.inventory.getOffhandItem?.();
+        const cleanId = heldItem ? (typeof heldItem.id === 'string' ? heldItem.id : heldItem?.id?.id || '').toLowerCase().trim() : '';
+        const isTempting = heldItem && (!mob.inLove || mob.inLove <= 0) && (
+          this.animalBehaviors?.isBreedingFood(mob.type, cleanId) ||
+          (mob.type === 'chicken' && (cleanId.includes('seed') || cleanId.includes('pod'))) ||
+          (mob.type === 'cow' && cleanId.includes('wheat') && !cleanId.includes('seed'))
+        );
+        if (isTempting) {
+          const dx = player.position.x - mob.mesh.position.x;
+          const dy = Math.abs(player.position.y - mob.mesh.position.y);
+          const dz = player.position.z - mob.mesh.position.z;
+          const horizDist = Math.hypot(dx, dz);
+          if (horizDist < 12.0 && dy < 6.0 && horizDist > 1.8) {
+            isFollowing = true;
+            mob.wanderGoal = null;
+            mob.wanderTimer = 0;
+            mob.avoidTime = 0;
+            const followSpeed = mob.type === 'chicken' ? 2.2 : 2.0;
+            mob.velocity.x = (dx / horizDist) * followSpeed;
+            mob.velocity.z = (dz / horizDist) * followSpeed;
+            mob.yaw = Math.atan2(dx, dz);
+          } else if (horizDist <= 1.8 && dy < 6.0) {
+            isFollowing = true;
+            mob.wanderGoal = null;
+            mob.velocity.x *= 0.2;
+            mob.velocity.z *= 0.2;
+            mob.yaw = Math.atan2(dx, dz);
+          }
+
+          // Head tracking: look attentively at player holding food
+          if (mob.head && horizDist < 12.0 && dy < 6.0) {
+            const lookYaw = Math.atan2(dx, dz) - mob.yaw;
+            const normLookYaw = Math.atan2(Math.sin(lookYaw), Math.cos(lookYaw));
+            mob.head.rotation.y = THREE.MathUtils.clamp(normLookYaw, -0.85, 0.85);
+          }
+        } else if (mob.head && !mob.isBaby) {
+          mob.head.rotation.y = THREE.MathUtils.lerp(mob.head.rotation.y, 0, dt * 5.0);
+        }
+      }
+
+      // Baby animal following parent or adult of same type
+      if (!isFollowing && mob.isBaby) {
+        let followTarget = mob.parent && mob.parent.health > 0 ? mob.parent : null;
+        if (!followTarget) {
+          let nearestDist = 14;
+          for (const other of this.mobs) {
+            if (other !== mob && other.type === mob.type && !other.isBaby && other.health > 0) {
+              const dist = mob.mesh.position.distanceTo(other.mesh.position);
+              if (dist < nearestDist) {
+                nearestDist = dist;
+                followTarget = other;
+              }
+            }
+          }
+        }
+        if (followTarget) {
+          const dist = mob.mesh.position.distanceTo(followTarget.mesh.position);
+          if (dist > 1.6) {
+            const dir = followTarget.mesh.position.clone().sub(mob.mesh.position);
+            dir.y = 0;
+            if (dir.lengthSq() > 0.001) dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 1.8;
+            mob.velocity.z = dir.z * 1.8;
+            isFollowing = true;
+          } else {
+            mob.velocity.x *= 0.5;
+            mob.velocity.z *= 0.5;
+            isFollowing = true;
+          }
+        }
+      }
+
+      if (!isFollowing) {
+        const wanderSpeed = mob.type === 'chicken' ? (mob.isBaby ? 1.3 : 1.0) : (mob.isBaby ? 1.3 : 1.15);
+        wanderMob(this, mob, dt, wanderSpeed);
+      }
+
+      if (mob.fleeTime > 0) {
+        mob.fleeTime -= dt;
+        const escape = mob.mesh.position.clone().sub(mob.fleeFrom); escape.y = 0; escape.normalize();
+        mob.yaw = Math.atan2(escape.x, escape.z);
+        mob.velocity.x = escape.x * 2.8; mob.velocity.z = escape.z * 2.8;
+      }
+
+      // Chicken specific animation: Slow glide in air, wing flapping, walking animation, ambient clucking
+      if (mob.type === 'chicken') {
+        mob.flapTimer = (mob.flapTimer || 0) + dt;
+        const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+        // Cluck ambient sound occasionally
+        mob.cluckTimer = (mob.cluckTimer || (15 + Math.random() * 30)) - dt;
+        if (mob.cluckTimer <= 0) {
+          mob.cluckTimer = 20 + Math.random() * 40;
+          if (distToPlayer < 16 && this.sounds?.playChicken) {
+            this.sounds.playChicken();
+          }
+        }
+
+        if (!mob.onGround) {
+          // Gliding down gently in the air: wings flap rapidly!
+          mob.velocity.y = Math.max(-1.5, mob.velocity.y);
+          const flap = Math.sin(mob.flapTimer * 28.0) * 0.75;
+          if (mob.wingL) mob.wingL.rotation.z = flap;
+          if (mob.wingR) mob.wingR.rotation.z = -flap;
+          if (mob.leftLeg) mob.leftLeg.rotation.x = 0.2;
+          if (mob.rightLeg) mob.rightLeg.rotation.x = 0.2;
+        } else {
+          // On ground: wings tucked, legs swing when walking
+          if (mob.wingL) mob.wingL.rotation.z = THREE.MathUtils.lerp(mob.wingL.rotation.z, 0, dt * 10);
+          if (mob.wingR) mob.wingR.rotation.z = THREE.MathUtils.lerp(mob.wingR.rotation.z, 0, dt * 10);
+
+          if (speedXZ > 0.1) {
+            mob.walkCycle = (mob.walkCycle || 0) + dt * 12.0;
+            if (mob.leftLeg) mob.leftLeg.rotation.x = Math.sin(mob.walkCycle) * 0.5;
+            if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin(mob.walkCycle) * 0.5;
+            if (mob.head) mob.head.position.z = 0.22 + Math.sin(mob.walkCycle) * 0.03;
+          } else {
+            if (mob.leftLeg) mob.leftLeg.rotation.x = 0;
+            if (mob.rightLeg) mob.rightLeg.rotation.x = 0;
+            if (mob.head) mob.head.position.z = 0.22;
+          }
+        }
+      }
+
+      // Quadruped specific animations (cow, pig, sheep): leg swinging & cow ambient moo
+      if (mob.type === 'cow' || mob.type === 'pig' || mob.type === 'sheep') {
+        const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+        if (mob.type === 'cow') {
+          mob.mooTimer = (mob.mooTimer || (15 + Math.random() * 30)) - dt;
+          if (mob.mooTimer <= 0) {
+            mob.mooTimer = 20 + Math.random() * 40;
+            if (distToPlayer < 16 && this.sounds?.playCow) {
+              this.sounds.playCow();
+            }
+          }
+        }
+
+        if (mob.legs && mob.legs.length === 4) {
+          const [fl, fr, bl, br] = mob.legs;
+          if (speedXZ > 0.1) {
+            mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
+            const swing = Math.sin(mob.walkCycle) * 0.4;
+            if (fl) fl.rotation.x = swing;
+            if (fr) fr.rotation.x = -swing;
+            if (bl) bl.rotation.x = -swing;
+            if (br) br.rotation.x = swing;
+          } else {
+            if (fl) fl.rotation.x = 0;
+            if (fr) fr.rotation.x = 0;
+            if (bl) bl.rotation.x = 0;
+            if (br) br.rotation.x = 0;
+          }
+        }
+      }
+
+      // Cat & Ocelot animations: ambient meow, sitting posture vs walk & tail swish
+      if (mob.type === 'cat' || mob.type === 'ocelot') {
+        const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+
+        // Ambient meow
+        mob.meowTimer = (mob.meowTimer || (20 + Math.random() * 35)) - dt;
+        if (mob.meowTimer <= 0) {
+          mob.meowTimer = 25 + Math.random() * 45;
+          if (distToPlayer < 16 && this.sounds?.playCat) {
+            this.sounds.playCat();
+          }
+        }
+
+        if (mob.isSitting) {
+          // Sitting posture
+          if (mob.body) {
+            mob.body.position.set(0, 0.30, -0.05);
+            mob.body.rotation.x = -0.55;
+          }
+          if (mob.head) {
+            mob.head.position.set(0, 0.48, 0.22);
+          }
+          if (mob.legs && mob.legs.length === 4) {
+            const [fl, fr, bl, br] = mob.legs;
+            if (fl) { fl.position.set(-0.10, 0.16, 0.18); fl.rotation.x = 0; }
+            if (fr) { fr.position.set(0.10, 0.16, 0.18); fr.rotation.x = 0; }
+            if (bl) { bl.position.set(-0.10, 0.08, -0.06); bl.rotation.x = -Math.PI / 2; }
+            if (br) { br.position.set(0.10, 0.08, -0.06); br.rotation.x = -Math.PI / 2; }
+          }
+          if (mob.tailUpper) {
+            mob.tailUpper.position.set(0, 0.20, -0.22);
+            mob.tailUpper.rotation.x = 1.35;
+          }
+          if (mob.tailLower) {
+            mob.tailLower.rotation.x = 0.5;
+          }
+        } else {
+          // Standing posture
+          if (mob.body) {
+            mob.body.position.set(0, 0.40, -0.05);
+            mob.body.rotation.x = 0;
+          }
+          if (mob.head) {
+            mob.head.position.set(0, 0.52, 0.32);
+          }
+          if (mob.legs && mob.legs.length === 4) {
+            const [fl, fr, bl, br] = mob.legs;
+            if (fl) fl.position.set(-0.10, 0.16, 0.18);
+            if (fr) fr.position.set(0.10, 0.16, 0.18);
+            if (bl) bl.position.set(-0.10, 0.16, -0.22);
+            if (br) br.position.set(0.10, 0.16, -0.22);
+
+            if (speedXZ > 0.1) {
+              mob.walkCycle = (mob.walkCycle || 0) + dt * 11.0;
+              const swing = Math.sin(mob.walkCycle) * 0.45;
+              if (fl) fl.rotation.x = swing;
+              if (fr) fr.rotation.x = -swing;
+              if (bl) bl.rotation.x = -swing;
+              if (br) br.rotation.x = swing;
+            } else {
+              if (fl) fl.rotation.x = 0;
+              if (fr) fr.rotation.x = 0;
+              if (bl) bl.rotation.x = 0;
+              if (br) br.rotation.x = 0;
+            }
+          }
+          // Tail gentle sway
+          mob.tailCycle = (mob.tailCycle || 0) + dt * 2.8;
+          if (mob.tailUpper) {
+            mob.tailUpper.position.set(0, 0.44, -0.32);
+            mob.tailUpper.rotation.x = -0.55 + Math.sin(mob.tailCycle) * 0.1;
+            mob.tailUpper.rotation.y = Math.cos(mob.tailCycle) * 0.15;
+          }
+          if (mob.tailLower) {
+            mob.tailLower.rotation.x = 0.35;
+            mob.tailLower.rotation.y = Math.cos(mob.tailCycle) * 0.2;
+          }
+        }
+      }
+
+      // Wolf animations: leg swing & sitting & tail wag
+      if (mob.type === 'wolf') {
+        const speedXZ = Math.hypot(mob.velocity.x, mob.velocity.z);
+        if (mob.legs && mob.legs.length === 4) {
+          const [fl, fr, bl, br] = mob.legs;
+          if (mob.isSitting) {
+            if (fl) fl.rotation.x = 0;
+            if (fr) fr.rotation.x = 0;
+            if (bl) bl.rotation.x = -Math.PI / 2;
+            if (br) br.rotation.x = -Math.PI / 2;
+            if (mob.tailMesh) mob.tailMesh.rotation.x = 0.2;
+          } else {
+            if (speedXZ > 0.1) {
+              mob.walkCycle = (mob.walkCycle || 0) + dt * 10.0;
+              const swing = Math.sin(mob.walkCycle) * 0.4;
+              if (fl) fl.rotation.x = swing;
+              if (fr) fr.rotation.x = -swing;
+              if (bl) bl.rotation.x = -swing;
+              if (br) br.rotation.x = swing;
+            } else {
+              if (fl) fl.rotation.x = 0;
+              if (fr) fr.rotation.x = 0;
+              if (bl) bl.rotation.x = 0;
+              if (br) br.rotation.x = 0;
+            }
+            if (mob.tailMesh) {
+              mob.tailCycle = (mob.tailCycle || 0) + dt * 4.0;
+              mob.tailMesh.rotation.x = -Math.PI / 4;
+              mob.tailMesh.rotation.y = (mob.isTamed ? Math.sin(mob.tailCycle) * 0.25 : 0);
+            }
+          }
+        }
+      }
+    } else if (mob.type === 'creeper') {
+      if (distToPlayer < 16) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1.2) {
+          dir.normalize();
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, 9 * dt);
+          if (!mob.avoidTime || mob.avoidTime <= 0) {
+            mob.velocity.x = Math.sin(mob.yaw) * 2.5;
+            mob.velocity.z = Math.cos(mob.yaw) * 2.5;
+          }
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        }
+
+        if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
+          player.takeDamage(10, mob.mesh.position, mob.type);
+          this.sounds.playExplosion();
+          mob.health = 0; // explode
+          mob.noLoot = true;
+      if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
+          return true;
+        }
+      } else {
+        wanderMob(this, mob, dt, 0.8);
+      }
+    } else if (mob.type === 'skeleton') {
+      if (distToPlayer < 18) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        if (distToPlayer > 10) {
+          mob.velocity.x = dir.x * 2.0;
+          mob.velocity.z = dir.z * 2.0;
+        } else {
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+        }
+
+        mob.shootCooldown -= dt;
+        if (mob.shootCooldown <= 0) {
+          mob.shootCooldown = 2.5;
+          const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+          const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(shootOrigin).normalize();
+          this.spawnArrow(shootOrigin, shootDir, mob);
+        }
+      } else {
+        wanderMob(this, mob, dt, 0.8);
+      }
+    } else if (mob.type === 'tournament_host') {
+      // Face player if near, stationary announcer posture
+      if (distToPlayer < 7.0) {
+        mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+      }
+      mob.velocity.x = 0;
+      mob.velocity.z = 0;
+      // Subtle breathing & mic motion
+      if (mob.rightArm) {
+        mob.rightArm.rotation.x = -Math.PI / 3 + Math.sin(Date.now() * 0.003) * 0.04;
+      }
+    } else if (mob.type === 'jackie_chun') {
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown ?? 0) - dt);
+      mob.teleportCooldown = (mob.teleportCooldown ?? 4.5) - dt;
+
+      // --- 1. Jackie Chun Martial Arts Ki Aura & Energy Sparks (Visual Effects like Goku) ---
+      const isCharging = mob.isChargingKamehameha || (this.game?.tournament?.bossMob === mob && this.game?.tournament?.p2IsChargingKamehameha);
+      if (mob.kiAuraMesh) {
+        mob.kiAuraMesh.rotation.y += dt * 2.5;
+        if (isCharging) {
+          const flare = 1.25 + Math.sin(Date.now() * 0.02) * 0.18;
+          mob.kiAuraMesh.scale.set(flare, 1.05, flare);
+          if (mob.kiAuraMat) {
+            mob.kiAuraMat.opacity = 0.65 + Math.sin(Date.now() * 0.025) * 0.15;
+            mob.kiAuraMat.color.setHex(0x38bdf8);
+          }
+        } else {
+          const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.06;
+          mob.kiAuraMesh.scale.set(pulse, 1.0, pulse);
+          if (mob.kiAuraMat) {
+            mob.kiAuraMat.opacity = 0.28 + Math.sin(Date.now() * 0.004) * 0.08;
+            mob.kiAuraMat.color.setHex(0x00f0ff);
+          }
+        }
+
+        // Rising Ki sparks around Jackie Chun (just like Goku)
+        mob.auraSparkTimer = (mob.auraSparkTimer ?? 0) - dt;
+        if (mob.auraSparkTimer <= 0) {
+          mob.auraSparkTimer = isCharging ? 0.08 : 0.35;
+          const sparkPos = mob.mesh.position.clone().add(new THREE.Vector3(
+            (Math.random() - 0.5) * 0.7,
+            0.2 + Math.random() * 1.3,
+            (Math.random() - 0.5) * 0.7
+          ));
+          const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
+          skillsMgr?.spawnEnergySparks?.(sparkPos, isCharging ? 3 : 1, isCharging ? 0x38bdf8 : 0x00f0ff);
+        }
+      }
+
+      if (mob.isPlayerControlled) {
+        // Controlled by Player 2 keyboard inputs (handled via tournament.js)
+      } else {
+        mob.kamehamehaCooldown = (mob.kamehamehaCooldown ?? 3.5) - dt;
+        if (!mob.isClone) {
+          // Aggressive Shadow Split: count down faster in 1P mode to keep intense match pressure
+          mob.shadowSplitCooldown = (mob.shadowSplitCooldown ?? 12.0) - dt * 1.6;
+
+          // If all illusion clones were dispelled, Jackie Chun fast-tracks Zanzoken Shadow Split!
+          if (mob.clones && mob.clones.length > 0) {
+            const activeClones = mob.clones.filter(c => c.health > 0 && !c.dying && this.mobs.includes(c));
+            if (activeClones.length === 0 && mob.shadowSplitCooldown > 3.0) {
+              mob.shadowSplitCooldown = 2.5;
+            }
+          }
+        }
+
+        // 1. Shadow Split (Real Jackie Chun only)
+        if (!mob.isClone && mob.shadowSplitCooldown <= 0) {
+          this.shadowSplit(mob);
+          // Dynamic aggressive reuse cooldown once performed
+          mob.shadowSplitCooldown = (mob.difficulty === 'hard' ? 6.0 : mob.difficulty === 'easy' ? 12.0 : 8.5);
+        }
+
+        // 2. Sudden position change (teleport)
+        if (mob.teleportCooldown <= 0) {
+          mob.teleportCooldown = (mob.baseTeleportCooldown || 4.5) + Math.random() * 2.0;
+          this.teleportJackieChun(mob);
+        }
+
+        // 3. Kamehameha charging & shooting (Aggressive in 1P mode)
+        if (mob.isChargingKamehameha) {
+          mob.kamehamehaChargeTimer -= dt;
+          mob.velocity.x *= 0.82;
+          mob.velocity.z *= 0.82;
+          const toP = player.position.clone().sub(mob.mesh.position);
+          toP.y = 0;
+          if (toP.lengthSq() > 0.01) mob.yaw = Math.atan2(toP.x, toP.z);
+          mob.mesh.rotation.y = mob.yaw;
+
+          if (mob.leftArm && mob.rightArm) {
+            mob.leftArm.rotation.set(-Math.PI / 2.3, 0.15, 0.25);
+            mob.rightArm.rotation.set(-Math.PI / 2.3, -0.15, -0.25);
+          }
+
+          // Visual charge sphere in hands
+          const sphere = mob.chargeSphereGroup || this.ensureJackieChargeSphere(mob);
+          if (sphere) {
+            const chargeProg = Math.max(0, 1.0 - (mob.kamehamehaChargeTimer / 0.85));
+            const pulse = 0.5 + chargeProg * 0.8 + Math.sin(Date.now() * 0.03) * 0.12;
+            sphere.scale.set(pulse, pulse, pulse);
+
+            if (Math.random() < 0.45) {
+              const worldPos = new THREE.Vector3();
+              sphere.getWorldPosition(worldPos);
+              const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
+              skillsMgr?.spawnEnergySparks?.(worldPos, 2, 0x00f0ff);
+            }
+          }
+
+          if (mob.kamehamehaChargeTimer <= 0) {
+            mob.isChargingKamehameha = false;
+            this.removeJackieChargeSphere(mob);
+
+            if (mob.leftArm && mob.rightArm) {
+              mob.leftArm.rotation.set(-Math.PI / 2.0, 0, 0.05);
+              mob.rightArm.rotation.set(-Math.PI / 2.0, 0, -0.05);
+              setTimeout(() => {
+                if (mob && !mob.isChargingKamehameha) {
+                  if (mob.leftArm) mob.leftArm.rotation.set(0, 0, 0);
+                  if (mob.rightArm) mob.rightArm.rotation.set(0, 0, 0);
+                }
+              }, 350);
+            }
+
+            // Aggressive cooldown: 2.6s - 4.5s in 1P mode
+            mob.kamehamehaCooldown = (mob.difficulty === 'hard' ? 2.6 : mob.difficulty === 'easy' ? 4.8 : 3.4) + Math.random() * 1.4;
+            const origin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+            const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(origin).normalize();
+
+            // Jackie Chun's Kamehameha is 1.5x the width of Goku's beam (Goku max radius: 1.5 -> Jackie Chun: 2.25)
+            const beamRadius = mob.isClone ? 1.5 : 2.25;
+            const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
+            skillsMgr?.shootOpponentKamehameha?.(origin, shootDir, mob.kamehamehaDamage, beamRadius, mob);
+            if (skillsMgr) {
+              skillsMgr.shakeIntensity = 0.55;
+            }
+            this.sounds?.playKamehameha?.();
+            skillsMgr?.spawnEnergySparks?.(origin.clone().add(shootDir.clone().multiplyScalar(1.2)), 16, 0x00f0ff);
+          }
+        } else if (mob.kamehamehaCooldown <= 0) {
+          // Aggressive trigger: if player is very close, do a swift backstep leap before charging
+          if (distToPlayer <= 2.2) {
+            const backDir = player.position.clone().sub(mob.mesh.position).normalize();
+            mob.velocity.x = -backDir.x * 4.5;
+            mob.velocity.z = -backDir.z * 4.5;
+            mob.velocity.y = 1.8;
+          } else {
+            mob.velocity.set(0, 0, 0);
+          }
+          mob.isChargingKamehameha = true;
+          mob.kamehamehaChargeTimer = 0.85;
+          this.ensureJackieChargeSphere(mob);
+          this.sounds?.playKiCharge?.(false);
+        } else {
+          // 4. Martial Arts pursuit & Punch
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const dist = dir.length();
+          if (dist > 1.2) {
+            dir.normalize();
+            const targetYaw = Math.atan2(dir.x, dir.z);
+            const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+            mob.yaw += turn * Math.min(1.0, 10 * dt);
+            if (!mob.avoidTime || mob.avoidTime <= 0) {
+              const speed = (mob.difficulty === 'hard' ? 3.4 : mob.difficulty === 'easy' ? 2.6 : 3.0);
+              mob.velocity.x = Math.sin(mob.yaw) * speed;
+              mob.velocity.z = Math.cos(mob.yaw) * speed;
+            }
+          } else {
+            mob.velocity.x *= 0.5;
+            mob.velocity.z *= 0.5;
+          }
+
+          // Punch when close: Yellow shock waves visual effect identical to Goku's punch!
+          if (dist < 2.0 && mob.attackCooldown <= 0) {
+            player.takeDamage(mob.punchDamage);
+            if (this.sounds?.playPunch) this.sounds.playPunch();
+            if (this.sounds?.playHit) this.sounds.playHit();
+            else this.sounds?.playZombie?.();
+            mob.attackCooldown = (mob.difficulty === 'hard' ? 0.65 : mob.difficulty === 'easy' ? 1.0 : 0.78);
+            if (mob.leftArm && mob.rightArm) {
+              mob.rightArm.rotation.x = -Math.PI / 1.8;
+              mob.leftArm.rotation.x = -Math.PI / 3.0;
+              setTimeout(() => {
+                if (mob.rightArm) mob.rightArm.rotation.x = 0;
+                if (mob.leftArm) mob.leftArm.rotation.x = 0;
+              }, 180);
+            }
+
+            // Spawn yellow martial arts punch shock wave forward towards player
+            const punchDir = player.position.clone().sub(mob.mesh.position);
+            punchDir.y = 0;
+            if (punchDir.lengthSq() > 0.001) punchDir.normalize();
+            else punchDir.set(Math.sin(mob.yaw), 0, Math.cos(mob.yaw));
+            const punchOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+
+            const skillsMgr = this.game?.skills || this.game?.dragonballSkills;
+            skillsMgr?.spawnPunchWave?.(punchOrigin, punchDir, 0xfacc15);
+            skillsMgr?.spawnEnergySparks?.(player.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 12, 0xfacc15);
+          }
+        }
+      }
+    } else if (mob.type === 'enderman') {
+      mob.teleportCooldown = (mob.teleportCooldown || 4.5) - dt;
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+      mob.particleTimer = (mob.particleTimer || 0) - dt;
+
+      // Subtle ambient purple portal particles
+      if (mob.particleTimer <= 0) {
+        mob.particleTimer = 0.35;
+        this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 2);
+      }
+
+      // Periodic arena teleportation
+      if (mob.teleportCooldown <= 0) {
+        mob.teleportCooldown = 4.0 + Math.random() * 3.5;
+        this.teleportEnderman(mob);
+      }
+
+      // Aggressively pursue player
+      const dir = player.position.clone().sub(mob.mesh.position);
+      dir.y = 0;
+      const dist = dir.length();
+      if (dist > 1.2) {
+        dir.normalize();
+        const targetYaw = Math.atan2(dir.x, dir.z);
+        const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+        mob.yaw += turn * Math.min(1.0, 9 * dt);
+        if (!mob.avoidTime || mob.avoidTime <= 0) {
+          const endermanSpeed = 3.4;
+          mob.velocity.x = Math.sin(mob.yaw) * endermanSpeed;
+          mob.velocity.z = Math.cos(mob.yaw) * endermanSpeed;
+        }
+      } else {
+        mob.velocity.x *= 0.5;
+        mob.velocity.z *= 0.5;
+        const targetYaw = Math.atan2(dir.x, dir.z);
+        mob.yaw = targetYaw;
+      }
+
+      // Melee attack
+      if (dist < 1.8 && mob.attackCooldown <= 0) {
+        player.takeDamage(5, mob.mesh.position, mob.type);
+        if (this.sounds?.playZombie) this.sounds.playZombie();
+        mob.attackCooldown = 0.9;
+        if (mob.leftArm && mob.rightArm) {
+          mob.leftArm.rotation.x = -Math.PI / 2.2;
+          mob.rightArm.rotation.x = -Math.PI / 2.2;
+        }
+      }
+    } else if (mob.isCustomMob) {
+      if (mob.isPreview) {
+        mob.velocity.set(0, 0, 0);
+        if (mob.wings) {
+          const flap = Math.sin(Date.now() * 0.005) * 0.25;
+          mob.wings.left.rotation.z = flap;
+          mob.wings.right.rotation.z = -flap;
+        }
+        return true;
+      }
+      this.updateCustomMobAI(mob, dt, player);
+    }
+
+    if (mob.isFlying) {
+      if (mob.type === 'ghast') {
+        const baseHeight = (player ? player.position.y : 20) + 8.5;
+        const bob = Math.sin((mob.ghastAnimTimer || 0) * 0.8) * 1.0;
+        const targetY = baseHeight + bob;
+        mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
+        mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
+      }
+      moveFlyingMob(this, mob, dt);
+    } else {
+      const moveSpeed = moveGroundMob(this, mob, dt);
+      mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
+      const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
+      if (mob.isPikachu) {
+        // Pikachu bunny hop leg posture: tucked when airborne, flat when on ground
+        if (!mob.onGround || mob.wasInAir) {
+          if (mob.leftLeg && mob.rightLeg) {
+            mob.leftLeg.rotation.x = 0.45;
+            mob.rightLeg.rotation.x = 0.45;
+          }
+        } else {
+          if (mob.leftLeg && mob.rightLeg) {
+            mob.leftLeg.rotation.x = 0;
+            mob.rightLeg.rotation.x = 0;
+          }
+        }
+      } else if (mob.isSitting) {
+        // Sitting mob maintains tucked posture
+      } else if (mob.leftLeg && mob.rightLeg) {
+        mob.leftLeg.rotation.x = legSwing;
+        mob.rightLeg.rotation.x = -legSwing;
+      } else if (Array.isArray(mob.legs)) {
+        if (mob.legs.length === 4) {
+          mob.legs[0].rotation.x = legSwing;
+          mob.legs[1].rotation.x = -legSwing;
+          mob.legs[2].rotation.x = -legSwing;
+          mob.legs[3].rotation.x = legSwing;
+        } else {
+          for (let i = 0; i < mob.legs.length; i++) {
+            if (mob.legs[i]) {
+              mob.legs[i].rotation.x = (i % 2 === 0 ? legSwing : -legSwing);
+            }
+          }
+        }
+      } else if (['hoglin', 'zoglin'].includes(mob.type) && mob.legFL && mob.legFR && mob.legBL && mob.legBR) {
+        mob.legFL.rotation.x = legSwing;
+        mob.legFR.rotation.x = -legSwing;
+        mob.legBL.rotation.x = -legSwing;
+        mob.legBR.rotation.x = legSwing;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Update an aquatic creature: fluid drag, swim-target seeking, steering, tentacle
+   * and spike animation, and the checks that keep a fish inside its water.
+   *
+   * Lifted verbatim from the update loop. It reads and writes only this mob, so it
+   * needs nothing from the loop but the mob, the timestep and the player.
+   *
+   * @returns {boolean} true when the caller should stop processing this mob
+   */
+  updateAquaticMob(mob, dt, player) {
+      // --- AQUATIC CREATURE AI & 3D SWIMMING PHYSICS ---
+      const bX = Math.floor(mob.mesh.position.x);
+      const bY = Math.floor(mob.mesh.position.y + 0.15);
+      const bZ = Math.floor(mob.mesh.position.z);
+      const currentVoxel = this.world.getVoxel(bX, bY, bZ);
+      const inWater = (currentVoxel === BLOCKS.WATER);
+      mob.inWater = inWater;
+
+      mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
+
+      if (inWater) {
+        // Smoothly restore upright orientation in water
+        mob.mesh.rotation.z = THREE.MathUtils.lerp(mob.mesh.rotation.z, 0, dt * 5.0);
+
+        // 1. Fluid drag
+        mob.velocity.x *= Math.exp(-3.7 * dt);
+        mob.velocity.y *= Math.exp(-5 * dt);
+        mob.velocity.z *= Math.exp(-3.7 * dt);
+
+        // 2. Swim Target Seeking
+        mob.timer -= dt;
+        if (mob.timer <= 0 || !mob.targetPos || mob.mesh.position.distanceTo(mob.targetPos) < 0.8) {
+          mob.timer = 2.5 + Math.random() * 4.0;
+          // Search nearby water voxels within radius 6
+          const waterSpots = [];
+          for (let dx = -5; dx <= 5; dx += 2) {
+            for (let dy = -2; dy <= 2; dy += 1) {
+              for (let dz = -5; dz <= 5; dz += 2) {
+                const wx = bX + dx;
+                const wy = bY + dy;
+                const wz = bZ + dz;
+                if (this.world.getVoxel(wx, wy, wz) === BLOCKS.WATER) {
+                  const candidate = new THREE.Vector3(wx + 0.5, wy + 0.15, wz + 0.5);
+                  if (!this.checkMobCollision(mob, candidate)) waterSpots.push(candidate);
+                }
+              }
+            }
+          }
+          if (waterSpots.length > 0) {
+            mob.targetPos = waterSpots[Math.floor(Math.random() * waterSpots.length)];
+          } else {
+            mob.targetPos = mob.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 3));
+          }
+        }
+
+        // 3. Steer towards targetPos
+        if (mob.targetPos) {
+          const dir = mob.targetPos.clone().sub(mob.mesh.position);
+          const dist = dir.length();
+          if (dist > 0.1) {
+            const targetYaw = Math.atan2(dir.x, dir.z);
+            const horizDist = Math.hypot(dir.x, dir.z);
+            const targetPitch = -Math.atan2(dir.y, Math.max(0.1, horizDist));
+
+            let diffYaw = targetYaw - mob.yaw;
+            while (diffYaw < -Math.PI) diffYaw += Math.PI * 2;
+            while (diffYaw > Math.PI) diffYaw -= Math.PI * 2;
+            mob.yaw += diffYaw * Math.min(1.0, dt * 3.5);
+
+            mob.pitch = THREE.MathUtils.lerp(mob.pitch, targetPitch, Math.min(1.0, dt * 3.5));
+
+            const baseSpeed = (mob.type === 'dolphin') ? 3.0 : (mob.type === 'salmon' ? 2.2 : (mob.type === 'axolotl' ? 1.6 : 1.2));
+            // Octopus pulses with rhythmic jet propulsion
+            const thrust = (mob.type === 'octopus') ? (Math.sin(mob.swimCycle * 3.5) > 0.4 ? baseSpeed * 1.8 : 0.2) : baseSpeed;
+
+            const forwardX = Math.sin(mob.yaw) * Math.cos(mob.pitch);
+            const forwardZ = Math.cos(mob.yaw) * Math.cos(mob.pitch);
+            const forwardY = -Math.sin(mob.pitch);
+
+            mob.velocity.x += forwardX * thrust * dt * 3.0;
+            mob.velocity.y += forwardY * thrust * dt * 3.0;
+            mob.velocity.z += forwardZ * thrust * dt * 3.0;
+          }
+        }
+
+        // Keep fish inside water and recover from a blocked route on a cooldown.
+        const canSwimTo = pos => !this.checkMobCollision(mob, pos) && this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.15), Math.floor(pos.z)) === BLOCKS.WATER;
+        let swimBlocked = false;
+        // Move with 3D collision check
+        const stepX = mob.mesh.position.x + mob.velocity.x * dt;
+        const stepY = mob.mesh.position.y + mob.velocity.y * dt;
+        const stepZ = mob.mesh.position.z + mob.velocity.z * dt;
+
+        if (canSwimTo(new THREE.Vector3(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
+          mob.mesh.position.x = stepX;
+        } else {
+          mob.velocity.x = 0;
+          swimBlocked = true;
+        }
+
+        if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
+          mob.mesh.position.y = stepY;
+        } else {
+          mob.velocity.y = 0;
+          swimBlocked = true;
+        }
+
+        if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
+          mob.mesh.position.z = stepZ;
+        } else {
+          mob.velocity.z = 0;
+          swimBlocked = true;
+        }
+
+        mob.swimBlockedTime = swimBlocked ? (mob.swimBlockedTime || 0) + dt : 0;
+        if (mob.swimBlockedTime > 0.4) { mob.timer = 0; mob.targetPos = null; mob.swimBlockedTime = 0; }
+
+        mob.mesh.rotation.y = mob.yaw;
+        mob.mesh.rotation.x = mob.pitch;
+
+      } else {
+        // --- OUT OF WATER: BEACHED FLOPPING ---
+        mob.velocity.y -= 20 * dt; // Gravity
+        mob.flopTimer -= dt;
+
+        if (mob.flopTimer <= 0) {
+          mob.flopTimer = 0.5 + Math.random() * 0.7;
+          mob.velocity.y = 3.5 + Math.random() * 2.0;
+          mob.velocity.x = (Math.random() - 0.5) * 3.0;
+          mob.velocity.z = (Math.random() - 0.5) * 3.0;
+          mob.yaw += (Math.random() - 0.5) * 2.0;
+          this.sounds.playFall();
+        }
+
+        const testPos = mob.mesh.position.clone();
+        testPos.y += mob.velocity.y * dt;
+        if (!this.checkMobCollision(mob, testPos)) {
+          mob.mesh.position.y = testPos.y;
+        } else {
+          mob.velocity.y = 0;
+        }
+
+        mob.mesh.position.x += mob.velocity.x * dt;
+        mob.mesh.position.z += mob.velocity.z * dt;
+        mob.velocity.x *= 0.88;
+        mob.velocity.z *= 0.88;
+
+        mob.mesh.rotation.y = mob.yaw;
+        mob.mesh.rotation.z = Math.PI / 2.6; // beached sideways
+        mob.mesh.rotation.x = 0;
+      }
+
+      // --- SPECIFIC AQUATIC ANIMATIONS ---
+      if (mob.type === 'salmon') {
+        const tailWiggle = Math.sin(mob.swimCycle * 9.0) * (inWater ? 0.45 : 0.8);
+        if (mob.tail) mob.tail.rotation.y = tailWiggle;
+        if (mob.finL) mob.finL.rotation.z = -0.35 + Math.sin(mob.swimCycle * 9.0) * 0.2;
+        if (mob.finR) mob.finR.rotation.z = 0.35 - Math.sin(mob.swimCycle * 9.0) * 0.2;
+      } else if (mob.type === 'cod') {
+        const tailWiggle = Math.sin(mob.swimCycle * 11.0) * (inWater ? 0.45 : 0.8);
+        if (mob.tail) mob.tail.rotation.y = tailWiggle;
+        if (mob.finL) mob.finL.rotation.z = -0.3 + Math.sin(mob.swimCycle * 11.0) * 0.2;
+        if (mob.finR) mob.finR.rotation.z = 0.3 - Math.sin(mob.swimCycle * 11.0) * 0.2;
+      } else if (mob.type === 'dolphin') {
+        const flukeWave = Math.sin(mob.swimCycle * 6.5) * (inWater ? 0.45 : 0.7);
+        if (mob.fluke) mob.fluke.rotation.x = flukeWave;
+        if (mob.tail) mob.tail.rotation.x = flukeWave * 0.5;
+        if (mob.flipperL) mob.flipperL.rotation.z = -0.4 + Math.sin(mob.swimCycle * 6.5) * 0.15;
+        if (mob.flipperR) mob.flipperR.rotation.z = 0.4 - Math.sin(mob.swimCycle * 6.5) * 0.15;
+      } else if (mob.type === 'octopus' || mob.type === 'squid') {
+        const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
+        if (mob.tentacles) {
+          for (let t = 0; t < mob.tentacles.length; t++) {
+            mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
+          }
+        }
+      } else if (mob.type === 'glow_squid') {
+        const pulse = Math.pow((Math.sin(mob.swimCycle * 3.5) + 1.0) * 0.5, 2.0);
+        if (mob.tentacles) {
+          for (let t = 0; t < mob.tentacles.length; t++) {
+            mob.tentacles[t].rotation.x = (pulse * 0.6) - 0.1;
+          }
+        }
+        mob.glowParticleTimer = (mob.glowParticleTimer || 0) + dt;
+        if (mob.glowParticleTimer > 1.8 && inWater) {
+          mob.glowParticleTimer = 0;
+          this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 3);
+        }
+      } else if (mob.type === 'guardian' || mob.type === 'elder_guardian') {
+        const tailWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.6);
+        if (mob.tail1) mob.tail1.rotation.y = tailWiggle;
+        if (mob.tail2) mob.tail2.rotation.y = tailWiggle * 1.3;
+
+        // Spike retraction when swimming fast vs extended when stopping/attacking/beached
+        const isSpurting = inWater && mob.velocity.length() > 1.2;
+        const targetExt = isSpurting ? 0.3 : 1.0;
+        mob.spikeExtension = THREE.MathUtils.lerp(mob.spikeExtension || 1.0, targetExt, Math.min(1.0, dt * 5.0));
+        if (mob.spikes) {
+          for (const sp of mob.spikes) {
+            sp.mesh.position.copy(sp.basePos).addScaledVector(sp.dir, (mob.spikeExtension - 1.0) * 0.12);
+          }
+        }
+
+        // Pupil eye tracking
+        const distToPlayer = (player?.position) ? mob.mesh.position.distanceTo(player.position) : 999;
+        if (mob.pupil && player?.position && distToPlayer < 20) {
+          const eyeDx = player.position.x - mob.mesh.position.x;
+          const eyeDy = (player.position.y + 0.9) - (mob.mesh.position.y + 0.5);
+          const eyeDz = player.position.z - mob.mesh.position.z;
+          const cosYaw = Math.cos(mob.yaw);
+          const sinYaw = Math.sin(mob.yaw);
+          const localX = eyeDx * cosYaw - eyeDz * sinYaw;
+          mob.pupil.position.x = Math.max(-0.06, Math.min(0.06, localX * 0.015));
+          mob.pupil.position.y = Math.max(-0.06, Math.min(0.06, eyeDy * 0.015));
+        }
+
+        // Laser Attack Behavior
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (player?.position && distToPlayer < 16 && inWater && !player.isFlying && mob.attackCooldown <= 0) {
+          mob.laserTimer = (mob.laserTimer || 0) + dt;
+          const eyePos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+          const playerChest = player.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+
+          if (!mob.laserLine && this.scene) {
+            const geo = new THREE.BufferGeometry().setFromPoints([eyePos, playerChest]);
+            const mat = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 3 });
+            mob.laserLine = new THREE.Line(geo, mat);
+            this.scene.add(mob.laserLine);
+          } else if (mob.laserLine) {
+            mob.laserLine.geometry.setFromPoints([eyePos, playerChest]);
+            const progress = Math.min(1.0, mob.laserTimer / 2.2);
+            mob.laserLine.material.color.setRGB(progress, 1.0 - progress * 0.8, 1.0);
+          }
+
+          if (mob.laserTimer >= 2.2) {
+            const dmg = mob.isElder ? 12 : 6;
+            if (typeof player.takeDamage === 'function') {
+              player.takeDamage(dmg, mob.isElder ? 'Elder Guardian Laser' : 'Guardian Laser');
+            } else if (player.health !== undefined) {
+              player.health = Math.max(0, player.health - dmg);
+            }
+            this.sounds?.playExplosion?.();
+            this.spawnParticleBurst(playerChest, 0x06b6d4, 10);
+
+            if (mob.laserLine && this.scene) {
+              this.scene.remove(mob.laserLine);
+              mob.laserLine.geometry?.dispose();
+              mob.laserLine.material?.dispose();
+              mob.laserLine = null;
+            }
+            mob.laserTimer = 0;
+            mob.attackCooldown = 3.5;
+          }
+        } else {
+          if (mob.laserLine && this.scene) {
+            this.scene.remove(mob.laserLine);
+            mob.laserLine.geometry?.dispose();
+            mob.laserLine.material?.dispose();
+            mob.laserLine = null;
+          }
+          mob.laserTimer = 0;
+        }
+      } else if (mob.type === 'axolotl') {
+        const bodyWiggle = Math.sin(mob.swimCycle * 6.0) * (inWater ? 0.35 : 0.65);
+        if (mob.tail) mob.tail.rotation.y = bodyWiggle;
+        if (mob.gillsL) mob.gillsL.rotation.y = Math.sin(mob.swimCycle * 3.5) * 0.2;
+        if (mob.gillsR) mob.gillsR.rotation.y = -Math.sin(mob.swimCycle * 3.5) * 0.2;
+        if (mob.feet) {
+          mob.feet[0].rotation.y = bodyWiggle * 0.4;
+          mob.feet[1].rotation.y = -bodyWiggle * 0.4;
+          mob.feet[2].rotation.y = -bodyWiggle * 0.4;
+          mob.feet[3].rotation.y = bodyWiggle * 0.4;
+        }
+      }
+
+      return true;
+    return false;
+  }
+
 
   updateCustomMobAI(mob, dt, player) {
     const isDragon = mob.isFlying && (

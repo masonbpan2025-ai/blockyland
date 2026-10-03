@@ -129,3 +129,86 @@ test('a mob that starts working again can be cleared and updated', () => {
   assert.doesNotThrow(() => manager.update(0.05, null));
   assert.equal(manager.brokenMobs.has(replacement), false, 'the replacement updates normally');
 });
+
+// --- the update seam ---------------------------------------------------------
+//
+// update() delegates each subsystem to a named method. These pin that delegation so a
+// later edit cannot quietly skip a subsystem, and so a method's "stop here" result is
+// still honoured the way the old inline `continue` was.
+
+/** A manager whose extracted subsystem methods are spies recording their calls. */
+function spyFixture(mob, { aquaticStops = false, behaviorStops = false } = {}) {
+  const manager = managerFixture();
+  manager.mobs = [mob];
+  manager.calls = [];
+  manager.updateMobHealthBar = m => { manager.calls.push('healthBar'); };
+  manager.updateMobAnimation = (m, dt, vx, vz) => { manager.calls.push('animation'); };
+  manager.updateAquaticMob = m => { manager.calls.push('aquatic'); return aquaticStops; };
+  manager.updateMobTypeBehavior = (m, dt, p, dist) => {
+    manager.calls.push('behavior');
+    manager.distSeen = dist;
+    return behaviorStops;
+  };
+  // The aquatic branch only short-circuits once the peripheral systems are ready;
+  // `isTrainingSiteMob` arriving late is what defers it in the game's first frames.
+  manager.isTrainingSiteMob = () => true;
+  return manager;
+}
+
+test('update delegates to the named subsystem methods', () => {
+  const mob = plainMob('cow');
+  const manager = spyFixture(mob);
+
+  manager.update(0.1, null);
+
+  assert.deepEqual(manager.calls, ['healthBar', 'behavior', 'animation'],
+    'every subsystem runs, in the order the loop declares');
+});
+
+test('an aquatic mob runs the aquatic subsystem before the generic chain', () => {
+  const mob = plainMob('salmon', { isAquatic: true });
+  const manager = spyFixture(mob);
+
+  manager.update(0.1, null);
+
+  // Aquatic handling refines a mob rather than replacing its type AI, so both run —
+  // the aquatic pass first. Only a `true` result skips the rest, which the next test
+  // covers.
+  const aquaticAt = manager.calls.indexOf('aquatic');
+  const behaviorAt = manager.calls.indexOf('behavior');
+  assert.ok(aquaticAt >= 0, 'the aquatic subsystem ran');
+  assert.ok(behaviorAt > aquaticAt, 'and the generic chain still ran, after it');
+});
+
+test('a subsystem returning true stops that mob for the frame, like continue did', () => {
+  const mob = plainMob('salmon', { isAquatic: true });
+  const manager = spyFixture(mob, { aquaticStops: true });
+
+  manager.update(0.1, null);
+
+  assert.deepEqual(manager.calls, ['healthBar', 'aquatic'],
+    'nothing after the stopping subsystem runs for this mob');
+});
+
+test('the behaviour chain receives the distance the loop computed', () => {
+  const mob = plainMob('zombie');
+  mob.mesh.position.set(3, 20, 4);
+  const player = { position: new THREE.Vector3(0, 20, 0) };
+  const manager = spyFixture(mob);
+
+  manager.update(0.1, player);
+
+  assert.equal(manager.distSeen, 5, 'distance to the player is 3-4-5');
+});
+
+test('a dead mob is removed and never reaches the AI subsystems', () => {
+  const mob = plainMob('pig', { health: 0 });
+  const manager = spyFixture(mob);
+  let deaths = 0;
+  manager.updateDeath = () => { deaths++; };
+
+  manager.update(0.1, null);
+
+  assert.equal(deaths, 1, 'death handling runs');
+  assert.deepEqual(manager.calls, ['healthBar'], 'and no AI runs for a corpse');
+});
