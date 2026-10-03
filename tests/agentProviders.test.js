@@ -55,6 +55,12 @@ function fixture(storage = memoryStorage()) {
   // (vendor, keys, offline mode) are read the way a page reload would read them.
   const agent = new WorldAgent(game);
   agent.settings = new AgentSettings(storage);
+  // Every test in this file stubs `fetch`. If one ever misses that stub the request
+  // would go to the real vendor and block on the production first-token window —
+  // minutes of wall clock for a test that should take milliseconds. A short window
+  // turns that mistake into a fast, obvious failure instead of a silent hang.
+  agent.firstTokenTimeoutMs = 2000;
+  agent.idleTimeoutMs = 2000;
   agent.reloadSettings();
   const fetchCalls = [];
   const mockFetch = (payloads, { ok = true, status = 200, statusText = 'OK' } = {}) => {

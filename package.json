@@ -5,6 +5,17 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test --test-isolation=none",
+    "test:all": "node scripts/test.mjs --all",
+    "test:list": "node scripts/test.mjs --list",
+    "test:mob": "node scripts/test.mjs mob",
+    "test:agent": "node scripts/test.mjs agent",
+    "test:redstone": "node scripts/test.mjs redstone",
+    "test:studio": "node scripts/test.mjs studio",
+    "test:world": "node scripts/test.mjs world",
+    "test:build": "node scripts/test.mjs build",
+    "test:combat": "node scripts/test.mjs combat",
+    "test:render": "node scripts/test.mjs render",
+    "test:persist": "node scripts/test.mjs persist",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
