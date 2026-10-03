@@ -343,7 +343,7 @@ export class MobLibraryManager {
       // Overwrite existing custom mob
       const target = this.customMobs.get(existing.id);
       if (target) {
-        target.description = description || `Custom ${cleanName} created in Mob Studio`;
+        target.description = description || `Custom ${cleanName} custom mob`;
         if (look) {
           target.look = {
             ...target.look,
@@ -396,7 +396,7 @@ export class MobLibraryManager {
     const mob = {
       id,
       name: cleanName,
-      description: description || `Custom ${cleanName} created in Mob Studio`,
+      description: description || `Custom ${cleanName} custom mob`,
       isBuiltin: false,
       look: {
         modelType: look?.modelType || 'humanoid',

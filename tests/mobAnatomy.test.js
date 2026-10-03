@@ -6,13 +6,9 @@
 // markings are what make it recognisable.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import * as THREE from 'three';
 import { MobManager } from '../src/mobs.js';
-import { MobStudioManager } from '../src/mobStudio.js';
 import { MobLibrary } from '../src/mobLibrary.js';
-import { validatePlan } from '../src/agentPlans.js';
 
 function mobManager() {
   return Object.assign(Object.create(MobManager.prototype), {
@@ -155,75 +151,7 @@ test('the texture generator still works without a canvas available at all', () =
   // No factory and no document: must degrade to a blank texture, not throw.
   assert.doesNotThrow(() => mgr.createCustomMobTexture({ mainColor: '#ffffff' }));
 });
-
-// --- validation -------------------------------------------------------------
-
-test('the new appearance fields are validated', () => {
-  const base = { name: 'Pika', look: {} };
-  const ok = look => validatePlan({ action: 'create_mob', mob: { ...base, look } });
-
-  assert.doesNotThrow(() => ok({ ears: 'pointed', tail: 'lightning', earTipColor: '#1a1a1a', hasCheekPatches: true, cheekColor: '#e3342f', hasMouth: true, hasNose: true }));
-  assert.doesNotThrow(() => ok({ ears: 'none', tail: 'none' }));
-
-  assert.throws(() => ok({ ears: 'floppy' }), /ear style/);
-  assert.throws(() => ok({ tail: 'curly' }), /tail style/);
-  assert.throws(() => ok({ earTipColor: 'black' }), /earTipColor/);
-  assert.throws(() => ok({ cheekColor: 'red' }), /cheekColor/);
-  assert.throws(() => ok({ hasCheekPatches: 'yes' }), /hasCheekPatches/);
-});
-
-test('every model type the renderer can build is accepted by the validator', () => {
-  // biped_creature (the upright chibi body) is offered in the Studio panel and
-  // handled by the renderer, so the validator must not reject it.
-  for (const modelType of ['humanoid', 'quadruped', 'biped_creature', 'flying', 'golem', 'slime']) {
-    assert.doesNotThrow(
-      () => validatePlan({ action: 'create_mob', mob: { name: `T ${modelType}`, look: { modelType } } }),
-      `${modelType} should be a valid model type`
-    );
-  }
-  assert.throws(() => validatePlan({ action: 'create_mob', mob: { name: 'X', look: { modelType: 'dragon' } } }), /model type/);
-});
-
-test('the model is taught the anatomy, with a worked character example', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/worldAgent.js'), 'utf8');
-  for (const cue of ['"ears"', 'earTipColor', '"tail"', 'hasCheekPatches', 'hasMouth', 'hasNose', 'Worked example']) {
-    assert.ok(source.includes(cue), `the prompt should document ${cue}`);
-  }
-});
-
-test('a full Pikachu definition passes validation and spawns with its anatomy', () => {
-  const plan = {
-    action: 'create_mob',
-    mob: {
-      name: 'Pikachu',
-      look: {
-        modelType: 'quadruped', mainColor: '#f7d02c', accentColor: '#8b4513', eyeColor: '#1a1a1a',
-        scale: 0.8, ears: 'pointed', earTipColor: '#1a1a1a', tail: 'lightning', tailColor: '#f7d02c',
-        hasCheekPatches: true, cheekColor: '#e3342f', hasMouth: true, hasNose: true
-      },
-      behavior: { type: 'pet', health: 35, attack: 4, speed: 3.4 },
-      skills: ['lightning']
-    }
-  };
-  assert.doesNotThrow(() => validatePlan(plan));
-
-  const withAnatomy = spawn(plan.mob.look);
-  const bare = spawn({ ears: 'none', tail: 'none' });
-  assert.ok(countMeshes(withAnatomy.mesh) > countMeshes(bare.mesh),
-    'the Pikachu build must contain more parts than a bare quadruped');
-});
-
 // --- Delete button ----------------------------------------------------------
-
-test('the mob library load list offers a Delete button beside Load', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/mobStudio.js'), 'utf8');
-  assert.match(source, /studio-btn-card-delete/, 'a delete button class is used');
-  assert.match(source, /textContent = 'Delete'/, 'labelled Delete');
-  assert.match(source, /MobLibrary\.deleteMob\(mob\.id\)/, 'it removes the mob from the library');
-  assert.match(source, /btnDelete\.disabled = true/, 'built-in mobs cannot be deleted');
-  assert.match(source, /this\.renderOpenMobList\(query\)/, 'the list refreshes after a delete');
-});
-
 test('deleting removes a custom mob but never a built-in one', () => {
   // deleteMob only knows custom mobs, which is what makes built-ins safe.
   const before = MobLibrary.getAllMobs().length;
@@ -422,5 +350,4 @@ test('Pikachu behaves like a bunny (hops around near player, follows player, ret
   assert.ok(playerDamageReceived > 0, 'Player should receive lightning retaliation damage');
   assert.ok(chatNotifications.some(msg => msg.includes('Pikachu retaliated with Thunderbolt')), 'Chat notification should announce Thunderbolt');
 });
-
 

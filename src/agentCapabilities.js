@@ -36,10 +36,10 @@ export const CAPABILITIES = {
     ]
   },
   mobs: {
-    summary: 'I can summon the usual creatures, and design brand new ones with you in Mob Studio — body shape, colours, ears, tails, face markings, how it behaves, a few special skills.',
+    summary: 'I can summon the creatures the game already has — overworld, nether and bosses alike.',
     alternatives: [
-      'design it in Mob Studio and nudge the sliders until it looks right',
-      'or just tell me the creature and I will have a go at it'
+      'name the creature and I will place it near you',
+      'ask for a group of them and I will spread them out'
     ]
   },
   weather: {

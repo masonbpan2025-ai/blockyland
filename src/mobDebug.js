@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createMobDebugSession, DEBUG_MOBS } from './mobDebugSession.js';
 import { BLOCKS } from './blocks.js';
+import { MobShowcase } from './mobShowcase.js';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#233044');
 const camera=new THREE.PerspectiveCamera(42,1,.05,200);camera.position.set(3,2.5,6);
@@ -17,6 +18,53 @@ const fluidMesh=new THREE.Mesh(new THREE.BoxGeometry(16,3,16),new THREE.MeshBasi
 const events=[];
 function log(message){events.unshift(message);events.length=Math.min(30,events.length);$('events').textContent=events.join('\n');$('events').style.whiteSpace='pre-wrap';}
 const session=createMobDebugSession(scene,log);
+
+// --- Showcase: run every behavioural scenario built for the selected mob -------------
+let showcase=null;
+function showReadout(){
+  const box=$('showcase-status'), list=$('showcase-results');
+  const results=showcase?.results || [];
+  if(!results.length){box.className='';box.textContent='Idle - press Run showcase to exercise this mob behaviours.';list.textContent='';return;}
+  // Scenarios the game cannot exercise yet are reported but not scored: a missing feature
+  // is not the mob failing its own test.
+  const scored=results.filter(r=>r.status!=='unsupported');
+  const passed=scored.filter(r=>r.status==='observed').length;
+  const unsupported=results.length-scored.length;
+  const running=showcase?.running;
+  box.className=running?'running':(passed!==scored.length?'partial':(unsupported?'skipped':'pass'));
+  box.textContent=running
+    ? `Running ${showcase.cases.length} scenarios... (${results.length} done)`
+    : `${passed}/${scored.length} scenarios passed`
+      + (unsupported?` - ${unsupported} not implemented yet`:'')
+      + ` - ${selected.replaceAll('_',' ')}`;
+  list.textContent=results.map(r=>{
+    const icon=r.status==='observed'?'[ok] ':r.status==='unsupported'?'[--] ':r.status==='error'?'[!!] ':'[ x] ';
+    const note=r.status==='unsupported'?' - not implemented yet':(r.detail?' - '+r.detail:'');
+    return icon+r.label+note;
+  }).join('\n');
+}
+function stopShowcase(cancelled=true){if(showcase?.running)showcase.stop(cancelled);showcase=null;$('showcase-stop').disabled=true;$('showcase').disabled=false;showReadout();updateReadout();}
+function runShowcase(){
+  // Start from a clean mob so the first scenario is unaffected by whatever the controls
+  // had been doing.
+  reset();
+  paused=false;$('pause').textContent='Pause';
+  showcase=new MobShowcase(session,onShowcaseReport);
+  showcase.start(selected);
+  $('showcase-stop').disabled=false;$('showcase').disabled=true;
+  showReadout();updateReadout();
+}
+function onShowcaseReport(report){
+  if(report.cancelled){showcase=null;$('showcase-stop').disabled=true;$('showcase').disabled=false;}
+  else if(report.done){
+    $('showcase-stop').disabled=true;$('showcase').disabled=false;
+    const scored=(report.results||[]).filter(r=>r.status!=='unsupported');
+    const passed=scored.filter(r=>r.status==='observed').length;
+    log(`Showcase finished: ${passed}/${scored.length} scenarios passed`);
+  }
+  showReadout();
+}
+
 let paused=false,selected='blaze',last=performance.now(),accumulator=0,refresh=0;
 for(const id of DEBUG_MOBS){const o=document.createElement('option');o.value=id;o.textContent=id.replaceAll('_',' ');$('mob').append(o);}
 const requested=new URLSearchParams(location.search).get('mob');if(DEBUG_MOBS.includes(requested))selected=requested;$('mob').value=selected;
@@ -24,8 +72,10 @@ const checklists={blaze:['20 HP; a golden cubical head and 12 rods in three rota
 function front(){const h=session.mob?.height || session.manager.getMobDimensions(selected).height;controls.target.set(0,h*.6,0);camera.position.set(0,h*.7+1,Math.max(4,h*2.5));controls.update();}
 function reset(){selected=$('mob').value;events.length=0;$('error').textContent='';session.reset(selected);$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',`?mob=${selected}`);updateReadout();}
 function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
-$('mob').onchange=reset;$('reset').onclick=reset;$('front').onclick=front;
+$('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;
+$('showcase').onclick=runShowcase;$('showcase-stop').onclick=()=>stopShowcase(true);
 $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play':'Pause';updateReadout();};
+function tickShowcase(){for(let i=0;i<8&&showcase?.running;i++)showcase.tick(1/30);}
 function tick(){session.player.gamemode=$('mode').value==='combat'?'survival':'spectator';session.tick(1/60);dummy.position.copy(session.player.position).y+=.9;dummy.visible=$('mode').value==='combat';}
 $('step').onclick=()=>{paused=true;$('pause').textContent='Play';try{for(let i=0;i<6;i++)tick();updateReadout();}catch(e){fail(e);}};
 $('hit').onclick=()=>{session.hit();updateReadout();};$('kill').onclick=()=>{session.hit(10000);updateReadout();};
@@ -35,4 +85,4 @@ $('fluid').onchange=()=>{session.world.fluid=({air:BLOCKS.AIR,water:BLOCKS.WATER
 function fail(e){paused=true;$('pause').textContent='Play';$('error').textContent=e.stack || e.message;}
 const resize=new ResizeObserver(()=>{const w=$('view').clientWidth,h=$('view').clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe($('view'));
 reset();
-renderer.setAnimationLoop(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){tick();accumulator-=1/60;}}else accumulator=0;controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
+renderer.setAnimationLoop(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;try{if(showcase?.running){tickShowcase();accumulator=0;}else if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){tick();accumulator-=1/60;}}else accumulator=0;controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});

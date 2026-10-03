@@ -976,167 +976,6 @@
         </div>
       </div>
 
-      <!-- Mob Studio Parameter Panel (Left Side) -->
-      <div id="mob-parameter-panel" class="mob-parameter-panel hidden">
-        <div class="studio-panel-header">
-          <div class="studio-panel-title-group">
-            <span class="studio-panel-icon">👾</span>
-            <span class="studio-panel-title">Mob Studio</span>
-          </div>
-          <span class="studio-structure-badge" id="studio-current-mob-name">Custom Mob</span>
-        </div>
-
-        <div class="studio-panel-body" id="studio-mob-controls">
-          <!-- Mob Name -->
-          <div class="studio-param-group">
-            <label class="studio-param-label" for="mob-input-name">Mob Name</label>
-            <input type="text" id="mob-input-name" class="mc-input-text" value="Custom Mob" autocomplete="off">
-          </div>
-
-          <!-- Section: Look & Model -->
-          <div class="studio-section-header">Look & Model</div>
-          <div class="studio-param-group">
-            <label class="studio-param-label" for="mob-select-model">Model Type</label>
-            <select id="mob-select-model" class="studio-param-select">
-              <option value="humanoid">Humanoid</option>
-              <option value="biped_creature">Biped Creature (Pikachu/Chibi)</option>
-              <option value="quadruped">Quadruped (Beast/Pet)</option>
-              <option value="golem">Golem (Colossus)</option>
-              <option value="flying">Flying (Dragon/Bird)</option>
-              <option value="slime">Slime (Gelatinous)</option>
-            </select>
-          </div>
-
-          <!-- Colors -->
-          <div class="studio-color-row">
-            <div class="studio-color-field">
-              <label for="mob-color-main">Main</label>
-              <input type="color" id="mob-color-main" value="#7c3aed">
-            </div>
-            <div class="studio-color-field">
-              <label for="mob-color-accent">Accent</label>
-              <input type="color" id="mob-color-accent" value="#ec4899">
-            </div>
-            <div class="studio-color-field">
-              <label for="mob-color-eye">Eyes</label>
-              <input type="color" id="mob-color-eye" value="#facc15">
-            </div>
-          </div>
-
-          <!-- Scale -->
-          <div class="studio-param-group">
-            <div class="studio-param-label-row">
-              <label for="mob-slider-scale">Scale</label>
-              <span class="studio-param-value" id="mob-badge-scale">1.0x</span>
-            </div>
-            <input type="range" id="mob-slider-scale" min="0.5" max="2.5" step="0.1" value="1.0" class="studio-slider">
-          </div>
-
-          <!-- Visual Toggles -->
-          <div class="studio-checkboxes-row">
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-wings"> Wings
-            </label>
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-horns"> Horns
-            </label>
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-glowing-eyes" checked> Glowing Eyes
-            </label>
-          </div>
-          <div class="studio-checkboxes-row" style="margin-top: 6px;">
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-pointed-ears"> Pointed Ears
-            </label>
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-cheek-patches"> Cheeks
-            </label>
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-lightning-tail"> Lightning Tail
-            </label>
-            <label class="studio-check-label">
-              <input type="checkbox" id="mob-check-snout"> Snout
-            </label>
-          </div>
-
-          <!-- Section: Behavior & Stats -->
-          <div class="studio-section-header">Behavior & Stats</div>
-          <div class="studio-param-group">
-            <label class="studio-param-label" for="mob-select-behavior">Behavior Type</label>
-            <select id="mob-select-behavior" class="studio-param-select">
-              <option value="hostile">Hostile (Attacks Player)</option>
-              <option value="neutral">Neutral (Peaceful unless hit)</option>
-              <option value="passive">Passive (Harmless)</option>
-              <option value="pet">Pet (Follows & Protects Player)</option>
-              <option value="boss">Boss (High Health & Range)</option>
-            </select>
-          </div>
-
-          <!-- Health -->
-          <div class="studio-param-group">
-            <div class="studio-param-label-row">
-              <label for="mob-slider-health">Health (HP)</label>
-              <span class="studio-param-value" id="mob-badge-health">40 HP</span>
-            </div>
-            <input type="range" id="mob-slider-health" min="10" max="300" step="5" value="40" class="studio-slider">
-          </div>
-
-          <!-- Speed -->
-          <div class="studio-param-group">
-            <div class="studio-param-label-row">
-              <label for="mob-slider-speed">Move Speed</label>
-              <span class="studio-param-value" id="mob-badge-speed">2.6</span>
-            </div>
-            <input type="range" id="mob-slider-speed" min="1.0" max="5.0" step="0.2" value="2.6" class="studio-slider">
-          </div>
-
-          <!-- Attack Damage -->
-          <div class="studio-param-group">
-            <div class="studio-param-label-row">
-              <label for="mob-slider-attack">Attack Damage</label>
-              <span class="studio-param-value" id="mob-badge-attack">5</span>
-            </div>
-            <input type="range" id="mob-slider-attack" min="1" max="25" step="1" value="5" class="studio-slider">
-          </div>
-
-          <!-- Section: Skills -->
-          <div class="studio-section-header">Skills & Abilities</div>
-          <div class="studio-skills-grid" id="mob-skills-checkboxes">
-            <label class="studio-skill-chip"><input type="checkbox" value="fireball" checked> 🔥 Fireball</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="teleport"> 🌀 Teleport</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="leap"> ⚡ Leap Slam</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="laser"> 💫 Laser Beam</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="heal"> 💖 Self Heal</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="lightning"> 🌩️ Lightning</label>
-            <label class="studio-skill-chip"><input type="checkbox" value="freeze"> ❄️ Freeze</label>
-          </div>
-
-          <!-- Test Action Button -->
-          <button type="button" class="mc-btn studio-btn-test" id="btn-mob-test-attack" style="margin-top: 10px; width: 100%;">⚔️ Test Action / Animate</button>
-
-
-        <!-- View-mode info panel (shown when a native/builtin mob is loaded) -->
-        <div id="mob-view-info" class="mob-view-info" style="display:none;">
-          <div class="studio-section-header">Mob Properties</div>
-          <div id="mob-view-info-content" class="mob-view-info-content">
-            <div class="mob-view-hint">Select a mob to inspect its properties.</div>
-          </div>
-          <!-- Opens the standalone inspector on the mob currently open here, so the
-               full-page tool and the Studio stay in step. -->
-          <button type="button" class="mc-btn studio-btn-debug" id="btn-mob-open-inspector"
-                  title="Open this mob in the full mob debug inspector">🔬 Open in Inspector</button>
-        </div>
-
-        <!-- Showcase status output (always visible, empty when idle) -->
-        <div id="mob-showcase-status" class="mob-showcase-status mob-showcase-idle"></div>
-        </div>
-
-        <div class="studio-panel-footer">
-          <button type="button" class="mc-btn studio-btn-save" id="btn-mob-studio-save">💾 Save</button>
-          <button type="button" class="mc-btn studio-btn-open" id="btn-mob-studio-open">📂 Open</button>
-        </div>
-      </div>
-
       <!-- AI World Agent Terminal Card (Right Side) -->
       <div class="gemini-terminal-card">
         <!-- Header -->
@@ -1286,39 +1125,6 @@
     </div>
   </div>
 
-  <!-- Save Mob Modal -->
-  <div id="modal-save-mob" class="game-modal hidden">
-    <div class="mc-dialog-card">
-      <div class="mc-dialog-header">
-        <span class="mc-dialog-title">💾 Save to Mob Library</span>
-        <button class="gemini-close-btn" id="btn-cancel-save-mob">✕</button>
-      </div>
-      <div class="mc-dialog-body">
-        <label class="mc-dialog-label" for="input-save-mob-name">Mob Name:</label>
-        <input type="text" id="input-save-mob-name" class="mc-input-text" placeholder="e.g. Fire Dragon, Shadow Ninja" autocomplete="off">
-        <div id="save-mob-conflict-msg" class="mc-dialog-error hidden"></div>
-      </div>
-      <div class="mc-dialog-footer">
-        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-mob">Save Mob</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Open Mob Modal -->
-  <div id="modal-open-mob" class="game-modal hidden">
-    <div class="mc-dialog-card mc-dialog-large">
-      <div class="mc-dialog-header">
-        <span class="mc-dialog-title">📂 Mob Library</span>
-        <button class="gemini-close-btn" id="btn-close-open-mob">✕</button>
-      </div>
-      <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="input-search-open-mob" class="mc-input-text" placeholder="Search mobs..." autocomplete="off" style="flex: 1;">
-        <button id="btn-restore-default-mobs" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in mobs">Reset Defaults</button>
-      </div>
-      <div class="studio-open-list" id="studio-open-mob-list"></div>
-    </div>
-  </div>
-
   <!-- In-game Delete Confirmation Modal -->
   <div id="modal-confirm-delete" class="game-modal hidden" style="z-index: 10006;">
     <div class="mc-dialog-card" style="max-width: 440px; text-align: center;">
@@ -1368,7 +1174,7 @@
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
       <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
-      <button class="mc-btn mc-btn-large mc-btn-mob-studio" id="btn-start-mob-studio">Mob Studio</button>
+      <button class="mc-btn mc-btn-large mc-btn-mob-inspector" id="btn-start-mob-inspector">Mob Inspector</button>
     </div>
   <!-- Sleeping Overlay (Minecraft authentic bed sleep screen) -->
   <div id="sleeping-overlay" class="sleeping-overlay hidden">

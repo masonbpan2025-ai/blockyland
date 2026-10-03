@@ -50,7 +50,6 @@ import { DungeonModeManager } from './dungeonMode.js';
 import { WorldMechanismManager } from './worldMechanisms.js';
 import { StructureStudioManager } from './structureStudio.js';
 import { StructureLibrary } from './structureLibrary.js';
-import { MobStudioManager } from './mobStudio.js';
 import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
@@ -128,7 +127,6 @@ class Game {
     this.heldItemRenderer = null;
     this.tournament = null;
     this.structureStudio = null;
-    this.mobStudio = null;
     this.portalManager = null;
     this.currentDimension = 'overworld';
 
@@ -209,7 +207,6 @@ class Game {
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
     this.structureStudio = new StructureStudioManager(this);
-    this.mobStudio = new MobStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
     this.chestManager = new ChestManager(this);
@@ -252,7 +249,6 @@ class Game {
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
     this.structureStudio?.exitStudio();
-    this.mobStudio?.exitStudio();
     // Catch a missing UI method up front: previously such a call threw late in
     // this method and silently aborted the start flow.
     const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
@@ -400,64 +396,6 @@ class Game {
       this.failWorldStart(err);
     } finally {
       if (btnStudio) btnStudio.disabled = false;
-      this._worldStartInFlight = false;
-      if (this.worldReady) this.overlay?.hide();
-    }
-  }
-
-  async startMobStudio() {
-    if (this._worldStartInFlight) return;
-    this._worldStartInFlight = true;
-    this.sounds.init();
-    const btnMobStudio = document.getElementById('btn-start-mob-studio');
-    if (btnMobStudio) btnMobStudio.disabled = true;
-
-    try {
-      this.worldGenerated = true;
-      this.worldType = 'mob_studio';
-      this.world.isFlatWorld = true;
-
-      if (this.mechanisms) {
-        this.mechanisms.setMechanism('default', this);
-      } else {
-        if (this.tournament) {
-          this.tournament.isTournamentMap = false;
-          this.tournament.cleanup?.();
-          this.tournament.reset?.();
-        }
-        if (this.trainingSites) {
-          this.trainingSites.cleanup?.();
-          this.trainingSites.reset?.();
-        }
-        if (this.dungeonMode) {
-          this.dungeonMode.reset?.();
-        }
-      }
-
-      await this.loadWorldProgressively();
-
-      // Put player on surface in creative mode facing the pedestal
-      this.player.position.set(0, 5, 0);
-      this.player.gamemode = 'creative';
-      this.player.yaw = 0; // facing +Z towards (0, 5, 6)
-      this.player.pitch = 0;
-      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
-
-      const startOverlay = document.getElementById('start-overlay');
-      if (startOverlay) startOverlay.style.display = 'none';
-
-      if (this.ui) {
-        if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
-        if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
-      }
-
-      this.worldReady = true;
-      this.mobStudio?.enterStudio();
-    } catch (err) {
-      console.error('[Mob Studio] Failed to enter Mob Studio:', err);
-      this.failWorldStart(err);
-    } finally {
-      if (btnMobStudio) btnMobStudio.disabled = false;
       this._worldStartInFlight = false;
       if (this.worldReady) this.overlay?.hide();
     }
@@ -930,11 +868,11 @@ class Game {
       });
     }
 
-    const btnMobStudio = document.getElementById('btn-start-mob-studio');
-    if (btnMobStudio) {
-      btnMobStudio.addEventListener('click', async (e) => {
+    const btnMobInspector = document.getElementById('btn-start-mob-inspector');
+    if (btnMobInspector) {
+      btnMobInspector.addEventListener('click', (e) => {
         e.stopPropagation();
-        await this.startMobStudio();
+        this.openMobInspector();
       });
     }
 
@@ -1018,6 +956,23 @@ class Game {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.heldItemRenderer.resize(window.innerWidth, window.innerHeight);
     });
+  }
+
+  /**
+   * Lead the player to the Mob Inspector.
+   *
+   * The Inspector is its own page (mob-debug.html) with its own 3D preview and controls, so
+   * this navigates rather than starting a mode of the running game. Mob Studio used to spin
+   * up a private flat world here; nothing needs generating now.
+   *
+   * @returns {string} the URL that was navigated to, so it can be asserted in tests
+   */
+  openMobInspector() {
+    // Carry the mob the player was last examining, when one is known.
+    const mob = this.mobInspectorTarget || '';
+    const url = mob ? `/mob-debug.html?mob=${encodeURIComponent(mob)}` : '/mob-debug.html';
+    if (typeof window !== 'undefined') window.location.href = url;
+    return url;
   }
 
   handleLeftClick() {

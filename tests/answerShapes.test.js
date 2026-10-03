@@ -93,7 +93,7 @@ test('other fields a model might use for the answer are recognised too', () => {
 });
 
 test('a reply with a real action is left completely alone', () => {
-  for (const action of ['build', 'edit', 'destroy', 'summon', 'create_mob', 'multi']) {
+  for (const action of ['build', 'edit', 'destroy', 'summon', 'multi']) {
     const plan = normalizePlanShape({ action, explanation: 'doing the thing' });
     assert.equal(plan.action, action, `${action} must not be rewritten`);
   }
