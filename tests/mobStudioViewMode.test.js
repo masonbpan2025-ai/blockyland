@@ -274,9 +274,40 @@ test('the create-mode form carries the mob appearance fields', (t) => {
   const look = studio.currentMob.look;
   for (const field of ['modelType', 'mainColor', 'accentColor', 'eyeColor', 'scale',
     'ears', 'earTipColor', 'tail', 'tailColor', 'hasCheekPatches', 'cheekColor',
-    'hasMouth', 'hasNose', 'hasWings', 'hasHorns', 'hasGlowingEyes']) {
+    'hasMouth', 'hasNose', 'hasSnout', 'hasWings', 'hasHorns', 'hasGlowingEyes']) {
     assert.ok(field in look, `create mode should track look.${field}`);
   }
+});
+
+test('the create-mode fields cover every look property the mob builder reads', (t) => {
+  // The builder reads these to assemble a custom mob; the panel must be able to set all of
+  // them, or a mob designed here cannot express what the engine supports.
+  withFakeDocument(t);
+  const studio = new MobStudioManager(fakeGame());
+  const engineLook = ['modelType', 'mainColor', 'accentColor', 'eyeColor', 'scale',
+    'hasWings', 'hasHorns', 'hasGlowingEyes', 'ears', 'earTipColor', 'tail', 'tailColor',
+    'hasCheekPatches', 'cheekColor', 'hasMouth', 'hasNose', 'hasBackStripes', 'hasSnout'];
+  const missing = engineLook.filter(f => !(f in studio.currentMob.look));
+  assert.deepEqual(missing, [], `these look properties have no Studio field: ${missing.join(', ')}`);
+});
+
+test('a snout set in the panel survives into the mob definition', (t) => {
+  withFakeDocument(t);
+  const studio = new MobStudioManager(fakeGame());
+  studio.currentMob.look.hasSnout = true;
+  const def = studio.currentMob;
+  assert.equal(def.look.hasSnout, true, 'the panel value is carried on the definition');
+});
+
+test('loading a saved mob preserves its snout setting', (t) => {
+  withFakeDocument(t);
+  const studio = new MobStudioManager(fakeGame());
+  studio.applyMobDefinition({
+    id: 'custom_snouty', name: 'Snouty',
+    look: { hasSnout: true, hasNose: true },
+    behavior: {}, skills: [], eggColors: {}
+  });
+  assert.equal(studio.currentMob.look.hasSnout, true, 'a saved snout is not dropped on load');
 });
 
 test('the studio does not leak a debug session after switching back to create', (t) => {

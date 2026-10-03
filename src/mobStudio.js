@@ -41,6 +41,7 @@ export class MobStudioManager {
         cheekColor: '#e3342f',
         hasMouth: false,
         hasNose: false,
+        hasSnout: false,
         hasBackStripes: false,
         hasWings: false,
         hasHorns: false,
@@ -77,6 +78,7 @@ export class MobStudioManager {
     this.checkPointedEars = hasDoc ? document.getElementById('mob-check-pointed-ears') : null;
     this.checkCheekPatches = hasDoc ? document.getElementById('mob-check-cheek-patches') : null;
     this.checkLightningTail = hasDoc ? document.getElementById('mob-check-lightning-tail') : null;
+    this.checkSnout = hasDoc ? document.getElementById('mob-check-snout') : null;
 
     this.behaviorSelect = hasDoc ? document.getElementById('mob-select-behavior') : null;
     this.healthSlider = hasDoc ? document.getElementById('mob-slider-health') : null;
@@ -202,6 +204,11 @@ export class MobStudioManager {
 
     this.checkLightningTail?.addEventListener('change', (e) => {
       this.currentMob.look.tail = e.target.checked ? 'lightning' : 'none';
+      this.updatePreviewMob();
+    });
+
+    this.checkSnout?.addEventListener('change', (e) => {
+      this.currentMob.look.hasSnout = e.target.checked;
       this.updatePreviewMob();
     });
 
@@ -537,6 +544,7 @@ export class MobStudioManager {
     if (this.checkPointedEars) this.checkPointedEars.checked = (this.currentMob.look.ears === 'pointed');
     if (this.checkCheekPatches) this.checkCheekPatches.checked = Boolean(this.currentMob.look.hasCheekPatches);
     if (this.checkLightningTail) this.checkLightningTail.checked = (this.currentMob.look.tail === 'lightning');
+    if (this.checkSnout) this.checkSnout.checked = Boolean(this.currentMob.look.hasSnout);
 
     if (this.behaviorSelect) this.behaviorSelect.value = this.currentMob.behavior.type || 'hostile';
 
