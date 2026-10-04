@@ -120,10 +120,21 @@ for itself here, so it was not added. Measuring first avoided writing code that 
 
 ## What is still not done, and why
 
-**The frame is not hard-bounded.** p99 is 34.8 ms and the worst frame reaches 75-140 ms. Generation and
-meshing are atomic per chunk, so no pre-check can bound a frame below the cost of the single most
-expensive chunk (p99 16.5 ms, max 38.9 ms). The fix is to time-slice *inside* the mesh loop so one chunk
-can be finished across frames. **This is the next thing to do and everything else is worth less.**
+**The frame is not yet hard-bounded, and generation is what is left.** Meshing became
+interruptible -- `beginChunkMesh` yields per column, so the streamer can carry a half-built chunk
+between frames -- which removed the larger half of the tail. Chunk GENERATION is still atomic per
+chunk, and it is now the dominant spike: measured p50 15.6 ms, p90 33.7 ms, p99 99.0 ms, max 183.8 ms
+on a loaded machine, against a 16.7 ms frame. So a frame can still overrun whenever one generation
+lands on a partly-spent budget.
+
+The fix is the same technique one level down: make terrain generation resumable, most naturally by
+yielding per column as `generateChunkTerrain` walks x and z, since a column's work is independent.
+**That is the next thing to do and everything else is worth less.**
+
+A limit on how far time slicing can go, worth knowing before relying on it: a resumed mesh still costs
+one geometry upload, and an upload is atomic, so the practical floor on a frame is the cost of building
+and uploading one chunk's geometry at once. That is why per-chunk cost still matters with time slicing,
+and why the allocation-free mesher was worth doing first.
 
 **Draw calls are unmeasured and unbatched.** One mesh per chunk per material means ~340 draw calls at
 radius 8. Voxelize batches the opaque bucket into one `BatchedMesh` per 8x8-chunk region; Luanti merges
