@@ -467,8 +467,9 @@ export class AnimalBehaviors {
         this.checkBreedingPair(mob, dt);
       }
 
+      if (isEquine(mob)) mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
       // 2. Baby growth timer
-      if (mob.isBaby && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
+      if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
         mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || isEquine(mob)) ? 1200 : 120)) - dt;
         if (mob.babyGrowthTimer <= 0) {
           mob.isBaby = false;
@@ -662,8 +663,8 @@ export class AnimalBehaviors {
     mob.velocity.x = moveX;
     mob.velocity.z = moveZ;
 
-    // Jump charging for horses
-    if (type === 'horse' || type === 'donkey') {
+    // Jump charging for equines
+    if (isEquine(type)) {
       if (movement.jump || movement.space) {
         this.isChargingJump = true;
         this.jumpCharge = Math.min(1.0, this.jumpCharge + dt * 1.5);

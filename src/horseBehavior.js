@@ -9,17 +9,19 @@ export const horseFood=id=>HORSE_FOODS[id!==undefined&&id===BLOCKS.HAY_BALE?'hay
 export function canFeedHorse(m,id){const f=horseFood(id);return !!f&&(m.health<m.maxHealth||m.isBaby||(!m.isTamed&&(m.temper||0)<100&&f[2]>0)||(m.type!=='mule'&&m.isTamed&&goldenFood(id)&&!(m.breedingCooldown>0)&&!(m.inLove>0)));}
 export function canInteractHorse(m,id){
  if(m.health<=0)return false;
+ if(id==='golden_dandelion')return !!m.isBaby&&!(m.ageLockCooldown>0);
  if(id==='lead')return true;if(id==='name_tag')return true;
  if(horseFood(id))return canFeedHorse(m,id);if(m.isBaby)return false;if(!id)return true;
  return !!(m.isTamed&&((id==='shears'&&(m.horseArmor||m.isSaddled))||(id==='saddle'&&!m.isSaddled)||(m.type==='horse'&&HORSE_ARMOR[id]&&!m.horseArmor)||(m.type!=='horse'&&id==='chest'&&!m.hasChest)));
 }
 export function interactHorse(b,m,player,inventory,id){
  if(m.health<=0 || !canInteractHorse(m,id))return false;
+ if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=1200;m.ageLockCooldown=2;if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(id==='lead'){if(m.leashHolder||m.leashAnchor){releaseHorseLead(b.mobManager,m);return true;}m.leashHolder=player;if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(id==='name_tag'){const item=inventory.getActiveItem();const name=item?.customName || item?.name;if(!name||name==='Name Tag')return false;m.name=String(name).slice(0,64);if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(horseFood(id)){
   const [heal,growth,temper]=horseFood(id);m.health=Math.min(m.maxHealth,m.health+heal);if(!m.isTamed)m.temper=Math.min(100,(m.temper||0)+temper);
-  if(m.isBaby)m.babyGrowthTimer=Math.max(0,(m.babyGrowthTimer??1200)-growth);
+  if(m.isBaby&&!m.ageLocked)m.babyGrowthTimer=Math.max(0,(m.babyGrowthTimer??1200)-growth);
   else if(m.type!=='mule'&&m.isTamed&&goldenFood(id)&&!(m.breedingCooldown>0)&&!(m.inLove>0)){m.inLove=m.inLoveTimer=30;m.matingTimer=0;b.spawnHeartParticles(m.mesh.position);}
   b.sounds?.playEat?.();
  }else if(id==='shears'){
@@ -57,7 +59,7 @@ export function updateHorse(m,dt,r=Math.random,sounds=null){
 
 export function serializeHorse(m){
  if(!isEquine(m))return undefined;
- return Object.fromEntries(['coat','marking','maxHealth','movementSpeed','jumpStrength','temper','isTamed','isSaddled','horseArmor','isBaby','babyGrowthTimer','breedingCooldown','hasChest','name','leashAnchor'].map(k=>[k,m[k]]));
+ return Object.fromEntries(['coat','marking','maxHealth','movementSpeed','jumpStrength','temper','isTamed','isSaddled','horseArmor','isBaby','babyGrowthTimer','ageLocked','ageLockCooldown','breedingCooldown','hasChest','name','leashAnchor'].map(k=>[k,m[k]]));
 }
 export function restoreHorse(m,data,manager){
  if(!data||!isEquine(m))return;
