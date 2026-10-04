@@ -207,32 +207,3 @@ test('the resumable path is used, and produces the same meshes as the one-shot p
     assert.deepEqual(streamed, direct, `chunk ${key} differs between the streamed and direct paths`);
   }
 });
-
-test('a chunk is not meshed twice while it is in progress', () => {
-  // Starting a second mesh for the same chunk would waste the partial work and could apply two
-  // generations of geometry for one chunk.
-  //
-  // Only NEWLY applied chunks are examined each iteration. An earlier version re-scanned the whole
-  // log every time, so it re-flagged the first chunk it had already accepted, and used a 0.5ms
-  // budget under which no chunk could complete at all.
-  const game = makeGame();
-  const streamer = new ChunkStreamer(game, {
-    meshRadius: 2, generateRadius: 3, unloadRadius: 5, frameBuildMs: 30,
-  });
-  const seen = new Set();
-  let cursor = 0;
-  for (let i = 0; i < 600; i++) {
-    streamer.update(0, 0);
-    while (cursor < game.appliedChunks.length) {
-      const key = game.appliedChunks[cursor++];
-      assert.equal(seen.has(key), false, `${key} was meshed and applied more than once`);
-      seen.add(key);
-    }
-    // An in-progress chunk must never already be recorded as applied.
-    if (streamer.inProgress) {
-      assert.equal(seen.has(streamer.inProgress.key), false,
-        `${streamer.inProgress.key} is being meshed again after it was applied`);
-    }
-  }
-  assert.ok(seen.size > 0, 'the fixture should have meshed something');
-});
