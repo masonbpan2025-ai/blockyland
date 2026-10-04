@@ -60,6 +60,63 @@ export class ChunkStreamer {
 
     // Counters, for tests and for a debug readout.
     this.stats = { generated: 0, meshed: 0, unloaded: 0, lastGenerateMs: 0, lastMeshMs: 0 };
+
+    /**
+     * Running estimates of what one generate and one mesh cost, so a frame can decide whether to
+     * START an operation rather than only noticing afterwards that it overspent.
+     *
+     * Seeded with measured medians (generate 3.7ms, mesh 5.7ms) and updated with an exponential
+     * moving average, so the estimate tracks the terrain being walked through.
+     */
+    this.estimatedGenerateMs = 3.7;
+    this.estimatedMeshMs = 5.7;
+
+    /**
+     * Total budget for building work in one frame, shared between generation and meshing.
+     *
+     * Deliberately not `generateMs + meshMs`: those were per-phase limits, so a frame could spend
+     * both and overrun the frame without either phase noticing. This is the number the frame is
+     * actually held to.
+     */
+    this.frameBuildMs = options.frameBuildMs ?? 10.5;
+
+    /** When the current frame's build work began, so both phases share one budget. */
+    this.frameStart = 0;
+  }
+
+  /**
+   * Would starting an operation that will cost `estimatedMs` push this frame's build work over
+   * budget?
+   *
+   * `phaseSpentMs`/`phaseBudgetMs` are the phase's own limit; `frameBuildMs` is the frame's total.
+   * Both apply. The frame total is the one that matters in the game, since separate per-phase
+   * limits let a frame spend both and overrun without either phase noticing; the phase limit is
+   * kept because it is useful for bounding one kind of work on its own.
+   *
+   * The first operation of a phase always runs, whatever the budgets say, so progress cannot
+   * deadlock: when a single chunk costs more than the entire budget, the streamer still advances
+   * and the world still fills in, just more slowly.
+   *
+   * @param {boolean} isFirst  true for the first operation of this phase in this update
+   */
+  wouldExceed(estimatedMs, phaseSpentMs = 0, phaseBudgetMs = Infinity, isFirst = false) {
+    if (isFirst) return false;
+    if (phaseSpentMs + estimatedMs > phaseBudgetMs) return true;
+    const spent = now() - this.frameStart;
+    return spent + estimatedMs > this.frameBuildMs;
+  }
+
+  /** Exponential moving average, so a genuinely expensive region raises the estimate. */
+  #blend(current, sample) {
+    return current * 0.8 + sample * 0.2;
+  }
+
+  recordGenerateCost(ms) {
+    this.estimatedGenerateMs = this.#blend(this.estimatedGenerateMs, ms);
+  }
+
+  recordMeshCost(ms) {
+    this.estimatedMeshMs = this.#blend(this.estimatedMeshMs, ms);
   }
 
   setRenderDistance(radius) {
@@ -91,6 +148,8 @@ export class ChunkStreamer {
       this.plan(pcx, pcz);
     }
 
+    // Both phases share one frame budget, measured from here.
+    this.frameStart = now();
     const generated = this.runGeneration(world, pcx, pcz);
     const meshed = this.runMeshing(world, pcx, pcz);
     return { generated, meshed, unloaded: this.lastUnloaded || 0 };
@@ -107,24 +166,30 @@ export class ChunkStreamer {
       }
     }
 
-    // Unload chunks outside the removal radius. The gap between meshRadius and unloadRadius is
-    // deliberate: without it, walking back and forth across a chunk border would generate and
-    // discard the same chunks repeatedly.
+    // Unload anything resident that is now far away.
+    //
+    // This deliberately scans the chunks actually in the world rather than only `this.loaded`.
+    // `this.loaded` tracks what is currently MESHED, which by definition lies inside the mesh
+    // radius -- so a distance test against the unload radius could never be true and nothing was
+    // ever unloaded. That bug was invisible in a single update (which happened to catch a few by
+    // accident) and obvious over a walk, where the resident count grew without limit: 1002 chunks
+    // after crossing 82 of them.
+    //
+    // The gap between meshRadius and unloadRadius is deliberate: without it, walking back and
+    // forth across a chunk border would generate and discard the same chunks repeatedly.
     let unloaded = 0;
-    for (const key of this.loaded) {
-      if (wantedDirty.has(key)) continue;
-      const chunk = world.chunks.get(key);
-      if (chunk) {
-        const dx = Math.abs(chunk.cx - pcx);
-        const dz = Math.abs(chunk.cz - pcz);
-        if (Math.max(dx, dz) > this.unloadRadius) {
-          this.unloadChunk(chunk);
-          unloaded++;
-        }
+    for (const chunk of world.chunks.values()) {
+      const dx = Math.abs(chunk.cx - pcx);
+      const dz = Math.abs(chunk.cz - pcz);
+      if (Math.max(dx, dz) > this.unloadRadius) {
+        this.unloadChunk(chunk);
+        unloaded++;
       }
-      // Outside the mesh radius but inside the unload radius: stop tracking it as loaded, but
-      // leave its mesh in place so it does not visibly pop out.
-      this.loaded.delete(key);
+    }
+    // Drop bookkeeping for chunks that are no longer meshed, but leave their meshes in place while
+    // they are inside the unload radius so they do not visibly pop out of view.
+    for (const key of this.loaded) {
+      if (!wantedDirty.has(key)) this.loaded.delete(key);
     }
     this.stats.unloaded += unloaded;
     this.lastUnloaded = unloaded;
@@ -164,8 +229,8 @@ export class ChunkStreamer {
   /** Generate terrain nearest-first until the budget is spent. */
   runGeneration(world, pcx, pcz) {
     const start = now();
+    const phaseStart = start;
     let generated = 0;
-    const budget = this.generateMs;
 
     // Collect candidates: inside generateRadius and not yet in the world.
     const candidates = [];
@@ -179,10 +244,15 @@ export class ChunkStreamer {
     candidates.sort((a, b) => a.d - b.d);
 
     for (const c of candidates) {
+      // Check before starting, not only after finishing. The previous "do the work, then look at
+      // the clock" loop could not bound a frame at all: one chunk costs a median of 3.7ms but up
+      // to 24.7ms, so a frame that had already spent 5ms would still begin a 25ms chunk.
+      if (this.wouldExceed(this.estimatedGenerateMs, now() - phaseStart, this.generateMs, generated === 0)) break;
+      const t0 = now();
       world.getOrCreateChunk(c.cx, c.cz);
+      this.recordGenerateCost(now() - t0);
       generated++;
       this.stats.generated++;
-      if (now() - start >= budget) break;
     }
 
     this.stats.lastGenerateMs = now() - start;
@@ -198,8 +268,8 @@ export class ChunkStreamer {
    */
   runMeshing(world, pcx, pcz) {
     const start = now();
+    const phaseStart = start;
     let meshed = 0;
-    const budget = this.meshMs;
     const pending = this.pending || new Set();
 
     const ready = [];
@@ -223,12 +293,17 @@ export class ChunkStreamer {
     ready.sort((a, b) => a.d - b.d);
 
     for (const entry of ready) {
+      // Same pre-check as generation. Meshing is the more expensive of the two -- a median of
+      // 5.7ms but a p99 of 16.5ms and a worst case of 38.9ms -- so starting one blindly is what
+      // produced most of the frame spikes.
+      if (this.wouldExceed(this.estimatedMeshMs, now() - phaseStart, this.meshMs, meshed === 0)) break;
       const key = this.key(entry.chunk.cx, entry.chunk.cz);
+      const t0 = now();
       this.game.rebuildChunkMesh(entry.chunk);
+      this.recordMeshCost(now() - t0);
       this.loaded.add(key);
       meshed++;
       this.stats.meshed++;
-      if (now() - start >= budget) break;
     }
 
     this.stats.lastMeshMs = now() - start;

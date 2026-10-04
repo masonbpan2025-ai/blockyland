@@ -35,19 +35,19 @@ export const AREAS = {
   // --- agent / terminal ---
   agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring'],
   // --- mobs ---
-  mob: ['mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity'],
+  mob: ['mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'striderParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity'],
   // --- redstone and machines ---
   redstone: ['redstone', 'advanced_redstone', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
   studio: ['structureStudio', 'structureStudioAgent', 'structureContext', 'studioBugs', 'studioEditTarget'],
   // --- world, terrain, fluids ---
-  world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
+  world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---
   build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'workstations_functional', 'bed'],
   // --- combat, skills, progression ---
   combat: ['arrows', 'skills', 'tournament', 'dungeonMode', 'farming'],
   // --- rendering and effects ---
-  render: ['visualEffects', 'lightweightShader', 'mesherParity', 'progressOverlay', 'confirmDialog'],
+  render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'progressOverlay', 'confirmDialog'],
   // --- save/load ---
   persist: ['mapManager']
 };

@@ -1,3 +1,4 @@
+import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
@@ -28,6 +29,7 @@ export const SHEEP_COLOR_HEX = {
 
 export const BREEDING_FOODS = {
   cow: ['wheat'],
+  strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
   pig: ['carrot', 'potato', 'beetroot'],
@@ -64,6 +66,7 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if(mob.type==='strider')return canInteractStrider(mob,itemId);
     if (isEquine(mob)) return canInteractHorse(mob,itemId);
     if (!itemId) {
       if ((mob.type === 'wolf' || mob.type === 'cat' || mob.type === 'ocelot') && mob.isTamed && mob.owner === player) return true;
@@ -129,6 +132,7 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if(mob.type==='strider')return interactStrider(this,mob,player,inventory,itemId);
     if (isEquine(mob)) return interactHorse(this,mob,player,inventory,itemId);
 
     // 1. Milking a Cow
@@ -312,7 +316,8 @@ export class AnimalBehaviors {
 
   mountMob(mob, player) {
     if(mob.rider&&mob.rider!==player)return false;
-    if (isEquine(mob) && mob.isBaby) return false;
+    if ((isEquine(mob)||mob.type==='strider') && mob.isBaby) return false;
+    if(mob.type==='strider'&&(!mob.isSaddled||mob.rider))return false;
     if(this.mount)this.dismount(player);
     this.jumpCharge=0;this.isChargingJump=false;
     this.mount = {
@@ -327,6 +332,7 @@ export class AnimalBehaviors {
 
   dismount(player) {
     this.jumpCharge=0;this.isChargingJump=false;
+    if(this.mount?.type==='strider'&&player)safeStriderDismount(this,this.mount.mob,player);
     if(this.mount?.mob)this.mount.mob.jumpCharge=0;
     if (this.mount) {
       if (this.mount.mob) this.mount.mob.rider = null;
@@ -374,6 +380,7 @@ export class AnimalBehaviors {
       return true;
     }
 
+    if(this.mount?.type==='strider')return boostStrider(this,player,activeItem);
     // 2. Carrot on a Stick / Warped Fungus on a Stick speed boost
     if (this.mount) {
       if ((this.mount.type === 'pig' && activeItem.id === 'carrot_on_a_stick') ||
@@ -468,10 +475,10 @@ export class AnimalBehaviors {
         this.checkBreedingPair(mob, dt);
       }
 
-      if (isEquine(mob)) mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
+      if (isEquine(mob)||mob.type==='strider') mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
       // 2. Baby growth timer
       if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
-        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || isEquine(mob)) ? 1200 : 120)) - dt;
+        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || mob.type==='strider' || isEquine(mob)) ? 1200 : 120)) - dt;
         if (mob.babyGrowthTimer <= 0) {
           mob.isBaby = false;
           mob.mesh.scale.set(1, 1, 1);
@@ -577,6 +584,7 @@ export class AnimalBehaviors {
   updateMountSteering(dt, player, controls = {}) {
     const mob = this.mount.mob;
     const type = this.mount.type;
+    if(type==='strider'){steerStrider(this,mob,player,dt,controls);return;}
     if(!mob.velocity)mob.velocity=new THREE.Vector3();
 
     // MobManager historically passed an empty controls object because the
@@ -787,10 +795,10 @@ export class AnimalBehaviors {
             if (baby) {
               baby.isBaby = true;
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
-              baby.babyGrowthTimer = isEquine(mob) ? 1200 : mob.type === 'hoglin' ? 1200 : 120;
+              baby.babyGrowthTimer = isEquine(mob) || mob.type==='hoglin' || mob.type==='strider' ? 1200 : 120;
               baby.parent = mob;
               baby.mesh?.scale?.setScalar?.(isEquine(baby) ? .7 : .5);
-              if (baby.head && !isEquine(baby)) baby.head.scale.set(1.5, 1.5, 1.5);
+              if (baby.head && !isEquine(baby) && baby.type!=='strider') baby.head.scale.set(1.5, 1.5, 1.5);
               if (baby.horns) baby.horns.forEach(h => h.visible = false);
               if (baby.udder) baby.udder.visible = false;
               if (baby.wattle) baby.wattle.visible = false;

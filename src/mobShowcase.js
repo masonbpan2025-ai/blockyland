@@ -1,4 +1,5 @@
 import { zombifiedScenarios } from './zombifiedPiglinScenarios.js';
+import { striderScenarios } from './striderScenarios.js';
 import { horseScenarios } from './horseScenarios.js';
 import { DEBUG_MOBS } from './mobDebugSession.js';
 import { BREEDING_FOODS } from './animalBehaviors.js';
@@ -82,7 +83,7 @@ function locomotionRunning(s) {
 }
 
 export function mobScenarios(type,definition=null) {
-  const cases=[];
+  const cases=type==='strider'?striderScenarios():[];
   if(type==='horse')cases.push(...horseScenarios());
   if(['zombified_piglin','zombie_pigman'].includes(type))cases.push(...zombifiedScenarios(SCENARIO_SKIP));
   const add=(id,label,duration,setup,check)=>cases.push({id,label,duration,setup,check});
@@ -119,14 +120,14 @@ export function mobScenarios(type,definition=null) {
       return false;
     });
   }
-  if(BREEDING_FOODS[type])add('breeding','Feeding, courtship and baby',8,s=>{const mate=s.manager.spawnMob(type,.8,0,0);if(!mate)throw new Error(`cannot spawn a mate of type ${type}`);s.player.gamemode='creative';s.mob.isTamed=mate.isTamed=true;interact(s,BREEDING_FOODS[type][0]);interact(s,BREEDING_FOODS[type][0],mate);},s=>s.manager.mobs.some(m=>m.isBaby));
+  if(type!=='strider'&&BREEDING_FOODS[type])add('breeding','Feeding, courtship and baby',8,s=>{const mate=s.manager.spawnMob(type,.8,0,0);if(!mate)throw new Error(`cannot spawn a mate of type ${type}`);s.player.gamemode='creative';s.mob.isTamed=mate.isTamed=true;interact(s,BREEDING_FOODS[type][0]);interact(s,BREEDING_FOODS[type][0],mate);},s=>s.manager.mobs.some(m=>m.isBaby));
   if(type==='piglin'){
     add('barter','Gold ingot admiration and barter',8,s=>{s.player.gamemode='creative';equip(s,'gold_ingot');s.actionAccepted=s.manager.hostileBehaviors.interactPiglin(s.mob,s.player,s.inventory);},s=>s.actionAccepted&&!s.mob.isBartering);
     add('gold_armor','Gold armor neutrality',3,s=>{s.player.gamemode='survival';s.inventory.armor.helmet={id:'golden_helmet'};s.player.position.set(0,0,3);},s=>s.mob.combatTarget!==s.player && !s.mob.aggroToPlayer);
     add('hunt','Hoglin hunting',10,s=>{s.prey=s.manager.spawnMob('hoglin',0,0,3);s.prey.cannotBeHunted=false;s.prey.bastionSpawn=false;s.mob.huntCooldown=0;s.mob.huntCheckTime=0;s.mob.combatTarget=s.prey;s.prey.combatTarget=s.mob;},s=>s.prey.health<s.prey.maxHealth || s.prey.dead);
   }
   if(type==='villager')add('trade','Villager trade and inventory exchange',3,s=>{s.mob.profession='farmer';s.mob.trades=[];unlockTradesForLevel(s.mob,1);const t=s.mob.trades[0];if(t){s.inventory.hotbar=[{...t.cost,count:128},...(t.cost2?[{...t.cost2,count:128}]:[])];s.tradeResult=executeTrade(t,s.mob,s.inventory);}},s=>s.tradeResult?.success===true);
-  if(['horse','donkey','mule','pig','strider'].includes(type))add('ride','Saddle, mount and steering',5,s=>{s.player.gamemode='creative';s.mob.isTamed=true;s.mob.owner=s.player;equip(s,'saddle');interact(s,'saddle');equip(s,type==='pig'?'carrot_on_a_stick':type==='strider'?'warped_fungus_on_a_stick':null);interact(s,null);s.mounted=!!(s.mob.rider||s.manager.animalBehaviors.mount?.mob===s.mob||s.mob.isRidden);s.manager.game.controls={forward:true,backward:false,left:false,right:false,jump:false};s.player.keys={KeyW:true};s.player.yaw=s.mob.yaw=0;},s=>s.mounted&&s.mob.mesh.position.distanceTo(s.startPosition)>.1);
+  if(['horse','donkey','mule','pig'].includes(type))add('ride','Saddle, mount and steering',5,s=>{s.player.gamemode='creative';s.mob.isTamed=true;s.mob.owner=s.player;equip(s,'saddle');interact(s,'saddle');equip(s,type==='pig'?'carrot_on_a_stick':type==='strider'?'warped_fungus_on_a_stick':null);interact(s,null);s.mounted=!!(s.mob.rider||s.manager.animalBehaviors.mount?.mob===s.mob||s.mob.isRidden);s.manager.game.controls={forward:true,backward:false,left:false,right:false,jump:false};s.player.keys={KeyW:true};s.player.yaw=s.mob.yaw=0;},s=>s.mounted&&s.mob.mesh.position.distanceTo(s.startPosition)>.1);
   if(['wolf','cat','ocelot'].includes(type)){
     add('tame','Taming with food',3,s=>{s.player.gamemode='creative';for(let n=0;n<20&&!s.mob.isTamed;n++)interact(s,type==='wolf'?'bone':'cod');},s=>!!s.mob.isTamed);
     add('sit','Tamed companion sitting',2,s=>{s.mob.isTamed=true;s.mob.owner=s.player;interact(s,null);},s=>!!s.mob.isSitting);

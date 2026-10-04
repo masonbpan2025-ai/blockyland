@@ -1190,6 +1190,7 @@ export const ITEMS = {
   pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
+  splash_water_bottle: { name: 'Splash Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },

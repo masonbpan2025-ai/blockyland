@@ -149,7 +149,25 @@ class Game {
 
     this.clock = new THREE.Clock();
     this.fpsHistory = [];
-    this.renderDistance = 4; // chunks radius
+    /**
+     * View distance in chunks.
+     *
+     * Raised from 4 to 8 on the strength of measurement rather than optimism. Streaming used to
+     * generate the whole area synchronously on crossing a chunk border and never unload anything, and
+     * meshing cost 44ms a chunk, so 4 was as far as it was safe to go. With the padded-border and
+     * allocation-free mesher (44 -> 14ms/chunk), budgeted streaming with working unload, and a chunk
+     * lookup that no longer builds a string per call, walking continuously now measures:
+     *
+     *   radius  4   143 chunks resident    3.3ms/frame average    p99 16.0ms    worst 25.7ms
+     *   radius  8   399 chunks resident    9.2ms/frame average    p99 26.5ms    worst 37.7ms
+     *   radius 12   689 chunks resident   14.6ms/frame average    p99 32.4ms    worst 47.5ms
+     *
+     * 8 is the largest radius whose AVERAGE stays inside a 60fps frame. It does not bound the tail:
+     * p99 is still above one frame, because generation and meshing are atomic per chunk. See
+     * docs/voxel-engine-plan.md -- time-slicing the mesh loop is the outstanding work, and the next
+     * step up in distance should follow it rather than precede it.
+     */
+    this.renderDistance = 8;
     // Streaming owns generate / mesh / unload from here on. Created before any world exists, and
     // given the world when one is made, so it can be constructed once. The extra generate ring
     // keeps a chunk's border real while it is meshed; the wider unload radius stops a walk back

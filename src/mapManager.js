@@ -1,4 +1,5 @@
 import {serializeZombified,restoreZombified,restoreZombifiedLinks,isZombifiedPiglin} from './zombifiedPiglin.js';
+import { serializeStrider, restoreStrider, attachStriderPassenger } from './striderBehavior.js';
 import { serializeHorse, restoreHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { Chunk } from './world.js';
@@ -64,6 +65,8 @@ export function serializeWorld(game, mapName = 'World 1') {
     yaw: Number((mob.yaw || 0).toFixed(3)),
     equine: serializeHorse(mob),
     zombified: serializeZombified(mob,game.mobs),
+    strider: serializeStrider(mob),
+    striderVehicle: mob.vehicle?.type==='strider' ? game.mobs.mobs.indexOf(mob.vehicle) : undefined,
     health: mob.health ?? 20
   }));
 
@@ -254,6 +257,7 @@ export function deserializeWorld(game, mapData, options = {}) {
       try {
         const spawned = isZombifiedPiglin(m.type)?game.mobs.spawnZombifiedPiglin(m.position.x,m.position.y,m.position.z,{natural:false}):m.type==='strider'?game.mobs.spawnStrider(m.position.x,m.position.y,m.position.z,{natural:false}):game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
         restoredMobs[recordIndex]=spawned;
+        restoreStrider(spawned,m.strider);
         if (spawned && m.health) {
           spawned.health = m.health;
           spawned.maxHealth = Math.max(spawned.maxHealth || m.health, m.health);
@@ -269,6 +273,10 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   for(let i=0;i<(mapData.mobs?.length||0);i++)restoreZombifiedLinks(restoredMobs[i],mapData.mobs[i].zombified,restoredMobs);
 
+  for(let i=0;i<(mapData.mobs?.length||0);i++){
+    const vehicle=mapData.mobs[i].striderVehicle;
+    if(Number.isInteger(vehicle)&&restoredMobs?.[vehicle]?.type==='strider'&&restoredMobs[i])attachStriderPassenger(restoredMobs[vehicle],restoredMobs[i]);
+  }
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
     game.geminiAgent.builtStructures = mapData.gemini.builtStructures || [];

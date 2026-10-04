@@ -303,31 +303,6 @@ export class HostileMobBehaviors {
 
       if (mob.type === 'hoglin' || mob.type === 'zoglin') updateHoglin(this, mob, dt, player);
 
-      // F4. Strider AI: Lava walking and shivering when out of lava
-      if (mob.type === 'strider') {
-        const sx = Math.floor(mob.mesh.position.x);
-        const sy = Math.floor(mob.mesh.position.y);
-        const sz = Math.floor(mob.mesh.position.z);
-        const onLava = this.world?.getVoxel(sx, sy, sz) === BLOCKS.LAVA ||
-                       this.world?.getVoxel(sx, sy - 1, sz) === BLOCKS.LAVA ||
-                       this.world?.getVoxel(sx, Math.floor(mob.mesh.position.y - 0.2), sz) === BLOCKS.LAVA;
-        mob.inLava = onLava;
-        if (onLava) {
-          mob.isCold = false;
-          if (mob.striderWarmMat && mob.bodyMesh) {
-            mob.bodyMesh.material = mob.striderWarmMat;
-          }
-        } else {
-          mob.isCold = true;
-          if (mob.striderColdMat && mob.bodyMesh) {
-            mob.bodyMesh.material = mob.striderColdMat;
-          }
-          if (mob.head) {
-            mob.head.position.x = (Math.random() - 0.5) * 0.06;
-          }
-        }
-      }
-
       // G. Guardian & Elder Guardian: Targeting Laser Beam & Mining Fatigue
       if (mob.type === 'guardian' || mob.type === 'elder_guardian') {
         const isElder = (mob.type === 'elder_guardian');
