@@ -8,6 +8,93 @@ import { WATER_COLORS } from './water.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
 
+// --- Padded voxel window -----------------------------------------------------
+//
+// Face culling needs the six neighbours of every voxel and ambient occlusion needs the eight
+// neighbours of each face corner, which reach one block beyond the chunk. Reading those through
+// world.getVoxel meant roughly 14 map lookups per visible face -- and for AO the same cell was
+// fetched repeatedly. Copying the chunk plus a one-block border into a flat array once per mesh
+// turns all of that into array indexing.
+//
+// The padding is 1 in x and z. In y there is no padding because getVoxel already returns air
+// outside 0..CHUNK_HEIGHT-1, so the clamped index below lands on a real cell whose value is the
+// air it would have returned.
+const PAD_X = CHUNK_SIZE_X + 2;
+const PAD_Z = CHUNK_SIZE_Z + 2;
+const PAD_STRIDE_Y = PAD_X * PAD_Z;
+
+/** Scratch buffers, reused across meshes so a mesh allocates nothing for its border. */
+let borderBlocks = null;
+
+function ensureBorderBuffers() {
+  if (borderBlocks) return;
+  borderBlocks = new Uint8Array(PAD_STRIDE_Y * CHUNK_HEIGHT);
+}
+
+/**
+ * Copy the chunk and its one-block border into the scratch buffer.
+ *
+ * Interior columns are copied straight out of the chunk's own typed array; only the one-block
+ * ring calls world.getVoxel. No noise is evaluated here.
+ */
+function fillBorder(chunk, world) {
+  ensureBorderBuffers();
+  const cx = chunk.cx;
+  const cz = chunk.cz;
+  const voxels = chunk.voxels;
+
+  for (let px = 0; px < PAD_X; px++) {
+    const wx = cx * CHUNK_SIZE_X + px - 1;
+    const insideX = px >= 1 && px <= CHUNK_SIZE_X;
+    for (let pz = 0; pz < PAD_Z; pz++) {
+      const wz = cz * CHUNK_SIZE_Z + pz - 1;
+      const insideZ = pz >= 1 && pz <= CHUNK_SIZE_Z;
+      const columnBase = (px * PAD_Z + pz) * CHUNK_HEIGHT;
+
+      if (insideX && insideZ) {
+        // Interior column: one bulk typed-array copy straight out of the chunk's own storage.
+        // The chunk's index layout is (y * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx, so a column is
+        // strided rather than contiguous; copying y-by-y is the cheapest correct form.
+        const lx = px - 1;
+        const lz = pz - 1;
+        const columnStride = CHUNK_SIZE_X * CHUNK_SIZE_Z;
+        const src = lz * CHUNK_SIZE_X + lx;
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          borderBlocks[columnBase + y] = voxels[y * columnStride + src];
+        }
+      } else {
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          const id = world.getVoxel(wx, y, wz);
+          borderBlocks[columnBase + y] = id === undefined ? 0 : id;
+        }
+      }
+    }
+  }
+}
+
+/** Voxel from the padded window. Out-of-range y is real air, which is what getVoxel returned. */
+function padGet(x, y, z) {
+  if (y < 0 || y >= CHUNK_HEIGHT) return BLOCKS.AIR;
+  const px = x + 1;
+  const pz = z + 1;
+  if (px < 0 || px >= PAD_X || pz < 0 || pz >= PAD_Z) return BLOCKS.AIR;
+  return borderBlocks[(px * PAD_Z + pz) * CHUNK_HEIGHT + y];
+}
+
+/**
+ * Biome of a column, in world coordinates.
+ *
+ * Deliberately NOT cached here. An earlier version cached this per padded chunk column in a
+ * module-level array and it produced mismatched water tint across a chunk seam: the two chunks
+ * either side of the seam disagreed about the same shared column. The cost is irrelevant anyway,
+ * because the only caller (water tinting) already memoises by world column for the duration of a
+ * mesh -- a whole chunk's water surface asks for each column once.
+ */
+function biomeAt(world, wx, wz) {
+  return typeof world.getBiome === 'function' ? world.getBiome(wx, wz) : null;
+}
+
+
 // Vertex AO calculation: returns 0..3 based on solid neighbors
 function vertexAO(side1, side2, corner) {
   if (side1 && side2) return 0;
@@ -63,6 +150,12 @@ export class ChunkMesher {
     const depthCache = new Map();
     const tintCache = new Map();
 
+    // Copy the chunk and its border once. Everything the inner loop needs is then a flat array
+    // read rather than a world lookup.
+    fillBorder(chunk, world);
+
+    // Column depth for water corner heights. Keys stay in WORLD coordinates so the two sides of a
+    // chunk seam agree on the depth of the shared column.
     const columnDepth = (x, y, z) => {
       const key = `${x},${y},${z}`;
       if (depthCache.has(key)) return depthCache.get(key);
@@ -78,15 +171,12 @@ export class ChunkMesher {
       for (let dx = -1; dx <= 0; dx++) for (let dz = -1; dz <= 0; dz++) {
         depth += columnDepth(x + dx, y, z + dz);
         const key = `${x + dx},${z + dz}`;
-        if (!tintCache.has(key)) tintCache.set(key, WATER_COLORS[world.getBiome(x + dx, z + dz)] || WATER_COLORS.plains);
+        if (!tintCache.has(key)) {
+          tintCache.set(key, WATER_COLORS[biomeAt(world, x + dx, z + dz)] || WATER_COLORS.plains);
+        }
         tint.add(tintCache.get(key));
       }
       return { depth: Math.max(0.25, depth / 4), tint: tint.multiplyScalar(0.25) };
-    };
-
-    // Helper to get voxel from world for seamless chunk borders
-    const getVoxelWorld = (x, y, z) => {
-      return world.getVoxel(x, y, z);
     };
 
     for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
@@ -197,14 +287,15 @@ export class ChunkMesher {
             continue;
           }
 
-          // Check all 6 faces
+          // Check all 6 faces. Sampled from the padded window in LOCAL coordinates, which is the
+          // same data getVoxel(world coords) returned, without the per-call map lookup.
           const neighbors = {
-            top: getVoxelWorld(wx, wy + 1, wz),
-            bottom: getVoxelWorld(wx, wy - 1, wz),
-            north: getVoxelWorld(wx, wy, wz + 1),
-            south: getVoxelWorld(wx, wy, wz - 1),
-            east: getVoxelWorld(wx + 1, wy, wz),
-            west: getVoxelWorld(wx - 1, wy, wz)
+            top: padGet(lx, ly + 1, lz),
+            bottom: padGet(lx, ly - 1, lz),
+            north: padGet(lx, ly, lz + 1),
+            south: padGet(lx, ly, lz - 1),
+            east: padGet(lx + 1, ly, lz),
+            west: padGet(lx - 1, ly, lz)
           };
 
           const addFace = (face, positions, normal) => {
@@ -232,27 +323,27 @@ export class ChunkMesher {
             let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
             if (!isWater && !isTransparent) {
               if (face === 'top') {
-                const s1 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz));
-                const s2 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz));
-                const s3 = isSolidBlock(getVoxelWorld(wx, wy + 1, wz - 1));
-                const s4 = isSolidBlock(getVoxelWorld(wx, wy + 1, wz + 1));
-                const c1 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz - 1));
-                const c2 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz - 1));
-                const c3 = isSolidBlock(getVoxelWorld(wx + 1, wy + 1, wz + 1));
-                const c4 = isSolidBlock(getVoxelWorld(wx - 1, wy + 1, wz + 1));
+                const s1 = isSolidBlock(padGet(lx - 1, ly + 1, lz));
+                const s2 = isSolidBlock(padGet(lx + 1, ly + 1, lz));
+                const s3 = isSolidBlock(padGet(lx, ly + 1, lz - 1));
+                const s4 = isSolidBlock(padGet(lx, ly + 1, lz + 1));
+                const c1 = isSolidBlock(padGet(lx - 1, ly + 1, lz - 1));
+                const c2 = isSolidBlock(padGet(lx + 1, ly + 1, lz - 1));
+                const c3 = isSolidBlock(padGet(lx + 1, ly + 1, lz + 1));
+                const c4 = isSolidBlock(padGet(lx - 1, ly + 1, lz + 1));
                 ao0 = vertexAO(s1, s4, c4);
                 ao1 = vertexAO(s2, s4, c3);
                 ao2 = vertexAO(s2, s3, c2);
                 ao3 = vertexAO(s1, s3, c1);
               } else if (face === 'bottom') {
-                const s1 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz));
-                const s2 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz));
-                const s3 = isSolidBlock(getVoxelWorld(wx, wy - 1, wz - 1));
-                const s4 = isSolidBlock(getVoxelWorld(wx, wy - 1, wz + 1));
-                const c1 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz - 1));
-                const c2 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz - 1));
-                const c3 = isSolidBlock(getVoxelWorld(wx + 1, wy - 1, wz + 1));
-                const c4 = isSolidBlock(getVoxelWorld(wx - 1, wy - 1, wz + 1));
+                const s1 = isSolidBlock(padGet(lx - 1, ly - 1, lz));
+                const s2 = isSolidBlock(padGet(lx + 1, ly - 1, lz));
+                const s3 = isSolidBlock(padGet(lx, ly - 1, lz - 1));
+                const s4 = isSolidBlock(padGet(lx, ly - 1, lz + 1));
+                const c1 = isSolidBlock(padGet(lx - 1, ly - 1, lz - 1));
+                const c2 = isSolidBlock(padGet(lx + 1, ly - 1, lz - 1));
+                const c3 = isSolidBlock(padGet(lx + 1, ly - 1, lz + 1));
+                const c4 = isSolidBlock(padGet(lx - 1, ly - 1, lz + 1));
                 ao0 = vertexAO(s1, s3, c1);
                 ao1 = vertexAO(s2, s3, c2);
                 ao2 = vertexAO(s2, s4, c3);

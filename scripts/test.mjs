@@ -47,7 +47,7 @@ export const AREAS = {
   // --- combat, skills, progression ---
   combat: ['arrows', 'skills', 'tournament', 'dungeonMode', 'farming'],
   // --- rendering and effects ---
-  render: ['visualEffects', 'lightweightShader', 'progressOverlay', 'confirmDialog'],
+  render: ['visualEffects', 'lightweightShader', 'mesherParity', 'progressOverlay', 'confirmDialog'],
   // --- save/load ---
   persist: ['mapManager']
 };
