@@ -35,9 +35,16 @@ machine -- a run during a busy period measured 60ms/frame for a scenario that me
 | Chunks resident at radius 8 | unbounded, never unloaded | **399**, bounded |
 | Live geometry on a long walk | 41.4 MB and growing | **6.5 MB**, bounded |
 
-Walking continuously at view radius 8 with the real mesher, 1800 frames: **11.5 ms/frame average,
-p50 13.4 ms, p90 21.4 ms, p99 34.8 ms** against a 16.7 ms frame. The average is inside a frame; the
-tail is not.
+Walking continuously at view radius 8 with the real mesher: **11.5 ms/frame average, p50 13.4 ms,
+p90 21.4 ms, p99 34.8 ms** against a 16.7 ms frame. The average is inside a frame; the tail is not.
+
+Meshing is now interruptible, which roughly halves the frame-time distribution measured against the
+one-shot path in the same process (both figures inflated by machine load; the ratio is the point):
+
+| view radius 8 | avg | p50 | p90 | p99 | max |
+|---|---|---|---|---|---|
+| one-shot meshing | 40.9 ms | 34.8 ms | 73.3 ms | 341.5 ms | 758.2 ms |
+| time-sliced | 26.7 ms | 17.7 ms | 40.4 ms | 216.6 ms | 380.4 ms |
 
 ## What was done, and the bug that made each earlier claim false
 
