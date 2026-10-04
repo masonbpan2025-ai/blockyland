@@ -1,3 +1,4 @@
+import { squidRayDistance } from './squidHitbox.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
@@ -1028,6 +1029,8 @@ class Game {
           for (const ench of activeItem.enchantments) {
             if (ench.id === 'sharpness') {
               damage += 0.5 * ench.level + 0.5;
+            } else if (ench.id === 'impaling' && activeItem.id === 'trident' && ['squid','glow_squid'].includes(this.targetMob.type)) {
+              damage += 2.5 * ench.level;
             } else if (ench.id === 'smite' && ['zombie','skeleton','wither_skeleton','zombified_piglin','zombie_pigman','zoglin','drowned','zombie_villager'].includes(this.targetMob.type)) {
               damage += 2.5 * ench.level;
             }
@@ -1890,8 +1893,9 @@ class Game {
     let closestMobDist = Infinity;
     for (const mob of this.mobs.mobs) {
       if (mob.health <= 0 || mob.dying) continue;
+      if(['squid','glow_squid'].includes(mob.type)){const distance=squidRayDistance(mob,camPos,camDir);if(distance<closestMobDist){closestMobDist=distance;this.targetMob=mob;}continue;}
       const dims = this.mobs?.getMobDimensions ? this.mobs.getMobDimensions(mob.type) : { width: 0.9, height: 1.4 };
-      const scale = mob.isBaby ? 0.5 : 1.0;
+      const scale = mob.isBaby ? (['squid','glow_squid'].includes(mob.type)?.625:.5) : 1.0;
       const width = (dims.width || 0.8) * scale;
       const height = (dims.height || 1.4) * scale;
       const center = mob.mesh.position.clone().add(new THREE.Vector3(0, height * 0.5, 0));

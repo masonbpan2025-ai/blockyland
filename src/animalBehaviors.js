@@ -1,3 +1,4 @@
+import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squidBehavior.js';
 import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import * as THREE from 'three';
@@ -66,6 +67,7 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if(isSquid(mob))return canInteractSquid(mob,itemId);
     if(mob.type==='strider')return canInteractStrider(mob,itemId);
     if (isEquine(mob)) return canInteractHorse(mob,itemId);
     if (!itemId) {
@@ -132,6 +134,7 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if(isSquid(mob))return interactSquid(this,mob,player,inventory,itemId);
     if(mob.type==='strider')return interactStrider(this,mob,player,inventory,itemId);
     if (isEquine(mob)) return interactHorse(this,mob,player,inventory,itemId);
 
@@ -459,6 +462,7 @@ export class AnimalBehaviors {
       const mob = mobs[i];
       if (mob.health <= 0) continue;
 
+      if(isSquid(mob)){updateSquidAge(mob,dt);continue;}
       if(isEquine(mob))updateHorse(mob,dt,this.mobManager.random || Math.random,this.sounds);
       // 1. Breeding cooldown & Love mode
       if (mob.breedingCooldown > 0) {

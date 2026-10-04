@@ -1,7 +1,8 @@
+import { isSquid } from './squidBehavior.js';
 import { isEquine } from './horseBehavior.js';
 export function mobBounds(manager, mob) {
   const base = manager.getMobDimensions(mob.type);
-  const scale = mob.isBaby ? (isEquine(mob) ? .7 : .5) : 1;
+  const scale = mob.isBaby ? (isSquid(mob) ? .625 : isEquine(mob) ? .7 : .5) : 1;
   return { width: (mob.width || base.width) * scale, height: (mob.height || base.height) * scale };
 }
 

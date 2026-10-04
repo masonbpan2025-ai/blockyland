@@ -1,3 +1,4 @@
+import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
 import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
 import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified} from './zombifiedPiglin.js';
 import { createStriderModel } from './striderModel.js';
@@ -134,7 +135,7 @@ export class MobManager {
   }
 
   clearMobs() {
-    for(const mob of this.mobs){if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
+    for(const mob of this.mobs){if(isSquid(mob)){for(const mat of mob.squidMaterials||[])mat.map?.dispose();}if(mob.laserLine){mob.laserLine.removeFromParent();mob.laserLine.geometry.dispose();mob.laserLine.material.dispose();mob.laserLine=null;}if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
     this.playerContactStart = null;
     for (const potion of this.splashPotions || []) { potion.mesh.removeFromParent(); potion.mesh.geometry.dispose(); potion.mesh.material.dispose(); }
     this.splashPotions = [];
@@ -342,7 +343,7 @@ export class MobManager {
       case 'salmon': return this.spawnSalmon(x, y, z);
       case 'dolphin': return this.spawnDolphin(x, y, z);
       case 'octopus':
-      case 'squid': return this.spawnOctopus(x, y, z);
+      case 'squid': return this.spawnSquid(x, y, z);
       case 'axolotl': return this.spawnAxolotl(x, y, z);
       case 'mooshroom': return this.spawnMooshroom(x, y, z);
       case 'polar_bear': return this.spawnPolarBear(x, y, z);
@@ -2243,7 +2244,7 @@ export class MobManager {
       case 'dolphin': return { width: 0.9, height: 0.65 };
       case 'octopus':
       case 'squid':
-      case 'glow_squid': return { width: 0.7, height: 0.9 };
+      case 'glow_squid': return { width: 0.8, height: 0.8 };
       case 'drowned': return { width: 0.6, height: 1.95 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
       case 'horse':
@@ -2282,7 +2283,7 @@ export class MobManager {
 
   checkMobCollision(mob, pos) {
     const dims = this.getMobDimensions(mob.type);
-    const scale = mob.isBaby ? (isEquine(mob) ? 0.7 : 0.5) : 1;
+    const scale = mob.isBaby ? (isSquid(mob) ? .625 : isEquine(mob) ? 0.7 : 0.5) : 1;
     const hw = (mob.width || dims.width) * scale / 2;
     const h = (mob.height || dims.height) * scale;
 
@@ -2317,7 +2318,7 @@ export class MobManager {
         if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
 
         const dimsA = this.getMobDimensions ? this.getMobDimensions(mobA.type) : { width: 0.6, height: 1.0 };
-        const scaleA = mobA.isBaby ? (isEquine(mobA) ? .7 : .5) : 1.0;
+        const scaleA = mobA.isBaby ? (isSquid(mobA) ? .625 : isEquine(mobA) ? .7 : .5) : 1.0;
         const hA = (mobA.height || dimsA?.height || 1.0) * scaleA;
         const wA = (mobA.width || dimsA?.width || 0.6) * scaleA;
         const rA = Math.max(0.24, wA * 0.5);
@@ -2329,7 +2330,7 @@ export class MobManager {
           if (mobA.rider === mobB || mobB.rider === mobA) continue;
 
           const dimsB = this.getMobDimensions ? this.getMobDimensions(mobB.type) : { width: 0.6, height: 1.0 };
-          const scaleB = mobB.isBaby ? (isEquine(mobB) ? .7 : .5) : 1.0;
+          const scaleB = mobB.isBaby ? (isSquid(mobB) ? .625 : isEquine(mobB) ? .7 : .5) : 1.0;
           const hB = (mobB.height || dimsB?.height || 1.0) * scaleB;
           const yB = mobB.mesh.position.y;
 
@@ -4434,66 +4435,7 @@ export class MobManager {
   }
 
   // --- GLOW SQUID ---
-  spawnGlowSquid(x, y, z) {
-    const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({
-      map: this.textures.glow_squid,
-      emissive: 0x06b6d4,
-      emissiveIntensity: 0.45
-    });
-
-    // Mantle / Head
-    const mantleGeo = new THREE.BoxGeometry(0.55, 0.72, 0.55);
-    const mantle = new THREE.Mesh(mantleGeo, mat);
-    mantle.position.set(0, 0.65, 0);
-    group.add(mantle);
-
-    // 8 Articulated Tentacles Ring
-    const tentacles = [];
-    const tentacleGeo = new THREE.BoxGeometry(0.1, 0.65, 0.1);
-
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const tPivot = new THREE.Group();
-      tPivot.position.set(Math.sin(angle) * 0.22, 0.32, Math.cos(angle) * 0.22);
-
-      const tMesh = new THREE.Mesh(tentacleGeo, mat);
-      tMesh.position.set(0, -0.32, 0);
-      tPivot.add(tMesh);
-
-      tPivot.rotation.y = angle;
-      group.add(tPivot);
-      tentacles.push(tPivot);
-    }
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'glow_squid',
-      name: 'Glow Squid',
-      mesh: group,
-      isGlowSquid: true,
-      isAquatic: true,
-      inWater: true,
-      tentacles: tentacles,
-      mat: mat,
-      glowParticleTimer: 0,
-      health: 10,
-      maxHealth: 10,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      pitch: 0,
-      swimCycle: Math.random() * 10,
-      timer: 0,
-      flopTimer: 0,
-      targetPos: null,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
-  }
+  spawnGlowSquid(x, y, z, options={}) { return spawnSquid(this,'glow_squid',x,y,z,options); }
 
   // --- AQUATIC: COD ---
   spawnCod(x, y, z) {
@@ -5701,12 +5643,7 @@ export class MobManager {
     return mob;
   }
 
-  spawnSquid(x, y, z) {
-    const mob = this.spawnOctopus(x, y, z);
-    mob.type = 'squid';
-    mob.name = 'Squid';
-    return mob;
-  }
+  spawnSquid(x, y, z, options={}) { return spawnSquid(this,'squid',x,y,z,options); }
 
   // --- AQUATIC: AXOLOTL ---
   spawnAxolotl(x, y, z) {
@@ -5949,6 +5886,8 @@ export class MobManager {
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
       if(attacker===this.game?.player){const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     }
+    if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
+    if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     mob.health -= amount;
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
@@ -5988,7 +5927,9 @@ export class MobManager {
       mob.hurtScalePulse = 0.045;
     }
 
-    if (mob.type === 'glow_squid') {
+    if(isSquid(mob)) {
+      hurtSquid(this,mob,attacker,knockbackOrigin);
+    } else if (mob.type === 'glow_squid') {
       this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22d3ee, 10);
     } else if (mob.type === 'squid' || mob.type === 'octopus') {
       this.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x18181b, 10);
@@ -6023,7 +5964,7 @@ export class MobManager {
       if (kbDir.lengthSq() > 0.001) kbDir.normalize();
       else kbDir.set(0, 0, 1);
       const isHeavyOrFlying = mob.isBoss || mob.isFlying || /dragon/i.test(mob.name || '');
-      const kbFactor = ['hoglin', 'zoglin'].includes(mob.type) ? 0.4 : isHeavyOrFlying ? 0.25 : 1.0;
+      const kbFactor = isSquid(mob) ? .15 : ['hoglin', 'zoglin'].includes(mob.type) ? 0.4 : isHeavyOrFlying ? 0.25 : 1.0;
       mob.knockback = kbDir.multiplyScalar((isPunch ? 3.5 : 6) * kbFactor);
       mob.velocity.y += (isPunch ? 1.8 : 4) * kbFactor;
     }
@@ -6159,7 +6100,7 @@ export class MobManager {
     mob.deathTime += dt;
     mob.mesh.position.y -= mob.deathLift || 0;
     moveGroundMob(this, mob, dt);
-    const fall = THREE.MathUtils.smoothstep(mob.deathTime, 0, 0.5);
+    const fall = isSquid(mob) ? 0 : THREE.MathUtils.smoothstep(mob.deathTime, 0, 0.5);
     mob.mesh.rotation.z = mob.deathRotation + fall * Math.PI / 2;
     mob.deathLift = Math.sin(fall * Math.PI / 2) * this.getMobDimensions(mob.type).width * 0.5;
     mob.mesh.position.y += mob.deathLift;
@@ -6169,6 +6110,7 @@ export class MobManager {
         this.hostileBehaviors?.handleMobDeathSplitting?.(mob);
       }
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      if(isSquid(mob)){dropSquidLoot(this,mob,pos);mob.noLoot=true;}
       if(isZombifiedPiglin(mob)){dropZombifiedLoot(this,mob,pos);mob.noLoot=true;}
       if (mob.isBaby) {
         mob.noLoot = true;
@@ -6253,6 +6195,7 @@ export class MobManager {
       const geometries = new Set();
       mob.mesh.traverse(child => { if (child.geometry) geometries.add(child.geometry); });
       geometries.forEach(geo => geo.dispose());
+      if(isSquid(mob))for(const mat of mob.squidMaterials||[])mat.map?.dispose();
       mob.deathMaterials.forEach(mat => mat.dispose()); // texture maps are shared and stay cached
     }
   }
@@ -6396,6 +6339,7 @@ export class MobManager {
     this.ensureFaultTracking();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
     updateStriderSpawning(this, dt, player);
+    updateSquidSpawning(this, dt, player);
     updateArrows(this, dt, player);
     updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
@@ -6428,7 +6372,7 @@ export class MobManager {
         // before the AI chain so the heading cannot be overwritten by a mob that wants to walk
         // somewhere else; movement itself still goes through the normal ground mover.
         {
-          const escapingHazard = updateHazardEscape(this, mob, dt);
+          const escapingHazard = !isSquid(mob) && updateHazardEscape(this, mob, dt);
           if (escapingHazard) {
             moveGroundMob(this, mob, dt);
             continue;
@@ -7470,6 +7414,8 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateAquaticMob(mob, dt, player) {
+      if(isSquid(mob)){updateSquid(this,mob,dt,player);return true;}
+      if(updateSquidPredator(this,mob,dt))return true;
       // --- AQUATIC CREATURE AI & 3D SWIMMING PHYSICS ---
       const bX = Math.floor(mob.mesh.position.x);
       const bY = Math.floor(mob.mesh.position.y + 0.15);

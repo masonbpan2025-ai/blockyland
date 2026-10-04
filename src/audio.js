@@ -1680,5 +1680,14 @@ export class SoundEngine {
     osc.start();
     osc.stop(now + 0.3);
   }
+  playSquid(kind='idle',glow=false,baby=false) {
+    this.ensureContext();if(!this.soundEnabled||!this.ctx)return;
+    const now=this.ctx.currentTime,osc=this.ctx.createOscillator(),g=this.ctx.createGain();
+    osc.type='sine';const pitch=(glow?270:135)*(baby?1.5:1);
+    osc.frequency.setValueAtTime(pitch,now);osc.frequency.exponentialRampToValueAtTime(kind==='death'?pitch*.35:kind==='ink'?pitch*1.8:pitch*.7,now+.35);
+    g.gain.setValueAtTime(.001,now);g.gain.linearRampToValueAtTime(glow?.06:.04,now+.05);g.gain.exponentialRampToValueAtTime(.001,now+.4);
+    osc.connect(g);g.connect(this.masterGain);osc.start();osc.stop(now+.4);
+    if(kind==='ink')this.noiseBurst(.2,glow?900:400,1,.08);
+  }
 }
 

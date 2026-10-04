@@ -313,6 +313,10 @@ test('a frozen mob stays put, and unfreezing restores movement', () => {
 
   mob.frozen = false;
   const resumed = mob.mesh.position.clone();
+  // An idle cow may randomly choose to stand still for this entire window.
+  // Give it a definite destination so this tests unfreezing, not random wandering.
+  mob.wanderGoal = resumed.clone().add(new THREE.Vector3(3, 0, 0));
+  mob.wanderTimer = 10;
   for (let i = 0; i < 150; i++) s.tick(1 / 30);
   assert.ok(mob.mesh.position.distanceTo(resumed) > 0.05, 'an unfrozen mob moves again');
 });
