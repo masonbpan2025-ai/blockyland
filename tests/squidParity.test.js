@@ -8,9 +8,22 @@ import { canSpawnSquid, updateSquidSpawning, serializeSquid, restoreSquid } from
 import { mobBounds } from '../src/mobPlayerCollision.js';
 import { squidRayDistance } from '../src/squidHitbox.js';
 import { RailSystem } from '../src/rails.js';
+import { poseSquid } from '../src/squidModel.js';
 const session=(type='squid')=>{const s=createMobDebugSession(new THREE.Scene());s.reset(type);return s;};
 const tick=(s,seconds)=>{for(let n=0;n<Math.ceil(seconds*30);n++)s.tick(1/30);};
 const use=(s,id)=>{s.inventory.active={id,count:3};return s.manager.animalBehaviors.interact(s.mob,s.player,s.inventory);};
+for(const type of ['squid','glow_squid'])test(`${type} adult and baby have two visible front eyes in the inspector water pose`,()=>{
+  const s=session(type),m=s.mob;
+  const pixel=(face,x,y)=>{const {data,width,height}=m.mantle.material[face].map.image;return [...data.slice(((height-1-y)*width+x)*4,((height-1-y)*width+x)*4+3)];};
+  for(const baby of [false,true]){
+    m.isBaby=baby;m.pitch=0;m.yaw=0;poseSquid(m);m.mesh.updateMatrixWorld(true);
+    const normal=new THREE.Vector3(0,0,1).transformDirection(m.mantle.matrixWorld);
+    assert.ok(normal.z>.99,'front texture must face the inspector camera in the neutral water pose');
+    for(const x of [2,9]){assert.deepEqual(pixel(4,x,9),[224,228,220]);assert.deepEqual(pixel(4,x,10),[13,22,27]);}
+    for(const face of [0,1,2,5])assert.notDeepEqual(pixel(face,2,9),[224,228,220],'eyes must not wrap onto other faces');
+  }
+  m.pitch=.3;poseSquid(m);assert.equal(m.visual.rotation.x,.3,'vertical swimming still pitches the model');
+});
 for(const type of ['squid','glow_squid']) {
   for(const c of mobScenarios(type))test(`${type} inspector: ${c.id}`,()=>{const s=session(type);s.startPosition=s.mob.mesh.position.clone();c.setup(s);tick(s,c.duration);assert.equal(c.check(s),true,JSON.stringify(s.snapshot()));assert.equal(s.manager.mobErrors.size,0);});
   test(`${type} body-only adult and baby hitboxes and pixel materials`,()=>{const s=session(type),m=s.mob;assert.equal(m.type,type);assert.deepEqual(mobBounds(s.manager,m),{width:.8,height:.8});m.isBaby=true;assert.deepEqual(mobBounds(s.manager,m),{width:.5,height:.5});assert.equal(m.tentacles.length,8);assert.ok(m.squidMaterials.every(mat=>mat.map.magFilter===THREE.NearestFilter));assert.notDeepEqual(m.mantle.material[0].map.image.data,m.mantle.material[4].map.image.data);assert.ok(!m.mesh.children.some(v=>v.isLight));});
