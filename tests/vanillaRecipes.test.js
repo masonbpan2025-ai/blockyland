@@ -27,6 +27,17 @@ function ingredientValues(pattern) {
   return pattern.flat().filter(v => v !== null);
 }
 
+/** The ingredient values of any recipe, shaped or shapeless. */
+function recipeIngredients(recipe) {
+  return recipe.shapeless ? recipe.ingredients : ingredientValues(recipe.pattern);
+}
+
+/** How many cells a recipe occupies, so shaped and shapeless can share size checks. */
+function recipeSize(recipe) {
+  if (recipe.shapeless) return { count: recipe.ingredients.length };
+  return { count: recipe.pattern.flat().filter(v => v !== null).length, h: recipe.pattern.length, w: recipe.pattern[0].length };
+}
+
 test('generated recipes were merged into both grids', () => {
   assert.equal(EXTRA_RECIPES.length, EXTRA_RECIPE_COUNT, 'the count must match the array');
   assert.ok(GENERATED_RECIPE_COUNT > 300,
@@ -35,7 +46,11 @@ test('generated recipes were merged into both grids', () => {
   for (const r of EXTRA_RECIPES) {
     assert.ok(RECIPES_3X3.includes(r), 'every generated recipe must be in RECIPES_3X3');
   }
-  const fits2 = EXTRA_RECIPES.filter(r => r.pattern.length <= 2 && r.pattern[0].length <= 2);
+  // A recipe fits the inventory grid when it occupies at most 2x2 cells: a small pattern, or a
+  // shapeless recipe with four or fewer ingredients.
+  const fits2 = EXTRA_RECIPES.filter((r) => (r.shapeless
+    ? r.ingredients.length <= 4
+    : (r.pattern.length <= 2 && r.pattern[0].length <= 2)));
   for (const r of fits2) {
     assert.ok(RECIPES_2X2.includes(r), 'a recipe that fits 2x2 must also work in the inventory grid');
   }
@@ -44,18 +59,28 @@ test('generated recipes were merged into both grids', () => {
 
 test('every generated recipe has a well-formed pattern and real content', () => {
   for (const [i, r] of EXTRA_RECIPES.entries()) {
-    const h = r.pattern.length;
-    const w = r.pattern[0].length;
-    assert.ok(h >= 1 && h <= 3, `recipe ${i}: height ${h} is outside 1..3`);
-    assert.ok(w >= 1 && w <= 3, `recipe ${i}: width ${w} is outside 1..3`);
-    for (const row of r.pattern) {
-      assert.equal(row.length, w, `recipe ${i}: rows must be the same width`);
+    if (r.shapeless) {
+      // A shapeless recipe needs at least one ingredient, and cannot exceed the 3x3 grid.
+      assert.ok(Array.isArray(r.ingredients) && r.ingredients.length >= 1,
+        `recipe ${i}: a shapeless recipe needs at least one ingredient`);
+      assert.ok(r.ingredients.length <= 9,
+        `recipe ${i}: ${r.ingredients.length} ingredients exceeds a 3x3 grid`);
+      assert.equal(r.pattern, undefined,
+        `recipe ${i}: a shapeless recipe must not also carry a pattern, or the matcher's behaviour is ambiguous`);
+    } else {
+      const h = r.pattern.length;
+      const w = r.pattern[0].length;
+      assert.ok(h >= 1 && h <= 3, `recipe ${i}: height ${h} is outside 1..3`);
+      assert.ok(w >= 1 && w <= 3, `recipe ${i}: width ${w} is outside 1..3`);
+      for (const row of r.pattern) {
+        assert.equal(row.length, w, `recipe ${i}: rows must be the same width`);
+      }
+      assert.ok(r.pattern.some(row => row.some(v => v !== null)),
+        `recipe ${i}: a pattern of all nulls can never match`);
     }
-    assert.ok(r.pattern.some(row => row.some(v => v !== null)),
-      `recipe ${i}: a pattern of all nulls can never match`);
     // Ingredients must resolve. A numeric id must be a defined block; a string must be a known item
     // or a known block name.
-    for (const v of ingredientValues(r.pattern)) {
+    for (const v of recipeIngredients(r)) {
       if (typeof v === 'number') {
         assert.ok(BLOCK_DEFS[v], `recipe ${i}: block id ${v} has no definition`);
       } else {

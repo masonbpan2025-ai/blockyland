@@ -272,7 +272,44 @@ import { PROFESSION_TRADES } from './villagerEconomy.js';
 
 export const VILLAGER_TRADES = PROFESSION_TRADES.farmer.slice(0, 5);
 
+/** The value a recipe slot holds for a grid cell: a block id or an item name. */
+function slotValue(cell) {
+  return cell && cell.count > 0 ? cell.id : null;
+}
+
+/**
+ * Collect the grid's contents as a sorted multiset of slot values, ignoring layout.
+ *
+ * Duplicates are preserved, because a shapeless recipe can legitimately require the same item more
+ * than once -- nine coal for a block, four planks for a crafting table -- and collapsing them would
+ * let a grid with one coal and eight of something else match.
+ */
+export function gridMultiset(grid, width, height) {
+  const values = [];
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const v = slotValue(grid[r * width + c]);
+      if (v !== null) values.push(v);
+    }
+  }
+  return values.sort();
+}
+
+function sameMultiset(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 // Helper to check 2D grid matching against a recipe
+//
+// Two recipe shapes are supported:
+//   { pattern: [[...]], result }                     shaped, matched by layout
+//   { shapeless: true, ingredients: [...], result }  shapeless, matched as a multiset
+//
+// Shapeless recipes cannot be expressed as a shaped pattern without changing what they accept. Vanilla
+// has 59 of them that no 1x1 or square pattern can represent, so a shape-only matcher silently drops
+// them; treating one as a square would make it match arrangements it should not.
 export function findMatchingRecipe(grid, width, height, recipesList) {
   // Trim bounding box of grid
   let minR = height, maxR = -1, minC = width, maxC = -1;
@@ -296,8 +333,24 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
   const shapeH = maxR - minR + 1;
   const shapeW = maxC - minC + 1;
 
+  // Computed once, and only if a shapeless recipe is actually reached, so the shaped path -- which is
+  // the overwhelmingly common case -- is not slowed down.
+  let multiset = null;
+
   for (const recipe of recipesList) {
+    if (recipe.shapeless) {
+      const ingredients = recipe.ingredients;
+      if (!ingredients || ingredients.length === 0) continue;
+      // A shapeless recipe cannot need more items than the grid holds.
+      const cells = width * height;
+      if (ingredients.length > cells) continue;
+      if (multiset === null) multiset = gridMultiset(grid, width, height);
+      if (sameMultiset(multiset, [...ingredients].sort())) return recipe.result;
+      continue;
+    }
+
     const pat = recipe.pattern;
+    if (!pat || !pat.length) continue;
     const patH = pat.length;
     const patW = pat[0].length;
 
@@ -307,8 +360,7 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
     for (let pr = 0; pr < patH; pr++) {
       for (let pc = 0; pc < patW; pc++) {
         const expected = pat[pr][pc];
-        const actualSlot = grid[(minR + pr) * width + (minC + pc)];
-        const actualId = (actualSlot && actualSlot.count > 0) ? actualSlot.id : null;
+        const actualId = slotValue(grid[(minR + pr) * width + (minC + pc)]);
 
         if (expected === null && actualId !== null) {
           match = false; break;
@@ -363,11 +415,19 @@ RECIPES_3X3.push(
 
 // Vanilla recipes from src/extraRecipes.js, appended last so hand-written recipes take precedence.
 //
-// A recipe expressed as a 1x1 or 2x2 pattern is also valid in the 2x2 inventory grid, and vanilla
-// allows it there, so any generated pattern that fits 2x2 is added to RECIPES_2X2 as well. Without
-// this, planks and sticks -- the two most-used recipes in the game -- would require a crafting table.
+// Anything that fits a 2x2 grid is also added to RECIPES_2X2, because vanilla allows those in the
+// inventory's own grid. Without this, planks and sticks -- the two most-used recipes in the game --
+// would require a crafting table.
+//
+// Shapeless recipes are included on the same terms: one needing at most four items fits the 2x2 grid.
+// Reading `recipe.pattern` without checking the shape first threw on every shapeless recipe, which is
+// the failure this loop now avoids.
 for (const recipe of EXTRA_RECIPES) {
   RECIPES_3X3.push(recipe);
+  if (recipe.shapeless) {
+    if (recipe.ingredients.length <= 4) RECIPES_2X2.push(recipe);
+    continue;
+  }
   const h = recipe.pattern.length;
   const w = recipe.pattern[0].length;
   if (h <= 2 && w <= 2) RECIPES_2X2.push(recipe);

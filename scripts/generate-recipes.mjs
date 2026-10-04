@@ -159,24 +159,13 @@ for (const key of Object.keys(recipes)) {
         for (const n of names) if (n && resolve(n) === null) skippedNames.set(n, (skippedNames.get(n) || 0) + 1);
         continue;
       }
-      // The game's matcher is shaped-only. A shapeless recipe is expressed as a 1-row pattern when it
-      // has one ingredient, or as a square when it happens to be square-shaped; anything else cannot
-      // be represented faithfully, so it is counted as unsupported rather than approximated into a
-      // pattern that would match a different arrangement.
-      if (values.length === 1) {
-        emitted.push({ pattern: [[values[0]]], result, shapeless: true });
-        stats.shapeless++;
-      } else {
-        const side = Math.sqrt(values.length);
-        if (Number.isInteger(side) && side <= 3) {
-          const pattern = [];
-          for (let r = 0; r < side; r++) pattern.push(values.slice(r * side, r * side + side));
-          emitted.push({ pattern, result, shapeless: true });
-          stats.shapeless++;
-        } else {
-          stats.shapelessUnsupported++;
-        }
-      }
+      // Emitted as a real shapeless recipe. The matcher compares the grid as a multiset, so the
+      // arrangement the player uses does not matter and no approximation is needed.
+      //
+      // Duplicates are preserved deliberately: a shapeless recipe may require the same item more than
+      // once, and collapsing them would let a grid with one of that item match.
+      emitted.push({ shapeless: true, ingredients: values, result });
+      stats.shapeless++;
       continue;
     }
 
@@ -242,9 +231,14 @@ lines.push('/** Vanilla shaped and square shapeless recipes, in the format craft
 lines.push('export const EXTRA_RECIPES = [');
 
 for (const e of unique) {
-  const pat = e.pattern.map(row => '[' + row.map(v => (v === null ? 'null' : serializeValue(v))).join(',') + ']').join(',');
   const r = `{id:${serializeValue(e.result.id)},isBlock:${e.result.isBlock},count:${e.result.count}}`;
-  lines.push(`  {pattern:[${pat}],result:${r}},`);
+  if (e.shapeless) {
+    const ings = e.ingredients.map(serializeValue).join(',');
+    lines.push(`  {shapeless:true,ingredients:[${ings}],result:${r}},`);
+  } else {
+    const pat = e.pattern.map(row => '[' + row.map(v => (v === null ? 'null' : serializeValue(v))).join(',') + ']').join(',');
+    lines.push(`  {pattern:[${pat}],result:${r}},`);
+  }
 }
 lines.push('];');
 lines.push('');
@@ -276,7 +270,7 @@ console.log('wrote src/extraRecipes.js');
 console.log('  vanilla recipes seen        : ' + stats.total);
 console.log('  emitted                     : ' + unique.length);
 console.log('    shaped                    : ' + stats.shaped);
-console.log('    shapeless (as a pattern)  : ' + stats.shapeless);
+console.log('    shapeless                 : ' + stats.shapeless);
 console.log('  skipped, result missing     : ' + stats.skippedResult);
 console.log('  skipped, ingredient missing : ' + stats.skippedIngredient);
 console.log('  shapeless with no faithful  : ' + stats.shapelessUnsupported);
