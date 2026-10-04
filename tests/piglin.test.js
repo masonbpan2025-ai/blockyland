@@ -90,7 +90,8 @@ test('supported rewards have usable IDs and inclusive count ranges', () => {
 });
 test('conversion takes 15 seconds outside Nether and resets on return', () => {
   const f = fixture(); let conversions = 0;
-  f.manager.spawnZombifiedPiglin = () => { conversions++; return { mesh: new THREE.Group() }; };
+  const spawn=f.manager.spawnZombifiedPiglin.bind(f.manager);
+  f.manager.spawnZombifiedPiglin = (...args) => { conversions++; return spawn(...args); };
   f.world.dimension = 'overworld'; f.tick(14); assert.equal(conversions, 0);
   f.world.dimension = 'nether'; f.tick(1); assert.equal(f.mob.conversionTime, 0);
   f.world.dimension = 'overworld'; f.tick(15); assert.equal(conversions, 1);

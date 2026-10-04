@@ -161,7 +161,7 @@ export function spawnNaturalStrider(manager,x,y,z){
   const r=manager.random||Math.random,m=manager.spawnStrider(x,y,z);
   const babyRoll=r(),piglinRoll=r();
   if(babyRoll<.1){const baby=manager.spawnStrider(x,y+1.7,z,{isBaby:true});attachStriderPassenger(m,baby);}
-  else if(piglinRoll<1/30){m.isSaddled=m.hasSaddle=true;m.saddleMesh.visible=true;if(manager.game?.difficulty!=='peaceful'){const rider=manager.spawnZombifiedPiglin(x,y+1.7,z);attachStriderPassenger(m,rider);}}
+  else if(piglinRoll<1/30){m.isSaddled=m.hasSaddle=true;m.saddleMesh.visible=true;if(manager.game?.difficulty!=='peaceful'){const rider=manager.spawnZombifiedPiglin(x,y+1.7,z,{natural:false,isBaby:false,weapon:'warped_fungus_on_a_stick'});attachStriderPassenger(m,rider);}}
   return m;
 }
 export function updateStriderSpawning(manager,dt,player){

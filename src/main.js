@@ -121,6 +121,7 @@ class Game {
     this.world = new World();
     this.world.game = this;
     this.weather = new WeatherManager(this.scene, this.sounds);
+    this.weather.game=this;
     this.geminiAgent = new WorldAgent(this);
     this.mesher = null;
     this.player = null;
@@ -1027,13 +1028,13 @@ class Game {
           for (const ench of activeItem.enchantments) {
             if (ench.id === 'sharpness') {
               damage += 0.5 * ench.level + 0.5;
-            } else if (ench.id === 'smite' && ['zombie', 'skeleton'].includes(this.targetMob.type)) {
+            } else if (ench.id === 'smite' && ['zombie','skeleton','wither_skeleton','zombified_piglin','zombie_pigman','zoglin','drowned','zombie_villager'].includes(this.targetMob.type)) {
               damage += 2.5 * ench.level;
             }
           }
         }
       }
-      this.mobs.damageMob(this.targetMob, damage, this.player.position);
+      this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
       return;
     }
 
@@ -1125,6 +1126,7 @@ class Game {
       const splashPos = this.player.position.clone().add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
       for (const m of this.mobs?.mobs || []) {
         if (m.health > 0 && m.mesh && m.mesh.position.distanceTo(splashPos) < 5.0) {
+          if(m.applyStatusEffect){m.applyStatusEffect('weakness',60,1,this.player);continue;}
           m.hasWeakness = true;
           m.statusEffects = m.statusEffects || {};
           m.statusEffects.weakness = 60.0;

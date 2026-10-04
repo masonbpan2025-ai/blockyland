@@ -1,3 +1,4 @@
+import { zombifiedScenarios } from './zombifiedPiglinScenarios.js';
 import { striderScenarios } from './striderScenarios.js';
 import { horseScenarios } from './horseScenarios.js';
 import { DEBUG_MOBS } from './mobDebugSession.js';
@@ -84,6 +85,7 @@ function locomotionRunning(s) {
 export function mobScenarios(type,definition=null) {
   const cases=type==='strider'?striderScenarios():[];
   if(type==='horse')cases.push(...horseScenarios());
+  if(['zombified_piglin','zombie_pigman'].includes(type))cases.push(...zombifiedScenarios(SCENARIO_SKIP));
   const add=(id,label,duration,setup,check)=>cases.push({id,label,duration,setup,check});
   add('movement',aquatic.has(type)?'Swimming':'Movement / idle animation',4,s=>{if(aquatic.has(type))s.world.fluid=BLOCKS.WATER;s.mob.timer=0;s.startYaw=s.mob.yaw||0;},s=>s.mob.mesh.position.distanceTo(s.startPosition)>.05 || locomotionRunning(s));
   if(hostile.has(type)||['hostile','boss'].includes(definition?.behavior?.type)){

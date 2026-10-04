@@ -1,3 +1,5 @@
+import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
+import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified} from './zombifiedPiglin.js';
 import { createStriderModel } from './striderModel.js';
 import { updateStrider, updateStriderSpawning, updateStriderExposure } from './striderBehavior.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
@@ -3495,81 +3497,11 @@ export class MobManager {
     return mob;
   }
 
-  spawnZombifiedPiglin(x, y, z) {
-    const group = new THREE.Group();
-    const skinMat = new THREE.MeshLambertMaterial({
-      map: this.textures.zombified_piglin,
-      color: 0xffffff
-    });
-    const goldMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
-    const boneMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
-
-    // Head
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 0.58), skinMat);
-    head.position.y = 1.6;
-    group.add(head);
-
-    // Snout
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.16), skinMat);
-    snout.position.set(0, -0.1, 0.32);
-    head.add(snout);
-
-    // Left Tusk
-    const tuskL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), boneMat);
-    tuskL.position.set(-0.15, -0.04, 0.35);
-    head.add(tuskL);
-
-    // Left floppy ear
-    const earGeo = new THREE.BoxGeometry(0.08, 0.32, 0.18);
-    const earL = new THREE.Mesh(earGeo, skinMat);
-    earL.position.set(-0.35, 0, 0);
-    earL.rotation.z = -0.3;
-    head.add(earL);
-
-    // Torso
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), skinMat);
-    body.position.y = 0.95;
-    group.add(body);
-
-    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftArm = new THREE.Mesh(armGeo, skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
-
-    // Golden Sword in hand
-    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 0.14), goldMat);
-    sword.position.set(0, -0.3, 0.3);
-    sword.rotation.x = Math.PI / 4;
-    rightArm.add(sword);
-
-    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftLeg = new THREE.Mesh(legGeo, skinMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, skinMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'zombified_piglin',
-      name: 'Zombified Piglin',
-      mesh: group,
-      head: head,
-      leftArm: leftArm,
-      rightArm: rightArm,
-      leftLeg: leftLeg,
-      rightLeg: rightLeg,
-      health: 20,
-      maxHealth: 20,
-      fireImmune: true,
-      angerTimer: 0,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      state: 'idle',
-      timer: 0,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
+  spawnZombifiedPiglin(x, y, z, options = {}) {
+    const model=createZombifiedPiglinModel(this.textures);
+    const mob={type:'zombified_piglin',name:'Zombified Piglin',...model,health:20,maxHealth:20,velocity:new THREE.Vector3(),yaw:(this.random||Math.random)()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
+    mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);
+    initializeZombified(this,mob,options);return mob;
   }
 
   spawnZombiePigman(x, y, z) {
@@ -6010,8 +5942,8 @@ export class MobManager {
   damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
-    if ((mob.type === 'magma_cube' || mob.type === 'horse') && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
-    if (attacker === this.game?.player || (!attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if ((mob.type === 'magma_cube' || mob.type === 'horse' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
+    if (attacker === this.game?.player || (!isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
     if(mob.type==='strider'){
       this.sounds?.playStrider?.(mob.health<=amount?'death':'retreat');mob.soundTimer=3;
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
@@ -6063,7 +5995,7 @@ export class MobManager {
     }
 
     if (mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') {
-      this.hostileBehaviors?.angerZombifiedPiglins?.(mob);
+      hurtZombified(this,mob,attacker);
     } else if (mob.type === 'piglin') {
       if ((!attacker && knockbackOrigin) || (attacker && attacker === this.game?.player)) angerPiglins(this, mob.mesh.position);
       else if (attacker) { mob.combatTarget = attacker; mob.retaliationTimer = 30; mob.isBartering = false; }
@@ -6237,6 +6169,7 @@ export class MobManager {
         this.hostileBehaviors?.handleMobDeathSplitting?.(mob);
       }
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      if(isZombifiedPiglin(mob)){dropZombifiedLoot(this,mob,pos);mob.noLoot=true;}
       if (mob.isBaby) {
         mob.noLoot = true;
         if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
@@ -6569,6 +6502,7 @@ export class MobManager {
     this.applyMobCollisions(dt);
     separatePlayerFromMobs(this, player, dt);
 
+    for(const mob of this.mobs){if(!mob.jockeyMount)continue;const mount=mob.jockeyMount;if(mob.health<=0||mount.health<=0){mount.rider=null;mob.jockeyMount=null;continue;}mob.mesh.position.copy(mount.mesh.position).y+=mount.type==='chicken'?.55:1.4;mob.velocity.set(0,0,0);}
     // Apply the final mount pose after the mob and separation passes. Animal
     // Behaviors sets the rider before locomotion, so syncing at the end avoids
     // a one-frame lag that looked like jitter behind a moving horse.
@@ -6630,6 +6564,10 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    if(isZombifiedPiglin(mob)) {
+      if(!mob.jockeyMount){const speed=moveGroundMob(this,mob,dt);mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;}
+      return false;
+    }
     if(mob.type==='strider'){updateStrider(this,mob,dt,player);return true;}
     if (mob.type === 'drowned') {
       const bX = Math.floor(mob.mesh.position.x);

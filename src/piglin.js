@@ -1,3 +1,4 @@
+import {setZombifiedBaby,syncZombifiedEquipment} from './zombifiedPiglin.js';
 import * as THREE from 'three';
 import { BLOCKS, ITEMS } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
@@ -73,16 +74,17 @@ export function updatePiglin(behaviors, mob, dt, player) {
   else if (world.dimension === 'overworld' || world.dimension === 'the_end') {
     mob.conversionTime = (mob.conversionTime || 0) + dt;
     if (mob.conversionTime >= 15) {
-      const converted = manager.spawnZombifiedPiglin(pos.x, pos.y, pos.z);
+      const converted = manager.spawnZombifiedPiglin(pos.x, pos.y, pos.z,{natural:false,isBaby:mob.isBaby,weapon:mob.isBaby?null:mob.weapon});
       converted.name = mob.name;
-      converted.weapon = mob.weapon;
-      converted.equipment = mob.equipment;
+      converted.weapon = mob.isBaby?null:mob.weapon;
+      converted.equipment = {...mob.equipment};
+      if(mob.isBaby)delete converted.equipment.weapon;
       converted.persistent = mob.persistent;
       if (mob.admiredItem) behaviors.entities?.spawnDroppedItem(pos.clone(), mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       for (const item of mob.piglinInventory || []) behaviors.entities?.spawnDroppedItem(pos.clone(), item.id, !!item.isBlock, item.count, { enchantments: item.enchantments });
       converted.isBaby = mob.isBaby;
-      converted.mesh.scale.copy(mob.mesh.scale);
-      converted.mesh.rotation.copy(mob.mesh.rotation);
+      setZombifiedBaby(converted,mob.isBaby);converted.nauseaTime=10;syncZombifiedEquipment(converted);
+      converted.mesh.rotation.copy(mob.mesh.rotation);converted.yaw=mob.yaw;
       manager.removeDebugLabel?.(mob);
       manager.scene.remove(mob.mesh);
       manager.mobs.splice(manager.mobs.indexOf(mob), 1);
