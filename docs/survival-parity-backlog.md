@@ -9,9 +9,9 @@ unavailable when its result OR any ingredient does not exist in this game.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Crafting recipes expressible | 336 | 1557 | 21.6% |
-| Blocks named | 196 | 1095 | 17.9% |
-| Items named | 411 | 1385 | 29.7% |
+| Crafting recipes expressible | 421 | 1557 | 27.0% |
+| Blocks named | 271 | 1095 | 24.7% |
+| Items named | 486 | 1385 | 35.1% |
 
 ## Highest-value individual additions
 
@@ -20,38 +20,38 @@ This is greedy set cover, so the gains are ordered and partly dependent on earli
 
 | # | name | recipes unblocked | running total |
 |---|---|---|---|
-| 1 | `crimson_planks` | 18 | 354 (22.7%) |
-| 2 | `warped_planks` | 18 | 372 (23.9%) |
-| 3 | `bamboo_planks` | 17 | 389 (25.0%) |
-| 4 | `flint` | 14 | 403 (25.9%) |
-| 5 | `stone_slab` | 13 | 416 (26.7%) |
-| 6 | `bowl` | 13 | 429 (27.6%) |
-| 7 | `jukebox` | 12 | 441 (28.3%) |
-| 8 | `white_bed` | 12 | 453 (29.1%) |
-| 9 | `yellow_bed` | 12 | 465 (29.9%) |
-| 10 | `blue_bed` | 12 | 477 (30.6%) |
-| 11 | `green_bed` | 12 | 489 (31.4%) |
-| 12 | `black_bed` | 13 | 502 (32.2%) |
-| 13 | `campfire` | 11 | 513 (32.9%) |
-| 14 | `soul_campfire` | 11 | 524 (33.7%) |
-| 15 | `yellow_dye` | 5 | 529 (34.0%) |
-| 16 | `red_dye` | 5 | 534 (34.3%) |
-| 17 | `oak_slab` | 5 | 539 (34.6%) |
-| 18 | `spruce_slab` | 5 | 544 (34.9%) |
-| 19 | `birch_slab` | 5 | 549 (35.3%) |
-| 20 | `jungle_slab` | 5 | 554 (35.6%) |
-| 21 | `acacia_slab` | 5 | 559 (35.9%) |
-| 22 | `cherry_slab` | 5 | 564 (36.2%) |
-| 23 | `chiseled_bookshelf` | 6 | 570 (36.6%) |
-| 24 | `dark_oak_slab` | 6 | 576 (37.0%) |
-| 25 | `pale_oak_slab` | 6 | 582 (37.4%) |
-| 26 | `mangrove_slab` | 6 | 588 (37.8%) |
-| 27 | `bamboo_slab` | 6 | 594 (38.2%) |
-| 28 | `crimson_slab` | 6 | 600 (38.5%) |
-| 29 | `warped_slab` | 6 | 606 (38.9%) |
-| 30 | `oak_wood` | 4 | 610 (39.2%) |
+| 1 | `flint` | 14 | 435 (27.9%) |
+| 2 | `stone_slab` | 13 | 448 (28.8%) |
+| 3 | `bowl` | 13 | 461 (29.6%) |
+| 4 | `jukebox` | 12 | 473 (30.4%) |
+| 5 | `white_bed` | 12 | 485 (31.1%) |
+| 6 | `orange_bed` | 12 | 497 (31.9%) |
+| 7 | `magenta_bed` | 12 | 509 (32.7%) |
+| 8 | `light_blue_bed` | 12 | 521 (33.5%) |
+| 9 | `yellow_bed` | 12 | 533 (34.2%) |
+| 10 | `lime_bed` | 12 | 545 (35.0%) |
+| 11 | `pink_bed` | 12 | 557 (35.8%) |
+| 12 | `gray_bed` | 12 | 569 (36.5%) |
+| 13 | `light_gray_bed` | 12 | 581 (37.3%) |
+| 14 | `cyan_bed` | 12 | 593 (38.1%) |
+| 15 | `purple_bed` | 12 | 605 (38.9%) |
+| 16 | `blue_bed` | 12 | 617 (39.6%) |
+| 17 | `brown_bed` | 12 | 629 (40.4%) |
+| 18 | `green_bed` | 12 | 641 (41.2%) |
+| 19 | `black_bed` | 13 | 654 (42.0%) |
+| 20 | `campfire` | 11 | 665 (42.7%) |
+| 21 | `soul_campfire` | 11 | 676 (43.4%) |
+| 22 | `yellow_dye` | 5 | 681 (43.7%) |
+| 23 | `red_dye` | 5 | 686 (44.1%) |
+| 24 | `black_dye` | 5 | 691 (44.4%) |
+| 25 | `oak_slab` | 5 | 696 (44.7%) |
+| 26 | `spruce_slab` | 5 | 701 (45.0%) |
+| 27 | `birch_slab` | 5 | 706 (45.3%) |
+| 28 | `jungle_slab` | 5 | 711 (45.7%) |
+| 29 | `acacia_slab` | 5 | 716 (46.0%) |
+| 30 | `cherry_slab` | 5 | 721 (46.3%) |
 
-Starting point: 336 of 1557 recipes craftable.
+Starting point: 421 of 1557 recipes craftable.
 
 ## Missing content by family
 
@@ -59,14 +59,12 @@ Starting point: 336 of 1557 recipes craftable.
 |---|---|---|
 | Beds | 15 | 196 |
 | Slabs | 60 | 161 |
-| Wool colours | 10 | 160 |
 | Dyes | 15 | 158 |
-| Planks (wood types) | 3 | 148 |
 | Logs and wood | 27 | 108 |
 | Copper and oxidation | 73 | 93 |
 | Stripped logs and wood | 23 | 89 |
-| Stone variants (polished, bricks, tiles) | 67 | 72 |
 | Stairs | 57 | 68 |
+| Stone variants (polished, bricks, tiles) | 58 | 62 |
 | Fences, gates and walls | 50 | 50 |
 | Stained glass and panes | 32 | 48 |
 | Boats, buttons, pressure plates | 46 | 47 |
@@ -79,7 +77,6 @@ Starting point: 336 of 1557 recipes craftable.
 | Banners | 16 | 16 |
 | Candles | 16 | 16 |
 | Enchanting | 4 | 16 |
-| Terracotta (glazed and plain) | 11 | 11 |
 | Ores and raw materials | 3 | 6 |
 | Redstone components | 2 | 2 |
 
