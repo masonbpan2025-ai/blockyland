@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { enableBlockEmission } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { parseColouredName, shadedHex } from './colourPalette.js';
 import { createWaterMaterial } from './water.js';
 
 export class TextureManager {
@@ -151,6 +152,39 @@ export class TextureManager {
   drawFallbackTile(name, x, y) {
     const s = this.tileSize;
     const n = name.toLowerCase();
+
+    // Coloured vanilla families first: wool, concrete, terracotta, stained glass and friends share
+    // one shape and differ only by dye colour. Vanilla has 16 of each, so drawing them from the
+    // palette keeps a colour variant looking like that colour instead of falling through to the
+    // neutral grey default, which is what a name this generator does not recognise would get.
+    const coloured = parseColouredName(n);
+    if (coloured) {
+      const base = shadedHex(coloured.hex, coloured.family);
+      this.ctx.fillStyle = base;
+      this.ctx.fillRect(x, y, s, s);
+      // A little fibre for wool, a little grit for concrete: enough to read as a texture rather
+      // than a flat swatch, and cheap because it is drawn once into the atlas.
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+      if (coloured.family === 'wool' || coloured.family === 'carpet') {
+        for (let i = 0; i < 5; i++) {
+          const px = x + ((i * 5 + 2) % 14);
+          const py = y + ((i * 7 + 3) % 14);
+          this.ctx.fillRect(px, py, 2, 2);
+        }
+      } else if (coloured.family === 'terracotta') {
+        for (let i = 0; i < 4; i++) {
+          this.ctx.fillRect(x + ((i * 6) % 14), y + ((i * 4 + 1) % 14), 3, 1);
+        }
+      } else if (coloured.family === 'concrete_powder') {
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        for (let i = 0; i < 6; i++) this.ctx.fillRect(x + ((i * 3 + 1) % 14), y + ((i * 5 + 2) % 14), 2, 2);
+      } else if (coloured.family === 'stained_glass') {
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        this.ctx.fillRect(x + 1, y + 1, s - 2, 1);
+        this.ctx.fillRect(x + 1, y + s - 2, s - 2, 1);
+      }
+      return;
+    }
 
     if (n.includes('fire')) {
       // Never draw opaque grey box for fire!

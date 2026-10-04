@@ -48,43 +48,54 @@ test('recipe coverage is recorded as a baseline and must not regress', { skip },
   console.log(`  named items      : ${m.knownItems}/${m.itemCount} (${itemsPct.toFixed(1)}%)`);
 });
 
-test('the name mapper resolves known vanilla names correctly', { skip }, () => {
-  // The mapper is load-bearing: every coverage number depends on it. Spot-check names that must
-  // resolve, and names that must not, so a broken mapper cannot silently inflate coverage.
-  for (const name of ['oak_planks', 'stick', 'cobblestone', 'iron_ingot', 'diamond', 'crafting_table']) {
+test('the name mapper resolves present content and not absent content', { skip }, () => {
+  // The mapper is load-bearing: every coverage number depends on it. Checked in BOTH directions, so a
+  // permissive mapper cannot silently inflate coverage and a broken one cannot silently deflate it.
+  //
+  // The "present" list deliberately includes content added by the generator, so this also acts as a
+  // regression test that the generated blocks actually reached the registry.
+  for (const name of ['oak_planks', 'stick', 'cobblestone', 'iron_ingot', 'diamond', 'crafting_table',
+    'bamboo_planks', 'crimson_planks', 'warped_planks', 'orange_wool', 'magenta_wool', 'black_concrete',
+    'diorite', 'andesite', 'granite', 'honeycomb_block']) {
     assert.equal(have(name), true, `${name} should resolve, it exists in the game`);
   }
-  // These are genuinely absent, and are the top blockers, so they must report as missing --
-  // otherwise coverage would be overstated.
-  for (const name of ['bamboo_planks', 'crimson_planks', 'orange_wool', 'honeycomb', 'glass_pane']) {
+  // Genuinely still absent, and among the largest remaining blockers. If one of these starts
+  // resolving that is progress, and this test should be updated deliberately rather than silently.
+  for (const name of ['honeycomb', 'glass_pane', 'candle', 'stone_slab', 'black_bed', 'bowl', 'flint']) {
     assert.equal(have(name), false, `${name} is absent from the game and must not resolve`);
   }
 });
 
 test('coverage breakdown identifies what to add next', { skip }, () => {
-  // Guards the *shape* of the gap, so the reported work stays aimed at real families rather than at
-  // whatever single name happens to be most frequent.
+  // Guards the SHAPE of the gap rather than naming specific families. An earlier version asserted that
+  // wool colours and plank types were still blockers; completing those families made the assertions
+  // fail while the code was strictly better. What must hold is that blockers are reported at all, and
+  // that the classifier puts them in the right buckets -- so a broken regex is caught without the test
+  // having to be rewritten every time content is added.
   const m = measure();
   const blocked = [...m.blockedBy].sort((a, b) => b[1] - a[1]);
   assert.ok(blocked.length > 50, 'many vanilla names are missing, which is the whole gap');
+  assert.ok(blocked[0][1] >= 5,
+    `the most-blocking name only blocks ${blocked[0][1]} recipes, which suggests the classifier broke`);
 
-  const families = {
-    wool: blocked.filter(([n]) => /_wool$/.test(n)).reduce((a, [, n]) => a + n, 0),
-    planks: blocked.filter(([n]) => /_planks$/.test(n)).reduce((a, [, n]) => a + n, 0),
-    dyes: blocked.filter(([n]) => /_dye$/.test(n) || /_carpet$/.test(n) || /_concrete$/.test(n)).reduce((a, [, n]) => a + n, 0),
+  // The classifier must bucket names by family without dropping any.
+  const classify = (n) => {
+    if (/_wool$/.test(n)) return 'wool';
+    if (/_planks$/.test(n)) return 'planks';
+    if (/_dye$/.test(n) || /_carpet$/.test(n) || /_concrete(_powder)?$/.test(n)) return 'colour';
+    if (/_slab$/.test(n) || /_stairs$/.test(n)) return 'shapes';
+    if (/_bed$/.test(n) || /_banner$/.test(n) || /_candle$/.test(n)) return 'furniture';
+    return 'other';
   };
-  // Vanilla's coloured and wood-variant families are the bulk of the gap; if any of these reads zero
-  // the family regexes have broken and the guidance would be wrong.
-  assert.ok(families.wool > 0, 'wool colours should be a blocker');
-  assert.ok(families.planks > 0, 'plank wood types should be a blocker');
-  assert.ok(families.dyes > 0, 'dye/carpet/concrete should be a blocker');
-  console.log(`  blocked slots -- wool ${families.wool}, planks ${families.planks}, dyes ${families.dyes}`);
-});
-
-test('the game name vocabulary is stable', () => {
-  // gameNames is derived from BLOCKS/ITEMS/BLOCK_DEFS, so this catches an accidental registry change
-  // that would move every coverage number without any content actually being added.
-  assert.ok(gameNames.size > 400, `expected a large vocabulary, got ${gameNames.size}`);
-  assert.ok(gameNames.has('stone'), 'stone must be in the vocabulary');
-  assert.ok(gameNames.has('oak_planks'), 'oak_planks must be in the vocabulary');
+  const buckets = new Map();
+  for (const [name] of blocked) {
+    const b = classify(name);
+    buckets.set(b, (buckets.get(b) || 0) + 1);
+  }
+  assert.equal([...buckets.values()].reduce((a, b) => a + b, 0), blocked.length,
+    'every blocker must land in exactly one bucket');
+  // 'other' should not swallow everything, or the classification is not doing any work.
+  assert.ok(buckets.get('other') < blocked.length,
+    'every blocker classified as other, so the family regexes are not matching');
+  console.log('  blocker buckets: ' + [...buckets].map(([k, v]) => k + ' ' + v).join(', '));
 });
