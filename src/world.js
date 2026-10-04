@@ -1,4 +1,4 @@
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
 import { WaterSimulation } from './waterSimulation.js';
@@ -229,6 +229,181 @@ const CHUNK_CACHE_MASK = CHUNK_CACHE_SIZE - 1;
 /** Offset so negative chunk coordinates still produce a positive hash. */
 const CHUNK_HASH_OFFSET = 1 << 20;
 
+/**
+ * Deterministic per-position hash in [0, 1), for placing features on a global grid.
+ *
+ * Must not depend on the chunk, or the same world position would produce a different answer in a
+ * different chunk and trees would not span borders. The sine hash the previous code used is kept in
+ * spirit but at a much larger multiplier, because `sin` of a small argument is smooth enough that
+ * nearby positions came out correlated.
+ */
+function treeHash(wx, wz, seed) {
+  const h = Math.sin(wx * 127.1 + wz * 311.7 + seed * 0.017) * 43758.5453;
+  return h - Math.floor(h);
+}
+
+/**
+ * A chunk plus the ability to be written to in coordinates that may fall outside it.
+ *
+ * The tree generators work in chunk-local coordinates and routinely reach two blocks past the
+ * chunk. They used to guard every write with bounds checks, which silently truncated any tree near
+ * an edge. This presents the same `setVoxel`/`getVoxel` interface they already use and simply drops
+ * out-of-range writes, so a canopy can be drawn by whichever chunk it overlaps and each chunk stays
+ * independently generatable -- no chunk ever needs another to exist first.
+ */
+class ChunkVoxelWriter {
+  constructor(chunk, seedForTree = 0, phase = 'all') {
+    this.chunk = chunk;
+    /** 'trunk', 'canopy' or 'all': which part of the tree this writer is allowed to write. */
+    this.phase = phase;
+    /**
+     * Seeded per-tree random source, replacing Math.random in the generators.
+     *
+     * World generation must be a pure function of the seed. Eight generators used Math.random for
+     * tree shape -- the oak/birch mix, mushroom colour, bamboo and fungus heights, ice spikes,
+     * chorus plants, basalt pillars -- which made the same world position produce different terrain
+     * in different runs and, worse, in different chunk generation ORDERS. That showed up as a chunk
+     * holding nine different leaves depending on whether its neighbours had been generated first.
+     * Carrying the generator on the writer means each tree gets its own reproducible stream without
+     * threading a parameter through seventeen function signatures.
+     */
+    this.rng = mulberry32(seedForTree);
+  }
+
+  getVoxel(lx, ly, lz) {
+    return this.chunk.getVoxel(lx, ly, lz);
+  }
+
+  setVoxel(lx, ly, lz, blockId) {
+    if (lx < 0 || lx >= CHUNK_SIZE_X || lz < 0 || lz >= CHUNK_SIZE_Z) return;
+    // Trees are written trunk-first and canopy-second so that one tree's leaves cannot bury another
+    // tree's trunk. The phase filter is what separates the two passes.
+    if (this.phase === 'trunk' && !isLog(blockId)) return;
+    if (this.phase === 'canopy' && isLog(blockId)) return;
+    // A tree never replaces another block of itself either: the generators place leaves over the
+    // trunk's own top rows, which capped trunks in leaves and made trees look truncated. This is
+    // in addition to the trunk-before-canopy ordering, because within one tree the generators
+    // interleave the two.
+    if (isLog(this.chunk.getVoxel(lx, ly, lz)) && !isLog(blockId)) return;
+    // In the original code trees replaced anything; inside the tree passes the only things present
+    // at a tree's own coordinates are that tree's own blocks, so a non-air guard is safe and keeps
+    // a canopy from eating terrain.
+    const existing = this.chunk.getVoxel(lx, ly, lz);
+    // A trunk may not be written into a canopy that is already there. Two trees four blocks apart
+    // overlap, so this happens whenever an earlier tree in grid order reached into this cell; the
+    // later tree is dropped. Skipping it is correct -- its canopy would have overlapped the earlier
+    // tree anyway -- and it is deterministic, because within a chunk trees are decided in grid order
+    // and a canopy is only written by a tree earlier in that same order. Without this the trunk
+    // landed on leaves and the tree appeared to float.
+    if (isLog(blockId) && !isLog(existing) && existing !== BLOCKS.AIR) return;
+    // And a canopy may not replace a trunk, for the same overlap reason the other way round.
+    if (isLog(existing) && !isLog(blockId)) return;
+    // Trees never replace terrain; they fill air or their own earlier output only.
+    if (existing !== BLOCKS.AIR && !isPartOfTree(this, lx, ly, lz)) return;
+    this.chunk.setVoxel(lx, ly, lz, blockId);
+  }
+}
+
+/**
+ * Whether a cell already holds a block belonging to a tree, i.e. a log or a leaf.
+ *
+ * Used to let the two tree passes overwrite their own previous output while keeping them from
+ * touching terrain.
+ */
+function isPartOfTree(writer, lx, ly, lz) {
+  const id = writer.chunk.getVoxel(lx, ly, lz);
+  if (isLog(id)) return true;
+  const def = BLOCK_DEFS[id];
+  return Boolean(def?.name && (def.name.toLowerCase().includes('leaves')
+    || def.name.toLowerCase().includes('wart_block')));
+}
+
+/** True for any log or stem: the trunk of a tree. */
+function isLog(blockId) {
+  const def = BLOCK_DEFS[blockId];
+  return Boolean(def?.name && def.name.toLowerCase().includes('log'))
+    || blockId === BLOCKS.CRIMSON_STEM || blockId === BLOCKS.WARPED_STEM;
+}
+
+function isLogOrLeaves(blockId) {
+  if (isLog(blockId)) return true;
+  const def = BLOCK_DEFS[blockId];
+  return Boolean(def?.name && (def.name.toLowerCase().includes('leaves')
+    || def.name.toLowerCase().includes('wart_block')));
+}
+
+/**
+ * A small seeded PRNG, so a decision made during generation depends only on position and seed.
+ *
+ * mulberry32: 32-bit state, passes the usual small-scale randomness tests, and is a few operations
+ * per call, which matters because this sits inside the terrain loop.
+ */
+function mulberry32(seed) {
+  let a = (seed | 0) >>> 0;
+  return function next() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A stable 32-bit seed from a world position, so the same tree always looks the same. */
+function treeSeed(wx, wz, seed) {
+  return (Math.imul(wx | 0, 0x9E3779B1) ^ Math.imul(wz | 0, 0x85EBCA77) ^ Math.imul(seed | 0, 0xC2B2AE3D)) | 0;
+}
+
+/**
+ * The random source for a tree being written.
+ *
+ * A tree is always written through a ChunkVoxelWriter, which carries its own seeded stream. The
+ * fallback keeps the generators callable with a bare chunk -- the nether fungi helpers are called
+ * that way from the nether branch -- without changing their signatures.
+ */
+function rngOf(target) {
+  return target && typeof target.rng === 'function' ? target.rng : Math.random;
+}
+
+/**
+ * Deterministic per-position hash in [0, 1), for placing features on a global grid.
+ *
+ * Must not depend on the chunk, or the same world position would produce a different answer in a
+ * different chunk and trees would not span borders. The sine hash the previous code used is kept in
+ * spirit but at much larger multipliers, because `sin` of a nearby argument is smooth enough that
+ * neighbouring positions came out correlated -- and because this is also used as the candidate
+ * ACCEPTANCE test, that correlation was visible as banding.
+ *
+ * This accepts the candidate, and the small jitter inside a cell is added separately by `treeHash`,
+ * so the two concerns stay independent.
+ */
+function candidateAt(gx, gz, seed) {
+  const h = Math.sin(gx * 127.1 + gz * 311.7 + seed * 0.017) * 43758.5453;
+  return h - Math.floor(h);
+}
+
+/** The jittered world position of a candidate trunk, deterministically derived from its cell. */
+function jitterOf(gx, gz, seed) {
+  return treeHash(gx * 7 + 1, gz * 13 + 3, seed);
+}
+
+/**
+ * Blocks a trunk may stand on.
+ *
+ * Anything that is terrain. Leaves are excluded deliberately: a neighbouring tree's canopy can
+ * reach into this cell, and a trunk written on top of leaves floats.
+ */
+function isTrunkGround(blockId) {
+  if (blockId === BLOCKS.AIR) return false;
+  if (blockId === BLOCKS.WATER || blockId === BLOCKS.LAVA) return false;
+  const def = BLOCK_DEFS[blockId];
+  if (!def) return false;
+  if (def.plant) return false;
+  if (def.name && def.name.toLowerCase().includes('leaves')) return false;
+  if (def.name && def.name.toLowerCase().includes('log')) return false;
+  return true;
+}
+
 export class World {
   constructor(seed = 4289, selectedBiome = 'all') {
     this.seed = seed;
@@ -408,6 +583,17 @@ export class World {
     if (humid > 0.0) return 'forest';
     if (humid > -0.15) return 'flower_forest';
     return 'plains';
+  }
+
+  /**
+   * The y of the terrain surface column at a world position, clamped exactly as generation clamps it.
+   *
+   * Both the terrain pass and the tree pass must agree on this or trees land at the wrong height.
+   * They did not: terrain clamps to `CHUNK_HEIGHT - 6`, while tree placement used the raw height, so
+   * near the ceiling a trunk started above the ground and floated.
+   */
+  surfaceHeightAt(wx, wz, biomeId = this.getBiome(wx, wz)) {
+    return Math.min(CHUNK_HEIGHT - 6, Math.max(4, this.getHeight(wx, wz, biomeId)));
   }
 
   getHeight(wx, wz, biomeId) {
@@ -688,7 +874,7 @@ export class World {
 
         const bId = this.getBiome(wx, wz);
         const def = getBiomeDef(bId);
-        const height = Math.min(CHUNK_HEIGHT - 6, Math.max(4, this.getHeight(wx, wz, bId)));
+        const height = this.surfaceHeightAt(wx, wz, bId);
 
         // Bedrock layer
         chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
@@ -769,24 +955,7 @@ export class World {
     }
 
     // --- 5. BIOME TREES & GIANT VEGETATION ---
-    for (let lx = 3; lx < CHUNK_SIZE_X - 3; lx += 4) {
-      for (let lz = 3; lz < CHUNK_SIZE_Z - 3; lz += 4) {
-        const wx = cx * CHUNK_SIZE_X + lx;
-        const wz = cz * CHUNK_SIZE_Z + lz;
-        const bId = this.getBiome(wx, wz);
-        const def = getBiomeDef(bId);
-
-        if (def.treeDensity <= 0 || def.treeType === 'none') continue;
-
-        const hash = Math.abs(Math.sin(wx * 91.23 + wz * 43.12 + this.seed * 0.01));
-        if (hash < def.treeDensity) {
-          const height = this.getHeight(wx, wz, bId);
-          if (height >= this.seaLevel && height < CHUNK_HEIGHT - 12) {
-            this.generateTree(chunk, lx, height + 1, lz, def.treeType);
-          }
-        }
-      }
-    }
+    this.plantTreesForChunk(chunk, cx, cz);
 
     // --- 6. VILLAGE GENERATION IN CHUNK (0, 0) ---
     // Civilised Overworld biomes get a starting village
@@ -797,6 +966,93 @@ export class World {
 
     if (cx === 0 && cz === 0 && allowsVillage) {
       this.generateVillage(chunk);
+    }
+  }
+
+  /**
+   * Place trees for one chunk from a GLOBAL grid, so canopies cross chunk borders.
+   *
+   * What this replaces, and why it mattered. Trees used to be placed on a per-chunk grid:
+   *
+   *     for (let lx = 3; lx < CHUNK_SIZE_X - 3; lx += 4)
+   *
+   * which had two visible defects. Every tree sat on a multiple of 4 measured from the chunk's own
+   * corner, so the same pattern repeated in every chunk and read as a grid rather than as a forest.
+   * And because leaves are only written where `x` and `z` land inside the chunk, a tree near an edge
+   * was clipped, so the code simply refused to place one there at all -- leaving a bare 3-block
+   * margin around every chunk.
+   *
+   * Now candidate trunks come from a global grid of spacing 4 in WORLD coordinates. Which cells
+   * carry a tree, and exactly where inside the cell, both come from the cell's own coordinates, so
+   * the forest has no chunk-periodic structure at all -- the previous placement put every trunk on
+   * a local multiple of 4, which repeated identically in every chunk.
+   *
+   * Every chunk draws every tree whose canopy can reach it, clipped to itself, rather than only the
+   * chunk holding the trunk. That is what keeps a canopy whole across a border, and it means no
+   * chunk depends on another having been generated first -- which matters because chunks arrive in
+   * whatever order the player walks. The cost is that a straddling tree is evaluated by two chunks,
+   * which is a couple of extra hash lookups for the few trees near an edge.
+   */
+  plantTreesForChunk(chunk, cx, cz) {
+    const SPACING = 4;
+    // How far a canopy can reach from its trunk. OAK's radius is 2, and the mangrove root cage is 1,
+    // so 2 covers every generator here.
+    const CANOPY_REACH = 2;
+    const baseX = cx * CHUNK_SIZE_X;
+    const baseZ = cz * CHUNK_SIZE_Z;
+
+    // Wider than the chunk by the canopy reach, so a trunk just outside can still drop leaves here.
+    const firstGX = Math.floor((baseX - CANOPY_REACH) / SPACING);
+    const lastGX = Math.floor((baseX + CHUNK_SIZE_X - 1 + CANOPY_REACH) / SPACING);
+    const firstGZ = Math.floor((baseZ - CANOPY_REACH) / SPACING);
+    const lastGZ = Math.floor((baseZ + CHUNK_SIZE_Z - 1 + CANOPY_REACH) / SPACING);
+
+    // Pass 1: decide every tree. The decision depends ONLY on world coordinates and the seed -- the
+    // grid cell, the biome, the terrain height -- and never on what is currently in the chunk. That
+    // is what makes chunk generation order-independent, which it was not before: an earlier version
+    // asked whether the ground under a trunk was solid, and since a neighbouring tree's canopy can
+    // reach into the cell, the answer changed depending on which chunk had been generated first.
+    const trees = [];
+    const claimed = new Set();
+    for (let gx = firstGX; gx <= lastGX; gx++) {
+      for (let gz = firstGZ; gz <= lastGZ; gz++) {
+        const bId = this.getBiome(gx * SPACING, gz * SPACING);
+        const def = getBiomeDef(bId);
+        if (def.treeDensity <= 0 || def.treeType === 'none') continue;
+        if (candidateAt(gx, gz, this.seed) >= def.treeDensity) continue;
+
+        // Jitter inside the cell so trunks do not sit on a visible lattice.
+        const wx = gx * SPACING + Math.floor(jitterOf(gx, gz, this.seed) * SPACING);
+        const wz = gz * SPACING + Math.floor(jitterOf(gx + 8171, gz + 3313, this.seed) * SPACING);
+
+        // The SAME clamped height the terrain pass uses. The raw getHeight was a real bug here:
+        // terrain clamps to CHUNK_HEIGHT - 6, the tree did not, so on high ground a trunk began
+        // above the surface and floated.
+        const height = this.surfaceHeightAt(wx, wz, this.getBiome(wx, wz));
+        if (height < this.seaLevel || height >= CHUNK_HEIGHT - 12) continue;
+
+        // Claim the trunk cell, so two trees cannot fight over it and a later canopy cannot bury an
+        // earlier trunk. Deterministic because the claim order is the grid order.
+        const key = `${wx},${wz}`;
+        if (claimed.has(key)) continue;
+        claimed.add(key);
+        trees.push({ wx, wz, gx, gz, height, treeType: def.treeType });
+      }
+    }
+
+    // Pass 2: trunks first, then canopies.
+    //
+    // Order matters within a chunk. Two trees four blocks apart have overlapping canopies, so if the
+    // first tree's leaves were written before the second tree's trunk, the trunk would be buried and
+    // the tree would look like it floats. Writing every trunk before any leaves removes that, and it
+    // needs no information from outside this chunk.
+    for (const tree of trees) {
+      const writer = new ChunkVoxelWriter(chunk, treeSeed(tree.gx, tree.gz, this.seed), 'trunk');
+      this.generateTree(writer, tree.wx - baseX, tree.height + 1, tree.wz - baseZ, tree.treeType);
+    }
+    for (const tree of trees) {
+      const writer = new ChunkVoxelWriter(chunk, treeSeed(tree.gx, tree.gz, this.seed), 'canopy');
+      this.generateTree(writer, tree.wx - baseX, tree.height + 1, tree.wz - baseZ, tree.treeType);
     }
   }
 
@@ -837,17 +1093,17 @@ export class World {
         this.generatePaleOakTree(chunk, lx, baseY, lz);
         break;
       case 'huge_mushroom':
-        this.generateHugeMushroom(chunk, lx, baseY, lz, Math.random() > 0.5 ? 'red' : 'brown');
+        this.generateHugeMushroom(chunk, lx, baseY, lz, rngOf(chunk)() > 0.5 ? 'red' : 'brown');
         break;
       case 'ice_spike':
         this.generateIceSpike(chunk, lx, baseY, lz);
         break;
       case 'oak_and_birch':
-        if (Math.random() < 0.4) this.generateBirchTree(chunk, lx, baseY, lz);
+        if (rngOf(chunk)() < 0.4) this.generateBirchTree(chunk, lx, baseY, lz);
         else this.generateOakTree(chunk, lx, baseY, lz);
         break;
       case 'spruce_and_oak':
-        if (Math.random() < 0.5) this.generateSpruceTree(chunk, lx, baseY, lz);
+        if (rngOf(chunk)() < 0.5) this.generateSpruceTree(chunk, lx, baseY, lz);
         else this.generateOakTree(chunk, lx, baseY, lz);
         break;
       default:
@@ -957,7 +1213,7 @@ export class World {
       for (let oz = -1; oz <= 1; oz++) {
         const x = lx + ox, z = lz + oz;
         if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z) {
-          const h = 4 + Math.floor(Math.random() * 5);
+          const h = 4 + Math.floor(rngOf(chunk)() * 5);
           for (let y = 0; y < h; y++) {
             if (baseY + y < CHUNK_HEIGHT) chunk.setVoxel(x, baseY + y, z, BLOCKS.BAMBOO);
           }
@@ -1075,7 +1331,7 @@ export class World {
   generateNetherFungus(chunk, lx, baseY, lz, type = 'crimson') {
     const stemId = type === 'crimson' ? BLOCKS.CRIMSON_STEM : BLOCKS.WARPED_STEM;
     const wartId = type === 'crimson' ? BLOCKS.NETHER_WART_BLOCK : BLOCKS.WARPED_WART_BLOCK;
-    const stemHeight = 4 + Math.floor(Math.random() * 3);
+    const stemHeight = 4 + Math.floor(rngOf(chunk)() * 3);
     for (let y = 0; y < stemHeight; y++) {
       if (baseY + y < CHUNK_HEIGHT - 2) {
         chunk.setVoxel(lx, baseY + y, lz, stemId);
@@ -1111,7 +1367,7 @@ export class World {
   }
 
   generateIceSpike(chunk, lx, baseY, lz) {
-    const spikeHeight = 12 + Math.floor(Math.random() * 12);
+    const spikeHeight = 12 + Math.floor(rngOf(chunk)() * 12);
     for (let y = 0; y < spikeHeight; y++) {
       const radius = y > spikeHeight - 3 ? 0 : (y > spikeHeight - 6 ? 1 : 2);
       for (let dx = -radius; dx <= radius; dx++) {
@@ -1126,7 +1382,7 @@ export class World {
   }
 
   generateChorusPlant(chunk, lx, baseY, lz) {
-    const h = 4 + Math.floor(Math.random() * 4);
+    const h = 4 + Math.floor(rngOf(chunk)() * 4);
     for (let y = 0; y < h; y++) {
       if (baseY + y < CHUNK_HEIGHT) {
         chunk.setVoxel(lx, baseY + y, lz, y === h - 1 ? BLOCKS.CHORUS_FLOWER : BLOCKS.CHORUS_PLANT);
@@ -1135,7 +1391,7 @@ export class World {
   }
 
   generateBasaltPillar(chunk, lx, baseY, lz) {
-    const h = 5 + Math.floor(Math.random() * 6);
+    const h = 5 + Math.floor(rngOf(chunk)() * 6);
     for (let y = 0; y < h; y++) {
       if (baseY + y < CHUNK_HEIGHT) chunk.setVoxel(lx, baseY + y, lz, BLOCKS.BASALT);
     }
