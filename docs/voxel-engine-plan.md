@@ -161,34 +161,50 @@ noise calculations".
 Ordered by measured payoff against the baseline above.
 
 **A. Voxel access — done.** A direct-mapped slot array in front of the chunk `Map`, plus bitmask
-local coordinates. Measured **121 → 32 ns/call (3.8×)**; walking radius 4 went 365 → 265 ms. The
-mesh output is byte-identical, so correctness is unchanged. The `Map` stays authoritative and
-`chunkKey` stays a string, because tests and several modules write chunks into `world.chunks`
-directly with string keys. Cache invalidation is wired into `reseed` and `switchDimension`.
+local coordinates. Measured **121 → 23 ns/call (5×)**. The `Map` stays authoritative and `chunkKey`
+stays a string, because tests and several modules write chunks into `world.chunks` directly with
+string keys. Cache invalidation is wired into `reseed` and `switchDimension`. 11 tests in
+`tests/worldChunkCache.test.js`.
 
-**B. Meshing.** The dominant cost by far at 44 ms/chunk. Rewrite the inner loop with reusable typed
-arrays instead of spread-into-JS-array, hoist per-voxel work out of the AO loop, and source AO from
-the chunk's own mask plus a one-block border copy rather than ~14 uncached `world.getVoxel` calls
-per face. Greedy merging is worth doing but only on top of a correct, measured per-face path, and
-AO must enter the merge key so it cannot change shading.
+**B. Meshing — done.** The chunk plus a one-block border is copied into a flat scratch array once
+per mesh, so face and ambient-occlusion sampling is array indexing rather than roughly fourteen
+world lookups per visible face. Measured **44 → 26 ms/chunk**, with mesh vertex counts byte-identical
+(opaque 44600, transparent 7580, water 18476, light 0 over the same 8 chunks). 11 tests in
+`tests/mesherParity.test.js` pin the culling and seam behaviour rather than a golden buffer.
 
-**C. Scene graph and draw calls.** Subclass `Group` to skip three.js's per-frame `updateMatrixWorld`
-walk over settled chunk subtrees (Voxelize's `StaticGroup` — free and immediately measurable), then
-batch chunk geometry per region to cut draw calls.
+**C. Streaming — done.** `src/chunkStreamer.js`: time-budgeted generation and meshing (6ms / 8ms),
+nearest-first ordering, a generate ring one wider than the mesh radius, meshing gated on all eight
+neighbours existing, unloading beyond `meshRadius + 3` with neighbour invalidation, and an unload
+radius deliberately wider than the mesh radius. This also removes a per-frame cost that scaled with
+the whole loaded world: `refreshDirtyChunks` used to allocate and sort an array of every loaded
+chunk on every frame. 16 tests in `tests/chunkStreaming.test.js`.
 
-**D. Streaming.** Replace the per-frame full `(2r+1)²` sweep with an incremental distance-sorted
-scan, separate add and remove radii, budget work per frame in milliseconds rather than chunk counts,
-gate meshing on a neighbour-count threshold so chunks are not meshed against missing neighbours, and
-**unload** chunks that leave range (dirtying their neighbours, per the prismarine-viewer bug above).
-This is what makes a larger view distance affordable.
+Smoke-tested with the real mesher: 180 frames of continuous walking at view radius 4 streamed and
+meshed for an average of **10.1 ms/frame**, with 176 chunks resident.
 
-**E. Procedural generation.** Adopt FastNoiseLite for OpenSimplex2 + `ImproveXZPlanes`, restructure
-terrain as a 2D heightmap plus a 3D density term with a vertical gradient, sample 2D noise once per
-column rather than per voxel, and follow Luanti's pass order with its documented reasons. Biomes via
-heat × humidity.
+**Known limitation of C.** The time budget is checked *after* a chunk finishes meshing, so the worst
+frame is `budget + longest single chunk`. Measured worst single-frame mesh: **17.6 ms**, just over a
+60fps budget. A strict bound needs meshing to be chunk-interruptible (time-sliced inside the mesh
+loop) or per-chunk cost low enough that one chunk fits. Not yet done.
 
-**F. Scale.** Raise the view distance against the measured memory and time budget, with the numbers
-in this document as the target.
+**D. Remaining, in the order I would do it.**
+
+1. **Scene graph.** three.js walks every node of the scene every frame regardless of whether it
+   changed. A loaded disc is hundreds of meshes at fixed positions, and Voxelize's `StaticGroup`
+   (overriding `updateMatrixWorld` to skip a settled subtree) is a free, immediately measurable win.
+2. **Draw calls.** One mesh per chunk per material means hundreds of draw calls. Voxelize batches
+   the opaque bucket into one `BatchedMesh` per 8×8-chunk region; Luanti reaches the same place by
+   merging same-material buffers at draw time. Needs a draw-call measurement in the harness first —
+   the harness currently measures CPU work only.
+3. **Frustum culling** for chunk meshes. three.js does per-mesh bounding-sphere culling, so this is
+   partly free already, but an explicit chunk-level test avoids the per-mesh work.
+4. **Procedural generation.** Adopt FastNoiseLite (`OpenSimplex2` + `ImproveXZPlanes`, FBm 4–5
+   octaves, `Value` for anything sampled often), restructure terrain as a 2D heightmap plus a 3D
+   density term with a vertical gradient, sample 2D noise once per column rather than per voxel,
+   and follow Luanti's pass order with its documented reasons. Biomes via heat × humidity. Trees and
+   structures currently cannot span chunk borders, which is a correctness issue for both.
+5. **Scale.** Raise the view distance against measured budgets. Radius 4 costs 49 generated chunks;
+   radius 16 costs 1089, so this must follow D1–D3 rather than lead them.
 
 ## Benchmark harness
 
@@ -197,3 +213,7 @@ terrain generation, per-chunk meshing, walking cost per view radius, and view-ar
 prints mesh vertex counts so a change can be shown not to have altered geometry. It runs headless on
 the real three.js via `scripts/bench-dom-shim.mjs` — stubbing three was attempted and abandoned
 because Node resolves the real package anyway and the real library needs only a small DOM shim.
+
+**It is only trustworthy on a quiet machine.** Back-to-back runs under load varied from 20 to 40 ms
+per chunk, which is wider than most changes being measured. Take figures from repeated runs when
+nothing else is competing for CPU, and prefer the minimum over the mean.
