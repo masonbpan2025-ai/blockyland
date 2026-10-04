@@ -1522,7 +1522,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       { key: 'fish', type: 'salmon' },
       { key: 'dolphin', type: 'dolphin' },
       { key: 'octopus', type: 'octopus' },
-      { key: 'squid', type: 'octopus' },
+      { key: 'squid', type: 'squid' },
       { key: 'axolotl', type: 'axolotl' }
     ];
 
@@ -2169,7 +2169,8 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         else if (type === 'skeleton') this.game.mobs.spawnSkeleton(sx, sy, sz);
         else if (type === 'salmon') this.game.mobs.spawnSalmon(sx, sy, sz);
         else if (type === 'dolphin') this.game.mobs.spawnDolphin(sx, sy, sz);
-        else if (type === 'octopus' || type === 'squid') this.game.mobs.spawnOctopus(sx, sy, sz);
+        else if (type === 'squid') this.game.mobs.spawnSquid(sx, sy, sz);
+        else if (type === 'octopus') this.game.mobs.spawnOctopus(sx, sy, sz);
         else if (type === 'axolotl') this.game.mobs.spawnAxolotl(sx, sy, sz);
         else this.game.mobs.spawnSalmon(sx, sy, sz);
 

@@ -457,8 +457,13 @@ export class RailSystem {
         cart.position.set(cart.rail[0] + 0.5, cart.rail[1] + 0.35, cart.rail[2] + 0.5);
       }
       if (cart.mesh) cart.mesh.position.copy(cart.position);
+      if(cart.subType==='minecart'&&!cart.rider&&Math.abs(cart.speed)>.1){
+        const mob=this.game?.mobs?.mobs?.find(m=>['squid','glow_squid'].includes(m.type)&&m.health>0&&!m.vehicle&&m.mesh.position.distanceTo(cart.position)<1);
+        if(mob){cart.rider=mob;mob.vehicle=cart;}
+      }
       if (cart.rider) {
-        cart.rider.position.set(cart.position.x, cart.position.y + 0.55, cart.position.z);
+        if(cart.rider.mesh&&cart.rider.health<=0){cart.rider.vehicle=null;cart.rider=null;}
+        else (cart.rider.position||cart.rider.mesh?.position)?.set(cart.position.x, cart.position.y + 0.55, cart.position.z);
       }
     }
   }
@@ -752,6 +757,7 @@ export class RailSystem {
   }
 
   remove(vehicle) {
+    if(vehicle.rider?.vehicle===vehicle){vehicle.rider.vehicle=null;vehicle.rider=null;}
     if (vehicle.mesh && this.game?.scene) this.game.scene.remove(vehicle.mesh);
     let i = this.carts.indexOf(vehicle);
     if (i >= 0) this.carts.splice(i, 1);

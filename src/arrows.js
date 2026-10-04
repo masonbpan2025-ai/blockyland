@@ -25,8 +25,9 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
 
 function projectileHitBounds(manager, target) {
   const dims = manager.getMobDimensions?.(target.type);
-  const width = Number(target.width ?? dims?.width ?? 0.6);
-  const height = Number(target.height ?? dims?.height ?? 1.8);
+  const scale=target.isBaby&&['squid','glow_squid'].includes(target.type)?.625:1;
+  const width = Number(target.width ?? dims?.width ?? 0.6)*scale;
+  const height = Number(target.height ?? dims?.height ?? 1.8)*scale;
   // A ghast's damageable hitbox is its body. Its tentacles are visual appendages
   // and should not make low arrows register as hits (Minecraft Wiki hitbox rule).
   if (target.type === 'ghast') {
