@@ -1,6 +1,7 @@
+import { isEquine } from './horseBehavior.js';
 export function mobBounds(manager, mob) {
   const base = manager.getMobDimensions(mob.type);
-  const scale = mob.isBaby ? 0.5 : 1;
+  const scale = mob.isBaby ? (isEquine(mob) ? .7 : .5) : 1;
   return { width: (mob.width || base.width) * scale, height: (mob.height || base.height) * scale };
 }
 

@@ -1,3 +1,6 @@
+import { updateHorseLead, releaseHorseLead } from './horseLead.js';
+import { createHorseModel } from './horseModel.js';
+import { isEquine, randomHorseStats } from './horseBehavior.js';
 import { setMagmaSize, updateSnowballs } from './netherCombat.js';
 import { updateBarterEffects } from './barterItems.js';
 import { retaliateHoglins } from './netherMobAI.js';
@@ -127,6 +130,7 @@ export class MobManager {
   }
 
   clearMobs() {
+    for(const mob of this.mobs){if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
     this.playerContactStart = null;
     for (const potion of this.splashPotions || []) { potion.mesh.removeFromParent(); potion.mesh.geometry.dispose(); potion.mesh.material.dispose(); }
     this.splashPotions = [];
@@ -350,6 +354,7 @@ export class MobManager {
       case 'magma_cube': return this.spawnMagmaCube(x, y, z);
       case 'shulker': return this.spawnShulker(x, y, z);
       case 'horse': return this.spawnHorse(x, y, z);
+      case 'mule': return this.spawnMule(x,y,z);
       case 'donkey': return this.spawnDonkey(x, y, z);
       case 'wolf': return this.spawnWolf(x, y, z);
       case 'cat': return this.spawnCat(x, y, z);
@@ -2238,7 +2243,8 @@ export class MobManager {
       case 'drowned': return { width: 0.6, height: 1.95 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
       case 'horse':
-      case 'donkey': return { width: 1.4, height: 1.6 };
+      case 'donkey':
+      case 'mule': return { width: 1.4, height: 1.6 };
       case 'wolf': return { width: 0.6, height: 0.85 };
       case 'cat':
       case 'ocelot': return { width: 0.6, height: 0.7 };
@@ -2272,7 +2278,7 @@ export class MobManager {
 
   checkMobCollision(mob, pos) {
     const dims = this.getMobDimensions(mob.type);
-    const scale = mob.isBaby ? 0.5 : 1;
+    const scale = mob.isBaby ? (isEquine(mob) ? 0.7 : 0.5) : 1;
     const hw = (mob.width || dims.width) * scale / 2;
     const h = (mob.height || dims.height) * scale;
 
@@ -2307,7 +2313,7 @@ export class MobManager {
         if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
 
         const dimsA = this.getMobDimensions ? this.getMobDimensions(mobA.type) : { width: 0.6, height: 1.0 };
-        const scaleA = mobA.isBaby ? 0.5 : 1.0;
+        const scaleA = mobA.isBaby ? (isEquine(mobA) ? .7 : .5) : 1.0;
         const hA = (mobA.height || dimsA?.height || 1.0) * scaleA;
         const wA = (mobA.width || dimsA?.width || 0.6) * scaleA;
         const rA = Math.max(0.24, wA * 0.5);
@@ -2319,7 +2325,7 @@ export class MobManager {
           if (mobA.rider === mobB || mobB.rider === mobA) continue;
 
           const dimsB = this.getMobDimensions ? this.getMobDimensions(mobB.type) : { width: 0.6, height: 1.0 };
-          const scaleB = mobB.isBaby ? 0.5 : 1.0;
+          const scaleB = mobB.isBaby ? (isEquine(mobB) ? .7 : .5) : 1.0;
           const hB = (mobB.height || dimsB?.height || 1.0) * scaleB;
           const yB = mobB.mesh.position.y;
 
@@ -3815,100 +3821,17 @@ export class MobManager {
 
   // --- HORSE & DONKEY ---
   spawnHorse(x, y, z) {
-    const group = new THREE.Group();
-    const coatColors = [0x78350f, 0xf8fafc, 0x18181b, 0xa16207, 0xd97706];
-    const coat = coatColors[Math.floor(Math.random() * coatColors.length)];
-    const textureCache = this.textures || (this.textures = {});
-    const horseTextureKey = `horse_${coat.toString(16)}`;
-    const horseTexture = textureCache[horseTextureKey]
-      || (textureCache[horseTextureKey] = this.createHorseTexture(coat));
-    const horseMat = new THREE.MeshLambertMaterial({
-      map: horseTexture,
-      color: 0xffffff
-    });
-    const maneMat = new THREE.MeshLambertMaterial({ color: 0x24170f });
-    const muzzleMat = new THREE.MeshLambertMaterial({ color: 0x3b261a });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0b0d0f });
+    const r=this.random || Math.random;
+    const coat=Math.floor(r()*7), marking=Math.floor(r()*5);
+    const model=createHorseModel(coat,marking,this.textures);
+    const stats=randomHorseStats(r);
+    const mob={type:'horse',name:'Horse',...model,...stats,health:stats.maxHealth,coat,marking,
+      velocity:new THREE.Vector3(),yaw:r()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
+    mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);return mob;
+  }
 
-    // Torso
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 1.4), horseMat);
-    body.position.y = 1.1;
-    group.add(body);
-
-    // Neck & Head
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.4), horseMat);
-    neck.position.set(0, 1.6, 0.6);
-    neck.rotation.x = -Math.PI / 6;
-    group.add(neck);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.65), horseMat);
-    head.position.set(0, 1.95, 0.85);
-    group.add(head);
-
-    // Ears, mane, muzzle and eyes make the coat read as a horse rather than a
-    // featureless brown placeholder while retaining the blocky silhouette.
-    const earGeo = new THREE.BoxGeometry(0.1, 0.24, 0.12);
-    const earL = new THREE.Mesh(earGeo, maneMat); earL.position.set(-0.15, 2.28, 0.73); group.add(earL);
-    const earR = new THREE.Mesh(earGeo, maneMat); earR.position.set(0.15, 2.28, 0.73); group.add(earR);
-    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.16), muzzleMat);
-    muzzle.position.set(0, 1.86, 1.19); group.add(muzzle);
-    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.03);
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.18, 2.08, 1.13); group.add(eyeL);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.18, 2.08, 1.13); group.add(eyeR);
-    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.75, 0.2), maneMat);
-    mane.position.set(0, 1.72, 0.38); group.add(mane);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.62, 0.16), maneMat);
-    tail.position.set(0, 1.05, -0.78); tail.rotation.x = -Math.PI / 8; group.add(tail);
-
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.24, 0.8, 0.24);
-    const fl = new THREE.Mesh(legGeo, horseMat); fl.position.set(-0.3, 0.4, 0.5); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, horseMat); fr.position.set(0.3, 0.4, 0.5); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, horseMat); bl.position.set(-0.3, 0.4, -0.5); group.add(bl);
-    const br = new THREE.Mesh(legGeo, horseMat); br.position.set(0.3, 0.4, -0.5); group.add(br);
-    const hoofGeo = new THREE.BoxGeometry(0.25, 0.12, 0.28);
-    for (const [px, pz] of [[-0.3, 0.5], [0.3, 0.5], [-0.3, -0.5], [0.3, -0.5]]) {
-      const hoof = new THREE.Mesh(hoofGeo, maneMat);
-      hoof.position.set(px, 0.04, pz);
-      group.add(hoof);
-    }
-
-    // Saddle mesh (hidden by default)
-    const saddleMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
-    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 0.75), saddleMat);
-    saddle.position.set(0, 1.25, 0);
-    saddle.visible = false;
-    group.add(saddle);
-
-    // Horse armor mesh (hidden by default)
-    const armorMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
-    const armor = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.92, 1.42), armorMat);
-    armor.position.y = 1.1;
-    armor.visible = false;
-    group.add(armor);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'horse',
-      name: 'Horse',
-      mesh: group,
-      head: head,
-      legs: [fl, fr, bl, br],
-      saddleMesh: saddle,
-      armorMesh: armor,
-      health: 30,
-      maxHealth: 30,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      state: 'idle',
-      timer: 0,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
+  spawnMule(x,y,z) {
+    const mob=this.spawnDonkey(x,y,z);mob.type='mule';mob.name='Mule';return mob;
   }
 
   spawnDonkey(x, y, z) {
@@ -6144,7 +6067,7 @@ export class MobManager {
   damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
-    if (mob.type === 'magma_cube' && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
+    if ((mob.type === 'magma_cube' || mob.type === 'horse') && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
     if (attacker === this.game?.player || (!attacker && knockbackOrigin)) mob.playerDamaged = true;
     mob.health -= amount;
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
@@ -6375,7 +6298,8 @@ export class MobManager {
         cow: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
         sheep: [[mob.woolColor ? (BLOCKS[`${mob.woolColor.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL) : BLOCKS.WHITE_WOOL, true, 1, 1], [(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_mutton' : 'mutton', false, 1, 2]],
         chicken: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
-        horse: [['leather', false, 1, 2]],
+        horse: [['leather', false, 0, 2]],
+        mule: [['leather', false, 0, 2]],
         donkey: [['leather', false, 1, 2]],
         salmon: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_salmon' : 'salmon', false, 1, 1]],
         cod: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_cod' : 'cod', false, 1, 1]],
@@ -6418,6 +6342,9 @@ export class MobManager {
         }
         if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       }
+      if (isEquine(mob) && !mob.isBaby) {
+        for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
+      }
       if (!mob.noLoot) {
         for (const [id, isBlock, min, max] of loot[mob.type] || []) {
           const count = min + Math.floor(Math.random() * (max - min + 1));
@@ -6427,7 +6354,7 @@ export class MobManager {
         }
         if (this.entities?.spawnXpOrbs) {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : isEquine(mob) ? (mob.playerDamaged ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6651,6 +6578,7 @@ export class MobManager {
       this.updateMobHealthBar(mob);
 
       if (mob.health <= 0) {
+        if(isEquine(mob))releaseHorseLead(this,mob);
         this.updateDeath(mob, dt);
         continue;
       }
@@ -6690,7 +6618,7 @@ export class MobManager {
     // a one-frame lag that looked like jitter behind a moving horse.
     const activeMount = this.animalBehaviors?.mount;
     if (activeMount?.mob?.rider === player && player?.position) {
-      const mountOffset = activeMount.type === 'horse' || activeMount.type === 'donkey' ? 1.4 : 0.8;
+      const mountOffset = isEquine(activeMount.type) ? 1.4 : 0.8;
       player.position.copy(activeMount.mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
       player.velocity?.set?.(0, 0, 0);
       player.updateCameraAndModel?.(0);
@@ -6968,7 +6896,7 @@ export class MobManager {
         // Wander
         wanderMob(this, mob, dt, 1.0);
       }
-    } else if (mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
+    } else if (isEquine(mob) || mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
       let isFollowing = false;
 
       // A ridden pig is steered by AnimalBehaviors. Do not let its ambient
@@ -6980,7 +6908,7 @@ export class MobManager {
       }
 
       // If mob is sitting (tamed cat/wolf), freeze movement
-      if (mob.isSitting) {
+      if (mob.isSitting || (isEquine(mob) && mob.grazeTime>0)) {
         isFollowing = true;
         mob.wanderGoal = null;
         mob.velocity.x = 0;
@@ -6994,7 +6922,7 @@ export class MobManager {
       }
 
       // Chicken / Animal following player holding seeds or breeding food (main hand or offhand)
-      if (player && player.inventory) {
+      if (!mob.rider && player && player.inventory) {
         const heldItem = player.inventory.getActiveItem() || player.inventory.getOffhandItem?.();
         const cleanId = heldItem ? (typeof heldItem.id === 'string' ? heldItem.id : heldItem?.id?.id || '').toLowerCase().trim() : '';
         const isTempting = heldItem && (!mob.inLove || mob.inLove <= 0) && (
@@ -7070,7 +6998,7 @@ export class MobManager {
 
       if (!isFollowing) {
         const wanderSpeed = mob.type === 'chicken' ? (mob.isBaby ? 1.3 : 1.0) : (mob.isBaby ? 1.3 : 1.15);
-        wanderMob(this, mob, dt, wanderSpeed);
+        wanderMob(this, mob, dt, isEquine(mob) ? (mob.movementSpeed ?? .175)*8 : wanderSpeed);
       }
 
       if (mob.fleeTime > 0) {
@@ -7592,6 +7520,7 @@ export class MobManager {
       }
       moveFlyingMob(this, mob, dt);
     } else {
+      if(isEquine(mob))updateHorseLead(this,mob);
       const moveSpeed = moveGroundMob(this, mob, dt);
       mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
       const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);

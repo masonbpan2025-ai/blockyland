@@ -1,3 +1,5 @@
+import { tieHorseLeads } from './horseLead.js';
+import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
 import { WaterSplashes } from './waterSplashes.js';
@@ -1223,6 +1225,7 @@ class Game {
     const bZ = this.targetBlock.z;
     const clickedBlock = this.world.getVoxel(bX, bY, bZ);
     const clickedDef = BLOCK_DEFS[clickedBlock];
+    if(clickedDef?.fence && tieHorseLeads(this.mobs,this.player,bX,bY,bZ))return;
 
     // Door interaction (swing open/close)
     if (clickedDef?.door) {
@@ -2434,8 +2437,9 @@ class Game {
       this.mobs?.animalBehaviors?.dismount(this.player);
     }
 
+    updateHorseHud(['horse','donkey','mule'].includes(this.player.ridingMob?.type)?this.player.ridingMob:null);
     // Horse jump meter
-    if (this.player.ridingMob && ['horse', 'donkey'].includes(this.player.ridingMob.type)) {
+    if (this.player.ridingMob && ['horse', 'donkey', 'mule'].includes(this.player.ridingMob.type)) {
       this.ui?.setHorseJumpMeter?.(this.player.ridingMob.jumpCharge || 0);
     } else {
       this.ui?.setHorseJumpMeter?.(0);

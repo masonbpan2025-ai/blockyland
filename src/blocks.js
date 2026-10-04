@@ -994,6 +994,8 @@ export const ITEMS = {
   turtle_helmet: { name: 'Turtle Shell', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/turtle_helmet.png', type: 'armor' },
   shield: { name: 'Shield', icon: '/assets/items/shield.png', type: 'shield', offhand: true },
 
+  leather_horse_armor: { name: 'Leather Horse Armor', icon: '/assets/items/leather.png', type: 'armor' },
+  hay_bale: { name: 'Hay Bale', icon: '/assets/items/wheat.png', type: 'material' },
   diamond_horse_armor: { name: 'Diamond Horse Armor', icon: '/assets/items/diamond_horse_armor.png', type: 'armor' },
   golden_horse_armor: { name: 'Golden Horse Armor', icon: '/assets/items/golden_horse_armor.png', type: 'armor' },
   iron_horse_armor: { name: 'Iron Horse Armor', icon: '/assets/items/iron_horse_armor.png', type: 'armor' },
@@ -1075,6 +1077,7 @@ export const ITEMS = {
   kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', type: 'food' },
   dried_kelp: { name: 'Dried Kelp', food: 1, icon: '/assets/items/dried_kelp.png', type: 'food' },
   carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food', crop: 'carrots' },
+  golden_dandelion: { name: 'Golden Dandelion', icon: '/assets/blocks/dandelion.png', type: 'material' },
   golden_carrot: { name: 'Golden Carrot', food: 6, icon: '/assets/items/golden_carrot.png', type: 'food' },
   potato: { name: 'Potato', food: 1, icon: '/assets/items/potato.png', type: 'food', crop: 'potatoes' },
   baked_potato: { name: 'Baked Potato', food: 5, icon: '/assets/items/baked_potato.png', type: 'food' },

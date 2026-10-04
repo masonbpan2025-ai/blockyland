@@ -1,3 +1,4 @@
+import { isEquine } from './horseBehavior.js';
 import * as THREE from 'three';
 import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
@@ -316,6 +317,10 @@ export function moveGroundMob(manager, mob, dt) {
     mob.wanderTimer = 0; mob.wanderGoal = null; mob.stuckTime = 0;
     mob.avoidYaw = mob.yaw + (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
     mob.avoidTime = 1.2;
+  }
+  if(isEquine(mob) && !mob.dying){
+    if(!mob.onGround)mob.horseFallPeak=Math.max(mob.horseFallPeak ?? start.y,pos.y);
+    else if(mob.horseFallPeak!==undefined){const fall=mob.horseFallPeak-pos.y;delete mob.horseFallPeak;if(fall>7){const damage=Math.floor((fall-7)*.5);if(damage>0)manager.damageMob(mob,damage,null,false,null,true);mob.rider?.takeDamage?.(Math.floor(fall-3),null,'fall');}}
   }
   const turn = Math.atan2(Math.sin(mob.yaw - mob.mesh.rotation.y), Math.cos(mob.yaw - mob.mesh.rotation.y));
   mob.mesh.rotation.y += turn * (1 - Math.exp(-7 * dt));
