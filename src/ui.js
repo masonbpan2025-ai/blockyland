@@ -29,6 +29,48 @@ import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 
+/**
+ * Resolve an item icon path, falling back to a generated tile when the asset is missing.
+ *
+ * Generated content references icon paths that may not exist. Rather than let that render as a
+ * broken image, a missing icon becomes a small coloured square carrying the item name's initial,
+ * which stays legible and tells the player which item they are looking at.
+ */
+export function resolveItemIcon(icon, name = '') {
+  if (icon) return icon;
+  return placeholderItemIcon(name);
+}
+
+const placeholderIconCache = new Map();
+
+/** Draw a placeholder icon for a named item. Cached, because the hotbar re-renders every frame. */
+export function placeholderItemIcon(name = '') {
+  const label = (name || '?').trim();
+  const key = label || '?';
+  if (placeholderIconCache.has(key)) return placeholderIconCache.get(key);
+  const size = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  // Deterministic colour per name, so the same item always looks the same.
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  ctx.fillStyle = `hsl(${hue}, 38%, 34%)`;
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = `hsl(${hue}, 38%, 22%)`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, size - 2, size - 2);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText((label[0] || '?').toUpperCase(), size / 2, size / 2 + 1);
+  const url = canvas.toDataURL();
+  placeholderIconCache.set(key, url);
+  return url;
+}
+
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
@@ -467,7 +509,9 @@ export class UIManager {
         if (meta) {
           const img = document.createElement('img');
           img.className = 'slot-icon';
-          img.src = meta.icon;
+          img.src = resolveItemIcon(meta.icon, meta.name);
+          // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
+          img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
           slot.appendChild(img);
 
           if (meta.count > 1) {
@@ -491,7 +535,9 @@ export class UIManager {
         if (meta) {
           const img = document.createElement('img');
           img.className = 'slot-icon';
-          img.src = meta.icon;
+          img.src = resolveItemIcon(meta.icon, meta.name);
+          // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
+          img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
           offhandSlot.appendChild(img);
 
           if (meta.count > 1) {
@@ -929,7 +975,9 @@ export class UIManager {
 
       const img = document.createElement('img');
       img.className = 'slot-icon';
-      img.src = item.icon;
+      img.src = resolveItemIcon(item.icon, item.name);
+      // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
+      img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(item.name); };
       img.alt = item.name;
       slot.appendChild(img);
 
@@ -2862,7 +2910,9 @@ export class UIManager {
     if (item.enchantments && item.enchantments.length > 0) {
       img.classList.add('enchanted-item');
     }
-    img.src = meta.icon;
+    img.src = resolveItemIcon(meta.icon, meta.name);
+    // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
+    img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
     slotEl.appendChild(img);
 
     if (meta.count > 1) {

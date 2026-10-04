@@ -4,6 +4,7 @@
 // Keeping it in its own generated module means regenerating never rewrites this hand-maintained
 // file, and the additions stay reviewable as a diff.
 import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from './extraContent.js';
+import { EXTRA_ITEMS } from './extraItems.js';
 
 export const BLOCKS = {
   AIR: 0,
@@ -1281,6 +1282,18 @@ export const ITEMS = {
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
   wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' }
 };
+
+// --- generated item additions for vanilla parity -----------------------------
+//
+// Merged by mutation so every existing reference to ITEMS keeps pointing at the same object, and
+// guarded so a regenerated name can never silently replace a hand-written item -- which would lose
+// hand-tuned stats such as a tool's attack damage.
+for (const [key, def] of Object.entries(EXTRA_ITEMS)) {
+  if (ITEMS[key] !== undefined) {
+    throw new Error(`extraItems collision: '${key}' is already a hand-written item`);
+  }
+  ITEMS[key] = def;
+}
 
 
 BLOCK_DEFS[BLOCKS.REDSTONE_WIRE] = {name: 'Redstone Wire', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_wire.svg'};

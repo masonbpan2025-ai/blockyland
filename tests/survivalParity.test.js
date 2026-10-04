@@ -61,7 +61,7 @@ test('the name mapper resolves present content and not absent content', { skip }
   }
   // Genuinely still absent, and among the largest remaining blockers. If one of these starts
   // resolving that is progress, and this test should be updated deliberately rather than silently.
-  for (const name of ['honeycomb', 'glass_pane', 'candle', 'stone_slab', 'black_bed', 'bowl', 'flint']) {
+  for (const name of ['glass_pane', 'white_candle', 'stone_slab', 'white_bed', 'oak_slab', 'oak_stairs', 'white_carpet']) {
     assert.equal(have(name), false, `${name} is absent from the game and must not resolve`);
   }
 });

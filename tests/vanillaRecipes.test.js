@@ -224,7 +224,9 @@ test('the generator reports what it could not express', () => {
     + EXTRA_RECIPE_STATS.rejectedRaggedPattern
     + EXTRA_RECIPE_STATS.rejectedLargerThan3x3
     + EXTRA_RECIPE_STATS.rejectedEmptyPattern
-    + EXTRA_RECIPE_STATS.unclassified;
+    + EXTRA_RECIPE_STATS.unclassified
+    + EXTRA_RECIPE_STATS.skippedNotACraftableResult
+    + EXTRA_RECIPE_STATS.skippedCountTooLarge;
   assert.equal(accounted, EXTRA_RECIPE_STATS.vanillaTotal,
     'every vanilla recipe must be either emitted or counted as skipped; none may vanish');
   assert.equal(EXTRA_RECIPE_STATS.emittedBeforeDedupe - EXTRA_RECIPE_STATS.duplicatesCollapsed,

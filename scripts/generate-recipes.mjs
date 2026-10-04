@@ -87,6 +87,7 @@ const stats = {
   skippedResult: 0, skippedIngredient: 0, shapelessUnsupported: 0,
   rejectedRagged: 0, rejectedTooLarge: 0, rejectedEmpty: 0, unreachable: 0,
   duplicatesCollapsed: 0, emittedBeforeDedupe: 0,
+  skippedNotACraftableResult: 0, skippedCountTooLarge: 0,
 };
 const skippedNames = new Map();
 
@@ -102,6 +103,19 @@ for (const key of Object.keys(recipes)) {
     }
     const count = rec.result?.count ?? 1;
     const isBlock = typeof resultResolved === 'number';
+
+    // A result of air, or a count below 1, is not a craftable outcome. Vanilla really does contain
+    // such a recipe -- the cartography table's "clear map" action is stored as result air count 0 --
+    // and emitting it would put a recipe in the list whose only effect is to consume ingredients.
+    if ((isBlock && resultResolved === BLOCKS.AIR) || !(count >= 1)) {
+      stats.skippedNotACraftableResult++;
+      if (resultName) skippedNames.set(resultName, (skippedNames.get(resultName) || 0) + 1);
+      continue;
+    }
+    if (count > 64) {
+      stats.skippedCountTooLarge++;
+      continue;
+    }
     const result = { id: resultResolved, isBlock, count };
 
     if (rec.inShape && rec.inShape.length) {
@@ -251,6 +265,8 @@ lines.push('export const EXTRA_RECIPE_STATS = ' + JSON.stringify({
   unclassified: stats.unreachable,
   emittedBeforeDedupe: stats.emittedBeforeDedupe,
   duplicatesCollapsed: stats.duplicatesCollapsed,
+  skippedNotACraftableResult: stats.skippedNotACraftableResult,
+  skippedCountTooLarge: stats.skippedCountTooLarge,
 }, null, 2).replace(/\n/g, '\n') + ';');
 lines.push('');
 
@@ -269,8 +285,11 @@ console.log('  rejected, ragged pattern    : ' + stats.rejectedRagged);
 console.log('  rejected, larger than 3x3   : ' + stats.rejectedTooLarge);
 console.log('  rejected, empty pattern     : ' + stats.rejectedEmpty);
 const accounted = emittedBeforeDedupe + stats.skippedResult + stats.skippedIngredient + stats.shapelessUnsupported
-  + stats.rejectedRagged + stats.rejectedTooLarge + stats.rejectedEmpty + stats.unreachable;
+  + stats.rejectedRagged + stats.rejectedTooLarge + stats.rejectedEmpty + stats.unreachable
+  + stats.skippedNotACraftableResult + stats.skippedCountTooLarge;
 console.log('  duplicates collapsed        : ' + stats.duplicatesCollapsed);
+console.log('  skipped, not a craftable    : ' + stats.skippedNotACraftableResult);
+console.log('  skipped, count over 64      : ' + stats.skippedCountTooLarge);
 console.log('  accounted vs seen           : ' + accounted + ' / ' + stats.total
   + (accounted === stats.total ? '  OK' : '  MISMATCH'));
 if (accounted !== stats.total) {
