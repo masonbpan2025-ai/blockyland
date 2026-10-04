@@ -89,20 +89,31 @@ export class ChunkStreamer {
    * budget?
    *
    * `phaseSpentMs`/`phaseBudgetMs` are the phase's own limit; `frameBuildMs` is the frame's total.
-   * Both apply. The frame total is the one that matters in the game, since separate per-phase
-   * limits let a frame spend both and overrun without either phase noticing; the phase limit is
-   * kept because it is useful for bounding one kind of work on its own.
+   * Both apply. The frame total is the one that matters in the game, since separate per-phase limits
+   * let a frame spend both and overrun without either phase noticing; the phase limit is kept because
+   * it is useful for bounding one kind of work on its own.
    *
-   * The first operation of a phase always runs, whatever the budgets say, so progress cannot
-   * deadlock: when a single chunk costs more than the entire budget, the streamer still advances
-   * and the world still fills in, just more slowly.
+   * On deadlock. Generation is atomic per chunk, so it has to be allowed to run even when the
+   * estimate exceeds the whole budget -- otherwise a chunk that costs more than the budget would
+   * never be generated and the world would stop filling in. But allowing the first operation of a
+   * PHASE to run unconditionally was the wrong escape: it let a generation start on top of a frame
+   * that had already spent its budget on meshing, so the overrun was `spent + generation` rather than
+   * `generation`. Measured, that was the whole remaining tail -- 0.2% of frames over budget, with
+   * generation at p99 13.4ms and max 47.2ms.
+   *
+   * The escape is now "only on a fresh frame". Generation still always makes progress, because the
+   * frame it happens on is empty, so the worst frame is one generation rather than one generation
+   * plus whatever else the frame had already done.
    *
    * @param {boolean} isFirst  true for the first operation of this phase in this update
    */
   wouldExceed(estimatedMs, phaseSpentMs = 0, phaseBudgetMs = Infinity, isFirst = false) {
-    if (isFirst) return false;
-    if (phaseSpentMs + estimatedMs > phaseBudgetMs) return true;
     const spent = now() - this.frameStart;
+    // A fresh frame has nothing to protect, so the operation runs even if it alone exceeds the
+    // budget. That is the anti-deadlock escape, and it is narrow: `spent` must be essentially zero.
+    if (spent <= 0.01) return false;
+    if (isFirst && spent < this.estimatedGenerateMs) return false;
+    if (phaseSpentMs + estimatedMs > phaseBudgetMs) return true;
     return spent + estimatedMs > this.frameBuildMs;
   }
 
