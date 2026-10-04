@@ -13,6 +13,7 @@ import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './min
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
+import { ChunkStreamer } from './chunkStreamer.js';
 import { ChunkMesher } from './mesher.js';
 import { SoundEngine } from './audio.js';
 import { Player } from './player.js';
@@ -148,6 +149,14 @@ class Game {
     this.clock = new THREE.Clock();
     this.fpsHistory = [];
     this.renderDistance = 4; // chunks radius
+    // Streaming owns generate / mesh / unload from here on. Created before any world exists, and
+    // given the world when one is made, so it can be constructed once. The extra generate ring
+    // keeps a chunk's border real while it is meshed; the wider unload radius stops a walk back
+    // and forth across a chunk border from thrashing.
+    this.streamer = new ChunkStreamer(this, {
+      meshRadius: this.renderDistance,
+      unloadRadius: this.renderDistance + 3,
+    });
 
     // Created here rather than in start() so the start-overlay handlers can
     // always use it, even if start() is still awaiting textures.
@@ -493,30 +502,12 @@ class Game {
   }
 
   loadChunksAroundPlayer() {
-    const pcx = Math.floor(this.player.position.x / CHUNK_SIZE_X);
-    const pcz = Math.floor(this.player.position.z / CHUNK_SIZE_Z);
-
-    // Generate neighbors before meshing so boundary water depth and face culling
-    // use real terrain rather than treating not-yet-loaded chunks as empty air.
-    for (let cx = pcx - this.renderDistance; cx <= pcx + this.renderDistance; cx++) {
-      for (let cz = pcz - this.renderDistance; cz <= pcz + this.renderDistance; cz++) {
-        if (!this.world.getChunk(cx, cz)) {
-          this.world.getOrCreateChunk(cx, cz);
-          for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-            const neighbor = this.world.getChunk(cx + dx, cz + dz);
-            if (neighbor) neighbor.dirty = true;
-          }
-        }
-      }
-    }
-    for (let cx = pcx - this.renderDistance; cx <= pcx + this.renderDistance; cx++) {
-      for (let cz = pcz - this.renderDistance; cz <= pcz + this.renderDistance; cz++) {
-        const chunk = this.world.getOrCreateChunk(cx, cz);
-        if (chunk.dirty) {
-          this.rebuildChunkMesh(chunk);
-        }
-      }
-    }
+    // Streaming now owns this. Kept as the entry point that the nether portal, the bed, the
+    // structure studio and the world-start path all call, but it no longer generates and meshes
+    // the whole view area in one synchronous loop -- that was the source of the multi-second
+    // freeze when the view distance grew.
+    if (!this.streamer || !this.world) return;
+    this.streamer.loadAllSynchronously(this.player.position.x, this.player.position.z);
   }
 
   switchDimension(newDim, targetPos = null) {
@@ -544,6 +535,14 @@ class Game {
     // 3. Switch world dimension
     this.world.switchDimension(newDim);
     this.currentDimension = newDim;
+    // The streamer's sets describe the chunks of the dimension just left. Without this it would
+    // think the new dimension's chunks were already loaded, mesh nothing, and never unload the old
+    // ones.
+    if (this.streamer) {
+      this.streamer.loaded.clear();
+      this.streamer.pending.clear();
+      this.streamer.centerX = null;
+    }
 
     // 4. Update atmosphere (sky, fog, lighting)
     if (newDim === 'nether') {
@@ -598,11 +597,18 @@ class Game {
     if (this.ui?.updateStats) this.ui.updateStats();
   }
 
+  /**
+   * Flush dirty chunks. Kept as the public hook that block edits, doors, chests, farming and the
+   * structure studio all call.
+   *
+   * The body used to be `[...world.chunks.values()].filter(c => c.dirty).sort(...)` on every call,
+   * and it was called from the render loop -- so every frame allocated and sorted an array of all
+   * loaded chunks in order to mesh at most a handful. It now asks the streamer, which keeps a
+   * persistent dirty set and a distance order, and never rescans the world.
+   */
   refreshDirtyChunks(budget = 4) {
-    const px=this.player.position.x, pz=this.player.position.z;
-    const dirty=[...this.world.chunks.values()].filter(chunk=>chunk.dirty);
-    dirty.sort((a,b)=>(a.cx*16-px)**2+(a.cz*16-pz)**2-((b.cx*16-px)**2+(b.cz*16-pz)**2));
-    for(const chunk of dirty.slice(0,budget)) this.rebuildChunkMesh(chunk);
+    if (!this.streamer || !this.world) return;
+    this.streamer.flush(this.player.position.x, this.player.position.z, Math.max(1, budget) * 2);
   }
 
   rebuildChunkMesh(chunk) {
@@ -2486,6 +2492,17 @@ class Game {
     }
 
     this.world.water.update(dt);
+
+    // Chunk streaming: generate what the player is walking toward, mesh what is ready, and unload
+    // what is now far away -- all bounded by a time budget so this cannot itself cause a spike.
+    // This replaces the previous arrangement, where generation happened in one synchronous burst
+    // when the player crossed a chunk border, and `refreshDirtyChunks` allocated and sorted a list
+    // of every loaded chunk on every frame.
+    if (this.streamer && this.worldReady) {
+      this.streamer.update(this.player.position.x, this.player.position.z);
+    }
+
+    // Pick up chunks that an edit marked dirty directly on the world.
     this.refreshDirtyChunks();
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader
