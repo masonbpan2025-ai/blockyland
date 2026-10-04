@@ -1,11 +1,96 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
+import { findPath, directRouteIsSafe } from './mobPathfinder.js';
+
+/** How often a mob recomputes its route, in seconds. */
+const PATH_REPLAN = 0.5;
+
+/**
+ * Pick the point a mob should actually aim for this frame.
+ *
+ * Returns the destination unchanged when the way there is clear. When it is blocked -- by
+ * lava, fire, or terrain -- it plans a route and hands back the next waypoint, so the mob
+ * follows the detour rather than pressing into the obstacle.
+ *
+ * @returns {{x:number,y:number,z:number}} the aim point
+ */
+function routeAimPoint(manager, mob, destination, dt) {
+  const pos = mob.mesh.position;
+  mob.pathCooldown = Math.max(0, (mob.pathCooldown || 0) - dt);
+
+  // Move to the next waypoint once the current one is reached.
+  if (mob.path && mob.path.length) {
+    const wp = mob.path[0];
+    const dx = (wp.x + 0.5) - pos.x;
+    const dz = (wp.z + 0.5) - pos.z;
+    if (Math.hypot(dx, dz) < 0.45 && Math.abs(wp.y - pos.y) < 1.6) mob.path.shift();
+  }
+
+  // Notice being stuck: a path that cannot be walked has to be recomputed, or the mob
+  // presses into the obstacle forever. Progress is measured against where it was, so a mob
+  // walking a long detour does not trip this.
+  const mark = mob.pathProgressAt || { x: pos.x, z: pos.z };
+  if (Math.hypot(pos.x - mark.x, pos.z - mark.z) > 0.5) {
+    mob.pathProgressAt = { x: pos.x, z: pos.z };
+    mob.stuckTimer = 0;
+  } else {
+    mob.stuckTimer = (mob.stuckTimer || 0) + dt;
+  }
+  const stuck = mob.stuckTimer > 0.45;
+  if (stuck) mob.pathProgressAt = { x: pos.x, z: pos.z };
+
+  // Re-plan when the goal has moved a long way, on the cadence, or after getting stuck.
+  const goalMoved = !mob.pathGoal || Math.hypot(mob.pathGoal.x - destination.x, mob.pathGoal.z - destination.z) > 2.5;
+  const needsRoute = () => !directRouteIsSafe(manager, mob, pos, destination);
+
+  if (stuck) {
+    // Remember that this spot is not yielding progress, so the next plan routes around it
+    // instead of reproducing the same first step. The memo is capped and expires by time,
+    // because terrain changes and a cell that was blocked may later be fine.
+    mob.avoidCells = mob.avoidCells || new Map();
+    const now = performance.now();
+    for (const [k, t] of mob.avoidCells) if (now - t > 4000) mob.avoidCells.delete(k);
+    const here = Math.floor(pos.x) + ',' + Math.floor(pos.y) + ',' + Math.floor(pos.z);
+    mob.avoidCells.set(here, now);
+    if (mob.path && mob.path.length > 1) mob.path.shift();
+    mob.stuckTimer = 0;
+    mob.pathCooldown = 0;
+    mob.pathProgressAt = { x: pos.x, z: pos.z };
+  }
+
+  // Note the guard is on the path OBJECT, not its length: an empty path means "no route
+  // found", and treating that as "nothing to do" stopped a blocked mob ever planning again.
+  if (!mob.path || mob.path.length === 0 || goalMoved || stuck) {
+    if (mob.pathCooldown <= 0 && needsRoute()) {
+      const avoidSet = mob.avoidCells && mob.avoidCells.size ? new Set(mob.avoidCells.keys()) : null;
+      const plan = findPath(manager, mob, pos, destination, avoidSet ? { avoid: avoidSet } : undefined);
+      mob.path = plan.path;
+      mob.pathGoal = { x: destination.x, y: destination.y, z: destination.z };
+      mob.pathCooldown = PATH_REPLAN;
+      mob.pathReached = plan.reached;
+    } else if (goalMoved) {
+      // The goal moved but the way is clear: drop the stale route and steer directly.
+      mob.path = null;
+      mob.pathGoal = { x: destination.x, y: destination.y, z: destination.z };
+    }
+  }
+
+  const wp = mob.path && mob.path[0];
+  if (wp) return { x: wp.x + 0.5, y: wp.y, z: wp.z + 0.5, followingWaypoint: true };
+  return destination;
+}
 
 export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0) {
-  const direction = destination.clone().sub(mob.mesh.position).setY(0);
+  // Aim at the next waypoint when a route is needed, otherwise straight at the target.
+  const aim = routeAimPoint(manager, mob, destination, dt);
+  const direction = new THREE.Vector3(aim.x, mob.mesh.position.y, aim.z).sub(mob.mesh.position).setY(0);
   const distance = direction.length();
-  if (distance <= stop) { mob.velocity.x = mob.velocity.z = 0; mob.avoidTime = 0; return; }
+  // A waypoint has to be reached, not merely approached. Halting within `stop` of it left the
+  // mob just outside the distance at which the route advances, so it stalled with zero
+  // velocity. Following a waypoint therefore never short-stops; the route advances on arrival.
+  const effectiveStop = aim.followingWaypoint ? 0 : stop;
+  if (distance <= effectiveStop) { mob.velocity.x = mob.velocity.z = 0; mob.avoidTime = 0; return; }
   direction.normalize();
   let yaw = Math.atan2(direction.x, direction.z);
   mob.steerTimer = Math.max(0, (mob.steerTimer || 0) - dt);
@@ -23,7 +108,15 @@ export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0
   else if (!clear(yaw)) {
     const alternatives = [0.65, -0.65, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, Math.PI];
     const angle = alternatives.map(a => yaw + a).find(clear);
-    if (angle === undefined) { mob.velocity.x = mob.velocity.z = 0; return; }
+    if (angle === undefined) {
+      // No heading probed clear. Keep the heading rather than freezing: moveGroundMob refuses
+      // any step that would actually hurt, so the mob stays safe while still making progress
+      // around the obstacle. Zeroing velocity here stranded mobs at every lava edge.
+      mob.steerYaw = yaw;
+      mob.steerTimer = 0.2;
+    } else {
+      yaw = angle; mob.steerYaw = yaw; mob.steerTimer = 0.8;
+    }
     yaw = angle; mob.steerYaw = yaw; mob.steerTimer = 0.8;
   }
   mob.avoidTime = 0;

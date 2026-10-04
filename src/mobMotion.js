@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
+import { isLethalStep, hazardKind } from './hazards.js';
 
 export function wanderMob(manager, mob, dt, speed) {
   mob.wanderTimer = (mob.wanderTimer || 0) - dt;
@@ -35,6 +36,65 @@ export function wanderMob(manager, mob, dt, speed) {
   }
 }
 
+/**
+ * The hazard view moveGroundMob needs: voxel lookup, solidity, and the mob itself so its
+ * immunities apply (a blaze may cross lava, a cow may not).
+ */
+function hazardCtx(manager, mob) {
+  return {
+    mob,
+    getVoxel: (x, y, z) => manager.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z)),
+    isSolid: (x, y, z) => manager.isBlockSolid(Math.floor(x), Math.floor(y), Math.floor(z), mob?.type ?? null),
+  };
+}
+
+/**
+ * Should this step be refused?
+ *
+ * Knockback overrides everything: a mob being thrown must not be able to refuse, or the
+ * player could never shove one into anything. A dying mob and a magma cube are likewise
+ * exempt, matching the behaviour they already had.
+ *
+ * @returns {boolean} true when the move must not be taken
+ */
+function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId) {
+  if (mob.type === "magma_cube" || mob.dying) return false;
+  if (knockback.lengthSq() >= 0.1) return false;
+  if (!grounded) return false;
+  // Anything that would hurt the mob where it would end up.
+  if (isLethalStep(hazards, cell.x, cell.y, cell.z)) return true;
+  // Water stays an obstacle for land mobs, as before.
+  const inWater = hazards.getVoxel(cell.x, cell.y, cell.z) === waterId;
+  if (inWater) return true;
+  // Deep drops were already avoided; keep that.
+  return !hazards.isSolid(cell.x, cell.y - 1.05, cell.z);
+}
+
+/**
+ * Find a heading close to `yaw` that is not immediately harmful.
+ *
+ * Tries progressively wider angles on both sides. This is what makes a mob walk around a
+ * lava edge rather than pressing into it.
+ *
+ * @returns {number|null} a safe yaw, or null when every direction is blocked
+ */
+function deflectAroundHazard(hazards, mob, yaw, distance = 1.1) {
+  const offsets = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, 2.0, -2.0, Math.PI];
+  const pos = mob.mesh.position;
+  for (const off of offsets) {
+    const angle = yaw + off;
+    const x = Math.floor(pos.x + Math.sin(angle) * distance);
+    const z = Math.floor(pos.z + Math.cos(angle) * distance);
+    // Probe at the mob feet and one block up, and require a floor.
+    const y = Math.floor(pos.y);
+    if (hazards.isSolid(x, y, z)) continue;
+    if (isLethalStep(hazards, x, y, z)) continue;
+    if (!hazards.isSolid(x, y - 1, z) && hazards.getVoxel(x, y - 1, z) !== 0) continue;
+    return angle;
+  }
+  return null;
+}
+
 export function moveGroundMob(manager, mob, dt) {
   if(mob.health>0)applyHeat(manager.world,mob,mob.mesh.position,dt,n=>manager.damageMob(mob,n));
   const start = mob.mesh.position.clone(), pos = mob.mesh.position;
@@ -45,7 +105,38 @@ export function moveGroundMob(manager, mob, dt) {
       if (!collision(candidate)) { pos.copy(candidate); break; }
     }
   }
+  const hazards = hazardCtx(manager, mob);
   const knockback = mob.knockback || new THREE.Vector3();
+
+  // Standing in something harmful: get out before anything else, whichever way is safe.
+  {
+    const hereX = Math.floor(pos.x), hereY = Math.floor(pos.y), hereZ = Math.floor(pos.z);
+    if (isLethalStep(hazards, hereX, hereY, hereZ)) {
+      const escape = deflectAroundHazard(hazards, mob, (mob.yaw || 0) + Math.PI, 1.4);
+      if (escape !== null) {
+        const run = Math.max(2.4, Math.hypot(mob.velocity.x, mob.velocity.z));
+        mob.velocity.x = Math.sin(escape) * run;
+        mob.velocity.z = Math.cos(escape) * run;
+        mob.yaw = escape;
+        mob.fleeingHazard = true;
+      }
+    } else {
+      // Not in danger: if the way ahead is harmful, angle around it rather than pressing on.
+      const headingX = Math.floor(pos.x + Math.sin(mob.yaw || 0) * 1.1);
+      const headingZ = Math.floor(pos.z + Math.cos(mob.yaw || 0) * 1.1);
+      const headingY = Math.floor(pos.y);
+      if (isLethalStep(hazards, headingX, headingY, headingZ)
+        || hazardKind(hazards.getVoxel(headingX, headingY - 1, headingZ), mob)) {
+        const dodge = deflectAroundHazard(hazards, mob, mob.yaw || 0);
+        if (dodge !== null) {
+          const speedNow = Math.hypot(mob.velocity.x, mob.velocity.z) || 2.2;
+          mob.velocity.x = Math.sin(dodge) * speedNow;
+          mob.velocity.z = Math.cos(dodge) * speedNow;
+          mob.yaw = dodge;
+        }
+      }
+    }
+  }
   mob.avoidTime = Math.max(0, (mob.avoidTime || 0) - dt);
   if (mob.type !== 'magma_cube' && mob.avoidTime > 0 && !mob.dying) {
     const speed = Math.hypot(mob.velocity.x, mob.velocity.z) || 2.2;
@@ -63,18 +154,23 @@ export function moveGroundMob(manager, mob, dt) {
     for (const [axis, speed] of [['x', vx], ['z', vz]]) {
       if (Math.abs(speed) < 0.001) continue;
       const candidate = pos.clone(); candidate[axis] += speed * step;
-      if (collision(candidate)) {
+      const cell = { x: Math.floor(candidate.x), y: Math.floor(candidate.y), z: Math.floor(candidate.z) };
+      // Veto harm before anything else. This has to come first: lava, fire and powder snow
+      // are authored with solid:false, so collision() is false for them and a check placed
+      // after the collision split would never run.
+      if (stepIsRefused(hazards, manager, mob, cell, grounded, knockback, BLOCKS.WATER)) {
+        blocked = true;
+      } else if (collision(candidate)) {
         const raised = candidate.clone(); raised.y = Math.floor(pos.y + 0.05) + 1;
         const clearance = pos.clone(); clearance.y = raised.y;
         const floor = raised.clone(); floor.y -= 0.04;
-        if (mob.type !== 'magma_cube' && !mob.dying && grounded && raised.y - pos.y <= 1.04 && !collision(clearance) && !collision(raised) && collision(floor)) pos.copy(raised);
+        const raisedCell = { x: Math.floor(raised.x), y: Math.floor(raised.y), z: Math.floor(raised.z) };
+        if (mob.type !== 'magma_cube' && !mob.dying && grounded && raised.y - pos.y <= 1.04
+          && !collision(clearance) && !collision(raised) && collision(floor)
+          && !isLethalStep(hazards, raisedCell.x, raisedCell.y, raisedCell.z)) pos.copy(raised);
         else blocked = true;
       } else {
-        // Walking AI avoids deep drops and entering water; knockback can still push it off.
-        const floor = candidate.clone(); floor.y -= 1.05;
-        const water = manager.world.getVoxel(Math.floor(candidate.x), Math.floor(candidate.y), Math.floor(candidate.z)) === BLOCKS.WATER;
-        if (mob.type !== 'magma_cube' && !mob.dying && grounded && knockback.lengthSq() < 0.1 && (!collision(floor) || water)) blocked = true;
-        else pos.copy(candidate);
+        pos.copy(candidate);
       }
     }
     const maxFall = mob.maxFallSpeed !== undefined ? mob.maxFallSpeed : (mob.type === 'chicken' ? -1.5 : -40);

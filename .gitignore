@@ -34,3 +34,6 @@ saves/*.json
 !saves/.gitkeep
 !saves/World_Martial_Arts_Tournament.json
 
+
+# Raw upstream JSON cached by scripts/generate-mc-data.mjs
+.cache/

@@ -7,6 +7,7 @@ import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
@@ -1740,6 +1741,18 @@ class Game {
     const def = BLOCK_DEFS[blockId];
     this.sounds.playBreak(def ? def.sound : 'stone');
 
+    // Recompute here rather than trusting a flag from updateMining: a block can also be
+    // broken by paths that never went through the mining loop.
+    const heldAtBreak = this.inventory.getActiveItem();
+    const heldIdAtBreak = heldAtBreak && !heldAtBreak.isBlock ? heldAtBreak.id : null;
+    const heldDefAtBreak = heldIdAtBreak ? ITEMS[heldIdAtBreak] : null;
+    const wrongTool = this.player.gamemode === 'survival'
+      && harvestsNothing(blockId, heldDefAtBreak, heldIdAtBreak);
+    if (wrongTool) {
+      const need = harvestRequirementText(blockId);
+      this.ui?.addChatMessage?.(`<span style="color:#f59e0b;">You need ${need || 'the right tool'} to collect that.</span>`);
+    }
+
     // Spawn block debris particles
     this.entities.spawnBlockParticles(new THREE.Vector3(x, y, z), blockId);
 
@@ -1751,8 +1764,12 @@ class Game {
           this.farmingManager.handleCropBreak(x, y, z, blockId, this.player.gamemode);
         }
       } else {
-        const drop = getBlockDrop(blockId);
-        if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.isBlock, 1);
+        // A block broken with the wrong tool yields nothing. This is the harvest table's
+        // verdict rather than a per-block special case.
+        if (!wrongTool) {
+          const drop = getBlockDrop(blockId);
+          if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.count);
+        }
       }
 
       // Ore experience drops matching Minecraft wiki
@@ -1944,25 +1961,23 @@ class Game {
       return;
     }
 
+    const blockIdOfTarget = this.targetBlock.blockId;
     const def = BLOCK_DEFS[this.targetBlock.blockId];
     if (!def || def.hardness >= 99999) return; // bedrock
 
-    // Tool speed multiplier
-    let speedMult = 1.0;
+    // Break time comes from the real model: the tool must be the right class, its tier
+    // must be sufficient, and hardness sets the base. A wrong tool falls back to hand
+    // speed and yields nothing (see the harvest check in breakTargetBlock).
     const activeItem = this.inventory.getActiveItem();
-    if (activeItem && !activeItem.isBlock) {
-      const it = ITEMS[activeItem.id];
-      if (it && it.speed) speedMult = it.speed;
-      // Efficiency enchantment: adds (level^2 + 1) to digging speed (Minecraft wiki)
-      if (Array.isArray(activeItem.enchantments)) {
-        const eff = activeItem.enchantments.find(e => e.id === 'efficiency');
-        if (eff) {
-          speedMult += (eff.level * eff.level + 1);
-        }
-      }
+    const heldId = activeItem && !activeItem.isBlock ? activeItem.id : null;
+    const heldDef = heldId ? ITEMS[heldId] : null;
+    let efficiencyLevel = 0;
+    if (Array.isArray(activeItem?.enchantments)) {
+      const eff = activeItem.enchantments.find(e => e.id === 'efficiency');
+      if (eff) efficiencyLevel = eff.level;
     }
 
-    const breakDuration = Math.max(0.15, def.hardness / speedMult);
+    const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel));
     this.miningTime += dt;
 
     // Digging periodic sound
