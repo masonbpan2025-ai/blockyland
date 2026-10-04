@@ -1,0 +1,348 @@
+# Minecraft survival rules, as verified against Mineclonia
+
+Research notes for survival parity. Mineclonia (https://codeberg.org/mineclonia/mineclonia) is the
+closest open-source implementation of vanilla survival behaviour, so it is the reference for *rules*,
+while PrismarineJS/minecraft-data is the reference for *data*.
+
+**Verification method.** A full clone of the Mineclonia repository at commit
+`8f4f57094569385283d35eb4bda1e141d47b0e02`, branch `main` (the default branch is `main`, not
+`master` — `/raw/branch/master/` URLs 404). Version 0.123.1. Every file path and number below was read
+from that checkout. Nothing here is inferred from documentation prose unless it says so.
+
+**How to read this.** Section 1 is the survival model to implement. Section 2 is progression. Section 3
+is the most important one for planning: **where Mineclonia is deliberately NOT vanilla**, and therefore
+where copying it would take this game *away* from parity rather than towards it.
+
+---
+
+## 1. Survival model
+
+### 1.1 Health and the damage pipeline
+Max HP 20, stored as a float. All damage flows through one entry point
+(`mods/CORE/mcl_damage/init.lua`, `damage_player`) which runs modifiers in ascending priority, and a
+modifier returning `0` short-circuits the rest. That design is worth copying directly: a single
+pipeline means armour, enchantments, difficulty scaling and status effects compose in a defined order
+instead of each caller applying its own arithmetic.
+
+### 1.2 Hunger, saturation and exhaustion — exact model
+`mods/PLAYER/mcl_hunger/init.lua`. Mineclonia stores exhaustion as an integer *times 1000*, in
+`[0, 4000]`, "unlike in Minecraft", so the constants read as integers:
+
+```
+EXHAUST_DIG          = 5     per block dug
+EXHAUST_JUMP         = 50    per jump
+EXHAUST_SPRINT_JUMP  = 200   per sprint-jump
+EXHAUST_ATTACK       = 100   per hit landed on an enemy
+EXHAUST_SWIM         = 10    per block swum
+EXHAUST_SPRINT       = 100   per block sprinted
+EXHAUST_DAMAGE       = 100   per instance of damage taken
+EXHAUST_REGEN        = 6000  per 1 HP regenerated
+EXHAUST_LVL          = 4000  the threshold at which saturation drops
+SATURATION_INIT      = 5     on new or respawning players
+```
+These are vanilla's values times 1000. The conversion, from `api.lua::mcl_hunger.exhaust`:
+
+```lua
+exhaustion += increase
+if exhaustion >= 4000 then
+  exhaustion = 0
+  if saturation > 0       then saturation = max(saturation - 1.5, 0)
+  elseif saturation <= 1e-4 then hunger     = max(hunger - 1, 0) end
+end
+```
+**Known deviation:** `set_exhaustion` clamps to `[0, 4000]`, so one enormous increase triggers exactly
+one decrement, where vanilla lets exhaustion overshoot and processes several. Worth being deliberate
+about; copying the clamp is a bug.
+
+Eating adds `eatable` group points to hunger and `_mcl_saturation` to saturation, clamped to current
+hunger. Sampled values are vanilla-identical: apple 4/2.4, golden apple 4/9.6, carrot 3/3.6,
+bread 5/6.0, beetroot 1/1.2, baked potato 5/6.0, cooked beef 8.
+
+### 1.3 Regeneration
+Ticked every frame in `mcl_hunger/init.lua`:
+
+| Condition | Effect |
+|---|---|
+| difficulty 0 (Peaceful) | heal 1 HP/s, and hunger +1 every 0.5 s up to 20 |
+| `food >= 18` | slow regen: 1 HP / 4.0 s, costs `EXHAUST_REGEN` |
+| `food == 20 AND saturation > 0` | fast regen: 1 HP / 0.5 s, costs `EXHAUST_REGEN` |
+| `food == 0` | starvation 1 HP / 4.0 s, floored by difficulty (see 1.7) |
+
+Vanilla-identical.
+
+### 1.4 Breath and drowning
+Player breath is delegated to the Luanti engine, and **Mineclonia's own source documents that this
+does not match vanilla** (`mods/ITEMS/mcl_enchanting/enchantments.lua:622-625`): default 10 breath is
+about 19 s where Minecraft is 15 s, and Respiration III is about 78 s where Minecraft is 60 s. So
+**do not copy Mineclonia for drowning**; implement the vanilla numbers directly (15 s base, 60 s at
+Respiration III, 2 damage/s). Mobs do have a real model: 2.0 damage/s once breath goes negative
+(`mods/ENTITIES/mcl_mobs/physics.lua`).
+
+### 1.5 Fall damage
+The distance-to-damage arithmetic is **not in the repository** — it lives in the `mcl_localplayer`
+client-side mod, which is a separate Luanti fork (`settingtypes.txt:248-251`). Only the server-side
+validation and the per-block amplification are present:
+
+```lua
+greatest = 0.0
+for each collision node with group fall_damage_add_percent ~= 0:
+    this < 0 -> greatest = this            -- negative wins outright
+    else     -> greatest = max(greatest, this)
+damage = max(0, damage + damage * (greatest / 100.0))
+```
+Real node values: hay and beds `-80`, slime block `-100`, honey `-80`, dripstone `+100`. So the
+per-block modifiers are usable as data, but the base formula has to come from the vanilla wiki (1 damage
+per block beyond the first 3, i.e. `floor(fallDistance - 3)`).
+
+### 1.6 Fire, lava and contact damage
+`damage_per_second`, applied verbatim by the damage pipeline:
+
+| Source | damage/s |
+|---|---|
+| Fire, soul fire | 1 |
+| Lava, flowing or source | 8 |
+| Magma block, soul-fire block | 2 |
+| Campfire | `def.damage * 2` |
+
+Being on fire is separate: 1 HP per second, `bypasses_armor`, for the duration set by
+`group:set_on_fire` — fire 8 s, lava 15 s. Fire Protection reduces it by
+`floor(burn_time * level * 0.15)`.
+
+### 1.7 Difficulty
+`mcl_vars.difficulty` is 0..3 (peaceful, easy, normal, hard):
+
+- **Damage scaling** (priority -1000, applied only when the damage type has `flags.scales` or the
+  source is a mob): Peaceful `0`; Easy `min(damage/2 + 1, damage)`; Normal unchanged; Hard `damage * 1.5`.
+- **Hunger**: no exhaustion accrues at all on Peaceful.
+- **Starvation floor**: Easy stops at 10 HP, Normal at 1 HP, Hard at 0 (can kill).
+- **Spawning**: hostile spawns hard-fail on Peaceful and existing hostiles despawn.
+
+### 1.8 Armour — exact arithmetic
+`mods/ITEMS/mcl_armor/damage.lua:115`, the vanilla formula verbatim:
+
+```lua
+damage = damage * (1 - math.min(20, math.max((points / 5),
+                          points - damage / (2 + (toughness / 4)))) / 25)
+```
+Protection enchantments then apply at line 118 as `damage * (1 - min(20, factor) / 25)`, and Breach
+adds `damage / 100 * 15 * level`. Durability cost is `max(1, floor(damage / 4))`.
+
+Protection factors, summed as `level * factor` and capped at 20: `protection` 1 (applies to all),
+`blast_protection` 2, `fire_protection` 2, `projectile_protection` 2, `feather_falling` 3.
+
+Armour points per set, in helmet/chest/legs/boots order, with durability:
+
+| Set | base durability | points | toughness | enchantability |
+|---|---|---|---|---|
+| leather | 80 | 1/3/2/1 | – | 15 |
+| chain | 240 | 2/5/4/1 | – | 12 |
+| iron | 240 | 2/6/5/2 | – | 9 |
+| gold | 112 | 2/5/3/1 | – | 25 |
+| diamond | 528 | 3/8/6/3 | 2 | 10 |
+| netherite | **592 (vanilla)** | 3/8/6/3 | 3 | 10 |
+
+**Deviation:** Mineclonia uses 555 for netherite where vanilla is 592, which makes its netherite
+leggings and boots *weaker* than vanilla. Use 592.
+
+Also: Mineclonia adds **copper tools and copper armour**, which vanilla does not have, and that
+addition is what creates its `pickaxey = 2` harvest tier. Vanilla has copper blocks only. And its
+harvest-level array is `{wood, gold, stone, iron, diamond}`, putting **gold between wood and stone**
+where vanilla treats gold as equal to wood. Both are places where copying Mineclonia would reduce
+parity.
+
+### 1.9 Status effects
+Real numbers, all vanilla-identical:
+
+| Effect | Level 1 | Level 2+ | Damage type | Can kill? |
+|---|---|---|---|---|
+| poison | 1 HP / 1.25 s | 1 HP / 0.6 s | magic | **No** |
+| wither | 1 HP / 2 s | 1 HP / 1 s | magic | yes |
+| regeneration | +1 HP / 2.5 s | +1 HP / 1.25 s | – | – |
+| strength | damage ×1.3 | ×1.6 | – | – |
+| weakness | damage ×0.8 | ×0.6 | – | – |
+| hunger | exhaustion 100/s | 200/s | – | – |
+| nausea | saturation flip / 2 s | / 1 s | – | – |
+| water breathing | clamps breath ≥ 10 | – | – | – |
+
+Poison not being able to kill is deliberate and matches vanilla; the guard is `get_hp() - 1 > 0`.
+
+### 1.10 XP — vanilla formula exactly
+```
+level_to_xp(L): 1..16  : floor(L^2 + 6L)
+               17..31 : floor(2.5L^2 - 40.5L + 360)
+               >= 32  : floor(4.5L^2 - 162.5L + 2220)
+xp_to_level:    inverse, with the thresholds 352 and 1507
+```
+Gains: mob kill `random(xp_min, xp_max)`; breeding `random(1,7)`; fishing `random(1,6)`;
+bottle o' enchanting `random(3,11)`; mob spawner break `random(15,43)`; villager trade `3 + random(3)`.
+
+**Two deviations to avoid.** Mineclonia gives *every* smelted item exactly 1 XP, with the source
+comment `-- ToDo give each recipe an idividial XP count`; vanilla varies per recipe (0.1 for food,
+0.7 for iron, 1.0 for gold and diamond). And its ore XP is a single fixed integer rather than a range:
+coal 1, diamond 4, lapis 6, emerald 6, redstone 7, quartz 3, and **iron and gold ore give 0**. Vanilla:
+coal 0–2, diamond/emerald 3–7, redstone 1–5, lapis 2–5, quartz 2–5. Use the vanilla ranges.
+
+Death drops all XP as orbs and resets to 0 unless keep-inventory. Orbs are capped at 100 entities with
+value `random(1, min(32767, total - floor(i/2)))`.
+
+### 1.11 Death, respawn, gamemode
+On death, the `main`, `craft`, `armor` and `offhand` lists drop unless keep-inventory is set; items
+scatter within ±3 blocks onto air with line of sight, offset ±0.25; `curse_of_vanishing` items are
+deleted. Respawn prefers a stored bed or respawn anchor, and falls back to world spawn. Mineclonia has
+**only survival and creative** — no adventure, no spectator, no hardcore.
+
+### 1.12 Inventory and stack sizes
+Player inventory is 36 slots at width 9, and the survival screen renders a **2x2** crafting grid while
+the crafting table is 3x3 (its group value is literally the slot count: `crafting_table = 9`).
+Stack sizes are 64 by default; 1 for tools, armour, buckets, potions and shears; 16 for signs, eggs,
+snowballs and ender pearls.
+
+---
+
+## 2. Progression
+
+### 2.1 There is no skill tree
+`grep -i skill` across every source, markdown, config and locale file returns **zero matches**.
+Mineclonia has no skills, no progression tree, and no advancement-tree UI. The nearest equivalent is
+the achievements list (62 entries, `mods/HUD/mcl_achievements/init.lua`), built on the stock `awards`
+mod, with a `reward_xp` extension and triggers of type `dig`, `place`, `craft`, `death`, `chat`,
+`join`, `eat` and `counted_key`. If a "skills" feature is wanted, it is a design choice for this
+project, not something to port.
+
+### 2.2 The build order the game itself documents
+`README.md:58-71`: punch a trunk, craft 4 planks in the 2x2 grid, craft a crafting table, wooden
+pickaxe, stone tools, furnace, coal or charcoal, iron, then diamond. Beyond that the recipe and
+achievement set supports enchanting (diamonds plus obsidian), a nether portal (obsidian), and
+netherite via a smithing table.
+
+### 2.3 Tool tiers
+| Set | uses | harvest level | dig speed | enchantability |
+|---|---|---|---|---|
+| wood | 60 | 1 | 2 | 15 |
+| gold | 33 | 2 *(vanilla: 1)* | 12 | 22 |
+| copper | 191 | 3 | 5 | 13 | *(not in vanilla at all)*
+| stone | 132 | 3 | 4 | 5 |
+| iron | 251 | 4 | 6 | 14 |
+| diamond | 1562 | 5 | 8 | 10 |
+| netherite | 2031 | 6 *(vanilla: 5)* | 9.5 | 10 |
+
+Sword damage by tier, from wood to netherite: 4, 4, 5, 5, 6, 7, 9. Pickaxe and shovel: 2, 2, 3, 3, 4,
+5, 6. Axe: 2, 7, 9, 9, 9, 9, 10. Swords take half durability wear when digging but full when
+attacking. Shears: 238 uses, enchantability -1, stack 1.
+
+### 2.4 Dig time — exact formula
+`mods/CORE/_mcl_autogroup/init.lua:214-239`:
+```lua
+speed = base_speed
+if efficiency then speed = speed + efficiency * efficiency + 1 end
+digtime = hardness / speed
+if can_harvest then digtime = digtime * 1.5 else digtime = digtime * 5 end
+if digtime <= 0.05 then digtime = 0 else digtime = ceil(digtime * 20) / 20 end
+```
+Tool wear is `ceil(65535 / uses)`. The hand counts as harvest level 1 for axe, shovel and hoe groups
+(so it yields drops) but level 0 for pickaxe, sword and shears (so it does not). This 1.5-versus-5
+split is the mechanism behind "you can always break it by hand, you just do not get the drop", and it
+is worth copying exactly.
+
+### 2.5 Enchanting
+39 enchantments. The table's three offers, from `engine.lua:532-554`:
+```lua
+bookshelves = min(15, count)
+base = random(8) + floor(bookshelves / 2) + random(0, bookshelves)
+required = { max(base / 3, 1), (base * 2) / 3 + 1, max(base, bookshelves * 2) }
+```
+**Lapis cost and XP charged are both the slot index** (1, 2 or 3), while the displayed requirement up
+to 30 is only a gate. This matches vanilla 1.8+ and is a common thing to get wrong.
+
+Random selection is a faithful 1.8+ port: add enchantability, add a triangular ±15% jitter, double,
+then halve repeatedly until the roll passes `random() >= (level + 1) / 50`.
+
+Anvil costs use a prior-work penalty stored per item: `(2^pwp1 - 1) + (2^pwp2 - 1)`, plus 2 for a
+same-tool repair, plus the material count, plus the enchantment level requirement, plus 1 for a rename;
+the new penalty is `max(p1, p2) + 1`. Mineclonia does **not** implement vanilla's 39-level survival cap.
+
+Numeric effects worth copying: sharpness +0.5 damage per level, smite and bane +2.5 per level against
+undead and arthropods, efficiency adds `level^2 + 1` to dig speed, unbreaking multiplies attack uses by
+`1 + level`, fire aspect sets the target on fire for `level * 4` seconds, frost walker radius
+`level + 2`, depth strider speed `level/3 + 0.75`, thorns procs at `level * 0.15` per piece for up to 4
+damage.
+
+Three enchantments are **commented out** for engine reasons — `aqua_affinity`, `sweeping_edge` — and
+`impaling` is registered but has no implemented effect. So Mineclonia is not a reference for those.
+
+### 2.6 Brewing
+Brew time 10 s; fuel is blaze powder only, 20 brews each; 3 bottle slots and 1 ingredient slot.
+Duration constants: base 180 s, extended by `8/3`, halved by potency 2, poison 45 s, lingering `0.25`,
+tipped arrow `0.125`. The recipe structure is a set of tables — water, awkward, mundane, thick — plus
+two modifier tables: fermented spider eye inverts (healing to harming, swiftness to slowness, night
+vision to invisibility, and so on), redstone extends duration, glowstone amplifies potency. `thick` is
+deliberately an empty table with the comment "Nothing here but crickets...".
+
+---
+
+## 3. Where Mineclonia is NOT a parity reference
+
+This is the most important section for planning. Copying the following would move *away* from vanilla:
+
+1. **Drowning timing** — 19 s base and 78 s at Respiration III, versus vanilla 15 s and 60 s, and its
+   own source says so.
+2. **Copper tools and copper armour** — these do not exist in vanilla, and they create Mineclonia's
+   `pickaxey = 2` tier used by 18 nodes.
+3. **Gold as harvest level 2**, between wood and stone. Vanilla treats gold as equal to wood. This has
+   a real consequence: Mineclonia's gold pickaxe can mine copper blocks that a wooden one cannot.
+4. **Netherite armour durability 555** where vanilla is 592.
+5. **Smelting XP is always 1** — an acknowledged TODO in the source.
+6. **Ore XP is a fixed integer, not a range**, and iron and gold ore give 0.
+7. **The Fortune ore curve is not vanilla.** `mcl_core.fortune_drop_ore` gives Fortune I a 33% chance
+   to double, II a 50% chance for 2–3, III a 60% chance for 2–4. Vanilla is a uniform
+   `random(1, level + 2)` multiplier with no failure chance. Worse, that helper sets no
+   `drop_without_fortune`, so **a failed Fortune roll on coal, iron, gold, lapis, emerald or diamond
+   ore drops nothing at all**. That is a bug; do not port it.
+8. **Exhaustion clamping** to 4000, as described in 1.2.
+9. **Fall damage arithmetic is absent** from the repository, as described in 1.5.
+10. **No stonecutting or smithing recipe type** — both stations are bespoke implementations. Blast
+    furnace and smoker have no recipe type either; they reuse cooking filtered by a group, at double
+    speed, and **every cooking recipe takes 10 s** because `_mcl_cooktime` is read but never set
+    anywhere in the repo. Vanilla has per-recipe cook times (food 10 s, ores 10 s, stone 10 s,
+    but cactus 10 s and clay brick 10 s while logs are 15 s).
+11. **No skill tree and no advancement UI**, per 2.1.
+12. **Mob drop `chance` is 1-in-N, not a probability** (`local chance = 1 / dropdef.chance`). This is
+    the opposite of what the field name suggests and is easy to invert.
+13. **Temporary helper recipes** (`mods/MISC/mcl_temp_helper_recipes/init.lua`) exist purely to make
+    unobtainable items reachable, and the file says so: trapped chests, and armour-trim templates that
+    vanilla only provides as structure loot.
+14. **`_mcl_hardness = -1` means infinite**, not unset. Bedrock, barrier and realm barrier rely on it.
+15. **`mcl_extra_nodes` adds blocks that are not in Minecraft** — extra stairs and slabs, red nether
+    brick fences and gates, bamboo bark.
+16. **Only two gamemodes**, no adventure or spectator.
+17. **Documents that it is beta**: redstone circuits partial, minecarts partial, status effects partial,
+    brewing partial, and backwards compatibility explicitly not guaranteed.
+
+### 3.1 Things that could not be verified from source
+- The **fall damage distance formula** (client-side, not in the repository).
+- **Runtime recipe counts**, because a large fraction is generated at load time from node fields plus
+  tool and armour set loops. Solid static numbers: 243 explicit `register_craft` calls, 76
+  `_mcl_cooking_output` declarations, 97 `_mcl_burntime` (30 of them zero), 106 `_mcl_crafting_output`,
+  122 `_mcl_stonecutter_recipes`, roughly 30 tool and 24 armour recipes. Realistic runtime total:
+  order 700–900 craftable entries.
+
+---
+
+## 4. Where this project stands against it
+
+Measured by `scripts/parity-coverage.mjs` against minecraft-data 1.21.4, and recorded as a floor in
+`tests/survivalParity.test.js`:
+
+| | have | vanilla | coverage |
+|---|---|---|---|
+| Crafting recipes expressible | 421 | 1557 | 27.0% |
+| Blocks named | 271 | 1095 | 24.7% |
+| Items named | 486 | 1385 | 35.1% |
+
+"Expressible" means the result and every ingredient resolve to real content. It is a ceiling on what
+could be crafted, not a count of implemented recipes, which is much lower.
+
+The remaining gap is dominated by content that needs **new geometry in the mesher**, not just data:
+slabs, stairs, fences, doors, beds and panes. The backlog quantifies it as 62 ingredient slots needing
+geometry against 158 plain ones, and ranks the families by recipes blocked — beds first at 196 recipes
+from only 15 names.
