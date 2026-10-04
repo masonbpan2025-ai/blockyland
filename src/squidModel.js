@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// Original face-specific pixel artwork. Eyes belong only to the two side faces;
+// Original face-specific pixel artwork. Both eyes belong to the +Z front face;
 // neither the mantle nor the tentacles reuse a stretched full-body atlas.
 function skin(glow, face, tentacle = false) {
   const w = tentacle ? 4 : 12, h = tentacle ? 18 : 16;
@@ -9,8 +9,8 @@ function skin(glow, face, tentacle = false) {
   for (let y=0;y<h;y++) for(let x=0;x<w;x++) {
     let rgb=palette[(Math.floor(x/2)*7+Math.floor(y/2)*3+x*y)%4];
     if(glow && (x*13+y*7+face*5)%23<2)rgb=[121,235,199];
-    if(!tentacle && face<2 && y>=10 && y<=13 && x>=4 && x<=7)rgb=[224,228,220];
-    if(!tentacle && face<2 && y>=11 && y<=12 && x>=5 && x<=6)rgb=[13,22,27];
+    if(!tentacle && face===4 && y>=9 && y<=12 && ((x>=1 && x<=3)||(x>=8 && x<=10)))rgb=[224,228,220];
+    if(!tentacle && face===4 && y>=10 && y<=11 && (x===2 || x===9))rgb=[13,22,27];
     if(tentacle && x===1 && y%4<2)rgb=glow?[94,202,158]:[102,121,130];
     if(!tentacle && face===3) {
       const d=Math.max(Math.abs(x-5.5),Math.abs(y-7.5));
@@ -45,7 +45,8 @@ export function poseSquid(m) {
   m.mantle.scale.set(m.isBaby?1.12:1,m.isBaby?1.05:1,m.isBaby?1.12:1);
   const angle=.15+Math.pow((Math.sin(m.swimCycle*3.5)+1)/2,2)*.9;
   for(const t of m.tentacles){t.rotation.x=angle;t.scale.y=m.isBaby?.7:1;}
-  m.visual.rotation.x=m.inWater?Math.PI/2+(m.pitch||0):0;
+  // The neutral aquatic pose faces forward; pitch follows vertical swimming.
+  m.visual.rotation.x=m.inWater?(m.pitch||0):0;
   m.mesh.rotation.y=m.yaw;
   for(const mat of m.squidMaterials)mat.emissiveIntensity=m.isGlowSquid&&!(m.darkSeconds>0)?1:0;
 }
