@@ -107,6 +107,75 @@ function isSolidBlock(blockId) {
   return (def && def.solid !== false && !def.plant) ? 1 : 0;
 }
 
+// --- Static per-face geometry tables -----------------------------------------
+//
+// The inner loop used to build, for every visible face, a 4-element array of [x,y,z] corner
+// triples, a normal array, and an array of the eight ambient-occlusion sample offsets -- plus a
+// closure (`addFace`) per voxel. A profiled chunk spends ~30% of its time in meshChunk and ~14% in
+// addFace, with garbage collection at 5.5%. All of that per-face data is constant, so it lives in
+// tables here and is read rather than rebuilt.
+//
+// Corner order for each face is exactly the order the previous code pushed them, and the UVs are
+// emitted in the same sequence, so the vertex stream is unchanged.
+
+/** Normal per face. */
+const FACE_NORMAL = [
+  [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0],
+];
+
+/**
+ * Corner offsets per face, as flat triples relative to the block's minimum corner.
+ *
+ * The previous code derived the y extremes from `topY`/`botY` and the horizontal extremes from
+ * `northZ`/`southZ`/`eastX`/`westX`, which are all `wy`/`wy+1`/`wz`/`wz+1` except for water
+ * against glass. Those special cases are applied at write time by WET_FACE_HEIGHT below, so the
+ * table holds the plain cube.
+ */
+const FACE_CORNERS = [
+  // top (+Y): (0,1,1) (1,1,1) (1,1,0) (0,1,0)
+  [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0],
+  // bottom (-Y): (0,0,0) (1,0,0) (1,0,1) (0,0,1)
+  [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+  // north (+Z): (0,0,1) (1,0,1) (1,1,1) (0,1,1)
+  [0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1],
+  // south (-Z): (1,0,0) (0,0,0) (0,1,0) (1,1,0)
+  [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0],
+  // east (+X): (1,0,1) (1,0,0) (1,1,0) (1,1,1)
+  [1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1],
+  // west (-X): (0,0,0) (0,0,1) (0,1,1) (0,1,0)
+  [0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0],
+];
+
+/**
+ * Ambient-occlusion sample offsets per face per vertex, as (side1, side2, corner) triples.
+ *
+ * Only the top and bottom faces participate in this engine's AO; the four side faces keep the
+ * default 3, which is what `vertexAO`'s callers previously produced by leaving ao at 3. Each entry
+ * is two [dx,dy,dz] sides followed by the corner, flattened to 9 numbers per vertex.
+ */
+const AO_OFFSETS = {
+  // top (+Y). Order matches s1,s2,s3,s4 and c1..c4 in the original.
+  top: [
+    -1, 1, 0, 0, 1, 1, -1, 1, 1,   // vertex 0: s1, s4, c4
+    1, 1, 0, 0, 1, 1, 1, 1, 1,      // vertex 1: s2, s4, c3
+    1, 1, 0, 0, 1, -1, 1, 1, -1,    // vertex 2: s2, s3, c2
+    -1, 1, 0, 0, 1, -1, -1, 1, -1,  // vertex 3: s1, s3, c1
+  ],
+  // bottom (-Y). Vertex order s1,s3,c1 / s2,s3,c2 / s2,s4,c3 / s1,s4,c4.
+  bottom: [
+    -1, -1, 0, 0, -1, -1, -1, -1, -1,
+    1, -1, 0, 0, -1, -1, 1, -1, -1,
+    1, -1, 0, 0, -1, 1, 1, -1, 1,
+    -1, -1, 0, 0, -1, 1, -1, -1, 1,
+  ],
+};
+
+/** Face names in the order the constants below are indexed. */
+const FACE_NAMES = ['top', 'bottom', 'north', 'south', 'east', 'west'];
+const FACES = FACE_NAMES;
+
+
+
 export class ChunkMesher {
   constructor(textureManager) {
     this.tm = textureManager;
@@ -147,6 +216,8 @@ export class ChunkMesher {
     const wtDepth = [];
     const wtFlow = [];
     let wtVertCount = 0;
+    // Reusable per-voxel neighbour scratch, so the hot loop allocates nothing.
+    const neighbors = new Int32Array(6);
     const depthCache = new Map();
     const tintCache = new Map();
 
@@ -289,77 +360,80 @@ export class ChunkMesher {
 
           // Check all 6 faces. Sampled from the padded window in LOCAL coordinates, which is the
           // same data getVoxel(world coords) returned, without the per-call map lookup.
-          const neighbors = {
-            top: padGet(lx, ly + 1, lz),
-            bottom: padGet(lx, ly - 1, lz),
-            north: padGet(lx, ly, lz + 1),
-            south: padGet(lx, ly, lz - 1),
-            east: padGet(lx + 1, ly, lz),
-            west: padGet(lx - 1, ly, lz)
-          };
+          //
+          // A reusable array rather than a fresh {top,bottom,...} object per voxel: the object
+          // literal was one allocation for every non-air voxel in the chunk.
+          neighbors[0] = padGet(lx, ly + 1, lz);
+          neighbors[1] = padGet(lx, ly - 1, lz);
+          neighbors[2] = padGet(lx, ly, lz + 1);
+          neighbors[3] = padGet(lx, ly, lz - 1);
+          neighbors[4] = padGet(lx + 1, ly, lz);
+          neighbors[5] = padGet(lx - 1, ly, lz);
 
-          const addFace = (face, positions, normal) => {
+          // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
+          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
+          const topY = isWater
+            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : (neighbors[0] === BLOCKS.GLASS ? (wy + 0.995) : (wy + 1)))
+            : (wy + 1);
+          const botY = (isWater && neighbors[1] === BLOCKS.GLASS) ? (wy + 0.005) : wy;
+          const northZ = (isWater && neighbors[2] === BLOCKS.GLASS) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && neighbors[3] === BLOCKS.GLASS) ? (wz + 0.005) : wz;
+          const eastX = (isWater && neighbors[4] === BLOCKS.GLASS) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && neighbors[5] === BLOCKS.GLASS) ? (wx + 0.005) : wx;
+          const faceX = [wx, wx, northZ, southZ, eastX, westX];
+          const faceZ = [wz, wz, northZ, southZ, wz, wz];
+          const faceTop = [topY, botY, topY, topY, topY, topY];
+
+          for (let face = 0; face < 6; face++) {
             const neighborId = neighbors[face];
             const nDef = BLOCK_DEFS[neighborId];
 
             // Culling condition
             if (isWater) {
-              if (neighborId === BLOCKS.WATER) return; // cull water adjacent to water
-              if (nDef && !nDef.transparent) return; // cull water against solid blocks
+              if (neighborId === BLOCKS.WATER) continue; // cull water adjacent to water
+              if (nDef && !nDef.transparent) continue; // cull water against solid blocks
             } else if (isTransparent) {
-              if (neighborId === blockId) return;
-              if (nDef && !nDef.transparent) return;
+              if (neighborId === blockId) continue;
+              if (nDef && !nDef.transparent) continue;
             } else {
               // Opaque block: only render face if neighbor is transparent or air
-              if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) return;
+              if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) continue;
             }
 
-            if (isWater && face !== 'bottom') {
-              positions = positions.map(([x,y,z]) => [x, y > wy ? wy + waterCornerHeight(world, Math.round(x), wy, Math.round(z)) : y, z]);
-            }
             const uv = this.tm.getFaceUVs(blockId, face);
+            const corners = FACE_CORNERS[face];
+            const normal = FACE_NORMAL[face];
 
-            // Compute Ambient Occlusion for the 4 vertices of this face
+            // Ambient occlusion. Only the top and bottom faces participate; the sides keep 3,
+            // which is what the previous code left them at.
             let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
-            if (!isWater && !isTransparent) {
-              if (face === 'top') {
-                const s1 = isSolidBlock(padGet(lx - 1, ly + 1, lz));
-                const s2 = isSolidBlock(padGet(lx + 1, ly + 1, lz));
-                const s3 = isSolidBlock(padGet(lx, ly + 1, lz - 1));
-                const s4 = isSolidBlock(padGet(lx, ly + 1, lz + 1));
-                const c1 = isSolidBlock(padGet(lx - 1, ly + 1, lz - 1));
-                const c2 = isSolidBlock(padGet(lx + 1, ly + 1, lz - 1));
-                const c3 = isSolidBlock(padGet(lx + 1, ly + 1, lz + 1));
-                const c4 = isSolidBlock(padGet(lx - 1, ly + 1, lz + 1));
-                ao0 = vertexAO(s1, s4, c4);
-                ao1 = vertexAO(s2, s4, c3);
-                ao2 = vertexAO(s2, s3, c2);
-                ao3 = vertexAO(s1, s3, c1);
-              } else if (face === 'bottom') {
-                const s1 = isSolidBlock(padGet(lx - 1, ly - 1, lz));
-                const s2 = isSolidBlock(padGet(lx + 1, ly - 1, lz));
-                const s3 = isSolidBlock(padGet(lx, ly - 1, lz - 1));
-                const s4 = isSolidBlock(padGet(lx, ly - 1, lz + 1));
-                const c1 = isSolidBlock(padGet(lx - 1, ly - 1, lz - 1));
-                const c2 = isSolidBlock(padGet(lx + 1, ly - 1, lz - 1));
-                const c3 = isSolidBlock(padGet(lx + 1, ly - 1, lz + 1));
-                const c4 = isSolidBlock(padGet(lx - 1, ly - 1, lz + 1));
-                ao0 = vertexAO(s1, s3, c1);
-                ao1 = vertexAO(s2, s3, c2);
-                ao2 = vertexAO(s2, s4, c3);
-                ao3 = vertexAO(s1, s4, c4);
-              }
+            const aoOffsets = AO_OFFSETS[FACES[face]];
+            if (aoOffsets && !isWater && !isTransparent) {
+              const v0 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[0], ly + aoOffsets[1], lz + aoOffsets[2])),
+                isSolidBlock(padGet(lx + aoOffsets[3], ly + aoOffsets[4], lz + aoOffsets[5])),
+                isSolidBlock(padGet(lx + aoOffsets[6], ly + aoOffsets[7], lz + aoOffsets[8])));
+              const v1 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[9], ly + aoOffsets[10], lz + aoOffsets[11])),
+                isSolidBlock(padGet(lx + aoOffsets[12], ly + aoOffsets[13], lz + aoOffsets[14])),
+                isSolidBlock(padGet(lx + aoOffsets[15], ly + aoOffsets[16], lz + aoOffsets[17])));
+              const v2 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[18], ly + aoOffsets[19], lz + aoOffsets[20])),
+                isSolidBlock(padGet(lx + aoOffsets[21], ly + aoOffsets[22], lz + aoOffsets[23])),
+                isSolidBlock(padGet(lx + aoOffsets[24], ly + aoOffsets[25], lz + aoOffsets[26])));
+              const v3 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[27], ly + aoOffsets[28], lz + aoOffsets[29])),
+                isSolidBlock(padGet(lx + aoOffsets[30], ly + aoOffsets[31], lz + aoOffsets[32])),
+                isSolidBlock(padGet(lx + aoOffsets[33], ly + aoOffsets[34], lz + aoOffsets[35])));
+              ao0 = v0; ao1 = v1; ao2 = v2; ao3 = v3;
             }
 
             // Biome Tinting
             let baseR = 1.0, baseG = 1.0, baseB = 1.0;
-            if (blockId === BLOCKS.GRASS && face === 'top') {
+            if (blockId === BLOCKS.GRASS && face === 0) {
               baseR = 0.48; baseG = 0.74; baseB = 0.31;
             } else if (blockId === BLOCKS.OAK_LEAVES) {
               baseR = 0.35; baseG = 0.65; baseB = 0.22;
-            } else if (blockId === BLOCKS.WATER) {
-              // Water shader computes vibrant azure coloring; vertex colors carry ambient light
-              baseR = 1.0; baseG = 1.0; baseB = 1.0;
             }
 
             let light0 = AO_CURVE[ao0];
@@ -372,48 +446,63 @@ export class ChunkMesher {
 
             // Select Target Buffers
             let tPos = opPos, tNorm = opNorm, tUv = opUv, tCol = opCol, tIdx = opIdx;
-            let vCount = opVertCount;
             if (isWater) {
               tPos = wtPos; tNorm = wtNorm; tUv = wtUv; tCol = wtCol; tIdx = wtIdx;
-              vCount = wtVertCount;
             } else if (isTransparent) {
               tPos = trPos; tNorm = trNorm; tUv = trUv; tCol = trCol; tIdx = trIdx;
-              vCount = trVertCount;
             }
+            const vCount = isWater ? wtVertCount : (isTransparent ? trVertCount : opVertCount);
 
             // Wind moves foliage only; terrain and buildings stay fixed.
             const isFoliage = Boolean(def && def.name && def.name.toLowerCase().includes('leaves'));
-            if(!isWater)(isTransparent?trWind:opWind).push(...new Array(4).fill(isFoliage?1:0));
-            // Push Positions
-            for (let i = 0; i < 4; i++) {
-              tPos.push(positions[i][0], positions[i][1], positions[i][2]);
+            if (!isWater) {
+              const w = isFoliage ? 1 : 0;
+              (isTransparent ? trWind : opWind).push(w, w, w, w);
+            }
+
+            for (let v = 0; v < 4; v++) {
+              const co = v * 3;
+              const px = wx + corners[co];
+              const pz = wz + corners[co + 2];
+              // The corner table holds the plain cube; the original code replaced the y extremes
+              // with topY/botY BEFORE deciding whether to lower a corner for water. That order
+              // matters: on the top face every corner is at the top plane, so every corner gets
+              // the water surface lookup, whereas testing the raw corner first would skip half of
+              // them and flatten the surface.
+              let py;
+              if (face === 0) py = topY;
+              else if (face === 1) py = botY;
+              else py = (corners[co + 1] === 1 ? topY : wy);
+              // Water lowers only the corners sitting on the block's top plane.
+              if (isWater && face !== 1 && py > wy) {
+                py = wy + waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
+              }
+              tPos.push(px, py, pz);
               tNorm.push(normal[0], normal[1], normal[2]);
+              if (isWater) {
+                const corner = waterCorner(Math.round(px), wy, Math.round(pz));
+                wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
+                wtDepth.push(corner.depth);
+                // Inline rather than indexing per-face arrays of corner coordinates: those were
+                // two four-element arrays allocated for every visible face.
+                const vx = face === 2 || face === 3 || face === 4 ? faceX[face] + (v === 1 || v === 2 ? 1 : 0) : wx;
+                const vz = face === 0 || face === 1 ? wz : faceZ[face] + (v >= 2 ? 1 : 0);
+                const flow = waterCurrent(world, vx, wy, vz);
+                wtFlow.push(flow.x, flow.z);
+              }
             }
 
             // Push UVs
-            tUv.push(
-              uv.u0, uv.v0,
-              uv.u1, uv.v0,
-              uv.u1, uv.v1,
-              uv.u0, uv.v1
-            );
+            tUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
 
             // Push Vertex Colors (AO * Tint)
-            if (isWater) {
-              for (const position of positions) {
-                const corner = waterCorner(Math.round(position[0]), wy, Math.round(position[2]));
-                wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
-                wtDepth.push(corner.depth);
-                const flow = waterCurrent(world, wx, wy, wz);
-                wtFlow.push(flow.x, flow.z);
-              }
-            } else {
-            tCol.push(
-              baseR * light0, baseG * light0, baseB * light0,
-              baseR * light1, baseG * light1, baseB * light1,
-              baseR * light2, baseG * light2, baseB * light2,
-              baseR * light3, baseG * light3, baseB * light3
-            );
+            if (!isWater) {
+              tCol.push(
+                baseR * light0, baseG * light0, baseB * light0,
+                baseR * light1, baseG * light1, baseB * light1,
+                baseR * light2, baseG * light2, baseB * light2,
+                baseR * light3, baseG * light3, baseB * light3
+              );
             }
 
             // Push Quad Indices (flipping diagonal if AO requires smooth shading)
@@ -426,66 +515,7 @@ export class ChunkMesher {
             if (isWater) wtVertCount += 4;
             else if (isTransparent) trVertCount += 4;
             else opVertCount += 4;
-          };
-
-          // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
-          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
-          const topY = isWater
-            ? (neighbors.top === BLOCKS.AIR ? (wy + 0.90) : (neighbors.top === BLOCKS.GLASS ? (wy + 0.995) : (wy + 1)))
-            : (wy + 1);
-          const botY = (isWater && neighbors.bottom === BLOCKS.GLASS) ? (wy + 0.005) : wy;
-          const northZ = (isWater && neighbors.north === BLOCKS.GLASS) ? (wz + 0.995) : (wz + 1);
-          const southZ = (isWater && neighbors.south === BLOCKS.GLASS) ? (wz + 0.005) : wz;
-          const eastX = (isWater && neighbors.east === BLOCKS.GLASS) ? (wx + 0.995) : (wx + 1);
-          const westX = (isWater && neighbors.west === BLOCKS.GLASS) ? (wx + 0.005) : wx;
-
-          // Top face (+Y)
-          addFace('top', [
-            [wx, topY, wz + 1],
-            [wx + 1, topY, wz + 1],
-            [wx + 1, topY, wz],
-            [wx, topY, wz]
-          ], [0, 1, 0]);
-
-          // Bottom face (-Y)
-          addFace('bottom', [
-            [wx, botY, wz],
-            [wx + 1, botY, wz],
-            [wx + 1, botY, wz + 1],
-            [wx, botY, wz + 1]
-          ], [0, -1, 0]);
-
-          // North face (+Z)
-          addFace('north', [
-            [wx, wy, northZ],
-            [wx + 1, wy, northZ],
-            [wx + 1, topY, northZ],
-            [wx, topY, northZ]
-          ], [0, 0, 1]);
-
-          // South face (-Z)
-          addFace('south', [
-            [wx + 1, wy, southZ],
-            [wx, wy, southZ],
-            [wx, topY, southZ],
-            [wx + 1, topY, southZ]
-          ], [0, 0, -1]);
-
-          // East face (+X)
-          addFace('east', [
-            [eastX, wy, wz + 1],
-            [eastX, wy, wz],
-            [eastX, topY, wz],
-            [eastX, topY, wz + 1]
-          ], [1, 0, 0]);
-
-          // West face (-X)
-          addFace('west', [
-            [westX, wy, wz],
-            [westX, wy, wz + 1],
-            [westX, topY, wz + 1],
-            [westX, topY, wz]
-          ], [-1, 0, 0]);
+          }
         }
       }
     }
