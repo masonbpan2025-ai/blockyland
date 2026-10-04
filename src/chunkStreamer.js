@@ -107,24 +107,30 @@ export class ChunkStreamer {
       }
     }
 
-    // Unload chunks outside the removal radius. The gap between meshRadius and unloadRadius is
-    // deliberate: without it, walking back and forth across a chunk border would generate and
-    // discard the same chunks repeatedly.
+    // Unload anything resident that is now far away.
+    //
+    // This deliberately scans the chunks actually in the world rather than only `this.loaded`.
+    // `this.loaded` tracks what is currently MESHED, which by definition lies inside the mesh
+    // radius -- so a distance test against the unload radius could never be true and nothing was
+    // ever unloaded. That bug was invisible in a single update (which happened to catch a few by
+    // accident) and obvious over a walk, where the resident count grew without limit: 1002 chunks
+    // after crossing 82 of them.
+    //
+    // The gap between meshRadius and unloadRadius is deliberate: without it, walking back and
+    // forth across a chunk border would generate and discard the same chunks repeatedly.
     let unloaded = 0;
-    for (const key of this.loaded) {
-      if (wantedDirty.has(key)) continue;
-      const chunk = world.chunks.get(key);
-      if (chunk) {
-        const dx = Math.abs(chunk.cx - pcx);
-        const dz = Math.abs(chunk.cz - pcz);
-        if (Math.max(dx, dz) > this.unloadRadius) {
-          this.unloadChunk(chunk);
-          unloaded++;
-        }
+    for (const chunk of world.chunks.values()) {
+      const dx = Math.abs(chunk.cx - pcx);
+      const dz = Math.abs(chunk.cz - pcz);
+      if (Math.max(dx, dz) > this.unloadRadius) {
+        this.unloadChunk(chunk);
+        unloaded++;
       }
-      // Outside the mesh radius but inside the unload radius: stop tracking it as loaded, but
-      // leave its mesh in place so it does not visibly pop out.
-      this.loaded.delete(key);
+    }
+    // Drop bookkeeping for chunks that are no longer meshed, but leave their meshes in place while
+    // they are inside the unload radius so they do not visibly pop out of view.
+    for (const key of this.loaded) {
+      if (!wantedDirty.has(key)) this.loaded.delete(key);
     }
     this.stats.unloaded += unloaded;
     this.lastUnloaded = unloaded;

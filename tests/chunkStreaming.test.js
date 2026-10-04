@@ -179,21 +179,62 @@ test('unloading invalidates the neighbours, so no wall is left missing', () => {
   assert.equal(game.world.getChunk(-5, 0), undefined, 'the unloaded chunk is gone');
 });
 
-test('the unload radius is wider than the mesh radius, so borders do not thrash', () => {
-  // Walking back and forth across a chunk boundary must not generate and discard the same chunk
-  // repeatedly. noa enforces a gap between its add and remove distances for this reason.
+test('a long walk keeps the resident chunk count bounded', () => {
+  // The bug this pins, which is the whole point of having an unload radius at all.
+  //
+  // The first implementation tested distance against only `this.loaded` -- the set of chunks that
+  // are currently MESHED, which by definition all lie inside the mesh radius. So `distance >
+  // unloadRadius` could never be true and nothing was ever unloaded while walking. It went
+  // unnoticed because a single large jump did unload some chunks by accident, and the unit test
+  // only jumped. Over a real walk the resident count grew without limit: 1002 chunks after
+  // crossing 82 of them, with the meshes still in the scene.
   const game = makeGame();
-  const s = streamerFor(game, { meshRadius: 2, unloadRadius: 4 });
+  const s = streamerFor(game, { meshRadius: 2, generateRadius: 3, unloadRadius: 5 });
 
-  // Generate in one place, step just outside the mesh radius, and come back.
-  s.update(0, 0);
-  const before = new Set(game.world.chunks.keys());
-  game.player.position.x = 3 * CHUNK_SIZE_X;
-  s.update(game.player.position.x, 0);
-  // Chunks overlapping the previous area must still be present, not regenerated.
-  let survived = 0;
-  for (const key of before) if (game.world.chunks.has(key)) survived++;
-  assert.ok(survived > 0, 'stepping three chunks away must not discard everything');
+  // Walk 40 chunks, one frame at a time, exactly as the player does.
+  for (let frame = 0; frame < 1400; frame++) {
+    game.player.position.x += 0.55;
+    s.update(game.player.position.x, 0);
+  }
+
+  const finalChunk = Math.floor(game.player.position.x / CHUNK_SIZE_X);
+  assert.ok(finalChunk > 30, `fixture should have walked a long way, ended at chunk ${finalChunk}`);
+  assert.ok(s.stats.unloaded > 0, 'walking away must unload chunks');
+
+  // Everything resident must still be within the unload radius of the player. This is the real
+  // invariant: a tidy-up that ran but left the stragglers behind would pass a counter check.
+  for (const chunk of game.world.chunks.values()) {
+    const distance = Math.max(Math.abs(chunk.cx - finalChunk), Math.abs(chunk.cz));
+    assert.ok(distance <= s.unloadRadius,
+      `chunk ${chunk.cx},${chunk.cz} is ${distance} chunks away, beyond the unload radius of ${s.unloadRadius}`);
+  }
+
+  // And the count must be bounded by the unload area, not by how far we walked.
+  const maxExpected = (s.unloadRadius * 2 + 1) ** 2;
+  assert.ok(game.world.chunks.size <= maxExpected,
+    `${game.world.chunks.size} chunks resident, above the ${maxExpected} the unload radius allows`);
+
+  // The scene must not be accumulating meshes either.
+  assert.ok(game.scene.children.length <= maxExpected,
+    `${game.scene.children.length} meshes in the scene, above the ${maxExpected} the unload radius allows`);
+});
+
+test('walking back and forth over a border does not thrash chunks', () => {
+  // The reason unloadRadius is wider than meshRadius: without the gap, stepping across a chunk
+  // border would unload and regenerate the same chunks repeatedly.
+  const game = makeGame();
+  const s = streamerFor(game, { meshRadius: 2, generateRadius: 3, unloadRadius: 5 });
+
+  // Oscillate exactly on the boundary between chunk 0 and chunk 1.
+  for (let i = 0; i < 200; i++) {
+    game.player.position.x = i % 2 === 0 ? 15.4 : 16.4;
+    s.update(game.player.position.x, 0);
+  }
+
+  // Two positions, so at most a handful of planning events; definitely not 200 regenerations.
+  assert.ok(s.stats.generated < 60,
+    `${s.stats.generated} chunks generated while oscillating over one border`);
+  assert.equal(s.stats.unloaded, 0, 'nothing should be unloaded while standing near the border');
 });
 
 test('unloading is skipped for chunks still inside the removal radius', () => {
