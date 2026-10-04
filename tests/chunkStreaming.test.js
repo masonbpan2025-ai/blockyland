@@ -45,10 +45,13 @@ function streamerFor(game, opts = {}) {
     meshRadius: 2,
     generateRadius: 3,
     unloadRadius: 5,
-    // Generous budgets, so a test asserts behaviour rather than timing. Budgets are tested
-    // separately by measuring rather than by assuming.
+    // Generous budget, so a test asserts behaviour rather than timing. The budget itself is
+    // tested separately by measuring, not by assuming. Note this has to raise frameBuildMs too:
+    // the streamer holds generation and meshing to one shared frame budget, so raising only the
+    // per-phase numbers would leave the default frame cap in place and stop after one operation.
     generateMs: 100000,
     meshMs: 100000,
+    frameBuildMs: 100000,
     ...opts,
   });
 }
