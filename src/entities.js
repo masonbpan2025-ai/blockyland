@@ -152,6 +152,7 @@ export class EntityManager {
       ),
       age: 0,
       enchantments: options.enchantments ? structuredClone(options.enchantments) : null,
+      ...(options.durability!==undefined?{durability:options.durability}:{}),
       pickupDelay: options.pickupDelay ?? 1.0
     });
   }

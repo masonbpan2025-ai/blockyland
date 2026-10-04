@@ -311,6 +311,7 @@ export class AnimalBehaviors {
   }
 
   mountMob(mob, player) {
+    if(mob.rider&&mob.rider!==player)return false;
     if (isEquine(mob) && mob.isBaby) return false;
     if(this.mount)this.dismount(player);
     this.jumpCharge=0;this.isChargingJump=false;
@@ -482,7 +483,7 @@ export class AnimalBehaviors {
       }
 
       // 3. Chicken Egg Laying Timer
-      if (mob.type === 'chicken' && !mob.isBaby) {
+      if (mob.type === 'chicken' && !mob.isBaby && !mob.isJockey) {
         mob.eggTimer = (mob.eggTimer || (180 + Math.random() * 180)) - dt;
         if (mob.eggTimer <= 0) {
           mob.eggTimer = 180 + Math.random() * 180;

@@ -1,3 +1,4 @@
+import {convertLightningPigs} from './zombifiedPiglin.js';
 import * as THREE from 'three';
 
 export class WeatherManager {
@@ -167,7 +168,8 @@ export class WeatherManager {
     if (this.weatherType === 'thunder') {
       this.lightningTimer -= dt;
       if (this.lightningTimer <= 0) {
-        this.triggerLightning(ambientLight, sunLight);
+        const strike=playerPos.clone();strike.x+=(Math.random()-.5)*this.rainRadius*2;strike.z+=(Math.random()-.5)*this.rainRadius*2;strike.y=this.game?.world?.getHeightAt?.(strike.x,strike.z)??strike.y;
+        this.triggerLightning(ambientLight, sunLight,strike);
         this.lightningTimer = 8.0 + Math.random() * 15.0;
       }
 
@@ -184,7 +186,8 @@ export class WeatherManager {
     }
   }
 
-  triggerLightning(ambientLight, sunLight) {
+  triggerLightning(ambientLight, sunLight, strike=null) {
+    if(strike&&this.game?.mobs)convertLightningPigs(this.game.mobs,strike);
     this.isFlashing = true;
     this.flashDuration = 0.12 + Math.random() * 0.08;
     this.sounds.playThunder();

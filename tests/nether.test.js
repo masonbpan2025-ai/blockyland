@@ -319,7 +319,7 @@ test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin 
   const zpFar = mobs.spawnMob('zombified_piglin', 80, 20, 80);
 
   // Attack zp1
-  hostile.angerZombifiedPiglins(zp1);
+  hostile.angerZombifiedPiglins(zp1,{health:20,position:new THREE.Vector3(10,20,12),gamemode:'survival'});
   assert.ok(zp1.angerTimer > 0, 'Damaged zombified piglin is angered');
   assert.ok(zp2.angerTimer > 0, 'Nearby zombified piglin is also angered via group anger');
   assert.equal(zpFar.angerTimer || 0, 0, 'Distant zombified piglin is not affected');

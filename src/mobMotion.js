@@ -73,6 +73,7 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
     return false;
   }
 
+  if(['zombified_piglin','zombie_pigman'].includes(mob.type)&&hazards.getVoxel(cell.x,Math.floor(mob.mesh.position.y-.05),cell.z)===BLOCKS.MAGMA_BLOCK&&hazards.getVoxel(Math.floor(mob.mesh.position.x),Math.floor(mob.mesh.position.y-.05),Math.floor(mob.mesh.position.z))!==BLOCKS.MAGMA_BLOCK)return true;
   // Anything that would hurt the mob where it would end up.
   if (isLethalStep(hazards, cell.x, cell.y, cell.z)) return true;
   // Water stays an obstacle for land mobs, as before.
@@ -287,7 +288,8 @@ export function moveGroundMob(manager, mob, dt) {
         const raisedCell = { x: Math.floor(raised.x), y: Math.floor(raised.y), z: Math.floor(raised.z) };
         if (mob.type !== 'magma_cube' && !mob.dying && grounded && raised.y - pos.y <= 1.04
           && !collision(clearance) && !collision(raised) && collision(floor)
-          && !isLethalStep(hazards, raisedCell.x, raisedCell.y, raisedCell.z)) pos.copy(raised);
+          && !isLethalStep(hazards, raisedCell.x, raisedCell.y, raisedCell.z)
+          && !(['zombified_piglin','zombie_pigman'].includes(mob.type)&&hazards.getVoxel(raisedCell.x,raisedCell.y-1,raisedCell.z)===BLOCKS.MAGMA_BLOCK)) pos.copy(raised);
         else blocked = true;
       } else {
         pos.copy(candidate);

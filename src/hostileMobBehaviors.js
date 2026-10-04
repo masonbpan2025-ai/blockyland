@@ -1,3 +1,4 @@
+import {alertZombified,updateZombified,isZombifiedPiglin} from './zombifiedPiglin.js';
 import { setMagmaSize, updateBlaze, updateMagmaCube, updateBlazeFireball } from './netherCombat.js';
 import { updateHoglin } from './netherMobAI.js';
 import * as THREE from 'three';
@@ -100,20 +101,8 @@ export class HostileMobBehaviors {
   /**
    * Group anger propagation for Zombified Piglins / Zombie Pigmen
    */
-  angerZombifiedPiglins(damagedMob) {
-    if (!damagedMob || (damagedMob.type !== 'zombified_piglin' && damagedMob.type !== 'zombie_pigman')) return;
-    const pos = damagedMob.mesh.position;
-    for (const mob of this.mobManager.mobs) {
-      if ((mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') && mob.health > 0) {
-        if (mob.mesh.position.distanceTo(pos) < 25) {
-          mob.angerTimer = 25.0;
-          mob.aggroToPlayer = true;
-          mob.target = this.entities?.player || this.mobManager?.game?.player;
-          if (this.sounds?.playZombie) this.sounds.playZombie();
-          this.mobManager.spawnParticleBurst?.(mob.mesh.position, 0xef4444, 4);
-        }
-      }
-    }
+  angerZombifiedPiglins(damagedMob, attacker = this.mobManager.game?.player) {
+    if(isZombifiedPiglin(damagedMob)&&damagedMob.health>0)alertZombified(this.mobManager,damagedMob,attacker);
   }
 
   /**
@@ -310,34 +299,7 @@ export class HostileMobBehaviors {
 
       if (mob.type === 'piglin') updatePiglin(this, mob, dt, player);
 
-      // F2. Zombified Piglin AI: Pack Retaliation
-      if (mob.type === 'zombified_piglin' || mob.type === 'zombie_pigman') {
-        if (mob.angerTimer > 0) {
-          mob.angerTimer -= dt;
-          mob.target = player;
-          const dist = mob.mesh.position.distanceTo(player.position);
-          if (dist < 18) {
-            const dir = player.position.clone().sub(mob.mesh.position);
-            dir.y = 0;
-            if (dir.lengthSq() > 0.01) {
-              dir.normalize();
-              mob.velocity.x = dir.x * 4.0;
-              mob.velocity.z = dir.z * 4.0;
-              mob.yaw = Math.atan2(dir.x, dir.z);
-            }
-          }
-          if (dist < 1.8) {
-            mob.attackCooldown = (mob.attackCooldown || 0) - dt;
-            if (mob.attackCooldown <= 0) {
-              mob.attackCooldown = 1.0;
-              player.takeDamage?.(5, mob.mesh.position, 'zombified_piglin');
-              if (this.sounds?.playZombie) this.sounds.playZombie();
-            }
-          }
-        } else {
-          mob.target = null;
-        }
-      }
+      if(isZombifiedPiglin(mob))updateZombified(this.mobManager,mob,dt);
 
       if (mob.type === 'hoglin' || mob.type === 'zoglin') updateHoglin(this, mob, dt, player);
 
@@ -649,7 +611,7 @@ export class HostileMobBehaviors {
             const hitDist = (mob.type === 'ghast') ? 3.5 : 2.5;
             if (p.position.distanceTo(targetCenter) < hitDist) {
               hit = true;
-              this.mobManager.damageMob(mob, 35, p.position);
+              this.mobManager.damageMob(mob, 35, p.position,false,this.mobManager.game?.player);
               if (this.sounds?.playExplosion) this.sounds.playExplosion();
               this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);
               break;

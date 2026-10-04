@@ -1,3 +1,4 @@
+import {serializeZombified,restoreZombified,restoreZombifiedLinks,isZombifiedPiglin} from './zombifiedPiglin.js';
 import { serializeHorse, restoreHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { Chunk } from './world.js';
@@ -62,6 +63,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     },
     yaw: Number((mob.yaw || 0).toFixed(3)),
     equine: serializeHorse(mob),
+    zombified: serializeZombified(mob,game.mobs),
     health: mob.health ?? 20
   }));
 
@@ -244,22 +246,28 @@ export function deserializeWorld(game, mapData, options = {}) {
     game.weather.setWeather(mapData.weather.isRaining ? 'rain' : 'clear');
   }
 
+  const restoredMobs=[];
   // 9. Restore mobs
   if (mapData.mobs && mapData.mobs.length > 0 && game.mobs?.spawnMob) {
     report(72, `Spawning ${mapData.mobs.length} mobs`);
-    for (const m of mapData.mobs) {
+    for (const [recordIndex,m] of mapData.mobs.entries()) {
       try {
-        const spawned = game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
+        const spawned = isZombifiedPiglin(m.type)?game.mobs.spawnZombifiedPiglin(m.position.x,m.position.y,m.position.z,{natural:false}):m.type==='strider'?game.mobs.spawnStrider(m.position.x,m.position.y,m.position.z,{natural:false}):game.mobs.spawnMob(m.type, m.position.x, m.position.y, m.position.z);
+        restoredMobs[recordIndex]=spawned;
         if (spawned && m.health) {
           spawned.health = m.health;
           spawned.maxHealth = Math.max(spawned.maxHealth || m.health, m.health);
           restoreHorse(spawned,m.equine,game.mobs);
+          restoreZombified(spawned,m.zombified,game.mobs);
         }
       } catch (err) {
+        restoredMobs[recordIndex]=null;
         console.warn(`Could not spawn mob ${m.type}:`, err);
       }
     }
   }
+
+  for(let i=0;i<(mapData.mobs?.length||0);i++)restoreZombifiedLinks(restoredMobs[i],mapData.mobs[i].zombified,restoredMobs);
 
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
