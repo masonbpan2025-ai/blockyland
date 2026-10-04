@@ -1,3 +1,5 @@
+import { createStriderModel } from './striderModel.js';
+import { updateStrider, updateStriderSpawning, updateStriderExposure } from './striderBehavior.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
 import { createHorseModel } from './horseModel.js';
 import { isEquine, randomHorseStats } from './horseBehavior.js';
@@ -2215,7 +2217,7 @@ export class MobManager {
   isBlockSolid(x, y, z, mobType = null) {
     const b = this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
     if (b === BLOCKS.AIR || b === BLOCKS.WATER || b === BLOCKS.FIRE) return false;
-    if (mobType === 'strider' && b === BLOCKS.LAVA) return true;
+
     const def = BLOCK_DEFS[b];
     return def && def.solid !== false && !def.plant;
   }
@@ -4252,73 +4254,14 @@ export class MobManager {
   }
 
   // --- STRIDER ---
-  spawnStrider(x, y, z) {
-    const group = new THREE.Group();
-    const striderWarmMat = new THREE.MeshLambertMaterial({
-      map: this.textures.strider,
-      color: 0xffffff
-    });
-    const striderColdMat = new THREE.MeshLambertMaterial({
-      map: this.textures.strider_cold,
-      color: 0xffffff
-    });
-    const hairMat = new THREE.MeshLambertMaterial({ color: 0x450a0a });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.95, 1.0), striderWarmMat);
-    body.position.y = 1.35;
-    group.add(body);
-
-    // Whiskers/hair strands on sides of head
-    const hairGeo = new THREE.BoxGeometry(0.06, 0.28, 0.06);
-    for (let i = 0; i < 3; i++) {
-      const hL = new THREE.Mesh(hairGeo, hairMat);
-      hL.position.set(-0.52, 1.45 - i * 0.18, 0.2 - i * 0.15);
-      hL.rotation.z = -0.3;
-      group.add(hL);
-
-      const hR = new THREE.Mesh(hairGeo, hairMat);
-      hR.position.set(0.52, 1.45 - i * 0.18, 0.2 - i * 0.15);
-      hR.rotation.z = 0.3;
-      group.add(hR);
-    }
-
-    const legMat = new THREE.MeshLambertMaterial({ color: 0x27272a });
-    const legGeo = new THREE.BoxGeometry(0.18, 1.1, 0.18);
-    const leftLeg = new THREE.Mesh(legGeo, legMat); leftLeg.position.set(-0.35, 0.55, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, legMat); rightLeg.position.set(0.35, 0.55, 0); group.add(rightLeg);
-
-    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), new THREE.MeshLambertMaterial({ color: 0x451a03 }));
-    saddle.position.set(0, 1.85, 0);
-    saddle.visible = false;
-    group.add(saddle);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'strider',
-      name: 'Strider',
-      mesh: group,
-      head: body,
-      bodyMesh: body,
-      striderWarmMat: striderWarmMat,
-      striderColdMat: striderColdMat,
-      leftLeg: leftLeg,
-      rightLeg: rightLeg,
-      saddleMesh: saddle,
-      health: 20,
-      maxHealth: 20,
-      fireImmune: true,
-      inLava: true,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      state: 'idle',
-      timer: 0,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
+  spawnStrider(x, y, z, options = {}) {
+    const mob = { ...createStriderModel(), type: 'strider', name: 'Strider',
+      health: 20, maxHealth: 20, fireImmune: true, movementSpeed: .175,
+      velocity: new THREE.Vector3(), yaw: (this.random || Math.random)() * Math.PI * 2,
+      state: 'idle', timer: 0, hitCooldown: 0, isBaby: !!options.isBaby,
+      babyGrowthTimer: options.isBaby ? 1200 : undefined };
+    mob.mesh.position.set(x,y,z);mob.mesh.scale.setScalar(mob.isBaby ? .5 : 1);
+    this.scene.add(mob.mesh);this.mobs.push(mob);return mob;
   }
 
   // --- GUARDIAN & ELDER GUARDIAN ---
@@ -6069,6 +6012,11 @@ export class MobManager {
     if (!isPunch && mob.hitCooldown > 0) return false;
     if ((mob.type === 'magma_cube' || mob.type === 'horse') && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
     if (attacker === this.game?.player || (!attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if(mob.type==='strider'){
+      this.sounds?.playStrider?.(mob.health<=amount?'death':'retreat');mob.soundTimer=3;
+      if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
+      if(attacker===this.game?.player){const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
+    }
     mob.health -= amount;
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
@@ -6322,7 +6270,7 @@ export class MobManager {
         zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
         zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
         hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
-        strider: [['string', false, 2, 5]],
+        strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
         magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
         wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
         witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
@@ -6342,6 +6290,7 @@ export class MobManager {
         }
         if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       }
+      if(mob.type==='strider'&&!mob.isBaby&&mob.isSaddled)this.entities?.spawnDroppedItem(pos,'saddle',false,1);
       if (isEquine(mob) && !mob.isBaby) {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }
@@ -6354,7 +6303,7 @@ export class MobManager {
         }
         if (this.entities?.spawnXpOrbs) {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : isEquine(mob) ? (mob.playerDamaged ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6513,6 +6462,7 @@ export class MobManager {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
+    updateStriderSpawning(this, dt, player);
     updateArrows(this, dt, player);
     updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
@@ -6531,6 +6481,11 @@ export class MobManager {
         // A frozen mob is posed, not simulated: no AI, no physics, no animation. Mob
         // Studio sets this so a mob stands still while you look at it, and the debug
         // inspector sets it so a model can be examined without it wandering off.
+        if (mob.vehicle?.type === 'strider') {
+          if(mob.vehicle.health<=0){mob.vehicle.rider=null;mob.vehicle=null;}
+          else if(mob.health<=0){mob.vehicle.rider=null;mob.vehicle=null;this.updateDeath(mob,dt);continue;}
+          else if(mob.type==='zombified_piglin'&&this.game?.difficulty==='peaceful'){mob.vehicle.rider=null;this.scene.remove(mob.mesh);this.mobs.splice(i,1);continue;}
+        }
         if (mob.frozen) {
           mob.velocity?.set(0, 0, 0);
           continue;
@@ -6578,7 +6533,7 @@ export class MobManager {
       this.updateMobHealthBar(mob);
 
       if (mob.health <= 0) {
-        if(isEquine(mob))releaseHorseLead(this,mob);
+        if(isEquine(mob)||mob.type==='strider')releaseHorseLead(this,mob);
         this.updateDeath(mob, dt);
         continue;
       }
@@ -6590,6 +6545,7 @@ export class MobManager {
       // Distance to player
       const distToPlayer = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
 
+      if(mob.vehicle?.type==='strider'){if(mob.type==='strider')updateStriderExposure(this,mob,dt);continue;}
       // --- MOB SPECIFIC AI BEHAVIORS ---
       if (this.updateMobTypeBehavior(mob, dt, player, distToPlayer)) continue;
 
@@ -6618,7 +6574,7 @@ export class MobManager {
     // a one-frame lag that looked like jitter behind a moving horse.
     const activeMount = this.animalBehaviors?.mount;
     if (activeMount?.mob?.rider === player && player?.position) {
-      const mountOffset = isEquine(activeMount.type) ? 1.4 : 0.8;
+      const mountOffset = isEquine(activeMount.type) ? 1.4 : activeMount.type==='strider' ? 1.7 : 0.8;
       player.position.copy(activeMount.mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
       player.velocity?.set?.(0, 0, 0);
       player.updateCameraAndModel?.(0);
@@ -6674,6 +6630,7 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    if(mob.type==='strider'){updateStrider(this,mob,dt,player);return true;}
     if (mob.type === 'drowned') {
       const bX = Math.floor(mob.mesh.position.x);
       const bY = Math.floor(mob.mesh.position.y + 0.5);

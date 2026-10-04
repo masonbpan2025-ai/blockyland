@@ -307,10 +307,9 @@ test('Nether Mob Behaviors: Fire immunity, Zombified Piglin group anger, Hoglin 
   applyHeat(world, strider, new THREE.Vector3(0, 10, 0), 1.0, dmgFn);
   assert.equal(damaged, false, 'Nether mobs took no heat/fire/lava damage');
 
-  // 2. Strider walks on lava: isBlockSolid returns true for strider on lava
-  assert.equal(mobs.isBlockSolid(0, 14, 0, 'strider') || true, true);
+  // 2. Lava remains fluid: Strider flotation is exercised by striderParity.test.js.
   world.setVoxel(5, 14, 5, BLOCKS.LAVA);
-  assert.equal(mobs.isBlockSolid(5, 14, 5, 'strider'), true, 'Lava is solid walking ground for Strider');
+  assert.equal(mobs.isBlockSolid(5, 14, 5, 'strider'), false, 'Striders may rise through lava without colliding');
   assert.equal(mobs.isBlockSolid(5, 14, 5, 'zombie'), false, 'Lava is not solid for normal mob');
 
   // 3. Zombified Piglin Group Anger
