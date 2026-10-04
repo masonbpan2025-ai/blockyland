@@ -1,4 +1,9 @@
 import { BLOCKS, ITEMS } from './blocks.js';
+// Vanilla recipes transcribed from minecraft-data. Generated, and merged at the END of RECIPES_3X3
+// below so that a hand-written recipe always wins a tie -- several hand-written redstone recipes
+// deliberately differ from vanilla, and silently losing them to a generated duplicate would be a
+// regression that no coverage number would show.
+import { EXTRA_RECIPES } from './extraRecipes.js';
 
 export const RECIPES_2X2 = [
   { pattern: [['iron_ingot']], result: { id: 'iron_nugget', isBlock: false, count: 9 } },
@@ -355,3 +360,18 @@ RECIPES_3X3.push(
   {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:'iron_boots',isBlock:false,count:1}},
   {pattern:[['diamond',null,'diamond'],['diamond',null,'diamond']],result:{id:'diamond_boots',isBlock:false,count:1}}
 );
+
+// Vanilla recipes from src/extraRecipes.js, appended last so hand-written recipes take precedence.
+//
+// A recipe expressed as a 1x1 or 2x2 pattern is also valid in the 2x2 inventory grid, and vanilla
+// allows it there, so any generated pattern that fits 2x2 is added to RECIPES_2X2 as well. Without
+// this, planks and sticks -- the two most-used recipes in the game -- would require a crafting table.
+for (const recipe of EXTRA_RECIPES) {
+  RECIPES_3X3.push(recipe);
+  const h = recipe.pattern.length;
+  const w = recipe.pattern[0].length;
+  if (h <= 2 && w <= 2) RECIPES_2X2.push(recipe);
+}
+
+/** How many generated vanilla recipes were merged, for tests and reporting. */
+export const GENERATED_RECIPE_COUNT = EXTRA_RECIPES.length;
