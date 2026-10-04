@@ -631,11 +631,23 @@ class Game {
   }
 
   rebuildChunkMesh(chunk) {
+    const geometry = this.mesher.meshChunk(chunk, this.world);
+    this.applyChunkGeometry(chunk, geometry);
+  }
+
+  /**
+   * Attach already-built geometry to a chunk and mark it clean.
+   *
+   * Split out from rebuildChunkMesh so the streamer can mesh a chunk across several frames: the
+   * generator returns the geometry when it finally completes, and this swaps it into the scene.
+   * The old meshes are removed first so a resumed mesh replaces rather than duplicates.
+   */
+  applyChunkGeometry(chunk, geometry) {
     for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
       if (chunk[key]) { this.scene.remove(chunk[key]); chunk[key].geometry.dispose(); chunk[key] = null; }
     }
 
-    const { opaqueGeo, transparentGeo, waterGeo, lightGeo } = this.mesher.meshChunk(chunk, this.world);
+    const { opaqueGeo, transparentGeo, waterGeo, lightGeo } = geometry;
 
     this.blockLighting.setChunk(chunk.cx, chunk.cz, lightGeo?.userData.sources || []);
     if (lightGeo) {

@@ -292,22 +292,101 @@ export class ChunkStreamer {
     }
     ready.sort((a, b) => a.d - b.d);
 
+    // Resume the part-built chunk FIRST, before looking at the queue at all.
+    //
+    // The first version only resumed when the in-progress chunk happened to be the entry the loop
+    // was on, so a chunk whose neighbours made it drop out of `ready` -- or which simply sorted
+    // behind another -- was never advanced again. Its partial work was stranded and, because that
+    // chunk still counted as dirty, it also blocked the queue behind it. The symptom was meshing
+    // stopping at 17 of 25 chunks and making no further progress however many updates were driven.
+    if (this.inProgress) {
+      const job = this.inProgress;
+      const chunk = world.chunks.get(job.key);
+      if (!chunk || !chunk.dirty) {
+        // The chunk was unloaded or already meshed underneath us; drop the job rather than leak it.
+        this.inProgress = null;
+      } else if (this.resumeMesh(chunk)) {
+        meshed++;
+      }
+      // Whether or not it finished, the budget for this phase is likely spent. Return and let the
+      // next update pick up the rest.
+      if (this.inProgress) {
+        this.stats.lastMeshMs = now() - start;
+        return meshed;
+      }
+    }
+
     for (const entry of ready) {
       // Same pre-check as generation. Meshing is the more expensive of the two -- a median of
       // 5.7ms but a p99 of 16.5ms and a worst case of 38.9ms -- so starting one blindly is what
-      // produced most of the frame spikes.
+      // produced most of the frame spikes. With a resumable mesh the estimate is no longer a floor
+      // on the frame, because a chunk can now stop mid-way.
       if (this.wouldExceed(this.estimatedMeshMs, now() - phaseStart, this.meshMs, meshed === 0)) break;
-      const key = this.key(entry.chunk.cx, entry.chunk.cz);
-      const t0 = now();
-      this.game.rebuildChunkMesh(entry.chunk);
-      this.recordMeshCost(now() - t0);
-      this.loaded.add(key);
-      meshed++;
-      this.stats.meshed++;
+      if (this.startMesh(entry.chunk, phaseStart)) meshed++;
+      // A chunk left in progress is resumed at the top of the next phase, so stop here rather than
+      // starting more work that cannot finish.
+      if (this.inProgress) break;
     }
 
     this.stats.lastMeshMs = now() - start;
     return meshed;
+  }
+
+  /**
+   * Begin meshing a chunk, suspending it if the frame budget runs out.
+   *
+   * @returns {boolean} true when the chunk finished in this call
+   */
+  startMesh(chunk, phaseStart) {
+    const mesher = this.game.mesher;
+    if (!mesher || typeof mesher.beginChunkMesh !== 'function') {
+      // No resumable path available: fall back to one-shot, which is what the game used before.
+      this.game.rebuildChunkMesh(chunk);
+      this.loaded.add(this.key(chunk.cx, chunk.cz));
+      this.stats.meshed++;
+      return true;
+    }
+    this.inProgress = {
+      key: this.key(chunk.cx, chunk.cz),
+      chunk,
+      iterator: mesher.beginChunkMesh(chunk, this.game.world),
+      step: 0,
+    };
+    return this.resumeMesh(chunk, phaseStart);
+  }
+
+  /**
+   * Advance an in-progress mesh until it completes or the frame budget is spent.
+   *
+   * @returns {boolean} true when the chunk finished
+   */
+  resumeMesh(chunk, phaseStart) {
+    const job = this.inProgress;
+    if (!job) return false;
+    const t0 = now();
+    for (;;) {
+      const step = job.iterator.next();
+      job.step++;
+      if (step.done) {
+        // The generator returns the geometry, so applying it here costs one upload rather than
+        // another whole mesh pass.
+        this.game.applyChunkGeometry(chunk, step.value);
+        this.loaded.add(job.key);
+        this.stats.meshed++;
+        this.inProgress = null;
+        this.recordMeshCost(now() - t0);
+        return true;
+      }
+      // Stop at a column boundary once the frame would be overrun. Nothing is half-written until
+      // the geometry is applied above, which is what makes stopping here safe: the partial work
+      // lives in the generator's own buffers and is resumed next frame.
+      //
+      // The first step is always taken so that a chunk can never be stuck at zero progress.
+      if (job.step > 1 && this.wouldExceed(0, now() - this.frameStart, this.meshMs, false)) {
+        this.recordMeshCost(now() - t0);
+        return false;
+      }
+    }
   }
 
   /**

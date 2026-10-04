@@ -182,6 +182,35 @@ export class ChunkMesher {
   }
 
   meshChunk(chunk, world) {
+    // Non-resumable path: drive the generator to completion in one call, which is what every
+    // existing caller and test uses. The work is identical either way.
+    const state = this.beginChunkMesh(chunk, world);
+    let step = state.next();
+    while (!step.done) step = state.next();
+    return step.value;
+  }
+
+  /**
+   * Start a mesh that can be suspended and resumed between columns.
+   *
+   * Why this exists. Generation and meshing were atomic per chunk, so the worst frame was
+   * `budget + longest single chunk` -- measured p99 16.5ms and max 38.9ms against a 16.7ms frame.
+   * No amount of pre-checking can bound a frame below the cost of one indivisible chunk, which is
+   * why the streaming budget could not be a hard bound. Yielding per column makes a chunk
+   * interruptible, so the real bound becomes the budget plus one column.
+   *
+   * Usage:
+   *   const it = mesher.beginChunkMesh(chunk, world);
+   *   ... loop { const r = it.next(); if (r.done) return r.value; } until out of time
+   *   ... next frame, keep calling it.next() on the same iterator
+   *
+   * @returns {Generator<void, {opaqueGeo, transparentGeo, waterGeo, lightGeo}>}
+   */
+  beginChunkMesh(chunk, world) {
+    return this.#buildChunkMesh(chunk, world, true);
+  }
+
+  *#buildChunkMesh(chunk, world, resumable) {
     const lightGeometries = [];
     const lightSources = [];
     const cx = chunk.cx;
@@ -251,6 +280,10 @@ export class ChunkMesher {
     };
 
     for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+      // A resumable build yields once per column (x slice), which is the unit the streamer
+      // time-slices on. `yield` is only legal directly inside the generator body, not inside the
+      // closures above, which is why the yield sits here rather than deeper in.
+      if (resumable) yield lx;
       for (let ly = 0; ly < CHUNK_HEIGHT; ly++) {
         for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
           const blockId = chunk.getVoxel(lx, ly, lz);
