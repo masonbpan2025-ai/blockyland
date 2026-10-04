@@ -8,6 +8,14 @@ import { isLethalStep } from './hazards.js';
 const PATH_REPLAN = 0.5;
 
 /**
+ * Minimum time a locally-chosen avoidance heading is held before it may be reconsidered.
+ *
+ * Without this the alternative-angle search re-decided every frame and flipped sides at a
+ * corner, which is the jitter. A decision that is made once and held cannot oscillate.
+ */
+const STEER_DWELL = 0.6;
+
+/**
  * Pick the point a mob should actually aim for this frame.
  *
  * Returns the destination unchanged when the way there is clear. When it is blocked -- by
@@ -19,6 +27,7 @@ const PATH_REPLAN = 0.5;
 function routeAimPoint(manager, mob, destination, dt) {
   const pos = mob.mesh.position;
   mob.pathCooldown = Math.max(0, (mob.pathCooldown || 0) - dt);
+
 
   // Move to the next waypoint once the current one is reached.
   if (mob.path && mob.path.length) {
@@ -70,6 +79,8 @@ function routeAimPoint(manager, mob, destination, dt) {
       mob.pathGoal = { x: destination.x, y: destination.y, z: destination.z };
       mob.pathCooldown = PATH_REPLAN;
       mob.pathReached = plan.reached;
+      // A new route may legitimately want the other way around an obstacle.
+      mob.steerSide = 0;
     } else if (goalMoved) {
       // The goal moved but the way is clear: drop the stale route and steer directly.
       mob.path = null;
@@ -121,18 +132,34 @@ export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0
     return true;
   };
   const clear = (angle) => walkableAhead(angle, 0.9) || walkableAhead(angle, 0.55);
-  if (mob.steerTimer > 0 && clear(mob.steerYaw)) yaw = mob.steerYaw;
-  else if (!clear(yaw)) {
-    const alternatives = [0.65, -0.65, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, Math.PI];
-    const angle = alternatives.map(a => yaw + a).find(clear);
+  const committed = mob.steerTimer > 0 && mob.steerYaw !== undefined;
+  if (committed) {
+    // Ride out the dwell. Re-deciding the moment the heading grazes something restarted the
+    // search every frame, which is what kept the heading churning.
+    yaw = mob.steerYaw;
+  } else if (!clear(yaw)) {
+    // The direct heading is blocked and we are free to re-decide. Try one rotational direction
+    // first, every time, so the mob commits to a side instead of alternating between them.
+    const side = mob.steerSide === -1 ? -1 : 1;
+    const offsets = [];
+    for (const magnitude of [0.65, 1.2, Math.PI / 2, 2.2, Math.PI]) offsets.push(magnitude * side);
+    // Only if the committed side is genuinely exhausted do we try the other one.
+    for (const magnitude of [0.65, 1.2, Math.PI / 2, 2.2, Math.PI]) offsets.push(-magnitude * side);
+
+    const angle = offsets.map(o => yaw + o).find(clear);
     if (angle === undefined) {
-      // No heading probed clear. Keep the heading rather than freezing: moveGroundMob refuses
-      // any step that would actually hurt, so the mob stays safe while still making progress
-      // around the obstacle. Zeroing velocity here stranded mobs at every lava edge.
+      // Nothing probes clear. Hold the heading rather than freezing: moveGroundMob refuses any
+      // step that would actually hurt, so the mob stays safe and keeps trying. Zeroing velocity
+      // here stranded mobs at every lava edge.
       mob.steerYaw = yaw;
-      mob.steerTimer = 0.2;
+      mob.steerTimer = STEER_DWELL;
     } else {
-      yaw = angle; mob.steerYaw = yaw; mob.steerTimer = 0.8;
+      // Remember which way we turned, so the next decision continues that way.
+      const delta = Math.atan2(Math.sin(angle - yaw), Math.cos(angle - yaw));
+      if (Math.abs(delta) > 0.01) mob.steerSide = Math.sign(delta);
+      yaw = angle;
+      mob.steerYaw = yaw;
+      mob.steerTimer = STEER_DWELL;
     }
   }
   mob.avoidTime = 0;
@@ -205,7 +232,50 @@ export function updateHoglin(behaviors, mob, dt, player) {
   if (!target) { wanderMob(manager, mob, dt, 1); return; }
   const targetPos = target.mesh?.position || target.position;
   const distance = targetPos.distanceTo(pos);
-  steerGround(manager, mob, targetPos, dt, 2.5, mob.isBaby ? 0.85 : 1.65);
+  /**
+   * How close to stand before attacking.
+   *
+   * This has to be at least the distance at which separatePlayerFromMobs stops pushing the two
+   * bodies apart, which is (playerWidth + mobWidth) / 2 -- about 1.7 for a hoglin. The old 1.65
+   * was narrower than that, so the hoglin walked in, was pushed back out, recomputed its heading
+   * and walked in again, reversing along the same diagonal roughly twice a second. That was the
+   * visible shake. A margin on top stops it oscillating against the contact face.
+   */
+  const contactDistance = mob.isBaby
+    ? 0.85
+    : Math.max(1.9, ((manager.getMobDimensions?.(mob.type)?.width || 0.9) + 0.6) / 2 + 0.35);
+
+  /**
+   * Stand and fight once the mob has closed as far as it can and stopped making progress.
+   *
+   * The separation code pushes the two bodies apart, so a mob that keeps walking at a target it is
+   * already touching overshoots, gets pushed back through and out the other side, and reverses --
+   * along the same diagonal, about twice a second. That was the visible shake: a hoglin held a
+   * radius that swung between 1.16 and 2.42 blocks while its heading flipped between two
+   * antiparallel values.
+   *
+   * Progress is tracked on a timer rather than per frame, because a single frame of no movement
+   * means nothing (collision resolution, a push, a frame at a boundary). Only when the mob has
+   * failed to get closer for a sustained interval, and is within reach, is standing correct.
+   */
+  const bestKey = 'approachBest';
+  const stuckKey = 'approachStuck';
+  if (mob[bestKey] === undefined || distance < mob[bestKey] - 0.02) {
+    mob[bestKey] = distance;
+    mob[stuckKey] = 0;
+  } else {
+    mob[stuckKey] = (mob[stuckKey] || 0) + dt;
+  }
+  const inReach = distance <= contactDistance + 0.6;
+  const settled = inReach && mob[stuckKey] > 0.35;
+  if (settled) {
+    mob.velocity.x = 0;
+    mob.velocity.z = 0;
+    mob.steerTimer = 0;
+    mob.steerYaw = undefined;
+  } else {
+    steerGround(manager, mob, targetPos, dt, 2.5, contactDistance);
+  }
   if (distance > (mob.isBaby ? 1.1 : 1.9) || mob.attackCooldown > 0) return;
   // Do not attack through a solid wall.
   const midpoint = pos.clone().lerp(targetPos, 0.5); midpoint.y += 0.7;
