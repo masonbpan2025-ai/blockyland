@@ -1,3 +1,4 @@
+import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
@@ -40,7 +41,8 @@ export const BREEDING_FOODS = {
   ],
   wolf: ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit'],
   cat: ['salmon', 'cod', 'cooked_salmon', 'cooked_cod', 'raw_fish'],
-  horse: ['golden_apple', 'golden_carrot', 'apple']
+  horse: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple'],
+  donkey: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple']
 };
 
 export class AnimalBehaviors {
@@ -62,6 +64,7 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if (isEquine(mob)) return canInteractHorse(mob,itemId);
     if (!itemId) {
       if ((mob.type === 'wolf' || mob.type === 'cat' || mob.type === 'ocelot') && mob.isTamed && mob.owner === player) return true;
       if ((mob.type === 'horse' || mob.type === 'donkey') && (mob.isTamed || !mob.isBaby)) return true;
@@ -125,6 +128,8 @@ export class AnimalBehaviors {
     if (!mob || !player || !inventory) return false;
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
+
+    if (isEquine(mob)) return interactHorse(this,mob,player,inventory,itemId);
 
     // 1. Milking a Cow
     if ((mob.type === 'cow' || mob.type === 'mooshroom') && itemId === 'bucket') {
@@ -245,48 +250,6 @@ export class AnimalBehaviors {
       }
     }
 
-    // 6. Horse / Donkey: Mounting, taming, equipping saddle, armor, donkey chest
-    // Feeding comes first. This branch ends by mounting and returning, which would
-    // swallow the breeding interaction, so a horse could not be bred by feeding it.
-    if ((mob.type === 'horse' || mob.type === 'donkey') && this.isBreedingFood(mob.type, itemId)) {
-      // fall through to the shared breeding logic below
-    } else if (mob.type === 'horse' || mob.type === 'donkey') {
-      // Donkey equipping chest
-      if (mob.type === 'donkey' && mob.isTamed && itemId === 'chest' && !mob.hasChest) {
-        mob.hasChest = true;
-        if (mob.chestMesh) mob.chestMesh.visible = true;
-        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-        if (this.sounds?.playPlace) this.sounds.playPlace('wood');
-        return true;
-      }
-
-      // Equipping horse armor
-      if (mob.type === 'horse' && mob.isTamed && itemId && itemId.endsWith('_horse_armor') && !mob.horseArmor) {
-        mob.horseArmor = itemId;
-        if (mob.armorMesh) {
-          mob.armorMesh.visible = true;
-          const armorColor = itemId.includes('diamond') ? 0x22d3ee : itemId.includes('golden') ? 0xfacc15 : 0xe2e8f0;
-          mob.armorMesh.material.color.setHex(armorColor);
-        }
-        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-        if (this.sounds?.playArmorEquip) this.sounds.playArmorEquip();
-        return true;
-      }
-
-      // Equipping saddle
-      if (mob.isTamed && itemId === 'saddle' && !mob.isSaddled) {
-        mob.isSaddled = true;
-        if (mob.saddleMesh) mob.saddleMesh.visible = true;
-        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-        if (this.sounds?.playArmorEquip) this.sounds.playArmorEquip();
-        return true;
-      }
-
-      // Mount the horse / donkey (even untamed for taming attempts)
-      this.mountMob(mob, player);
-      return true;
-    }
-
     // 7. Pig & Strider: Saddling & Mounting
     if (mob.type === 'pig' || mob.type === 'strider') {
       if (itemId === 'saddle' && !mob.isSaddled) {
@@ -348,6 +311,9 @@ export class AnimalBehaviors {
   }
 
   mountMob(mob, player) {
+    if (isEquine(mob) && mob.isBaby) return false;
+    if(this.mount)this.dismount(player);
+    this.jumpCharge=0;this.isChargingJump=false;
     this.mount = {
       mob,
       type: mob.type,
@@ -359,6 +325,8 @@ export class AnimalBehaviors {
   }
 
   dismount(player) {
+    this.jumpCharge=0;this.isChargingJump=false;
+    if(this.mount?.mob)this.mount.mob.jumpCharge=0;
     if (this.mount) {
       if (this.mount.mob) this.mount.mob.rider = null;
       this.mount = null;
@@ -459,7 +427,7 @@ export class AnimalBehaviors {
                 if (baby) {
                   baby.isBaby = true;
                   baby.babyGrowthTimer = 120;
-                  baby.mesh?.scale?.set?.(0.5, 0.5, 0.5);
+                  baby.mesh?.scale?.setScalar?.(isEquine(baby)?.7:.5);
                 }
               }
             }
@@ -483,6 +451,7 @@ export class AnimalBehaviors {
       const mob = mobs[i];
       if (mob.health <= 0) continue;
 
+      if(isEquine(mob))updateHorse(mob,dt,this.mobManager.random || Math.random,this.sounds);
       // 1. Breeding cooldown & Love mode
       if (mob.breedingCooldown > 0) {
         mob.breedingCooldown -= dt;
@@ -500,7 +469,7 @@ export class AnimalBehaviors {
 
       // 2. Baby growth timer
       if (mob.isBaby && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
-        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? (mob.type === 'hoglin' ? 1200 : 120)) - dt;
+        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || isEquine(mob)) ? 1200 : 120)) - dt;
         if (mob.babyGrowthTimer <= 0) {
           mob.isBaby = false;
           mob.mesh.scale.set(1, 1, 1);
@@ -606,6 +575,7 @@ export class AnimalBehaviors {
   updateMountSteering(dt, player, controls = {}) {
     const mob = this.mount.mob;
     const type = this.mount.type;
+    if(!mob.velocity)mob.velocity=new THREE.Vector3();
 
     // MobManager historically passed an empty controls object because the
     // player owns keyboard state. Read that state as the fallback so mounts
@@ -623,15 +593,18 @@ export class AnimalBehaviors {
     };
 
     // If horse is untamed, chance to buck player off
-    if ((type === 'horse' || type === 'donkey') && !mob.isTamed) {
-      mob.tameTimer = (mob.tameTimer || 3.0) - dt;
+    if (isEquine(type) && !mob.isTamed) {
+      mob.tameTimer = (mob.tameTimer ?? 3.0) - dt;
       if (mob.tameTimer <= 0) {
         mob.tameAttempts = (mob.tameAttempts || 0) + 1;
-        if (mob.tameAttempts >= 3 + Math.floor(Math.random() * 3)) {
+        if ((mob.temper || 0) > Math.floor((this.mobManager.random || Math.random)()*100)) {
+          mob.owner=player;
           mob.isTamed = true;
           this.spawnHeartParticles(mob.mesh.position);
           if (this.sounds?.playHorse) this.sounds.playHorse();
         } else {
+          mob.temper=Math.min(100,(mob.temper || 0)+5);
+          mob.rearTime=1;
           // Buck off
           this.spawnSmokeParticles(mob.mesh.position);
           this.dismount(player);
@@ -641,13 +614,18 @@ export class AnimalBehaviors {
       }
     }
 
+    if(isEquine(type)) {
+      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount || this.world?.getVoxel(mob.mesh.position.x,mob.mesh.position.y+1.4,mob.mesh.position.z)===BLOCKS.WATER){this.dismount(player);return;}
+      if(!mob.isTamed || !mob.isSaddled){mob.velocity.x=mob.velocity.z=0;this.jumpCharge=0;this.isChargingJump=false;mob.jumpCharge=0;return;}
+    }
     // Camera sync: Player position sits on top of mob
-    const mountOffset = type === 'horse' || type === 'donkey' ? 1.4 : 0.8;
+    const mountOffset = isEquine(type) ? 1.4 : 0.8;
     player.position.copy(mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
 
     // Direction from camera
     const lookDir = new THREE.Vector3();
     player.camera?.getWorldDirection(lookDir);
+    if(!lookDir.lengthSq())lookDir.set(-Math.sin(player.yaw || 0),0,-Math.cos(player.yaw || 0));
     lookDir.y = 0;
     lookDir.normalize();
 
@@ -661,8 +639,9 @@ export class AnimalBehaviors {
     if (movement.right) { moveX += rightDir.x; moveZ += rightDir.z; }
 
     const inputLen = Math.hypot(moveX, moveZ);
-    let speed = (type === 'horse' ? 7.5 : type === 'donkey' ? 5.8 : 3.5);
+    let speed = (isEquine(type) ? (mob.movementSpeed ?? .175)*43.17 : 3.5);
 
+    if(isEquine(type)){if(movement.backward)speed*=.25;else if(!movement.forward&&(movement.left||movement.right))speed*=.5;}
     // Boost timer for carrot / fungus on stick
     if (this.mount.boostTimer > 0) {
       this.mount.boostTimer -= dt;
@@ -672,7 +651,7 @@ export class AnimalBehaviors {
     if (inputLen > 0.01) {
       moveX = (moveX / inputLen) * speed;
       moveZ = (moveZ / inputLen) * speed;
-      mob.yaw = Math.atan2(moveX, moveZ);
+      mob.yaw = isEquine(type) ? Math.atan2(lookDir.x,lookDir.z) : Math.atan2(moveX, moveZ);
       mob.mesh.rotation.y = mob.yaw;
     } else {
       moveX = 0;
@@ -691,9 +670,9 @@ export class AnimalBehaviors {
         mob.jumpCharge = this.jumpCharge;
       } else if (this.isChargingJump) {
         // Unleash jump!
-        if (Math.abs(mob.velocity.y) < 0.05) {
-          const jumpPower = 5.0 + this.jumpCharge * 6.5; // up to 3 blocks high
-          mob.velocity.y = jumpPower;
+        if (mob.onGround) {
+          const jumpPower = Math.sqrt(2*(mob.gravity ?? 24)*horseJumpHeight(mob.jumpStrength ?? .5))*(.4+.6*this.jumpCharge);
+          mob.velocity.y = jumpPower;mob.onGround=false;
           if (this.sounds?.playHorse) this.sounds.playHorse();
         }
         this.isChargingJump = false;
@@ -721,10 +700,11 @@ export class AnimalBehaviors {
    * Breeding matchmaking between two in-love animals
    */
   checkBreedingPair(mob, dt = 2.0) {
+    if(mob.isBaby || mob.health<=0 || mob.breedingCooldown>0 || (isEquine(mob)&&(!mob.isTamed||mob.type==='mule')))return;
     const mobs = this.mobManager.mobs;
     for (let i = 0; i < mobs.length; i++) {
       const other = mobs[i];
-      if (other !== mob && other.type === mob.type && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
+      if (other !== mob && other.health>0 && (other.type === mob.type || (isEquine(mob)&&isEquine(other)&&other.type!=='mule')) && (!isEquine(other)||other.isTamed) && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
         const dist = mob.mesh.position.distanceTo(other.mesh.position);
         // Scale with the bodies: a horse is 1.4 wide, so a flat 1.2 threshold was below the
         // distance two horses can physically reach and they could never mate.
@@ -801,13 +781,14 @@ export class AnimalBehaviors {
 
             // Spawn baby
             const babyPos = mob.mesh.position.clone().lerp(other.mesh.position, 0.5);
-            const baby = this.mobManager.spawnMob(mob.type, babyPos.x, babyPos.y, babyPos.z);
+            const baby = this.mobManager.spawnMob(isEquine(mob)&&mob.type!==other.type?'mule':mob.type, babyPos.x, babyPos.y, babyPos.z);
             if (baby) {
               baby.isBaby = true;
-              baby.babyGrowthTimer = mob.type === 'hoglin' ? 1200 : 120;
+              if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
+              baby.babyGrowthTimer = isEquine(mob) ? 1200 : mob.type === 'hoglin' ? 1200 : 120;
               baby.parent = mob;
-              baby.mesh?.scale?.set?.(0.5, 0.5, 0.5);
-              if (baby.head) baby.head.scale.set(1.5, 1.5, 1.5);
+              baby.mesh?.scale?.setScalar?.(isEquine(baby) ? .7 : .5);
+              if (baby.head && !isEquine(baby)) baby.head.scale.set(1.5, 1.5, 1.5);
               if (baby.horns) baby.horns.forEach(h => h.visible = false);
               if (baby.udder) baby.udder.visible = false;
               if (baby.wattle) baby.wattle.visible = false;
@@ -821,7 +802,9 @@ export class AnimalBehaviors {
             }
 
             // Drop XP
-            this.mobManager.spawnXpOrbs?.(babyPos, 1 + Math.floor(Math.random() * 7));
+            const xp=1+Math.floor(Math.random()*7);
+            if(this.mobManager.spawnXpOrbs)this.mobManager.spawnXpOrbs(babyPos,xp);
+            else this.entities?.spawnXpOrbs?.(babyPos,xp);
             this.spawnHeartParticles(babyPos);
             if (this.sounds?.playPop) this.sounds.playPop();
             if (mob.type === 'cow' && this.sounds?.playCow) this.sounds.playCow();

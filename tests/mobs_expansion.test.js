@@ -309,6 +309,7 @@ test('Horses/Donkeys: Taming via mounting, jump charging meter, chest equipment 
   animalBehaviors.interact(donkey, player);
   assert.equal(donkey.hasChest, true);
 
+  donkey.isSaddled = true; // Direction and jumping require a saddle.
   // Jump charging meter
   const controls = { space: true };
   animalBehaviors.update(0.5, player, controls);

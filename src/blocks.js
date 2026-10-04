@@ -994,6 +994,8 @@ export const ITEMS = {
   turtle_helmet: { name: 'Turtle Shell', armor: 2, toughness: 0, armorSlot: 'head', icon: '/assets/items/turtle_helmet.png', type: 'armor' },
   shield: { name: 'Shield', icon: '/assets/items/shield.png', type: 'shield', offhand: true },
 
+  leather_horse_armor: { name: 'Leather Horse Armor', icon: '/assets/items/leather.png', type: 'armor' },
+  hay_bale: { name: 'Hay Bale', icon: '/assets/items/wheat.png', type: 'material' },
   diamond_horse_armor: { name: 'Diamond Horse Armor', icon: '/assets/items/diamond_horse_armor.png', type: 'armor' },
   golden_horse_armor: { name: 'Golden Horse Armor', icon: '/assets/items/golden_horse_armor.png', type: 'armor' },
   iron_horse_armor: { name: 'Iron Horse Armor', icon: '/assets/items/iron_horse_armor.png', type: 'armor' },

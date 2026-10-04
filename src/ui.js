@@ -1,3 +1,4 @@
+import { renderHorseInventory } from './horseInventory.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
@@ -739,7 +740,18 @@ export class UIManager {
   }
 
   // Inventory Modal Management
+  openHorseInventory(mount) {
+    if(!mount?.isTamed || mount.isBaby)return;
+    document.exitPointerLock();this.closeAllModals();this.invModal.classList.remove('hidden');this.renderInventoryGrids();renderHorseInventory(this,mount);
+  }
+
   toggleInventory() {
+    const mount=this.player.ridingMob;
+    if(mount && ['horse','donkey','mule'].includes(mount.type)){
+      if(!mount.isTamed)return;
+      this.openHorseInventory(mount);return;
+    }
+    document.getElementById('horse-equipment')?.remove();
     if (this.player.gamemode === 'creative') {
       if (this.creativeModal && !this.creativeModal.classList.contains('hidden')) {
         this.closeAllModals();

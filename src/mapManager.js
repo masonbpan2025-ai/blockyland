@@ -1,3 +1,4 @@
+import { serializeHorse, restoreHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { Chunk } from './world.js';
 
@@ -60,6 +61,7 @@ export function serializeWorld(game, mapName = 'World 1') {
       z: Number(mob.mesh.position.z.toFixed(3))
     },
     yaw: Number((mob.yaw || 0).toFixed(3)),
+    equine: serializeHorse(mob),
     health: mob.health ?? 20
   }));
 
@@ -251,6 +253,7 @@ export function deserializeWorld(game, mapData, options = {}) {
         if (spawned && m.health) {
           spawned.health = m.health;
           spawned.maxHealth = Math.max(spawned.maxHealth || m.health, m.health);
+          restoreHorse(spawned,m.equine,game.mobs);
         }
       } catch (err) {
         console.warn(`Could not spawn mob ${m.type}:`, err);
