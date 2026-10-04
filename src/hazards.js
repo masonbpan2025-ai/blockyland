@@ -31,10 +31,21 @@ export const HAZARD_DAMAGE = {
  * so they are listed here too. Keeping this list explicit makes the behaviour reviewable
  * rather than emergent.
  */
+/**
+ * Mobs that take no damage from lava or fire.
+ *
+ * This mirrors the list in heat.js, which is the code that actually decides whether a mob
+ * burns. Keeping a separate, longer list here was a real bug: hoglin and piglin were treated as
+ * immune, so a hoglin standing in lava was classified as safe, never sought a way out, and died
+ * in it. A mob that takes heat damage must see lava as a hazard, or it has no reason to leave.
+ *
+ * A mob may still carry `fireImmune` or an active fire-resistance effect; those are honoured
+ * separately in isFireImmune below.
+ */
 export const FIRE_IMMUNE_MOBS = new Set([
-  'blaze', 'magma_cube', 'ghast', 'strider', 'wither', 'wither_skeleton',
-  'zombified_piglin', 'zombie_pigman', 'zoglin', 'piglin', 'hoglin',
-  'ender_dragon', 'vex', 'zombie_villager',
+  'blaze', 'ghast', 'magma_cube',
+  'strider', 'wither_skeleton',
+  'zombified_piglin', 'zombie_pigman',
 ]);
 
 /** Mobs that treat water as their preferred medium rather than an obstacle. */

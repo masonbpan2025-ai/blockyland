@@ -6,7 +6,7 @@ import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
-import { wanderMob, moveGroundMob, moveFlyingMob } from './mobMotion.js';
+import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
@@ -6607,6 +6607,17 @@ export class MobManager {
         if (mob.frozen) {
           mob.velocity?.set(0, 0, 0);
           continue;
+        }
+
+        // A mob standing in lava or fire is leaving before it does anything else. This runs
+        // before the AI chain so the heading cannot be overwritten by a mob that wants to walk
+        // somewhere else; movement itself still goes through the normal ground mover.
+        {
+          const escapingHazard = updateHazardEscape(this, mob, dt);
+          if (escapingHazard) {
+            moveGroundMob(this, mob, dt);
+            continue;
+          }
         }
         if (mob.hitCooldown > 0) mob.hitCooldown -= dt;
 

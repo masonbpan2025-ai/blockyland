@@ -135,13 +135,24 @@ test('lava and fire are hazards for an ordinary mob', () => {
 });
 
 test('fire-immune mobs treat fire and lava as safe', () => {
-  for (const type of ['blaze', 'strider', 'magma_cube', 'ghast', 'wither']) {
+  // This list mirrors heat.js, which decides who actually burns. Note `wither` is NOT here:
+  // heat.js damages it, so it must see lava as a hazard or it would have no reason to leave.
+  for (const type of ['blaze', 'strider', 'magma_cube', 'ghast', 'wither_skeleton', 'zombified_piglin']) {
     assert.equal(isFireImmune({ type }), true, `${type} should be fire immune`);
     assert.equal(hazardKind(BLOCKS.LAVA, { type }), null, `${type} may cross lava`);
     assert.equal(hazardKind(BLOCKS.FIRE, { type }), null, `${type} may cross fire`);
     assert.equal(hazardCost(BLOCKS.LAVA, { type }), 0);
   }
   assert.equal(isFireImmune({ type: 'cow' }), false);
+});
+
+test('mobs that burn in lava are not treated as immune', () => {
+  // The regression behind the reported screenshot: hoglin and piglin were classified immune, so a
+  // hoglin standing in lava was considered safe, never tried to leave, and burned to death.
+  for (const type of ['hoglin', 'piglin', 'cow', 'sheep', 'wither', 'zoglin', 'zombie_villager']) {
+    assert.equal(isFireImmune({ type }), false, `${type} burns and must not be immune`);
+    assert.equal(hazardKind(BLOCKS.LAVA, { type }), 'lava', `${type} must see lava as a hazard`);
+  }
 });
 
 test('a mob carrying the fireImmune flag is respected too, not just the name list', () => {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
-import { isLethalStep, hazardKind } from './hazards.js';
+import { isLethalStep, hazardKind, isFireImmune } from './hazards.js';
 
 export function wanderMob(manager, mob, dt, speed) {
   mob.wanderTimer = (mob.wanderTimer || 0) - dt;
@@ -57,10 +57,21 @@ function hazardCtx(manager, mob) {
  *
  * @returns {boolean} true when the move must not be taken
  */
-function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId) {
+function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId, escaping = false) {
   if (mob.type === "magma_cube" || mob.dying) return false;
   if (knockback.lengthSq() >= 0.1) return false;
   if (!grounded) return false;
+
+  // A mob already standing in something harmful is trying to LEAVE. It still may not walk
+  // into a hazard it is not already in (checked below), but it has to be allowed across ground
+  // whose floor is bad, because that is what the pool it is stuck in is made of. Refusing those
+  // steps left it oscillating in the lava until it died.
+  if (escaping) {
+    const inWaterWhileEscaping = hazards.getVoxel(cell.x, cell.y, cell.z) === waterId;
+    if (inWaterWhileEscaping) return true;
+    return false;
+  }
+
   // Anything that would hurt the mob where it would end up.
   if (isLethalStep(hazards, cell.x, cell.y, cell.z)) return true;
   // Water stays an obstacle for land mobs, as before.
@@ -86,7 +97,7 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
  *
  * @returns {{x:number, y:number, z:number}|null} the target cell, or null if none is found
  */
-function findEscapeTarget(hazards, mob, maxRadius = 8) {
+export function findEscapeTarget(hazards, mob, maxRadius = 8) {
   const from = mob.mesh.position;
   const baseY = Math.floor(from.y);
   const bx = Math.floor(from.x), bz = Math.floor(from.z);
@@ -129,6 +140,61 @@ function deflectAroundHazard(hazards, mob, yaw, distance = 1.1) {
   return null;
 }
 
+/**
+ * Walk a mob out of a hazard it is standing in.
+ *
+ * Runs before normal locomotion and takes priority. Steers at the nearest safe cell; if the mob
+ * has not got clear within a short window it is placed on that cell, because remaining in lava
+ * is strictly worse than being moved a few blocks, and a mob that dies in the lava helps nobody.
+ *
+ * @returns {boolean} true when the mob is being handled by the escape
+ */
+export function updateHazardEscape(manager, mob, dt) {
+  if (!mob || mob.health <= 0 || mob.dying) return false;
+  // A mob that can sit in lava happily has nothing to escape.
+  if (isFireImmune(mob)) return false;
+
+  const ctx = {
+    mob,
+    getVoxel: (x, y, z) => manager.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z)),
+    isSolid: (x, y, z) => manager.isBlockSolid(Math.floor(x), Math.floor(y), Math.floor(z), mob.type),
+  };
+  const pos = mob.mesh.position;
+  const inDanger = isLethalStep(ctx, Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
+  if (!inDanger) { mob.escapeTarget = null; mob.escapeTime = 0; mob.escapeTicks = 0; return false; }
+
+  if (!mob.escapeTarget) mob.escapeTarget = findEscapeTarget(ctx, mob, 12);
+  if (!mob.escapeTarget) return false;
+
+  const t = mob.escapeTarget;
+  const dx = t.x - pos.x, dz = t.z - pos.z;
+  const distance = Math.hypot(dx, dz);
+
+  // Arrived: stop escaping and let normal locomotion resume.
+  if (distance < 0.55) { mob.escapeTarget = null; mob.escapeTicks = 0; return false; }
+
+  mob.escapeTicks = (mob.escapeTicks || 0) + 1;
+  const yaw = Math.atan2(dx, dz);
+  const speed = Math.max(2.6, Math.hypot(mob.velocity.x, mob.velocity.z));
+  mob.velocity.x = Math.sin(yaw) * speed;
+  mob.velocity.z = Math.cos(yaw) * speed;
+  mob.yaw = yaw;
+  mob.fleeingHazard = true;
+
+  // Give steering a fair chance, then make certain. Three seconds at walking speed is several
+  // blocks of honest movement; failing that, the direct placement is the safe outcome.
+  if (mob.escapeTicks > Math.max(12, 3 / Math.max(dt, 0.0001))) {
+    const from = pos.clone();
+    pos.set(t.x, t.y, t.z);
+    // Do not leave the mob inside terrain.
+    if (manager.checkMobCollision(mob, pos)) pos.copy(from);
+    mob.escapeTarget = null;
+    mob.escapeTicks = 0;
+    mob.velocity.set(0, 0, 0);
+  }
+  return true;
+}
+
 export function moveGroundMob(manager, mob, dt) {
   if(mob.health>0)applyHeat(manager.world,mob,mob.mesh.position,dt,n=>manager.damageMob(mob,n));
   const start = mob.mesh.position.clone(), pos = mob.mesh.position;
@@ -140,21 +206,35 @@ export function moveGroundMob(manager, mob, dt) {
     }
   }
   const hazards = hazardCtx(manager, mob);
+  // An escape target only lives briefly, so a mob cannot be permanently excused from the
+  // floor rule if it fails to reach safety.
+  mob.escapeTime = Math.max(0, (mob.escapeTime || 0) - dt);
+  if (mob.escapeTarget && mob.escapeTime <= 0) mob.escapeTarget = null;
+  // Escaping excuses the floor rule only while the window is live.
   const knockback = mob.knockback || new THREE.Vector3();
 
   // Standing in something harmful: get out before anything else, whichever way is safe.
   {
     const hereX = Math.floor(pos.x), hereY = Math.floor(pos.y), hereZ = Math.floor(pos.z);
     if (isLethalStep(hazards, hereX, hereY, hereZ)) {
-      const target = findEscapeTarget(hazards, mob, 8);
-      if (target) {
-        const escape = Math.atan2(target.x - pos.x, target.z - pos.z);
+      // Re-pick only when there is no target, or the one we had has been reached. Re-picking
+      // every frame made the nearest safe cell jump as the mob moved, so it thrashed between
+      // headings instead of committing to one and leaving.
+      const reachedEscapeTarget = mob.escapeTarget
+        && Math.hypot(mob.escapeTarget.x - pos.x, mob.escapeTarget.z - pos.z) < 0.6;
+      if (!mob.escapeTarget || reachedEscapeTarget) {
+        mob.escapeTarget = findEscapeTarget(hazards, mob, 10);
+        // Long enough to cross a wide pool at walking speed, short enough to expire.
+        if (mob.escapeTarget) mob.escapeTime = 8;
+      }
+      if (mob.escapeTarget) {
+        const t = mob.escapeTarget;
+        const escape = Math.atan2(t.x - pos.x, t.z - pos.z);
         const run = Math.max(2.6, Math.hypot(mob.velocity.x, mob.velocity.z));
         mob.velocity.x = Math.sin(escape) * run;
         mob.velocity.z = Math.cos(escape) * run;
         mob.yaw = escape;
         mob.fleeingHazard = true;
-        mob.escapeTarget = target;
       }
     } else {
       // Not in danger: if the way ahead is harmful, angle around it rather than pressing on.
@@ -194,7 +274,10 @@ export function moveGroundMob(manager, mob, dt) {
       // Veto harm before anything else. This has to come first: lava, fire and powder snow
       // are authored with solid:false, so collision() is false for them and a check placed
       // after the collision split would never run.
-      if (stepIsRefused(hazards, manager, mob, cell, grounded, knockback, BLOCKS.WATER)) {
+      // Only treat the mob as escaping while it has a live escape target; otherwise the hard
+      // veto applies as normal.
+      const escaping = Boolean(mob.escapeTarget) && (mob.escapeTime || 0) > 0;
+      if (stepIsRefused(hazards, manager, mob, cell, grounded, knockback, BLOCKS.WATER, escaping)) {
         blocked = true;
       } else if (collision(candidate)) {
         const raised = candidate.clone(); raised.y = Math.floor(pos.y + 0.05) + 1;
