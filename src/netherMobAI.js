@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
 import { findPath, directRouteIsSafe } from './mobPathfinder.js';
+import { isLethalStep } from './hazards.js';
 
 /** How often a mob recomputes its route, in seconds. */
 const PATH_REPLAN = 0.5;
@@ -94,16 +95,32 @@ export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0
   direction.normalize();
   let yaw = Math.atan2(direction.x, direction.z);
   mob.steerTimer = Math.max(0, (mob.steerTimer || 0) - dt);
-  const clear = angle => {
-    const p = mob.mesh.position.clone().add(new THREE.Vector3(Math.sin(angle) * 0.65, 0, Math.cos(angle) * 0.65));
-    if (!manager.checkMobCollision(mob, p)) {
-      const id = manager.world.getVoxel(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
-      return id !== BLOCKS.LAVA && id !== BLOCKS.FIRE && id !== BLOCKS.WATER;
-    }
-    p.y = Math.floor(p.y + 0.05) + 1;
-    const clearance = mob.mesh.position.clone(); clearance.y = p.y;
-    return !manager.checkMobCollision(mob, p) && !manager.checkMobCollision(mob, clearance);
+  /**
+   * Can the mob head this way?
+   *
+   * Asks whether the cell it would STEP INTO is somewhere it may stand, using the same
+   * immunity-aware predicate the movement layer uses, plus a check that the ground under that
+   * cell is not lava it would burn on. A short collision probe in the old version grazed the
+   * neighbouring lava block from a block away, so every heading looked blocked and the mob was
+   * frozen at the water's edge.
+   */
+  const hazardCtx = {
+    mob,
+    getVoxel: (x, y, z) => manager.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z)),
+    isSolid: (x, y, z) => manager.isBlockSolid(Math.floor(x), Math.floor(y), Math.floor(z), mob.type),
   };
+  const walkableAhead = (angle, reach = 0.9) => {
+    const from = mob.mesh.position;
+    const x = Math.floor(from.x + Math.sin(angle) * reach);
+    const z = Math.floor(from.z + Math.cos(angle) * reach);
+    const y = Math.floor(from.y);
+    const probe = new THREE.Vector3(x + 0.5, from.y, z + 0.5);
+    // Something solid filling the destination is a wall, not a hazard to route around.
+    if (manager.checkMobCollision(mob, probe)) return false;
+    if (isLethalStep(hazardCtx, x, y, z)) return false;
+    return true;
+  };
+  const clear = (angle) => walkableAhead(angle, 0.9) || walkableAhead(angle, 0.55);
   if (mob.steerTimer > 0 && clear(mob.steerYaw)) yaw = mob.steerYaw;
   else if (!clear(yaw)) {
     const alternatives = [0.65, -0.65, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, Math.PI];
@@ -117,11 +134,12 @@ export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0
     } else {
       yaw = angle; mob.steerYaw = yaw; mob.steerTimer = 0.8;
     }
-    yaw = angle; mob.steerYaw = yaw; mob.steerTimer = 0.8;
   }
   mob.avoidTime = 0;
   mob.yaw = yaw;
-  const stepSpeed = Math.min(speed, Math.max(0, distance - stop) / Math.max(dt, 0.001));
+  // Scale by the stop that applies to this aim point, not the destination's: using `stop`
+  // here collapsed the speed to zero whenever a waypoint sat inside the destination radius.
+  const stepSpeed = Math.min(speed, Math.max(0, distance - effectiveStop) / Math.max(dt, 0.001));
   mob.velocity.x = Math.sin(yaw) * stepSpeed;
   mob.velocity.z = Math.cos(yaw) * stepSpeed;
 }

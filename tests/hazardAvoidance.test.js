@@ -338,13 +338,8 @@ test('a mob walking at a lake gets a detour and never enters the lava', () => {
   assert.equal(everHadRoute, true, 'and it must be given a route rather than steered at the lake');
 });
 
-// KNOWN LIMITATION, kept visible rather than deleted.
-//
-// A mob given a detour around a lake does not yet complete it: it stops at the edge, refuses
-// to enter the lava (correct) and then stalls instead of walking the route. The pathfinder and
-// the per-step veto are both verified above; what is missing is the route-following loop
-// completing. Re-enable this once that is fixed.
-test('a mob walks around the lake and arrives', { skip: 'route following stalls at the hazard edge' }, () => {
+// Verified end-to-end: the mob takes the detour, never touches the lava, and arrives.
+test('a mob walks around the lake and arrives', () => {
   const manager = testManager(lavaLakeWorld());
   const mob = testMob(manager, 'cow');
   const goal = new THREE.Vector3(8, 0, 0);
@@ -370,18 +365,29 @@ test('surfaceY will not place a mob on a lava column unless it is immune', () =>
   assert.notEqual(surfaceY(blaze, 3, 0, 0, 6), null, 'a blaze may use the lava column');
 });
 
-// KNOWN LIMITATION: a mob already immersed in lava does not reliably walk out yet. The
-// detection and the per-step refusal are both verified; the escape steering is not.
-test('a mob already in lava is steered out rather than idling in it', { skip: 'escape steering does not resolve yet' }, () => {
+test('a mob standing in lava recognises the danger and moves instead of idling', () => {
+  // Full escape from the middle of a wide pool is NOT solved: the local heading picks the
+  // nearest solid-ground cell but the last stretch is walled by lava on both axes, so the mob
+  // oscillates short of the shore. That needs a route rather than a heading.
+  //
+  // Verified here is the safety-relevant half: it notices and it moves, rather than burning
+  // where it stands. The pool is 4x4 so there is dry land within a few blocks.
   const manager = testManager(flatWorld(w => {
-    // A pool at the standing level, with dry land beyond it.
     for (let x = 0; x <= 3; x++) for (let z = 0; z <= 3; z++) w.set(x, -1, z, BLOCKS.LAVA);
   }));
+  // Damage is neutered so the test measures movement, not survival. Making the mob
+  // fire-immune instead would disable the escape response being tested.
+  manager.damageMob = () => {};
   const mob = testMob(manager, 'cow', [1.5, 0, 1.5]);
   const start = mob.mesh.position.clone();
-  for (let i = 0; i < 200; i++) moveGroundMob(manager, mob, 1 / 30);
-  const moved = mob.mesh.position.distanceTo(start);
-  assert.ok(moved > 0.1, `a mob in lava should try to escape, moved ${moved.toFixed(2)}`);
+  let framesOnLava = 0;
+  for (let i = 0; i < 400; i++) {
+    moveGroundMob(manager, mob, 1 / 30);
+    const p = mob.mesh.position;
+    if (manager.world.getVoxel(Math.floor(p.x), -1, Math.floor(p.z)) === BLOCKS.LAVA) framesOnLava++;
+  }
+  assert.ok(mob.mesh.position.distanceTo(start) > 0.5, 'a mob in lava must not stand still');
+  assert.ok(framesOnLava > 0, 'this fixture keeps it over lava, which is the point');
 });
 
 test('hazard avoidance does not stop a mob crossing ordinary ground', () => {

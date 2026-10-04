@@ -78,6 +78,40 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
  *
  * @returns {number|null} a safe yaw, or null when every direction is blocked
  */
+/**
+ * Nearest cell that is safe to stand on, searched outward from the mob.
+ *
+ * A single-ring probe cannot get out of a wide pool: every candidate is still over lava. This
+ * widens the search until it finds real ground, so a mob in a lava lake can head for the shore.
+ *
+ * @returns {{x:number, y:number, z:number}|null} the target cell, or null if none is found
+ */
+function findEscapeTarget(hazards, mob, maxRadius = 8) {
+  const from = mob.mesh.position;
+  const baseY = Math.floor(from.y);
+  const bx = Math.floor(from.x), bz = Math.floor(from.z);
+  for (let radius = 1; radius <= maxRadius; radius++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        // Only the ring, so nearer candidates win.
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
+        const x = bx + dx, z = bz + dz;
+        for (const y of [baseY, baseY + 1, baseY - 1]) {
+          if (hazards.isSolid(x, y, z)) continue;
+          if (isLethalStep(hazards, x, y, z)) continue;
+          // The floor must be genuinely solid. "Not air" is too weak: a candidate can sit
+          // just above more lava, so the mob would head for a cell that is still hazardous and
+          // oscillate. isSolid is false for fluids, which is the distinction that matters.
+          const solidGroundBelow = hazards.isSolid(x, y - 1, z);
+          if (!solidGroundBelow) continue;
+          return { x: x + 0.5, y, z: z + 0.5 };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function deflectAroundHazard(hazards, mob, yaw, distance = 1.1) {
   const offsets = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, 2.0, -2.0, Math.PI];
   const pos = mob.mesh.position;
@@ -112,13 +146,15 @@ export function moveGroundMob(manager, mob, dt) {
   {
     const hereX = Math.floor(pos.x), hereY = Math.floor(pos.y), hereZ = Math.floor(pos.z);
     if (isLethalStep(hazards, hereX, hereY, hereZ)) {
-      const escape = deflectAroundHazard(hazards, mob, (mob.yaw || 0) + Math.PI, 1.4);
-      if (escape !== null) {
-        const run = Math.max(2.4, Math.hypot(mob.velocity.x, mob.velocity.z));
+      const target = findEscapeTarget(hazards, mob, 8);
+      if (target) {
+        const escape = Math.atan2(target.x - pos.x, target.z - pos.z);
+        const run = Math.max(2.6, Math.hypot(mob.velocity.x, mob.velocity.z));
         mob.velocity.x = Math.sin(escape) * run;
         mob.velocity.z = Math.cos(escape) * run;
         mob.yaw = escape;
         mob.fleeingHazard = true;
+        mob.escapeTarget = target;
       }
     } else {
       // Not in danger: if the way ahead is harmful, angle around it rather than pressing on.

@@ -179,5 +179,13 @@ export function isLethalStep(ctx, x, y, z) {
   if (isHarmfulBlock(getVoxel(x, y, z), mob)) return true;
   if (isHarmfulBlock(getVoxel(x, y + 1, z), mob)) return true;
   if (isHarmfulBlock(getVoxel(x, y - 1, z), mob)) return true;
+
+  // A lava floor needs saying explicitly. hazardKind above is immunity-aware, so it reports
+  // nothing for a mob that can touch lava -- but a lava block at the level below the feet IS
+  // the level the mob stands at, so a non-immune mob is effectively standing in it. Without
+  // this a mob escaping a pool kept stepping onto more lava, and routes crossed a lake at the
+  // lava's own level.
+  const standingOnLava = getVoxel(x, y - 1, z) === BLOCKS.LAVA && !isFireImmune(mob);
+  if (standingOnLava) return true;
   return false;
 }
