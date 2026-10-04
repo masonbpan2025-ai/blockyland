@@ -178,7 +178,17 @@ export class Chunk {
   constructor(cx, cz) {
     this.cx = cx;
     this.cz = cz;
-    this.voxels = new Uint8Array(CHUNK_SIZE_X * CHUNK_HEIGHT * CHUNK_SIZE_Z);
+    // Voxel ids are stored 16-bit rather than 8-bit.
+    //
+    // This was a Uint8Array until generated parity content pushed the block id range past 255. The
+    // failure was silent and nasty: `setVoxel(4, 4, 4, 270)` stored 270, the array wrapped it to 14,
+    // and the chunk read back Sand. Nothing threw. The only symptom was a block that simply never
+    // appeared, because the mesher never saw the id it was asked to draw.
+    //
+    // A quarter more memory than is strictly needed (192 ids fit in 8 bits today) buys immunity to
+    // the same class of bug as the registry grows, and the save format is unaffected: the run-length
+    // encoder in mapManager.js writes values, not bytes.
+    this.voxels = new Uint16Array(CHUNK_SIZE_X * CHUNK_HEIGHT * CHUNK_SIZE_Z);
     this.waterLevels = new Uint8Array(this.voxels.length);
     this.opaqueMesh = null;
     this.transparentMesh = null;
