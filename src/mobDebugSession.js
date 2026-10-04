@@ -43,12 +43,12 @@ export function createMobDebugSession(scene, onEvent=()=>{}) {
       for(const p of manager.snowballs || []){p.mesh.removeFromParent();p.mesh.geometry.dispose();p.mesh.material.dispose();}manager.snowballs=[];
       manager.animalBehaviors.dismount(player);manager.game.controls={};inventory.active=null;inventory.storage=[];inventory.hotbar=[];
       entities.drops=[];entities.xp=0;manager.random=()=>.5;
-      world.reset();world.fluid=BLOCKS.AIR;world.dimension='nether';player.gamemode='spectator';player.health=100;player.keys={};player.position.set(0,0,6);player.velocity.set(0,0,0);time=0;
+      manager.game.weather.weatherType='clear';world.reset();world.fluid=BLOCKS.AIR;world.dimension='nether';player.gamemode='spectator';player.health=100;player.keys={};player.position.set(0,0,6);player.velocity.set(0,0,0);time=0;
       mob=typeof type==='object'?manager.spawnCustomMob(type,0,0,0):manager.spawnMob(type,0,0,0);mob.yaw=0;mob.mesh.rotation.y=0;
       return mob;
     },
     tick(dt) {dt=Math.min(.1,Math.max(0,dt));manager.update(dt,player);time+=dt;},
     hit(amount=3){if(mob)manager.damageMob(mob,amount,player.position,false,player);},
-    snapshot(){return {coat:mob?.coat,marking:mob?.marking,temper:mob?.temper,tamed:mob?.isTamed,saddled:mob?.isSaddled,movementSpeed:mob?.movementSpeed,jumpStrength:mob?.jumpStrength,jumpCharge:mob?.jumpCharge,baby:mob?.isBaby,love:mob?.inLove,armor:mob?.horseArmor,time:+time.toFixed(2),type:mob?.type,health:mob?.health,maxHealth:mob?.maxHealth,phase:mob?.blazePhase || mob?.state,charging:!!mob?.charging,cooldown:+(mob?.blazeTimer || 0).toFixed(2),position:mob?.mesh.position.toArray().map(n=>+n.toFixed(2)),velocity:mob?.velocity.toArray().map(n=>+n.toFixed(2)),onGround:!!mob?.onGround,rods:mob?.tiers?.reduce((n,t)=>n+t.children.length,0),smokePuffs:mob?.smoke?.children.length,liveMobs:manager.mobs.length,projectiles:manager.customProjectiles?.length || 0,targetHealth:player.health};}
+    snapshot(){return {cold:mob?.isCold,inLava:mob?.inLava,inWater:mob?.inWater,boostSeconds:mob?.boostRemaining,ageLocked:mob?.ageLocked,babyGrowthSeconds:mob?.babyGrowthTimer,passenger:mob?.rider?.type,coat:mob?.coat,marking:mob?.marking,temper:mob?.temper,tamed:mob?.isTamed,saddled:mob?.isSaddled,movementSpeed:mob?.movementSpeed,jumpStrength:mob?.jumpStrength,jumpCharge:mob?.jumpCharge,baby:mob?.isBaby,love:mob?.inLove,armor:mob?.horseArmor,time:+time.toFixed(2),type:mob?.type,health:mob?.health,maxHealth:mob?.maxHealth,phase:mob?.blazePhase || mob?.state,charging:!!mob?.charging,cooldown:+(mob?.blazeTimer || 0).toFixed(2),position:mob?.mesh.position.toArray().map(n=>+n.toFixed(2)),velocity:mob?.velocity.toArray().map(n=>+n.toFixed(2)),onGround:!!mob?.onGround,rods:mob?.tiers?.reduce((n,t)=>n+t.children.length,0),smokePuffs:mob?.smoke?.children.length,liveMobs:manager.mobs.length,projectiles:manager.customProjectiles?.length || 0,targetHealth:player.health};}
   };
 }

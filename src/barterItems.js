@@ -1,3 +1,4 @@
+import { splashStriderWater } from './striderBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
@@ -10,7 +11,7 @@ export function soulSpeedMultiplier(world, player) {
 
 export function useBarterPotion(game) {
   const item = game.inventory.getActiveItem();
-  if (!['potion_of_fire_resistance', 'splash_potion_of_fire_resistance'].includes(item?.id)) return false;
+  if (!['potion_of_fire_resistance', 'splash_potion_of_fire_resistance', 'splash_water_bottle'].includes(item?.id)) return false;
   if (item.id === 'potion_of_fire_resistance') {
     game.player.applyStatusEffect('fire_resistance', 180, 1);
   } else {
@@ -18,7 +19,7 @@ export function useBarterPotion(game) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshLambertMaterial({ color: 0xf59435 }));
     mesh.position.copy(game.player.position).y += game.player.eyeHeight || 1.62;
     game.mobs.scene.add(mesh);
-    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5 });
+    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5, water: item.id==='splash_water_bottle' });
   }
   if (game.player.gamemode !== 'creative') {
     game.inventory.consumeActiveItem();
@@ -39,7 +40,8 @@ export function updateBarterEffects(manager, dt, player) {
       const def = BLOCK_DEFS[manager.world.getVoxel(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))];
       const hitMob = manager.mobs.some(m => m.health > 0 && m.mesh.position.clone().add(new THREE.Vector3(0, 0.7, 0)).distanceTo(p) < 0.65);
       if (potion.life > 0 && !(def && def.solid !== false && !def.plant) && !hitMob) continue;
-      for (const actor of [player, ...manager.mobs]) {
+      if(potion.water)splashStriderWater(manager,p);
+      else for (const actor of [player, ...manager.mobs]) {
         if (!actor || actor.health <= 0) continue;
         const position = actor.mesh?.position || actor.position;
         const distance = position.distanceTo(p);

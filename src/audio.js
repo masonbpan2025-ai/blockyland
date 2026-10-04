@@ -468,6 +468,15 @@ export class SoundEngine {
     osc.start(); osc.stop(now + 0.18);
   }
 
+  playStrider(kind = 'idle') {
+    this.ensureContext();if(!this.soundEnabled||!this.ctx)return;
+    const now=this.ctx.currentTime,osc=this.ctx.createOscillator(),gain=this.ctx.createGain();
+    osc.type='sine';osc.frequency.setValueAtTime(kind==='retreat'?340:180,now);
+    osc.frequency.exponentialRampToValueAtTime(kind==='retreat'?160:90,now+.35);
+    gain.gain.setValueAtTime(.12,now);gain.gain.exponentialRampToValueAtTime(.001,now+.4);
+    osc.connect(gain);gain.connect(this.masterGain);osc.start();osc.stop(now+.4);
+  }
+
   playHorse() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;
