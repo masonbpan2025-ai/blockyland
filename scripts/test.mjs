@@ -41,7 +41,7 @@ export const AREAS = {
   // --- studio tools ---
   studio: ['structureStudio', 'structureStudioAgent', 'structureContext', 'studioBugs', 'studioEditTarget'],
   // --- world, terrain, fluids ---
-  world: ['worldSpawn', 'worldMechanisms', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
+  world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---
   build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'workstations_functional', 'bed'],
   // --- combat, skills, progression ---
