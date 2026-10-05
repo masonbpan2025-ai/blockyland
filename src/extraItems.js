@@ -13,7 +13,7 @@
 // back to a generated placeholder tile showing the item's initial.
 
 export const EXTRA_ITEMS = {
-  suspicious_stew: { name: 'Suspicious Stew', icon: '/assets/items/suspicious_stew.png', food: 6, saturation: 3.6, type: 'food' },
+  suspicious_stew: { name: 'Suspicious Stew', icon: '/assets/items/suspicious_stew.png', food: 6, saturation: 7.2, type: 'food' },
   bowl: { name: 'Bowl', icon: '/assets/items/bowl.png', type: 'material' },
   magenta_dye: { name: 'Magenta Dye', icon: '/assets/items/magenta_dye.png', type: 'material' },
   light_gray_dye: { name: 'Light Gray Dye', icon: '/assets/items/light_gray_dye.png', type: 'material' },
@@ -26,7 +26,7 @@ export const EXTRA_ITEMS = {
   cyan_dye: { name: 'Cyan Dye', icon: '/assets/items/cyan_dye.png', type: 'material' },
   blue_dye: { name: 'Blue Dye', icon: '/assets/items/blue_dye.png', type: 'material' },
   black_dye: { name: 'Black Dye', icon: '/assets/items/black_dye.png', type: 'material' },
-  rabbit_stew: { name: 'Rabbit Stew', icon: '/assets/items/rabbit_stew.png', food: 10, saturation: 6, type: 'food' },
+  rabbit_stew: { name: 'Rabbit Stew', icon: '/assets/items/rabbit_stew.png', food: 10, saturation: 12, type: 'food' },
   bolt_armor_trim_smithing_template: { name: 'Bolt Armor Trim', icon: '/assets/items/bolt_armor_trim_smithing_template.png', type: 'material' },
   oak_chest_boat: { name: 'Oak Boat with Chest', icon: '/assets/items/oak_chest_boat.png', stackSize: 1, type: 'material' },
   spruce_boat: { name: 'Spruce Boat', icon: '/assets/items/spruce_boat.png', stackSize: 1, type: 'material' },
@@ -57,7 +57,7 @@ export const EXTRA_ITEMS = {
   writable_book: { name: 'Book and Quill', icon: '/assets/items/writable_book.png', stackSize: 1, type: 'material' },
   mace: { name: 'Mace', icon: '/assets/items/mace.png', stackSize: 1, type: 'material' },
   glow_item_frame: { name: 'Glow Item Frame', icon: '/assets/items/glow_item_frame.png', type: 'material' },
-  pumpkin_pie: { name: 'Pumpkin Pie', icon: '/assets/items/pumpkin_pie.png', food: 8, saturation: 2.4, type: 'food' },
+  pumpkin_pie: { name: 'Pumpkin Pie', icon: '/assets/items/pumpkin_pie.png', food: 8, saturation: 4.8, type: 'food' },
   music_disc_5: { name: 'Music Disc 5', icon: '/assets/items/music_disc_5.png', stackSize: 1, type: 'material' },
   flower_banner_pattern: { name: 'Flower Charge Banner Pattern', icon: '/assets/items/flower_banner_pattern.png', stackSize: 1, type: 'material' },
   creeper_banner_pattern: { name: 'Creeper Charge Banner Pattern', icon: '/assets/items/creeper_banner_pattern.png', stackSize: 1, type: 'material' },
@@ -97,9 +97,9 @@ export const EXTRA_ITEMS = {
   cocoa_beans: { name: 'Cocoa Beans', icon: '/assets/items/cocoa_beans.png', type: 'material' },
   filled_map: { name: 'Map', icon: '/assets/items/filled_map.png', type: 'material' },
   heart_of_the_sea: { name: 'Heart of the Sea', icon: '/assets/items/heart_of_the_sea.png', type: 'material' },
-  spider_eye: { name: 'Spider Eye', icon: '/assets/items/spider_eye.png', food: 2, saturation: 1.6, type: 'food' },
+  spider_eye: { name: 'Spider Eye', icon: '/assets/items/spider_eye.png', food: 2, saturation: 3.2, type: 'food' },
   enchanted_golden_apple: {
-    name: 'Enchanted Golden Apple', icon: '/assets/items/enchanted_golden_apple.png', food: 4, saturation: 4.8, type: 'food',
+    name: 'Enchanted Golden Apple', icon: '/assets/items/enchanted_golden_apple.png', food: 4, saturation: 9.6, type: 'food',
     effects: [['regeneration', 20, 2], ['absorption', 120, 4], ['resistance', 300, 1], ['fire_resistance', 300, 1]],
   },
   black_banner: { name: 'Black Banner', icon: '/assets/items/black_banner.png', stackSize: 16, isBlock: true, blockId: 222, type: 'block' },

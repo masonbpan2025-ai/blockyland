@@ -211,8 +211,10 @@ lines.push('export const EXTRA_ITEMS = {');
 // had written as "Hay Block" and "Heart Of The Sea" kept those names forever, because the body was carried
 // forward as an opaque string.
 let refreshedFromVanilla = 0;
+let refreshedFood = 0;
 for (const p of PREVIOUS_ITEMS) {
   for (const line of p.lines) {
+    let out = line;
     // A line with no `name:` is an entry's opening line for a multi-line body, or a continuation such as an
     // effects array; only the line carrying the name is rewritten. An earlier version also skipped any line
     // that looked like an entry opener, which silently skipped every *single-line* entry -- 733 of the 735.
@@ -220,12 +222,29 @@ for (const p of PREVIOUS_ITEMS) {
     // The pattern allows an escaped quote inside the name, because some names contain an apostrophe: with a
     // plain `[^']*` the replacement stopped at the backslash in "Jack o'Lantern" and produced
     // `'Jack o\'Lantern'Lantern'`, which is a syntax error in the generated module.
-    if (!/name: '(?:[^'\\]|\\.)*'/.test(line)) { lines.push(line); continue; }
-    refreshedFromVanilla++;
-    lines.push(line.replace(/name: '(?:[^'\\]|\\.)*'/, `name: '${displayNameOf(p.name).replace(/'/g, "\\'")}'`));
+    if (/name: '(?:[^'\\]|\\.)*'/.test(out)) {
+      refreshedFromVanilla++;
+      out = out.replace(/name: '(?:[^'\\]|\\.)*'/, `name: '${displayNameOf(p.name).replace(/'/g, "\\'")}'`);
+    }
+    // The food fields are re-derived too, for the same reason as the name: `FOODS` is the source of truth and
+    // the body is carried forward as a string, so a corrected value never reached the entries already written.
+    // It was worth 5 items when the saturation convention was fixed -- every food this generator wrote kept
+    // the halved figure.
+    const food = FOODS[p.name];
+    if (food) {
+      if (/food: [\d.]+/.test(out)) {
+        if (out.replace(/food: [\d.]+/, `food: ${food.hunger}`) !== out) refreshedFood++;
+        out = out.replace(/food: [\d.]+/, `food: ${food.hunger}`);
+      }
+      if (food.saturation !== undefined && /saturation: [\d.]+/.test(out)) {
+        out = out.replace(/saturation: [\d.]+/, `saturation: ${food.saturation}`);
+      }
+    }
+    lines.push(out);
   }
 }
 console.log('  display names refreshed from vanilla: ' + refreshedFromVanilla);
+console.log('  food values refreshed from foodData: ' + refreshedFood);
 for (const a of all) {
   // Skip anything already emitted, or a re-run would duplicate it.
   if (previouslyEmitted.has(a.name)) continue;

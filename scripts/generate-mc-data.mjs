@@ -315,13 +315,19 @@ console.log(`  mobLootData.js: ${lootRows.length} mobs`);
 // --- 3. foods ---------------------------------------------------------------
 const foodRows = foods.slice().sort((a, b) => a.name.localeCompare(b.name));
 const foodBody = foodRows.map(f => {
-  const sat = f.saturation !== undefined ? +(f.saturation / 2).toFixed(2) : null;
+  // Saturation is taken as-is. It was halved here, on the theory that minecraft-data reports saturation in
+  // doubled internal units, and that was wrong: minecraft-data's `saturation` is exactly the wiki's
+  // "Saturation restored" column -- 12.8 for cooked porkchop, 14.4 for a golden carrot, 9.6 for cooked
+  // mutton -- so the game restored half of what vanilla does, across all 41 foods. The decisive check is
+  // hunger.js, which spends 1.5 saturation per health point healed: the wiki gives that same 1.5, and a
+  // doubled unit system would need 3.
+  const sat = f.saturation !== undefined ? +f.saturation.toFixed(2) : null;
   return `  ${f.name}: {hunger:${f.foodPoints}${sat !== null ? `,saturation:${sat}` : ''}},`;
 }).join('\n');
 
 writeFileSync('src/foodData.js', header(
   'Canonical food values: hunger restored and saturation.',
-  'minecraft-data reports saturation in the doubled internal units the client uses; the values\n// here are halved back to the saturation points players see.'
+  'Saturation is the number of saturation points restored, which is what minecraft-data and the wiki\n// both report: cooked porkchop 12.8, golden carrot 14.4, cooked mutton 9.6. `hunger.js` spends 1.5 of\n// them per health point healed, which is also the wiki\'s figure.'
 ) + `export const FOODS = {
 ${foodBody}
 };

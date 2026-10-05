@@ -404,17 +404,20 @@ test('stack-size compares the applied limit, and reports the declared value when
   assert.equal(check.run({ entry: undeclared, registry: registry(), vanilla: null }), CHECK_SKIP);
 });
 
-test('edible applies vanilla saturation points against the stored modifier', () => {
+test('edible compares saturation as the points the wiki reports', () => {
   const { check } = contextFor('edible', fakeEntry());
   const vanilla = buildVanillaIndex({ items: [], foods: [{ id: 1, name: 'apple', foodPoints: 4, saturation: 2.4 }] });
-  // foodData.js stores half of vanilla's saturation points for every food, so the check doubles it.
-  const consistent = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 4, saturation: 1.2 }, def: { food: 4 } });
+  // An apple restores 2.4 saturation: the wiki's figure, and what the table stores. This test used to feed
+  // 1.2 as the "consistent" case, because both the table and the check had been built on the theory that the
+  // stored number was half of vanilla's. Feeding the real figure is what a check should be doing.
+  const consistent = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 4, saturation: 2.4 }, def: { food: 4 } });
   assert.equal(check.run({ entry: consistent, registry: registry(), vanilla }), true);
 
-  const wrongSaturation = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 4, saturation: 3 }, def: { food: 4 } });
-  assert.equal(check.run({ entry: wrongSaturation, registry: registry(), vanilla }).ok, false);
+  const wrongSaturation = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 4, saturation: 1.2 }, def: { food: 4 } });
+  assert.equal(check.run({ entry: wrongSaturation, registry: registry(), vanilla }).ok, false,
+    'the halved value is now the wrong one');
 
-  const wrongHunger = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 8, saturation: 1.2 }, def: { food: 8 } });
+  const wrongHunger = fakeEntry({ id: 'apple', name: 'Apple', food: { hunger: 8, saturation: 2.4 }, def: { food: 8 } });
   assert.equal(check.run({ entry: wrongHunger, registry: registry(), vanilla }).ok, false);
 });
 
@@ -630,7 +633,12 @@ test('the shadowing report finds an id that duplicates a vanilla spelling', () =
   const ids = ['wheat_seed', 'wheat_seeds', 'slimeball', 'slime_ball', 'golden_dandelion'];
   const reg = { entries: new Map(ids.map((id) => [id, { key: id, kind: 'item', id, def: {}, internal: false }])) };
   const names = new Set(['wheat_seeds', 'slime_ball', 'hay_block', 'golden_dandelion']);
-  const found = shadowedVanillaIds(reg, names);
+  // The alias is supplied rather than taken from `VANILLA_ID_ALIASES`, because this test is about the *rule*
+  // and not about that table's current contents. The shipped table no longer carries `slimeball: 'slime_ball'`
+  // -- the game registers vanilla's `slime_ball` itself now, so the alias was stale and was removed -- but the
+  // report still has to recognise an alias when one is declared, which is what the second finding exercises
+  // alongside the plural rule that catches `wheat_seed`.
+  const found = shadowedVanillaIds(reg, names, { aliases: { slimeball: 'slime_ball' } });
   assert.deepEqual(found.map((f) => `${f.id}->${f.vanilla}`).sort(),
     ['slimeball->slime_ball', 'wheat_seed->wheat_seeds']);
   assert.ok(found.every((f) => f.bothRegistered), 'both of these are registered twice over');

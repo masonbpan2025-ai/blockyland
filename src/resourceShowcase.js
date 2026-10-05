@@ -644,17 +644,20 @@ export const RESOURCE_CHECKS = [
       const declared = entry.food;
       const vanillaFood = vanilla?.foodByName.get(vanillaIdOf(entry, vanilla));
       if (!declared && !vanillaFood) return CHECK_SKIP;
-      // `foodData.js` stores saturation as vanilla's saturation modifier (half of vanilla's
-      // saturation points), which is a consistent convention across every food, so the comparison
-      // doubles it rather than flagging all 41 entries as wrong.
+      // Saturation is compared as it stands. This doubled the stored value, on the theory that the table held
+      // vanilla's saturation *modifier* rather than its points -- and that theory was wrong: minecraft-data's
+      // `saturation` is the wiki's "Saturation restored" column (12.8 for cooked porkchop, 14.4 for a golden
+      // carrot), and `hunger.js` spends 1.5 of those points per health healed, which is the wiki's figure too.
+      // The doubling therefore hid a real defect: every one of the 41 foods restored half of vanilla's
+      // saturation. See the generator's note in `scripts/generate-mc-data.mjs`.
       if (vanillaFood && declared) {
         if (declared.hunger !== vanillaFood.foodPoints) {
           return { ok: false, detail: `hunger ${declared.hunger}, vanilla ${vanillaFood.foodPoints}` };
         }
-        if (Math.abs(declared.saturation * 2 - vanillaFood.saturation) > 0.001) {
+        if (Math.abs(declared.saturation - vanillaFood.saturation) > 0.001) {
           return {
             ok: false,
-            detail: `saturation ${declared.saturation} (as modifier), vanilla ${vanillaFood.saturation} points`,
+            detail: `saturation ${declared.saturation}, vanilla ${vanillaFood.saturation} points`,
           };
         }
       }
