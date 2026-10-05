@@ -391,9 +391,39 @@ try should start from a different place.
    rows look like `blaze: mob.playerDamaged ? [['blaze_rod', ...]] : []`, and the helper-based mobs name no
    type at all.
 
-A valid comparison needs real mob instances driven through each drop path, which is a harness rather than
-a script. Until that exists, **no coverage figure for the live table should be quoted**, including by this
-document.
+A valid comparison needs real mob instances driven through each drop path. **One now exists:**
+`scripts/mob-drop-live.mjs` spawns every loot-bearing mob through the ordinary dispatcher using the fixture
+`tests/mobUpdateSmoke.test.js` established, forces the drop roll so chance checks pass, and compares the
+result against vanilla's chance-1 drops.
+
+### 4.2.2 The live table, measured
+
+| | |
+|---|---|
+| Vanilla entities with drops | 55 |
+| Measured with real mobs | 55 |
+| Spawn or drop errors | 0 |
+| **Mobs with no drop row at all** | **7** |
+| Name or data differences | 3 |
+
+**The seven**: `cat`, `pufferfish`, `ravager`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
+`zombie_horse`. Each has neither a base-table row nor a per-mob helper, and each drops something in
+vanilla -- string, pufferfish, a saddle, bones, snowballs, tropical fish and rotten flesh respectively.
+These are genuine gaps in the live path and are the concrete output of this measurement.
+
+**The three near-misses**, kept separate because lumping them in would overstate the gap: `stray` drops
+`tipped_arrow_slowness` where vanilla's data says `tipped_arrow`, which is a variant name rather than a
+missing drop; `turtle` drops seagrass as vanilla does, and its listed `bowl` looks like a minecraft-data
+artifact; `elder_guardian` lists `tide_armor_trim_smithing_template`, which is structure loot in vanilla
+rather than a mob drop.
+
+**One trap worth recording.** The first version of this harness forced the roll with `random = () => 0.5`
+and reported the phantom as dropping nothing. `phantomDrops` tests `random() < 0.5`, and 0.5 does not pass.
+A harness that reports a conditional drop as absent is measuring its own dice, so the roll is now forced to
+0 and there is a test for both directions of it.
+
+`tests/mobDropLive.test.js` pins the seven by name, so adding their rows shrinks the list and forces this
+section to be updated rather than quietly becoming wrong.
 
 | | compared | differences |
 |---|---|---|
