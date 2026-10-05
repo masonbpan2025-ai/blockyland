@@ -319,7 +319,36 @@ export const BLOCKS = {
   SHORT_GRASS: 979,
   FERN: 980,
   DEAD_BUSH: 981,
-  COBWEB: 982
+  COBWEB: 982,
+
+  // --- Eyeblossoms, sixth block-parity batch -----------------------------------------------------
+  //
+  // Two cross-quad flowers that are each other's daylight state: vanilla swaps them at dusk and dawn.
+  // This game has no random-tick or day/night block-swap layer, so both are registered as static blocks
+  // with their own texture, the way the game already treats other two-state pairs (an open and a closed
+  // door are separate ids). The consequence is honest and worth stating: an eyeblossom does not open or
+  // close on its own, so each state is placed rather than grown into.
+  OPEN_EYEBLOSSOM: 983,
+  CLOSED_EYEBLOSSOM: 984,
+
+  // --- Nether and deepslate cubes, seventh block-parity batch ------------------------------------
+  //
+  // Nine full cubes that need no geometry. They are grouped because they are all `all`-textured or
+  // side/top/bottom cubes, which is the cheapest shape the generator handles.
+  //
+  // Three of them were previously written off as art-blocked, and that was wrong: their textures exist
+  // in the asset mirror under names with an orientation suffix, not the bare block name. The bare name
+  // 404s, which is why a probe for `ancient_debris.png` looked like missing art when
+  // `ancient_debris_side.png` and `ancient_debris_top.png` are both there.
+  SHROOMLIGHT: 985,
+  CRACKED_NETHER_BRICKS: 986,
+  ANCIENT_DEBRIS: 987,
+  REINFORCED_DEEPSLATE: 988,
+  CREAKING_HEART: 989,
+  FROSTED_ICE: 990,
+  FLOWERING_AZALEA_LEAVES: 991,
+  AZALEA: 992,
+  FLOWERING_AZALEA: 993
 };
 
 export const BLOCK_DEFS = {
@@ -766,6 +795,45 @@ export const BLOCK_DEFS = {
   [BLOCKS.FERN]: { name: 'Fern', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'fern.png' } },
   [BLOCKS.DEAD_BUSH]: { name: 'Dead Bush', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'stick', textures: { all: 'dead_bush.png' } },
   [BLOCKS.COBWEB]: { name: 'Cobweb', hardness: 4.0, sound: 'wool', transparent: true, solid: false, plant: true, dropItem: 'string', textures: { all: 'cobweb.png' } },
+
+  // --- Eyeblossoms, sixth block-parity batch -----------------------------------------------------
+  //
+  // Both drop themselves, which the harvest table agrees with, and both are ordinary cross plants.
+  // They are the only blocks in this family whose drop is the block itself, so `drop` is set rather
+  // than `dropItem`.
+  [BLOCKS.OPEN_EYEBLOSSOM]: { name: 'Open Eyeblossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.OPEN_EYEBLOSSOM, textures: { all: 'open_eyeblossom.png' } },
+  [BLOCKS.CLOSED_EYEBLOSSOM]: { name: 'Closed Eyeblossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.CLOSED_EYEBLOSSOM, textures: { all: 'closed_eyeblossom.png' } },
+
+  // --- Nether and deepslate cubes, seventh block-parity batch ------------------------------------
+  //
+  // Hardness follows the generated harvest table in every case, including the two extremes worth
+  // noting: ancient debris is 30 and needs a diamond pickaxe (it is the hardest ore-family block in
+  // the game), and reinforced deepslate is 55 with a blast resistance of 1200, making it one of the
+  // few blocks a TNT blast cannot touch.
+  //
+  // `drop: null` on reinforced deepslate and flowering azalea leaves because the harvest table says
+  // they drop nothing: reinforced deepslate is unobtainable in survival, and flowering azalea leaves
+  // drop nothing at all (unlike oak leaves, which do occasionally drop a sapling).
+  [BLOCKS.SHROOMLIGHT]: { name: 'Shroomlight', hardness: 1.0, sound: 'grass', light: 15, lightColor: 0xff9a3c, drop: BLOCKS.SHROOMLIGHT, textures: { all: 'shroomlight.png' } },
+  [BLOCKS.CRACKED_NETHER_BRICKS]: { name: 'Cracked Nether Bricks', hardness: 2.0, sound: 'stone', drop: BLOCKS.CRACKED_NETHER_BRICKS, textures: { all: 'cracked_nether_bricks.png' } },
+  // Ancient debris is a pillar: the side is a different texture from the top and bottom.
+  [BLOCKS.ANCIENT_DEBRIS]: { name: 'Ancient Debris', hardness: 30.0, sound: 'stone', drop: BLOCKS.ANCIENT_DEBRIS, textures: { side: 'ancient_debris_side.png', top: 'ancient_debris_top.png', bottom: 'ancient_debris_top.png' } },
+  [BLOCKS.REINFORCED_DEEPSLATE]: { name: 'Reinforced Deepslate', hardness: 55.0, sound: 'stone', drop: null, textures: { side: 'reinforced_deepslate_side.png', top: 'reinforced_deepslate_top.png', bottom: 'reinforced_deepslate_bottom.png' } },
+  // The creaking heart drops resin clumps rather than itself. `resin_clump` is a BLOCK in this game
+  // (id 975, registered in the resin batch), so the drop names the block id rather than the string the
+  // harvest table uses -- getBlockDrop treats a string as an item and a number as a block, and naming
+  // the string produced a drop that resolved to nothing.
+  //
+  // Its real behaviour -- spawning a Creaking while it is dark and the player is near -- is not
+  // modelled, so it is a static cube that yields resin.
+  [BLOCKS.CREAKING_HEART]: { name: 'Creaking Heart', hardness: 10.0, sound: 'wood', drop: BLOCKS.RESIN_CLUMP, textures: { all: 'creaking_heart.png' } },
+  // Frosted ice is the state ice takes when broken without Silk Touch. This game models no Silk Touch
+  // and no random-tick melt, so it is registered as the static block its texture shows.
+  [BLOCKS.FROSTED_ICE]: { name: 'Frosted Ice', hardness: 0.5, sound: 'glass', drop: null, textures: { all: 'frosted_ice_0.png' } },
+  [BLOCKS.FLOWERING_AZALEA_LEAVES]: { name: 'Flowering Azalea Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: null, textures: { all: 'flowering_azalea_leaves.png' } },
+  // The two azaleas are bushes, not leaves: side and top differ, and they are solid cubes.
+  [BLOCKS.AZALEA]: { name: 'Azalea', hardness: 0.0, sound: 'grass', drop: BLOCKS.AZALEA, textures: { side: 'azalea_side.png', top: 'azalea_top.png', bottom: 'azalea_top.png' } },
+  [BLOCKS.FLOWERING_AZALEA]: { name: 'Flowering Azalea', hardness: 0.0, sound: 'grass', drop: BLOCKS.FLOWERING_AZALEA, textures: { side: 'flowering_azalea_side.png', top: 'flowering_azalea_top.png', bottom: 'flowering_azalea_top.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,

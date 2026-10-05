@@ -41,6 +41,17 @@ const blocks1214 = [
   // Ground cover, the fifth block-parity batch. All four are cross-quad plants drawn from a single
   // 16x16 texture, and all four are 1.21.4 names (short_grass replaced the old `grass` in 1.20.3).
   'short_grass.png', 'fern.png', 'dead_bush.png', 'cobweb.png',
+  // Eyeblossoms, the sixth batch. The open and closed forms are each other's daylight state, so both
+  // textures are needed even though only one is visible at a time in vanilla.
+  'open_eyeblossom.png', 'closed_eyeblossom.png',
+  // Nether and deepslate cubes, the seventh batch. Three of these were previously believed missing from
+  // the mirror; the bare block name 404s but the oriented name is there, which is why the list names
+  // ancient_debris_side rather than ancient_debris.
+  'shroomlight.png', 'cracked_nether_bricks.png',
+  'ancient_debris_side.png', 'ancient_debris_top.png',
+  'reinforced_deepslate_side.png', 'reinforced_deepslate_top.png', 'reinforced_deepslate_bottom.png',
+  'creaking_heart.png', 'frosted_ice_0.png', 'flowering_azalea_leaves.png',
+  'azalea_side.png', 'azalea_top.png', 'flowering_azalea_side.png', 'flowering_azalea_top.png',
 ];
 
 const items = [
