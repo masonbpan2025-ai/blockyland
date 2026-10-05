@@ -38,6 +38,7 @@ import {
 import { EXTRA_SMELTING } from '../src/extraSmelting.js';
 import { FOODS } from '../src/foodData.js';
 import { harvestDataFor } from '../src/blockHarvestData.js';
+import { baseBlockDrop, blockDrops } from '../src/blockDrops.js';
 
 const STATUSES = new Set(['observed', 'not observed', 'unsupported', 'error']);
 
@@ -681,4 +682,60 @@ test('the probabilistic drops count as a source, so an apple is obtainable', () 
   const seeds = reg.entries.get('wheat_seeds');
   assert.ok(apple.droppedBy.length > 0, 'an apple comes from leaves');
   assert.ok(seeds.droppedBy.length > 0, 'wheat seeds come from grass and from wheat');
+});
+
+test('every drop the game makes is recorded against the resource that receives it', () => {
+  // The invariant behind a whole class of false gap. `droppedBy` was built from `BLOCK_HARVEST` and from the
+  // blocks that *explicitly* declare `drop`/`dropItem` -- but a block that declares neither drops itself, so
+  // a vine, a cocoa pod, a sweet berry bush and a glow lichen all read as unobtainable while the game handed
+  // every one of them over. This asks the game's own drop function, for every block, and requires the
+  // Inspector to have recorded the result.
+  //
+  // `random` is pinned to zero so every probabilistic path fires: a bonus drop and a replacement drop are
+  // both exercised, where the default random would skip them most of the time.
+  const reg = registry({ fresh: true, smelting: EXTRA_SMELTING });
+  const missing = [];
+  for (const idText of Object.keys(BLOCK_DEFS)) {
+    const blockId = Number(idText);
+    const label = String(BLOCK_DEFS[blockId]?.name ?? blockId);
+    for (const drop of blockDrops(blockId, () => 0)) {
+      const entry = resolveResource(drop.id, reg);
+      // A drop with no registered resource at all is a different fault, and `danglingReferences` reports it.
+      // This test is only about a real drop that the Inspector fails to attribute.
+      if (!entry) continue;
+      const recorded = entry.droppedBy.some((existing) => String(existing).toLowerCase() === label.toLowerCase());
+      if (!recorded) missing.push(`${label} drops ${entry.id}`);
+    }
+  }
+  assert.deepEqual(missing.slice(0, 20), [], `${missing.length} drops happen in the game but are not recorded`);
+});
+
+test('a block that declares no base drop does not drop itself', () => {
+  // The other direction: `drop: null` means deliberately no *base* drop, and the vine-and-cocoa fix must not
+  // have turned every such block into a source of itself. It may still have a probabilistic drop -- that is
+  // what `BONUS_DROPS` is for, and a grass plant's wheat seed is exactly that -- so the assertion is about
+  // the base rule rather than about the block yielding nothing at all.
+  const reg = registry({ fresh: true, smelting: EXTRA_SMELTING });
+  for (const [idText, def] of Object.entries(BLOCK_DEFS)) {
+    if (def?.drop !== null) continue;
+    const blockId = Number(idText);
+    assert.equal(baseBlockDrop(blockId), null, `${def.name} declares drop: null but has a base drop`);
+    // And the block is not recorded as a source for its own item.
+    const selfId = BLOCK_DEFS[blockId]?.dropItem ?? blockId;
+    const self = resolveResource(selfId, reg);
+    const label = String(def.name ?? idText).toLowerCase();
+    if (self) {
+      assert.equal(self.droppedBy.some((existing) => String(existing).toLowerCase() === label), false,
+        `${self.id} claims to come from ${def.name}, which drops nothing`);
+    }
+  }
+  // And the specific items this repaired are attributed to the block that drops them.
+  for (const [item, block] of [['vine', 'Vine'], ['cocoa_beans', 'Cocoa'], ['sweet_berry_bush', 'Sweet Berry Bush'],
+    ['glow_lichen', 'Glow Lichen'], ['nether_sprouts', 'Nether Sprouts'], ['beetroot_seeds', 'Beetroots']]) {
+    const entry = resolveResource(item, reg);
+    assert.ok(entry, `${item} should be registered`);
+    assert.ok(entry.droppedBy.some((existing) => String(existing).toLowerCase() === block.toLowerCase()),
+      `${item} should come from a ${block}, got ${JSON.stringify(entry.droppedBy)}`);
+  }
+  void BLOCKS;
 });

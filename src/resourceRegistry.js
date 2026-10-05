@@ -19,7 +19,7 @@
 // `EXTRA_SMELTING` is imported directly because it is three-free and is the generated table's source.
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { harvestDataFor, knownHarvestBlockIds, knownHarvestNames, BLOCK_HARVEST } from './blockHarvestData.js';
-import { BONUS_DROPS, REPLACEMENT_DROPS, bonusKeyFor } from './blockDrops.js';
+import { BONUS_DROPS, REPLACEMENT_DROPS, baseBlockDrop, bonusKeyFor } from './blockDrops.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
@@ -349,9 +349,14 @@ export function buildRegistry(sources = {}) {
     }
   }
   for (const [blockId, def] of Object.entries(BLOCK_DEFS)) {
-    const drop = def?.dropItem ?? def?.drop;
-    if (drop === undefined || drop === null) continue;
-    const keys = keysForId(typeof drop === 'string' ? drop : Number(drop));
+    // The game's own rule, which is what the break path uses: a block that declares neither `drop` nor
+    // `dropItem` gives itself, and `drop: null` deliberately gives nothing. This pass used to consult only
+    // the explicit forms and skip everything else, so a vine, a cocoa pod, a sweet berry bush and a glow
+    // lichen -- and the item each of them drops -- read as having no source at all while the game handed
+    // every one of them over.
+    const base = baseBlockDrop(Number(blockId));
+    if (!base) continue;
+    const keys = keysForId(base.id);
     for (const key of keys) {
       const entry = entries.get(key);
       const label = def.name ?? String(blockId);
@@ -371,11 +376,17 @@ export function buildRegistry(sources = {}) {
     if (entry.blockId === null || entry.blockId === undefined) continue;
     const table = BONUS_DROPS[bonusKeyFor(entry.blockId)];
     if (!table) continue;
+    const label = entry.blockDef?.name ?? entry.name ?? String(entry.blockId);
     for (const [item] of table) {
-      const target = entries.get(item);
-      const label = entry.blockDef?.name ?? entry.name ?? String(entry.blockId);
-      if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
-        target.droppedBy.push(label);
+      // Through `keysForId`, not `entries.get(item)`: a sapling is a block with no item form, so it is keyed
+      // `block:959` and a lookup by the name `oak_sapling` finds nothing. That silently dropped the leaf ->
+      // sapling attribution for every leaf in the game, which is the same mistake the base-drop pass above
+      // had just been fixed for.
+      for (const key of keysForId(item)) {
+        const target = entries.get(key);
+        if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
+          target.droppedBy.push(label);
+        }
       }
     }
   }
@@ -385,10 +396,12 @@ export function buildRegistry(sources = {}) {
     if (entry.blockId === null || entry.blockId === undefined) continue;
     const rule = REPLACEMENT_DROPS[bonusKeyFor(entry.blockId)];
     if (!rule) continue;
-    const target = entries.get(rule.id);
     const label = entry.blockDef?.name ?? entry.name ?? String(entry.blockId);
-    if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
-      target.droppedBy.push(label);
+    for (const key of keysForId(rule.id)) {
+      const target = entries.get(key);
+      if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
+        target.droppedBy.push(label);
+      }
     }
   }
 
