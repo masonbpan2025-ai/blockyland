@@ -1169,6 +1169,8 @@ export const ITEMS = {
   // Wiki: seagrass is what turtles eat, breed with and follow, and 0-2 drop on death.
   // Wiki: a small slime killed by a frog always drops exactly one slimeball, and frogs breed with it.
   // Wiki: pandas eat, follow and breed around bamboo, and drop exactly one when killed.
+  // Wiki: a brush takes 16 durability per armadillo scute, so one is good for four scutes.
+  brush: { name: 'Brush', icon: '/assets/items/brush.png', type: 'tool', durability: 64 },
   bamboo: { name: 'Bamboo', icon: '/assets/items/bamboo.png', type: 'material' },
   slimeball: { name: 'Slimeball', icon: '/assets/items/slimeball.png', type: 'material' },
   seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', type: 'material' },
@@ -1246,6 +1248,7 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  armadillo_spawn_egg: { name: 'Armadillo Spawn Egg', icon: '/assets/items/armadillo_spawn_egg.png', type: 'spawn_egg', mob: 'armadillo' },
   panda_spawn_egg: { name: 'Panda Spawn Egg', icon: '/assets/items/panda_spawn_egg.png', type: 'spawn_egg', mob: 'panda' },
   polar_bear_spawn_egg: { name: 'Polar Bear Spawn Egg', icon: '/assets/items/polar_bear_spawn_egg.png', type: 'spawn_egg', mob: 'polar_bear' },
   parrot_spawn_egg: { name: 'Parrot Spawn Egg', icon: '/assets/items/parrot_spawn_egg.png', type: 'spawn_egg', mob: 'parrot' },

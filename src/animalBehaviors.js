@@ -37,6 +37,8 @@ export const BREEDING_FOODS = {
   // Wiki: pandas "are bred using bamboo". Bamboo is not a shared food, and on Java the pair only
   // actually breeds with a plant within 7x7x3, which `checkBreedingPair` enforces below.
   panda: ['bamboo'],
+  // Wiki: armadillos are bred with spider eyes, and follow a spider-eye-holding player within 10 blocks.
+  armadillo: ['spider_eye'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
     'wheat_seeds', 'wheat_seed', 'seeds', 'seed',

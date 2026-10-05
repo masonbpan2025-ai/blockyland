@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
 import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
@@ -408,6 +409,7 @@ export class MobManager {
       case 'mooshroom': return this.spawnMooshroom(x, y, z, options);
       case 'polar_bear': return this.spawnPolarBear(x, y, z, options);
       case 'panda': return this.spawnPanda(x, y, z, options);
+      case 'armadillo': return this.spawnArmadillo(x, y, z, options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
@@ -2376,6 +2378,8 @@ export class MobManager {
       case 'polar_bear': return POLAR_BEAR_DIMENSIONS;
       // Wiki: pandas are 1.3 x 1.25, and a baby is 0.65 x 0.625.
       case 'panda': return PANDA_DIMENSIONS;
+      // Wiki: armadillos are 0.7 x 0.65, and a baby is 0.42 x 0.39.
+      case 'armadillo': return ARMADILLO_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -4342,6 +4346,112 @@ export class MobManager {
     };
     applyMooshroomVariant(mob);
 
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Armadillo.
+   *
+   * Wiki: 12 HP passive mob. It rolls into a ball when hurt or when it detects a threat (undead mobs,
+   * or players who are sprinting or mounted), takes `(damage - 1) / 2` while rolled, repels spiders and
+   * cave spiders while NOT rolled, and sheds an armadillo scute every 5-10 minutes. It is the only
+   * source of scutes, and it drops no items at all on death.
+   */
+  spawnArmadillo(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.body });
+    const shellMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.shell });
+    const bandMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.band });
+    const darkMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.dark });
+
+    // A low, long body with a domed banded shell on top.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.7), bodyMat);
+    body.position.y = 0.3;
+    group.add(body);
+
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.26, 0.66), shellMat);
+    shell.position.y = 0.5;
+    group.add(shell);
+
+    // Three darker bands across the shell, which is what makes it read as an armadillo.
+    const bands = [];
+    for (const z0 of [-0.2, 0, 0.2]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.28, 0.06), bandMat);
+      band.position.set(0, 0.5, z0);
+      group.add(band);
+      bands.push(band);
+    }
+
+    // A pointed snout on a small head, held low.
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.24), bodyMat);
+    head.position.set(0, 0.34, 0.44);
+    group.add(head);
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.16), darkMat);
+    snout.position.set(0, -0.02, 0.18);
+    head.add(snout);
+
+    // Ears, small and rounded.
+    const ears = [];
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.04), darkMat);
+      ear.position.set(side * 0.1, 0.12, -0.02);
+      head.add(ear);
+      ears.push(ear);
+    }
+
+    // Four short legs and a tapering tail.
+    const legGeo = new THREE.BoxGeometry(0.12, 0.2, 0.12);
+    const legs = [];
+    for (const [lx, lz] of [[-0.18, 0.22], [0.18, 0.22], [-0.18, -0.22], [0.18, -0.22]]) {
+      const leg = new THREE.Mesh(legGeo, darkMat);
+      leg.position.set(lx, 0.1, lz);
+      group.add(leg);
+      legs.push(leg);
+    }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.26), bandMat);
+    tail.position.set(0, 0.28, -0.44);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(ARMADILLO_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? ARMADILLO_BABY_DIMENSIONS : ARMADILLO_DIMENSIONS;
+    const mob = {
+      type: 'armadillo',
+      name: 'Armadillo',
+      mesh: group,
+      head,
+      legs,
+      ears,
+      bands,
+      bodyMat, shellMat, bandMat, darkMat,
+      // Wiki: 12 HP.
+      health: ARMADILLO_HEALTH,
+      maxHealth: ARMADILLO_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: ARMADILLO_SPEED,
+      // The rolling state machine. Wiki: `state` is idle, scared or unrolling.
+      rollState: 'idle',
+      noThreatSeconds: 0,
+      peekTimer: 0,
+      peekHold: 0,
+      lastAttacker: null,
+      threatTimer: 0,
+      // Wiki: a scute drops every 5-10 minutes, on a timer reset to a fresh 6000-12000 ticks.
+      scuteTimer: rollScuteDelay(options.random || Math.random),
+      armadilloPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (options.isBaby) mob.growthTimer = ARMADILLO_GROWTH_SECONDS;
     this.mobs.push(mob);
     return mob;
   }
@@ -7094,6 +7204,12 @@ export class MobManager {
     }
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
+    // Wiki: a rolled armadillo "takes a reduced amount of damage given by (original damage-1)/2", and
+    // self-destruct damage is exempt. Applied before the subtraction so the hurt flash and cooldown
+    // still fire for an attack that lands for zero.
+    if (isArmadillo(mob) && isRolledUp(mob)) {
+      amount = armadilloDamageReduction(amount, { rolled: true });
+    }
     mob.health -= amount;
     if(isPackEquine(mob))hurtPackEquine(this,mob,attacker);
     if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
@@ -7159,6 +7275,9 @@ export class MobManager {
     } else if (mob.type === 'goat') {
       // A goat never retaliates; the wiki is explicit that it cannot be provoked.
       return;
+    } else if (mob.type === 'armadillo') {
+      // Wiki: an armadillo hides in its shell when it is hurt, and remembers the attacker as a threat.
+      onArmadilloHurt(mob, attacker ?? (knockbackOrigin ? this.game?.player : null));
     } else if (mob.type === 'panda') {
       // Wiki: when a panda is attacked, aggressive pandas nearby turn hostile unless it was killed
       // in one hit. A non-aggressive panda retaliates only once, which the branch enforces.
@@ -7442,7 +7561,9 @@ export class MobManager {
     const polarRows = isPolarBear(mob) && (mob.playerDamaged || mob.wolfKilled) ? polarBearDrops(mob, random) : [];
     // Wiki: Java pandas drop exactly one bamboo, and a baby drops nothing.
     const pandaRows = isPanda(mob) ? pandaDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows];
+    // Wiki: an armadillo drops no items on death -- the scute comes from shedding and brushing.
+    const armadilloRows = isArmadillo(mob) ? armadilloDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows];
   }
 
   /**
@@ -7531,7 +7652,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
+          : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
           : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
           : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
           : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
@@ -7948,6 +8070,83 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    // Wiki: spiders and cave spiders flee from an armadillo within 6 blocks, but only while it is NOT
+    // rolled up. This runs before the armadillo's own branch so the spider's own update sees the flee.
+    if (ARMADILLO_SPIDER_TYPES.includes(mob.type)) {
+      for (const other of this.mobs) {
+        if (!repelsMob(other, mob.type)) continue;
+        if (other.mesh.position.distanceTo(mob.mesh.position) > ARMADILLO_SPIDER_FEAR_RANGE) continue;
+        const away = mob.mesh.position.clone().sub(other.mesh.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) away.normalize();
+        mob.yaw = Math.atan2(away.x, away.z);
+        mob.velocity.x = away.x * 3.2;
+        mob.velocity.z = away.z * 3.2;
+        mob.state = 'fleeing-armadillo';
+        moveGroundMob(this, mob, dt);
+        return true;
+      }
+    }
+    if(mob.type==='armadillo'){
+      // Wiki: passive. It rolls into a ball when hurt or threatened, takes (damage-1)/2 while rolled,
+      // repels spiders while NOT rolled, and sheds a scute every 5-10 minutes.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const ax = Math.floor(mob.mesh.position.x);
+      const ay = Math.floor(mob.mesh.position.y);
+      const az = Math.floor(mob.mesh.position.z);
+      const here = this.world.getVoxel(ax, ay, az);
+      const feet = this.world.getVoxel(ax, ay - 1, az);
+      updateArmadilloRoll(this, mob, dt, player, {
+        inWater: here === BLOCKS.WATER,
+        onFire: !!mob.isBurning,
+        inAir: !mob.onGround && mob.mesh.position.y > (feet === BLOCKS.AIR ? -1 : 0) + 0.2,
+        onLead: !!mob.leashHolder,
+        fleeing: mob.fleeing === true
+      });
+
+      // Wiki: a baby grows in 20 minutes, accelerated by spider eyes.
+      if (mob.isBaby && updateArmadilloGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step.
+      }
+
+      // Wiki: it sheds one scute every 5-10 minutes, like a chicken laying an egg.
+      if (updateArmadilloScutes(mob, dt)) {
+        this.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), 'armadillo_scute', false, 1);
+      }
+
+      // Wiki: a rolled armadillo does not walk, and is not tempted by food.
+      if (isRolledUp(mob)) {
+        mob.velocity.x *= 0.2;
+        mob.velocity.z *= 0.2;
+        mob.state = 'rolled';
+      } else {
+        // Wiki: they follow a player holding a spider eye within 10 blocks, and a baby follows adults.
+        const held = player?.inventory?.getActiveItem?.();
+        const heldId = typeof held?.id === 'string' ? held.id : '';
+        const parent = mob.isBaby ? this.mobs.find(o => o.type === 'armadillo' && !o.isBaby) : null;
+        if (armadilloFollows(mob, player, heldId, parent)) {
+          const target = mob.isBaby && parent ? parent.mesh.position : player.position;
+          const dir = target.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const dist = dir.length();
+          if (dist > 1.6) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 1.6;
+            mob.velocity.z = dir.z * 1.6;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else {
+          wanderMob(this, mob, dt, 0.8);
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.armadilloPhase = (mob.armadilloPhase || 0) + dt;
+      poseArmadillo(mob, mob.armadilloPhase);
       return true;
     }
     if(mob.type==='panda'){
