@@ -57,11 +57,12 @@ test('the orphan report splits a to-do list from a defect', () => {
   const { missingBlock, deadByKey } = harvestOrphans(registry());
   // Blocks this game does not have yet: expected, and the report names the drop each is holding ready.
   //
-  // The floor was 100 and the block-parity batches brought the real figure to 94. That is the wrong reason
-  // for this test to fail -- shrinking this list IS the objective -- so the bound is now well below the
-  // current number and exists only to catch a report that has stopped working. The claims that matter are
-  // the shape checks below, which are unaffected by how long the list is.
-  assert.ok(missingBlock.length > 25, `the orphan report looks broken, got ${missingBlock.length}`);
+  // THE FLOOR HAS NOW BEEN LOWERED TWICE, FROM 100 TO 25 TO 5, and the second time is the instructive one:
+  // 25 was still above the real figure, so the batch that brought orphans to 19 failed a test whose whole
+  // subject is a list that is SUPPOSED to shrink. Setting a floor just below the current number guarantees
+  // the next batch trips it. This one is low enough that no ordinary progress can reach it, and it exists
+  // only to catch a report that has stopped working entirely. The shape checks below are the real test.
+  assert.ok(missingBlock.length > 5, `the orphan report looks broken, got ${missingBlock.length}`);
   assert.ok(missingBlock.every((r) => typeof r.name === 'string' && Array.isArray(r.drops)));
   const holding = missingBlock.filter((r) => r.drops.length);
   assert.ok(holding.length > 0, 'some missing blocks should declare what they would drop');

@@ -551,3 +551,34 @@ export function createWallFanGeometry(def, tm, dir = 3) {
   return merged;
 }
 
+/**
+ * A mob head: an 8/16 cube, either sitting on the floor or fixed to a wall.
+ *
+ * Vanilla draws a head as an 8x8x8 box, which is why a head reads as a cube sitting on top of a
+ * full-size block rather than as a block itself. The same box is reused for the wall form, translated
+ * higher and back against the wall face, exactly as the wall sign and wall fan do.
+ *
+ * NOT MODELLED: a placed head can be rotated to face any direction, and nothing in this engine drives
+ * that, so a head faces north. The wall forms share that limitation with the other wall-mounted shapes.
+ */
+export function createHeadGeometry(def, tm, wall = false, dir = 3) {
+  const size = 8 / 16;
+  // A standing head sits on the floor of its cell; a wall head is centred higher, against the wall.
+  const min = wall
+    ? { x: (1 - size) / 2, y: 6 / 16, z: 1 - size }
+    : { x: (1 - size) / 2, y: 0, z: (1 - size) / 2 };
+  const parts = [buildBox({ x: size, y: size, z: size }, min, def, tm, { insetUv: true })];
+
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  if (wall) {
+    const rot = STAIR_ROTATIONS[dir] || 0;
+    if (rot !== 0) {
+      merged.translate(-0.5, 0, -0.5);
+      merged.rotateY(rot);
+      merged.translate(0.5, 0, 0.5);
+    }
+  }
+  return merged;
+}
+

@@ -126,6 +126,11 @@ const blocks1214 = [
   // faces rather than one.
   'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
   'water_still.png', 'lava_still.png', 'powder_snow.png',
+  // Mob heads, the twenty-fourth batch. These are ENTITY skin sheets, not block textures -- a different
+  // mirror directory -- and the head faces are extracted from them by
+  // scripts/extract-mob-head-textures.py. Listing them here is what makes the extraction reproducible.
+  'entity/skeleton/skeleton.png', 'entity/zombie/zombie.png', 'entity/piglin/piglin.png',
+  'entity/player/wide/steve.png',
   // Technical blocks, the sixteenth batch. The three command blocks each need four textures -- front,
   // side, back and the conditional top/bottom -- which is why this list is longer than the block count.
   // The trial spawner and vault use their INACTIVE / OFF variants, since they are never active here.
