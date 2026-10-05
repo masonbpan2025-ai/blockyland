@@ -62,6 +62,10 @@ const blocks1214 = [
   // are two blocks tall upstream and their TOP texture is the one used here, and `_top` is precisely
   // the suffix that made a bare-name probe report these as missing art.
   'tall_grass_top.png', 'large_fern_top.png', 'spore_blossom.png', 'hanging_roots.png',
+  // Amethyst, the tenth batch: the budding block, the cluster and the three bud stages. Each stage has
+  // its own texture rather than one texture scaled, so all four are needed.
+  'budding_amethyst.png', 'amethyst_cluster.png',
+  'large_amethyst_bud.png', 'medium_amethyst_bud.png', 'small_amethyst_bud.png',
 ];
 
 const items = [
