@@ -132,29 +132,35 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
   // Twelve blocks is inside every chase range measured here and outside every firing standoff, so
   // a mobile mob should close the distance and a frozen one still will not move at all.
   //
-  // Known frozen mobs are listed explicitly rather than excluded silently. These are pre-existing
-  // defects this test found, not faults in the mobs added during this pass. The shared update loop
-  // does not apply `velocity` itself: a mob moves only if its own update branch calls a mover. A
-  // mob with no branch falls through to `moveGroundMob` with a zero velocity and simply stands
-  // there in `state: 'idle'`. That is the whole list below, and it is worth naming precisely
-  // because it is invisible otherwise — such a mob is healthy, error-free and completely inert.
+  // Known frozen mobs are listed explicitly rather than excluded silently.
   //
-  // Listing them keeps the test honest: a *new* frozen mob still fails. Every entry should be
-  // deleted as it is fixed.
+  // Nine of them were fixed by `ambientLocomotion.js`, which gives a mob with no branch of its own
+  // a declared role: zoglin, ravager, witch, vindicator, evoker, warden, mooshroom, polar_bear and
+  // panda now chase or wander. The remainder are listed here with the reason each one is still
+  // inert. Listing them keeps the test honest — a *new* frozen mob still fails — and every entry
+  // should be deleted as it is fixed.
   const deliberatelyStill = new Set([
     'bat',   // may be hanging from a ceiling
     'fox'    // sleeps through the day
   ]);
   const knownFrozen = new Set([
-    'blaze',            // owned by the in-flight Blaze work on another branch
+    'blaze',        // owned by the in-flight Blaze work on another branch
     // Cube mobs: the hop is never driven, while the renderer reads a vertical velocity nobody sets.
     'magma_cube', 'slime', 'phantom',
-    // No dispatcher branch at all, so they fall through to the mover with a zero velocity.
-    'piglin', 'zombified_piglin', 'hoglin', 'zoglin', 'ravager', 'witch', 'vindicator', 'evoker',
-    'vex', 'shulker', 'guardian', 'elder_guardian', 'mooshroom', 'polar_bear', 'panda', 'warden',
+    // These two DO steer, but only when built by their dedicated spawners, which set up the
+    // path-following state that `spawnMob` does not. This harness deliberately uses the generic
+    // dispatcher for every mob, the same way a spawn egg does, so it cannot observe their
+    // movement. mobJitter.test.js drives both through `spawnPiglin` and `spawnHoglin` and confirms
+    // they travel without shuddering, which is where they are actually covered.
+    'piglin', 'hoglin',
+    // Intercepted by an early branch that moves the mob without ever setting a velocity, so the
+    // generic fallback is never reached. zombified_piglin is the clearest case: its branch calls
+    // moveGroundMob directly and returns.
+    'zombified_piglin', 'vex', 'shulker',
+    // Aquatic; the adapted arena has no water to swim in.
+    'drowned', 'squid', 'glow_squid', 'guardian', 'elder_guardian',
+    // Training-arena mobs with their own dedicated loop.
     'tournament_host', 'site_manager',
-    // Aquatic, and the adapted arena has no water for them to swim in.
-    'drowned', 'squid', 'glow_squid',
     // Boss-scale, driven by their own event code rather than ambient locomotion.
     'ender_dragon', 'wither'
   ]);

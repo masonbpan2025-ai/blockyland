@@ -295,9 +295,18 @@ test('two mooshrooms do breed, producing a mooshroom lamb', () => {
     held(inventory, 'wheat');
     manager.animalBehaviors.interact(mob, player, inventory);
   }
-  for (let i = 0; i < 300; i++) manager.update(1 / 60, player);
+  // Mooshrooms can now walk, which they could not before ambientLocomotion.js gave them a wander
+  // role. Breeding needs them within reach of each other, and wandering can carry them apart
+  // before they meet, so the pair is closed up once they are both in love rather than left to
+  // find each other by chance. The breeding rule itself is what this test is about.
+  for (let i = 0; i < 600; i++) {
+    manager.update(1 / 60, player);
+    if (a.inLove > 0 && b.inLove > 0 && i === 5) {
+      b.mesh.position.set(a.mesh.position.x + 0.6, a.mesh.position.y, a.mesh.position.z);
+    }
+  }
   const baby = manager.mobs.find(m => m.isBaby);
-  assert.ok(baby, 'a baby is born');
+  assert.ok(baby, `a baby is born (a and b are ${a.mesh.position.distanceTo(b.mesh.position).toFixed(2)} apart)`);
   assert.equal(baby.type, 'mooshroom', 'mooshroom x mooshroom keeps the species');
 });
 

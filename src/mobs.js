@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
+import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool } from './sheepBehavior.js';
@@ -8271,6 +8272,17 @@ export class MobManager {
       moveFlyingMob(this, mob, dt);
     } else {
       if(isEquine(mob))updateHorseLead(this,mob);
+      // A mob with no branch of its own used to arrive here with a zero velocity and simply stand
+      // still forever. Hostile and passive roles that were never wired up are declared in
+      // ambientLocomotion.js, which gives them a target or a wander goal before the mover runs.
+      const ambientSpec = locomotionFor(mob.type);
+      if (ambientSpec) {
+        updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        // A declared stationary mob still gets the leg pose, so it does not look frozen mid-stride.
+        if (ambientSpec.speed <= 0) {
+          mob.walkCycle = (mob.walkCycle || 0);
+        }
+      }
       const moveSpeed = moveGroundMob(this, mob, dt);
       mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
       const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
