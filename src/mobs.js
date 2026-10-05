@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
 import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
 import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
@@ -2361,6 +2362,9 @@ export class MobManager {
       // Wiki: phantoms are 0.9 x 0.5. Without this row the collision fell back to the humanoid
       // default of 0.6 x 1.95, which made a phantom a tall thin box instead of a flat wide one.
       case 'phantom': return PHANTOM_DIMENSIONS;
+      // Wiki: polar bears are 1.4 x 1.4, and a cub is 0.7 x 0.7. Without these rows the collision
+      // fell back to the humanoid default of 0.6 x 1.95.
+      case 'polar_bear': return POLAR_BEAR_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -4304,7 +4308,7 @@ export class MobManager {
     return mob;
   }
 
-  spawnPolarBear(x, y, z) {
+  spawnPolarBear(x, y, z, options = {}) {
     const group = new THREE.Group();
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
     const darkMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
@@ -4337,14 +4341,36 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 30,
-      maxHealth: 30,
+      // Wiki: 30 HP.
+      health: POLAR_BEAR_HEALTH,
+      maxHealth: POLAR_BEAR_HEALTH,
+      isBaby: !!options.isBaby,
+      // Wiki: adult 1.4 x 1.4, baby 0.7 x 0.7. Without these the collision fell back to the
+      // humanoid default of 0.6 x 1.95, which is both too narrow and too tall for a bear.
+      width: (options.isBaby ? POLAR_BEAR_BABY_DIMENSIONS : POLAR_BEAR_DIMENSIONS).width,
+      height: (options.isBaby ? POLAR_BEAR_BABY_DIMENSIONS : POLAR_BEAR_DIMENSIONS).height,
+      // Wiki: 60% knockback resistance, and immune to freezing damage from powder snow.
+      knockbackResistance: POLAR_BEAR_KNOCKBACK_RESISTANCE,
+      freezeImmune: true,
+      // Wiki: immune to freezing, but NOT to fall damage.
+      fallDamageImmune: false,
+      // Stance: a cub is passive, an adult is neutral until provoked or a cub is threatened.
+      stance: options.isBaby ? 'passive' : 'neutral',
+      isHostile: false,
+      angryAt: null,
+      isMauling: false,
+      maulTimer: 0,
+      polarPhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    if (options.isBaby) {
+      group.scale.setScalar(POLAR_BEAR_BABY_SCALE);
+      mob.growthTimer = POLAR_BEAR_GROWTH_SECONDS;
+    }
     this.mobs.push(mob);
     return mob;
   }
@@ -7063,6 +7089,13 @@ export class MobManager {
     } else if (mob.type === 'goat') {
       // A goat never retaliates; the wiki is explicit that it cannot be provoked.
       return;
+    } else if (mob.type === 'polar_bear') {
+      // Wiki: a surviving cub makes every adult in a 41x21x41 area hostile; an adult near a cub
+      // provokes the adults around it.
+      onPolarBearHurt(this, mob, attacker, {
+        lethal: mob.health <= 0,
+        difficulty: this.game?.difficulty ?? 'normal'
+      });
     } else if (mob.type === 'phantom') {
       // Wiki: hurt mid-swoop makes it retreat to its anchor instead of pressing the attack.
       onPhantomHurt(mob);
@@ -7326,7 +7359,10 @@ export class MobManager {
     // The drop is produced by phantomDrops rather than a row here: the row this replaced hardcoded
     // 1-2, which is neither the wiki's base count nor its Looting behaviour.
     const phantomRows = isPhantom(mob) && (mob.playerDamaged || mob.wolfKilled) ? phantomDrops(mob, random) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows];
+    // Wiki: Java picks one of cod or salmon on a 3/4 and 1/4 split, 0-2 of it, cooked if the bear
+    // died on fire. A cub drops nothing.
+    const polarRows = isPolarBear(mob) && (mob.playerDamaged || mob.wolfKilled) ? polarBearDrops(mob, random) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows];
   }
 
   /**
@@ -7415,7 +7451,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
+          : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
           : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
           : mob.type === 'tadpole' ? 0
           : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
@@ -7830,6 +7867,64 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='polar_bear'){
+      // Wiki: a cub is passive, an adult is neutral, and an adult turns hostile to protect any cub
+      // near it. Adults also attack foxes. Growth cannot be sped up, only stopped.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.stance = polarBearStance(mob, {
+        difficulty: this.game?.difficulty ?? 'normal',
+        provoked: mob.isHostile,
+        cubThreatened: false
+      });
+
+      // Wiki: a cub matures after 20 minutes and its growth cannot be accelerated.
+      if (mob.isBaby && updatePolarBearGrowth(mob, dt)) {
+        const dims = polarBearDimensions(mob);
+        mob.mesh.position.y += dims.height - POLAR_BEAR_BABY_DIMENSIONS.height;
+      }
+
+      // The rearing maul, once begun, has to land before anything else happens.
+      if (mob.isMauling) {
+        const target = mob.maulTarget ?? null;
+        updatePolarBearMaul(this, mob, target, dt);
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        moveGroundMob(this, mob, dt);
+        posePolarBear(mob, mob.polarPhase || 0);
+        return true;
+      }
+
+      // Wiki: only a hostile bear hunts.
+      const target = findPolarBearTarget(this, mob, player, { difficulty: this.game?.difficulty ?? 'normal' });
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        const dir = pos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1e-6) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: its swim speed equals the player's, which is what makes water no escape.
+        const inWater = this.world.getVoxel(Math.floor(mob.mesh.position.x), Math.floor(mob.mesh.position.y), Math.floor(mob.mesh.position.z)) === BLOCKS.WATER;
+        const speed = inWater ? POLAR_BEAR_SPEED.water : POLAR_BEAR_SPEED.land;
+        mob.velocity.x = dir.x * speed;
+        mob.velocity.z = dir.z * speed;
+        // Wiki: it attacks by rearing on its back legs and mauling down.
+        if (dist < 2.2 && mob.hitCooldown <= 0) {
+          startPolarBearMaul(mob);
+          mob.maulTarget = target;
+          mob.hitCooldown = 1.2;
+        }
+        mob.state = 'hostile';
+      } else {
+        wanderMob(this, mob, dt, 1.2);
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      posePolarBear(mob, mob.polarPhase || 0);
+      mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
       return true;
     }
     if(mob.type==='phantom'){

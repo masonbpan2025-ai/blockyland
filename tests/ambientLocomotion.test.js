@@ -48,7 +48,7 @@ test('the mobs that had no branch now have a declared role', () => {
   // These are the ones this fix is for. Each was measured frozen before it. `piglin` and `hoglin`
   // are deliberately NOT here: they already have path-following steering of their own, and driving
   // them from this table bypasses it and makes them shudder, which mobJitter.test.js measures.
-  for (const type of ['mooshroom', 'polar_bear', 'panda', 'zoglin',
+  for (const type of ['mooshroom', 'panda', 'zoglin',
     'ravager', 'witch', 'vindicator', 'evoker', 'warden']) {
     const spec = locomotionFor(type);
     assert.ok(spec, `${type} should have a declared role`);
@@ -59,6 +59,9 @@ test('the mobs that had no branch now have a declared role', () => {
   assert.equal(hasAmbientLocomotion('cow'), false, 'cow already had its own branch');
   assert.equal(hasAmbientLocomotion('piglin'), false, 'piglin steers itself');
   assert.equal(hasAmbientLocomotion('hoglin'), false, 'hoglin steers itself');
+  // `polar_bear` was in this table until it gained its own branch. Declaring it here would have
+  // made a *neutral* mob attack every player on sight, which the wiki does not describe.
+  assert.equal(hasAmbientLocomotion('polar_bear'), false, 'polar_bear owns its locomotion now');
 });
 
 test('the passive roles never attack and the hostile ones do', () => {
@@ -67,7 +70,9 @@ test('the passive roles never attack and the hostile ones do', () => {
   }
   assert.equal(locomotionFor('mooshroom').role, 'passive');
   assert.equal(locomotionFor('mooshroom').damage, 0, 'a mooshroom is not a threat');
-  assert.equal(locomotionFor('polar_bear').damage, 0, 'not while merely wandering');
+  // A polar bear is not in this table at all any more; its only aggression is the conditional
+  // cub-defence stance, asserted in polarBearParity.test.js.
+  assert.equal(locomotionFor('polar_bear'), null, 'a polar bear has no generic role');
   // Hostiles carry real damage.
   for (const type of ['ravager', 'warden', 'vindicator']) {
     assert.ok(locomotionFor(type).damage > 0, `${type} should hit`);
@@ -193,7 +198,7 @@ test('the wanderer takes an injectable random so it can be tested', async () => 
 
 test('the fix works through the real update loop for every mob it covers', () => {
   const frozen = [];
-  for (const type of ['mooshroom', 'polar_bear', 'panda', 'zoglin',
+  for (const type of ['mooshroom', 'panda', 'zoglin',
     'ravager', 'witch', 'vindicator', 'evoker', 'warden']) {
     const { manager, player } = fixture();
     const mob = manager.spawnMob(type, 0, 1, 0);
