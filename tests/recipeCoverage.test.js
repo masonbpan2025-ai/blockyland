@@ -53,11 +53,11 @@ test('the implemented recipe count does not regress', { skip }, () => {
 });
 
 test('the recipe lists the game actually uses reflect the generated set', () => {
-  assert.ok(RECIPES_3X3.length >= 1430,
-    `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 540`);
+  assert.ok(RECIPES_3X3.length >= 1445,
+    `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 1445`);
   assert.ok(RECIPES_2X2.length >= 370,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1374,
+  assert.equal(GENERATED_RECIPE_COUNT, 1387,
     'the generated recipe count changed; update this expectation deliberately if that was intended');
 });
 

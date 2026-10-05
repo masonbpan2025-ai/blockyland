@@ -154,6 +154,20 @@ const FAMILIES = [
     extra: { cube: true },
   },
   {
+    // Fences: a post with two rails, so a shape rather than a cube. `_fence` is still in the
+    // name-based cube exclusion, which the shape marker bypasses.
+    id: 'fences',
+    match: (n) => /(_fence|nether_brick_fence)$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_fence$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      return base + ".png";
+    },
+    sound: 'wood',
+    extra: { fence: true },
+  },
+  {
     // Stairs: two boxes, a base half and a step against the back. Declared with a shape marker so
     // the name-based cube exclusion is skipped, which matters because `_stairs` is in that list.
     id: 'stairs',

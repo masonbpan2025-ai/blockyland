@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1374 recipes.
+// 1387 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -269,6 +269,18 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,'diamond',B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
   {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,'diamond',B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,'diamond',B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.OAK_PLANKS,'stick',B.OAK_PLANKS],[B.OAK_PLANKS,'stick',B.OAK_PLANKS]],result:{id:B.OAK_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.SPRUCE_PLANKS,'stick',B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,'stick',B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.BIRCH_PLANKS,'stick',B.BIRCH_PLANKS],[B.BIRCH_PLANKS,'stick',B.BIRCH_PLANKS]],result:{id:B.BIRCH_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.JUNGLE_PLANKS,'stick',B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,'stick',B.JUNGLE_PLANKS]],result:{id:B.JUNGLE_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.ACACIA_PLANKS,'stick',B.ACACIA_PLANKS],[B.ACACIA_PLANKS,'stick',B.ACACIA_PLANKS]],result:{id:B.ACACIA_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.CHERRY_PLANKS,'stick',B.CHERRY_PLANKS],[B.CHERRY_PLANKS,'stick',B.CHERRY_PLANKS]],result:{id:B.CHERRY_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.DARK_OAK_PLANKS,'stick',B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,'stick',B.DARK_OAK_PLANKS]],result:{id:B.DARK_OAK_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.PALE_OAK_PLANKS,'stick',B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,'stick',B.PALE_OAK_PLANKS]],result:{id:B.PALE_OAK_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.MANGROVE_PLANKS,'stick',B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,'stick',B.MANGROVE_PLANKS]],result:{id:B.MANGROVE_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.BAMBOO_PLANKS,'stick',B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,'stick',B.BAMBOO_PLANKS]],result:{id:B.BAMBOO_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.CRIMSON_PLANKS,'stick',B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,'stick',B.CRIMSON_PLANKS]],result:{id:B.CRIMSON_FENCE,isBlock:true,count:3}},
+  {pattern:[[B.WARPED_PLANKS,'stick',B.WARPED_PLANKS],[B.WARPED_PLANKS,'stick',B.WARPED_PLANKS]],result:{id:B.WARPED_FENCE,isBlock:true,count:3}},
   {pattern:[[B.CARVED_PUMPKIN],[B.TORCH]],result:{id:B.JACK_O_LANTERN,isBlock:true,count:1}},
   {pattern:[[B.BASALT,B.BASALT],[B.BASALT,B.BASALT]],result:{id:B.POLISHED_BASALT,isBlock:true,count:4}},
   {pattern:[['charcoal'],['stick'],[B.SOUL_SOIL]],result:{id:B.SOUL_TORCH,isBlock:true,count:4}},
@@ -291,6 +303,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.MUD_BRICKS,null,null],[B.MUD_BRICKS,B.MUD_BRICKS,null],[B.MUD_BRICKS,B.MUD_BRICKS,B.MUD_BRICKS]],result:{id:B.MUD_BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[['nether_brick','nether_brick'],['nether_brick','nether_brick']],result:{id:B.NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[[B.NETHER_BRICK_SLAB],[B.NETHER_BRICK_SLAB]],result:{id:B.CHISELED_NETHER_BRICKS,isBlock:true,count:1}},
+  {pattern:[[B.NETHER_BRICKS,'nether_brick',B.NETHER_BRICKS],[B.NETHER_BRICKS,'nether_brick',B.NETHER_BRICKS]],result:{id:B.NETHER_BRICK_FENCE,isBlock:true,count:6}},
   {pattern:[[B.NETHER_BRICKS,null,null],[B.NETHER_BRICKS,B.NETHER_BRICKS,null],[B.NETHER_BRICKS,B.NETHER_BRICKS,B.NETHER_BRICKS]],result:{id:B.NETHER_BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[[null,'book',null],['diamond',B.OBSIDIAN,'diamond'],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.ENCHANTING_TABLE,isBlock:true,count:1}},
   {pattern:[[B.END_STONE,B.END_STONE],[B.END_STONE,B.END_STONE]],result:{id:B.END_STONE_BRICKS,isBlock:true,count:4}},
@@ -1394,21 +1407,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1374;
+export const EXTRA_RECIPE_COUNT = 1387;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1374,
-  "shaped": 1136,
+  "emitted": 1387,
+  "shaped": 1149,
   "shapeless": 245,
-  "skippedMissingResult": 169,
+  "skippedMissingResult": 156,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1381,
+  "emittedBeforeDedupe": 1394,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

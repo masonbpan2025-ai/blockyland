@@ -199,6 +199,38 @@ export function createCarpetGeometry(def, tm) {
 }
 
 /**
+ * A fence: a centre post with two rails crossing it.
+ *
+ * Vanilla's fence is 4/16 square for the post at full height, with two rails at roughly y 6/16..9/16
+ * running the full width on each horizontal axis.
+ *
+ * The rails are always drawn on both axes rather than following the neighbours. Vanilla connects a
+ * fence only toward other fences and solid blocks, and doing that properly needs neighbour state the
+ * mesher does not pass for this shape. A cross-shaped fence is the honest approximation: it is never
+ * WRONG about being a fence, only occasionally over-connected, whereas emitting it as a cube would be
+ * wrong everywhere.
+ */
+export function createFenceGeometry(def, tm) {
+  const post = 4 / 16;
+  const railH = 3 / 16;
+  const railY = 6 / 16;
+  const railThickness = 3 / 16;
+  const postMin = (1 - post) / 2;
+  const railMin = (1 - railThickness) / 2;
+  const parts = [
+    // The post, full height.
+    buildBox({ x: post, y: 1, z: post }, { x: postMin, y: 0, z: postMin }, def, tm),
+    // Rail along X.
+    buildBox({ x: 1, y: railH, z: railThickness }, { x: 0, y: railY, z: railMin }, def, tm),
+    // Rail along Z.
+    buildBox({ x: railThickness, y: railH, z: 1 }, { x: railMin, y: railY, z: 0 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+
+/**
  * A candle: a narrow column standing on the floor.
  *
  * Vanilla candles are 2 pixels across and 6 tall. One builder serves all sixteen colours, since the

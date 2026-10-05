@@ -466,6 +466,19 @@ export const EXTRA_BLOCK_IDS = {
   QUARTZ_BRICKS: 672,
   TARGET: 673,
   TINTED_GLASS: 674,
+  ACACIA_FENCE: 675,
+  BAMBOO_FENCE: 676,
+  BIRCH_FENCE: 677,
+  CHERRY_FENCE: 678,
+  CRIMSON_FENCE: 679,
+  DARK_OAK_FENCE: 680,
+  JUNGLE_FENCE: 681,
+  MANGROVE_FENCE: 682,
+  NETHER_BRICK_FENCE: 683,
+  OAK_FENCE: 684,
+  PALE_OAK_FENCE: 685,
+  SPRUCE_FENCE: 686,
+  WARPED_FENCE: 687,
 };
 
 /** Definitions for the extra blocks, keyed by id like BLOCK_DEFS. */
@@ -923,40 +936,39 @@ export const EXTRA_BLOCK_DEFS = {
   672: { name: 'Quartz Bricks', hardness: 0.8, sound: 'stone', cube: true, textures: { all: 'quartz_bricks.png' } },
   673: { name: 'Target', hardness: 0.5, sound: 'stone', cube: true, textures: { all: 'target.png' } },
   674: { name: 'Tinted Glass', hardness: 0.3, sound: 'stone', cube: true, transparent: true, textures: { all: 'tinted_glass.png' } },
+  675: { name: 'Acacia Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'acacia_planks.png' } },
+  676: { name: 'Bamboo Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'bamboo.png' } },
+  677: { name: 'Birch Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'birch_planks.png' } },
+  678: { name: 'Cherry Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'cherry_planks.png' } },
+  679: { name: 'Crimson Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'crimson.png' } },
+  680: { name: 'Dark Oak Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'dark_oak_planks.png' } },
+  681: { name: 'Jungle Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'jungle_planks.png' } },
+  682: { name: 'Mangrove Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'mangrove_planks.png' } },
+  683: { name: 'Nether Brick Fence', hardness: 2, sound: 'wood', fence: true, resistance: 6, textures: { all: 'nether_brick.png' } },
+  684: { name: 'Oak Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'oak_planks.png' } },
+  685: { name: 'Pale Oak Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'pale_oak_planks.png' } },
+  686: { name: 'Spruce Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'spruce_planks.png' } },
+  687: { name: 'Warped Fence', hardness: 2, sound: 'wood', fence: true, resistance: 3, textures: { all: 'warped.png' } },
 };
 
 /** How many extra blocks this file defines, for tests and reporting. */
-export const EXTRA_BLOCK_COUNT = 453;
+export const EXTRA_BLOCK_COUNT = 466;
 
 /** Names added, by family, so the backlog can report what changed. */
 export const EXTRA_BLOCK_NAMES = {
-  colour_cubes: [
-    'black_concrete_powder',
-    'blue_concrete_powder',
-    'brown_concrete_powder',
-    'cyan_concrete_powder',
-    'gray_concrete_powder',
-    'green_concrete_powder',
-    'light_blue_concrete_powder',
-    'light_gray_concrete_powder',
-    'lime_concrete_powder',
-    'magenta_concrete_powder',
-    'orange_concrete_powder',
-    'pink_concrete_powder',
-    'purple_concrete_powder',
-    'red_concrete_powder',
-    'white_concrete_powder',
-    'yellow_concrete_powder',
-  ],
-  misc_cubes: [
-    'calibrated_sculk_sensor',
-    'chiseled_nether_bricks',
-    'crafter',
-    'lantern',
-    'lodestone',
-    'melon',
-    'quartz_bricks',
-    'target',
-    'tinted_glass',
+  fences: [
+    'acacia_fence',
+    'bamboo_fence',
+    'birch_fence',
+    'cherry_fence',
+    'crimson_fence',
+    'dark_oak_fence',
+    'jungle_fence',
+    'mangrove_fence',
+    'nether_brick_fence',
+    'oak_fence',
+    'pale_oak_fence',
+    'spruce_fence',
+    'warped_fence',
   ],
 };
