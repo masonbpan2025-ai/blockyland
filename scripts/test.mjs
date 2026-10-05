@@ -49,6 +49,9 @@ export const AREAS = {
   // --- rendering and effects ---
   render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'meshTimeSlicing', 'progressOverlay', 'confirmDialog'],
   // --- survival parity: how much of vanilla's content the game can express ---
+  // Master's list, less `potionDrinking`: that test belonged to the second potion implementation, which
+  // this branch removed because two drinkers imported into main.js under one name is a SyntaxError.
+  // `itemStackSizes` is this branch's, added by the stack-limit batch.
   survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'recipeFreshness', 'contentGap', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'statusEffects', 'statusEffectsStubs', 'enchantmentEffects', 'thornsReflect', 'waterMovement', 'brewingParity', 'tippedArrows', 'durability', 'armourDurability', 'materialExclusions', 'mobLootParity', 'mobDropLive', 'docsParityFigures', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry', 'doorWoodTypes', 'signGeometry', 'smallShapes', 'blockNameMatch', 'resourceInspector', 'resourceInspectorEntry', 'itemDefinitions', 'itemPotions', 'itemPotionDrinking', 'itemFurnaceTables', 'itemStackSizes'],
   // --- save/load ---
   persist: ['mapManager', 'mobStatePersistence']

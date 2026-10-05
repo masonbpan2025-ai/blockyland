@@ -122,42 +122,40 @@ test('cooking still works through the names this game actually uses', () => {
   }
 });
 
-test('a smelting or fuel entry named for a block is reachable only when that block exists', () => {
-  // The invariant this guards is not "these blocks are absent" -- five of them were registered by the
-  // ore-parity batch, and the sapling by the one after it -- it is that a name in the smelting or fuel
-  // tables is never reachable under a key no item can hold. A lookup keyed on an unregistered block is
-  // `undefined`, and `SMELTING_RECIPES[undefined]` is a phantom entry that can never be hit but also
-  // cannot be seen to be dead.
+test('every smelting and fuel row is reachable, and no row sits under a phantom key', () => {
+  // The invariant: a row in either table is keyed on something a caller can actually look up, or it is
+  // not there at all.
   //
-  // So for each name the tables mention: either the block exists AND its entry resolves, or the block
-  // does not exist AND there is no entry sitting under the undefined key it would produce.
-  const pending = ['DEEPSLATE_IRON_ORE', 'DEEPSLATE_GOLD_ORE', 'NETHER_GOLD_ORE', 'COPPER_ORE', 'DEEPSLATE_COPPER_ORE'];
-  let registered = 0;
-  for (const name of pending) {
-    const id = BLOCKS[name];
-    if (typeof id === 'number') {
-      registered++;
-      assert.ok(BLOCK_DEFS[id], `${name} is registered so it must have a definition`);
-      assert.ok(SMELTING_RECIPES[id], `${name} is registered so its smelting entry must resolve`);
-      continue;
-    }
-    assert.equal(SMELTING_RECIPES[id], undefined, `${name} is unregistered so nothing may sit under its key`);
-  }
-  // At least some of them are registered now, which is the whole point of the batch; if this drops to
-  // zero the ore work has been undone.
-  assert.ok(registered > 0, 'the ore batch registers these; none is registered, so it was reverted');
+  // furnace.js builds the block-keyed rows with `const x = BLOCKS.SOMETHING; if (typeof x === 'number')
+  // TABLE[x] = ...`. The old bug was the same idiom without the typeof guard, which creates a row keyed
+  // on the STRING "undefined" -- unreachable, invisible in review, and it won the lookups because the
+  // last assignment overwrote the previous one.
+  //
+  // Checked near the tables rather than against a hard-coded name list, because a hard-coded list goes
+  // stale the moment a block is registered -- which happened twice: once when the ores landed and again
+  // when the saplings did.
+  for (const [label, table] of [['smelting', SMELTING_RECIPES], ['fuel', FUEL_BURN_TIMES]]) {
+    assert.equal(Object.hasOwn(table, 'undefined'), false,
+      `${label} must not carry a row under the string key "undefined"`);
+    assert.equal(table[undefined], undefined, `${label} must not carry a row under the undefined key`);
 
-  // The sapling the fuel table names the same way: listed by name so the entry appears when the block
-  // does. The sapling batch has since landed, so the same either-or applies to it, and its burn time is
-  // now reachable rather than a key called "undefined".
-  const sapling = BLOCKS.OAK_SAPLING;
-  if (typeof sapling === 'number') {
-    assert.ok(BLOCK_DEFS[sapling], 'the sapling is registered so it must have a definition');
-    assert.equal(FUEL_BURN_TIMES[sapling], 5.0, 'and its burn time must be reachable');
-  } else {
-    assert.equal(FUEL_BURN_TIMES[sapling], undefined, 'while unregistered, nothing may sit under its key');
+    // Numeric keys must be valid voxel ids, since those are the ones derived from BLOCKS constants.
+    // SMELTING_RECIPES also carries item-name keys (beef, potato, ...) by design, so only numeric keys
+    // are range-checked here.
+    let numeric = 0;
+    for (const [rawKey, value] of Object.entries(table)) {
+      if (!/^\d+$/.test(rawKey)) continue;
+      const id = Number(rawKey);
+      numeric++;
+      assert.ok(id >= 0 && id < 65536, `${label} key ${id} is outside the voxel id range`);
+      assert.ok(value, `${label} row for id ${id} is falsy`);
+    }
+    assert.ok(numeric > 3, `${label} should have block-keyed rows, found ${numeric}`);
   }
-  assert.equal(Object.hasOwn(FUEL_BURN_TIMES, 'undefined'), false);
+
+  // The two blocks those guards were written for are registered now, so their rows must resolve.
+  assert.equal(FUEL_BURN_TIMES[BLOCKS.OAK_SAPLING], 5, 'the sapling fuel row must resolve');
+  assert.ok(SMELTING_RECIPES[BLOCKS.COPPER_ORE], 'the copper ore smelting row must resolve');
 });
 
 // --- the last dangling reference ---------------------------------------------
