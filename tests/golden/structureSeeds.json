@@ -423,6 +423,26 @@
       "contentHash": 4025683444
     },
     {
+      "id": "trail_ruins",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "taiga",
+      "chunkX": 886,
+      "chunkZ": 0,
+      "planHash": 279778121,
+      "pieces": 4,
+      "box": [
+        14165,
+        56,
+        -17,
+        14209,
+        83,
+        30
+      ],
+      "blockCount": 207,
+      "contentHash": 3222783537
+    },
+    {
       "id": "trial_chambers",
       "seed": 20250401,
       "dimension": "overworld",

@@ -186,7 +186,7 @@ export const STRUCTURES = {
   trail_ruins: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
     step: 'underground_structures', terrainAdaptation: TerrainAdaptation.BURY,
-    biomeTag: 'has_structure/trail_ruins',
+    biomeTag: 'has_structure/trail_ruins', implementation: 'trailRuins',
     biomes: ['taiga', 'snowy_taiga', 'old_growth_pine_taiga', 'old_growth_spruce_taiga', 'old_growth_birch_forest', 'jungle'],
     notes: 'Three processor lists; gravel becomes dirt, coarse dirt and then common/rare suspicious gravel.'
   },
