@@ -450,7 +450,21 @@ export const BLOCKS = {
   // they are registered rather than the check being relaxed.
   WEEPING_VINES_PLANT: 1042,
   TWISTING_VINES_PLANT: 1043,
-  CAVE_VINES_PLANT: 1044
+  CAVE_VINES_PLANT: 1044,
+
+  // --- Crops stems and water plants, thirteenth block-parity batch -------------------------------
+  //
+  // The plant family that remains once the decoration is done. The four stems are crop stalks that grow
+  // out of farmland; the rest are underwater vegetation. They share the cross-quad shape, so no geometry.
+  PUMPKIN_STEM: 1045,
+  MELON_STEM: 1046,
+  ATTACHED_PUMPKIN_STEM: 1047,
+  ATTACHED_MELON_STEM: 1048,
+  SEAGRASS: 1049,
+  TALL_SEAGRASS: 1050,
+  KELP: 1051,
+  KELP_PLANT: 1052,
+  SEA_PICKLE: 1053
 };
 
 export const BLOCK_DEFS = {
@@ -1068,6 +1082,40 @@ export const BLOCK_DEFS = {
   [BLOCKS.WEEPING_VINES_PLANT]: { name: 'Weeping Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'weeping_vines_plant.png' } },
   [BLOCKS.TWISTING_VINES_PLANT]: { name: 'Twisting Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'twisting_vines_plant.png' } },
   [BLOCKS.CAVE_VINES_PLANT]: { name: 'Cave Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'cave_vines_plant.png' } },
+
+  // --- Crop stems and water plants, thirteenth block-parity batch --------------------------------
+  //
+  // THE STEM DROPS ARE NOT UNIFORM, and one of them is a genuine oddity worth naming. Per the generated
+  // harvest table: a melon stem and an attached melon stem each drop melon seeds, an attached pumpkin
+  // stem drops pumpkin seeds -- and a PLAIN pumpkin stem drops nothing at all. Vanilla really does give
+  // a bare pumpkin stem no drop, which is why it is the one stem whose definition carries `drop: null`.
+  //
+  // Attached and unattached stems are separate BLOCKS here rather than one block with a state. In vanilla
+  // they differ only in whether the stem has fruited, and the attached form is a different model that
+  // points at the fruit. This game has no crop-growth layer, so both are registered as static crosses and
+  // each is placed rather than grown into.
+  [BLOCKS.PUMPKIN_STEM]: { name: 'Pumpkin Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'pumpkin_stem.png' } },
+  [BLOCKS.ATTACHED_PUMPKIN_STEM]: { name: 'Attached Pumpkin Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'pumpkin_seeds', textures: { all: 'attached_pumpkin_stem.png' } },
+  [BLOCKS.MELON_STEM]: { name: 'Melon Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'melon_seeds', textures: { all: 'melon_stem.png' } },
+  [BLOCKS.ATTACHED_MELON_STEM]: { name: 'Attached Melon Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'melon_seeds', textures: { all: 'attached_melon_stem.png' } },
+
+  // The water plants. A caveat that applies to every one of them: vanilla requires water, and a
+  // waterlogged plant still counts as the water block for everything from swimming to light. This game
+  // models no waterlogging, so these are ordinary cross plants that happen to look right underwater and
+  // stay put when the water around them is removed. That is the same simplification the ocean decoration
+  // would need, and it is stated here rather than left to be discovered by draining a pool.
+  //
+  // Sea grass and kelp feed turtles and can be smelted; the ITEMS already existed for both, since
+  // mob loot tables named them, and until now there was no block to obtain them from in the world.
+  //
+  // Drops per the harvest table: sea grass, tall sea grass and the two kelp forms each yield their own
+  // item (kelp yields kelp, not a kelp plant), and a sea pickle yields itself.
+  [BLOCKS.SEAGRASS]: { name: 'Sea Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'seagrass.png' } },
+  [BLOCKS.TALL_SEAGRASS]: { name: 'Tall Sea Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'tall_seagrass_top.png' } },
+  [BLOCKS.KELP]: { name: 'Kelp', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp.png' } },
+  [BLOCKS.KELP_PLANT]: { name: 'Kelp Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp_plant.png' } },
+  [BLOCKS.SEA_PICKLE]: { name: 'Sea Pickle', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SEA_PICKLE, textures: { all: 'sea_pickle.png' } },
+
 
 
   [BLOCKS.SANDSTONE]: {
