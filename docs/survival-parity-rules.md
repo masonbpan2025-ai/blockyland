@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1538 | 1557 | 98.8% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
-| Blocks named | 830 | 1095 | 75.8% |
-| Items named | 1127 | 1385 | 81.4% |
+| Blocks named | 831 | 1095 | 75.9% |
+| Items named | 1129 | 1385 | 81.5% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -387,6 +387,27 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 - **Brewing and potion-to-effect mapping.** Section 2.6 documents Mineclonia's durations; the mapping
   from ingredients to effects (fermented spider eye inverting healing to harming, and so on) is not
   implemented.
-- **Enchantment effects beyond protection, sharpness, smite, impaling and efficiency.** Unbreaking,
-  depth strider, thorns and fortune are documented in section 2.5 but not all are wired.
+- **Thorns, unbreaking and depth strider are computed but not wired.** Section 2.5's formulas for all
+  three are implemented in `src/enchantmentEffects.js` and asserted by tests, but no gameplay path calls
+  them yet: thorns needs the attacker passed to `Player.takeDamage`, which currently receives only a
+  position, and unbreaking needs a durability system to spend against.
+
+### 4.4 Enchantment damage — implemented
+
+`src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers
+live in one place and can be asserted directly:
+
+| Enchantment | Effect | Applies to |
+|---|---|---|
+| Sharpness | +0.5 × level + 0.5 | everything |
+| Smite | +2.5 × level | undead (16 types) |
+| Bane of Arthropods | +2.5 × level | arthropods (6 types) |
+| Impaling | +2.5 × level | aquatic (13 types) |
+| Fire Aspect | burns 4 × level seconds | everything |
+
+Two notes on fidelity. The extraction preserved sharpness and smite exactly, which the tests assert
+against the numbers the inline code produced. **Impaling was broadened**: the inline code applied it only
+to `squid` and `glow_squid`, and vanilla 1.21 applies it to aquatic mobs generally, so the wider set is a
+deliberate correction rather than a faithful extraction. Bane of Arthropods and Fire Aspect are new.
+
 

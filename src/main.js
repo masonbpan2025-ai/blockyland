@@ -1,4 +1,6 @@
 import { squidRayDistance } from './squidHitbox.js';
+import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
+import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
@@ -1037,23 +1039,25 @@ class Game {
       if (activeItem && !activeItem.isBlock) {
         const it = ITEMS[activeItem.id];
         if (it && it.attack) damage = it.attack;
-        if (Array.isArray(activeItem.enchantments)) {
-          for (const ench of activeItem.enchantments) {
-            if (ench.id === 'sharpness') {
-              damage += 0.5 * ench.level + 0.5;
-            } else if (ench.id === 'impaling' && activeItem.id === 'trident' && ['squid','glow_squid'].includes(this.targetMob.type)) {
-              damage += 2.5 * ench.level;
-            } else if (ench.id === 'smite' && ['zombie','skeleton','wither_skeleton','zombified_piglin','zombie_pigman','zoglin','drowned','zombie_villager'].includes(this.targetMob.type)) {
-              damage += 2.5 * ench.level;
-            }
-          }
-        }
+        // The enchantment bonuses used to be inline here, with the undead list spelled out as a literal
+        // array. They live in enchantmentEffects.js now so bane of arthropods and the durability effects
+        // have somewhere to go, and so the numbers can be asserted directly.
+        damage += attackBonus(activeItem.enchantments, this.targetMob.type);
       }
       // Strength and weakness scale what this hit deals. Asked of the player rather than computed here,
       // so the effect rules stay in one module and this call site needs no import.
       const effectScale = this.player?.attackDamageMultiplier?.() ?? 1;
       if (effectScale !== 1) damage *= effectScale;
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
+      // Fire aspect sets the target alight after the hit lands, so a killing blow still burns the corpse
+      // rather than skipping the effect.
+      if (activeItem && Array.isArray(activeItem.enchantments)) {
+        for (const ench of activeItem.enchantments) {
+          if (ench?.id !== 'fire_aspect') continue;
+          const seconds = fireAspectSeconds(ench.level);
+          if (seconds > 0) igniteActor(this.targetMob, seconds);
+        }
+      }
       return;
     }
 
