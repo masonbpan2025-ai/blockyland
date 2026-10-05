@@ -242,7 +242,9 @@ export function addPieces({
 
     // Connectors are tried in selection-priority order; vanilla sorts them and then shuffles within a
     // priority band, so equal priorities are not resolved by insertion order.
-    const connectors = [...(piece.meta.connectors || [])].sort((a, b) => (a.selectionPriority ?? 0) - (b.selectionPriority ?? 0));
+    const connectors = [...(piece.meta.connectors || [])]
+      .filter((candidate) => !candidate.consumed)
+      .sort((a, b) => (a.selectionPriority ?? 0) - (b.selectionPriority ?? 0));
     for (const connector of connectors) {
       if (!connector.pool) continue;
       const pool = pools.resolve(connector.pool) ?? (startPool.fallback ? pools.resolve(startPool.fallback) : null);
@@ -278,7 +280,11 @@ export function addPieces({
 
         const offset = { x: 0, y: 0, z: 0 };
         if (match) {
-          const matchWorld = built.connectorPositions?.[match.name];
+          // Per-INSTANCE, falling back to the name-keyed map for callers that provide only that.
+          const matchIndex = candidateConnectors.indexOf(match);
+          const matchWorld = (matchIndex >= 0 && built.connectors?.[matchIndex]?.position)
+            ? built.connectors[matchIndex].position
+            : (built.connectorPositions?.[match.name] ?? null);
           if (matchWorld) {
             // Move the candidate so its connector lands exactly on ours.
             offset.x += at.x - matchWorld.x;
@@ -305,6 +311,12 @@ export function addPieces({
         if (occupied.some((box) => box.intersects(probe.box))) { diagnostics.rejectedByCollision++; continue; }
 
         const child = place(element, turns, Mirror.NONE, finalAt, depth + 1, piece, match?.name ?? null);
+        // The connector we just joined through must not be expanded again: it is now buried inside the
+        // parent, so expanding from it would place a piece overlapping the parent and be rejected.
+        if (match && built.connectors) {
+          const joinedIndex = candidateConnectors.indexOf(match);
+          if (joinedIndex >= 0 && built.connectors[joinedIndex]) built.connectors[joinedIndex].consumed = true;
+        }
         if (!child) continue;
         queue.push({ piece: child, depth: depth + 1 });
         placedForConnector = true;
