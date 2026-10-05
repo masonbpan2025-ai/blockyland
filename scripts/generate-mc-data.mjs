@@ -205,13 +205,38 @@ export function knownHarvestNames() {
 console.log(`  blockHarvestData.js: ${harvestRows.length} blocks`);
 
 // --- 2. mob loot ------------------------------------------------------------
+
+/**
+ * Drops vanilla has that minecraft-data does not publish.
+ *
+ * The published `drowned` entry is `[['rotten_flesh'], ['copper_ingot', 0.11, null, 'playerKill']]` and
+ * stops there, while Java also gives a drowned a **3%** nautilus shell and an **8.5%** chance of the
+ * trident it was carrying. Without both rows nothing in this game produced a nautilus shell -- which is
+ * what a conduit is made of -- or a trident at all, and the Resource Inspector reported each as an item
+ * with no source of any kind.
+ *
+ * Kept here rather than hand-edited into the output, because the output is regenerated: an edit there
+ * would survive until the next run and then vanish silently, which is how the music discs were lost once
+ * already.
+ *
+ * Same shape as a published drop: `{ item, dropChance, stackSizeRange, playerKill }`.
+ */
+const MOB_LOOT_ADDITIONS = {
+  drowned: [
+    { item: 'nautilus_shell', dropChance: 0.03 },
+    // Java gives this only to a drowned that spawned holding a trident. This game's drowned all throw
+    // one, so the condition is satisfied by the model rather than checked here.
+    { item: 'trident', dropChance: 0.085 },
+  ],
+};
+
 const lootRows = entityLoot
   .filter(e => Array.isArray(e.drops) && e.drops.length)
   .map(e => [e.entity, e.drops])
   .sort((a, b) => a[0].localeCompare(b[0]));
 
 const lootBody = lootRows.map(([entity, drops]) => {
-  const parts = drops.map(d => {
+  const parts = [...drops, ...(MOB_LOOT_ADDITIONS[entity] ?? [])].map(d => {
     const range = Array.isArray(d.stackSizeRange) ? d.stackSizeRange : [1, 1];
     // Fixed arity: [item, chance, count, flags]. The flags must always occupy the same slot,
     // or a consumer reading position 3 picks up a count instead. Trailing nulls are trimmed
