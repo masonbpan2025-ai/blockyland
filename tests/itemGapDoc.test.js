@@ -15,7 +15,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { registry } from '../src/resourceRegistry.js';
+import { missingVanillaItems, registry } from '../src/resourceRegistry.js';
+import { buildVanillaIndex } from '../src/resourceShowcase.js';
 import { SMELTING_RECIPES } from '../src/furnace.js';
 import { maxDurabilityFor } from '../src/durability.js';
 import { INTERACTION_SOURCES } from '../src/interactionSources.js';
@@ -103,6 +104,18 @@ test('the document reports the figures the Inspector measures', () => {
   // The item total and the absent-name count are the two the document leads with. A stale number should fail
   // rather than mislead, which is the whole reason this test exists.
   assert.match(doc, new RegExp(`\\*\\*${items}\\*\\*`), `the document should report ${items} items`);
-  assert.match(doc, /## The eighteen absent vanilla names/, 'and the section naming every absent item');
+  // The heading spells the count as a word, so it is matched as a word; the figure assertion below is what
+  // pins the number, and this only checks the section is there.
+  assert.match(doc, /## The \w+ absent vanilla names, by owner/, 'and the section naming every absent item');
+  // The count the document leads with, measured rather than restated. The first version of this guard did not
+  // pin it, and the document went stale for a round -- twice, in the end: the aliases that would have taken
+  // `splash_potion` and `lingering_potion` off the list were refused by the shadow report, so the list went
+  // 18 -> 16 -> 18 while this test was being written.
+  //
+  // The names come from the pinned data rather than from `buildVanillaIndex()`, which returns an index with no
+  // names at all unless it is handed the data: the CLI loads them through its own `loadVanilla`.
+  const names = JSON.parse(readFileSync('.cache/mc-data/items.json', 'utf8')).map((item) => item.name);
+  const absent = missingVanillaItems(r, { itemNames: names }).length;
+  assert.match(doc, new RegExp(`\\*\\*${absent}\\*\\* \\| 1385`), `the document should report ${absent} absent names`);
   assert.match(doc, /node scripts\/inspect-resource\.mjs audit/, 'and how to reproduce the figures');
 });

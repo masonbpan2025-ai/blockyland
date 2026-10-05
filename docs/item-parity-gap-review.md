@@ -67,19 +67,30 @@ feature it exists for, which is what the next section is about.
 | Item | Why it is absent | Owner |
 | --- | --- | --- |
 | `map`, `written_book` | Neither is an item so much as a UI: a map is drawn from a rendered world view and a book is a text editor. Both need a screen, not a definition | engine |
-| `spyglass`, `recovery_compass` | A zoom view and a pointer to a place you died. Both need camera and world-history plumbing | engine |
+| `spyglass`, `recovery_compass` | A zoom view and a pointer to a place you died. Both need camera and world-history plumbing, and the item-addition path excludes them for that reason: a crafted spyglass with no zoom is a dead item | engine |
 | `resin_brick` | Vanilla's route is a creaking heart dropping resin clumps, which are then crafted. The **creaking** exists here; the resin clump block does not | block lane, then item |
-| `splash_potion`, `lingering_potion` | This game models potions by effect (`splash_potion_of_weakness`), so the *generic* vanilla names do not apply. A naming model difference, not a missing item | by design |
+| `splash_potion`, `lingering_potion` | The same two items this game calls `splash_water_bottle` and `lingering_water_bottle` — a potion with no stored effect is water. Reconciling them is a **rename**, not an alias: the alias was written and `tests/duplicateIds.test.js` refused it, because the shadow report requires this game to register vanilla's own spelling rather than a synonym for it | rename |
 | `command_block_minecart`, `knowledge_book`, `debug_stick` | Creative-only and operator-only. Vanilla gives them no survival source either | creative menu only |
 | `trial_key`, `ominous_trial_key` | Vanilla's source is a defeated **trial spawner**, and this game's trial spawner is an inert block with no block entity | block entity, then item |
 | `flow_banner_pattern`, `guster_banner_pattern` | From *ominous* vaults, which need the trial-spawner chain above | as above |
 | `globe_banner_pattern`, `piglin_banner_pattern` | A cartographer trade and a piglin barter. Neither table carries them | trade tables |
 | `firework_star` | Deliberately **not** added: this game's rockets carry no burst data, so a star would be an item with nothing to do | engine, if ever |
 
-Two of these are worth stating plainly because they look like gaps and are not. `firework_star` is craftable
+`firework_star` is the one here worth stating plainly, because it looks like a gap and is not. It is craftable
 in vanilla and pointless here until rockets carry colours, so adding it would put an item in the registry that
-can be made and cannot be used — the trap this series has avoided at every step. And the generic potion names
-are a modelling difference: the game has the potion, under a name that says which one.
+can be made and cannot be used — the trap this series has avoided at every step.
+
+The list was twenty, and then eighteen. `splash_potion` and `lingering_potion` came off it by
+*reconciliation* for one commit — an alias in `VANILLA_ID_ALIASES`, the table that exists for exactly this —
+and then went back on when `tests/duplicateIds.test.js` refused the alias. That report tells a duplicate from a
+rename, and the rule it enforces is that this game registers vanilla's own spelling rather than a synonym for
+it; `slimeball` and `hay_bale` had been fixed that way in earlier rounds, which is why their aliases were
+stale and are now gone. So the two potion names are a rename waiting to happen, recorded here rather than
+papered over.
+
+Two more names came off the list by reconciliation in an earlier round: `snow` and `target_block` are blocks
+this game registers under the plain material name while vanilla appends `_block`. Their aliases stay, because
+the ids really are those spellings and `block-drop-parity` needs the pairing.
 
 ## What landed, by theme
 
