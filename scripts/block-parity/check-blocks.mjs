@@ -53,7 +53,15 @@ for (const key of keys) {
 
   // Hardness 0 is correct for plants (flowers and saplings are instantly breakable), so the check is
   // that the value is present and sane, not that it is positive.
-  note(typeof def.hardness === 'number' && def.hardness >= 0, `hardness ${def.hardness}`);
+  //
+  // THE VALUE -1 IS ALSO CORRECT, and this check used to reject it. -1 is how this registry marks an
+  // UNBREAKABLE block: the end portal has carried it since long before this goal, and the end gateway
+  // carries it for the same reason. Rejecting it would have forced the gateway to be breakable to satisfy a
+  // checker whose rule was simply incomplete, so the rule now accepts both and says which is which.
+  const saneHardness = typeof def.hardness === 'number' && (def.hardness >= 0 || def.hardness === -1);
+  note(saneHardness, def.hardness === -1
+    ? 'hardness -1 (unbreakable, as the end portal is)'
+    : `hardness ${def.hardness}`);
   const tex = Object.values(def.textures ?? {});
   note(tex.length > 0, `textures ${JSON.stringify(tex)}`);
 

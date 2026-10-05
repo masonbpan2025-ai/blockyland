@@ -98,6 +98,9 @@ const ENTITY_SHEETS = [
   // The ender dragon lives under its own mob directory rather than a bare mob name, and its sheet is a
   // 256x256 model texture rather than a 64x32 skin -- the extractor handles it as a special case.
   'enderdragon/dragon.png',
+  // The sniffer, whose palette the sniffer egg's composer reads. Not a head, and not used by the extractor;
+  // it is here because a composer needs it and this is the step that fetches entity art.
+  'sniffer/sniffer.png',
 ];
 {
   const absent = ENTITY_SHEETS.filter((f) => !existsSync(path.join(root, 'public', 'assets', 'entity', f)));
@@ -142,6 +145,9 @@ const TRANSFORMS = [
   // input at all -- `chest_*.png` is not in the mirror -- so it depends on the files this repo ships rather
   // than on anything fetched above, which is why its position is safe at the end.
   'compose-chest-variants.py',
+  // The sniffer egg and the end gateway. The egg reads its palette out of the sniffer's ENTITY sheet, so
+  // this must run AFTER the entity step above; the gateway derives from `nether_portal.png`.
+  'compose-egg-and-gateway.py',
 ];
 
 for (const script of TRANSFORMS) {
