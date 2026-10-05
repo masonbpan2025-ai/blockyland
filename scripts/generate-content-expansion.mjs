@@ -154,6 +154,21 @@ const FAMILIES = [
     extra: { cube: true },
   },
   {
+    // Walls: a chunky post with full-height rails. One shape, 25 recipes, which is the best
+    // remaining payoff. `_wall` is in the name-based cube exclusion, bypassed by the marker.
+    id: 'walls',
+    match: (n) => /_wall$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_wall$/, "");
+      if (textureExists(base + ".png")) return base + ".png";
+      if (textureExists(n + ".png")) return n + ".png";
+      if (textureExists(base + ".svg")) return base + ".svg";
+      return base + ".png";
+    },
+    sound: 'stone',
+    extra: { wall: true },
+  },
+  {
     // Fences: a post with two rails, so a shape rather than a cube. `_fence` is still in the
     // name-based cube exclusion, which the shape marker bypasses.
     id: 'fences',

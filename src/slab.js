@@ -231,6 +231,33 @@ export function createFenceGeometry(def, tm) {
 }
 
 /**
+ * A wall: a chunky post with full-height rails crossing it.
+ *
+ * Vanilla walls are an 8/16 square post at full height with 8/16-thick side pieces, so a straight run
+ * reads as a thin full-height barrier rather than a fence's low rails. One shape unblocks 25 recipes,
+ * which makes it the best remaining payoff.
+ *
+ * Like fences, the rails are always drawn on both axes rather than following neighbours. The same
+ * reasoning applies and the same caveat is recorded: a cross-shaped wall is never wrong about being a
+ * wall, only occasionally over-connected, where a cube would be wrong everywhere.
+ */
+export function createWallGeometry(def, tm) {
+  const thickness = 8 / 16;
+  const railMin = (1 - thickness) / 2;
+  const parts = [
+    // The post: full block height, centred.
+    buildBox({ x: thickness, y: 1, z: thickness }, { x: railMin, y: 0, z: railMin }, def, tm),
+    // Rail along X, full height.
+    buildBox({ x: 1, y: 1, z: thickness }, { x: 0, y: 0, z: railMin }, def, tm),
+    // Rail along Z, full height.
+    buildBox({ x: thickness, y: 1, z: 1 }, { x: railMin, y: 0, z: 0 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+
+/**
  * A candle: a narrow column standing on the floor.
  *
  * Vanilla candles are 2 pixels across and 6 tall. One builder serves all sixteen colours, since the

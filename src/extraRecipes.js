@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1387 recipes.
+// 1412 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -26,13 +26,16 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.COBBLESTONE,B.COBBLESTONE],[B.COBBLESTONE,B.COBBLESTONE]],result:{id:B.POLISHED_DEEPSLATE,isBlock:true,count:4}},
   {pattern:[[B.TUFF,B.TUFF,B.TUFF]],result:{id:B.TUFF_SLAB,isBlock:true,count:6}},
   {pattern:[[B.TUFF,null,null],[B.TUFF,B.TUFF,null],[B.TUFF,B.TUFF,B.TUFF]],result:{id:B.TUFF_STAIRS,isBlock:true,count:4}},
+  {pattern:[[B.TUFF,B.TUFF,B.TUFF],[B.TUFF,B.TUFF,B.TUFF]],result:{id:B.TUFF_WALL,isBlock:true,count:6}},
   {pattern:[[B.TUFF_SLAB],[B.TUFF_SLAB]],result:{id:B.CHISELED_TUFF,isBlock:true,count:1}},
   {pattern:[[B.TUFF,B.TUFF],[B.TUFF,B.TUFF]],result:{id:B.POLISHED_TUFF,isBlock:true,count:4}},
   {pattern:[[B.POLISHED_TUFF,B.POLISHED_TUFF,B.POLISHED_TUFF]],result:{id:B.POLISHED_TUFF_SLAB,isBlock:true,count:6}},
   {pattern:[[B.POLISHED_TUFF,null,null],[B.POLISHED_TUFF,B.POLISHED_TUFF,null],[B.POLISHED_TUFF,B.POLISHED_TUFF,B.POLISHED_TUFF]],result:{id:B.POLISHED_TUFF_STAIRS,isBlock:true,count:4}},
+  {pattern:[[B.POLISHED_TUFF,B.POLISHED_TUFF,B.POLISHED_TUFF],[B.POLISHED_TUFF,B.POLISHED_TUFF,B.POLISHED_TUFF]],result:{id:B.POLISHED_TUFF_WALL,isBlock:true,count:6}},
   {pattern:[[B.POLISHED_TUFF,B.POLISHED_TUFF],[B.POLISHED_TUFF,B.POLISHED_TUFF]],result:{id:B.TUFF_BRICKS,isBlock:true,count:4}},
   {pattern:[[B.TUFF_BRICKS,B.TUFF_BRICKS,B.TUFF_BRICKS]],result:{id:B.TUFF_BRICK_SLAB,isBlock:true,count:6}},
   {pattern:[[B.TUFF_BRICKS,null,null],[B.TUFF_BRICKS,B.TUFF_BRICKS,null],[B.TUFF_BRICKS,B.TUFF_BRICKS,B.TUFF_BRICKS]],result:{id:B.TUFF_BRICK_STAIRS,isBlock:true,count:4}},
+  {pattern:[[B.TUFF_BRICKS,B.TUFF_BRICKS,B.TUFF_BRICKS],[B.TUFF_BRICKS,B.TUFF_BRICKS,B.TUFF_BRICKS]],result:{id:B.TUFF_BRICK_WALL,isBlock:true,count:6}},
   {pattern:[[B.TUFF_BRICK_SLAB],[B.TUFF_BRICK_SLAB]],result:{id:B.CHISELED_TUFF_BRICKS,isBlock:true,count:1}},
   {pattern:[[B.POINTED_DRIPSTONE,B.POINTED_DRIPSTONE],[B.POINTED_DRIPSTONE,B.POINTED_DRIPSTONE]],result:{id:B.DRIPSTONE_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.DIRT,B.GRAVEL],[B.GRAVEL,B.DIRT]],result:{id:B.COARSE_DIRT,isBlock:true,count:4}},
@@ -325,6 +328,28 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.CRIMSON_PLANKS,null,null],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,null],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.CRIMSON_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.WARPED_PLANKS,null,null],[B.WARPED_PLANKS,B.WARPED_PLANKS,null],[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.WARPED_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],[B.GLASS,'nether_star',B.GLASS],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.BEACON,isBlock:true,count:1}},
+  {pattern:[[B.COBBLESTONE,B.COBBLESTONE,B.COBBLESTONE],[B.COBBLESTONE,B.COBBLESTONE,B.COBBLESTONE]],result:{id:B.COBBLESTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.MOSSY_COBBLESTONE,B.MOSSY_COBBLESTONE,B.MOSSY_COBBLESTONE],[B.MOSSY_COBBLESTONE,B.MOSSY_COBBLESTONE,B.MOSSY_COBBLESTONE]],result:{id:B.MOSSY_COBBLESTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.BRICKS,B.BRICKS,B.BRICKS],[B.BRICKS,B.BRICKS,B.BRICKS]],result:{id:B.BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.PRISMARINE,B.PRISMARINE,B.PRISMARINE],[B.PRISMARINE,B.PRISMARINE,B.PRISMARINE]],result:{id:B.PRISMARINE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.RED_SANDSTONE,B.RED_SANDSTONE,B.RED_SANDSTONE],[B.RED_SANDSTONE,B.RED_SANDSTONE,B.RED_SANDSTONE]],result:{id:B.RED_SANDSTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.MOSSY_STONE_BRICKS,B.MOSSY_STONE_BRICKS,B.MOSSY_STONE_BRICKS],[B.MOSSY_STONE_BRICKS,B.MOSSY_STONE_BRICKS,B.MOSSY_STONE_BRICKS]],result:{id:B.MOSSY_STONE_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.GRANITE,B.GRANITE,B.GRANITE],[B.GRANITE,B.GRANITE,B.GRANITE]],result:{id:B.GRANITE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.STONE_BRICKS,B.STONE_BRICKS,B.STONE_BRICKS],[B.STONE_BRICKS,B.STONE_BRICKS,B.STONE_BRICKS]],result:{id:B.STONE_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.MUD_BRICKS,B.MUD_BRICKS,B.MUD_BRICKS],[B.MUD_BRICKS,B.MUD_BRICKS,B.MUD_BRICKS]],result:{id:B.MUD_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.NETHER_BRICKS,B.NETHER_BRICKS,B.NETHER_BRICKS],[B.NETHER_BRICKS,B.NETHER_BRICKS,B.NETHER_BRICKS]],result:{id:B.NETHER_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.ANDESITE,B.ANDESITE,B.ANDESITE],[B.ANDESITE,B.ANDESITE,B.ANDESITE]],result:{id:B.ANDESITE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.RED_NETHER_BRICKS,B.RED_NETHER_BRICKS,B.RED_NETHER_BRICKS],[B.RED_NETHER_BRICKS,B.RED_NETHER_BRICKS,B.RED_NETHER_BRICKS]],result:{id:B.RED_NETHER_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.SANDSTONE,B.SANDSTONE,B.SANDSTONE],[B.SANDSTONE,B.SANDSTONE,B.SANDSTONE]],result:{id:B.SANDSTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.END_STONE_BRICKS,B.END_STONE_BRICKS,B.END_STONE_BRICKS],[B.END_STONE_BRICKS,B.END_STONE_BRICKS,B.END_STONE_BRICKS]],result:{id:B.END_STONE_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.DIORITE,B.DIORITE,B.DIORITE],[B.DIORITE,B.DIORITE,B.DIORITE]],result:{id:B.DIORITE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.BLACKSTONE,B.BLACKSTONE,B.BLACKSTONE],[B.BLACKSTONE,B.BLACKSTONE,B.BLACKSTONE]],result:{id:B.BLACKSTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.POLISHED_BLACKSTONE,B.POLISHED_BLACKSTONE,B.POLISHED_BLACKSTONE],[B.POLISHED_BLACKSTONE,B.POLISHED_BLACKSTONE,B.POLISHED_BLACKSTONE]],result:{id:B.POLISHED_BLACKSTONE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.POLISHED_BLACKSTONE_BRICKS,B.POLISHED_BLACKSTONE_BRICKS,B.POLISHED_BLACKSTONE_BRICKS],[B.POLISHED_BLACKSTONE_BRICKS,B.POLISHED_BLACKSTONE_BRICKS,B.POLISHED_BLACKSTONE_BRICKS]],result:{id:B.POLISHED_BLACKSTONE_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.COBBLESTONE,B.COBBLESTONE,B.COBBLESTONE],[B.COBBLESTONE,B.COBBLESTONE,B.COBBLESTONE]],result:{id:B.COBBLED_DEEPSLATE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE],[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE]],result:{id:B.POLISHED_DEEPSLATE_WALL,isBlock:true,count:6}},
+  {pattern:[[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS],[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS]],result:{id:B.DEEPSLATE_BRICK_WALL,isBlock:true,count:6}},
+  {pattern:[[B.DEEPSLATE_TILES,B.DEEPSLATE_TILES,B.DEEPSLATE_TILES],[B.DEEPSLATE_TILES,B.DEEPSLATE_TILES,B.DEEPSLATE_TILES]],result:{id:B.DEEPSLATE_TILE_WALL,isBlock:true,count:6}},
   {pattern:[[B.IRON_BLOCK,B.IRON_BLOCK,B.IRON_BLOCK],[null,'iron_ingot',null],['iron_ingot','iron_ingot','iron_ingot']],result:{id:B.ANVIL,isBlock:true,count:1}},
   {pattern:[[B.QUARTZ_SLAB],[B.QUARTZ_SLAB]],result:{id:B.CHISELED_QUARTZ_BLOCK,isBlock:true,count:1}},
   {pattern:[['quartz','quartz'],['quartz','quartz']],result:{id:B.QUARTZ_BLOCK,isBlock:true,count:1}},
@@ -1407,21 +1432,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1387;
+export const EXTRA_RECIPE_COUNT = 1412;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1387,
-  "shaped": 1149,
+  "emitted": 1412,
+  "shaped": 1174,
   "shapeless": 245,
-  "skippedMissingResult": 156,
+  "skippedMissingResult": 131,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1394,
+  "emittedBeforeDedupe": 1419,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0
