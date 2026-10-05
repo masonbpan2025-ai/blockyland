@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { igniteActor } from './heat.js';
+import { applyMobWither } from './witherEffect.js';
 const forward = new THREE.Vector3(0,0,1);
 export function createArrowModel() {
   const group=new THREE.Group();
@@ -20,7 +22,7 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
   const mesh=createArrowModel();mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(forward,direction.clone().normalize());
   const trail=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffedc2,transparent:true,opacity:.65,vertexColors:true,depthWrite:false}));trail.frustumCulled=false;
   manager.scene.add(mesh,trail);manager.sounds?.playBowShoot?.();
-  const arrow={spectral:!!options.spectral,target:options.target,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
+  const arrow={flaming:!!options.flaming,effect:options.effect,spectral:!!options.spectral,target:options.target,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
 }
 
 function projectileHitBounds(manager, target) {
@@ -65,11 +67,17 @@ export function updateArrows(manager,dt,player){
         const pos=target.mesh?.position??target.position;
         const bounds = target.mesh ? projectileHitBounds(manager, target) : { minY: pos.y, maxY: pos.y + 1.8, halfWidth: target.width ?? .6 };
         if(Math.abs(next.x-pos.x)<bounds.halfWidth+.12&&Math.abs(next.z-pos.z)<bounds.halfWidth+.12&&next.y>=bounds.minY&&next.y<=bounds.maxY){
+          const healthBefore = target.health;
           if(target===player)player.takeDamage(arrow.damage, arrow.shooter?.mesh?.position, 'arrow');
           else {
             const hitDirection = arrow.velocity.clone().normalize();
             manager.damageMob(target, arrow.damage, next.clone().sub(hitDirection), false, arrow.shooter === 'player' ? manager.game?.player : arrow.shooter);
             if (arrow.spectral) target.glowingTime = 10;
+          }
+          if(target.health < healthBefore){
+            if(arrow.flaming)igniteActor(target,5);
+            if(arrow.spectral&&target===player)target.applyStatusEffect?.('glowing',10,1);
+            if(arrow.effect){const {id,duration=10,level=1}=arrow.effect;if(target.applyStatusEffect)target.applyStatusEffect(id,duration,level);else if(id==='wither')applyMobWither(target,duration);}
           }
           removeArrow(manager,arrow);removed=true;break;
         }

@@ -1,3 +1,6 @@
+import { createWitherSkeletonModel } from './witherSkeletonModel.js';
+import { initializeWitherSkeleton, updateWitherSkeleton, hurtWitherSkeleton, dropWitherSkeletonLoot, updateWitherSkeletonSpawning, updateWolfWitherHunt } from './witherSkeleton.js';
+import { updateMobWither } from './witherEffect.js';
 import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
 import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
 import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified} from './zombifiedPiglin.js';
@@ -135,7 +138,7 @@ export class MobManager {
   }
 
   clearMobs() {
-    for(const mob of this.mobs){if(isSquid(mob)){for(const mat of mob.squidMaterials||[])mat.map?.dispose();}if(mob.laserLine){mob.laserLine.removeFromParent();mob.laserLine.geometry.dispose();mob.laserLine.material.dispose();mob.laserLine=null;}if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
+    for(const mob of this.mobs){for(const texture of mob.ownedTextures || [])texture.dispose();if(isSquid(mob)){for(const mat of mob.squidMaterials||[])mat.map?.dispose();}if(mob.laserLine){mob.laserLine.removeFromParent();mob.laserLine.geometry.dispose();mob.laserLine.material.dispose();mob.laserLine=null;}if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
     this.playerContactStart = null;
     for (const potion of this.splashPotions || []) { potion.mesh.removeFromParent(); potion.mesh.geometry.dispose(); potion.mesh.material.dispose(); }
     this.splashPotions = [];
@@ -4129,63 +4132,13 @@ export class MobManager {
 
   // --- WITHER SKELETON ---
   // --- WITHER SKELETON ---
-  spawnWitherSkeleton(x, y, z) {
-    const group = new THREE.Group();
-    const darkMat = new THREE.MeshLambertMaterial({
-      map: this.textures.wither_skeleton,
-      color: 0xffffff
-    });
-
-    // 2.4 blocks tall dark skeleton
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.9, 0.28), darkMat);
-    body.position.y = 1.45;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.52), darkMat);
-    head.position.y = 2.15;
-    group.add(head);
-
-    const armGeo = new THREE.BoxGeometry(0.18, 0.95, 0.18);
-    const leftArm = new THREE.Mesh(armGeo, darkMat); leftArm.position.set(-0.35, 1.45, 0); group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, darkMat); rightArm.position.set(0.35, 1.45, 0); group.add(rightArm);
-
-    const legGeo = new THREE.BoxGeometry(0.18, 1.15, 0.18);
-    const leftLeg = new THREE.Mesh(legGeo, darkMat); leftLeg.position.set(-0.16, 0.58, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, darkMat); rightLeg.position.set(0.16, 0.58, 0); group.add(rightLeg);
-
-    // Stone Sword in hand
-    const swordMat = new THREE.MeshLambertMaterial({ color: 0x52525b });
-    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.95, 0.16), swordMat);
-    sword.position.set(0, -0.35, 0.25);
-    sword.rotation.x = Math.PI / 4;
-    rightArm.add(sword);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'wither_skeleton',
-      name: 'Wither Skeleton',
-      mesh: group,
-      head: head,
-      leftArm: leftArm,
-      rightArm: rightArm,
-      leftLeg: leftLeg,
-      rightLeg: rightLeg,
-      health: 20,
-      maxHealth: 20,
-      fireImmune: true,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      state: 'idle',
-      timer: 0,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
+  spawnWitherSkeleton(x, y, z, options = {}) {
+    const mob = { ...createWitherSkeletonModel(), type: 'wither_skeleton', name: 'Wither Skeleton',
+      health: 20, maxHealth: 20, velocity: new THREE.Vector3(), yaw: (this.random || Math.random)() * Math.PI * 2,
+      state: 'idle', timer: 0, hitCooldown: 0 };
+    mob.mesh.position.set(x, y, z); initializeWitherSkeleton(this, mob, options);
+    this.scene.add(mob.mesh); this.mobs.push(mob); return mob;
   }
-
   // --- STRIDER ---
   spawnStrider(x, y, z, options = {}) {
     const mob = { ...createStriderModel(), type: 'strider', name: 'Strider',
@@ -5879,7 +5832,7 @@ export class MobManager {
   damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
-    if ((mob.type === 'magma_cube' || mob.type === 'horse' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
+    if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
     if (attacker === this.game?.player || (!isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
     if(mob.type==='strider'){
       this.sounds?.playStrider?.(mob.health<=amount?'death':'retreat');mob.soundTimer=3;
@@ -5889,6 +5842,7 @@ export class MobManager {
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     mob.health -= amount;
+    if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
 
@@ -6110,6 +6064,7 @@ export class MobManager {
         this.hostileBehaviors?.handleMobDeathSplitting?.(mob);
       }
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      if(mob.type==='wither_skeleton'){dropWitherSkeletonLoot(this,mob,pos);mob.noLoot=true;}
       if(isSquid(mob)){dropSquidLoot(this,mob,pos);mob.noLoot=true;}
       if(isZombifiedPiglin(mob)){dropZombifiedLoot(this,mob,pos);mob.noLoot=true;}
       if (mob.isBaby) {
@@ -6195,6 +6150,7 @@ export class MobManager {
       const geometries = new Set();
       mob.mesh.traverse(child => { if (child.geometry) geometries.add(child.geometry); });
       geometries.forEach(geo => geo.dispose());
+      for(const texture of mob.ownedTextures || [])texture.dispose();
       if(isSquid(mob))for(const mat of mob.squidMaterials||[])mat.map?.dispose();
       mob.deathMaterials.forEach(mat => mat.dispose()); // texture maps are shared and stay cached
     }
@@ -6340,6 +6296,8 @@ export class MobManager {
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
     updateStriderSpawning(this, dt, player);
     updateSquidSpawning(this, dt, player);
+    updateWitherSkeletonSpawning(this,dt,player);
+    updateMobWither(this,dt);
     updateArrows(this, dt, player);
     updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
@@ -6508,6 +6466,8 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
       if(!mob.jockeyMount){const speed=moveGroundMob(this,mob,dt);mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;}
       return false;
@@ -6620,7 +6580,7 @@ export class MobManager {
       let nearestHostile = null;
       let minDist = 16;
       for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie')) {
+        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'wither_skeleton')) {
           const d = mob.mesh.position.distanceTo(other.mesh.position);
           if (d < minDist) {
             minDist = d;

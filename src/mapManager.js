@@ -1,3 +1,4 @@
+import { serializeWitherSkeleton, restoreWitherSkeleton } from './witherSkeleton.js';
 import { serializeSquid, restoreSquid } from './squidBehavior.js';
 import {serializeZombified,restoreZombified,restoreZombifiedLinks,isZombifiedPiglin} from './zombifiedPiglin.js';
 import { serializeStrider, restoreStrider, attachStriderPassenger } from './striderBehavior.js';
@@ -68,6 +69,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     zombified: serializeZombified(mob,game.mobs),
     strider: serializeStrider(mob),
     squid: serializeSquid(mob),
+    witherSkeleton: serializeWitherSkeleton(mob),
     striderVehicle: mob.vehicle?.type==='strider' ? game.mobs.mobs.indexOf(mob.vehicle) : undefined,
     health: mob.health ?? 20
   }));
@@ -261,6 +263,7 @@ export function deserializeWorld(game, mapData, options = {}) {
         restoredMobs[recordIndex]=spawned;
         restoreStrider(spawned,m.strider);
         restoreSquid(spawned,m.squid);
+        restoreWitherSkeleton(spawned,m.witherSkeleton);
         if (spawned && m.health) {
           spawned.health = m.health;
           spawned.maxHealth = Math.max(spawned.maxHealth || m.health, m.health);

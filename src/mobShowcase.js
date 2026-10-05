@@ -1,3 +1,4 @@
+import { witherSkeletonScenarios } from './witherSkeletonScenarios.js';
 import { isSquid } from './squidBehavior.js';
 import { squidScenarios } from './squidScenarios.js';
 import { zombifiedScenarios } from './zombifiedPiglinScenarios.js';
@@ -85,6 +86,7 @@ function locomotionRunning(s) {
 }
 
 export function mobScenarios(type,definition=null) {
+  if(type==='wither_skeleton')return witherSkeletonScenarios();
   if(isSquid(type))return squidScenarios(type);
   const cases=type==='strider'?striderScenarios():[];
   if(type==='horse')cases.push(...horseScenarios());

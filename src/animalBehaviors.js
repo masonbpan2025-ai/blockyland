@@ -67,6 +67,8 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    if(mob.type==='wither_skeleton')return mob.health>0&&itemId==='name_tag'&&!!activeItem.customName;
+
     if(isSquid(mob))return canInteractSquid(mob,itemId);
     if(mob.type==='strider')return canInteractStrider(mob,itemId);
     if (isEquine(mob)) return canInteractHorse(mob,itemId);
@@ -133,6 +135,13 @@ export class AnimalBehaviors {
     if (!mob || !player || !inventory) return false;
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
+
+    if(mob.type==='wither_skeleton'){
+      if(mob.health<=0||itemId!=='name_tag'||!activeItem.customName)return false;
+      mob.name=activeItem.customName;mob.persistent=true;
+      if(player.gamemode!=='creative')inventory.consumeActiveItem(1);
+      return true;
+    }
 
     if(isSquid(mob))return interactSquid(this,mob,player,inventory,itemId);
     if(mob.type==='strider')return interactStrider(this,mob,player,inventory,itemId);

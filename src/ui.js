@@ -599,14 +599,15 @@ export class UIManager {
     // Health hearts
     const hearts = this.healthBarEl.children;
     const hp = Math.ceil(this.player.health);
+    const withered = this.player.hasStatusEffect?.('wither');
     for (let i = 0; i < hearts.length; i++) {
       const heartVal = (i + 1) * 2;
       if (hp >= heartVal) {
         hearts[i].style.opacity = '1';
-        hearts[i].style.background = 'radial-gradient(circle, #ff2222 60%, #880000 90%)';
+        hearts[i].style.background = withered ? 'radial-gradient(circle, #292929 60%, #080808 90%)' : 'radial-gradient(circle, #ff2222 60%, #880000 90%)';
       } else if (hp >= heartVal - 1) {
         hearts[i].style.opacity = '1';
-        hearts[i].style.background = 'linear-gradient(to right, #ff2222 50%, #444444 50%)';
+        hearts[i].style.background = withered ? 'linear-gradient(to right, #292929 50%, #444444 50%)' : 'linear-gradient(to right, #ff2222 50%, #444444 50%)';
       } else {
         hearts[i].style.opacity = '0.35';
         hearts[i].style.background = '#222';
