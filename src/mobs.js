@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { GIANT_HEALTH, GIANT_DIMENSIONS, ZOMBIE_DIMENSIONS, GIANT_SCALE, GIANT_DAMAGE, GIANT_UNDEAD_PROPERTIES, GIANT_DROWNING, GIANT_FACING_YAW, GIANT_HAS_AI, GIANT_COLORS, isGiant, giantDimensions, giantDamageFor, giantBurnsInDaylight, giantFacing, giantMoves, giantReactionToDamage, giantAcceptsEffect, giantPotionOutcome, giantScaresArmadillos, giantUnderwaterOutcome, giantDrops, giantXp, giantAttack, createGiantModel, poseGiant } from './giantBehavior.js';
 import { PUFFERFISH_HEALTH, TROPICAL_FISH_HEALTH, PUFFERFISH_DIMENSIONS, TROPICAL_FISH_DIMENSIONS, FISH_SPEED, PUFFERFISH_CONTACT, PUFFERFISH_POISON, PUFFERFISH_TRIGGER, AQUATIC_TYPES, TROPICAL_FISH_VARIANTS, TROPICAL_FISH_SHAPES, TROPICAL_FISH_COLORS, TROPICAL_FISH_PATTERNS, FISH_COLORS, isPufferfish, isTropicalFish, isSmallFish, pufferfishDimensions, pufferfishStage, pufferfishDamageFor, pufferfishPoisonFor, pufferfishReactsTo, findPufferfishThreat, updatePufferfishPuff, pufferfishContact, rollTropicalFishVariant, tropicalFishVariantName, fishDrops, fishXp, createPufferfishModel, posePufferfish, createTropicalFishModel, poseTropicalFish } from './fishBehavior.js';
 import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSIONS, UNDEAD_HORSE_BABY_SCALE, UNDEAD_HORSE_SPEED, SKELETON_TRAP, UNDEAD_HORSE_SUN, UNDEAD_HORSE_TRAITS, UNDEAD_HORSE_TRANSPORT, UNDEAD_HORSE_EQUIPMENT, UNDEAD_HORSE_COLORS, isUndeadHorse, isSkeletonHorse, isZombieHorse, undeadHorseHealth, undeadHorseDimensions, undeadHorseBurnsInDaylight, undeadHorseIsHostile, undeadHorseSeparateFromRider, equipUndeadHorse, shearUndeadHorse, skeletonTrapReady, springSkeletonTrap, zombieHorseWantsRider, undeadHorseCanBreed, undeadHorseXp, createUndeadHorseModel, poseUndeadHorse } from './undeadHorseBehavior.js';
 import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
@@ -485,6 +486,7 @@ export class MobManager {
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
       case 'zombie': return this.spawnZombie(x, y, z);
+      case 'giant': return this.spawnGiant(x, y, z, options);
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
@@ -2601,6 +2603,8 @@ export class MobManager {
       case 'parched': return VARIANT_DIMENSIONS.parched;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
+      // Wiki: a giant is 3.6 x 12 -- a six-times-enlarged zombie.
+      case 'giant': return GIANT_DIMENSIONS;
       case 'pillager': return { width: 0.6, height: 1.95 };
       case 'salmon': return { width: 0.4, height: 0.35 };
       case 'cod': return { width: 0.35, height: 0.3 };
@@ -7648,6 +7652,64 @@ export class MobManager {
   }
 
   /**
+   * Giant.
+   *
+   * Wiki: 100 HP, 3.6 x 12 -- a six-times-enlarged zombie model -- dealing 26/50/75 by difficulty, and
+   * spawnable only by command. It is NOT undead, so it does not burn in sunlight and is neither harmed by
+   * Smite nor healed by Harming. Most importantly it "currently ha[s] no AI": it always faces south, never
+   * wanders, cannot turn its head, chase, or respond to damage.
+   */
+  spawnGiant(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const colors = GIANT_COLORS;
+    const skinMat = new THREE.MeshLambertMaterial({ color: colors.skin });
+    const shirtMat = new THREE.MeshLambertMaterial({ color: colors.shirt });
+    const trousersMat = new THREE.MeshLambertMaterial({ color: colors.trousers });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, head, eyes, arms, legs } =
+      createGiantModel(skinMat, shirtMat, trousersMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    // Wiki: "they always face south when summoned, and they always stay that way".
+    group.rotation.y = GIANT_FACING_YAW;
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'giant',
+      name: 'Giant',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, arms, legs,
+      // Wiki: 100 HP.
+      health: GIANT_HEALTH,
+      maxHealth: GIANT_HEALTH,
+      width: GIANT_DIMENSIONS.width,
+      height: GIANT_DIMENSIONS.height,
+      // Wiki: the giant has no speed listed and no AI to use one with.
+      speed: 0,
+      isHostile: true,
+      attackDamage: GIANT_DAMAGE.normal,
+      // Wiki: "Giants are not undead mobs." Every one of these follows from that sentence.
+      undead: GIANT_UNDEAD_PROPERTIES.undead,
+      burnsInDaylight: GIANT_UNDEAD_PROPERTIES.burnsInDaylight,
+      immuneToSmite: GIANT_UNDEAD_PROPERTIES.harmedBySmite === false,
+      // Wiki: no AI at all.
+      hasAI: GIANT_HAS_AI,
+      immobile: true,
+      giantPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: GIANT_FACING_YAW,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
    * Pufferfish.
    *
    * Wiki: 3 HP, neutral, speed 0.7. It never seeks a fight and instead inflates through two stages as a
@@ -8663,6 +8725,8 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: the giant's page gives no drop table and no experience value.
+    // It is routed through the base table like every other mob, so nothing is added here.
     // Wiki: each fish drops its own item. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced each drop twice.
     // Wiki: BOTH undead horses have their own rows in the base table below -- 0-2 bones for the skeleton
@@ -8775,7 +8839,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isGiant(mob) ? 0
+          : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
           : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
           : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
           : mob.type === 'snow_golem' ? 0
@@ -9617,6 +9682,24 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isGiant(mob)){
+      // Wiki: "Giants currently have no AI. The consequence of this is that they always face south when
+      // summoned, and they always stay that way, never wandering. They cannot turn their head, chase the
+      // player, or respond to damage."
+      //
+      // So this branch deliberately does almost nothing: it holds the mob still and pins its facing. The
+      // absence IS the behaviour, and a test asserts it rather than treating it as unfinished.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.velocity.set(0, 0, 0);
+      mob.mesh.rotation.y = GIANT_FACING_YAW;
+      mob.yaw = GIANT_FACING_YAW;
+      // Wiki: it does not burn in sunlight, unlike the zombie it is modelled on.
+      mob.isBurning = false;
+      // Wiki: it suffocates underwater rather than converting to a drowned.
+      mob.giantPhase = (mob.giantPhase || 0) + dt;
+      poseGiant(mob, mob.giantPhase);
       return true;
     }
     if(isUndeadHorse(mob)){

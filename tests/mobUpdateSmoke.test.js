@@ -141,7 +141,11 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
   // should be deleted as it is fixed.
   const deliberatelyStill = new Set([
     'bat',   // may be hanging from a ceiling
-    'fox'    // sleeps through the day
+    'fox',   // sleeps through the day
+    // Wiki: "Giants currently have no AI ... they always stay that way, never wandering." Its immobility is
+    // the mob's DEFINING property, not a missing implementation, so it belongs in this list rather than in
+    // `knownFrozen` -- which is for mobs that are meant to move and do not.
+    'giant'
   ]);
   const knownFrozen = new Set([
     'blaze',        // owned by the in-flight Blaze work on another branch

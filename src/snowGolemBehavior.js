@@ -162,7 +162,9 @@ export const SNOW_GOLEM_HOSTILES = [
   'creeper', 'evoker', 'husk', 'silverfish', 'witch', 'zombie', 'zombie_villager',
   'endermite', 'drowned', 'vex', 'vindicator', 'slime',
   // Wiki: it attacks these, and they never retaliate.
-  'breeze', 'creaking', 'elder_guardian', 'ender_dragon', 'guardian', 'magma_cube'
+  'breeze', 'creaking', 'elder_guardian', 'ender_dragon', 'guardian', 'magma_cube',
+  // Wiki: "Iron golems and snow golems attack giants as they attack other monster mobs."
+  'giant'
 ];
 
 /**
