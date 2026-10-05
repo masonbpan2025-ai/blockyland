@@ -530,6 +530,19 @@ TEXTURE_GENERATORS['deepslate.png'] = (x, y) => {
 
 TEXTURE_GENERATORS['deepslate_top.png'] = TEXTURE_GENERATORS['deepslate.png'];
 
+// Cobbled deepslate is deepslate broken into cobbles: the same dark base, but with block-scale seams
+// and per-cobble faceting instead of deepslate's smooth horizontal banding. Without this the slab,
+// stair and wall variants -- which all point at cobbled_deepslate.png -- named a file that did not
+// exist and fell through to the grey placeholder tile.
+TEXTURE_GENERATORS['cobbled_deepslate.png'] = (x, y) => {
+  const c = hexToRgb('#333a45');
+  const seam = (x % 4 === 0 || y % 4 === 0) ? -16 : 0;
+  const cell = hash(Math.floor(x / 4), Math.floor(y / 4), 27) - 0.5;
+  const facet = cell * 26;
+  const n = (hash(x, y, 9) - 0.5) * 8;
+  return [Math.round(c[0] + seam + facet + n), Math.round(c[1] + seam + facet + n), Math.round(c[2] + seam + facet + n), 255];
+};
+
 TEXTURE_GENERATORS['tuff.png'] = (x, y) => {
   const c = hexToRgb('#64748b');
   const n = (hash(x, y, 19) - 0.5) * 28;
