@@ -26,9 +26,9 @@ is the weakest of these:
 | --- | --- |
 | **Placement** | **Implemented.** Random-spread and concentric-rings placement, spacing/separation/salt/spread/frequency, all four frequency reducers, exclusion zones, weighted set selection with vanilla's without-replacement retry, `/locate`. 118/118 wiki biome gates resolve in `src/biomes.js`. |
 | **Layout** | Partial. Only `buried_treasure` has a layout generator. |
-| **Templates** | **Missing.** No `.nbt`/JSON template loader, no palette, no block-state parsing. See *Templates are a data problem* in STRUCTURE_REFERENCES.md. |
+| **Templates** | **Implemented**: `StructureTemplate`/`StructureTemplateManager` (palette, blocks with block-entity NBT, entities, jigsaw connectors, `structure_block` DATA markers), a dependency-free NBT reader, and block-state rotation. No template *data* ships with the repository — see *Templates are a data problem* in STRUCTURE_REFERENCES.md. |
 | **Randomness** | Implemented for placement (deterministic, unit-tested). Piece-level and template-selection randomness are not written. |
-| **Processors** | **Missing.** All 11 vanilla `processor_type` values are catalogued; none is implemented. |
+| **Processors** | **Implemented**: all 11 vanilla `processor_type` values (`nop`, `block_ignore`, `block_rot`, `protected_blocks`, `jigsaw_replacement`, `rule` with all 5 rule tests and all 3 position tests and all 4 block-entity modifiers, `capped`, `block_age`, `blackstone_replace`, `lava_submerged_block`, `gravity`), plus the template placement pipeline. Three are documented approximations (below). No structure uses them yet. |
 | **Terrain** | **Missing.** `terrain_adaptation` inflates a start's bounding box correctly (12 blocks unless `none`), but no beard/bury/encapsulate terrain shaping, no foundations, no heightmap-based Y selection. |
 | **Content** | Only `buried_treasure`'s chest with its loot-table reference. No loot-table system, no structure entity spawning, no spawner/vault/trial-spawner block entities. |
 | **Chunk safety** | Implemented for planning: a plan is a pure function of (seed, chunk, registry) and realization is clipped per chunk, proven by tests that ask chunks in forward and reverse order. No chunk-status pyramid, no structure references stored in saves yet. |
@@ -101,6 +101,11 @@ These generate like ores rather than through structure sets, and cannot be locat
 
 ## Known differences that apply to everything
 
+0. **Three processors are documented approximations**, each reported at runtime through its `notes` field:
+   `block_age` (the 0.5 roll and obsidian 0.15 are published; which of the four candidates is chosen and how
+   `mossiness` biases it are not), `blackstone_replace` (the wiki never prints the full replacement table, so
+   the documented core is implemented and unmapped variants are left alone), and `capped` (vanilla's
+   finalize pre-pass is not reproduced; the cap is applied greedily in placement order).
 1. **Placement parity is not bit-exact.** The mixing is implemented from documented behaviour and
    cross-checked against one MIT implementation, but no structural diff against a vanilla oracle exists,
    so "placement parity" currently means "same rules", not "same chunks".

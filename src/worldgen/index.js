@@ -205,3 +205,7 @@ export {
 export { StructureTemplate, StructureTemplateManager } from './template.js';
 export { parseBlockState, formatBlockState, rotateBlockState, rotateStateString, bareName } from './blockState.js';
 export { readNbt, readNbtAuto, writeNbt, gunzip, isGzipped, TagType } from './nbt.js';
+export {
+  createProcessor, createProcessorList, ProcessorList, PROCESSOR_TYPES, PROCESSOR_REQUIREMENTS
+} from './processors.js';
+export { placeTemplate, describePlacement, TERRAIN_MATCHING_GRAVITY_OFFSET } from './templatePlacement.js';

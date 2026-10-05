@@ -35,7 +35,7 @@ structure state inside the chunk cache and make it load-order dependent. Instead
 | `RandomSource`, `LegacyRandomSource`, positional factory | `LegacyRandom`, `XoroshiroRandom`, `PositionalRandomFactory` (`random.js`) | legacy path verified against the JDK; Xoroshiro seeding unverified |
 | `StructureTemplate`, `StructureTemplateManager` | `StructureTemplate`, `StructureTemplateManager` (`template.js`) | done: palette, blocks, block entities, entities, jigsaw markers, data markers |
 | `NbtIo` | `nbt.js` (dependency-free, browser-safe, `DecompressionStream` for gzip) | done |
-| `StructureProcessor`, `StructureProcessorList` | — | **missing** |
+| `StructureProcessor`, `StructureProcessorList` | `createProcessor`, `createProcessorList`, `ProcessorList` (`processors.js`); `placeTemplate` (`templatePlacement.js`) | done: all 11 types; three are documented approximations |
 | `StructureTemplatePool`, `PoolElement` | — | **missing** |
 | `JigsawPlacement` | — | **missing** |
 | `StructurePiece` *families* (mineshaft, fortress, stronghold, monument, mansion, end city) | — | **missing** |
@@ -64,7 +64,8 @@ order and compare plan hashes.
 
 | Rank | Subsystem | Unlocks | Why it is the right next step |
 | --- | --- | --- | --- |
-| 1 | **Processors** (11 types) + template placement into chunks | 15 template ids (igloo, shipwreck, 7 ruined portals, 2 ocean ruins, nether fossil, end city, mansion) | The template loader now exists; processors are the only thing between it and a placed structure. |
+| — | ✅ **Templates + processors + placement pipeline** | the machinery for 15 template ids | Done in phases 4-5. What remains for those ids is DATA (template files) and per-structure placement rules, not engine work. |
+| 1 | **Template data + per-structure placement rules** (igloo first) | 15 template ids (igloo, shipwreck, 7 ruined portals, 2 ocean ruins, nether fossil, end city, mansion) | The engine is ready; each structure now needs its templates and its documented placement/variant logic. |
 | 2 | **Template pools + jigsaw engine** | 10 jigsaw ids (5 villages, pillager outpost, bastion, ancient city, trail ruins, trial chambers) | The largest single group, and the most complex; needs pool element types, connector matching, two priorities, free-space collision, depth/distance limits and the expansion hack. |
 | 3 | **Procedural piece framework** | 5 ids (2 mineshafts, fortress, stronghold, monument) | Shares the piece/box machinery already present; each family is then a self-contained algorithm. |
 | 4 | **Terrain adaptation** (beard/bury/encapsulate) | quality of everything jigsaw/stronghold/trial-chamber | Without it, underground structures float and village roads cut through hills. Depends on real terrain queries, so it wants the world-facing adapter. |
