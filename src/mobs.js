@@ -27,6 +27,7 @@ import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js'
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
+import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -2268,7 +2269,7 @@ export class MobManager {
       case 'horse': return { width: 1.4, height: 1.6 };
       case 'donkey': return { width: 1.3965, height: 1.5 };
       case 'mule': return { width: 1.3965, height: 1.6 };
-      case 'wolf': return { width: 0.6, height: 0.85 };
+      case 'wolf': return { width: WOLF_DIMENSIONS.adult.width, height: WOLF_DIMENSIONS.adult.height };
       case 'cat':
       case 'ocelot': return { width: 0.6, height: 0.7 };
       case 'chicken': return { width: 0.4, height: 0.7 };
@@ -3833,7 +3834,7 @@ export class MobManager {
   }
 
   // --- WOLF ---
-  spawnWolf(x, y, z) {
+  spawnWolf(x, y, z, options = {}) {
     const group = new THREE.Group();
     const wolfTex = this.textures?.wolf || this.createWolfTexture();
     const wolfMat = new THREE.MeshLambertMaterial({ map: wolfTex });
@@ -3899,9 +3900,11 @@ export class MobManager {
     group.add(tail);
 
     group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(0.5);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
+    const wolfDims = options.isBaby ? WOLF_DIMENSIONS.baby : WOLF_DIMENSIONS.adult;
     const mob = {
       type: 'wolf',
       name: 'Wolf',
@@ -3910,8 +3913,17 @@ export class MobManager {
       collarMesh: collar,
       tailMesh: tail,
       legs: [fl, fr, bl, br],
-      health: 20,
-      maxHealth: 20,
+      // Wiki: a wild wolf has 8 HP. The 20 previously here is neither the wild value nor
+      // the tamed value, and taming did not change it.
+      health: WOLF_WILD_HEALTH,
+      maxHealth: WOLF_WILD_HEALTH,
+      isBaby: !!options.isBaby,
+      isTamed: false,
+      width: wolfDims.width,
+      height: wolfDims.height,
+      collarColor: WOLF_DEFAULT_COLLAR,
+      // Wiki: wolf armor is dropped when the wolf dies.
+      wolfArmor: options.wolfArmor ?? null,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -6181,6 +6193,8 @@ export class MobManager {
         if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       }
       if(mob.type==='strider'&&!mob.isBaby&&mob.isSaddled)this.entities?.spawnDroppedItem(pos,'saddle',false,1);
+      // Wiki: a wolf wearing wolf armor always drops it, regardless of what killed it.
+      if(mob.type==='wolf'&&mob.wolfArmor)this.entities?.spawnDroppedItem(pos,mob.wolfArmor,false,1);
       if (mob.type==='horse' && !mob.isBaby) {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }

@@ -4,6 +4,7 @@ import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
+import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
@@ -242,10 +243,12 @@ export class AnimalBehaviors {
     if (mob.type === 'wolf') {
       if (!mob.isTamed && itemId === 'bone') {
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-        if (Math.random() < 0.35) {
-          mob.isTamed = true;
+        if (Math.random() < WOLF_TAME_CHANCE) {
+          // Wiki: taming raises the maximum health from 8 to 40, keeping any existing
+          // injuries relative to the new maximum.
+          applyWolfTamed(mob);
           mob.owner = player;
-          mob.collarColor = 'red';
+          mob.collarColor = WOLF_DEFAULT_COLLAR;
           if (mob.collarMesh) {
             mob.collarMesh.visible = true;
             mob.collarMesh.material.color.setHex(SHEEP_COLOR_HEX.red);
