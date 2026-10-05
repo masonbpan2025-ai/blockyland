@@ -12,6 +12,9 @@ const blocks = [
   'oak_leaves.png', 'glass.png', 'crafting_table_top.png', 'crafting_table_side.png', 'crafting_table_front.png',
   'furnace_front.png', 'furnace_front_on.png', 'furnace_side.png', 'furnace_top.png',
   'tnt_top.png', 'tnt_side.png', 'tnt_bottom.png', 'torch.png', 'water_still.png', 'lava_still.png',
+  // The redstone torch sprite, which the standing redstone torch and its wall form both draw and which had
+  // never been listed. `soul_torch` is an SVG already in the repo, so it is not fetched here.
+  'redstone_torch.png',
   'coal_ore.png', 'iron_ore.png', 'gold_ore.png', 'diamond_ore.png', 'emerald_ore.png', 'redstone_ore.png',
   // The rest of the ore family, added for block parity. All are plain full cubes, so the texture is the
   // whole implementation; the deepslate variants are their own textures upstream rather than the stone

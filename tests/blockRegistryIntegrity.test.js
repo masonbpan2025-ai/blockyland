@@ -111,6 +111,74 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('a wall torch is the standing torch shape on a wall, and drops its standing form', () => {
+  // A CORRECTION WORTH RECORDING. My first version of this test claimed torches had no geometry and
+  // rendered as full cubes. That was WRONG: blockGeometry's fallback already builds a 2/16 x 10/16 x 2/16
+  // post with cropped UVs for anything carrying `shape: 'torch'`, and tests/visualEffects.test.js asserts
+  // it. My version added a `torch` flag that routed standing torches AWAY from that fallback and broke
+  // three existing parity tests. The flag is gone; what remains is the wall-mounted variant, which is
+  // genuinely new and shares the standing shape by construction.
+  const texStub = { getFaceUVs: () => ({ u0: 0, v0: 0, u1: 1, v1: 1 }) };
+
+  const meshTorch = (id) => {
+    const world = new World();
+    const chunk = new Chunk(0, 0);
+    world.chunks.set('0,0', chunk);
+    world.setVoxel(2, 40, 2, id);
+    const meshed = new ChunkMesher(texStub).meshChunk(chunk, world);
+    const geos = [meshed.opaqueGeo, meshed.transparentGeo, meshed.lightGeo].filter(Boolean);
+    const geom = geos.reduce((a, b) => (a.attributes.position.count >= b.attributes.position.count ? a : b));
+    geom.computeBoundingBox();
+    return geom.boundingBox;
+  };
+
+  const TORCHES = [
+    ['WALL_TORCH', 'TORCH'],
+    ['SOUL_WALL_TORCH', 'SOUL_TORCH'],
+    ['REDSTONE_WALL_TORCH', 'REDSTONE_TORCH'],
+  ];
+
+  for (const [key, standingKey] of TORCHES) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    assert.equal(def.wallTorch, true, `${key} must carry the wallTorch flag`);
+    assert.equal(def.torch, undefined, `${key} must not carry a separate standing flag`);
+    assert.equal(def.shape, 'torch', `${key} must keep the torch shape so it shares the cropped UVs`);
+    assert.equal(def.solid, false, `${key} must not block movement`);
+
+    // It drops its STANDING form, not itself -- you cannot recover a wall torch as such.
+    const drop = getBlockDrop(id);
+    assert.equal(drop?.id, BLOCKS[standingKey], `${key} must drop ${standingKey}`);
+    assert.equal(drop?.isBlock, true, `${key} drops a block`);
+
+    // Its light matches the standing form it came from.
+    assert.equal(def.light, BLOCK_DEFS[BLOCKS[standingKey]].light,
+      `${key} must emit at the same level as ${standingKey}`);
+
+    // Geometry: identical footprint to the standing torch, positioned against the wall.
+    const standingBox = meshTorch(BLOCKS[standingKey]);
+    const wallBox = meshTorch(id);
+    const width = (b) => b.max.x - b.min.x;
+    const depth = (b) => b.max.z - b.min.z;
+    const height = (b) => b.max.y - b.min.y;
+
+    assert.ok(Math.abs(width(wallBox) - width(standingBox)) < 1e-6,
+      `${key} must be the same width as ${standingKey}`);
+    assert.ok(Math.abs(depth(wallBox) - depth(standingBox)) < 1e-6,
+      `${key} must be the same depth as ${standingKey}`);
+    assert.ok(Math.abs(height(wallBox) - height(standingBox)) < 1e-6,
+      `${key} must be the same height as ${standingKey}`);
+
+    // And it is moved: up off the floor and back against the wall.
+    assert.ok(wallBox.min.y > standingBox.min.y + 0.1,
+      `${key} must mount above the floor, got ${wallBox.min.y} vs ${standingBox.min.y}`);
+    assert.ok(wallBox.max.z > standingBox.max.z + 0.1,
+      `${key} must sit against the wall, got ${wallBox.max.z} vs ${standingBox.max.z}`);
+  }
+});
+
 test('the ten coral wall fans exist, mesh as wall plates, and follow the fan drop rules', () => {
   // Three things are worth pinning here, because each was a real failure mode elsewhere.
   //
