@@ -188,9 +188,37 @@ export function applyPandaPersonality(mob) {
   return mob;
 }
 
+/**
+ * Apply the palette for a panda's visible variant to its materials.
+ *
+ * Wiki: a brown panda is brown and white rather than black and white. The other six personalities
+ * share the normal palette, so this is the ONLY personality that changes the model -- the rest differ
+ * only in behaviour. Without this a brown panda rendered identically to a normal one.
+ *
+ * The dark parts are the eye patches, ears and legs, and `light` is the body and face.
+ */
+export function applyPandaColors(mob) {
+  if (!isPanda(mob)) return mob;
+  const palette = pandaColors(mob.personality);
+  // The spawner records the two materials it built the model from, so the recolour is a two-line
+  // operation rather than a traversal that could recolour an unrelated mesh.
+  mob.darkMat?.color?.setHex?.(palette.dark);
+  mob.lightMat?.color?.setHex?.(palette.light);
+  if (mob.mesh) {
+    // Fall back to a traversal for a model built without the material handles.
+    mob.mesh.traverse?.((obj) => {
+      if (!obj.isMesh || !obj.material?.color) return;
+      const hex = obj.material.color.getHex();
+      // Only remap colours that are one of the two palettes, so eyes and snout keep their own colour.
+      if (hex === PANDA_COLORS.normal.dark) obj.material.color.setHex(palette.dark);
+      else if (hex === PANDA_COLORS.normal.light) obj.material.color.setHex(palette.light);
+    });
+  }
+  return mob;
+}
+
 /** Melee damage for a panda given its personality and the difficulty. */
-export function pandaDamageFor(mob, difficulty) {
-  const table = (mob?.isAggressive || mob?.personality === 'aggressive')
+export function pandaDamageFor(mob, difficulty) {  const table = (mob?.isAggressive || mob?.personality === 'aggressive')
     ? PANDA_DAMAGE.aggressive
     : PANDA_DAMAGE.normal;
   const key = Object.hasOwn(table, difficulty ?? '') ? difficulty : 'normal';

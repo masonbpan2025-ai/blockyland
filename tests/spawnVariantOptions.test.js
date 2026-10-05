@@ -1,0 +1,270 @@
+// Variant-aware spawning through the generic dispatcher.
+//
+// `spawnMob(type, x, y, z)` accepted only four parameters and forwarded `spawnX(x, y, z)` to every
+// handler, so a fifth `options` argument was silently dropped. Every variant-aware spawner therefore
+// could not be given a variant through the generic entry point: a snow fox spawned as a red fox, a
+// brown panda as black and white, and a lime-collared wolf as a red-collared one.
+//
+// Separately, two mobs never applied their variant to the model at all even when the variant was set.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { MobManager } from '../src/mobs.js';
+import { BLOCKS } from '../src/blocks.js';
+import { PANDA_COLORS, applyPandaColors, isPanda } from '../src/pandaBehavior.js';
+import { WOLF_DEFAULT_COLLAR } from '../src/wolfBehavior.js';
+import { SHEEP_COLOR_HEX } from '../src/sheepBehavior.js';
+import { FOX_COAT_COLORS } from '../src/foxBehavior.js';
+
+function fixture() {
+  const scene = new THREE.Scene();
+  const sounds = new Proxy({}, { get: () => () => {} });
+  const world = {
+    getVoxel: (x, y, z) => (y < 1 ? BLOCKS.STONE : BLOCKS.AIR),
+    getHeightAt: () => 0,
+    surfaceHeightAt: () => 1,
+    getLightLevel: () => 15,
+    setVoxel() {}
+  };
+  const manager = Object.assign(Object.create(MobManager.prototype), {
+    world, scene, sounds, mobs: [], arrows: [], customProjectiles: [],
+    textures: {}, isBlockSolid: (x, y, z) => world.getVoxel(x, y, z) === BLOCKS.STONE,
+    entities: { spawnDroppedItem() {}, spawnXpOrbs() {}, spawnDeathParticles() {}, spawnParticleBurst() {} },
+    game: { player: null, difficulty: 'normal', worldTime: 6000, controls: {}, weather: { weatherType: 'clear' }, ui: null }
+  });
+  return { manager };
+}
+
+/** Every colour in the model, including meshes hidden until tamed such as a wolf collar. */
+function modelColors(mob) {
+  const colors = new Set();
+  mob.mesh?.traverse?.((obj) => {
+    if (obj.isMesh && obj.material?.color) colors.add(obj.material.color.getHexString());
+  });
+  return [...colors].sort().join(',');
+}
+
+/**
+ * Each mob that carries a variant, with two option sets that must render differently.
+ *
+ * A mob is only included if its variant is *visible*, so a colour-differing pair is the assertion.
+ */
+const VARIANT_CASES = [
+  { type: 'fox', key: 'coat', a: { coat: 'red' }, b: { coat: 'snow' } },
+  { type: 'wolf', key: 'collarColor', a: { collarColor: 'red' }, b: { collarColor: 'lime' } },
+  { type: 'panda', key: 'personality', a: { mainGene: 'normal', hiddenGene: 'normal' }, b: { mainGene: 'brown', hiddenGene: 'brown' } },
+  { type: 'sheep', key: 'woolColor', a: { woolColor: 'white' }, b: { woolColor: 'black' } },
+  { type: 'mooshroom', key: 'variant', a: { variant: 'red' }, b: { variant: 'brown' } },
+  { type: 'rabbit', key: 'coat', a: { coat: 'brown' }, b: { coat: 'gold' } },
+  { type: 'parrot', key: 'variant', a: { variant: 0 }, b: { variant: 4 } }
+];
+
+test('spawnMob forwards options, so a variant reaches the model', () => {
+  const { manager } = fixture();
+  for (const entry of VARIANT_CASES) {
+    const first = manager.spawnMob(entry.type, 0, 1, 0, entry.a);
+    const second = manager.spawnMob(2, 1, 0, entry.b);
+    assert.ok(first, `${entry.type} a spawned`);
+    assert.ok(second, `${entry.type} b spawned`);
+    assert.notEqual(modelColors(first), modelColors(second),
+      `${entry.type}: ${entry.key} must change the rendered model`);
+  }
+});
+
+test('the requested variant is recorded on the mob, not only rendered', () => {
+  const { manager } = fixture();
+  assert.equal(manager.spawnMob('fox', 0, 1, 0, { coat: 'snow' }).coat, 'snow');
+  assert.equal(manager.spawnMob('wolf', 0, 1, 0, { collarColor: 'lime' }).collarColor, 'lime');
+  assert.equal(manager.spawnMob('panda', 0, 1, 0, { mainGene: 'brown', hiddenGene: 'brown' }).personality, 'brown');
+  assert.equal(manager.spawnMob('sheep', 0, 1, 0, { woolColor: 'black' }).woolColor, 'black');
+  assert.equal(manager.spawnMob('mooshroom', 0, 1, 0, { variant: 'brown' }).variant, 'brown');
+  assert.equal(manager.spawnMob('rabbit', 0, 1, 0, { coat: 'gold' }).coat, 'gold');
+  assert.equal(manager.spawnMob('parrot', 0, 1, 0, { variant: 4 }).variant, 4);
+});
+
+test('spawning without options still works for every case', () => {
+  // The new fifth parameter must not have disturbed the ordinary three-argument call.
+  const { manager } = fixture();
+  for (const entry of VARIANT_CASES) {
+    const mob = manager.spawnMob(entry.type, 0, 1, 0);
+    assert.ok(mob, `${entry.type} spawned with no options`);
+    assert.equal(mob.type, entry.type);
+    assert.ok(modelColors(mob).length > 0, `${entry.type} has a coloured model`);
+  }
+});
+
+test('handlers with a positional argument keep their default', () => {
+  // `spawnSlime(x,y,z,size=4)` and `spawnCat(x,y,z,breed=null)` take a POSITIONAL value with a default,
+  // not an options bag. Forwarding an options object there turned the slime size into `{}`.
+  const { manager } = fixture();
+  const slime = manager.spawnMob('slime', 0, 1, 0);
+  assert.equal(slime.slimeSize, 4, 'wiki: a slime spawns at size 4 by default');
+  assert.equal(typeof slime.health, 'number', 'and its health is a number, not NaN');
+  const cat = manager.spawnMob('cat', 0, 1, 0);
+  assert.equal(cat.type, 'cat');
+  const villager = manager.spawnMob('villager', 0, 1, 0);
+  assert.equal(villager.type, 'villager');
+});
+
+test('a panda gets the palette for its personality', () => {
+  // Wiki: a brown panda is brown and white instead of black and white. The other six personalities
+  // share the normal palette, so brown is the ONLY one that recolours the model.
+  const { manager } = fixture();
+  const normal = manager.spawnMob('panda', 0, 1, 0, { mainGene: 'normal', hiddenGene: 'normal' });
+  const brown = manager.spawnMob('panda', 2, 1, 0, { mainGene: 'brown', hiddenGene: 'brown' });
+  assert.equal(normal.personality, 'normal');
+  assert.equal(brown.personality, 'brown');
+
+  const normalColors = modelColors(normal);
+  const brownColors = modelColors(brown);
+  assert.ok(normalColors.includes(PANDA_COLORS.normal.dark.toString(16)),
+    `a normal panda is black-ish, got ${normalColors}`);
+  assert.ok(brownColors.includes(PANDA_COLORS.brown.dark.toString(16)),
+    `a brown panda is brown, got ${brownColors}`);
+  // The light parts are shared, which is what makes it brown *and* white.
+  assert.ok(brownColors.includes(PANDA_COLORS.brown.light.toString(16)));
+  assert.notEqual(normalColors, brownColors);
+
+  // Every other personality keeps the normal palette.
+  for (const gene of ['lazy', 'worried', 'playful', 'aggressive', 'weak']) {
+    const panda = manager.spawnMob('panda', 0, 1, 0, { mainGene: gene, hiddenGene: gene });
+    assert.equal(modelColors(panda), normalColors, `${gene} keeps the normal palette`);
+  }
+});
+
+test('the panda recolour is safe and reversible', () => {
+  const { manager } = fixture();
+  const panda = manager.spawnMob('panda', 0, 1, 0, { mainGene: 'normal', hiddenGene: 'normal' });
+  const before = modelColors(panda);
+  panda.personality = 'brown';
+  applyPandaColors(panda);
+  assert.notEqual(modelColors(panda), before, 'changing the personality recolours it');
+  panda.personality = 'normal';
+  applyPandaColors(panda);
+  assert.equal(modelColors(panda), before, 'and back again');
+  assert.doesNotThrow(() => applyPandaColors(null));
+  assert.doesNotThrow(() => applyPandaColors({ type: 'cow' }));
+  // A model with no material handles falls back to the traversal, which must not crash either.
+  const bare = { type: 'panda', personality: 'brown', mesh: new THREE.Group() };
+  assert.doesNotThrow(() => applyPandaColors(bare));
+  assert.equal(isPanda(bare), true);
+});
+
+test('a wolf gets the palette for its collar colour', () => {
+  // Wiki: the default collar is red. The spawner hardcoded red, so `options.collarColor` was ignored
+  // at spawn even though dyeing a collar afterwards worked.
+  const { manager } = fixture();
+  const def = manager.spawnMob('wolf', 0, 1, 0);
+  assert.equal(def.collarColor, WOLF_DEFAULT_COLLAR);
+  assert.equal(def.collarMesh.material.color.getHex(), SHEEP_COLOR_HEX.red,
+    'the default collar is red');
+
+  const lime = manager.spawnMob('wolf', 2, 1, 0, { collarColor: 'lime' });
+  assert.equal(lime.collarColor, 'lime');
+  assert.equal(lime.collarMesh.material.color.getHex(), SHEEP_COLOR_HEX.lime,
+    'a requested collar colour is applied to the mesh');
+  assert.notEqual(modelColors(def), modelColors(lime));
+
+  // An unknown colour falls back to red rather than rendering black or crashing.
+  const odd = manager.spawnMob('wolf', 0, 1, 0, { collarColor: 'chartreuse' });
+  assert.equal(odd.collarMesh.material.color.getHex(), SHEEP_COLOR_HEX.red);
+});
+
+test('fox, rabbit and parrot variants still reach the model after the dispatcher change', () => {
+  const { manager } = fixture();
+  const red = manager.spawnMob('fox', 0, 1, 0, { coat: 'red' });
+  const snow = manager.spawnMob('fox', 2, 1, 0, { coat: 'snow' });
+  assert.equal(snow.coat, 'snow');
+  assert.equal(snow.bodyMat.color.getHex(), FOX_COAT_COLORS.snow.base);
+  assert.notEqual(red.bodyMat.color.getHex(), snow.bodyMat.color.getHex());
+
+  const brown = manager.spawnMob('rabbit', 0, 1, 0, { coat: 'brown' });
+  const gold = manager.spawnMob('rabbit', 2, 1, 0, { coat: 'gold' });
+  assert.equal(gold.coat, 'gold');
+  assert.notEqual(modelColors(brown), modelColors(gold));
+
+  const cyan = manager.spawnMob('parrot', 0, 1, 0, { variant: 3 });
+  assert.equal(cyan.variantName, 'cyan');
+});
+
+test('a sheep and a mooshroom still honour their colour option', () => {
+  const { manager } = fixture();
+  const white = manager.spawnMob('sheep', 0, 1, 0, { woolColor: 'white' });
+  const black = manager.spawnMob('sheep', 2, 1, 0, { woolColor: 'black' });
+  assert.equal(black.woolColor, 'black');
+  assert.notEqual(white.woolMesh.material.color.getHex(), black.woolMesh.material.color.getHex());
+
+  const red = manager.spawnMob('mooshroom', 0, 1, 0, { variant: 'red' });
+  const brown = manager.spawnMob('mooshroom', 2, 1, 0, { variant: 'brown' });
+  assert.equal(brown.variant, 'brown');
+  assert.notEqual(modelColors(red), modelColors(brown));
+});
+
+test('the extra options argument does not leak into the mob state', () => {
+  // The dispatcher passes `options` to handlers that declare it; a handler must not accidentally
+  // record the whole bag, which would serialise junk into a save.
+  const { manager } = fixture();
+  const mob = manager.spawnMob('fox', 0, 1, 0, { coat: 'snow' });
+  assert.equal(mob.options, undefined, 'the options bag is not stored on the mob');
+  assert.equal(mob.coat, 'snow');
+});
+
+test('mobile variant mobs still move through the real loop after the dispatcher change', () => {
+  const { manager } = fixture();
+  const player = {
+    position: new THREE.Vector3(12, 1, 0), velocity: new THREE.Vector3(),
+    gamemode: 'survival', health: 20, keys: {}, onGround: true, statusEffects: {},
+    inventory: { getActiveItem: () => null }, takeDamage() {}, applyStatusEffect() {},
+    hasStatusEffect: () => false
+  };
+  manager.game.player = player;
+  // Spawned ONE AT A TIME. Batching them would be wrong: FOX_PREY includes rabbit, so a fox and a
+  // rabbit in the same pen means the rabbit is correctly hunted and killed, which has nothing to do
+  // with the dispatcher change under test. That cost me a confusing failure, so it is recorded here.
+  for (const entry of VARIANT_CASES) {
+    const mob = manager.spawnMob(entry.type, 0, 1, 0, entry.b);
+    const start = mob.mesh.position.clone();
+    assert.doesNotThrow(() => {
+      for (let i = 0; i < 300; i++) manager.update(1 / 60, player);
+    }, `${entry.type} updated without throwing`);
+    assert.ok(mob.health > 0, `${entry.type} survived the loop`);
+    assert.ok(mob.mesh.position.distanceTo(start) > 0.02, `${entry.type} moved`);
+  }
+  assert.deepEqual([...(manager.mobErrors || [])], [], 'no fault reported');
+});
+
+test('a fox hunting a rabbit still works, which is why they are not batched above', () => {
+  // Wiki: a fox's prey includes rabbits. Asserted so the reason for the per-mob loop above is recorded
+  // rather than folklore.
+  const { manager } = fixture();
+  const player = {
+    position: new THREE.Vector3(12, 1, 0), velocity: new THREE.Vector3(),
+    gamemode: 'survival', health: 20, keys: {}, onGround: true, statusEffects: {},
+    inventory: { getActiveItem: () => null }, takeDamage() {}, applyStatusEffect() {},
+    hasStatusEffect: () => false
+  };
+  manager.game.player = player;
+  const fox = manager.spawnMob('fox', 0, 1, 0, { coat: 'snow' });
+  const rabbit = manager.spawnMob('rabbit', 2, 1, 0, { coat: 'gold' });
+  let killed = false;
+  for (let i = 0; i < 400 && !killed; i++) {
+    manager.update(1 / 60, player);
+    if (rabbit.health <= 0) killed = true;
+  }
+  assert.equal(killed, true, 'the fox hunts the rabbit');
+  assert.ok(fox.health > 0, 'and the fox is fine');
+});
+
+test('a rabbit on its own is unharmed by the loop', () => {
+  const { manager } = fixture();
+  const player = {
+    position: new THREE.Vector3(12, 1, 0), velocity: new THREE.Vector3(),
+    gamemode: 'survival', health: 20, keys: {}, onGround: true, statusEffects: {},
+    inventory: { getActiveItem: () => null }, takeDamage() {}, applyStatusEffect() {},
+    hasStatusEffect: () => false
+  };
+  manager.game.player = player;
+  const rabbit = manager.spawnMob('rabbit', 0, 1, 0, { coat: 'gold' });
+  for (let i = 0; i < 300; i++) manager.update(1 / 60, player);
+  assert.equal(rabbit.health, rabbit.maxHealth, 'nothing else in the pen, so nothing to fear');
+});

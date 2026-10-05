@@ -31,7 +31,7 @@ import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './m
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
-import { sheepApplyWool } from './sheepBehavior.js';
+import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
@@ -47,7 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
-import { PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
+import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
 import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
@@ -353,7 +353,15 @@ export class MobManager {
     }
   }
 
-  spawnMob(type, x, y, z) {
+  /**
+   * Spawn a mob by type.
+   *
+   * The optional `options` bag is forwarded to every handler, which is what lets a caller ask for a
+   * specific variant through the generic entry point. It used to be dropped silently, so a snow fox
+   * spawned as a red fox and a brown panda as black and white; variant-aware spawners take it and the
+   * rest simply ignore the extra argument.
+   */
+  spawnMob(type, x, y, z, options = {}) {
     if (typeof type === 'object' && type !== null) {
       return this.spawnCustomMob(type, x, y, z);
     }
@@ -365,46 +373,46 @@ export class MobManager {
       case 'villager': return this.spawnVillager(x, y, z);
       case 'tournament_host': return this.spawnTournamentHost(x, y, z);
       case 'site_manager': return this.spawnSiteManager(x, y, z);
-      case 'jackie_chun': return this.spawnJackieChun(x, y, z);
-      case 'enderman': return this.spawnEnderman(x, y, z);
+      case 'jackie_chun': return this.spawnJackieChun(x, y, z, options);
+      case 'enderman': return this.spawnEnderman(x, y, z, options);
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
       case 'zombie': return this.spawnZombie(x, y, z);
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
-      case 'spider': return this.spawnSpider(x, y, z, {});
-      case 'cave_spider': return this.spawnCaveSpider(x, y, z, {});
-      case 'silverfish': return this.spawnSilverfish(x, y, z, {});
-      case 'endermite': return this.spawnEndermite(x, y, z, {});
-      case 'rabbit': return this.spawnRabbit(x, y, z, {});
-      case 'bat': return this.spawnBat(x, y, z, {});
-      case 'fox': return this.spawnFox(x, y, z, {});
-      case 'bee': return this.spawnBee(x, y, z, {});
-      case 'goat': return this.spawnGoat(x, y, z, {});
-      case 'llama': return this.spawnLlama(x, y, z, {});
-      case 'turtle': return this.spawnTurtle(x, y, z, {});
-      case 'frog': return this.spawnFrog(x, y, z, {});
-      case 'tadpole': return this.spawnTadpole(x, y, z, {});
-      case 'parrot': return this.spawnParrot(x, y, z, {});
+      case 'spider': return this.spawnSpider(x, y, z, options);
+      case 'cave_spider': return this.spawnCaveSpider(x, y, z, options);
+      case 'silverfish': return this.spawnSilverfish(x, y, z, options);
+      case 'endermite': return this.spawnEndermite(x, y, z, options);
+      case 'rabbit': return this.spawnRabbit(x, y, z, options);
+      case 'bat': return this.spawnBat(x, y, z, options);
+      case 'fox': return this.spawnFox(x, y, z, options);
+      case 'bee': return this.spawnBee(x, y, z, options);
+      case 'goat': return this.spawnGoat(x, y, z, options);
+      case 'llama': return this.spawnLlama(x, y, z, options);
+      case 'turtle': return this.spawnTurtle(x, y, z, options);
+      case 'frog': return this.spawnFrog(x, y, z, options);
+      case 'tadpole': return this.spawnTadpole(x, y, z, options);
+      case 'parrot': return this.spawnParrot(x, y, z, options);
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
-      case 'sheep': return this.spawnSheep(x, y, z);
+      case 'sheep': return this.spawnSheep(x, y, z, options);
       case 'chicken': return this.spawnChicken(x, y, z);
       case 'cod': return this.spawnCod(x, y, z);
-      case 'salmon': return this.spawnSalmon(x, y, z);
-      case 'dolphin': return this.spawnDolphin(x, y, z);
+      case 'salmon': return this.spawnSalmon(x, y, z, options);
+      case 'dolphin': return this.spawnDolphin(x, y, z, options);
       case 'octopus':
       case 'squid': return this.spawnSquid(x, y, z);
       case 'axolotl': return this.spawnAxolotl(x, y, z);
-      case 'mooshroom': return this.spawnMooshroom(x, y, z);
-      case 'polar_bear': return this.spawnPolarBear(x, y, z);
-      case 'panda': return this.spawnPanda(x, y, z);
+      case 'mooshroom': return this.spawnMooshroom(x, y, z, options);
+      case 'polar_bear': return this.spawnPolarBear(x, y, z, options);
+      case 'panda': return this.spawnPanda(x, y, z, options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
       case 'zombified_piglin':
-      case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z);
+      case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z, options);
       case 'hoglin': return this.spawnHoglin(x, y, z);
       case 'zoglin': { const mob = this.spawnHoglin(x, y, z); mob.type = 'zoglin'; mob.name = 'Zoglin'; mob.fireImmune = true; return mob; }
       case 'ghast': return this.spawnGhast(x, y, z);
@@ -413,15 +421,15 @@ export class MobManager {
       case 'horse': return this.spawnHorse(x, y, z);
       case 'mule': return this.spawnMule(x,y,z);
       case 'donkey': return this.spawnDonkey(x, y, z);
-      case 'wolf': return this.spawnWolf(x, y, z);
+      case 'wolf': return this.spawnWolf(x, y, z, options);
       case 'cat': return this.spawnCat(x, y, z);
       case 'ocelot': return this.spawnOcelot(x, y, z);
       case 'slime': return this.spawnSlime(x, y, z);
       case 'witch': return this.spawnWitch(x, y, z);
-      case 'wither_skeleton': return this.spawnWitherSkeleton(x, y, z);
-      case 'strider': return this.spawnStrider(x, y, z);
-      case 'guardian': return this.spawnGuardian(x, y, z, false);
-      case 'elder_guardian': return this.spawnGuardian(x, y, z, true);
+      case 'wither_skeleton': return this.spawnWitherSkeleton(x, y, z, options);
+      case 'strider': return this.spawnStrider(x, y, z, options);
+      case 'guardian': return this.spawnGuardian(x, y, z, false, options);
+      case 'elder_guardian': return this.spawnGuardian(x, y, z, true, options);
       case 'drowned': return this.spawnDrowned(x, y, z);
       case 'glow_squid': return this.spawnGlowSquid(x, y, z);
       case 'phantom': return this.spawnPhantom(x, y, z);
@@ -4442,6 +4450,10 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
+      // The two materials the model is built from, so `applyPandaColors` can recolour a brown panda
+      // without traversing for them.
+      darkMat: blackMat,
+      lightMat: whiteMat,
       // Wiki: a panda has a MainGene and a HiddenGene, and the personality follows from them.
       mainGene: genes.mainGene,
       hiddenGene: genes.hiddenGene,
@@ -4466,6 +4478,8 @@ export class MobManager {
       hitCooldown: 0
     };
     applyPandaPersonality(mob);
+    // Wiki: a brown panda is brown and white. The other six personalities share the normal palette.
+    applyPandaColors(mob);
     if (options.isBaby) group.scale.setScalar(PANDA_BABY_SCALE);
     this.mobs.push(mob);
     return mob;
@@ -5049,8 +5063,13 @@ export class MobManager {
     rEye.position.set(0.12, 0.05, 0.21);
     head.add(rEye);
 
-    // Collar mesh (red default, hidden until tamed)
-    const collarMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    // Collar mesh (hidden until tamed). Wiki: the default collar colour is red, but a caller can ask
+    // for another one; this used to be hardcoded, so `options.collarColor` was ignored at spawn even
+    // though dying a collar later worked.
+    const requestedCollar = options.collarColor ?? WOLF_DEFAULT_COLLAR;
+    const collarMat = new THREE.MeshLambertMaterial({
+      color: SHEEP_COLOR_HEX[requestedCollar] ?? SHEEP_COLOR_HEX[WOLF_DEFAULT_COLLAR]
+    });
     const collar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.42), collarMat);
     collar.position.set(0, 0.65, 0.45);
     collar.visible = false;
@@ -5091,7 +5110,7 @@ export class MobManager {
       isTamed: false,
       width: wolfDims.width,
       height: wolfDims.height,
-      collarColor: WOLF_DEFAULT_COLLAR,
+      collarColor: requestedCollar,
       // Wiki: wolf armor is dropped when the wolf dies.
       wolfArmor: options.wolfArmor ?? null,
       velocity: new THREE.Vector3(),
