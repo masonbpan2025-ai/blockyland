@@ -39,7 +39,25 @@ for (const [id, def] of Object.entries(BLOCK_DEFS)) {
   }
 }
 
-const missing = [...wanted].filter((f) => !existsSync(path.join(BLOCK_DIR, f))).sort();
+// BLOCK TEXTURES THAT ARE COMPOSED RATHER THAN DOWNLOADED. These are outputs of the scripts in
+// `scripts/compose-*.py`, which build them from other art, so a 404 under `blocks/` AND `items/` is the
+// expected result rather than a failure. Listing them here is what stops the restore step reporting
+// INCOMPLETE for a texture the NEXT step is about to produce -- which is exactly what happened with
+// `bubble_column.png`, whose composer runs a few lines later in scripts/restore-block-assets.mjs.
+//
+// They are asserted to be produced by tests/blockRegistryIntegrity.test.js, so skipping them here does not
+// let a silently-broken composer through: the test fails instead.
+const COMPOSED_TEXTURES = new Set([
+  'bubble_column.png',
+]);
+const composed = [...wanted].filter((f) => COMPOSED_TEXTURES.has(f));
+const missing = [...wanted]
+  .filter((f) => !COMPOSED_TEXTURES.has(f))
+  .filter((f) => !existsSync(path.join(BLOCK_DIR, f)))
+  .sort();
+if (composed.length) {
+  console.log(`${composed.length} texture(s) are composed rather than downloaded: ${composed.join(", ")}`);
+}
 console.log(`hand-added blocks reference ${wanted.size} textures; ${missing.length} are missing`);
 if (!missing.length) {
   console.log('nothing to do');

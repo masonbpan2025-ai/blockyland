@@ -101,25 +101,41 @@ const ENTITY_SHEETS = [
   // The sniffer, whose palette the sniffer egg's composer reads. Not a head, and not used by the extractor;
   // it is here because a composer needs it and this is the step that fetches entity art.
   'sniffer/sniffer.png',
+  // THE BUBBLE PARTICLE, which is a composer input rather than entity art. It lives under `particle/`, and
+  // `compose-bubble-column.py` cannot run without it -- it is the whole reason the bubble column has a
+  // texture, since vanilla ships no `bubble_column` block tile at all. It is listed HERE rather than among
+  // the block textures because `fetch-missing-textures.mjs` derives its list from the block DEFINITIONS and
+  // only ever looks under `blocks/` and `items/`; a particle sprite is neither.
+  '@particle/bubble.png',
 ];
 {
-  const absent = ENTITY_SHEETS.filter((f) => !existsSync(path.join(root, 'public', 'assets', 'entity', f)));
+  const assetsRoot = path.join(root, 'public', 'assets');
+  // An entry beginning with `@` names a directory OTHER than `entity/`: `@particle/bubble.png` means
+  // `particle/bubble.png`. Resolved here rather than with a second list so the presence check, the fetch
+  // and the destination path all stay in one place.
+  const resolve = (f) => (f.startsWith('@')
+    ? { rel: f.slice(1), dir: '' }
+    : { rel: f, dir: 'entity' });
+
+  const absent = ENTITY_SHEETS.filter((f) => !existsSync(path.join(assetsRoot, resolve(f).dir, resolve(f).rel)));
   if (!absent.length) {
-    console.log('\n--- all entity skin sheets already present');
+    console.log('\n--- all entity skin sheets and composer inputs already present');
   } else {
-    console.log(`\n--- ${absent.length} entity skin sheet(s) absent; fetching them`);
+    console.log(`\n--- ${absent.length} entity/composer input(s) absent; fetching them`);
     const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
     const { writeFileSync, mkdirSync } = await import('node:fs');
-    for (const rel of absent) {
-      const dest = path.join(root, 'public', 'assets', 'entity', rel);
+    for (const entry of absent) {
+      const { rel, dir } = resolve(entry);
+      const dest = path.join(assetsRoot, dir, rel);
+      const urlPath = dir ? `${dir}/${rel}` : rel;
       try {
-        const res = await fetch(`${MIRROR}/entity/${rel}`);
-        if (!res.ok) { console.error(`  MISS entity/${rel}`); ok = false; continue; }
+        const res = await fetch(`${MIRROR}/${urlPath}`);
+        if (!res.ok) { console.error(`  MISS ${urlPath}`); ok = false; continue; }
         mkdirSync(path.dirname(dest), { recursive: true });
         writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
-        console.log(`  got entity/${rel}`);
+        console.log(`  got ${urlPath}`);
       } catch {
-        console.error(`  FAIL entity/${rel}`);
+        console.error(`  FAIL ${urlPath}`);
         ok = false;
       }
     }
