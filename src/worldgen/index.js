@@ -29,6 +29,7 @@ import { generateShipwreck, realizeShipwreck } from './generators/shipwreck.js';
 import { generateOceanRuin, realizeOceanRuin } from './generators/oceanRuin.js';
 import { generateDesertPyramid, realizeDesertPyramid } from './generators/desertPyramid.js';
 import { generateSwampHut, realizeSwampHut } from './generators/swampHut.js';
+import { adaptToTerrain, adaptationFor } from './terrainAdaptation.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -167,17 +168,70 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
      * N-piece structure. Generators may return a count or a report; both are accepted so a one-block
      * generator stays simple.
      */
-    realize(start, setBlock, { chunkX = null, chunkZ = null, spawnMob = null } = {}) {
+    /**
+     * The written count, exactly as before terrain adaptation existed. Use `realizeWithReport` when the
+     * adaptation detail is needed: changing this method's return TYPE would have broken every caller, and it
+     * did -- an existing test that realized a buried treasure broke the moment this returned an object.
+     */
+    realize(start, setBlock, options = {}) {
+      return this.realizeWithReport(start, setBlock, options).written;
+    },
+
+    /** The same realization, plus what terrain adaptation did. */
+    realizeWithReport(start, setBlock, {
+      chunkX = null, chunkZ = null, spawnMob = null,
+      surfaceY = null, foundationBlock = null, airBlock = null, adaptation = null, adapt = true
+    } = {}) {
       const clip = chunkX === null ? null : BlockBox.columnOfChunk(chunkX, chunkZ, -64, 320);
       const implementation = registry[start.structureId]?.implementation;
       const generator = implementation && GENERATORS[implementation];
       if (!generator || !generator.realize) return 0;
-      const result = generator.realize(start, (x, y, z, id, meta) => {
+
+      // Where the structure wrote, so terrain adaptation can fill AROUND it rather than through it.
+      const written = new Set();
+      const writer = (x, y, z, id, meta) => {
         if (clip && !clip.contains(x, y, z)) return false;
-        return setBlock(x, y, z, id, meta);
-      }, blockIds, { spawnMob, clip });
-      if (typeof result === 'number') return result;
-      return result?.written ?? 0;
+        const ok = setBlock(x, y, z, id, meta);
+        if (ok) written.add(`${x},${y},${z}`);
+        return ok;
+      };
+
+      const result = generator.realize(start, writer, blockIds, { spawnMob, clip });
+      const writtenCount = typeof result === 'number' ? result : (result?.written ?? 0);
+
+      // Terrain adaptation happens HERE rather than in each generator, so all of them benefit at once and
+      // none of them can forget it. It needs the caller's terrain, so a caller that supplies none gets the
+      // previous behaviour exactly -- which is what keeps the existing tests meaningful.
+      const chosen = adaptation ?? adaptationFor(registry[start.structureId]);
+      const report = { written: writtenCount, adaptation: { type: chosen, applied: false, counts: null } };
+      if (adapt && chosen !== 'none' && typeof surfaceY === 'function' && foundationBlock !== null) {
+        const totals = { shaved: 0, foundation: 0, buried: 0, encapsulated: 0 };
+        for (const piece of start.pieces) {
+          const adapted = adaptToTerrain({
+            adaptation: chosen,
+            box: piece.box,
+            surfaceY,
+            foundationBlock,
+            terrainBlock: foundationBlock,
+            airBlock,
+            isStructureBlock: (x, y, z) => written.has(`${x},${y},${z}`)
+          });
+          for (const key of Object.keys(totals)) totals[key] += adapted.counts[key];
+          // Adaptation blocks are terrain, not structure: writing them through the raw writer keeps them out
+          // of `written`, so a later piece cannot mistake them for its own.
+          for (const write of adapted.writes) {
+            if (clip && !clip.contains(write.x, write.y, write.z)) continue;
+            setBlock(write.x, write.y, write.z, write.block, { terrainAdaptation: chosen });
+          }
+        }
+        report.adaptation = {
+          type: chosen,
+          applied: true,
+          counts: totals,
+          total: totals.shaved + totals.foundation + totals.buried + totals.encapsulated
+        };
+      }
+      return report;
     },
 
     /** A stable hash of a start's plan, so "same seed, same structure" is provable. */

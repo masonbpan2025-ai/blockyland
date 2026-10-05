@@ -57,7 +57,7 @@ export const STRUCTURES = {
   },
   desert_pyramid: {
     type: 'desert_pyramid', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/desert_pyramid', implementation: 'desertPyramid', biomes: ['desert'],
+    biomeTag: 'has_structure/desert_pyramid', implementation: 'desertPyramid', terrainAdaptation: 'beard_thin', biomes: ['desert'],
     notes: '21x21 hardcoded pyramid, four chests behind a TNT trap, 6-8 suspicious sand in the buried room.'
   },
   jungle_pyramid: {
@@ -67,7 +67,7 @@ export const STRUCTURES = {
   },
   swamp_hut: {
     type: 'swamp_hut', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/swamp_hut', implementation: 'swampHut', biomes: ['swamp'],
+    biomeTag: 'has_structure/swamp_hut', implementation: 'swampHut', terrainAdaptation: 'beard_thin', biomes: ['swamp'],
     notes: 'Stilt hut; one witch and one black cat spawn with it and do not despawn.'
   },
   minecraft_special: null, // placeholder removed below; kept out of the registry on purpose
