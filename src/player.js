@@ -936,6 +936,27 @@ export class Player {
       if (blocked) {
         this.sounds.playShieldBlock?.();
         this.invulnerableTimer = 0.2;
+        // Blocking costs the shield a point of durability.
+        //
+        // The shield was registered as durable -- `FIXED_DURABILITY` gives it 336 -- and nothing ever spent
+        // any of it, so a shield was permanent. That is the same gap tool durability and armour durability
+        // each had, and the third and last piece of it.
+        //
+        // Vanilla charges more for a heavy melee hit and for an explosion. That rule is NOT implemented:
+        // the exact figures are not derivable from anything in `.cache/mc-data`, and inventing them would
+        // be worse than charging the documented common case of one point per blocked attack.
+        if (this.gamemode === 'survival') {
+          const shield = this.inventory?.getOffhandItem?.()?.id === 'shield'
+            ? this.inventory.getOffhandItem()
+            : this.inventory?.getActiveItem?.();
+          if (shield && shield.id === 'shield') {
+            const roll = typeof this.random === 'function' ? this.random : Math.random;
+            const wear = spendDurability(shield, 1, roll);
+            if (wear.broke) {
+              this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your shield broke.</span>');
+            }
+          }
+        }
         return;
       }
     }

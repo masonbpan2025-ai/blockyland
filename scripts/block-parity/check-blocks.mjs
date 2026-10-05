@@ -59,9 +59,16 @@ for (const key of keys) {
     note(!bare.canHarvest, 'NOT harvestable by hand');
   }
 
-  // The drop: getBlockDrop is what actually spawns an item on break.
+  // The drop: getBlockDrop is what actually spawns an item on break. `drop: null` is legitimate for a
+  // block that deliberately yields nothing -- an infested block releases a silverfish instead -- so it
+  // is only a failure when the block neither drops nor has a declared alternative.
   const drop = getBlockDrop(id);
-  note(Boolean(drop), `drop ${drop ? `${drop.id} (isBlock=${drop.isBlock})` : 'NONE'}`);
+  const yieldsSomethingElse = Boolean(def.silverfish);
+  if (def.drop === null && yieldsSomethingElse) {
+    note(true, 'drop NONE, by design (releases a silverfish)');
+  } else {
+    note(Boolean(drop), `drop ${drop ? `${drop.id} (isBlock=${drop.isBlock})` : 'NONE'}`);
+  }
   if (drop && !drop.isBlock) {
     note(drop.id in ITEMS, `drop item "${drop.id}" exists in ITEMS`);
   }

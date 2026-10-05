@@ -24,6 +24,10 @@ const blocks = [
   'oak_sapling.png', 'spruce_sapling.png', 'birch_sapling.png', 'jungle_sapling.png',
   'acacia_sapling.png', 'cherry_sapling.png', 'dark_oak_sapling.png',
   'mangrove_propagule.png',
+  // Brick variants the infested blocks borrow their textures from. Infested blocks have no textures of
+  // their own in vanilla -- imitating the real block is the point -- so these are what make the
+  // infested entries resolvable.
+  'mossy_stone_bricks.png', 'cracked_stone_bricks.png', 'chiseled_stone_bricks.png',
   'cactus_top.png', 'cactus_side.png', 'cactus_bottom.png', 'snow.png', 'ice.png'
 ];
 
