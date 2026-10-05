@@ -5,6 +5,7 @@ import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeigh
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
 import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
 import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
@@ -20,6 +21,8 @@ export const BREEDING_FOODS = {
   mooshroom: ['wheat'],
   // Wiki: goats breed with wheat, and follow a wheat-holding player within ten blocks.
   goat: ['wheat'],
+  // Wiki: turtles breed when fed seagrass, and follow a player holding it within ten blocks.
+  turtle: ['seagrass'],
   // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
   // id here, so it is listed as the block constant rather than a string.
   rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],
@@ -556,6 +559,17 @@ export class AnimalBehaviors {
           if(isPackEquine(mob))syncPackEquineAppearance(mob);
           // Wiki: a baby mooshroom has no mushrooms; they appear once it grows up.
           applyMooshroomVariant(mob);
+          // Wiki: "When a baby turtle matures into an adult, it drops 1 turtle scute."
+          if (mob.type === 'turtle') {
+            const dims = turtleDimensions(mob);
+            mob.width = dims.width;
+            mob.height = dims.height;
+            // `matured` is passed because the shared growth step has already cleared `isBaby`.
+            for (const [id, isBlock, min, max] of turtleMaturationDrops(mob, { matured: true })) {
+              const count = min + Math.floor(Math.random() * (max - min + 1));
+              if (count > 0) this.entities?.spawnDroppedItem(mob.mesh.position.clone(), id, isBlock, count);
+            }
+          }
         }
       }
 

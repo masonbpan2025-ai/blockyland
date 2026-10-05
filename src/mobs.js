@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -376,6 +377,7 @@ export class MobManager {
       case 'bee': return this.spawnBee(x, y, z, {});
       case 'goat': return this.spawnGoat(x, y, z, {});
       case 'llama': return this.spawnLlama(x, y, z, {});
+      case 'turtle': return this.spawnTurtle(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2341,6 +2343,8 @@ export class MobManager {
       case 'goat': return GOAT_DIMENSIONS;
       // Wiki: llamas are 0.9 x 1.87.
       case 'llama': return LLAMA_DIMENSIONS;
+      // Wiki: turtles are 1.2 x 0.4, and a pregnant one is 0.2 taller.
+      case 'turtle': return TURTLE_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3586,6 +3590,96 @@ export class MobManager {
     applyLlamaEquipment(mob);
     this.mobs.push(mob);
     return mob;
+  }
+
+  /**
+   * Turtle.
+   *
+   * Wiki: 30 HP, 1.2 x 0.4, passive aquatic. Slow on land and fast in water, remembers its spawn
+   * block as home and returns there to lay a cluster of 1-4 eggs, and a baby drops a turtle scute
+   * when it matures. Bred and led with seagrass.
+   */
+  spawnTurtle(x, y, z, options = {}) {
+    const shellMat = new THREE.MeshLambertMaterial({ color: 0x2f6b3a });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x4a8a52 });
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x1f4527 });
+    const { group, shell, rim, neck, head, eyes, flippers, tail } = createTurtleModel(shellMat, skinMat, darkMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(TURTLE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? TURTLE_BABY_DIMENSIONS : TURTLE_DIMENSIONS;
+    const mob = {
+      type: 'turtle',
+      name: 'Turtle',
+      mesh: group,
+      shell,
+      rim,
+      neck,
+      head,
+      eyes,
+      flippers,
+      tail,
+      shellMat,
+      skinMat,
+      darkMat,
+      // Wiki: turtles are aquatic, breathe under water, and are not scared of pufferfish.
+      isAquatic: true,
+      canBreatheUnderwater: true,
+      // Wiki: 30 HP.
+      health: TURTLE_HEALTH,
+      maxHealth: TURTLE_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: it remembers where it spawned.
+      homePosition: null,
+      // Wiki: breeding makes one turtle pregnant, and a pregnant turtle is taller.
+      hasEgg: !!options.hasEgg,
+      digTimer: 0,
+      waterSearchTimer: 0,
+      waterTarget: null,
+      swimTarget: null,
+      inWater: false,
+      swimCycle: 0,
+      turtlePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    // Wiki: a turtle spawned from an egg, a spawn egg or a command remembers the spawn location.
+    setTurtleHome(mob, x, y, z);
+    applyTurtlePregnancy(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /** True when the block at a position is water. */
+  isWaterAt(x, y, z) {
+    return this.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z)) === BLOCKS.WATER;
+  }
+
+  /**
+   * Place a cluster of turtle eggs.
+   *
+   * Wiki: eggs are laid "as a single block" holding 1-4 eggs, and there is no turtle-egg block in
+   * this project's registry, so the cluster is tracked here and its position recorded. The crack
+   * stage is tracked alongside, because a block id alone could not carry it either.
+   *
+   * Returns the cluster size placed.
+   */
+  placeTurtleEggs(x, y, z, count) {
+    const size = Math.max(TURTLE_EGG_CLUSTER.min, Math.min(TURTLE_EGG.maxCluster, count));
+    if (!this.turtleEggs) this.turtleEggs = new Map();
+    const key = `${x},${y},${z}`;
+    const existing = this.turtleEggs.get(key);
+    // Wiki: an existing cluster merges up to the four-egg cap rather than replacing.
+    const total = Math.min(TURTLE_EGG.maxCluster, (existing?.count ?? 0) + size);
+    this.turtleEggs.set(key, { x, y, z, count: total, cracks: existing?.cracks ?? 0 });
+    return total;
   }
 
   // --- PASSIVE COW ---
@@ -6937,7 +7031,8 @@ export class MobManager {
          ...(mob.carpetColor ? [[mob.carpetColor, false, 1, 1]] : []),
          ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
       : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows];
+    const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows];
   }
 
   /**
@@ -7026,7 +7121,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
+          : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
           : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
@@ -7286,7 +7382,10 @@ export class MobManager {
         continue;
       }
 
-      if (mob.isAquatic) {
+      if (mob.isAquatic && !isTurtle(mob)) {
+        // Turtles are aquatic but not fish: they walk on land and swim in water, so they own their
+        // locomotion in their own branch. Sending them down this path made them beached-flop
+        // sideways with fish physics, which is what the exclusion is for.
         if (this.updateAquaticMob(mob, dt, player)) continue;
       }
 
@@ -7428,6 +7527,45 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='turtle'){
+      // Wiki: passive. Slow on land, fast in water, heads for water while on land, flees when
+      // attacked, and returns to its home block to lay a cluster of eggs after breeding.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const movement = updateTurtleMovement(this, mob, dt, player, { wander: wanderMob });
+
+      // Wiki: the turtle digs for a few seconds, then lays 1-4 eggs on nearby sand at home.
+      if (mob.hasEgg && movement === 'returning-home' && mob.state === 'digging') {
+        const laid = tryLayTurtleEggs(this, mob, dt);
+        if (laid > 0) mob.breedCooldown = TURTLE_BREED_COOLDOWN_SECONDS;
+      } else if (mob.hasEgg) {
+        mob.digTimer = 0;
+      }
+
+      // Fleeing when hurt, like other passive mobs.
+      if (mob.hurtTime > 0 && player?.position) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          const speed = mob.inWater ? 2.6 : 1.6;
+          mob.velocity.x = away.x * speed;
+          mob.velocity.z = away.z * speed;
+        }
+      }
+
+      // A turtle in water floats rather than falling, so gravity is skipped there.
+      if (mob.inWater) {
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+      } else {
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.turtlePhase = (mob.turtlePhase || 0) + dt * (mob.inWater ? 6 : 4);
+      poseTurtle(mob, mob.turtlePhase);
       return true;
     }
     if(mob.type==='llama'){
