@@ -1256,6 +1256,7 @@ export const ITEMS = {
   // Additional Mob Spawn Eggs
   chicken_spawn_egg: { name: 'Chicken Spawn Egg', icon: '/assets/items/chicken_spawn_egg.png', type: 'spawn_egg', mob: 'chicken' },
   horse_spawn_egg: { name: 'Horse Spawn Egg', icon: '/assets/items/horse_spawn_egg.png', type: 'spawn_egg', mob: 'horse' },
+  mule_spawn_egg: { name:'Mule Spawn Egg',icon:'/assets/items/donkey_spawn_egg.png',type:'spawn_egg',mob:'mule' },
   donkey_spawn_egg: { name: 'Donkey Spawn Egg', icon: '/assets/items/donkey_spawn_egg.png', type: 'spawn_egg', mob: 'donkey' },
   wolf_spawn_egg: { name: 'Wolf Spawn Egg', icon: '/assets/items/wolf_spawn_egg.png', type: 'spawn_egg', mob: 'wolf' },
   cat_spawn_egg: { name: 'Cat Spawn Egg', icon: '/assets/items/cat_spawn_egg.png', type: 'spawn_egg', mob: 'cat' },

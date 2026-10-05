@@ -458,7 +458,7 @@ export class RailSystem {
       }
       if (cart.mesh) cart.mesh.position.copy(cart.position);
       if(cart.subType==='minecart'&&!cart.rider&&Math.abs(cart.speed)>.1){
-        const mob=this.game?.mobs?.mobs?.find(m=>['squid','glow_squid'].includes(m.type)&&m.health>0&&!m.vehicle&&m.mesh.position.distanceTo(cart.position)<1);
+        const mob=this.game?.mobs?.mobs?.find(m=>['squid','glow_squid','donkey','mule'].includes(m.type)&&m.health>0&&!m.vehicle&&!m.rider&&m.mesh.position.distanceTo(cart.position)<1);
         if(mob){cart.rider=mob;mob.vehicle=cart;}
       }
       if (cart.rider) {
@@ -721,7 +721,7 @@ export class RailSystem {
       // Mob embarkation into empty secondary seat (if not a chest boat)
       if (!boat.passenger && !boat.hasChest && this.game?.mobs?.mobs) {
         for (const mob of this.game.mobs.mobs) {
-          if (!mob.isRiding && mob.health > 0) {
+          if (!mob.isRiding && !mob.vehicle && !mob.rider && mob.health > 0 && (!['horse','donkey','mule'].includes(mob.type)||mob.isBaby)) {
             const mPos = mob.position || mob.mesh?.position;
             if (mPos && mPos.distanceTo(boat.position) < 1.3) {
               boat.passenger = mob;

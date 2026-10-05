@@ -796,6 +796,7 @@ export class UIManager {
     const mount=this.player.ridingMob;
     if(mount && ['horse','donkey','mule'].includes(mount.type)){
       if(!mount.isTamed)return;
+      if(document.getElementById('horse-equipment')&&!this.invModal.classList.contains('hidden')){this.closeAllModals();return;}
       this.openHorseInventory(mount);return;
     }
     document.getElementById('horse-equipment')?.remove();
