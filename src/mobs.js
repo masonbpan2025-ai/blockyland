@@ -239,11 +239,7 @@ export class MobManager {
       chicken: this.loadTexture('/assets/entity/chicken.png'),
       creeper: this.loadTexture('/assets/entity/creeper.png'),
       skeleton: this.loadTexture('/assets/entity/skeleton.png'),
-    // Wiki: husk, stray and bogged are variants of these two, so their skins are tints of them.
-    husk: this.createVariantTexture('zombie', '#c2a878'),
-    stray: this.createVariantTexture('skeleton', '#a8c4d4'),
-    bogged: this.createVariantTexture('skeleton', '#7c8f5a'),
-    salmon: this.createAquaticTexture('salmon'),
+      salmon: this.createAquaticTexture('salmon'),
       dolphin: this.createAquaticTexture('dolphin'),
       octopus: this.createAquaticTexture('octopus'),
       squid: this.createAquaticTexture('octopus'),
@@ -283,6 +279,20 @@ export class MobManager {
       wither_skeleton: this.createNetherTexture('wither_skeleton'),
       wither_skull: this.createNetherTexture('wither_skull')
     };
+
+    // Derived skins, built AFTER the literal above is assigned.
+    //
+    // This ordering is the whole point. `this.textures` only comes into existence once the entire literal has
+    // finished evaluating, so a variant built INSIDE it reads `this.textures` as undefined, gets no base at all,
+    // and ends up with a texture that has no image -- which renders as a SOLID BLACK mob. The husk, stray and
+    // bogged were all built that way and were all black in the Inspector.
+    //
+    // Wiki: a husk is a desert zombie, a stray is a snow skeleton and a bogged is a mushroom-covered one, so
+    // each is its base's skin tinted. Safe to derive before the images decode, because `createVariantTexture`
+    // paints asynchronously when the base arrives.
+    this.textures.husk = this.createVariantTexture('zombie', VARIANT_TINTS.husk);
+    this.textures.stray = this.createVariantTexture('skeleton', VARIANT_TINTS.stray);
+    this.textures.bogged = this.createVariantTexture('skeleton', VARIANT_TINTS.bogged);
 
     this.animalBehaviors = new AnimalBehaviors(this, world, sounds, entities);
     this.hostileBehaviors = new HostileMobBehaviors(this, world, sounds, entities);
@@ -2006,41 +2016,117 @@ export class MobManager {
   createVariantTexture(baseKey, color) {
     const base = this.textures?.[baseKey] ?? null;
     if (typeof document === 'undefined') return base ?? new THREE.Texture();
-    const source = base?.image;
-    if (!source?.width) return base ?? new THREE.Texture();
-    try {
-      const canvas = document.createElement('canvas');
+    // Accept either a 0xRRGGBB number (as VARIANT_TINTS holds) or a CSS string.
+    const css = typeof color === 'number' ? `#${color.toString(16).padStart(6, '0')}` : String(color ?? '#ffffff');
+
+    // Always return a real canvas texture, even before the base decodes.
+    //
+    // The base textures come from `textureLoader.load()`, which is ASYNCHRONOUS: immediately after construction
+    // `this.textures.zombie.image` is still `null`. The previous version did `if (!source?.width) return base`,
+    // so a variant built in the same object literal as its base silently received a texture with NO image at
+    // all -- which renders as a SOLID BLACK mob, because a `MeshLambertMaterial` with a colour but no map has
+    // nothing to multiply against. That is exactly what happened to the husk, stray and bogged; the zombie
+    // itself was fine only because `TextureLoader` fires its own `onLoad` and flags `needsUpdate`.
+    const target = new THREE.CanvasTexture(document.createElement('canvas'));
+    target.magFilter = THREE.NearestFilter;
+    target.minFilter = THREE.NearestFilter;
+    target.colorSpace = THREE.SRGBColorSpace;
+
+    // Size the canvas from the base's attributes as soon as they are known, and create the drawing context at
+    // that size. Sizing it lazily (leaving the default 300x150 and resizing during paint) means the renderer may
+    // have already uploaded a 300x150 texture, and resizing the backing store afterwards races the continuous
+    // render loop -- the mob then samples a blank texture and renders as a SOLID BLACK silhouette. Measuring the
+    // canvas pixels cannot see this, because the 2D content is correct; only the GPU copy is stale.
+    const sizeFor = (source) => {
+      const canvas = target.image;
+      if (canvas.width === source.width && canvas.height === source.height) return;
       canvas.width = source.width;
       canvas.height = source.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(source, 0, 0);
-      // `multiply` keeps the darker shading and brightens only what the base already had.
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = 'source-over';
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      // The base image may load after this runs; redraw once it does so the tint is not lost.
-      if (!base.image.complete) {
-        base.image.addEventListener?.('load', () => {
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(base.image, 0, 0);
-          ctx.globalCompositeOperation = 'multiply';
-          ctx.fillStyle = color;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.globalCompositeOperation = 'source-over';
-          tex.needsUpdate = true;
-        }, { once: true });
+    };
+
+    const paint = (source) => {
+      if (!source?.width) return false;
+      try {
+        sizeFor(source);
+        const ctx = target.image.getContext('2d');
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.clearRect(0, 0, source.width, source.height);
+        ctx.drawImage(source, 0, 0);
+
+        // Tint with plain pixel arithmetic, NOT `globalCompositeOperation = 'multiply'`.
+        //
+        // The canvas `multiply` blend mode proved unreliable here: measured in the live Inspector page the
+        // "tinted" texture came back with exactly the base's average (129), i.e. the composite silently did
+        // nothing, so the husk/stray/bogged skins were left untinted in some environments. Reading the pixels
+        // and multiplying them channel-by-channel is deterministic everywhere and is also directly testable.
+        const data = ctx.getImageData(0, 0, source.width, source.height);
+        const px = data.data;
+        const tint = [1, 3, 5].map(i => parseInt(css.slice(i, i + 2), 16));
+        const targetAvg = (tint[0] + tint[1] + tint[2]) / 3 || 1;
+
+        // Multiply in place, tracking the result's average as we go.
+        let sum = 0, count = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          // Fully transparent pixels carry no colour and must stay transparent.
+          if (px[i + 3] === 0) continue;
+          px[i] = (px[i] * tint[0]) / 255;
+          px[i + 1] = (px[i + 1] * tint[1]) / 255;
+          px[i + 2] = (px[i + 2] * tint[2]) / 255;
+          sum += (px[i] + px[i + 1] + px[i + 2]) / 3;
+          count++;
+        }
+        const baseAvg = count ? sum / count : 0;
+
+        // A plain multiply of two dark things is nearly black -- measured with the real renderer the husk came
+        // out at avgRGB 26 against the zombie's 77, which is the black blob the Inspector was showing. So after
+        // tinting, scale the whole image uniformly so its average matches the tint's own average. Shading is
+        // preserved because it is a single uniform gain.
+        if (baseAvg > 4 && targetAvg > 4) {
+          // Clamped so a pathological pair cannot blow the texture out to white.
+          const gain = Math.min(6, targetAvg / baseAvg);
+          if (Math.abs(gain - 1) > 0.001) {
+            for (let i = 0; i < px.length; i += 4) {
+              if (px[i + 3] === 0) continue;
+              px[i] = Math.min(255, px[i] * gain);
+              px[i + 1] = Math.min(255, px[i + 1] * gain);
+              px[i + 2] = Math.min(255, px[i + 2] * gain);
+            }
+          }
+        }
+        ctx.putImageData(data, 0, 0);
+        target.needsUpdate = true;
+        return true;
+      } catch {
+        // A tainted canvas or a stub without a real 2D context must not break spawning.
+        return false;
       }
-      return tex;
-    } catch {
-      // A tainted canvas or a stub without a real 2D context must not break spawning.
-      return base ?? new THREE.Texture();
-    }
+    };
+
+    if (paint(base?.image)) return target;
+
+    // Not decoded yet. `base.image` is a getter onto `base.source.data`, which `TextureLoader` leaves NULL until
+    // the bitmap arrives, so there is nothing to attach a listener to yet.
+    //
+    // Two things were wrong with the first attempt at this: `image.complete` is false both for an image that is
+    // still downloading and for one that has not started, so `!complete` could never identify the retry case;
+    // and a short poll simply expired before the image arrived. So: listen on the texture (which DOES receive a
+    // `load` event) for the common case, and poll as a backstop with a budget generous enough to outlast a slow
+    // first load. `decode()` is used when available because it resolves once the bitmap is genuinely paintable.
+    let attempts = 0;
+    const attach = () => {
+      const image = base?.image ?? base?.source?.data;
+      if (image?.addEventListener) {
+        if (paint(image)) return;
+        image.addEventListener('load', () => paint(image), { once: true });
+        image.decode?.().then(() => paint(image)).catch(() => {});
+        return;
+      }
+      // 1200 x 25ms = 30s, which comfortably outlasts a cold texture load.
+      if (attempts++ < 1200) setTimeout(attach, 25);
+    };
+    base?.addEventListener?.('load', () => paint(base?.image ?? base?.source?.data), { once: true });
+    attach();
+    return target;
   }
 
   createNetherTexture(type) {
