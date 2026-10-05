@@ -1267,7 +1267,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['string','string'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.LOOM,isBlock:true,count:1}},
   {pattern:[['string','string'],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.LOOM,isBlock:true,count:1}},
   {shapeless:true,ingredients:['paper',B.OXEYE_DAISY],result:{id:'flower_banner_pattern',isBlock:false,count:1}},
-  {shapeless:true,ingredients:['paper',B.WITHER_SKELETON_SKULL_BLOCK],result:{id:'skull_banner_pattern',isBlock:false,count:1}},
+  {shapeless:true,ingredients:['paper',B.WITHER_SKELETON_SKULL],result:{id:'skull_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper','enchanted_golden_apple'],result:{id:'mojang_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper',B.BRICKS],result:{id:'field_masoned_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper',B.VINE],result:{id:'bordure_indented_banner_pattern',isBlock:false,count:1}},
