@@ -31,6 +31,7 @@ import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBe
 import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
 import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
 import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
+import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, createEndermiteModel, poseEndermiteLegs, updateEndermiteLifetime, updateEndermiteHunt, updateEndermanEndermiteAggression } from './endermiteBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -353,6 +354,7 @@ export class MobManager {
       case 'spider': return this.spawnSpider(x, y, z, {});
       case 'cave_spider': return this.spawnCaveSpider(x, y, z, {});
       case 'silverfish': return this.spawnSilverfish(x, y, z, {});
+      case 'endermite': return this.spawnEndermite(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2302,6 +2304,8 @@ export class MobManager {
       case 'cave_spider': return CAVE_SPIDER_DIMENSIONS;
       // Wiki: silverfish are 0.4 x 0.3, among the smallest mobs.
       case 'silverfish': return SILVERFISH_DIMENSIONS;
+      // Wiki: endermites are also 0.4 x 0.3, and the smallest hostile hitbox.
+      case 'endermite': return ENDERMITE_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3006,6 +3010,54 @@ export class MobManager {
       angerTimer: 0,
       attacker: null,
       silverfishPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Endermite.
+   *
+   * Wiki: 8 HP, 0.4 x 0.3 (the smallest hostile hitbox), 2/2/3 damage, 3 XP and no items. It
+   * spawns from a thrown ender pearl, despawns after two minutes unless named, and endermen
+   * hunt it.
+   */
+  spawnEndermite(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2e1065 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+    const { group, head, body, legs, eyes } = createEndermiteModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'endermite',
+      name: 'Endermite',
+      mesh: group,
+      head,
+      body,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: 8 HP.
+      health: ENDERMITE_HEALTH,
+      maxHealth: ENDERMITE_HEALTH,
+      width: ENDERMITE_DIMENSIONS.width,
+      height: ENDERMITE_DIMENSIONS.height,
+      // Wiki `Lifetime`: despawns at around 2400 ticks unless named.
+      lifetime: 0,
+      despawned: false,
+      fromEnderPearl: !!options.fromEnderPearl,
+      // Targets, set by the enderman/endermite aggression pass and the player chase.
+      endermanTarget: null,
+      endermitePhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -6324,7 +6376,7 @@ export class MobManager {
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob)];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob)];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6392,7 +6444,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
+          : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
           : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
@@ -6675,6 +6728,9 @@ export class MobManager {
     // Apply mob-to-mob soft collision separation so mobs never squeeze/collapse into one position
     this.applyMobCollisions(dt);
     separatePlayerFromMobs(this, player, dt);
+    // Wiki: endermen attack endermites in line of sight within 64 blocks, and endermites
+    // fight back. This pairs them once per frame rather than per mob.
+    updateEndermanEndermiteAggression(this);
 
     for(const mob of this.mobs){if(!mob.jockeyMount)continue;const mount=mob.jockeyMount;if(mob.health<=0||mount.health<=0){mount.rider=null;mob.jockeyMount=null;continue;}mob.mesh.position.copy(mount.mesh.position).y+=mount.type==='chicken'?.55:1.4;mob.velocity.set(0,0,0);}
     // Apply the final mount pose after the mob and separation passes. Animal
@@ -6744,6 +6800,16 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='endermite'){
+      // Wiki: endermites chase players, fight endermen, and despawn after two minutes
+      // unless named. The enderman/endermite pairing is refreshed elsewhere in the update.
+      if (updateEndermiteLifetime(this, mob, dt)) return true;
+      updateEndermiteHunt(this, mob, dt, player);
+      moveGroundMob(this, mob, dt);
+      mob.endermitePhase = (mob.endermitePhase || 0) + dt * (Math.hypot(mob.velocity.x, mob.velocity.z) > 0.05 ? 14 : 3);
+      poseEndermiteLegs(mob, mob.endermitePhase);
+      return true;
+    }
     if(mob.type==='silverfish'){
       // Wiki: always hostile, pathfinds to the player, and sees through walls.
       updateSilverfishAnger(mob, dt);
