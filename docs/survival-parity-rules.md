@@ -342,7 +342,7 @@ going unnoticed.
 | Vanilla recipes implemented | 1552 | 1557 | 99.7% |
 | Crafting recipes expressible | 1553 | 1557 | 99.7% |
 | Blocks named | 1095 | 1095 | 100.0% |
-| Items named | 1310 | 1385 | 94.6% |
+| Items named | 1321 | 1385 | 95.4% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,12 +371,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1095 | 1298 |
-| missing | **0** | 87 |
+| present | 1095 | 1309 |
+| missing | **0** | 76 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **0** | **87** |
-| art files | 551 | 1071 |
+| **missing, needs NEW art** | **0** | **76** |
+| art files | 563 | 1071 |
 
 ### 4.1.1a The pinned block list is COMPLETE
 
