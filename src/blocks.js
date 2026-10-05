@@ -1164,6 +1164,9 @@ export const ITEMS = {
   bone_meal: { name: 'Bone Meal', icon: '/assets/items/bone_meal.png', type: 'material' },
   sugar: { name: 'Sugar', icon: '/assets/items/sugar.png', type: 'material' },
   leather: { name: 'Leather', icon: '/assets/items/leather.png', type: 'material' },
+  // Wiki: a goat horn is dropped when a goat rams a hard block. Both horns of one goat are always
+  // the same variant, so the item carries the variant in its name rather than the stack.
+  goat_horn: { name: 'Goat Horn', icon: '/assets/items/goat_horn.png', type: 'material' },
   paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
   book: { name: 'Book', icon: '/assets/items/book.png', type: 'material' },
   enchanted_book: { name: 'Enchanted Book', icon: '/assets/items/enchanted_book.png', type: 'utility' },
@@ -1237,6 +1240,7 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  goat_spawn_egg: { name: 'Goat Spawn Egg', icon: '/assets/items/goat_spawn_egg.png', type: 'spawn_egg', mob: 'goat' },
   pig_spawn_egg: { name: 'Pig Spawn Egg', icon: '/assets/items/pig_spawn_egg.png', type: 'spawn_egg', mob: 'pig' },
   cow_spawn_egg: { name: 'Cow Spawn Egg', icon: '/assets/items/cow_spawn_egg.png', type: 'spawn_egg', mob: 'cow' },
   sheep_spawn_egg: { name: 'Sheep Spawn Egg', icon: '/assets/items/sheep_spawn_egg.png', type: 'spawn_egg', mob: 'sheep' },

@@ -19,6 +19,14 @@ import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+
+/**
+ * Reverse lookup from a block id to its registry name, built on first use by `blockNameAt`.
+ *
+ * The goat's horn rule is defined against block names, and this is the only place that needs to
+ * resolve an id back to one.
+ */
+const BLOCK_NAMES_BY_ID = new Map();
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { MobLibrary } from './mobLibrary.js';
@@ -37,6 +45,7 @@ import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_S
 import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
 import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
+import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -364,6 +373,7 @@ export class MobManager {
       case 'bat': return this.spawnBat(x, y, z, {});
       case 'fox': return this.spawnFox(x, y, z, {});
       case 'bee': return this.spawnBee(x, y, z, {});
+      case 'goat': return this.spawnGoat(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2325,6 +2335,8 @@ export class MobManager {
       case 'fox': return FOX_DIMENSIONS;
       // Wiki: bees are 0.55 x 0.5.
       case 'bee': return BEE_DIMENSIONS;
+      // Wiki: goats are 0.9 x 1.3, and shrink to 0.63 x 0.91 mid-jump.
+      case 'goat': return GOAT_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3384,6 +3396,116 @@ export class MobManager {
     };
     this.mobs.push(mob);
     return mob;
+  }
+
+  /**
+   * Goat.
+   *
+   * Wiki: 10 HP, 0.9 x 1.3, neutral mountain animal. Leaps up to 10 blocks high and 5 across on a
+   * 30-60 second cooldown, rams an unmoving target every 30s-5min, snaps a horn off against a hard
+   * block, and is milkable. A screaming goat rams every 5-15 seconds.
+   */
+  spawnGoat(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.body });
+    const darkMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.dark });
+    const hornMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.horn });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: GOAT_COLORS.eye });
+    const { group, body, head, muzzle, beard, tail, eyes, horns, hornSides, legs } = createGoatModel(bodyMat, darkMat, hornMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(GOAT_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const random = options.random || Math.random;
+    const dims = options.isBaby ? GOAT_BABY_DIMENSIONS : GOAT_DIMENSIONS;
+    const isScreamingGoat = options.isScreamingGoat ?? rollScreamingGoat(random);
+    // Wiki: 10% of adults are missing one horn; babies have both and never drop them.
+    const hornsPresent = options.horns || rollGoatHorns(!!options.isBaby, random);
+
+    const mob = {
+      type: 'goat',
+      name: 'Goat',
+      mesh: group,
+      body,
+      head,
+      muzzle,
+      beard,
+      tail,
+      eyes,
+      horns,
+      hornSides,
+      legs,
+      bodyMat,
+      darkMat,
+      hornMat,
+      eyeMat,
+      // Wiki: 10 HP.
+      health: GOAT_HEALTH,
+      maxHealth: GOAT_HEALTH,
+      isBaby: !!options.isBaby,
+      version: 'java',
+      width: dims.width,
+      height: dims.height,
+      // Screaming goats are visually identical; only their ramming cadence and sounds differ.
+      isScreamingGoat,
+      hasLeftHorn: hornsPresent.left,
+      hasRightHorn: hornsPresent.right,
+      hornVariant: options.hornVariant || rollGoatHornVariant(isScreamingGoat, random),
+      // Wiki: goats take 10 less fall damage and avoid walking into powder snow.
+      fallDamageReduction: GOAT_FALL_DAMAGE_REDUCTION,
+      avoidsPowderSnow: true,
+      // Wiki: milkable with a bucket, breedable with wheat.
+      isMilkable: true,
+      ramState: null,
+      ramTarget: null,
+      ramLockedPosition: null,
+      ramPrepareTimer: 0,
+      ramTimer: 0,
+      ramCooldown: rollGoatRamCooldown(isScreamingGoat, random),
+      jumpCooldown: rollGoatJumpCooldown(random),
+      isGoatJumping: false,
+      goatJumpHeight: 0,
+      goatPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    poseGoat(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Pick something for a goat to ram.
+   *
+   * Wiki: it targets players, armor stands and any mob except ghasts and other goats, within 4-16
+   * blocks, and only if the target is not moving. Players in Creative or on Peaceful are excluded.
+   */
+  findGoatRamTarget(goat, player) {
+    const difficulty = this.game?.difficulty ?? 'normal';
+    const candidates = [];
+    if (player?.position) candidates.push(player);
+    for (const other of this.mobs) {
+      if (other === goat) continue;
+      candidates.push(other);
+    }
+
+    let best = null;
+    let bestDist = GOAT_RAM.maxRange;
+    for (const candidate of candidates) {
+      if (!isValidGoatTarget(goat, candidate, { difficulty })) continue;
+      if (!isUnmovingTarget(candidate)) continue;
+      const pos = candidate.position ?? candidate.mesh?.position;
+      if (!pos) continue;
+      const dist = goat.mesh.position.distanceTo(pos);
+      // Wiki: the range is 4 to 16 blocks, so something right on top of the goat is not a target.
+      if (dist < GOAT_RAM.minRange || dist > bestDist) continue;
+      bestDist = dist;
+      best = candidate;
+    }
+    return best;
   }
 
   // --- PASSIVE COW ---
@@ -6719,7 +6841,30 @@ export class MobManager {
     const foxRows = mob.type === 'fox' && !mob.isBaby ? foxDrops(mob) : [];
     // Wiki: a bee that died of its own sting was not killed, so it awards nothing.
     const beeRows = mob.type === 'bee' && !mob.diedOfSting ? beeDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows];
+    // Wiki: a goat drops no items on death; its horns only come off against a hard block.
+    const goatRows = isGoat(mob) ? goatDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows];
+  }
+
+  /**
+   * The registry name of the block at a position, lower case, or null.
+   *
+   * Needed by the goat's horn rule, which the wiki defines against a list of block *names* rather
+   * than ids. The reverse lookup is built once on first use, because block ids are registry values
+   * and this is the only place that needs to go backwards.
+   */
+  blockNameAt(x, y, z) {
+    const id = this.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z));
+    if (id === undefined || id === null || id === 0) return null;
+    if (!BLOCK_NAMES_BY_ID.size) {
+      for (const [name, value] of Object.entries(BLOCKS)) {
+        // Several aliases can share an id; the first name wins, which is the canonical one.
+        if (typeof value === 'number' && !BLOCK_NAMES_BY_ID.has(value)) {
+          BLOCK_NAMES_BY_ID.set(value, name.toLowerCase());
+        }
+      }
+    }
+    return BLOCK_NAMES_BY_ID.get(id) ?? null;
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6787,7 +6932,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
+          : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'bat' ? 0
           : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
@@ -7184,6 +7330,92 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='goat'){
+      // Wiki: neutral. It leaps up to 10 blocks high and 5 across on a 30-60s cooldown, and every
+      // 30s-5min (5-15s for a screaming goat) tries to ram an unmoving target it can see 4-16 blocks
+      // away. A goat does not retaliate when harmed.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.jumpCooldown = Math.max(0, (mob.jumpCooldown || 0) - dt);
+      mob.ramCooldown = Math.max(0, (mob.ramCooldown || 0) - dt);
+
+      // 1. A ram already in progress: the head is down and the goat is committed.
+      if (mob.ramState) {
+        updateGoatRam(this, mob, dt, { move: moveGroundMob });
+        poseGoat(mob);
+        mob.goatPhase = (mob.goatPhase || 0) + dt * 10;
+        poseGoatLegs(mob, mob.goatPhase, mob.ramState !== 'preparing');
+        return true;
+      }
+
+      // 2. Land a long jump, restoring the walking hitbox.
+      if (mob.isGoatJumping && mob.onGround) {
+        landGoatJump(mob);
+        mob.height = mob.isBaby ? GOAT_BABY_DIMENSIONS.height : GOAT_DIMENSIONS.height;
+      }
+
+      // 3. Wiki: holding wheat makes a goat that was preparing to ram stop and walk to the player.
+      const heldItem = player?.inventory?.getActiveItem?.();
+      const heldId = typeof heldItem?.id === 'string' ? heldItem.id.toLowerCase() : '';
+      const tempted = heldId.includes('wheat') && !heldId.includes('seed');
+
+      // 4. Look for something to ram. Wiki: it must be unmoving, within 4-16 blocks, and not a
+      // ghast or another goat.
+      if (mob.ramCooldown <= 0 && !tempted) {
+        const target = this.findGoatRamTarget(mob, player);
+        if (target) {
+          startGoatRam(mob, target);
+          mob.ramCooldown = rollGoatRamCooldown(mob.isScreamingGoat);
+        } else {
+          // Nothing worth charging right now; wait before looking again.
+          mob.ramCooldown = 1 + Math.random() * 2;
+        }
+      }
+
+      // 5. Wander, but a goat prefers to climb rather than keep to the low ground.
+      if (tempted && player?.position) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist <= GOAT_FOLLOW_RANGE && dist > 1.6) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * 1.8;
+          mob.velocity.z = dir.z * 1.8;
+        } else {
+          mob.velocity.x *= 0.6;
+          mob.velocity.z *= 0.6;
+        }
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+        // Wiki: a goat jumps when trying to cross an obstacle, and it tends to ascend hills.
+        if (mob.jumpCooldown <= 0 && mob.onGround && Math.random() < dt * 0.8) {
+          // Aim at the next waypoint so the leap carries it up the slope.
+          if (mob.wanderGoal) {
+            const dir = mob.wanderGoal.clone().sub(mob.mesh.position);
+            dir.y = 0;
+            if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          }
+          const ahead = new THREE.Vector3(
+            mob.mesh.position.x + Math.sin(mob.yaw) * 1.5,
+            mob.mesh.position.y,
+            mob.mesh.position.z + Math.cos(mob.yaw) * 1.5
+          );
+          // Only jump when the ground ahead is a step up, which is the obstacle case.
+          const stepUp = this.world?.getVoxel?.(Math.floor(ahead.x), Math.floor(ahead.y) + 1, Math.floor(ahead.z));
+          if (typeof stepUp === 'number' && stepUp !== 0) {
+            startGoatJump(mob, { height: 2.5, distance: 3 });
+            mob.width = GOAT_JUMP_DIMENSIONS.width;
+            mob.height = GOAT_JUMP_DIMENSIONS.height;
+          }
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      poseGoat(mob);
+      mob.goatPhase = (mob.goatPhase || 0) + dt * (mob.isGoatJumping ? 4 : 8);
+      poseGoatLegs(mob, mob.goatPhase, Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
       return true;
     }
     if(mob.type==='bee'){
