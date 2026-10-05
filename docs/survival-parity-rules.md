@@ -484,8 +484,28 @@ number also means rarer but the arithmetic is inverted. This game uses vanilla's
 is stored as `0.008333`, matching vanilla's `dropChance`, and a reroll of the table reproduces vanilla's
 outcomes.
 
-One structural note: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
+**One structural note**: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
 today. The ranged form is implemented and covered by a test, but it is unexercised by the current data.
+
+### 4.2.3 Falling was completely harmless
+
+`player.fallDistance` accumulated on every downward step and was read in exactly **one** place,
+`farmingManager.checkTrample`. No `takeDamage` call anywhere in `src/` passed the `'fall'` damage type, so a
+fall from any height cost nothing — which removes one of the most basic pressures of survival mode. Cliffs,
+ravines and a bad jump were free.
+
+`src/fallDamage.js` implements the rule section 1.5 describes: nothing under three blocks, then one point per
+block beyond it, in half-hearts. A four-block fall costs half a heart and a **twenty-three block fall deals
+exactly twenty, a full health bar** — vanilla's best-known fall figure, and the check that both the threshold
+and the floor are right. Water and gliding negate it, handled inside the calculation rather than at the call
+site because a caller that forgot one would silently restore the bug.
+
+The `'fall'` type had been anticipated in three places that had nothing to act on: it is excluded from shield
+blocking, reduced by Feather Falling, and skipped by Thorns. All three now apply.
+
+Note the interaction with 4.2.2: an elytra *negates* fall damage, which is most of why it is worth wearing.
+An earlier version of that note claimed vanilla deals damage on a fast impact instead, and the correction is
+recorded there.
 
 - **Elytra gliding now exists, as a tuned approximation.** `player.isGliding` and `player.elytraActive`
   were read in exactly one place (`parrotBehavior.js`) and **set nowhere**, while the `elytra` item and its
@@ -500,8 +520,9 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
   horizontal speed is bounded at both ends, and a firework rocket adds speed and lift. Those are what
   `tests/elytraGlide.test.js` checks.
 
-  Known deviations: there is no elytra durability loss for time spent gliding, and no damage taken on a
-  fast impact, both of which vanilla has. The glide also steers along the existing heading rather than
+  Known deviations: there is no elytra durability loss for time spent gliding. **An earlier version of this
+  note claimed vanilla also deals damage on a fast impact, and that was wrong** — an elytra *negates* fall
+  damage, which is most of why it is worth wearing. Corrected here rather than left standing. The glide also steers along the existing heading rather than
   turning with the camera, so a glide is committed to a direction once it has one.
 
 - **A firework rocket did nothing when used.** `firework_rocket` had **zero** references outside the

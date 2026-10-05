@@ -4,6 +4,7 @@ import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEff
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import { applyGlide, wantsToStartGliding, shouldStopGliding } from './elytra.js';
+import { fallDamageFor } from './fallDamage.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -775,10 +776,23 @@ export class Player {
           if (this.game?.farmingManager?.checkTrample) {
             this.game.farmingManager.checkTrample(this, belowX, belowY, belowZ, this.fallDistance);
           }
+          // Fall damage. This is what makes height dangerous at all: `fallDistance` was accumulated and
+          // read only by the trample check, so a fall from any height was harmless.
+          //
+          // Applied BEFORE the distance is cleared, and only for the landing that ends the fall. Water and
+          // gliding negate it inside `fallDamageFor`; Feather Falling, Protection and the shield exclusion
+          // are already applied by `takeDamage` to the 'fall' type.
+          const landingDamage = fallDamageFor(this.fallDistance, {
+            gliding: this.isGliding,
+            inWater: this.inWater,
+          });
           // Snap to top of block
           newPos.y = Math.ceil(newPos.y);
           this.velocity.y = 0;
           this.fallDistance = 0;
+          if (landingDamage > 0) {
+            this.takeDamage(landingDamage, null, 'fall');
+          }
         }
       } else {
         // Bump head
