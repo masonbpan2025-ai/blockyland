@@ -8,6 +8,8 @@
 //   node scripts/inspect-resource.mjs duplicates [--json]        keys a literal defines twice
 //   node scripts/inspect-resource.mjs faults [--json]            dangling + duplicates, as a gate
 //   node scripts/inspect-resource.mjs missing [--limit 40]        vanilla items this game lacks
+//   node scripts/inspect-resource.mjs orphans [--limit 40]        harvest rows with no block, split into
+//                                                                 a to-do list and a defect
 //   node scripts/inspect-resource.mjs shadows [--json]            ids that shadow a vanilla id under
 //                                                                 another spelling, six of them duplicates
 //   node scripts/inspect-resource.mjs audit [--json]              per-check counts over everything
@@ -32,6 +34,7 @@ import {
   undefinedBlockConstants,
   unresolvedImports,
   shadowedVanillaIds,
+  harvestOrphans,
 } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 
@@ -254,6 +257,22 @@ export async function main() {
     case 'missing': {
       if (!vanilla) { console.error('vanilla cache missing; run scripts/generate-mc-data.mjs'); process.exitCode = 1; break; }
       printMissing(active.registry, vanilla);
+      break;
+    }
+    case 'orphans': {
+      const limit = Number(flag('limit', '40'));
+      const { missingBlock, deadByKey } = harvestOrphans(active.registry);
+      const holding = missingBlock.filter((r) => r.drops.length);
+      if (json) { out({ deadByKey, missingBlock }); break; }
+      console.log(`harvest rows with no block: ${missingBlock.length} (${holding.length} of them declare a drop)`);
+      for (const r of holding.slice(0, limit)) {
+        console.log(`   ${r.name.padEnd(26)} would drop ${r.drops.join(', ')}`);
+      }
+      if (holding.length > limit) console.log(`   ... ${holding.length - limit} more (--limit to see them)`);
+      // The defect, as opposed to the to-do list: a block that exists and a row that cannot be reached.
+      console.log(`harvest rows unreachable although the block exists: ${deadByKey.length}`);
+      for (const r of deadByKey) console.log(`   ${r.name} -> block ${r.blockId}`);
+      if (deadByKey.length) process.exitCode = 1;
       break;
     }
     case 'shadows': {
