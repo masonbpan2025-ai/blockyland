@@ -2,6 +2,7 @@ import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
+import { spendDurability } from './durability.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -831,6 +832,34 @@ export class Player {
   }
 
   /**
+   * Wear the armour for damage taken, the way a tool wears for use.
+   *
+   * Vanilla charges every worn piece `max(1, floor(damage / 4))` points per hit, with unbreaking rolled
+   * per piece. Armour that never wears out is an infinite shield, which is why this is here now that a
+   * durability system exists.
+   *
+   * @param {number} damage the damage actually taken, after reductions
+   * @returns {string[]} the slots whose piece broke
+   */
+  wearArmour(damage) {
+    const armour = this.inventory?.armor;
+    if (!armour || !(damage > 0)) return [];
+    const perPiece = Math.max(1, Math.floor(damage / 4));
+    const roll = typeof this.random === 'function' ? this.random : Math.random;
+    const broken = [];
+    for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
+      const piece = armour[slotKey];
+      if (!piece) continue;
+      const wear = spendDurability(piece, perPiece, roll);
+      if (wear.broke) {
+        armour[slotKey] = null;
+        broken.push(slotKey);
+      }
+    }
+    return broken;
+  }
+
+  /**
    * The base movement speed for the player's current state, before status effects and soul speed.
    *
    * Extracted from `update` so the stairs of conditionals -- and the depth strider factor inside the
@@ -963,6 +992,16 @@ export class Player {
       this.velocity.y = Math.max(this.velocity.y, 2.5);
     }
     this.sounds.playHurt();
+
+    // Armour wears for the damage that got through. In vanilla every worn piece is charged, so this runs
+    // after the reductions rather than on the raw amount.
+    if (amount > 0 && this.gamemode === 'survival') {
+      const broken = this.wearArmour(amount);
+      for (const slotKey of broken) {
+        this.ui?.addChatMessage?.(
+          `<span style="color:#ef4444;">Your ${slotKey} armour broke.</span>`);
+      }
+    }
 
     // Thorns reflects on to whoever struck. Reported through a hook rather than applied here, because
     // damaging a mob is the mob manager's job and the player should not reach into it -- the same reason

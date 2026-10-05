@@ -1,4 +1,4 @@
-﻿// Mob drop parity against vanilla's entity loot tables.
+// Mob drop parity against vanilla's entity loot tables.
 //
 // This is the first measurement of the mob-drop strand of the objective. It compares 104 drop entries
 // across 55 entities on three axes -- drop chance, stack count and the player-kill condition -- because
@@ -11,6 +11,7 @@
 // numbers: two independent measures agreeing to the digit is a reading error, not a finding.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { compareMobLoot, LOOT_CACHE_PRESENT, vanillaEntries, mineEntry } from '../scripts/mob-loot-parity.mjs';
 import { MOB_LOOT, lootFor, rollLoot } from '../src/mobLootData.js';
 
@@ -87,6 +88,22 @@ test('a ranged count produces every value in its range', () => {
       assert.ok(c >= lo && c <= hi, mob + ' ' + item + ' rolled ' + c + ' outside ' + range);
     }
   }
+});
+
+test('the loot table is not yet wired into mob death, and this documents that', () => {
+  // This test asserts a GAP rather than a virtue, deliberately.
+  //
+  // The parity results above show the DATA matches vanilla exactly. They do not show that the data is
+  // used: nothing imports mobLootData.js, and mob deaths drop items through ad-hoc code in mobs.js. An
+  // earlier version of this file's header implied full mob-drop parity without saying so.
+  //
+  // The assertion is written to FAIL when the table is wired, so wiring it forces this test and the
+  // section 4.2 paragraph to be updated together rather than leaving a stale claim behind.
+  const src = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
+  const usesLootTable = /from '\.\/mobLootData\.js'|rollLoot\(|lootFor\(/.test(src);
+  assert.equal(usesLootTable, false,
+    'mobs.js now imports the loot table. That is the fix this gap was waiting for: update '
+    + 'docs/survival-parity-rules.md section 4.2 and this test so the parity claim covers gameplay.');
 });
 
 test('vanilla entries are readable for a known mob', (t) => {

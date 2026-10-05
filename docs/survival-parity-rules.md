@@ -358,10 +358,19 @@ and `brush`. The geometry work is complete: this project now draws slabs, stairs
 doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
 rods, rails and flower pots, each with tests.
 
-### 4.2 Mob drops — verified in full
+### 4.2 Mob drops — the DATA is verified in full, and it is not yet used
 
-`scripts/mob-loot-parity.mjs` compares this game's `MOB_LOOT` against vanilla's entity loot tables on
-three axes, reported separately because one "drops match" figure would hide which axis regressed:
+**This section previously overstated its result and the correction matters.** `scripts/mob-loot-parity.mjs`
+compares `MOB_LOOT` against vanilla's entity loot tables on three axes and finds no difference. What it
+does **not** show is that those drops reach the player: **`src/mobLootData.js` is currently dead code.**
+Nothing imports `MOB_LOOT`, `lootFor` or `rollLoot` — the only reference anywhere is a comment. Mob deaths
+drop items through ad-hoc code in `mobs.js`, which handles saddles, horse armour, wolf armour and piglin
+inventories but not the general loot table.
+
+So the correct claim is: **the loot data matches vanilla exactly, and no gameplay path reads it.** Wiring
+it into mob death is the outstanding work, and it lives in `mobs.js`, which is another agent's active
+file. `tests/mobLootParity.test.js` asserts the current state explicitly, so the day it is wired that test
+fails and this paragraph has to be updated rather than quietly becoming true.
 
 | | compared | differences |
 |---|---|---|
