@@ -23,6 +23,7 @@ import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './m
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool } from './sheepBehavior.js';
+import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -2240,6 +2241,9 @@ export class MobManager {
       case 'slime': return { width: 0.8, height: 0.8 };
       case 'pig': return { width: 0.9, height: 0.9 };
       case 'cow': return { width: 0.9, height: 1.4 };
+      // Wiki: mooshrooms are 1.4 tall and 0.9 wide, like cows. They previously fell
+      // through to the humanoid default of 0.6 x 1.95.
+      case 'mooshroom': return { width: 0.9, height: 1.4 };
       case 'sheep': return { width: 0.9, height: 1.3 };
       case 'creeper': return { width: 0.6, height: 1.7 };
       case 'skeleton': return { width: 0.6, height: 1.98 };
@@ -3130,29 +3134,38 @@ export class MobManager {
   }
 
   // --- BIOME MOBS ---
-  spawnMooshroom(x, y, z) {
+  spawnMooshroom(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const redMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    const bodyMat = new THREE.MeshLambertMaterial({ color: MOOSHROOM_COLORS.red });
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
-    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), redMat);
+    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), bodyMat);
     body.position.y = 0.75;
     group.add(body);
 
-    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), redMat);
+    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), bodyMat);
     head.position.set(0, 1.05, 0.65);
     group.add(head);
 
-    // Mushrooms on back
+    // Mushrooms on the back: five of them, as the wiki's "5 corresponding mushrooms"
+    // implies. They are held so the variant can recolour them and the growth path can
+    // hide them on babies.
     const shroomGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-    const m1 = new THREE.Mesh(shroomGeo, redMat); m1.position.set(0.15, 1.25, 0.1); group.add(m1);
-    const m2 = new THREE.Mesh(shroomGeo, redMat); m2.position.set(-0.15, 1.25, -0.2); group.add(m2);
+    const mushroomMeshes = [
+      [0.15, 1.25, 0.1], [-0.15, 1.25, -0.2], [0.2, 1.25, -0.35],
+      [-0.2, 1.25, 0.35], [0.0, 1.25, 0.5]
+    ].map(([mx, my, mz]) => {
+      const mesh = new THREE.Mesh(shroomGeo, bodyMat);
+      mesh.position.set(mx, my, mz);
+      group.add(mesh);
+      return mesh;
+    });
 
     const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
-    const fl = new THREE.Mesh(legGeo, redMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, redMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, redMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
-    const br = new THREE.Mesh(legGeo, redMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
+    const fl = new THREE.Mesh(legGeo, bodyMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, bodyMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, bodyMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
+    const br = new THREE.Mesh(legGeo, bodyMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -3164,14 +3177,25 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 14,
-      maxHealth: 14,
+      variantMeshes: [body, head, ...mushroomMeshes, fl, fr, bl, br],
+      mushroomMeshes,
+      // 'red' spawns naturally; 'brown' only ever comes from lightning or breeding.
+      variant: options.variant === 'brown' ? 'brown' : 'red',
+      // Retained across a shear so the dropped mushrooms match the variant, mirroring
+      // woolColor on sheep.
+      mushroomType: options.variant === 'brown' ? 'brown' : 'red',
+      isBaby: !!options.isBaby,
+      // Wiki: 10 HP, not the 14 this used to report.
+      health: 10,
+      maxHealth: 10,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    applyMooshroomVariant(mob);
+
     this.mobs.push(mob);
     return mob;
   }
@@ -6006,6 +6030,8 @@ export class MobManager {
     return {
       pig: [[burned ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
       cow: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
+      // Wiki: mooshrooms drop the same beef and leather as cows, not mushrooms.
+      mooshroom: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
       // A sheared sheep has no wool to drop. Mutton is unaffected by shearing.
       sheep: [...(mob.isSheared ? [] : [[sheepWool, true, 1, 1]]), [burned ? 'cooked_mutton' : 'mutton', false, 1, 2]],
       chicken: [[burned ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],

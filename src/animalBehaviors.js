@@ -3,6 +3,7 @@ import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeSt
 import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
+import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
@@ -12,6 +13,9 @@ export { SHEEP_COLORS, SHEEP_COLOR_HEX };
 
 export const BREEDING_FOODS = {
   cow: ['wheat'],
+  // Wiki: mooshrooms breed with wheat, and the pair check below requires matching types,
+  // so a mooshroom and a cow cannot breed with each other.
+  mooshroom: ['wheat'],
   strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
@@ -63,6 +67,14 @@ export class AnimalBehaviors {
 
     // Milking cow
     if ((mob.type === 'cow' || mob.type === 'mooshroom') && itemId === 'bucket' && !mob.isBaby) return true;
+
+    // Mooshroom stew and shearing. Wiki: a bowl yields mushroom stew, or suspicious stew
+    // from a brown mooshroom that has been fed a small flower; shears convert it to a cow.
+    // A baby cannot be milked, and shearing a baby would destroy the mob for no mushrooms.
+    if (isMooshroom(mob) && !mob.isBaby) {
+      if (itemId === 'bowl') return !isBrownMooshroom(mob) || !!mob.stewEffect;
+      if (itemId === 'shears') return true;
+    }
 
     // Shearing sheep
     if (mob.type === 'sheep' && itemId === 'shears' && !mob.isSheared) return true;
@@ -142,9 +154,53 @@ export class AnimalBehaviors {
       return true;
     }
 
+    // 2. Mooshroom: stew from a bowl, and shearing into a plain cow.
+    if (isMooshroom(mob) && !mob.isBaby) {
+      // Wiki: a bowl yields mushroom stew, or suspicious stew when a brown mooshroom has
+      // been fed a small flower. A brown mooshroom without a flower gives mushroom stew.
+      if (itemId === 'bowl') {
+        const suspicious = isBrownMooshroom(mob) && !!mob.stewEffect;
+        if (player.gamemode !== 'creative') {
+          inventory.consumeActiveItem(1);
+          inventory.addItem(suspicious ? 'suspicious_stew' : 'mushroom_stew', false, 1);
+        }
+        // The flower effect is spent once it has been milked out.
+        if (suspicious) mob.stewEffect = null;
+        if (this.sounds?.playMilk) this.sounds.playMilk();
+        this.mobManager.spawnParticleBurst?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xffffff, 8);
+        return true;
+      }
+
+      // Wiki: feeding a small flower to a brown mooshroom sets the effect of the next
+      // suspicious stew it gives. Red mooshrooms do not produce suspicious stew.
+      if (isBrownMooshroom(mob) && isSmallFlower(itemId)) {
+        mob.stewEffect = STEW_EFFECTS[itemId];
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playPop) this.sounds.playPop();
+        return true;
+      }
+
+      // Wiki: shearing drops 5 corresponding mushrooms and turns the mooshroom into a
+      // temperate cow. The mushrooms do not grow back, so this is a one-way conversion.
+      if (itemId === 'shears') {
+        const dropPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0));
+        const mushroom = BLOCKS[MOOSHROOM_MUSHROOM_BLOCK[mob.mushroomType] || MOOSHROOM_MUSHROOM_BLOCK.red];
+        for (let i = 0; i < MOOSHROOM_SHEAR_DROPS; i++) {
+          this.entities?.spawnDroppedItem(dropPos, mushroom, true);
+        }
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
+        }
+        if (this.sounds?.playShears) this.sounds.playShears();
+        this.mobManager.spawnParticleBurst?.(dropPos, 0xf43f5e, 8);
+        convertMooshroomToCow(this.mobManager, mob);
+        return true;
+      }
+    }
+
     // 2. Shearing a Sheep
-    if (mob.type === 'sheep' && itemId === 'shears') {
-      if (!mob.isSheared) {
+    if (mob.type === 'sheep' && itemId === 'shears') {      if (!mob.isSheared) {
         mob.isSheared = true;
         // Hide the wool layer through the shared helper so the mesh and the flag stay
         // in step. A sheared sheep keeps its colour and regrows it by grazing.
@@ -491,6 +547,8 @@ export class AnimalBehaviors {
           if (mob.horns) mob.horns.forEach(h => h.visible = true);
           if (mob.udder) mob.udder.visible = true;
           if (mob.wattle) mob.wattle.visible = true;
+          // Wiki: a baby mooshroom has no mushrooms; they appear once it grows up.
+          applyMooshroomVariant(mob);
         }
       }
 

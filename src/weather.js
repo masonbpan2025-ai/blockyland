@@ -1,4 +1,5 @@
 import {convertLightningPigs} from './zombifiedPiglin.js';
+import {convertLightningMooshrooms} from './mooshroomBehavior.js';
 import * as THREE from 'three';
 
 export class WeatherManager {
@@ -188,6 +189,8 @@ export class WeatherManager {
 
   triggerLightning(ambientLight, sunLight, strike=null) {
     if(strike&&this.game?.mobs)convertLightningPigs(this.game.mobs,strike);
+    // Wiki: a strike within 4 blocks switches a mooshroom's colour without damaging it.
+    if(strike&&this.game?.mobs)convertLightningMooshrooms(this.game.mobs,strike);
     this.isFlashing = true;
     this.flashDuration = 0.12 + Math.random() * 0.08;
     this.sounds.playThunder();
