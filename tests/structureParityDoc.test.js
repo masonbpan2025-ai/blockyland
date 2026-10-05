@@ -63,16 +63,24 @@ test('the document states the target version and does not claim unverified parit
 
 test('the matrix agrees with the code about what is implemented', () => {
   const doc = readFileSync(DOC, 'utf8');
+  const matrix = doc.slice(doc.indexOf('## Matrix'));
+  const rowFor = (id) => matrix.split('\n').find((line) => line.split('|')[2]?.trim() === `\`${id}\``);
   const { implemented, missing } = generatorCoverage();
-  // The one implemented structure must be the one the document marks FUNCTIONAL.
-  assert.deepEqual(implemented, ['buried_treasure']);
-  const buriedRow = doc.split('\n').find((line) => line.startsWith('| Buried Treasure'));
-  assert.ok(buriedRow, 'the buried treasure row must exist');
-  assert.match(buriedRow, /`FUNCTIONAL`/, 'buried treasure is the one implemented structure');
-  // Everything else must not be described as working.
-  for (const id of missing) {
-    const row = doc.split('\n').find((line) => line.includes(`\`${id}\``) && line.startsWith('| ') && line.includes('| `'));
-    if (!row) continue;
-    assert.doesNotMatch(row, /`(FUNCTIONAL|NEAR PARITY|VERIFIED)`/, `${id} has no generator but the matrix says it works`);
+
+  // Every structure with a generator must be marked as working...
+  for (const id of implemented) {
+    const row = rowFor(id);
+    assert.ok(row, `${id} has a generator but no matrix row`);
+    assert.match(row, /`(FUNCTIONAL|PARTIAL|NEAR PARITY|VERIFIED)`/,
+      `${id} has a generator but the matrix does not say it works`);
   }
+  // ...and nothing without one may be. This is the assertion that would have caught a stale row after the
+  // first structure landed, which is exactly what happened when the igloo was added.
+  for (const id of missing) {
+    const row = rowFor(id);
+    if (!row) continue;
+    assert.doesNotMatch(row, /`(FUNCTIONAL|PARTIAL|NEAR PARITY|VERIFIED)`/,
+      `${id} has no generator but the matrix says it works`);
+  }
+  assert.ok(implemented.length >= 2, 'at least buried treasure and the igloo are implemented');
 });

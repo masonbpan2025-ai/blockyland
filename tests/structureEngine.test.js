@@ -442,11 +442,16 @@ test('locate finds buried treasure and applies its (9,0,9) offset', () => {
 
 test('generator coverage is honest about what is not implemented yet', () => {
   const { implemented, missing } = generatorCoverage();
-  assert.deepEqual(implemented, ['buried_treasure']);
-  // The count is asserted loosely: it must shrink as structures land, never grow silently.
+  // Assert membership and magnitude rather than an exact list: an exact list breaks every time a structure
+  // lands, which trains a reader to update the assertion instead of reading it.
+  assert.ok(implemented.includes('buried_treasure'));
+  assert.ok(implemented.includes('igloo'));
   assert.ok(missing.length >= 28, `expected most structures to be unimplemented, got ${missing.length}`);
   assert.ok(missing.includes('village_plains'));
   assert.ok(missing.includes('stronghold'));
+  assert.ok(missing.includes('shipwreck'));
+  assert.equal(implemented.length + missing.length, Object.keys(STRUCTURES).filter((id) => STRUCTURES[id]).length,
+    'every registry structure must be either implemented or reported missing');
 });
 
 test('start bounding boxes inflate only when the structure adapts to terrain', () => {

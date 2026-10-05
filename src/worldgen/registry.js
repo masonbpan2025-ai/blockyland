@@ -106,7 +106,8 @@ export const STRUCTURES = {
   igloo: {
     type: 'igloo', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
     biomeTag: 'has_structure/igloo', biomes: ['snowy_taiga', 'snowy_plains', 'snowy_slopes'],
-    notes: 'Templates igloo/top|middle|bottom; 50% have a basement with a villager and a zombie villager.'
+    implementation: 'igloo',
+    notes: 'Templates igloo/top|middle|bottom; 50% have a basement with a villager and a zombie villager. Layout is a clean-room approximation: this repository ships no vanilla assets.'
   },
   ruined_portal: {
     type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,

@@ -40,9 +40,24 @@ export class StructureTemplate {
     if (!Array.isArray(size) || size.length !== 3) throw new Error('a template needs a size of [x, y, z]');
     this.size = size.map((value) => Math.trunc(Number(value)));
     if (this.size.some((value) => !(value > 0))) throw new Error(`template size must be positive, got ${size}`);
-    this.palette = palette;
-    this.blocks = blocks;
-    this.entities = entities;
+    // Vanilla-shaped keys (`Name`, `Properties`) and JS-shaped ones (`name`, `properties`) are both
+    // accepted HERE rather than only in `fromNbt`. Passing a vanilla-shaped object straight to the
+    // constructor is the natural thing to do -- the igloo generator does exactly that -- and without this
+    // every state name came out as the literal string "undefined".
+    this.palette = palette.map((entry) => ({
+      name: normaliseName(entry?.name ?? entry?.Name ?? 'minecraft:air'),
+      properties: entry?.properties ?? entry?.Properties ?? {}
+    }));
+    this.blocks = blocks.map((entry) => ({
+      pos: toNumberArray(entry.pos),
+      state: Number(entry.state ?? 0),
+      nbt: entry.nbt ?? null
+    }));
+    this.entities = entities.map((entry) => ({
+      pos: toNumberArray(entry.pos),
+      blockPos: toNumberArray(entry.blockPos ?? entry.pos),
+      nbt: entry.nbt ?? null
+    }));
     this.dataVersion = dataVersion;
     this.name = name;
     /** Properties the transform could not rotate, collected across every block. Surfaced, not hidden. */
@@ -52,22 +67,16 @@ export class StructureTemplate {
   static fromNbt(parsed, name = null) {
     const root = parsed && parsed.value !== undefined ? parsed.value : parsed;
     if (!root || typeof root !== 'object') throw new Error('a template root must be a compound');
-    const size = toNumberArray(root.size);
-    const palette = (root.palette ?? []).map((entry) => ({
-      name: entry.Name ?? entry.name ?? 'minecraft:air',
-      properties: entry.Properties ?? entry.properties ?? {}
-    }));
-    const blocks = (root.blocks ?? []).map((entry) => ({
-      pos: toNumberArray(entry.pos),
-      state: Number(entry.state ?? 0),
-      nbt: entry.nbt ?? null
-    }));
-    const entities = (root.entities ?? []).map((entry) => ({
-      pos: toNumberArray(entry.pos),
-      blockPos: toNumberArray(entry.blockPos ?? entry.pos),
-      nbt: entry.nbt ?? null
-    }));
-    return new StructureTemplate({ size, palette, blocks, entities, dataVersion: root.DataVersion ?? null, name });
+    // The constructor normalises vanilla keys, so this stays a thin adapter rather than a second mapping
+    // table that can drift from it.
+    return new StructureTemplate({
+      size: toNumberArray(root.size),
+      palette: root.palette ?? [],
+      blocks: root.blocks ?? [],
+      entities: root.entities ?? [],
+      dataVersion: root.DataVersion ?? null,
+      name
+    });
   }
 
   /** The same shape as `fromNbt`, for a template stored as JSON (which is what a clean-room one is). */

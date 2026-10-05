@@ -22,11 +22,13 @@ import {
   createSets, getStructure, getSetForStructure, structuresForDimension, validateRegistry
 } from './registry.js';
 import { generateBuriedTreasure, realizeBuriedTreasure } from './generators/buriedTreasure.js';
+import { generateIgloo, realizeIgloo } from './generators/igloo.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
 export const GENERATORS = {
-  buriedTreasure: { generate: generateBuriedTreasure, realize: realizeBuriedTreasure }
+  buriedTreasure: { generate: generateBuriedTreasure, realize: realizeBuriedTreasure },
+  igloo: { generate: generateIgloo, realize: realizeIgloo }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */
@@ -147,23 +149,22 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
     /**
      * Realise one start into a caller-supplied block writer, clipped to a chunk when asked.
      *
-     * `setBlock(x, y, z, blockId, meta)` returns truthy when it wrote. Clipping is what keeps a
-     * multi-chunk structure from forcing its neighbours to load.
+     * The generator is called ONCE per start, not once per piece: a generator owns its pieces (an igloo's
+     * dome and its basement are one plan), and calling it per piece would write every piece N times for an
+     * N-piece structure. Generators may return a count or a report; both are accepted so a one-block
+     * generator stays simple.
      */
-    realize(start, setBlock, { chunkX = null, chunkZ = null } = {}) {
+    realize(start, setBlock, { chunkX = null, chunkZ = null, spawnMob = null } = {}) {
       const clip = chunkX === null ? null : BlockBox.columnOfChunk(chunkX, chunkZ, -64, 320);
-      let written = 0;
-      for (const piece of start.pieces) {
-        if (clip && !piece.box.intersects(clip)) continue;
-        const implementation = registry[start.structureId]?.implementation;
-        const generator = implementation && GENERATORS[implementation];
-        if (!generator || !generator.realize) continue;
-        written += generator.realize(start, (x, y, z, id, meta) => {
-          if (clip && !clip.contains(x, y, z)) return false;
-          return setBlock(x, y, z, id, meta);
-        }, blockIds) || 0;
-      }
-      return written;
+      const implementation = registry[start.structureId]?.implementation;
+      const generator = implementation && GENERATORS[implementation];
+      if (!generator || !generator.realize) return 0;
+      const result = generator.realize(start, (x, y, z, id, meta) => {
+        if (clip && !clip.contains(x, y, z)) return false;
+        return setBlock(x, y, z, id, meta);
+      }, blockIds, { spawnMob, clip });
+      if (typeof result === 'number') return result;
+      return result?.written ?? 0;
     },
 
     /** A stable hash of a start's plan, so "same seed, same structure" is provable. */

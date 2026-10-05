@@ -55,7 +55,7 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Ruined Portal (Ocean) | `ruined_portal_ocean` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Ocean floor, mossiness 0.8. |
 | Ruined Portal (Swamp) | `ruined_portal_swamp` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Surface, mossiness 0.5. |
 | Ruined Portal (Nether) | `ruined_portal_nether` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | The only set member in another dimension; blackstone materials and `blackstone_replace`. The dimension-split set builder already handles it. |
-| Igloo | `igloo` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Blocked on templates; the 50% basement roll and its villager/zombie-villager pair are content work. |
+| Igloo | `igloo` | template | yes | yes | yes | yes | no | villager + zombie villager, chest state | yes | no | `PARTIAL` | Geometry is a clean-room approximation of the wiki's description, because this repository ships no vanilla assets; the chest carries a state but not loot-table contents; the basement's iron-bar cell is approximate; the surface is a flat preview height rather than the real heightmap. |
 | Shipwreck | `shipwreck` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Blocked on templates (20 files across three orientations); chest placement depends on intact sections. |
 | Shipwreck (Beached) | `shipwreck_beached` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Same templates with `is_beached`. |
 | Ocean Ruins (Cold) | `ocean_ruin_cold` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Templates + structure integrity (0.9/0.8/0.7/0.5) + the 30%-large / 4–8-cluster rule + suspicious gravel. |
@@ -77,9 +77,9 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Trail Ruins | `trail_ruins` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `bury` + three processor lists + archaeology. |
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
-Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 8 `NOT STARTED` (4 hardcoded + 5 procedural
-minus the implemented one), 25 `INFRASTRUCTURE BLOCKED` (15 template + 10 jigsaw), 0 `PARTIAL`,
-0 `NEAR PARITY`, 0 `VERIFIED`.**
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 1 `PARTIAL` (igloo), 8 `NOT STARTED`
+(4 hardcoded + 5 procedural minus the implemented one), 24 `INFRASTRUCTURE BLOCKED` (14 template + 10
+jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
 ## Structure-like features
 
