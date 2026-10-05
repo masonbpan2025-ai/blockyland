@@ -58,6 +58,9 @@ const MATERIAL_SOUND = {
  * the game-side name. Only cube-shaped, non-tile-entity blocks are included -- see the file header
  * for why.
  */
+/** A block name as a constant: oak_slab becomes OAK_SLAB. */
+const constName = (n) => n.toUpperCase();
+
 const FAMILIES = [
   {
     // All 16 wool colours as plain cubes. The game has 6; vanilla's other 10 are named by default.
@@ -106,6 +109,23 @@ const FAMILIES = [
     extra: { slab: true },
   },
   {
+    // Beds. Vanilla has 16 colours and this game models a bed as two blocks -- foot and head --
+    // so each colour needs both. bed.js already had the geometry, hard-coded to red, so this is a
+    // data addition plus a colour parameter rather than new geometry.
+    id: 'beds',
+    match: (n) => /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_bed$/.test(n),
+    texture: (n) => {
+      // One texture per colour where the game ships it, otherwise the red bed texture; the
+      // blanket tint is applied per-vertex either way.
+      if (textureExists(n + '.png')) return n + '.png';
+      return 'red_bed.png';
+    },
+    sound: 'wood',
+    // A bed is a flat box, so it needs the non-cube path. bedColourFrom marks that the colour is
+    // derived from the name, so one builder can serve every colour.
+    extra: { bed: true, bedColourFrom: true },
+  },
+  {
     // Glass panes: a thin sheet through the middle of the block. Not a cube, so marked and routed.
     id: 'panes',
     match: (n) => /_pane$/.test(n),
@@ -152,8 +172,6 @@ const FAMILIES = [
 // Materials that are definitely NOT plain full cubes, even inside a matched family.
 const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
 
-const constName = (n) => n.toUpperCase();
-
 // --- work out what to add ---------------------------------------------------
 // Anything a previous run emitted is carried through verbatim, so re-running is a no-op rather
 // than a rewrite. Dropping these is what wiped the file the first time this ran twice.
@@ -186,7 +204,11 @@ for (const family of FAMILIES) {
   for (const vb of vanillaBlocks) {
     const n = vb.name;
     if (!family.match(n)) continue;
-    if (NOT_A_CUBE.test(n)) continue;
+    // Families that declare a shape marker have a geometry builder, so the name-based cube
+    // exclusion must not apply to them. This used to be a silent trap: a family whose suffix
+    // was still listed below matched nothing at all, which looks identical to a family with no
+    // work to do. Slabs, panes, carpets and beds each failed that way once.
+    if (!family.extra && NOT_A_CUBE.test(n)) continue;
     if (have(n)) continue;      // already exists in the game
     if (alreadyEmitted.has(constName(n))) continue;  // emitted by a previous run
     if (seen.has(n)) continue;
@@ -210,6 +232,32 @@ for (const family of FAMILIES) {
 }
 toAdd.sort((a, b) => a.family.localeCompare(b.family) || a.name.localeCompare(b.name));
 for (const a of toAdd) a.id = nextId++;
+
+// --- beds are two blocks per colour -----------------------------------------
+//
+// The main loop emits one block per vanilla name. This game models a bed as a foot and a head,
+// so a matching head is appended for every bed foot with the same textures and a head marker.
+{
+  const bedFeet = toAdd.filter(a => a.family === 'beds' && !a.extra?.isHead);
+  for (const bed of bedFeet.slice()) {
+    toAdd.push({
+      name: bed.name + '_head',
+      family: 'beds',
+      texture: bed.texture,
+      sound: bed.sound,
+      hardness: bed.hardness,
+      resistance: bed.resistance,
+      emitLight: 0,
+      transparent: false,
+      extra: { bed: true, isHead: true, bedColourFrom: true },
+      id: nextId++,
+    });
+  }
+  if (bedFeet.length) console.log('  (beds: ' + bedFeet.length + ' feet + ' + bedFeet.length + ' heads)');
+}
+
+
+
 
 // Refuse to emit an id the chunk store cannot hold.
 //
@@ -258,6 +306,11 @@ for (const a of toAdd) {
   ];
   // Shape markers, e.g. slab: true, so the renderer knows this is not a full cube.
   for (const [k, v] of Object.entries(a.extra || {})) parts.push(`${k}: ${v}`);
+  // separate lookup table. Only beds carry this.
+  if (a.extra?.bedColourFrom) {
+    const m = /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_bed/.exec(a.name);
+    if (m) parts.push(`bedColour: '${m[1]}'`);
+  }
   if (a.resistance !== null && a.resistance !== a.hardness) parts.push(`resistance: ${a.resistance}`);
   if (a.emitLight) parts.push(`light: ${a.emitLight}`);
   if (a.transparent) parts.push('transparent: true');
