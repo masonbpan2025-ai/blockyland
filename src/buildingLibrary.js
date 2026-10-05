@@ -1,12 +1,18 @@
 import { BLOCKS } from './blocks.js';
-import { BUILTIN_STRUCTURES } from './buildings/index.js';
+import { BUILTIN_BUILDINGS } from './buildings/index.js';
 
-const STORAGE_KEY = 'minecraft_structure_library_v1';
-const OVERRIDES_KEY = 'minecraft_structure_library_overrides_v1';
+const STORAGE_KEY = 'minecraft_building_library_v1';
+const OVERRIDES_KEY = 'minecraft_building_library_overrides_v1';
 
-export class StructureLibraryManager {
+// The Studio was called Structure Studio when these keys were written. Read them once so a player's
+// saved buildings survive the rename; nothing writes the old names any more, and the next save
+// migrates the data into the new keys.
+const LEGACY_STORAGE_KEY = 'minecraft_structure_library_v1';
+const LEGACY_OVERRIDES_KEY = 'minecraft_structure_library_overrides_v1';
+
+export class BuildingLibraryManager {
   constructor() {
-    this.customStructures = new Map();
+    this.customBuildings = new Map();
     this.deletedBuiltins = new Set();
     this.renamedBuiltins = new Map();
     this.listeners = new Set();
@@ -16,7 +22,7 @@ export class StructureLibraryManager {
   loadFromStorage() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
       if (raw) {
         const list = JSON.parse(raw);
         if (Array.isArray(list)) {
@@ -24,7 +30,7 @@ export class StructureLibraryManager {
             if (item && item.id && item.name) {
               // Compile generator function from code string
               const genFn = this.compileGenerator(item.code);
-              this.customStructures.set(item.id, {
+              this.customBuildings.set(item.id, {
                 ...item,
                 generate: genFn
               });
@@ -32,7 +38,7 @@ export class StructureLibraryManager {
           }
         }
       }
-      const rawOverrides = localStorage.getItem(OVERRIDES_KEY);
+      const rawOverrides = localStorage.getItem(OVERRIDES_KEY) ?? localStorage.getItem(LEGACY_OVERRIDES_KEY);
       if (rawOverrides) {
         const parsed = JSON.parse(rawOverrides);
         if (Array.isArray(parsed.deleted)) {
@@ -43,18 +49,18 @@ export class StructureLibraryManager {
         }
       }
     } catch (err) {
-      console.warn('[StructureLibrary] Failed to load from storage:', err);
+      console.warn('[BuildingLibrary] Failed to load from storage:', err);
     }
   }
 
   saveToStorage() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const serializable = Array.from(this.customStructures.values()).map(st => ({
+      const serializable = Array.from(this.customBuildings.values()).map(st => ({
         id: st.id,
         name: st.name,
         icon: st.icon || '/assets/blocks/crafting_table_top.png',
-        description: st.description || 'Custom user structure',
+        description: st.description || 'Custom user building',
         parameters: st.parameters || [],
         code: st.code || '',
         createdAt: st.createdAt || Date.now()
@@ -67,7 +73,7 @@ export class StructureLibraryManager {
       };
       localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
     } catch (err) {
-      console.warn('[StructureLibrary] Failed to save to storage:', err);
+      console.warn('[BuildingLibrary] Failed to save to storage:', err);
     }
   }
 
@@ -84,13 +90,13 @@ export class StructureLibraryManager {
       `);
       return wrapped(BLOCKS);
     } catch (err) {
-      console.error('[StructureLibrary] Failed to compile generator code:', err);
+      console.error('[BuildingLibrary] Failed to compile generator code:', err);
       return (origin, params, B = BLOCKS) => [];
     }
   }
 
-  getAllStructures() {
-    const builtins = BUILTIN_STRUCTURES
+  getAllBuildings() {
+    const builtins = BUILTIN_BUILDINGS
       .filter(s => !this.deletedBuiltins.has(s.id))
       .map(s => {
         const renamed = this.renamedBuiltins.get(s.id);
@@ -100,14 +106,14 @@ export class StructureLibraryManager {
           isBuiltin: true
         };
       });
-    const customs = Array.from(this.customStructures.values()).map(st => ({ ...st, isBuiltin: false }));
+    const customs = Array.from(this.customBuildings.values()).map(st => ({ ...st, isBuiltin: false }));
     return [...builtins, ...customs];
   }
 
-  getStructure(idOrName) {
+  getBuilding(idOrName) {
     if (!idOrName) return null;
     const target = String(idOrName).trim().toLowerCase();
-    for (const st of this.getAllStructures()) {
+    for (const st of this.getAllBuildings()) {
       if (st.id.toLowerCase() === target || st.name.toLowerCase() === target) {
         return st;
       }
@@ -115,42 +121,42 @@ export class StructureLibraryManager {
     return null;
   }
 
-  hasStructure(name) {
+  hasBuilding(name) {
     if (!name) return false;
     const target = String(name).trim().toLowerCase();
-    return this.getAllStructures().some(st => st.name.toLowerCase() === target);
+    return this.getAllBuildings().some(st => st.name.toLowerCase() === target);
   }
 
-  saveStructure({ name, parameters, code, generatorCode, icon, description }, overwrite = false) {
+  saveBuilding({ name, parameters, code, generatorCode, icon, description }, overwrite = false) {
     const cleanName = (name || '').trim();
     if (!cleanName) {
-      return { success: false, error: 'EMPTY_NAME', message: 'Please enter a structure name.' };
+      return { success: false, error: 'EMPTY_NAME', message: 'Please enter a building name.' };
     }
 
-    const existing = this.getStructure(cleanName);
+    const existing = this.getBuilding(cleanName);
     if (existing) {
       if (existing.isBuiltin) {
         return {
           success: false,
           error: 'BUILTIN_CONFLICT',
-          message: `A built-in structure named "${cleanName}" already exists and cannot be overwritten. Please choose a different name.`
+          message: `A built-in building named "${cleanName}" already exists and cannot be overwritten. Please choose a different name.`
         };
       }
       if (!overwrite) {
         return {
           success: false,
           error: 'NAME_CONFLICT',
-          message: `A structure named "${cleanName}" already exists. Please choose a different name.`
+          message: `A building named "${cleanName}" already exists. Please choose a different name.`
         };
       }
 
-      // Overwrite existing custom structure
-      const target = this.customStructures.get(existing.id);
+      // Overwrite existing custom building
+      const target = this.customBuildings.get(existing.id);
       if (target) {
-        const structureCode = code || generatorCode || '';
-        const genFn = this.compileGenerator(structureCode);
+        const buildingCode = code || generatorCode || '';
+        const genFn = this.compileGenerator(buildingCode);
         target.parameters = parameters || [];
-        target.code = structureCode;
+        target.code = buildingCode;
         target.generate = genFn;
         if (icon) target.icon = icon;
         if (description) target.description = description;
@@ -158,84 +164,84 @@ export class StructureLibraryManager {
 
         this.saveToStorage();
         this.notifyListeners();
-        return { success: true, structure: target, overwritten: true };
+        return { success: true, building: target, overwritten: true };
       }
     }
 
-    const structureCode = code || generatorCode || '';
+    const buildingCode = code || generatorCode || '';
     const id = `custom_${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${Date.now().toString(36)}`;
-    const genFn = this.compileGenerator(structureCode);
+    const genFn = this.compileGenerator(buildingCode);
 
-    const structure = {
+    const building = {
       id,
       name: cleanName,
       icon: icon || '/assets/blocks/crafting_table_top.png',
-      description: description || `Custom ${cleanName} structure`,
+      description: description || `Custom ${cleanName} building`,
       parameters: parameters || [],
-      code: structureCode,
+      code: buildingCode,
       generate: genFn,
       isBuiltin: false,
       createdAt: Date.now()
     };
 
-    this.customStructures.set(id, structure);
+    this.customBuildings.set(id, building);
     this.saveToStorage();
     this.notifyListeners();
 
-    return { success: true, structure };
+    return { success: true, building };
   }
 
-  renameStructure(id, newName) {
+  renameBuilding(id, newName) {
     const cleanName = (newName || '').trim();
     if (!cleanName) {
-      return { success: false, error: 'EMPTY_NAME', message: 'Please enter a structure name.' };
+      return { success: false, error: 'EMPTY_NAME', message: 'Please enter a building name.' };
     }
 
-    const existing = this.getStructure(cleanName);
+    const existing = this.getBuilding(cleanName);
     if (existing && existing.id !== id) {
       return {
         success: false,
         error: 'NAME_CONFLICT',
-        message: `A structure named "${cleanName}" already exists.`
+        message: `A building named "${cleanName}" already exists.`
       };
     }
 
-    const target = this.customStructures.get(id);
+    const target = this.customBuildings.get(id);
     if (target) {
       target.name = cleanName;
       target.updatedAt = Date.now();
       this.saveToStorage();
       this.notifyListeners();
-      return { success: true, structure: target };
+      return { success: true, building: target };
     }
 
-    const builtin = BUILTIN_STRUCTURES.find(s => s.id === id);
+    const builtin = BUILTIN_BUILDINGS.find(s => s.id === id);
     if (builtin) {
       this.renamedBuiltins.set(id, cleanName);
       this.saveToStorage();
       this.notifyListeners();
-      return { success: true, structure: { ...builtin, name: cleanName } };
+      return { success: true, building: { ...builtin, name: cleanName } };
     }
 
-    return { success: false, error: 'NOT_FOUND', message: 'Structure not found.' };
+    return { success: false, error: 'NOT_FOUND', message: 'Building not found.' };
   }
 
-  saveCustomStructure(data) {
-    const res = this.saveStructure(data);
+  saveCustomBuilding(data) {
+    const res = this.saveBuilding(data);
     if (!res.success) {
-      throw new Error(res.message || 'Structure with that name already exists.');
+      throw new Error(res.message || 'Building with that name already exists.');
     }
-    return res.structure;
+    return res.building;
   }
 
-  deleteStructure(id) {
-    if (this.customStructures.has(id)) {
-      this.customStructures.delete(id);
+  deleteBuilding(id) {
+    if (this.customBuildings.has(id)) {
+      this.customBuildings.delete(id);
       this.saveToStorage();
       this.notifyListeners();
       return true;
     }
-    const builtin = BUILTIN_STRUCTURES.find(s => s.id === id);
+    const builtin = BUILTIN_BUILDINGS.find(s => s.id === id);
     if (builtin) {
       this.deletedBuiltins.add(id);
       this.saveToStorage();
@@ -257,43 +263,21 @@ export class StructureLibraryManager {
     return this.deletedBuiltins.size > 0 || this.renamedBuiltins.size > 0;
   }
 
-  executeStructureBuild(structure, origin, params, world) {
-    if (!structure || typeof structure.generate !== 'function') return [];
+  executeBuildingBuild(building, origin, params, world) {
+    if (!building || typeof building.generate !== 'function') return [];
     const resolvedParams = {};
-    if (Array.isArray(structure.parameters)) {
-      for (const p of structure.parameters) {
+    if (Array.isArray(building.parameters)) {
+      for (const p of building.parameters) {
         resolvedParams[p.id] = params && params[p.id] !== undefined ? params[p.id] : p.default;
       }
     }
-    const blocks = structure.generate(origin, resolvedParams, BLOCKS) || [];
+    const blocks = building.generate(origin, resolvedParams, BLOCKS) || [];
     if (world && typeof world.setVoxel === 'function') {
       for (const b of blocks) {
         world.setVoxel(b.x, b.y, b.z, b.id);
       }
     }
     return blocks;
-  }
-
-  /**
-   * The building-vocabulary names for the same operations.
-   *
-   * The building/structure rename reached `main.js` before it reached this file. `main.js` imports
-   * `BuildingLibrary` and calls `getBuilding` and `executeBuildingBuild`; `buildingStudio.js`, the
-   * creative catalogue and `inventory.js` still call `getStructure` and `executeStructureBuild`. Only the
-   * new spelling is missing, so it is spelled out here rather than by renaming twenty-eight call sites in
-   * another branch's in-flight work -- and because `main.js` imports a name this module did not export,
-   * the whole game failed to load: `SyntaxError: The requested module './buildingLibrary.js' does not
-   * provide an export named 'BuildingLibrary'`.
-   *
-   * Both spellings reach the same instance and the same state. When the rename is finished, these three
-   * methods are what gets deleted.
-   */
-  getBuilding(idOrName) { return this.getStructure(idOrName); }
-
-  getAllBuildings() { return this.getAllStructures(); }
-
-  executeBuildingBuild(building, origin, params, world) {
-    return this.executeStructureBuild(building, origin, params, world);
   }
 
   subscribe(listener) {
@@ -306,13 +290,11 @@ export class StructureLibraryManager {
       try {
         listener();
       } catch (err) {
-        console.error('[StructureLibrary] Listener error:', err);
+        console.error('[BuildingLibrary] Listener error:', err);
       }
     }
   }
 }
 
-export const StructureLibrary = new StructureLibraryManager();
-/** The same instance under the name `main.js` imports. See `getBuilding` for why both exist. */
-export const BuildingLibrary = StructureLibrary;
-export default StructureLibrary;
+export const BuildingLibrary = new BuildingLibraryManager();
+export default BuildingLibrary;

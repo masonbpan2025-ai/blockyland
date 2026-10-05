@@ -341,14 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1546 | 1557 | 99.3% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
-| Blocks named | 863 | 1095 | 78.8% |
-| Items named | 1183 | 1385 | 85.4% |
-
-These four are re-measured from `scripts/parity-coverage.mjs` by `tests/docsParityFigures.test.js`, which
-fails when the table drifts from the measurement. The block figures moved with the block-parity batches
-(cobbled deepslate and the deepslate ores, the saplings, the infested stone family, resin), and the item
-figure with the item batches (the potion set, the stack limits, nine spawn eggs). Update the row in the same
-change that moves it, or the test reports the drift instead of the batch.
+| Blocks named | 867 | 1095 | 79.2% |
+| Items named | 1187 | 1385 | 85.7% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -366,7 +360,7 @@ rods, rails and flower pots, each with tests.
 
 ### 4.1.1 The remaining gap is ART, not code — for blocks and for items
 
-The "Blocks named 75.9%" and "Items named 82%" rows read like missing implementation. They are not, and the
+The "Blocks named 78.8%" and "Items named 85.4%" rows read like missing implementation. They are not, and the
 distinction decides what work is left.
 
 The content generator emits a block only when `textureExists()` finds a PNG in `public/assets/blocks`, and

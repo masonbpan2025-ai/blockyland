@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const greenhouseStructure = {
+export const greenhouseBuilding = {
   id: 'greenhouse',
   name: 'Greenhouse',
   icon: '/assets/blocks/glass.png',
@@ -118,4 +118,4 @@ export const greenhouseStructure = {
   }
 };
 
-export default greenhouseStructure;
+export default greenhouseBuilding;

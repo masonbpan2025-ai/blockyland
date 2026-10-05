@@ -38,6 +38,9 @@ const blocks1214 = [
   // `resin_brick.png`, which does not exist upstream -- the real file is plural -- so they rendered the
   // placeholder tile until this landed.
   'resin_clump.png', 'resin_block.png', 'resin_bricks.png', 'chiseled_resin_bricks.png',
+  // Ground cover, the fifth block-parity batch. All four are cross-quad plants drawn from a single
+  // 16x16 texture, and all four are 1.21.4 names (short_grass replaced the old `grass` in 1.20.3).
+  'short_grass.png', 'fern.png', 'dead_bush.png', 'cobweb.png',
 ];
 
 const items = [

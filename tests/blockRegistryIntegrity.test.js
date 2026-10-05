@@ -107,6 +107,51 @@ test('an infested block breaks faster than the block it imitates', () => {
     `infested stone (${infested.hardness}) should be softer than stone (${stone.hardness})`);
 });
 
+// --- the ground-cover family --------------------------------------------------
+
+test('the ground-cover plants are cross-quad decoration, not obstacles', () => {
+  // All four share the shape, which is why they were one batch. `plant` is what the mesher reads to
+  // draw a cross, `solid: false` is what stops them blocking movement, and `transparent` is what stops
+  // them occluding light -- getting any of the three wrong makes the block look or behave like a cube.
+  for (const key of ['SHORT_GRASS', 'FERN', 'DEAD_BUSH', 'COBWEB']) {
+    const def = BLOCK_DEFS[BLOCKS[key]];
+    assert.ok(def, `${key} must be registered`);
+    assert.equal(def.plant, true, `${key} must be marked as a plant so the mesher draws a cross`);
+    assert.equal(def.solid, false, `${key} must not block movement`);
+    assert.equal(def.transparent, true, `${key} must not occlude`);
+    assert.equal(typeof def.hardness, 'number', `${key} must declare a hardness`);
+  }
+});
+
+test('the ground-cover drops match vanilla, including the two that drop nothing', () => {
+  // This is the part of the batch worth pinning, because getBlockDrop() reads the DEFINITION and the
+  // four blocks disagree:
+  //
+  //   short grass, fern   nothing (vanilla grass can yield seeds; this game models no seed drop)
+  //   dead bush           a stick
+  //   cobweb              string, and only with a sword
+  assert.equal(getBlockDrop(BLOCKS.SHORT_GRASS), null, 'short grass drops nothing');
+  assert.equal(getBlockDrop(BLOCKS.FERN), null, 'fern drops nothing');
+
+  const bush = getBlockDrop(BLOCKS.DEAD_BUSH);
+  assert.ok(bush, 'dead bush drops something');
+  assert.equal(bush.id, 'stick', 'a dead bush drops a stick, not itself');
+  assert.equal(bush.isBlock, false, 'and it is an item, not a block');
+
+  const web = getBlockDrop(BLOCKS.COBWEB);
+  assert.ok(web, 'cobweb drops something');
+  assert.equal(web.id, 'string', 'cobweb drops string, not itself');
+  assert.ok('string' in ITEMS, 'and string is a real item');
+
+  // The harvest table must agree rather than contradict: both nothings are declared as empty arrays,
+  // and cobweb is gated on a sword.
+  assert.deepEqual(harvestDataFor(BLOCKS.SHORT_GRASS).drops, [], 'short grass harvest row: no drops');
+  assert.deepEqual(harvestDataFor(BLOCKS.FERN).drops, [], 'fern harvest row: no drops');
+  const webHarvest = harvestDataFor(BLOCKS.COBWEB);
+  assert.equal(webHarvest.tool, 'sword', 'cobweb is harvested with a sword');
+  assert.ok(webHarvest.requiresTool, 'and the sword is required, not merely faster');
+});
+
 // --- the sweeps over everything ----------------------------------------------
 
 test('every hand-added block names a texture that exists on disk', () => {

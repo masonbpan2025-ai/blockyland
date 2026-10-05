@@ -894,8 +894,8 @@ export class UIManager {
   renderCreativeTabs() {
     if (!this.creativeTabsTop || !this.creativeTabsBottom) return;
 
-    // Top Tabs: building, colored, natural, functional, redstone, structure, search/all
-    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'structure', 'all_items'];
+    // Top Tabs: building, colored, natural, functional, redstone, building, search/all
+    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'building', 'all_items'];
     // Bottom Tabs: tools_utilities, combat, food_drinks, ingredients, spawn_eggs, survival_inventory
     const bottomTabIds = ['tools_utilities', 'combat', 'food_drinks', 'ingredients', 'spawn_eggs', 'survival_inventory'];
 
@@ -995,8 +995,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: item.count,
-          isStructure: item.isStructure,
-          structureId: item.structureId,
+          isBuilding: item.isBuilding,
+          buildingId: item.buildingId,
           icon: item.icon
         };
         if (e.shiftKey) {
@@ -1030,8 +1030,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: 1,
-          isStructure: item.isStructure,
-          structureId: item.structureId,
+          isBuilding: item.isBuilding,
+          buildingId: item.buildingId,
           icon: item.icon
         };
         this.sounds.playClick();
@@ -1039,7 +1039,7 @@ export class UIManager {
       };
 
       slot.onmouseenter = (e) => {
-        const sub = item.isStructure ? 'Structure' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
+        const sub = item.isBuilding ? 'Building' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
         this.showTooltip(e.clientX, e.clientY, item.name, sub);
       };
       slot.onmousemove = (e) => {
@@ -1527,17 +1527,14 @@ export class UIManager {
           this.inv.cursorItem = null;
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
-        // Slot merges use the item's own limit, never a literal 64: two pickaxes must not become one
-        // stack of two, and a stack of signs must stop at sixteen.
-        const limit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < limit) {
+          if (target.count < stackLimitFor(target.id)) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           }
         } else {
-          const space = limit - target.count;
+          const space = stackLimitFor(target.id) - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1578,7 +1575,7 @@ export class UIManager {
         furnace.output = null;
       }
     } else if (this.inv.cursorItem.id === target.id && this.inv.cursorItem.isBlock === target.isBlock) {
-      const space = stackLimitFor(this.inv.cursorItem.id) - this.inv.cursorItem.count;
+      const space = 64 - this.inv.cursorItem.count;
       const transfer = Math.min(space, target.count);
       this.inv.cursorItem.count += transfer;
       target.count -= transfer;
@@ -1597,14 +1594,14 @@ export class UIManager {
     const recipe = getSmeltingRecipe(item);
 
     // If item is fuel and fuel slot can take it
-    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < stackLimitFor(item.id)))) {
+    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < stackLimitFor(furnace.fuel.id)))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'fuel');
       this.sounds.playClick();
       return;
     }
 
     // If item is cookable and input slot can take it
-    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < stackLimitFor(item.id)))) {
+    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < stackLimitFor(furnace.input.id)))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'input');
       this.sounds.playClick();
       return;
@@ -1833,16 +1830,15 @@ export class UIManager {
           this.inv.cursorItem = null;
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
-        const limit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < limit) {
+          if (target.count < stackLimitFor(target.id)) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
             this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
           }
         } else {
-          const space = limit - target.count;
+          const space = stackLimitFor(target.id) - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1867,7 +1863,7 @@ export class UIManager {
     // 1. Try stacking into player hotbar
     for (let i = 0; i < 9; i++) {
       const slot = this.inv.hotbar[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
         const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
@@ -1882,7 +1878,7 @@ export class UIManager {
     // 2. Try stacking into player storage
     for (let i = 0; i < 27; i++) {
       const slot = this.inv.storage[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
         const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
@@ -1926,7 +1922,7 @@ export class UIManager {
     // 1. Try stacking into existing matching chest slots
     for (let i = 0; i < totalSlots; i++) {
       const slot = items[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
         const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
@@ -2137,7 +2133,7 @@ export class UIManager {
             this.inv.cursorItem = null;
           }
         } else {
-          const space = stackLimitFor(this.enchantSlottedLapis.id) - this.enchantSlottedLapis.count;
+          const space = stackLimitFor('lapis_lazuli') - this.enchantSlottedLapis.count;
           if (isRightClick) {
             if (space > 0) {
               this.enchantSlottedLapis.count++;
@@ -2193,8 +2189,8 @@ export class UIManager {
         list[idx] = null;
         this.sounds.playClick?.();
         return;
-      } else if (this.enchantSlottedLapis.count < stackLimitFor(this.enchantSlottedLapis.id)) {
-        const space = stackLimitFor(this.enchantSlottedLapis.id) - this.enchantSlottedLapis.count;
+      } else if (this.enchantSlottedLapis.count < stackLimitFor('lapis_lazuli')) {
+        const space = stackLimitFor('lapis_lazuli') - this.enchantSlottedLapis.count;
         const add = Math.min(space, item.count);
         this.enchantSlottedLapis.count += add;
         item.count -= add;
@@ -2338,7 +2334,7 @@ export class UIManager {
           this.inv.cursorItem = null;
           this.sounds.playClick?.();
         } else if (this.brewingStand.ingredient.id === this.inv.cursorItem.id) {
-          const space = stackLimitFor(this.brewingStand.ingredient.id) - this.brewingStand.ingredient.count;
+          const space = 64 - this.brewingStand.ingredient.count;
           const add = Math.min(space, this.inv.cursorItem.count);
           this.brewingStand.ingredient.count += add;
           this.inv.cursorItem.count -= add;
@@ -3218,8 +3214,8 @@ export class UIManager {
           if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
             this.game.dungeonMode.exitDungeonMode(false);
           }
-          if (this.game.structureStudio) {
-            this.game.structureStudio.exitStudio();
+          if (this.game.buildingStudio) {
+            this.game.buildingStudio.exitStudio();
           }
           if (this.game.world) {
             this.game.world.isFlatWorld = false;

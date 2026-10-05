@@ -309,7 +309,17 @@ export const BLOCKS = {
   RESIN_CLUMP: 975,
   RESIN_BLOCK: 976,
   RESIN_BRICKS: 977,
-  CHISELED_RESIN_BRICKS: 978
+  CHISELED_RESIN_BRICKS: 978,
+
+  // --- Ground cover, fifth block-parity batch ----------------------------------------------------
+  //
+  // Four small plants that all render with the existing cross-quad model, so no new geometry. They are
+  // grouped because they share a shape; they do NOT share a drop, which is the interesting part of
+  // this batch and is recorded per block below.
+  SHORT_GRASS: 979,
+  FERN: 980,
+  DEAD_BUSH: 981,
+  COBWEB: 982
 };
 
 export const BLOCK_DEFS = {
@@ -734,6 +744,28 @@ export const BLOCK_DEFS = {
   [BLOCKS.RESIN_BLOCK]: { name: 'Resin Block', hardness: 0.0, sound: 'wood', drop: BLOCKS.RESIN_BLOCK, textures: { all: 'resin_block.png' } },
   [BLOCKS.RESIN_BRICKS]: { name: 'Resin Bricks', hardness: 1.5, sound: 'stone', drop: BLOCKS.RESIN_BRICKS, textures: { all: 'resin_bricks.png' } },
   [BLOCKS.CHISELED_RESIN_BRICKS]: { name: 'Chiseled Resin Bricks', hardness: 1.5, sound: 'stone', drop: BLOCKS.CHISELED_RESIN_BRICKS, textures: { all: 'chiseled_resin_bricks.png' } },
+
+  // --- Ground cover, fifth block-parity batch ----------------------------------------------------
+  //
+  // All four are cross-quad plants: hardness 0 (instant), `solid: false` so they do not block
+  // movement, `transparent` so they do not occlude, and `plant` so the mesher draws the cross.
+  //
+  // Their DROPS differ, and getBlockDrop() reads the definition rather than the harvest table's
+  // `drops`, so each is spelled out:
+  //
+  //   short grass, fern   drop nothing (the harvest table says the same: an empty drops array).
+  //                       Breaking grass in vanilla yields seeds sometimes; this game has no seed drop
+  //                       from grass, so nothing is the honest result rather than a wrong one.
+  //   dead bush           drops a stick, and `dropItem` is what makes it yield an item rather than
+  //                       itself.
+  //   cobweb              drops string, and in vanilla a SWORD is the tool that harvests it quickly
+  //                       rather than the only one that works. The harvest table encodes sword/wooden
+  //                       as requiresTool, so without a sword this yields nothing, which is a
+  //                       deliberate simplification of the vanilla timing instead of a wrong drop.
+  [BLOCKS.SHORT_GRASS]: { name: 'Short Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'short_grass.png' } },
+  [BLOCKS.FERN]: { name: 'Fern', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'fern.png' } },
+  [BLOCKS.DEAD_BUSH]: { name: 'Dead Bush', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'stick', textures: { all: 'dead_bush.png' } },
+  [BLOCKS.COBWEB]: { name: 'Cobweb', hardness: 4.0, sound: 'wool', transparent: true, solid: false, plant: true, dropItem: 'string', textures: { all: 'cobweb.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
