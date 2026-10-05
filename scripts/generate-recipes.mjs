@@ -284,6 +284,13 @@ console.log('  emitted                     : ' + unique.length);
 console.log('    shaped                    : ' + stats.shaped);
 console.log('    shapeless                 : ' + stats.shapeless);
 console.log('  skipped, result missing     : ' + stats.skippedResult);
+// Named, not just counted. "6 skipped, result missing" is a number to go and hunt for by hand; the names are
+// the to-do list, and two of this game's batches have been spent reconstructing them from the pinned data.
+if (skippedNames.size) {
+  for (const [name, count] of [...skippedNames.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`      ${name}${count > 1 ? ` (${count} recipes)` : ''}`);
+  }
+}
 console.log('  skipped, ingredient missing : ' + stats.skippedIngredient);
 console.log('  shapeless with no faithful  : ' + stats.shapelessUnsupported);
 console.log('    representation in a grid');

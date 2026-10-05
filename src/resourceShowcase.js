@@ -263,6 +263,10 @@ export const RESOURCE_CHECKS = [
     label: 'Vanilla crafting recipe exists here too',
     group: 'obtainable',
     run: ({ entry, vanilla }) => {
+      // Air is not something anyone crafts. The pinned recipe data carries one `paper + filled_map` entry
+      // whose result is air, which is how minecraft-data represents the map-zooming recipe; without this it
+      // reads as "vanilla has a recipe for air and this game does not".
+      if (entry.blockId === BLOCKS.AIR) return CHECK_SKIP;
       const expected = vanilla?.recipesByResultName.get(vanillaIdOf(entry, vanilla));
       if (!expected || !expected.length) return CHECK_SKIP;
       if (entry.recipesAsResult.length) return true;

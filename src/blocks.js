@@ -1473,8 +1473,8 @@ export const BLOCK_DEFS = {
   //
   // Drops per the harvest table: sea grass, tall sea grass and the two kelp forms each yield their own
   // item (kelp yields kelp, not a kelp plant), and a sea pickle yields itself.
-  [BLOCKS.SEAGRASS]: { name: 'Sea Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'seagrass.png' } },
-  [BLOCKS.TALL_SEAGRASS]: { name: 'Tall Sea Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'tall_seagrass_top.png' } },
+  [BLOCKS.SEAGRASS]: { name: 'Seagrass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'seagrass.png' } },
+  [BLOCKS.TALL_SEAGRASS]: { name: 'Tall Seagrass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'tall_seagrass_top.png' } },
   [BLOCKS.KELP]: { name: 'Kelp', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp.png' } },
   [BLOCKS.KELP_PLANT]: { name: 'Kelp Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp_plant.png' } },
   [BLOCKS.SEA_PICKLE]: { name: 'Sea Pickle', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SEA_PICKLE, textures: { all: 'sea_pickle.png' } },
@@ -2233,7 +2233,9 @@ export const ITEMS = {
   tropical_fish: { name: 'Tropical Fish', food: 1, icon: '/assets/items/tropical_fish.png', type: 'food' },
   // Chorus fruit is in foodData.js already; vanilla also teleports on eat, which is a separate job.
   chorus_fruit: { name: 'Chorus Fruit', food: 4, icon: '/assets/items/chorus_fruit.png', type: 'food' },
-  kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', type: 'food' },
+  // Kelp, seagrass and bamboo are placed in vanilla; the wheat item deliberately is not, because what is
+  // planted is the seed.
+  kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', isBlock: true, blockId: BLOCKS.KELP, type: 'food' },
   dried_kelp: { name: 'Dried Kelp', food: 1, icon: '/assets/items/dried_kelp.png', type: 'food' },
   carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food', crop: 'carrots' },
   golden_dandelion: { name: 'Golden Dandelion', icon: '/assets/blocks/dandelion.png', type: 'material' },
@@ -2267,7 +2269,7 @@ export const ITEMS = {
   // seagrass is defined once, here. Both sides of the ore-batch merge added it independently and the
   // merge kept both copies; a duplicate key in an object literal is legal JavaScript that silently
   // keeps the last one, which is exactly what tests/itemDefinitions.test.js exists to catch.
-  seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', type: 'material' },
+  seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', isBlock: true, blockId: BLOCKS.SEAGRASS, type: 'material' },
   tipped_arrow: { name: 'Tipped Arrow', icon: '/assets/items/tipped_arrow.png', type: 'projectile' },
   raw_iron: { name: 'Raw Iron', icon: '/assets/items/raw_iron.png', type: 'material' },
   raw_gold: { name: 'Raw Gold', icon: '/assets/items/raw_gold.png', type: 'material' },
@@ -2303,7 +2305,7 @@ export const ITEMS = {
   // Wiki: pandas eat, follow and breed around bamboo, and drop exactly one when killed.
   // Wiki: a brush takes 16 durability per armadillo scute, so one is good for four scutes.
   brush: { name: 'Brush', icon: '/assets/items/brush.png', type: 'tool', durability: 64 },
-  bamboo: { name: 'Bamboo', icon: '/assets/items/bamboo.png', type: 'material' },
+  bamboo: { name: 'Bamboo', icon: '/assets/items/bamboo.png', isBlock: true, blockId: BLOCKS.BAMBOO, type: 'material' },
   goat_horn: { name: 'Goat Horn', icon: '/assets/items/goat_horn.png', type: 'material' },
   paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
   book: { name: 'Book', icon: '/assets/items/book.png', type: 'material' },
@@ -2391,6 +2393,7 @@ export const ITEMS = {
   music_disc_strad: { name: 'Music Disc Strad', icon: '/assets/items/music_disc_strad.png', stackSize: 1, type: 'material' },
   music_disc_wait: { name: 'Music Disc Wait', icon: '/assets/items/music_disc_wait.png', stackSize: 1, type: 'material' },
   music_disc_ward: { name: 'Music Disc Ward', icon: '/assets/items/music_disc_ward.png', stackSize: 1, type: 'material' },
+  scaffolding: { name: 'Scaffolding', icon: '/assets/items/scaffolding.png', isBlock: true, blockId: BLOCKS.SCAFFOLDING, type: 'block' },
   // --- Blocks with an item form, which had none: a crafted cake or shulker box was an unnamed
   // number that stacked to 64. Both have had a recipe for several batches -- the cake is milk, sugar,
   // an egg and wheat; the shulker boxes are shells around a chest -- and `stackSize: 1` is vanilla's,
