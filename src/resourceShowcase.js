@@ -29,6 +29,7 @@ import {
 } from './resourceRegistry.js';
 import { getItemEnchantCategory, NOT_ENCHANTABLE } from './enchanting.js';
 import { describeTool, NON_MINING_TOOLS } from './miningRules.js';
+import { blockDrops } from './blockDrops.js';
 
 /**
  * Returned by a check that cannot be evaluated in this environment. Distinct from `false`, because
@@ -309,20 +310,32 @@ export const RESOURCE_CHECKS = [
   },
   {
     id: 'block-drop',
-    label: 'Breaking the block yields something',
+    label: 'A block vanilla says drops something drops something here',
     group: 'block',
     run: ({ entry }) => {
       if (entry.blockId === null) return CHECK_SKIP;
       if (skipTechnical(entry)) return CHECK_SKIP;
-      const harvest = entry.harvest;
-      const def = entry.blockDef ?? {};
-      const declaredDrop = def.dropItem ?? def.drop;
-      const harvestDrops = harvest?.drops ?? [];
-      if (harvestDrops.length || declaredDrop !== undefined) return true;
-      if (harvest?.requiresTool && !harvestDrops.length) {
-        return { ok: false, detail: 'requires a tool but lists no drop' };
-      }
-      return { ok: false, detail: 'no drop declared in BLOCK_HARVEST or the block definition' };
+      // The game's own rule, which is the same one the registry records sources with. A block that declares
+      // neither `drop` nor `dropItem` gives itself, and `drop: null` deliberately gives nothing -- so asking
+      // only the vanilla harvest row and the explicit fields reported 149 blocks as yielding nothing, every
+      // bed among them, while the game handed every one of them over.
+      //
+      // `blockDrops` rather than `baseBlockDrop`, because a block whose only drop is probabilistic -- a grass
+      // plant's wheat seed -- declares `drop: null` and is not barren. `random` is pinned to zero so those
+      // paths fire.
+      const dropped = blockDrops(entry.blockId, () => 0);
+      if (dropped.length) return true;
+      // Yielding nothing is a fact about some blocks rather than a defect: bedrock, water and lava, glass and
+      // ice by hand, every infested block, cake, a spawner, the archaeology blocks. Vanilla's own row says so,
+      // and there are forty-six of them. The defect is the other direction -- vanilla lists a drop and this
+      // block gives none -- which is what this check is for.
+      //
+      // `air` is how the generated data spells "nothing" -- a pumpkin stem's row is literally `['air']` -- so
+      // it is filtered out rather than read as a drop.
+      const vanillaDrops = (entry.harvest?.drops ?? [])
+        .filter((drop) => String(drop).toLowerCase() !== 'air');
+      if (!vanillaDrops.length) return CHECK_SKIP;
+      return { ok: false, detail: `vanilla drops ${vanillaDrops.join(', ')} and this block drops nothing` };
     },
   },
   {

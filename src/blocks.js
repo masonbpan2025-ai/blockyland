@@ -2372,6 +2372,28 @@ export const ITEMS = {
   music_disc_strad: { name: 'Music Disc Strad', icon: '/assets/items/music_disc_strad.png', stackSize: 1, type: 'material' },
   music_disc_wait: { name: 'Music Disc Wait', icon: '/assets/items/music_disc_wait.png', stackSize: 1, type: 'material' },
   music_disc_ward: { name: 'Music Disc Ward', icon: '/assets/items/music_disc_ward.png', stackSize: 1, type: 'material' },
+  // --- Blocks with an item form, which had none: a crafted cake or shulker box was an unnamed
+  // number that stacked to 64. Both have had a recipe for several batches -- the cake is milk, sugar,
+  // an egg and wheat; the shulker boxes are shells around a chest -- and `stackSize: 1` is vanilla's,
+  // which `stackLimitFor` reads through the numeric block id the inventory actually holds.
+  shulker_box: { name: 'Shulker Box', icon: '/assets/items/shulker_box.png', isBlock: true, blockId: BLOCKS.SHULKER_BOX, stackSize: 1, type: 'block' },
+  white_shulker_box: { name: 'White Shulker Box', icon: '/assets/items/white_shulker_box.png', isBlock: true, blockId: BLOCKS.WHITE_SHULKER_BOX, stackSize: 1, type: 'block' },
+  orange_shulker_box: { name: 'Orange Shulker Box', icon: '/assets/items/orange_shulker_box.png', isBlock: true, blockId: BLOCKS.ORANGE_SHULKER_BOX, stackSize: 1, type: 'block' },
+  magenta_shulker_box: { name: 'Magenta Shulker Box', icon: '/assets/items/magenta_shulker_box.png', isBlock: true, blockId: BLOCKS.MAGENTA_SHULKER_BOX, stackSize: 1, type: 'block' },
+  light_blue_shulker_box: { name: 'Light Blue Shulker Box', icon: '/assets/items/light_blue_shulker_box.png', isBlock: true, blockId: BLOCKS.LIGHT_BLUE_SHULKER_BOX, stackSize: 1, type: 'block' },
+  yellow_shulker_box: { name: 'Yellow Shulker Box', icon: '/assets/items/yellow_shulker_box.png', isBlock: true, blockId: BLOCKS.YELLOW_SHULKER_BOX, stackSize: 1, type: 'block' },
+  lime_shulker_box: { name: 'Lime Shulker Box', icon: '/assets/items/lime_shulker_box.png', isBlock: true, blockId: BLOCKS.LIME_SHULKER_BOX, stackSize: 1, type: 'block' },
+  pink_shulker_box: { name: 'Pink Shulker Box', icon: '/assets/items/pink_shulker_box.png', isBlock: true, blockId: BLOCKS.PINK_SHULKER_BOX, stackSize: 1, type: 'block' },
+  gray_shulker_box: { name: 'Gray Shulker Box', icon: '/assets/items/gray_shulker_box.png', isBlock: true, blockId: BLOCKS.GRAY_SHULKER_BOX, stackSize: 1, type: 'block' },
+  light_gray_shulker_box: { name: 'Light Gray Shulker Box', icon: '/assets/items/light_gray_shulker_box.png', isBlock: true, blockId: BLOCKS.LIGHT_GRAY_SHULKER_BOX, stackSize: 1, type: 'block' },
+  cyan_shulker_box: { name: 'Cyan Shulker Box', icon: '/assets/items/cyan_shulker_box.png', isBlock: true, blockId: BLOCKS.CYAN_SHULKER_BOX, stackSize: 1, type: 'block' },
+  purple_shulker_box: { name: 'Purple Shulker Box', icon: '/assets/items/purple_shulker_box.png', isBlock: true, blockId: BLOCKS.PURPLE_SHULKER_BOX, stackSize: 1, type: 'block' },
+  blue_shulker_box: { name: 'Blue Shulker Box', icon: '/assets/items/blue_shulker_box.png', isBlock: true, blockId: BLOCKS.BLUE_SHULKER_BOX, stackSize: 1, type: 'block' },
+  brown_shulker_box: { name: 'Brown Shulker Box', icon: '/assets/items/brown_shulker_box.png', isBlock: true, blockId: BLOCKS.BROWN_SHULKER_BOX, stackSize: 1, type: 'block' },
+  green_shulker_box: { name: 'Green Shulker Box', icon: '/assets/items/green_shulker_box.png', isBlock: true, blockId: BLOCKS.GREEN_SHULKER_BOX, stackSize: 1, type: 'block' },
+  red_shulker_box: { name: 'Red Shulker Box', icon: '/assets/items/red_shulker_box.png', isBlock: true, blockId: BLOCKS.RED_SHULKER_BOX, stackSize: 1, type: 'block' },
+  black_shulker_box: { name: 'Black Shulker Box', icon: '/assets/items/black_shulker_box.png', isBlock: true, blockId: BLOCKS.BLACK_SHULKER_BOX, stackSize: 1, type: 'block' },
+  cake: { name: 'Cake', icon: '/assets/items/cake.png', isBlock: true, blockId: BLOCKS.CAKE, stackSize: 1, type: 'block' },
   // --- Mob Spawn Eggs ---
   villager_spawn_egg: { name: 'Villager Spawn Egg', icon: '/assets/items/villager_spawn_egg.png', type: 'spawn_egg', mob: 'villager' },
   iron_golem_spawn_egg: { name: 'Iron Golem Spawn Egg', icon: '/assets/items/iron_golem_spawn_egg.png', type: 'spawn_egg', mob: 'iron_golem' },
@@ -2571,16 +2593,58 @@ for (const [limit, ids] of Object.entries(STACK_LIMITS)) {
 }
 
 /**
+ * The block id an item places.
+ *
+ * There are two ways this game names a block item. Most carry the numeric id -- the creative catalogue and
+ * every crafting recipe hand one out, and `ITEMS` has no entry for them at all -- but some are declared by
+ * name with a `blockId` (`chest`, `bee_nest`, and now the cake and the shulker boxes). Placement used the
+ * item's `id` directly when `isBlock` was set, so a name-keyed block item asked the world for a block called
+ * `chest`; a numeric one was fine, which is why it went unnoticed.
+ *
+ * @param {{id: string|number, isBlock?: boolean}|null} item
+ * @returns {string|number|null}
+ */
+export function blockIdForPlacement(item) {
+  if (!item) return null;
+  const declared = ITEMS[item.id]?.blockId;
+  if (item.isBlock) return typeof item.id === 'number' ? item.id : (declared ?? item.id);
+  return declared ?? item.id;
+}
+
+/**
+ * The item name a placed block's numeric id belongs to, built once.
+ *
+ * The inventory holds a *block* by its numeric id -- `{id: BLOCKS.CAKE, isBlock: true}` is what the cake
+ * recipe yields and what the hotbar starts with -- while `ITEMS` is keyed by name. So a stack limit declared
+ * on the item could not be reached from the id the game actually carries, and a crafted cake stacked to
+ * sixty-four while vanilla's stacks to one.
+ */
+let itemNamesByBlockId = null;
+function itemNameForBlockId(blockId) {
+  if (!itemNamesByBlockId) {
+    itemNamesByBlockId = new Map();
+    for (const [name, def] of Object.entries(ITEMS)) {
+      if (typeof def?.blockId === 'number' && !itemNamesByBlockId.has(def.blockId)) {
+        itemNamesByBlockId.set(def.blockId, name);
+      }
+    }
+  }
+  return itemNamesByBlockId.get(blockId) ?? null;
+}
+
+/**
  * How many of an item fit in one stack.
  *
  * The one place this is decided, so the inventory, the container UIs and the Resource Inspector cannot
- * drift apart. A block addressed by numeric id has no `ITEMS` entry and stacks to 64.
+ * drift apart. A block addressed by numeric id is looked up through its item form, because that is where a
+ * stack limit other than 64 is declared -- a shulker box and a cake being the two that are not.
  *
  * @param {string|number} id
  * @returns {number}
  */
 export function stackLimitFor(id) {
-  const def = ITEMS[id];
+  // A numeric id is a block; look its item form up before giving up on it.
+  const def = ITEMS[id] ?? (typeof id === 'number' ? ITEMS[itemNameForBlockId(id)] : undefined);
   if (def && typeof def.stackSize === 'number') return def.stackSize;
   // A tool or weapon that declares nothing is unstackable; this is the rule the inventory already
   // applied on its dropped-item path, kept so a new tool is not silently stackable before its limit is
