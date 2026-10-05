@@ -200,6 +200,9 @@ export const BLOCKS = {
   SCULK_SHRIEKER: 182,
   DRAGON_EGG: 183,
   END_PORTAL: 184,
+  // The End portal frame, empty and holding an eye. 979/980 are above the generated range.
+  END_PORTAL_FRAME: 979,
+  END_PORTAL_FRAME_FILLED: 980,
   WITHER_SKELETON_SKULL_BLOCK: 185,
   TRIPWIRE_HOOK: 186,
   TRIPWIRE: 187,
@@ -1061,6 +1064,8 @@ export const BLOCK_DEFS = {
   [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, dropItem: 'sculk_sensor', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, dropItem: 'sculk_shrieker', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
+  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: -1, sound: 'glass', transparent: true, solid: true, endPortalFrame: true, dropItem: 'end_portal_frame', textures: { all: 'end_stone.png' } },
+  [BLOCKS.END_PORTAL_FRAME_FILLED]: { name: 'End Portal Frame', hardness: -1, sound: 'glass', transparent: true, solid: true, endPortalFrame: true, filled: true, dropItem: 'end_portal_frame', textures: { all: 'end_stone.png' } },
   [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
   [BLOCKS.WITHER_SKELETON_SKULL_BLOCK]: { name: 'Wither Skeleton Skull', hardness: 1.0, sound: 'stone', transparent: true, solid: true, skull: true, dropItem: 'wither_skeleton_skull', textures: { all: 'coal_block.png' } },
 
@@ -1333,6 +1338,7 @@ export const ITEMS = {
   experience_bottle: { name: 'Bottle o\' Enchanting', icon: '/assets/items/experience_bottle.png', type: 'utility' },
   ender_pearl: { name: 'Ender Pearl', icon: '/assets/items/ender_pearl.png', type: 'material' },
   ender_eye: { name: 'Eye of Ender', icon: '/assets/items/ender_eye.png', type: 'material' },
+  end_portal_frame: { name: 'End Portal Frame', icon: '/assets/blocks/end_stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.END_PORTAL_FRAME },
   blaze_rod: { name: 'Blaze Rod', icon: '/assets/items/blaze_rod.png', type: 'material' },
   blaze_powder: { name: 'Blaze Powder', icon: '/assets/items/blaze_powder.png', type: 'material' },
   magma_cream: { name: 'Magma Cream', icon: '/assets/items/magma_cream.png', type: 'material' },

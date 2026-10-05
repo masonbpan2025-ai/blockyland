@@ -12,6 +12,9 @@ import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
+import { isFrame, insertEye, tryActivateAround, isEndPortal, portalDestination, portalArrival,
+  isStandingInEndPortal, buildEndPlatform, buildEndPortalRoom, enderEyeThrowVelocity, bearingToPortal,
+  bearingName, ENDER_EYE_LIFE } from './endPortal.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -401,6 +404,9 @@ class Game {
     }
 
     this.spawnVillageMobs();
+    // The End portal chamber. Its frames are the first link of the route to the End, and without a room
+    // there is nowhere to put an Eye of Ender at all.
+    this.placeEndPortalRoom(spawn);
     if (this.ui) {
       if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
       if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
@@ -566,8 +572,142 @@ class Game {
     this.streamer.loadAllSynchronously(this.player.position.x, this.player.position.z);
   }
 
-  switchDimension(newDim, targetPos = null) {
-    if (!this.world) return;
+  /**
+   * Throw an Eye of Ender.
+   *
+   * Before this the item had exactly one use, and without a locator the chamber is a hole in the ground the
+   * player has no way to find. The eye arcs toward the portal and the player reads the bearing from it, which
+   * is what it is for in vanilla.
+   */
+  throwEnderEye() {
+    if (!this.world || !this.player) return null;
+    const target = this.endPortalRoom ?? { x: 0, z: 0 };
+    const from = { x: this.player.position.x, z: this.player.position.z };
+    const v = enderEyeThrowVelocity(from, target);
+
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x86efac }),
+    );
+    mesh.position.copy(this.player.position).add(new THREE.Vector3(0, this.player.eyeHeight ?? 1.62, 0));
+    this.scene?.add(mesh);
+    if (!this.enderEyes) this.enderEyes = [];
+    this.enderEyes.push({ mesh, velocity: new THREE.Vector3(v.x, v.y, v.z), life: ENDER_EYE_LIFE });
+
+    const bearing = bearingToPortal(from, target);
+    this.ui?.addChatMessage?.(
+      bearing === null
+        ? 'The Eye of Ender rises.'
+        : `The Eye of Ender drifts ${bearingName(bearing)} (${Math.round(bearing)}\u00b0).`,
+      'system');
+    this.sounds?.playLevelUp?.();
+    if (this.player.gamemode !== 'creative') {
+      this.inventory.consumeActiveItem(1);
+      this.ui?.updateHotbar?.();
+    }
+    return { bearing, target };
+  }
+
+  /** Advance the thrown eyes: they arc, and they fade rather than piling up. */
+  updateEnderEyes(dt) {
+    if (!this.enderEyes?.length) return;
+    const remaining = [];
+    for (const eye of this.enderEyes) {
+      eye.life -= dt;
+      if (eye.life <= 0) {
+        this.scene?.remove(eye.mesh);
+        eye.mesh.geometry?.dispose();
+        eye.mesh.material?.dispose();
+        continue;
+      }
+      eye.velocity.y -= 14 * dt;
+      eye.mesh.position.addScaledVector(eye.velocity, dt);
+      remaining.push(eye);
+    }
+    this.enderEyes = remaining;
+  }
+
+  /**
+   * Carry the player through an End portal, in either direction.
+   *
+   * A delay rather than an instant hop, matching the Nether portal, so stepping into the frame is a
+   * deliberate act and not something a stray pixel triggers.
+   */
+  updateEndPortalTravel(dt) {
+    this.endPortalTravelCooldown = Math.max(0, (this.endPortalTravelCooldown || 0) - dt);
+    if (this.endPortalTravelCooldown > 0) return;
+    if (!this.world || !this.player || this.player.isDead) return;
+    if (!isStandingInEndPortal(this.world, this.player)) return;
+
+    const from = this.currentDimension || 'overworld';
+    const dest = portalDestination(from);
+    if (!dest) return;
+
+    this.endPortalTravelCooldown = 3.0;
+    // Remember where the player came from, so the return trip is not a one-way door. Vanilla sends you to
+    // the world spawn; coming back to where you left is kinder and needs no spawn bookkeeping.
+    if (dest === 'the_end') {
+      this.endReturnPosition = this.player.position.clone();
+    }
+    const arrival = dest === 'the_end'
+      ? portalArrival('the_end')
+      : (this.endReturnPosition ? { x: this.endReturnPosition.x, y: this.endReturnPosition.y, z: this.endReturnPosition.z } : portalArrival('overworld'));
+
+    // The arena has crystals, pillars and a dragon but NO ground, and the End's chunks are generated from
+    // whichever biome was selected, so the player would arrive in whatever that happened to be. Vanilla drops
+    // you on a central island; this is that island.
+    if (dest === 'the_end') {
+      buildEndPlatform(this.world, Math.floor(arrival.x), Math.floor(arrival.y) - 1, Math.floor(arrival.z), 12);
+      for (const chunk of this.world.chunks.values()) {
+        this.rebuildChunkMesh?.(chunk);
+      }
+    }
+
+    if (this.switchDimension) this.switchDimension(dest, arrival);
+    this.sounds?.playLevelUp?.();
+    this.ui?.addChatMessage?.(
+      dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
+  }
+
+  /**
+   * Put an End portal chamber underground near the spawn, with a shaft to the surface above it.
+   *
+   * Chosen rather than generated: this project has no stronghold system, and adding one would be a
+   * world-generation feature rather than the route this exists to complete. A fixed chamber near the spawn
+   * means the route can actually be walked, and the shaft is what makes it findable.
+   *
+   * Placed once, guarded, because the world-start path can be re-entered.
+   */
+  placeEndPortalRoom(spawn) {
+    if (this.endPortalRoomPlaced) return null;
+    this.endPortalRoomPlaced = true;
+    if (!this.world) return null;
+
+    const sx = Math.floor(spawn?.x ?? this.player?.position?.x ?? 0);
+    const sz = Math.floor(spawn?.z ?? this.player?.position?.z ?? 0);
+    const surfaceY = Math.floor(spawn?.y ?? this.player?.position?.y ?? 30);
+    // Offset from the spawn so the player does not start standing on the shaft, and never so shallow that the
+    // chamber breaks through the surface.
+    const cx = sx + 48;
+    const cz = sz + 48;
+    const floorY = Math.max(5, Math.min(surfaceY - 14, 30));
+
+    const result = buildEndPortalRoom(this.world, cx, floorY, cz, {
+      filledEyes: 2,
+      radius: 7,
+      surfaceY,
+    });
+    this.endPortalRoom = { x: cx, y: floorY, z: cz };
+
+    // The chamber was written into chunks that may already be meshed, so they have to be rebuilt or the
+    // room is invisible until something else forces a remesh.
+    for (const chunk of this.world.chunks.values()) this.rebuildChunkMesh?.(chunk);
+    console.log(`[World] End portal chamber at (${cx}, ${floorY}, ${cz}); ${result.placed} blocks placed, `
+      + `${result.filled} eyes, shaft to y=${result.surfaceY}.`);
+    return this.endPortalRoom;
+  }
+
+  switchDimension(newDim, targetPos = null) {    if (!this.world) return;
 
     // 1. Remove all active chunk meshes from scene
     for (const chunk of this.world.chunks.values()) {
@@ -627,7 +767,13 @@ class Game {
       this.ambientLight.intensity = 0.45;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
-      this.bossManager?.initEndArena();
+      // Built ONCE per session. `initEndArena` spawns a dragon and six end crystals, so leaving the End and
+      // coming back would otherwise spawn a second of each -- two dragons, one boss bar, and a fight that
+      // never ends because defeating one leaves the other.
+      if (!this.endArenaBuilt) {
+        this.endArenaBuilt = true;
+        this.bossManager?.initEndArena();
+      }
     } else {
       if (this.sky?.mesh) this.sky.mesh.visible = true;
       this.normalBgColor = new THREE.Color(0x78a7ff);
@@ -1333,6 +1479,36 @@ class Game {
 
     const control=this.world.redstone.interact([bX,bY,bZ],this.player.isSneaking,this.inventory.getActiveItem());
     if(control){for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
+
+    // End Portal Frame: an Eye of Ender goes in, and the twelfth one lights the portal.
+    //
+    // `ender_eye` had zero references anywhere in `src/` before this, and `END_PORTAL_FRAME` was not a block
+    // at all -- so the item could be brewed, held, and never used, and there was no way into the End.
+    if (isFrame(clickedBlock)) {
+      const heldForFrame = this.inventory.getActiveItem();
+      if (heldForFrame?.id === 'ender_eye' && clickedBlock === BLOCKS.END_PORTAL_FRAME) {
+        if (insertEye(this.world, bX, bY, bZ)) {
+          if (this.player.gamemode !== 'creative') this.inventory.consumeActiveItem(1);
+          this.sounds?.playClick?.();
+          this.ui?.updateHotbar?.();
+          this.refreshDirtyChunks();
+          // The ring decides whether this was the last eye, so the interaction code does no layout maths.
+          if (tryActivateAround(this.world, bX, bY, bZ)) {
+            this.sounds?.playLevelUp?.();
+            this.ui?.addChatMessage?.('The End portal awakens.', 'system');
+          }
+        }
+      }
+      // A filled frame, or a frame clicked with anything else, must not fall through to block placement.
+      return;
+    }
+
+    // An Eye of Ender thrown in the open, rather than clicked onto a frame, is the locator. It sits after
+    // the frame branch, so aiming at a frame still fills it.
+    if (this.inventory.getActiveItem()?.id === 'ender_eye' && !this.targetBlock) {
+      this.throwEnderEye();
+      return true;
+    }
 
     // Crafting Table interaction
     if (clickedBlock === BLOCKS.CRAFTING_TABLE) {
@@ -2612,6 +2788,11 @@ class Game {
     if (this.portalManager) {
       this.portalManager.update(dt, this.player, this);
     }
+
+    // 5a5. Update End Portal travel. The last link of the route: before this, an activated End portal was a
+    // floor pattern the player could stand on and nothing more.
+    this.updateEndPortalTravel(dt);
+    this.updateEnderEyes(dt);
 
     // 5b. Update World Mechanism System & Active World Mechanics
     if (this.mechanisms) {
