@@ -56,7 +56,9 @@ export const ENCHANTMENT_REGISTRY = {
   efficiency: {
     name: 'Efficiency',
     maxLevel: 5,
-    targets: ['tool'],
+    // Shears mine leaves, wool and cobwebs, and vanilla offers them Efficiency; they are the one tool with
+    // its own category that takes it.
+    targets: ['tool', 'shears'],
     roman: ['I', 'II', 'III', 'IV', 'V'],
     minBaseLvl: [1, 11, 21, 31, 41],
     desc: 'Significantly increases block mining and digging speed.'
@@ -158,10 +160,49 @@ export const ENCHANTMENT_REGISTRY = {
 };
 
 /**
+ * Items vanilla allows at an enchanting table that the name rules above cannot see.
+ *
+ * Each gets its **own** category rather than being folded into `tool` or `weapon`, because the category is
+ * what picks the enchantments offered: calling a brush a `tool` would offer it Efficiency, which vanilla
+ * does not give a brush, and calling a trident a `weapon` would offer it Sharpness, which vanilla does not
+ * give a trident either. Unbreaking already targets `all`, so every one of these is offered it, which is
+ * correct for all of them.
+ *
+ * They were all refused by the enchanting table before this: the suffix rules cover swords, axes, the four
+ * mining tools and armour, and nothing else, so a trident, a shield, shears, a fishing rod, a brush and both
+ * "on a stick" items read as unenchantable while vanilla enchants every one of them.
+ */
+const EXTRA_ENCHANTABLE = {
+  trident: 'trident',
+  shield: 'shield',
+  shears: 'shears',
+  fishing_rod: 'fishing_rod',
+  brush: 'brush',
+  carrot_on_a_stick: 'carrot_on_a_stick',
+  warped_fungus_on_a_stick: 'warped_fungus_on_a_stick',
+  // This project's own weapon. It takes the weapon pool because that is what it is.
+  golden_spear: 'weapon',
+};
+
+/**
+ * Items vanilla refuses to enchant, however this game's `type` field happens to classify them.
+ *
+ * Named rather than inferred: this game types a bucket, a clock, a compass, a name tag and a saddle as
+ * `tool`, which is a reasonable classification for "something you hold" and the wrong answer to "can an
+ * enchanting table take it". Horse armour is here for the same reason.
+ */
+export const NOT_ENCHANTABLE = new Set([
+  'bucket', 'water_bucket', 'lava_bucket',
+  'compass', 'clock', 'lead', 'name_tag', 'saddle', 'flint_and_steel',
+  'leather_horse_armor', 'iron_horse_armor', 'golden_horse_armor', 'diamond_horse_armor',
+]);
+
+/**
  * Returns item category for enchanting eligibility.
  */
 export function getItemEnchantCategory(itemId) {
   if (!itemId || typeof itemId !== 'string') return null;
+  if (NOT_ENCHANTABLE.has(itemId)) return null;
 
   if (itemId.endsWith('_sword')) return 'weapon';
   if (itemId.endsWith('_axe')) return 'weapon'; // Axes are weapons and tools in modern Minecraft
@@ -171,6 +212,7 @@ export function getItemEnchantCategory(itemId) {
   if (itemId.endsWith('_leggings')) return 'leggings';
   if (itemId.endsWith('_boots')) return 'boots';
   if (itemId === 'bow' || itemId === 'crossbow') return 'bow';
+  if (EXTRA_ENCHANTABLE[itemId]) return EXTRA_ENCHANTABLE[itemId];
   if (itemId === 'book') return 'book';
 
   return null;
