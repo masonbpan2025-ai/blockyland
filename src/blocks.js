@@ -242,7 +242,14 @@ export const BLOCKS = {
   RESPAWN_ANCHOR: 218,
   NETHER_BRICKS: 219,
   POWDER_SNOW: 221,
-  DRIED_GHAST: 220
+  DRIED_GHAST: 220,
+
+  // Cobbled deepslate. Its slab, stair and wall variants, its smelting source (deepslate) and its
+  // blast resistance were already in the registry and the generated harvest table, but the base block
+  // itself was never registered, so BLOCKS.COBBLED_DEEPSLATE read undefined. The id sits above the
+  // generated range: scripts/generate-content-expansion.mjs allocates max(ids)+1, so a generated block
+  // never collides with it.
+  COBBLED_DEEPSLATE: 946
 };
 
 export const BLOCK_DEFS = {
@@ -841,7 +848,10 @@ export const BLOCK_DEFS = {
   // Cave & Underground Blocks
   [BLOCKS.SCULK]: { name: 'Sculk', hardness: 0.6, sound: 'grass', drop: BLOCKS.SCULK, textures: { all: 'sculk.png' } },
   [BLOCKS.SCULK_CATALYST]: { name: 'Sculk Catalyst', hardness: 3.0, sound: 'stone', light: 6, lightColor: 0x06b6d4, drop: BLOCKS.SCULK_CATALYST, textures: { side: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png', bottom: 'sculk_catalyst_bottom.png' } },
-  [BLOCKS.DEEPSLATE]: { name: 'Deepslate', hardness: 3.0, sound: 'stone', drop: BLOCKS.COBBLESTONE, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
+  [BLOCKS.DEEPSLATE]: { name: 'Deepslate', hardness: 3.0, sound: 'stone', drop: BLOCKS.COBBLED_DEEPSLATE, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
+  // Vanilla: deepslate drops cobbled deepslate when mined without Silk Touch. The drop above used to
+  // point at COBBLESTONE, which was only ever a workaround for COBBLED_DEEPSLATE not existing.
+  [BLOCKS.COBBLED_DEEPSLATE]: { name: 'Cobbled Deepslate', hardness: 3.5, sound: 'stone', drop: BLOCKS.COBBLED_DEEPSLATE, textures: { all: 'cobbled_deepslate.png' } },
   [BLOCKS.MOSS_BLOCK]: { name: 'Moss Block', hardness: 0.1, sound: 'grass', drop: BLOCKS.MOSS_BLOCK, textures: { all: 'moss_block.png' } },
   [BLOCKS.MOSS_CARPET]: { name: 'Moss Carpet', hardness: 0.1, sound: 'grass', transparent: true, solid: false, drop: BLOCKS.MOSS_CARPET, textures: { all: 'moss_block.png' } },
   [BLOCKS.AZALEA_LEAVES]: { name: 'Azalea Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.AZALEA_LEAVES, textures: { all: 'azalea_leaves.png' } },
