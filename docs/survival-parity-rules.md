@@ -339,10 +339,10 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1548 | 1557 | 99.4% |
-| Crafting recipes expressible | 1549 | 1557 | 99.5% |
-| Blocks named | 1049 | 1095 | 95.8% |
-| Items named | 1296 | 1385 | 93.6% |
+| Vanilla recipes implemented | 1549 | 1557 | 99.5% |
+| Crafting recipes expressible | 1550 | 1557 | 99.6% |
+| Blocks named | 1057 | 1095 | 96.5% |
+| Items named | 1299 | 1385 | 93.8% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,34 +371,34 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1047 | 1284 |
-| missing | 48 | 101 |
+| present | 1055 | 1287 |
+| missing | 40 | 98 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **48** | **101** |
+| **missing, needs NEW art** | **40** | **98** |
 | art files | 454 | 1071 |
 
-BOTH reachability columns are now empty, and that is the end of a story this table has been telling for
-several rounds. The "could reuse art" column held eleven entries at its peak -- `redstone_wall_torch`
-and ten coral wall fans -- blocks whose art already existed but whose SHAPE did not, because this engine
-had no wall-mounted form for a torch or a plant. Three batches closed it: one added a wall form for
-signs, one for plants, and the wall-torch batch took the last one. Every remaining missing block needs
-art that does not exist, so **there is no longer any block reachable by writing code alone**.
+BOTH reachability columns are empty, and the caveat that used to follow them was WRONG. The previous
+version of this section said "there is no longer any block reachable by writing code alone" and named
+the eight blocks since added -- beetroots, cocoa, the two crops, soul fire, suspicious sand and gravel,
+and scaffolding -- as needing art that does not exist.
 
-That is worth stating plainly because it changes what the next batch can be. Of the 48 missing blocks,
-none can be added without new textures or a subsystem that consumes art already present in a different
-form -- the six mob heads are the clearest example, since their art exists only as `entity/` skin sheets
-rather than block tiles.
+They did not need new art. Their art was there all along, under a name a bare-name probe does not find:
+a stage suffix, a numbered frame, top/side/bottom, or in soul fire's case a 32-frame animation strip
+that had to be SLICED. `scripts/block-parity/art-sweep.mjs` finds them by trying every suffix against two
+version directories.
 
-The 48 "needs NEW art" blocks are still not uniformly blocked, and the composition scripts are the reason
-to say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
-this column** until committed composition scripts built their textures from art the mirror does ship —
-vanilla draws both as models rather than as single tiles, so no combined texture exists upstream, but
-the parts do. `scripts/compose-potted-plants.py` and `scripts/compose-candle-cakes.py` are the worked
-examples, and both are asserted to exist by tests. The six mob heads are a harder case: their art exists
-only as `entity/` skin sheets, not as block textures, so they need either a skin-sheet UV mapping or
-new art. The rest would need art actually drawn.
-worked example.
+So the honest statement is narrower than the one it replaces: **no remaining block has art that can be
+used as-is**, but "needs NEW art" is a claim this table cannot actually make, because it only tests the
+bare name and a few suffixes. Three rounds have now been unblocked by composing existing art (the candle
+cakes, the potted plants) or by slicing it (soul fire). Of the 40 missing blocks, the six mob heads are
+the next candidate on that basis: their art exists, as `entity/` skin sheets rather than block tiles, so
+they need a UV mapping rather than a drawing.
+
+`scripts/compose-potted-plants.py`, `scripts/compose-candle-cakes.py` and `scripts/slice-texture-frames.py`
+are the three worked examples of getting a block out of that column without drawing anything, and all
+three are asserted by tests so that clearing `public/assets` and re-running only the downloader cannot
+silently lose their output.
 
 ### 4.1.2 The shulker boxes are the clearest block-versus-behaviour gap
 
