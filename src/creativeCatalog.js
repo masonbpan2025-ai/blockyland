@@ -145,6 +145,13 @@ export function buildCreativeCatalog() {
     BLOCKS.FIRE_CORAL_FAN, BLOCKS.HORN_CORAL_FAN,
     BLOCKS.DEAD_TUBE_CORAL_FAN, BLOCKS.DEAD_BRAIN_CORAL_FAN, BLOCKS.DEAD_BUBBLE_CORAL_FAN,
     BLOCKS.DEAD_FIRE_CORAL_FAN, BLOCKS.DEAD_HORN_CORAL_FAN,
+    // The wall-mounted coral fans. Listed beside the upright ones because they are the same plant in its
+    // other placement, and each drops itself so both are obtainable in survival.
+    BLOCKS.TUBE_CORAL_WALL_FAN, BLOCKS.BRAIN_CORAL_WALL_FAN, BLOCKS.BUBBLE_CORAL_WALL_FAN,
+    BLOCKS.FIRE_CORAL_WALL_FAN, BLOCKS.HORN_CORAL_WALL_FAN,
+    BLOCKS.DEAD_TUBE_CORAL_WALL_FAN, BLOCKS.DEAD_BRAIN_CORAL_WALL_FAN,
+    BLOCKS.DEAD_BUBBLE_CORAL_WALL_FAN, BLOCKS.DEAD_FIRE_CORAL_WALL_FAN,
+    BLOCKS.DEAD_HORN_CORAL_WALL_FAN,
     BLOCKS.WEEPING_VINES, BLOCKS.TWISTING_VINES, BLOCKS.CAVE_VINES,
     // The vine body segments. Listed even though a player rarely places them, because they are real
     // blocks with their own textures and a builder placing a long vine wants both parts.

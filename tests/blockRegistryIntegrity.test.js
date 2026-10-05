@@ -111,6 +111,63 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the ten coral wall fans exist, mesh as wall plates, and follow the fan drop rules', () => {
+  // Three things are worth pinning here, because each was a real failure mode elsewhere.
+  //
+  //  1. The DROP rule differs from the coral BLOCKS and matches the coral FANS: a living wall fan drops
+  //     itself, a dead one drops nothing. The coral-block batch set that distinction up.
+  //  2. Both the geometry router and the MESHER dispatch on the flag, and having it in only one place made
+  //     the wall signs render as flowers. So this MESHES a wall fan and asserts it produced plate geometry.
+  //  3. A wall fan must NOT carry `plant`, because that flag routes to the cross-quad path -- the very
+  //     failure the `wallFan` flag exists to avoid.
+  const CORAL = [['TUBE', 'Tube'], ['BRAIN', 'Brain'], ['BUBBLE', 'Bubble'], ['FIRE', 'Fire'], ['HORN', 'Horn']];
+
+  for (const [key] of CORAL) {
+    const liveId = BLOCKS[`${key}_CORAL_WALL_FAN`];
+    const deadId = BLOCKS[`DEAD_${key}_CORAL_WALL_FAN`];
+    assert.equal(typeof liveId, 'number', `${key}_CORAL_WALL_FAN must be registered`);
+    assert.equal(typeof deadId, 'number', `DEAD_${key}_CORAL_WALL_FAN must be registered`);
+
+    const live = BLOCK_DEFS[liveId];
+    const dead = BLOCK_DEFS[deadId];
+
+    assert.equal(live.wallFan, true, `${key} wall fan must carry the wallFan flag`);
+    assert.equal(dead.wallFan, true, `dead ${key} wall fan must carry the wallFan flag`);
+    assert.equal(live.plant, undefined, `${key} wall fan must NOT be a plant, or it draws as a cross`);
+    assert.equal(live.solid, false, `${key} wall fan must not block movement`);
+
+    // The shared sprite with the upright fan of the same colour -- no `*_wall_fan` texture exists.
+    assert.deepEqual(live.textures, { all: `${key.toLowerCase()}_coral_fan.png` },
+      `${key} wall fan reuses its upright fan's sprite`);
+    assert.deepEqual(dead.textures, { all: `dead_${key.toLowerCase()}_coral_fan.png` },
+      `dead ${key} wall fan reuses its dead upright fan's sprite`);
+
+    assert.equal(getBlockDrop(liveId)?.id, liveId, `a living ${key} wall fan drops itself`);
+    assert.equal(getBlockDrop(deadId), null, `a dead ${key} wall fan drops nothing`);
+  }
+
+  // The routing assertion. A wall fan's geometry is a thin plate: 24 vertices from one box, sitting high on
+  // the block and reaching the wall face. The cross-quad plant path would give 8 vertices spanning the
+  // whole cell in both horizontal axes.
+  const texStub = { getFaceUVs: () => ({ u0: 0, v0: 0, u1: 1, v1: 1 }) };
+  const world = new World();
+  const chunk = new Chunk(0, 0);
+  world.chunks.set('0,0', chunk);
+  world.setVoxel(2, 40, 2, BLOCKS.TUBE_CORAL_WALL_FAN);
+  const meshed = new ChunkMesher(texStub).meshChunk(chunk, world);
+  const geos = [meshed.opaqueGeo, meshed.transparentGeo, meshed.lightGeo].filter(Boolean);
+  const vertices = geos.reduce((n, g) => n + g.attributes.position.count, 0);
+  assert.equal(vertices, 24,
+    `a wall fan must mesh as one box (24 vertices), got ${vertices}; 8 would mean the cross-quad plant path`);
+
+  const plate = geos[0];
+  plate.computeBoundingBox();
+  const box = plate.boundingBox;
+  assert.ok(box.max.z > 0.9, `a wall fan must reach the wall face, got max z ${box.max.z}`);
+  assert.ok(box.min.y > 0.3, `a wall fan mounts on the wall, not the floor, got min y ${box.min.y}`);
+  assert.ok(box.max.x - box.min.x > 0.5, `the plate must span the fan's width, got ${box.max.x - box.min.x}`);
+});
+
 test('the twelve wall signs exist, are routed as signs, and reuse their plank texture', () => {
   // Wall signs carry TWO flags and both are load-bearing, which is the thing this test exists to protect.
   // `wallSign` picks the shape inside the geometry router; `sign` is what the MESHER tests to route the

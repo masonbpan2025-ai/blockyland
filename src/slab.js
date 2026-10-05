@@ -515,3 +515,39 @@ export function createWallSignGeometry(def, tm, dir = 3) {
   return merged;
 }
 
+/**
+ * A wall-mounted coral fan: the fan sprite on a thin plate fixed against a wall face.
+ *
+ * The upright coral fans are drawn as cross-quads, which is right for a fan growing up out of the floor
+ * and wrong for one attached to a wall -- a cross reads as a plant, while a wall fan is a flat growth. So
+ * this draws the sprite on a thin vertical plate instead, which is the shape the vanilla model has.
+ *
+ * The sprite's artwork sits in the TOP HALF of its 16x16 tile (measured: opaque pixels span y=7..15), so
+ * the plate covers that half and the fan's narrow base ends up at the bottom, flaring upward exactly as
+ * the texture does. `insetUv` keeps the transparent surround from sampling atlas neighbours through it.
+ *
+ * The default direction is north, matching the other wall-mounted shapes. As with the wall signs, nothing
+ * in this engine drives that from placement.
+ */
+export function createWallFanGeometry(def, tm, dir = 3) {
+  const plateW = 15 / 16;
+  const plateT = 1 / 16;
+  // The sprite's opaque band, so the plate matches the artwork rather than the whole tile.
+  const artBottom = 7 / 16;
+  const plateH = 1 - artBottom;
+  const plateZ = 15 / 16 - plateT;
+  const parts = [
+    buildBox({ x: plateW, y: plateH, z: plateT },
+      { x: (1 - plateW) / 2, y: artBottom, z: plateZ }, def, tm, { insetUv: true }),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+

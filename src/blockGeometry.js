@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createWallFanGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -69,6 +69,13 @@ export function createBlockGeometry(id, textures, state = {}) {
     // through and applied as a tint -- only the cloth takes it, not the pole.
     const colour = def?.bannerColour || 'white';
     return ensureFlameAttributes(createBannerGeometry(def, textures, colour));
+  }
+  if (def?.wallFan) {
+    // Checked BEFORE the plant fallback, because a wall fan is also `plant: true` (so the upright fan's
+    // cross-quad path is available to the shared code) and would otherwise render as a cross. A wall fan
+    // is a flat growth on a wall face, not a plant standing on the floor.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createWallFanGeometry(def, textures, dir));
   }
   if (def?.wallSign) {
     // Checked BEFORE sign, for the same reason the hanging sign below is: a wall sign's key also ends in
