@@ -768,6 +768,19 @@ export const BLOCKS = {
   // tile. The result reads as a dragon, with glowing eyes and a mouth, which is the bar the creeper failed.
   DRAGON_HEAD: 1187,
   DRAGON_WALL_HEAD: 1188,
+
+  // --- Chest variants, twenty-seventh block-parity batch -----------------------------------------
+  //
+  // The ender chest and the trapped chest. The plain chest already existed with proper art; these are its
+  // two variants, and BOTH NEEDED COMPOSED TEXTURES because the mirror ships no `ender_chest_*` or
+  // `trapped_chest_*` sprite at any suffix in any version, and this project's own `chest_*.png` files are
+  // hand-made rather than downloaded.
+  //
+  // scripts/compose-chest-variants.py derives them: the ender chest is the chest in the End's palette,
+  // applied as a per-pixel transform so it stays recognisably the same chest, and the trapped chest is the
+  // chest plus a latch on its front.
+  ENDER_CHEST: 1189,
+  TRAPPED_CHEST: 1190,
 };
 
 export const BLOCK_DEFS = {
@@ -2351,6 +2364,10 @@ export const ITEMS = {
   red_bed: { name: 'Red Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   bed: { name: 'Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.CHEST },
+  // The chest variants. Their icons are DERIVED from their own front faces, because the mirror ships no
+  // `ender_chest` or `trapped_chest` item sprite either -- the same gap the block textures had.
+  ender_chest: { name: 'Ender Chest', icon: '/assets/items/ender_chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.ENDER_CHEST },
+  trapped_chest: { name: 'Trapped Chest', icon: '/assets/items/trapped_chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.TRAPPED_CHEST },
   oak_door: { name: 'Oak Door', icon: '/assets/items/oak_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_DOOR },
   iron_door: { name: 'Iron Door', icon: '/assets/items/iron_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.IRON_DOOR },
   oak_trapdoor: { name: 'Oak Trapdoor', icon: '/assets/items/oak_trapdoor.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_TRAPDOOR },
@@ -2809,6 +2826,32 @@ BLOCK_DEFS[BLOCKS.CHEST] = {
   },
   icon: '/assets/items/chest.png'
 };
+
+// --- Chest variants, twenty-seventh block-parity batch -------------------------------------------
+//
+// The ender chest and the trapped chest. The plain chest already existed with proper art; these are its
+// two variants, and BOTH NEEDED COMPOSED TEXTURES because the mirror ships no `ender_chest_*` or
+// `trapped_chest_*` sprite at any suffix in any version, and this project's own `chest_*.png` files are
+// hand-made rather than downloaded.
+//
+// scripts/compose-chest-variants.py derives them: the ender chest is the chest in the End's palette,
+// applied as a per-pixel transform so it stays recognisably the same chest, and the trapped chest is the
+// chest plus a small latch on its front.
+//
+// Both carry `chest: true`, which is what routes a block to the chest GEOMETRY rather than treating it as
+// a plain cube. They keep the chest's `lock` key with their own dark-fitting lock art.
+//
+// THE ENDER CHEST DROPS OBSIDIAN, not itself, and that is a vanilla rule rather than an oversight: it
+// cannot be picked up. That is declared as `drop: BLOCKS.OBSIDIAN` rather than `dropItem: 'obsidian'`,
+// because there is no `obsidian` key in ITEMS -- obsidian is a BLOCK here -- and an item name that resolves
+// to nothing is exactly the bug the wither skeleton skull shipped with. Its harvest row also carries a
+// blast resistance of 600, so a TNT blast leaves it standing, and hardness 22.5 makes it the hardest chest
+// in the game. All three come from that table.
+//
+// WHAT IS NOT MODELLED for either: a chest here has no inventory. The plain chest is in the same position,
+// so this is a family-wide gap rather than one these two introduce.
+BLOCK_DEFS[BLOCKS.ENDER_CHEST] = { name: 'Ender Chest', chest: true, hardness: 22.5, sound: 'stone', transparent: true, drop: BLOCKS.OBSIDIAN, textures: { top: 'ender_chest_top.png', side: 'ender_chest_side.png', front: 'ender_chest_front.png', bottom: 'ender_chest_top.png', all: 'ender_chest_side.png', lock: 'ender_chest_lock.png' } };
+BLOCK_DEFS[BLOCKS.TRAPPED_CHEST] = { name: 'Trapped Chest', chest: true, hardness: 2.5, sound: 'wood', transparent: true, drop: BLOCKS.TRAPPED_CHEST, textures: { top: 'trapped_chest_top.png', side: 'trapped_chest_side.png', front: 'trapped_chest_front.png', bottom: 'trapped_chest_top.png', all: 'trapped_chest_side.png', lock: 'trapped_chest_lock.png' } };
 
 // --- Nether Portal Block ----------------------------------------------------
 BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {

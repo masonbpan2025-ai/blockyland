@@ -202,6 +202,8 @@ export function buildCreativeCatalog() {
   // 4. Functional Blocks
   const functionalBlocksList = [
     BLOCKS.CHEST, BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.RED_BED_FOOT, BLOCKS.LADDER,
+    // The chest variants, next to the chest they derive from.
+    BLOCKS.ENDER_CHEST, BLOCKS.TRAPPED_CHEST,
     // The wall torches, beside the standing ones. They drop their standing form, so both are obtainable.
     BLOCKS.WALL_TORCH, BLOCKS.SOUL_WALL_TORCH, BLOCKS.REDSTONE_WALL_TORCH,
     BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL,

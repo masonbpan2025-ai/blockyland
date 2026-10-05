@@ -138,6 +138,10 @@ const TRANSFORMS = [
   // Extracts head faces from the entity skin sheets. Independent of the others, so its position does not
   // matter; it is last only because it was added last.
   'extract-mob-head-textures.py',
+  // Derives the two chest variants from the plain chest's own hand-made textures. It has NO downloader
+  // input at all -- `chest_*.png` is not in the mirror -- so it depends on the files this repo ships rather
+  // than on anything fetched above, which is why its position is safe at the end.
+  'compose-chest-variants.py',
 ];
 
 for (const script of TRANSFORMS) {
