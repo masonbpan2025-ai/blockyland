@@ -126,6 +126,16 @@ export function buildCreativeCatalog() {
     BLOCKS.FIRE_CORAL_BLOCK, BLOCKS.HORN_CORAL_BLOCK,
     BLOCKS.DEAD_TUBE_CORAL_BLOCK, BLOCKS.DEAD_BRAIN_CORAL_BLOCK, BLOCKS.DEAD_BUBBLE_CORAL_BLOCK,
     BLOCKS.DEAD_FIRE_CORAL_BLOCK, BLOCKS.DEAD_HORN_CORAL_BLOCK,
+    // Coral fans, which complete the coral family, and the hanging vines. All of these are cross-quad
+    // decoration, and the three vines are ceiling-anchored like hanging roots.
+    BLOCKS.TUBE_CORAL_FAN, BLOCKS.BRAIN_CORAL_FAN, BLOCKS.BUBBLE_CORAL_FAN,
+    BLOCKS.FIRE_CORAL_FAN, BLOCKS.HORN_CORAL_FAN,
+    BLOCKS.DEAD_TUBE_CORAL_FAN, BLOCKS.DEAD_BRAIN_CORAL_FAN, BLOCKS.DEAD_BUBBLE_CORAL_FAN,
+    BLOCKS.DEAD_FIRE_CORAL_FAN, BLOCKS.DEAD_HORN_CORAL_FAN,
+    BLOCKS.WEEPING_VINES, BLOCKS.TWISTING_VINES, BLOCKS.CAVE_VINES,
+    // The vine body segments. Listed even though a player rarely places them, because they are real
+    // blocks with their own textures and a builder placing a long vine wants both parts.
+    BLOCKS.WEEPING_VINES_PLANT, BLOCKS.TWISTING_VINES_PLANT, BLOCKS.CAVE_VINES_PLANT,
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
     BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,

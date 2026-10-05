@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1546 | 1557 | 99.3% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
-| Blocks named | 913 | 1095 | 83.4% |
-| Items named | 1232 | 1385 | 89.0% |
+| Blocks named | 929 | 1095 | 84.8% |
+| Items named | 1244 | 1385 | 89.8% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,15 +371,18 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 909 | 1222 |
-| missing | 186 | 163 |
+| present | 925 | 1234 |
+| missing | 170 | 151 |
 | **missing, has its OWN art** | **0** | **0** |
-| missing, could reuse art already present | **1** | **0** |
-| **missing, needs NEW art** | **185** | **163** |
-| art files | 285 | 1072 |
+| missing, could reuse art already present | **11** | **0** |
+| **missing, needs NEW art** | **159** | **151** |
+| art files | 301 | 1072 |
 
-Both gaps are the same shape. Of 186 missing blocks, **one** is reachable by writing code —
-`redstone_wall_torch`, reusing `redstone_torch.png`. The rest need art that does not exist.
+Both gaps are the same shape, but not identical, and the difference grew. Of 170 missing blocks,
+**eleven** are reachable by writing code and no new art: `redstone_wall_torch` reusing
+`redstone_torch.png`, and ten coral WALL fans each reusing its upright fan's texture. They are
+unimplemented because every one is a wall-attached block and this game stores no facing state for
+decoration. Of 151 missing items, **none** is reachable without art.
 
 Worth stating plainly, because this heading used to read "the remaining gap is ART, not code" and that
 was wrong: the gap is *currently* art-gated, but it is not intrinsically so. Adding art is one way to
@@ -387,7 +390,10 @@ close it and writing definitions against art that already exists is another, and
 ores, saplings, infested stone, coral, amethyst and the other block-parity batches were closed. What
 the table measures is which missing blocks *already have* a texture file to point at, not whether a
 missing block is implementable in principle. `ancient_debris` was counted as art-blocked until its
-`_side`/`_top` textures were found under part-suffixed names.
+`_side`/`_top` textures were found under part-suffixed names, and three rounds of batches were chosen
+badly because a bare-name probe does not look for those suffixes —
+`scripts/block-parity/art-available.mjs` now does the sweep in one pass and found 66 implementable
+blocks where the family-by-family guesswork had been finding a handful.
 
 
 The item row counts 1130 present where `scripts/parity-coverage.mjs` reports 1138. The difference is the

@@ -141,6 +141,50 @@ test('all sixteen glazed terracotta colours exist and behave identically', () =>
   }
 });
 
+test('a coral FAN drops itself, while a coral BLOCK drops its dead form', () => {
+  // These two rules point in opposite directions and sit in the same family, which is exactly why a
+  // copy-paste between them is easy and silent. A living coral BLOCK degrades and drops its dead
+  // counterpart; a living coral FAN has no dead form to drop into and keeps itself, while the dead fans
+  // are separate blocks a player places and which yield nothing. So:
+  //
+  //   block   living -> dead block    dead block -> itself
+  //   fan     living -> itself        dead fan   -> nothing
+  const CORAL = [['TUBE', 'Tube'], ['BRAIN', 'Brain'], ['BUBBLE', 'Bubble'], ['FIRE', 'Fire'], ['HORN', 'Horn']];
+
+  for (const [key] of CORAL) {
+    const liveBlock = getBlockDrop(BLOCKS[`${key}_CORAL_BLOCK`]);
+    const deadBlock = getBlockDrop(BLOCKS[`DEAD_${key}_CORAL_BLOCK`]);
+    const liveFan = getBlockDrop(BLOCKS[`${key}_CORAL_FAN`]);
+    const deadFan = getBlockDrop(BLOCKS[`DEAD_${key}_CORAL_FAN`]);
+
+    assert.equal(liveBlock?.id, BLOCKS[`DEAD_${key}_CORAL_BLOCK`],
+      `a living ${key} coral BLOCK must drop its dead form`);
+    assert.equal(deadBlock?.id, BLOCKS[`DEAD_${key}_CORAL_BLOCK`],
+      `a dead ${key} coral block must drop itself`);
+    assert.equal(liveFan?.id, BLOCKS[`${key}_CORAL_FAN`],
+      `a living ${key} coral FAN must drop itself, not a dead fan`);
+    assert.equal(deadFan, null,
+      `a dead ${key} coral fan must drop nothing, per its empty harvest row`);
+  }
+
+  // The fans are cross-quad decoration and must not block movement or occlude light.
+  for (const [key] of CORAL) {
+    for (const prefix of ['', 'DEAD_']) {
+      const def = BLOCK_DEFS[BLOCKS[`${prefix}${key}_CORAL_FAN`]];
+      assert.equal(def.plant, true, `${prefix}${key} coral fan draws as a cross`);
+      assert.equal(def.solid, false, `${prefix}${key} coral fan must not block movement`);
+      assert.equal(def.transparent, true, `${prefix}${key} coral fan must not occlude light`);
+    }
+  }
+
+  // And the three hanging vines reuse the ceiling-anchored flip added for hanging roots.
+  for (const key of ['WEEPING_VINES', 'TWISTING_VINES', 'CAVE_VINES']) {
+    const def = BLOCK_DEFS[BLOCKS[key]];
+    assert.equal(def.hang, true, `${key} must be ceiling-anchored`);
+    assert.equal(def.plant, true, `${key} must draw as a cross`);
+  }
+});
+
 test('the amethyst family drops only what vanilla drops', () => {
   // This is the reason the family is one batch: four of the five blocks yield NOTHING and only the
   // cluster yields, so a copy-pasted definition in either direction is a silent bug. Budding amethyst

@@ -75,6 +75,16 @@ const blocks1214 = [
   'cyan_glazed_terracotta.png', 'purple_glazed_terracotta.png', 'blue_glazed_terracotta.png',
   'brown_glazed_terracotta.png', 'green_glazed_terracotta.png', 'red_glazed_terracotta.png',
   'black_glazed_terracotta.png',
+  // Coral fans and hanging vines, the twelfth batch. The fans complete the coral family; the vines are
+  // tips only, since the `_plant` body segments are deliberately not registered as separate blocks.
+  'tube_coral_fan.png', 'brain_coral_fan.png', 'bubble_coral_fan.png',
+  'fire_coral_fan.png', 'horn_coral_fan.png',
+  'dead_tube_coral_fan.png', 'dead_brain_coral_fan.png', 'dead_bubble_coral_fan.png',
+  'dead_fire_coral_fan.png', 'dead_horn_coral_fan.png',
+  'weeping_vines.png', 'twisting_vines.png', 'cave_vines.png',
+  // The vine body segments have DIFFERENT textures from the tips upstream, which is why they are separate
+  // blocks rather than duplicates; tests/contentGap.test.js is what caught them being left out.
+  'weeping_vines_plant.png', 'twisting_vines_plant.png', 'cave_vines_plant.png',
 ];
 
 const items = [

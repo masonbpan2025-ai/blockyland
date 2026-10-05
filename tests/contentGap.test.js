@@ -24,10 +24,17 @@ test('most missing blocks are missing art, not code', (t) => {
   // for a test to fail: closing the gap is the objective, so this must not creep upward behind the
   // work. Kept deliberately far below the current figure so it only fires on a broken count.
   assert.ok(r.missing > 50, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
-  // The claim, stated as a ratio rather than an absolute so it survives content growth: nearly all of
-  // the gap needs art.
-  assert.ok(r.needsArt.length / r.missing > 0.95,
-    'expected over 95% of the block gap to need new art, got ' + r.needsArt.length + '/' + r.missing);
+  // The claim, stated as a ratio rather than an absolute: nearly all of the gap needs art.
+  //
+  // The figure moves as work lands, and in BOTH directions, which is worth understanding before
+  // adjusting it again. Implementing a block removes it from the denominator; adding the texture a block
+  // needs moves it from `needsArt` into `reusable`, which shrinks the numerator instead. The
+  // coral-fan batch did the second: the ten coral wall fans became implementable-without-new-art the
+  // moment their base textures arrived, so the ratio fell from 0.995 to 0.935 without anything getting
+  // worse. The threshold is set below the current figure with that movement in mind, and remains well
+  // above half so the claim "most of the gap is art" is still being tested.
+  assert.ok(r.needsArt.length / r.missing > 0.90,
+    'expected over 90% of the block gap to need new art, got ' + r.needsArt.length + '/' + r.missing);
   // And the sharper claim, which is the one that matters for planning: no missing block has its own art.
   assert.equal(r.ownTexture, 0,
     'a missing block now has its own texture, so it is a code gap that could be closed -- update the '
@@ -41,7 +48,14 @@ test('the reused-texture list is small and checked, not guessed', (t) => {
   // A conservative heuristic on purpose. It counts a wall sign reusing its plank texture, which the
   // generator really does, and does NOT count a sapling reusing one, which it does not -- a sapling drawn
   // with a plank texture would be wrong, and counting it would overstate what is addable without art.
-  assert.ok(r.reusable.length <= 10,
+  //
+  // The ceiling moved from 10 to 20 when the coral batch landed, and the eleven entries now on the list
+  // are the honest reason: six dead and five living coral WALL fans, each legitimately reusing its
+  // upright fan's texture, plus redstone_wall_torch. They are real reusable-texture entries rather than
+  // the heuristic matching a visually wrong pair, which is what this bound exists to catch. They are not
+  // implemented yet because every one of them is a wall-attached block and this game has no facing state
+  // for decoration -- the same missing subsystem the glazed-terracotta pattern and the wall states need.
+  assert.ok(r.reusable.length <= 20,
     'the reusable-texture list grew to ' + r.reusable.length + '; check each is a deliberate reuse and not a '
     + 'heuristic that has started matching visually wrong pairs');
   for (const x of r.reusable) {

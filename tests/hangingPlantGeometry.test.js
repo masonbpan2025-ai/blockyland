@@ -72,9 +72,32 @@ test('floor plants are not flipped by the hanging code path', () => {
 test('the hanging marker is present on exactly the blocks that need it', () => {
   // Guards against the flag being copy-pasted onto a floor plant, which would silently turn it upside
   // down and still pass every other test in this file.
+  //
+  // This list grows only when a batch adds a genuinely ceiling-anchored plant, and it is asserted
+  // exactly rather than as a minimum so the failure message names what changed.
   const hanging = Object.entries(BLOCK_DEFS)
     .filter(([, def]) => def?.hang)
-    .map(([, def]) => def.name);
-  assert.deepEqual(hanging, ['Hanging Roots'],
-    `only hanging roots should be ceiling-anchored, found: ${hanging.join(', ')}`);
+    .map(([, def]) => def.name)
+    .sort();
+  const expected = [
+    'Cave Vines', 'Cave Vines Plant', 'Hanging Roots',
+    'Twisting Vines', 'Twisting Vines Plant',
+    'Weeping Vines', 'Weeping Vines Plant',
+  ].sort();
+  assert.deepEqual(hanging, expected, `ceiling-anchored blocks changed; found: ${hanging.join(', ')}`);
+});
+
+test('every hanging block is drawn and behaves as a non-obstacle cross', () => {
+  // The marker alone is not enough: a block could carry `hang` and still be solid, which would make it an
+  // invisible wall. Every ceiling-anchored block must also be a cross-quad plant.
+  let checked = 0;
+  for (const def of Object.values(BLOCK_DEFS)) {
+    if (!def?.hang) continue;
+    checked++;
+    assert.equal(def.plant, true, `${def.name} must draw as a cross-quad`);
+    assert.equal(def.solid, false, `${def.name} must not block movement`);
+    assert.equal(def.transparent, true, `${def.name} must not occlude light`);
+    assert.equal(typeof def.textures?.all, 'string', `${def.name} needs an all-texture for the cross`);
+  }
+  assert.ok(checked >= 7, `expected the hanging family to be present, checked ${checked}`);
 });
