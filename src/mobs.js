@@ -35,6 +35,7 @@ import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, c
 import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
 import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
 import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
+import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -361,6 +362,7 @@ export class MobManager {
       case 'rabbit': return this.spawnRabbit(x, y, z, {});
       case 'bat': return this.spawnBat(x, y, z, {});
       case 'fox': return this.spawnFox(x, y, z, {});
+      case 'bee': return this.spawnBee(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2320,6 +2322,8 @@ export class MobManager {
       // Wiki: foxes are 0.6 x 0.7. A spawned fox carries its own size, so babies resolve
       // through the instance values.
       case 'fox': return FOX_DIMENSIONS;
+      // Wiki: bees are 0.55 x 0.5.
+      case 'bee': return BEE_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3304,6 +3308,81 @@ export class MobManager {
     mob.mouth.add(mesh);
     mob.heldItemMesh = mesh;
     return mesh;
+  }
+
+  /**
+   * Bee.
+   *
+   * Wiki: 10 HP, 0.55 x 0.5, neutral flying arthropod. Its defining mechanic is that stinging is
+   * fatal to the bee: it loses its stinger, can never attack again, and dies about a minute
+   * later. It pollinates flowers, carries nectar to a hive, and answers anger as a colony.
+   */
+  spawnBee(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body });
+    const stripeMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.stripe });
+    const wingMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.wing, transparent: true, opacity: 0.75 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: BEE_COLORS.eye });
+    const { group, body, head, eyes, stinger, wings } = createBeeModel(bodyMat, stripeMat, wingMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(BEE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? BEE_BABY_DIMENSIONS : BEE_DIMENSIONS;
+    const mob = {
+      type: 'bee',
+      name: 'Bee',
+      mesh: group,
+      body,
+      head,
+      eyes,
+      stinger,
+      wings,
+      bodyMat,
+      stripeMat,
+      wingMat,
+      eyeMat,
+      isFlying: true,
+      isArthropod: true,
+      // Wiki: bees are immune to poison (they inflict it), and take no fall damage.
+      poisonImmune: true,
+      fallDamageImmune: true,
+      // Wiki: 10 HP.
+      health: BEE_HEALTH,
+      maxHealth: BEE_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Anger and the sting.
+      angerTimer: 0,
+      angryAt: null,
+      hasStung: false,
+      stingerless: false,
+      deathTimer: 0,
+      // Nectar and pollination.
+      hasNectar: !!options.hasNectar,
+      nectarTicks: 0,
+      cropsGrownSincePollination: 0,
+      // Water exposure.
+      waterTicks: 0,
+      waterDamageTimer: 0,
+      // Wiki: a bee's home, which it refuses to stray more than 22 blocks from.
+      hive: options.hive ?? null,
+      // Wiki: affected by the Poison effect only in the sense that it inflicts it; recorded so
+      // the state is inspectable.
+      isBee: true,
+      beePhase: 0,
+      wanderTimer: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      targetPitch: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   // --- PASSIVE COW ---
@@ -6404,6 +6483,10 @@ export class MobManager {
     } else if (isKillerBunny(mob)) {
       // Wiki: the killer bunny retreats briefly when struck, then returns to lunging.
       onKillerBunnyHurt(mob);
+    } else if (mob.type === 'bee') {
+      // Wiki: "All bees nearby are angered when an individual bee is attacked, unless the bee
+      // attacked is killed in one hit."
+      angerBees(this, mob, attacker, { lethal: mob.health <= 0 });
     }
 
     if (mob.health <= 0 && mob.type === 'fox' && !mob.totemChecked) {
@@ -6629,7 +6712,9 @@ export class MobManager {
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
     const foxRows = mob.type === 'fox' && !mob.isBaby ? foxDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows];
+    // Wiki: a bee that died of its own sting was not killed, so it awards nothing.
+    const beeRows = mob.type === 'bee' && !mob.diedOfSting ? beeDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6697,7 +6782,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'bat' ? 0
           : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
           : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
@@ -7056,6 +7142,92 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='bee'){
+      // Wiki: a bee that has stung loses its stinger, cannot attack again, does not return home,
+      // and dies about a minute later. It also drowns in water.
+      updateBeeAnger(mob, dt);
+      if (updateBeeStingerless(mob, dt)) {
+        // It dies of its injuries rather than being killed, so this goes through the normal
+        // death path with no loot or XP.
+        if (mob.health <= 0) this.updateDeath(mob, dt);
+        return true;
+      }
+
+      const bX = Math.floor(mob.mesh.position.x);
+      const bY = Math.floor(mob.mesh.position.y + 0.15);
+      const bZ = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(bX, bY, bZ) === BLOCKS.WATER;
+      updateBeeWater(this, mob, dt, inWater);
+
+      // Nectar: gathered while circling a flower, delivered at the hive.
+      const flowerBelow = this.world.getVoxel(bX, bY - 1, bZ);
+      const atFlower = isBeeFlower(flowerBelow);
+      if (!mob.hasNectar && atFlower) updateBeeNectar(mob, dt, { atFlower: true });
+
+      // A stung bee cannot sting again, so it flees instead of attacking.
+      if (mob.stingerless) {
+        if (player?.position) {
+          const away = mob.mesh.position.clone().sub(player.position);
+          away.y = 0;
+          if (away.lengthSq() > 1e-6) {
+            away.normalize();
+            mob.yaw = Math.atan2(away.x, away.z);
+            mob.velocity.set(away.x * 2.4, 1.0, away.z * 2.4);
+          }
+        }
+        poseBee(mob);
+        moveFlyingMob(this, mob, dt);
+        mob.beePhase = (mob.beePhase || 0) + dt * 24;
+        return true;
+      }
+
+      // Anger: chase and sting.
+      if (beeIsAngry(mob) && mob.angryAt?.position) {
+        const target = mob.angryAt;
+        const dir = target.position.clone().sub(mob.mesh.position);
+        const dist = dir.length();
+        if (dist > 0.001) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.pitch = -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.6;
+        mob.velocity.set(
+          Math.sin(mob.yaw) * Math.cos(mob.pitch) * 3.4,
+          dir.y * 3.4,
+          Math.cos(mob.yaw) * Math.cos(mob.pitch) * 3.4
+        );
+        // Wiki: the sting lands on contact, and is what kills the bee.
+        if (dist < 1.2) beeSting(this, mob, target);
+        poseBee(mob);
+        moveFlyingMob(this, mob, dt);
+        mob.beePhase = (mob.beePhase || 0) + dt * 28;
+        return true;
+      }
+
+      // Calm flight: wander, and return toward the hive when carrying nectar.
+      if (mob.hasNectar && mob.hive?.mesh?.position) {
+        const toHive = mob.hive.mesh.position.clone().sub(mob.mesh.position);
+        const dist = toHive.length();
+        if (dist > 0.001) toHive.normalize();
+        mob.yaw = Math.atan2(toHive.x, toHive.z);
+        mob.velocity.set(toHive.x * 2.2, toHive.y * 2.2, toHive.z * 2.2);
+      } else {
+        mob.wanderTimer = (mob.wanderTimer || 0) - dt;
+        if (mob.wanderTimer <= 0) {
+          mob.wanderTimer = 1 + Math.random() * 2;
+          mob.yaw += (Math.random() - 0.5) * 2.2;
+          mob.targetPitch = (Math.random() - 0.5) * 0.5;
+        }
+        mob.pitch = (mob.pitch || 0) + ((mob.targetPitch ?? 0) - (mob.pitch || 0)) * Math.min(1, dt * 3);
+        mob.velocity.set(
+          Math.sin(mob.yaw) * Math.cos(mob.pitch) * 1.8,
+          -Math.sin(mob.pitch) * 1.8,
+          Math.cos(mob.yaw) * Math.cos(mob.pitch) * 1.8
+        );
+      }
+      poseBee(mob);
+      moveFlyingMob(this, mob, dt);
+      mob.beePhase = (mob.beePhase || 0) + dt * 22;
+      return true;
+    }
     if(mob.type==='fox'){
       // Wiki: hunts small animals by pouncing, flees untrusted non-sneaking players, sleeps
       // during the day under cover, and drops whatever it is holding when it dies.
