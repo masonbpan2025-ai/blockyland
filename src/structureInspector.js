@@ -279,7 +279,14 @@ function renderPanels() {
 function refresh({ reflowCamera = false } = {}) {
   // Rendered on every refresh, which is the one path every action already takes, so a panel cannot show a
   // stale plan. A rendering failure must not break the page, hence the catch.
-  try { renderStructurePanels(session, { $ }); } catch (error) { log('error rendering panels: ' + error.message); }
+  //
+  // The PREVIOUS summary is handed in so the panel can say what changed since the last plan: flipping seeds is
+  // the point of this page, and "moved to chunk X" and "plan changed at the same chunk" are different answers
+  // about the algorithm that a reader should not have to work out by diffing hashes.
+  try {
+    const rendered = renderStructurePanels(session, { $, previous: lastSummary });
+    lastSummary = rendered.summary;
+  } catch (error) { log('error rendering panels: ' + error.message); }
   renderBlocks();
   renderCandidates();
   renderOverlays();
@@ -298,6 +305,19 @@ function refresh({ reflowCamera = false } = {}) {
 }
 
 // --- controls ------------------------------------------------------------------------------
+/** The summary from the previous render, so the panel can say what a seed change actually changed. */
+let lastSummary = null;
+
+/** Plan the nearest instance of the selected structure at the current inputs, then re-render. */
+function planNearestAndRefresh({ reflowCamera = true } = {}) {
+  readInputs();
+  const found = session.planNearest({ maxRadiusChunks: 512 });
+  $('chunk-x').value = String(session.state.chunkX);
+  $('chunk-z').value = String(session.state.chunkZ);
+  refresh({ reflowCamera });
+  return found;
+}
+
 const readInputs = () => {
   session.setSeed($('seed').value);
   session.setChunk(Number($('chunk-x').value), Number($('chunk-z').value));
@@ -305,19 +325,46 @@ const readInputs = () => {
   session.setSurface(Number($('surface').value));
 };
 
+// Changing the seed APPLIES it and finds the structure again, so flipping seeds is one interaction rather than
+// a text edit followed by a button press. This is the interaction the Inspector exists for.
+$('seed').onchange = () => {
+  try {
+    const seed = $('seed').value;
+    session.setSeed(seed);
+    log(`seed ${seed}`);
+    planNearestAndRefresh();
+  } catch (error) { log(`error: ${error.message}`); refresh(); }
+};
+
+// A seed to try when the reader has no particular one in mind. It is drawn from the clock because the point is
+// to be UNPREDICTABLE; every draw that decides generation is still the engine's deterministic stream.
+$('btn-random-seed').onclick = () => {
+  const seed = String(Math.floor(Math.random() * 1e9));
+  $('seed').value = seed;
+  try {
+    session.setSeed(seed);
+    log(`random seed ${seed}`);
+    planNearestAndRefresh();
+  } catch (error) { log(`error: ${error.message}`); refresh(); }
+};
+
 $('structure').onchange = (event) => {
   session.setStructure(event.target.value);
   $('biome').value = session.world.biome;
   log(`selected ${event.target.value}`);
-  refresh({ reflowCamera: true });
+  // PLAN it, rather than only re-rendering: selecting another structure and leaving the previous structure's
+  // plan on screen would make the panels describe something the picker no longer shows.
+  try {
+    planNearestAndRefresh();
+    log(`selected ${event.target.value} and planned it`);
+  } catch (error) {
+    log(`selected ${event.target.value}, but it could not be planned here: ${error.message}`);
+    refresh({ reflowCamera: true });
+  }
 };
 $('btn-nearest').onclick = () => {
   try {
-    readInputs();
-    const found = session.planNearest({ maxRadiusChunks: 512 });
-    $('chunk-x').value = String(session.state.chunkX);
-    $('chunk-z').value = String(session.state.chunkZ);
-    refresh({ reflowCamera: true });
+    const found = planNearestAndRefresh();
     if (found) log(`located at chunk ${found.chunk[0]}, ${found.chunk[1]}`);
   } catch (error) { log(`error: ${error.message}`); refresh(); }
 };
@@ -378,6 +425,28 @@ renderer.domElement.addEventListener('click', (event) => {
 
 // --- boot ----------------------------------------------------------------------------------
 fillPicker();
+
+// The initial page can hand off a structure and a seed in the query string, which is what makes a particular
+// structure-and-seed combination LINKABLE: `/structure-inspector.html?structure=igloo&seed=12345`. An unknown
+// structure id is ignored rather than fatal, so a stale link still opens a working page.
+const bootParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+const requestedStructure = bootParams.get('structure');
+if (requestedStructure) {
+  // setStructure THROWS on an unknown id, so a stale link must be caught: "ignored rather than fatal" is only
+  // true if the code says so, and a shared link outliving a registry rename is the likeliest way to hit this.
+  try {
+    session.setStructure(requestedStructure);
+    $('structure').value = requestedStructure;
+    $('biome').value = session.world.biome;
+  } catch (error) {
+    log(`ignored the structure in the link: ${error.message}`);
+  }
+}
+const requestedSeed = bootParams.get('seed');
+if (requestedSeed && requestedSeed.trim() !== '') {
+  try { session.setSeed(requestedSeed); } catch (error) { log(`ignored the seed in the link: ${error.message}`); }
+}
+
 $('seed').value = String(session.state.seed);
 $('chunk-x').value = String(session.state.chunkX);
 $('chunk-z').value = String(session.state.chunkZ);

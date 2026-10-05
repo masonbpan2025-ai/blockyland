@@ -145,3 +145,60 @@ export function planSummaryView(session) {
     chunksCovered: session.chunksForStart ? session.chunksForStart(start).length : null
   };
 }
+
+/**
+ * What changed between two plans of the SAME structure at different seeds.
+ *
+ * This is the question the Inspector exists to answer: change the seed and see how generation differs. The
+ * answer has distinct parts, and conflating them would hide the most interesting cases:
+ *
+ *   * the LOCATED CHUNK moving means PLACEMENT changed -- the structure lands somewhere else in the world;
+ *   * the HASH changing while the chunk stays put means the PLAN changed -- a different variant, layout or
+ *     decay roll at the same site, which is the structure's own randomness;
+ *   * neither changing is a legitimate outcome for a deterministic algorithm, and must not be reported as
+ *     "no change" without saying why it happened.
+ *
+ * @param {object|null} previous  a `planSummaryView` result, or null when there is nothing to compare
+ * @param {object} current        a `planSummaryView` result
+ */
+export function seedDiffView(previous, current) {
+  if (!current || !current.available) return { comparable: false, reason: 'nothing planned yet' };
+  if (!previous || !previous.available) return { comparable: false, reason: 'first plan for this selection' };
+  // Two plans of DIFFERENT structures are not a seed comparison, and saying they were would mislead.
+  if (previous.structureId !== current.structureId) {
+    return { comparable: false, reason: 'the structure changed, so there is nothing comparable' };
+  }
+  const chunkMoved = previous.chunkX !== current.chunkX || previous.chunkZ !== current.chunkZ;
+  const hashChanged = previous.hash !== current.hash;
+  const piecesChanged = previous.pieces !== current.pieces;
+  const boxChanged = Array.isArray(previous.box) && Array.isArray(current.box)
+    ? previous.box.join(',') !== current.box.join(',')
+    : false;
+
+  if (!chunkMoved && !hashChanged && !piecesChanged && !boxChanged) {
+    return {
+      comparable: true,
+      changed: false,
+      chunkMoved: false,
+      hashChanged: false,
+      piecesChanged: false,
+      boxChanged: false,
+      summary: 'same result as the previous seed: placement and plan both identical'
+    };
+  }
+  const parts = [];
+  if (chunkMoved) parts.push('moved to chunk ' + current.chunkX + ',' + current.chunkZ + ' (was ' + previous.chunkX + ',' + previous.chunkZ + ')');
+  if (hashChanged && !chunkMoved) parts.push('plan changed at the same chunk');
+  if (piecesChanged) parts.push('pieces ' + previous.pieces + ' to ' + current.pieces);
+  if (boxChanged && !chunkMoved) parts.push('box changed');
+  return {
+    comparable: true,
+    changed: true,
+    chunkMoved,
+    hashChanged,
+    piecesChanged,
+    boxChanged,
+    previousHash: previous.hash,
+    summary: parts.join('; ')
+  };
+}

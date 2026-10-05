@@ -58,6 +58,7 @@
       <select id="structure"></select>
       <div class="row">
         <div><label for="seed">seed</label><input type="text" id="seed" value="4242"></div>
+        <div><button id="btn-random-seed" title="roll a new seed and plan it">Random seed</button></div>
       </div>
       <div class="row">
         <div><label for="chunk-x">chunk X</label><input type="number" id="chunk-x" value="0"></div>
@@ -92,6 +93,7 @@
       <legend>Events</legend>
       <h3>Plan summary</h3>
       <div id="plan-summary" class="muted">no plan</div>
+      <div id="seed-diff" class="muted">change the seed and plan again to compare</div>
       <h3>Piece graph <span class="muted">(parent, depth, connectors)</span></h3>
       <pre id="piece-graph" class="muted">plan a structure first</pre>
       <h3>Terrain adaptation</h3>

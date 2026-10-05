@@ -8,7 +8,7 @@
 // The panels show what a rendered structure cannot: which piece joined to which, whether any piece is an
 // orphan, whether pieces overlap, and how much of the result is the structure versus terrain adaptation.
 
-import { pieceGraphView, adaptationView, planSummaryView } from './structureInspectorPanels.js';
+import { pieceGraphView, adaptationView, planSummaryView, seedDiffView } from './structureInspectorPanels.js';
 import { BLOCKS } from './blocks.js';
 
 /** A compact one-line summary of a piece's connectors, so a row stays readable. */
@@ -27,15 +27,19 @@ function connectorText(connectors) {
  * @param {function} options.$       element lookup, `(id) => element|null`
  * @param {number} [options.foundationBlock]
  */
-export function renderStructurePanels(session, { $, foundationBlock = BLOCKS.STONE } = {}) {
+export function renderStructurePanels(session, { $, foundationBlock = BLOCKS.STONE, previous = null } = {}) {
   if (typeof $ !== 'function') throw new Error('renderStructurePanels needs an element lookup');
   const setText = (id, text) => {
     const element = $(id);
     if (element) element.textContent = text;
   };
 
-  // --- Plan summary -------------------------------------------------------------------------
+  // --- Plan summary, with what changed since the previous plan ----------------------------------
+  // The seed comparison is the reason the Inspector exists, so it is shown on the same line as the plan
+  // rather than in a log: "the chunk moved" and "the plan changed at the same chunk" are different answers
+  // about the algorithm, and a reader should not have to diff two hashes by eye to tell them apart.
   const summary = planSummaryView(session);
+  const diff = seedDiffView(previous, summary);
   const summaryElement = $('plan-summary');
   if (summaryElement) {
     summaryElement.textContent = summary.available
@@ -50,6 +54,12 @@ export function renderStructurePanels(session, { $, foundationBlock = BLOCKS.STO
         `hash ${summary.hash ?? '—'}`
       ].join(' · ')
       : `no plan${summary.structureId ? ` for ${summary.structureId}` : ''}`;
+  }
+  const diffElement = $('seed-diff');
+  if (diffElement) {
+    if (!summary.available) diffElement.textContent = 'change the seed and plan again to compare';
+    else if (diff.comparable) diffElement.textContent = 'vs previous seed: ' + diff.summary;
+    else diffElement.textContent = 'vs previous seed: ' + diff.reason;
   }
 
   // --- Piece graph ---------------------------------------------------------------------------
@@ -110,5 +120,5 @@ export function renderStructurePanels(session, { $, foundationBlock = BLOCKS.STO
     }
   }
 
-  return { summary, graph, rendered: true };
+  return { summary, graph, diff, rendered: true };
 }

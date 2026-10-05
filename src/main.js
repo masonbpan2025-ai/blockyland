@@ -965,6 +965,14 @@ class Game {
       });
     }
 
+    const btnStructureInspector = document.getElementById('btn-start-structure-inspector');
+    if (btnStructureInspector) {
+      btnStructureInspector.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openStructureInspector();
+      });
+    }
+
     this.renderer.domElement.addEventListener('click', () => {
       if (this.player?.isDead) return;
       if (this.worldGenerated && !this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
@@ -1077,6 +1085,28 @@ class Game {
     const url = resource
       ? `/resource-debug.html?resource=${encodeURIComponent(resource)}`
       : '/resource-debug.html';
+    if (typeof window !== 'undefined') window.location.href = url;
+    return url;
+  }
+
+  /**
+   * Open the Structure Inspector, the structure counterpart to the Mob and Resource Inspectors.
+   *
+   * Like them it is a standalone page with its own preview, so this navigates rather than starting a world: the
+   * point of the page is to plan and realize one structure at a time at any seed WITHOUT generating a world.
+   * The structure and the seed can be carried in the query string, which is what makes a particular
+   * structure-and-seed combination linkable.
+   *
+   * @param {{structure?: string, seed?: string|number}} [options]
+   * @returns {string} the URL that was navigated to, so it can be asserted in tests
+   */
+  openStructureInspector({ structure = null, seed = null } = {}) {
+    const target = structure || this.structureInspectorTarget || '';
+    const params = new URLSearchParams();
+    if (target) params.set('structure', target);
+    if (seed !== null && seed !== undefined && seed !== '') params.set('seed', String(seed));
+    const query = params.toString();
+    const url = query ? `/structure-inspector.html?${query}` : '/structure-inspector.html';
     if (typeof window !== 'undefined') window.location.href = url;
     return url;
   }
