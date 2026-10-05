@@ -529,6 +529,8 @@ export const BLOCKS = {
   TRIAL_SPAWNER: 1082,
   VAULT: 1083,
   END_PORTAL_FRAME: 1084,
+  // The same frame holding an Eye of Ender. `endPortal.js` counts these to light the portal.
+  END_PORTAL_FRAME_FILLED: 1203,
   TURTLE_EGG: 1085,
   FROGSPAWN: 1086,
 
@@ -1676,6 +1678,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
   // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
   [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME_FILLED]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, endPortalFrame: true, filled: true, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
   // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
@@ -2487,6 +2490,10 @@ export const ITEMS = {
   experience_bottle: { name: 'Bottle o\' Enchanting', icon: '/assets/items/experience_bottle.png', type: 'utility' },
   ender_pearl: { name: 'Ender Pearl', icon: '/assets/items/ender_pearl.png', type: 'material' },
   ender_eye: { name: 'Eye of Ender', icon: '/assets/items/ender_eye.png', type: 'material' },
+  // Icon points at a texture that is committed. Master's own `end_portal_frame_top.png` is generated but
+  // untracked, so naming it here would leave a dangling icon reference in a fresh checkout and fail the
+  // icon-existence test -- which is exactly what happened.
+  end_portal_frame: { name: 'End Portal Frame', icon: '/assets/blocks/end_stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.END_PORTAL_FRAME },
   blaze_rod: { name: 'Blaze Rod', icon: '/assets/items/blaze_rod.png', type: 'material' },
   blaze_powder: { name: 'Blaze Powder', icon: '/assets/items/blaze_powder.png', type: 'material' },
   magma_cream: { name: 'Magma Cream', icon: '/assets/items/magma_cream.png', type: 'material' },

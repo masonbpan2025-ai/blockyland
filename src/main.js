@@ -7,6 +7,13 @@ import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
 import { launchFirework } from './fireworks.js';
+import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
+import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
+import { POTION_DATA } from './brewing.js';
+import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
+import { isFrame, insertEye, tryActivateAround, isEndPortal, portalDestination, portalArrival,
+  isStandingInEndPortal, buildEndPlatform, buildEndPortalRoom, enderEyeThrowVelocity, bearingToPortal,
+  bearingName, ENDER_EYE_LIFE } from './endPortal.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -433,6 +440,9 @@ class Game {
     }
 
     this.spawnVillageMobs();
+    // The End portal chamber. Its frames are the first link of the route to the End, and without a room
+    // there is nowhere to put an Eye of Ender at all.
+    this.placeEndPortalRoom(spawn);
     if (this.ui) {
       if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
       if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
@@ -598,8 +608,142 @@ class Game {
     this.streamer.loadAllSynchronously(this.player.position.x, this.player.position.z);
   }
 
-  switchDimension(newDim, targetPos = null) {
-    if (!this.world) return;
+  /**
+   * Throw an Eye of Ender.
+   *
+   * Before this the item had exactly one use, and without a locator the chamber is a hole in the ground the
+   * player has no way to find. The eye arcs toward the portal and the player reads the bearing from it, which
+   * is what it is for in vanilla.
+   */
+  throwEnderEye() {
+    if (!this.world || !this.player) return null;
+    const target = this.endPortalRoom ?? { x: 0, z: 0 };
+    const from = { x: this.player.position.x, z: this.player.position.z };
+    const v = enderEyeThrowVelocity(from, target);
+
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x86efac }),
+    );
+    mesh.position.copy(this.player.position).add(new THREE.Vector3(0, this.player.eyeHeight ?? 1.62, 0));
+    this.scene?.add(mesh);
+    if (!this.enderEyes) this.enderEyes = [];
+    this.enderEyes.push({ mesh, velocity: new THREE.Vector3(v.x, v.y, v.z), life: ENDER_EYE_LIFE });
+
+    const bearing = bearingToPortal(from, target);
+    this.ui?.addChatMessage?.(
+      bearing === null
+        ? 'The Eye of Ender rises.'
+        : `The Eye of Ender drifts ${bearingName(bearing)} (${Math.round(bearing)}\u00b0).`,
+      'system');
+    this.sounds?.playLevelUp?.();
+    if (this.player.gamemode !== 'creative') {
+      this.inventory.consumeActiveItem(1);
+      this.ui?.updateHotbar?.();
+    }
+    return { bearing, target };
+  }
+
+  /** Advance the thrown eyes: they arc, and they fade rather than piling up. */
+  updateEnderEyes(dt) {
+    if (!this.enderEyes?.length) return;
+    const remaining = [];
+    for (const eye of this.enderEyes) {
+      eye.life -= dt;
+      if (eye.life <= 0) {
+        this.scene?.remove(eye.mesh);
+        eye.mesh.geometry?.dispose();
+        eye.mesh.material?.dispose();
+        continue;
+      }
+      eye.velocity.y -= 14 * dt;
+      eye.mesh.position.addScaledVector(eye.velocity, dt);
+      remaining.push(eye);
+    }
+    this.enderEyes = remaining;
+  }
+
+  /**
+   * Carry the player through an End portal, in either direction.
+   *
+   * A delay rather than an instant hop, matching the Nether portal, so stepping into the frame is a
+   * deliberate act and not something a stray pixel triggers.
+   */
+  updateEndPortalTravel(dt) {
+    this.endPortalTravelCooldown = Math.max(0, (this.endPortalTravelCooldown || 0) - dt);
+    if (this.endPortalTravelCooldown > 0) return;
+    if (!this.world || !this.player || this.player.isDead) return;
+    if (!isStandingInEndPortal(this.world, this.player)) return;
+
+    const from = this.currentDimension || 'overworld';
+    const dest = portalDestination(from);
+    if (!dest) return;
+
+    this.endPortalTravelCooldown = 3.0;
+    // Remember where the player came from, so the return trip is not a one-way door. Vanilla sends you to
+    // the world spawn; coming back to where you left is kinder and needs no spawn bookkeeping.
+    if (dest === 'the_end') {
+      this.endReturnPosition = this.player.position.clone();
+    }
+    const arrival = dest === 'the_end'
+      ? portalArrival('the_end')
+      : (this.endReturnPosition ? { x: this.endReturnPosition.x, y: this.endReturnPosition.y, z: this.endReturnPosition.z } : portalArrival('overworld'));
+
+    // The arena has crystals, pillars and a dragon but NO ground, and the End's chunks are generated from
+    // whichever biome was selected, so the player would arrive in whatever that happened to be. Vanilla drops
+    // you on a central island; this is that island.
+    if (dest === 'the_end') {
+      buildEndPlatform(this.world, Math.floor(arrival.x), Math.floor(arrival.y) - 1, Math.floor(arrival.z), 12);
+      for (const chunk of this.world.chunks.values()) {
+        this.rebuildChunkMesh?.(chunk);
+      }
+    }
+
+    if (this.switchDimension) this.switchDimension(dest, arrival);
+    this.sounds?.playLevelUp?.();
+    this.ui?.addChatMessage?.(
+      dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
+  }
+
+  /**
+   * Put an End portal chamber underground near the spawn, with a shaft to the surface above it.
+   *
+   * Chosen rather than generated: this project has no stronghold system, and adding one would be a
+   * world-generation feature rather than the route this exists to complete. A fixed chamber near the spawn
+   * means the route can actually be walked, and the shaft is what makes it findable.
+   *
+   * Placed once, guarded, because the world-start path can be re-entered.
+   */
+  placeEndPortalRoom(spawn) {
+    if (this.endPortalRoomPlaced) return null;
+    this.endPortalRoomPlaced = true;
+    if (!this.world) return null;
+
+    const sx = Math.floor(spawn?.x ?? this.player?.position?.x ?? 0);
+    const sz = Math.floor(spawn?.z ?? this.player?.position?.z ?? 0);
+    const surfaceY = Math.floor(spawn?.y ?? this.player?.position?.y ?? 30);
+    // Offset from the spawn so the player does not start standing on the shaft, and never so shallow that the
+    // chamber breaks through the surface.
+    const cx = sx + 48;
+    const cz = sz + 48;
+    const floorY = Math.max(5, Math.min(surfaceY - 14, 30));
+
+    const result = buildEndPortalRoom(this.world, cx, floorY, cz, {
+      filledEyes: 2,
+      radius: 7,
+      surfaceY,
+    });
+    this.endPortalRoom = { x: cx, y: floorY, z: cz };
+
+    // The chamber was written into chunks that may already be meshed, so they have to be rebuilt or the
+    // room is invisible until something else forces a remesh.
+    for (const chunk of this.world.chunks.values()) this.rebuildChunkMesh?.(chunk);
+    console.log(`[World] End portal chamber at (${cx}, ${floorY}, ${cz}); ${result.placed} blocks placed, `
+      + `${result.filled} eyes, shaft to y=${result.surfaceY}.`);
+    return this.endPortalRoom;
+  }
+
+  switchDimension(newDim, targetPos = null) {    if (!this.world) return;
 
     // 1. Remove all active chunk meshes from scene
     for (const chunk of this.world.chunks.values()) {
@@ -659,7 +803,13 @@ class Game {
       this.ambientLight.intensity = 0.45;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
-      this.bossManager?.initEndArena();
+      // Built ONCE per session. `initEndArena` spawns a dragon and six end crystals, so leaving the End and
+      // coming back would otherwise spawn a second of each -- two dragons, one boss bar, and a fight that
+      // never ends because defeating one leaves the other.
+      if (!this.endArenaBuilt) {
+        this.endArenaBuilt = true;
+        this.bossManager?.initEndArena();
+      }
     } else {
       if (this.sky?.mesh) this.sky.mesh.visible = true;
       this.normalBgColor = new THREE.Color(0x78a7ff);
@@ -1251,24 +1401,23 @@ class Game {
     if (useSnowball(this)) return;
     if (useBarterPotion(this)) return;
 
-    // Splash Potion of Weakness throwing
+    // Splash potions. This block was hard-coded to `splash_potion_of_weakness` -- plus `potion_weakness`,
+    // which is not an item that exists -- so 39 splash potion items did nothing at all when used, and any
+    // other one fell through to block placement. The effect now comes from POTION_DATA via the item id, the
+    // radius is one rule rather than inline arithmetic, and the thrower is a target like anything else,
+    // which is how a self-splash of Fire Resistance is meant to work.
     const splashItem = this.inventory.getActiveItem();
-    if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness')) {
+    if (isSplashPotion(splashItem?.id)) {
       if (this.player.gamemode !== 'creative') {
         this.inventory.consumeActiveItem(1);
         this.ui.updateHotbar();
       }
       this.sounds?.playBow?.();
-      const splashPos = this.player.position.clone().add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
-      for (const m of this.mobs?.mobs || []) {
-        if (m.health > 0 && m.mesh && m.mesh.position.distanceTo(splashPos) < 5.0) {
-          if(m.applyStatusEffect){m.applyStatusEffect('weakness',60,1,this.player);continue;}
-          m.hasWeakness = true;
-          m.statusEffects = m.statusEffects || {};
-          m.statusEffects.weakness = 60.0;
-        }
-      }
-      this.mobs?.spawnParticleBurst?.(splashPos, 0x4a044e, 16);
+      const splashPos = this.player.position.clone()
+        .add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+      throwSplashPotion(this, splashPos, splashItem.id);
+      const tint = POTION_DATA[splashItem.id.slice('splash_'.length)]?.color;
+      this.mobs?.spawnParticleBurst?.(splashPos, tint ? parseInt(tint.slice(1), 16) : 0x4a044e, 16);
       this.sounds?.playPotionSplash?.();
       return;
     }
@@ -1481,6 +1630,36 @@ class Game {
 
     const control=this.world.redstone.interact([bX,bY,bZ],this.player.isSneaking,this.inventory.getActiveItem());
     if(control){for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
+
+    // End Portal Frame: an Eye of Ender goes in, and the twelfth one lights the portal.
+    //
+    // `ender_eye` had zero references anywhere in `src/` before this, and `END_PORTAL_FRAME` was not a block
+    // at all -- so the item could be brewed, held, and never used, and there was no way into the End.
+    if (isFrame(clickedBlock)) {
+      const heldForFrame = this.inventory.getActiveItem();
+      if (heldForFrame?.id === 'ender_eye' && clickedBlock === BLOCKS.END_PORTAL_FRAME) {
+        if (insertEye(this.world, bX, bY, bZ)) {
+          if (this.player.gamemode !== 'creative') this.inventory.consumeActiveItem(1);
+          this.sounds?.playClick?.();
+          this.ui?.updateHotbar?.();
+          this.refreshDirtyChunks();
+          // The ring decides whether this was the last eye, so the interaction code does no layout maths.
+          if (tryActivateAround(this.world, bX, bY, bZ)) {
+            this.sounds?.playLevelUp?.();
+            this.ui?.addChatMessage?.('The End portal awakens.', 'system');
+          }
+        }
+      }
+      // A filled frame, or a frame clicked with anything else, must not fall through to block placement.
+      return;
+    }
+
+    // An Eye of Ender thrown in the open, rather than clicked onto a frame, is the locator. It sits after
+    // the frame branch, so aiming at a frame still fills it.
+    if (this.inventory.getActiveItem()?.id === 'ender_eye' && !this.targetBlock) {
+      this.throwEnderEye();
+      return true;
+    }
 
     // Crafting Table interaction
     if (clickedBlock === BLOCKS.CRAFTING_TABLE) {
@@ -1699,6 +1878,9 @@ class Game {
 
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
+        // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
+        // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
+        if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
         if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
           this.sounds.playEat();
           this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + (it.food || 4));
@@ -2039,6 +2221,25 @@ class Game {
     }
 
     const def = BLOCK_DEFS[blockId];
+
+    // The dragon egg teleports instead of breaking. `BLOCK_DEFS` has declared `dragonEgg: true` since the
+    // block was added and nothing read it, so the egg could be mined like any other block -- vanilla's egg
+    // is the one block in the game that jumps away when you hit it, which is what makes it awkward to
+    // collect rather than merely rare.
+    if (blockId === BLOCKS.DRAGON_EGG) {
+      const isSolid = (id) => id !== BLOCKS.AIR && BLOCK_DEFS[id]?.solid !== false;
+      const isValid = makeEggPlacementCheck((vx, vy, vz) => this.world.getVoxel(vx, vy, vz), BLOCKS.AIR, isSolid);
+      const to = dragonEggDestination({ origin: { x, y, z }, random: this.player.random ?? Math.random, isValid });
+      if (to) {
+        this.world.setVoxel(x, y, z, BLOCKS.AIR);
+        this.world.setVoxel(to.x, to.y, to.z, BLOCKS.DRAGON_EGG);
+        this.sounds?.playTeleport?.() ?? this.sounds?.playClick?.();
+        return;
+      }
+      // No valid spot after a thousand attempts: fall through and let it break, rather than making the block
+      // permanently unbreakable.
+    }
+
     this.sounds.playBreak(def ? def.sound : 'stone');
 
     // Recompute here rather than trusting a flag from updateMining: a block can also be
@@ -2833,6 +3034,11 @@ class Game {
     if (this.portalManager) {
       this.portalManager.update(dt, this.player, this);
     }
+
+    // 5a5. Update End Portal travel. The last link of the route: before this, an activated End portal was a
+    // floor pattern the player could stand on and nothing more.
+    this.updateEndPortalTravel(dt);
+    this.updateEnderEyes(dt);
 
     // 5b. Update World Mechanism System & Active World Mechanics
     if (this.mechanisms) {
