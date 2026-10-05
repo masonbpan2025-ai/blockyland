@@ -121,6 +121,10 @@ export function buildCreativeCatalog() {
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
     BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,
+    // Amethyst. Listed as a family: the budding block, the cluster and the three bud stages, so a
+    // player can place any stage even though only a budding block would grow them in vanilla.
+    BLOCKS.BUDDING_AMETHYST, BLOCKS.AMETHYST_CLUSTER,
+    BLOCKS.LARGE_AMETHYST_BUD, BLOCKS.MEDIUM_AMETHYST_BUD, BLOCKS.SMALL_AMETHYST_BUD,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];

@@ -381,7 +381,20 @@ export const BLOCKS = {
   TALL_GRASS: 1004,
   LARGE_FERN: 1005,
   SPORE_BLOSSOM: 1006,
-  HANGING_ROOTS: 1007
+  HANGING_ROOTS: 1007,
+
+  // --- Amethyst, tenth block-parity batch --------------------------------------------------------
+  //
+  // The whole amethyst family: the budding block plus the cluster and its three bud stages. This is one
+  // batch because they are one mechanic in vanilla -- a budding block grows buds that ripen into a
+  // cluster -- and splitting them would leave the drops pointing at blocks that do not exist.
+  //
+  // Only the cluster yields anything: it drops an amethyst shard, which the item registry already has.
+  BUDDING_AMETHYST: 1008,
+  AMETHYST_CLUSTER: 1009,
+  LARGE_AMETHYST_BUD: 1010,
+  MEDIUM_AMETHYST_BUD: 1011,
+  SMALL_AMETHYST_BUD: 1012
 };
 
 export const BLOCK_DEFS = {
@@ -908,6 +921,27 @@ export const BLOCK_DEFS = {
   [BLOCKS.LARGE_FERN]: { name: 'Large Fern', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'large_fern_top.png' } },
   [BLOCKS.SPORE_BLOSSOM]: { name: 'Spore Blossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SPORE_BLOSSOM, textures: { all: 'spore_blossom.png' } },
   [BLOCKS.HANGING_ROOTS]: { name: 'Hanging Roots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'hanging_roots.png' } },
+
+  // --- Amethyst, tenth block-parity batch --------------------------------------------------------
+  //
+  // The budding block is an ordinary full cube. It drops NOTHING, which is the notable part: vanilla
+  // makes it unobtainable precisely so a player cannot move an amethyst farm, and the generated harvest
+  // table agrees with an empty drops array.
+  //
+  // The cluster and the three buds are crystal growths. They are registered as cross-quad plants drawn
+  // with their own texture, which is an approximation worth stating: vanilla attaches them to any of the
+  // six faces and each face gets its own model, so a bud on a ceiling hangs downward and one on a wall
+  // juts sideways. This game has no per-face placement state outside the redstone and door managers, so
+  // every amethyst growth draws as a free-standing cross regardless of what it is attached to.
+  //
+  // They are also STATIC. Vanilla grows small -> medium -> large -> cluster on a random tick from a
+  // budding block, and this game has no random-tick layer, so the four stages are placed rather than
+  // grown into. The drops are still right: only the cluster yields, and it yields a shard.
+  [BLOCKS.BUDDING_AMETHYST]: { name: 'Budding Amethyst', hardness: 1.5, sound: 'stone', drop: null, textures: { all: 'budding_amethyst.png' } },
+  [BLOCKS.AMETHYST_CLUSTER]: { name: 'Amethyst Cluster', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, dropItem: 'amethyst_shard', textures: { all: 'amethyst_cluster.png' } },
+  [BLOCKS.LARGE_AMETHYST_BUD]: { name: 'Large Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'large_amethyst_bud.png' } },
+  [BLOCKS.MEDIUM_AMETHYST_BUD]: { name: 'Medium Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'medium_amethyst_bud.png' } },
+  [BLOCKS.SMALL_AMETHYST_BUD]: { name: 'Small Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'small_amethyst_bud.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
