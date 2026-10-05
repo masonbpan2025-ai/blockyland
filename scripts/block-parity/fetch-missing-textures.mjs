@@ -70,6 +70,28 @@ for (const file of missing) {
       // Try the next version.
     }
   }
+
+  // SOME BLOCK TEXTURES ONLY EXIST AS ITEM SPRITES, and this is why the fetch above finds nothing for
+  // them. A vanilla barrier, light and structure void are INVISIBLE and have NO block tile upstream at any
+  // version; their ITEM sprite is the art. Without this fallback the restore step reports them as missing
+  // and fails, even though the art is one directory away and the block tile is simply a copy of it.
+  if (!done) {
+    for (const version of VERSIONS) {
+      try {
+        const res = await fetch(`${MIRROR}/${version}/items/${file}`);
+        if (!res.ok) continue;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        writeFileSync(path.join(BLOCK_DIR, file), bytes);
+        writeFileSync(path.join(path.dirname(BLOCK_DIR), "items", file), bytes);
+        console.log(`  ${file}  <- ${version}/items (block tile is a copy of the item sprite)`);
+        fetched++;
+        done = true;
+        break;
+      } catch {
+        // Try the next version.
+      }
+    }
+  }
   if (!done) failed.push(file);
 }
 
