@@ -48,6 +48,8 @@ export const AREAS = {
   combat: ['arrows', 'skills', 'tournament', 'dungeonMode', 'farming'],
   // --- rendering and effects ---
   render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'meshTimeSlicing', 'progressOverlay', 'confirmDialog'],
+  // --- survival parity: how much of vanilla's content the game can express ---
+  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry'],
   // --- save/load ---
   persist: ['mapManager']
 };

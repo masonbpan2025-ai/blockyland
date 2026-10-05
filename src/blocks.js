@@ -1,4 +1,10 @@
 // Block IDs and Definitions
+//
+// Generated content added for vanilla parity lives in ./extraContent.js and is merged in below.
+// Keeping it in its own generated module means regenerating never rewrites this hand-maintained
+// file, and the additions stay reviewable as a diff.
+import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from './extraContent.js';
+import { EXTRA_ITEMS } from './extraItems.js';
 
 export const BLOCKS = {
   AIR: 0,
@@ -235,10 +241,12 @@ export const BLOCKS = {
   CRIMSON_FUNGUS: 217,
   RESPAWN_ANCHOR: 218,
   NETHER_BRICKS: 219,
+  POWDER_SNOW: 221,
   DRIED_GHAST: 220
 };
 
 export const BLOCK_DEFS = {
+  [BLOCKS.POWDER_SNOW]: {name:'Powder Snow',hardness:.25,solid:false,transparent:true,sound:'snow',drop:BLOCKS.POWDER_SNOW,textures:{all:'snow.png'}},
   [BLOCKS.DRIED_GHAST]: { name: 'Dried Ghast', hardness: 0, sound: 'stone', drop: BLOCKS.DRIED_GHAST, textures: { all: 'dried_ghast.svg' } },
   [BLOCKS.NETHER_BRICKS]: { name: 'Nether Bricks', hardness: 2, sound: 'stone', drop: BLOCKS.NETHER_BRICKS, textures: { all: 'nether_bricks.svg' } },
   [BLOCKS.CRYING_OBSIDIAN]: { name: 'Crying Obsidian', hardness: 50, sound: 'stone', light: 10, lightColor: 0x9326ed, drop: BLOCKS.CRYING_OBSIDIAN, textures: { all: 'crying_obsidian.svg' } },
@@ -940,6 +948,25 @@ export const BLOCK_DEFS = {
   [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } }
 };
 
+// --- generated additions for vanilla parity ---------------------------------
+//
+// Merge the generated extra ids and definitions. Done by mutation rather than by rebuilding the
+// objects so that every existing reference to BLOCKS/BLOCK_DEFS keeps pointing at the same object,
+// which matters because modules across the codebase import these directly.
+//
+// Ids in EXTRA_BLOCK_IDS start above the hand-written range, so they cannot collide; the assertion
+// below turns a future collision into a loud failure rather than a silently wrong block.
+for (const [key, id] of Object.entries(EXTRA_BLOCK_IDS)) {
+  if (BLOCKS[key] !== undefined && BLOCKS[key] !== id) {
+    throw new Error(`extraContent id collision: ${key} is already ${BLOCKS[key]}, cannot set ${id}`);
+  }
+  if (id in BLOCK_DEFS) {
+    throw new Error(`extraContent definition collision: id ${id} (${key}) already defined`);
+  }
+  BLOCKS[key] = id;
+}
+Object.assign(BLOCK_DEFS, EXTRA_BLOCK_DEFS);
+
 // Complete Item definitions
 export const ITEMS = {
   iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.svg', type: 'material' },
@@ -1190,7 +1217,7 @@ export const ITEMS = {
   pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
-  splash_water_bottle: { name: 'Splash Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
+  splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
   water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
@@ -1255,6 +1282,18 @@ export const ITEMS = {
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
   wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' }
 };
+
+// --- generated item additions for vanilla parity -----------------------------
+//
+// Merged by mutation so every existing reference to ITEMS keeps pointing at the same object, and
+// guarded so a regenerated name can never silently replace a hand-written item -- which would lose
+// hand-tuned stats such as a tool's attack damage.
+for (const [key, def] of Object.entries(EXTRA_ITEMS)) {
+  if (ITEMS[key] !== undefined) {
+    throw new Error(`extraItems collision: '${key}' is already a hand-written item`);
+  }
+  ITEMS[key] = def;
+}
 
 
 BLOCK_DEFS[BLOCKS.REDSTONE_WIRE] = {name: 'Redstone Wire', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_wire.svg'};

@@ -3,6 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
+import { createSlabGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -22,6 +23,12 @@ function ensureFlameAttributes(geo) {
 export function createBlockGeometry(id, textures, state = {}) {
   const numericId = typeof id === 'string' ? (BLOCKS[id.toUpperCase()] ?? (id === 'chest' ? BLOCKS.CHEST : (id === 'oak_door' ? BLOCKS.OAK_DOOR : (id === 'iron_door' ? BLOCKS.IRON_DOOR : (id === 'oak_trapdoor' ? BLOCKS.OAK_TRAPDOOR : (id === 'iron_trapdoor' ? BLOCKS.IRON_TRAPDOOR : id)))))) : id;
   const def = BLOCK_DEFS[numericId] || BLOCK_DEFS[id];
+  // A slab is a half-height box. Placed before the cube fallback so it is never drawn as a full
+  // block; the variant comes from the block state, defaulting to a bottom slab.
+  if (def?.slab) {
+    const variant = state?.slabType === 'top' || def.slabType === 'top' ? 'top' : 'bottom';
+    return ensureFlameAttributes(createSlabGeometry(def, textures, variant));
+  }
   if (def?.door) {
     const isTop = Boolean(def.isTop || numericId === BLOCKS.OAK_DOOR_TOP || numericId === BLOCKS.OAK_DOOR_TOP_OPEN || numericId === BLOCKS.IRON_DOOR_TOP || numericId === BLOCKS.IRON_DOOR_TOP_OPEN);
     const facing = state.facing !== undefined ? state.facing : 3;

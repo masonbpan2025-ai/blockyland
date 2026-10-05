@@ -38,13 +38,37 @@ machine -- a run during a busy period measured 60ms/frame for a scenario that me
 Walking continuously at view radius 8 with the real mesher: **11.5 ms/frame average, p50 13.4 ms,
 p90 21.4 ms, p99 34.8 ms** against a 16.7 ms frame. The average is inside a frame; the tail is not.
 
-Meshing is now interruptible, which roughly halves the frame-time distribution measured against the
-one-shot path in the same process (both figures inflated by machine load; the ratio is the point):
+Both meshing and the frame budget have since been attacked directly, and this is the result on a
+quiet machine, walking continuously at view radius 8 with the real mesher and the real geometry
+upload, over 1000-1200 timed frames:
 
-| view radius 8 | avg | p50 | p90 | p99 | max |
-|---|---|---|---|---|---|
-| one-shot meshing | 40.9 ms | 34.8 ms | 73.3 ms | 341.5 ms | 758.2 ms |
-| time-sliced | 26.7 ms | 17.7 ms | 40.4 ms | 216.6 ms | 380.4 ms |
+| | avg | p50 | p90 | p99 | max | frames over 16.7ms |
+|---|---|---|---|---|---|---|
+| one-shot meshing | 9.23 ms | 10.1 ms | 19.5 ms | 31.9 ms | 86.2 ms | **16.10%** |
+| time-sliced meshing | 8.11 ms | 8.2 ms | 8.9 ms | 11.2 ms | 21.2 ms | **0.20%** |
+| time-sliced + tightened guard | 8.06 ms | 8.2 ms | 9.1 ms | 11.9 ms | 24.5 ms | **0.17%** |
+
+Two things follow. p99 is now **below** a 60fps frame and only 0.2% of frames exceed it, against 16%
+before -- so the tail this document previously called the main outstanding problem is largely gone.
+And the average barely changed, because the work was already budgeted; what was wrong was the tail,
+not the throughput.
+
+### Distance, and why the default is 8
+
+Because the work is budgeted, the average frame cost barely moves with view distance. That is the
+property that makes a larger world affordable at all. The tail does move, though:
+
+| view radius | chunks resident | avg | p50 | p99 | max | over budget |
+|---|---|---|---|---|---|---|
+| 8 | 395 | 7.95 ms | 8.2 ms | 10.5 ms | 18.6 ms | **0.10%** |
+| 12 | 769 | 9.45 ms | 8.7 ms | 17.2 ms | 45.7 ms | 1.30% |
+| 16 | 858 | 9.10 ms | 8.5 ms | 14.9 ms | 63.0 ms | 0.70% |
+| 20 | 975 | 9.08 ms | 8.4 ms | 17.9 ms | 58.0 ms | 1.10% |
+
+8 is the only radius where essentially every frame fits. Beyond it the p99 crosses the budget and the
+worst frames reach 45-63 ms, because a growing share of each frame goes on planning and streaming
+bookkeeping that is not itself budgeted. Raising the default further now would trade a smooth frame
+for a larger one.
 
 ## What was done, and the bug that made each earlier claim false
 
@@ -120,21 +144,27 @@ for itself here, so it was not added. Measuring first avoided writing code that 
 
 ## What is still not done, and why
 
-**The frame is not yet hard-bounded, and generation is what is left.** Meshing became
-interruptible -- `beginChunkMesh` yields per column, so the streamer can carry a half-built chunk
-between frames -- which removed the larger half of the tail. Chunk GENERATION is still atomic per
-chunk, and it is now the dominant spike: measured p50 15.6 ms, p90 33.7 ms, p99 99.0 ms, max 183.8 ms
-on a loaded machine, against a 16.7 ms frame. So a frame can still overrun whenever one generation
-lands on a partly-spent budget.
+**The frame is not hard-bounded, but it is close, and the remaining cause was misdiagnosed once
+already.** An earlier version of this document blamed chunk generation: measured p50 15.6 ms, p99
+99.0 ms, max 183.8 ms. Those figures were taken while this machine was heavily loaded -- the same
+scenario measures **p50 4.9 ms, p90 7.5 ms, p99 13.4 ms, max 47.2 ms** when quiet, and a single fresh
+chunk measures p50 9 ms. Generation is not the dominant cost.
 
-The fix is the same technique one level down: make terrain generation resumable, most naturally by
-yielding per column as `generateChunkTerrain` walks x and z, since a column's work is independent.
-**That is the next thing to do and everything else is worth less.**
+The real remaining source of the last 0.2% of over-budget frames is the work that is NOT budgeted:
+chunk planning, unloading, the distance scans that decide what to stream, and the geometry upload when
+a time-sliced mesh completes. Those run outside the frame budget, so a frame that spends its budget on
+meshing and then also pays for a planning pass can overrun.
 
-A limit on how far time slicing can go, worth knowing before relying on it: a resumed mesh still costs
-one geometry upload, and an upload is atomic, so the practical floor on a frame is the cost of building
-and uploading one chunk's geometry at once. That is why per-chunk cost still matters with time slicing,
-and why the allocation-free mesher was worth doing first.
+The next step is therefore to extend the *measured budget* over that bookkeeping -- to account for
+planning, unloading and upload in the same estimate that already covers generation and meshing -- and
+then to re-test whether a larger view distance fits. Making terrain generation resumable, which an
+earlier version of this document called the next thing to do, is **not** worth doing first: at p50
+4.9 ms it is not what is breaking the budget, and it is a large change to carefully tuned terrain code.
+
+A limit worth knowing before relying on time slicing further: a resumed mesh still costs one geometry
+upload, and an upload is atomic, so there is a floor on any frame of the cost of uploading one chunk of
+geometry. That is why per-chunk cost still matters even with time slicing, and why the allocation-free
+mesher was worth doing first.
 
 **Draw calls are unmeasured and unbatched.** One mesh per chunk per material means ~340 draw calls at
 radius 8. Voxelize batches the opaque bucket into one `BatchedMesh` per 8x8-chunk region; Luanti merges

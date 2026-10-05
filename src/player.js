@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
 
 export class Player {
   constructor(camera, domElement, world, soundEngine) {
@@ -29,10 +30,19 @@ export class Player {
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
     // Stats
+    //
+    // hunger was previously a number that never fell, because nothing reduced it. saturation and
+    // exhaustion are what make the survival loop work: exhaustion accumulates from digging, jumping,
+    // sprinting and taking damage, and is paid out of saturation before hunger. See src/hunger.js.
     this.health = 20;
     this.maxHealth = 20;
     this.hunger = 20;
     this.maxHunger = 20;
+    this.saturation = 5;
+    this.exhaustion = 0;
+    // Backing object for the pure hunger model in src/hunger.js, so the arithmetic that runs is
+    // the arithmetic that is tested.
+    this._hungerState = createHungerState();
     this.exp = 0;
     this.level = 0;
     this.invulnerableTimer = 0;
@@ -86,6 +96,8 @@ export class Player {
     // Punch state (Key U)
     this.isPunching = false;
     this.punchTimer = 0;
+      // Landing a hit costs 0.1 exhaustion in vanilla.
+      this.addExhaustion(EXHAUSTION.attack);
     this.punchDuration = 0.22;
     this.punchCooldown = 0;
     this.onPunch = null;
@@ -544,6 +556,9 @@ export class Player {
 
       if (!controlsDisabled && this.onGround && this.keys['Space']) {
         this.velocity.y = this.jumpForce;
+        // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
+        // sprint-jumping everywhere empties the hunger bar far faster.
+        this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
         this.onGround = false;
         this.sounds.playStep(this.getBlockBelowSound());
       }
@@ -569,22 +584,100 @@ export class Player {
     this.camera.fov = this.currentFov;
     this.camera.updateProjectionMatrix();
 
-    // Natural regeneration in survival
+    // Natural regeneration and starvation, from the vanilla hunger model in src/hunger.js.
+    //
+    // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
+    // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
     if (this.gamemode === 'survival' && !this.isDead) {
-      if (this.hunger >= 18 && this.health < this.maxHealth && this.health > 0) {
-        this.health = Math.min(this.maxHealth, this.health + dt * 0.3);
-      }
       if (this.position.y < -10) {
         this.takeDamage(10);
         if (!this.isDead) {
           this.position.set(8.5, 35, 8.5);
           this.velocity.set(0, 0, 0);
         }
+        return;
       }
+      // Sprinting and swimming add exhaustion continuously, which is what makes sprinting cost
+      // something. Vanilla charges per block travelled, so the rate is scaled by distance moved.
+      const speed = Math.hypot(this.velocity.x, this.velocity.z);
+      if (this.inWater && speed > 0.05) {
+        this.addExhaustion(EXHAUSTION.swim * speed * dt);
+      } else if (this.isSprinting && speed > 0.05) {
+        this.addExhaustion(EXHAUSTION.sprint * speed * dt);
+      }
+      this.updateHungerModel(dt);
     }
 
     // Update 3D Camera & Player Model Position
     this.updateCameraAndModel(dt);
+  }
+
+  /**
+   * Ensure the hunger state exists and is in sync with the player's own fields.
+   *
+   * A Player can be created with Object.create(Player.prototype), which skips the constructor --
+   * several tests do exactly that, and one of them started throwing the moment these methods assumed
+   * the constructor had run. Initialising lazily means the model works for those too.
+   */
+  ensureHungerState() {
+    if (!this._hungerState) this._hungerState = createHungerState();
+    if (typeof this.hunger !== 'number') this.hunger = MAX_HUNGER;
+    if (typeof this.saturation !== 'number') this.saturation = 5;
+    if (typeof this.exhaustion !== 'number') this.exhaustion = 0;
+    this._hungerState.hunger = this.hunger;
+    this._hungerState.saturation = this.saturation;
+    this._hungerState.exhaustion = this.exhaustion;
+    return this._hungerState;
+  }
+
+  /**
+   * Add exhaustion, paying it out of saturation and then hunger.
+   *
+   * Kept as a thin wrapper over the pure model in src/hunger.js rather than reimplementing the
+   * arithmetic, so the tested model is the one that runs.
+   */
+  addExhaustion(amount) {
+    if (this.gamemode !== 'survival') return;
+    const state = this.ensureHungerState();
+    addExhaustion(state, amount);
+    this.hunger = state.hunger;
+    this.saturation = state.saturation;
+    this.exhaustion = state.exhaustion;
+  }
+
+  /** One tick of regeneration, starvation and the difficulty floor. */
+  updateHungerModel(dt) {
+    const state = this.ensureHungerState();
+    const result = tickHunger(state, dt, {
+      peaceful: String(this.difficulty ?? 'normal').toLowerCase() === 'peaceful',
+      health: this.health,
+      maxHealth: this.maxHealth,
+    });
+    this.hunger = this._hungerState.hunger;
+    this.saturation = this._hungerState.saturation;
+    this.exhaustion = this._hungerState.exhaustion;
+
+    if (result.heal > 0 && this.health > 0 && this.health < this.maxHealth) {
+      this.health = Math.min(this.maxHealth, this.health + result.heal);
+    }
+    if (result.starve > 0 && this.health > 0) {
+      // Starvation is floored by difficulty, so it cannot kill on easy or normal.
+      const floor = starvationFloor(this.difficulty ?? 'normal');
+      if (this.health - result.starve > floor) {
+        this.health = Math.max(floor, this.health - result.starve);
+      }
+    }
+  }
+
+  /** Eat something, adding hunger and saturation the way vanilla does. */
+  eatFood(hungerPoints, saturationPoints = 0) {
+    this._hungerState.hunger = this.hunger;
+    this._hungerState.saturation = this.saturation;
+    this._hungerState.exhaustion = this.exhaustion;
+    eat(this._hungerState, hungerPoints, saturationPoints);
+    this.hunger = this._hungerState.hunger;
+    this.saturation = this._hungerState.saturation;
+    this.exhaustion = this._hungerState.exhaustion;
   }
 
   moveWithCollision(dt) {
@@ -697,6 +790,9 @@ export class Player {
   }
 
   takeDamage(amount, sourcePos = null, damageType = 'generic') {
+    // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
+    if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
+
     if (this.gamemode === 'creative') return;
     if (this.isDead) return;
     if (this.invulnerableTimer > 0) return;
