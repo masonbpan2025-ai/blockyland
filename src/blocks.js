@@ -669,6 +669,17 @@ export const BLOCKS = {
   BUBBLE_CORAL_WALL_FAN: 1161,
   FIRE_CORAL_WALL_FAN: 1162,
   HORN_CORAL_WALL_FAN: 1163,
+
+  // --- Wall torches, twenty-first block-parity batch ---------------------------------------------
+  //
+  // The three wall-mounted torches: plain, soul and redstone. The standing torches already existed but had
+  // NO GEOMETRY, which is a rendering bug this batch also fixes -- see the definition notes.
+  //
+  // No new art: a wall torch uses the same sprite as the standing torch it drops, like the wall signs and
+  // the coral wall fans before it.
+  WALL_TORCH: 1164,
+  SOUL_WALL_TORCH: 1165,
+  REDSTONE_WALL_TORCH: 1166,
 };
 
 export const BLOCK_DEFS = {
@@ -966,6 +977,9 @@ export const BLOCK_DEFS = {
       all: 'torch.png'
     }
   },
+  [BLOCKS.WALL_TORCH]: { name: 'Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 14, lightColor: 0xffb958, drop: BLOCKS.TORCH, textures: { all: 'torch.png' } },
+  [BLOCKS.SOUL_WALL_TORCH]: { name: 'Soul Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 10, lightColor: 0x5cc9d6, drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' } },
+  [BLOCKS.REDSTONE_WALL_TORCH]: { name: 'Redstone Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 7, lightColor: 0xff3b30, drop: BLOCKS.REDSTONE_TORCH, textures: { all: 'redstone_torch.png' } },
   [BLOCKS.BRICKS]: {
     name: 'Bricks',
     hardness: 2.0,

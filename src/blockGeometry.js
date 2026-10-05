@@ -196,8 +196,15 @@ export function createBlockGeometry(id, textures, state = {}) {
     return geo;
   }
   const torch = def?.shape === 'torch';
+  // A wall torch shares the standing torch's box and UV cropping exactly; only its POSITION differs. It is
+  // the same 2/16 x 10/16 x 2/16 post, pushed back against the `z` wall and raised to the height vanilla
+  // mounts it. Handling it here rather than in a separate branch keeps the two forms provably identical in
+  // shape, which matters because the standing torch's cropped UVs are what make the sprite's central two
+  // pixels read as a stick with a burning head and a wooden base.
+  const wallTorch = Boolean(def?.wallTorch);
   const geo = new THREE.BoxGeometry(torch ? 2 / 16 : 1, torch ? 10 / 16 : 1, torch ? 2 / 16 : 1);
-  geo.translate(0.5, torch ? 5 / 16 : 0.5, 0.5);
+  if (wallTorch) geo.translate(0.5, 13 / 16, 13 / 16);
+  else geo.translate(0.5, torch ? 5 / 16 : 0.5, 0.5);
   const uv = geo.attributes.uv;
   const faces = ['east', 'west', 'top', 'bottom', 'north', 'south'];
   const emission = new Float32Array(24);
