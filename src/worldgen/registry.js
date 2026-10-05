@@ -193,7 +193,7 @@ export const STRUCTURES = {
   trial_chambers: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
     step: 'underground_structures', terrainAdaptation: TerrainAdaptation.ENCAPSULATE,
-    biomeTag: 'has_structure/trial_chambers', biomes: [],
+    biomeTag: 'has_structure/trial_chambers', biomes: [], implementation: 'trialChambers',
     notes: 'Copper and tuff rooms with trial spawners, vaults, dispensers and the breeze; no natural mob spawning inside.'
   }
 };

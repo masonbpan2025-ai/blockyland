@@ -363,6 +363,26 @@
       "contentHash": 4025683444
     },
     {
+      "id": "trial_chambers",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 1991,
+      "chunkZ": 0,
+      "planHash": 1355536956,
+      "pieces": 17,
+      "box": [
+        31837,
+        -22,
+        -13,
+        31895,
+        10,
+        81
+      ],
+      "blockCount": 584,
+      "contentHash": 1788742250
+    },
+    {
       "id": "village_desert",
       "seed": 20250401,
       "dimension": "overworld",

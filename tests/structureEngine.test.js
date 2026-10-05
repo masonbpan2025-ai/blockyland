@@ -349,8 +349,11 @@ test('the biome gate rejects a chunk in the wrong biome, and the retry loop then
   const wrongBiome = createStructureEngine({ seed: 5, blockIds: BLOCKS, ...beachAdapter({ biome: 'desert' }) });
   let planned = 0;
   for (let chunk = 0; chunk < 200; chunk++) {
-    if (wrongBiome.planChunk(chunk, 0)) planned++;
+    const plan = wrongBiome.planChunk(chunk, 0);
+    if (plan && plan.structureId === 'buried_treasure') planned++;
   }
+  // Count BURIED TREASURE plans, not plans in general: trial chambers carry no biome gate and legitimately
+  // generate in a desert, so a bare plan count would be measuring them rather than the buried-treasure gate.
   assert.equal(planned, 0, 'no buried treasure may generate in a desert');
 });
 
@@ -402,7 +405,7 @@ test('a different seed moves the placement candidates', () => {
   const counts = [1, 2, 3, 90210].map((seed) => {
     const engine = createStructureEngine({ seed, blockIds: BLOCKS, ...beachAdapter() });
     let planned = 0;
-    for (let chunk = 0; chunk < 3000; chunk++) if (engine.planChunk(chunk, 0)) planned++;
+    for (let chunk = 0; chunk < 3000; chunk++) { const plan = engine.planChunk(chunk, 0); if (plan && plan.structureId === 'buried_treasure') planned++; }
     return planned;
   });
   assert.ok(new Set(counts).size > 1, `expected seed-dependent counts, got ${counts.join(',')}`);
