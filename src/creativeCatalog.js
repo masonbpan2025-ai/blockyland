@@ -227,6 +227,10 @@ export function buildCreativeCatalog() {
     // anywhere else would imply they are building material, which is further from the truth.
     BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
     BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
+    // The invisible technical blocks, beside the other creative-only machinery. A vanilla barrier is an
+    // invisible wall a creative-mode player places to stop others; here it shows its own item icon, which
+    // the batch that added it records as an approximation.
+    BLOCKS.BARRIER, BLOCKS.LIGHT, BLOCKS.STRUCTURE_VOID,
     BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN,
     // The sniffer egg, beside the turtle egg it borrows its shape from, and the end gateway beside the end
     // portal frame. Both had their art DERIVED rather than drawn; the composer says where from.

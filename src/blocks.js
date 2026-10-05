@@ -807,6 +807,35 @@ export const BLOCKS = {
   // those two tiles are the whole block.
   MOVING_PISTON: 1193,
 
+  // --- Invisible technical blocks, thirtieth block-parity batch -----------------------------------
+  //
+  // Barrier, light and structure void. All three are INVISIBLE IN VANILLA, which is why they sat in the
+  // "needs new art" column: there is no `blocks/barrier.png` to find at any suffix or version, because
+  // vanilla draws none. What DOES exist is their ITEM sprite, at `items/<name>.png`, and the mirror ships
+  // all three -- a red crossed ring for the barrier, a yellow sparkle for the light, a teal cube outline
+  // for the structure void.
+  //
+  // So the block texture is the item sprite, and THAT IS AN APPROXIMATION THIS BATCH OWNS: a vanilla
+  // barrier is a fully transparent cube, and this one shows its item icon. The alternative was to leave
+  // three registered vanilla blocks out over a rendering nicety, which is worse. They are grouped here
+  // rather than mixed into the ordinary blocks so the approximation is easy to find.
+  BARRIER: 1194,
+  LIGHT: 1195,
+  STRUCTURE_VOID: 1196,
+
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Cave air and void air. Both are AIR with a different meaning and no different rendering: vanilla uses
+  // them to distinguish the air inside a cave or outside the world from the air in the open sky, and NOTHING
+  // DRAWS THEM. A block that is by definition invisible needs no texture, which is why neither has one and
+  // why neither should get one.
+  //
+  // They are registered as EXACT PEERS of the existing AIR entry -- same flags, no textures -- rather than
+  // approximated with a stand-in tile, unlike the barrier and light blocks in the batch before. Those two
+  // needed to be VISIBLE to be useful; these two must not be.
+  CAVE_AIR: 1197,
+  VOID_AIR: 1198,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2536,6 +2565,11 @@ export const ITEMS = {
   // This was a `type: 'material'` item before the sniffer egg became a BLOCK, so it was an item named
   // `sniffer_egg` with a texture and no way to place it. tests/placeableItems.test.js requires an item that
   // names a registered block to be JOINED to it, which is what caught this. The icon was already correct.
+  // The invisible technical blocks. They have had ITEM sprites on the mirror all along -- that is where
+  // their block textures came from -- so the only thing missing was the binding that makes them placeable.
+  barrier: { name: 'Barrier', icon: '/assets/items/barrier.png', type: 'block', isBlock: true, blockId: BLOCKS.BARRIER },
+  light: { name: 'Light', icon: '/assets/items/light.png', type: 'block', isBlock: true, blockId: BLOCKS.LIGHT },
+  structure_void: { name: 'Structure Void', icon: '/assets/items/structure_void.png', type: 'block', isBlock: true, blockId: BLOCKS.STRUCTURE_VOID },
   sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
   husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
@@ -2789,6 +2823,40 @@ BLOCK_DEFS[BLOCKS.PISTON_HEAD] = {name: 'Piston Head', redstone: true, hardness:
   // exists only as the mid-animation state of a piston, and since this engine has no piston movement it
   // is inert like the rest of the family. It is left out of the creative catalogue for the same reason.
 BLOCK_DEFS[BLOCKS.MOVING_PISTON] = {name: 'Moving Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, drop: null, textures: { top: 'piston_inner.png', side: 'piston_side.png', bottom: 'piston_side.png', front: 'piston_inner.png', all: 'piston_side.png' }};
+
+  // --- Invisible technical blocks, thirtieth block-parity batch -----------------------------------
+  //
+  // Each uses its own ITEM sprite as its block texture, which is an approximation: a vanilla barrier is
+  // a transparent cube, and these show their icons. Recorded rather than hidden.
+  //
+  // BREAKABILITY FOLLOWS THE HARVEST TABLE, NOT MY EXPECTATIONS, and the two disagreed on two of the three.
+  // I had assumed the light was a removable lamp and the structure void an unbreakable marker; the table
+  // says the opposite -- `light` carries hardness -1 with the unbreakable resistance, and `structure_void`
+  // carries hardness 0 with no resistance. That reads backwards from a player's intuition, but the pinned
+  // data is the authority here AND the table is what the mining and explosion code consults, so a definition
+  // disagreeing with it would give two different answers to "can this be broken". The definitions follow the
+  // table; the disagreement is recorded in tests/blockRegistryIntegrity.test.js rather than papered over.
+  //
+  // What the table does NOT say is solidity, which is a property of this engine rather than of vanilla data:
+  // a barrier is a wall you cannot pass, the other two are not.
+BLOCK_DEFS[BLOCKS.BARRIER] = {name: 'Barrier', hardness: -1, sound: 'stone', transparent: true, solid: true, drop: BLOCKS.BARRIER, textures: {all: 'barrier.png'}};
+BLOCK_DEFS[BLOCKS.LIGHT] = {name: 'Light', hardness: -1, sound: 'stone', transparent: true, solid: false, light: 15, lightColor: 0xfff3a0, drop: BLOCKS.LIGHT, textures: {all: 'light.png'}};
+BLOCK_DEFS[BLOCKS.STRUCTURE_VOID] = {name: 'Structure Void', hardness: 0.0, sound: 'stone', transparent: true, solid: false, drop: BLOCKS.STRUCTURE_VOID, textures: {all: 'structure_void.png'}};
+
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Deliberately IDENTICAL to AIR: transparent, not solid, and with NO TEXTURE, because air is invisible
+  // by definition. They also get no item and no catalogue entry, exactly as AIR has none, so they cannot
+  // be placed by a player -- which is what they are for. Their harvest rows all say hardness 0, no drops
+  // and an empty bounding box, so there is nothing to obtain from any of them either.
+  //
+  // `drop: null` IS LOAD-BEARING and is NOT the same as declaring nothing. The drop pipeline falls back to
+  // the block's own id when a definition has no drop, so omitting it made cave air and void air DROP
+  // THEMSELVES -- a block obtainable without ever being placed, contradicting the empty `drops` array in
+  // their own harvest rows. AIR returns null only because it predates this registry and has no definition.
+  // The explicit null is what makes the empty row authoritative.
+BLOCK_DEFS[BLOCKS.CAVE_AIR] = {name: 'Cave Air', transparent: true, solid: false, drop: null};
+BLOCK_DEFS[BLOCKS.VOID_AIR] = {name: 'Void Air', transparent: true, solid: false, drop: null};
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};
