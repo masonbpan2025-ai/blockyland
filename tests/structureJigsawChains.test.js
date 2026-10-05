@@ -49,8 +49,14 @@ function buildPiece(element, rotation, mirror, at) {
   // No `connectorPositions` map: a name-keyed map CANNOT represent two connectors of the same name, which is
   // exactly the limitation this file exists to pin. The engine must use the per-instance positions.
   const connectors = spec.connectors.map((connector) => {
-    const front = rotateDirection(splitOrientation(connector.orientation).front, rotation);
-    return { ...connector, position: facePosition(box, front) };
+    const parts = splitOrientation(connector.orientation);
+    const front = rotateDirection(parts.front, rotation);
+    // BOTH the position AND the orientation must rotate with the piece, and the orientation is encoded as
+    // `<front>_<top>` -- vanilla's order, so `up_north` FRONTS NORTH. Two separate bugs hid here: emitting
+    // `<top>_<front>` made the engine read a vertical front and never even try a candidate, and leaving the
+    // orientation unrotated meant the engine expanded through a connector still claiming its pre-rotation
+    // facing, so the second link was sent the wrong way and the chain stopped after one join.
+    return { ...connector, orientation: front + '_' + parts.top, position: facePosition(box, front) };
   });
   return { box, connectors };
 }
@@ -89,6 +95,23 @@ test('the fixture really does put two connectors of the same name on one piece',
 });
 
 
+test('a chain grows several links through same-named connectors at both ends', () => {
+  // Deviation 0e's core case: a chain that continues past its first join. It failed for three rounds on TWO
+  // fixture bugs and no engine bug -- a reversed orientation encoding, and an orientation that did not rotate
+  // with the piece. Both produced the same symptom, a chain of one or two pieces.
+  const result = run({ maxDepth: 4 });
+  assert.ok(result.pieces.length >= 3, 'expected a chain, got ' + result.pieces.length + ' pieces');
+  assert.equal(result.isConnected(), true, 'every link must be reachable from the start');
+  for (const piece of result.pieces) {
+    for (const other of result.pieces) {
+      if (piece === other) continue;
+      assert.equal(piece.box.intersects(other.box), false,
+        piece.meta.element + ' #' + piece.index + ' overlaps ' + other.meta.element + ' #' + other.index);
+    }
+  }
+  const depths = result.pieces.map((piece) => piece.meta.depth);
+  assert.equal(Math.max.apply(null, depths), result.pieces.length - 1, 'each link must be one deeper than the last');
+});
 test('a joined connector is consumed, so a chain cannot grow back through the join', () => {
   const result = run({ maxDepth: 3, seed: 3 });
   assert.ok(result.pieces.length >= 2, 'this test needs at least one join to inspect');
