@@ -1559,6 +1559,15 @@ export const ITEMS = {
   camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
   giant_spawn_egg: { name: 'Giant Spawn Egg', icon: '/assets/items/giant_spawn_egg.png', type: 'spawn_egg', mob: 'giant' },
+  enderman_spawn_egg: { name: 'Enderman Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'enderman' },
+  mooshroom_spawn_egg: { name: 'Mooshroom Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'mooshroom' },
+  ocelot_spawn_egg: { name: 'Ocelot Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'ocelot' },
+  pufferfish_spawn_egg: { name: 'Pufferfish Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'pufferfish' },
+  shulker_spawn_egg: { name: 'Shulker Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'shulker' },
+  trader_llama_spawn_egg: { name: 'Trader Llama Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'trader_llama' },
+  tropical_fish_spawn_egg: { name: 'Tropical Fish Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'tropical_fish' },
+  vex_spawn_egg: { name: 'Vex Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'vex' },
+  zoglin_spawn_egg: { name: 'Zoglin Spawn Egg', icon: '/assets/items/spawn_egg.png', type: 'spawn_egg', mob: 'zoglin' },
 };
 
 // --- generated item additions for vanilla parity -----------------------------
