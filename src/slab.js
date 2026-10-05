@@ -198,3 +198,35 @@ export function createCarpetGeometry(def, tm) {
   return buildBox({ x: 1, y: 1 / 16, z: 1 }, { x: 0, y: 0, z: 0 }, def, tm);
 }
 
+/**
+ * A candle: a narrow column standing on the floor.
+ *
+ * Vanilla candles are 2 pixels across and 6 tall. One builder serves all sixteen colours, since the
+ * only difference between them is the texture named on the definition.
+ */
+export function createCandleGeometry(def, tm) {
+  const w = 2 / 16;
+  const h = 6 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
+}
+
+/**
+ * A chain: a thin post with the links suggested by two offset segments.
+ *
+ * A chain is 6/16 across. A single plain box would read as a grey post rather than a chain, so the
+ * shape is two stacked segments whose alternation suggests links. Deliberately not more elaborate than
+ * that: this project has no chain-linking rules, and the point is that the block is not a cube.
+ */
+export function createChainGeometry(def, tm) {
+  const w = 6 / 16;
+  const min = (1 - w) / 2;
+  const parts = [
+    buildBox({ x: w, y: 3 / 8, z: w * 0.6 }, { x: min, y: 0, z: min + w * 0.2 }, def, tm),
+    buildBox({ x: w * 0.6, y: 3 / 8, z: w }, { x: min + w * 0.2, y: 3 / 8, z: min }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+

@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -31,6 +31,15 @@ export function createBlockGeometry(id, textures, state = {}) {
     const dir = state?.dir !== undefined ? state.dir : 3;
     const isTop = Boolean(state?.isTop || def.isTop);
     return ensureFlameAttributes(createStairGeometry(def, textures, dir, isTop));
+  }
+  if (def?.candle) {
+    // A candle is a narrow column, not a cube. All sixteen colours share one builder; the
+    // texture on the definition is the only difference.
+    return ensureFlameAttributes(createCandleGeometry(def, textures));
+  }
+  if (def?.chain) {
+    // A chain is a thin post. Two offset segments suggest links rather than a plain grey box.
+    return ensureFlameAttributes(createChainGeometry(def, textures));
   }
   if (def?.pane) {
     return ensureFlameAttributes(createPaneGeometry(def, textures));

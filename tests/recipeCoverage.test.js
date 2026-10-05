@@ -46,18 +46,18 @@ test('implemented recipes are counted separately from expressible ones', { skip 
 test('the implemented recipe count does not regress', { skip }, () => {
   const impl = implementedRecipes();
   // Floor, not target. Raised whenever real recipes are added; lowering it means recipes were lost.
-  assert.ok(impl.implemented >= 1320,
+  assert.ok(impl.implemented >= 1400,
     `only ${impl.implemented} recipes are implemented, down from 549`);
   assert.equal(impl.generated, GENERATED_RECIPE_COUNT,
     'the report and the merged recipe list must agree on how many were generated');
 });
 
 test('the recipe lists the game actually uses reflect the generated set', () => {
-  assert.ok(RECIPES_3X3.length >= 1320,
+  assert.ok(RECIPES_3X3.length >= 1400,
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 540`);
-  assert.ok(RECIPES_2X2.length >= 310,
+  assert.ok(RECIPES_2X2.length >= 370,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1264,
+  assert.equal(GENERATED_RECIPE_COUNT, 1349,
     'the generated recipe count changed; update this expectation deliberately if that was intended');
 });
 
@@ -74,9 +74,22 @@ test('missing results remain the larger half of the gap', { skip }, () => {
   assert.ok(impl.skippedMissingResult > impl.skippedMissingIngredient,
     'missing results (' + impl.skippedMissingResult + ') should still exceed missing ingredients ('
     + impl.skippedMissingIngredient + '); if that inverts, the backlog ordering is stale');
-  // Both sides should still be substantial, or the measurement has stopped telling us anything.
-  assert.ok(impl.skippedMissingIngredient > 20,
-    'a tiny ingredient gap would suggest the accounting broke, not that everything is done');
+  // NOT asserted: that the ingredient gap is large.
+  //
+  // This required more than 20 missing ingredients, on the reasoning that a tiny figure would mean the
+  // accounting had broken rather than that the work was done. The ingredient gap is now 6 -- because
+  // blocks were added until almost every ingredient exists -- so the test reported success as a bug.
+  //
+  // What actually indicates a broken measurement is the two counters disagreeing with the totals, which
+  // the accounting test above already checks. Here the useful check is that the numbers are coherent.
+  // The coherence check uses the GENERATED count, not `implemented`.
+  //
+  // `implemented` includes the hand-written recipes, and some of those are deliberately not vanilla --
+  // the red bed item, the redstone components -- so it is not a subset of vanilla's 1,557 and adding it
+  // to the skipped counts exceeds the total. That distinction was already recorded when the two
+  // measures were separated; this assertion is the second place it mattered.
+  assert.ok(impl.generated + impl.skippedMissingResult + impl.skippedMissingIngredient <= impl.vanillaTotal,
+    'generated plus skipped recipes cannot exceed the total number of vanilla recipes');
   console.log('  gap: ' + impl.skippedMissingResult + ' missing results, '
     + impl.skippedMissingIngredient + ' missing ingredients');
 });

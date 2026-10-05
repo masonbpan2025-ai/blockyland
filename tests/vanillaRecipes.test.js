@@ -202,13 +202,30 @@ test('every plank type crafts from the wood it is made of', () => {
     const result = findMatchingRecipe(grid3([[0, 0, logId]]), 3, 3, RECIPES_3X3);
     assert.ok(result, `${wood}: no recipe from ${source}`);
     assert.equal(result.id, planksId, `${wood}: ${source} did not produce ${planksName}`);
-    assert.equal(result.count, 4, `${wood}: planks recipe should yield 4`);
+    // NOT asserted: a yield of 4.
+    //
+    // Every overworld and nether wood yields 4 from one log, but bamboo does not: vanilla's recipe is
+    // one bamboo item yielding two planks, and this game only has the nine-bamboo BLOCK form, so its
+    // recipe yields 2. Asserting 4 for all woods was wrong about vanilla, and it failed the moment
+    // bamboo became craftable.
+    if (wood !== 'bamboo') {
+      assert.equal(result.count, 4, `${wood}: planks recipe should yield 4`);
+    } else {
+      assert.equal(result.count, 2, 'bamboo planks yield 2, because the source data is an item not a block');
+    }
+    assert.ok(result.count >= 1, `${wood}: a planks recipe should produce at least one plank`);
     covered++;
   }
-  assert.equal(covered, 11, `expected 11 of 12 wood types to craft planks, got ${covered}`);
-  assert.equal(gapCount, 1, 'exactly one wood type should hit the documented gap');
-  // And the reason must be the missing input, not a generator bug: the recipe exists in vanilla.
-  assert.equal(BLOCKS.BAMBOO_BLOCK, undefined, 'bamboo_block is absent, which is the documented gap');
+  // All twelve wood types now craft planks.
+  //
+  // This asserted 11 with one documented gap, because `bamboo_block` did not exist and vanilla's bamboo
+  // recipe takes one. Adding bamboo_block closed the gap, so the count moved and the assertions that
+  // described the gap had to go with it. A test that records a gap must be updated when the gap closes,
+  // or it reports the fix as a regression.
+  assert.equal(covered, 12, `expected all 12 wood types to craft planks, got ${covered}`);
+  assert.equal(gapCount, 0, 'no wood type should still hit a documented gap');
+  assert.ok(BLOCKS.BAMBOO_BLOCK !== undefined,
+    'bamboo_block must exist, which is what makes the twelfth wood type craftable');
 });
 
 test('generated recipes match only the arrangement they were authored for', () => {
