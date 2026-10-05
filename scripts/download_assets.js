@@ -120,6 +120,12 @@ const blocks1214 = [
   'beetroots_stage3.png', 'cocoa_stage2.png', 'torchflower_crop_stage0.png', 'pitcher_crop_top.png',
   'suspicious_sand_0.png', 'suspicious_gravel_0.png',
   'scaffolding_top.png', 'scaffolding_side.png', 'scaffolding_bottom.png',
+  // Cauldrons, the twenty-third batch. The pot's three faces and the fluid tiles; the combined
+  // `*_cauldron_top` textures are composed by scripts/compose-filled-cauldrons.py, which also slices the
+  // water and lava strips first. `cauldron.png` does not exist upstream, which is why the pot needs three
+  // faces rather than one.
+  'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
+  'water_still.png', 'lava_still.png', 'powder_snow.png',
   // Technical blocks, the sixteenth batch. The three command blocks each need four textures -- front,
   // side, back and the conditional top/bottom -- which is why this list is longer than the block count.
   // The trial spawner and vault use their INACTIVE / OFF variants, since they are never active here.

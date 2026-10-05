@@ -78,10 +78,22 @@ if (missingInputs.length) {
   console.log('\n--- all composer inputs already present');
 }
 
-// 3. The composers themselves. Both need Python + Pillow; a missing Python is reported, not fatal, since
-//    the blocks they feed will fail their own tests with a message naming the script to run.
-for (const script of ['compose-candle-cakes.py', 'compose-potted-plants.py']) {
-  const done = run(`compose via ${script}`, 'python', [path.join('scripts', script)]);
+// 3. The texture transforms. All three need Python + Pillow; a missing Python is reported, not fatal,
+//    since the blocks they feed fail their own tests with a message naming the script to run.
+//
+//    ORDER MATTERS BETWEEN THESE TWO. `slice-texture-frames.py` runs FIRST because the cauldron composer
+//    overlays fluid tiles onto the pot, and two of those fluids (water, lava) are animation strips that
+//    have to be sliced before they can be overlaid. Running the composer first would overlay a 16x512
+//    strip onto a 16x16 pot, which Pillow would either refuse or silently misplace.
+const TRANSFORMS = [
+  'slice-texture-frames.py',
+  'compose-candle-cakes.py',
+  'compose-potted-plants.py',
+  'compose-filled-cauldrons.py',
+];
+
+for (const script of TRANSFORMS) {
+  const done = run(`transform via ${script}`, 'python', [path.join('scripts', script)]);
   if (!done) {
     console.error(`\n  ${script} did not run. The blocks it feeds will fail with a message naming it.`);
     console.error('  It needs Python 3 with Pillow.');

@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1549 | 1557 | 99.5% |
 | Crafting recipes expressible | 1550 | 1557 | 99.6% |
-| Blocks named | 1057 | 1095 | 96.5% |
+| Blocks named | 1060 | 1095 | 96.8% |
 | Items named | 1299 | 1385 | 93.8% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,12 +371,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1055 | 1287 |
-| missing | 40 | 98 |
+| present | 1058 | 1287 |
+| missing | 37 | 98 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **40** | **98** |
-| art files | 454 | 1071 |
+| **missing, needs NEW art** | **37** | **98** |
+| art files | 457 | 1071 |
 
 BOTH reachability columns are empty, and the caveat that used to follow them was WRONG. The previous
 version of this section said "there is no longer any block reachable by writing code alone" and named
@@ -390,15 +390,23 @@ version directories.
 
 So the honest statement is narrower than the one it replaces: **no remaining block has art that can be
 used as-is**, but "needs NEW art" is a claim this table cannot actually make, because it only tests the
-bare name and a few suffixes. Three rounds have now been unblocked by composing existing art (the candle
-cakes, the potted plants) or by slicing it (soul fire). Of the 40 missing blocks, the six mob heads are
-the next candidate on that basis: their art exists, as `entity/` skin sheets rather than block tiles, so
-they need a UV mapping rather than a drawing.
+bare name and a few suffixes. FOUR rounds have now been unblocked without drawing anything:
 
-`scripts/compose-potted-plants.py`, `scripts/compose-candle-cakes.py` and `scripts/slice-texture-frames.py`
-are the three worked examples of getting a block out of that column without drawing anything, and all
-three are asserted by tests so that clearing `public/assets` and re-running only the downloader cannot
-silently lose their output.
+| blocks | how the art was obtained |
+|---|---|
+| 18 candle cakes | composed from the cake and candle tiles |
+| 37 potted plants | composed from the flower pot and plant sprites |
+| soul fire | sliced from a 32-frame animation strip |
+| 3 filled cauldrons | composed from the pot and the fluids, which also had to be sliced |
+
+`scripts/compose-candle-cakes.py`, `scripts/compose-potted-plants.py`, `scripts/slice-texture-frames.py`
+and `scripts/compose-filled-cauldrons.py` are those four tools, all committed and all asserted by tests
+so that clearing `public/assets` and re-running only the downloader cannot silently lose their output.
+`scripts/restore-block-assets.mjs` runs them in the one order that works, with the slicer before the
+composers because two of the cauldron fluids are strips.
+
+Of the 37 remaining blocks, the six mob heads are the next candidate on the same basis: their art exists,
+as `entity/` skin sheets rather than block tiles, so they need a UV mapping rather than a drawing.
 
 ### 4.1.2 The shulker boxes are the clearest block-versus-behaviour gap
 

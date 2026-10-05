@@ -8869,7 +8869,12 @@ export class MobManager {
       witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
       guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
       elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
-      drowned: [['rotten_flesh', false, 1, 2], ['copper_ingot', false, 1, 1, 0.11]],
+      drowned: [['rotten_flesh', false, 1, 2], ['copper_ingot', false, 1, 1, 0.11],
+        // Wiki: a drowned drops a nautilus shell 3% of the time, and the trident it was carrying 8.5% of
+        // the time. Neither row existed, so a nautilus shell -- which is what a conduit is made of -- and a
+        // trident had no source in the game at all. `mobLootData.js` carries the same two rows, and its
+        // generator has them written down; see `MOB_LOOT_ADDITIONS` there, because that file is regenerated.
+        ['nautilus_shell', false, 1, 1, 0.03], ['trident', false, 1, 1, 0.085]],
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
       wither: [['nether_star', false, 1, 1]],
 
