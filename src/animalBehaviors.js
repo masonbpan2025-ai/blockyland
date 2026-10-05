@@ -23,6 +23,8 @@ export const BREEDING_FOODS = {
   goat: ['wheat'],
   // Wiki: turtles breed when fed seagrass, and follow a player holding it within ten blocks.
   turtle: ['seagrass'],
+  // Wiki: frogs are tempted and bred with slimeballs, and follow a slimeball-holding player.
+  frog: ['slimeball'],
   // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
   // id here, so it is listed as the block constant rather than a string.
   rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],

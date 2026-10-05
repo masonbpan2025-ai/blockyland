@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
@@ -378,6 +379,7 @@ export class MobManager {
       case 'goat': return this.spawnGoat(x, y, z, {});
       case 'llama': return this.spawnLlama(x, y, z, {});
       case 'turtle': return this.spawnTurtle(x, y, z, {});
+      case 'frog': return this.spawnFrog(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2345,6 +2347,8 @@ export class MobManager {
       case 'llama': return LLAMA_DIMENSIONS;
       // Wiki: turtles are 1.2 x 0.4, and a pregnant one is 0.2 taller.
       case 'turtle': return TURTLE_DIMENSIONS;
+      // Wiki: frogs are 0.5 x 0.5.
+      case 'frog': return FROG_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3680,6 +3684,73 @@ export class MobManager {
     const total = Math.min(TURTLE_EGG.maxCluster, (existing?.count ?? 0) + size);
     this.turtleEggs.set(key, { x, y, z, count: total, cracks: existing?.cracks ?? 0 });
     return total;
+  }
+
+  /**
+   * Frog.
+   *
+   * Wiki: 10 HP, 0.5 x 0.5, passive. Makes long jumps of up to 8 blocks, swims fast and cannot
+   * drown, takes 5 less fall damage, has three biome-determined variants, and eats small slimes and
+   * magma cubes with its tongue — producing a froglight whose colour its variant decides.
+   */
+  spawnFrog(x, y, z, options = {}) {
+    const variant = options.variant || frogVariantForBiome(options.biome);
+    const colors = FROG_COLORS[variant] || FROG_COLORS.temperate;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'frog',
+      name: 'Frog',
+      mesh: group,
+      body,
+      belly,
+      head,
+      eyes,
+      tongue,
+      legs,
+      bodyMat,
+      bellyMat,
+      eyeMat,
+      // Wiki: 10 HP.
+      health: FROG_HEALTH,
+      maxHealth: FROG_HEALTH,
+      isBaby: false,
+      width: FROG_DIMENSIONS.width,
+      height: FROG_DIMENSIONS.height,
+      // Wiki: three variants, set by the biome.
+      variant,
+      // Wiki: a frog cannot drown.
+      canBreatheUnderwater: true,
+      // Wiki: 5 less fall damage than most mobs.
+      fallDamageReduction: FROG_JUMP.fallDamageReduction,
+      // Wiki: it prefers jumping onto lily pads and dripleaves, and to higher ground.
+      prefersLilyPads: true,
+      // Tongue state.
+      tongueTimer: 0,
+      tongueCooldown: 0,
+      tongueTarget: null,
+      eatTimer: 0,
+      // Movement.
+      inWater: false,
+      isFrogJumping: false,
+      frogJumpHeight: 0,
+      hopTimer: 0.4 + Math.random() * 0.6,
+      croakTimer: 0,
+      frogPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   // --- PASSIVE COW ---
@@ -7032,7 +7103,9 @@ export class MobManager {
          ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
       : [];
     const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows];
+    // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
+    const frogRows = isFrog(mob) ? frogDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows];
   }
 
   /**
@@ -7121,7 +7194,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
+          : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
           : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
           : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
@@ -7527,6 +7601,80 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='frog'){
+      // Wiki: passive. It makes long jumps of up to 8 blocks, swims fast without drowning, and eats
+      // small slimes and magma cubes with its tongue.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.tongueCooldown = Math.max(0, (mob.tongueCooldown || 0) - dt);
+      mob.eatTimer = Math.max(0, (mob.eatTimer || 0) - dt);
+      mob.croakTimer = Math.max(0, (mob.croakTimer || 0) - dt);
+
+      const fX = Math.floor(mob.mesh.position.x);
+      const fY = Math.floor(mob.mesh.position.y + 0.1);
+      const fZ = Math.floor(mob.mesh.position.z);
+      mob.inWater = this.world.getVoxel(fX, fY, fZ) === BLOCKS.WATER;
+
+      // 1. A tongue flick in progress: drag the prey in and eat it.
+      if (mob.tongueTimer > 0) {
+        updateFrogTongue(this, mob, dt);
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        if (mob.inWater) mob.mesh.position.addScaledVector(mob.velocity, dt);
+        else moveGroundMob(this, mob, dt);
+        poseFrog(mob, mob.frogPhase || 0);
+        return true;
+      }
+
+      // 2. Look for something edible: only size-1 slimes and magma cubes.
+      if (mob.tongueCooldown <= 0 && !mob.isFrogJumping) {
+        let prey = null;
+        let bestDist = FROG_TONGUE.range;
+        for (const other of this.mobs) {
+          if (!frogCanEat(mob, other)) continue;
+          const d = mob.mesh.position.distanceTo(other.mesh.position);
+          if (d < bestDist) { bestDist = d; prey = other; }
+        }
+        if (prey) {
+          const dir = prey.mesh.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          startFrogTongue(mob, prey);
+          poseFrog(mob, mob.frogPhase || 0);
+          return true;
+        }
+      }
+
+      // 3. Movement: swim in water, otherwise a slow wander punctuated by long jumps.
+      if (mob.inWater) {
+        // Wiki: it swims upward and stays at the surface, and cannot drown.
+        mob.velocity.x = Math.sin(mob.yaw) * FROG_SPEED.water;
+        mob.velocity.z = Math.cos(mob.yaw) * FROG_SPEED.water;
+        mob.velocity.y = mob.mesh.position.y < (this.world.surfaceHeightAt?.(fX, fZ) ?? 0) + 1 ? 1.6 : 0;
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+        mob.swimCycle = (mob.swimCycle || 0) + dt * 4;
+        mob.isFrogJumping = false;
+      } else {
+        if (mob.isFrogJumping && mob.onGround) mob.isFrogJumping = false;
+        mob.hopTimer = (mob.hopTimer || 0) - dt;
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 2 + Math.random() * 3;
+          mob.yaw = Math.random() * Math.PI * 2;
+          // Wiki: it occasionally croaks and inflates its vocal sac.
+          if (Math.random() < 0.3) mob.croakTimer = 0.6;
+        }
+        if (mob.hopTimer <= 0 && mob.onGround) {
+          // Wiki: a frog prefers jumping to higher ground, so each hop aims a little upward.
+          mob.hopTimer = 0.8 + Math.random() * 1.2;
+          startFrogJump(mob, { height: 2.2 + Math.random() * 1.5, forward: 1.5 + Math.random() });
+        }
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.frogPhase = (mob.frogPhase || 0) + dt * (mob.inWater ? 4 : 6);
+      poseFrog(mob, mob.frogPhase);
       return true;
     }
     if(mob.type==='turtle'){

@@ -1167,6 +1167,8 @@ export const ITEMS = {
   // Wiki: a goat horn is dropped when a goat rams a hard block. Both horns of one goat are always
   // the same variant, so the item carries the variant in its name rather than the stack.
   // Wiki: seagrass is what turtles eat, breed with and follow, and 0-2 drop on death.
+  // Wiki: a small slime killed by a frog always drops exactly one slimeball, and frogs breed with it.
+  slimeball: { name: 'Slimeball', icon: '/assets/items/slimeball.png', type: 'material' },
   seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', type: 'material' },
   goat_horn: { name: 'Goat Horn', icon: '/assets/items/goat_horn.png', type: 'material' },
   paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
@@ -1242,6 +1244,7 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  frog_spawn_egg: { name: 'Frog Spawn Egg', icon: '/assets/items/frog_spawn_egg.png', type: 'spawn_egg', mob: 'frog' },
   turtle_spawn_egg: { name: 'Turtle Spawn Egg', icon: '/assets/items/turtle_spawn_egg.png', type: 'spawn_egg', mob: 'turtle' },
   llama_spawn_egg: { name: 'Llama Spawn Egg', icon: '/assets/items/llama_spawn_egg.png', type: 'spawn_egg', mob: 'llama' },
   goat_spawn_egg: { name: 'Goat Spawn Egg', icon: '/assets/items/goat_spawn_egg.png', type: 'spawn_egg', mob: 'goat' },
