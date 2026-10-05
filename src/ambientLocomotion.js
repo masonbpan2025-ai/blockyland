@@ -40,7 +40,13 @@ export const HOSTILE_LOCOMOTION = {
   warden: { range: 24, speed: 3.6, damage: 30, attackReach: 2.0 },
   guardian: { range: 16, speed: 2.4, damage: 6, attackReach: 1.8 },
   elder_guardian: { range: 16, speed: 2.0, damage: 8, attackReach: 2.0 },
-  shulker: { range: 16, speed: 0, damage: 4, attackReach: 0 }
+  shulker: { range: 16, speed: 0, damage: 4, attackReach: 0,
+    // A stationary turret. Without `ranged` this entry declared a damage figure and an aggro radius and
+    // could never use either, because the stationary branch returned before any attack logic.
+    //
+    // Vanilla: the bullet deals 4 and inflicts Levitation for 10 seconds, on a 1.5 second cooldown. The
+    // levitation is the whole point of the mob -- it is what lifts you off a ledge.
+    ranged: { cooldown: 1.5, damage: 4, effect: 'levitation', effectSeconds: 10 } }
 };
 
 /**
@@ -79,6 +85,27 @@ export function locomotionFor(type) {
 }
 
 /**
+ * Face a target and report how far away it is.
+ *
+ * Turns rather than snapping, matching the chase branch, and measures on the HORIZONTAL component alone so a
+ * turret set into a wall does not pitch into the floor when the player stands below it.
+ *
+ * @returns {{distance:number}|null} null when there is nothing to aim at
+ */
+function aimAt(mob, player) {
+  if (!mob?.mesh?.position || !player?.position) return null;
+  const dx = player.position.x - mob.mesh.position.x;
+  const dz = player.position.z - mob.mesh.position.z;
+  const distance = mob.mesh.position.distanceTo(player.position);
+  if (Math.hypot(dx, dz) > 1e-6) {
+    const targetYaw = Math.atan2(dx, dz);
+    const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+    mob.yaw += turn * 0.2;
+  }
+  return { distance };
+}
+
+/**
  * Advance a mob's ambient locomotion for one step.
  *
  * Mutates only the mob's yaw and velocity, exactly like the branch it generalises, so the existing
@@ -89,7 +116,7 @@ export function locomotionFor(type) {
  *
  * @returns {'chasing'|'wandering'|'stationary'|null} what the mob did, or null when not covered
  */
-export function updateAmbientLocomotion(manager, mob, dt, player, { wander = null, random = Math.random } = {}) {
+export function updateAmbientLocomotion(manager, mob, dt, player, { wander = null, random = Math.random, fire = null } = {}) {
   const spec = locomotionFor(mob?.type);
   if (!spec) return null;
   if (!mob.velocity) return null;
@@ -98,6 +125,25 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
   if (spec.speed <= 0) {
     mob.velocity.x = 0;
     mob.velocity.z = 0;
+    // A stationary mob may still be a TURRET. This branch returned before the hostile logic below, so a
+    // declared ranged attacker with `speed: 0` fired nothing at all -- which is exactly the shulker's case:
+    // it carried `range: 16` and `damage: 4` and never attacked anything.
+    //
+    // `fire` is injected for the same reason `wander` is: this module stays free of THREE and of the
+    // projectile system, so it can decide WHEN to fire without knowing how.
+    if (spec.ranged && typeof fire === 'function') {
+      const aim = aimAt(mob, player);
+      if (aim) {
+        mob.rangedCooldown = Math.max(0, (mob.rangedCooldown ?? 0) - dt);
+        if (aim.distance <= spec.range && mob.rangedCooldown <= 0) {
+          mob.rangedCooldown = spec.ranged.cooldown ?? 1.5;
+          fire(mob, player, spec);
+        }
+      }
+      mob.state = 'aim';
+    }
+    // Still reported as stationary: it IS stationary. The aim is a facing, not movement, and changing the
+    // return value would break callers that switch on it.
     return 'stationary';
   }
 

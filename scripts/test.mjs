@@ -1,4 +1,4 @@
-// Test runner: run only the area you changed.
+﻿// Test runner: run only the area you changed.
 //
 // `npm test` runs everything, which is the right thing before a release and the
 // wrong thing while iterating on one feature. This maps named areas to the test

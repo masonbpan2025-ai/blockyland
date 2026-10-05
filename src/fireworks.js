@@ -12,6 +12,7 @@
 // choose the burst height, so aiming upwards throws it further, but it always rises -- it is not a
 // directional projectile and it does not yet boost elytra flight.
 import * as THREE from 'three';
+import { ELYTRA_BOOST_SECONDS } from './elytra.js';
 
 /** How far a rocket rises for a level throw, and how much looking up adds to it. */
 export const FIREWORK_BASE_RISE = 14;
@@ -30,6 +31,18 @@ export const FIREWORK_RISE_PER_PITCH = 26;
 export function launchFirework(game, itemId) {
   if (itemId !== 'firework_rocket') return false;
   if (!game.player?.position) return false;
+
+  // Gliding is what a rocket is primarily FOR: vanilla uses one to boost elytra flight, adding speed and
+  // lift. Nothing is spawned in that case, because the thrust is applied to the player rather than to a
+  // rising rocket.
+  if (game.player.isGliding) {
+    game.player.elytraBoost = ELYTRA_BOOST_SECONDS;
+    if (game.player.gamemode !== 'creative') {
+      game.inventory?.consumeActiveItem?.(1);
+      game.ui?.updateHotbar?.();
+    }
+    return true;
+  }
 
   const eye = game.player.position.clone()
     .add(new THREE.Vector3(0, game.player.eyeHeight ?? 1.62, 0));

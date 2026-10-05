@@ -1,0 +1,139 @@
+// Thrown splash potions.
+//
+// The throw in `main.js` was hard-coded to one item, and the id it also accepted -- `potion_weakness` -- is
+// not an item that exists. So **39 splash potion items did nothing at all** when used, and every one of them
+// brews from gunpowder plus any potion.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
+import { isSplashPotion, splashPotionEffect, splashTargets, throwSplashPotion, SPLASH_RADIUS }
+  from '../src/splashPotion.js';
+import { POTION_DATA } from '../src/brewing.js';
+import { ITEMS } from '../src/blocks.js';
+
+/** Every splash item the registry holds. */
+const SPLASH_IDS = Object.keys(ITEMS).filter(id => id.startsWith('splash_'));
+
+test('every splash item the registry holds is recognised', () => {
+  // The whole point: this was one item before, and the registry has far more.
+  assert.ok(SPLASH_IDS.length > 30, 'expected many splash items, got ' + SPLASH_IDS.length);
+  const missed = SPLASH_IDS.filter(id => !isSplashPotion(id));
+  assert.deepEqual(missed, [], 'these splash items would fall through to block placement: ' + missed.join(', '));
+});
+
+test('each splash effect comes from its potion, not from a constant', () => {
+  // The old code applied `weakness` for 60 seconds whatever the potion was.
+  for (const [splashId, base] of [['splash_potion_of_healing', 'potion_of_healing'],
+    ['splash_potion_of_strength', 'potion_of_strength'],
+    ['splash_potion_of_poison', 'potion_of_poison'],
+    ['splash_potion_of_swiftness_long', 'potion_of_swiftness_long']]) {
+    const effect = splashPotionEffect(splashId);
+    const data = POTION_DATA[base];
+    assert.equal(effect.id, data.effect, splashId + ' should carry ' + data.effect);
+    // An INSTANT potion has no duration in the table, which is why the module defaults to one second rather
+    // than to zero -- an effect of length zero would be dropped or applied for no time. The first version of
+    // this assertion compared against `data.duration` directly and failed on the healing potion.
+    assert.equal(effect.seconds, data.duration ?? 1, splashId + ' should last its own potion\'s time');
+    assert.ok(effect.seconds > 0, splashId + ' must last a positive time');
+    assert.equal(effect.level, data.level ?? 1);
+  }
+  // The specific regression: a splash Strength must not be weakness for 60 seconds.
+  assert.notEqual(splashPotionEffect('splash_potion_of_strength').id, 'weakness');
+  assert.notEqual(splashPotionEffect('splash_potion_of_strength').seconds, 60);
+});
+
+test('a splash potion that grants nothing is still thrown', () => {
+  // A water bottle and the brewing intermediates are throwable in vanilla and do nothing.
+  for (const id of ['splash_water_bottle', 'splash_awkward_potion', 'splash_thick_potion']) {
+    if (!ITEMS[id]) continue;
+    assert.equal(isSplashPotion(id), true, id + ' should be throwable');
+    assert.equal(splashPotionEffect(id), null, id + ' grants no effect');
+    const game = { mobs: { mobs: [] }, player: { applyStatusEffect() { throw new Error('must not apply'); } } };
+    assert.equal(throwSplashPotion(game, new THREE.Vector3(), id), true,
+      id + ' should be consumed rather than falling through to placement');
+  }
+});
+
+test('anything that is not a splash potion is left alone', () => {
+  for (const id of ['potion_of_healing', 'arrow', 'weakness', 'potion_weakness', '', undefined, null]) {
+    assert.equal(isSplashPotion(id), false, String(id) + ' is not a splash potion');
+    assert.equal(splashPotionEffect(id), null);
+    const game = { mobs: { mobs: [] }, player: {} };
+    assert.equal(throwSplashPotion(game, new THREE.Vector3(), id), false, String(id) + ' must fall through');
+  }
+  // `potion_weakness` is worth naming: it is the id the old condition also accepted, and it does not exist.
+  assert.equal(Object.prototype.hasOwnProperty.call(ITEMS, 'potion_weakness'), false,
+    'the old code accepted an item id that was never registered');
+});
+
+test('the radius is four blocks and excludes the dead', () => {
+  assert.equal(SPLASH_RADIUS, 4.0);
+  const center = new THREE.Vector3(0, 0, 0);
+  const at = (x, y, z, health) => ({ mesh: { position: new THREE.Vector3(x, y, z) }, health });
+  const inside = at(3, 0, 0, 10);
+  const edge = at(4, 0, 0, 10);
+  const outside = at(4.1, 0, 0, 10);
+  const dead = at(1, 0, 0, 0);
+  const hits = splashTargets(center, [inside, edge, outside, dead]);
+  assert.deepEqual(hits, [inside, edge], 'exactly the two live entities within four blocks');
+  // A player has no health field and must not be excluded for that reason.
+  const player = { position: new THREE.Vector3(1, 0, 0) };
+  assert.deepEqual(splashTargets(center, [player]), [player]);
+  // It is a sphere, not a cylinder: high above the centre is out of range.
+  assert.deepEqual(splashTargets(center, [at(0, 5, 0, 10)]), []);
+  // And nonsense input yields an empty list rather than throwing.
+  assert.deepEqual(splashTargets(null, [inside]), []);
+  assert.deepEqual(splashTargets(center, null), []);
+  assert.deepEqual(splashTargets(center, [null, undefined]), []);
+  assert.deepEqual(splashTargets(center, [{}]), [], 'an entity with no position is skipped');
+});
+
+test('a throw reaches the player as well as the mobs', () => {
+  // The old code looped `this.mobs.mobs` only. A self-splash is how Fire Resistance is meant to be drunk,
+  // and standing in your own Harming potion is meant to hurt.
+  const applied = [];
+  const target = (name) => ({ applyStatusEffect: (id, s, l) => applied.push({ name, id, s, l }) });
+  const mob = target('mob');
+  mob.mesh = { position: new THREE.Vector3(1, 0, 0) };
+  mob.health = 10;
+  const player = target('player');
+  player.position = new THREE.Vector3(1, 0, 0);
+  const far = target('far');
+  far.mesh = { position: new THREE.Vector3(50, 0, 0) };
+  far.health = 10;
+
+  const game = { mobs: { mobs: [mob, far] }, player };
+  assert.equal(throwSplashPotion(game, new THREE.Vector3(0, 0, 0), 'splash_potion_of_fire_resistance'), true);
+  assert.deepEqual(applied.map(a => a.name).sort(), ['mob', 'player'],
+    'the player and the nearby mob, and not the distant one');
+  for (const a of applied) assert.equal(a.id, 'fire_resistance');
+});
+
+test('a dead mob is skipped but the player is never excluded for having no health field', () => {
+  const applied = [];
+  const mob = { mesh: { position: new THREE.Vector3() }, health: 0, applyStatusEffect: () => applied.push('mob') };
+  const player = { position: new THREE.Vector3(), applyStatusEffect: () => applied.push('player') };
+  throwSplashPotion({ mobs: { mobs: [mob] }, player }, new THREE.Vector3(), 'splash_potion_of_healing');
+  assert.deepEqual(applied, ['player']);
+});
+
+test('a target without the method does not throw', () => {
+  const game = {
+    mobs: { mobs: [{ mesh: { position: new THREE.Vector3() }, health: 10 }] },
+    player: { position: new THREE.Vector3() },
+  };
+  assert.doesNotThrow(() => throwSplashPotion(game, new THREE.Vector3(), 'splash_potion_of_poison'));
+});
+
+test('the use chain calls the general throw, not the old one-item condition', () => {
+  const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(source, /import \{ isSplashPotion, throwSplashPotion \} from '\.\/splashPotion\.js'/);
+  assert.match(source, /if \(isSplashPotion\(splashItem\?\.id\)\) \{/, 'the condition should be general');
+  assert.match(source, /throwSplashPotion\(this, splashPos, splashItem\.id\)/);
+  // And the hard-coded pair must be gone, or it would shadow the general path.
+  assert.equal(/splash_potion_of_weakness' \|\|/.test(source), false,
+    'the hard-coded weakness condition should be gone');
+  assert.equal(/potion_weakness'/.test(source), false,
+    'and so should the id that was never registered');
+});
