@@ -5,6 +5,7 @@
 // file, and the additions stay reviewable as a diff.
 import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from './extraContent.js';
 import { EXTRA_ITEMS } from './extraItems.js';
+import { addedItems } from './addedItems.js';
 import { POTION_ITEMS } from './extraPotions.js';
 
 export const BLOCKS = {
@@ -529,6 +530,8 @@ export const BLOCKS = {
   TRIAL_SPAWNER: 1082,
   VAULT: 1083,
   END_PORTAL_FRAME: 1084,
+  // The same frame holding an Eye of Ender. `endPortal.js` counts these to light the portal.
+  END_PORTAL_FRAME_FILLED: 1215,
   TURTLE_EGG: 1085,
   FROGSPAWN: 1086,
 
@@ -866,6 +869,29 @@ export const BLOCKS = {
   // is exactly right for a sapling: it is the young shoot, a single stalk with leaves, drawn on a small
   // mound. So this is the second block in this goal unblocked by dead art rather than new art.
   BAMBOO_SAPLING: 1202,
+
+  // --- Coral plants and nether wart, thirty-fifth block-parity batch -------------------------------
+  //
+  // THE CORAL PLANTS WERE GENUINELY ABSENT AND A MEASUREMENT HID IT. The coral BLOCKS and FANS were added
+  // rounds ago, but the plants themselves -- the small living coral you place on the seabed -- never were.
+  // The name-based gap check reported zero missing because it resolves `tube_coral` onto `TUBE_CORAL_BLOCK`
+  // and counts the name as satisfied; `scripts/content-gap.mjs` looks for the name in the registry instead
+  // and correctly flagged all ten. THIS IS WHY THE COVERAGE SCRIPT'S NUMBER IS WORTH READING even when the
+  // name-based one says the work is finished.
+  //
+  // Their textures are real and downloadable: `blocks/tube_coral.png` and its nine siblings.
+  TUBE_CORAL: 1203,
+  BRAIN_CORAL: 1204,
+  BUBBLE_CORAL: 1205,
+  FIRE_CORAL: 1206,
+  HORN_CORAL: 1207,
+  DEAD_TUBE_CORAL: 1208,
+  DEAD_BRAIN_CORAL: 1209,
+  DEAD_BUBBLE_CORAL: 1210,
+  DEAD_FIRE_CORAL: 1211,
+  DEAD_HORN_CORAL: 1212,
+  NETHER_WART: 1213,
+  DIRT_PATH: 1214,
 
 };
 
@@ -1676,6 +1702,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
   // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
   [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME_FILLED]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, endPortalFrame: true, filled: true, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
   // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
@@ -2328,9 +2355,16 @@ export const ITEMS = {
   water_bucket: { name: 'Water Bucket', icon: '/assets/items/water_bucket.png', type: 'tool' },
   lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
   milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
+  // The six bucketable mobs, vanilla's fish buckets. A bucket holds one thing, so these stack to one while
+  // their neighbours stack to sixty-four; `src/fishBuckets.js` owns the catch and release rules.
   flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
   // Wiki: the harness, which a happy ghast must have before it can be ridden.
   harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },
+  // Bundles: vanilla's one-stack pouch, in a plain form and sixteen dyed ones. They stack to one because a
+  // bundle *is* the stack; `src/bundles.js` owns what it holds and how much.
+  // The twenty-three pottery sherds, which a brush turns up from suspicious sand or gravel.
+  // src/archaeology.js owns the pool; every one of them is obtainable and the distribution is not
+  // vanilla's, which is stated there.
   shears: { name: 'Shears', icon: '/assets/items/shears.png', type: 'tool' },
   fishing_rod: { name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png', type: 'tool' },
   compass: { name: 'Compass', icon: '/assets/items/compass.png', type: 'tool' },
@@ -2460,6 +2494,10 @@ export const ITEMS = {
   experience_bottle: { name: 'Bottle o\' Enchanting', icon: '/assets/items/experience_bottle.png', type: 'utility' },
   ender_pearl: { name: 'Ender Pearl', icon: '/assets/items/ender_pearl.png', type: 'material' },
   ender_eye: { name: 'Eye of Ender', icon: '/assets/items/ender_eye.png', type: 'material' },
+  // Icon points at a texture that is committed. Master's own `end_portal_frame_top.png` is generated but
+  // untracked, so naming it here would leave a dangling icon reference in a fresh checkout and fail the
+  // icon-existence test -- which is exactly what happened.
+  end_portal_frame: { name: 'End Portal Frame', icon: '/assets/blocks/end_stone.png', type: 'utility', isBlock: true, blockId: BLOCKS.END_PORTAL_FRAME },
   blaze_rod: { name: 'Blaze Rod', icon: '/assets/items/blaze_rod.png', type: 'material' },
   blaze_powder: { name: 'Blaze Powder', icon: '/assets/items/blaze_powder.png', type: 'material' },
   magma_cream: { name: 'Magma Cream', icon: '/assets/items/magma_cream.png', type: 'material' },
@@ -2503,7 +2541,10 @@ export const ITEMS = {
   conduit: { name: 'Conduit', icon: '/assets/items/prismarine_crystals.png', type: 'utility', isBlock: true, blockId: BLOCKS.CONDUIT },
 
   // Alchemy & Brewing Ingredients
-  nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'material' },
+  // Was a `type: 'material'` item before the nether wart BLOCK existed, so it was an item with an icon and
+  // no block it came from. tests/placeableItems.test.js requires an item that names a registered block to be
+  // JOINED to it, which is what caught this -- the same shape as the sniffer egg. The icon was correct.
+  nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'block', isBlock: true, blockId: BLOCKS.NETHER_WART },
   fermented_spider_eye: { name: 'Fermented Spider Eye', icon: '/assets/items/fermented_spider_eye.png', type: 'material' },
   glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
   rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
@@ -2544,29 +2585,10 @@ export const ITEMS = {
   music_disc_strad: { name: 'Music Disc Strad', icon: '/assets/items/music_disc_strad.png', stackSize: 1, type: 'material' },
   music_disc_wait: { name: 'Music Disc Wait', icon: '/assets/items/music_disc_wait.png', stackSize: 1, type: 'material' },
   music_disc_ward: { name: 'Music Disc Ward', icon: '/assets/items/music_disc_ward.png', stackSize: 1, type: 'material' },
-  scaffolding: { name: 'Scaffolding', icon: '/assets/items/scaffolding.png', isBlock: true, blockId: BLOCKS.SCAFFOLDING, type: 'block' },
   // --- Blocks with an item form, which had none: a crafted cake or shulker box was an unnamed
   // number that stacked to 64. Both have had a recipe for several batches -- the cake is milk, sugar,
   // an egg and wheat; the shulker boxes are shells around a chest -- and `stackSize: 1` is vanilla's,
   // which `stackLimitFor` reads through the numeric block id the inventory actually holds.
-  shulker_box: { name: 'Shulker Box', icon: '/assets/items/shulker_box.png', isBlock: true, blockId: BLOCKS.SHULKER_BOX, stackSize: 1, type: 'block' },
-  white_shulker_box: { name: 'White Shulker Box', icon: '/assets/items/white_shulker_box.png', isBlock: true, blockId: BLOCKS.WHITE_SHULKER_BOX, stackSize: 1, type: 'block' },
-  orange_shulker_box: { name: 'Orange Shulker Box', icon: '/assets/items/orange_shulker_box.png', isBlock: true, blockId: BLOCKS.ORANGE_SHULKER_BOX, stackSize: 1, type: 'block' },
-  magenta_shulker_box: { name: 'Magenta Shulker Box', icon: '/assets/items/magenta_shulker_box.png', isBlock: true, blockId: BLOCKS.MAGENTA_SHULKER_BOX, stackSize: 1, type: 'block' },
-  light_blue_shulker_box: { name: 'Light Blue Shulker Box', icon: '/assets/items/light_blue_shulker_box.png', isBlock: true, blockId: BLOCKS.LIGHT_BLUE_SHULKER_BOX, stackSize: 1, type: 'block' },
-  yellow_shulker_box: { name: 'Yellow Shulker Box', icon: '/assets/items/yellow_shulker_box.png', isBlock: true, blockId: BLOCKS.YELLOW_SHULKER_BOX, stackSize: 1, type: 'block' },
-  lime_shulker_box: { name: 'Lime Shulker Box', icon: '/assets/items/lime_shulker_box.png', isBlock: true, blockId: BLOCKS.LIME_SHULKER_BOX, stackSize: 1, type: 'block' },
-  pink_shulker_box: { name: 'Pink Shulker Box', icon: '/assets/items/pink_shulker_box.png', isBlock: true, blockId: BLOCKS.PINK_SHULKER_BOX, stackSize: 1, type: 'block' },
-  gray_shulker_box: { name: 'Gray Shulker Box', icon: '/assets/items/gray_shulker_box.png', isBlock: true, blockId: BLOCKS.GRAY_SHULKER_BOX, stackSize: 1, type: 'block' },
-  light_gray_shulker_box: { name: 'Light Gray Shulker Box', icon: '/assets/items/light_gray_shulker_box.png', isBlock: true, blockId: BLOCKS.LIGHT_GRAY_SHULKER_BOX, stackSize: 1, type: 'block' },
-  cyan_shulker_box: { name: 'Cyan Shulker Box', icon: '/assets/items/cyan_shulker_box.png', isBlock: true, blockId: BLOCKS.CYAN_SHULKER_BOX, stackSize: 1, type: 'block' },
-  purple_shulker_box: { name: 'Purple Shulker Box', icon: '/assets/items/purple_shulker_box.png', isBlock: true, blockId: BLOCKS.PURPLE_SHULKER_BOX, stackSize: 1, type: 'block' },
-  blue_shulker_box: { name: 'Blue Shulker Box', icon: '/assets/items/blue_shulker_box.png', isBlock: true, blockId: BLOCKS.BLUE_SHULKER_BOX, stackSize: 1, type: 'block' },
-  brown_shulker_box: { name: 'Brown Shulker Box', icon: '/assets/items/brown_shulker_box.png', isBlock: true, blockId: BLOCKS.BROWN_SHULKER_BOX, stackSize: 1, type: 'block' },
-  green_shulker_box: { name: 'Green Shulker Box', icon: '/assets/items/green_shulker_box.png', isBlock: true, blockId: BLOCKS.GREEN_SHULKER_BOX, stackSize: 1, type: 'block' },
-  red_shulker_box: { name: 'Red Shulker Box', icon: '/assets/items/red_shulker_box.png', isBlock: true, blockId: BLOCKS.RED_SHULKER_BOX, stackSize: 1, type: 'block' },
-  black_shulker_box: { name: 'Black Shulker Box', icon: '/assets/items/black_shulker_box.png', isBlock: true, blockId: BLOCKS.BLACK_SHULKER_BOX, stackSize: 1, type: 'block' },
-  cake: { name: 'Cake', icon: '/assets/items/cake.png', isBlock: true, blockId: BLOCKS.CAKE, stackSize: 1, type: 'block' },
   // --- Mob Spawn Eggs ---
   villager_spawn_egg: { name: 'Villager Spawn Egg', icon: '/assets/items/villager_spawn_egg.png', type: 'spawn_egg', mob: 'villager' },
   iron_golem_spawn_egg: { name: 'Iron Golem Spawn Egg', icon: '/assets/items/iron_golem_spawn_egg.png', type: 'spawn_egg', mob: 'iron_golem' },
@@ -2605,6 +2627,19 @@ export const ITEMS = {
   // has NO item, because vanilla gives it none -- it is a water state rather than something you hold.
   creeper_head: { name: 'Creeper Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_HEAD },
   creeper_wall_head: { name: 'Creeper Wall Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_WALL_HEAD },
+  // The coral plants drop nothing, so they would be unreachable without an item. Vanilla gives them
+  // item forms, and their icons are their own block textures scaled, which is what the other plants do.
+  tube_coral: { name: 'Tube Coral', icon: '/assets/blocks/tube_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.TUBE_CORAL },
+  dead_tube_coral: { name: 'Dead Tube Coral', icon: '/assets/blocks/dead_tube_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_TUBE_CORAL },
+  brain_coral: { name: 'Brain Coral', icon: '/assets/blocks/brain_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.BRAIN_CORAL },
+  dead_brain_coral: { name: 'Dead Brain Coral', icon: '/assets/blocks/dead_brain_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_BRAIN_CORAL },
+  bubble_coral: { name: 'Bubble Coral', icon: '/assets/blocks/bubble_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.BUBBLE_CORAL },
+  dead_bubble_coral: { name: 'Dead Bubble Coral', icon: '/assets/blocks/dead_bubble_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_BUBBLE_CORAL },
+  fire_coral: { name: 'Fire Coral', icon: '/assets/blocks/fire_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.FIRE_CORAL },
+  dead_fire_coral: { name: 'Dead Fire Coral', icon: '/assets/blocks/dead_fire_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_FIRE_CORAL },
+  horn_coral: { name: 'Horn Coral', icon: '/assets/blocks/horn_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.HORN_CORAL },
+  dead_horn_coral: { name: 'Dead Horn Coral', icon: '/assets/blocks/dead_horn_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_HORN_CORAL },
+  dirt_path: { name: 'Dirt Path', icon: '/assets/items/dirt_path.png', type: 'block', isBlock: true, blockId: BLOCKS.DIRT_PATH },
   bamboo_sapling: { name: 'Bamboo Sapling', icon: '/assets/blocks/bamboo_stage0.png', type: 'block', isBlock: true, blockId: BLOCKS.BAMBOO_SAPLING },
   sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
@@ -2922,6 +2957,45 @@ BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN] = { name: 'Bubble Column', hardness: 0.0, sound
   //
   // IT DROPS BAMBOO, not itself, per its harvest row.
 BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING] = { name: 'Bamboo Sapling', hardness: 1.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'bamboo', textures: { all: 'bamboo_stage0.png' } };
+
+  // --- Coral plants and nether wart, thirty-fifth block-parity batch -------------------------------
+  //
+  // PLANTS, drawn as cross-quads like the other small growths. EVERY ONE OF THE TEN DROPS NOTHING, per
+  // its harvest row: live coral needs silk touch in vanilla and this engine has no enchantment-driven
+  // drop rule, and the table records an empty drops array for the dead ones too. So `drop: null` on all
+  // ten, which is not the same as omitting it -- the pipeline falls back to the block id and they would
+  // all drop themselves, the trap the air variants and the bubble column hit.
+BLOCK_DEFS[BLOCKS.TUBE_CORAL] = { name: 'Tube Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'tube_coral.png' } };
+BLOCK_DEFS[BLOCKS.BRAIN_CORAL] = { name: 'Brain Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'brain_coral.png' } };
+BLOCK_DEFS[BLOCKS.BUBBLE_CORAL] = { name: 'Bubble Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'bubble_coral.png' } };
+BLOCK_DEFS[BLOCKS.FIRE_CORAL] = { name: 'Fire Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'fire_coral.png' } };
+BLOCK_DEFS[BLOCKS.HORN_CORAL] = { name: 'Horn Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'horn_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_TUBE_CORAL] = { name: 'Dead Tube Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_tube_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_BRAIN_CORAL] = { name: 'Dead Brain Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_brain_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_BUBBLE_CORAL] = { name: 'Dead Bubble Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_bubble_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_FIRE_CORAL] = { name: 'Dead Fire Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_fire_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_HORN_CORAL] = { name: 'Dead Horn Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_horn_coral.png' } };
+
+  // --- Nether wart and the dirt path, thirty-sixth block-parity batch ------------------------------
+  //
+  // The last two of the twelve that scripts/content-gap.mjs caught while the name-based check said the
+  // work was finished. Both had art available in a form other than a block tile:
+  //
+  //   - NETHER WART's art is its ITEM sprite, items/nether_wart.png -- the same situation as the barrier
+  //     and the light, where the sprite IS the art and the block tile is a copy of it.
+  //   - the DIRT PATH has no tile upstream at all, so its top is COMPOSED from the dirt texture by
+  //     scripts/compose-dirt-path.py, the same technique as the bubble column.
+  //
+  // THE NETHER WART IS A PLANT on soul sand, drawn as a cross-quad, and it DROPS THE nether_wart ITEM:
+  // the ITEMS entry has existed as a `material` all along, so the item finally has a block it comes
+  // from. The drop is declared BY ITEM NAME and that name IS in ITEMS, which is the check that caught
+  // the wither skeleton skull dropping nothing.
+  //
+  // THE DIRT PATH is a full cube whose top face is the packed surface. Vanilla makes it by using a
+  // shovel on grass, which needs a tool-action rule this engine does not have, so it is a plain block
+  // here rather than a transformation. Its harvest row is hardness 0.65 with a SHOVEL and drops dirt.
+BLOCK_DEFS[BLOCKS.NETHER_WART] = { name: 'Nether Wart', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'nether_wart', textures: { all: 'nether_wart.png' } };
+BLOCK_DEFS[BLOCKS.DIRT_PATH] = { name: 'Dirt Path', hardness: 0.65, sound: 'grass', drop: BLOCKS.DIRT, textures: { top: 'dirt_path_top.png', side: 'dirt.png', bottom: 'dirt.png' } };
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};
@@ -3063,3 +3137,7 @@ BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {
     all: 'nether_portal.png'
   }
 };
+
+// Items added by this branch live in their own file, which commits that have never heard of them cannot
+// rewrite. See the note there: two of them have deleted these definitions out of this table already.
+Object.assign(ITEMS, addedItems());

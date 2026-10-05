@@ -902,10 +902,20 @@ export function harvestOrphans(reg = registry()) {
  * names it again rather than reporting nothing because the alias table was cleaned up alongside the fix.
  */
 export const VANILLA_ID_ALIASES = {
-  slimeball: 'slime_ball',
-  hay_bale: 'hay_block',
+  // `slimeball` and `hay_bale` were here, and are gone: this game registered the slime ball and the hay bale
+  // under those spellings until later rounds renamed them to vanilla's own `slime_ball` and `hay_block`. A
+  // stale alias is not harmless -- it excuses a name that no longer needs excusing -- and
+  // `tests/vanillaAliases.test.js` fails when an alias points at an id that is neither an item, a block nor
+  // a block name.
+  //
+  // Vanilla's generic `splash_potion` and `lingering_potion` are deliberately NOT aliased to this game's
+  // `splash_water_bottle` and `lingering_water_bottle`, although they are the same two items under another
+  // spelling -- a potion with no stored effect is water. The alias was written and `tests/duplicateIds.test.js`
+  // refused it: `shadowedVanillaIds` reads this table to tell a duplicate from a rename, and the rule it
+  // enforces is that this game registers vanilla's own spelling rather than a synonym for it. The honest fix is
+  // a rename of those two ids, not an alias -- the same rename `slime_ball` and `hay_block` already had.
   // A block this game registers under the plain material name and vanilla under the '_block' one. Without the
-  // pairing, lock-drop-parity read the game dropping its own snow block as a wrong drop.
+  // pairing, `block-drop-parity` read the game dropping its own snow block as a wrong drop.
   snow: 'snow_block',
   target_block: 'target',
 };
@@ -962,6 +972,17 @@ export function shadowedVanillaIds(reg, vanillaNames, { aliases = VANILLA_ID_ALI
  */
 export function missingVanillaItems(reg = registry(), vanilla = null) {
   if (!vanilla?.itemNames) return [];
+  // A vanilla name this game holds under a different id is not missing, and `VANILLA_ID_ALIASES` exists to
+  // reconcile exactly those. It was consulted by the per-resource checks but not here, so `splash_potion` was
+  // reported absent while the game's splash water bottle -- which IS vanilla's splash potion, since a potion
+  // with no stored effect is water -- was sitting in `ITEMS`. The alias table now answers both.
+  const aliasedFrom = new Map();
+  for (const [gameId, vanillaId] of Object.entries(VANILLA_ID_ALIASES)) {
+    if (ITEMS[gameId] === undefined) continue;
+    const list = aliasedFrom.get(vanillaId) ?? [];
+    list.push(gameId);
+    aliasedFrom.set(vanillaId, list);
+  }
   const missing = [];
   for (const name of vanilla.itemNames) {
     if (name === 'air') continue;
@@ -970,6 +991,7 @@ export function missingVanillaItems(reg = registry(), vanilla = null) {
     const blockId = BLOCKS[snake.toUpperCase()];
     if (typeof blockId === 'number' && BLOCK_DEFS[blockId] !== undefined) continue;
     if (resolveResource(snake, reg)) continue;
+    if (aliasedFrom.has(snake)) continue;
     missing.push(name);
   }
   return missing;

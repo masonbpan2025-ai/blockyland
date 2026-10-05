@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1552 recipes.
+// 1553 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -475,8 +475,8 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.CHISELED_RED_SANDSTONE,null,null],[B.CHISELED_RED_SANDSTONE,B.CHISELED_RED_SANDSTONE,null],[B.CHISELED_RED_SANDSTONE,B.CHISELED_RED_SANDSTONE,B.CHISELED_RED_SANDSTONE]],result:{id:B.RED_SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.RED_SANDSTONE,null,null],[B.RED_SANDSTONE,B.RED_SANDSTONE,null],[B.RED_SANDSTONE,B.RED_SANDSTONE,B.RED_SANDSTONE]],result:{id:B.RED_SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[['magma_cream','magma_cream'],['magma_cream','magma_cream']],result:{id:B.MAGMA_BLOCK,isBlock:true,count:1}},
-  {shapeless:true,ingredients:['nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart'],result:{id:B.NETHER_WART_BLOCK,isBlock:true,count:1}},
-  {pattern:[['nether_brick','nether_wart'],['nether_wart','nether_brick']],result:{id:B.RED_NETHER_BRICKS,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART,B.NETHER_WART],result:{id:B.NETHER_WART_BLOCK,isBlock:true,count:1}},
+  {pattern:[['nether_brick',B.NETHER_WART],[B.NETHER_WART,'nether_brick']],result:{id:B.RED_NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal']],result:{id:B.BONE_BLOCK,isBlock:true,count:1}},
   {pattern:[['shulker_shell'],[B.CHEST],['shulker_shell']],result:{id:B.SHULKER_BOX,isBlock:true,count:1}},
   {shapeless:true,ingredients:['white_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.WHITE_CONCRETE_POWDER,isBlock:true,count:8}},
@@ -924,6 +924,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['paper','paper','paper','leather'],result:{id:'book',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.SLIME_BLOCK],result:{id:'slime_ball',isBlock:false,count:9}},
   {pattern:[[null,'iron_ingot',null],['iron_ingot','redstone','iron_ingot'],[null,'iron_ingot',null]],result:{id:'compass',isBlock:false,count:1}},
+  {pattern:[['string'],['leather']],result:{id:'bundle',isBlock:false,count:1}},
   {pattern:[[null,null,'stick'],[null,'stick','string'],['stick',null,'string']],result:{id:'fishing_rod',isBlock:false,count:1}},
   {pattern:[[null,'gold_ingot',null],['gold_ingot','redstone','gold_ingot'],[null,'gold_ingot',null]],result:{id:'clock',isBlock:false,count:1}},
   {shapeless:true,ingredients:['bone_meal'],result:{id:'white_dye',isBlock:false,count:1}},
@@ -1572,21 +1573,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1552;
+export const EXTRA_RECIPE_COUNT = 1553;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1552,
-  "shaped": 1280,
+  "emitted": 1553,
+  "shaped": 1281,
   "shapeless": 272,
-  "skippedMissingResult": 4,
+  "skippedMissingResult": 3,
   "skippedMissingIngredient": 0,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1552,
+  "emittedBeforeDedupe": 1553,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

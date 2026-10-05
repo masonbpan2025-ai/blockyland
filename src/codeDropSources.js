@@ -18,6 +18,7 @@ import { breezeDrops } from './breezeBehavior.js';
 import { turtleMaturationDrops } from './turtleBehavior.js';
 import { variantBonusDrops } from './undeadVariants.js';
 import { HIVE_PRODUCTS } from './hives.js';
+import { sherdPool } from './archaeology.js';
 
 /** Run a drop helper and return the item ids it produced, in order. */
 const idsFrom = (rows) => (rows ?? []).map((row) => row[0]).filter((id) => typeof id === 'string');
@@ -88,6 +89,13 @@ export function codeDropSources() {
     how: 'Shear a full bee nest or beehive.',
     source: 'hives.js HiveManager.harvest',
   });
+  // The twenty-three pottery sherds, brushed out of a suspicious block. Derived from the pool the brush
+  // actually draws from, so a sherd that stopped being in it takes its entry with it.
+  add(
+    sherdPool(),
+    'Brushed out of suspicious sand or gravel.',
+    'archaeology.js sherdPool',
+  );
 
   return entries;
 }

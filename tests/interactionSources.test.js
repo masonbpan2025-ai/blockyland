@@ -17,6 +17,7 @@ import { useBucket } from '../src/buckets.js';
 import { AnimalBehaviors } from '../src/animalBehaviors.js';
 import { INTERACTION_SOURCES, INTERACTION_ITEMS } from '../src/interactionSources.js';
 import { codeDropSources } from '../src/codeDropSources.js';
+import { brushSuspiciousBlock, sherdPool } from '../src/archaeology.js';
 import { breezeDrops } from '../src/breezeBehavior.js';
 import { turtleMaturationDrops } from '../src/turtleBehavior.js';
 import { variantBonusDrops } from '../src/undeadVariants.js';
@@ -132,8 +133,14 @@ test('the code-drop table is derived from the helpers, and lists what they retur
   // Pinned as a set: the derivation is what keeps it true, and this is what notices if a helper stops
   // returning an item or a new mob drop appears without being described.
   assert.deepEqual(items, [
-    'armadillo_scute', 'breeze_rod', 'egg', 'honeycomb', 'nether_star', 'tipped_arrow_poison',
-    'tipped_arrow_slowness', 'tipped_arrow_weakness', 'turtle_scute',
+    'angler_pottery_sherd', 'archer_pottery_sherd', 'armadillo_scute', 'arms_up_pottery_sherd',
+    'blade_pottery_sherd', 'breeze_rod', 'brewer_pottery_sherd', 'burn_pottery_sherd',
+    'danger_pottery_sherd', 'egg', 'explorer_pottery_sherd', 'flow_pottery_sherd',
+    'friend_pottery_sherd', 'guster_pottery_sherd', 'heart_pottery_sherd', 'heartbreak_pottery_sherd',
+    'honeycomb', 'howl_pottery_sherd', 'miner_pottery_sherd', 'mourner_pottery_sherd',
+    'nether_star', 'plenty_pottery_sherd', 'prize_pottery_sherd', 'scrape_pottery_sherd',
+    'sheaf_pottery_sherd', 'shelter_pottery_sherd', 'skull_pottery_sherd', 'snort_pottery_sherd',
+    'tipped_arrow_poison', 'tipped_arrow_slowness', 'tipped_arrow_weakness', 'turtle_scute',
   ]);
   for (const entry of entries) {
     assert.match(entry.how, /^[A-Z].*\.$/, `${entry.item} should have a sentence describing the drop`);
@@ -163,7 +170,14 @@ test('each code drop is proved by running the code that makes it', () => {
   assert.equal(updateArmadilloScutes({ type: 'armadillo', scuteTimer: 10 }, 1, () => 0), false, 'not yet');
   assert.equal(updateArmadilloScutes({ type: 'armadillo', scuteTimer: 0.5 }, 1, () => 0), true, 'and now');
   assert.equal(updateArmadilloScutes({ type: 'cow', scuteTimer: 0.5 }, 1, () => 0), false, 'only an armadillo');
-  const mobsSource = readFileSync('src/mobs.js', 'utf8');
+  // The pottery sherds, twenty-three of them, from the pool the brush draws out of a suspicious block. The
+  // pool is the whole claim: every sherd in it is obtainable, and the brush refuses anything that is not a
+  // suspicious block.
+  assert.equal(sherdPool().length, 23);
+  assert.equal(brushSuspiciousBlock({ id: 'brush' }, 'suspicious_sand', () => 0).sherd, sherdPool()[0]);
+  assert.equal(brushSuspiciousBlock({ id: 'brush' }, 'suspicious_gravel', () => 0.999999).sherd,
+    sherdPool()[sherdPool().length - 1]);
+  assert.equal(brushSuspiciousBlock({ id: 'brush' }, 'sand', () => 0), null);  const mobsSource = readFileSync('src/mobs.js', 'utf8');
   assert.match(mobsSource, /updateArmadilloScutes\(mob, dt\)\)[\s\S]{0,160}'armadillo_scute'/,
     'and a true return is what spawns the scute');
   const animalSource = readFileSync('src/animalBehaviors.js', 'utf8');

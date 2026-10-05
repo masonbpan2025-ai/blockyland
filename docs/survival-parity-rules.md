@@ -339,10 +339,13 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1551 | 1557 | 99.6% |
-| Crafting recipes expressible | 1552 | 1557 | 99.7% |
-| Blocks named | 1080 | 1095 | 98.6% |
-| Items named | 1309 | 1385 | 94.5% |
+| Vanilla recipes implemented | 1552 | 1557 | 99.7% |
+| Crafting recipes expressible | 1554 | 1557 | 99.8% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Vanilla recipes implemented | 1553 | 1557 | 99.7% |
+| Crafting recipes expressible | 1554 | 1557 | 99.8% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Items named | 1367 | 1385 | 98.7% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,14 +374,55 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1079 | 1295 |
-| missing | 16 | 90 |
+| present | 1095 | 1309 |
+| missing | **0** | 76 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **16** | **90** |
-| art files | 553 | 1071 |
+| **missing, needs NEW art** | **0** | **76** |
+| art files | 563 | 1071 |
 
-A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
+### 4.1.1a The pinned block list is COMPLETE
+
+Every block in the pinned 1.21.4 block list is registered: **1095 of 1095**. The checks that matter all
+report zero:
+
+| check | result |
+|---|---|
+| `compareBlockLists` unresolved names | **0** |
+| `gap-summary` blocks absent from the pinned data | **0** |
+| `gap-summary` genuine wiki names absent from the cache | **0** |
+
+Everything else the wiki lists is NEWER THAN THE PINNED DATA -- 277 entries, `newerThanPinnedData: 277` --
+which is a different objective rather than a gap in this one: the copper family, shelves, the poplar wood
+set, cinnabar and sulfur, from versions after 1.21.4.
+
+**THE DISTINCTION THAT MATTERS, stated precisely**, because it is easy to read the 277 as unfinished work:
+
+  - AGAINST THE PROJECT'S OWN PINNED BASELINE -- the 1.21.4 block registry the game's item, drop and harvest
+    data is all built from -- the block list is COMPLETE. No in-scope block named by the wiki is absent.
+  - AGAINST THE LIVE WIKI PAGE, there are 277 blocks from versions the pinned data predates. Those are a
+    FUTURE objective: implementing them means adopting a newer baseline, which is a different change from
+    closing a gap in this one.
+
+So "complete" here means complete for the version this project targets, and the 277 are the size of the next
+version's work rather than a remainder of this one.
+
+TWO RESIDUAL MEASUREMENTS USED TO REPORT A NON-ZERO BLOCK GAP AND BOTH WERE WRONG. They are recorded here
+because one of them hid twelve real blocks for several rounds before being believed:
+
+  - `scripts/content-gap.mjs` reported 12, and THOSE TWELVE WERE REAL, not false positives. The first draft
+    of this paragraph dismissed them as resolver artefacts because the name-based check said zero; it was the
+    other way round. The name-based check resolves `tube_coral` onto `TUBE_CORAL_BLOCK` and counts the name
+    satisfied, so it hid ten coral PLANTS that had never been registered, plus the nether wart and the dirt
+    path. All twelve are implemented now and this script reports ZERO. The lesson is recorded rather than
+    tidied away: when two measurements of the same thing disagree, the disagreement IS the finding, and the
+    convenient number is the one to distrust.
+  - `scripts/parity-coverage.mjs` still reports a small non-zero block figure, because
+    `resolveVanillaBlock` returns an ARRAY of keys for names that match several (`white_bed` gives the foot
+    and the head) and the script looks that array up as a single key. A count of the cache puts 65 names in
+    that category. This one IS a measurement artefact.
+
+A CAVEAT ON THE "present" ROW, because a batch below turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
 it is wrong. `wither_skeleton_skull` resolved to `WITHER_SKELETON_SKULL_BLOCK`, so it counted as
 present while that block rendered as a coal cube with art pointing at `coal_block.png` and a drop
@@ -567,25 +611,57 @@ number also means rarer but the arithmetic is inverted. This game uses vanilla's
 is stored as `0.008333`, matching vanilla's `dropChance`, and a reroll of the table reproduces vanilla's
 outcomes.
 
-One structural note: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
+**One structural note**: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
 today. The ranged form is implemented and covered by a test, but it is unexercised by the current data.
 
-- **A firework rocket did nothing when used, and elytra flight does not exist.** Both were found by the
-  same question that found the tipped arrows and the potions: which registered items has no consumer.
-  `firework_rocket` had **zero** references outside the registry, while `spawnFireworkRocket` was already
-  fully built -- mesh, rising trail, burst, launch sound -- and called from exactly one place, a
-  tournament celebration. `src/fireworks.js` now launches one from the player, with the look direction
-  choosing the burst height.
+### 4.2.3 Falling was completely harmless
 
-  Two honest deviations. Vanilla fires a rocket **along the look direction**; the existing rocket
-  animates straight up to a burst height, and changing that is a renderer change rather than an item
-  hook, so a rocket always rises and the pitch only sets how high. And **vanilla's main use for a rocket
-  is boosting elytra flight, which this game does not have at all**: `player.isGliding` and
-  `player.elytraActive` are read in one place, `parrotBehavior.js`, and **set nowhere**. The item
-  `elytra` exists, its 432 durability is in `durability.js`, and there is no glide physics behind any of
-  it. Implementing elytra is a movement-system job rather than an item hook, and it is not done.
-### 4.3 What is not verified
+`player.fallDistance` accumulated on every downward step and was read in exactly **one** place,
+`farmingManager.checkTrample`. No `takeDamage` call anywhere in `src/` passed the `'fall'` damage type, so a
+fall from any height cost nothing — which removes one of the most basic pressures of survival mode. Cliffs,
+ravines and a bad jump were free.
 
+`src/fallDamage.js` implements the rule section 1.5 describes: nothing under three blocks, then one point per
+block beyond it, in half-hearts. A four-block fall costs half a heart and a **twenty-three block fall deals
+exactly twenty, a full health bar** — vanilla's best-known fall figure, and the check that both the threshold
+and the floor are right. Water and gliding negate it, handled inside the calculation rather than at the call
+site because a caller that forgot one would silently restore the bug.
+
+The `'fall'` type had been anticipated in three places that had nothing to act on: it is excluded from shield
+blocking, reduced by Feather Falling, and skipped by Thorns. All three now apply.
+
+Note the interaction with 4.2.2: an elytra *negates* fall damage, which is most of why it is worth wearing.
+An earlier version of that note claimed vanilla deals damage on a fast impact instead, and the correction is
+recorded there.
+
+- **Elytra gliding now exists, as a tuned approximation.** `player.isGliding` and `player.elytraActive`
+  were read in exactly one place (`parrotBehavior.js`) and **set nowhere**, while the `elytra` item and its
+  432 durability were both registered with no glide physics behind any of it. `src/elytra.js` is that
+  physics, wired into the movement chain as a branch that runs only while gliding, so it cannot affect
+  ordinary movement.
+
+  **The constants are approximations and the tests assert properties instead of numbers.** Vanilla's glide
+  is defined per tick with figures that are not in `.cache/mc-data` and that this project has no other
+  source for, so rather than invent them with false precision the model is built to satisfy what actually
+  defines gliding: you always sink and looking up only slows it, diving accelerates, climbing decelerates,
+  horizontal speed is bounded at both ends, and a firework rocket adds speed and lift. Those are what
+  `tests/elytraGlide.test.js` checks.
+
+  Elytra durability IS now spent, at one point per second of flight (see 4.2.4), so the deviation this
+  note used to record no longer applies. **An earlier version of this
+  note claimed vanilla also deals damage on a fast impact, and that was wrong** — an elytra *negates* fall
+  damage, which is most of why it is worth wearing. Corrected here rather than left standing. The glide also steers along the existing heading rather than
+  turning with the camera, so a glide is committed to a direction once it has one.
+
+- **A firework rocket did nothing when used.** `firework_rocket` had **zero** references outside the
+  registry, while `spawnFireworkRocket` was already fully built -- mesh, rising trail, burst, launch sound
+  -- and called from exactly one place, a tournament celebration. `src/fireworks.js` now launches one from
+  the player, and **boosts a glide instead when gliding**, which is a rocket's primary vanilla purpose; no
+  rocket is spawned in that case because the thrust goes to the player.
+
+  One deviation: vanilla fires a rocket **along the look direction**. The existing rocket animates straight
+  up to a burst height, and changing that is a renderer change rather than an item hook, so a rocket always
+  rises and the pitch only sets how high.
 - **Drop probabilities under Looting — implemented and now tested.** The earlier note here said the loot
   table "has no per-level figures, so this is not measurable from the available data". That was true of the
   table and beside the point: the rule is not per-level data, it is vanilla's formula, `chance + 0.01 *
@@ -670,6 +746,182 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
   **Depth strider**: applied in `Player.selectBaseSpeed()`, the water branch, reaching 1.75x at level III
   where the penalty is gone and water speed passes land speed. Clamped above level III.
 
+### 4.2.4 Two rules that were declared and never applied
+
+Both were found the same way fall damage was: by asking which branches exist that nothing reaches.
+
+**The void damage was passed with no type at all.** `takeDamage` already skips the armour formula for
+`'void'`, and already excludes it from shield blocking and from Thorns — three rules written against a
+damage type nothing ever produced. The call site read `this.takeDamage(10)`, so void damage was being
+**reduced by armour**, which vanilla explicitly does not do: the void is one of the few things nothing
+protects you from. `src/voidDamage.js` names the threshold and the amount, and the call passes the type.
+
+  A deviation remains: the rescue point after falling out of the world is hard-coded to `(8.5, 35, 8.5)`
+  rather than the world spawn, so a player who falls out lands at a fixed spot rather than where they
+  started. `worldSpawn.js` has a `placePlayerOnSurface` that would be the right thing to use.
+
+**The elytra's 432 durability was never spent.** The figure has been in `durability.js` since that file
+was written, and gliding charged nothing for it, so an elytra was permanent — the same gap tools, armour
+and the shield each had, and the last of the four. Vanilla charges one point per second of flight, which
+is what `tickElytraWear` does, with unbreaking applied through the same `spendDurability` the other three
+use. At 60 fps the wear lands on **exactly 432 seconds for 432 points** over 25,920 frames, with no drift.
+
+**Floating-point accumulation needed fixing, and a tolerance was not enough.** Seconds sum in binary
+floating point, where `0.9 + 0.1` is `0.9999999999999999`. A tolerance on the comparison lets that past
+the guard and then `Math.floor` of it returns **0**, so the point is still delayed a frame — which is what
+the first attempt did and why the test kept failing. Rounding the accumulator to microseconds fixes it at
+the source.
+
+One of my own tests had to be loosened here. `tests/elytraGlide.test.js` pinned the exact import list
+from the elytra module, so adding `tickElytraWear` to a correct import failed it. That is the same
+over-specification as the husk row tuple in `tests/undeadVariantsParity.test.js`, and the fix is the same:
+assert the content, not the exact shape.
+### 4.2.5 Absorption was inert, and the golden apple was missing half of itself
+
+Found by the same sweep in the other direction: which **status effects** does `statusEffects.js` define that
+nothing ever applies. The first run of that sweep reported **five**, and **one of them was wrong**: `dolphins_grace` is applied
+by `dolphinBehavior.js`, and the sweep missed it because the call is written with optional chaining,
+`applyStatusEffect?.('dolphins_grace', ...)`, which the pattern `applyStatusEffect\(` does not match. A
+false accusation in a "nothing does this" sweep is the worst kind of error it can make, so the pattern was
+widened and the corrected result is **four** — `resistance`, `levitation`, `absorption` and `haste` — of
+which two are granted by a golden apple, the classic emergency survival item.
+
+  The corrected sweep then exposed a **second** blind spot of its own: it could not see the two effects the
+golden apple grants, because `goldenApple.js` walks a table and passes `effect.id` rather than a literal.
+No regex can follow that, so the sweep can only ever report effects with no *literal* application site.
+Its result is an upper bound on the gap, not a definitive list, and it is described that way now.
+
+**Absorption was implemented nowhere at all.** It was absent from the damage path and from the UI, so
+applying it did literally nothing. `src/absorption.js` gives it a real buffer: four points per level,
+damage taken out of it **after** armour and enchantments and **before** health, and re-application taking
+the maximum rather than summing, so a second golden apple does not stack on an unspent one. The buffer does
+not regenerate, which is what makes it a one-shot shield rather than a second health bar.
+
+**Eating a golden apple gave nothing but food.** The only code that mentioned one was the zombie-villager
+curing ritual. `src/goldenApple.js` restores vanilla's figures:
+
+| item | effects |
+|---|---|
+| Golden Apple | Absorption II 2:00, Regeneration II 0:05 |
+| Enchanted Golden Apple | Absorption IV 2:00, Regeneration V 0:30, Fire Resistance 5:00, Resistance 5:00 |
+
+That also gives `resistance` its first user, so two of the four genuinely-unapplied effects now have one. That leaves `levitation` and `haste` (see 4.2.6), while `dolphins_grace` was never missing.
+
+### 4.2.6 Levitation was inert, and the shulker never fired
+
+`statusEffects.js` defines Levitation and nothing consumed it: it is absent from `speedMultiplier` and from
+`damageTakenMultiplier`, and `player.js` never read it. Applying it did nothing at all, exactly as
+Absorption did.
+
+`src/levitation.js` gives it the mechanic: a constant climb of one block per second per level, which is
+vanilla's 0.05 blocks per tick. It **assigns** the vertical velocity rather than reducing gravity, so the
+player cannot sink while it lasts, and it sits after creative flight (which wins) and before water and
+gliding, because it is a forced effect rather than a movement mode. Its danger is that it ends — the player
+falls from whatever height it reached — and that comes free from the shared effect countdown.
+
+**The shulker now fires, and that is levitation's source.** `ambientLocomotion.js` carried
+`shulker: { range: 16, speed: 0, damage: 4, attackReach: 0 }` — a damage figure and an aggro radius that
+neither could ever be used, because the `speed <= 0` branch returned **before** any attack logic. A shulker
+spawned, held its post, and never attacked anything at all.
+
+The stationary branch now handles a declared **turret**: it turns to face the player and fires on a cooldown
+when in range. The firing itself is an injected callback, for the same reason `wander` already is — this
+module decides *when* a turret shoots without knowing how a projectile is built. `src/shulkerBullet.js` holds
+the projectile data, and `mobs.js` supplies the mesh and pushes it into the `customProjectiles` loop it
+already had.
+
+Vanilla's figures: 4 damage, Levitation for 10 seconds, on a 1.5 second cooldown, from a bullet that
+**tracks** its target. The tracking is not decoration — a straight-line shot is trivially side-stepped, and
+the whole point of the mob is to lift you off a ledge.
+
+**A steering bug worth recording.** The first implementation blended the velocity toward the target with
+`lerp`, which between two vectors of equal length yields a **shorter** one — so the bullet decelerated every
+frame and would have stalled mid-air. Re-normalising after the blend fixes it, and there is now a test that
+flies a bullet for six seconds at 60 fps against a moving target and asserts the speed is unchanged.
+
+**`haste` was reported here as having no source, and that was wrong.** A beacon grants it: `BEACON_POWERS`
+in `src/beaconConduit.js` lists it at tier 1, tier 2 and tier 3. The sweep missed it because the id sits
+in an ARRAY (`['speed', 'haste']`) rather than in a call, which no pattern of the form
+`applyStatusEffect('haste'` or `id: 'haste'` will ever match. What was true is that the beacon could
+not actually grant it -- see 4.2.8.
+
+### 4.2.7 Thirty-nine splash potions did nothing when used
+
+Found by re-running the "which ITEMS has no code reference" sweep, which is what found the firework rocket
+and the ender eye. The throw in `main.js` read:
+
+    if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness'))
+
+Three faults in that one line:
+
+1. **Only Weakness was thrown.** Everything else fell through to block placement, so **39 splash potion
+   items did nothing at all** -- and every one of them brews from gunpowder plus any potion.
+2. **`potion_weakness` is not an item that exists.** The condition accepted an id that was never registered,
+   so half of it was dead.
+3. **The effect was hard-coded** to `weakness` for 60 seconds whatever the potion was, so even the one that
+   worked ignored its own duration.
+
+`src/splashPotion.js` derives the effect from `POTION_DATA` by stripping the `splash_` prefix, so a potion
+and its splash form cannot disagree and anything the brewing stand can produce is throwable by
+construction. All 39 resolve. A water bottle and the brewing intermediates are throwable and grant nothing,
+which is vanilla, so a null effect is a valid answer rather than an error.
+
+**The thrower is now a target.** The old loop walked `this.mobs.mobs` only, so the player was never
+affected by their own potion -- which is how a self-splash of Fire Resistance is meant to work, and why
+standing in your own Harming potion is meant to hurt. The radius is one named constant, four blocks as in
+vanilla, rather than inline arithmetic, and it is a sphere rather than a cylinder so a splash does not reach
+a player standing high above it.
+### 4.2.8 The beacon and the conduit granted nothing at all
+
+`Player.statusEffects` is a **`Map`** (`player.js:69`). `hasStatusEffect` uses `.has()`, the tick loop uses
+`.get()` and `.delete()`, and `applyStatusEffect` uses `.set()`. But `src/beaconConduit.js` wrote:
+
+    player.statusEffects = player.statusEffects || {};
+    player.statusEffects[beaconState.primary] = duration;
+
+On a Map the `|| {}` is a no-op, so the write landed as a **property on the Map object** rather than as an
+entry, and `hasStatusEffect` never saw it. There were **seven** such writes: the beacon's primary, the
+beacon's regeneration, and the conduit's four powers.
+
+**So both blocks were inert.** A beacon granted no speed, haste, resistance, jump boost, strength or
+regeneration; a conduit granted no conduit power, water breathing, night vision or haste. Both are
+progression blocks -- the beacon is what a Wither kill is for -- and neither did anything.
+
+It also explains the wrong `haste` claim above: the sweep was right that nothing applies haste via a
+literal call, and wrong that nothing tries. The beacon tries, and its attempt was going nowhere.
+
+`Player.refreshStatusEffect(effect, duration, level)` now exists for a field that re-applies while the
+player stands in range, and both blocks use it. A quiet path is needed rather than `applyStatusEffect`,
+which posts a chat line -- and these refresh every frame, so pointing them at it would flood the chat.
+There is a test that a hundred refreshes post nothing, and one that the record shape matches what
+`applyStatusEffect` writes so the two cannot drift.
+### 4.2.9 What the sweeps can and cannot see
+
+Most of the mechanics gaps in this document were found the same way: ask which branch, flag, table row or
+item exists that nothing consumes. It has been the most productive instrument of the whole exercise --
+tipped arrows, potions, the firework rocket, fall damage, void damage, elytra wear, absorption, levitation,
+the shulker bullet, thirty-nine splash potions, the dragon egg, the beacon and the conduit all came out of
+it.
+
+**It has also produced three wrong findings, and they were all the same mistake.** `dolphins_grace` was
+reported as unapplied when `dolphinBehavior.js` applies it; `haste` was reported as having no source when a
+beacon grants it; `sculkSensor` and `sculkShrieker` were reported as unimplemented when
+`src/deepDarkWarden.js` handles both. Every one was a **literal-pattern miss**:
+
+| the code does this | the sweep looked for this |
+|---|---|
+| `applyStatusEffect?.('dolphins_grace', …)` | `applyStatusEffect\(` |
+| `['speed', 'haste']` in a powers table | `applyStatusEffect('haste'`, `id: 'haste'` |
+| `block === BLOCKS.SCULK_SENSOR` | the `sculkSensor: true` flag |
+
+So the rule for reading any of these sweeps, including the ones still in `scripts/`, is: **a negative is a
+candidate, never a conclusion.** Dispatch through a table, an array, a block id or a variable is invisible to
+a text search, and all four are used widely here. Every negative in this document was checked by hand before
+it was written down, and the three that were wrong are recorded above rather than quietly removed.
+
+A second, smaller failure mode is worth naming too: two of the sweeps printed an unconditional
+"(blank = nothing uses it)" line after their results, so a list that looked empty read as a confirmed
+absence even when the filter was simply wrong. Both were replaced with explicit "no matches" branches.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

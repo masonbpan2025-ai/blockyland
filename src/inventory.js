@@ -1,4 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { addToBundle, isBundle } from './bundles.js';
 import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
@@ -337,7 +338,35 @@ export class Inventory {
     if (placeInto(this.hotbar)) return true;
     if (placeInto(this.storage)) return true;
 
+    // 4. A bundle, if one is being carried. Vanilla's rule: a pickup that will not fit goes into a bundle,
+    // which is the only way a bundle ever fills -- there is no drag-into-bag in this game, and vanilla has no
+    // such gesture either. Tried here rather than at each caller so every route benefits: a dropped item, a
+    // crafted stack, a trade.
+    if (this.fillHeldBundle({ id: itemId, isBlock, count })) return true;
+
     return false; // full inventory
+  }
+
+  /**
+   * Put a stack into a bundle this inventory holds, if one has room.
+   *
+   * @param {{id: (string|number), isBlock: boolean, count: number}} stack
+   * @returns {boolean} whether a bundle took all of it
+   */
+  fillHeldBundle(stack) {
+    if (!(stack.count > 0)) return false;
+    for (const list of [this.hotbar, this.storage]) {
+      for (let i = 0; i < list.length; i++) {
+        const slot = list[i];
+        if (!isBundle(slot)) continue;
+        const taken = addToBundle(slot, stack);
+        if (!taken) continue;
+        list[i] = { ...slot, contents: taken.contents };
+        stack.count -= taken.moved;
+        if (stack.count <= 0) return true;
+      }
+    }
+    return false;
   }
 
   // Handle slot click with cursor dragging & right click split

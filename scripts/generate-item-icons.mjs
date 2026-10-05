@@ -100,6 +100,28 @@ const COLOUR_OVERRIDES = {
   seagrass: '#4a7a2a', tipped_arrow: '#8a8a9a', ominous_bottle: '#4a5a4a',
 };
 
+/**
+ * The colour words sixteen dye families use, in the order longest-first.
+ *
+ * A `white_shulker_box` and a `light_blue_bundle` are the same object in different colours, and the player
+ * picks one out of a hotbar by that colour -- the same argument this file already makes for potions. Hashing
+ * the name instead gave the seventeen shulker boxes seventeen arbitrary hues, so `white_` was not white.
+ */
+const DYE_WORDS = [
+  'light_blue', 'light_gray', 'white', 'orange', 'magenta', 'yellow', 'lime', 'pink', 'gray', 'cyan',
+  'purple', 'blue', 'brown', 'green', 'red', 'black',
+];
+
+/** The dye colour a name is tinted with, when it starts with a colour word and nothing overrides it. */
+function dyeTintedColour(name, overrides) {
+  if (overrides[name]) return null;
+  for (const word of DYE_WORDS) {
+    if (!name.startsWith(`${word}_`)) continue;
+    return overrides[`${word}_dye`] ?? null;
+  }
+  return null;
+}
+
 /** Which pixel shape to draw, from the item name. Keeps icons distinguishable at 16x16. */
 function shapeFor(name) {
   if (/_dye$/.test(name)) return 'pile';
@@ -114,7 +136,13 @@ function shapeFor(name) {
   if (/(_stick|_rod)$/.test(name)) return 'rod';
   if (/(_seeds|_pod)$/.test(name)) return 'seeds';
   if (/(_template|_pattern|_banner)/.test(name)) return 'sheet';
+  // A pottery sherd is a shard of a sheet, so it shares the sheet shape; the twenty-three of them are told
+  // apart by colour, which the hash gives them.
+  if (/_pottery_sherd$/.test(name)) return 'sheet';
   if (/_bucket$/.test(name)) return 'bucket';
+  // A bundle is a pouch: the dyed ones are told apart by colour, not by shape. Checked before the
+  // generic suffixes so undle does not fall through to the nugget square.
+  if (/(^|_)bundle$/.test(name)) return 'bundle';
   if (/(honeycomb|flint|charcoal)/.test(name)) return 'shard';
   if (/_dust$/.test(name)) return 'pile';
   if (/mushroom/.test(name)) return 'mushroom';
@@ -187,6 +215,14 @@ function cells(shape) {
     case 'bucket':
       for (let y = 4; y <= 11; y++) for (let x = 5; x <= 10; x++) add(x, y);
       break;
+    // A pouch: a rounded body, a cinched neck and a tie, so a bundle reads as a bag rather than as another
+    // rounded square. Its sixteen colours are the dye colours, which is what tells them apart.
+    case 'bundle':
+      for (let y = 6; y <= 12; y++) for (let x = 4; x <= 11; x++) add(x, y);
+      for (let y = 4; y <= 5; y++) for (let x = 6; x <= 9; x++) add(x, y);
+      for (let x = 5; x <= 10; x++) add(x, 6);
+      add(5, 5); add(10, 5);
+      break;
     case 'mushroom':
       for (let x = 4; x <= 11; x++) add(x, 6);
       for (let x = 5; x <= 10; x++) add(x, 7);
@@ -233,7 +269,7 @@ for (const name of names) {
   if (existsSync(file)) { skipped++; continue; }
 
   const h = hash(name);
-  const override = potionColour(name) ?? COLOUR_OVERRIDES[name];
+  const override = potionColour(name) ?? COLOUR_OVERRIDES[name] ?? dyeTintedColour(name, COLOUR_OVERRIDES);
   const [r, g, b] = override
     ? [parseInt(override.slice(1, 3), 16), parseInt(override.slice(3, 5), 16), parseInt(override.slice(5, 7), 16)]
     : hslToRgb(h % 360, 45 + (h % 20), 48 + (h % 12));

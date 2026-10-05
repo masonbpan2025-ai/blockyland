@@ -195,6 +195,10 @@ export const NOT_ENCHANTABLE = new Set([
   'bucket', 'water_bucket', 'lava_bucket',
   // And the mob buckets, for the same reason: vanilla enchants none of them.
   'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'axolotl_bucket', 'tadpole_bucket',
+  // The bundles too: vanilla enchants none of them.
+  'bundle', 'white_bundle', 'orange_bundle', 'magenta_bundle', 'light_blue_bundle', 'yellow_bundle', 'lime_bundle', 'pink_bundle',
+  'gray_bundle', 'light_gray_bundle', 'cyan_bundle', 'purple_bundle', 'blue_bundle', 'brown_bundle',
+  'green_bundle', 'red_bundle', 'black_bundle',
   'compass', 'clock', 'lead', 'name_tag', 'saddle', 'flint_and_steel',
   'leather_horse_armor', 'iron_horse_armor', 'golden_horse_armor', 'diamond_horse_armor',
 ]);

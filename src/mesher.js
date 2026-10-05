@@ -457,7 +457,12 @@ export class ChunkMesher {
               if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) continue;
             }
 
-            const uv = this.tm.getFaceUVs(blockId, face);
+            // The texture manager keys faces by NAME ('top', 'side', 'bottom', ...), not by the
+            // numeric slot this loop uses. Passing the number made every face of a block whose
+            // definition has no `all` texture -- grass, every log, furnaces, sandstone and the
+            // rest of the 40-odd multi-texture blocks -- miss every branch and fall through to
+            // the manager's missing-texture fallback, which is why their surfaces rendered black.
+            const uv = this.tm.getFaceUVs(blockId, FACE_NAMES[face]);
             const corners = FACE_CORNERS[face];
             const normal = FACE_NORMAL[face];
 
