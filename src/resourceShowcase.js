@@ -50,6 +50,35 @@ const skipTechnical = (entry) =>
   NON_SOLID_NAMES.has(entry.blockAliases?.[0]) || entry.blockAliases?.some((a) => NON_SOLID_NAMES.has(a));
 
 /**
+ * Ids that are a placement of another item rather than an item of their own.
+ *
+ * A wall banner, a bed's head and a wall hanging sign are the same object as their standing counterpart,
+ * placed against a wall or laid out as a bed. Vanilla models them as block states of one item; this game
+ * registers each as its own block, so each looks like an item with no source. Nothing crafts a
+ * `black_wall_banner`, and nothing should -- you get one by placing a `black_banner` on a wall.
+ *
+ * Declared as `[suffix, replacement]` rather than matched by a pattern, and the exemption only applies
+ * when the counterpart is registered: if `black_banner` were missing, `black_wall_banner` would correctly
+ * be reported as unobtainable. `tests/resourceInspector.test.js` pins both halves.
+ */
+const PLACEMENT_VARIANTS = [
+  ['_wall_banner', '_banner'],
+  ['_bed_head', '_bed'],
+  ['_wall_hanging_sign', '_hanging_sign'],
+];
+
+/** The item a placement variant is a placement of, or null when it is an item in its own right. */
+export function placementVariantOf(id, has = () => false) {
+  const text = String(id);
+  for (const [suffix, replacement] of PLACEMENT_VARIANTS) {
+    if (!text.endsWith(suffix)) continue;
+    const base = text.slice(0, -suffix.length) + replacement;
+    if (has(base)) return base;
+  }
+  return null;
+}
+
+/**
  * The vanilla registry key for a resource.
  *
  * An item entry is keyed by its own id. A block with no item form is keyed by a `BLOCKS` alias, and
@@ -200,12 +229,22 @@ export const RESOURCE_CHECKS = [
     id: 'has-source',
     label: 'Can be obtained in survival',
     group: 'obtainable',
-    run: ({ entry }) => {
+    run: ({ entry, registry }) => {
       // A spawn egg is creative-only in vanilla: no recipe, no drop, no trade. Asking for a survival
       // source reported all ninety of them as gaps, which is a fifth of the report and buries the items
       // that genuinely have no source. The one case is named rather than matched by a pattern, and
       // tests/resourceInspector.test.js pins it, so this cannot quietly widen into "skip what is hard".
       if (entry.type === 'spawn_egg') return CHECK_SKIP;
+      // An `internal` block is a state of a block, not something a player holds: an open door, a door's top
+      // half, a crop's third growth stage. This check was asking all eighty-five of them where they could
+      // be obtained, which is not a question about an item. `block-drop` and `harvest-data` cover blocks.
+      if (entry.internal) return CHECK_SKIP;
+      // A wall banner, a bed head and a wall hanging sign are one item placed differently. See
+      // PLACEMENT_VARIANTS; the exemption needs the standing counterpart to be registered.
+      // Item entries are keyed by their bare id (`black_banner`); a block with no item form is keyed
+      // `block:<id>`. Both are tried so this keeps working if the key format changes.
+      const hasItem = (id) => Boolean(registry?.entries?.get(id) ?? registry?.entries?.get(`item:${id}`));
+      if (placementVariantOf(entry.id, hasItem)) return CHECK_SKIP;
       const sources = sourceSummary(entry);
       if (sources.total > 0) return true;
       return {
@@ -433,6 +472,9 @@ export function buildVanillaIndex({ items = [], recipes = {}, foods = [], blocks
     recipesByResultName,
     recipesByIngredientName,
     itemNames: items.map((i) => i.name),
+    // Block names were not exposed, so the shadowing report could only see item spellings. `hay_bale`
+    // shadows a *block* name, and it would have been missed.
+    blockNames: blocks.map((b) => b.name),
   };
 }
 

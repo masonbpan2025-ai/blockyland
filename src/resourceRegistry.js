@@ -791,6 +791,53 @@ export function unresolvedImports(sources) {
 }
 
 /**
+ * Spellings this game uses for a vanilla id under a different name.
+ *
+ * Two of these are plain vocabulary differences rather than near-misses, so a singular/plural rule cannot
+ * find them: vanilla's `slime_ball` is `slimeball` here, and vanilla's `hay_block` is also `hay_bale`.
+ * Named, because a rule that guessed at word boundaries would produce more noise than list.
+ */
+export const VANILLA_ID_ALIASES = {
+  slimeball: 'slime_ball',
+  hay_bale: 'hay_block',
+};
+
+/**
+ * Ids this game defines that shadow a vanilla id under a different spelling.
+ *
+ * The complement of `missingVanillaItems`, which asks what vanilla has and this game lacks. This asks the
+ * opposite question -- what this game has under a name vanilla does not use -- and the answer matters
+ * because six of them are *both* registered: `wheat_seed` and `wheat_seeds`, `slimeball` and `slime_ball`,
+ * `hay_bale` and `hay_block`. Those are two items for one vanilla item, which a creative menu shows twice
+ * and a recipe can only reach through one of.
+ *
+ * A report rather than a fault: a differently-spelled id is legitimate when it is this project's own
+ * content, and the two databases only disagree about the name. `bothRegistered` is what separates a
+ * duplicate from a rename, and only a duplicate is a defect.
+ *
+ * @param {object} reg
+ * @param {Set<string>} vanillaNames vanilla item and block names
+ * @returns {Array<{id: string, vanilla: string, bothRegistered: boolean}>}
+ */
+export function shadowedVanillaIds(reg, vanillaNames, { aliases = VANILLA_ID_ALIASES } = {}) {
+  const known = (id) => typeof id === 'string' && vanillaNames.has(id);
+  const out = [];
+  for (const entry of reg.entries.values()) {
+    if (entry.internal) continue;
+    const id = String(entry.id);
+    if (known(id)) continue;
+    const candidates = [];
+    if (aliases[id]) candidates.push(aliases[id]);
+    // One plural step in either direction, which is how `wheat_seed` shadows `wheat_seeds`.
+    candidates.push(id.endsWith('s') ? id.slice(0, -1) : `${id}s`);
+    const vanilla = candidates.find(known);
+    if (!vanilla) continue;
+    out.push({ id, vanilla, bothRegistered: resolveResource(vanilla, reg) !== null });
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
  * The other direction: vanilla item names this game does not answer to.
  *
  * `danglingReferences` asks "does this game reference something it never defined"; this asks "does

@@ -196,3 +196,21 @@ test('a shapeless recipe that fits 2x2 is available in the inventory grid', () =
   assert.ok(result, 'a small shapeless recipe did not match in the 2x2 grid');
   assert.equal(result.id, probe.result.id);
 });
+
+test('a hay block uncrafts into nine wheat, as vanilla has it', () => {
+  // Found by the Resource Inspector rather than by looking: `recipe-parity` reported exactly three items
+  // vanilla can craft that this game cannot, and this was the only one whose ingredients both exist here.
+  // The generator dropped it because the game registers the block twice -- as `hay_bale` and as the
+  // vanilla `hay_block` -- and the recipe names the vanilla spelling. See `inspector shadows`.
+  const recipe = { id: 'hay_block', isBlock: true, count: 1 };
+  const oneByOne = [recipe, null, null, null];
+  assert.deepEqual(findMatchingRecipe(oneByOne, 2, 2, RECIPES_3X3), { id: 'wheat', isBlock: false, count: 9 });
+
+  // It is shapeless, so the same single ingredient in a 3x3 grid behaves the same way.
+  const centred = [null, null, null, null, recipe, null, null, null, null];
+  assert.deepEqual(findMatchingRecipe(centred, 3, 3, RECIPES_3X3), { id: 'wheat', isBlock: false, count: 9 });
+
+  // And it must not have become a catch-all: wheat alone is not a recipe.
+  const wheat = { id: 'wheat', isBlock: false, count: 1 };
+  assert.equal(findMatchingRecipe([wheat, null, null, null], 2, 2, RECIPES_3X3), null);
+});

@@ -50,6 +50,11 @@ export const RECIPES_3X3 = [
   { pattern: [['ghast_tear','ghast_tear','ghast_tear'], ['ghast_tear',BLOCKS.SOUL_SAND,'ghast_tear'], ['ghast_tear','ghast_tear','ghast_tear']], result: { id: BLOCKS.DRIED_GHAST, isBlock: true, count: 1 } },
   { pattern: Array.from({length:3}, () => ['iron_nugget','iron_nugget','iron_nugget']), result: { id: 'iron_ingot', isBlock: false, count: 1 } },
   ...RECIPES_2X2,
+  // Hay Block -> 9 Wheat. Vanilla has this uncrafting recipe, and the Inspector reported it as the one
+  // crafting gap whose ingredients both exist here: `recipe-parity` asked for a recipe for `wheat` and
+  // found none. The generator dropped it because this game registers the block twice, as `hay_bale` and
+  // as `hay_block`, and the recipe names the vanilla spelling.
+  { shapeless: true, ingredients: ['hay_block'], result: { id: 'wheat', isBlock: false, count: 9 } },
   // 8 Cobblestone -> 1 Furnace
   {
     pattern: [

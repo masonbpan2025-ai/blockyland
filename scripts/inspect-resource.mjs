@@ -8,6 +8,8 @@
 //   node scripts/inspect-resource.mjs duplicates [--json]        keys a literal defines twice
 //   node scripts/inspect-resource.mjs faults [--json]            dangling + duplicates, as a gate
 //   node scripts/inspect-resource.mjs missing [--limit 40]        vanilla items this game lacks
+//   node scripts/inspect-resource.mjs shadows [--json]            ids that shadow a vanilla id under
+//                                                                 another spelling, six of them duplicates
 //   node scripts/inspect-resource.mjs audit [--json]              per-check counts over everything
 //
 // This is the item-and-block counterpart to the Mob Inspector, and it is the loop the parity work
@@ -29,6 +31,7 @@ import {
   searchResources,
   undefinedBlockConstants,
   unresolvedImports,
+  shadowedVanillaIds,
 } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 
@@ -251,6 +254,23 @@ export async function main() {
     case 'missing': {
       if (!vanilla) { console.error('vanilla cache missing; run scripts/generate-mc-data.mjs'); process.exitCode = 1; break; }
       printMissing(active.registry, vanilla);
+      break;
+    }
+    case 'shadows': {
+      if (!vanilla) { console.error('vanilla cache missing; run scripts/generate-mc-data.mjs'); process.exitCode = 1; break; }
+      const names = new Set([
+        ...(vanilla.itemNames ?? []),
+        ...(vanilla.blockNames ?? []),
+      ]);
+      const found = shadowedVanillaIds(active.registry, names);
+      if (json) { out(found); break; }
+      const duplicates = found.filter((s) => s.bothRegistered);
+      console.log(`ids shadowing a vanilla spelling: ${found.length}`
+        + `  (${duplicates.length} are duplicates: both ids are registered)`);
+      for (const s of found) {
+        console.log(`   ${s.id.padEnd(22)} shadows ${s.vanilla.padEnd(20)}`
+          + (s.bothRegistered ? 'DUPLICATE - two items for one vanilla item' : 'renamed, not a duplicate'));
+      }
       break;
     }
     case 'duplicates': {

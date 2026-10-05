@@ -25,12 +25,14 @@ import {
   searchResources,
   smeltingTable,
   unresolvedImports,
+  shadowedVanillaIds,
 } from '../src/resourceRegistry.js';
 import {
   CHECK_SKIP,
   RESOURCE_CHECKS,
   ResourceShowcase,
   buildVanillaIndex,
+  placementVariantOf,
 } from '../src/resourceShowcase.js';
 import { EXTRA_SMELTING } from '../src/extraSmelting.js';
 import { FOODS } from '../src/foodData.js';
@@ -553,4 +555,72 @@ test('a specifier survives the comment stripper', () => {
   assert.equal(faults.length, 1, 'the path must survive, quoted and followed by a comment');
   assert.equal(faults[0].specifier, './missing.js');
   assert.equal(faults[0].line, 1);
+});
+
+// --- the two exemptions in has-source, and the shadowing report ---------------
+//
+// Both were added because the report was asking the wrong question. An open door is not an obtainable
+// item, and a wall banner is one item placed differently; between them they were 128 of the 279
+// has-source failures, which is a large enough pile of noise to hide the items that really have no
+// source. Each exemption is named and conditional, so it cannot widen into "skip what is hard".
+
+test('a block state is not an item, so has-source does not ask how to obtain one', () => {
+  const { check } = contextFor('has-source', fakeEntry());
+  const state = fakeEntry({ id: 'iron_door_open', internal: true, name: 'Iron Door Open' });
+  assert.equal(check.run({ entry: state, registry: registry() }), CHECK_SKIP);
+  // The same check must still judge a real block, which has a source or does not.
+  const real = fakeEntry({ id: 'coal_ore', internal: false, blockId: 14, harvest: null, blockDef: { name: 'Coal Ore' } });
+  const verdict = check.run({ entry: real, registry: registry() });
+  assert.equal(verdict.ok, false, 'a real block with no source is still reported');
+});
+
+test('a placement variant is excused only when its standing counterpart exists', () => {
+  const { check } = contextFor('has-source', fakeEntry());
+  const registryWithBanner = { entries: new Map([['black_banner', fakeEntry({ id: 'black_banner' })]]) };
+  const wall = fakeEntry({ id: 'black_wall_banner' });
+  assert.equal(check.run({ entry: wall, registry: registryWithBanner }), CHECK_SKIP);
+  // With no `black_banner` registered there is nothing for the wall form to be a placement of, so it
+  // must be reported rather than silently excused.
+  const empty = { entries: new Map() };
+  assert.equal(check.run({ entry: wall, registry: empty }).ok, false);
+  const bed = fakeEntry({ id: 'red_bed_head' });
+  assert.equal(check.run({ entry: bed, registry: { entries: new Map([['red_bed', fakeEntry({ id: 'red_bed' })]]) } }), CHECK_SKIP);
+  // A name that merely ends in a similar word is not a variant.
+  const notAVariant = fakeEntry({ id: 'zombie_head' });
+  assert.equal(check.run({ entry: notAVariant, registry: { entries: new Map([['zombie_head_2', fakeEntry({})]]) } }).ok, false);
+});
+
+test('placementVariantOf resolves the three families and nothing else', () => {
+  const has = (id) => ['black_banner', 'red_bed', 'oak_hanging_sign'].includes(id);
+  assert.equal(placementVariantOf('black_wall_banner', has), 'black_banner');
+  assert.equal(placementVariantOf('red_bed_head', has), 'red_bed');
+  assert.equal(placementVariantOf('oak_wall_hanging_sign', has), 'oak_hanging_sign');
+  assert.equal(placementVariantOf('oak_hanging_sign', has), null, 'the standing form is an item of its own');
+  assert.equal(placementVariantOf('black_wall_banner', () => false), null, 'needs the counterpart present');
+  assert.equal(placementVariantOf('creeper_head', has), null);
+});
+
+test('the shadowing report finds an id that duplicates a vanilla spelling', () => {
+  // The class: `wheat_seed` and `wheat_seeds` are both registered, so a creative menu shows the same
+  // vanilla item twice and a recipe can only reach one of them.
+  //
+  // A minimal registry rather than `buildRegistry()`, which always reads the real item tables -- with
+  // those, the fixture would also contain the six duplicates that already exist and the assertion would
+  // be about the game rather than about the rule.
+  const ids = ['wheat_seed', 'wheat_seeds', 'slimeball', 'slime_ball', 'golden_dandelion'];
+  const reg = { entries: new Map(ids.map((id) => [id, { key: id, kind: 'item', id, def: {}, internal: false }])) };
+  const names = new Set(['wheat_seeds', 'slime_ball', 'hay_block', 'golden_dandelion']);
+  const found = shadowedVanillaIds(reg, names);
+  assert.deepEqual(found.map((f) => `${f.id}->${f.vanilla}`).sort(),
+    ['slimeball->slime_ball', 'wheat_seed->wheat_seeds']);
+  assert.ok(found.every((f) => f.bothRegistered), 'both of these are registered twice over');
+});
+
+test('the shadowing report does not flag content that is only this project own', () => {
+  const ids = ['golden_spear'];
+  const reg = { entries: new Map(ids.map((id) => [id, { key: id, kind: 'item', id, def: {}, internal: false }])) };
+  assert.deepEqual(shadowedVanillaIds(reg, new Set(['apple', 'stick'])), []);
+  // An internal block state is skipped here for the same reason as in has-source.
+  const state = { entries: new Map([['iron_door_opens', { key: 'block:78', kind: 'block', id: 'iron_door_opens', internal: true }]]) };
+  assert.deepEqual(shadowedVanillaIds(state, new Set(['iron_door_open'])), []);
 });
