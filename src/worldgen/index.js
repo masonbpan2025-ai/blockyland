@@ -1,0 +1,199 @@
+// The structure engine: placement, generation and realization behind one world-free API.
+//
+// Design contract (mission §19, §20):
+//
+//   * PLANNING is a pure function of (seed, chunk, registry). `planChunk` needs no loaded world, so a
+//     structure that spans four chunks is planned identically no matter which chunk the player reaches
+//     first. That property is what makes chunk-streaming worldgen deterministic, and it is why the
+//     terrain queries arrive as callbacks instead of through a World object.
+//   * REALIZATION is separate and per-chunk: only the blocks that fall inside a given chunk are written,
+//     so planning a structure never forces its chunks to load.
+//   * Nothing here calls Math.random. Every draw comes from `src/worldgen/random.js`.
+//
+// The engine is the piece the Structure Inspector drives: it can plan a single structure at a chosen
+// seed and origin, show its pieces and bounding boxes, and realize it into a preview grid without
+// generating a world.
+
+import { StructurePlacementEngine, RandomSpreadStructurePlacement, ConcentricRingsStructurePlacement, FrequencyReducer, SpreadType } from './placement.js';
+import { BlockBox } from './geometry.js';
+import { contentHash } from './random.js';
+import {
+  STRUCTURES, STRUCTURE_SETS, STRUCTURE_TAGS, GENERATION_STEPS, GeneratorFamily,
+  createSets, getStructure, getSetForStructure, structuresForDimension, validateRegistry
+} from './registry.js';
+import { generateBuriedTreasure, realizeBuriedTreasure } from './generators/buriedTreasure.js';
+import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
+
+/** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
+export const GENERATORS = {
+  buriedTreasure: { generate: generateBuriedTreasure, realize: realizeBuriedTreasure }
+};
+
+/** Structures that have a generator, and those that do not (the Inspector shows both). */
+export function generatorCoverage() {
+  const implemented = [];
+  const missing = [];
+  for (const [id, entry] of Object.entries(STRUCTURES)) {
+    if (!entry) continue;
+    (entry.implementation && GENERATORS[entry.implementation] ? implemented : missing).push(id);
+  }
+  return { implemented, missing };
+}
+
+/**
+ * Build an engine for one dimension.
+ *
+ * @param {object} options
+ * @param {number|bigint} options.seed
+ * @param {string} [options.dimension]
+ * @param {(x: number, z: number) => string|null} [options.biomeAt]
+ * @param {(x: number, z: number, heightmap: string) => number} [options.surfaceY]
+ * @param {object} [options.blockIds] block id table used by realization
+ */
+export function createStructureEngine({ seed, dimension = 'overworld', biomeAt = null, surfaceY = null, blockIds = null }) {
+  const sets = createSets({ dimension });
+  const registry = Object.fromEntries(
+    Object.entries(STRUCTURES)
+      .filter(([, entry]) => entry && entry.dimension === dimension)
+      .map(([id, entry]) => [id, entry])
+  );
+
+  const engine = new StructurePlacementEngine({
+    seed,
+    sets,
+    structureInfo: (id) => registry[id] || null,
+    biomeAt,
+    /**
+     * The generator callback: this is vanilla's `Structure.findGenerationPoint`.
+     *
+     * Returning null means "this structure refuses this position", which is what drives the placement
+     * engine's weighted without-replacement retry. A biome mismatch is the common reason, and it is
+     * checked here rather than in the placement engine because vanilla checks the biome at the
+     * structure's own start position, not at the candidate chunk's corner.
+     */
+    generate: (worldSeed, structureId, chunkX, chunkZ, context) => {
+      const info = registry[structureId];
+      if (!info) return null;
+      const implementation = info.implementation && GENERATORS[info.implementation];
+      if (!implementation) return null; // not implemented yet: documented in generatorCoverage()
+
+      const startX = chunkX * 16 + 9;
+      const startZ = chunkZ * 16 + 9;
+      const biome = biomeAt ? biomeAt(startX, startZ) : null;
+      if (info.biomes && info.biomes.length > 0) {
+        if (!biome || !info.biomes.includes(biome)) return null;
+      }
+      if (info.biomeTagExcludes && biome && info.biomeTagExcludes.includes(biome)) return null;
+
+      const start = implementation.generate({
+        seed: worldSeed,
+        chunkX,
+        chunkZ,
+        context: { biomeAt, surfaceY, info, set: context.set }
+      });
+      if (!start) return null;
+      start.set = context.set;
+      start.terrainAdaptation = info.terrainAdaptation || TerrainAdaptation.NONE;
+      start.generationStep = info.step || 'surface_structures';
+      return start;
+    }
+  });
+
+  return {
+    seed,
+    dimension,
+    sets,
+    registry,
+    placement: engine,
+
+    /** Plan the structure whose start lives in this chunk, or null. */
+    planChunk(chunkX, chunkZ) {
+      return engine.planChunk(chunkX, chunkZ);
+    },
+
+    /** Plan every start whose origin falls in the given chunk rectangle, in vanilla's scan order. */
+    planArea(minChunkX, minChunkZ, maxChunkX, maxChunkZ) {
+      const starts = [];
+      for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+        for (let chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+          const plan = engine.planChunk(chunkX, chunkZ);
+          if (plan) starts.push(plan);
+        }
+      }
+      return starts;
+    },
+
+    /** `/locate structure`. */
+    locate(structureId, blockX, blockZ, options) {
+      return engine.findNearest(structureId, blockX, blockZ, options);
+    },
+
+    /**
+     * Vanilla's `structure_references` step: which chunks must realise this start's blocks.
+     *
+     * Returned directly rather than discovered by a radius-8 scan, which is equivalent for realization
+     * and avoids walking 289 chunks per start. The scan order matters only for iteration order, which
+     * this engine does not yet depend on.
+     */
+    chunksForStart(start) {
+      return start.affectedChunks();
+    },
+
+    /** Which structures could place in this chunk, before generation checks. */
+    candidatesForChunk(chunkX, chunkZ) {
+      return engine.setsForChunk(chunkX, chunkZ).map(([name]) => name);
+    },
+
+    /**
+     * Realise one start into a caller-supplied block writer, clipped to a chunk when asked.
+     *
+     * `setBlock(x, y, z, blockId, meta)` returns truthy when it wrote. Clipping is what keeps a
+     * multi-chunk structure from forcing its neighbours to load.
+     */
+    realize(start, setBlock, { chunkX = null, chunkZ = null } = {}) {
+      const clip = chunkX === null ? null : BlockBox.columnOfChunk(chunkX, chunkZ, -64, 320);
+      let written = 0;
+      for (const piece of start.pieces) {
+        if (clip && !piece.box.intersects(clip)) continue;
+        const implementation = registry[start.structureId]?.implementation;
+        const generator = implementation && GENERATORS[implementation];
+        if (!generator || !generator.realize) continue;
+        written += generator.realize(start, (x, y, z, id, meta) => {
+          if (clip && !clip.contains(x, y, z)) return false;
+          return setBlock(x, y, z, id, meta);
+        }, blockIds) || 0;
+      }
+      return written;
+    },
+
+    /** A stable hash of a start's plan, so "same seed, same structure" is provable. */
+    hashStart(start) {
+      const values = [start.structureId, start.chunkX, start.chunkZ, start.pieces.length];
+      for (const piece of start.pieces) {
+        values.push(piece.box.minX, piece.box.minY, piece.box.minZ, piece.box.maxX, piece.box.maxY, piece.box.maxZ);
+        values.push(piece.rotation, piece.depth, piece.projection === Projection.TERRAIN_MATCHING ? 1 : 0);
+        for (const char of (piece.pool || piece.template || piece.id || '')) values.push(char.charCodeAt(0));
+      }
+      return contentHash(values);
+    },
+
+    /** Everything the Inspector needs about one plan, with the pieces unrolled for a table. */
+    describe(start) {
+      return {
+        ...start.toJSON(),
+        hash: this.hashStart(start),
+        chunkCount: start.affectedChunks().length,
+        pieceCount: start.pieces.length
+      };
+    }
+  };
+}
+
+export {
+  STRUCTURES, STRUCTURE_SETS, STRUCTURE_TAGS, GENERATION_STEPS, GeneratorFamily,
+  createSets, getStructure, getSetForStructure, structuresForDimension, validateRegistry,
+  StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE,
+  BlockBox, contentHash,
+  StructurePlacementEngine, RandomSpreadStructurePlacement, ConcentricRingsStructurePlacement,
+  FrequencyReducer, SpreadType
+};

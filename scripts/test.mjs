@@ -40,6 +40,8 @@ export const AREAS = {
   redstone: ['redstone', 'advanced_redstone', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
   studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
+  // --- vanilla structure generation ---
+  structures: ['structureEngine'],
   // --- world, terrain, fluids ---
   world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---
