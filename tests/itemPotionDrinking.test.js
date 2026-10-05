@@ -11,6 +11,8 @@
 // the string.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as THREE from 'three';
 import { BLOCKS } from '../src/blocks.js';
 import { Inventory } from '../src/inventory.js';
@@ -263,7 +265,33 @@ test('Regeneration stops at full health', () => {
   assert.equal(player.health, player.maxHealth, 'a regeneration potion must not overheal');
 });
 
-// --- a guard against the effect gap coming back ------------------------------
+// --- the use chain actually reaches the drinker ------------------------------
+
+test('the drink hook is wired into the use chain', () => {
+  // Checked at the source because `main.js` needs most of an engine to drive: this proves the call
+  // exists and its position, not that a particular click drinks a particular item.
+  //
+  // This assertion came from the other potion implementation that landed while this branch was open.
+  // Two drinkers existed on master, imported into `main.js` under the same name, which is a SyntaxError
+  // -- the whole game failed to load. This branch's module is the survivor because it handles the
+  // instant effects, and the other module's one piece of unique coverage is kept here.
+  const source = readFileSync(join(process.cwd(), 'src', 'main.js'), 'utf8');
+  assert.match(source, /import \{ drinkPotion, isDrinkablePotion \} from '\.\/potionUse\.js'/,
+    'main.js should import the drinker');
+  assert.doesNotMatch(source, /from '\.\/potions\.js'/, 'and there should be no second drinker to clash with it');
+
+  const call = source.indexOf('drinkPotion(potionItem.id');
+  assert.ok(call > 0, 'main.js should call drinkPotion in the use chain');
+
+  // Ordering that matters: the drink must be decided before the block-placement fallthrough, or a
+  // potion could be placed on the ground instead of drunk. It is deliberately checked before the
+  // `type === 'food'` branch rather than after it, because a potion is not food -- the other
+  // implementation placed it after eating and asserted that order, which was its own choice rather
+  // than a requirement.
+  const place = source.indexOf("['minecart', 'chest_minecart'");
+  assert.ok(place > 0, 'the block-placement branch should still exist');
+  assert.ok(call < place, 'drinking should be decided before block placement');
+});
 
 test('the effects a potion can name are all effects the player can hold', () => {
   // Not a claim that each one does something -- several still have no reader, which is the next batch

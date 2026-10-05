@@ -123,11 +123,11 @@ test('cooking still works through the names this game actually uses', () => {
 });
 
 test('a smelting or fuel entry named for a block is reachable only when that block exists', () => {
-  // The invariant this guards is not "these blocks are absent" -- five of them have since been
-  // registered by the ore-parity batch -- it is that a name in the smelting or fuel tables is never
-  // reachable under a key no item can hold. A lookup keyed on an unregistered block is `undefined`,
-  // and `SMELTING_RECIPES[undefined]` is a phantom entry that can never be hit but also cannot be
-  // seen to be dead.
+  // The invariant this guards is not "these blocks are absent" -- five of them were registered by the
+  // ore-parity batch, and the sapling by the one after it -- it is that a name in the smelting or fuel
+  // tables is never reachable under a key no item can hold. A lookup keyed on an unregistered block is
+  // `undefined`, and `SMELTING_RECIPES[undefined]` is a phantom entry that can never be hit but also
+  // cannot be seen to be dead.
   //
   // So for each name the tables mention: either the block exists AND its entry resolves, or the block
   // does not exist AND there is no entry sitting under the undefined key it would produce.
@@ -147,9 +147,17 @@ test('a smelting or fuel entry named for a block is reachable only when that blo
   // zero the ore work has been undone.
   assert.ok(registered > 0, 'the ore batch registers these; none is registered, so it was reverted');
 
-  // The sapling the fuel table names is still absent, so its entry must still be unreachable.
-  assert.equal(BLOCKS.OAK_SAPLING, undefined, 'the sapling the fuel table named is still unregistered');
-  assert.equal(FUEL_BURN_TIMES[BLOCKS.OAK_SAPLING], undefined);
+  // The sapling the fuel table names the same way: listed by name so the entry appears when the block
+  // does. The sapling batch has since landed, so the same either-or applies to it, and its burn time is
+  // now reachable rather than a key called "undefined".
+  const sapling = BLOCKS.OAK_SAPLING;
+  if (typeof sapling === 'number') {
+    assert.ok(BLOCK_DEFS[sapling], 'the sapling is registered so it must have a definition');
+    assert.equal(FUEL_BURN_TIMES[sapling], 5.0, 'and its burn time must be reachable');
+  } else {
+    assert.equal(FUEL_BURN_TIMES[sapling], undefined, 'while unregistered, nothing may sit under its key');
+  }
+  assert.equal(Object.hasOwn(FUEL_BURN_TIMES, 'undefined'), false);
 });
 
 // --- the last dangling reference ---------------------------------------------
