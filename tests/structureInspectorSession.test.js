@@ -10,6 +10,7 @@ import {
   createStructureInspectorSession, createPreviewWorld, inspectorStructures, PREVIEW_MIN_Y
 } from '../src/structureInspectorSession.js';
 import { BLOCKS } from '../src/blocks.js';
+import { adaptationView } from '../src/structureInspectorPanels.js';
 import { STRUCTURES, STRUCTURE_SETS } from '../src/worldgen/registry.js';
 
 test('the picker lists every registry structure with its set and placement', () => {
@@ -213,4 +214,27 @@ test('a single-block structure reports zero air, so the skip is not simply alway
     session.realize();
     assert.equal(session.snapshot().airSkipped, 0, 'a buried treasure clears nothing');
   }
+});
+
+test('the adaptation report does not mutate the preview it describes', () => {
+  // The bug this pins, which is the worst of the three rendering defects: `realizeWithAdaptation` cleared the
+  // preview world and realized back into it CLIPPED to the start's chunk, and the adaptation panel is rendered
+  // on every refresh. So 1210 realized cells became 231 the moment the panel was drawn, and a 20-piece village
+  // rendered as one dense blob. A report must not mutate what it reports on.
+  const session = createStructureInspectorSession();
+  session.setSeed('4242');
+  session.setStructure('village_plains');
+  session.setBiome('plains');
+  session.setSurface(70);
+  session.planNearest({ maxRadiusChunks: 512 });
+  session.realize();
+  const before = session.world.blocks.size;
+  assert.ok(before > 500, 'the village must be realized first, got ' + before);
+
+  const view = adaptationView(session, { surfaceY: () => 70, foundationBlock: BLOCKS.STONE });
+  assert.equal(session.world.blocks.size, before, 'rendering the adaptation panel must not change the preview');
+  assert.equal(session.snapshot().blocks, before, 'and the panel count must still describe the whole structure');
+  // The report covers the WHOLE structure, not one chunk of it. Reporting 233 blocks of a 1200-block village
+  // would be a truthful count of the wrong thing.
+  assert.ok(view.structureBlocks > 1000, 'the report must cover every piece, got ' + view.structureBlocks);
 });

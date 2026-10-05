@@ -177,3 +177,16 @@ test('air is never drawn, because a stored air cell renders as a black cube', ()
   const body = render.slice(0, render.indexOf('\n}'));
   assert.match(body, /filter\(\(\[, id\]\) => id !== BLOCKS\.AIR\)/, 'the renderer skips air');
 });
+
+test('instance colours are uploaded, not left at zero', () => {
+  // The black-blob bug. The colours were written into the instance buffer by hand but only `instanceMatrix`
+  // was marked for upload, so the colour buffer stayed at its initial ZEROS and multiplied every block to
+  // black -- the village drew as a black blob however correct its block ids were. A GL context cannot be
+  // created here, so this is a SOURCE-level check of the two halves that must both hold: colours are set
+  // through the API that creates the attribute, and the attribute is then marked for upload.
+  const render = inspectorJs.slice(inspectorJs.indexOf('function renderBlocks'));
+  const body = render.slice(0, render.indexOf('\n}'));
+  assert.match(body, /mesh\.setColorAt\(index, colourForBlock\(id\)\)/, 'colours are set per instance');
+  assert.match(body, /instanceColor\.needsUpdate = true/, 'and the colour buffer is uploaded');
+  assert.doesNotMatch(body, /instanceColor\.setXYZ\(/, 'writing the buffer by hand is what left it un-uploaded');
+});

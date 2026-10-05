@@ -137,17 +137,20 @@ function renderBlocks() {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true });
   const mesh = new THREE.InstancedMesh(geometry, material, entries.length);
-  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(entries.length * 3), 3);
   const matrix = new THREE.Matrix4();
   entries.forEach(([key, id], index) => {
     const [x, y, z] = key.split(',').map(Number);
     matrix.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
     mesh.setMatrixAt(index, matrix);
-    const colour = colourForBlock(id);
-    mesh.instanceColor.setXYZ(index, colour.r, colour.g, colour.b);
+    // `setColorAt` creates and fills the instance colour attribute. The colours must then be UPLOADED: without
+    // `instanceColor.needsUpdate` the buffer stays at its initial zeros, which multiplies every block to BLACK
+    // -- so a village drew as a black blob however correct its block ids were. Writing the buffer by hand and
+    // updating only `instanceMatrix` was the bug.
+    mesh.setColorAt(index, colourForBlock(id));
     blockIndex.push({ x, y, z, id });
   });
   mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   blockGroup.add(mesh);
 }
 

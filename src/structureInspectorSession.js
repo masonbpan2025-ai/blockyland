@@ -389,26 +389,32 @@ export function createStructureInspectorSession(options = {}) {
       const plan = lastPlan ?? null;
       if (!plan || !plan.start) return null;
       const engine = buildEngine();
-      world.clear();
+      // A REPORT MUST NOT MUTATE THE PREVIEW. This used to clear `world` and realize back into it, CLIPPED to
+      // the start's own chunk, and the adaptation panel runs on every refresh -- so merely drawing the panel
+      // wiped the preview and left one chunk's worth of blocks behind. That is why a 20-piece village reported
+      // 231 blocks and rendered as a dense blob: 1210 cells became 231 the moment the panel was rendered.
+      //
+      // Nothing needs storing here. The caller wants counts and sample positions, so the writer counts and
+      // collects, and the preview volume is left exactly as `realize()` left it.
       const adaptationWrites = [];
       let airSkipped = 0;
+      let structureCells = 0;
       const report = engine.realizeWithReport(plan.start, (x, y, z, id, meta) => {
-        // The same rule as `realize`: the preview starts empty, so a template's air changes nothing and would
-        // only litter the preview with black cubes.
         if (id === BLOCKS.AIR) { airSkipped++; return false; }
         if (meta && meta.terrainAdaptation) adaptationWrites.push({ x, y, z, id, kind: meta.terrainAdaptation });
-        const ok = world.setBlock(x, y, z, id);
-        if (ok && meta) world.setBlockMeta(x, y, z, meta);
-        return ok;
+        else structureCells++;
+        return true;
       }, {
-        chunkX: plan.start.chunkX,
-        chunkZ: plan.start.chunkZ,
+        // NO chunk clip: the report is about the whole structure, and clipping it to one chunk would report
+        // adaptation for a fragment of what the reader is looking at.
+        chunkX: null,
+        chunkZ: null,
         surfaceY,
         foundationBlock,
         airBlock,
         adaptation
       });
-      return { ...report, adaptationWrites, airSkipped };
+      return { ...report, adaptationWrites, airSkipped, structureCells };
     },
     snapshot() {
       const info = telemetry();
