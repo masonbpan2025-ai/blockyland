@@ -20,6 +20,8 @@ import { harvestDataFor, blastResistanceFor } from '../src/blockHarvestData.js';
 import { miningEffect } from '../src/miningRules.js';
 import { getBlockDrop } from '../src/itemVisuals.js';
 import { buildCreativeCatalog } from '../src/creativeCatalog.js';
+import { World, Chunk } from '../src/world.js';
+import { ChunkMesher } from '../src/mesher.js';
 
 const BLOCK_ASSET_DIR = path.join(process.cwd(), 'public', 'assets', 'blocks');
 
@@ -108,6 +110,52 @@ test('an infested block breaks faster than the block it imitates', () => {
 });
 
 // --- the ground-cover family --------------------------------------------------
+
+test('the twelve wall signs exist, are routed as signs, and reuse their plank texture', () => {
+  // Wall signs carry TWO flags and both are load-bearing, which is the thing this test exists to protect.
+  // `wallSign` picks the shape inside the geometry router; `sign` is what the MESHER tests to route the
+  // block to that router at all. Shipping only `wallSign` made every wall sign render as a cross-quad
+  // flower, which is invisible to a test that only checks the registry -- so this test MESHES one.
+  const WOODS = ['OAK', 'SPRUCE', 'BIRCH', 'ACACIA', 'CHERRY', 'JUNGLE', 'DARK_OAK',
+    'PALE_OAK', 'MANGROVE', 'BAMBOO', 'CRIMSON', 'WARPED'];
+
+  for (const wood of WOODS) {
+    const key = `${wood}_WALL_SIGN`;
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    assert.equal(def.wallSign, true, `${key} must carry wallSign for the geometry router`);
+    assert.equal(def.sign, true, `${key} must ALSO carry sign, or the mesher draws it as a plant`);
+    assert.equal(def.transparent, true, `${key} is a partial shape`);
+    assert.equal(getBlockDrop(id)?.id, id, `${key} drops itself`);
+
+    // It reuses its wood's plank texture, like every other sign shape.
+    assert.deepEqual(def.textures, { all: `${wood.toLowerCase()}_planks.png` },
+      `${key} must be drawn with its own wood's planks`);
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', `${wood.toLowerCase()}_planks.png`)),
+      `${key} needs ${wood.toLowerCase()}_planks.png on disk`);
+  }
+
+  // The routing assertion. A wall sign must mesh through the sign GEOMETRY path, not the cross-quad
+  // plant path: its geometry has 72 vertices from three boxes, where a cross-quad plant has 24 from two.
+  const texStub = { getFaceUVs: () => ({ u0: 0, v0: 0, u1: 1, v1: 1 }) };
+  const world = new World();
+  const chunk = new Chunk(0, 0);
+  world.chunks.set('0,0', chunk);
+  world.setVoxel(2, 40, 2, BLOCKS.OAK_WALL_SIGN);
+  const meshed = new ChunkMesher(texStub).meshChunk(chunk, world);
+  const geos = [meshed.opaqueGeo, meshed.transparentGeo, meshed.lightGeo].filter(Boolean);
+  const vertices = geos.reduce((n, g) => n + g.attributes.position.count, 0);
+  assert.equal(vertices, 72,
+    `a wall sign must mesh as sign geometry (72 vertices), got ${vertices}; if this is 24 the mesher is `
+    + 'routing it through the cross-quad plant path, which means the `sign` flag is missing');
+
+  // And it sits against a wall rather than in the middle of the cell: the pegs reach the boundary.
+  const box = meshed.lightGeo.boundingBox ?? (meshed.lightGeo.computeBoundingBox(), meshed.lightGeo.boundingBox);
+  assert.ok(box.max.z > 0.99, `a wall sign must reach the wall face, got max z ${box.max.z}`);
+  assert.ok(box.min.y > 0.4, `a wall sign mounts high, not on the floor, got min y ${box.min.y}`);
+});
 
 test('every potted plant exists, matches its own sprite, and drops itself', () => {
   // Thirty-seven near-identical definitions is the largest copy-paste surface in the registry, so each is
