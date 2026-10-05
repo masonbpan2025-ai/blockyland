@@ -37,6 +37,7 @@ import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
+import { creeperDiscDrop } from './musicDiscs.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide, updateCubeHop, cubeSquashOnLand } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
@@ -8534,6 +8535,12 @@ export class MobManager {
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
       if(attacker===this.game?.player){const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     }
+    // Wiki: a creeper killed by a skeleton's or stray's arrow drops a music disc, at random from the
+    // twelve a creeper can give. The flag has to be set here rather than at death because `attacker` is
+    // only known at damage time, which is the same reason `wolfKilled` and `playerDamaged` exist.
+    // `isPunch` is what separates an arrow from a melee hit, which vanilla does not count -- and an
+    // exploded creeper sets `noLoot`, so shooting one and then letting it blow up still gives nothing.
+    if(mob.type==='creeper'&&!isPunch&&(attacker?.type==='skeleton'||attacker?.type==='stray'))mob.shotBySkeleton=true;
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     // Wiki: a rolled armadillo "takes a reduced amount of damage given by (original damage-1)/2", and
@@ -8943,6 +8950,9 @@ export class MobManager {
     // Wiki: a camel husk drops 2-3 rotten flesh. This row does NOT exist in the base table yet, so unlike
     // the other mobs here the manager has to be told about it.
     const camelHuskRows = isCamelHusk(mob) ? camelHuskDrops(mob, random) : [];
+    // Wiki: a creeper drops one gunpowder from the base table, and a music disc if a skeleton or a stray
+    // killed it. `shotBySkeleton` is set in `damageMob`, where the attacker is still known.
+    const creeperRows = mob.type === 'creeper' && mob.shotBySkeleton ? creeperDiscDrop(random) : [];
     // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
     const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
     // Wiki: the giant's page gives no drop table and no experience value.
@@ -8955,7 +8965,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows];
   }
 
   /**

@@ -24,6 +24,7 @@ import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
 import { MOB_LOOT } from './mobLootData.js';
+import { CREEPER_DISC_POOL } from './musicDiscs.js';
 import { BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult } from './brewing.js';
 import { FOODS } from './foodData.js';
 import { describeTool } from './miningRules.js';
@@ -308,6 +309,12 @@ export function buildRegistry(sources = {}) {
   }
   for (const [itemId, mobs] of loot) {
     for (const key of keysForId(itemId)) entries.get(key).lootFrom.push(...mobs);
+  }
+  // The music discs come from a rule rather than from a loot table: a creeper killed by a skeleton's or a
+  // stray's arrow drops one of twelve at random. `mobLootData.js` cannot express that, so without this the
+  // twelve would read as items with no source at all when in fact they have exactly one.
+  for (const disc of CREEPER_DISC_POOL) {
+    for (const key of keysForId(disc)) entries.get(key)?.lootFrom.push('creeper killed by a skeleton');
   }
 
   // Which blocks drop this resource. `BLOCK_HARVEST` names drops by block name, and a block def may
