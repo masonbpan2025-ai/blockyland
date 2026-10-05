@@ -6,6 +6,7 @@ import { BLOCKS } from './blocks.js';
 
 import { startBarter, updatePiglin } from './piglin.js';
 import { applyDolphinsGrace } from './dolphinBehavior.js';
+import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
 export { PIGLIN_BARTER_LOOT } from './piglin.js';
 
 export class HostileMobBehaviors {
@@ -65,9 +66,12 @@ export class HostileMobBehaviors {
         const childPos = mob.mesh.position.clone().add(offset);
         const child = this.mobManager.spawnMob(mob.type, childPos.x, childPos.y, childPos.z);
         if (child) {
+          // Wiki: children have the size squared as health and a size-scaled hitbox, the
+          // same rule as at spawn. This previously wrote `nextSize * 4`.
           child.slimeSize = nextSize;
-          child.health = nextSize * 4;
-          child.maxHealth = nextSize * 4;
+          child.health = cubeHealth(nextSize);
+          child.maxHealth = cubeHealth(nextSize);
+          child.width = child.height = cubeSide(nextSize);
           const s = nextSize / 4;
           child.mesh.scale.set(s, s, s);
           if (mob.type === 'magma_cube') setMagmaSize(child, nextSize);

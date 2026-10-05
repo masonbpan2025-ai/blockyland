@@ -26,6 +26,7 @@ import { sheepApplyWool } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
+import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -2240,7 +2241,10 @@ export class MobManager {
       case 'golem': return { width: 1.4, height: 2.7 };
       case 'quadruped': return { width: 0.9, height: 1.2 };
       case 'flying': return { width: 1.0, height: 1.2 };
-      case 'slime': return { width: 0.8, height: 0.8 };
+      // Wiki: cube hitbox side is size * 0.52, so a large cube (size 4) is 2.08 blocks.
+      // A spawned cube also carries its own width/height, so this entry is the large
+      // default and babies/smaller cubes resolve through the instance values.
+      case 'slime': return { width: 2.08, height: 2.08 };
       case 'pig': return { width: 0.9, height: 0.9 };
       case 'cow': return { width: 0.9, height: 1.4 };
       // Wiki: mooshrooms are 1.4 tall and 0.9 wide, like cows. They previously fell
@@ -2279,7 +2283,8 @@ export class MobManager {
       case 'zombie_pigman': return { width: 0.6, height: 1.95 };
       case 'zoglin':
       case 'hoglin': return { width: 1.4, height: 1.4 };
-      case 'magma_cube': return { width: 2.04, height: 2.04 };
+      // Wiki: a large magma cube is also 2.08 blocks per side (size 4 * 0.52).
+      case 'magma_cube': return { width: 2.08, height: 2.08 };
       case 'strider': return { width: 0.9, height: 1.7 };
       case 'wither_skeleton': return { width: 0.7, height: 2.4 };
       case 'guardian': return { width: 0.85, height: 0.85 };
@@ -4050,8 +4055,12 @@ export class MobManager {
       name: 'Slime',
       mesh: group,
       slimeSize: size,
-      health: size * 4,
-      maxHealth: size * 4,
+      // Wiki: maximum health is the size squared, and the hitbox side is size * 0.52.
+      // This previously used `size * 4`, which was wrong for every size but large.
+      health: cubeHealth(size),
+      maxHealth: cubeHealth(size),
+      width: cubeSide(size),
+      height: cubeSide(size),
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -6102,6 +6111,9 @@ export class MobManager {
       zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
       hoglin: [[burned ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
       strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
+      // Wiki: only small slimes drop slimeballs. 0-2, and none when killed by a frog.
+      // Slimes previously had no loot row at all, so they dropped nothing.
+      slime: mob.playerDamaged && mob.slimeSize === 1 ? [['slime_ball', false, 0, 2]] : [],
       magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
       wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
       witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
@@ -6181,7 +6193,9 @@ export class MobManager {
         }
         if (this.entities?.spawnXpOrbs) {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
+          // flat hostile value. Magma cubes keep their existing size-valued drop.
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
