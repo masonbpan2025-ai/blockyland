@@ -27,7 +27,11 @@ function fixture() {
  */
 const KNOWN_ALIASES = {
   octopus: 'squid',
-  zombie_pigman: 'zombified_piglin'
+  zombie_pigman: 'zombified_piglin',
+  // Wiki: The Killer Bunny "can only be spawned using commands", so it is a named entry that maps onto the
+  // rabbit spawner's killer flag rather than a separate mob. Declared rather than silently tolerated,
+  // because the alias is a design choice: it keeps the hunt, armour and coat in one place.
+  killer_bunny: 'rabbit'
 };
 
 test('every spawn egg maps to a mob that spawns as its own type', () => {

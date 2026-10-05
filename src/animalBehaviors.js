@@ -8,6 +8,8 @@ import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBeh
 import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariantName, applyParrotVariant } from './parrotBehavior.js';
 import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
 import { inheritFoxCoat } from './foxBehavior.js';
+// Wiki: a killer bunny can breed with any rabbit, so the offspring rule lives with the mob.
+import { inheritKillerBunny, makeKillerBunny } from './rabbitBehavior.js';
 import { SNIFFER_BREEDING } from './snifferBehavior.js';
 import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
 import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
@@ -865,15 +867,24 @@ export class AnimalBehaviors {
       return 'pandaGenes';
     }
 
-    // Wiki: a baby rabbit inherits one parent's coat at random. This codebase stores it as `coat`,
-    // and the killer bunny is a rare named spawn rather than something breeding can produce, so it
-    // is deliberately not a possible outcome here.
+    // Wiki: a baby rabbit inherits one parent's coat at random, or -- unusually -- becomes a killer
+    // bunny when a parent is one. The earlier note here claimed the killer bunny could not be bred
+    // at all, which the wiki contradicts: a killer bunny "can breed with other rabbits and with each
+    // other, having the unusual chance of creating a baby killer bunny".
     if (baby.type === 'rabbit') {
-      const coats = [parentA.coat, parentB.coat].filter(c => c !== undefined && c !== null);
+      if (inheritKillerBunny(parentA, parentB, random)) {
+        // The killer identity wins over the coat, because it is a RabbitType and not a coat.
+        makeKillerBunny(baby);
+        return 'killerBunny';
+      }
+      const coats = [parentA.coat, parentB.coat].filter(c => c !== undefined && c !== null && c !== 'killer');
       if (coats.length) {
         baby.coat = coats[Math.floor(random() * coats.length)];
         return 'rabbitCoat';
       }
+      // Neither parent carried an inheritable coat -- both were killers and the roll failed, or the coat
+      // was never set at all. `null` is the honest answer: a bare mob stays bare rather than being
+      // silently re-coloured, and the caller can decide what to do.
       return null;
     }
 

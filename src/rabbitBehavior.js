@@ -221,6 +221,49 @@ export function updateKillerBunnyHunt(manager, mob, dt, player) {
   return true;
 }
 
+/**
+ * The chance an offspring of a killer bunny is itself a killer bunny.
+ *
+ * Wiki: "Despite their hostile nature, killer bunnies can breed with other rabbits and with each other,
+ * having the unusual chance of creating a baby killer bunny." The page gives no number, so this is the
+ * standard rare-inheritance figure used elsewhere in this codebase, and it is a named constant precisely
+ * so the guess is visible and adjustable rather than buried.
+ */
+export const KILLER_BUNNY_INHERIT_CHANCE = 0.05;
+
+/**
+ * Whether a baby rabbit is a killer bunny.
+ *
+ * Wiki: a killer bunny can breed with any rabbit, and the offspring has "the unusual chance of creating a
+ * baby killer bunny". So the parents need not both be killers, which is the unusual part -- normally a
+ * special variant requires two special parents.
+ *
+ * This is the opposite of what this file previously claimed, and the earlier note is why the rule is now a
+ * documented function rather than an inline `if` that reads like a deliberate omission.
+ */
+export function inheritKillerBunny(parentA, parentB, random = Math.random) {
+  const eitherParent = isKillerBunny(parentA) || isKillerBunny(parentB);
+  // Wiki: only a killer bunny parent can pass it on, since it is not a coat in the normal pool.
+  if (!eitherParent) return false;
+  return random() < KILLER_BUNNY_INHERIT_CHANCE;
+}
+
+/**
+ * Apply the killer bunny identity to a rabbit mob.
+ *
+ * Wiki: `RabbitType` 99, 8 armour points, hostile, and the name is "The Killer Bunny".
+ */
+export function makeKillerBunny(mob) {
+  if (!isRabbit(mob)) return false;
+  mob.rabbitType = KILLER_BUNNY_TYPE;
+  mob.coat = 'killer';
+  mob.isHostile = true;
+  mob.armor = KILLER_BUNNY_ARMOR;
+  mob.attackDamage = KILLER_BUNNY_DAMAGE.normal;
+  applyRabbitCoat(mob);
+  return true;
+}
+
 /** Called when a killer bunny is struck: the wiki has it retreat before returning. */
 export function onKillerBunnyHurt(mob, seconds = 1.5) {
   if (!isKillerBunny(mob)) return false;
