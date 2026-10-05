@@ -5,11 +5,14 @@
 // the SAME slot name at both ends so a child street can match either, which means two connectors sharing a
 // name on one piece -- and the engine's name-keyed connector map kept only the last of them.
 //
-// KNOWN OPEN (deviation 0e): a chain still stops after ONE join, so the 'several links' case this file was
-// written for is NOT verified and its assertion was removed rather than left failing. What IS verified here:
-// a piece may expose two same-named connectors, per-instance alignment uses the matched instance, a joined
-// connector is consumed, the distance cap binds, and the result is deterministic.
+// The fixture encodes orientations as <front>_<top>, which is what vanilla does and what the engine reads.
 //
+// STILL OPEN (deviation 0e): ONE join now succeeds and a SECOND does not, so the multi-link assertion is
+// absent rather than failing. Everything else here is verified. The trace to start from: after the first join
+// the child street sits at (0.5, 64.5, -9)-(2.5, 64.5, -1) with its far connector facing north at
+// (1.5, 64.5, -9); a second street rotated 180 degrees would land at (0.5, 64.5, -18)-(2.5, 64.5, -10),
+// which touches the first without overlapping it, so the rejection is NOT the collision check and NOT the
+// distance or depth caps. Print the diagnostics for that second join first.
 // The fixture below models a real template closely: connectors sit on the face they face, and the build
 // function derives them from the piece's own rotation rather than from a stored map.
 import test from 'node:test';
@@ -91,12 +94,11 @@ test('a joined connector is consumed, so a chain cannot grow back through the jo
   assert.ok(result.pieces.length >= 2, 'this test needs at least one join to inspect');
   for (const piece of result.pieces.filter((entry) => entry.meta.element === 'street')) {
     const consumed = (piece.meta.connectors ?? []).filter((connector) => connector.consumed).length;
-    assert.ok(consumed <= 1, `a street has ${consumed} consumed connectors, so it was joined more than once`);
+    assert.ok(consumed <= 1, 'a street has ' + consumed + ' consumed connectors, so it was joined more than once');
   }
   // The start piece is never joined through anything, so nothing of its own may be marked consumed.
   assert.equal((result.pieces[0].meta.connectors ?? []).some((connector) => connector.consumed), false);
 });
-
 test('the distance cap still stops a chain under a generous depth limit', () => {
   const result = run({ maxDepth: 10, seed: 5, maxDistanceFromCentre: 12 });
   for (const piece of result.pieces) {
