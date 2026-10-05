@@ -223,6 +223,26 @@
       "contentHash": 4267594902
     },
     {
+      "id": "monument",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "deep_ocean",
+      "chunkX": 3754,
+      "chunkZ": 0,
+      "planHash": 280655593,
+      "pieces": 1,
+      "box": [
+        60070,
+        70,
+        6,
+        60092,
+        82,
+        28
+      ],
+      "blockCount": 1291,
+      "contentHash": 483256804
+    },
+    {
       "id": "ocean_ruin_cold",
       "seed": 20250401,
       "dimension": "overworld",

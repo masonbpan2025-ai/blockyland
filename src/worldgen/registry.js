@@ -97,7 +97,7 @@ export const STRUCTURES = {
   },
   monument: {
     type: 'ocean_monument', dimension: OVERWORLD, family: GeneratorFamily.PROCEDURAL,
-    biomeTag: 'has_structure/ocean_monument',
+    biomeTag: 'has_structure/ocean_monument', implementation: 'monument',
     biomes: ['deep_ocean', 'deep_frozen_ocean', 'deep_cold_ocean', 'deep_lukewarm_ocean'],
     notes: '58x58 prismarine room graph, three elder guardians, sponge rooms; the largest structure with no chest.'
   },

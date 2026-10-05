@@ -22,7 +22,7 @@ test('the picker lists every registry structure with its set and placement', () 
   assert.match(buried.placement, /frequency=0\.01/);
   assert.equal(buried.defaultBiome, 'beach', 'the default preview biome comes from the structure gate');
 
-  const pending = list.find((entry) => entry.id === 'monument');
+  const pending = list.find((entry) => entry.id === 'stronghold');
   assert.equal(pending.implemented, false, 'an unimplemented structure is marked as such, not hidden');
   assert.equal(typeof pending.terrainAdaptation, 'string');
   const stronghold = list.find((entry) => entry.id === 'stronghold');
@@ -122,8 +122,8 @@ test('a chunk with no structure plans nothing and says so', () => {
 });
 
 test('an unimplemented structure reports a plan is impossible rather than crashing', () => {
-  const session = createStructureInspectorSession({ seed: 1, structureId: 'monument' });
-  const entry = session.setStructure('monument');
+  const session = createStructureInspectorSession({ seed: 1, structureId: 'stronghold' });
+  const entry = session.setStructure('stronghold');
   assert.equal(entry.implemented, false);
   session.setBiome('plains');
   const found = session.planNearest({ maxRadiusChunks: 64 });
