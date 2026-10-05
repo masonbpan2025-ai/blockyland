@@ -46,6 +46,7 @@ import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, upd
 import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
+import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -374,6 +375,7 @@ export class MobManager {
       case 'fox': return this.spawnFox(x, y, z, {});
       case 'bee': return this.spawnBee(x, y, z, {});
       case 'goat': return this.spawnGoat(x, y, z, {});
+      case 'llama': return this.spawnLlama(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2337,6 +2339,8 @@ export class MobManager {
       case 'bee': return BEE_DIMENSIONS;
       // Wiki: goats are 0.9 x 1.3, and shrink to 0.63 x 0.91 mid-jump.
       case 'goat': return GOAT_DIMENSIONS;
+      // Wiki: llamas are 0.9 x 1.87.
+      case 'llama': return LLAMA_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3506,6 +3510,82 @@ export class MobManager {
       best = candidate;
     }
     return best;
+  }
+
+  /**
+   * Llama.
+   *
+   * Wiki: 15-30 HP scaling with strength, 0.9 x 1.87, neutral. Retaliates with spit, has a strength
+   * 1-5 that sets both health and its 3-to-15 inventory slots, carries a chest and a carpet, can be
+   * tamed by repeated riding, and takes only half fall damage after six safe blocks.
+   */
+  spawnLlama(x, y, z, options = {}) {
+    const random = options.random || Math.random;
+    const variant = options.variant || rollLlamaVariant(random);
+    const strength = options.strength ?? rollLlamaStrength(random);
+    const colors = llamaCoatColors(variant);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const darkMat = new THREE.MeshLambertMaterial({ color: colors.dark });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1c1917 });
+    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(LLAMA_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? LLAMA_BABY_DIMENSIONS : LLAMA_DIMENSIONS;
+    const health = llamaHealthFor(strength);
+    const mob = {
+      type: 'llama',
+      name: 'Llama',
+      mesh: group,
+      body,
+      neck,
+      head,
+      muzzle,
+      ears,
+      eyes,
+      tail,
+      legs,
+      chestMesh,
+      carpetMesh,
+      bodyMat,
+      darkMat,
+      eyeMat,
+      health,
+      maxHealth: health,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: the four coat colours.
+      variant,
+      variantId: LLAMA_VARIANTS[variant],
+      // Wiki: strength 1-5 sets both health and how much it can carry.
+      strength,
+      chestSlots: llamaSlotsFor(strength),
+      hasChest: false,
+      chestInventory: new Array(llamaSlotsFor(strength)).fill(null),
+      carpetColor: null,
+      // Wiki: taming is by repeated riding; Temper starts at 0 and caps at 30.
+      isTamed: false,
+      temper: LLAMA_TEMPER.start,
+      // Wiki: llamas take only half fall damage, after six safe blocks.
+      safeFallBlocks: 6,
+      halfFallDamage: true,
+      // Combat.
+      recentAttacker: null,
+      spitCooldown: 0,
+      spitCharge: 0,
+      llamaPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    applyLlamaEquipment(mob);
+    this.mobs.push(mob);
+    return mob;
   }
 
   // --- PASSIVE COW ---
@@ -6607,6 +6687,14 @@ export class MobManager {
       // Wiki: hitting one calls other silverfish in a 21x11x21 area to help.
       angerSilverfish(mob, attacker);
       alertSilverfish(this, mob, attacker);
+    } else if (mob.type === 'goat') {
+      // A goat never retaliates; the wiki is explicit that it cannot be provoked.
+      return;
+    } else if (mob.type === 'llama') {
+      // Wiki: a llama retaliates when attacked by a player or another mob, and is hostile toward
+      // wolves without provocation.
+      mob.recentAttacker = attacker || null;
+      mob.spitCooldown = 0;
     } else if (isKillerBunny(mob)) {
       // Wiki: the killer bunny retreats briefly when struck, then returns to lunging.
       onKillerBunnyHurt(mob);
@@ -6843,7 +6931,13 @@ export class MobManager {
     const beeRows = mob.type === 'bee' && !mob.diedOfSting ? beeDrops(mob) : [];
     // Wiki: a goat drops no items on death; its horns only come off against a hard block.
     const goatRows = isGoat(mob) ? goatDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows];
+    // Wiki: a llama drops 0-2 leather, anything it is wearing, and everything it was carrying.
+    const llamaRows = mob.type === 'llama'
+      ? [...(mob.playerDamaged || mob.wolfKilled ? [['leather', false, 0, 2]] : []),
+         ...(mob.carpetColor ? [[mob.carpetColor, false, 1, 1]] : []),
+         ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
+      : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows];
   }
 
   /**
@@ -6932,7 +7026,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
           : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'bat' ? 0
@@ -7224,6 +7319,9 @@ export class MobManager {
     // Wiki: endermen attack endermites in line of sight within 64 blocks, and endermites
     // fight back. This pairs them once per frame rather than per mob.
     updateEndermanEndermiteAggression(this);
+    // Llama spit flies as its own projectile list, separate from the hostile-mob queue.
+    if (!this.llamaSpits) this.llamaSpits = [];
+    updateLlamaSpit(this, dt, player);
 
     for(const mob of this.mobs){if(!mob.jockeyMount)continue;const mount=mob.jockeyMount;if(mob.health<=0||mount.health<=0){mount.rider=null;mob.jockeyMount=null;continue;}mob.mesh.position.copy(mount.mesh.position).y+=mount.type==='chicken'?.55:1.4;mob.velocity.set(0,0,0);}
     // Apply the final mount pose after the mob and separation passes. Animal
@@ -7330,6 +7428,68 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='llama'){
+      // Wiki: neutral. It spits at whatever attacked it and at wolves without provocation, is
+      // completely passive on Peaceful, and has a 1/900 chance per tick to regenerate 1 HP.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.spitCooldown = Math.max(0, (mob.spitCooldown || 0) - dt);
+
+      if (mob.health < mob.maxHealth && Math.random() < dt * 20 / 900) {
+        mob.health = Math.min(mob.maxHealth, mob.health + 1);
+      }
+
+      // The head comes up, then it fires. The charge is on a timer so the pose is visible.
+      mob.spitCharge = Math.max(0, (mob.spitCharge || 0) - dt);
+      if (mob.pendingSpitTarget && mob.spitCharge <= 0) {
+        spawnLlamaSpit(this, mob, mob.pendingSpitTarget);
+        mob.pendingSpitTarget = null;
+        mob.spitCooldown = 1.5;
+      }
+
+      // Pick something to spit at: its attacker, or a wolf without provocation.
+      if (!mob.pendingSpitTarget && mob.spitCooldown <= 0) {
+        let target = null;
+        let bestDist = 16;
+        const candidates = [];
+        if (player?.position) candidates.push(player);
+        for (const other of this.mobs) if (other !== mob) candidates.push(other);
+        for (const candidate of candidates) {
+          if (!llamaWantsToSpit(mob, candidate, {
+            difficulty: this.game?.difficulty ?? 'normal',
+            recentAttacker: mob.recentAttacker
+          })) continue;
+          const pos = candidate.position ?? candidate.mesh?.position;
+          if (!pos) continue;
+          const dist = mob.mesh.position.distanceTo(pos);
+          if (dist < bestDist) { bestDist = dist; target = candidate; }
+        }
+        if (target) {
+          mob.pendingSpitTarget = target;
+          mob.spitCharge = 0.5;
+          const pos = target.position ?? target.mesh?.position;
+          const dir = pos.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+          moveGroundMob(this, mob, dt);
+          poseLlamaLegs(mob, mob.llamaPhase || 0, false);
+          return true;
+        }
+      }
+
+      // Firing, or wandering.
+      if (mob.pendingSpitTarget) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+      }
+      moveGroundMob(this, mob, dt);
+      mob.llamaPhase = (mob.llamaPhase || 0) + dt * 7;
+      poseLlamaLegs(mob, mob.llamaPhase, !mob.pendingSpitTarget && Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
       return true;
     }
     if(mob.type==='goat'){
