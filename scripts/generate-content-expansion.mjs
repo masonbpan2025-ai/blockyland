@@ -105,7 +105,7 @@ const FAMILIES = [
     // The tail of plain-cube blockers. Individually each unblocks one or two recipes, but together
     // they are the bulk of what is left that needs no new geometry.
     id: 'tail_cubes',
-    match: (n) => /^((white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_stained_glass|lapis_block|bone_block|purpur_pillar|heavy_core|copper_grate|exposed_copper_grate|weathered_copper_grate|oxidized_copper_grate|waxed_copper_grate|waxed_exposed_copper_grate|waxed_weathered_copper_grate|waxed_oxidized_copper_grate|pale_moss_block|bamboo_block|stripped_bamboo_block|carved_pumpkin|jack_o_lantern|sugar_cane|vine|torchflower|lilac|peony|rose_bush|pink_petals|pitcher_plant|breeze_rod)$/.test(n),
+    match: (n) => /^((white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_stained_glass|lapis_block|bone_block|purpur_pillar|heavy_core|copper_grate|exposed_copper_grate|weathered_copper_grate|oxidized_copper_grate|waxed_copper_grate|waxed_exposed_copper_grate|waxed_weathered_copper_grate|waxed_oxidized_copper_grate|pale_moss_block|bamboo_block|stripped_bamboo_block|pumpkin|carved_pumpkin|jack_o_lantern|sugar_cane|vine|torchflower|lilac|peony|rose_bush|pink_petals|pitcher_plant|breeze_rod)$/.test(n),
     texture: (n) => {
       if (textureExists(n + ".png")) return n + ".png";
       // A stained glass reuses its own texture if present, but its colour is what identifies it, so

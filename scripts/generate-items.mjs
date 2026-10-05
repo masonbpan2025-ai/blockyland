@@ -89,7 +89,9 @@ for (const key of Object.keys(recipes)) {
 // Only take materials that are genuinely simple items: an item with no vanilla block form that is not
 // itself a tool, armour or spawn egg. Tools and armour need stats this generator does not derive, and
 // emitting them with none would produce items that cannot be used.
-const NEEDS_STATS = /(_pickaxe|_axe|_shovel|_hoe|_sword|_helmet|_chestplate|_leggings|_boots|_horse_armor|_spawn_egg|_bucket|_rod|_bow$|_crossbow$|_shield|_trident|_elytra|_totem|_potion|_arrow$|_tipped_arrow|_firework|_disc|_template$|_smithing_template|_banner_pattern|_armor_trim)/;
+// `fishing_rod` rather than `_rod`: the suffix form also swallowed breeze_rod, a plain material
+// that blocks three recipes. A broad pattern here fails silently, so it names what it means.
+const NEEDS_STATS = /(_pickaxe|_axe|_shovel|_hoe|_sword|_helmet|_chestplate|_leggings|_boots|_horse_armor|_spawn_egg|_bucket|fishing_rod|_bow$|_crossbow$|_shield|_trident|_elytra|_totem|_potion|_arrow$|_tipped_arrow|_firework|_disc|_template$|_smithing_template|_banner_pattern|_armor_trim)/;
 const simpleMaterials = [...materialNeeds]
   .filter(([n]) => !NEEDS_STATS.test(n))
   .sort((a, b) => b[1] - a[1]);

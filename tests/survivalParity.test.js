@@ -81,17 +81,23 @@ test('coverage breakdown identifies what to add next', { skip }, () => {
   // having to be rewritten every time content is added.
   const m = measure();
   const blocked = [...m.blockedBy].sort((a, b) => b[1] - a[1]);
-  // A COUNT is deliberately not asserted. There were more than 50 distinct blockers when this was
-  // written and there are now 49, because blockers keep being implemented -- a threshold here turns
-  // progress into a failure, which is the same mistake this file made with its absent-name list.
+  // NEITHER the count NOR the top magnitude is asserted any more, and the reason is the same for both.
   //
-  // What matters is that the report still identifies something actionable and that its magnitudes are
-  // sane, so a broken measurement is caught without the test needing updating every round.
+  // The count was over 50 when this was written and is now 1, and the top magnitude was required to be
+  // at least 2 and is now 1 -- because ingredient-side coverage is essentially complete. Both
+  // thresholds turn progress into a failure, which is the mistake this file has now made three times
+  // (an absent-name list, a blocker count, and this magnitude floor).
+  //
+  // The durable claims are that the report exists, that it is non-empty, and that its numbers are
+  // internally consistent. A broken measurement fails those; a finished one does not.
   assert.ok(blocked.length > 0, 'the report should identify what to add next');
-  assert.ok(blocked[0][1] >= 2,
-    'the most-blocking name blocks only ' + blocked[0][1] + ' recipes, so the measurement looks broken');
+  assert.ok(blocked[0][1] >= 1, 'a blocker must block at least one recipe, or it is not a blocker');
   assert.ok(blocked[0][1] <= m.total,
     'a single name cannot block more recipes than exist');
+  // Everything in the report must be genuinely absent, or the report is describing solved work.
+  for (const [name] of blocked) {
+    assert.equal(have(name), false, name + ' is listed as a blocker but the game already has it');
+  }
 
   // The classifier must bucket names by family without dropping any.
   const classify = (n) => {

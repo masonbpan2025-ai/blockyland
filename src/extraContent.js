@@ -736,6 +736,7 @@ export const EXTRA_BLOCK_IDS = {
   LIGHTNING_ROD: 942,
   ACTIVATOR_RAIL: 943,
   DETECTOR_RAIL: 944,
+  PUMPKIN: 945,
 };
 
 /** Definitions for the extra blocks, keyed by id like BLOCK_DEFS. */
@@ -1463,29 +1464,15 @@ export const EXTRA_BLOCK_DEFS = {
   942: { name: 'Lightning Rod', hardness: 3, sound: 'stone', rod: true, resistance: 6, transparent: true, textures: { all: 'iron_bars.png' } },
   943: { name: 'Activator Rail', hardness: 0.7, sound: 'stone', rail: true, transparent: true, textures: { all: 'iron_bars.png' } },
   944: { name: 'Detector Rail', hardness: 0.7, sound: 'stone', rail: true, transparent: true, textures: { all: 'iron_bars.png' } },
+  945: { name: 'Pumpkin', hardness: 1, sound: 'stone', cube: true, textures: { all: 'pumpkin.png' } },
 };
 
 /** How many extra blocks this file defines, for tests and reporting. */
-export const EXTRA_BLOCK_COUNT = 723;
+export const EXTRA_BLOCK_COUNT = 724;
 
 /** Names added, by family, so the backlog can report what changed. */
 export const EXTRA_BLOCK_NAMES = {
-  bars: [
-    'iron_bars',
-  ],
-  flower_pots: [
-    'flower_pot',
-  ],
-  muddy_cubes: [
-    'muddy_mangrove_roots',
-    'soul_lantern',
-  ],
-  rods: [
-    'end_rod',
-    'lightning_rod',
-  ],
-  special_rails: [
-    'activator_rail',
-    'detector_rail',
+  tail_cubes: [
+    'pumpkin',
   ],
 };

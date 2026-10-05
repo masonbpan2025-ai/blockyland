@@ -746,18 +746,14 @@ export const EXTRA_ITEMS = {
   lightning_rod: { name: 'Lightning Rod', icon: '/assets/items/lightning_rod.png', isBlock: true, blockId: 942, type: 'block' },
   activator_rail: { name: 'Activator Rail', icon: '/assets/items/activator_rail.png', isBlock: true, blockId: 943, type: 'block' },
   detector_rail: { name: 'Detector Rail', icon: '/assets/items/detector_rail.png', isBlock: true, blockId: 944, type: 'block' },
+  breeze_rod: { name: 'Breeze Rod', icon: '/assets/items/breeze_rod.png', type: 'material' },
+  pumpkin: { name: 'Pumpkin', icon: '/assets/items/pumpkin.png', isBlock: true, blockId: 945, type: 'block' },
 };
 
-export const EXTRA_ITEM_COUNT = 733;
+export const EXTRA_ITEM_COUNT = 735;
 
 /** Names added, with how many recipes each helps unblock, for reporting and tests. */
 export const EXTRA_ITEM_REASONS = {
-  iron_bars: { role: 'blockItem', helps: undefined },
-  flower_pot: { role: 'blockItem', helps: undefined },
-  muddy_mangrove_roots: { role: 'blockItem', helps: undefined },
-  soul_lantern: { role: 'blockItem', helps: undefined },
-  end_rod: { role: 'blockItem', helps: undefined },
-  lightning_rod: { role: 'blockItem', helps: undefined },
-  activator_rail: { role: 'blockItem', helps: undefined },
-  detector_rail: { role: 'blockItem', helps: undefined },
+  breeze_rod: { role: 'material', helps: 3 },
+  pumpkin: { role: 'blockItem', helps: undefined },
 };

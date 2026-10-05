@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1533 recipes.
+// 1538 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -1169,6 +1169,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot',B.CRAFTING_TABLE,'iron_ingot'],['redstone',B.DROPPER,'redstone']],result:{id:B.CRAFTER,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot'],['iron_ingot',null]],result:{id:'shears',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.DRIED_KELP_BLOCK],result:{id:'dried_kelp',isBlock:false,count:9}},
+  {shapeless:true,ingredients:[B.PUMPKIN],result:{id:'pumpkin_seeds',isBlock:false,count:4}},
   {shapeless:true,ingredients:['melon_slice'],result:{id:'melon_seeds',isBlock:false,count:1}},
   {shapeless:true,ingredients:['gold_ingot'],result:{id:'gold_nugget',isBlock:false,count:9}},
   {pattern:[[B.GLASS,null,B.GLASS],[null,B.GLASS,null]],result:{id:'glass_bottle',isBlock:false,count:3}},
@@ -1181,11 +1182,14 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['ender_pearl','blaze_powder'],result:{id:'ender_eye',isBlock:false,count:1}},
   {pattern:[['gold_nugget','gold_nugget','gold_nugget'],['gold_nugget','melon_slice','gold_nugget'],['gold_nugget','gold_nugget','gold_nugget']],result:{id:'glistering_melon_slice',isBlock:false,count:1}},
   {shapeless:true,ingredients:['gunpowder','blaze_powder','coal'],result:{id:'fire_charge',isBlock:false,count:3}},
+  {shapeless:true,ingredients:['breeze_rod'],result:{id:'wind_charge',isBlock:false,count:4}},
   {shapeless:true,ingredients:['book','ink_sac','feather'],result:{id:'writable_book',isBlock:false,count:1}},
+  {pattern:[[B.HEAVY_CORE],['breeze_rod']],result:{id:'mace',isBlock:false,count:1}},
   {pattern:[['stick','stick','stick'],['stick','leather','stick'],['stick','stick','stick']],result:{id:'item_frame',isBlock:false,count:1}},
   {shapeless:true,ingredients:['item_frame','glow_ink_sac'],result:{id:'glow_item_frame',isBlock:false,count:1}},
   {pattern:[['brick',null,'brick'],[null,'brick',null]],result:{id:B.FLOWER_POT,isBlock:true,count:1}},
   {pattern:[['gold_nugget','gold_nugget','gold_nugget'],['gold_nugget','carrot','gold_nugget'],['gold_nugget','gold_nugget','gold_nugget']],result:{id:'golden_carrot',isBlock:false,count:1}},
+  {shapeless:true,ingredients:[B.PUMPKIN,'sugar','egg'],result:{id:'pumpkin_pie',isBlock:false,count:1}},
   {shapeless:true,ingredients:['gunpowder','paper'],result:{id:'firework_rocket',isBlock:false,count:3}},
   {shapeless:true,ingredients:['baked_potato','cooked_rabbit','bowl','carrot',B.BROWN_MUSHROOM],result:{id:'rabbit_stew',isBlock:false,count:1}},
   {shapeless:true,ingredients:['baked_potato','cooked_rabbit','bowl','carrot',B.RED_MUSHROOM],result:{id:'rabbit_stew',isBlock:false,count:1}},
@@ -1524,6 +1528,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['diamond','silence_armor_trim_smithing_template','diamond'],['diamond',B.COBBLESTONE,'diamond'],['diamond','diamond','diamond']],result:{id:'silence_armor_trim_smithing_template',isBlock:false,count:2}},
   {pattern:[['diamond','raiser_armor_trim_smithing_template','diamond'],['diamond',B.TERRACOTTA,'diamond'],['diamond','diamond','diamond']],result:{id:'raiser_armor_trim_smithing_template',isBlock:false,count:2}},
   {pattern:[['diamond','host_armor_trim_smithing_template','diamond'],['diamond',B.TERRACOTTA,'diamond'],['diamond','diamond','diamond']],result:{id:'host_armor_trim_smithing_template',isBlock:false,count:2}},
+  {pattern:[['diamond','flow_armor_trim_smithing_template','diamond'],['diamond','breeze_rod','diamond'],['diamond','diamond','diamond']],result:{id:'flow_armor_trim_smithing_template',isBlock:false,count:2}},
   {pattern:[['diamond','bolt_armor_trim_smithing_template','diamond'],['diamond',B.WAXED_COPPER_BLOCK,'diamond'],['diamond','diamond','diamond']],result:{id:'bolt_armor_trim_smithing_template',isBlock:false,count:2}},
   {pattern:[['diamond','bolt_armor_trim_smithing_template','diamond'],['diamond',B.COPPER_BLOCK,'diamond'],['diamond','diamond','diamond']],result:{id:'bolt_armor_trim_smithing_template',isBlock:false,count:2}},
   {pattern:[[null,B.COPPER_BLOCK,null],[B.COPPER_BLOCK,null,B.COPPER_BLOCK],[null,B.COPPER_BLOCK,null]],result:{id:B.COPPER_GRATE,isBlock:true,count:4}},
@@ -1553,21 +1558,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1533;
+export const EXTRA_RECIPE_COUNT = 1538;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1533,
-  "shaped": 1273,
-  "shapeless": 267,
+  "emitted": 1538,
+  "shaped": 1275,
+  "shapeless": 270,
   "skippedMissingResult": 10,
-  "skippedMissingIngredient": 6,
+  "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1540,
+  "emittedBeforeDedupe": 1545,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0
