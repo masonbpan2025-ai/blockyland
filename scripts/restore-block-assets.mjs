@@ -83,6 +83,43 @@ if (missingInputs.length) {
   console.log('\n--- all composer inputs already present');
 }
 
+// 2b. The ENTITY SKIN SHEETS, which are not block textures and live in a different mirror directory. The
+//     transformer that needs them crops mob head faces out of the standard head region, so it cannot run
+//     without them. They are fetched into a nested `entity/<mob>/<mob>.png` layout because that is the
+//     path the extractor names -- note that `download_assets.js` fetches some of the same sheets into a
+//     FLAT `entity/<mob>.png` layout for the mob renderer, and the two are deliberately separate.
+const ENTITY_SHEETS = [
+  'skeleton/skeleton.png',
+  'skeleton/wither_skeleton.png',
+  'zombie/zombie.png',
+  'creeper/creeper.png',
+  'player/wide/steve.png',
+  'piglin/piglin.png',
+];
+{
+  const absent = ENTITY_SHEETS.filter((f) => !existsSync(path.join(root, 'public', 'assets', 'entity', f)));
+  if (!absent.length) {
+    console.log('\n--- all entity skin sheets already present');
+  } else {
+    console.log(`\n--- ${absent.length} entity skin sheet(s) absent; fetching them`);
+    const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    for (const rel of absent) {
+      const dest = path.join(root, 'public', 'assets', 'entity', rel);
+      try {
+        const res = await fetch(`${MIRROR}/entity/${rel}`);
+        if (!res.ok) { console.error(`  MISS entity/${rel}`); ok = false; continue; }
+        mkdirSync(path.dirname(dest), { recursive: true });
+        writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+        console.log(`  got entity/${rel}`);
+      } catch {
+        console.error(`  FAIL entity/${rel}`);
+        ok = false;
+      }
+    }
+  }
+}
+
 // 3. The texture transforms. All three need Python + Pillow; a missing Python is reported, not fatal,
 //    since the blocks they feed fail their own tests with a message naming the script to run.
 //

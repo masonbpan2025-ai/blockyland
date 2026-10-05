@@ -121,6 +121,11 @@ test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and dro
     ['ZOMBIE_HEAD', 'ZOMBIE_WALL_HEAD', 'zombie_head'],
     ['PLAYER_HEAD', 'PLAYER_WALL_HEAD', 'player_head'],
     ['PIGLIN_HEAD', 'PIGLIN_WALL_HEAD', 'piglin_head'],
+    // The wither skeleton, which the first head batch MISSED. Its standing block already existed as
+    // WITHER_SKELETON_SKULL_BLOCK with `textures: { all: 'coal_block.png' }` and a `skull: true` flag that
+    // nothing reads, so it rendered as a coal cube -- and because the gap report resolves the vanilla NAME
+    // to that key, only the wall form ever showed up as missing.
+    ['WITHER_SKELETON_SKULL', 'WITHER_SKELETON_WALL_SKULL', 'wither_skeleton_skull'],
   ];
 
   for (const [key, wallKey, stem] of HEADS) {

@@ -14,9 +14,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BLOCK_DEFS } from '../src/blocks.js';
+import { BLOCKS, BLOCK_DEFS } from '../src/blocks.js';
 import { BLOCK_HARVEST, harvestDataFor, knownHarvestBlockIds } from '../src/blockHarvestData.js';
 import { harvestOrphans, registry } from '../src/resourceRegistry.js';
+import { getBlockDrop } from '../src/itemVisuals.js';
 
 test('no harvest row is unreachable although its block exists', () => {
   // The invariant the fix establishes, and the one a regeneration could break again.
@@ -46,11 +47,24 @@ test('a harvest row is reachable when the block is registered under any name', (
 });
 
 test('the skull that dropped nothing now drops itself', () => {
-  // Its block definition has no `drop`, so the harvest row is the entire mechanism.
+  // The original bug: the definition declared `dropItem: 'wither_skeleton_skull'`, an item NAME that
+  // resolves to nothing, so the block yielded nothing despite a harvest row saying it should.
+  //
+  // It is now declared as the BLOCK ID rather than an item string, and this assertion was updated from
+  // "declares no drop" to "declares itself as a block" when the head batch repaired it. What the test is
+  // really pinning is unchanged: breaking the skull yields a wither skeleton skull item. The route to
+  // that is the item pipeline's block path, which is the same path SKELETON_SKULL uses.
   const id = Object.entries(BLOCK_DEFS).find(([, def]) => def.name === 'Wither Skeleton Skull')?.[0];
   assert.ok(id, 'the block should be registered');
-  assert.equal(BLOCK_DEFS[id].drop, undefined, 'the definition declares no drop, which is why this mattered');
+  assert.equal(BLOCK_DEFS[id].drop, BLOCKS.WITHER_SKELETON_SKULL,
+    'the definition must name the block id, not an item string that resolves to nothing');
+  assert.equal(BLOCK_DEFS[id].dropItem, undefined,
+    'and must not also carry a dropItem, which would take precedence and resolve to nothing again');
   assert.deepEqual(harvestDataFor(Number(id)).drops, ['wither_skeleton_skull']);
+
+  // The behaviour the two of those combine to produce.
+  assert.equal(getBlockDrop(Number(id))?.id, BLOCKS.WITHER_SKELETON_SKULL,
+    'breaking it must yield the skull, which is what the original bug broke');
 });
 
 test('the orphan report splits a to-do list from a defect', () => {
