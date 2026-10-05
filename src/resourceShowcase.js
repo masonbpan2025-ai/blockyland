@@ -47,6 +47,14 @@ const isTechnical = (entry) =>
 /** Vanilla block defs with no gameplay identity: nothing to mine, nothing to hold. */
 const NON_SOLID_NAMES = new Set(['air', 'void_air', 'cave_air', 'light', 'moving_piston', 'bubble_column']);
 
+/**
+ * Blocks with no vanilla counterpart to take harvest data from.
+ *
+ * pressure_plate is this game's own generic block; sulfur_block and dried_ghast postdate the pinned
+ * 1.21.4 data. Named rather than patterned, and a test requires each name to still be a block the game has, so
+ * the list cannot rot into a place where real gaps hide.
+ */
+const NO_VANILLA_HARVEST = new Set(['pressure_plate', 'sulfur_block', 'dried_ghast']);
 const skipTechnical = (entry) =>
   NON_SOLID_NAMES.has(entry.blockAliases?.[0]) || entry.blockAliases?.some((a) => NON_SOLID_NAMES.has(a));
 
@@ -307,6 +315,11 @@ export const RESOURCE_CHECKS = [
     run: ({ entry }) => {
       if (entry.blockId === null) return CHECK_SKIP;
       if (skipTechnical(entry)) return CHECK_SKIP;
+      // Nothing to compare these against. `pressure_plate` is this game's own generic block -- vanilla names
+      // its eight variants instead -- and `sulfur_block` and `dried_ghast` are newer than the pinned 1.21.4
+      // data, which is why neither appears in it. Reporting "no row" for them is reporting the cache's age,
+      // not a gap in the game, so they are named here with that reason rather than exempted by a pattern.
+      if (NO_VANILLA_HARVEST.has(entry.blockAliases?.[0])) return CHECK_SKIP;
       return entry.harvest
         ? true
         : { ok: false, detail: `${entry.blockDef?.name ?? entry.id} has no BLOCK_HARVEST row` };

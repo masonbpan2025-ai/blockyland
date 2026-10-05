@@ -1541,15 +1541,19 @@ export const BLOCK_DEFS = {
   // The monster spawner is the exception that follows its data: hardness 5, a wooden pickaxe required,
   // and an empty drops array, so it breaks and yields nothing.
   // Runs a command when powered. This game has no command layer, so it is inert decoration.
-  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
+  // Vanilla marks these unbreakable: hardness -1 in the pinned data against this game's bedrock sentinel.
+  // The harvest table carries a row for them now, so the difference became visible.
+  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
   // Runs a command every tick while powered. Inert here, like the plain command block.
-  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
+  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
   // Runs a command when the block behind it runs. Inert here, like the other two.
-  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
+  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
   // Saves and loads structures. The game has its own building library, but it is not driven by this block, so the block is inert.
-  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
+  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
   // Assembles generated structures. No world-generation layer to hook into, so inert.
-  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
+  // Vanilla marks the jigsaw block unbreakable (hardness -1 in the pinned data); this game's sentinel is
+  // bedrock's. The harvest table has a row for it now, so the difference was visible.
+  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 999999, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
   // Spawns mobs on a timer while a player is near. This engine spawns mobs but has no spawner block entity, so it does not spawn anything. It IS breakable and drops nothing, matching its harvest row.
   [BLOCKS.SPAWNER]: { name: 'Monster Spawner', hardness: 5.0, sound: 'stone', drop: null, textures: { all: 'spawner.png' } },
   // Runs a trial when a player enters, then ejects rewards. Uses the INACTIVE textures because it is always inactive here; the active and ominous variants would need the trial mechanic.
@@ -1557,7 +1561,7 @@ export const BLOCK_DEFS = {
   // Opens for a key and dispenses loot. Uses the OFF textures for the same reason; the front face is the one that would light up.
   [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
   // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
-  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 0.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
   // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
