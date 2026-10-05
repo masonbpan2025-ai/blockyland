@@ -299,7 +299,17 @@ export const BLOCKS = {
   INFESTED_MOSSY_STONE_BRICKS: 971,
   INFESTED_CRACKED_STONE_BRICKS: 972,
   INFESTED_CHISELED_STONE_BRICKS: 973,
-  INFESTED_DEEPSLATE: 974
+  INFESTED_DEEPSLATE: 974,
+
+  // --- Resin, fourth block-parity batch ----------------------------------------------------------
+  //
+  // The four resin blocks. Their slab, stair and wall variants already existed and pointed at a
+  // texture named resin_brick.png, which does not exist upstream -- the real file is resin_bricks.png.
+  // Registering the base blocks is what makes that visible, and the three variants are corrected below.
+  RESIN_CLUMP: 975,
+  RESIN_BLOCK: 976,
+  RESIN_BRICKS: 977,
+  CHISELED_RESIN_BRICKS: 978
 };
 
 export const BLOCK_DEFS = {
@@ -712,6 +722,18 @@ export const BLOCK_DEFS = {
   [BLOCKS.INFESTED_CRACKED_STONE_BRICKS]: { name: 'Infested Cracked Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'cracked_stone_bricks.png' } },
   [BLOCKS.INFESTED_CHISELED_STONE_BRICKS]: { name: 'Infested Chiseled Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'chiseled_stone_bricks.png' } },
   [BLOCKS.INFESTED_DEEPSLATE]: { name: 'Infested Deepslate', hardness: 1.5, sound: 'stone', drop: null, silverfish: true, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
+
+  // --- Resin, fourth block-parity batch ----------------------------------------------------------
+  //
+  // Hardness follows the generated harvest table: the resin block and clump are 0 (instant to break),
+  // the two brick forms are 1.5 and need a pickaxe.
+  //
+  // The resin block's resistance is 0 in the harvest data, which makes it one of the most explosive
+  // blocks in the registry -- deliberate, since vanilla resin is soft.
+  [BLOCKS.RESIN_CLUMP]: { name: 'Resin Clump', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.RESIN_CLUMP, textures: { all: 'resin_clump.png' } },
+  [BLOCKS.RESIN_BLOCK]: { name: 'Resin Block', hardness: 0.0, sound: 'wood', drop: BLOCKS.RESIN_BLOCK, textures: { all: 'resin_block.png' } },
+  [BLOCKS.RESIN_BRICKS]: { name: 'Resin Bricks', hardness: 1.5, sound: 'stone', drop: BLOCKS.RESIN_BRICKS, textures: { all: 'resin_bricks.png' } },
+  [BLOCKS.CHISELED_RESIN_BRICKS]: { name: 'Chiseled Resin Bricks', hardness: 1.5, sound: 'stone', drop: BLOCKS.CHISELED_RESIN_BRICKS, textures: { all: 'chiseled_resin_bricks.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
