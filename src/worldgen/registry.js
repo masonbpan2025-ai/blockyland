@@ -168,7 +168,7 @@ export const STRUCTURES = {
   village_taiga: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_taiga', biomes: ['taiga'], notes: 'The only structure where armour stands generate naturally.' },
   pillager_outpost: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
-    terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/pillager_outpost',
+    terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/pillager_outpost', implementation: 'pillagerOutpost',
     biomes: ['desert', 'plains', 'savanna', 'snowy_plains', 'taiga', 'grove', 'meadow', 'frozen_peaks', 'jagged_peaks', 'stony_peaks', 'snowy_slopes', 'cherry_grove'],
     notes: 'watchtower plus up to four feature structures, including allay and iron golem cages.'
   },

@@ -232,14 +232,18 @@ test('a distance cap rejects far candidates, and connectors sort by selection pr
 });
 
 test('orientation helpers split and rotate as the joining code assumes', () => {
-  assert.deepEqual(splitOrientation('up_north'), { front: 'north', top: 'up' });
-  assert.deepEqual(splitOrientation('down_west'), { front: 'west', top: 'down' });
+  // Vanilla reads orientation as `<front>_<top>`: `up_north` fronts UP. An earlier version of this test
+  // asserted the opposite and so froze the bug in place.
+  assert.deepEqual(splitOrientation('up_north'), { front: 'up', top: 'north' });
+  assert.deepEqual(splitOrientation('north_up'), { front: 'north', top: 'up' });
+  assert.deepEqual(splitOrientation('down_west'), { front: 'down', top: 'west' });
   assert.deepEqual(splitOrientation('north'), { front: 'north', top: 'up' });
   assert.equal(rotationBetween('north', 'east'), 1, 'north to east is one clockwise quarter turn');
   assert.equal(rotationBetween('east', 'north'), 3);
   assert.equal(rotationBetween('north', 'north'), 0);
   // A vertical mismatch cannot be fixed by yaw, and must be reported rather than guessed at.
-  assert.equal(rotationBetween('up', 'north'), null);
+  assert.equal(rotationBetween('down', 'down'), 0, 'a vertical pair facing itself needs no yaw');
+  assert.equal(rotationBetween('up', 'north'), null, 'a vertical/horizontal mismatch cannot be fixed by yaw');
 });
 
 test('the same seed produces the same structure, and a different seed may not', () => {

@@ -166,11 +166,14 @@ const DIRECTION_VECTOR = {
 export function splitOrientation(orientation) {
   const parts = String(orientation || 'north_up').split('_');
   if (parts.length === 1) return { front: parts[0], top: 'up' };
-  return { front: parts[1], top: parts[0] };
+  return { front: parts[0], top: parts[1] };
 }
 
 /** The rotation that turns `from` into `to`, as a quarter-turn count. */
 export function rotationBetween(from, to) {
+  // Two connectors that already face the same way need no yaw. Without this, a vertical join -- a tower's
+  // downward connector meeting a plate's upward one -- came back null and was rejected as un-joinable.
+  if (from === to) return 0;
   const order = ['north', 'east', 'south', 'west'];
   const a = order.indexOf(from);
   const b = order.indexOf(to);
@@ -260,7 +263,10 @@ export function addPieces({
         if (candidateConnectors.length && !match) continue;
 
         // Rotate the candidate so its connector faces back at ours.
-        const target = OPPOSITE[connector.orientation] ?? connector.orientation;
+        // A connector's orientation is up_north-shaped, so the yaw must be split out before asking for the
+        // opposite facing. Looking up the full string silently missed and rejected every candidate.
+        const sourceFront = splitOrientation(connector.orientation).front;
+        const target = OPPOSITE[sourceFront] ?? sourceFront;
         const candidateFront = match ? splitOrientation(match.orientation).front : null;
         const turns = candidateFront ? rotationBetween(candidateFront, target) : 0;
         if (turns === null) continue; // a vertical mismatch this engine cannot yet fix, counted below
@@ -280,7 +286,7 @@ export function addPieces({
             offset.z += at.z - matchWorld.z;
           }
         }
-        const facing = DIRECTION_VECTOR[connector.orientation] ?? { x: 0, y: 0, z: 0 };
+        const facing = DIRECTION_VECTOR[sourceFront] ?? { x: 0, y: 0, z: 0 };
         // The child's connector must land in the cell BEYOND the parent's, not on it. Aligning them onto the
         // same cell makes the two boxes share a block, which the collision check below then rejects -- so
         // every join failed and no structure ever grew past its own start piece.

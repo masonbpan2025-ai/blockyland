@@ -71,14 +71,14 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Village (Savanna) | `village_savanna` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As plains; plus farmland. |
 | Village (Snowy) | `village_snowy` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As plains. |
 | Village (Taiga) | `village_taiga` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As plains; plus the armour stands. |
-| Pillager Outpost | `pillager_outpost` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `beard_thin` + the watchtower/feature split. Its `legacy_type_1` frequency reducer and its 10-chunk exclusion zone from villages **are** implemented. |
+| Pillager Outpost | `pillager_outpost` | jigsaw | yes | yes | yes | yes | yes | watchtower pillager + caged iron golem | yes | no | `PARTIAL` | The FIRST structure on the jigsaw engine, so its pool graph, connector joining and `beard_thin` adaptation are the engine's real behaviour while every part is a clean-room approximation. OPEN QUESTION: the feature pool is weighted (cage 3, golem cage 1, tent 2, log 4) but across 60 chunks the feature mix never varied, so either the weighted draw is not reaching the feature connectors or every candidate is being rejected. Not asserted away: see the note in tests/structurePillagerOutpost.test.js. Vanilla's area pillager spawning is not reproduced. |
 | Bastion Remnant | `bastion_remnant` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Four variants, blackstone processors, the magma-cube spawner, and the floats-over-lava behaviour. |
 | Ancient City | `ancient_city` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `beard_box` + the Y=-51 floor rule + sculk/spawner content. |
 | Trail Ruins | `trail_ruins` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `bury` + three processor lists + archaeology. |
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
-Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 15 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid, swamp hut), 6 `NOT STARTED`
-(4 hardcoded + 5 procedural minus the implemented one), 12 `INFRASTRUCTURE BLOCKED` (2 template + 10
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 16 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid, swamp hut), 6 `NOT STARTED`
+(4 hardcoded + 5 procedural minus the implemented one), 11 `INFRASTRUCTURE BLOCKED` (2 template + 9
 jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
 ## Structure-like features
@@ -107,6 +107,7 @@ These generate like ores rather than through structure sets, and cannot be locat
    the documented core is implemented and unmapped variants are left alone), and `capped` (vanilla's
    finalize pre-pass is not reproduced; the cap is applied greedily in placement order).
 0b. **RESOLVED - plan-local piece indices.** `StructurePiece` now accepts an explicit plan-local `index`, every generator supplies one, and `tests/structurePieceIndex.test.js` asserts that the igloo, the multi-piece ocean-ruin cluster, the jigsaw engine and the engine's plan hash are BIT-IDENTICAL before and after a crowd of unrelated pieces is created. The module-level counter is retained only as a fallback for callers that derive nothing from the index. This mattered because `StructurePiece.index` previously depended on how many pieces had been created earlier in the same process, and the igloo and ocean ruins derive per-piece randomness from it, which would have made any golden-seed test compare two processes that could not agree.
+0c. **The jigsaw feature pool''s weighted variety is unverified.** See the Pillager Outpost row: the mix did not vary across 60 chunks. The engine''s own pool tests prove the weighting works in isolation, so the fault is most likely in how the outpost''s feature connectors are offered or accepted.
 1. **Placement parity is not bit-exact.** The mixing is implemented from documented behaviour and
    cross-checked against one MIT implementation, but no structural diff against a vanilla oracle exists,
    so "placement parity" currently means "same rules", not "same chunks".

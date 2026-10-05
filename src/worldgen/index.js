@@ -30,6 +30,7 @@ import { generateOceanRuin, realizeOceanRuin } from './generators/oceanRuin.js';
 import { generateDesertPyramid, realizeDesertPyramid } from './generators/desertPyramid.js';
 import { generateSwampHut, realizeSwampHut } from './generators/swampHut.js';
 import { adaptToTerrain, adaptationFor } from './terrainAdaptation.js';
+import { generatePillagerOutpost, realizePillagerOutpost } from './generators/pillagerOutpost.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -41,7 +42,8 @@ export const GENERATORS = {
   shipwreck: { generate: generateShipwreck, realize: realizeShipwreck },
   oceanRuin: { generate: generateOceanRuin, realize: realizeOceanRuin },
   desertPyramid: { generate: generateDesertPyramid, realize: realizeDesertPyramid },
-  swampHut: { generate: generateSwampHut, realize: realizeSwampHut }
+  swampHut: { generate: generateSwampHut, realize: realizeSwampHut },
+  pillagerOutpost: { generate: generatePillagerOutpost, realize: realizePillagerOutpost }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */
