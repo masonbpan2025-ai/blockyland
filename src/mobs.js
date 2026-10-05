@@ -50,6 +50,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { HAPPY_GHAST_HEALTH, HAPPY_GHAST_DIMENSIONS, GHASTLING_DIMENSIONS, HAPPY_GHAST_SPEED, HAPPY_GHAST_RIDDEN_SPEED, HAPPY_GHAST_SEATS, HAPPY_GHAST_SEAT_ORDER, HAPPY_GHAST_ROAM, GHASTLING_GROWTH_SECONDS, GHASTLING_SNOWBALL_SPEEDUP, GHASTLING_BEDROCK_SNOWBALLS, GHASTLING_FOLLOW_RANGE, GHASTLING_FOLLOW_SPEED_BOOST, GHASTLING_STOP_DISTANCE, GHASTLING_FOLLOWABLE, GHASTLING_NEVER_FOLLOWS, HAPPY_GHAST_BULKY_CARGO, HAPPY_GHAST_STANDING_FACING, DRIED_GHAST_REHYDRATION, HAPPY_GHAST_COLORS, HAPPY_GHAST_REHOME_EVENTS, isHappyGhast, isGhastling, happyGhastDimensions, happyGhastRoamRadius, setHappyGhastHome, onHappyGhastEvent, clampToHome, equipHappyGhastHarness, removeHappyGhastHarness, mountHappyGhast, dismountHappyGhast, happyGhastSeatOf, happyGhastIsStationary, happyGhastStationaryFacing, attachHappyGhastCargo, releaseHappyGhastCargo, temptHappyGhast, endHappyGhastTemptation, feedGhastlingSnowball, updateGhastlingGrowth, ghastlingFollows, findGhastlingTarget, ghastlingShouldStop, rehydrateDriedGhast, happyGhastWanderTarget, steerHappyGhast, happyGhastDrops, happyGhastXp, createHappyGhastModel, poseHappyGhast } from './happyGhastBehavior.js';
 import { COPPER_GOLEM_HEALTH, COPPER_GOLEM_DIMENSIONS, COPPER_GOLEM_SPEED, COPPER_OXIDATION_STAGES, COPPER_OXIDATION_SECONDS, COPPER_GOLEM_COLORS, isCopperGolem, copperGolemDimensions, copperGolemCanPlaceIn, copperGolemCanTakeFrom, copperGolemCanStoreIn, findCopperGolemSource, findCopperGolemDestination, copperGolemTake, copperGolemPlace, updateCopperGolemOxidation, waxCopperGolem, scrapeCopperGolem, reanimateCopperGolemStatue, shearCopperGolem, giveCopperGolemPoppy, copperGolemDrops, copperGolemXp, copperGolemColor, createCopperGolemModel, poseCopperGolem } from './copperGolemBehavior.js';
 import { CAMEL_HUSK_HEALTH, CAMEL_HUSK_DIMENSIONS, CAMEL_HUSK_SITTING_DIMENSIONS, CAMEL_HUSK_STAND_CLEARANCE, CAMEL_HUSK_SPEED, CAMEL_HUSK_CAMEL_SPEED, CAMEL_HUSK_UNDEAD_TRAITS, CAMEL_HUSK_JOCKEY, CAMEL_HUSK_SPAWN, CAMEL_HUSK_EQUIPMENT, CAMEL_HUSK_DROPS, CAMEL_HUSK_COLORS, isCamelHusk, camelHuskDimensions, camelHuskBurnsInDaylight, camelHuskCanStand, camelHuskSit, camelHuskStand, updateCamelHuskSitting, camelHuskIsHostile, separateCamelHuskRiders, mountCamelHuskJockey, camelHuskDrops, camelHuskXp, equipCamelHuskSaddle, shearCamelHuskSaddle, createCamelHuskModel, poseCamelHusk } from './camelHuskBehavior.js';
 import { GIANT_HEALTH, GIANT_DIMENSIONS, ZOMBIE_DIMENSIONS, GIANT_SCALE, GIANT_DAMAGE, GIANT_UNDEAD_PROPERTIES, GIANT_DROWNING, GIANT_FACING_YAW, GIANT_HAS_AI, GIANT_COLORS, isGiant, giantDimensions, giantDamageFor, giantBurnsInDaylight, giantFacing, giantMoves, giantReactionToDamage, giantAcceptsEffect, giantPotionOutcome, giantScaresArmadillos, giantUnderwaterOutcome, giantDrops, giantXp, giantAttack, createGiantModel, poseGiant } from './giantBehavior.js';
@@ -537,6 +538,7 @@ export class MobManager {
       case 'camel': return this.spawnCamel(x, y, z, options);
       case 'camel_husk': return this.spawnCamelHusk(x, y, z, options);
       case 'copper_golem': return this.spawnCopperGolem(x, y, z, options);
+      case 'happy_ghast': return this.spawnHappyGhast(x, y, z, options);
       case 'creaking': return this.spawnCreaking(x, y, z, options);
       case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
       case 'illusioner': return this.spawnIllusioner(x, y, z, options);
@@ -2647,6 +2649,8 @@ export class MobManager {
       case 'ender_dragon': return { width: 3.5, height: 1.8 };
       case 'wither': return { width: 1.8, height: 2.4 };
       case 'ghast': return { width: 4.0, height: 4.0 };
+      // Wiki: a happy ghast is 4.0 x 4.0, and a ghastling 0.95.
+      case 'happy_ghast': return HAPPY_GHAST_DIMENSIONS;
       case 'blaze': return { width: 0.6, height: 1.8 };
       case 'piglin': return { width: 0.6, height: 1.95 };
       // Wiki: a piglin brute shares the piglin box, 0.6 x 1.95.
@@ -7636,6 +7640,80 @@ export class MobManager {
   }
 
   /**
+   * Happy ghast.
+   *
+   * Wiki: 20 HP, 4.0 x 4.0 (a ghastling 0.95), speed 0.05, passive. It is a FLYING MOUNT: "Up to four
+   * players can ride a happy ghast", it is bound to a home it roams around, and it can airlift leashed
+   * entities. It spawns when a dried ghast is rehydrated in water, as a ghastling.
+   */
+  spawnHappyGhast(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const colors = HAPPY_GHAST_COLORS;
+    const skinMat = new THREE.MeshLambertMaterial({ color: colors.skin });
+    const tentacleMat = new THREE.MeshLambertMaterial({ color: colors.tentacle });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const mouthMat = new THREE.MeshLambertMaterial({ color: colors.mouth });
+    const { group: model, body, face, eyes, mouth, tentacles, harness, goggles } =
+      createHappyGhastModel(skinMat, tentacleMat, eyeMat, mouthMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const isBaby = !!options.isBaby;
+    const mob = {
+      type: 'happy_ghast',
+      name: isBaby ? 'Ghastling' : 'Happy Ghast',
+      isBaby,
+      // Wiki: the ghastling is 0.95 and the adult 4.0.
+      width: isBaby ? GHASTLING_DIMENSIONS.width : HAPPY_GHAST_DIMENSIONS.width,
+      height: isBaby ? GHASTLING_DIMENSIONS.height : HAPPY_GHAST_DIMENSIONS.height,
+      mesh: group,
+      body, face, eyes, mouth, tentacles, harness, goggles,
+      // Wiki: 20 HP, the same for both ages.
+      health: HAPPY_GHAST_HEALTH,
+      maxHealth: HAPPY_GHAST_HEALTH,
+      // Wiki: speed 0.05, and 3.6 m/s when ridden.
+      speed: HAPPY_GHAST_SPEED,
+      riddenSpeed: HAPPY_GHAST_RIDDEN_SPEED,
+      // Wiki: passive, and a flying mob.
+      isHostile: false,
+      isPassive: true,
+      isFlying: true,
+      flying: true,
+      // Wiki: it does not burn and is not undead.
+      undead: false,
+      burnsInDaylight: false,
+      fireImmune: false,
+      // Wiki: ghastlings, unlike adults, do NOT drown when submerged.
+      canBreatheUnderwater: isBaby,
+      // A flying mount, so it needs a hover altitude and no gravity.
+      homeAltitude: y,
+      // Wiki: the home is set where it spawns.
+      home: new THREE.Vector3(x, y, z),
+      // Wiki: only an adult can be harnessed and ridden.
+      hasHarness: isBaby ? false : !!options.hasHarness,
+      riders: [],
+      seats: {},
+      pilot: null,
+      cargo: [],
+      tempted: false,
+      // The ghastling growth clock.
+      growthRemaining: isBaby ? GHASTLING_GROWTH_SECONDS : 0,
+      snowballsFed: 0,
+      target: null,
+      bobPhase: Math.random() * Math.PI * 2,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
    * Copper golem.
    *
    * Wiki: 12 HP, 0.49 x 0.98, speed 0.2, passive. It "takes items out of copper chests, and attempts to
@@ -8857,6 +8935,8 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: the happy ghast's page has NO 'On death' section and its infobox lists only USABLE items, so it
+    // drops nothing. That is deliberate rather than an omission, and the base table has no row for it.
     // Wiki: a copper golem drops 1-3 copper ingots. The row does not exist in the base table, so the manager
     // has to be told about it.
     const copperGolemRows = isCopperGolem(mob) ? copperGolemDrops(mob, random) : [];
@@ -8980,7 +9060,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isCopperGolem(mob) ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? 0
+          : isCopperGolem(mob) ? 0
           : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
           : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
           : isGiant(mob) ? 0
@@ -9821,6 +9902,102 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isHappyGhast(mob)){
+      // Wiki: a passive FLYING mob that is ridden by up to four players and roams around a home it is
+      // bound to. It never uses the ground mover.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: a ghastling grows up in 20 minutes, sped up by snowballs.
+      if (updateGhastlingGrowth(mob, dt) === 'grown') {
+        mob.name = 'Happy Ghast';
+        // Wiki: an adult is 4.0 and a ghastling 0.95, so the hover altitude has to be raised or the newly
+        // grown body would spawn inside the ground.
+        mob.mesh.position.y = Math.max(mob.mesh.position.y, mob.home.y + 2);
+        mob.homeAltitude = mob.mesh.position.y;
+      }
+
+      // Wiki: "Players can stand on top of a happy ghast ... While players are standing on it, the happy ghast
+      // becomes stationary". So the standers are counted by geometry: anything close above it is on top.
+      const top = mob.mesh.position.y + mob.height;
+      const standers = this.mobs.filter(other => other !== mob && other.health > 0 &&
+        Math.abs(other.mesh.position.y - top) < 1.5 &&
+        Math.abs(other.mesh.position.x - mob.mesh.position.x) < mob.width * 0.6 &&
+        Math.abs(other.mesh.position.z - mob.mesh.position.z) < mob.width * 0.6).length
+        + (this.game?.player && Math.abs(this.game.player.position.y - top) < 1.5 &&
+          Math.abs(this.game.player.position.x - mob.mesh.position.x) < mob.width * 0.6 &&
+          Math.abs(this.game.player.position.z - mob.mesh.position.z) < mob.width * 0.6 ? 1 : 0);
+      const stationary = happyGhastIsStationary(mob, { standers });
+      if (stationary) {
+        // Wiki: "While players are standing on it, the happy ghast becomes stationary and aligns to one of the
+        // cardinal directions", and south after a chunk reload.
+        mob.velocity.set(0, 0, 0);
+        mob.yaw = happyGhastStationaryFacing();
+        mob.mesh.rotation.y = mob.yaw;
+        mob.state = 'stood-on';
+      } else if ((mob.riders?.length ?? 0) > 0) {
+        // Wiki: "A ridden happy ghast moves at about 3.6 m/s", flown by the pilot, with no gravity.
+        const pilot = mob.pilot ?? mob.riders[0];
+        const dir = new THREE.Vector3(0, 0, 1).applyEuler(pilot.mesh?.rotation ?? pilot.rotation ?? new THREE.Euler());
+        if (pilot.keys?.forward) mob.velocity.set(dir.x * HAPPY_GHAST_RIDDEN_SPEED, dir.y * HAPPY_GHAST_RIDDEN_SPEED, dir.z * HAPPY_GHAST_RIDDEN_SPEED);
+        else mob.velocity.set(0, 0, 0);
+        // Wiki: jump moves it straight up, and there is no dedicated downward control.
+        if (pilot.keys?.jump || pilot.keys?.space) mob.velocity.y = HAPPY_GHAST_RIDDEN_SPEED;
+        else if (!pilot.keys?.forward) mob.velocity.y = 0;
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.mesh.rotation.y = mob.yaw;
+        mob.state = 'ridden';
+      } else {
+        // Unridden: a ghastling follows a nearby target, and an adult hovers around its home.
+        if (isGhastling(mob)) {
+          const candidates = [this.game?.player, ...this.mobs].filter(Boolean);
+          const target = findGhastlingTarget(mob, candidates);
+          mob.target = target;
+          if (target && !ghastlingShouldStop(mob, target)) {
+            const pos = target.position ?? target.mesh?.position;
+            const dir = pos.clone().sub(mob.mesh.position);
+            const length = dir.length() || 1;
+            const speed = HAPPY_GHAST_SPEED * 20 * GHASTLING_FOLLOW_SPEED_BOOST;
+            mob.velocity.copy(dir.multiplyScalar(speed / length));
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.mesh.rotation.y = mob.yaw;
+            mob.state = 'following';
+          } else {
+            mob.velocity.set(0, 0, 0);
+            mob.state = 'idle';
+          }
+        } else {
+          // Wiki: "Unharnessed happy ghasts roam within a 64-block radius of their home". It picks a point
+          // inside that radius and drifts to it, which is what keeps an idle one from hanging motionless.
+          if (!mob.wanderTarget || mob.mesh.position.distanceTo(mob.wanderTarget) < 1) {
+            mob.wanderTarget = happyGhastWanderTarget(mob, this.random ?? Math.random);
+          }
+          steerHappyGhast(mob, mob.wanderTarget, dt, HAPPY_GHAST_SPEED * 20);
+          mob.mesh.rotation.y = mob.yaw;
+          mob.state = 'roaming';
+        }
+        // Wiki: it roams within a radius of its home, and holds its altitude.
+        const wanted = mob.mesh.position.clone().add(mob.velocity);
+        const clamped = clampToHome(mob, wanted);
+        if (clamped && wanted.distanceTo(clamped) > 1e-6) {
+          mob.velocity.copy(clamped.sub(mob.mesh.position));
+        }
+        // A hover bob, so an idle one breathes rather than hanging perfectly still. It is added to the vertical
+        // velocity rather than REPLACING it, which would cancel the roamer's climb whenever it drifted below its
+        // altitude.
+        mob.bobPhase = (mob.bobPhase || 0) + dt;
+        mob.velocity.y += Math.sin(mob.bobPhase * 1.1) * 0.25;
+      }
+
+      // It is not undead, so it never burns.
+      mob.isBurning = false;
+      mob.mesh.position.addScaledVector(mob.velocity, dt);
+      // Keep it above the ground, since it has no gravity model of its own.
+      const groundY = (this.world.surfaceHeightAt?.(mob.mesh.position.x, mob.mesh.position.z) ?? 1) + 2;
+      if (mob.mesh.position.y < groundY) mob.mesh.position.y = groundY;
+      if (mob.onGround === undefined) mob.onGround = false;
+      poseHappyGhast(mob, mob.bobPhase || 0);
       return true;
     }
     if(isCopperGolem(mob)){

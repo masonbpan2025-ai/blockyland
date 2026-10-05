@@ -1080,6 +1080,8 @@ export const ITEMS = {
   lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
   milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
   flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
+  // Wiki: the harness, which a happy ghast must have before it can be ridden.
+  harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },
   shears: { name: 'Shears', icon: '/assets/items/shears.png', type: 'tool' },
   fishing_rod: { name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png', type: 'tool' },
   compass: { name: 'Compass', icon: '/assets/items/compass.png', type: 'tool' },
@@ -1343,6 +1345,7 @@ export const ITEMS = {
   warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
   wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' },
+  happy_ghast_spawn_egg: { name: 'Happy Ghast Spawn Egg', icon: '/assets/items/happy_ghast_spawn_egg.png', type: 'spawn_egg', mob: 'happy_ghast' },
   copper_golem_spawn_egg: { name: 'Copper Golem Spawn Egg', icon: '/assets/items/copper_golem_spawn_egg.png', type: 'spawn_egg', mob: 'copper_golem' },
   camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
