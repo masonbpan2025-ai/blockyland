@@ -80,7 +80,7 @@ test('the hanging marker is present on exactly the blocks that need it', () => {
     .map(([, def]) => def.name)
     .sort();
   const expected = [
-    'Cave Vines', 'Cave Vines Plant', 'Hanging Roots',
+    'Cave Vines', 'Cave Vines Plant', 'Hanging Roots', 'Pale Hanging Moss',
     'Twisting Vines', 'Twisting Vines Plant',
     'Weeping Vines', 'Weeping Vines Plant',
   ].sort();
@@ -99,5 +99,5 @@ test('every hanging block is drawn and behaves as a non-obstacle cross', () => {
     assert.equal(def.transparent, true, `${def.name} must not occlude light`);
     assert.equal(typeof def.textures?.all, 'string', `${def.name} needs an all-texture for the cross`);
   }
-  assert.ok(checked >= 7, `expected the hanging family to be present, checked ${checked}`);
+  assert.ok(checked >= 8, `expected the hanging family to be present, checked ${checked}`);
 });

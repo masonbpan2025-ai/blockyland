@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1546 recipes.
+// 1547 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -477,6 +477,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart'],result:{id:B.NETHER_WART_BLOCK,isBlock:true,count:1}},
   {pattern:[['nether_brick','nether_wart'],['nether_wart','nether_brick']],result:{id:B.RED_NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal']],result:{id:B.BONE_BLOCK,isBlock:true,count:1}},
+  {pattern:[['shulker_shell'],[B.CHEST],['shulker_shell']],result:{id:B.SHULKER_BOX,isBlock:true,count:1}},
   {shapeless:true,ingredients:['white_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.WHITE_CONCRETE_POWDER,isBlock:true,count:8}},
   {shapeless:true,ingredients:['orange_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.ORANGE_CONCRETE_POWDER,isBlock:true,count:8}},
   {shapeless:true,ingredients:['magenta_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.MAGENTA_CONCRETE_POWDER,isBlock:true,count:8}},
@@ -1566,21 +1567,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1546;
+export const EXTRA_RECIPE_COUNT = 1547;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1546,
-  "shaped": 1276,
+  "emitted": 1547,
+  "shaped": 1277,
   "shapeless": 270,
-  "skippedMissingResult": 9,
+  "skippedMissingResult": 8,
   "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1546,
+  "emittedBeforeDedupe": 1547,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

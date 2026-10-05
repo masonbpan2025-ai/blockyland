@@ -89,6 +89,21 @@ const blocks1214 = [
   // part-suffix case that made earlier rounds mis-report plants as art-blocked.
   'pumpkin_stem.png', 'attached_pumpkin_stem.png', 'melon_stem.png', 'attached_melon_stem.png',
   'seagrass.png', 'tall_seagrass_top.png', 'kelp.png', 'kelp_plant.png', 'sea_pickle.png',
+  // Shulker boxes, the fourteenth batch: seventeen textures, the plain box and sixteen dyed. There is no
+  // separate item texture upstream -- the block texture is the icon, which is how this game derives every
+  // other block item's icon too.
+  'shulker_box.png',
+  'white_shulker_box.png', 'orange_shulker_box.png', 'magenta_shulker_box.png',
+  'light_blue_shulker_box.png', 'yellow_shulker_box.png', 'lime_shulker_box.png',
+  'pink_shulker_box.png', 'gray_shulker_box.png', 'light_gray_shulker_box.png',
+  'cyan_shulker_box.png', 'purple_shulker_box.png', 'blue_shulker_box.png',
+  'brown_shulker_box.png', 'green_shulker_box.png', 'red_shulker_box.png',
+  'black_shulker_box.png',
+  // Dripleaf and sculk, the fifteenth batch. `soul_fire` is deliberately NOT here: its upstream texture is
+  // a 16x512 animation strip rather than a tile, and the game has no machinery to slice it, so registering
+  // the block would draw the whole strip across one quad. That block needs an SVG or a frame slicer first.
+  'big_dripleaf_top.png', 'big_dripleaf_stem.png', 'small_dripleaf_top.png',
+  'sculk_vein.png', 'pale_hanging_moss.png',
 ];
 
 const items = [
