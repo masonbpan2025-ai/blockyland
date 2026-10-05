@@ -109,6 +109,38 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the amethyst family drops only what vanilla drops', () => {
+  // This is the reason the family is one batch: four of the five blocks yield NOTHING and only the
+  // cluster yields, so a copy-pasted definition in either direction is a silent bug. Budding amethyst
+  // in particular is unobtainable in vanilla precisely so an amethyst farm cannot be moved, which is a
+  // game rule rather than an oversight.
+  assert.equal(getBlockDrop(BLOCKS.BUDDING_AMETHYST), null,
+    'budding amethyst must drop nothing; it is unobtainable so a farm cannot be relocated');
+
+  for (const key of ['LARGE_AMETHYST_BUD', 'MEDIUM_AMETHYST_BUD', 'SMALL_AMETHYST_BUD']) {
+    assert.equal(getBlockDrop(BLOCKS[key]), null, `${key} must drop nothing`);
+    assert.deepEqual(harvestDataFor(BLOCKS[key]).drops, [], `${key} harvest row must agree`);
+  }
+
+  const cluster = getBlockDrop(BLOCKS.AMETHYST_CLUSTER);
+  assert.ok(cluster, 'the cluster is the one that yields');
+  assert.equal(cluster.id, 'amethyst_shard', 'and it yields a shard, not itself');
+  assert.ok('amethyst_shard' in ITEMS, 'which must be a real item');
+
+  // The budding block is the only one the harvest table marks `requiresTool`, which matches the wiki:
+  // every amethyst growth can be collected by hand, while the budding block needs a pickaxe. Asserting
+  // the two groups separately is what makes this a test of the data rather than of a shared path.
+  assert.equal(miningEffect(BLOCKS.BUDDING_AMETHYST, null, null).canHarvest, false,
+    'budding amethyst must NOT be harvestable by hand');
+  assert.ok(miningEffect(BLOCKS.BUDDING_AMETHYST, { speed: 8 }, 'wooden_pickaxe').canHarvest,
+    'budding amethyst must yield to a pickaxe');
+
+  for (const key of ['AMETHYST_CLUSTER', 'LARGE_AMETHYST_BUD', 'MEDIUM_AMETHYST_BUD', 'SMALL_AMETHYST_BUD']) {
+    assert.ok(miningEffect(BLOCKS[key], null, null).canHarvest,
+      `${key} can be collected by hand, as in vanilla`);
+  }
+});
+
 test('the ground-cover plants are cross-quad decoration, not obstacles', () => {
   // All four share the shape, which is why they were one batch. `plant` is what the mesher reads to
   // draw a cross, `solid: false` is what stops them blocking movement, and `transparent` is what stops
