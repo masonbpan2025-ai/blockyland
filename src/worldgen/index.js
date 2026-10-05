@@ -197,3 +197,11 @@ export {
   StructurePlacementEngine, RandomSpreadStructurePlacement, ConcentricRingsStructurePlacement,
   FrequencyReducer, SpreadType
 };
+
+// The template subsystem, re-exported here so a consumer needs one import for "structures".
+// `template.js` is the loader for vanilla-shaped templates (JSON or `.nbt`), `blockState.js` owns the
+// rotation of block STATES -- which is not coordinate rotation and is implemented nowhere else in the
+// JavaScript ecosystem -- and `nbt.js` is a dependency-free big-endian reader.
+export { StructureTemplate, StructureTemplateManager } from './template.js';
+export { parseBlockState, formatBlockState, rotateBlockState, rotateStateString, bareName } from './blockState.js';
+export { readNbt, readNbtAuto, writeNbt, gunzip, isGzipped, TagType } from './nbt.js';
