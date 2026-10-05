@@ -702,7 +702,23 @@ export const BLOCKS = {
   SOUL_FIRE: 1171,
   SUSPICIOUS_SAND: 1172,
   SUSPICIOUS_GRAVEL: 1173,
-  SCAFFOLDING: 1174
+  SCAFFOLDING: 1174,
+
+  // --- Filled cauldrons, twenty-third block-parity batch -----------------------------------------
+  //
+  // The three filled cauldrons. The empty cauldron already existed; these are its states.
+  //
+  // THE FILL TEXTURES ARE COMPOSED, NOT DOWNLOADED, for the third time in this goal. The mirror ships the
+  // cauldron's own faces and the fluid tiles, but no combined `*_cauldron` texture, because vanilla draws
+  // a filled cauldron as a MODEL. scripts/compose-filled-cauldrons.py overlays the fluid onto
+  // `cauldron_top`, and it had to slice first: water and lava are ANIMATION STRIPS upstream, 32 and 20
+  // frames deep, which this engine cannot animate.
+  //
+  // The overlay is an approximation -- vanilla insets the fluid inside the pot's mouth, while this fills
+  // the whole top face -- and it reads correctly from above, which is the face a player looks at.
+  WATER_CAULDRON: 1175,
+  LAVA_CAULDRON: 1176,
+  POWDER_SNOW_CAULDRON: 1177
 };
 
 export const BLOCK_DEFS = {
@@ -1032,6 +1048,25 @@ export const BLOCK_DEFS = {
   [BLOCKS.SUSPICIOUS_SAND]: { name: 'Suspicious Sand', hardness: 0.25, sound: 'sand', drop: null, textures: { all: 'suspicious_sand_0.png' } },
   [BLOCKS.SUSPICIOUS_GRAVEL]: { name: 'Suspicious Gravel', hardness: 0.25, sound: 'sand', drop: null, textures: { all: 'suspicious_gravel_0.png' } },
   [BLOCKS.SCAFFOLDING]: { name: 'Scaffolding', hardness: 0.0, sound: 'wood', transparent: true, drop: BLOCKS.SCAFFOLDING, textures: { top: 'scaffolding_top.png', side: 'scaffolding_side.png', bottom: 'scaffolding_bottom.png' } },
+
+  // --- Filled cauldrons, twenty-third block-parity batch -----------------------------------------
+  //
+  // ALL THREE DROP AN EMPTY CAULDRON, not themselves and not their fluid, which is what the generated
+  // harvest table says for every one of them. So they use `drop: BLOCKS.CAULDRON` rather than a self-drop.
+  //
+  // WHAT IS NOT MODELLED, and it is the point of a cauldron: none of them holds anything. Vanilla lets you
+  // dip a bottle or bucket in, extinguish yourself in water, sink in powder snow and take fire damage from
+  // lava. This engine has no fluid-container interaction, so these are cauldrons whose CONTENTS are
+  // decoration. The bottle-filling code notes the same gap from its side, refusing a cauldron explicitly
+  // rather than silently doing nothing.
+  //
+  // Fixing the base cauldron's texture is part of this batch: it pointed at blackstone.png, which is not a
+  // cauldron, while the real cauldron_top/side/bottom art sat unused. Same class of mistake as the flower
+  // pot's iron_bars.png.
+  [BLOCKS.WATER_CAULDRON]: { name: 'Water Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'water_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
+  [BLOCKS.LAVA_CAULDRON]: { name: 'Lava Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'lava_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
+  [BLOCKS.POWDER_SNOW_CAULDRON]: { name: 'Powder Snow Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'powder_snow_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
+
 
   [BLOCKS.BRICKS]: {
     name: 'Bricks',
@@ -1939,7 +1974,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.COMPOSTER]: { name: 'Composter', hardness: 2.0, sound: 'wood', workstation: 'farmer', textures: { top: 'oak_planks.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
   [BLOCKS.BARREL]: { name: 'Barrel', hardness: 2.5, sound: 'wood', workstation: 'fisherman', textures: { top: 'spruce_planks.png', side: 'spruce_planks.png', bottom: 'spruce_planks.png' } },
   [BLOCKS.FLETCHING_TABLE]: { name: 'Fletching Table', hardness: 2.5, sound: 'wood', workstation: 'fletcher', textures: { top: 'birch_planks.png', front: 'birch_planks.png', side: 'birch_planks.png', bottom: 'birch_planks.png' } },
-  [BLOCKS.CAULDRON]: { name: 'Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', textures: { all: 'blackstone.png' } },
+  [BLOCKS.CAULDRON]: { name: 'Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', textures: { top: 'cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
   [BLOCKS.LECTERN]: { name: 'Lectern', hardness: 2.5, sound: 'wood', workstation: 'librarian', textures: { top: 'oak_planks.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
   [BLOCKS.STONECUTTER]: { name: 'Stonecutter', hardness: 3.5, sound: 'stone', workstation: 'mason', textures: { top: 'smooth_stone.png', side: 'stone.png', bottom: 'stone.png' } },
   [BLOCKS.LOOM]: { name: 'Loom', hardness: 2.5, sound: 'wood', workstation: 'shepherd', textures: { top: 'oak_planks.png', front: 'crafting_table_front.png', side: 'oak_planks.png', bottom: 'oak_planks.png' } },
