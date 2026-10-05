@@ -1,7 +1,7 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
-import { thornsReflect } from './enchantmentEffects.js';
+import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -478,15 +478,7 @@ export class Player {
       return;
     }
 
-    let targetSpeed = this.walkSpeed;
-    if (this.isFlying) targetSpeed = this.flySpeed;
-    else if (this.isBlocking) targetSpeed = this.sneakSpeed;
-    else if (this.isSprinting) targetSpeed = this.sprintSpeed;
-    else if (this.isSneaking) targetSpeed = this.sneakSpeed;
-    else if (this.inWater) {
-      targetSpeed = this.walkSpeed * 0.65;
-      if (this.hasStatusEffect('dolphins_grace')) targetSpeed *= 2.2;
-    }
+    let targetSpeed = this.selectBaseSpeed();
 
     if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
@@ -836,6 +828,46 @@ export class Player {
       lists.push(Array.isArray(piece?.enchantments) ? piece.enchantments : []);
     }
     return lists;
+  }
+
+  /**
+   * The base movement speed for the player's current state, before status effects and soul speed.
+   *
+   * Extracted from `update` so the stairs of conditionals -- and the depth strider factor inside the
+   * water branch -- can be asserted directly. Driving `update` to reach this line needs most of a game
+   * engine stubbed, and an untestable branch is one that quietly stops being applied.
+   */
+  selectBaseSpeed() {
+    if (this.isFlying) return this.flySpeed;
+    if (this.isBlocking) return this.sneakSpeed;
+    if (this.isSprinting) return this.sprintSpeed;
+    if (this.isSneaking) return this.sneakSpeed;
+    if (this.inWater) {
+      let speed = this.walkSpeed * 0.65;
+      if (this.hasStatusEffect('dolphins_grace')) speed *= 2.2;
+      // Depth strider reduces the water penalty, reaching 1.75x at level III where the penalty is
+      // effectively gone. The multiplier is 1 at level 0, so a player without the enchantment is
+      // unaffected -- and `depthStriderMultiplier` clamps above level III, which is vanilla's cap.
+      speed *= depthStriderMultiplier(this.armourEnchantmentLevel('depth_strider'));
+      return speed;
+    }
+    return this.walkSpeed;
+  }
+
+  /**
+   * The highest level of an enchantment across the worn armour, or 0.
+   *
+   * The highest rather than the sum, because that is how a single-piece effect works: depth strider only
+   * usefully exists on boots, and two pieces carrying the same enchantment do not stack in vanilla.
+   */
+  armourEnchantmentLevel(id) {
+    let level = 0;
+    for (const list of this.armourEnchantmentLists()) {
+      for (const ench of list) {
+        if (ench?.id === id && typeof ench.level === 'number') level = Math.max(level, ench.level);
+      }
+    }
+    return level;
   }
 
   takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {

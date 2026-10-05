@@ -387,17 +387,23 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 - **Brewing and potion-to-effect mapping.** Section 2.6 documents Mineclonia's durations; the mapping
   from ingredients to effects (fermented spider eye inverting healing to harming, and so on) is not
   implemented.
-- **Thorns, unbreaking and depth strider are computed; thorns is now wired, the other two are not.**
-  All three formulas live in `src/enchantmentEffects.js` and are asserted by tests. **Thorns is wired**:
-  `Player.takeDamage` rolls it per armour piece and reports through an `onThornsReflect` hook that
-  `main.js` connects to the mob manager, so the player never damages a mob itself. **Unbreaking and depth
-  strider are not wired** — unbreaking needs a durability system to spend against, and depth strider needs
-  the water movement path, neither of which exists yet.
+- **Thorns and depth strider are now wired; unbreaking is not.** All three formulas live in
+  `src/enchantmentEffects.js` and are asserted by tests.
 
-  The attacker is identified from the damage source POSITION rather than passed by the caller. `mobs.js`
-  passes `mob.mesh.position` in four places, and that file is another agent's active workspace, so the
-  lookup happens in `main.js` instead. It also covers every damage source with a position rather than only
-  the four call sites that happen to have the mob to hand.
+  **Thorns**: `Player.takeDamage` rolls it per armour piece and reports through an `onThornsReflect` hook
+  that `main.js` connects to the mob manager, so the player never damages a mob itself. The attacker is
+  identified from the damage source POSITION rather than passed by the caller, because `mobs.js` passes
+  `mob.mesh.position` in four places and that file is another agent's workspace; the lookup in `main.js`
+  also covers every damage source with a position rather than only those four call sites.
+
+  **Depth strider**: applied in `Player.selectBaseSpeed()`, the water branch, reaching 1.75x at level III
+  where the penalty is gone and water speed passes land speed. Clamped above level III.
+
+  **Unbreaking is NOT wired.** It needs a durability system to spend against, and there is no central one:
+  30 call sites across nine files touch durability or consume an item, most of them consumables (wheat,
+  leads, name tags) rather than tools, and six of those files belong to another agent. Wiring it properly
+  means first introducing a single `spendDurability(player, item, amount)` entry point, which is a
+  refactor rather than a wiring change.
 
 ### 4.4 Enchantment damage — implemented
 
