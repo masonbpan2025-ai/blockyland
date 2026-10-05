@@ -794,6 +794,19 @@ export const BLOCKS = {
   //     darkened to the gateway's deeper violet with a few sparks on a fixed lattice.
   SNIFFER_EGG: 1191,
   END_GATEWAY: 1192,
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // THE PISTON FAMILY IS DRAWN WITH SVG ICONS on purpose -- piston.svg, sticky_piston.svg and
+  // piston_head.svg -- so its three existing blocks name `redstone_white.svg` as a texture and carry an
+  // icon instead. That is a deliberate convention for redstone components here, not a gap, and this batch
+  // does not churn it.
+  //
+  // What it does use is the real piston TILE art, which was sitting on the mirror UNUSED:
+  // `piston_side.png` and `piston_inner.png` were referenced by nothing in this codebase. A moving
+  // piston is exactly the piston's body with its head extended, which is what `piston_inner` draws, so
+  // those two tiles are the whole block.
+  MOVING_PISTON: 1193,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2765,6 +2778,17 @@ BLOCK_DEFS[BLOCKS.OBSERVER] = {name: 'Observer', redstone: true, hardness: 1.5, 
 BLOCK_DEFS[BLOCKS.PISTON] = {name: 'Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston.svg'};
 BLOCK_DEFS[BLOCKS.STICKY_PISTON] = {name: 'Sticky Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/sticky_piston.svg'};
 BLOCK_DEFS[BLOCKS.PISTON_HEAD] = {name: 'Piston Head', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston_head.svg', internal: true};
+
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // Its art is `piston_side` and `piston_inner`, neither of which anything in this codebase referenced
+  // before. `piston_inner` is what a piston looks like with its head extended, which is what a moving
+  // piston IS, so the dead art was the missing piece rather than a new drawing.
+  //
+  // IT HAS NO ITEM, deliberately: the harvest row drops nothing and vanilla gives it no item either. It
+  // exists only as the mid-animation state of a piston, and since this engine has no piston movement it
+  // is inert like the rest of the family. It is left out of the creative catalogue for the same reason.
+BLOCK_DEFS[BLOCKS.MOVING_PISTON] = {name: 'Moving Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, drop: null, textures: { top: 'piston_inner.png', side: 'piston_side.png', bottom: 'piston_side.png', front: 'piston_inner.png', all: 'piston_side.png' }};
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};

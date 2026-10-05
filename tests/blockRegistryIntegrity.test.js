@@ -111,6 +111,83 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the moving piston uses the piston art nothing referenced before', () => {
+  // The piston family is drawn with SVG ICONS on purpose, so its three existing blocks name
+  // `redstone_white.svg` as a texture and carry an icon. That is a deliberate convention here, and the
+  // moving piston is the one member of the family that gets real TILE art -- because real piston tiles
+  // were on the mirror and referenced by NOTHING in this codebase.
+  //
+  // So the assertion that matters is the one a registry check cannot make: that the art this block names
+  // is the art that was previously dead, and that those tiles exist. If a compositor or downloader step
+  // were wrong, the block would still register and still pass check-blocks.
+  const id = BLOCKS.MOVING_PISTON;
+  assert.equal(typeof id, 'number', 'the moving piston must be registered');
+  const def = BLOCK_DEFS[id];
+
+  // `piston_inner` is what a piston looks like with its head OUT, which is what a moving piston IS.
+  assert.equal(def.textures.top, 'piston_inner.png', 'the extended face must be the inner piston tile');
+  assert.equal(def.textures.front, 'piston_inner.png', 'and the front, which faces the same way');
+  assert.equal(def.textures.all, 'piston_side.png', 'the body must be the piston side tile');
+
+  for (const tile of new Set(Object.values(def.textures))) {
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', tile)),
+      `${tile} must exist on disk; the piston tiles are not part of the block-definition download`);
+  }
+
+  // Those two tiles must be the tiles, not two copies of something else.
+  const side = readFileSync(path.join('public', 'assets', 'blocks', 'piston_side.png'));
+  const inner = readFileSync(path.join('public', 'assets', 'blocks', 'piston_inner.png'));
+  assert.notDeepEqual(side, inner, 'the side and inner tiles must be different pictures');
+
+  // It drops nothing and has no item, per its harvest row. Vanilla gives it no item either: it is the
+  // mid-animation state of a piston, not something a player obtains.
+  assert.equal(def.drop, null, 'the moving piston must drop nothing');
+  assert.equal(getBlockDrop(id), null, 'and the drop pipeline must agree');
+  assert.equal(harvestDataFor(id).drops.length, 0, 'the harvest row carries an empty drops array');
+  assert.equal(ITEMS.moving_piston, undefined, 'and there must be no item, because there is nothing to obtain');
+
+  // IT IS still in the creative catalogue, and that is correct rather than an oversight. The catalogue is
+  // built from the block definitions and groups by the `redstone` marker, so this block appears in the
+  // redstone tab as something to BUILD WITH -- 309 of its 647 entries have no placing item, because a stack
+  // of cobblestone is not an entry that "places" cobblestone. An earlier draft of this test asserted the
+  // opposite, having assumed the catalogue was driven by items; the assertions below are the real property.
+  const entry = buildCreativeCatalog().find((e) => e.id === id);
+  assert.ok(entry, 'the moving piston must be placeable from the creative catalogue');
+  assert.equal(entry.tab, 'redstone_blocks', 'in the redstone tab, with the rest of the family');
+  assert.ok(existsSync(path.join('public', entry.icon.replace(/^\//, ''))),
+    'and its catalogue icon must exist on disk');
+
+  // It is inert like the rest of the family: it carries the redstone marker for grouping but has no
+  // behaviour, and this engine has no piston movement at all.
+  assert.equal(def.redstone, true, 'it belongs to the redstone family');
+
+  // THE GENERATED HARVEST ROW FOR THIS BLOCK IS WRONG, and the test records that rather than hiding it.
+  // Pinned vanilla data gives it `hardness: -1` with `bb: 'empty'`, i.e. it classifies a moving piston as
+  // an unbreakable empty box, while its three sibling blocks all have hardness 1.5, a pickaxe gate and a
+  // real bounding box. Vanilla lets you break the piston head whose base is gone, so -1 is a data artefact.
+  //
+  // The DEFINITION therefore follows the siblings at 1.5, and this asserts both halves: the definition is
+  // breakable, AND the row still says otherwise, so that if the pinned data is ever corrected the
+  // disagreement surfaces here instead of being silently patched over.
+  const row = harvestDataFor(id);
+  assert.equal(def.hardness, BLOCK_DEFS[BLOCKS.PISTON].hardness,
+    'the moving piston must be as hard as the piston it belongs to');
+  assert.equal(row.hardness, -1,
+    'the pinned row still marks it unbreakable; if this changes, revisit the definition below');
+  assert.equal(row.bb, 'empty', 'and the pinned row still gives it an empty bounding box');
+  assert.equal(blastResistanceFor(id), 0,
+    'so it resolves the row\'s 0 resistance rather than the unbreakable sentinel');
+  assert.notEqual(blastResistanceFor(id), null,
+    'meaning an explosion can still remove it, which is the behaviour that matters');
+
+  // Both piston tiles must be committed to the downloader's list, or a clean checkout loses them.
+  const downloader = readFileSync(path.join('scripts', 'download_assets.js'), 'utf8');
+  for (const tile of ['piston_side.png', 'piston_inner.png']) {
+    assert.ok(downloader.includes(`'${tile}'`),
+      `${tile} must be in scripts/download_assets.js, since nothing else fetches it`);
+  }
+});
+
 test('the sniffer egg and end gateway exist, with art derived from other art', () => {
   // Neither of these had a texture under ANY name, at any suffix, in any version. Both got theirs by
   // DERIVING it, which is the seventh time in this goal that a block left the "needs new art" column
