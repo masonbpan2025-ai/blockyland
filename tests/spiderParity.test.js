@@ -33,7 +33,10 @@ function fixture({ light = 0, solid = () => false, terrain = null } = {}) {
   const entities = new EntityManager(scene, world, sounds);
   const manager = Object.assign(Object.create(MobManager.prototype), {
     world, scene, sounds, entities, mobs: [], arrows: [], customProjectiles: [],
-    textures: {}, isBlockSolid: solid
+    textures: {},
+    // `solid` overrides for the climbing tests; by default solidity follows the terrain, so
+    // a ground-walking test gets a floor instead of falling for ever.
+    isBlockSolid: (x, y, z) => (solid(x, y, z) || world.getVoxel(x, y, z) === BLOCKS.STONE)
   });
   const player = { position: new THREE.Vector3(100, 1, 100), gamemode: 'survival', health: 20, keys: {}, takeDamage() {} };
   manager.game = { player, difficulty: 'normal', weather: { weatherType: 'clear' }, worldTime: 18000, controls: {} };
@@ -284,4 +287,22 @@ test('a spider walks and animates without breaking the update loop', () => {
   assert.ok(manager.mobs.includes(spider), 'and still alive');
   // Animation ran: the leg phase advanced.
   assert.ok((spider.spiderPhase || 0) > 0, 'the leg walk cycle advanced');
+});
+
+test('a spider actually moves, rather than only setting a velocity', () => {
+  // Regression: the first spider implementation set velocity in its hunt but nothing
+  // consumed it, because mob types own their locomotion in this engine. The spider stood
+  // still while its velocity vector pointed at the player.
+  const { manager, player } = fixture();
+  const spider = manager.spawnMob('spider', 0, 1, 8);
+  player.position.set(0, 1, 0);
+  manager.game.worldTime = 18000; // night, so the light fallback makes it hostile
+  const before = spider.mesh.position.clone();
+
+  for (let i = 0; i < 120; i++) manager.update(1 / 60, player);
+  const moved = spider.mesh.position.distanceTo(before);
+  assert.ok(moved > 0.5, `the spider should close on the player, moved ${moved}`);
+
+  // And it settles on the ground rather than sinking through it.
+  assert.ok(spider.mesh.position.y > 0.9, `expected to rest on the surface, y=${spider.mesh.position.y}`);
 });

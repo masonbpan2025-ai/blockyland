@@ -207,7 +207,7 @@ export function buildCreativeCatalog() {
   // 10. Mob Spawn Eggs
   const spawnEggsList = [
     'villager_spawn_egg', 'iron_golem_spawn_egg', 'pillager_spawn_egg',
-    'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg', 'spider_spawn_egg',
+    'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg', 'spider_spawn_egg', 'cave_spider_spawn_egg',
     'pig_spawn_egg', 'cow_spawn_egg', 'sheep_spawn_egg', 'chicken_spawn_egg',
     'salmon_spawn_egg', 'cod_spawn_egg', 'dolphin_spawn_egg', 'squid_spawn_egg', 'glow_squid_spawn_egg', 'guardian_spawn_egg', 'elder_guardian_spawn_egg', 'drowned_spawn_egg', 'octopus_spawn_egg', 'axolotl_spawn_egg',
     'horse_spawn_egg', 'donkey_spawn_egg', 'mule_spawn_egg', 'wolf_spawn_egg', 'cat_spawn_egg',

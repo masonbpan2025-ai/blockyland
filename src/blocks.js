@@ -1230,6 +1230,7 @@ export const ITEMS = {
   skeleton_spawn_egg: { name: 'Skeleton Spawn Egg', icon: '/assets/items/skeleton_spawn_egg.png', type: 'spawn_egg', mob: 'skeleton' },
   creeper_spawn_egg: { name: 'Creeper Spawn Egg', icon: '/assets/items/creeper_spawn_egg.png', type: 'spawn_egg', mob: 'creeper' },
   spider_spawn_egg: { name: 'Spider Spawn Egg', icon: '/assets/items/spider_spawn_egg.png', type: 'spawn_egg', mob: 'spider' },
+  cave_spider_spawn_egg: { name: 'Cave Spider Spawn Egg', icon: '/assets/items/cave_spider_spawn_egg.png', type: 'spawn_egg', mob: 'cave_spider' },
   pig_spawn_egg: { name: 'Pig Spawn Egg', icon: '/assets/items/pig_spawn_egg.png', type: 'spawn_egg', mob: 'pig' },
   cow_spawn_egg: { name: 'Cow Spawn Egg', icon: '/assets/items/cow_spawn_egg.png', type: 'spawn_egg', mob: 'cow' },
   sheep_spawn_egg: { name: 'Sheep Spawn Egg', icon: '/assets/items/sheep_spawn_egg.png', type: 'spawn_egg', mob: 'sheep' },

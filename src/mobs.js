@@ -29,7 +29,7 @@ import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNE
 import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
-import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget } from './spiderBehavior.js';
+import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -350,6 +350,7 @@ export class MobManager {
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
       case 'spider': return this.spawnSpider(x, y, z, {});
+      case 'cave_spider': return this.spawnCaveSpider(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2295,6 +2296,8 @@ export class MobManager {
       case 'creeper': return { width: 0.6, height: 1.7 };
       // Wiki: spiders are wider than they are tall.
       case 'spider': return SPIDER_DIMENSIONS;
+      // Wiki: cave spiders are 0.7 x 0.5, exactly half the spider model.
+      case 'cave_spider': return CAVE_SPIDER_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -2934,6 +2937,30 @@ export class MobManager {
       hitCooldown: 0
     };
     this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Cave spider.
+   *
+   * Wiki: a smaller spider variant — 12 HP, 0.7 x 0.5, exactly half the model scale — that
+   * shares the spider's model, light-based neutrality and drops, and additionally poisons on
+   * Normal and Hard difficulty.
+   */
+  spawnCaveSpider(x, y, z, options = {}) {
+    const mob = this.spawnSpider(x, y, z, options);
+    mob.type = 'cave_spider';
+    mob.name = 'Cave Spider';
+    // Wiki: 12 HP, a third less than a spider's 16.
+    mob.health = CAVE_SPIDER_HEALTH;
+    mob.maxHealth = CAVE_SPIDER_HEALTH;
+    // Wiki: 0.7 x 0.5 against the spider's 1.4 x 0.9.
+    mob.width = CAVE_SPIDER_DIMENSIONS.width;
+    mob.height = CAVE_SPIDER_DIMENSIONS.height;
+    // Wiki: the model is half the size of a spider's.
+    mob.mesh.scale.setScalar(CAVE_SPIDER_SCALE);
+    // Distinguishing flags rather than shared ones, so the two variants stay separable.
+    mob.isCaveSpider = true;
     return mob;
   }
 
@@ -6024,9 +6051,9 @@ export class MobManager {
     } else if (mob.type === 'piglin') {
       if ((!attacker && knockbackOrigin) || (attacker && attacker === this.game?.player)) angerPiglins(this, mob.mesh.position);
       else if (attacker) { mob.combatTarget = attacker; mob.retaliationTimer = 30; mob.isBartering = false; }
-    } else if (mob.type === 'spider') {
-      // Wiki: a spider pursues whatever attacked it regardless of the light level, even if
-      // it had returned to neutral in bright light.
+    } else if (mob.type === 'spider' || mob.type === 'cave_spider') {
+      // Wiki: both variants pursue whatever attacked them regardless of the light level,
+      // even if they had returned to neutral in bright light.
       angerSpider(mob, attacker);
     }
 
@@ -6309,7 +6336,7 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6404,7 +6431,7 @@ export class MobManager {
           mob.headMat.needsUpdate = true;
         }
       }
-    } else if (mob.type === 'spider' && mob.legs) {
+    } else if ((mob.type === 'spider' || mob.type === 'cave_spider') && mob.legs) {
       // Eight legs in two alternating tripods, driven by the same swim cycle the other
       // models use so it advances with movement rather than on a separate clock.
       mob.spiderPhase = (mob.spiderPhase || 0) + dt * (Math.hypot(vx, vz) > 0.05 ? 6.5 : 1.2);
@@ -6660,11 +6687,19 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
-    if(mob.type==='spider'){
-      // Wiki: spiders are neutral above light level 11 and climb walls when blocked.
+    if(mob.type==='spider'||mob.type==='cave_spider'){
+      // Wiki: both spider variants are neutral above light level 11 and climb walls when
+      // blocked; cave spiders additionally poison on Normal and Hard. The hunt is gated by
+      // the same light rule, so a spider in bright light stops chasing.
       updateSpiderAnger(mob, dt);
       updateSpiderClimbing(this, mob, dt);
-      return false;
+      updateSpiderHunt(this, mob, dt, player);
+      // Mob types own their locomotion here, so the spider must move itself.
+      moveSpider(this, mob, dt);
+      // The walk cycle is driven here because returning `true` skips the shared animation
+      // step at the end of the mob update loop.
+      this.updateMobAnimation(mob, dt, mob.velocity.x, mob.velocity.z);
+      return true;
     }
     if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
