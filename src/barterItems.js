@@ -16,10 +16,10 @@ export function useBarterPotion(game) {
     game.player.applyStatusEffect('fire_resistance', 180, 1);
   } else {
     const direction = game.camera.getWorldDirection(new THREE.Vector3());
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshLambertMaterial({ color: 0xf59435 }));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshLambertMaterial({ color: item.id === 'splash_water_bottle' ? 0x508cdd : 0xf59435 }));
     mesh.position.copy(game.player.position).y += game.player.eyeHeight || 1.62;
     game.mobs.scene.add(mesh);
-    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5, water: item.id==='splash_water_bottle' });
+    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5, water:item.id==='splash_water_bottle' });
   }
   if (game.player.gamemode !== 'creative') {
     game.inventory.consumeActiveItem();
@@ -41,16 +41,17 @@ export function updateBarterEffects(manager, dt, player) {
       const hitMob = manager.mobs.some(m => m.health > 0 && m.mesh.position.clone().add(new THREE.Vector3(0, 0.7, 0)).distanceTo(p) < 0.65);
       if (potion.life > 0 && !(def && def.solid !== false && !def.plant) && !hitMob) continue;
       if(potion.water)splashStriderWater(manager,p);
-      else for (const actor of [player, ...manager.mobs]) {
+      for (const actor of [player, ...manager.mobs]) {
         if (!actor || actor.health <= 0) continue;
         const position = actor.mesh?.position || actor.position;
         const distance = position.distanceTo(p);
         if (distance >= 4) continue;
+        if(potion.water){if(['blaze','enderman'].includes(actor.type))manager.damageMob(actor,1,player.position,false,player,true);continue;}
         const duration = 180 * (1 - distance / 4);
         if (actor.applyStatusEffect) actor.applyStatusEffect('fire_resistance', duration, 1);
         else actor.fireResistanceTime = Math.max(actor.fireResistanceTime || 0, duration);
       }
-      manager.spawnParticleBurst?.(p, 0xf99b42, 16);
+      manager.spawnParticleBurst?.(p, potion.water ? 0x72baff : 0xf99b42, 16);
       potion.mesh.removeFromParent(); potion.mesh.geometry.dispose(); potion.mesh.material.dispose();
       manager.splashPotions.splice(manager.splashPotions.indexOf(potion), 1);
       break;

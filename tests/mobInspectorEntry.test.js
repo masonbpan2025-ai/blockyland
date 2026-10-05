@@ -130,9 +130,9 @@ test('the Mob Inspector has a Showcase control', () => {
 
 test('the Inspector drives the scenario engine', () => {
   // The engine moved here when Mob Studio was removed; it must actually be wired up.
-  assert.match(inspectorJs, /import \{ MobShowcase \} from '\.\/mobShowcase\.js'/, 'it imports the runner');
+  assert.match(inspectorJs, /import \{ MobShowcase, mobScenarios \} from '\.\/mobShowcase\.js'/, 'it imports the runner');
   assert.match(inspectorJs, /new MobShowcase\(session, ?onShowcaseReport\)/, 'it builds one against its own session');
-  assert.match(inspectorJs, /showcase\.start\(selected\)/, 'and starts it for the selected mob');
+  assert.match(inspectorJs, /showcase\.start\(selected,/, 'and starts it for the selected mob');
   assert.match(inspectorJs, /showcase\.tick\(/, 'advancing it over time');
 });
 
@@ -140,7 +140,7 @@ test('the Inspector ticks the showcase from its own render loop', () => {
   // The runner has a requestAnimationFrame fallback; driving it from the render loop instead
   // keeps the two from advancing the same mob at once.
   assert.match(inspectorJs, /function tickShowcase\(\)/, 'there is a tick helper');
-  assert.match(inspectorJs, /if\(showcase\?\.running\)\{tickShowcase\(\);accumulator=0;\}/, 'the loop prefers the showcase');
+  assert.match(inspectorJs, /while\(accumulator>=1\/60\)\{if\(showcase\?\.running\)tickShowcase\(\);/, 'the loop prefers the showcase');
   // And the plain world tick must not also run while the showcase is going.
   const loop = inspectorJs.slice(inspectorJs.indexOf('setAnimationLoop'));
   assert.match(loop, /else if\(!paused\)/, 'the normal tick is the else branch');

@@ -11,7 +11,8 @@ import { createHorseModel } from './horseModel.js';
 import { createPackEquineModel, isPackEquine } from './packEquineModel.js';
 import { packEquineStats, hurtPackEquine, dropPackEquineLoot, updateDonkeySpawning } from './packEquine.js';
 import { isEquine, randomHorseStats } from './horseBehavior.js';
-import { setMagmaSize, updateSnowballs } from './netherCombat.js';
+import { createBlazeModel, animateBlaze } from './blazeModel.js';
+import { alertBlazes, setMagmaSize, updateSnowballs } from './netherCombat.js';
 import { updateBarterEffects } from './barterItems.js';
 import { retaliateHoglins } from './netherMobAI.js';
 import { separatePlayerFromMobs } from './mobPlayerCollision.js';
@@ -5606,62 +5607,7 @@ export class MobManager {
   }
 
   spawnBlaze(x, y, z) {
-    const group = new THREE.Group();
-    const headMat = new THREE.MeshLambertMaterial({
-      map: this.textures?.blaze_head || this.textures?.blaze,
-      color: 0xffffff
-    });
-    const rodMat = new THREE.MeshLambertMaterial({
-      color: 0xfbbf24,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.5
-    });
-    const smokeMat = new THREE.MeshLambertMaterial({
-      color: 0x1f140e
-    });
-
-    const sideMat = new THREE.MeshLambertMaterial({color:0xd6a321, map:this.textures?.blaze});
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), [sideMat,sideMat,sideMat,sideMat,headMat,sideMat]);
-    head.position.y = 1.35;
-    group.add(head);
-
-    const smoke = new THREE.Group();
-    for (let i=0; i<10; i++) {
-      const puff = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.13), new THREE.MeshBasicMaterial({color:0x34302b, transparent:true, opacity:.35, depthWrite:false}));
-      puff.position.set(Math.sin(i*2.4)*.3, i*.18, Math.cos(i*2.4)*.3);
-      smoke.add(puff);
-    }
-    group.add(smoke);
-    const flames = new THREE.Group();
-    for (let i=0;i<6;i++) {
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(.08,.45,5), new THREE.MeshBasicMaterial({color:0xffb52b,transparent:true,opacity:.75,depthWrite:false}));
-      flame.position.set(Math.sin(i)*.35,.4+(i%3)*.35,Math.cos(i)*.35);
-      flames.add(flame);
-    }
-    flames.visible=false; group.add(flames);
-
-    // 12 orbiting rods arranged in 3 tiers
-    const rodGeo = new THREE.BoxGeometry(0.12, 0.55, 0.12);
-    const tiers = [];
-    const tierConfigs = [
-      { count: 4, radius: 0.5, y: 1.25 },
-      { count: 4, radius: 0.65, y: 0.8 },
-      { count: 4, radius: 0.45, y: 0.35 }
-    ];
-
-    for (let t = 0; t < 3; t++) {
-      const cfg = tierConfigs[t];
-      const tierGroup = new THREE.Group();
-      tierGroup.position.y = cfg.y;
-      for (let i = 0; i < cfg.count; i++) {
-        const angle = (i / cfg.count) * Math.PI * 2;
-        const rod = new THREE.Mesh(rodGeo, rodMat);
-        rod.position.set(Math.cos(angle) * cfg.radius, 0, Math.sin(angle) * cfg.radius);
-        tierGroup.add(rod);
-      }
-      group.add(tierGroup);
-      tiers.push(tierGroup);
-    }
+    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -8493,7 +8439,18 @@ export class MobManager {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
     if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
-    if (attacker === this.game?.player || (!isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if (attacker === this.game?.player || (mob.type !== 'blaze' && !isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if (mob.type === 'blaze') {
+      if (attacker === this.game?.player || (attacker?.type === 'wolf' && attacker.isTamed)) {
+        mob.playerDamaged = true;
+      }
+      if (attacker === this.game?.player) {
+        const enchantments = attacker.inventory?.getActiveItem?.()?.enchantments;
+        const level = Array.isArray(enchantments) ? enchantments.find(e => e.id === 'looting')?.level : enchantments?.looting;
+        mob.blazeLooting = Math.max(0, Math.min(3, level || 0));
+      }
+      if (attacker) alertBlazes(this, mob, attacker);
+    }
     if(mob.type==='strider'){
       this.sounds?.playStrider?.(mob.health<=amount?'death':'retreat');mob.soundTimer=3;
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
@@ -8811,7 +8768,7 @@ export class MobManager {
       pillager: [['arrow', false, 1, 2]],
       vindicator: [['emerald', false, 0, 1]],
       evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
-      blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1]] : [],
+      blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1 + (mob.blazeLooting || 0)]] : [],
       ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
       piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
       zoglin: [['rotten_flesh', false, 1, 3]],
@@ -9013,7 +8970,8 @@ export class MobManager {
             const roll = typeof this.random === 'function' ? this.random : Math.random;
             if (roll() >= effective) continue;
           }
-          const count = min + Math.floor(Math.random() * (max - min + 1));
+          const rollCount = typeof this.random === 'function' ? this.random : Math.random;
+          const count = min + Math.floor(rollCount() * (max - min + 1));
           if (count > 0) {
             this.entities?.spawnDroppedItem(pos, id, isBlock, count, { pickupDelay: 1.2 });
           }
@@ -9158,12 +9116,7 @@ export class MobManager {
       mob.spiderPhase = (mob.spiderPhase || 0) + dt * (Math.hypot(vx, vz) > 0.05 ? 6.5 : 1.2);
       poseSpiderLegs(mob, mob.spiderPhase);
     } else if (mob.type === 'blaze' && mob.tiers) {
-      mob.flames.visible = !!mob.charging;
-      mob.flames.rotation.y += dt*2;
-      for (const puff of mob.smoke.children) { puff.position.y = (puff.position.y+dt*.6)%1.9; puff.material.opacity=.4*(1-puff.position.y/1.9); }
-      if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
-      if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
-      if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
+      animateBlaze(mob, dt);
     } else if (mob.type === 'magma_cube' && mob.layers) {
       const isJumping = (mob.velocity && Math.abs(mob.velocity.y) > 0.5);
       const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
