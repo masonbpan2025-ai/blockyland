@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSIONS, UNDEAD_HORSE_BABY_SCALE, UNDEAD_HORSE_SPEED, SKELETON_TRAP, UNDEAD_HORSE_SUN, UNDEAD_HORSE_TRAITS, UNDEAD_HORSE_TRANSPORT, UNDEAD_HORSE_EQUIPMENT, UNDEAD_HORSE_COLORS, isUndeadHorse, isSkeletonHorse, isZombieHorse, undeadHorseHealth, undeadHorseDimensions, undeadHorseBurnsInDaylight, undeadHorseIsHostile, undeadHorseSeparateFromRider, equipUndeadHorse, shearUndeadHorse, skeletonTrapReady, springSkeletonTrap, zombieHorseWantsRider, undeadHorseCanBreed, undeadHorseXp, createUndeadHorseModel, poseUndeadHorse } from './undeadHorseBehavior.js';
 import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
 import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
@@ -527,6 +528,8 @@ export class MobManager {
       case 'creaking': return this.spawnCreaking(x, y, z, options);
       case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
       case 'illusioner': return this.spawnIllusioner(x, y, z, options);
+      case 'skeleton_horse': return this.spawnUndeadHorse(x, y, z, 'skeleton_horse', options);
+      case 'zombie_horse': return this.spawnUndeadHorse(x, y, z, 'zombie_horse', options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2584,6 +2587,9 @@ export class MobManager {
       case 'snow_golem': return SNOW_GOLEM_DIMENSIONS;
       // Wiki: an illusioner is 0.6 x 1.95, the standard illager box.
       case 'illusioner': return ILLUSIONER_DIMENSIONS;
+      // Wiki: both undead horses are 1.3965 x 1.6, the same box as a living horse.
+      case 'skeleton_horse':
+      case 'zombie_horse': return UNDEAD_HORSE_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4643,6 +4649,78 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Skeleton horse and zombie horse.
+   *
+   * Wiki: both are undead HORSES at 1.3965 x 1.6 with speed 0.2 -- the skeleton horse 15 HP and the
+   * zombie horse 25 HP. Neither is bred. Both are passive alone and hostile only as a jockey, because
+   * the rider controls the pathfinding, and both become passive once separated so a player can saddle
+   * and ride them. The skeleton horse does not burn in sunlight; the zombie horse does.
+   */
+  spawnUndeadHorse(x, y, z, type, options = {}) {
+    if (!isUndeadHorse(type)) return null;
+    const colors = UNDEAD_HORSE_COLORS[type];
+    const group = new THREE.Group();
+    const coatMat = new THREE.MeshLambertMaterial({ color: colors.coat });
+    const maneMat = new THREE.MeshLambertMaterial({ color: colors.mane });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: 0x2b2b26 });
+    const { group: model, body, neck, head, eyes, mane, legs, tail, saddle } =
+      createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(UNDEAD_HORSE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? UNDEAD_HORSE_BABY_DIMENSIONS : UNDEAD_HORSE_DIMENSIONS;
+    const mob = {
+      type,
+      name: type === 'skeleton_horse' ? 'Skeleton Horse' : 'Zombie Horse',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, neck, head, eyes, mane, legs, tail, saddle,
+      health: undeadHorseHealth(type),
+      maxHealth: undeadHorseHealth(type),
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: UNDEAD_HORSE_SPEED,
+      // Wiki: passive alone; hostile only as a jockey, because the rider steers.
+      isHostile: false,
+      // Wiki: undead traits, shared by both.
+      undead: UNDEAD_HORSE_TRAITS.undead,
+      poisonImmune: UNDEAD_HORSE_TRAITS.poisonImmune,
+      invertedHealing: UNDEAD_HORSE_TRAITS.invertedHealing,
+      canBreatheUnderwater: UNDEAD_HORSE_TRAITS.canBreatheUnderwater,
+      sensitiveToSmite: UNDEAD_HORSE_TRAITS.sensitiveToSmite,
+      // Wiki: the skeleton horse does not burn in sunlight; the zombie horse does.
+      burnsInDaylight: undeadHorseBurnsInDaylight(type),
+      // Wiki: neither is bred.
+      canBreed: undeadHorseCanBreed(),
+      // Wiki: the skeleton horse is the trap form and carries a saddle; the zombie horse can also wear
+      // horse armour.
+      isTrap: options.isTrap ?? (type === 'skeleton_horse' && options.trap !== false),
+      hasSaddle: options.hasSaddle ?? (type === 'skeleton_horse' && options.isTrap !== false),
+      horseArmor: options.horseArmor ?? null,
+      rider: null,
+      riderCount: 0,
+      // Wiki: a zombie horse spawns RIDDEN in the dark; that is opt-in so the dispatcher does not mount one.
+      wantsRider: options.wantsRider ?? false,
+      tame: !!options.tame,
+      horsePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -8403,7 +8481,8 @@ export class MobManager {
       skeleton_horse: [['bone', false, 0, 2]],
       snow_golem: [['snowball', false, 0, 15]],
       tropical_fish: [['tropical_fish', false, 1, 1]],
-      zombie_horse: [['rotten_flesh', false, 0, 2]]
+      // Wiki: 2-3 rotten flesh, not 0-2. Its page gives a tighter floor than the zombie's own row.
+      zombie_horse: [['rotten_flesh', false, 2, 3]]
     }[mob.type] || [];
     // Wiki: salmon have a flat 5% chance of bone meal, independent of the raw salmon drop.
     // Wiki: an enderman always drops the block it was carrying, in addition to its loot.
@@ -8547,7 +8626,7 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0) : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
           : mob.type === 'snow_golem' ? 0
           : mob.type === 'creaking' ? 0
           : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
@@ -9358,6 +9437,60 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isUndeadHorse(mob)){
+      // Wiki: it is passive alone, hostile only as a jockey, becomes passive once separated, and the
+      // skeleton horse's trap springs into four skeleton horsemen.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: a skeleton trap horse transforms when approached, during a thunderstorm.
+      if (mob.isTrap) {
+        const distance = player?.position ? mob.mesh.position.distanceTo(player.position) : Infinity;
+        if (skeletonTrapReady(mob, {
+          weatherType: this.game?.weather?.weatherType ?? 'clear',
+          distanceToPlayer: distance
+        })) {
+          springSkeletonTrap(this, mob, this.random ?? Math.random);
+        }
+      }
+
+      // Wiki: a zombie horse "rarely spawns in dark areas as a hostile mob being ridden and controlled by a
+      // zombie horseman". That is a SPAWN-TIME property, so it is opt-in via the spawner rather than automatic
+      // on every update: doing it here meant a horse spawned by the generic dispatcher acquired a rider on its
+      // first frame, became 'ridden', and therefore never moved -- which the frozen-mob guard caught. The
+      // preference query is kept so the rule stays testable.
+      if (isZombieHorse(mob) && mob.wantsRider === true && !mob.rider && zombieHorseWantsRider(mob, {
+        lightLevel: this.world.getLightLevel?.(Math.floor(mob.mesh.position.x), Math.floor(mob.mesh.position.y), Math.floor(mob.mesh.position.z)) ?? 15,
+        night: (this.game?.worldTime ?? 6000) >= 13000
+      })) {
+        const zombie = this.spawnMob('zombie', mob.mesh.position.x, mob.mesh.position.y, mob.mesh.position.z);
+        if (zombie) { zombie.rider = mob; zombie.mount = mob; mob.rider = zombie; mob.riderCount = 1; }
+      }
+
+      // Wiki: a ridden one is steered by its rider, so the horse does not wander on its own.
+      if (mob.riderCount > 0) {
+        mob.velocity.x *= 0.85;
+        mob.velocity.z *= 0.85;
+        mob.state = 'ridden';
+      } else {
+        wanderMob(this, mob, dt, 0.4);
+        mob.state = mob.tame ? 'tame' : 'idle';
+      }
+
+      // Wiki: the zombie horse burns in sunlight; the skeleton horse explicitly does not.
+      if (mob.burnsInDaylight && this.game?.worldTime !== undefined) {
+        const time = ((this.game.worldTime % 24000) + 24000) % 24000;
+        const day = time < 12000;
+        if (day) { mob.isBurning = true; mob.health -= 1 * dt; }
+        else mob.isBurning = false;
+      } else {
+        mob.isBurning = false;
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.horsePhase = (mob.horsePhase || 0) + dt;
+      poseUndeadHorse(mob, mob.horsePhase);
       return true;
     }
     if(mob.type==='illusioner'){
