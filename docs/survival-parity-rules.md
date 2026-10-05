@@ -712,7 +712,11 @@ the whole point of the mob is to lift you off a ledge.
 frame and would have stalled mid-air. Re-normalising after the blend fixes it, and there is now a test that
 flies a bullet for six seconds at 60 fps against a moving target and asserts the speed is unchanged.
 
-`haste` is therefore the only effect the table carries with nothing to grant it, and it needs a beacon.
+**`haste` was reported here as having no source, and that was wrong.** A beacon grants it: `BEACON_POWERS`
+in `src/beaconConduit.js` lists it at tier 1, tier 2 and tier 3. The sweep missed it because the id sits
+in an ARRAY (`['speed', 'haste']`) rather than in a call, which no pattern of the form
+`applyStatusEffect('haste'` or `id: 'haste'` will ever match. What was true is that the beacon could
+not actually grant it -- see 4.2.8.
 
 ### 4.2.7 Thirty-nine splash potions did nothing when used
 
@@ -740,6 +744,57 @@ affected by their own potion -- which is how a self-splash of Fire Resistance is
 standing in your own Harming potion is meant to hurt. The radius is one named constant, four blocks as in
 vanilla, rather than inline arithmetic, and it is a sphere rather than a cylinder so a splash does not reach
 a player standing high above it.
+### 4.2.8 The beacon and the conduit granted nothing at all
+
+`Player.statusEffects` is a **`Map`** (`player.js:69`). `hasStatusEffect` uses `.has()`, the tick loop uses
+`.get()` and `.delete()`, and `applyStatusEffect` uses `.set()`. But `src/beaconConduit.js` wrote:
+
+    player.statusEffects = player.statusEffects || {};
+    player.statusEffects[beaconState.primary] = duration;
+
+On a Map the `|| {}` is a no-op, so the write landed as a **property on the Map object** rather than as an
+entry, and `hasStatusEffect` never saw it. There were **seven** such writes: the beacon's primary, the
+beacon's regeneration, and the conduit's four powers.
+
+**So both blocks were inert.** A beacon granted no speed, haste, resistance, jump boost, strength or
+regeneration; a conduit granted no conduit power, water breathing, night vision or haste. Both are
+progression blocks -- the beacon is what a Wither kill is for -- and neither did anything.
+
+It also explains the wrong `haste` claim above: the sweep was right that nothing applies haste via a
+literal call, and wrong that nothing tries. The beacon tries, and its attempt was going nowhere.
+
+`Player.refreshStatusEffect(effect, duration, level)` now exists for a field that re-applies while the
+player stands in range, and both blocks use it. A quiet path is needed rather than `applyStatusEffect`,
+which posts a chat line -- and these refresh every frame, so pointing them at it would flood the chat.
+There is a test that a hundred refreshes post nothing, and one that the record shape matches what
+`applyStatusEffect` writes so the two cannot drift.
+### 4.2.9 What the sweeps can and cannot see
+
+Most of the mechanics gaps in this document were found the same way: ask which branch, flag, table row or
+item exists that nothing consumes. It has been the most productive instrument of the whole exercise --
+tipped arrows, potions, the firework rocket, fall damage, void damage, elytra wear, absorption, levitation,
+the shulker bullet, thirty-nine splash potions, the dragon egg, the beacon and the conduit all came out of
+it.
+
+**It has also produced three wrong findings, and they were all the same mistake.** `dolphins_grace` was
+reported as unapplied when `dolphinBehavior.js` applies it; `haste` was reported as having no source when a
+beacon grants it; `sculkSensor` and `sculkShrieker` were reported as unimplemented when
+`src/deepDarkWarden.js` handles both. Every one was a **literal-pattern miss**:
+
+| the code does this | the sweep looked for this |
+|---|---|
+| `applyStatusEffect?.('dolphins_grace', …)` | `applyStatusEffect\(` |
+| `['speed', 'haste']` in a powers table | `applyStatusEffect('haste'`, `id: 'haste'` |
+| `block === BLOCKS.SCULK_SENSOR` | the `sculkSensor: true` flag |
+
+So the rule for reading any of these sweeps, including the ones still in `scripts/`, is: **a negative is a
+candidate, never a conclusion.** Dispatch through a table, an array, a block id or a variable is invisible to
+a text search, and all four are used widely here. Every negative in this document was checked by hand before
+it was written down, and the three that were wrong are recorded above rather than quietly removed.
+
+A second, smaller failure mode is worth naming too: two of the sweeps printed an unconditional
+"(blank = nothing uses it)" line after their results, so a list that looked empty read as a confirmed
+absence even when the filter was simply wrong. Both were replaced with explicit "no matches" branches.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

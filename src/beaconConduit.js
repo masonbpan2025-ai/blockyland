@@ -84,14 +84,16 @@ export function applyBeaconBuffs(beaconState, player, beaconPos) {
   if (distSq <= beaconState.range * beaconState.range) {
     const duration = 16.0; // 16s buffer
 
+    // `refreshStatusEffect`, not a property write. This read
+    // `player.statusEffects = player.statusEffects || {}` followed by `player.statusEffects[name] = duration`,
+    // treating a Map as a plain object -- so the write landed as a property ON the Map, `hasStatusEffect`
+    // never saw it, and the beacon granted nothing at all.
     if (beaconState.primary) {
-      player.statusEffects = player.statusEffects || {};
-      player.statusEffects[beaconState.primary] = duration;
+      player.refreshStatusEffect?.(beaconState.primary, duration, 1);
     }
 
     if (beaconState.secondary === 'regeneration') {
-      player.statusEffects = player.statusEffects || {};
-      player.statusEffects.regeneration = duration;
+      player.refreshStatusEffect?.('regeneration', duration, 1);
     }
   }
 }
@@ -163,11 +165,10 @@ export function applyConduitPower(conduitState, player, conduitPos, mobs = []) {
   const distSq = dx * dx + dy * dy + dz * dz;
 
   if (distSq <= conduitState.range * conduitState.range && player.inWater) {
-    player.statusEffects = player.statusEffects || {};
-    player.statusEffects.conduit_power = 16.0;
-    player.statusEffects.water_breathing = 16.0;
-    player.statusEffects.night_vision = 16.0;
-    player.statusEffects.haste = 16.0;
+    // Same fault as the beacon: four property writes onto a Map, so the conduit granted nothing.
+    for (const effect of ['conduit_power', 'water_breathing', 'night_vision', 'haste']) {
+      player.refreshStatusEffect?.(effect, 16.0, 1);
+    }
   }
 
   // Complete conduit (42 blocks) attacks hostile underwater mobs within 8 blocks

@@ -1236,6 +1236,22 @@ export class Player {
     return this.statusEffects.has(effect);
   }
 
+  /**
+   * Keep an effect alive without announcing it.
+   *
+   * For a field that re-applies while the player stands in range -- a beacon, a conduit -- which refreshes
+   * every frame. `applyStatusEffect` posts a chat line, so using it there would flood the chat.
+   *
+   * This exists because the beacon and the conduit were writing `player.statusEffects[name] = duration`
+   * directly, treating a `Map` as a plain object. The write landed as a property on the Map rather than as an
+   * entry, so `hasStatusEffect` never saw it and **neither block granted anything at all** through seven such
+   * writes across `beaconConduit.js`.
+   */
+  refreshStatusEffect(effect, duration = 30, level = 1) {
+    if (!this.statusEffects) this.statusEffects = new Map();
+    this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
+  }
+
   updateCameraAndModel(dt) {
     const eyeY = this.position.y + (this.isSneaking ? 1.38 : this.eyeHeight);
 
