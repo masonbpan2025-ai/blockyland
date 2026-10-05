@@ -126,6 +126,11 @@ const blocks1214 = [
   // faces rather than one.
   'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
   'water_still.png', 'lava_still.png', 'powder_snow.png',
+  // Piston tiles, the twenty-ninth batch. `piston_side` and `piston_inner` are the two the MOVING PISTON
+  // block uses, and neither was referenced by anything in this codebase before it. The other three are
+  // fetched alongside them because they belong to the same machine and a future piston-facing pass will
+  // want them; they are real tiles rather than SVG stand-ins.
+  'piston_side.png', 'piston_inner.png', 'piston_top.png', 'piston_top_sticky.png', 'piston_bottom.png',
   // Mob heads, the twenty-fourth batch. These are ENTITY skin sheets, not block textures -- a different
   // mirror directory -- and the head faces are extracted from them by
   // scripts/extract-mob-head-textures.py. Listing them here is what makes the extraction reproducible.

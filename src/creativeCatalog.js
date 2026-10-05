@@ -228,6 +228,9 @@ export function buildCreativeCatalog() {
     BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
     BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
     BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN,
+    // The sniffer egg, beside the turtle egg it borrows its shape from, and the end gateway beside the end
+    // portal frame. Both had their art DERIVED rather than drawn; the composer says where from.
+    BLOCKS.SNIFFER_EGG, BLOCKS.END_GATEWAY,
     // Cake and candle cakes. In the functional tab beside the other candles because a candle cake is a
     // candle on a cake, and the plain cake is there so the family reads together -- even though a cake
     // cannot be eaten here, which is recorded in the source.

@@ -781,6 +781,32 @@ export const BLOCKS = {
   // chest plus a latch on its front.
   ENDER_CHEST: 1189,
   TRAPPED_CHEST: 1190,
+
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // Two more blocks that were sitting in the "needs new art" column and did not, in fact, need new art.
+  // This is the SEVENTH time in this goal that a block was unblocked by deriving art.
+  //
+  // scripts/compose-egg-and-gateway.py builds both, and says where each came from:
+  //   - the sniffer egg is the TURTLE EGG's shape recoloured onto the SNIFFER'S OWN palette, read out of
+  //     entity/sniffer/sniffer.png. An egg is an egg, but the colours are what make it the sniffer's.
+  //   - the end gateway is nether_portal.png, which this project already uses for the end portal,
+  //     darkened to the gateway's deeper violet with a few sparks on a fixed lattice.
+  SNIFFER_EGG: 1191,
+  END_GATEWAY: 1192,
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // THE PISTON FAMILY IS DRAWN WITH SVG ICONS on purpose -- piston.svg, sticky_piston.svg and
+  // piston_head.svg -- so its three existing blocks name `redstone_white.svg` as a texture and carry an
+  // icon instead. That is a deliberate convention for redstone components here, not a gap, and this batch
+  // does not churn it.
+  //
+  // What it does use is the real piston TILE art, which was sitting on the mirror UNUSED:
+  // `piston_side.png` and `piston_inner.png` were referenced by nothing in this codebase. A moving
+  // piston is exactly the piston's body with its head extended, which is what `piston_inner` draws, so
+  // those two tiles are the whole block.
+  MOVING_PISTON: 1193,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2102,7 +2128,25 @@ export const BLOCK_DEFS = {
   [BLOCKS.GOLD_BLOCK]: { name: 'Block of Gold', hardness: 3.0, sound: 'metal', textures: { all: 'gold_block.png' } },
   [BLOCKS.DIAMOND_BLOCK]: { name: 'Block of Diamond', hardness: 5.0, sound: 'stone', textures: { all: 'diamond_block.png' } },
   [BLOCKS.EMERALD_BLOCK]: { name: 'Block of Emerald', hardness: 5.0, sound: 'stone', textures: { all: 'emerald_block.png' } },
-  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } }
+  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } },
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // THE SNIFFER EGG MATCHES THE TURTLE EGG, deliberately. The turtle egg is already in this registry as a
+  // plain textured cube with no special geometry, so giving the sniffer egg a `egg: true` flag that nothing
+  // dispatches on would have been a flag that reads as meaningful and is not -- the same mistake the wither
+  // skeleton skull's dead `skull: true` flag turned out to be. Both are cubes here and now say so.
+  //
+  // It DOES drop itself, unlike the turtle egg, which declares `drop: null`: the harvest row says hardness
+  // 0.5 with a self drop. The turtle egg's row says `drops: []`, which is a difference in the table rather
+  // than an inconsistency in this batch.
+  //
+  // THE END GATEWAY IS A PORTAL, like the end portal next to it: not solid, transparent, and a light source.
+  // It is NOT a way to travel anywhere, and neither is the portal it is modelled on -- this engine has no
+  // dimension travel, so both are decorative surfaces. That is a pre-existing limit rather than one this
+  // block introduces, the same category as the shulker boxes not being containers.
+  [BLOCKS.SNIFFER_EGG]: { name: 'Sniffer Egg', hardness: 0.5, sound: 'stone', drop: BLOCKS.SNIFFER_EGG, textures: { all: 'sniffer_egg.png' } },
+  [BLOCKS.END_GATEWAY]: { name: 'End Gateway', portal: true, endPortal: true, hardness: -1, sound: 'glass', transparent: true, solid: false, light: 15, lightColor: 0x7b2fbe, textures: { all: 'end_gateway.png' } },
+
 };
 
 // --- generated additions for vanilla parity ---------------------------------
@@ -2489,7 +2533,10 @@ export const ITEMS = {
   wandering_trader_spawn_egg: { name: 'Wandering Trader Spawn Egg', icon: '/assets/items/wandering_trader_spawn_egg.png', type: 'spawn_egg', mob: 'wandering_trader' },
   allay_spawn_egg: { name: 'Allay Spawn Egg', icon: '/assets/items/allay_spawn_egg.png', type: 'spawn_egg', mob: 'allay' },
   sniffer_spawn_egg: { name: 'Sniffer Spawn Egg', icon: '/assets/items/sniffer_spawn_egg.png', type: 'spawn_egg', mob: 'sniffer' },
-  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'material' },
+  // This was a `type: 'material'` item before the sniffer egg became a BLOCK, so it was an item named
+  // `sniffer_egg` with a texture and no way to place it. tests/placeableItems.test.js requires an item that
+  // names a registered block to be JOINED to it, which is what caught this. The icon was already correct.
+  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
   husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
   stray_spawn_egg: { name: 'Stray Spawn Egg', icon: '/assets/items/stray_spawn_egg.png', type: 'spawn_egg', mob: 'stray' },
@@ -2731,6 +2778,17 @@ BLOCK_DEFS[BLOCKS.OBSERVER] = {name: 'Observer', redstone: true, hardness: 1.5, 
 BLOCK_DEFS[BLOCKS.PISTON] = {name: 'Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston.svg'};
 BLOCK_DEFS[BLOCKS.STICKY_PISTON] = {name: 'Sticky Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/sticky_piston.svg'};
 BLOCK_DEFS[BLOCKS.PISTON_HEAD] = {name: 'Piston Head', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston_head.svg', internal: true};
+
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // Its art is `piston_side` and `piston_inner`, neither of which anything in this codebase referenced
+  // before. `piston_inner` is what a piston looks like with its head extended, which is what a moving
+  // piston IS, so the dead art was the missing piece rather than a new drawing.
+  //
+  // IT HAS NO ITEM, deliberately: the harvest row drops nothing and vanilla gives it no item either. It
+  // exists only as the mid-animation state of a piston, and since this engine has no piston movement it
+  // is inert like the rest of the family. It is left out of the creative catalogue for the same reason.
+BLOCK_DEFS[BLOCKS.MOVING_PISTON] = {name: 'Moving Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, drop: null, textures: { top: 'piston_inner.png', side: 'piston_side.png', bottom: 'piston_side.png', front: 'piston_inner.png', all: 'piston_side.png' }};
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};

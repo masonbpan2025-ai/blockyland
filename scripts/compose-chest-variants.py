@@ -128,6 +128,24 @@ def main():
         if write_tinted("chest_lock.png", f"{stem}_lock.png", darken_fitting):
             made += 1
 
+    # THE ITEM ICONS, for the same reason the block textures are here: the mirror ships no `ender_chest`
+    # or `trapped_chest` item sprite either, and `public/assets` is not committed, so an icon written by
+    # hand once would disappear on a clean checkout and leave the block obtainable-but-invisible. The
+    # chest's own icon is the reference size, and the variant's front face is what an item icon shows.
+    icons = os.path.join("public", "assets", "items")
+    reference = os.path.join(icons, "chest.png")
+    if os.path.exists(reference) and os.path.isdir(icons):
+        size = Image.open(reference).size
+        for stem in ("ender_chest", "trapped_chest"):
+            front = os.path.join(BLOCKS, f"{stem}_front.png")
+            if not os.path.exists(front):
+                continue
+            Image.open(front).convert("RGBA").resize(size, Image.Resampling.NEAREST).save(
+                os.path.join(icons, f"{stem}.png"), "PNG")
+            made += 1
+    else:
+        print("  chest.png item icon absent; the variant icons were not written", file=sys.stderr)
+
     print(f"composed {made} chest-variant textures")
     return 0
 
