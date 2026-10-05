@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1349 recipes.
+// 1374 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -134,6 +134,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.MANGROVE_LOG,B.MANGROVE_LOG],[B.MANGROVE_LOG,B.MANGROVE_LOG]],result:{id:B.MANGROVE_WOOD,isBlock:true,count:3}},
   {pattern:[[B.CRIMSON_STEM,B.CRIMSON_STEM],[B.CRIMSON_STEM,B.CRIMSON_STEM]],result:{id:B.CRIMSON_HYPHAE,isBlock:true,count:3}},
   {pattern:[[B.WARPED_STEM,B.WARPED_STEM],[B.WARPED_STEM,B.WARPED_STEM]],result:{id:B.WARPED_HYPHAE,isBlock:true,count:3}},
+  {pattern:[[null,'amethyst_shard',null],['amethyst_shard',B.GLASS,'amethyst_shard'],[null,'amethyst_shard',null]],result:{id:B.TINTED_GLASS,isBlock:true,count:2}},
   {pattern:[['lapis_lazuli','lapis_lazuli','lapis_lazuli'],['lapis_lazuli','lapis_lazuli','lapis_lazuli'],['lapis_lazuli','lapis_lazuli','lapis_lazuli']],result:{id:B.LAPIS_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.SAND,B.SAND],[B.SAND,B.SAND]],result:{id:B.SANDSTONE,isBlock:true,count:1}},
   {pattern:[[B.SANDSTONE_SLAB],[B.SANDSTONE_SLAB]],result:{id:B.CHISELED_SANDSTONE,isBlock:true,count:1}},
@@ -284,10 +285,12 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.COBBLED_DEEPSLATE_SLAB],[B.COBBLED_DEEPSLATE_SLAB]],result:{id:B.CHISELED_DEEPSLATE,isBlock:true,count:1}},
   {pattern:[['iron_nugget'],['iron_ingot'],['iron_nugget']],result:{id:B.CHAIN,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],[B.GLASS,B.GLASS,B.GLASS]],result:{id:B.GLASS_PANE,isBlock:true,count:16}},
+  {shapeless:true,ingredients:['melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice'],result:{id:B.MELON,isBlock:true,count:1}},
   {pattern:[[B.BRICKS,null,null],[B.BRICKS,B.BRICKS,null],[B.BRICKS,B.BRICKS,B.BRICKS]],result:{id:B.BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.STONE_BRICKS,null,null],[B.STONE_BRICKS,B.STONE_BRICKS,null],[B.STONE_BRICKS,B.STONE_BRICKS,B.STONE_BRICKS]],result:{id:B.STONE_BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.MUD_BRICKS,null,null],[B.MUD_BRICKS,B.MUD_BRICKS,null],[B.MUD_BRICKS,B.MUD_BRICKS,B.MUD_BRICKS]],result:{id:B.MUD_BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[['nether_brick','nether_brick'],['nether_brick','nether_brick']],result:{id:B.NETHER_BRICKS,isBlock:true,count:1}},
+  {pattern:[[B.NETHER_BRICK_SLAB],[B.NETHER_BRICK_SLAB]],result:{id:B.CHISELED_NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[[B.NETHER_BRICKS,null,null],[B.NETHER_BRICKS,B.NETHER_BRICKS,null],[B.NETHER_BRICKS,B.NETHER_BRICKS,B.NETHER_BRICKS]],result:{id:B.NETHER_BRICK_STAIRS,isBlock:true,count:4}},
   {pattern:[[null,'book',null],['diamond',B.OBSIDIAN,'diamond'],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.ENCHANTING_TABLE,isBlock:true,count:1}},
   {pattern:[[B.END_STONE,B.END_STONE],[B.END_STONE,B.END_STONE]],result:{id:B.END_STONE_BRICKS,isBlock:true,count:4}},
@@ -312,6 +315,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.IRON_BLOCK,B.IRON_BLOCK,B.IRON_BLOCK],[null,'iron_ingot',null],['iron_ingot','iron_ingot','iron_ingot']],result:{id:B.ANVIL,isBlock:true,count:1}},
   {pattern:[[B.QUARTZ_SLAB],[B.QUARTZ_SLAB]],result:{id:B.CHISELED_QUARTZ_BLOCK,isBlock:true,count:1}},
   {pattern:[['quartz','quartz'],['quartz','quartz']],result:{id:B.QUARTZ_BLOCK,isBlock:true,count:1}},
+  {pattern:[[B.QUARTZ_BLOCK,B.QUARTZ_BLOCK],[B.QUARTZ_BLOCK,B.QUARTZ_BLOCK]],result:{id:B.QUARTZ_BRICKS,isBlock:true,count:4}},
   {pattern:[[B.QUARTZ_BLOCK],[B.QUARTZ_BLOCK]],result:{id:B.QUARTZ_PILLAR,isBlock:true,count:2}},
   {pattern:[[B.QUARTZ_PILLAR,null,null],[B.QUARTZ_PILLAR,B.QUARTZ_PILLAR,null],[B.QUARTZ_PILLAR,B.QUARTZ_PILLAR,B.QUARTZ_PILLAR]],result:{id:B.QUARTZ_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.QUARTZ_BLOCK,null,null],[B.QUARTZ_BLOCK,B.QUARTZ_BLOCK,null],[B.QUARTZ_BLOCK,B.QUARTZ_BLOCK,B.QUARTZ_BLOCK]],result:{id:B.QUARTZ_STAIRS,isBlock:true,count:4}},
@@ -431,6 +435,22 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart','nether_wart'],result:{id:B.NETHER_WART_BLOCK,isBlock:true,count:1}},
   {pattern:[['nether_brick','nether_wart'],['nether_wart','nether_brick']],result:{id:B.RED_NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal'],['bone_meal','bone_meal','bone_meal']],result:{id:B.BONE_BLOCK,isBlock:true,count:1}},
+  {shapeless:true,ingredients:['white_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.WHITE_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['orange_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.ORANGE_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['magenta_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.MAGENTA_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['light_blue_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.LIGHT_BLUE_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['yellow_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.YELLOW_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['lime_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.LIME_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['pink_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.PINK_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['gray_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.GRAY_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['light_gray_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.LIGHT_GRAY_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['cyan_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.CYAN_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['purple_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.PURPLE_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['blue_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.BLUE_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['brown_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.BROWN_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['green_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.GREEN_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['red_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.RED_CONCRETE_POWDER,isBlock:true,count:8}},
+  {shapeless:true,ingredients:['black_dye',B.SAND,B.SAND,B.SAND,B.SAND,B.GRAVEL,B.GRAVEL,B.GRAVEL,B.GRAVEL],result:{id:B.BLACK_CONCRETE_POWDER,isBlock:true,count:8}},
   {shapeless:true,ingredients:[B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE,B.PACKED_ICE],result:{id:B.BLUE_ICE,isBlock:true,count:1}},
   {pattern:[['nautilus_shell','nautilus_shell','nautilus_shell'],['nautilus_shell','heart_of_the_sea','nautilus_shell'],['nautilus_shell','nautilus_shell','nautilus_shell']],result:{id:B.CONDUIT,isBlock:true,count:1}},
   {pattern:[[B.POLISHED_GRANITE,null,null],[B.POLISHED_GRANITE,B.POLISHED_GRANITE,null],[B.POLISHED_GRANITE,B.POLISHED_GRANITE,B.POLISHED_GRANITE]],result:{id:B.POLISHED_GRANITE_STAIRS,isBlock:true,count:4}},
@@ -504,6 +524,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.BIRCH_SLAB,B.BIRCH_SLAB,B.BIRCH_SLAB],[null,B.BOOKSHELF,null],[null,B.BIRCH_SLAB,null]],result:{id:B.LECTERN,isBlock:true,count:1}},
   {pattern:[[B.SPRUCE_SLAB,B.SPRUCE_SLAB,B.SPRUCE_SLAB],[null,B.BOOKSHELF,null],[null,B.SPRUCE_SLAB,null]],result:{id:B.LECTERN,isBlock:true,count:1}},
   {pattern:[[B.OAK_SLAB,B.OAK_SLAB,B.OAK_SLAB],[null,B.BOOKSHELF,null],[null,B.OAK_SLAB,null]],result:{id:B.LECTERN,isBlock:true,count:1}},
+  {pattern:[[null,'redstone',null],['redstone',B.HAY_BLOCK,'redstone'],[null,'redstone',null]],result:{id:B.TARGET,isBlock:true,count:1}},
   {pattern:[['stick'],[B.COBBLESTONE]],result:{id:B.LEVER,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.PALE_OAK_SLAB,B.PALE_OAK_SLAB,B.PALE_OAK_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.CHERRY_SLAB,B.CHERRY_SLAB,B.CHERRY_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
@@ -517,6 +538,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.BIRCH_SLAB,B.BIRCH_SLAB,B.BIRCH_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.SPRUCE_SLAB,B.SPRUCE_SLAB,B.SPRUCE_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.OAK_SLAB,B.OAK_SLAB,B.OAK_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
+  {pattern:[[null,'amethyst_shard',null],['amethyst_shard',B.SCULK_SENSOR,'amethyst_shard']],result:{id:B.CALIBRATED_SCULK_SENSOR,isBlock:true,count:1}},
   {pattern:[['iron_ingot'],['stick'],[B.PALE_OAK_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.CHERRY_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.BAMBOO_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
@@ -1003,6 +1025,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.BLACK_WOOL,B.BLACK_WOOL,B.BLACK_WOOL],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.BLACK_BED,isBlock:true,count:1}},
   {shapeless:true,ingredients:['black_dye',B.BLUE_BED],result:{id:B.BLACK_BED,isBlock:true,count:1}},
   {pattern:[[B.WHEAT,'cocoa_beans',B.WHEAT]],result:{id:'cookie',isBlock:false,count:8}},
+  {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot',B.CRAFTING_TABLE,'iron_ingot'],['redstone',B.DROPPER,'redstone']],result:{id:B.CRAFTER,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot'],['iron_ingot',null]],result:{id:'shears',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.DRIED_KELP_BLOCK],result:{id:'dried_kelp',isBlock:false,count:9}},
   {shapeless:true,ingredients:['melon_slice'],result:{id:'melon_seeds',isBlock:false,count:1}},
@@ -1194,6 +1217,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot','iron_ingot'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SMITHING_TABLE,isBlock:true,count:1}},
   {pattern:[['iron_ingot','iron_ingot'],[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.SMITHING_TABLE,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot',null],[B.STONE,B.STONE,B.STONE]],result:{id:B.STONECUTTER,isBlock:true,count:1}},
+  {pattern:[['iron_nugget','iron_nugget','iron_nugget'],['iron_nugget',B.TORCH,'iron_nugget'],['iron_nugget','iron_nugget','iron_nugget']],result:{id:B.LANTERN,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.STRIPPED_WARPED_HYPHAE,B.STRIPPED_WARPED_HYPHAE,B.STRIPPED_WARPED_HYPHAE]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.WARPED_HYPHAE,B.WARPED_HYPHAE,B.WARPED_HYPHAE]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
@@ -1296,6 +1320,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.HONEY_BLOCK,'glass_bottle','glass_bottle','glass_bottle','glass_bottle'],result:{id:'honey_bottle',isBlock:false,count:4}},
   {pattern:[['honeycomb','honeycomb'],['honeycomb','honeycomb']],result:{id:B.HONEYCOMB_BLOCK,isBlock:true,count:1}},
+  {pattern:[[B.CHISELED_STONE_BRICKS,B.CHISELED_STONE_BRICKS,B.CHISELED_STONE_BRICKS],[B.CHISELED_STONE_BRICKS,'netherite_ingot',B.CHISELED_STONE_BRICKS],[B.CHISELED_STONE_BRICKS,B.CHISELED_STONE_BRICKS,B.CHISELED_STONE_BRICKS]],result:{id:B.LODESTONE,isBlock:true,count:1}},
   {pattern:[[B.BLACKSTONE,B.BLACKSTONE,B.BLACKSTONE]],result:{id:B.BLACKSTONE_SLAB,isBlock:true,count:6}},
   {pattern:[[B.BLACKSTONE,null,null],[B.BLACKSTONE,B.BLACKSTONE,null],[B.BLACKSTONE,B.BLACKSTONE,B.BLACKSTONE]],result:{id:B.BLACKSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.BLACKSTONE,B.BLACKSTONE],[B.BLACKSTONE,B.BLACKSTONE]],result:{id:B.POLISHED_BLACKSTONE,isBlock:true,count:4}},
@@ -1369,21 +1394,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1349;
+export const EXTRA_RECIPE_COUNT = 1374;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1349,
-  "shaped": 1128,
-  "shapeless": 228,
-  "skippedMissingResult": 194,
+  "emitted": 1374,
+  "shaped": 1136,
+  "shapeless": 245,
+  "skippedMissingResult": 169,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1356,
+  "emittedBeforeDedupe": 1381,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

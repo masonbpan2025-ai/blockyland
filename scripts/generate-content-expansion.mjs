@@ -80,7 +80,7 @@ const FAMILIES = [
   {
     // Plain colour families that are solid cubes in vanilla.
     id: 'colour_cubes',
-    match: (n) => /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_(concrete|terracotta)$/.test(n),
+    match: (n) => /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_(concrete|concrete_powder|terracotta)$/.test(n),
     texture: (n) => `${n}.png`,
     sound: 'stone',
   },
@@ -138,6 +138,20 @@ const FAMILIES = [
     texture: (n) => (textureExists(n + ".png") ? n + ".png" : n + ".svg"),
     sound: 'stone',
     extra: { chain: true },
+  },
+  {
+    // The last plain-cube blockers. Each unblocks exactly one recipe, so this is the tail of the
+    // tail -- but they are data rather than geometry, so they are cheap.
+    id: 'misc_cubes',
+    match: (n) => /^(chiseled_nether_bricks|quartz_bricks|melon|tinted_glass|lodestone|target|crafter|lantern|calibrated_sculk_sensor)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      if (textureExists(n + "_top.png")) return n + "_top.png";
+      if (textureExists(n + ".svg")) return n + ".svg";
+      return n + ".png";
+    },
+    sound: 'stone',
+    extra: { cube: true },
   },
   {
     // Stairs: two boxes, a base half and a step against the back. Declared with a shape marker so
