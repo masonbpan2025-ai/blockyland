@@ -17,8 +17,7 @@
 // query this engine does not have). They are recorded so the deviation is visible.
 
 import { StructurePiece, StructureStart } from '../start.js';
-import { LegacyRandom } from '../random.js';
-import { legacyFromLargeFeatureSeed } from '../placement.js';
+import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
 import { placeTemplate } from '../templatePlacement.js';
 import { StructureTemplate } from '../template.js';
 import { createBlockIdResolver } from '../blockIds.js';

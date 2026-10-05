@@ -447,7 +447,7 @@ test('generator coverage is honest about what is not implemented yet', () => {
   assert.ok(implemented.includes('buried_treasure'));
   assert.ok(implemented.includes('igloo'));
   assert.ok(implemented.includes('ruined_portal'));
-  assert.ok(missing.length >= 25, `expected most structures to be unimplemented, got ${missing.length}`);
+  assert.ok(missing.length >= 20, `expected most structures to be unimplemented, got ${missing.length}`);
   assert.ok(missing.includes('village_plains'));
   assert.ok(missing.includes('stronghold'));
   assert.ok(missing.includes('shipwreck'));

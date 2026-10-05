@@ -145,7 +145,7 @@ export const STRUCTURES = {
   },
   nether_fossil: {
     type: 'nether_fossil', dimension: NETHER, family: GeneratorFamily.TEMPLATE,
-    step: 'underground_structures', biomeTag: 'has_structure/nether_fossil', biomes: ['soul_sand_valley'],
+    step: 'underground_structures', biomeTag: 'has_structure/nether_fossil', biomes: ['soul_sand_valley'], implementation: 'netherFossil',
     notes: 'nether_fossils/fossil_1..14; no integrity loss and no ore overlay, unlike the overworld fossil.'
   },
   end_city: {

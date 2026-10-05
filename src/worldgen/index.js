@@ -24,13 +24,15 @@ import {
 import { generateBuriedTreasure, realizeBuriedTreasure } from './generators/buriedTreasure.js';
 import { generateIgloo, realizeIgloo } from './generators/igloo.js';
 import { generateRuinedPortal, realizeRuinedPortal } from './generators/ruinedPortal.js';
+import { generateNetherFossil, realizeNetherFossil } from './generators/netherFossil.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
 export const GENERATORS = {
   buriedTreasure: { generate: generateBuriedTreasure, realize: realizeBuriedTreasure },
   igloo: { generate: generateIgloo, realize: realizeIgloo },
-  ruinedPortal: { generate: generateRuinedPortal, realize: realizeRuinedPortal }
+  ruinedPortal: { generate: generateRuinedPortal, realize: realizeRuinedPortal },
+  netherFossil: { generate: generateNetherFossil, realize: realizeNetherFossil }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */

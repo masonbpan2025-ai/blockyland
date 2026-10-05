@@ -17,8 +17,11 @@
 //      the CANDIDATE CHUNK coordinates. Using one for the other changes every structure position.
 //   2. the default `frequency_reduction_method` is `default`, not `legacy_type_1`.
 
-import { LegacyRandom, floorDiv } from './random.js';
+import { LegacyRandom, floorDiv, legacyFromLargeFeatureSeed, legacyFromLargeFeatureWithSalt } from './random.js';
 import { StructureStart, TerrainAdaptation } from './start.js';
+
+// Re-exported so a caller that already imports this module for placement keeps working.
+export { legacyFromLargeFeatureSeed, legacyFromLargeFeatureWithSalt };
 
 /** Vanilla `SpreadType`. */
 export const SpreadType = {
@@ -46,14 +49,7 @@ export const SpreadType = {
   }
 };
 
-/** Convenience wrappers around the two mixing calls vanilla uses during placement. */
-export function legacyFromLargeFeatureSeed(seed, chunkX, chunkZ) {
-  return new LegacyRandom(0).setLargeFeatureSeed(seed, chunkX, chunkZ);
-}
 
-export function legacyFromLargeFeatureWithSalt(seed, x, z, salt) {
-  return new LegacyRandom(0).setLargeFeatureWithSalt(seed, x, z, salt);
-}
 
 /**
  * Vanilla `StructurePlacement.FrequencyReducer`.

@@ -292,3 +292,18 @@ export function contentHash(values) {
   }
   return hash >>> 0;
 }
+
+/**
+ * `new LegacyRandom().setLargeFeatureSeed(...)` as a factory.
+ *
+ * These two live HERE rather than in placement.js because that is where a caller looks for them: they are
+ * random-source factories, and having them in the placement module meant every generator imported the
+ * wrong file at least once.
+ */
+export function legacyFromLargeFeatureSeed(seed, chunkX, chunkZ) {
+  return new LegacyRandom(0).setLargeFeatureSeed(seed, chunkX, chunkZ);
+}
+
+export function legacyFromLargeFeatureWithSalt(seed, x, z, salt) {
+  return new LegacyRandom(0).setLargeFeatureWithSalt(seed, x, z, salt);
+}
