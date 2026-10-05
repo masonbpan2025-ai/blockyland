@@ -453,7 +453,9 @@ test('generator coverage is honest about what is not implemented yet', () => {
   // Invariants, not a hardcoded list of ids that are still missing. A hardcoded id breaks the moment that
   // structure lands -- which happened three rounds running -- and that trains a reader to edit the
   // assertion rather than read it.
-  assert.ok(missing.length >= 10, `expected many structures to remain unimplemented, got ${missing.length}`);
+  // An invariant rather than a magnitude: 'most structures are unimplemented' was a useful sanity check
+  // early on and is now simply false. The partition between implemented and missing must hold for ever.
+  assert.ok(missing.length > 0, 'some structures are still unimplemented');
   for (const id of implemented) {
     assert.equal(missing.includes(id), false, `${id} is reported as both implemented and missing`);
     assert.ok(STRUCTURES[id], `${id} has a generator but is not in the registry`);

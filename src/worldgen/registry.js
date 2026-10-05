@@ -180,7 +180,7 @@ export const STRUCTURES = {
   ancient_city: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
     step: 'underground_structures', terrainAdaptation: TerrainAdaptation.BEARD_BOX,
-    biomeTag: 'has_structure/ancient_city', biomes: ['deep_dark'],
+    biomeTag: 'has_structure/ancient_city', biomes: ['deep_dark'], implementation: 'ancientCity',
     notes: 'Floor always at Y=-51; spawn_overrides blocks natural spawning and the warden comes from shriekers.'
   },
   trail_ruins: {

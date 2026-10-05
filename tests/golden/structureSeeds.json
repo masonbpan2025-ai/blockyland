@@ -123,6 +123,26 @@
       "contentHash": 1652008863
     },
     {
+      "id": "ancient_city",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "deep_dark",
+      "chunkX": 561,
+      "chunkZ": 0,
+      "planHash": 384727853,
+      "pieces": 6,
+      "box": [
+        8963,
+        -63,
+        -13,
+        9012,
+        -34,
+        43
+      ],
+      "blockCount": 594,
+      "contentHash": 4010052655
+    },
+    {
       "id": "bastion_remnant",
       "seed": 20250401,
       "dimension": "nether",
