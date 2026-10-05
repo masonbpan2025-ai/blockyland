@@ -14,6 +14,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createStructureInspectorSession, inspectorStructures, PREVIEW_MIN_Y, PREVIEW_MAX_Y } from './structureInspectorSession.js';
 import { renderStructurePanels } from './structureInspectorPanelsUi.js';
+import { createVoxelGeometry, createVoxelMaterial, applyInstanceColours } from './structureInspectorGeometry.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -134,23 +135,21 @@ function renderBlocks() {
   // air cells were drawn looked like a handful of black blocks instead of a building.
   const entries = [...session.world.blocks.entries()].filter(([, id]) => id !== BLOCKS.AIR);
   if (entries.length === 0) return;
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const geometry = createVoxelGeometry(THREE);
+  const material = createVoxelMaterial(THREE);
   const mesh = new THREE.InstancedMesh(geometry, material, entries.length);
   const matrix = new THREE.Matrix4();
   entries.forEach(([key, id], index) => {
     const [x, y, z] = key.split(',').map(Number);
     matrix.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
     mesh.setMatrixAt(index, matrix);
-    // `setColorAt` creates and fills the instance colour attribute. The colours must then be UPLOADED: without
-    // `instanceColor.needsUpdate` the buffer stays at its initial zeros, which multiplies every block to BLACK
-    // -- so a village drew as a black blob however correct its block ids were. Writing the buffer by hand and
-    // updating only `instanceMatrix` was the bug.
-    mesh.setColorAt(index, colourForBlock(id));
     blockIndex.push({ x, y, z, id });
   });
+  // Colours go through the shared helper: `setColorAt` per instance, then an explicit upload. Writing the
+  // buffer by hand without marking it dirty left the colours at zero, and the material/geometry pair is what
+  // decides whether the fragment stage applies them at all -- see structureInspectorGeometry.js.
+  applyInstanceColours(mesh, entries, colourForBlock);
   mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   blockGroup.add(mesh);
 }
 
