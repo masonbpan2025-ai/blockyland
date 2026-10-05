@@ -70,6 +70,28 @@ export function isKnownEffect(name) {
   return Object.prototype.hasOwnProperty.call(EFFECTS, name);
 }
 
+/**
+ * Normalise an effect collection to iterable entries.
+ *
+ * `player.statusEffects` is a Map, but several tests and stubs build a Player-shaped object with a plain
+ * `{}` or leave the field undefined. Iterating those directly throws "is not iterable", which would turn
+ * a stubbed player into a crash in the damage path rather than a no-op. Accepting both shapes here keeps
+ * the callers from each having to guard.
+ *
+ * @param {Map|object|null|undefined} effects
+ * @returns {Iterable<[string, object]>}
+ */
+function entriesOf(effects) {
+  if (!effects) return [];
+  // Arrays are checked BEFORE `.entries`, because an array has an `entries()` method too -- it yields
+  // index/value pairs, so testing for the method first turned an array of effect pairs into a sequence of
+  // [index, pair] entries and silently produced a multiplier of 1.
+  if (Array.isArray(effects)) return effects;
+  if (typeof effects.entries === 'function') return effects.entries();
+  if (typeof effects === 'object') return Object.entries(effects);
+  return [];
+}
+
 /** The definition for an effect, or null. Never throws on an unknown name. */
 export function effectFor(name) {
   return EFFECTS[name] || null;
@@ -85,7 +107,7 @@ export function effectFor(name) {
  */
 export function attackMultiplier(effects) {
   let m = 1;
-  for (const [name, data] of effects) {
+  for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.attackPerLevel) continue;
     m *= Math.pow(def.attackPerLevel, 1 + Math.max(0, data?.amplifier || 0));
@@ -101,7 +123,7 @@ export function attackMultiplier(effects) {
  */
 export function damageTakenMultiplier(effects) {
   let m = 1;
-  for (const [name, data] of effects) {
+  for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.takenPerLevel) continue;
     const level = Math.min(4, 1 + Math.max(0, data?.amplifier || 0));
@@ -118,7 +140,7 @@ export function damageTakenMultiplier(effects) {
  */
 export function speedMultiplier(effects) {
   let m = 1;
-  for (const [name, data] of effects) {
+  for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.speedPerLevel) continue;
     m *= Math.pow(def.speedPerLevel, 1 + Math.max(0, data?.amplifier || 0));

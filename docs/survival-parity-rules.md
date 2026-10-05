@@ -330,19 +330,63 @@ This is the most important section for planning. Copying the following would mov
 
 ## 4. Where this project stands against it
 
-Measured by `scripts/parity-coverage.mjs` against minecraft-data 1.21.4, and recorded as a floor in
-`tests/survivalParity.test.js`:
+Measured against minecraft-data 1.21.4. Recipe figures come from `scripts/parity-coverage.mjs`, block
+and item figures from `scripts/parity-coverage.mjs`, and mob drops from
+`scripts/mob-loot-parity.mjs`. Each is pinned as a floor in the tests, so a regression fails rather than
+going unnoticed.
+
+### 4.1 Content
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Crafting recipes expressible | 421 | 1557 | 27.0% |
-| Blocks named | 271 | 1095 | 24.7% |
-| Items named | 486 | 1385 | 35.1% |
+| Vanilla recipes implemented | 1538 | 1557 | 98.8% |
+| Crafting recipes expressible | 1547 | 1557 | 99.4% |
+| Blocks named | 830 | 1095 | 75.8% |
+| Items named | 1127 | 1385 | 81.4% |
+
+"Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
+Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
+of them are vanilla (the red bed item and several redstone components are this project's own additions),
+and folding them in once produced a headline of 100.3%.
 
 "Expressible" means the result and every ingredient resolve to real content. It is a ceiling on what
-could be crafted, not a count of implemented recipes, which is much lower.
+could be crafted, not a count of implemented recipes.
 
-The remaining gap is dominated by content that needs **new geometry in the mesher**, not just data:
-slabs, stairs, fences, doors, beds and panes. The backlog quantifies it as 62 ingredient slots needing
-geometry against 158 plain ones, and ranks the families by recipes blocked — beds first at 196 recipes
-from only 15 names.
+The remaining ten recipes are blocked by results that need **engine work, not shapes** — `ender_chest`,
+`shulker_box`, `trapped_chest`, `scaffolding`, `cake`, `bundle`, `map`, `spyglass`, `recovery_compass`
+and `brush`. The geometry work is complete: this project now draws slabs, stairs, fences, gates, walls,
+doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
+rods, rails and flower pots, each with tests.
+
+### 4.2 Mob drops — verified in full
+
+`scripts/mob-loot-parity.mjs` compares this game's `MOB_LOOT` against vanilla's entity loot tables on
+three axes, reported separately because one "drops match" figure would hide which axis regressed:
+
+| | compared | differences |
+|---|---|---|
+| Entities with drops | 55 | — |
+| Drop entries | 104 | — |
+| Drop chance | 104 | 0 |
+| Stack count | 104 | 0 |
+| `playerKill` condition | 104 | 0 |
+
+**This project follows vanilla's semantics, not Mineclonia's.** Mineclonia's `chance` field is 1-in-N
+(see 3.12 above), so a smaller number means a *rarer* drop; vanilla's is a probability, so a smaller
+number also means rarer but the arithmetic is inverted. This game uses vanilla's: a zombie's iron ingot
+is stored as `0.008333`, matching vanilla's `dropChance`, and a reroll of the table reproduces vanilla's
+outcomes.
+
+One structural note: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
+today. The ranged form is implemented and covered by a test, but it is unexercised by the current data.
+
+### 4.3 What is not verified
+
+- **Drop probabilities under Looting.** Vanilla raises several chances with the enchantment; the loot
+  table has no per-level figures, so this is not measurable from the available data.
+- **Brewing and potion-to-effect mapping.** Section 2.6 documents Mineclonia's durations; the mapping
+  from ingredients to effects (fermented spider eye inverting healing to harming, and so on) is not
+  implemented.
+- **Enchantment effects beyond protection, sharpness, smite, impaling and efficiency.** Unbreaking,
+  depth strider, thorns and fortune are documented in section 2.5 but not all are wired.
+

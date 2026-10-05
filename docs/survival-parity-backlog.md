@@ -9,9 +9,9 @@ unavailable when its result OR any ingredient does not exist in this game.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Crafting recipes expressible | 1546 | 1557 | 99.3% |
+| Crafting recipes expressible | 1547 | 1557 | 99.4% |
 | Blocks named | 830 | 1095 | 75.8% |
-| Items named | 1121 | 1385 | 80.9% |
+| Items named | 1126 | 1385 | 81.3% |
 
 ## Highest-value individual additions
 
@@ -20,19 +20,18 @@ This is greedy set cover, so the gains are ordered and partly dependent on earli
 
 | # | name | recipes unblocked | running total |
 |---|---|---|---|
-| 1 | `ender_chest` | 1 | 1547 (99.4%) |
-| 2 | `shulker_box` | 1 | 1548 (99.4%) |
-| 3 | `scaffolding` | 1 | 1549 (99.5%) |
-| 4 | `trapped_chest` | 1 | 1550 (99.6%) |
-| 5 | `recovery_compass` | 1 | 1551 (99.6%) |
-| 6 | `bundle` | 1 | 1552 (99.7%) |
-| 7 | `spyglass` | 1 | 1553 (99.7%) |
-| 8 | `cake` | 1 | 1554 (99.8%) |
-| 9 | `map` | 1 | 1555 (99.9%) |
-| 10 | `creeper_head` | 1 | 1556 (99.9%) |
-| 11 | `brush` | 1 | 1557 (100.0%) |
+| 1 | `ender_chest` | 1 | 1548 (99.4%) |
+| 2 | `shulker_box` | 1 | 1549 (99.5%) |
+| 3 | `scaffolding` | 1 | 1550 (99.6%) |
+| 4 | `trapped_chest` | 1 | 1551 (99.6%) |
+| 5 | `recovery_compass` | 1 | 1552 (99.7%) |
+| 6 | `bundle` | 1 | 1553 (99.7%) |
+| 7 | `spyglass` | 1 | 1554 (99.8%) |
+| 8 | `cake` | 1 | 1555 (99.9%) |
+| 9 | `map` | 1 | 1556 (99.9%) |
+| 10 | `creeper_head` | 1 | 1557 (100.0%) |
 
-Starting point: 1546 of 1557 recipes craftable.
+Starting point: 1547 of 1557 recipes craftable.
 
 ## Missing content by family
 
