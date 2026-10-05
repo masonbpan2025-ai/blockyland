@@ -211,12 +211,19 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   world.setVoxel(bx, by + 5, bz, BLOCKS.AIR); // restore sky
 
   // Apply Beacon Buffs to Player
-  const mockPlayer = {
+  //
+  // `Player`'s statusEffects is a MAP, not a plain object. This mock used to be `{}` and the assertion read
+  // `statusEffects.speed`, a combination that passes ONLY against the broken implementation: the old
+  // `applyBeaconBuffs` wrote `statusEffects['speed'] = duration` as a property, which satisfies an object read
+  // while `hasStatusEffect` sees nothing. The mock now carries the real Map and the real
+  // `refreshStatusEffect`, so it cannot agree with a broken writer again.
+  const mockPlayer = Object.assign(Object.create(Player.prototype), {
     position: new THREE.Vector3(bx + 5, by, bz + 5),
-    statusEffects: {}
-  };
+    statusEffects: new Map(),
+  });
   applyBeaconBuffs({ active: true, range: 20, primary: 'speed' }, mockPlayer, new THREE.Vector3(bx, by, bz));
-  assert.ok(mockPlayer.statusEffects.speed > 0, 'Player received Speed buff from Beacon');
+  assert.ok(mockPlayer.hasStatusEffect('speed'), 'Player received Speed buff from Beacon');
+  assert.ok(mockPlayer.statusEffects.get('speed').duration > 0, 'and the buff has a duration');
 
   // 2. Conduit Frame Check
   const cx = 30, cy = 15, cz = 30;
@@ -235,15 +242,15 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   assert.equal(conduitCheck.active, true, 'Conduit activated with >= 16 frame blocks');
   assert.ok(conduitCheck.range >= 32);
 
-  // Apply Conduit Power to underwater player
-  const underwaterPlayer = {
+  // Apply Conduit Power to underwater player. Same correction as the beacon mock above: a Map, not an object.
+  const underwaterPlayer = Object.assign(Object.create(Player.prototype), {
     position: new THREE.Vector3(cx + 4, cy, cz + 4),
     inWater: true,
-    statusEffects: {}
-  };
+    statusEffects: new Map(),
+  });
   applyConduitPower(conduitCheck, underwaterPlayer, new THREE.Vector3(cx, cy, cz));
-  assert.ok(underwaterPlayer.statusEffects.conduit_power > 0);
-  assert.ok(underwaterPlayer.statusEffects.water_breathing > 0);
+  assert.ok(underwaterPlayer.hasStatusEffect('conduit_power'), 'conduit power');
+  assert.ok(underwaterPlayer.hasStatusEffect('water_breathing'), 'and water breathing');
 });
 
 test('Interactive Workstation UI Modals: Opening, Interacting, Slotted items, and Clean Close', () => {
