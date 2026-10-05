@@ -219,6 +219,12 @@ export function buildCreativeCatalog() {
     // The creeper head, which WAS wrongly excluded for several rounds on a false reading of its skin, and
     // the bamboo sapling and bubble column, which finish the pinned list.
     BLOCKS.CREEPER_HEAD, BLOCKS.CREEPER_WALL_HEAD, BLOCKS.BUBBLE_COLUMN, BLOCKS.BAMBOO_SAPLING,
+    // The coral PLANTS, which were genuinely absent while the coral blocks and fans existed: the
+    // name-based gap check hid it by resolving `tube_coral` onto `TUBE_CORAL_BLOCK`.
+    BLOCKS.TUBE_CORAL, BLOCKS.BRAIN_CORAL, BLOCKS.BUBBLE_CORAL, BLOCKS.FIRE_CORAL, BLOCKS.HORN_CORAL,
+    BLOCKS.DEAD_TUBE_CORAL, BLOCKS.DEAD_BRAIN_CORAL, BLOCKS.DEAD_BUBBLE_CORAL, BLOCKS.DEAD_FIRE_CORAL, BLOCKS.DEAD_HORN_CORAL,
+    // And the nether wart and dirt path, the last two the coverage measurement caught.
+    BLOCKS.NETHER_WART, BLOCKS.DIRT_PATH,
     // The wither skeleton, which the first head batch missed: its standing block existed under a
     // non-standard key and rendered as a coal cube, so only its wall form was ever flagged. Both are here.
     BLOCKS.WITHER_SKELETON_SKULL, BLOCKS.WITHER_SKELETON_WALL_SKULL,

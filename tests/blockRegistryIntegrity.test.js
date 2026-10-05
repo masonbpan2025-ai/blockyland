@@ -20,6 +20,7 @@ import { harvestDataFor, blastResistanceFor } from '../src/blockHarvestData.js';
 import { miningEffect } from '../src/miningRules.js';
 import { getBlockDrop } from '../src/itemVisuals.js';
 import { buildCreativeCatalog } from '../src/creativeCatalog.js';
+import { measureBlockGap } from '../scripts/content-gap.mjs';
 import { World, Chunk } from '../src/world.js';
 import { ChunkMesher } from '../src/mesher.js';
 
@@ -110,6 +111,85 @@ test('an infested block breaks faster than the block it imitates', () => {
 });
 
 // --- the ground-cover family --------------------------------------------------
+
+test('the coral plants, nether wart and dirt path exist, and the coverage gap is really zero', () => {
+  // THESE TWELVE WERE MISSED BY A MEASUREMENT THAT SAID THE WORK WAS FINISHED, and that is the point of
+  // this test rather than the blocks themselves.
+  //
+  // `compareBlockLists` resolves a vanilla name onto a registry KEY and counts the name satisfied when it
+  // finds one. `tube_coral` resolved to `TUBE_CORAL_BLOCK`, so the coral PLANT counted as present while
+  // never having been registered -- and the same for all ten plants. `nether_wart` resolved to
+  // `NETHER_WART_BLOCK` and `dirt_path` to `DIRT`.
+  //
+  // `scripts/content-gap.mjs` asks a different question -- is this NAME in the registry -- and flagged all
+  // twelve. So this test checks BOTH facts: that the blocks are registered, AND that the coverage
+  // measurement agrees the gap is zero. If the resolver ever regresses into hiding a block again, the
+  // second half of this test is what notices.
+  const CORALS = ['TUBE', 'BRAIN', 'BUBBLE', 'FIRE', 'HORN'];
+  const catalog = new Set(buildCreativeCatalog().map((e) => e.id));
+
+  for (const c of CORALS) {
+    const lower = c.toLowerCase();
+    for (const [key, stem] of [[`${c}_CORAL`, `${lower}_coral`], [`DEAD_${c}_CORAL`, `dead_${lower}_coral`]]) {
+      const id = BLOCKS[key];
+      assert.equal(typeof id, 'number', `${key} must be registered`);
+      const def = BLOCK_DEFS[id];
+
+      // A coral plant is a PLANT: cross-quad, not solid, transparent.
+      assert.equal(def.plant, true, `${key} must be a plant so the mesher draws a cross-quad`);
+      assert.equal(def.solid, false, `${key} must not be solid`);
+      assert.equal(def.textures.all, `${stem}.png`, `${key} must use its own downloadable tile`);
+      assert.ok(existsSync(path.join('public', 'assets', 'blocks', `${stem}.png`)),
+        `${stem}.png must exist`);
+
+      // EVERY ONE DROPS NOTHING: the live ones need silk touch in vanilla and this engine has no
+      // enchantment-driven drop rule, and the table records an empty array for the dead ones too. Omitting
+      // `drop` would make them drop themselves, which is the trap several recent batches have hit.
+      assert.equal(def.drop, null, `${key} must declare drop: null`);
+      assert.equal(getBlockDrop(id), null, `${key} must drop nothing`);
+
+      // And each needs an item, or it is unreachable.
+      assert.ok(ITEMS[stem], `${key} needs an item entry`);
+      assert.equal(ITEMS[stem].blockId, id, `${stem} must place ${key}`);
+      assert.ok(catalog.has(id), `${key} must be in the creative catalogue`);
+    }
+  }
+
+  // NETHER WART: a plant that drops the nether_wart ITEM, whose entry has existed as a material all along.
+  const wart = BLOCKS.NETHER_WART;
+  assert.equal(typeof wart, 'number', 'the nether wart must be registered');
+  assert.equal(BLOCK_DEFS[wart].plant, true, 'and be a plant');
+  assert.equal(getBlockDrop(wart)?.id, 'nether_wart',
+    'and drop the nether_wart item, which must therefore exist in ITEMS');
+  assert.ok(ITEMS.nether_wart, 'ITEMS.nether_wart must exist for that drop to resolve to anything');
+
+  // DIRT PATH: a full cube that drops plain dirt, with a COMPOSED top face.
+  const path_ = BLOCKS.DIRT_PATH;
+  assert.equal(typeof path_, 'number', 'the dirt path must be registered');
+  const pathDef = BLOCK_DEFS[path_];
+  assert.equal(getBlockDrop(path_)?.id, BLOCKS.DIRT, 'a dirt path must drop dirt');
+  assert.equal(pathDef.textures.top, 'dirt_path_top.png', 'its top face is the composed tile');
+  assert.ok(existsSync(path.join('public', 'assets', 'blocks', 'dirt_path_top.png')),
+    'dirt_path_top.png must exist. Run scripts/compose-dirt-path.py.');
+  assert.notDeepEqual(
+    readFileSync(path.join('public', 'assets', 'blocks', 'dirt_path_top.png')),
+    readFileSync(path.join('public', 'assets', 'blocks', 'dirt.png')),
+    'the path top must differ from plain dirt, or the composer did nothing');
+
+  // THE MEASUREMENT MUST AGREE. This is the half that would have caught the original miss.
+  const gap = measureBlockGap();
+  assert.ok(gap, 'the block cache must be present for this check');
+  assert.equal(gap.missing, 0,
+    `the coverage measurement says ${gap.missing} blocks are still missing: ${gap.needsArt.join(', ')}`);
+
+  // The composers and their inputs must be committed.
+  assert.ok(existsSync(path.join('scripts', 'compose-dirt-path.py')),
+    'scripts/compose-dirt-path.py must be committed alongside the art it produces');
+  const downloader = readFileSync(path.join('scripts', 'download_assets.js'), 'utf8');
+  for (const tile of ['tube_coral.png', 'dead_horn_coral.png', 'items/nether_wart.png']) {
+    assert.ok(downloader.includes(tile), `${tile} must be in the downloader, or a clean checkout loses it`);
+  }
+});
 
 test('the last four blocks close the pinned list, and the creeper head is real', () => {
   // THE PINNED VANILLA BLOCK LIST IS COMPLETE as of this batch. Two of the four were unblocked by art that

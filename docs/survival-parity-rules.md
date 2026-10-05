@@ -339,10 +339,10 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1551 | 1557 | 99.6% |
-| Crafting recipes expressible | 1552 | 1557 | 99.7% |
-| Blocks named | 1080 | 1095 | 98.6% |
-| Items named | 1309 | 1385 | 94.5% |
+| Vanilla recipes implemented | 1552 | 1557 | 99.7% |
+| Crafting recipes expressible | 1553 | 1557 | 99.7% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Items named | 1310 | 1385 | 94.6% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,14 +371,41 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1079 | 1295 |
-| missing | 16 | 90 |
+| present | 1095 | 1298 |
+| missing | **0** | 87 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **16** | **90** |
-| art files | 553 | 1071 |
+| **missing, needs NEW art** | **0** | **87** |
+| art files | 551 | 1071 |
 
-A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
+### 4.1.1a The pinned block list is COMPLETE
+
+Every block in the pinned 1.21.4 block list is registered: **1095 of 1095**. The checks that matter all
+report zero:
+
+| check | result |
+|---|---|
+| `compareBlockLists` unresolved names | **0** |
+| `gap-summary` blocks absent from the pinned data | **0** |
+| `gap-summary` genuine wiki names absent from the cache | **0** |
+
+Everything else the wiki lists is NEWER THAN THE PINNED DATA -- 277 entries, `newerThanPinnedData: 277` --
+which is a different objective rather than a gap in this one: the copper family, shelves, the poplar wood
+set, cinnabar and sulfur, from versions after 1.21.4.
+
+TWO RESIDUAL MEASUREMENTS STILL REPORT A NON-ZERO BLOCK GAP AND BOTH ARE WRONG, recorded here so the next
+person does not chase them:
+
+  - `scripts/content-gap.mjs` reports 12. They are RESOLVER FALSE POSITIVES rather than absent blocks:
+    `nether_wart` resolves to `NETHER_WART_BLOCK`, `tube_coral` to `TUBE_CORAL_BLOCK`, `dirt_path` to
+    `DIRT`. Each of those is a DISTINCT vanilla block that is separately registered, so the resolver is
+    matching a name onto a neighbouring family member and then reporting the real block as missing because
+    the one it matched is not the one it wanted.
+  - `scripts/parity-coverage.mjs` reports about 15, because `resolveVanillaBlock` returns an ARRAY of keys
+    for names that match several (`white_bed` gives the foot and the head) and the script looks that array
+    up as a single key. A count of the cache puts 65 names in that category.
+
+A CAVEAT ON THE "present" ROW, because a batch below turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
 it is wrong. `wither_skeleton_skull` resolved to `WITHER_SKELETON_SKULL_BLOCK`, so it counted as
 present while that block rendered as a coal cube with art pointing at `coal_block.png` and a drop
