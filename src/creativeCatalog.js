@@ -205,6 +205,10 @@ export function buildCreativeCatalog() {
     // The wall torches, beside the standing ones. They drop their standing form, so both are obtainable.
     BLOCKS.WALL_TORCH, BLOCKS.SOUL_WALL_TORCH, BLOCKS.REDSTONE_WALL_TORCH,
     BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL,
+    // The cauldron family. NONE of these was in the catalogue before, including the empty cauldron that
+    // has existed for a long time -- it was a leatherworker workstation a player could not place. All four
+    // are listed together so the family is complete.
+    BLOCKS.CAULDRON, BLOCKS.WATER_CAULDRON, BLOCKS.LAVA_CAULDRON, BLOCKS.POWDER_SNOW_CAULDRON,
     // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
     // machinery -- even though in this engine every one of them is inert decoration. Putting them
     // anywhere else would imply they are building material, which is further from the truth.

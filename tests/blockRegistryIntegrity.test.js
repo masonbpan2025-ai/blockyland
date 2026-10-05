@@ -111,6 +111,56 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the four cauldrons exist, drop an empty cauldron, and the pot has real art', () => {
+  // Three things are pinned here, and the first is a BUG FIX rather than a new block. The empty cauldron
+  // had pointed at `blackstone.png` -- not a cauldron texture at all -- while the real
+  // cauldron_top/side/bottom art sat unused. That is the same class of mistake the flower pot had with
+  // iron_bars.png, so it is asserted directly rather than left to the eye.
+  const pot = BLOCK_DEFS[BLOCKS.CAULDRON];
+  assert.deepEqual(pot.textures,
+    { top: 'cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' },
+    'the empty cauldron must use the cauldron art, not a stand-in');
+  for (const file of Object.values(pot.textures)) {
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', file)),
+      `the cauldron needs ${file} on disk`);
+  }
+
+  // The three filled states. Each drops an EMPTY cauldron -- not itself, not its fluid -- which is what
+  // the harvest table says for all three.
+  const FILLED = [
+    ['WATER_CAULDRON', 'water_cauldron_top.png'],
+    ['LAVA_CAULDRON', 'lava_cauldron_top.png'],
+    ['POWDER_SNOW_CAULDRON', 'powder_snow_cauldron_top.png'],
+  ];
+
+  for (const [key, topTexture] of FILLED) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    assert.equal(def.drop, BLOCKS.CAULDRON, `${key} must drop an empty cauldron`);
+
+    // The composed top is this state's own fluid; the sides and bottom are the shared pot.
+    assert.deepEqual(def.textures,
+      { top: topTexture, side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' },
+      `${key} must use its own composed top over the shared pot`);
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', topTexture)),
+      `${key} needs its composed top ${topTexture}. Run scripts/compose-filled-cauldrons.py.`);
+
+    // Like the empty pot: hardness 2, a pickaxe required.
+    assert.equal(def.hardness, 2.0, `${key} has the harvest table's hardness`);
+    assert.equal(miningEffect(id, null, null).canHarvest, false, `${key} needs a pickaxe`);
+    assert.ok(miningEffect(id, { speed: 8 }, 'wooden_pickaxe').canHarvest, `${key} yields to one`);
+  }
+
+  // The composer, and the slicer it depends on, must be committed: the pot is unreproducible without them,
+  // and the composer needs the sliced fluids because water and lava are animation strips upstream.
+  for (const script of ['compose-filled-cauldrons.py', 'slice-texture-frames.py']) {
+    assert.ok(existsSync(path.join('scripts', script)),
+      `scripts/${script} must be committed alongside the art it produces`);
+  }
+});
+
 test('the twenty-second batch blocks exist with their own art and the right drops', () => {
   // Eight blocks whose art only turned up when the sweep stopped probing bare names. Each is checked
   // against its own expectation rather than as a set, because they have almost nothing in common: three
