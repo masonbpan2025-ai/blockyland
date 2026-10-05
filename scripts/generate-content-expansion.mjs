@@ -109,6 +109,27 @@ const FAMILIES = [
     extra: { slab: true },
   },
   {
+    // Stripped logs and copper blocks: plain full cubes, present only because no family matched
+    // them. Stripped logs are 12 wood types; copper adds its base, raw and waxed variants.
+    //
+    // Declared with a shape marker so the NOT_A_CUBE exclusion is skipped, which matters here:
+    // `_stem` would otherwise catch stripped_crimson_stem and stripped_warped_stem.
+    id: 'stripped_and_copper',
+    match: (n) => /^(stripped_[a-z_]+|copper_block|raw_copper_block|raw_iron_block|raw_gold_block|waxed_copper_block|waxed_exposed_copper|waxed_weathered_copper|waxed_oxidized_copper|exposed_copper|weathered_copper|oxidized_copper|copper_bulb|exposed_copper_bulb|weathered_copper_bulb|oxidized_copper_bulb|waxed_copper_bulb|waxed_exposed_copper_bulb|waxed_weathered_copper_bulb|waxed_oxidized_copper_bulb|chiseled_copper|exposed_chiseled_copper|weathered_chiseled_copper|oxidized_chiseled_copper|waxed_chiseled_copper|waxed_exposed_chiseled_copper|waxed_weathered_chiseled_copper|waxed_oxidized_chiseled_copper|cut_copper|exposed_cut_copper|weathered_cut_copper|oxidized_cut_copper|waxed_cut_copper|waxed_exposed_cut_copper|waxed_weathered_cut_copper|waxed_oxidized_cut_copper|amethyst_block|raw_copper)$/.test(n),
+    texture: (n) => {
+      // A stripped log reuses its own texture where the game ships one, and the unstripped log
+      // otherwise, so it is visibly wood rather than a grey fallback.
+      if (textureExists(n + ".png")) return n + ".png";
+      const base = n.replace(/^stripped_/, "").replace(/_stem$/, "_log");
+      if (textureExists(base + ".png")) return base + ".png";
+      if (textureExists(n + ".svg")) return n + ".svg";
+      return base + ".png";
+    },
+    // Metal blocks sound like metal; wood like wood.
+    sound: 'stone',
+    extra: { cube: true },
+  },
+  {
     // Cross-shaped plants. The mesher already draws a cross for any block with plant: true, so
     // these need no geometry -- only the data, and a matching item for the ones used in recipes.
     id: 'plants',
