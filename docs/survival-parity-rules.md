@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1551 | 1557 | 99.6% |
 | Crafting recipes expressible | 1552 | 1557 | 99.7% |
-| Blocks named | 1074 | 1095 | 98.1% |
-| Items named | 1306 | 1385 | 94.3% |
+| Blocks named | 1080 | 1095 | 98.6% |
+| Items named | 1309 | 1385 | 94.5% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,12 +371,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1073 | 1295 |
-| missing | 22 | 90 |
+| present | 1079 | 1295 |
+| missing | 16 | 90 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **22** | **90** |
-| art files | 545 | 1071 |
+| **missing, needs NEW art** | **16** | **90** |
+| art files | 553 | 1071 |
 
 A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
@@ -413,6 +413,17 @@ bare name and a few suffixes. FIVE rounds have now been unblocked without drawin
 | the wither skull | the same extraction, applied to a block that already "existed" as a coal cube |
 | 2 chest variants | composed from the chest, which the mirror has no variant of |
 | the sniffer egg, the end gateway | the egg is the TURTLE EGG's shape on the SNIFFER'S palette; the gateway is the end portal's art darkened |
+| the moving piston | `piston_side`/`piston_inner` were on the mirror and referenced by NOTHING |
+| barrier, light, structure void | their ITEM sprites, because vanilla draws no block art for any of them |
+
+AND ONE FAMILY WHERE THE COLUMN IS SIMPLY RIGHT: **cave air and void air needed no art because air is
+invisible.** That is not an exception being granted to a hard case; it is the correct state, and the
+texture test carries a narrow word-boundary exemption for names ending in "Air" so the two can be
+registered honestly rather than given a stand-in tile that must never be seen. Barrier and light, by
+contrast, DID get stand-in art, because a barrier that cannot be seen is a barrier nobody can use.
+
+The distinction is worth keeping: an invisible block that must stay invisible is finished when it is
+registered, while an invisible block that has to be usable is not.
 
 That last one is the widest reach yet, and it is why the column cannot be trusted: the art was not in
 `blocks/` at all. `scripts/extract-mob-head-textures.py` crops the head faces out of the standard 32x16
