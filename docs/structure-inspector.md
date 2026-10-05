@@ -38,7 +38,7 @@ engine's `/locate` search and moves the camera to what it found.
 - **Terrain is flat.** The preview surface is a single configurable Y, so a structure's terrain
   *adaptation* (beard, bury, encapsulate) cannot be judged here — that needs real terrain and is what
   the eventual golden-seed tests are for.
-- **Only structures with a generator produce a plan.** The picker lists all 30 registry structures and
+- **Only structures with a generator produce a plan.** The picker lists all 34 registry structures and
   marks the ones with no generator; selecting one logs why nothing was found instead of inventing a
   placeholder. `generatorCoverage()` in `src/worldgen/index.js` reports the same thing in code.
 - **The preview volume is bounded** to Y 40..120. A structure outside that range is silently clipped by
