@@ -108,8 +108,18 @@ const blocks1214 = [
   // Dripleaf and sculk, the fifteenth batch. `soul_fire` is deliberately NOT here: its upstream texture is
   // a 16x512 animation strip rather than a tile, and the game has no machinery to slice it, so registering
   // the block would draw the whole strip across one quad. That block needs an SVG or a frame slicer first.
+  //
+  // RESOLVED in the twenty-second batch: `scripts/slice-texture-frames.py` takes frame 0 of the strip and
+  // the block is registered. The comment is kept because it is the reason the slicer exists.
   'big_dripleaf_top.png', 'big_dripleaf_stem.png', 'small_dripleaf_top.png',
   'sculk_vein.png', 'pale_hanging_moss.png',
+  'soul_fire_0.png',
+  // The twenty-second batch: crop stage textures, the suspicious blocks' numbered frames, and scaffolding's
+  // three faces. Every one of these was previously reported as art-blocked because a bare-name probe finds
+  // none of them -- see scripts/block-parity/art-sweep.mjs, which tries the suffixes.
+  'beetroots_stage3.png', 'cocoa_stage2.png', 'torchflower_crop_stage0.png', 'pitcher_crop_top.png',
+  'suspicious_sand_0.png', 'suspicious_gravel_0.png',
+  'scaffolding_top.png', 'scaffolding_side.png', 'scaffolding_bottom.png',
   // Technical blocks, the sixteenth batch. The three command blocks each need four textures -- front,
   // side, back and the conditional top/bottom -- which is why this list is longer than the block count.
   // The trial spawner and vault use their INACTIVE / OFF variants, since they are never active here.

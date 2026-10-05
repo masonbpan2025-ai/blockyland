@@ -20,6 +20,7 @@ import { codeDropSources } from '../src/codeDropSources.js';
 import { breezeDrops } from '../src/breezeBehavior.js';
 import { turtleMaturationDrops } from '../src/turtleBehavior.js';
 import { variantBonusDrops } from '../src/undeadVariants.js';
+import { updateArmadilloScutes } from '../src/armadilloBehavior.js';
 import { EntityManager } from '../src/entities.js';
 import { MobManager } from '../src/mobs.js';
 import { registry } from '../src/resourceRegistry.js';
@@ -131,8 +132,8 @@ test('the code-drop table is derived from the helpers, and lists what they retur
   // Pinned as a set: the derivation is what keeps it true, and this is what notices if a helper stops
   // returning an item or a new mob drop appears without being described.
   assert.deepEqual(items, [
-    'breeze_rod', 'nether_star', 'tipped_arrow_poison', 'tipped_arrow_slowness',
-    'tipped_arrow_weakness', 'turtle_scute',
+    'armadillo_scute', 'breeze_rod', 'egg', 'nether_star', 'tipped_arrow_poison',
+    'tipped_arrow_slowness', 'tipped_arrow_weakness', 'turtle_scute',
   ]);
   for (const entry of entries) {
     assert.match(entry.how, /^[A-Z].*\.$/, `${entry.item} should have a sentence describing the drop`);
@@ -153,6 +154,21 @@ test('each code drop is proved by running the code that makes it', () => {
     // And without credit it gives nothing, which is vanilla's rule rather than an oversight.
     assert.deepEqual(variantBonusDrops({ type }, () => 0), [], `${type} without credit`);
   }
+
+  // The two timed drops. An armadillo's shedding is a helper that reports the moment, so the helper is
+  // executed: a timer part-way through gives nothing, and one at zero sheds. A chicken's egg is not a
+  // helper at all -- it is a `spawnDroppedItem` call inside `AnimalBehaviors.update`, a loop broad enough
+  // that driving it in a unit test would test the loop rather than the egg -- so the call site is asserted
+  // instead, and that is the weaker of the proofs in this file. It is stated rather than glossed.
+  assert.equal(updateArmadilloScutes({ type: 'armadillo', scuteTimer: 10 }, 1, () => 0), false, 'not yet');
+  assert.equal(updateArmadilloScutes({ type: 'armadillo', scuteTimer: 0.5 }, 1, () => 0), true, 'and now');
+  assert.equal(updateArmadilloScutes({ type: 'cow', scuteTimer: 0.5 }, 1, () => 0), false, 'only an armadillo');
+  const mobsSource = readFileSync('src/mobs.js', 'utf8');
+  assert.match(mobsSource, /updateArmadilloScutes\(mob, dt\)\)[\s\S]{0,160}'armadillo_scute'/,
+    'and a true return is what spawns the scute');
+  const animalSource = readFileSync('src/animalBehaviors.js', 'utf8');
+  assert.match(animalSource, /mob\.type === 'chicken'[\s\S]{0,400}'egg'/,
+    'a chicken should still lay an egg from its timer');
 
   // The nether star is the one entry that could not be derived, so it is proved here instead: a real
   // manager, asked what a wither drops.

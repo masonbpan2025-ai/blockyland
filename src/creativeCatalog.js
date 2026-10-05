@@ -179,6 +179,11 @@ export function buildCreativeCatalog() {
     BLOCKS.POTTED_RED_MUSHROOM, BLOCKS.POTTED_RED_TULIP, BLOCKS.POTTED_SPRUCE_SAPLING,
     BLOCKS.POTTED_TORCHFLOWER, BLOCKS.POTTED_WARPED_FUNGUS, BLOCKS.POTTED_WARPED_ROOTS,
     BLOCKS.POTTED_WHITE_TULIP, BLOCKS.POTTED_WITHER_ROSE,
+    // Crops at their mature stage, soul fire, the suspicious blocks and scaffolding. Grouped as the
+    // twenty-second batch's leftovers rather than by theme, because that is what they are: eight blocks
+    // whose art only turned up when the sweep stopped probing bare names.
+    BLOCKS.BEETROOTS, BLOCKS.COCOA, BLOCKS.PITCHER_CROP, BLOCKS.TORCHFLOWER_CROP,
+    BLOCKS.SOUL_FIRE, BLOCKS.SUSPICIOUS_SAND, BLOCKS.SUSPICIOUS_GRAVEL, BLOCKS.SCAFFOLDING,
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
     BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,

@@ -54,6 +54,21 @@ export const BONUS_DROPS = {
   dead_bush: [['stick', 0.5]],
 };
 
+/**
+ * Drops that REPLACE a block's base drop rather than adding to it.
+ *
+ * Gravel is the one this game needs. Vanilla gives flint 10% of the time *instead of* the gravel, and a
+ * bonus table cannot express that -- a bonus would hand over both. `flint` had no source anywhere, and it is
+ * an ingredient in fifty-three of this game's recipes, including `arrow` (flint and stick and feather) and
+ * `flint_and_steel`, so neither arrows nor a firestarter could be crafted and nothing said why.
+ *
+ * Keyed by name for the same reason `BONUS_DROPS` is, and pinned by the same test that every key is a
+ * registered block.
+ */
+export const REPLACEMENT_DROPS = {
+  gravel: { id: 'flint', chance: 0.1 },
+};
+
 const normalise = (text) => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
 /**
@@ -107,15 +122,29 @@ export function bonusDropsFor(id, random = Math.random) {
 }
 
 /**
- * Everything breaking this block yields: the base drop first, then any bonus drops.
+ * The drop that replaces the base one, when the block has such a rule and the roll succeeds.
+ *
+ * @returns {{id: string, isBlock: boolean, count: number}|null}
+ */
+export function replacementDropFor(id, random = Math.random) {
+  const rule = REPLACEMENT_DROPS[bonusKeyFor(id)];
+  if (!rule) return null;
+  if (!(random() < rule.chance)) return null;
+  return { id: rule.id, isBlock: isBlockName(rule.id), count: 1 };
+}
+
+/**
+ * Everything breaking this block yields: the base drop or the drop that replaces it, then any bonus drops.
  *
  * @returns {Array<{id: (string|number), isBlock: boolean, count: number}>} empty when the block yields nothing
  */
 export function blockDrops(id, random = Math.random) {
+  const replacement = replacementDropFor(id, random);
   const base = baseBlockDrop(id);
-  const bonus = bonusDropsFor(id, random);
   const out = [];
-  if (base) out.push({ ...base, count: 1 });
-  out.push(...bonus);
+  // A replacement takes the base's place: gravel gives flint or gravel, never both.
+  if (replacement) out.push(replacement);
+  else if (base) out.push({ ...base, count: 1 });
+  out.push(...bonusDropsFor(id, random));
   return out;
 }

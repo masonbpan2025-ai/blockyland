@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
-import { BONUS_DROPS, baseBlockDrop, blockDrops, bonusDropsFor, bonusKeyFor } from '../src/blockDrops.js';
+import { BONUS_DROPS, REPLACEMENT_DROPS, baseBlockDrop, blockDrops, bonusDropsFor, bonusKeyFor, replacementDropFor } from '../src/blockDrops.js';
 import { getBlockDrop } from '../src/itemVisuals.js';
 
 const always = () => 0;
@@ -137,6 +137,59 @@ test('every item a bonus table drops is something the game knows', () => {
       assert.ok(known.has(item) || blocks.has(item), `${block} drops ${item}, which does not exist`);
     }
   }
+});
+
+// --- the drop that replaces the base one -------------------------------------
+
+test('gravel gives flint instead of gravel, never both', () => {
+  const gravel = BLOCKS.GRAVEL;
+  // Vanilla's 10%, and the two sides of it. `flint` had no source anywhere in the game and is an ingredient
+  // in fifty-three recipes -- `arrow` among them -- so without this nothing could be crafted from flint.
+  assert.deepEqual(blockDrops(gravel, () => 0.05), [{ id: 'flint', isBlock: false, count: 1 }]);
+  assert.deepEqual(blockDrops(gravel, () => 0.5)[0].id, gravel, 'a miss gives the gravel itself');
+  assert.equal(blockDrops(gravel, () => 0.0999)[0].id, 'flint');
+  assert.equal(blockDrops(gravel, () => 0.1001)[0].id, gravel);
+  // "Instead of", not "as well as": one row either way.
+  assert.equal(blockDrops(gravel, always).length, 1);
+  assert.equal(blockDrops(gravel, never).length, 1);
+});
+
+test('a replacement rule does not disturb the blocks around it', () => {
+  // The base drop and the bonus tables have to behave exactly as they did. Stone is the useful control: it
+  // drops cobblestone rather than itself, so this also checks that the replacement rule has not flattened
+  // the `drop`/`dropItem` distinction into "always the block".
+  assert.deepEqual(blockDrops(BLOCKS.STONE, never), [{ id: BLOCKS.COBBLESTONE, isBlock: true, count: 1 }]);
+  const leaves = blockDrops(BLOCKS.OAK_LEAVES, always);
+  assert.equal(leaves[0].id, BLOCKS.OAK_LEAVES, 'a leaf still drops itself first');
+  assert.ok(leaves.some((d) => d.id === 'apple'), 'and still rolls its bonuses');
+  // Nothing else in the game has a replacement rule, which is the point of a named table.
+  assert.deepEqual(Object.keys(REPLACEMENT_DROPS), ['gravel']);
+});
+
+test('every replacement names a registered block and a real item, at a real probability', () => {
+  const names = new Set(Object.keys(BONUS_DROPS).length ? [] : []);
+  for (const def of Object.values(BLOCK_DEFS)) {
+    const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (key) names.add(key);
+  }
+  const known = new Set(Object.keys(ITEMS));
+  for (const [block, rule] of Object.entries(REPLACEMENT_DROPS)) {
+    assert.ok(names.has(block), `REPLACEMENT_DROPS.${block} names no block the game registers`);
+    assert.ok(known.has(rule.id), `${block} replaces itself with ${rule.id}, which is not an item`);
+    assert.ok(rule.chance > 0 && rule.chance < 1, `${block} has chance ${rule.chance}, which is not a probability`);
+  }
+  // And the block still drops itself when the roll misses, or the rule would be a way to delete blocks.
+  const gravelId = BLOCKS.GRAVEL;
+  assert.ok(baseBlockDrop(gravelId), 'the block a replacement belongs to must still have a base drop');
+});
+
+test('an item that flint is needed for is craftable now', () => {
+  // The reason this mattered: `arrow` is flint and stick and feather, so with no flint there were no arrows.
+  const source = readFileSync(join(process.cwd(), 'src', 'extraRecipes.js'), 'utf8');
+  assert.match(source, /'flint'/, 'the arrow recipe should still name flint');
+  // And gravel is what produces it, which is what the registry now records.
+  assert.equal(replacementDropFor(BLOCKS.GRAVEL, always).id, 'flint');
+  assert.equal(replacementDropFor(BLOCKS.STONE, always), null, 'stone has no replacement');
 });
 
 // --- the wiring --------------------------------------------------------------

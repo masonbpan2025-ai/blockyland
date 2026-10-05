@@ -65,6 +65,20 @@ export function codeDropSources() {
     how: 'Dropped by the wither.',
     source: 'mobs.js base drop table (wither)',
   });
+  // These two are shed on a timer rather than rolled at death, and the grant is a `spawnDroppedItem` call at
+  // the timer's call site rather than a helper that returns rows. A chicken lays an egg every three to six
+  // minutes and an armadillo sheds a scute every five to ten; neither is a death drop, so the loot data has
+  // no place to put them and the report called both unobtainable.
+  entries.push({
+    item: 'egg',
+    how: 'Laid by a chicken every few minutes.',
+    source: 'animalBehaviors.js AnimalBehaviors.update',
+  });
+  entries.push({
+    item: 'armadillo_scute',
+    how: 'Shed by an armadillo every five to ten minutes.',
+    source: 'mobs.js armadillo update loop',
+  });
 
   return entries;
 }
