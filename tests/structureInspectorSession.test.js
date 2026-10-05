@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  createStructureInspectorSession, createPreviewWorld, inspectorStructures, PREVIEW_MIN_Y
+  createStructureInspectorSession, createPreviewWorld, inspectorStructures, PREVIEW_MIN_Y, PREVIEW_MAX_Y
 } from '../src/structureInspectorSession.js';
 import { BLOCKS } from '../src/blocks.js';
 import { adaptationView } from '../src/structureInspectorPanels.js';
@@ -237,4 +237,77 @@ test('the adaptation report does not mutate the preview it describes', () => {
   // The report covers the WHOLE structure, not one chunk of it. Reporting 233 blocks of a 1200-block village
   // would be a truthful count of the wrong thing.
   assert.ok(view.structureBlocks > 1000, 'the report must cover every piece, got ' + view.structureBlocks);
+});
+
+// --- the preview window follows the plan -------------------------------------
+
+test('a structure deeper than the default window is still drawn, in a WIDENED window', () => {
+  // `ancient_city` sits around Y -63..-31 and the documented preview window starts at 40, so it realized ZERO
+  // blocks while its piece boxes were drawn: the page showed empty boxes and said nothing about why. The window
+  // now follows the plan, which is a property of the PREVIEW and not of generation -- the plan, the boxes and
+  // every block coordinate keep their real Y values.
+  const session = createStructureInspectorSession();
+  session.setSeed('164291790');
+  session.setStructure('ancient_city');
+  session.setBiome('deep_dark');
+  session.setSurface(70);
+  assert.ok(session.planNearest({ maxRadiusChunks: 512 }), 'the ancient city must be findable');
+  const box = session.currentPlan().start.box;
+  assert.ok(box.maxY < PREVIEW_MIN_Y, 'this structure must genuinely live below the default window');
+
+  const written = session.realize();
+  const info = session.snapshot();
+  assert.ok(written > 1000, 'a whole ancient city must be drawn, got ' + written);
+  assert.equal(info.blocks, written, 'and every block it wrote must be in the preview');
+  assert.ok(info.yRange.minY < PREVIEW_MIN_Y, 'the window must have widened downwards');
+  assert.ok(info.yRange.minY <= box.minY, 'the window must CONTAIN the structure, not merely overlap it');
+  assert.equal(info.outsidePreview, 0, 'nothing may be refused once the window fits');
+});
+
+test('a structure inside the default window does not widen it, so the window is not simply always open', () => {
+  // The control: if widening happened for everything, the previous test would pass for a window that was
+  // meaningless. A surface village must leave the documented range exactly as it is.
+  const session = createStructureInspectorSession();
+  session.setSeed('4242');
+  session.setStructure('village_plains');
+  session.setBiome('plains');
+  session.setSurface(70);
+  session.planNearest({ maxRadiusChunks: 512 });
+  session.realize();
+  const info = session.snapshot();
+  assert.deepEqual(info.yRange, { minY: PREVIEW_MIN_Y, maxY: PREVIEW_MAX_Y }, 'the default window must stand');
+  assert.deepEqual(info.previewDefaultYRange, [PREVIEW_MIN_Y, PREVIEW_MAX_Y]);
+  assert.equal(info.yRange.minY < PREVIEW_MIN_Y || info.yRange.maxY > PREVIEW_MAX_Y, false);
+});
+
+test('the window is reset per plan, so one deep structure does not widen the next one', () => {
+  // Otherwise a single deep structure would leave the window open for the rest of the session and the previous
+  // test would only pass in a fresh session -- the state would be order-dependent, which is a bug in a harness.
+  const session = createStructureInspectorSession();
+  session.setSeed('164291790');
+  session.setStructure('ancient_city');
+  session.setBiome('deep_dark');
+  session.setSurface(70);
+  session.planNearest({ maxRadiusChunks: 512 });
+  assert.ok(session.snapshot().yRange.minY < PREVIEW_MIN_Y, 'the deep structure widened it');
+
+  session.setStructure('village_plains');
+  session.setBiome('plains');
+  assert.ok(session.planNearest({ maxRadiusChunks: 512 }), 'the village must be findable');
+  assert.deepEqual(session.snapshot().yRange, { minY: PREVIEW_MIN_Y, maxY: PREVIEW_MAX_Y },
+    'the next plan must start from the documented window again');
+});
+
+test('a refused write is COUNTED, so an empty preview can be explained instead of silent', () => {
+  // The guarantee behind the panel's "NOTHING DRAWN" line: the world must be able to report that it refused
+  // writes, rather than returning an empty preview with no account of why.
+  const world = createPreviewWorld({ biome: 'plains', surface: 70 });
+  world.resetRejectedWrites();
+  assert.equal(world.setBlock(0, PREVIEW_MIN_Y - 1, 0, BLOCKS.STONE), false, 'a block below the window is refused');
+  assert.equal(world.setBlock(0, PREVIEW_MAX_Y + 1, 0, BLOCKS.STONE), false, 'and above it');
+  assert.equal(world.rejectedWrites, 2, 'and both are counted');
+  assert.equal(world.setBlock(0, 70, 0, BLOCKS.STONE), true, 'a block inside it is accepted');
+  assert.equal(world.rejectedWrites, 2, 'which does not change the count');
+  world.resetRejectedWrites();
+  assert.equal(world.rejectedWrites, 0, 'the count is per realize pass, not cumulative');
 });

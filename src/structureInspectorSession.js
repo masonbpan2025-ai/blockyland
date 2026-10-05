@@ -29,17 +29,42 @@ export function createPreviewWorld({ biome = 'plains', surface = 70 } = {}) {
   // rather than folded into the id, because the whole point of inspecting a structure is seeing that
   // these were initialised at all.
   const blockMeta = new Map();
+  // The preview volume's height range. It DEFAULTS to the documented window and WIDENS to fit whatever is
+  // planned, because a structure that lives outside it realizes zero blocks: `ancient_city` sits around
+  // Y -63..-31 while the default window starts at 40, so the Inspector drew its boxes and not one block of it,
+  // with nothing on the page to say why. Widening is a property of the PREVIEW, never of generation: the plan,
+  // the boxes and the block coordinates all keep their real Y values.
+  let minY = PREVIEW_MIN_Y;
+  let maxY = PREVIEW_MAX_Y;
+  // Writes refused for falling outside the range, so an empty preview can be EXPLAINED rather than guessed at.
+  let rejected = 0;
   return {
     blocks,
     blockMeta,
     biome,
     surface,
+    get yRange() { return { minY, maxY }; },
+    /** Expand the range to contain a box, plus a margin. Never narrows below the documented window. */
+    fitYRange(box, margin = 4) {
+      if (!box) return { minY, maxY };
+      minY = Math.min(minY, box.minY - margin);
+      maxY = Math.max(maxY, box.maxY + margin);
+      return { minY, maxY };
+    },
+    /** Back to the documented window, so a later plan is not judged against an earlier one's extent. */
+    resetYRange() {
+      minY = PREVIEW_MIN_Y;
+      maxY = PREVIEW_MAX_Y;
+      return { minY, maxY };
+    },
+    get rejectedWrites() { return rejected; },
+    resetRejectedWrites() { rejected = 0; },
     key: (x, y, z) => `${x},${y},${z}`,
     getBlock(x, y, z) {
       return blocks.get(`${x},${y},${z}`) ?? BLOCKS.AIR;
     },
     setBlock(x, y, z, id) {
-      if (y < PREVIEW_MIN_Y || y > PREVIEW_MAX_Y) return false;
+      if (y < minY || y > maxY) { rejected++; return false; }
       blocks.set(`${x},${y},${z}`, id);
       return true;
     },
@@ -177,6 +202,11 @@ export function createStructureInspectorSession(options = {}) {
       // Air is never stored, so this counts the cells a template CLEARED. It is reported rather than hidden:
       // "realized 1170 blocks and cleared 40 cells" says more than a total that folds the two together.
       airSkipped: lastRealize ? lastRealize.airSkipped : 0,
+      // The preview window actually in force, and how many writes it refused. A preview showing nothing must
+      // say WHY: for a structure deeper than the default window this is the whole explanation.
+      yRange: world.yRange,
+      previewDefaultYRange: [PREVIEW_MIN_Y, PREVIEW_MAX_Y],
+      outsidePreview: world.rejectedWrites,
       pieces: start.pieces.map((piece, index) => ({
         index,
         id: piece.id,
@@ -265,6 +295,10 @@ export function createStructureInspectorSession(options = {}) {
       }
       plan = result;
       lastPlanKey = `${state.seed}|${state.structureId}|${state.chunkX},${state.chunkZ}`;
+      // The preview must be able to CONTAIN what was planned, or every write is refused and the page shows
+      // empty boxes. See createPreviewWorld's yRange.
+      world.resetYRange();
+      world.fitYRange(result.start.box);
       log(`planned ${result.structureId} via ${result.set} at chunk ${result.start.chunkX}, ${result.start.chunkZ}`);
       return result;
     },
@@ -290,6 +324,8 @@ export function createStructureInspectorSession(options = {}) {
       state.chunkZ = found.chunk[1];
       plan = { structureId: found.structureId, set: found.set, start: found.start };
       lastPlanKey = `${state.seed}|${state.structureId}|${state.chunkX},${state.chunkZ}`;
+      world.resetYRange();
+      world.fitYRange(found.start.box);
       log(`located ${found.structureId} at chunk ${found.chunk[0]}, ${found.chunk[1]} (${found.distance.toFixed(0)} blocks away)`);
       return found;
     },
@@ -305,6 +341,8 @@ export function createStructureInspectorSession(options = {}) {
       // with air cells. Those cells used to render as BLACK CUBES -- air is black in the palette -- which made
       // a village look like a handful of black blocks, and they inflated the reported block count.
       let airSkipped = 0;
+      // Cleared per realize, so the count describes THIS pass rather than accumulating across the session.
+      world.resetRejectedWrites();
       // Side effects must not be chained with `&&`: the writer has to return a real boolean, and the
       // metadata has to land whether or not the caller would have short-circuited.
       const written = engine.realize(plan.start, (x, y, z, id, meta) => {

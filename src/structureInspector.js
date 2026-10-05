@@ -230,6 +230,16 @@ function renderPanels() {
       `placement reference: [${info.reference.join(', ')}]`,
       `pieces: ${info.pieces.length}   chunks touched: ${info.chunkCount}`,
       `blocks realized: ${info.blocks}${info.airSkipped ? `   (${info.airSkipped} air cell(s) skipped)` : ''}`,
+      // The window follows the plan, so say which window is in force AND what it refused: a structure deeper
+      // than the default is the one case where the preview can be legitimately empty, and it must not be
+      // silent about it. `ancient_city` sits near Y -63, which the default 40..120 window cannot hold at all.
+      `preview Y window: ${info.yRange.minY}..${info.yRange.maxY}`
+        + (info.yRange.minY < info.previewDefaultYRange[0] || info.yRange.maxY > info.previewDefaultYRange[1]
+          ? `   (widened from ${info.previewDefaultYRange[0]}..${info.previewDefaultYRange[1]} to fit this structure)`
+          : ''),
+      ...(info.outsidePreview > 0 && info.blocks === 0
+        ? [`NOTHING DRAWN: all ${info.outsidePreview} block(s) fall outside the preview window.`]
+        : []),
       `plan hash: ${info.hash}`
     ].join('\n')
     : `no plan for ${session.state.structureId} at chunk ${session.state.chunkX}, ${session.state.chunkZ}.\nUse "Find nearest" — most structures are sparse, so a random chunk is usually empty.`;
