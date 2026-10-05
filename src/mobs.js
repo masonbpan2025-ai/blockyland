@@ -27,7 +27,7 @@ import { sheepApplyWool } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
-import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
+import { cubeHealth, cubeSide, updateCubeHop, cubeSquashOnLand } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
 import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
@@ -4621,7 +4621,11 @@ export class MobManager {
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      // Wiki: a cube hops every 0.5-1.5s, and turns every 2-5s while it has no target.
+      hopTimer: 0,
+      cubeTurnTimer: 0,
+      cubeAttackCooldown: 0
     };
     this.mobs.push(mob);
     return mob;
@@ -7143,6 +7147,45 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='slime'||mob.type==='magma_cube'){
+      // Wiki: cubes move by hopping every 0.5-1.5s, three times as often when they have a target,
+      // always jump one block high, do not pathfind, and damage whatever they land on. Neither had
+      // any locomotion before, so both stood in one place forever while the renderer read a
+      // vertical velocity that nothing ever set.
+      const hopTarget = updateCubeHop(this, mob, dt, player, {
+        findTarget: (mgr, cube, range) => {
+          // Wiki: the cube looks for a player within 16 blocks, or failing that an iron golem.
+          if (player?.position && cube.mesh.position.distanceTo(player.position) < range) return player;
+          let best = null;
+          let bestDist = range;
+          for (const other of mgr.mobs) {
+            if (other === cube || other.type !== 'iron_golem' || other.health <= 0) continue;
+            const d = cube.mesh.position.distanceTo(other.mesh.position);
+            if (d < bestDist) { bestDist = d; best = other; }
+          }
+          return best;
+        }
+      });
+
+      moveGroundMob(this, mob, dt);
+
+      // Contact damage on landing. Wiki: the damage equals the cube's size and the smallest deals
+      // none, and damage immunity limits it to one hit per half second.
+      if (mob.onGround && mob.cubeSquashPending) {
+        mob.cubeSquashPending = false;
+        if (mob.cubeTarget) cubeSquashOnLand(this, mob, mob.cubeTarget, dt);
+      }
+      mob.cubeAttackCooldown = Math.max(0, (mob.cubeAttackCooldown || 0) - dt);
+
+      // A cube squash: the model flattens on landing and stretches during the jump, which is what
+      // makes the hop read rather than slide.
+      const airborne = !mob.onGround;
+      const stretch = airborne ? 1 + Math.min(0.25, Math.abs(mob.velocity.y) * 0.04) : 0.88;
+      const base = mob.slimeSize / 4;
+      mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
+      mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
     if(mob.type==='bee'){
       // Wiki: a bee that has stung loses its stinger, cannot attack again, does not return home,
       // and dies about a minute later. It also drowns in water.
