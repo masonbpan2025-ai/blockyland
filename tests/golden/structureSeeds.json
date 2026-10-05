@@ -1,0 +1,329 @@
+{
+  "seed": 20250401,
+  "generatedFor": "Minecraft Java Edition 1.21.4 (see docs/STRUCTURE_REFERENCES.md)",
+  "entries": [
+    {
+      "id": "buried_treasure",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "beach",
+      "chunkX": 36,
+      "chunkZ": 0,
+      "planHash": 1021139254,
+      "pieces": 1,
+      "box": [
+        585,
+        70,
+        9,
+        585,
+        70,
+        9
+      ],
+      "blockCount": 1,
+      "contentHash": 779230037
+    },
+    {
+      "id": "igloo",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "snowy_taiga",
+      "chunkX": 192,
+      "chunkZ": 0,
+      "planHash": 4269294473,
+      "pieces": 1,
+      "box": [
+        3076,
+        70,
+        4,
+        3082,
+        74,
+        10
+      ],
+      "blockCount": 137,
+      "contentHash": 1173137710
+    },
+    {
+      "id": "nether_fossil",
+      "seed": 20250401,
+      "dimension": "nether",
+      "biome": "soul_sand_valley",
+      "chunkX": 0,
+      "chunkZ": 0,
+      "planHash": 181116243,
+      "pieces": 1,
+      "box": [
+        4,
+        44,
+        4,
+        6,
+        46,
+        16
+      ],
+      "blockCount": 27,
+      "contentHash": 2291400491
+    },
+    {
+      "id": "desert_pyramid",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 206,
+      "chunkZ": 0,
+      "planHash": 1110341088,
+      "pieces": 1,
+      "box": [
+        3287,
+        54,
+        -9,
+        3331,
+        86,
+        35
+      ],
+      "blockCount": 380,
+      "contentHash": 3031511973
+    },
+    {
+      "id": "swamp_hut",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "swamp",
+      "chunkX": 804,
+      "chunkZ": 0,
+      "planHash": 186066753,
+      "pieces": 1,
+      "box": [
+        12856,
+        58,
+        -8,
+        12886,
+        88,
+        22
+      ],
+      "blockCount": 135,
+      "contentHash": 4076485041
+    },
+    {
+      "id": "pillager_outpost",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 610,
+      "chunkZ": 0,
+      "planHash": 2859816631,
+      "pieces": 6,
+      "box": [
+        9748,
+        58,
+        -12,
+        9786,
+        92,
+        26
+      ],
+      "blockCount": 443,
+      "contentHash": 1652008863
+    },
+    {
+      "id": "ocean_ruin_cold",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "frozen_ocean",
+      "chunkX": 125,
+      "chunkZ": 0,
+      "planHash": 2781686248,
+      "pieces": 7,
+      "box": [
+        2009,
+        70,
+        3,
+        2021,
+        73,
+        18
+      ],
+      "blockCount": 132,
+      "contentHash": 1841315827
+    },
+    {
+      "id": "ocean_ruin_warm",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "lukewarm_ocean",
+      "chunkX": 125,
+      "chunkZ": 0,
+      "planHash": 2781686248,
+      "pieces": 7,
+      "box": [
+        2009,
+        70,
+        3,
+        2021,
+        73,
+        18
+      ],
+      "blockCount": 137,
+      "contentHash": 3482412524
+    },
+    {
+      "id": "ruined_portal",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 172,
+      "chunkZ": 0,
+      "planHash": 2637258028,
+      "pieces": 1,
+      "box": [
+        2758,
+        70,
+        6,
+        2762,
+        75,
+        10
+      ],
+      "blockCount": 22,
+      "contentHash": 227729018
+    },
+    {
+      "id": "ruined_portal_desert",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 1527,
+      "chunkZ": 0,
+      "planHash": 2723419718,
+      "pieces": 1,
+      "box": [
+        24438,
+        67,
+        6,
+        24442,
+        72,
+        10
+      ],
+      "blockCount": 27,
+      "contentHash": 958711843
+    },
+    {
+      "id": "ruined_portal_mountain",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "windswept_hills",
+      "chunkX": 575,
+      "chunkZ": 0,
+      "planHash": 781157541,
+      "pieces": 1,
+      "box": [
+        9206,
+        70,
+        6,
+        9210,
+        75,
+        10
+      ],
+      "blockCount": 23,
+      "contentHash": 3243512470
+    },
+    {
+      "id": "ruined_portal_nether",
+      "seed": 20250401,
+      "dimension": "nether",
+      "biome": "plains",
+      "chunkX": 172,
+      "chunkZ": 0,
+      "planHash": 1380976666,
+      "pieces": 1,
+      "box": [
+        2758,
+        29,
+        6,
+        2762,
+        34,
+        10
+      ],
+      "blockCount": 22,
+      "contentHash": 482045257
+    },
+    {
+      "id": "ruined_portal_ocean",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "ocean",
+      "chunkX": 172,
+      "chunkZ": 0,
+      "planHash": 2637258028,
+      "pieces": 1,
+      "box": [
+        2758,
+        70,
+        6,
+        2762,
+        75,
+        10
+      ],
+      "blockCount": 22,
+      "contentHash": 3620282970
+    },
+    {
+      "id": "ruined_portal_swamp",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "swamp",
+      "chunkX": 172,
+      "chunkZ": 0,
+      "planHash": 2637258028,
+      "pieces": 1,
+      "box": [
+        2758,
+        70,
+        6,
+        2762,
+        75,
+        10
+      ],
+      "blockCount": 22,
+      "contentHash": 314312007
+    },
+    {
+      "id": "shipwreck",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "ocean",
+      "chunkX": 88,
+      "chunkZ": 0,
+      "planHash": 1384704885,
+      "pieces": 1,
+      "box": [
+        1410,
+        68,
+        2,
+        1412,
+        71,
+        17
+      ],
+      "blockCount": 95,
+      "contentHash": 936617933
+    },
+    {
+      "id": "shipwreck_beached",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "beach",
+      "chunkX": 88,
+      "chunkZ": 0,
+      "planHash": 195964901,
+      "pieces": 1,
+      "box": [
+        1410,
+        70,
+        2,
+        1412,
+        73,
+        17
+      ],
+      "blockCount": 95,
+      "contentHash": 4025683444
+    }
+  ],
+  "unfound": [
+    "ruined_portal_jungle"
+  ]
+}

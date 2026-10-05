@@ -78,6 +78,8 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
 Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 16 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid, swamp hut), 6 `NOT STARTED`
+
+**Golden seeds now exist**: `tests/golden/structureSeeds.json` records, for each implemented structure, the chunk it is first found at plus a hash of its plan and of every block realization writes, guarded by `tests/structureGoldenSeeds.test.js` and regenerated only by an explicit script. One finding came out of writing them: `ruined_portal_jungle` was NOT locatable within 6000 chunks while every other portal variant was, so its placement or biome gate keeps it out of reach. It is recorded as `unfound` rather than dropped from the net. These goldens pin THIS ENGINE's behaviour and cannot establish parity, which is why the matrix still records nothing as `VERIFIED`.
 (4 hardcoded + 5 procedural minus the implemented one), 11 `INFRASTRUCTURE BLOCKED` (2 template + 9
 jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
