@@ -51,7 +51,7 @@ export const AREAS = {
   // --- survival parity: how much of vanilla's content the game can express ---
   survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry'],
   // --- save/load ---
-  persist: ['mapManager']
+  persist: ['mapManager', 'mobStatePersistence']
 };
 
 function allTestFiles() {
