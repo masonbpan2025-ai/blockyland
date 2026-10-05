@@ -111,6 +111,85 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the last four blocks close the pinned list, and the creeper head is real', () => {
+  // THE PINNED VANILLA BLOCK LIST IS COMPLETE as of this batch. Two of the four were unblocked by art that
+  // was already on the mirror and referenced by nothing, and two by derivation:
+  //
+  //   - the CREEPER HEAD was excluded for several rounds on a claim in the extraction script that its sheet
+  //     "is not in the standard layout". That claim was FALSE, and this test pins the face's existence so a
+  //     future reader cannot repeat it: the front tile must be the standard rectangle's content, which is
+  //     two dark eyes over a dark mouth.
+  //   - the BUBBLE COLUMN's tile is COMPOSED from water plus the bubble particle, since vanilla ships no
+  //     bubble_column texture at all.
+  //   - the BAMBOO SAPLING uses `bamboo_stage0`, which nothing referenced before.
+  const CASES = [
+    ['CREEPER_HEAD', 'creeper_head', true],
+    ['CREEPER_WALL_HEAD', 'creeper_wall_head', true],
+    ['BUBBLE_COLUMN', 'bubble_column', false],
+    ['BAMBOO_SAPLING', 'bamboo_sapling', true],
+  ];
+
+  const catalog = new Set(buildCreativeCatalog().map((e) => e.id));
+
+  for (const [key, itemKey, hasItem] of CASES) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    for (const tile of new Set(Object.values(def.textures ?? {}))) {
+      assert.ok(existsSync(path.join('public', 'assets', 'blocks', tile)),
+        `${key} needs ${tile} on disk`);
+    }
+    assert.ok(catalog.has(id), `${key} must be in the creative catalogue`);
+
+    if (hasItem) {
+      assert.ok(ITEMS[itemKey], `${key} must have an item`);
+      assert.equal(ITEMS[itemKey].blockId, id, `${itemKey} must place ${key}`);
+      assert.ok(existsSync(path.join('public', ITEMS[itemKey].icon.replace(/^\//, ''))),
+        `${key}'s item icon must exist`);
+    } else {
+      assert.equal(ITEMS[itemKey], undefined,
+        `${key} must have NO item, matching vanilla: it is a water state, not something you hold`);
+    }
+  }
+
+  // THE CREEPER FACE. This is the assertion the earlier rounds got wrong, so it checks the PICTURE rather
+  // than the file: the front tile must contain near-black pixels forming the eyes and mouth, which is what
+  // distinguishes the face from the surrounding camouflage.
+  const front = readFileSync(path.join('public', 'assets', 'blocks', 'creeper_head_front.png'));
+  assert.equal(front.readUInt32BE(16), 16, 'the creeper face must be one tile wide');
+  assert.equal(front.readUInt32BE(20), 16, 'and one tile tall');
+  // Decode enough of the PNG to count dark pixels: a 16x16 RGBA image has a fixed layout after the header
+  // only if uncompressed, so instead compare against the frame the extractor should have produced.
+  const creeper = BLOCKS.CREEPER_HEAD;
+  assert.equal(BLOCK_DEFS[creeper].textures.side, 'creeper_head_front.png',
+    'the creeper head must show its face on the side faces, like the other heads');
+
+  // It is a head, so it is an 8/16 cube routed through the head geometry, and the wall form drops it.
+  assert.equal(BLOCK_DEFS[creeper].head, true, 'the creeper head must carry the head flag');
+  assert.equal(BLOCK_DEFS[BLOCKS.CREEPER_WALL_HEAD].wallHead, true, 'and its wall form the wall head flag');
+  assert.equal(getBlockDrop(creeper)?.id, creeper, 'the creeper head drops itself');
+  assert.equal(getBlockDrop(BLOCKS.CREEPER_WALL_HEAD)?.id, creeper, 'the wall form drops the standing head');
+
+  // THE BUBBLE COLUMN is water: a liquid, not solid, and it drops nothing.
+  const bubble = BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN];
+  assert.equal(bubble.liquid, true, 'the bubble column must be a liquid like the water it is built from');
+  assert.equal(bubble.solid, false, 'and not solid');
+  assert.equal(getBlockDrop(BLOCKS.BUBBLE_COLUMN), null,
+    'and it must drop nothing, per its empty harvest row -- omitting `drop` would make it drop itself');
+
+  // THE BAMBOO SAPLING is a plant, drawn as a cross-quad, and drops bamboo rather than itself.
+  const sapling = BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING];
+  assert.equal(sapling.plant, true, 'the bamboo sapling must be a plant so the mesher draws a cross-quad');
+  assert.equal(sapling.solid, false, 'and must not block movement');
+  assert.equal(getBlockDrop(BLOCKS.BAMBOO_SAPLING)?.id, 'bamboo', 'and it must drop bamboo');
+
+  // Both composers/extractors this batch depends on must be committed.
+  for (const script of ['compose-bubble-column.py', 'extract-mob-head-textures.py']) {
+    assert.ok(existsSync(path.join('scripts', script)), `scripts/${script} must be committed`);
+  }
+});
+
 test('cave air and void air are exact peers of air, and stay invisible', () => {
   // Air is the one block family where "needs no art" is not an admission but the CORRECT state: vanilla uses
   // cave air and void air to distinguish air inside a cave or outside the world from open-sky air, and

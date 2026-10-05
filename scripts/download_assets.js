@@ -189,7 +189,13 @@ const items = [
 const itemSprites = [
   { url: `${BASE_1214}/items/barrier.png`, out: 'public/assets/items/barrier.png' },
   { url: `${BASE_1214}/items/light.png`, out: 'public/assets/items/light.png' },
-  { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' }
+  { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' },
+  // The bubble column's input. It is a PARTICLE sprite rather than an item or a block tile, which is why it
+  // is here: vanilla ships no `bubble_column` block texture at all, and scripts/compose-bubble-column.py
+  // overlays this onto the water tile to make one. `alsoBlockTile: false` matters -- the loop that copies
+  // each of these into the block atlas exists for the three invisible blocks, whose ONLY art is the sprite,
+  // and copying a particle into the atlas would put a stray bubble.png there that nothing references.
+  { url: `${BASE_1214}/particle/bubble.png`, out: 'public/assets/particle/bubble.png', alsoBlockTile: false }
 ];
 
 const guis = [
@@ -260,6 +266,10 @@ async function run() {
     // A copy lands in the BLOCK atlas too, because a vanilla barrier is an invisible cube and there is no
     // block tile upstream. Writing it here rather than by hand is what keeps a clean checkout working: the
     // two copies must stay byte-identical, and the test asserts that they are.
+    //
+    // Entries with `alsoBlockTile: false` are INPUTS to a composer rather than stand-ins for a block tile,
+    // so they are fetched on their own and nothing is copied into the atlas for them.
+    if (s.alsoBlockTile === false) continue;
     await downloadFile(s.url, `public/assets/blocks/${s.out.split('/').pop()}`);
   }
   console.log('Downloading Entities...');

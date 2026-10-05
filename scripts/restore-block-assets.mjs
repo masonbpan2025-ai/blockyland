@@ -148,6 +148,9 @@ const TRANSFORMS = [
   // The sniffer egg and the end gateway. The egg reads its palette out of the sniffer's ENTITY sheet, so
   // this must run AFTER the entity step above; the gateway derives from `nether_portal.png`.
   'compose-egg-and-gateway.py',
+  // The bubble column: water_still frame 0 plus four bubble particles. It slices the water tile
+  // itself, because water_still is an animation strip.
+  'compose-bubble-column.py',
 ];
 
 for (const script of TRANSFORMS) {

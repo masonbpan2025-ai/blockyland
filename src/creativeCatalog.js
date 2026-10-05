@@ -216,6 +216,9 @@ export function buildCreativeCatalog() {
     // extraction script says why.
     BLOCKS.SKELETON_SKULL, BLOCKS.ZOMBIE_HEAD, BLOCKS.PLAYER_HEAD, BLOCKS.PIGLIN_HEAD,
     BLOCKS.SKELETON_WALL_SKULL, BLOCKS.ZOMBIE_WALL_HEAD, BLOCKS.PLAYER_WALL_HEAD, BLOCKS.PIGLIN_WALL_HEAD,
+    // The creeper head, which WAS wrongly excluded for several rounds on a false reading of its skin, and
+    // the bamboo sapling and bubble column, which finish the pinned list.
+    BLOCKS.CREEPER_HEAD, BLOCKS.CREEPER_WALL_HEAD, BLOCKS.BUBBLE_COLUMN, BLOCKS.BAMBOO_SAPLING,
     // The wither skeleton, which the first head batch missed: its standing block existed under a
     // non-standard key and rendered as a coal cube, so only its wall form was ever flagged. Both are here.
     BLOCKS.WITHER_SKELETON_SKULL, BLOCKS.WITHER_SKELETON_WALL_SKULL,
