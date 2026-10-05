@@ -823,6 +823,19 @@ export const BLOCKS = {
   LIGHT: 1195,
   STRUCTURE_VOID: 1196,
 
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Cave air and void air. Both are AIR with a different meaning and no different rendering: vanilla uses
+  // them to distinguish the air inside a cave or outside the world from the air in the open sky, and NOTHING
+  // DRAWS THEM. A block that is by definition invisible needs no texture, which is why neither has one and
+  // why neither should get one.
+  //
+  // They are registered as EXACT PEERS of the existing AIR entry -- same flags, no textures -- rather than
+  // approximated with a stand-in tile, unlike the barrier and light blocks in the batch before. Those two
+  // needed to be VISIBLE to be useful; these two must not be.
+  CAVE_AIR: 1197,
+  VOID_AIR: 1198,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2829,6 +2842,21 @@ BLOCK_DEFS[BLOCKS.MOVING_PISTON] = {name: 'Moving Piston', redstone: true, hardn
 BLOCK_DEFS[BLOCKS.BARRIER] = {name: 'Barrier', hardness: -1, sound: 'stone', transparent: true, solid: true, drop: BLOCKS.BARRIER, textures: {all: 'barrier.png'}};
 BLOCK_DEFS[BLOCKS.LIGHT] = {name: 'Light', hardness: -1, sound: 'stone', transparent: true, solid: false, light: 15, lightColor: 0xfff3a0, drop: BLOCKS.LIGHT, textures: {all: 'light.png'}};
 BLOCK_DEFS[BLOCKS.STRUCTURE_VOID] = {name: 'Structure Void', hardness: 0.0, sound: 'stone', transparent: true, solid: false, drop: BLOCKS.STRUCTURE_VOID, textures: {all: 'structure_void.png'}};
+
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Deliberately IDENTICAL to AIR: transparent, not solid, and with NO TEXTURE, because air is invisible
+  // by definition. They also get no item and no catalogue entry, exactly as AIR has none, so they cannot
+  // be placed by a player -- which is what they are for. Their harvest rows all say hardness 0, no drops
+  // and an empty bounding box, so there is nothing to obtain from any of them either.
+  //
+  // `drop: null` IS LOAD-BEARING and is NOT the same as declaring nothing. The drop pipeline falls back to
+  // the block's own id when a definition has no drop, so omitting it made cave air and void air DROP
+  // THEMSELVES -- a block obtainable without ever being placed, contradicting the empty `drops` array in
+  // their own harvest rows. AIR returns null only because it predates this registry and has no definition.
+  // The explicit null is what makes the empty row authoritative.
+BLOCK_DEFS[BLOCKS.CAVE_AIR] = {name: 'Cave Air', transparent: true, solid: false, drop: null};
+BLOCK_DEFS[BLOCKS.VOID_AIR] = {name: 'Void Air', transparent: true, solid: false, drop: null};
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};

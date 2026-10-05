@@ -111,6 +111,37 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('cave air and void air are exact peers of air, and stay invisible', () => {
+  // Air is the one block family where "needs no art" is not an admission but the CORRECT state: vanilla uses
+  // cave air and void air to distinguish air inside a cave or outside the world from open-sky air, and
+  // nothing draws any of them. So unlike the barrier and the light -- which got stand-in art because they
+  // have to be visible to be useful -- these must NOT be given a texture.
+  const air = BLOCK_DEFS[BLOCKS.AIR];
+  assert.ok(air, 'the original air must still exist');
+
+  for (const key of ['CAVE_AIR', 'VOID_AIR']) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // Exact peers: same flags, and NO texture either, which is the whole point.
+    assert.equal(def.transparent, air.transparent, `${key} must be transparent like air`);
+    assert.equal(def.solid, air.solid, `${key} must not be solid like air`);
+    assert.equal(def.textures, undefined, `${key} must have no texture, because air is invisible`);
+
+    // No item, no catalogue entry, no drop: a player must not be able to obtain or place any of them.
+    assert.equal(ITEMS[key.toLowerCase()], undefined, `${key} must have no item`);
+    assert.ok(!buildCreativeCatalog().some((e) => e.id === id), `${key} must not be in the creative catalogue`);
+    assert.equal(getBlockDrop(id), null, `${key} must drop nothing`);
+
+    // Its harvest row agrees: breakable-on-paper, no drops, an empty box.
+    const row = harvestDataFor(id);
+    assert.equal(row.hardness, 0, `${key} hardness`);
+    assert.deepEqual(row.drops, [], `${key} drops`);
+    assert.equal(row.bb, 'empty', `${key} must be an empty bounding box`);
+  }
+});
+
 test('the invisible technical blocks use their own item sprites, and own the approximation', () => {
   // Barrier, light and structure void are INVISIBLE IN VANILLA, which is why they sat in the "needs new
   // art" column for many rounds: there is no `blocks/barrier.png` upstream at any suffix or version,
@@ -1162,6 +1193,14 @@ test('every hand-added block names a texture that exists on disk', () => {
     checked++;
     const files = textureFiles(def);
     if (!files.length) {
+      // THE AIR VARIANTS ARE THE ONE LEGITIMATE EXEMPTION, and it is narrow on purpose: air is invisible by
+      // definition, so a texture for it would be a texture that must never be seen. AIR itself sits below the
+      // hand-added floor and predates this check, so cave and void air are the only entries that can reach
+      // here without a texture -- and if a THIRD block ever needs this exemption, the right move is to ask
+      // why rather than to add it to a list.
+      // The regex needs a WORD BOUNDARY, not a space: the first draft used /, Air$/ and never matched,
+      // because the names are "Cave Air" and "Void Air" with no comma in them. \b still refuses "Stair".
+      if (/\bAir$/.test(def.name)) continue;
       bad.push(`${def.name} (id ${id}) names no texture`);
       continue;
     }
