@@ -35,7 +35,7 @@ export const AREAS = {
   // --- agent / terminal ---
   agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring'],
   // --- mobs ---
-  mob: ['mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'packEquineParity', 'striderParity', 'squidParity', 'witherSkeletonParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity'],
+  mob: ['mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'packEquineParity', 'striderParity', 'squidParity', 'witherSkeletonParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity', 'sheepParity'],
   // --- redstone and machines ---
   redstone: ['redstone', 'advanced_redstone', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
@@ -49,7 +49,7 @@ export const AREAS = {
   // --- rendering and effects ---
   render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'meshTimeSlicing', 'progressOverlay', 'confirmDialog'],
   // --- survival parity: how much of vanilla's content the game can express ---
-  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry'],
+  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry'],
   // --- save/load ---
   persist: ['mapManager']
 };

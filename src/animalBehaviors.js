@@ -2,32 +2,13 @@ import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squi
 import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
 import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
+import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
-export const SHEEP_COLORS = [
-  'white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray',
-  'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'
-];
-
-export const SHEEP_COLOR_HEX = {
-  white: 0xe9ecef,
-  orange: 0xf97316,
-  magenta: 0xd946ef,
-  light_blue: 0x38bdf8,
-  yellow: 0xfacc15,
-  lime: 0x84cc16,
-  pink: 0xf472b6,
-  gray: 0x4b5563,
-  light_gray: 0x9ca3af,
-  cyan: 0x06b6d4,
-  purple: 0xa855f7,
-  blue: 0x2563eb,
-  brown: 0x78350f,
-  green: 0x16a34a,
-  red: 0xdc2626,
-  black: 0x18181b
-};
+// Re-exported so existing importers (mobShowcase, tests) keep working now that the
+// canonical sheep tables live in sheepBehavior.js.
+export { SHEEP_COLORS, SHEEP_COLOR_HEX };
 
 export const BREEDING_FOODS = {
   cow: ['wheat'],
@@ -86,8 +67,9 @@ export class AnimalBehaviors {
     // Shearing sheep
     if (mob.type === 'sheep' && itemId === 'shears' && !mob.isSheared) return true;
 
-    // Dyeing sheep
-    if (mob.type === 'sheep' && itemId.endsWith('_dye')) return true;
+    // Dyeing sheep. Wiki: a sheared sheep cannot be dyed until its wool regrows by
+    // grazing, so holding dye must not advertise a usable interaction.
+    if (mob.type === 'sheep' && itemId.endsWith('_dye')) return !mob.isSheared;
 
     // Wolf taming or healing or sitting
     if (mob.type === 'wolf') {
@@ -164,28 +146,36 @@ export class AnimalBehaviors {
     if (mob.type === 'sheep' && itemId === 'shears') {
       if (!mob.isSheared) {
         mob.isSheared = true;
-        if (mob.woolMesh) mob.woolMesh.visible = false;
+        // Hide the wool layer through the shared helper so the mesh and the flag stay
+        // in step. A sheared sheep keeps its colour and regrows it by grazing.
+        sheepApplyWool(mob);
         if (this.sounds?.playShears) this.sounds.playShears();
 
         const colorName = mob.woolColor || 'white';
         const woolBlockId = BLOCKS[`${colorName.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL;
         const dropPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0));
-        const count = 1 + Math.floor(Math.random() * 3);
+        // Wiki: 1-3 wool, not affected by Fortune or Looting.
+        const count = rollSheepWoolCount();
         for (let i = 0; i < count; i++) {
           this.entities?.spawnDroppedItem(dropPos, woolBlockId, true);
+        }
+        // Shears lose one durability per sheep, like any other shearable block.
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
         }
         return true;
       }
     }
 
-    // 3. Dyeing a Sheep
+    // 3. Dyeing a Sheep. Wiki: a sheared sheep cannot be dyed until the wool grows
+    // back by grazing, so this comes after the shearing branch that sets isSheared.
     if (mob.type === 'sheep' && itemId && itemId.endsWith('_dye')) {
+      if (mob.isSheared) return false;
       const dyeColor = itemId.replace('_dye', '');
       if (SHEEP_COLOR_HEX[dyeColor]) {
         mob.woolColor = dyeColor;
-        if (mob.woolMesh?.material) {
-          mob.woolMesh.material.color.setHex(SHEEP_COLOR_HEX[dyeColor]);
-        }
+        sheepApplyWool(mob);
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (this.sounds?.playPop) this.sounds.playPop();
         return true;
@@ -526,7 +516,9 @@ export class AnimalBehaviors {
           if (blockBelow === BLOCKS.GRASS || blockBelow === BLOCKS.GRASS_BLOCK) {
             this.world?.setVoxel(bx, by, bz, BLOCKS.DIRT);
             mob.isSheared = false;
-            if (mob.woolMesh) mob.woolMesh.visible = true;
+            // Regrowing the wool restores the sheep's retained colour, so a dyed sheep
+            // is still that colour after it is sheared and regrows.
+            sheepApplyWool(mob);
             if (this.sounds?.playStep) this.sounds.playStep('grass');
           }
         }
@@ -818,12 +810,12 @@ export class AnimalBehaviors {
               if (baby.horns) baby.horns.forEach(h => h.visible = false);
               if (baby.udder) baby.udder.visible = false;
               if (baby.wattle) baby.wattle.visible = false;
-              // Genetics for sheep wool color
+              // Colour genetics for sheep. Wiki: compatible parent colours mix (blue +
+              // white = light blue); incompatible pairs give the lamb one parent's
+              // colour at random.
               if (mob.type === 'sheep') {
-                baby.woolColor = Math.random() < 0.5 ? mob.woolColor : other.woolColor;
-                if (baby.woolMesh?.material) {
-                  baby.woolMesh.material.color.setHex(SHEEP_COLOR_HEX[baby.woolColor] || 0xe9ecef);
-                }
+                baby.woolColor = inheritSheepColor(mob.woolColor, other.woolColor);
+                sheepApplyWool(baby);
               }
             }
 

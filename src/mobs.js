@@ -22,6 +22,7 @@ import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
+import { sheepApplyWool } from './sheepBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -2880,13 +2881,23 @@ export class MobManager {
   }
 
   // --- PASSIVE SHEEP ---
-  spawnSheep(x, y, z) {
+  spawnSheep(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.sheep });
+    // The wool layer is tinted per sheep instead of using sixteen textures. Colours
+    // come from SHEEP_COLOR_HEX, so the wool block a sheep drops and the tint on its
+    // back are derived from one source and cannot drift apart.
+    const woolMat = new THREE.MeshLambertMaterial({ map: this.textures.sheep });
 
     const body = new THREE.Mesh(createBoxWithUV(0.7, 0.6, 1.0, 28, 8, 64, 32), mat);
     body.position.y = 0.65;
     group.add(body);
+
+    // Wool shell, inflated slightly around the body so shearing reveals the skin cube
+    // underneath rather than deleting geometry.
+    const woolMesh = new THREE.Mesh(createBoxWithUV(0.79, 0.68, 1.09, 28, 8, 64, 32), woolMat);
+    woolMesh.position.y = 0.68;
+    group.add(woolMesh);
 
     const head = new THREE.Mesh(createBoxWithUV(0.42, 0.42, 0.45, 0, 0, 64, 32), mat);
     head.position.set(0, 0.88, 0.6);
@@ -2907,16 +2918,23 @@ export class MobManager {
       name: 'Sheep',
       mesh: group,
       head: head,
+      woolMesh: woolMesh,
+      woolMaterial: woolMat,
+      woolColor: options.woolColor || 'white',
+      isSheared: !!options.isSheared,
       legs: [fl, fr, bl, br],
       mat: mat,
-      health: 10,
-      maxHealth: 10,
+      // Wiki: 8 HP.
+      health: 8,
+      maxHealth: 8,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    sheepApplyWool(mob);
+
     this.mobs.push(mob);
     return mob;
   }
@@ -5969,6 +5987,65 @@ export class MobManager {
     return true;
   }
 
+  /**
+   * Death loot for a mob, as `[itemId, isBlock, minCount, maxCount]` rows.
+   *
+   * Split out of updateDeath so the table can be asserted directly instead of being
+   * inferred from dropped-item entities. That matters because `updateDeath` adds rows
+   * from several specialized handlers (pack equines, squids, wither skeletons,
+   * zombified piglins) *and* suppresses the whole table via `mob.noLoot`, so a
+   * dropped-item count alone cannot tell a missing row from a suppressed one.
+   *
+   * Rows may also be conditional on mob state, which is how the two sheep-only rules
+   * from the wiki are expressed: a sheared sheep drops no wool, and a burned sheep
+   * drops cooked mutton.
+   */
+  getMobDeathDrops(mob) {
+    const burned = mob.isOnFire || mob.fireTicks > 0;
+    const sheepWool = BLOCKS[`${(mob.woolColor || 'white').toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL;
+    return {
+      pig: [[burned ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
+      cow: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
+      // A sheared sheep has no wool to drop. Mutton is unaffected by shearing.
+      sheep: [...(mob.isSheared ? [] : [[sheepWool, true, 1, 1]]), [burned ? 'cooked_mutton' : 'mutton', false, 1, 2]],
+      chicken: [[burned ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
+      horse: [['leather', false, 0, 2]],
+      mule: [['leather', false, 0, 2]],
+      donkey: [['leather', false, 1, 2]],
+      salmon: [[burned ? 'cooked_salmon' : 'salmon', false, 1, 1]],
+      cod: [[burned ? 'cooked_cod' : 'cod', false, 1, 1]],
+      dolphin: [['salmon', false, 0, 1]],
+      octopus: [['ink_sac', false, 1, 3]],
+      squid: [['ink_sac', false, 1, 3]],
+      glow_squid: [['glow_ink_sac', false, 1, 3]],
+      skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],
+      creeper: [['gunpowder', false, 1, 2]],
+      zombie: [['rotten_flesh', false, 1, 2]],
+      zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1]],
+      iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
+      pillager: [['arrow', false, 1, 2]],
+      vindicator: [['emerald', false, 0, 1]],
+      evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
+      blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1]] : [],
+      ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
+      piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
+      zoglin: [['rotten_flesh', false, 1, 3]],
+      zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+      zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+      hoglin: [[burned ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
+      strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
+      magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
+      wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
+      witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
+      guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
+      elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
+      drowned: [['rotten_flesh', false, 1, 2]],
+      phantom: [['phantom_membrane', false, 1, 2]],
+      warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
+      wither: [['nether_star', false, 1, 1]]
+    }[mob.type] || [];
+  }
+
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
@@ -6008,46 +6085,7 @@ export class MobManager {
         mob.noLoot = true;
         if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
       }
-      const loot = {
-        pig: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
-        cow: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
-        sheep: [[mob.woolColor ? (BLOCKS[`${mob.woolColor.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL) : BLOCKS.WHITE_WOOL, true, 1, 1], [(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_mutton' : 'mutton', false, 1, 2]],
-        chicken: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
-        horse: [['leather', false, 0, 2]],
-        mule: [['leather', false, 0, 2]],
-        donkey: [['leather', false, 1, 2]],
-        salmon: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_salmon' : 'salmon', false, 1, 1]],
-        cod: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_cod' : 'cod', false, 1, 1]],
-        dolphin: [['salmon', false, 0, 1]],
-        octopus: [['ink_sac', false, 1, 3]],
-        squid: [['ink_sac', false, 1, 3]],
-        glow_squid: [['glow_ink_sac', false, 1, 3]],
-        skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],
-        creeper: [['gunpowder', false, 1, 2]],
-        zombie: [['rotten_flesh', false, 1, 2]],
-        zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1]],
-        iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
-        pillager: [['arrow', false, 1, 2]],
-        vindicator: [['emerald', false, 0, 1]],
-        evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
-        blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1]] : [],
-        ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
-        piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
-        zoglin: [['rotten_flesh', false, 1, 3]],
-        zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
-        zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
-        hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
-        strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
-        magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
-        wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
-        witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
-        guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
-        elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
-        drowned: [['rotten_flesh', false, 1, 2]],
-        phantom: [['phantom_membrane', false, 1, 2]],
-        warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
-        wither: [['nether_star', false, 1, 1]]
-      };
+      const loot = this.getMobDeathDrops(mob);
       if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
         this.game.player.applyStatusEffect('bad_omen', 100);
       }
@@ -6062,7 +6100,7 @@ export class MobManager {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }
       if (!mob.noLoot) {
-        for (const [id, isBlock, min, max] of loot[mob.type] || []) {
+        for (const [id, isBlock, min, max] of loot) {
           const count = min + Math.floor(Math.random() * (max - min + 1));
           if (count > 0) {
             this.entities?.spawnDroppedItem(pos, id, isBlock, count, { pickupDelay: 1.2 });
