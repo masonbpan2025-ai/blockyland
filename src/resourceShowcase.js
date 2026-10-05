@@ -354,6 +354,16 @@ export const RESOURCE_CHECKS = [
       if (!entry.def?.food) {
         return { ok: false, detail: 'declared in foodData.js but the item has no food value, so it cannot be eaten' };
       }
+      // The item's own number is what the eating code uses, and this check used to stop at "has one".
+      // A golden apple declared 8 where `foodData.js` and vanilla both say 4, so it fed twice what it
+      // should have while every assertion above passed: the table was compared against vanilla, and the
+      // item was never compared against the table. This is the assertion that catches the whole class.
+      if (entry.def.food !== declared.hunger) {
+        return {
+          ok: false,
+          detail: `the item feeds ${entry.def.food} but foodData.js says ${declared.hunger}`,
+        };
+      }
       return true;
     },
   },

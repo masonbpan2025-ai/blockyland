@@ -98,7 +98,13 @@ export const EXTRA_ITEMS = {
   filled_map: { name: 'Filled Map', icon: '/assets/items/filled_map.png', type: 'material' },
   heart_of_the_sea: { name: 'Heart Of The Sea', icon: '/assets/items/heart_of_the_sea.png', type: 'material' },
   spider_eye: { name: 'Spider Eye', icon: '/assets/items/spider_eye.png', food: 2, saturation: 1.6, type: 'food' },
-  enchanted_golden_apple: { name: 'Enchanted Golden Apple', icon: '/assets/items/enchanted_golden_apple.png', food: 4, saturation: 4.8, type: 'food' },
+  // Vanilla's enchanted apple is the strongest single item in the game: Regeneration II for twenty
+  // seconds, Absorption IV for two minutes, Resistance for five minutes and Fire Resistance for five. It
+  // fed 4 already, so only the effects were missing.
+  enchanted_golden_apple: {
+    name: 'Enchanted Golden Apple', icon: '/assets/items/enchanted_golden_apple.png', food: 4, saturation: 4.8, type: 'food',
+    effects: [['regeneration', 20, 2], ['absorption', 120, 4], ['resistance', 300, 1], ['fire_resistance', 300, 1]],
+  },
   black_banner: { name: 'Black Banner', icon: '/assets/items/black_banner.png', stackSize: 16, isBlock: true, blockId: 222, type: 'block' },
   black_wall_banner: { name: 'Black Wall Banner', icon: '/assets/items/black_wall_banner.png', isBlock: true, blockId: 223, type: 'block' },
   blue_banner: { name: 'Blue Banner', icon: '/assets/items/blue_banner.png', stackSize: 16, isBlock: true, blockId: 224, type: 'block' },

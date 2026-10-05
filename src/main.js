@@ -1567,6 +1567,14 @@ class Game {
           this.sounds.playEat();
           this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + (it.food || 4));
           this.player.health = Math.min(this.player.maxHealth, this.player.health + 2);
+          // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,
+          // and without this their Absorption, Regeneration, Resistance and Fire Resistance did nothing:
+          // an enchanted apple was a slightly worse cooked porkchop.
+          if (Array.isArray(it.effects)) {
+            for (const [effect, duration, level] of it.effects) {
+              this.player.applyStatusEffect?.(effect, duration, level ?? 1);
+            }
+          }
           if (this.player.gamemode !== 'creative') {
             this.inventory.consumeActiveItem();
             this.ui.updateHotbar();

@@ -1,6 +1,6 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
-import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE } from './statusEffects.js';
+import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import * as THREE from 'three';
@@ -57,6 +57,9 @@ export class Player {
     // sprinting and taking damage, and is paid out of saturation before hunger. See src/hunger.js.
     this.health = 20;
     this.maxHealth = 20;
+    // Points of Absorption shield in front of the health bar. Spent by `takeDamage` before health and
+    // refilled only by applying the effect again.
+    this.absorption = 0;
     this.hunger = 20;
     this.maxHunger = 20;
     this.saturation = 5;
@@ -594,7 +597,8 @@ export class Player {
       if (this.velocity.y < -78) this.velocity.y = -78;
 
       if (!controlsDisabled && this.onGround && this.keys['Space']) {
-        this.velocity.y = this.jumpForce;
+        // Jump Boost raises the jump; the fall half of the same effect is in `fallDamage`.
+        this.velocity.y = this.jumpForce * jumpVelocityMultiplier(this.statusEffects);
         // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
         // sprint-jumping everywhere empties the hunger bar far faster.
         this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
@@ -1064,6 +1068,15 @@ export class Player {
       }
     }
 
+    // Absorption is a shield, not a heal: it takes the damage first and does not come back. Vanilla
+    // spends it before the health bar, which is why a golden apple can save a player from a hit that
+    // would otherwise be fatal without putting any health back.
+    if (this.absorption > 0 && amount > 0) {
+      const absorbed = Math.min(this.absorption, amount);
+      this.absorption -= absorbed;
+      amount -= absorbed;
+    }
+
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = 0.5;
     if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0) {
@@ -1195,6 +1208,15 @@ export class Player {
 
   applyStatusEffect(effect, duration = 30, level = 1) {
     this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
+    // Absorption is a pool rather than a per-tick rule, so the shield is raised here, where the effect
+    // starts, and spent in `takeDamage`. A second application takes the larger shield instead of adding,
+    // so two golden apples back to back do not stack into sixteen points.
+    if (effect === 'absorption') {
+      // `|| 0` because several tests drive a Player-shaped stub that never ran the constructor, and
+      // `Math.max(undefined, 4)` is NaN -- an invisible shield of NaN absorbs nothing and poisons every
+      // later comparison.
+      this.absorption = Math.max(this.absorption || 0, absorptionShield(this.statusEffects));
+    }
     if (this.game?.ui?.addChatMessage) {
       const name = effect.replace(/_/g, ' ').toUpperCase();
       this.game.ui.addChatMessage(`<span style="color:#c084fc;">[Effect] Applied ${name} (${Math.round(duration)}s)</span>`, 'system');

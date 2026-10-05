@@ -48,7 +48,8 @@ export const EFFECTS = {
   // --- movement --------------------------------------------------------------
   speed: { name: 'Speed', category: 'beneficial', speedPerLevel: 1.2 },
   slowness: { name: 'Slowness', category: 'harmful', speedPerLevel: 0.85 },
-  jump_boost: { name: 'Jump Boost', category: 'beneficial' },
+  // Jump Boost raises the jump AND shortens the fall; the fall half is in `fallDamage` below.
+  jump_boost: { name: 'Jump Boost', category: 'beneficial', jumpPerLevel: true },
   levitation: { name: 'Levitation', category: 'harmful' },
 
   // --- protection and utility ------------------------------------------------
@@ -60,12 +61,25 @@ export const EFFECTS = {
   slow_falling: { name: 'Slow Falling', category: 'beneficial' },
   night_vision: { name: 'Night Vision', category: 'beneficial' },
   invisibility: { name: 'Invisibility', category: 'beneficial' },
-  absorption: { name: 'Absorption', category: 'beneficial' },
+  // Absorption is a shield rather than a heal: a pool that takes damage before the health bar and does
+  // not come back. Four points per level, two hearts.
+  absorption: { name: 'Absorption', category: 'beneficial', absorptionPerLevel: 4 },
   hunger: { name: 'Hunger', category: 'harmful' },
   mining_fatigue: { name: 'Mining Fatigue', category: 'harmful' },
   haste: { name: 'Haste', category: 'beneficial' },
   blindness: { name: 'Blindness', category: 'harmful' },
   glowing: { name: 'Glowing', category: 'neutral' },
+
+  // --- one potion, two effects -----------------------------------------------
+  // Vanilla's Potion of the Turtle Master is a single brew that applies Slowness IV and Resistance III at
+  // once. One `level` cannot express two different levels, and the potion carries only one, so the pair is
+  // declared here and `compoundEffects` returns it. Vanilla has no "Turtle Master" effect in the HUD --
+  // the player sees Slowness and Resistance -- which is why this entry is a rule rather than a status the
+  // player holds.
+  turtle_master: {
+    name: 'Turtle Master', category: 'beneficial',
+    compound: [['slowness', 4], ['resistance', 3]],
+  },
 };
 
 /** Does this game know about an effect by this name? */
@@ -167,6 +181,59 @@ export function speedMultiplier(effects) {
     m *= Math.pow(def.speedPerLevel, levelOf(data));
   }
   return Math.min(5, Math.max(0.05, m));
+}
+
+/**
+ * The shield Absorption puts in front of the health bar.
+ *
+ * Vanilla grants four points per level and the pool does not refill: it is spent before health and then it
+ * is gone. A stronger application while one is already running takes the larger of the two rather than
+ * adding, which is what keeps two golden apples from stacking into sixteen points.
+ *
+ * @returns {number} points of shield the effect should leave the bearer with
+ */
+export function absorptionShield(effects) {
+  let shield = 0;
+  for (const [name, data] of entriesOf(effects)) {
+    const def = EFFECTS[name];
+    if (!def?.absorptionPerLevel) continue;
+    shield = Math.max(shield, def.absorptionPerLevel * levelOf(data));
+  }
+  return shield;
+}
+
+/**
+ * Vanilla's jump velocity rule, so Jump Boost can be expressed as the game it copies.
+ *
+ * A player jumps at 0.42 blocks per tick, and Jump Boost adds 0.1 per level. Scaling the local
+ * `jumpForce` by the same ratio is what makes level I clear about 1.9 blocks against the base 1.25, which
+ * is vanilla's figure -- adding a flat 0.1 to a velocity of 8.6 would have been a rounding error.
+ */
+export const VANILLA_JUMP = { velocity: 0.42, boostPerLevel: 0.1 };
+
+/**
+ * The multiplier Jump Boost applies to the jump velocity.
+ *
+ * Returns 1 with no effect, so the caller can multiply unconditionally.
+ */
+export function jumpVelocityMultiplier(effects) {
+  let level = 0;
+  for (const [name, data] of entriesOf(effects)) {
+    if (name === 'jump_boost') level = Math.max(level, levelOf(data));
+  }
+  if (level <= 0) return 1;
+  return (VANILLA_JUMP.velocity + VANILLA_JUMP.boostPerLevel * level) / VANILLA_JUMP.velocity;
+}
+
+/**
+ * The effects a compound effect stands for, at the levels it declares.
+ *
+ * Vanilla has exactly one of these: the Potion of the Turtle Master applies Slowness IV and Resistance III
+ * from a single brew. Returns `[[name, level], ...]`, or an empty list for an ordinary effect.
+ */
+export function compoundEffects(name) {
+  const compound = EFFECTS[name]?.compound;
+  return Array.isArray(compound) ? compound.map(([effect, level]) => [effect, level]) : [];
 }
 
 /**

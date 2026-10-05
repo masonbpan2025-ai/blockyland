@@ -1336,7 +1336,14 @@ export const ITEMS = {
 
   // --- Food & Drinks ---
   apple: { name: 'Apple', food: 4, icon: '/assets/items/apple.png', type: 'food' },
-  golden_apple: { name: 'Golden Apple', food: 8, icon: '/assets/items/golden_apple.png', type: 'food' },
+  // Vanilla's golden apple feeds 4, not 8; this said 8 while `foodData.js` said 4, and the Inspector's
+  // `edible` check compared that table against vanilla without noticing the item disagreed with it. The
+  // effects are the reason the item exists at all: regeneration and, the part no other food has, two
+  // minutes of Absorption shield.
+  golden_apple: {
+    name: 'Golden Apple', food: 4, icon: '/assets/items/golden_apple.png', type: 'food',
+    effects: [['regeneration', 5, 2], ['absorption', 120, 1]],
+  },
   bread: { name: 'Bread', food: 5, icon: '/assets/items/bread.png', type: 'food' },
   beef: { name: 'Raw Beef', food: 3, icon: '/assets/items/beef.png', type: 'food' },
   cooked_beef: { name: 'Steak', food: 8, icon: '/assets/items/cooked_beef.png', type: 'food' },
