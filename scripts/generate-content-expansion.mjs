@@ -109,6 +109,20 @@ const FAMILIES = [
     extra: { slab: true },
   },
   {
+    // Cross-shaped plants. The mesher already draws a cross for any block with plant: true, so
+    // these need no geometry -- only the data, and a matching item for the ones used in recipes.
+    id: 'plants',
+    match: (n) => /^(brown_mushroom|red_mushroom|dandelion|poppy|blue_orchid|allium|azure_bluet|oxeye_daisy|cornflower|lily_of_the_valley|wither_rose|red_tulip|orange_tulip|white_tulip|pink_tulip|sweet_berry_bush|nether_sprouts|crimson_roots|warped_roots|glow_lichen)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      return n + ".svg";
+    },
+    sound: "grass",
+    // A plant is walked through rather than stood on, and must not cull its neighbours faces.
+    // `plant` is what makes the mesher build a cross instead of a cube.
+    extra: { plant: true, solid: false, transparent: true },
+  },
+  {
     // Beds. Vanilla has 16 colours and this game models a bed as two blocks -- foot and head --
     // so each colour needs both. bed.js already had the geometry, hard-coded to red, so this is a
     // data addition plus a colour parameter rather than new geometry.

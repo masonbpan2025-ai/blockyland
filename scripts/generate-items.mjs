@@ -99,6 +99,58 @@ const all = [
   ...simpleMaterials.map(([name, count]) => ({ name, count, role: 'material' })),
 ];
 
+// --- carry forward what a previous run emitted -------------------------------
+//
+// Without this the generator is DESTRUCTIVE: it emits only newly-unblocked items, so once the
+// first batch existed a re-run produced an empty file and deleted them all. A generator that
+// cannot reproduce its own output is a trap, and the symptom is an empty module with no error.
+const PREVIOUS_ITEMS = [];
+if (existsSync('src/extraItems.js')) {
+  const prev = readFileSync('src/extraItems.js', 'utf8');
+  // Scope the parse to the EXTRA_ITEMS block. Matching anywhere in the file also matches
+  // EXTRA_ITEM_REASONS, which has the same shape, and since that block is emitted second its
+  // entries overwrite the real definitions -- 86 items became 172 half-broken ones.
+  const block = prev.match(/export const EXTRA_ITEMS = \{([\s\S]*?)\n\};/);
+  if (block) {
+    for (const m of block[1].matchAll(/^\s{2}([a-z0-9_]+): \{ ([^}]*?) \},$/gm)) {
+      PREVIOUS_ITEMS.push({ name: m[1], body: m[2] });
+    }
+  }
+}
+const previouslyEmitted = new Set(PREVIOUS_ITEMS.map(p => p.name));
+console.log('  carried forward from the previous run: ' + PREVIOUS_ITEMS.length);
+
+// --- items for generated blocks ----------------------------------------------
+//
+// A block the player can place but cannot pick up is half a feature: mining a mushroom yields
+// nothing, and a recipe using it as an ingredient stays blocked even though the block exists.
+// Block coverage counts NAMES, so it cannot show this.
+//
+// Placed after `all` is built, and after the carry-forward set exists. An earlier attempt sat
+// before `all` and threw a temporal-dead-zone ReferenceError inside the try/catch, which
+// swallowed it and emitted zero items with no visible error.
+let generatedBlockItems = 0;
+try {
+  const { EXTRA_BLOCK_IDS } = await import('../src/extraContent.js');
+  const { ITEMS: REGISTERED } = await import('../src/blocks.js');
+  for (const [constName, id] of Object.entries(EXTRA_BLOCK_IDS)) {
+    const name = constName.toLowerCase();
+    // The test is whether an ITEM exists, not whether the name is known anywhere.
+    //
+    // `present` includes every block name, so testing it skipped every generated block -- including
+    // the ones that are blocks only and therefore have no item at all. That is the exact case this
+    // block exists to fix: a mushroom the player can place but not pick up.
+    if (REGISTERED[name] !== undefined) continue;
+    if (all.some(a => a.name === name) || previouslyEmitted.has(name)) continue;
+    all.push({ name, role: "blockItem", blockId: id });
+    generatedBlockItems++;
+  }
+} catch (e) {
+  // Loud: silently emitting no block items is how the first attempt failed.
+  console.warn('  WARNING: could not add block items: ' + e.message);
+}
+if (generatedBlockItems) console.log('  generated blocks needing an item: ' + generatedBlockItems);
+
 // --- emit -------------------------------------------------------------------
 const titleCase = (n) => n.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 
@@ -118,7 +170,11 @@ lines.push('// Icons point at the conventional asset path. Most do not exist as 
 lines.push('// back to a generated placeholder tile showing the item\'s initial.');
 lines.push('');
 lines.push('export const EXTRA_ITEMS = {');
+// Carried forward first, verbatim, so a re-run changes nothing.
+for (const p of PREVIOUS_ITEMS) lines.push(`  ${p.name}: { ${p.body} },`);
 for (const a of all) {
+  // Skip anything already emitted, or a re-run would duplicate it.
+  if (previouslyEmitted.has(a.name)) continue;
   const icon = `/assets/items/${a.name}.png`;
   const food = FOODS[a.name];
   const parts = [`name: '${titleCase(a.name).replace(/'/g, "\\'")}'`, `icon: '${icon}'`];
@@ -132,13 +188,20 @@ for (const a of all) {
     // Everything here is stackable material or a simple placeable/usable item.
     const vi = itemByName.get(a.name);
     if (vi && vi.stackSize && vi.stackSize < 64) parts.push(`stackSize: ${vi.stackSize}`);
-    parts.push("type: 'material'");
+    if (a.role === 'blockItem') {
+      // A placeable item names the block it places, as the existing block items do.
+      parts.push('isBlock: true');
+      parts.push(`blockId: ${a.blockId}`);
+      parts.push("type: 'block'");
+    } else {
+      parts.push("type: 'material'");
+    }
   }
   lines.push(`  ${a.name}: { ${parts.join(', ')} },`);
 }
 lines.push('};');
 lines.push('');
-lines.push(`export const EXTRA_ITEM_COUNT = ${all.length};`);
+lines.push(`export const EXTRA_ITEM_COUNT = ${PREVIOUS_ITEMS.length + all.filter(a => !previouslyEmitted.has(a.name)).length};`);
 lines.push('');
 lines.push('/** Names added, with how many recipes each helps unblock, for reporting and tests. */');
 lines.push('export const EXTRA_ITEM_REASONS = {');

@@ -46,18 +46,18 @@ test('implemented recipes are counted separately from expressible ones', { skip 
 test('the implemented recipe count does not regress', { skip }, () => {
   const impl = implementedRecipes();
   // Floor, not target. Raised whenever real recipes are added; lowering it means recipes were lost.
-  assert.ok(impl.implemented >= 1020,
+  assert.ok(impl.implemented >= 1050,
     `only ${impl.implemented} recipes are implemented, down from 549`);
   assert.equal(impl.generated, GENERATED_RECIPE_COUNT,
     'the report and the merged recipe list must agree on how many were generated');
 });
 
 test('the recipe lists the game actually uses reflect the generated set', () => {
-  assert.ok(RECIPES_3X3.length >= 1020,
+  assert.ok(RECIPES_3X3.length >= 1050,
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 540`);
-  assert.ok(RECIPES_2X2.length >= 220,
+  assert.ok(RECIPES_2X2.length >= 240,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 968,
+  assert.equal(GENERATED_RECIPE_COUNT, 997,
     'the generated recipe count changed; update this expectation deliberately if that was intended');
 });
 
