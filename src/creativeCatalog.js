@@ -175,7 +175,13 @@ export function buildCreativeCatalog() {
   // 4. Functional Blocks
   const functionalBlocksList = [
     BLOCKS.CHEST, BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.RED_BED_FOOT, BLOCKS.LADDER,
-    BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL
+    BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL,
+    // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
+    // machinery -- even though in this engine every one of them is inert decoration. Putting them
+    // anywhere else would imply they are building material, which is further from the truth.
+    BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
+    BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
+    BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN
   ];
   for (const b of functionalBlocksList) {
     const entry = blockItem(b, 'functional_blocks');

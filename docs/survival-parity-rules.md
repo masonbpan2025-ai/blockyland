@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1547 | 1557 | 99.4% |
 | Crafting recipes expressible | 1548 | 1557 | 99.4% |
-| Blocks named | 958 | 1095 | 87.5% |
-| Items named | 1266 | 1385 | 91.4% |
+| Blocks named | 969 | 1095 | 88.5% |
+| Items named | 1277 | 1385 | 92.2% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,18 +371,18 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 956 | 1256 |
-| missing | 139 | 129 |
+| present | 967 | 1265 |
+| missing | 128 | 120 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **11** | **0** |
-| **missing, needs NEW art** | **128** | **129** |
-| art files | 334 | 1071 |
+| **missing, needs NEW art** | **117** | **120** |
+| art files | 360 | 1071 |
 
-Both gaps are the same shape, but not identical, and the difference grew. Of 139 missing blocks,
+Both gaps are the same shape, but not identical, and the difference grew. Of 128 missing blocks,
 **eleven** are reachable by writing code and no new art: `redstone_wall_torch` reusing
 `redstone_torch.png`, and ten coral WALL fans each reusing its upright fan's texture. They are
 unimplemented because every one is a wall-attached block and this game stores no facing state for
-decoration. Of 129 missing items, **none** is reachable without art.
+decoration. Of 120 missing items, **none** is reachable without art.
 
 ### 4.1.2 The shulker boxes are the clearest block-versus-behaviour gap
 
