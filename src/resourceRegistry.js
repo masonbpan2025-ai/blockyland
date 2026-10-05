@@ -25,6 +25,7 @@ import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
 import { MOB_LOOT } from './mobLootData.js';
 import { CREEPER_DISC_POOL } from './musicDiscs.js';
+import { NETHERITE_UPGRADE, NETHERITE_UPGRADE_TEMPLATE, NETHERITE_INGOT } from './smithing.js';
 import { BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult } from './brewing.js';
 import { FOODS } from './foodData.js';
 import { describeTool } from './miningRules.js';
@@ -236,6 +237,9 @@ export function buildRegistry(sources = {}) {
       brewingInto: [],
       lootFrom: [],
       droppedBy: [],
+      // A smithing table transformation: netherite gear comes from nowhere else in vanilla, so without
+      // this every piece of it reads as having no source at all.
+      smithingFrom: [],
       harvest: null,
       food: null,
       tool: null,
@@ -315,6 +319,14 @@ export function buildRegistry(sources = {}) {
   // twelve would read as items with no source at all when in fact they have exactly one.
   for (const disc of CREEPER_DISC_POOL) {
     for (const key of keysForId(disc)) entries.get(key)?.lootFrom.push('creeper killed by a skeleton');
+  }
+  // Netherite gear, which comes from a smithing table and from nowhere else. `recipes.json` has no entry
+  // for it -- a smithing transformation is not a crafting recipe -- so this is the only way the Inspector
+  // can know the gear is obtainable.
+  for (const [from, to] of Object.entries(NETHERITE_UPGRADE)) {
+    for (const key of keysForId(to)) {
+      entries.get(key)?.smithingFrom.push({ base: from, template: NETHERITE_UPGRADE_TEMPLATE, addition: NETHERITE_INGOT });
+    }
   }
 
   // Which blocks drop this resource. `BLOCK_HARVEST` names drops by block name, and a block def may
@@ -483,6 +495,7 @@ export function resourceReport(ref, reg = registry()) {
       smelting: entry.smeltingFrom.map((s) => ({ from: s.input, count: s.output?.count ?? 1 })),
       brewing: entry.brewingFrom.slice(),
       mobLoot: entry.lootFrom.slice(),
+    smithing: entry.smithingFrom.slice(),
       blockDrops: entry.droppedBy.slice(),
     },
     usedAs: {

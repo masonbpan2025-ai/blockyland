@@ -163,6 +163,10 @@ const PENDING_ORE_SMELTING = [
   ['NETHER_GOLD_ORE', 'gold_ingot'],
   ['COPPER_ORE', 'copper_ingot'],
   ['DEEPSLATE_COPPER_ORE', 'copper_ingot'],
+  // Ancient debris is the first link of the netherite chain and the only source of netherite scrap in
+  // vanilla, and nothing smelted it. Four scrap and four gold make the ingot, so with this missing the
+  // whole chain was dead: the ingot was uncraftable, and the smithing table had nothing to consume.
+  ['ANCIENT_DEBRIS', 'netherite_scrap'],
 ];
 for (const [blockName, output] of PENDING_ORE_SMELTING) {
   const blockId = BLOCKS[blockName];
