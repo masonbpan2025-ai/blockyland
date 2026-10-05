@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1548 | 1557 | 99.4% |
 | Crafting recipes expressible | 1549 | 1557 | 99.5% |
-| Blocks named | 1046 | 1095 | 95.5% |
+| Blocks named | 1049 | 1095 | 95.8% |
 | Items named | 1296 | 1385 | 93.6% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,25 +371,27 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1044 | 1284 |
-| missing | 51 | 101 |
+| present | 1047 | 1284 |
+| missing | 48 | 101 |
 | **missing, has its OWN art** | **0** | **0** |
-| missing, could reuse art already present | **1** | **0** |
-| **missing, needs NEW art** | **50** | **101** |
+| missing, could reuse art already present | **0** | **0** |
+| **missing, needs NEW art** | **48** | **101** |
 | art files | 454 | 1071 |
 
-This table's "could reuse art" column has collapsed from eleven to **one**, and that is the wall-state
-story in a single number. For several rounds the column held `redstone_wall_torch` plus ten coral wall
-fans: blocks whose art already existed but whose SHAPE did not, because this engine had no
-wall-mounted form for a torch or a plant. The wall-sign batch added one for signs; the wall-fan batch
-added one for plants. `redstone_wall_torch` is what remains, and it needs the torch equivalent rather
-than anything new drawn.
+BOTH reachability columns are now empty, and that is the end of a story this table has been telling for
+several rounds. The "could reuse art" column held eleven entries at its peak -- `redstone_wall_torch`
+and ten coral wall fans -- blocks whose art already existed but whose SHAPE did not, because this engine
+had no wall-mounted form for a torch or a plant. Three batches closed it: one added a wall form for
+signs, one for plants, and the wall-torch batch took the last one. Every remaining missing block needs
+art that does not exist, so **there is no longer any block reachable by writing code alone**.
 
-Of the 51 missing blocks, then, exactly **one** is reachable by writing code and no new art. Of 101
-missing items, **none** is reachable without art.
+That is worth stating plainly because it changes what the next batch can be. Of the 48 missing blocks,
+none can be added without new textures or a subsystem that consumes art already present in a different
+form -- the six mob heads are the clearest example, since their art exists only as `entity/` skin sheets
+rather than block tiles.
 
-The 50 "needs NEW art" blocks are not uniformly blocked, and the composition scripts are the reason to
-say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
+The 48 "needs NEW art" blocks are still not uniformly blocked, and the composition scripts are the reason
+to say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
 this column** until committed composition scripts built their textures from art the mirror does ship —
 vanilla draws both as models rather than as single tiles, so no combined texture exists upstream, but
 the parts do. `scripts/compose-potted-plants.py` and `scripts/compose-candle-cakes.py` are the worked
