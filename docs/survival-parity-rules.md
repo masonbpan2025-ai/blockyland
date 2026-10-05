@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1549 | 1557 | 99.5% |
 | Crafting recipes expressible | 1550 | 1557 | 99.6% |
-| Blocks named | 1068 | 1095 | 97.5% |
+| Blocks named | 1069 | 1095 | 97.6% |
 | Items named | 1303 | 1385 | 94.1% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,12 +371,23 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1066 | 1291 |
-| missing | 29 | 94 |
+| present | 1067 | 1291 |
+| missing | 28 | 94 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **29** | **94** |
-| art files | 529 | 1071 |
+| **missing, needs NEW art** | **28** | **94** |
+| art files | 532 | 1071 |
+
+A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
+measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
+it is wrong. `wither_skeleton_skull` resolved to `WITHER_SKELETON_SKULL_BLOCK`, so it counted as
+present while that block rendered as a coal cube with art pointing at `coal_block.png` and a drop
+item name that resolved to nothing. It was only noticed because its WALL variant, which had no key at
+all, showed up as missing.
+
+So a name resolving is evidence that a block was attempted, not that it works. The `present` figure
+is a ceiling on parity rather than a measurement of it, and the batches in this document are the
+reason to say that: several of them were repairs rather than additions.
 
 BOTH reachability columns are empty, and the caveat that used to follow them was WRONG. The previous
 version of this section said "there is no longer any block reachable by writing code alone" and named
@@ -399,6 +410,7 @@ bare name and a few suffixes. FIVE rounds have now been unblocked without drawin
 | soul fire | sliced from a 32-frame animation strip |
 | 3 filled cauldrons | composed from the pot and the fluids, which also had to be sliced |
 | 8 mob heads | EXTRACTED from `entity/` skin sheets, a different mirror directory entirely |
+| the wither skull | the same extraction, applied to a block that already "existed" as a coal cube |
 
 That last one is the widest reach yet, and it is why the column cannot be trusted: the art was not in
 `blocks/` at all. `scripts/extract-mob-head-textures.py` crops the head faces out of the standard 32x16
