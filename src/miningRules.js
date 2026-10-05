@@ -41,6 +41,27 @@ export function describeTool(itemId) {
   return null;
 }
 
+/**
+ * Tools that are not mining tools.
+ *
+ * `describeTool` reads a tool's class from its name and returns null for anything else, which is right: a bow
+ * does not mine, and neither does a bucket. The Inspector's `tool-facts` check asked *every* item this game
+ * types as `tool` or `weapon` for a mining description, so eighteen of them looked like gaps -- a bucket, a
+ * clock, a compass, a name tag -- when the honest answer is that they are not mining tools at all.
+ *
+ * Named rather than patterned, and `tests/toolFacts.test.js` requires every typed tool to be either described
+ * by `describeTool` or listed here, so a new tool cannot be silently unclassified.
+ */
+export const NON_MINING_TOOLS = new Set([
+  'bow', 'crossbow', 'trident',
+  'shield', 'fishing_rod', 'flint_and_steel', 'brush',
+  'carrot_on_a_stick', 'warped_fungus_on_a_stick',
+  'bucket', 'water_bucket', 'lava_bucket',
+  'compass', 'clock', 'lead', 'name_tag', 'saddle',
+  // This project's own weapon: a spear thrusts, it does not mine.
+  'golden_spear',
+]);
+
 /** Is `tier` at least `required` on the tool ladder? */
 export function tierMeets(tier, required) {
   if (!required) return true;

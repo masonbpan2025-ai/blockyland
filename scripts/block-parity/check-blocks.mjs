@@ -33,8 +33,19 @@ for (const key of keys) {
   note(typeof id === 'number', `id = ${id}`);
   if (typeof id !== 'number') continue;
 
+  // Two keys sharing an id is usually a bug, but it is legitimate when one is an ALIAS: the registry keeps
+  // the older non-standard key for the code that references it and adds the canonical vanilla name
+  // alongside. So the check reports the case rather than failing it, and says which keys share.
   const sharers = (ids.get(id) ?? []).filter((k) => k !== key);
-  note(sharers.length === 0, `id ${id} unique${sharers.length ? ` (also ${sharers.join(', ')})` : ''}`);
+  if (sharers.length === 0) {
+    note(true, `id ${id} unique`);
+  } else {
+    // An alias is the case where the sharing keys have the SAME display name, which is what makes them
+    // aliases rather than two different blocks colliding.
+    const sameName = sharers.every((k) => BLOCK_DEFS[id]?.name === BLOCK_DEFS[BLOCKS[k]]?.name);
+    note(sameName, `id ${id} shared with ${sharers.join(', ')}`
+      + (sameName ? ' as an ALIAS (same display name)' : ' -- TWO DIFFERENT BLOCKS, which is a collision'));
+  }
 
   const def = BLOCK_DEFS[id];
   note(Boolean(def), `definition${def ? ` "${def.name}"` : ' MISSING'}`);

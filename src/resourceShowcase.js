@@ -27,8 +27,8 @@ import {
   registry as defaultRegistry,
   resolveResource,
 } from './resourceRegistry.js';
-import { getItemEnchantCategory } from './enchanting.js';
-import { describeTool } from './miningRules.js';
+import { getItemEnchantCategory, NOT_ENCHANTABLE } from './enchanting.js';
+import { describeTool, NON_MINING_TOOLS } from './miningRules.js';
 
 /**
  * Returned by a check that cannot be evaluated in this environment. Distinct from `false`, because
@@ -350,6 +350,10 @@ export const RESOURCE_CHECKS = [
     run: ({ entry }) => {
       const wants = ['weapon', 'tool', 'armor', 'shield'].includes(entry.def?.type);
       if (!wants) return CHECK_SKIP;
+      // This game types a bucket, a clock, a compass, a name tag and a saddle as `tool` -- a reasonable
+      // classification for "something you hold" and the wrong answer to "can an enchanting table take it".
+      // Vanilla refuses all of them, so the named list is what separates a real gap from a loose type.
+      if (NOT_ENCHANTABLE.has(entry.id)) return CHECK_SKIP;
       const category = getItemEnchantCategory(entry.id);
       return category
         ? true
@@ -363,10 +367,14 @@ export const RESOURCE_CHECKS = [
     run: ({ entry }) => {
       const wants = ['tool', 'weapon'].includes(entry.def?.type);
       if (!wants) return CHECK_SKIP;
+      // Not every tool mines. A bow, a bucket, a fishing rod and a name tag are tools this game types as
+      // such and have no mining class, which `describeTool` answers correctly with null.
+      if (NON_MINING_TOOLS.has(entry.id)) return CHECK_SKIP;
       const described = describeTool(entry.id);
       if (!described) return { ok: false, detail: 'not described by miningRules.describeTool' };
-      // A sword is a weapon class with no tier requirement, everything else needs one.
-      if (described.tool === 'sword') return true;
+      // A sword is a weapon class with no tier requirement; shears mine specific blocks and vanilla gives
+      // them no tier either. Everything else on the ladder needs one.
+      if (described.tool === 'sword' || described.tool === 'shears') return true;
       return described.tier
         ? true
         : { ok: false, detail: `${described.tool} has no tier, so it mines nothing` };
