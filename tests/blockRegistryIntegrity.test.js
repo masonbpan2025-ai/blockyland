@@ -109,6 +109,64 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('all seventeen shulker boxes exist, match their own colour, and drop themselves', () => {
+  // Same copy-paste risk as the glazed terracotta family, checked the same way: against each colour's OWN
+  // key, so a box drawn with another colour's texture fails.
+  const COLORS = [
+    'WHITE', 'ORANGE', 'MAGENTA', 'LIGHT_BLUE', 'YELLOW', 'LIME', 'PINK', 'GRAY',
+    'LIGHT_GRAY', 'CYAN', 'PURPLE', 'BLUE', 'BROWN', 'GREEN', 'RED', 'BLACK',
+  ];
+
+  // The plain box first, which is the one entry whose name carries no colour.
+  const plain = BLOCKS.SHULKER_BOX;
+  assert.equal(typeof plain, 'number', 'the plain shulker box must be registered');
+  assert.deepEqual(BLOCK_DEFS[plain].textures, { all: 'shulker_box.png' },
+    'the plain box must use the undyed texture');
+  assert.equal(BLOCK_DEFS[plain].drop, plain, 'the plain box drops itself');
+
+  for (const colour of COLORS) {
+    const key = `${colour}_SHULKER_BOX`;
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+
+    const def = BLOCK_DEFS[id];
+    assert.equal(def.hardness, 2.0, `${key} has the harvest table's hardness`);
+    assert.equal(def.drop, id, `${key} drops itself`);
+    assert.deepEqual(def.textures, { all: `${colour.toLowerCase()}_shulker_box.png` },
+      `${key} must be drawn with its own texture`);
+    assert.notEqual(def.solid, false, `${key} is a full cube`);
+  }
+
+  // The harvest rows name a pickaxe but do NOT set requiresTool, which is the same shape the amethyst
+  // growths had. Asserted against the data rather than against an assumption about what "needs a
+  // pickaxe" implies: a shulker box can be broken bare-handed and still yields itself.
+  for (const [key, id] of [[null, plain], ...COLORS.map((c) => [c, BLOCKS[`${c}_SHULKER_BOX`]])]) {
+    const label = key ? `${key} shulker box` : 'shulker box';
+    const row = harvestDataFor(id);
+    assert.equal(row.tool, 'pickaxe', `${label} names a pickaxe in its harvest row`);
+    assert.equal(Boolean(row.requiresTool), false, `${label} does not require one, per the same row`);
+    assert.ok(miningEffect(id, { speed: 8 }, 'wooden_pickaxe').canHarvest, `${label} must yield to a pickaxe`);
+    assert.ok(miningEffect(id, null, null).canHarvest, `${label} is collectable bare-handed`);
+  }
+});
+
+test('a shulker box is a decorative cube, not a container, and the code says so', () => {
+  // This family is registered as a HALF-MEASURE: vanilla shulker boxes hold 27 slots and keep their
+  // contents when broken, and this game has no block-inventory layer. The test records that as a
+  // deliberate state rather than letting it look like an oversight -- if a container layer lands, this
+  // test should be deleted, not quietly updated.
+  const id = BLOCKS.SHULKER_BOX;
+  const def = BLOCK_DEFS[id];
+
+  // It must NOT carry any of the markers that would promise behaviour it does not have.
+  assert.equal(def.container, undefined, 'shulker box must not claim to be a container');
+  assert.equal(def.inventory, undefined, 'shulker box must not claim an inventory');
+  assert.equal(def.openable, undefined, 'shulker box must not claim to open');
+  // It IS a plain solid cube, which is exactly what it is.
+  assert.equal(def.plant, undefined, 'a shulker box is not a plant');
+  assert.equal(def.transparent, undefined, 'a shulker box is opaque');
+});
+
 test('all sixteen glazed terracotta colours exist and behave identically', () => {
   // Sixteen near-identical definitions are where a copy-paste error survives review -- the wrong colour
   // in a name, or a texture pointing at another colour's file. So each is checked against its own key

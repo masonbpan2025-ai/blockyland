@@ -77,7 +77,20 @@ export function buildCreativeCatalog() {
     BLOCKS.PINK_GLAZED_TERRACOTTA, BLOCKS.GRAY_GLAZED_TERRACOTTA, BLOCKS.LIGHT_GRAY_GLAZED_TERRACOTTA,
     BLOCKS.CYAN_GLAZED_TERRACOTTA, BLOCKS.PURPLE_GLAZED_TERRACOTTA, BLOCKS.BLUE_GLAZED_TERRACOTTA,
     BLOCKS.BROWN_GLAZED_TERRACOTTA, BLOCKS.GREEN_GLAZED_TERRACOTTA, BLOCKS.RED_GLAZED_TERRACOTTA,
-    BLOCKS.BLACK_GLAZED_TERRACOTTA
+    BLOCKS.BLACK_GLAZED_TERRACOTTA,
+    // Shulker boxes, all seventeen. They sit in the colour tab because a dyed box is chosen for its
+    // colour, and it is the only tab where the family reads as a set next to the wool and terracotta.
+    //
+    // Listed here despite being storage blocks in vanilla BECAUSE they are not storage blocks here: this
+    // game has no block-inventory layer, so a shulker box is a solid decorative cube that drops itself.
+    // Putting it in the functional tab beside the chest would imply an inventory it does not have.
+    BLOCKS.SHULKER_BOX,
+    BLOCKS.WHITE_SHULKER_BOX, BLOCKS.ORANGE_SHULKER_BOX, BLOCKS.MAGENTA_SHULKER_BOX,
+    BLOCKS.LIGHT_BLUE_SHULKER_BOX, BLOCKS.YELLOW_SHULKER_BOX, BLOCKS.LIME_SHULKER_BOX,
+    BLOCKS.PINK_SHULKER_BOX, BLOCKS.GRAY_SHULKER_BOX, BLOCKS.LIGHT_GRAY_SHULKER_BOX,
+    BLOCKS.CYAN_SHULKER_BOX, BLOCKS.PURPLE_SHULKER_BOX, BLOCKS.BLUE_SHULKER_BOX,
+    BLOCKS.BROWN_SHULKER_BOX, BLOCKS.GREEN_SHULKER_BOX, BLOCKS.RED_SHULKER_BOX,
+    BLOCKS.BLACK_SHULKER_BOX
   ];
   for (const b of coloredBlocksList) {
     const entry = blockItem(b, 'colored_blocks');

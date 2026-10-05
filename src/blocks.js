@@ -464,7 +464,43 @@ export const BLOCKS = {
   TALL_SEAGRASS: 1050,
   KELP: 1051,
   KELP_PLANT: 1052,
-  SEA_PICKLE: 1053
+  SEA_PICKLE: 1053,
+
+  // --- Shulker boxes, fourteenth block-parity batch ----------------------------------------------
+  //
+  // All seventeen: the plain box and the sixteen dyed ones. Ordinary full cubes, one texture each, so
+  // no geometry.
+  //
+  // WHAT IS AND IS NOT MODELLED, because this family is the first where the block is only half the
+  // feature. A shulker box in vanilla is a portable 27-slot container: it opens, it holds items, and it
+  // keeps them when broken. This game has no tile-entity or block-inventory layer, so these are
+  // registered as SOLID DECORATIVE CUBES that drop themselves when mined with a pickaxe -- placeable,
+  // breakable, and correct in hardness and drop, but they do not open and do not store anything.
+  //
+  // That is a deliberate half-measure rather than an accident: the block is the part that can be got
+  // right today, and leaving it out entirely would also leave out the twelve concrete colours that the
+  // wiki lists as blocks. It is recorded in docs/survival-parity-rules.md as the clearest remaining
+  // block-versus-behaviour gap.
+  //
+  // Vanilla also makes shulker boxes stack to ONE, unlike every other block. The item registry carries
+  // no per-item stack limit here, so they stack like anything else.
+  SHULKER_BOX: 1054,
+  WHITE_SHULKER_BOX: 1055,
+  ORANGE_SHULKER_BOX: 1056,
+  MAGENTA_SHULKER_BOX: 1057,
+  LIGHT_BLUE_SHULKER_BOX: 1058,
+  YELLOW_SHULKER_BOX: 1059,
+  LIME_SHULKER_BOX: 1060,
+  PINK_SHULKER_BOX: 1061,
+  GRAY_SHULKER_BOX: 1062,
+  LIGHT_GRAY_SHULKER_BOX: 1063,
+  CYAN_SHULKER_BOX: 1064,
+  PURPLE_SHULKER_BOX: 1065,
+  BLUE_SHULKER_BOX: 1066,
+  BROWN_SHULKER_BOX: 1067,
+  GREEN_SHULKER_BOX: 1068,
+  RED_SHULKER_BOX: 1069,
+  BLACK_SHULKER_BOX: 1070,
 };
 
 export const BLOCK_DEFS = {
@@ -1115,6 +1151,32 @@ export const BLOCK_DEFS = {
   [BLOCKS.KELP]: { name: 'Kelp', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp.png' } },
   [BLOCKS.KELP_PLANT]: { name: 'Kelp Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp_plant.png' } },
   [BLOCKS.SEA_PICKLE]: { name: 'Sea Pickle', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SEA_PICKLE, textures: { all: 'sea_pickle.png' } },
+
+  // --- Shulker boxes, fourteenth block-parity batch ----------------------------------------------
+  //
+  // Hardness 2 with a wooden-pickaxe requirement and each dropping itself, per the generated harvest
+  // table, which carries a row for all seventeen.
+  //
+  // The caveat in the id-block comment applies here and is not repeated: these are decorative cubes
+  // without the container behaviour, and the item stacks normally rather than to one.
+  [BLOCKS.SHULKER_BOX]: { name: 'Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.SHULKER_BOX, textures: { all: 'shulker_box.png' } },
+  [BLOCKS.WHITE_SHULKER_BOX]: { name: 'White Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.WHITE_SHULKER_BOX, textures: { all: 'white_shulker_box.png' } },
+  [BLOCKS.ORANGE_SHULKER_BOX]: { name: 'Orange Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.ORANGE_SHULKER_BOX, textures: { all: 'orange_shulker_box.png' } },
+  [BLOCKS.MAGENTA_SHULKER_BOX]: { name: 'Magenta Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.MAGENTA_SHULKER_BOX, textures: { all: 'magenta_shulker_box.png' } },
+  [BLOCKS.LIGHT_BLUE_SHULKER_BOX]: { name: 'Light Blue Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.LIGHT_BLUE_SHULKER_BOX, textures: { all: 'light_blue_shulker_box.png' } },
+  [BLOCKS.YELLOW_SHULKER_BOX]: { name: 'Yellow Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.YELLOW_SHULKER_BOX, textures: { all: 'yellow_shulker_box.png' } },
+  [BLOCKS.LIME_SHULKER_BOX]: { name: 'Lime Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.LIME_SHULKER_BOX, textures: { all: 'lime_shulker_box.png' } },
+  [BLOCKS.PINK_SHULKER_BOX]: { name: 'Pink Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.PINK_SHULKER_BOX, textures: { all: 'pink_shulker_box.png' } },
+  [BLOCKS.GRAY_SHULKER_BOX]: { name: 'Gray Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.GRAY_SHULKER_BOX, textures: { all: 'gray_shulker_box.png' } },
+  [BLOCKS.LIGHT_GRAY_SHULKER_BOX]: { name: 'Light Gray Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.LIGHT_GRAY_SHULKER_BOX, textures: { all: 'light_gray_shulker_box.png' } },
+  [BLOCKS.CYAN_SHULKER_BOX]: { name: 'Cyan Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.CYAN_SHULKER_BOX, textures: { all: 'cyan_shulker_box.png' } },
+  [BLOCKS.PURPLE_SHULKER_BOX]: { name: 'Purple Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.PURPLE_SHULKER_BOX, textures: { all: 'purple_shulker_box.png' } },
+  [BLOCKS.BLUE_SHULKER_BOX]: { name: 'Blue Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.BLUE_SHULKER_BOX, textures: { all: 'blue_shulker_box.png' } },
+  [BLOCKS.BROWN_SHULKER_BOX]: { name: 'Brown Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.BROWN_SHULKER_BOX, textures: { all: 'brown_shulker_box.png' } },
+  [BLOCKS.GREEN_SHULKER_BOX]: { name: 'Green Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.GREEN_SHULKER_BOX, textures: { all: 'green_shulker_box.png' } },
+  [BLOCKS.RED_SHULKER_BOX]: { name: 'Red Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.RED_SHULKER_BOX, textures: { all: 'red_shulker_box.png' } },
+  [BLOCKS.BLACK_SHULKER_BOX]: { name: 'Black Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.BLACK_SHULKER_BOX, textures: { all: 'black_shulker_box.png' } },
+
 
 
 
