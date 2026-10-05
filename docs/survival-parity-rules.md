@@ -652,8 +652,17 @@ assert the content, not the exact shape.
 ### 4.2.5 Absorption was inert, and the golden apple was missing half of itself
 
 Found by the same sweep in the other direction: which **status effects** does `statusEffects.js` define that
-nothing ever applies. Five came back — `resistance`, `levitation`, `dolphins_grace`, `absorption` and
-`haste` — and two of them are granted by a golden apple, which is the classic emergency survival item.
+nothing ever applies. The first run of that sweep reported **five**, and **one of them was wrong**: `dolphins_grace` is applied
+by `dolphinBehavior.js`, and the sweep missed it because the call is written with optional chaining,
+`applyStatusEffect?.('dolphins_grace', ...)`, which the pattern `applyStatusEffect\(` does not match. A
+false accusation in a "nothing does this" sweep is the worst kind of error it can make, so the pattern was
+widened and the corrected result is **four** — `resistance`, `levitation`, `absorption` and `haste` — of
+which two are granted by a golden apple, the classic emergency survival item.
+
+  The corrected sweep then exposed a **second** blind spot of its own: it could not see the two effects the
+golden apple grants, because `goldenApple.js` walks a table and passes `effect.id` rather than a literal.
+No regex can follow that, so the sweep can only ever report effects with no *literal* application site.
+Its result is an upper bound on the gap, not a definitive list, and it is described that way now.
 
 **Absorption was implemented nowhere at all.** It was absent from the damage path and from the UI, so
 applying it did literally nothing. `src/absorption.js` gives it a real buffer: four points per level,
@@ -669,10 +678,28 @@ curing ritual. `src/goldenApple.js` restores vanilla's figures:
 | Golden Apple | Absorption II 2:00, Regeneration II 0:05 |
 | Enchanted Golden Apple | Absorption IV 2:00, Regeneration V 0:30, Fire Resistance 5:00, Resistance 5:00 |
 
-That also gives `resistance` its first user, so two of the five unapplied effects now have one. The
-remaining three — `levitation`, `dolphins_grace` and `haste` — come from a shulker bullet, a nearby dolphin
-and a beacon respectively, none of which exist yet, so they are recorded here as effects the table carries
-with nothing to grant them.
+That also gives `resistance` its first user, so two of the four genuinely-unapplied effects now have one. That leaves `levitation` and `haste` (see 4.2.6), while `dolphins_grace` was never missing.
+
+### 4.2.6 Levitation was inert, and the shulker is a turret that never fires
+
+`statusEffects.js` defines Levitation and nothing consumed it: it is absent from `speedMultiplier` and from
+`damageTakenMultiplier`, and `player.js` never read it. Applying it did nothing at all, exactly as
+Absorption did.
+
+`src/levitation.js` gives it the mechanic: a constant climb of one block per second per level, which is
+vanilla's 0.05 blocks per tick. It **assigns** the vertical velocity rather than reducing gravity, so the
+player cannot sink while it lasts, and it sits after creative flight (which wins) and before water and
+gliding, because it is a forced effect rather than a movement mode. Its danger is that it ends — the player
+falls from whatever height it reached — and that comes free from the shared effect countdown.
+
+**It still has no source in the game.** In vanilla the only sources are a shulker bullet and the `/effect`
+command. Shulkers exist here: they spawn, and `ambientLocomotion.js` carries `shulker: { range: 16, speed: 0,
+damage: 4, attackReach: 0 }` for them. But `attackReach: 0` means they cannot melee, and there is no bullet
+code, so a shulker is a stationary turret that **never attacks at all** despite carrying a damage figure.
+Adding the bullet is a projectile feature rather than an effect hook, and it is not done.
+
+`levitation` and `haste` are therefore the two effects the table still carries with nothing to grant them —
+`haste` needs a beacon, and levitation needs the shulker bullet above.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

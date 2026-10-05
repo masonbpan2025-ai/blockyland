@@ -7,6 +7,7 @@ import { applyGlide, wantsToStartGliding, shouldStopGliding, tickElytraWear } fr
 import { fallDamageFor } from './fallDamage.js';
 import { isInVoid, VOID_DAMAGE } from './voidDamage.js';
 import { absorbDamage, absorptionForLevel } from './absorption.js';
+import { levitationRise } from './levitation.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -574,6 +575,13 @@ export class Player {
         if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
         if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
       }
+    } else if (this.hasStatusEffect('levitation')) {
+      // Levitation overrides gravity rather than reducing it, so it is a constant climb and the entity cannot
+      // sink while it lasts. It sits after creative flight, which wins, and before water and gliding, because
+      // it is a forced effect rather than a movement mode.
+      //
+      // The effect was defined in `statusEffects.js` and consumed nowhere, so applying it did nothing at all.
+      this.velocity.y = levitationRise(this.statusEffects.get('levitation')?.level ?? 1);
     } else if (this.inWater) {
       this.velocity.y -= this.gravity * 0.2 * dt;
       if (this.velocity.y < -3.0) this.velocity.y = -3.0;
