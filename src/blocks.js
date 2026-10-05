@@ -319,7 +319,17 @@ export const BLOCKS = {
   SHORT_GRASS: 979,
   FERN: 980,
   DEAD_BUSH: 981,
-  COBWEB: 982
+  COBWEB: 982,
+
+  // --- Eyeblossoms, sixth block-parity batch -----------------------------------------------------
+  //
+  // Two cross-quad flowers that are each other's daylight state: vanilla swaps them at dusk and dawn.
+  // This game has no random-tick or day/night block-swap layer, so both are registered as static blocks
+  // with their own texture, the way the game already treats other two-state pairs (an open and a closed
+  // door are separate ids). The consequence is honest and worth stating: an eyeblossom does not open or
+  // close on its own, so each state is placed rather than grown into.
+  OPEN_EYEBLOSSOM: 983,
+  CLOSED_EYEBLOSSOM: 984
 };
 
 export const BLOCK_DEFS = {
@@ -766,6 +776,14 @@ export const BLOCK_DEFS = {
   [BLOCKS.FERN]: { name: 'Fern', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'fern.png' } },
   [BLOCKS.DEAD_BUSH]: { name: 'Dead Bush', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'stick', textures: { all: 'dead_bush.png' } },
   [BLOCKS.COBWEB]: { name: 'Cobweb', hardness: 4.0, sound: 'wool', transparent: true, solid: false, plant: true, dropItem: 'string', textures: { all: 'cobweb.png' } },
+
+  // --- Eyeblossoms, sixth block-parity batch -----------------------------------------------------
+  //
+  // Both drop themselves, which the harvest table agrees with, and both are ordinary cross plants.
+  // They are the only blocks in this family whose drop is the block itself, so `drop` is set rather
+  // than `dropItem`.
+  [BLOCKS.OPEN_EYEBLOSSOM]: { name: 'Open Eyeblossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.OPEN_EYEBLOSSOM, textures: { all: 'open_eyeblossom.png' } },
+  [BLOCKS.CLOSED_EYEBLOSSOM]: { name: 'Closed Eyeblossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.CLOSED_EYEBLOSSOM, textures: { all: 'closed_eyeblossom.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,

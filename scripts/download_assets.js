@@ -41,6 +41,9 @@ const blocks1214 = [
   // Ground cover, the fifth block-parity batch. All four are cross-quad plants drawn from a single
   // 16x16 texture, and all four are 1.21.4 names (short_grass replaced the old `grass` in 1.20.3).
   'short_grass.png', 'fern.png', 'dead_bush.png', 'cobweb.png',
+  // Eyeblossoms, the sixth batch. The open and closed forms are each other's daylight state, so both
+  // textures are needed even though only one is visible at a time in vanilla.
+  'open_eyeblossom.png', 'closed_eyeblossom.png',
 ];
 
 const items = [
