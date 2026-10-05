@@ -154,6 +154,22 @@ const FAMILIES = [
     extra: { cube: true },
   },
   {
+    // Banners: a pole with a cloth panel, and sixteen dye colours. One shape, 16 recipes.
+    //
+    // The family regex also matches `*_wall_banner`, which vanilla lists separately. Both forms share
+    // the shape, so both are emitted; the colour derivation below handles the `wall_` infix.
+    id: 'banners',
+    match: (n) => /_banner$/.test(n),
+    texture: (n) => {
+      // The colour is a tint rather than a texture, so every banner can share one cloth tile.
+      if (textureExists('white_banner.png')) return 'white_banner.png';
+      if (textureExists(n + '.png')) return n + '.png';
+      return 'white_banner.png';
+    },
+    sound: 'wool',
+    extra: { banner: true, bannerColourFrom: true },
+  },
+  {
     // Pressure plates: a thin plate on the floor, 13 recipes.
     id: 'pressure_plates',
     match: (n) => /_pressure_plate$/.test(n),
@@ -498,6 +514,15 @@ for (const a of toAdd) {
   if (a.extra?.bedColourFrom) {
     const m = /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_bed/.exec(a.name);
     if (m) parts.push(`bedColour: '${m[1]}'`);
+  }
+  // A banner carries its dye colour the same way a bed does, so one builder serves all sixteen.
+  //
+  // The optional wall_ group matters. The family regex `_banner$` also matches `*_wall_banner`, and
+  // without this group every wall banner fell through to the white default: the blocks rendered and
+  // were simply the wrong colour, which nothing failed on.
+  if (a.extra?.bannerColourFrom) {
+    const m = /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_(?:wall_)?banner$/.exec(a.name);
+    if (m) parts.push(`bannerColour: '${m[1]}'`);
   }
   if (a.resistance !== null && a.resistance !== a.hardness) parts.push(`resistance: ${a.resistance}`);
   if (a.emitLight) parts.push(`light: ${a.emitLight}`);

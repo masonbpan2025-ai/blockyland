@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1453 recipes.
+// 1469 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -1129,6 +1129,22 @@ export const EXTRA_RECIPES = [
   {pattern:[['stick','stick','stick'],[null,'stick',null],['stick',B.SMOOTH_STONE_SLAB,'stick']],result:{id:'armor_stand',isBlock:false,count:1}},
   {pattern:[['leather',null,'leather'],['leather','leather','leather'],['leather',null,'leather']],result:{id:'leather_horse_armor',isBlock:false,count:1}},
   {pattern:[['string','string',null],['string','slime_ball',null],[null,null,'string']],result:{id:'lead',isBlock:false,count:2}},
+  {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[null,'stick',null]],result:{id:B.WHITE_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.ORANGE_WOOL,B.ORANGE_WOOL,B.ORANGE_WOOL],[B.ORANGE_WOOL,B.ORANGE_WOOL,B.ORANGE_WOOL],[null,'stick',null]],result:{id:B.ORANGE_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.MAGENTA_WOOL,B.MAGENTA_WOOL,B.MAGENTA_WOOL],[B.MAGENTA_WOOL,B.MAGENTA_WOOL,B.MAGENTA_WOOL],[null,'stick',null]],result:{id:B.MAGENTA_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.LIGHT_BLUE_WOOL,B.LIGHT_BLUE_WOOL,B.LIGHT_BLUE_WOOL],[B.LIGHT_BLUE_WOOL,B.LIGHT_BLUE_WOOL,B.LIGHT_BLUE_WOOL],[null,'stick',null]],result:{id:B.LIGHT_BLUE_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.YELLOW_WOOL,B.YELLOW_WOOL,B.YELLOW_WOOL],[B.YELLOW_WOOL,B.YELLOW_WOOL,B.YELLOW_WOOL],[null,'stick',null]],result:{id:B.YELLOW_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.LIME_WOOL,B.LIME_WOOL,B.LIME_WOOL],[B.LIME_WOOL,B.LIME_WOOL,B.LIME_WOOL],[null,'stick',null]],result:{id:B.LIME_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.PINK_WOOL,B.PINK_WOOL,B.PINK_WOOL],[B.PINK_WOOL,B.PINK_WOOL,B.PINK_WOOL],[null,'stick',null]],result:{id:B.PINK_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.GRAY_WOOL,B.GRAY_WOOL,B.GRAY_WOOL],[B.GRAY_WOOL,B.GRAY_WOOL,B.GRAY_WOOL],[null,'stick',null]],result:{id:B.GRAY_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.LIGHT_GRAY_WOOL,B.LIGHT_GRAY_WOOL,B.LIGHT_GRAY_WOOL],[B.LIGHT_GRAY_WOOL,B.LIGHT_GRAY_WOOL,B.LIGHT_GRAY_WOOL],[null,'stick',null]],result:{id:B.LIGHT_GRAY_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.CYAN_WOOL,B.CYAN_WOOL,B.CYAN_WOOL],[B.CYAN_WOOL,B.CYAN_WOOL,B.CYAN_WOOL],[null,'stick',null]],result:{id:B.CYAN_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.PURPLE_WOOL,B.PURPLE_WOOL,B.PURPLE_WOOL],[B.PURPLE_WOOL,B.PURPLE_WOOL,B.PURPLE_WOOL],[null,'stick',null]],result:{id:B.PURPLE_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.BLUE_WOOL,B.BLUE_WOOL,B.BLUE_WOOL],[B.BLUE_WOOL,B.BLUE_WOOL,B.BLUE_WOOL],[null,'stick',null]],result:{id:B.BLUE_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.BROWN_WOOL,B.BROWN_WOOL,B.BROWN_WOOL],[B.BROWN_WOOL,B.BROWN_WOOL,B.BROWN_WOOL],[null,'stick',null]],result:{id:B.BROWN_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.GREEN_WOOL,B.GREEN_WOOL,B.GREEN_WOOL],[B.GREEN_WOOL,B.GREEN_WOOL,B.GREEN_WOOL],[null,'stick',null]],result:{id:B.GREEN_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.RED_WOOL,B.RED_WOOL,B.RED_WOOL],[B.RED_WOOL,B.RED_WOOL,B.RED_WOOL],[null,'stick',null]],result:{id:B.RED_BANNER,isBlock:true,count:1}},
+  {pattern:[[B.BLACK_WOOL,B.BLACK_WOOL,B.BLACK_WOOL],[B.BLACK_WOOL,B.BLACK_WOOL,B.BLACK_WOOL],[null,'stick',null]],result:{id:B.BLACK_BANNER,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],[B.GLASS,'ender_eye',B.GLASS],[B.GLASS,'ghast_tear',B.GLASS]],result:{id:'end_crystal',isBlock:false,count:1}},
   {shapeless:true,ingredients:['bowl','beetroot','beetroot','beetroot','beetroot','beetroot','beetroot'],result:{id:'beetroot_soup',isBlock:false,count:1}},
   {pattern:[[null,'glowstone_dust',null],['glowstone_dust','arrow','glowstone_dust'],[null,'glowstone_dust',null]],result:{id:'spectral_arrow',isBlock:false,count:2}},
@@ -1473,21 +1489,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1453;
+export const EXTRA_RECIPE_COUNT = 1469;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1453,
-  "shaped": 1202,
+  "emitted": 1469,
+  "shaped": 1218,
   "shapeless": 258,
-  "skippedMissingResult": 90,
+  "skippedMissingResult": 74,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1460,
+  "emittedBeforeDedupe": 1476,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

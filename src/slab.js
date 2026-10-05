@@ -1,3 +1,4 @@
+import { DYE_COLOURS as BANNER_TINTS } from './colourPalette.js';
 // Partial-cube block geometry: slabs, panes, carpets.
 //
 // Why this is its own module. The mesher has a fast path for plain cubes -- static corner tables and a
@@ -60,7 +61,17 @@ function buildBox(size, min, def, tm, opts = {}) {
   // The attributes the shared materials expect. None of these shapes is a light source and none has a
   // flame, but the shaders declare these attributes unconditionally, so they must be present.
   const count = geo.attributes.position.count;
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  // The tint is applied to the `color` attribute, which the shaders multiply into the texture. It is
+  // resolved through THREE.Color so a hex in the palette becomes the same linear value bed.js uses --
+  // comparing a raw sRGB fraction against stored linear data can never match.
+  const tint = opts.tint !== undefined && opts.tint !== null ? new THREE.Color(opts.tint) : null;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = tint ? tint.r : 1;
+    colors[i * 3 + 1] = tint ? tint.g : 1;
+    colors[i * 3 + 2] = tint ? tint.b : 1;
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0), 1));
   geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0), 1));
   return geo;
@@ -325,6 +336,32 @@ export function createButtonGeometry(def, tm) {
  * Modelled closed. An open gate would be a different geometry, and this project's doors already show
  * that an open state is a separate block id, so a gate could follow the same pattern later.
  */
+/**
+ * A standing banner: a pole with a cloth panel hanging from it.
+ *
+ * Sixteen colours share this one shape. The pole is wood-coloured and untinted; only the cloth takes
+ * the dye colour, which is why buildBox needed a tint -- a single tint for the whole banner would
+ * colour the pole too.
+ */
+export function createBannerGeometry(def, tm, colour = null) {
+  const poleW = 2 / 16;
+  const poleMin = (1 - poleW) / 2;
+  const tint = colour ? BANNER_TINTS[colour] : undefined;
+  const clothW = 14 / 16;
+  const clothH = 12 / 16;
+  const parts = [
+    // The pole: full height, wood-coloured, so no tint.
+    buildBox({ x: poleW, y: 1, z: poleW }, { x: poleMin, y: 0, z: poleMin }, def, tm, { tint: 0x8b653e }),
+    // The cloth: nearly full width, hanging from the top, one pixel thick.
+    buildBox({ x: clothW, y: clothH, z: 1 / 16 },
+      { x: (1 - clothW) / 2, y: 1 - clothH - 1 / 16, z: poleMin - 1 / 32 },
+      def, tm, tint === undefined ? {} : { tint }),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+
 export function createFenceGateGeometry(def, tm) {
   const post = 2 / 16;
   const railY = [5 / 16, 9 / 16];
