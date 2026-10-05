@@ -58,6 +58,10 @@ const blocks1214 = [
   'fire_coral_block.png', 'horn_coral_block.png',
   'dead_tube_coral_block.png', 'dead_brain_coral_block.png', 'dead_bubble_coral_block.png',
   'dead_fire_coral_block.png', 'dead_horn_coral_block.png',
+  // Tall and ceiling plants, the ninth batch. Two notes for a future reader: tall grass and large fern
+  // are two blocks tall upstream and their TOP texture is the one used here, and `_top` is precisely
+  // the suffix that made a bare-name probe report these as missing art.
+  'tall_grass_top.png', 'large_fern_top.png', 'spore_blossom.png', 'hanging_roots.png',
 ];
 
 const items = [
