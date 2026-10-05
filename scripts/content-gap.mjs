@@ -7,10 +7,12 @@
 //
 // Run: node scripts/content-gap.mjs
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { BLOCKS, BLOCK_DEFS } from '../src/blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 
 const BLOCKS_CACHE = '.cache/mc-data/blocks.json';
+const ITEMS_CACHE = '.cache/mc-data/items.json';
 export const CACHE_PRESENT = existsSync(BLOCKS_CACHE);
+export const ITEMS_CACHE_PRESENT = existsSync(ITEMS_CACHE);
 
 /**
  * Candidate texture names a generator could legitimately use for a missing block.
@@ -75,6 +77,64 @@ export function measureBlockGap() {
   };
 }
 
+/**
+ * Split the missing vanilla ITEMS by what blocks them.
+ *
+ * Symmetric with the block measurement, and for the same reason: `tests/item_icons.test.js` requires a
+ * non-empty PNG at `/assets/items/<name>.png` for every entry in ITEMS, so an item with no icon cannot be
+ * added however well its behaviour is understood. Without this figure the item row in the coverage table
+ * has the same ambiguity the block row had -- "82%" reads like missing code when it may be missing art.
+ *
+ * @returns {{total:number, present:number, missing:number, ownIcon:number, reusable:Array, needsArt:Array,
+ *   iconCount:number}|null}
+ */
+export function measureItemGap() {
+  if (!ITEMS_CACHE_PRESENT) return null;
+  const items = JSON.parse(readFileSync(ITEMS_CACHE, 'utf8'));
+  const icons = new Set(readdirSync('public/assets/items'));
+
+  // The registry keys plus the block-item names, which `ITEMS` carries under a lower-case id.
+  const present = new Set(Object.keys(ITEMS).map(k => k.toLowerCase()));
+  for (const [, d] of Object.entries(BLOCK_DEFS)) {
+    if (!d?.name) continue;
+    present.add(String(d.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
+  }
+
+  const missing = items.map(i => i.name).filter(n => !present.has(n));
+  const has = (n) => icons.has(n + '.png');
+  const reusable = [];
+  const needsArt = [];
+  for (const n of missing) {
+    if (has(n)) { reusable.push({ name: n, via: n, own: true }); continue; }
+    const via = itemIconCandidates(n).find(has);
+    if (via) reusable.push({ name: n, via, own: false });
+    else needsArt.push(n);
+  }
+  return {
+    total: items.length,
+    present: items.length - missing.length,
+    missing: missing.length,
+    ownIcon: missing.filter(has).length,
+    reusable,
+    needsArt,
+    iconCount: icons.size,
+  };
+}
+
+/**
+ * Candidate icons a missing item could legitimately reuse.
+ *
+ * Conservative, and deliberately much shorter than the block list. A spawn egg is a real reuse -- the game
+ * already draws every egg from a shared texture -- and a wall/sign variant is not applicable to items. A
+ * boat named after a wood must NOT be offered `oak_boat.png`, because a birch boat drawn as an oak one is
+ * a visual bug rather than a reuse, which is the mistake the block measurement made first time.
+ */
+export function itemIconCandidates(name) {
+  const out = [];
+  if (/_spawn_egg$/.test(name)) out.push('spawn_egg');
+  return [...new Set(out)];
+}
+
 if (process.argv[1]?.endsWith('content-gap.mjs')) {
   if (!CACHE_PRESENT) {
     console.error('block cache missing; run scripts/generate-mc-data.mjs first');
@@ -98,4 +158,28 @@ if (process.argv[1]?.endsWith('content-gap.mjs')) {
   }
   console.log('\n=== first 20 that genuinely need new art ===');
   for (const n of r.needsArt.slice(0, 20)) console.log('  ' + n);
+
+  const i = ITEMS_CACHE_PRESENT ? measureItemGap() : null;
+  if (!i) {
+    console.log('\n(item cache missing; item gap not measured)');
+  } else {
+    console.log('\n=== WHY THE REMAINING ITEMS ARE MISSING ===');
+    console.log('vanilla items                     : ' + i.total);
+    console.log('present                           : ' + i.present);
+    console.log('missing                           : ' + i.missing);
+    console.log('');
+    console.log('has its OWN icon                  : ' + i.ownIcon);
+    console.log('could REUSE one already present   : ' + i.reusable.length);
+    console.log('needs NEW art                     : ' + i.needsArt.length);
+    console.log('');
+    console.log('icons in public/assets/items      : ' + i.iconCount);
+    console.log('present items per icon            : ' + (i.present / i.iconCount).toFixed(1));
+    if (i.reusable.length) {
+      console.log('\n=== item gap: could reuse an icon ===');
+      for (const x of i.reusable.slice(0, 20)) console.log('  ' + x.name.padEnd(30) + 'via ' + x.via + '.png');
+      if (i.reusable.length > 20) console.log('  ... and ' + (i.reusable.length - 20) + ' more');
+    }
+    console.log('\n=== item gap: first 20 needing new art ===');
+    for (const n of i.needsArt.slice(0, 20)) console.log('  ' + n);
+  }
 }

@@ -11,7 +11,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { measureBlockGap, textureCandidates, CACHE_PRESENT, presentBlockNames } from '../scripts/content-gap.mjs';
+import { measureBlockGap, measureItemGap, itemIconCandidates, textureCandidates, CACHE_PRESENT,
+  ITEMS_CACHE_PRESENT, presentBlockNames } from '../scripts/content-gap.mjs';
 
 test('most missing blocks are missing art, not code', (t) => {
   if (!CACHE_PRESENT) { t.skip('block cache absent'); return; }
@@ -54,6 +55,38 @@ test('the texture candidates are the reuses the existing families actually perfo
   // A sapling must NOT be offered a plank texture, because drawing one that way would be wrong.
   assert.equal(textureCandidates('oak_sapling').includes('oak_planks'), false,
     'a sapling drawn with a plank texture is a visual bug, so it must not be counted as reusable art');
+});
+
+test('the item gap is art-gated for the same reason the block gap is', (t) => {
+  if (!ITEMS_CACHE_PRESENT) { t.skip('item cache absent'); return; }
+  const i = measureItemGap();
+  assert.ok(i.missing > 150, 'the item gap should still be substantial, got ' + i.missing);
+  // `tests/item_icons.test.js` requires a non-empty PNG per item, so an item with no icon cannot be added.
+  assert.equal(i.ownIcon, 0,
+    'a missing item now has its own icon, so it is a code gap that could be closed -- update '
+    + 'docs/survival-parity-rules.md section 4.1.1. The first such item is: '
+    + i.reusable.filter(x => x.own).map(x => x.name).join(', '));
+  assert.ok(i.needsArt.length / i.missing > 0.9,
+    'expected over 90% of the item gap to need new art, got ' + i.needsArt.length + '/' + i.missing);
+  assert.ok(i.present / i.iconCount > 1,
+    'items should outnumber icons, got ' + i.present + '/' + i.iconCount);
+});
+
+test('only a genuine reuse is counted for an item icon', (t) => {
+  if (!ITEMS_CACHE_PRESENT) { t.skip('item cache absent'); return; }
+  const i = measureItemGap();
+  // Every reusable item is a spawn egg drawing the shared egg texture, which the game really does.
+  for (const x of i.reusable.filter(r => !r.own)) {
+    assert.match(x.name, /_spawn_egg$/, x.name + ' is counted as reusable but is not a spawn egg; check '
+      + 'that the reuse is real rather than a name that happens to have an icon next to it');
+    assert.equal(x.via, 'spawn_egg');
+  }
+  // The helper must not offer a wood-specific icon to a differently-wooded item: a birch boat drawn as an
+  // oak one is a visual bug, not a reuse, which is the mistake the block list made before it was narrowed.
+  assert.deepEqual(itemIconCandidates('birch_boat'), [],
+    'a boat must not be offered another wood\'s icon');
+  assert.deepEqual(itemIconCandidates('oak_sapling'), [], 'nor a sapling a plank icon');
+  assert.deepEqual(itemIconCandidates('vex_spawn_egg'), ['spawn_egg'], 'but an egg may share the egg icon');
 });
 
 test('the present-block count agrees with the registry', (t) => {
