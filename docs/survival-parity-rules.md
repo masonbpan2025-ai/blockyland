@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1549 | 1557 | 99.5% |
 | Crafting recipes expressible | 1550 | 1557 | 99.6% |
-| Blocks named | 1071 | 1095 | 97.8% |
-| Items named | 1304 | 1385 | 94.2% |
+| Blocks named | 1069 | 1095 | 97.6% |
+| Items named | 1303 | 1385 | 94.1% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
