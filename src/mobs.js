@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
 import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
@@ -523,6 +524,7 @@ export class MobManager {
       case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
       case 'camel': return this.spawnCamel(x, y, z, options);
       case 'creaking': return this.spawnCreaking(x, y, z, options);
+      case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2575,6 +2577,9 @@ export class MobManager {
       case 'camel': return CAMEL_DIMENSIONS;
       // Wiki: a creaking is 0.9 x 2.7.
       case 'creaking': return CREAKING_DIMENSIONS;
+      // Wiki: a snow golem is 0.7 x 1.9 in Java. Its loot table already existed while it had no
+      // dimension row, so it was silently using the humanoid box.
+      case 'snow_golem': return SNOW_GOLEM_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4634,6 +4639,69 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Snow golem.
+   *
+   * Wiki: 4 HP, 0.7 x 1.9, speed 0.2. A buildable passive mob that throws snowballs at monsters to
+   * provoke them, leaves a trail of snow, dies in hot biomes unless fire resistant, is immune to powder
+   * snow and fall damage, and wears a sheareable carved pumpkin as a helmet.
+   */
+  spawnSnowGolem(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const snowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow });
+    const shadowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.shadow });
+    const pumpkinMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin });
+    const faceMat = new THREE.MeshBasicMaterial({ color: SNOW_GOLEM_COLORS.face });
+    const { group: model, lower, middle, head, face, pumpkin, arms } =
+      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'snow_golem',
+      name: 'Snow Golem',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      lower, middle, head, faceMesh: face, pumpkinMesh: pumpkin, arms,
+      // Wiki: 4 HP.
+      health: SNOW_GOLEM_HEALTH,
+      maxHealth: SNOW_GOLEM_HEALTH,
+      width: SNOW_GOLEM_DIMENSIONS.width,
+      height: SNOW_GOLEM_DIMENSIONS.height,
+      speed: SNOW_GOLEM_SPEED,
+      // Wiki: it is passive and never intentionally attacks the player.
+      isHostile: false,
+      // Wiki: immune to powder snow and to fall damage, and it avoids water.
+      powderSnowImmune: SNOW_GOLEM_TRAITS.powderSnowImmune,
+      fallDamageImmune: SNOW_GOLEM_TRAITS.fallDamageImmune,
+      avoidsWater: SNOW_GOLEM_TRAITS.avoidsWater,
+      // Wiki: it wears its carved pumpkin "like a helmet", hidden until sheared.
+      hasPumpkin: options.hasPumpkin !== false,
+      // The biome it stands in, which decides whether it takes heat damage.
+      biome: options.biome ?? null,
+      hasFireResistance: !!options.hasFireResistance,
+      heatDamageTaken: 0,
+      throwCooldown: 0,
+      target: null,
+      golemPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (face) face.visible = !mob.hasPumpkin;
+    if (pumpkin) pumpkin.visible = mob.hasPumpkin;
+    // Wiki: snowballs are its own projectiles, so they get their own array rather than sharing one owned
+    // by another behaviour. `updateSnowballs` was dead code until this mob produced any.
+    this.snowballs = this.snowballs || [];
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -8317,6 +8385,8 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
+    // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
     return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows];
   }
 
@@ -8406,7 +8476,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'creaking' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'snow_golem' ? 0
+          : mob.type === 'creaking' ? 0
           : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
           : mob.type === 'wandering_trader' ? 0
           : mob.type === 'allay' ? 0
@@ -9215,6 +9286,88 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='snow_golem'){
+      // Wiki: it wanders, throws a snowball a second at monsters to provoke them, leaves a snow trail,
+      // and dies in hot biomes unless it has Fire Resistance.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateSnowGolemThrow(mob, dt);
+
+      // Wiki: 1 damage per tick in contact with rain or water in a biome above temperature 1.0.
+      const gy = Math.floor(mob.mesh.position.y);
+      const inWater = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x), gy, Math.floor(mob.mesh.position.z)) === BLOCKS.WATER;
+      const raining = this.game?.weather?.weatherType === 'rain' || this.game?.weather?.weatherType === 'thunder';
+      const heat = updateSnowGolemHeat(mob, dt, { biome: mob.biome, inWater, raining });
+      if (heat > 0 && mob.health <= 0) {
+        // It died of heat, which is the wiki's whole point for hot biomes.
+        return true;
+      }
+
+      // Wiki: it throws at monsters within 10 blocks, up to 16 when tethered.
+      if (!mob.target || mob.target.health <= 0
+        || mob.mesh.position.distanceTo(mob.target.mesh.position) > SNOW_GOLEM_RANGE.roam * 1.5) {
+        mob.target = findSnowGolemTarget(this, mob);
+      }
+      const throwInfo = mob.target ? snowGolemThrow(mob, mob.target, { dt }) : null;
+      if (throwInfo) {
+        // The shared `updateSnowballs` walks `p.mesh.position`, disposes `p.mesh.geometry` and
+        // `p.mesh.material`, and uses `p.owner.position` as the damage origin, so all of them have to be
+        // real. It is spawned just outside the golem's own hitbox, because the updater damages the first
+        // mob it overlaps and would otherwise have the golem shoot itself.
+        const shot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 6, 5),
+          new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow })
+        );
+        shot.castShadow = true;
+        const launch = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        launch.addScaledVector(throwInfo.direction, 0.45);
+        shot.position.copy(launch);
+        this.scene.add(shot);
+        this.snowballs.push({
+          mesh: shot,
+          position: launch,
+          velocity: throwInfo.direction.clone().multiplyScalar(12),
+          damage: throwInfo.damage,
+          provokes: true,
+          // `owner` is the field the shared updater credits the hit to.
+          owner: mob,
+          shooter: mob,
+          life: 3
+        });
+        mob.state = 'throwing';
+      } else if (mob.target) {
+        // Close the distance while reloading.
+        const dir = mob.target.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        if (dir.lengthSq() > 1e-6) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * SNOW_GOLEM_SPEED * 4;
+          mob.velocity.z = dir.z * SNOW_GOLEM_SPEED * 4;
+        }
+        mob.state = 'approaching';
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = 'idle';
+      }
+
+      // Wiki: it leaves a trail of snow as it moves, suppressed by mobGriefing. `snow_block` is not a
+      // registered block here, so the trail is reported rather than written; the guard is explicit so
+      // the mechanic is not silently missing.
+      const moved = mob.velocity.lengthSq() > 0.01;
+      if (moved && (this.game?.mobGriefing !== false) && mob.mesh.position.y > 1) {
+        const trail = snowGolemTrailAt(mob, {
+          mobGriefing: this.game?.mobGriefing !== false,
+          canPlace: false
+        });
+        if (trail) mob.trail = trail;
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.golemPhase = (mob.golemPhase || 0) + dt;
+      poseSnowGolem(mob, mob.golemPhase);
       return true;
     }
     if(mob.type==='creaking'){
