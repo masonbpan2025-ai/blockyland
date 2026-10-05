@@ -66,6 +66,15 @@ const blocks1214 = [
   // its own texture rather than one texture scaled, so all four are needed.
   'budding_amethyst.png', 'amethyst_cluster.png',
   'large_amethyst_bud.png', 'medium_amethyst_bud.png', 'small_amethyst_bud.png',
+  // Glazed terracotta, the eleventh batch: one texture per colour, sixteen in all. Vanilla rotates the
+  // pattern per face at placement time, which this game does not model, so each texture is drawn in a
+  // single fixed orientation.
+  'white_glazed_terracotta.png', 'orange_glazed_terracotta.png', 'magenta_glazed_terracotta.png',
+  'light_blue_glazed_terracotta.png', 'yellow_glazed_terracotta.png', 'lime_glazed_terracotta.png',
+  'pink_glazed_terracotta.png', 'gray_glazed_terracotta.png', 'light_gray_glazed_terracotta.png',
+  'cyan_glazed_terracotta.png', 'purple_glazed_terracotta.png', 'blue_glazed_terracotta.png',
+  'brown_glazed_terracotta.png', 'green_glazed_terracotta.png', 'red_glazed_terracotta.png',
+  'black_glazed_terracotta.png',
 ];
 
 const items = [
