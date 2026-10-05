@@ -1778,6 +1778,10 @@ class Game {
     if (!this.targetBlock) return;
     const { x, y, z, blockId } = this.targetBlock;
     if (blockId === BLOCKS.AIR || blockId === BLOCKS.BEDROCK) return;
+
+    // Mining a block costs 0.005 exhaustion in vanilla. Charged after the guards, so breaking air
+    // or bedrock -- neither of which is a real break -- does not tire the player.
+    this.player.addExhaustion?.(0.005);
     if (this.player.gamemode === 'survival' && [BLOCKS.GOLD_BLOCK, BLOCKS.GOLD_ORE, BLOCKS.CHEST].includes(blockId)) {
       angerPiglins(this.mobs, this.player.position);
     }
