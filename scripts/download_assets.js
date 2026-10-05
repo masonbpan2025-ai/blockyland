@@ -181,6 +181,17 @@ const items = [
   'totem_of_undying.png'
 ];
 
+// Items whose art is an ITEM sprite rather than a block tile, fetched by explicit URL. They are NOT
+// `blocks1214` entries: that list is bare block filenames and its loop builds `blocks/${b}`, so an
+// `{url, out}` object in it would be stringified into `blocks/[object Object]` and write a junk file while
+// quietly never fetching the real one. The invisible technical blocks need these because vanilla draws no
+// block texture for them at all -- the item sprite IS the art, and the block tile is copied from it.
+const itemSprites = [
+  { url: `${BASE_1214}/items/barrier.png`, out: 'public/assets/items/barrier.png' },
+  { url: `${BASE_1214}/items/light.png`, out: 'public/assets/items/light.png' },
+  { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' }
+];
+
 const guis = [
   { url: `${BASE_119}/gui/widgets.png`, out: 'public/assets/gui/widgets.png' },
   { url: `${BASE_119}/gui/icons.png`, out: 'public/assets/gui/icons.png' },
@@ -242,6 +253,14 @@ async function run() {
   console.log('Downloading GUIs...');
   for (const g of guis) {
     await downloadFile(g.url, g.out);
+  }
+  console.log('Downloading item sprites that stand in for block textures...');
+  for (const s of itemSprites) {
+    await downloadFile(s.url, s.out);
+    // A copy lands in the BLOCK atlas too, because a vanilla barrier is an invisible cube and there is no
+    // block tile upstream. Writing it here rather than by hand is what keeps a clean checkout working: the
+    // two copies must stay byte-identical, and the test asserts that they are.
+    await downloadFile(s.url, `public/assets/blocks/${s.out.split('/').pop()}`);
   }
   console.log('Downloading Entities...');
   for (const e of entities) {
