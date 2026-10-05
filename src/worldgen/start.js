@@ -59,6 +59,8 @@ let pieceCounter = 0;
 export class StructurePiece {
   constructor({
     id = null,
+
+    index = null,
     type = 'procedural',
     family = null,
     box,
@@ -76,7 +78,11 @@ export class StructurePiece {
     jigsaw = null,
     meta = null
   }) {
-    this.index = pieceCounter++;
+    // A PLAN-LOCAL index must be supplied by anything that derives randomness or identity from it. The
+    // module-level counter is not 0-based and not stable across a process, so a piece numbering that
+    // depends on how many pieces were created earlier made plans irreproducible between runs -- which
+    // blocks golden-seed testing. Recorded as deviation 0b in docs/STRUCTURE_PARITY.md.
+    this.index = index === null ? pieceCounter++ : index;
     this.id = id;
     this.type = type;
     this.family = family;

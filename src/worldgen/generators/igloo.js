@@ -48,6 +48,7 @@ export function generateIgloo({ seed, chunkX, chunkZ, context }) {
   const top = new StructureTemplate(buildIglooTop(), 'minecraft:igloo/top');
   const pieces = [new StructurePiece({
     id: 'minecraft:igloo/top',
+    index: 0,
     type: 'template',
     family: 'template',
     template: 'minecraft:igloo/top',
@@ -64,6 +65,8 @@ export function generateIgloo({ seed, chunkX, chunkZ, context }) {
     const basementOrigin = { x: originX - 1, y: basementY, z: originZ - 2 };
     pieces.push(new StructurePiece({
       id: 'minecraft:igloo/bottom',
+
+      index: 1,
       type: 'template',
       family: 'template',
       template: 'minecraft:igloo/bottom',

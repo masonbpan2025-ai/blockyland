@@ -212,6 +212,7 @@ export function addPieces({
     if (!built || !built.box) return null;
     const piece = new StructurePiece({
       id: element.name ?? element.type,
+      index: pieces.length,
       parent: parentPiece,
       type: 'jigsaw',
       family: 'jigsaw',
