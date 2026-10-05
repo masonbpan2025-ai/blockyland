@@ -718,7 +718,31 @@ export const BLOCKS = {
   // the whole top face -- and it reads correctly from above, which is the face a player looks at.
   WATER_CAULDRON: 1175,
   LAVA_CAULDRON: 1176,
-  POWDER_SNOW_CAULDRON: 1177
+  POWDER_SNOW_CAULDRON: 1177,
+
+  // --- Mob heads, twenty-fourth block-parity batch -----------------------------------------------
+  //
+  // Four mob heads and their wall variants: skeleton, zombie, player and piglin. The creeper head and the
+  // dragon head are deliberately NOT here and the reason is recorded in the extraction script -- their
+  // skins do not follow the standard layout (creeper) or do not exist in the mirror (dragon).
+  //
+  // THE TEXTURES ARE EXTRACTED FROM ENTITY SKIN SHEETS, which is the fourth variation on the technique this
+  // goal keeps reaching for. These heads had no block texture at any suffix, so they sat in the
+  // "needs new art" column for many rounds -- but every mob has a skin, and a head IS the skin's head
+  // region. scripts/extract-mob-head-textures.py crops the front, top and bottom faces and scales each
+  // from 8x8 to the 16x16 tile the atlas expects.
+  //
+  // One approximation: the front face is reused for all four sides, so a head shows its face rather than
+  // its profile on the sides. Doing it properly needs a per-side texture with mirrored UVs, which the cube
+  // path can name but not mirror.
+  SKELETON_SKULL: 1178,
+  ZOMBIE_HEAD: 1179,
+  PLAYER_HEAD: 1180,
+  PIGLIN_HEAD: 1181,
+  SKELETON_WALL_SKULL: 1182,
+  ZOMBIE_WALL_HEAD: 1183,
+  PLAYER_WALL_HEAD: 1184,
+  PIGLIN_WALL_HEAD: 1185,
 };
 
 export const BLOCK_DEFS = {
@@ -1066,6 +1090,29 @@ export const BLOCK_DEFS = {
   [BLOCKS.WATER_CAULDRON]: { name: 'Water Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'water_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
   [BLOCKS.LAVA_CAULDRON]: { name: 'Lava Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'lava_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
   [BLOCKS.POWDER_SNOW_CAULDRON]: { name: 'Powder Snow Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'powder_snow_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
+
+  // --- Mob heads, twenty-fourth block-parity batch -----------------------------------------------
+  //
+  // THE WALL VARIANTS DROP THEIR STANDING FORM, not themselves, which is what the harvest table says for
+  // every one of them. So they use `drop: BLOCKS.<standing>`, exactly as the wall torches do.
+  //
+  // Each head is an 8/16 cube, which is what vanilla draws -- that is why a head reads as a cube on top of
+  // a full block rather than as a block itself. The wall forms are the same box, raised and pushed back
+  // against the wall.
+  //
+  // NOT MODELLED: a placed head can be rotated to face any direction in vanilla, and nothing in this
+  // engine drives that, so every head faces north. The wall forms share that with the other wall-mounted
+  // shapes here. Nor is the PLAYER head's skin selectable: it uses the default Steve skin, extracted from
+  // the mirror's player sheet.
+  [BLOCKS.SKELETON_SKULL]: { name: 'Skeleton Skull', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.SKELETON_SKULL, textures: { top: 'skeleton_skull_top.png', side: 'skeleton_skull_front.png', bottom: 'skeleton_skull_bottom.png' } },
+  [BLOCKS.ZOMBIE_HEAD]: { name: 'Zombie Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.ZOMBIE_HEAD, textures: { top: 'zombie_head_top.png', side: 'zombie_head_front.png', bottom: 'zombie_head_bottom.png' } },
+  [BLOCKS.PLAYER_HEAD]: { name: 'Player Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.PLAYER_HEAD, textures: { top: 'player_head_top.png', side: 'player_head_front.png', bottom: 'player_head_bottom.png' } },
+  [BLOCKS.PIGLIN_HEAD]: { name: 'Piglin Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.PIGLIN_HEAD, textures: { top: 'piglin_head_top.png', side: 'piglin_head_front.png', bottom: 'piglin_head_bottom.png' } },
+  [BLOCKS.SKELETON_WALL_SKULL]: { name: 'Skeleton Wall Skull', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.SKELETON_SKULL, textures: { top: 'skeleton_skull_top.png', side: 'skeleton_skull_front.png', bottom: 'skeleton_skull_bottom.png' } },
+  [BLOCKS.ZOMBIE_WALL_HEAD]: { name: 'Zombie Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.ZOMBIE_HEAD, textures: { top: 'zombie_head_top.png', side: 'zombie_head_front.png', bottom: 'zombie_head_bottom.png' } },
+  [BLOCKS.PLAYER_WALL_HEAD]: { name: 'Player Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.PLAYER_HEAD, textures: { top: 'player_head_top.png', side: 'player_head_front.png', bottom: 'player_head_bottom.png' } },
+  [BLOCKS.PIGLIN_WALL_HEAD]: { name: 'Piglin Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.PIGLIN_HEAD, textures: { top: 'piglin_head_top.png', side: 'piglin_head_front.png', bottom: 'piglin_head_bottom.png' } },
+
 
 
   [BLOCKS.BRICKS]: {

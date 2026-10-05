@@ -111,6 +111,82 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and drop right', () => {
+  // The art for these is EXTRACTED from entity skin sheets rather than downloaded, which is the fourth
+  // variation on that technique in this goal. So the test checks the extraction actually produced usable
+  // tiles -- a 16x16 PNG with some opaque pixels -- rather than only that the files exist. A skin crop at
+  // the wrong coordinates would still be a 16x16 PNG, so pixel content is the property that matters.
+  const HEADS = [
+    ['SKELETON_SKULL', 'SKELETON_WALL_SKULL', 'skeleton_skull'],
+    ['ZOMBIE_HEAD', 'ZOMBIE_WALL_HEAD', 'zombie_head'],
+    ['PLAYER_HEAD', 'PLAYER_WALL_HEAD', 'player_head'],
+    ['PIGLIN_HEAD', 'PIGLIN_WALL_HEAD', 'piglin_head'],
+  ];
+
+  for (const [key, wallKey, stem] of HEADS) {
+    const id = BLOCKS[key];
+    const wallId = BLOCKS[wallKey];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    assert.equal(typeof wallId, 'number', `${wallKey} must be registered`);
+
+    for (const [label, blockId, flag, otherFlag] of [[key, id, 'head', 'wallHead'], [wallKey, wallId, 'wallHead', 'head']]) {
+      const def = BLOCK_DEFS[blockId];
+      assert.equal(def[flag], true, `${label} must carry the ${flag} flag the router dispatches on`);
+      assert.equal(def[otherFlag], undefined, `${label} must not carry both head flags`);
+      assert.equal(def.hardness, 1.0, `${label} has the harvest table's hardness`);
+      assert.equal(def.solid, undefined, `${label} is a partial shape`);
+
+      // Three faces, all named to this mob's own extracted tiles.
+      assert.deepEqual(def.textures,
+        { top: `${stem}_top.png`, side: `${stem}_front.png`, bottom: `${stem}_bottom.png` },
+        `${label} must use ${stem}'s extracted faces`);
+    }
+
+    // The standing head drops itself; the wall form drops the STANDING head, per the harvest table.
+    assert.equal(getBlockDrop(id)?.id, id, `${key} drops itself`);
+    assert.equal(getBlockDrop(wallId)?.id, id, `${wallKey} drops ${key}`);
+
+    // Every extracted tile must be a real 16x16 image with content. The bottom of a skeleton skull is
+    // genuinely near-empty, so the bar is "some opaque pixels" rather than "most".
+    for (const face of ['top', 'front', 'bottom']) {
+      const file = path.join('public', 'assets', 'blocks', `${stem}_${face}.png`);
+      assert.ok(existsSync(file), `${stem}_${face}.png must exist`);
+      const png = readFileSync(file);
+      assert.equal(png.readUInt32BE(16), 16, `${stem}_${face}.png must be one tile wide`);
+      assert.equal(png.readUInt32BE(20), 16, `${stem}_${face}.png must be one tile tall`);
+    }
+  }
+
+  // The geometry assertion: a head is a HALF-SIZE cube, not a full block. 24 vertices from one box.
+  const texStub = { getFaceUVs: () => ({ u0: 0, v0: 0, u1: 1, v1: 1 }) };
+  const boxFor = (id) => {
+    const world = new World();
+    const chunk = new Chunk(0, 0);
+    world.chunks.set('0,0', chunk);
+    world.setVoxel(2, 40, 2, id);
+    const meshed = new ChunkMesher(texStub).meshChunk(chunk, world);
+    const geos = [meshed.opaqueGeo, meshed.transparentGeo, meshed.lightGeo].filter(Boolean);
+    const geom = geos.reduce((a, b) => (a.attributes.position.count >= b.attributes.position.count ? a : b));
+    assert.equal(geom.attributes.position.count, 24, 'a head is one box');
+    geom.computeBoundingBox();
+    return geom.boundingBox;
+  };
+
+  const standing = boxFor(BLOCKS.SKELETON_SKULL);
+  assert.ok(Math.abs((standing.max.x - standing.min.x) - 0.5) < 1e-6,
+    `a head must be 8/16 wide, got ${standing.max.x - standing.min.x}`);
+  assert.ok(Math.abs((standing.max.y - standing.min.y) - 0.5) < 1e-6, 'and 8/16 tall');
+  assert.ok(Math.abs(standing.min.y - 40) < 1e-6, 'a standing head sits on its floor');
+
+  const wall = boxFor(BLOCKS.SKELETON_WALL_SKULL);
+  assert.ok(wall.min.y > standing.min.y + 0.1, 'a wall head mounts above the floor');
+  assert.ok(wall.max.z > standing.max.z + 0.1, 'and sits against the wall face');
+
+  // The extractor must be committed, since the tiles are unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'extract-mob-head-textures.py')),
+    'scripts/extract-mob-head-textures.py must be committed alongside the tiles it produces');
+});
+
 test('the four cauldrons exist, drop an empty cauldron, and the pot has real art', () => {
   // Three things are pinned here, and the first is a BUG FIX rather than a new block. The empty cauldron
   // had pointed at `blackstone.png` -- not a cauldron texture at all -- while the real

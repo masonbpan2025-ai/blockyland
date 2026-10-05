@@ -209,6 +209,11 @@ export function buildCreativeCatalog() {
     // has existed for a long time -- it was a leatherworker workstation a player could not place. All four
     // are listed together so the family is complete.
     BLOCKS.CAULDRON, BLOCKS.WATER_CAULDRON, BLOCKS.LAVA_CAULDRON, BLOCKS.POWDER_SNOW_CAULDRON,
+    // Mob heads, standing and wall-mounted. Their art is extracted from entity skin sheets, so the four
+    // here are the ones whose skins follow the standard layout; the creeper and dragon are absent and the
+    // extraction script says why.
+    BLOCKS.SKELETON_SKULL, BLOCKS.ZOMBIE_HEAD, BLOCKS.PLAYER_HEAD, BLOCKS.PIGLIN_HEAD,
+    BLOCKS.SKELETON_WALL_SKULL, BLOCKS.ZOMBIE_WALL_HEAD, BLOCKS.PLAYER_WALL_HEAD, BLOCKS.PIGLIN_WALL_HEAD,
     // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
     // machinery -- even though in this engine every one of them is inert decoration. Putting them
     // anywhere else would imply they are building material, which is further from the truth.
