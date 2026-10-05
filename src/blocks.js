@@ -2155,6 +2155,28 @@ export const ITEMS = {
   ominous_bottle: { name: 'Ominous Bottle', food: 1, icon: '/assets/items/ominous_bottle.png', type: 'food' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
+  // --- Music Discs ---
+  // All nineteen, which vanilla has and this game had one of. `stackSize: 1` is vanilla's, read through
+  // the same `stackLimitFor` the inventory uses rather than a second table. Twelve come from a creeper
+  // killed by a skeleton; where the rest come from is recorded in `musicDiscs.js`.
+  music_disc_11: { name: 'Music Disc 11', icon: '/assets/items/music_disc_11.png', stackSize: 1, type: 'material' },
+  music_disc_13: { name: 'Music Disc 13', icon: '/assets/items/music_disc_13.png', stackSize: 1, type: 'material' },
+  music_disc_blocks: { name: 'Music Disc Blocks', icon: '/assets/items/music_disc_blocks.png', stackSize: 1, type: 'material' },
+  music_disc_cat: { name: 'Music Disc Cat', icon: '/assets/items/music_disc_cat.png', stackSize: 1, type: 'material' },
+  music_disc_chirp: { name: 'Music Disc Chirp', icon: '/assets/items/music_disc_chirp.png', stackSize: 1, type: 'material' },
+  music_disc_creator: { name: 'Music Disc Creator', icon: '/assets/items/music_disc_creator.png', stackSize: 1, type: 'material' },
+  music_disc_creator_music_box: { name: 'Music Disc Creator (Music Box)', icon: '/assets/items/music_disc_creator_music_box.png', stackSize: 1, type: 'material' },
+  music_disc_far: { name: 'Music Disc Far', icon: '/assets/items/music_disc_far.png', stackSize: 1, type: 'material' },
+  music_disc_mall: { name: 'Music Disc Mall', icon: '/assets/items/music_disc_mall.png', stackSize: 1, type: 'material' },
+  music_disc_mellohi: { name: 'Music Disc Mellohi', icon: '/assets/items/music_disc_mellohi.png', stackSize: 1, type: 'material' },
+  music_disc_otherside: { name: 'Music Disc Otherside', icon: '/assets/items/music_disc_otherside.png', stackSize: 1, type: 'material' },
+  music_disc_pigstep: { name: 'Music Disc Pigstep', icon: '/assets/items/music_disc_pigstep.png', stackSize: 1, type: 'material' },
+  music_disc_precipice: { name: 'Music Disc Precipice', icon: '/assets/items/music_disc_precipice.png', stackSize: 1, type: 'material' },
+  music_disc_relic: { name: 'Music Disc Relic', icon: '/assets/items/music_disc_relic.png', stackSize: 1, type: 'material' },
+  music_disc_stal: { name: 'Music Disc Stal', icon: '/assets/items/music_disc_stal.png', stackSize: 1, type: 'material' },
+  music_disc_strad: { name: 'Music Disc Strad', icon: '/assets/items/music_disc_strad.png', stackSize: 1, type: 'material' },
+  music_disc_wait: { name: 'Music Disc Wait', icon: '/assets/items/music_disc_wait.png', stackSize: 1, type: 'material' },
+  music_disc_ward: { name: 'Music Disc Ward', icon: '/assets/items/music_disc_ward.png', stackSize: 1, type: 'material' },
   // --- Mob Spawn Eggs ---
   villager_spawn_egg: { name: 'Villager Spawn Egg', icon: '/assets/items/villager_spawn_egg.png', type: 'spawn_egg', mob: 'villager' },
   iron_golem_spawn_egg: { name: 'Iron Golem Spawn Egg', icon: '/assets/items/iron_golem_spawn_egg.png', type: 'spawn_egg', mob: 'iron_golem' },
