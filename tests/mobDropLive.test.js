@@ -23,22 +23,25 @@ test('every spawnable vanilla loot-bearing mob can be measured', (t) => {
   assert.ok(r.compared >= 50, 'expected at least 50 spawnable entities, measured ' + r.compared);
 });
 
-test('spawnMob substitutes a villager for a type it does not know', (t) => {
+test('spawnMob returns nothing for a type it does not know, and says so', (t) => {
   if (!LOOT_CACHE_PRESENT) { t.skip('vanilla loot cache absent'); return; }
-  // This is a defect in the game rather than in the harness: the substitution is silent, so any typo or
-  // unported mob becomes a villager instead of failing. It hid five mobs from this very measurement, and
-  // it would hide a typo in a spawn egg in the same way.
+  // This USED to assert the opposite. `spawnMob` fell back to a villager for any unknown type, which made
+  // every typo and every unported mob look like a villager -- it hid five mobs from this very harness,
+  // because spawning 'pufferfish' produced a villager whose drops were then measured against vanilla's
+  // pufferfish entry. The fallback now returns null and logs.
+  //
+  // The assertion is inverted deliberately: if the substitution ever comes back, this fails.
   const manager = makeDropFixture().manager;
   for (const type of ['pufferfish', 'skeleton_horse', 'snow_golem', 'tropical_fish', 'zombie_horse',
     'definitely_not_a_mob']) {
     const mob = manager.spawnMob(type, 0, 1, 0);
-    assert.ok(mob, type + ' should still return something rather than throwing');
-    assert.equal(mob.type, 'villager',
-      type + ' is unknown, so the dispatcher substitutes a villager. If this asserts, the fallback was '
-      + 'made honest -- remove this test and update docs/survival-parity-rules.md section 4.2.2.');
+    assert.equal(mob, null,
+      type + ' is unknown, so nothing should spawn. It returned ' + (mob && mob.type));
   }
-  // And a real mob is not substituted.
+  // And real mobs are unaffected.
   assert.equal(manager.spawnMob('cow', 0, 1, 0).type, 'cow');
+  assert.equal(manager.spawnMob('villager', 0, 1, 0).type, 'villager',
+    'a villager is a real type and must still work');
 });
 
 test('the five unported mobs are reported as unported, not as drop gaps', (t) => {

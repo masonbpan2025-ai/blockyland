@@ -489,6 +489,10 @@ export class MobManager {
       case 'silverfish': return this.spawnSilverfish(x, y, z, options);
       case 'endermite': return this.spawnEndermite(x, y, z, options);
       case 'rabbit': return this.spawnRabbit(x, y, z, options);
+      // Wiki: The Killer Bunny "can only be spawned using commands", so it is a named entry that maps
+      // onto the rabbit spawner's killer flag rather than a separate mob. That keeps the hunt, the
+      // armour and the coat in one place.
+      case 'killer_bunny': return this.spawnRabbit(x, y, z, { ...options, killer: true });
       case 'bat': return this.spawnBat(x, y, z, options);
       case 'fox': return this.spawnFox(x, y, z, options);
       case 'bee': return this.spawnBee(x, y, z, options);
@@ -559,7 +563,17 @@ export class MobManager {
         if (typeof type === 'string' && MobLibrary.getMob(type)) {
           return this.spawnCustomMob(MobLibrary.getMob(type), x, y, z);
         }
-        return this.spawnVillager(x, y, z);
+        // An unknown type used to fall through to a villager.
+        //
+        // That made every typo and every unported mob look like a villager instead of failing. It hid
+        // five mobs from scripts/mob-drop-live.mjs -- spawning 'pufferfish' returned a villager, so the
+        // harness measured a villager's drops and reported a drop gap that could not be fixed by adding a
+        // row. The same substitution would hide a typo in a spawn egg.
+        //
+        // Returning null lets the caller notice. The callers in this repository all handle it: raids.js
+        // checks `if (mob)`, and the spawn-egg chain in main.js does not dereference the result.
+        console.warn('[mobs] unknown mob type "' + type + '"; nothing spawned');
+        return null;
     }
   }
 
@@ -2514,6 +2528,9 @@ export class MobManager {
       case 'endermite': return ENDERMITE_DIMENSIONS;
       // Wiki: rabbits are 0.4 x 0.5. A spawned rabbit carries its own size, so babies
       // resolve through the instance values.
+      // Wiki: The Killer Bunny shares the rabbit hitbox: 0.4 x 0.5 adult, 0.2 x 0.25 baby. Spawned by
+      // name it has no options object, so the adult rabbit box is the right answer here.
+      case 'killer_bunny': return RABBIT_DIMENSIONS;
       case 'rabbit': return RABBIT_DIMENSIONS;
       // Wiki: bats are 0.5 x 0.9.
       case 'bat': return BAT_DIMENSIONS;

@@ -79,15 +79,12 @@ export function liveItemsFor(manager, mobType, random = () => 0) {
   } catch (e) {
     return { error: 'spawn: ' + e.message };
   }
-  if (!mob) return { error: 'spawn returned nothing' };
-  // `spawnMob` falls back to a VILLAGER for any type it does not know -- its `default:` branch ends in
-  // `return this.spawnVillager(...)`. So spawning by name and reading the mob measures a villager for any
-  // mob that does not exist, and the first version of this harness reported five unported mobs as "missing
-  // a drop" because of it. The substitution is detected here and reported as its own category, because a
-  // missing mob and a missing drop are different findings with different fixes.
-  if (mob.type !== mobType) {
-    return { substituted: mob.type, names: new Set() };
-  }
+  // A null return means the dispatcher does not know this type. `spawnMob` used to substitute a VILLAGER
+  // instead, which made every unported mob look like a villager and hid five of them from this harness;
+  // the fallback now returns null and logs. Either shape is reported as "not in this game" rather than as
+  // a drop gap, because a drop row for a mob that cannot spawn fixes nothing.
+  if (!mob) return { substituted: '(nothing)', names: new Set() };
+  if (mob.type !== mobType) return { substituted: mob.type, names: new Set() };
   // The state the per-mob helpers branch on. Every one of these is a flag vanilla conditions its drops
   // on, so leaving them unset measures the "killed by something other than the player" case for every
   // mob -- which is the first invalid attempt wearing a different hat.

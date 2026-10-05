@@ -63,7 +63,10 @@ test('spawnMob forwards options, so a variant reaches the model', () => {
   const { manager } = fixture();
   for (const entry of VARIANT_CASES) {
     const first = manager.spawnMob(entry.type, 0, 1, 0, entry.a);
-    const second = manager.spawnMob(2, 1, 0, entry.b);
+    // `spawnMob(type, x, y, z, options)`. This read `spawnMob(2, 1, 0, entry.b)`, passing 2 as the TYPE --
+    // it only ever passed because the dispatcher substituted a villager for the unknown type `2`, which is
+    // the silent fallback that was removed. The assertion below then compared two villagers' colours.
+    const second = manager.spawnMob(entry.type, 2, 1, 0, entry.b);
     assert.ok(first, `${entry.type} a spawned`);
     assert.ok(second, `${entry.type} b spawned`);
     assert.notEqual(modelColors(first), modelColors(second),
