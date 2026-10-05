@@ -88,6 +88,14 @@ export const EXTRA_BLOCK_IDS = {
   ORANGE_WOOL: 294,
   PINK_WOOL: 295,
   PURPLE_WOOL: 296,
+  BEE_NEST: 297,
+  BEEHIVE: 298,
+  BELL: 299,
+  CAMPFIRE: 300,
+  CHISELED_BOOKSHELF: 301,
+  DECORATED_POT: 302,
+  JUKEBOX: 303,
+  SOUL_CAMPFIRE: 304,
 };
 
 /** Definitions for the extra blocks, keyed by id like BLOCK_DEFS. */
@@ -167,11 +175,29 @@ export const EXTRA_BLOCK_DEFS = {
   294: { name: 'Orange Wool', hardness: 0.8, sound: 'grass', textures: { all: 'orange_wool.png' } },
   295: { name: 'Pink Wool', hardness: 0.8, sound: 'grass', textures: { all: 'pink_wool.png' } },
   296: { name: 'Purple Wool', hardness: 0.8, sound: 'grass', textures: { all: 'purple_wool.png' } },
+  297: { name: 'Bee Nest', hardness: 0.3, sound: 'wood', textures: { all: 'bee_nest_top.png' } },
+  298: { name: 'Beehive', hardness: 0.6, sound: 'wood', textures: { all: 'beehive_top.png' } },
+  299: { name: 'Bell', hardness: 5, sound: 'wood', textures: { all: 'bell_top.png' } },
+  300: { name: 'Campfire', hardness: 2, sound: 'wood', light: 15, transparent: true, textures: { all: 'campfire_log.png' } },
+  301: { name: 'Chiseled Bookshelf', hardness: 1.5, sound: 'wood', textures: { all: 'chiseled_bookshelf_top.png' } },
+  302: { name: 'Decorated Pot', hardness: 0, sound: 'wood', transparent: true, textures: { all: 'decorated_pot_top.png' } },
+  303: { name: 'Jukebox', hardness: 2, sound: 'wood', resistance: 6, textures: { all: 'jukebox_top.png' } },
+  304: { name: 'Soul Campfire', hardness: 2, sound: 'wood', light: 10, transparent: true, textures: { all: 'soul_campfire_log.png' } },
 };
 
 /** How many extra blocks this file defines, for tests and reporting. */
-export const EXTRA_BLOCK_COUNT = 75;
+export const EXTRA_BLOCK_COUNT = 83;
 
 /** Names added, by family, so the backlog can report what changed. */
 export const EXTRA_BLOCK_NAMES = {
+  utility_cubes: [
+    'bee_nest',
+    'beehive',
+    'bell',
+    'campfire',
+    'chiseled_bookshelf',
+    'decorated_pot',
+    'jukebox',
+    'soul_campfire',
+  ],
 };

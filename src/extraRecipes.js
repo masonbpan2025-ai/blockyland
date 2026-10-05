@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 546 recipes.
+// 593 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -75,6 +75,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],['book','book','book'],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.BOOKSHELF,isBlock:true,count:1}},
   {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],['book','book','book'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.BOOKSHELF,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],['book','book','book'],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.BOOKSHELF,isBlock:true,count:1}},
+  {pattern:[[null,'brick',null],['brick',null,'brick'],[null,'brick',null]],result:{id:B.DECORATED_POT,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.COBBLESTONE,B.MOSS_BLOCK],result:{id:B.MOSSY_COBBLESTONE,isBlock:true,count:1}},
   {pattern:[['charcoal'],['stick']],result:{id:B.TORCH,isBlock:true,count:4}},
   {pattern:[['coal'],['stick']],result:{id:B.TORCH,isBlock:true,count:4}},
@@ -109,6 +110,18 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.SNOW,B.SNOW,B.SNOW]],result:{id:B.SNOW,isBlock:true,count:6}},
   {pattern:[['snowball','snowball'],['snowball','snowball']],result:{id:B.SNOW,isBlock:true,count:1}},
   {pattern:[['clay_ball','clay_ball'],['clay_ball','clay_ball']],result:{id:B.CLAY,isBlock:true,count:1}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,'diamond',B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS],[B.CHERRY_PLANKS,'diamond',B.CHERRY_PLANKS],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,'diamond',B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,'diamond',B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS],[B.WARPED_PLANKS,'diamond',B.WARPED_PLANKS],[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,'diamond',B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,'diamond',B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS],[B.ACACIA_PLANKS,'diamond',B.ACACIA_PLANKS],[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,'diamond',B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,'diamond',B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,'diamond',B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
+  {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,'diamond',B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.JUKEBOX,isBlock:true,count:1}},
   {pattern:[['charcoal'],['stick'],[B.SOUL_SOIL]],result:{id:B.SOUL_TORCH,isBlock:true,count:4}},
   {pattern:[['coal'],['stick'],[B.SOUL_SAND]],result:{id:B.SOUL_TORCH,isBlock:true,count:4}},
   {pattern:[['glowstone_dust','glowstone_dust'],['glowstone_dust','glowstone_dust']],result:{id:B.GLOWSTONE,isBlock:true,count:1}},
@@ -542,6 +555,40 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot','iron_ingot'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SMITHING_TABLE,isBlock:true,count:1}},
   {pattern:[['iron_ingot','iron_ingot'],[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.SMITHING_TABLE,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot',null],[B.STONE,B.STONE,B.STONE]],result:{id:B.STONECUTTER,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.WARPED_STEM,B.WARPED_STEM,B.WARPED_STEM]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.CRIMSON_STEM,B.CRIMSON_STEM,B.CRIMSON_STEM]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.PALE_OAK_LOG,B.PALE_OAK_LOG,B.PALE_OAK_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.CHERRY_LOG,B.CHERRY_LOG,B.CHERRY_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.MANGROVE_LOG,B.MANGROVE_LOG,B.MANGROVE_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.SPRUCE_LOG,B.SPRUCE_LOG,B.SPRUCE_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.JUNGLE_LOG,B.JUNGLE_LOG,B.JUNGLE_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.BIRCH_LOG,B.BIRCH_LOG,B.BIRCH_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.ACACIA_LOG,B.ACACIA_LOG,B.ACACIA_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.OAK_LOG,B.OAK_LOG,B.OAK_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick','coal','stick'],[B.DARK_OAK_LOG,B.DARK_OAK_LOG,B.DARK_OAK_LOG]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.WARPED_STEM,B.WARPED_STEM,B.WARPED_STEM]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.CRIMSON_STEM,B.CRIMSON_STEM,B.CRIMSON_STEM]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.PALE_OAK_LOG,B.PALE_OAK_LOG,B.PALE_OAK_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.CHERRY_LOG,B.CHERRY_LOG,B.CHERRY_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.MANGROVE_LOG,B.MANGROVE_LOG,B.MANGROVE_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.SPRUCE_LOG,B.SPRUCE_LOG,B.SPRUCE_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.JUNGLE_LOG,B.JUNGLE_LOG,B.JUNGLE_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.BIRCH_LOG,B.BIRCH_LOG,B.BIRCH_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.ACACIA_LOG,B.ACACIA_LOG,B.ACACIA_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.OAK_LOG,B.OAK_LOG,B.OAK_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[null,'stick',null],['stick',B.SOUL_SAND,'stick'],[B.DARK_OAK_LOG,B.DARK_OAK_LOG,B.DARK_OAK_LOG]],result:{id:B.SOUL_CAMPFIRE,isBlock:true,count:1}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
+  {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],['honeycomb','honeycomb','honeycomb'],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.BEEHIVE,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.HONEY_BLOCK,'glass_bottle','glass_bottle','glass_bottle','glass_bottle'],result:{id:'honey_bottle',isBlock:false,count:4}},
   {pattern:[['honeycomb','honeycomb'],['honeycomb','honeycomb']],result:{id:B.HONEYCOMB_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.BLACKSTONE,B.BLACKSTONE],[B.BLACKSTONE,B.BLACKSTONE]],result:{id:B.POLISHED_BLACKSTONE,isBlock:true,count:4}},
@@ -566,21 +613,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 546;
+export const EXTRA_RECIPE_COUNT = 593;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 546,
-  "shaped": 450,
+  "emitted": 593,
+  "shaped": 497,
   "shapeless": 103,
-  "skippedMissingResult": 847,
-  "skippedMissingIngredient": 156,
+  "skippedMissingResult": 722,
+  "skippedMissingIngredient": 234,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 553,
+  "emittedBeforeDedupe": 600,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

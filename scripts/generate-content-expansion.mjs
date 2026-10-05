@@ -63,6 +63,14 @@ const FAMILIES = [
     sound: 'stone',
   },
   {
+    // Utility blocks vanilla treats as full cubes. Ranked by recipes unblocked: campfire alone blocks
+    // 44. Campfire and soul_campfire emit light, which the generator carries through from the data.
+    id: 'utility_cubes',
+    match: (n) => /^(campfire|soul_campfire|chiseled_bookshelf|jukebox|beehive|bee_nest|barrel|smoker|blast_furnace|grindstone|stonecutter|loom|composter|lectern|cartography_table|smithing_table|fletching_table|bell|decorated_pot)$/.test(n),
+    texture: (n) => (n === 'campfire' || n === 'soul_campfire' ? `${n}_log.png` : `${n}_top.png`),
+    sound: 'wood',
+  },
+  {
     // Base stone variants that are plain cubes.
     id: 'stone_cubes',
     match: (n) => /^(diorite|andesite|granite|polished_diorite|polished_andesite|polished_granite|calcite|tuff|dripstone_block|deepslate|polished_deepslate|smooth_stone|stone_bricks|mossy_stone_bricks|cracked_stone_bricks|chiseled_stone_bricks|bricks|prismarine|prismarine_bricks|dark_prismarine|netherrack|soul_sand|soul_soil|basalt|smooth_basalt|blackstone|polished_blackstone|gilded_blackstone|end_stone|end_stone_bricks|purpur_block|packed_mud|mud_bricks|quartz_block|smooth_quartz|chiseled_quartz_block|quartz_pillar|hay_block|dried_kelp_block|sponge|wet_sponge|honeycomb_block|ochre_froglight|verdant_froglight|pearlescent_froglight|sculk|moss_block|rooted_dirt|coarse_dirt|podzol|mycelium|red_sand|smooth_sandstone|chiseled_sandstone|cut_sandstone|red_sandstone|smooth_red_sandstone|chiseled_red_sandstone|cut_red_sandstone|smooth_stone_slab)$/.test(n),
@@ -72,7 +80,7 @@ const FAMILIES = [
 ];
 
 // Materials that are definitely NOT plain full cubes, even inside a matched family.
-const NOT_A_CUBE = /(_slab|_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_pane|_carpet|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_jukebox|_note_block|_chest|_barrel|_furnace|_smoker|_blast_furnace|_campfire|_lectern|_loom|_cartography_table|_smithing_table|_stonecutter|_grindstone|_composter|_beehive|_bee_nest|_bell|_conduit|_beacon|_spawner|_head|_skull|_pot|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
+const NOT_A_CUBE = /(_slab|_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_pane|_carpet|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
 
 const constName = (n) => n.toUpperCase();
 
