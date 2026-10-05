@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1551 recipes.
+// 1552 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -924,6 +924,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['paper','paper','paper','leather'],result:{id:'book',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.SLIME_BLOCK],result:{id:'slime_ball',isBlock:false,count:9}},
   {pattern:[[null,'iron_ingot',null],['iron_ingot','redstone','iron_ingot'],[null,'iron_ingot',null]],result:{id:'compass',isBlock:false,count:1}},
+  {pattern:[['string'],['leather']],result:{id:'bundle',isBlock:false,count:1}},
   {pattern:[[null,null,'stick'],[null,'stick','string'],['stick',null,'string']],result:{id:'fishing_rod',isBlock:false,count:1}},
   {pattern:[[null,'gold_ingot',null],['gold_ingot','redstone','gold_ingot'],[null,'gold_ingot',null]],result:{id:'clock',isBlock:false,count:1}},
   {shapeless:true,ingredients:['bone_meal'],result:{id:'white_dye',isBlock:false,count:1}},
@@ -1571,21 +1572,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1551;
+export const EXTRA_RECIPE_COUNT = 1552;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1551,
-  "shaped": 1280,
+  "emitted": 1552,
+  "shaped": 1281,
   "shapeless": 271,
-  "skippedMissingResult": 4,
+  "skippedMissingResult": 3,
   "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1551,
+  "emittedBeforeDedupe": 1552,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

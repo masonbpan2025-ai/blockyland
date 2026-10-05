@@ -60,6 +60,10 @@ export const NON_MINING_TOOLS = new Set([
   // The mob buckets. This game types a bucket as a tool -- it is something you hold -- and a bucket mines
   // nothing. Added by the fish-bucket batch, which two of these guards caught the same round it landed.
   'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'axolotl_bucket', 'tadpole_bucket',
+  // And the bundles, seventeen of them: a pouch is held, not swung.
+  'bundle', 'white_bundle', 'orange_bundle', 'magenta_bundle', 'light_blue_bundle', 'yellow_bundle', 'lime_bundle', 'pink_bundle',
+  'gray_bundle', 'light_gray_bundle', 'cyan_bundle', 'purple_bundle', 'blue_bundle', 'brown_bundle',
+  'green_bundle', 'red_bundle', 'black_bundle',
   'compass', 'clock', 'lead', 'name_tag', 'saddle',
   // This project's own weapon: a spear thrusts, it does not mine.
   'golden_spear',

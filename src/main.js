@@ -47,6 +47,7 @@ import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { catchFish, releaseFish } from './fishBuckets.js';
+import { takeFromBundle } from './bundles.js';
 import { isGlassBottle, useGlassBottle } from './bottles.js';
 import { blockDrops } from './blockDrops.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
@@ -1303,6 +1304,17 @@ class Game {
       if (this.sounds?.playMilk) this.sounds.playMilk();
       this.ui?.updateHotbar?.();
       this.ui?.updateStats?.();
+      return;
+    }
+    // A bundle in hand gives one item back, into the world: that is how a full bundle empties, and it is the
+    // only gesture vanilla gives it. The item goes where the player is looking, like any other drop.
+    const held = takeFromBundle(bucketItem);
+    if (held) {
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      const at = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).add(direction.multiplyScalar(0.6));
+      this.inventory.hotbar[this.inventory.activeSlot] = { ...bucketItem, contents: held.contents };
+      this.entities.spawnDroppedItem(at, held.item.id, Boolean(held.item.isBlock), held.item.count);
+      this.sounds.playClick?.(); this.ui.updateHotbar();
       return;
     }
     // A fish bucket used on water releases the mob, which is the only way a caught fish gets back out. The

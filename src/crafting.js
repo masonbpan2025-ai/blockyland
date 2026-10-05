@@ -401,6 +401,25 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
 RECIPES_2X2.push({pattern:[['stick'],[BLOCKS.COBBLESTONE]],result:{id:BLOCKS.LEVER,isBlock:true,count:1}},{pattern:[['redstone'],['stick']],result:{id:BLOCKS.REDSTONE_TORCH,isBlock:true,count:1}},{pattern:[[BLOCKS.STONE]],result:{id:BLOCKS.STONE_BUTTON,isBlock:true,count:1}},{pattern:[[BLOCKS.STONE,BLOCKS.STONE]],result:{id:BLOCKS.PRESSURE_PLATE,isBlock:true,count:1}});
 RECIPES_3X3.push(...RECIPES_2X2.slice(-4),{pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.COBBLESTONE,'iron_ingot',BLOCKS.COBBLESTONE],[BLOCKS.COBBLESTONE,'redstone',BLOCKS.COBBLESTONE]],result:{id:BLOCKS.PISTON,isBlock:true,count:1}},{pattern:[['slime_ball'],[BLOCKS.PISTON]],result:{id:BLOCKS.STICKY_PISTON,isBlock:true,count:1}},{pattern:[[BLOCKS.REDSTONE_TORCH,'redstone',BLOCKS.REDSTONE_TORCH],[BLOCKS.STONE,BLOCKS.STONE,BLOCKS.STONE]],result:{id:BLOCKS.REPEATER,isBlock:true,count:1}},{pattern:[['redstone','redstone','redstone'],['redstone','redstone','redstone'],['redstone','redstone','redstone']],result:{id:BLOCKS.REDSTONE_BLOCK,isBlock:true,count:1}});
 
+// Dyeing a bundle, vanilla's sixteen recipes. The plain bundle itself is in the generated table -- it is
+// one string and one leather, straight out of the pinned data -- but the *coloured* bundles have no entry
+// there, so without these sixteen the dyed ones would exist and be unobtainable. Shapeless, any dye, one
+// result, exactly as vanilla has it.
+const BUNDLE_DYES = {
+  white: 'white_dye', orange: 'orange_dye', magenta: 'magenta_dye', light_blue: 'light_blue_dye',
+  yellow: 'yellow_dye',
+  lime: 'lime_dye', pink: 'pink_dye', gray: 'gray_dye', light_gray: 'light_gray_dye',
+  cyan: 'cyan_dye', purple: 'purple_dye', blue: 'blue_dye', brown: 'brown_dye',
+  green: 'green_dye', red: 'red_dye', black: 'black_dye',
+};
+RECIPES_2X2.push(
+  ...Object.entries(BUNDLE_DYES).map(([colour, dye]) => ({
+    shapeless: true,
+    ingredients: ['bundle', dye],
+    result: { id: `${colour}_bundle`, isBlock: false, count: 1 },
+  })),
+);
+
 // Rails, minecarts and boats. Rails are iron on sticks; a cart is iron in a U; a
 // boat is planks in a shallow V. Powered rail adds redstone, as it does in
 // Minecraft, so a station can be built from scratch.
