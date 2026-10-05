@@ -358,27 +358,51 @@ and `brush`. The geometry work is complete: this project now draws slabs, stairs
 doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
 rods, rails and flower pots, each with tests.
 
-### 4.2 Mob drops — the DATA is verified in full, and it is not yet used
+### 4.2 Mob drops — there are TWO tables, and the verified one is the unused one
 
-**This section previously overstated its result and the correction matters.** `scripts/mob-loot-parity.mjs`
-compares `MOB_LOOT` against vanilla's entity loot tables on three axes and finds no difference. What it
-does **not** show is that those drops reach the player: **`src/mobLootData.js` is currently dead code.**
-Nothing imports `MOB_LOOT`, `lootFor` or `rollLoot` — the only reference anywhere is a comment. Mob deaths
-drop items through ad-hoc code in `mobs.js`, which handles saddles, horse armour, wolf armour and piglin
-inventories but not the general loot table.
+**This is the most misleading corner of the repository and the earlier versions of this section made it
+worse.** There are two independent mob drop tables:
 
-So the correct claim is: **the loot data matches vanilla exactly, and no gameplay path reads it.** Wiring
-it into mob death is the outstanding work, and it lives in `mobs.js`, which is another agent's active
-file. `tests/mobLootParity.test.js` asserts the current state explicitly, so the day it is wired that test
-fails and this paragraph has to be updated rather than quietly becoming true.
+| table | where | imported by | verified against vanilla |
+|---|---|---|---|
+| `MOB_LOOT` | `src/mobLootData.js` | **nothing** | **yes**, 104/104 entries |
+| `getMobDeathDrops` | `src/mobs.js` | `mobs.js`, i.e. the live path | **not measured** |
+
+`MOB_LOOT` is dead code: nothing imports `mobLootData.js`, and the only reference anywhere is a comment in
+`player.js`. The table that actually produces drops is `MobManager.getMobDeathDrops`, which is thorough --
+it has a base table plus about twenty per-mob helper functions (`spiderDrops`, `phantomDrops`,
+`polarBearDrops`, `variantBonusDrops` and so on) and cites the wiki at most rows. It had never been
+compared against vanilla.
+
+So the honest position is: **the data that matches vanilla is unused, and the data that is used is
+unmeasured.** A section that reported "mob drops verified 104/104" was describing the wrong table.
+
+### 4.2.1 Two attempts to measure the live table, both invalid
+
+Recorded because both produced confident-looking numbers that were wrong, and because the next person to
+try should start from a different place.
+
+1. **Calling `getMobDeathDrops` with a stub mob and an empty `this`.** It reported 21 entities missing
+   items. Invalid: the method delegates to per-mob helpers that read live mob state, so a stub produces
+   nothing for any mob handled that way. It also reported `sheep` as having no wool row when the row is
+   right there and simply needs `mob.woolColor`.
+2. **Checking the source text for each mob type.** It reported 22 entities "not named at all", including
+   `blaze`, `sheep` and `spider`, all of which are present. The regex required `type: [[` while the real
+   rows look like `blaze: mob.playerDamaged ? [['blaze_rod', ...]] : []`, and the helper-based mobs name no
+   type at all.
+
+A valid comparison needs real mob instances driven through each drop path, which is a harness rather than
+a script. Until that exists, **no coverage figure for the live table should be quoted**, including by this
+document.
 
 | | compared | differences |
 |---|---|---|
-| Entities with drops | 55 | — |
-| Drop entries | 104 | — |
-| Drop chance | 104 | 0 |
-| Stack count | 104 | 0 |
-| `playerKill` condition | 104 | 0 |
+| `MOB_LOOT` entities with drops | 55 | — |
+| `MOB_LOOT` drop entries | 104 | — |
+| `MOB_LOOT` drop chance | 104 | 0 |
+| `MOB_LOOT` stack count | 104 | 0 |
+| `MOB_LOOT` `playerKill` condition | 104 | 0 |
+| `getMobDeathDrops` | not measured | — |
 
 **This project follows vanilla's semantics, not Mineclonia's.** Mineclonia's `chance` field is 1-in-N
 (see 3.12 above), so a smaller number means a *rarer* drop; vanilla's is a probability, so a smaller

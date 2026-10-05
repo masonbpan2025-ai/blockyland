@@ -90,20 +90,32 @@ test('a ranged count produces every value in its range', () => {
   }
 });
 
-test('the loot table is not yet wired into mob death, and this documents that', () => {
-  // This test asserts a GAP rather than a virtue, deliberately.
+test('the verified table is the unused one, and the used one is unmeasured', () => {
+  // This test asserts the repository's actual situation rather than a virtue, deliberately.
   //
-  // The parity results above show the DATA matches vanilla exactly. They do not show that the data is
-  // used: nothing imports mobLootData.js, and mob deaths drop items through ad-hoc code in mobs.js. An
-  // earlier version of this file's header implied full mob-drop parity without saying so.
+  // The parity results above show MOB_LOOT matches vanilla exactly. They say nothing about gameplay,
+  // because nothing imports mobLootData.js: the table that produces drops is MobManager.getMobDeathDrops
+  // in mobs.js, which has never been compared against vanilla. An earlier version of this file implied
+  // full mob-drop parity without saying which table it meant.
   //
-  // The assertion is written to FAIL when the table is wired, so wiring it forces this test and the
-  // section 4.2 paragraph to be updated together rather than leaving a stale claim behind.
-  const src = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
-  const usesLootTable = /from '\.\/mobLootData\.js'|rollLoot\(|lootFor\(/.test(src);
-  assert.equal(usesLootTable, false,
-    'mobs.js now imports the loot table. That is the fix this gap was waiting for: update '
-    + 'docs/survival-parity-rules.md section 4.2 and this test so the parity claim covers gameplay.');
+  // The assertion is written to FAIL when MOB_LOOT is wired, so that change forces this test and the
+  // section 4.2 table to be updated together instead of leaving a stale claim behind.
+  const mobLootSource = readFileSync(new URL('../src/mobLootData.js', import.meta.url), 'utf8');
+  assert.ok(/export const MOB_LOOT/.test(mobLootSource), 'the table should still exist');
+
+  const mobs = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
+  assert.equal(/from '\.\/mobLootData\.js'/.test(mobs), false,
+    'mobs.js now imports the verified table. Update docs/survival-parity-rules.md section 4.2 and this '
+    + 'test together, and measure getMobDeathDrops against vanilla while you are there.');
+
+  // And the live path is a different, substantial table rather than a stub.
+  const start = mobs.indexOf('  getMobDeathDrops(mob');
+  assert.ok(start > 0, 'the live drop table should exist');
+  const end = mobs.indexOf('\n  /**', start);
+  const body = mobs.slice(start, end);
+  assert.ok(body.length > 4000, 'the live table should be substantial, got ' + body.length + ' chars');
+  assert.ok((body.match(/Drops\(mob/g) || []).length >= 15,
+    'the live table should delegate to per-mob helpers');
 });
 
 test('vanilla entries are readable for a known mob', (t) => {

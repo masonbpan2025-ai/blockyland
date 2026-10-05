@@ -38,10 +38,14 @@ function threeColumnRows(text, heading) {
   assert.ok(start >= 0, 'the heading "' + heading + '" should exist in ' + DOC);
   const section = text.slice(start);
   const rows = new Map();
-  // The differences column holds an em dash where nothing is comparable, so it is not parsed as a digit.
-  for (const m of section.matchAll(/^\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|\s*$/gm)) {
-    const diff = /^\d+$/.test(m[3]) ? Number(m[3]) : null;
-    rows.set(m[1], { compared: Number(m[2]), differences: diff, raw: m[3] });
+  // Neither of the last two columns is necessarily a number: the differences column holds an em dash
+  // where nothing is comparable, and the compared column holds prose for the table that has not been
+  // measured. A digits-only pattern silently dropped that row, and the test then reported it as missing
+  // rather than as unparsed.
+  for (const m of section.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$/gm)) {
+    const compared = /^\d+$/.test(m[2].trim()) ? Number(m[2].trim()) : null;
+    const diff = /^\d+$/.test(m[3].trim()) ? Number(m[3].trim()) : null;
+    rows.set(m[1], { compared, differences: diff, rawCompared: m[2].trim(), raw: m[3].trim() });
   }
   return rows;
 }
@@ -125,23 +129,34 @@ test('the mob drop table in the document matches the measurement', async (t) => 
   const doc = readFileSync(DOC, 'utf8');
   const r = compareMobLoot();
   const rows = threeColumnRows(doc, '### 4.2 Mob drops');
-  const entries = rows.get('Drop entries');
-  assert.ok(entries, 'the mob drop table should report the number of entries compared');
+  // The labels carry the table name, because the document now has TWO tables to distinguish: the verified
+  // but unused MOB_LOOT, and the live getMobDeathDrops which has no figures at all. A reader (and this
+  // guard) must not be able to confuse which numbers belong to which.
+  const MOB_LOOT = '`MOB_LOOT` ';
+  const entries = rows.get(MOB_LOOT + 'drop entries');
+  assert.ok(entries, 'the mob drop table should report the number of entries compared; labels are '
+    + [...rows.keys()].join(' | '));
   assert.equal(entries.compared, r.compared,
     'the document says ' + entries.compared + ' drop entries; the measurement says ' + r.compared);
-  const entities = rows.get('Entities with drops');
+  const entities = rows.get(MOB_LOOT + 'entities with drops');
   assert.ok(entities, 'and the number of entities');
   assert.equal(entities.compared, r.entities,
     'the document says ' + entities.compared + ' entities; the measurement says ' + r.entities);
   assert.equal(r.chanceDiff.length + r.countDiff.length + r.flagDiff.length, 0,
     'the document claims no differences, but the measurement found some');
   // And the document must not claim a difference where there is none, or the reverse.
-  for (const [label, count] of [['Drop chance', r.chanceDiff.length],
-    ['Stack count', r.countDiff.length], ['`playerKill` condition', r.flagDiff.length]]) {
+  for (const [label, count] of [[MOB_LOOT + 'drop chance', r.chanceDiff.length],
+    [MOB_LOOT + 'stack count', r.countDiff.length], [MOB_LOOT + '`playerKill` condition', r.flagDiff.length]]) {
     const row = rows.get(label);
     if (!row) continue;
     // An em dash means "not applicable" for the entity and entry rows; a numeric column must agree.
     assert.notEqual(row.differences, null, label + ' should report a count, not a dash');
     assert.equal(row.differences, count, label + ' disagreement count is stale in the document');
   }
+  // The live table must be marked as unmeasured rather than silently omitted, or the section reads as
+  // though mob drops were covered when only the unused table has been checked.
+  const live = rows.get('`getMobDeathDrops`');
+  assert.ok(live, 'the document should have a row for the live table');
+  assert.equal(live.differences, null, 'and its difference column should be a dash, not a number');
+  assert.ok(/not measured/i.test(doc), 'the document should say the live table is unmeasured');
 });
