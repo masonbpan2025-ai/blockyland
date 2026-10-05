@@ -38,6 +38,11 @@ SKINS = os.path.join("public", "assets", "entity")
 # block-stem -> skin file (relative to public/assets/entity)
 HEADS = {
     "skeleton_skull": "skeleton/skeleton.png",
+    # The wither skeleton was missed by the first pass of this batch, because the standing block already
+    # existed under a NON-STANDARD key (`WITHER_SKELETON_SKULL_BLOCK`) pointing at `coal_block.png`, so the
+    # gap report counted the name as resolved and nothing flagged it. Only its wall form was missing, which
+    # is what surfaced the problem. Its sheet is in the same standard layout as the plain skeleton's.
+    "wither_skeleton_skull": "skeleton/wither_skeleton.png",
     "zombie_head": "zombie/zombie.png",
     "creeper_head": "creeper/creeper.png",
     "player_head": "player/wide/steve.png",

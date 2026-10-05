@@ -743,7 +743,17 @@ export const BLOCKS = {
   ZOMBIE_WALL_HEAD: 1183,
   PLAYER_WALL_HEAD: 1184,
   PIGLIN_WALL_HEAD: 1185,
-};
+
+  // --- The wither skeleton skull, twenty-fifth block-parity batch --------------------------------
+  //
+  // `WITHER_SKELETON_SKULL` is an ALIAS for the entry that already exists as
+  // `WITHER_SKELETON_SKULL_BLOCK` (id 185). bossFights.js references that older key by name, so it is kept
+  // rather than renamed; the alias exists so the canonical vanilla name resolves to the same block and the
+  // naming stops being an exception.
+  //
+  // The wall form is genuinely new.
+  WITHER_SKELETON_SKULL: 185,
+  WITHER_SKELETON_WALL_SKULL: 1186,};
 
 export const BLOCK_DEFS = {
   [BLOCKS.POWDER_SNOW]: {name:'Powder Snow',hardness:.25,solid:false,transparent:true,sound:'snow',drop:BLOCKS.POWDER_SNOW,textures:{all:'snow.png'}},
@@ -2011,7 +2021,16 @@ export const BLOCK_DEFS = {
   [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, dropItem: 'sculk_shrieker', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
   [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
-  [BLOCKS.WITHER_SKELETON_SKULL_BLOCK]: { name: 'Wither Skeleton Skull', hardness: 1.0, sound: 'stone', transparent: true, solid: true, skull: true, dropItem: 'wither_skeleton_skull', textures: { all: 'coal_block.png' } },
+  // This entry had `textures: { all: 'coal_block.png' }` and a `skull: true` flag that nothing in the
+  // codebase reads, so it rendered as a coal cube. It now carries `head`, which is what routes a block to
+  // the head geometry, and the real extracted faces. `solid` is dropped because a head is an 8/16 prop.
+  //
+  // Its drop is the BLOCK ID, which is a repair. It previously declared `dropItem:
+  // 'wither_skeleton_skull'` -- an item name that resolves to nothing, so the block dropped nothing at
+  // all. `tests/harvestLookup.test.js` has a case named for that bug. Passing the block id goes through
+  // the item pipeline's BLOCK path, which is what `SKELETON_SKULL` does and what actually yields an item.
+  [BLOCKS.WITHER_SKELETON_SKULL_BLOCK]: { name: 'Wither Skeleton Skull', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.WITHER_SKELETON_SKULL, textures: { top: 'wither_skeleton_skull_top.png', side: 'wither_skeleton_skull_front.png', bottom: 'wither_skeleton_skull_bottom.png' } },
+  [BLOCKS.WITHER_SKELETON_WALL_SKULL]: { name: 'Wither Skeleton Wall Skull', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.WITHER_SKELETON_SKULL, textures: { top: 'wither_skeleton_skull_top.png', side: 'wither_skeleton_skull_front.png', bottom: 'wither_skeleton_skull_bottom.png' } },
 
   // --- Villager Workstation Blocks ---
   [BLOCKS.BLAST_FURNACE]: { name: 'Blast Furnace', hardness: 3.5, sound: 'stone', workstation: 'armorer', textures: { top: 'furnace_top.png', front: 'furnace_front.png', side: 'smooth_stone.png', bottom: 'stone.png' } },
