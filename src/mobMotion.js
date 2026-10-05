@@ -5,15 +5,15 @@ import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
 import { isLethalStep, hazardKind, isFireImmune } from './hazards.js';
 
-export function wanderMob(manager, mob, dt, speed) {
+export function wanderMob(manager, mob, dt, speed, random = Math.random) {
   mob.wanderTimer = (mob.wanderTimer || 0) - dt;
   if (mob.wanderTimer <= 0 || (mob.wanderGoal && mob.mesh.position.distanceTo(mob.wanderGoal) < 0.65)) {
     mob.wanderGoal = null;
-    mob.wanderTimer = 1 + Math.random() * 2;
-    if (Math.random() > 0.2) {
+    mob.wanderTimer = 1 + random() * 2;
+    if (random() > 0.2) {
       for (let attempt = 0; attempt < 12; attempt++) {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = attempt < 6 ? 3 + Math.random() * 5 : 1 + Math.random() * 2;
+        const angle = random() * Math.PI * 2;
+        const distance = attempt < 6 ? 3 + random() * 5 : 1 + random() * 2;
         const goal = mob.mesh.position.clone().add(new THREE.Vector3(Math.sin(angle) * distance, 0, Math.cos(angle) * distance));
         const baseY = Math.floor(goal.y);
         for (let y = baseY + 1; y >= baseY - 2; y--) {

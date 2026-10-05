@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { igniteActor } from './heat.js';
+import { applyCubeSize } from './cubeMobBehavior.js';
 
 function attackDamage(manager, base) {
   const difficulty = manager.game?.difficulty;
@@ -8,9 +9,9 @@ function attackDamage(manager, base) {
 }
 
 export function setMagmaSize(mob, size) {
-  mob.slimeSize = size;
-  mob.width = mob.height = .51 * size;
-  mob.health = mob.maxHealth = size * size;
+  // Health and hitbox come from the shared cube rule both slimes and magma cubes use.
+  // Magma cubes add size-scaled armour and their own mesh scale on top.
+  applyCubeSize(mob, size);
   mob.armor = size * 3;
   mob.mesh.scale.setScalar(mob.width / .8);
 }
@@ -24,50 +25,79 @@ function visible(manager, from, to) {
   return true;
 }
 
+export function alertBlazes(manager, mob, attacker) {
+  if (!attacker || attacker === mob || ['creative','spectator'].includes(attacker.gamemode)) return;
+  for (const other of manager.mobs) if (other.type==='blaze' && other.health>0 && other.mesh.position.distanceTo(mob.mesh.position)<=48) {
+    other.blazeTarget=attacker;other.blazeAnger=30;
+  }
+}
+
 export function updateBlaze(manager, mob, player, dt) {
-  const pos = mob.mesh.position;
-  const target = player.position.clone().add(new THREE.Vector3(0, .9, 0));
-  const origin = pos.clone().add(new THREE.Vector3(0, 1.35, 0));
-  const distance = origin.distanceTo(target);
-  const active = manager.game?.difficulty !== 'peaceful' && player.gamemode !== 'creative' && player.gamemode !== 'spectator' && distance < 48 && visible(manager, origin, target);
-  mob.velocity.y = active && target.y > origin.y ? Math.min(2, (target.y - origin.y) * .5) : Math.max(-1.2, mob.velocity.y - dt * 3);
-  mob.velocity.x = mob.velocity.z = 0;
-  mob.blazeTimer = Math.max(0, (mob.blazeTimer || 0) - dt);
-  mob.meleeTimer = Math.max(0, (mob.meleeTimer || 0) - dt);
-  if (active) {
-    const dir = target.clone().sub(origin); dir.y = 0; dir.normalize();
-    mob.yaw = Math.atan2(dir.x, dir.z);
-    if (distance < 2 || distance > 32) {
-      mob.velocity.x = dir.x * 1.5; mob.velocity.z = dir.z * 1.5;
+  if(mob.frozen || mob.health<=0)return;
+  const pos=mob.mesh.position, world=manager.world;
+  mob.blazeAnger=Math.max(0,(mob.blazeAnger || 0)-dt);
+  if(!mob.blazeAnger || mob.blazeTarget?.health<=0)mob.blazeTarget=null;
+  const victim=mob.blazeTarget || player;
+  const victimPos=victim.mesh?.position || victim.position;
+  const target=victimPos.clone().add(new THREE.Vector3(0,(victim.height || 1.8)*.5,0));
+  const origin=pos.clone().add(new THREE.Vector3(0,1.35,0));
+  const active=manager.game?.difficulty!=='peaceful' && !victim.isDead && !['creative','spectator'].includes(victim.gamemode) && pos.distanceTo(victimPos)<=48;
+  const sight=active && visible(manager,origin,target);
+  mob.hasPlayerTarget=active && victim===player;
+  mob.meleeTimer=Math.max(0,(mob.meleeTimer || 0)-dt);
+  mob.velocity.x=mob.velocity.z=0;
+  // Java blazes sink when idle, and rise to hover above their target in combat.
+  const desiredY=victimPos.y+1.5;
+  mob.velocity.y=active?THREE.MathUtils.clamp((desiredY-pos.y)*1.4,-1.2,2):Math.max(-1.2,mob.velocity.y-dt*3);
+  if(active){
+    const dir=victimPos.clone().sub(pos);dir.y=0;const distance=dir.length();dir.normalize();mob.yaw=Math.atan2(dir.x,dir.z);
+    if(distance>2){
+      const ahead=pos.clone().addScaledVector(dir,.7);
+      const water=world.getVoxel(Math.floor(ahead.x),Math.floor(ahead.y),Math.floor(ahead.z))===BLOCKS.WATER;
+      if(!water){mob.velocity.x=dir.x*.65;mob.velocity.z=dir.z*.65;}
     }
-    if (distance < 1.4 && mob.meleeTimer === 0) {
-      player.takeDamage?.(attackDamage(manager, 6), pos, 'blaze'); mob.meleeTimer = 1;
+    const touching=Math.abs(pos.x-victimPos.x)<(.6+(victim.width||.6))/2+.08 && Math.abs(pos.z-victimPos.z)<(.6+(victim.width||.6))/2+.08 && pos.y<victimPos.y+(victim.height||1.8) && pos.y+1.8>victimPos.y;
+    if(touching && mob.meleeTimer===0){
+      if(victim.mesh)manager.damageMob(victim,attackDamage(manager,6),pos,false,mob);
+      else victim.takeDamage?.(attackDamage(manager,6),pos,'blaze');
+      mob.meleeTimer=1;
     }
-    if (!mob.blazePhase && mob.blazeTimer === 0) { mob.blazePhase = 'charge'; mob.blazeTimer = 3; }
-    else if (mob.blazePhase === 'charge' && mob.blazeTimer === 0) {
-      mob.blazePhase = 'burst'; mob.blazeShots = 0;
+    // Occlusion pauses a pending volley. It must not restart the charge or lose shots.
+    if(sight){
+      mob.blazeTimer=Math.max(0,(mob.blazeTimer || 0)-dt);
+      if(!mob.blazePhase && mob.blazeTimer===0){mob.blazePhase='charge';mob.blazeTimer=3;}
+      else if(mob.blazePhase==='charge' && mob.blazeTimer===0){mob.blazePhase='burst';mob.blazeShots=0;}
+      if(mob.blazePhase==='burst' && mob.blazeTimer===0){
+        if(mob.blazeShots<3){shootBlazeFireball(manager,mob,target);mob.blazeShots++;mob.blazeTimer=.3;}
+        else {mob.blazePhase=null;mob.blazeTimer=5;}
+      }
     }
-    if (mob.blazePhase === 'burst' && mob.blazeTimer === 0) {
-      if (mob.blazeShots < 3) { shootBlazeFireball(manager, mob, target); mob.blazeShots++; mob.blazeTimer = .3; }
-      else { mob.blazePhase = null; mob.blazeTimer = 5; }
-    }
-  } else if (mob.blazePhase) { mob.blazePhase = null; mob.blazeTimer = 5; }
-  mob.charging = !!mob.blazePhase;
-  for (const tier of mob.tiers || []) for (const rod of tier.children) rod.material.emissiveIntensity = mob.charging ? 1.5 : .4;
-  mob.wetTimer = (mob.wetTimer || 0) - dt;
-  const water = manager.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)) === BLOCKS.WATER;
-  const weather = manager.game?.weather?.weatherType;
-  let rain = manager.world.dimension !== 'nether' && (weather === 'rain' || weather === 'thunder');
-  if (rain) for (let y = Math.ceil(pos.y + 1.8); y < 128; y++) if (manager.isBlockSolid(Math.floor(pos.x), y, Math.floor(pos.z))) { rain = false; break; }
-  if ((water || rain) && mob.wetTimer <= 0) { manager.damageMob(mob, 1); mob.wetTimer = .5; }
+  }else{mob.blazePhase=null;mob.blazeTimer=Math.max(0,(mob.blazeTimer || 0)-dt);}
+  mob.charging=!!mob.blazePhase;
+  mob.wetTimer=(mob.wetTimer || 0)-dt;
+  const x=Math.floor(pos.x),z=Math.floor(pos.z);
+  const water=[.1,.9,1.7].some(h=>world.getVoxel(x,Math.floor(pos.y+h),z)===BLOCKS.WATER);
+  const weather=manager.game?.weather?.weatherType;
+  let rain=world.dimension!=='nether' && ['rain','thunder'].includes(weather);
+  if(rain)for(let y=Math.ceil(pos.y+1.8);y<128;y++)if(manager.isBlockSolid(x,y,z)){rain=false;break;}
+  if((water||rain)&&mob.wetTimer<=0){manager.damageMob(mob,1,null,false,null,true);mob.wetTimer=.5;}
+  const powder=world.getVoxel(x,Math.floor(pos.y+.2),z)===BLOCKS.POWDER_SNOW;
+  mob.freezeTime=powder?(mob.freezeTime || 0)+dt:Math.max(0,(mob.freezeTime||0)-dt*2);
+  mob.freezeDamageTime=(mob.freezeDamageTime || 0)-dt;
+  if(mob.freezeTime>=7 && mob.freezeDamageTime<=0){manager.damageMob(mob,5,null,false,null,true);mob.freezeDamageTime=2;}
 }
 
 export function shootBlazeFireball(manager, mob, target) {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6), new THREE.MeshBasicMaterial({color: 0xffb52b}));
   mesh.position.copy(mob.mesh.position).add(new THREE.Vector3(0, 1.35, 0));
-  const velocity = target.clone().sub(mesh.position).normalize().multiplyScalar(18);
+  const aim=target.clone().sub(mesh.position);
+  const spread=Math.sqrt(aim.length())*.04;
+  const random=manager.random || Math.random;
+  aim.x+=(random()-.5)*spread;aim.y+=(random()-.5)*spread;aim.z+=(random()-.5)*spread;
+  const velocity=aim.normalize().multiplyScalar(18);
   manager.scene.add(mesh);
-  manager.customProjectiles.push({mesh, position: mesh.position.clone(), velocity, age: 0, damage: 5, isBlazeFireball: true});
+  manager.customProjectiles.push({mesh, position: mesh.position.clone(), velocity, age: 0, damage: 5, isBlazeFireball: true, owner:mob});
+  mob.shotsFired=(mob.shotsFired || 0)+1;manager.sounds?.playBlaze?.();
 }
 
 export function updateBlazeFireball(manager, p, player, dt) {
@@ -82,6 +112,8 @@ export function updateBlazeFireball(manager, p, player, dt) {
       hit = true;
       const a = previous.toArray().map(Math.floor);
       if (manager.world.getVoxel(...a) === BLOCKS.AIR) manager.world.setVoxel?.(...a, BLOCKS.FIRE);
+    } else if (manager.world.getVoxel(x,y,z)===BLOCKS.WATER) {
+      hit=true;
     } else if (player.gamemode !== 'creative' && player.gamemode !== 'spectator' && Math.abs(p.position.x - player.position.x) < .45 && Math.abs(p.position.z - player.position.z) < .45 && p.position.y > player.position.y && p.position.y < player.position.y + 1.8) {
       const health = player.health;
       if (!player.hasStatusEffect?.('fire_resistance')) {
@@ -89,6 +121,14 @@ export function updateBlazeFireball(manager, p, player, dt) {
         if (player.health < health) igniteActor(player, 5);
       }
       hit = true;
+    }
+    if(!hit)for(const mob of manager.mobs){
+      if(mob===p.owner || mob.health<=0)continue;
+      const dims=manager.getMobDimensions(mob.type),pos=mob.mesh.position,half=(mob.width||dims.width)/2+.1;
+      if(Math.abs(p.position.x-pos.x)<half && Math.abs(p.position.z-pos.z)<half && p.position.y>=pos.y && p.position.y<=pos.y+(mob.height||dims.height)){
+        if(!mob.fireImmune && !mob.fireResistanceTime){manager.damageMob(mob,5,p.owner?.mesh.position,false,p.owner);igniteActor(mob,5);mob.combatTarget=p.owner;}
+        hit=true;break;
+      }
     }
   }
   p.mesh.position.copy(p.position);

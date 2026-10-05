@@ -122,14 +122,33 @@ test('cooking still works through the names this game actually uses', () => {
   }
 });
 
-test('the five pending ores are still absent, so nothing is written under a phantom key', () => {
-  // They are listed by name in furnace.js and activate when the block exists. While they do not, there
-  // must be no smelting entry that a caller could reach with a name no item can hold.
-  for (const name of ['DEEPSLATE_IRON_ORE', 'DEEPSLATE_GOLD_ORE', 'NETHER_GOLD_ORE', 'COPPER_ORE', 'DEEPSLATE_COPPER_ORE']) {
-    assert.equal(typeof BLOCKS[name], 'undefined', `${name} is expected to be unregistered`);
+test('a smelting or fuel entry named for a block is reachable only when that block exists', () => {
+  // The invariant this guards is not "these blocks are absent" -- five of them have since been
+  // registered by the ore-parity batch -- it is that a name in the smelting or fuel tables is never
+  // reachable under a key no item can hold. A lookup keyed on an unregistered block is `undefined`,
+  // and `SMELTING_RECIPES[undefined]` is a phantom entry that can never be hit but also cannot be
+  // seen to be dead.
+  //
+  // So for each name the tables mention: either the block exists AND its entry resolves, or the block
+  // does not exist AND there is no entry sitting under the undefined key it would produce.
+  const pending = ['DEEPSLATE_IRON_ORE', 'DEEPSLATE_GOLD_ORE', 'NETHER_GOLD_ORE', 'COPPER_ORE', 'DEEPSLATE_COPPER_ORE'];
+  let registered = 0;
+  for (const name of pending) {
+    const id = BLOCKS[name];
+    if (typeof id === 'number') {
+      registered++;
+      assert.ok(BLOCK_DEFS[id], `${name} is registered so it must have a definition`);
+      assert.ok(SMELTING_RECIPES[id], `${name} is registered so its smelting entry must resolve`);
+      continue;
+    }
+    assert.equal(SMELTING_RECIPES[id], undefined, `${name} is unregistered so nothing may sit under its key`);
   }
-  assert.equal(BLOCKS.OAK_SAPLING, undefined, 'and so is the sapling the fuel table named');
-  assert.equal(SMELTING_RECIPES[BLOCKS.COPPER_ORE], undefined);
+  // At least some of them are registered now, which is the whole point of the batch; if this drops to
+  // zero the ore work has been undone.
+  assert.ok(registered > 0, 'the ore batch registers these; none is registered, so it was reverted');
+
+  // The sapling the fuel table names is still absent, so its entry must still be unreachable.
+  assert.equal(BLOCKS.OAK_SAPLING, undefined, 'the sapling the fuel table named is still unregistered');
   assert.equal(FUEL_BURN_TIMES[BLOCKS.OAK_SAPLING], undefined);
 });
 

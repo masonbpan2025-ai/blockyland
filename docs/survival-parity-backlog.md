@@ -9,9 +9,9 @@ unavailable when its result OR any ingredient does not exist in this game.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Crafting recipes expressible | 421 | 1557 | 27.0% |
-| Blocks named | 271 | 1095 | 24.7% |
-| Items named | 486 | 1385 | 35.1% |
+| Crafting recipes expressible | 1547 | 1557 | 99.4% |
+| Blocks named | 830 | 1095 | 75.8% |
+| Items named | 1126 | 1385 | 81.3% |
 
 ## Highest-value individual additions
 
@@ -20,65 +20,24 @@ This is greedy set cover, so the gains are ordered and partly dependent on earli
 
 | # | name | recipes unblocked | running total |
 |---|---|---|---|
-| 1 | `flint` | 14 | 435 (27.9%) |
-| 2 | `stone_slab` | 13 | 448 (28.8%) |
-| 3 | `bowl` | 13 | 461 (29.6%) |
-| 4 | `jukebox` | 12 | 473 (30.4%) |
-| 5 | `white_bed` | 12 | 485 (31.1%) |
-| 6 | `orange_bed` | 12 | 497 (31.9%) |
-| 7 | `magenta_bed` | 12 | 509 (32.7%) |
-| 8 | `light_blue_bed` | 12 | 521 (33.5%) |
-| 9 | `yellow_bed` | 12 | 533 (34.2%) |
-| 10 | `lime_bed` | 12 | 545 (35.0%) |
-| 11 | `pink_bed` | 12 | 557 (35.8%) |
-| 12 | `gray_bed` | 12 | 569 (36.5%) |
-| 13 | `light_gray_bed` | 12 | 581 (37.3%) |
-| 14 | `cyan_bed` | 12 | 593 (38.1%) |
-| 15 | `purple_bed` | 12 | 605 (38.9%) |
-| 16 | `blue_bed` | 12 | 617 (39.6%) |
-| 17 | `brown_bed` | 12 | 629 (40.4%) |
-| 18 | `green_bed` | 12 | 641 (41.2%) |
-| 19 | `black_bed` | 13 | 654 (42.0%) |
-| 20 | `campfire` | 11 | 665 (42.7%) |
-| 21 | `soul_campfire` | 11 | 676 (43.4%) |
-| 22 | `yellow_dye` | 5 | 681 (43.7%) |
-| 23 | `red_dye` | 5 | 686 (44.1%) |
-| 24 | `black_dye` | 5 | 691 (44.4%) |
-| 25 | `oak_slab` | 5 | 696 (44.7%) |
-| 26 | `spruce_slab` | 5 | 701 (45.0%) |
-| 27 | `birch_slab` | 5 | 706 (45.3%) |
-| 28 | `jungle_slab` | 5 | 711 (45.7%) |
-| 29 | `acacia_slab` | 5 | 716 (46.0%) |
-| 30 | `cherry_slab` | 5 | 721 (46.3%) |
+| 1 | `ender_chest` | 1 | 1548 (99.4%) |
+| 2 | `shulker_box` | 1 | 1549 (99.5%) |
+| 3 | `scaffolding` | 1 | 1550 (99.6%) |
+| 4 | `trapped_chest` | 1 | 1551 (99.6%) |
+| 5 | `recovery_compass` | 1 | 1552 (99.7%) |
+| 6 | `bundle` | 1 | 1553 (99.7%) |
+| 7 | `spyglass` | 1 | 1554 (99.8%) |
+| 8 | `cake` | 1 | 1555 (99.9%) |
+| 9 | `map` | 1 | 1556 (99.9%) |
+| 10 | `creeper_head` | 1 | 1557 (100.0%) |
 
-Starting point: 421 of 1557 recipes craftable.
+Starting point: 1547 of 1557 recipes craftable.
 
 ## Missing content by family
 
 | Family | missing names | recipes blocked |
 |---|---|---|
-| Beds | 15 | 196 |
-| Slabs | 60 | 161 |
-| Dyes | 15 | 158 |
-| Logs and wood | 27 | 108 |
-| Copper and oxidation | 73 | 93 |
-| Stripped logs and wood | 23 | 89 |
-| Stairs | 57 | 68 |
-| Stone variants (polished, bricks, tiles) | 58 | 62 |
-| Fences, gates and walls | 50 | 50 |
-| Stained glass and panes | 32 | 48 |
-| Boats, buttons, pressure plates | 46 | 47 |
-| Carpets | 17 | 33 |
-| Doors and trapdoors | 38 | 32 |
-| Signs and hanging signs | 24 | 24 |
-| Food | 7 | 21 |
-| Music and decoration | 9 | 20 |
-| Concrete and powder | 16 | 16 |
-| Banners | 16 | 16 |
-| Candles | 16 | 16 |
-| Enchanting | 4 | 16 |
-| Ores and raw materials | 3 | 6 |
-| Redstone components | 2 | 2 |
+| Food | 1 | 1 |
 
 ## Notes
 

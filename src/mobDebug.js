@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createMobDebugSession, DEBUG_MOBS } from './mobDebugSession.js';
 import { BLOCKS } from './blocks.js';
-import { MobShowcase } from './mobShowcase.js';
+import { MobShowcase, mobScenarios } from './mobShowcase.js';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#233044');
 const camera=new THREE.PerspectiveCamera(42,1,.05,200);camera.position.set(3,2.5,6);
@@ -29,7 +29,7 @@ let showcase=null;
 function showReadout(){
   const box=$('showcase-status'), list=$('showcase-results');
   const results=showcase?.results || [];
-  if(!results.length){box.className='';box.textContent='Idle - press Run showcase to exercise this mob behaviours.';list.textContent='';return;}
+  if(!results.length && !showcase?.running){box.className='';box.textContent='Idle - press Run showcase to exercise this mob behaviours.';list.textContent='';return;}
   // Scenarios the game cannot exercise yet are reported but not scored: a missing feature
   // is not the mob failing its own test.
   const scored=results.filter(r=>r.status!=='unsupported');
@@ -38,7 +38,7 @@ function showReadout(){
   const running=showcase?.running;
   box.className=running?'running':(passed!==scored.length?'partial':(unsupported?'skipped':'pass'));
   box.textContent=running
-    ? `Running ${showcase.cases.length} scenarios... (${results.length} done)`
+    ? `${showcase.cases[showcase.index]?.label} (${results.length}/${showcase.cases.length})`
     : `${passed}/${scored.length} scenarios passed`
       + (unsupported?` - ${unsupported} not implemented yet`:'')
       + ` - ${selected.replaceAll('_',' ')}`;
@@ -52,16 +52,17 @@ function stopShowcase(cancelled=true){if(showcase?.running)showcase.stop(cancell
 function runShowcase(){
   // Start from a clean mob so the first scenario is unaffected by whatever the controls
   // had been doing.
-  reset();
+  const chosen=$('test-case').value;reset();$('test-case').value=chosen;
   paused=false;$('pause').textContent='Pause';
   showcase=new MobShowcase(session,onShowcaseReport);
-  showcase.start(selected);
+  showcase.start(selected,$('test-case').value || null);
   $('showcase-stop').disabled=false;$('showcase').disabled=true;
   showReadout();updateReadout();
 }
 function onShowcaseReport(report){
   if(report.cancelled){showcase=null;$('showcase-stop').disabled=true;$('showcase').disabled=false;}
   else if(report.done){
+    paused=true;$('pause').textContent='Play';
     $('showcase-stop').disabled=true;$('showcase').disabled=false;
     const scored=(report.results||[]).filter(r=>r.status!=='unsupported');
     const passed=scored.filter(r=>r.status==='observed').length;
@@ -79,12 +80,12 @@ const checklists={
 function front(){const h=session.mob?.height || session.manager.getMobDimensions(selected).height;controls.target.set(0,h*.6,0);camera.position.set(0,h*.7+1,Math.max(4,h*2.5));controls.update();}
 const angleView=document.createElement('button');angleView.textContent='3/4 view';$('front').after(angleView);
 angleView.onclick=()=>{const p=session.mob.mesh.position,h=session.manager.getMobDimensions(selected).height;controls.target.copy(p).y+=h*.6;camera.position.copy(p).add(new THREE.Vector3(3,h*.7+1,4));controls.update();};
-function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';session.reset(selected);$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',`?mob=${selected}`);updateReadout();}
+function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';session.reset(selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',`?mob=${selected}`);updateReadout();}
 function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
 $('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;
 $('showcase').onclick=runShowcase;$('showcase-stop').onclick=()=>stopShowcase(true);
 $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play':'Pause';updateReadout();};
-function tickShowcase(){for(let i=0;i<8&&showcase?.running;i++)showcase.tick(1/30);}
+function tickShowcase(){if(showcase?.running)showcase.tick(1/60);}
 function tick(){if(selected==='zombified_piglin')session.mob.frozen=$('mode').value==='inspect';session.player.gamemode=$('mode').value==='combat'?'survival':'spectator';session.tick(1/60);dummy.position.copy(session.player.position).y+=.9;dummy.visible=$('mode').value==='combat';}
 $('step').onclick=()=>{paused=true;$('pause').textContent='Play';try{for(let i=0;i<6;i++)tick();updateReadout();}catch(e){fail(e);}};
 $('hit').onclick=()=>{session.hit();updateReadout();};$('kill').onclick=()=>{session.hit(10000);updateReadout();};
@@ -99,4 +100,8 @@ installSquidInspector(session,log);
 installWitherSkeletonInspector(session,log);
 installZombifiedInspector(session,log);
 installStriderInspector(session,log);
-renderer.setAnimationLoop(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;try{if(showcase?.running){tickShowcase();accumulator=0;}else if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){tick();accumulator-=1/60;}}else accumulator=0;if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
+renderer.setAnimationLoop(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){if(showcase?.running)tickShowcase();else if(!paused)tick();accumulator-=1/60;}}else accumulator=0;dummy.position.copy(session.player.position).y+=.9;dummy.visible=session.player.gamemode==='survival';fluidMesh.visible=session.world.fluid!==BLOCKS.AIR;fluidMesh.material.color.set(session.world.fluid===BLOCKS.LAVA?0xff7700:session.world.fluid===BLOCKS.POWDER_SNOW?0xe9efff:0x2786cb);syncArena();if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
+
+const arenaBlocks=new THREE.Group();scene.add(arenaBlocks);
+const arenaGeometry=new THREE.BoxGeometry(1,1,1),arenaMaterial=new THREE.MeshLambertMaterial({color:0x65738a});let arenaSignature='';
+function syncArena(){const entries=[...session.world.edits].filter(([,id])=>id!==BLOCKS.AIR);const signature=JSON.stringify(entries);if(signature===arenaSignature)return;arenaSignature=signature;arenaBlocks.clear();for(const [key] of entries.slice(0,256)){const block=new THREE.Mesh(arenaGeometry,arenaMaterial);block.position.fromArray(key.split(',').map(n=>+n+.5));arenaBlocks.add(block);}}

@@ -264,7 +264,19 @@ lines.push('export const EXTRA_RECIPE_STATS = ' + JSON.stringify({
 }, null, 2).replace(/\n/g, '\n') + ';');
 lines.push('');
 
-writeFileSync('src/extraRecipes.js', lines.join('\n'), 'utf8');
+// The generated source is always built; only writing it is conditional.
+//
+// `DSH_RECIPE_SOURCE_ONLY=1` makes the script publish what it WOULD write to `globalThis` instead of
+// writing it, so a test can import this module and compare that against the file on disk. That is the only
+// way to detect a stale `src/extraRecipes.js`: every other coverage figure reads `EXTRA_RECIPE_STATS` out of
+// the file itself and so agrees with whatever is there, which is how eight recipes sat unemitted after
+// their content had been added.
+const generatedSource = lines.join('\n');
+if (process.env.DSH_RECIPE_SOURCE_ONLY === '1') {
+  globalThis.__generatedRecipeSource = generatedSource;
+} else {
+  writeFileSync('src/extraRecipes.js', generatedSource, 'utf8');
+}
 
 console.log('wrote src/extraRecipes.js');
 console.log('  vanilla recipes seen        : ' + stats.total);

@@ -252,8 +252,12 @@ test('Nether Mobs: 3D Models, Anatomy, and Dimensions for all Nether mobs', () =
   assert.ok(Array.isArray(magmaCube.layers) && magmaCube.layers.length === 8, 'Magma cube has 8 crust layers');
   assert.ok(magmaCube.core, 'Magma cube has glowing core');
   const magmaDims = mobs.getMobDimensions('magma_cube');
-  assert.equal(magmaDims.width, 2.04);
-  assert.equal(magmaDims.height, 2.04);
+  // Wiki: a large cube's side is size * 0.52 = 2.08 blocks. This previously read 2.04.
+  assert.equal(magmaDims.width, 2.08);
+  assert.equal(magmaDims.height, 2.08);
+  // And the instance agrees, since setMagmaSize now uses the shared cube rule.
+  assert.equal(magmaCube.width, 2.08);
+  assert.equal(magmaCube.height, 2.08);
 
   // 7. Strider
   const strider = mobs.spawnMob('strider', 0, 15, 0);

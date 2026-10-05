@@ -112,9 +112,18 @@ export const POTION_ITEMS = {
   potion_of_weakness_long: { name: 'Potion of Weakness (Extended)', icon: '/assets/items/potion_of_weakness_long.png', type: 'potion', stackSize: 1 },
   splash_potion_of_weakness_long: { name: 'Splash Potion of Weakness (Extended)', icon: '/assets/items/potion_of_weakness_long.png', type: 'potion', stackSize: 1 },
   lingering_potion_of_weakness_long: { name: 'Lingering Potion of Weakness (Extended)', icon: '/assets/items/potion_of_weakness_long.png', type: 'potion', stackSize: 1 },
+  potion_of_slowness: { name: 'Potion of Slowness', icon: '/assets/items/potion_of_slowness.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_slowness: { name: 'Splash Potion of Slowness', icon: '/assets/items/potion_of_slowness.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_slowness: { name: 'Lingering Potion of Slowness', icon: '/assets/items/potion_of_slowness.png', type: 'potion', stackSize: 1 },
+  potion_of_slowness_long: { name: 'Potion of Slowness (Extended)', icon: '/assets/items/potion_of_slowness_long.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_slowness_long: { name: 'Splash Potion of Slowness (Extended)', icon: '/assets/items/potion_of_slowness_long.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_slowness_long: { name: 'Lingering Potion of Slowness (Extended)', icon: '/assets/items/potion_of_slowness_long.png', type: 'potion', stackSize: 1 },
+  potion_of_slowness_2: { name: 'Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_slowness_2: { name: 'Splash Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_slowness_2: { name: 'Lingering Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
 };
 
-export const POTION_ITEM_COUNT = 103;
+export const POTION_ITEM_COUNT = 112;
 
 /** The potion id each item is a form of, so a consumer can reach POTION_DATA without parsing prefixes. */
 export const POTION_ITEM_BASE = {
@@ -221,4 +230,13 @@ export const POTION_ITEM_BASE = {
   potion_of_weakness_long: 'potion_of_weakness_long',
   splash_potion_of_weakness_long: 'potion_of_weakness_long',
   lingering_potion_of_weakness_long: 'potion_of_weakness_long',
+  potion_of_slowness: 'potion_of_slowness',
+  splash_potion_of_slowness: 'potion_of_slowness',
+  lingering_potion_of_slowness: 'potion_of_slowness',
+  potion_of_slowness_long: 'potion_of_slowness_long',
+  splash_potion_of_slowness_long: 'potion_of_slowness_long',
+  lingering_potion_of_slowness_long: 'potion_of_slowness_long',
+  potion_of_slowness_2: 'potion_of_slowness_2',
+  splash_potion_of_slowness_2: 'potion_of_slowness_2',
+  lingering_potion_of_slowness_2: 'potion_of_slowness_2',
 };

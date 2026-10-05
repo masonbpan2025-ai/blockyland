@@ -1,3 +1,4 @@
+import { DYE_COLOURS as BANNER_TINTS } from './colourPalette.js';
 // Partial-cube block geometry: slabs, panes, carpets.
 //
 // Why this is its own module. The mesher has a fast path for plain cubes -- static corner tables and a
@@ -60,7 +61,17 @@ function buildBox(size, min, def, tm, opts = {}) {
   // The attributes the shared materials expect. None of these shapes is a light source and none has a
   // flame, but the shaders declare these attributes unconditionally, so they must be present.
   const count = geo.attributes.position.count;
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  // The tint is applied to the `color` attribute, which the shaders multiply into the texture. It is
+  // resolved through THREE.Color so a hex in the palette becomes the same linear value bed.js uses --
+  // comparing a raw sRGB fraction against stored linear data can never match.
+  const tint = opts.tint !== undefined && opts.tint !== null ? new THREE.Color(opts.tint) : null;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = tint ? tint.r : 1;
+    colors[i * 3 + 1] = tint ? tint.g : 1;
+    colors[i * 3 + 2] = tint ? tint.b : 1;
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0), 1));
   geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0), 1));
   return geo;
@@ -325,6 +336,32 @@ export function createButtonGeometry(def, tm) {
  * Modelled closed. An open gate would be a different geometry, and this project's doors already show
  * that an open state is a separate block id, so a gate could follow the same pattern later.
  */
+/**
+ * A standing banner: a pole with a cloth panel hanging from it.
+ *
+ * Sixteen colours share this one shape. The pole is wood-coloured and untinted; only the cloth takes
+ * the dye colour, which is why buildBox needed a tint -- a single tint for the whole banner would
+ * colour the pole too.
+ */
+export function createBannerGeometry(def, tm, colour = null) {
+  const poleW = 2 / 16;
+  const poleMin = (1 - poleW) / 2;
+  const tint = colour ? BANNER_TINTS[colour] : undefined;
+  const clothW = 14 / 16;
+  const clothH = 12 / 16;
+  const parts = [
+    // The pole: full height, wood-coloured, so no tint.
+    buildBox({ x: poleW, y: 1, z: poleW }, { x: poleMin, y: 0, z: poleMin }, def, tm, { tint: 0x8b653e }),
+    // The cloth: nearly full width, hanging from the top, one pixel thick.
+    buildBox({ x: clothW, y: clothH, z: 1 / 16 },
+      { x: (1 - clothW) / 2, y: 1 - clothH - 1 / 16, z: poleMin - 1 / 32 },
+      def, tm, tint === undefined ? {} : { tint }),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+
 export function createFenceGateGeometry(def, tm) {
   const post = 2 / 16;
   const railY = [5 / 16, 9 / 16];
@@ -341,5 +378,104 @@ export function createFenceGateGeometry(def, tm) {
   const merged = mergeBoxes(parts);
   for (const p of parts) p.dispose();
   return merged;
+}
+
+/**
+ * A standing sign: a post with a board near the top.
+ *
+ * Vanilla signs are block entities holding text, and this project has no sign-editing UI. The block is
+ * modelled so the RECIPE has a destination and the block reads as a sign in the world; the text layer is
+ * deliberately absent rather than half-built.
+ */
+export function createSignGeometry(def, tm, dir = 3) {
+  const post = 2 / 16;
+  const postMin = (1 - post) / 2;
+  const boardW = 12 / 16;
+  const boardH = 6 / 16;
+  const boardT = 1 / 16;
+  const parts = [
+    // The post, from the floor to just under the board.
+    buildBox({ x: post, y: 10 / 16, z: post }, { x: postMin, y: 0, z: postMin }, def, tm),
+    // The board, mounted on the post and slightly in front of its centre.
+    buildBox({ x: boardW, y: boardH, z: boardT },
+      { x: (1 - boardW) / 2, y: 8 / 16, z: postMin - boardT / 2 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+
+/**
+ * A hanging sign: a top bar with a board suspended below it.
+ *
+ * Two thin links stand in for the chains, so the block reads as hanging rather than as a sign floating
+ * in mid-air.
+ */
+export function createHangingSignGeometry(def, tm, dir = 3) {
+  const boardW = 10 / 16;
+  const boardH = 10 / 16;
+  const boardT = 1 / 16;
+  const barT = 1 / 16;
+  const link = 1.5 / 16;
+  const parts = [
+    // The bar it hangs from, at the top of the block.
+    buildBox({ x: 14 / 16, y: barT, z: 2 / 16 }, { x: 1 / 16, y: 1 - barT, z: 7 / 16 }, def, tm),
+    // The board, suspended below the bar.
+    buildBox({ x: boardW, y: boardH, z: boardT },
+      { x: (1 - boardW) / 2, y: 2 / 16, z: 7.5 / 16 }, def, tm),
+    // Two links standing in for the chains.
+    buildBox({ x: link, y: 2 / 16, z: link }, { x: 3 / 16, y: 14 / 16, z: 7.25 / 16 }, def, tm),
+    buildBox({ x: link, y: 2 / 16, z: link }, { x: 12 / 16 - link, y: 14 / 16, z: 7.25 / 16 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+
+/**
+ * A rod: a thin full-height post, for end rods and lightning rods.
+ *
+ * Separate from `chain`, which is deliberately segmented to suggest links. A rod is smooth.
+ */
+export function createRodGeometry(def, tm) {
+  const w = 3 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: 1, z: w }, { x: min, y: 0, z: min }, def, tm);
+}
+
+/**
+ * A rail: a one-pixel plate covering the block, for detector and activator rails.
+ *
+ * Vanilla rails are 1/16 tall and span the full block footprint, unlike a pressure plate which is
+ * inset. The raised profile of a powered rail is not modelled; the block is the plate.
+ */
+export function createRailGeometry(def, tm) {
+  return buildBox({ x: 1, y: 1 / 16, z: 1 }, { x: 0, y: 0, z: 0 }, def, tm);
+}
+
+/**
+ * A flower pot: a small box.
+ *
+ * Vanilla pots have a lip and an inner cavity modelled from five boxes. One box is the honest
+ * approximation for a decorative block whose only behaviour is holding a plant, which this project does
+ * not model.
+ */
+export function createFlowerPotGeometry(def, tm) {
+  const w = 6 / 16;
+  const h = 6 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
 }
 

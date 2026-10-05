@@ -11,6 +11,12 @@ const blocks = [
   'furnace_front.png', 'furnace_front_on.png', 'furnace_side.png', 'furnace_top.png',
   'tnt_top.png', 'tnt_side.png', 'tnt_bottom.png', 'torch.png', 'water_still.png', 'lava_still.png',
   'coal_ore.png', 'iron_ore.png', 'gold_ore.png', 'diamond_ore.png', 'emerald_ore.png', 'redstone_ore.png',
+  // The rest of the ore family, added for block parity. All are plain full cubes, so the texture is the
+  // whole implementation; the deepslate variants are their own textures upstream rather than the stone
+  // ore tinted over a deepslate base.
+  'copper_ore.png', 'lapis_ore.png', 'nether_gold_ore.png', 'nether_quartz_ore.png',
+  'deepslate_coal_ore.png', 'deepslate_iron_ore.png', 'deepslate_gold_ore.png', 'deepslate_diamond_ore.png',
+  'deepslate_emerald_ore.png', 'deepslate_redstone_ore.png', 'deepslate_lapis_ore.png', 'deepslate_copper_ore.png',
   'obsidian.png', 'bricks.png', 'bookshelf.png', 'dandelion.png', 'poppy.png',
   'cactus_top.png', 'cactus_side.png', 'cactus_bottom.png', 'snow.png', 'ice.png'
 ];

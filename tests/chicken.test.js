@@ -155,15 +155,22 @@ test('Baby chick growth acceleration via seeds and maturation', () => {
 
   player.inventory.activeItem = { id: 'melon_seeds', count: 5, isBlock: false };
 
-  // Feed baby chick 1 seed -> reduces growth timer by 12s (10% of 120s)
+  // Wiki: "each feeding reduces the remaining time to maturity by 10%". This used to assert a
+  // flat 12-second reduction, which was 10% of the old (wrong) 120-second timer.
   const fed1 = behaviors.interact(baby, player);
   assert.equal(fed1, true);
-  assert.equal(baby.babyGrowthTimer, 8.0);
+  assert.equal(baby.babyGrowthTimer, 18.0, '10% of 20s leaves 18s');
   assert.equal(player.inventory.activeItem.count, 4);
 
-  // Feed second seed -> growth timer <= 0, matures into adult!
+  // A second feeding removes 10% of what is left, so it is still a baby.
   const fed2 = behaviors.interact(baby, player);
   assert.equal(fed2, true);
+  assert.equal(baby.babyGrowthTimer, 16.2);
+  assert.equal(baby.isBaby, true, 'two feedings are not enough from 20s');
+
+  // Age it out instead, which is what actually matures it.
+  baby.babyGrowthTimer = 0.01;
+  behaviors.update(baby, 0.1);
   assert.equal(baby.isBaby, false, 'Matures into adult chicken');
   assert.equal(baby.mesh.scale.x, 1.0);
 });
@@ -291,7 +298,21 @@ test('Baby chick wattle is hidden and restored on maturation', () => {
   assert.equal(chick.wattle.visible, false, 'Chick has no wattle visible');
 
   player.inventory.activeItem = { id: 'wheat_seeds', count: 2, isBlock: false };
-  behaviors.interact(chick, player); // reduces growth timer to 0 -> matures!
+  // Wiki: "reduces the remaining time to maturity by 10%, having no effect if less than 9
+  // seconds remain". The floor is exclusive, so 10s -> 9s, and 8.1s is below the floor and
+  // cannot be fed down any further. This used to assert a flat 12-second reduction.
+  behaviors.interact(chick, player);
+  assert.equal(chick.babyGrowthTimer, 9.0, '10% of 10s leaves 9s');
+  assert.equal(chick.isBaby, true, 'and it is still a baby');
+  behaviors.interact(chick, player);
+  assert.equal(chick.babyGrowthTimer, 8.1, 'at exactly 9s the reduction still applies');
+  const floored = chick.babyGrowthTimer;
+  behaviors.interact(chick, player);
+  assert.equal(chick.babyGrowthTimer, floored, 'below 9s feeding does nothing at all');
+  assert.equal(chick.wattle.visible, false, 'so the wattle stays hidden');
+
+  // Ageing past the floor is what matures it.
+  behaviors.update(chick, 8.5);
   assert.equal(chick.isBaby, false);
   assert.equal(chick.wattle.visible, true, 'Wattle becomes visible when matured to adult');
 });

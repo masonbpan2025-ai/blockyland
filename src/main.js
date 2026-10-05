@@ -1,4 +1,7 @@
 import { squidRayDistance } from './squidHitbox.js';
+import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
+import { spendDurability } from './durability.js';
+import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
@@ -209,6 +212,33 @@ class Game {
     this.entities = new EntityManager(this.scene, this.world, this.sounds, this.textures);
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
     this.mobs.game = this;
+
+    // Thorns reflects damage on to whoever struck the player. Wired here rather than inside the player,
+    // because damaging a mob is the mob manager's job -- the same reason onKiInterrupted exists as a hook.
+    //
+    // The attacker is identified from the source position when the caller did not name one, which is the
+    // usual case: mobs.js passes `mob.mesh.position` rather than the mob. Looking it up here keeps the
+    // change out of a file another agent is working in, and it covers every damage source with a position
+    // rather than only the four call sites that happen to have the mob to hand.
+    this.player.onThornsReflect = (attacker, damage, procs, sourcePos) => {
+      if (!this.mobs) return;
+      let target = attacker;
+      if (!target && sourcePos) {
+        // A mob's mesh position is its feet, and a hit lands from nearby, so the search radius is
+        // generous enough to cover a mob's own width without reaching a second one.
+        let best = null;
+        let bestDist = 1.5;
+        for (const mob of this.mobs.mobs || []) {
+          if (!mob || mob.health <= 0 || !mob.mesh) continue;
+          const d = mob.mesh.position.distanceTo(sourcePos);
+          if (d < bestDist) { best = mob; bestDist = d; }
+        }
+        target = best;
+      }
+      if (!target) return;
+      this.mobs.damageMob(target, damage, this.player.position, false, this.player);
+      void procs;
+    };
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
@@ -1063,19 +1093,25 @@ class Game {
       if (activeItem && !activeItem.isBlock) {
         const it = ITEMS[activeItem.id];
         if (it && it.attack) damage = it.attack;
-        if (Array.isArray(activeItem.enchantments)) {
-          for (const ench of activeItem.enchantments) {
-            if (ench.id === 'sharpness') {
-              damage += 0.5 * ench.level + 0.5;
-            } else if (ench.id === 'impaling' && activeItem.id === 'trident' && ['squid','glow_squid'].includes(this.targetMob.type)) {
-              damage += 2.5 * ench.level;
-            } else if (ench.id === 'smite' && ['zombie','skeleton','wither_skeleton','zombified_piglin','zombie_pigman','zoglin','drowned','zombie_villager'].includes(this.targetMob.type)) {
-              damage += 2.5 * ench.level;
-            }
-          }
+        // The enchantment bonuses used to be inline here, with the undead list spelled out as a literal
+        // array. They live in enchantmentEffects.js now so bane of arthropods and the durability effects
+        // have somewhere to go, and so the numbers can be asserted directly.
+        damage += attackBonus(activeItem.enchantments, this.targetMob.type);
+      }
+      // Strength and weakness scale what this hit deals. Asked of the player rather than computed here,
+      // so the effect rules stay in one module and this call site needs no import.
+      const effectScale = this.player?.attackDamageMultiplier?.() ?? 1;
+      if (effectScale !== 1) damage *= effectScale;
+      this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
+      // Fire aspect sets the target alight after the hit lands, so a killing blow still burns the corpse
+      // rather than skipping the effect.
+      if (activeItem && Array.isArray(activeItem.enchantments)) {
+        for (const ench of activeItem.enchantments) {
+          if (ench?.id !== 'fire_aspect') continue;
+          const seconds = fireAspectSeconds(ench.level);
+          if (seconds > 0) igniteActor(this.targetMob, seconds);
         }
       }
-      this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
       return;
     }
 
@@ -1877,6 +1913,23 @@ class Game {
     } else {
       if (this.farmingManager) {
         this.farmingManager.unregisterCrop(x, y, z);
+      }
+    }
+
+    // Wear the tool. A block was broken -- the guards above already rejected air and bedrock -- so the
+    // held tool spends a point whether or not it was the right tool for the job, which is vanilla's
+    // behaviour: mining stone with a sword still damages the sword.
+    //
+    // Charged in creative too would be wrong, so it is gated on survival along with the drops. The
+    // durability module handles unbreaking and reports whether the tool broke; clearing the slot is this
+    // layer's job, because breaking a stack is an inventory event.
+    if (heldAtBreak && !heldAtBreak.isBlock && this.player.gamemode === 'survival') {
+      const wear = spendDurability(heldAtBreak, 1);
+      if (wear.broke) {
+        const name = heldDefAtBreak?.name || heldIdAtBreak || 'Tool';
+        this.inventory.consumeActiveItem?.(1);
+        this.ui?.addChatMessage?.(`<span style="color:#ef4444;">Your ${name} broke.</span>`);
+        this.sounds?.playBreak?.('wood');
       }
     }
 

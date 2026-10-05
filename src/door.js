@@ -170,14 +170,22 @@ export class DoorManager {
     return belowVoxel !== BLOCKS.AIR && belowDef && belowDef.solid !== false && !belowDef.plant;
   }
 
-  placeDoor(world, bottomPos, facing = 3, isIron = false) {
+  placeDoor(world, bottomPos, facing = 3, isIron = false, doorBlockId = null) {
     const [x, y, z] = bottomPos;
     if (!this.canPlaceDoor(world, bottomPos)) {
       return { success: false, reason: 'Door cannot be placed here' };
     }
 
-    const bottomVoxel = isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR;
-    const topVoxel = isIron ? BLOCKS.IRON_DOOR_TOP : BLOCKS.OAK_DOOR_TOP;
+    // The wood type comes from the item being placed, where one is given, so a spruce door places
+    // spruce. Falling back to oak keeps every existing caller working unchanged.
+    //
+    // This used to be a hard-coded pair of oaks, which was invisible while oak was the only wooden
+    // door in the game.
+    const placedIds = doorBlockId !== null ? doorIdSet(BLOCK_DEFS[doorBlockId]) : null;
+    const bottomVoxel = isIron ? BLOCKS.IRON_DOOR
+      : (placedIds ? placedIds.closed : BLOCKS.OAK_DOOR);
+    const topVoxel = isIron ? BLOCKS.IRON_DOOR_TOP
+      : (placedIds ? placedIds.topClosed : BLOCKS.OAK_DOOR_TOP);
 
     world.setVoxel(x, y, z, bottomVoxel);
     world.setVoxel(x, y + 1, z, topVoxel);
@@ -189,6 +197,8 @@ export class DoorManager {
       open: false,
       manualOpen: false,
       isIron: Boolean(isIron),
+      // The four ids this door cycles through, so toggling cannot fall back to oak.
+      ids: placedIds || doorIdSet(BLOCK_DEFS[isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR]),
       hinge: 'left'
     };
 
@@ -223,6 +233,8 @@ export class DoorManager {
         open,
         manualOpen: open,
         isIron,
+        // Resolved from the block being toggled, so a door loaded from a save keeps its wood type.
+        ids: doorIdSet(def),
         hinge: 'left'
       };
       this.doors.set(this.getKey(...bottomPos), door);
@@ -253,12 +265,14 @@ export class DoorManager {
       const [bx, by, bz] = door.bottomPos;
       const [tx, ty, tz] = door.topPos;
 
-      const newBottomVoxel = door.open
-        ? (door.isIron ? BLOCKS.IRON_DOOR_OPEN : BLOCKS.OAK_DOOR_OPEN)
-        : (door.isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR);
-      const newTopVoxel = door.open
-        ? (door.isIron ? BLOCKS.IRON_DOOR_TOP_OPEN : BLOCKS.OAK_DOOR_TOP_OPEN)
-        : (door.isIron ? BLOCKS.IRON_DOOR_TOP : BLOCKS.OAK_DOOR_TOP);
+      // Use the door's own id set.
+      //
+      // This hard-coded OAK_DOOR with a fallback only for iron, so toggling any other wood would have
+      // turned the door into oak -- a regression that adding fifteen wood types would have introduced,
+      // and one that no recipe count could show.
+      const ids = door.ids || doorIdSet(BLOCK_DEFS[door.isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR]);
+      const newBottomVoxel = door.open ? ids.open : ids.closed;
+      const newTopVoxel = door.open ? ids.topOpen : ids.topClosed;
 
       this.game.world.setVoxel(bx, by, bz, newBottomVoxel);
       this.game.world.setVoxel(tx, ty, tz, newTopVoxel);
@@ -441,4 +455,33 @@ export class DoorManager {
       this.game.rebuildChunkMesh(chunk);
     }
   }
+}
+
+/**
+ * The four block ids making up the door a definition belongs to, or null if it is not a door.
+ *
+ * Resolved from the definition NAME rather than stored on the definition, so one helper covers every
+ * door: 'Spruce Door Open' maps back to spruce_door_open and then to the BLOCKS constant, and the
+ * hand-written oak and iron doors resolve exactly the same way with no special case.
+ *
+ * This exists because `toggleDoor` hard-coded the oak ids. That was invisible while oak was the only
+ * wooden door in the game, and would have made every other wood morph into oak on its first toggle.
+ */
+export function doorIdSet(def) {
+  if (!def?.door) return null;
+  const name = String(def.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const m = /^(.+)_door(?:_top)?(?:_open)?$/.exec(name);
+  if (!m) return null;
+  const base = m[1] + '_door';
+  const C = (s) => s.toUpperCase();
+  const ids = {
+    closed: BLOCKS[C(base)],
+    open: BLOCKS[C(base + '_open')],
+    topClosed: BLOCKS[C(base + '_top')],
+    topOpen: BLOCKS[C(base + '_top_open')],
+  };
+  // A door missing any of its four ids would silently place the wrong block, so report rather than
+  // half-work. The caller falls back to oak, which is at least a real door.
+  for (const id of Object.values(ids)) if (id === undefined) return null;
+  return ids;
 }

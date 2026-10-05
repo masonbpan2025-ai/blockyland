@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { MobManager } from '../src/mobs.js';
 import { BLOCKS } from '../src/blocks.js';
 import { AnimalBehaviors, BREEDING_FOODS } from '../src/animalBehaviors.js';
+import { BABY_GROWTH_SECONDS } from '../src/babyGrowth.js';
 
 function createFixture(terrain = (x, y, z) => y < 1 ? BLOCKS.STONE : BLOCKS.AIR) {
   const world = {
@@ -150,7 +151,9 @@ test('Cow matchmaking: Two in-love cows mate, spawn calf, drop XP, and enter coo
   const calf = manager.mobs.find(m => m.isBaby);
   assert.ok(calf, 'Baby calf found');
   assert.equal(calf.parent, cow1);
-  assert.equal(calf.babyGrowthTimer, 120.0);
+  // Wiki: babies take 20 minutes to grow up, not the 120 seconds this used to assert.
+  assert.equal(calf.babyGrowthTimer, BABY_GROWTH_SECONDS);
+  assert.equal(calf.babyGrowthTimer, 1200);
   assert.equal(calf.mesh.scale.x, 0.5);
   assert.equal(calf.head.scale.x, 1.5, 'Calf has enlarged head');
   assert.equal(calf.horns[0].visible, false, 'Calf has no horns');
@@ -171,16 +174,23 @@ test('Calf growth acceleration: Feeding wheat reduces baby growth timer and matu
   calf.horns.forEach(h => h.visible = false);
   calf.udder.visible = false;
 
-  // 1. Feeding wheat accelerates by 12 seconds
+  // 1. Feeding wheat removes 10% of the remaining time. Wiki: "each feeding reduces the
+  // remaining time to maturity by 10%", not the flat 12 seconds this used to assert.
   player.inventory.hotbar[0] = { id: 'wheat', count: 5, isBlock: false };
   const fed = behaviors.interact(calf, player);
   assert.equal(fed, true);
   assert.equal(player.inventory.getActiveItem().count, 4);
-  assert.equal(calf.babyGrowthTimer, 8.0, 'Timer reduced from 20s to 8s');
+  assert.equal(calf.babyGrowthTimer, 18.0, '10% of 20s leaves 18s');
   assert.ok(entities.particles.length > 0, 'Growth sparkle particles spawned');
 
-  // 2. Feeding again reduces past 0 -> matures into adult!
+  // 2. Feeding again removes another 10% of what is left.
   behaviors.interact(calf, player);
+  assert.equal(calf.babyGrowthTimer, 16.2, '10% of 18s leaves 16.2s');
+  assert.equal(calf.isBaby, true, 'still a baby after two feedings');
+
+  // 3. Ageing the remainder out is what matures it. Feeding alone never finishes the job,
+  // and below the 9-second floor it does nothing at all.
+  behaviors.update(calf, 16.3);
   assert.equal(calf.isBaby, false, 'Calf has matured into adult');
   assert.equal(calf.mesh.scale.x, 1.0, 'Scale restored to full adult');
   assert.equal(calf.head.scale.x, 1.0, 'Head scale restored to 1.0');

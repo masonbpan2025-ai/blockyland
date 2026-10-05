@@ -127,7 +127,11 @@ test('Wolf mob anatomy: Upgraded with ears, eyes, and black nose on muzzle', () 
 
   assert.ok(wolf, 'Wolf mob created');
   assert.equal(wolf.type, 'wolf');
-  assert.equal(wolf.health, 20);
+  // Wiki: wild wolves have 8 HP. This previously read 20, which is neither the wild value
+  // (8) nor the tamed value (40).
+  assert.equal(wolf.health, 8);
+  assert.equal(wolf.maxHealth, 8);
+  assert.equal(wolf.isTamed, false);
 
   // Head has attached ears, eyes, and muzzle has black nose
   assert.ok(wolf.head);

@@ -21,6 +21,8 @@ import { BASE_BREWING_RECIPES, getBrewingResult } from '../src/brewing.js';
 import { MOB_LOOT, rollLoot } from '../src/mobLootData.js';
 import { danglingReferences, duplicateDefinitions, registry, resolveResource } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
+import { DEBUG_MOBS } from '../src/mobDebugSession.js';
+import { liveItemsFor, makeDropFixture } from '../scripts/mob-drop-live.mjs';
 
 const read = (p) => readFileSync(join(process.cwd(), p), 'utf8');
 const blocksSource = read('src/blocks.js');
@@ -71,30 +73,29 @@ test('no mob loot table names an id the registry does not define', () => {
   assert.deepEqual(offenders.map((p) => `${p.from} -> ${p.id}`), []);
 });
 
-test('the live drop table in mobs.js names only defined items', () => {
-  // `mobLootData.js` is the generated canonical table and is not what runs; `mobs.js` has its own
-  // hand-written loot map. Checking only the generated one would have missed the reachable bug, so the
-  // string ids inside that literal are extracted and resolved.
-  const source = read('src/mobs.js');
-  const start = source.indexOf('const loot = {');
-  assert.ok(start > 0, 'the live loot table should exist in mobs.js');
-  let depth = 0;
-  let end = -1;
-  for (let i = source.indexOf('{', start); i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+test('the live drop table names only defined items', () => {
+  // `mobLootData.js` is the generated canonical table and is not what runs; the game has its own drop
+  // table, and that is where `rotten_flesh` was dropped by six mobs while no item answered to it.
+  //
+  // This used to scan the source for the table literal. That broke the moment another branch moved the
+  // table into a method -- the assertion failed with "the live loot table should exist in mobs.js",
+  // which says nothing about items. It now goes through `scripts/mob-drop-live.mjs`, the project's own
+  // harness for measuring real drops from real mobs, so the table can move again without this noticing.
+  const fixture = makeDropFixture();
+  const unresolved = [];
+  let measured = 0;
+  for (const type of DEBUG_MOBS) {
+    const result = liveItemsFor(fixture.manager, type, () => 0);
+    // A mob this game cannot spawn has no drop row to be wrong about, and the harness reports both
+    // shapes -- an error and a substitution -- as "not in this game" rather than as a gap.
+    if (!result || result.error || result.substituted) continue;
+    measured++;
+    for (const name of result.names ?? []) {
+      if (!resolveResource(name, registry())) unresolved.push(`${type} drops ${name}`);
+    }
   }
-  assert.ok(end > start, 'the loot literal should close');
-  const body = source.slice(start, end);
-
-  const ids = new Set();
-  // `['item_id', ...]` and the `? 'a' : 'b'` cooked/raw ternaries both name items.
-  for (const m of body.matchAll(/\['([a-z_]+)'/g)) ids.add(m[1]);
-  for (const m of body.matchAll(/\?\s*'([a-z_]+)'\s*:\s*'([a-z_]+)'/g)) { ids.add(m[1]); ids.add(m[2]); }
-  assert.ok(ids.size > 20, `expected a broad id list, extracted ${ids.size}`);
-
-  const unresolved = [...ids].filter((id) => !resolveResource(id, registry()));
-  assert.deepEqual(unresolved, [], 'these ids are dropped by mobs but do not exist');
+  assert.ok(measured > 20, `expected a broad mob list to measure, measured ${measured}`);
+  assert.deepEqual(unresolved, []);
 });
 
 test('a mob that drops rotten flesh yields a resolvable item', () => {
