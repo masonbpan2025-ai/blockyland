@@ -67,7 +67,7 @@ export const STRUCTURES = {
   },
   swamp_hut: {
     type: 'swamp_hut', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/swamp_hut', biomes: ['swamp'],
+    biomeTag: 'has_structure/swamp_hut', implementation: 'swampHut', biomes: ['swamp'],
     notes: 'Stilt hut; one witch and one black cat spawn with it and do not despawn.'
   },
   minecraft_special: null, // placeholder removed below; kept out of the registry on purpose

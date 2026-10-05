@@ -65,7 +65,7 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Woodland Mansion | `mansion` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Needs a procedural floor-plan generator over template rooms, three floors, and the room-type tables. |
 | Desert Pyramid | `desert_pyramid` | hardcoded | yes | yes | n/a | n/a | no | 4 chests + armed TNT trap | yes | no | `PARTIAL` | Procedural, clean-room dimensions. `beard_thin` terrain adaptation is NOT applied, so the pyramid is not bedded into the sand; the four chests carry conventional loot-table ids because the wiki publishes only the `{{LootChest}}` keys. |
 | Jungle Pyramid | `jungle_pyramid` | hardcoded | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Three floors, lever puzzle with sticky piston, two arrow dispensers. |
-| Swamp Hut | `swamp_hut` | hardcoded | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Stilt hut; the witch and black cat that spawn with it and never despawn. |
+| Swamp Hut | `swamp_hut` | hardcoded | yes | yes | n/a | n/a | no | witch + black cat as structure mobs | yes | no | `PARTIAL` | Clean-room dimensions. Interior furnishings are NOT implemented (the wiki does not enumerate them verifiably) and `beard_thin` is not applied, so legs do not reach sloped ground. |
 | Village (Plains) | `village_plains` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Blocked on the jigsaw engine, template pools and `beard_thin` terrain. The villages pool (5 weighted variants) is already correct. |
 | Village (Desert) | `village_desert` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As plains; plus the meeting-point camel. |
 | Village (Savanna) | `village_savanna` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As plains; plus farmland. |
@@ -77,7 +77,7 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Trail Ruins | `trail_ruins` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `bury` + three processor lists + archaeology. |
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
-Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 14 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid), 7 `NOT STARTED`
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 15 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid, swamp hut), 6 `NOT STARTED`
 (4 hardcoded + 5 procedural minus the implemented one), 12 `INFRASTRUCTURE BLOCKED` (2 template + 10
 jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
