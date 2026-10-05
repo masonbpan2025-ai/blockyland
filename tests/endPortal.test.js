@@ -68,11 +68,34 @@ test('the filled frame reuses the empty frame\'s art', () => {
   // and it is recorded in the merge notes rather than turned into a failing test here.
 });
 
-test('the frames keep a distinct id, and neither collides with the portal itself', () => {
+test('the frames keep a distinct id, and neither collides with any other block', () => {
   const ids = [BLOCKS.END_PORTAL_FRAME, BLOCKS.END_PORTAL_FRAME_FILLED, BLOCKS.END_PORTAL];
   assert.equal(new Set(ids).size, 3, 'all three are different blocks');
-  // The filled id was chosen above every id in use, so it cannot collide with generated content.
   assert.ok(BLOCKS.END_PORTAL_FRAME_FILLED > BLOCKS.END_PORTAL_FRAME);
+
+  // Checked against EVERY block, which is the guard that would have caught the bug this shipped with.
+  //
+  // `END_PORTAL_FRAME_FILLED` was first given id 1203 -- free when the branch was written, because the
+  // highest id then was 1202. Master meanwhile gained the coral family, and `TUBE_CORAL` took 1203. Two names
+  // for one number, so `BLOCK_DEFS[BLOCKS.TUBE_CORAL] = {...}` overwrote the frame's definition and the
+  // filled frame became a tube coral at runtime. The id looked unique when it was chosen and was not by the
+  // time it merged.
+  //
+  // The registry keeps deliberate aliases (GRASS/GRASS_BLOCK, RED_BED/RED_BED_FOOT, WHEAT/WHEAT_STAGE_7,
+  // CARROTS/CARROTS_STAGE_3, WITHER_SKELETON_SKULL/_BLOCK), so a blanket uniqueness rule would be wrong.
+  // This asserts what matters for a NEW id: that nothing else answers to it.
+  for (const [name, id] of [['END_PORTAL_FRAME', BLOCKS.END_PORTAL_FRAME],
+    ['END_PORTAL_FRAME_FILLED', BLOCKS.END_PORTAL_FRAME_FILLED]]) {
+    const owners = Object.entries(BLOCKS).filter(([k, v]) => v === id && k !== name).map(([k]) => k);
+    assert.deepEqual(owners, [], `${name} (${id}) is also ${owners.join(', ')}`);
+  }
+
+  // And the definition must be the frame's at runtime, not something that overwrote it afterwards. That
+  // overwrite is the symptom the collision produced.
+  const def = BLOCK_DEFS[BLOCKS.END_PORTAL_FRAME_FILLED];
+  assert.equal(def.filled, true, 'the filled definition must survive to runtime');
+  assert.equal(def.name, 'End Portal Frame', `the filled definition is ${def.name}`);
+  assert.notDeepEqual(def.textures, { all: 'tube_coral.png' });
 });
 
 test('the eye of ender is craftable from its vanilla ingredients', () => {

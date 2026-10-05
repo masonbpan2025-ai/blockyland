@@ -531,7 +531,7 @@ export const BLOCKS = {
   VAULT: 1083,
   END_PORTAL_FRAME: 1084,
   // The same frame holding an Eye of Ender. `endPortal.js` counts these to light the portal.
-  END_PORTAL_FRAME_FILLED: 1203,
+  END_PORTAL_FRAME_FILLED: 1215,
   TURTLE_EGG: 1085,
   FROGSPAWN: 1086,
 
