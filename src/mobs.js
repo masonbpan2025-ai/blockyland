@@ -30,6 +30,7 @@ import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
 import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
+import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -351,6 +352,7 @@ export class MobManager {
       case 'creeper': return this.spawnCreeper(x, y, z);
       case 'spider': return this.spawnSpider(x, y, z, {});
       case 'cave_spider': return this.spawnCaveSpider(x, y, z, {});
+      case 'silverfish': return this.spawnSilverfish(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2298,6 +2300,8 @@ export class MobManager {
       case 'spider': return SPIDER_DIMENSIONS;
       // Wiki: cave spiders are 0.7 x 0.5, exactly half the spider model.
       case 'cave_spider': return CAVE_SPIDER_DIMENSIONS;
+      // Wiki: silverfish are 0.4 x 0.3, among the smallest mobs.
+      case 'silverfish': return SILVERFISH_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -2961,6 +2965,54 @@ export class MobManager {
     mob.mesh.scale.setScalar(CAVE_SPIDER_SCALE);
     // Distinguishing flags rather than shared ones, so the two variants stay separable.
     mob.isCaveSpider = true;
+    return mob;
+  }
+
+  /**
+   * Silverfish.
+   *
+   * Wiki: 8 HP, 0.4 x 0.3, hostile arthropod, no item drops and 5 XP, whose defining
+   * behaviour is calling other silverfish to help when it is hit.
+   */
+  spawnSilverfish(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
+    const { group, head, body, mid, tail, legs, eyes } = createSilverfishModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'silverfish',
+      name: 'Silverfish',
+      mesh: group,
+      head,
+      body,
+      mid,
+      tail,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: silverfish are immune to the Infested status effect.
+      infestedImmune: true,
+      // Wiki: 8 HP.
+      health: SILVERFISH_HEALTH,
+      maxHealth: SILVERFISH_HEALTH,
+      width: SILVERFISH_DIMENSIONS.width,
+      height: SILVERFISH_DIMENSIONS.height,
+      // Retaliation window, refreshed when it is hit or called by another silverfish.
+      angerTimer: 0,
+      attacker: null,
+      silverfishPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
     return mob;
   }
 
@@ -6055,6 +6107,10 @@ export class MobManager {
       // Wiki: both variants pursue whatever attacked them regardless of the light level,
       // even if they had returned to neutral in bright light.
       angerSpider(mob, attacker);
+    } else if (mob.type === 'silverfish') {
+      // Wiki: hitting one calls other silverfish in a 21x11x21 area to help.
+      angerSilverfish(mob, attacker);
+      alertSilverfish(this, mob, attacker);
     }
 
     if (mob.health <= 0 && mob.laserLine && this.scene) {
@@ -6268,7 +6324,7 @@ export class MobManager {
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random)];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob)];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6336,7 +6392,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
+          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6687,6 +6744,16 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='silverfish'){
+      // Wiki: always hostile, pathfinds to the player, and sees through walls.
+      updateSilverfishAnger(mob, dt);
+      updateSilverfishHunt(this, mob, dt, player);
+      // Mob types own their locomotion here, so the silverfish must move itself.
+      moveGroundMob(this, mob, dt);
+      mob.silverfishPhase = (mob.silverfishPhase || 0) + dt * (Math.hypot(mob.velocity.x, mob.velocity.z) > 0.05 ? 14 : 3);
+      poseSilverfishLegs(mob, mob.silverfishPhase);
+      return true;
+    }
     if(mob.type==='spider'||mob.type==='cave_spider'){
       // Wiki: both spider variants are neutral above light level 11 and climb walls when
       // blocked; cave spiders additionally poison on Normal and Hard. The hunt is gated by
