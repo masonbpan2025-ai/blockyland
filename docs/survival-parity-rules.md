@@ -384,9 +384,20 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 
 - **Drop probabilities under Looting.** Vanilla raises several chances with the enchantment; the loot
   table has no per-level figures, so this is not measurable from the available data.
-- **Brewing and potion-to-effect mapping.** Section 2.6 documents Mineclonia's durations; the mapping
-  from ingredients to effects (fermented spider eye inverting healing to harming, and so on) is not
-  implemented.
+- ~~Brewing and potion-to-effect mapping~~ — **now implemented and verified against section 2.6.** An
+  earlier version of this list said it was not implemented, which was wrong: `src/brewing.js` already had
+  40 recipes and 36 potions. Auditing it against the researched rules found three faults, all silent:
+
+  - The brew took **20 seconds** where vanilla and Mineclonia both take 10, and the comment asserted 20 as
+    well — so the code and its own documentation agreed with each other and disagreed with the game.
+  - **`potion_of_slowness` did not exist at all.** The fermented spider eye table converted night vision,
+    healing and poison, and had no row for swiftness or leaping, so the potion could not be brewed.
+  - **`potion_of_slowness_2` then existed with no recipe able to produce it**, which is the same fault in
+    the other direction. Referential integrity is now checked BOTH ways by a test, since either direction
+    can be broken silently.
+
+  Not verified: the lingering (`x0.25`) and tipped-arrow (`x0.125`) duration factors, and splash-potion
+  behaviour beyond the fire-resistance case in `barterItems.js`.
 - **Thorns and depth strider are now wired; unbreaking is not.** All three formulas live in
   `src/enchantmentEffects.js` and are asserted by tests.
 

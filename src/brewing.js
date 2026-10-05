@@ -46,7 +46,16 @@ export const POTION_DATA = {
   potion_of_leaping_long: { name: 'Potion of Leaping (Extended)', color: '#22c55e', effect: 'jump_boost', duration: 480 },
   potion_of_slow_falling_long: { name: 'Potion of Slow Falling (Extended)', color: '#fbcfe8', effect: 'slow_falling', duration: 240 },
   potion_of_poison_long: { name: 'Potion of Poison (Extended)', color: '#84cc16', effect: 'poison', duration: 90 },
-  potion_of_weakness_long: { name: 'Potion of Weakness (Extended)', color: '#475569', effect: 'weakness', duration: 240 }
+  potion_of_weakness_long: { name: 'Potion of Weakness (Extended)', color: '#475569', effect: 'weakness', duration: 240 },
+
+  // Slowness. Vanilla has this in three forms and it comes from swiftness or leaping plus a fermented
+  // spider eye, but it was missing entirely: the corruption table converted night vision, healing and
+  // poison, and had no swiftness or leaping row, so the potion could not be brewed at all.
+  //
+  // Durations are vanilla's: 1:30 base, 4:00 extended, 0:20 at level IV.
+  potion_of_slowness: { name: 'Potion of Slowness', color: '#64748b', effect: 'slowness', duration: 90 },
+  potion_of_slowness_long: { name: 'Potion of Slowness (Extended)', color: '#64748b', effect: 'slowness', duration: 240 },
+  potion_of_slowness_2: { name: 'Potion of Slowness IV', color: '#64748b', effect: 'slowness', duration: 20, level: 4 }
 };
 
 // Base Brewing Recipes: (bottleId + ingredientId) -> resultId
@@ -78,6 +87,14 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'potion_of_poison', ingredient: 'fermented_spider_eye', result: 'potion_of_harming' },
   { bottle: 'potion_of_poison_2', ingredient: 'fermented_spider_eye', result: 'potion_of_harming_2' },
   { bottle: 'potion_of_poison_long', ingredient: 'fermented_spider_eye', result: 'potion_of_harming' },
+  // Slowness comes from swiftness OR leaping, which vanilla both allow. Neither row existed, so the
+  // potion was unobtainable even though the data table now defines it.
+  { bottle: 'potion_of_swiftness', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
+  { bottle: 'potion_of_swiftness_long', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness_long' },
+  { bottle: 'potion_of_swiftness_2', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
+  { bottle: 'potion_of_leaping', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
+  { bottle: 'potion_of_leaping_long', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness_long' },
+  { bottle: 'potion_of_leaping_2', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
 
   // Redstone Extension (Extended Duration)
   { bottle: 'potion_of_regeneration', ingredient: 'redstone', result: 'potion_of_regeneration_long' },
@@ -99,7 +116,11 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'potion_of_swiftness', ingredient: 'glowstone_dust', result: 'potion_of_swiftness_2' },
   { bottle: 'potion_of_leaping', ingredient: 'glowstone_dust', result: 'potion_of_leaping_2' },
   { bottle: 'potion_of_poison', ingredient: 'glowstone_dust', result: 'potion_of_poison_2' },
-  { bottle: 'potion_of_harming', ingredient: 'glowstone_dust', result: 'potion_of_harming_2' }
+  { bottle: 'potion_of_harming', ingredient: 'glowstone_dust', result: 'potion_of_harming_2' },
+  // Slowness IV, which vanilla reaches with glowstone on Slowness. Without this row the potion existed
+  // in POTION_DATA with nothing able to produce it -- the mirror of the slowness bug above, where a
+  // recipe existed with no potion behind it.
+  { bottle: 'potion_of_slowness', ingredient: 'glowstone_dust', result: 'potion_of_slowness_2' }
 ];
 
 /**
@@ -153,8 +174,10 @@ export class BrewingStand {
     this.bottles = [null, null, null]; // 3 bottom slots: { id, count }
     this.fuel = 0; // 0 to 20 units
     this.maxFuel = 20;
-    this.brewTimer = 0; // 20.0 seconds when brewing
-    this.brewDuration = 20.0;
+    this.brewTimer = 0;
+    // Vanilla and Mineclonia both take 10 seconds. This was 20, a factor of two, and the comment
+    // asserted the wrong figure so the two agreed with each other and disagreed with the game.
+    this.brewDuration = 10.0;
     this.isBrewing = false;
   }
 
