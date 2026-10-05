@@ -1,5 +1,6 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
+import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -390,12 +391,24 @@ export class Player {
         continue;
       }
       data.duration -= dt;
+      // Poison keeps its own inline handling because the "cannot kill" floor is about this player's
+      // health, not about the effect table.
       data.tickTimer = (data.tickTimer || 0) + dt;
       if (effect === 'poison' && data.tickTimer >= 1.25) {
         data.tickTimer = 0;
         if (this.health > 1) {
           this.health = Math.max(1, this.health - 1);
           this.sounds?.playHurt?.();
+        }
+      }
+      // Regeneration runs through the shared table: +1 HP per 2.5 s at level I, halving per level.
+      if (effect === 'regeneration') {
+        const tick = tickEffect('regeneration', data, 0);
+        if (tick?.heal) {
+          const before = this.health;
+          this.health = Math.min(this.maxHealth ?? 20, this.health + tick.heal);
+          // Regenerating costs hunger in vanilla, the same as the natural regeneration path.
+          if (this.health > before) this.addExhaustion?.(EXHAUSTION.regen);
         }
       }
       if (data.duration <= 0) {
@@ -789,6 +802,21 @@ export class Player {
     return (def && def.sound) ? def.sound : 'grass';
   }
 
+  /**
+   * The multiplier this player's outgoing damage takes from strength and weakness.
+   *
+   * Lives here so the melee call site needs no import from the effect module, and so a test can ask a
+   * Player rather than reaching into its effect map.
+   */
+  attackDamageMultiplier() {
+    return attackMultiplier(this.statusEffects);
+  }
+
+  /** The multiplier this player's incoming damage takes from resistance. */
+  damageTakenMultiplier() {
+    return damageTakenMultiplier(this.statusEffects);
+  }
+
   takeDamage(amount, sourcePos = null, damageType = 'generic') {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
     if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
@@ -839,6 +867,11 @@ export class Player {
         const damageReduction = Math.min(20, Math.max(0, effectiveArmor)) / 25;
         amount = amount * (1 - damageReduction);
       }
+
+      // Resistance reduces what actually gets through, after armour, which is the order vanilla uses.
+      // The level cap lives in statusEffects.js so every caller gets it.
+      const resistance = damageTakenMultiplier(this.statusEffects);
+      if (resistance !== 1) amount = amount * resistance;
 
       // Protection enchantment reduction (4% per level, up to 80%)
       if (this.inventory?.armor) {

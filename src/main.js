@@ -1049,6 +1049,10 @@ class Game {
           }
         }
       }
+      // Strength and weakness scale what this hit deals. Asked of the player rather than computed here,
+      // so the effect rules stay in one module and this call site needs no import.
+      const effectScale = this.player?.attackDamageMultiplier?.() ?? 1;
+      if (effectScale !== 1) damage *= effectScale;
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
       return;
     }
