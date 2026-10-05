@@ -14,8 +14,8 @@ one of them can be reproduced with the commands at the end.
 
 | | Have | Vanilla | |
 | --- | --- | --- | --- |
-| Items (including item forms of blocks) | **1277** | 1385 | 92.2% |
-| Vanilla item names absent | **15** | 1385 | 98.9% named |
+| Items (including item forms of blocks) | **1278** | 1385 | 92.3% |
+| Vanilla item names absent | **14** | 1385 | 99.0% named |
 | Registered blocks | 496 | 1095 | — |
 | Recipes | 3609 | 1557 vanilla | — |
 | Smelting rows | 90 | — | — |
@@ -62,7 +62,7 @@ vanilla can obtain and this game cannot, so far as vanilla's pinned recipe, loot
 That is a statement about *obtainability*, not about behaviour. An item can be obtainable and still lack the
 feature it exists for, which is what the next section is about.
 
-## The fifteen absent vanilla names, by owner
+## The fourteen absent vanilla names, by owner
 
 | Item | Why it is absent | Owner |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ feature it exists for, which is what the next section is about.
 | `command_block_minecart`, `knowledge_book`, `debug_stick` | Creative-only and operator-only. Vanilla gives them no survival source either | creative menu only |
 | `trial_key`, `ominous_trial_key` | Vanilla's source is a defeated **trial spawner**, and this game's trial spawner is an inert block with no block entity | block entity, then item |
 | `flow_banner_pattern`, `guster_banner_pattern` | From *ominous* vaults, which need the trial-spawner chain above | as above |
-| `globe_banner_pattern`, `piglin_banner_pattern` | A cartographer trade and a piglin barter. Neither table carries them | trade tables |
+| `piglin_banner_pattern` | A piglin barter. This game's barter table is pinned to Java 1.21.6+'s nineteen entries at total weight 469, which do not include it, so it cannot be obtained without either a row that is not that version's or an unmodelled source | barter table, if a version that has it is modelled |
 | `firework_star` | Deliberately **not** added: this game's rockets carry no burst data, so a star would be an item with nothing to do | engine, if ever |
 
 `firework_star` is the one here worth stating plainly, because it looks like a gap and is not. It is craftable
@@ -98,12 +98,18 @@ prefix -- and `splash_potion` does not strip to a core that exists. Without that
 produced a phantom stack and a thrown splash potion fell through to block placement, which is exactly what
 `tests/splashPotion.test.js` caught.
 
+The **globe banner pattern** came off this list the same way: a master cartographer in
+`villagerEconomy.js` now sells it for eight emeralds, which is vanilla's route, and it is the game's only
+trade-only item. `codeDropSources.js` names it so `has-source` can see it, and its icon is generated like the
+other four patterns'. Its companion, `piglin_banner_pattern`, cannot follow: vanilla's barter table is the only
+source it has here, and that table is pinned to a version whose entries do not include it.
+
 Two notes on the count. `map` left the list this round without an empty map being
 implemented: correcting `filled_map`'s display name to vanilla's "Map" made the resolver answer for the name
 `map` as well as the id, and the empty map and the filled one share that name in vanilla. It is a name
 collision the count cannot see through -- a limitation worth knowing about when reading any of these figures.
-And fourteen of the remaining fifteen entries carry the reason they are absent in the table above; `resin_brick`
-is the fifteenth, waiting on the resin clump block.
+Every remaining entry carries the reason it is absent in the table above, `resin_brick` included: it waits on
+the resin clump block.
 
 ## What landed, by theme
 

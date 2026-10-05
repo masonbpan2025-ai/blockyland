@@ -89,6 +89,16 @@ export function codeDropSources() {
     how: 'Shear a full bee nest or beehive.',
     source: 'hives.js HiveManager.harvest',
   });
+  // The globe banner pattern has exactly one source: a master cartographer sells it for eight emeralds, as
+  // vanilla has it. A general trade table would be better than a row here, but this is the only item in the
+  // game whose only route is a trade, and the test that guards this table asserts every entry really has no
+  // other source -- so the honest place for a one-item special case is beside the others with the reason
+  // written down.
+  entries.push({
+    item: 'globe_banner_pattern',
+    how: 'Sold by a master cartographer for eight emeralds.',
+    source: 'villagerEconomy.js PROFESSION_TRADES',
+  });
   // The twenty-three pottery sherds, brushed out of a suspicious block. Derived from the pool the brush
   // actually draws from, so a sherd that stopped being in it takes its entry with it.
   add(

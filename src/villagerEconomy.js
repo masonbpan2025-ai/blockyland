@@ -209,7 +209,11 @@ export const PROFESSION_TRADES = {
     // Expert
     { level: 4, cost: { id: 'emerald', isBlock: false, count: 14, name: '14 Emeralds', icon: '/assets/items/emerald.png' }, cost2: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'woodland_map', isBlock: false, count: 1, name: 'Woodland Explorer Map', icon: '/assets/items/map.png' }, xp: 20 },
     // Master
-    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'item_frame', isBlock: false, count: 1, name: 'Item Frame', icon: '/assets/items/item_frame.png' }, xp: 30 }
+    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'item_frame', isBlock: false, count: 1, name: 'Item Frame', icon: '/assets/items/item_frame.png' }, xp: 30 },
+    // A second master offer, which is how vanilla lists a level: eight emeralds for the globe banner pattern.
+    // This is the item's only source in the game, so `codeDropSources.js` names it, and it is what makes
+    // `globe_banner_pattern` obtainable rather than merely registered.
+    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'globe_banner_pattern', isBlock: false, count: 1, name: 'Globe Banner Pattern', icon: '/assets/items/globe_banner_pattern.png' }, xp: 30 }
   ],
   mason: [
     // Novice

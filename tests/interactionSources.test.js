@@ -136,11 +136,12 @@ test('the code-drop table is derived from the helpers, and lists what they retur
     'angler_pottery_sherd', 'archer_pottery_sherd', 'armadillo_scute', 'arms_up_pottery_sherd',
     'blade_pottery_sherd', 'breeze_rod', 'brewer_pottery_sherd', 'burn_pottery_sherd',
     'danger_pottery_sherd', 'egg', 'explorer_pottery_sherd', 'flow_pottery_sherd',
-    'friend_pottery_sherd', 'guster_pottery_sherd', 'heart_pottery_sherd', 'heartbreak_pottery_sherd',
-    'honeycomb', 'howl_pottery_sherd', 'miner_pottery_sherd', 'mourner_pottery_sherd',
-    'nether_star', 'plenty_pottery_sherd', 'prize_pottery_sherd', 'scrape_pottery_sherd',
-    'sheaf_pottery_sherd', 'shelter_pottery_sherd', 'skull_pottery_sherd', 'snort_pottery_sherd',
-    'tipped_arrow_poison', 'tipped_arrow_slowness', 'tipped_arrow_weakness', 'turtle_scute',
+    'friend_pottery_sherd', 'globe_banner_pattern', 'guster_pottery_sherd', 'heart_pottery_sherd',
+    'heartbreak_pottery_sherd', 'honeycomb', 'howl_pottery_sherd', 'miner_pottery_sherd',
+    'mourner_pottery_sherd', 'nether_star', 'plenty_pottery_sherd', 'prize_pottery_sherd',
+    'scrape_pottery_sherd', 'sheaf_pottery_sherd', 'shelter_pottery_sherd', 'skull_pottery_sherd',
+    'snort_pottery_sherd', 'tipped_arrow_poison', 'tipped_arrow_slowness', 'tipped_arrow_weakness',
+    'turtle_scute',
   ]);
   for (const entry of entries) {
     assert.match(entry.how, /^[A-Z].*\.$/, `${entry.item} should have a sentence describing the drop`);

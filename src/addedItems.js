@@ -63,6 +63,11 @@ export function addedItems() {
     skull_pottery_sherd: { name: 'Skull Pottery Sherd', icon: '/assets/items/skull_pottery_sherd.png', type: 'material' },
     snort_pottery_sherd: { name: 'Snort Pottery Sherd', icon: '/assets/items/snort_pottery_sherd.png', type: 'material' },
     scaffolding: { name: 'Scaffolding', icon: '/assets/items/scaffolding.png', isBlock: true, blockId: BLOCKS.SCAFFOLDING, type: 'block' },
+    // The fifth banner pattern, and the only one obtainable: a master cartographer sells it, which is vanilla's
+    // route. `piglin_banner_pattern` is the sixth and is deliberately absent -- vanilla's barter table is the
+    // only source for it here, and that table is pinned to Java 1.21.6+'s nineteen entries, which do not
+    // include it. See the trade row in `villagerEconomy.js` and the entry in `codeDropSources.js`.
+    globe_banner_pattern: { name: 'Globe Banner Pattern', icon: '/assets/items/globe_banner_pattern.png', type: 'material' },
     cake: { name: 'Cake', icon: '/assets/items/cake.png', isBlock: true, blockId: BLOCKS.CAKE, stackSize: 1, type: 'block' },
     shulker_box: { name: 'Shulker Box', icon: '/assets/items/shulker_box.png', isBlock: true, blockId: BLOCKS.SHULKER_BOX, stackSize: 1, type: 'block' },
     white_shulker_box: { name: 'White Shulker Box', icon: '/assets/items/white_shulker_box.png', isBlock: true, blockId: BLOCKS.WHITE_SHULKER_BOX, stackSize: 1, type: 'block' },
