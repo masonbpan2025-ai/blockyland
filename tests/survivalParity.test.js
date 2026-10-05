@@ -81,9 +81,17 @@ test('coverage breakdown identifies what to add next', { skip }, () => {
   // having to be rewritten every time content is added.
   const m = measure();
   const blocked = [...m.blockedBy].sort((a, b) => b[1] - a[1]);
-  assert.ok(blocked.length > 50, 'many vanilla names are missing, which is the whole gap');
-  assert.ok(blocked[0][1] >= 5,
-    `the most-blocking name only blocks ${blocked[0][1]} recipes, which suggests the classifier broke`);
+  // A COUNT is deliberately not asserted. There were more than 50 distinct blockers when this was
+  // written and there are now 49, because blockers keep being implemented -- a threshold here turns
+  // progress into a failure, which is the same mistake this file made with its absent-name list.
+  //
+  // What matters is that the report still identifies something actionable and that its magnitudes are
+  // sane, so a broken measurement is caught without the test needing updating every round.
+  assert.ok(blocked.length > 0, 'the report should identify what to add next');
+  assert.ok(blocked[0][1] >= 2,
+    'the most-blocking name blocks only ' + blocked[0][1] + ' recipes, so the measurement looks broken');
+  assert.ok(blocked[0][1] <= m.total,
+    'a single name cannot block more recipes than exist');
 
   // The classifier must bucket names by family without dropping any.
   const classify = (n) => {
@@ -101,8 +109,22 @@ test('coverage breakdown identifies what to add next', { skip }, () => {
   }
   assert.equal([...buckets.values()].reduce((a, b) => a + b, 0), blocked.length,
     'every blocker must land in exactly one bucket');
-  // 'other' should not swallow everything, or the classification is not doing any work.
-  assert.ok(buckets.get('other') < blocked.length,
-    'every blocker classified as other, so the family regexes are not matching');
+  // NOT asserted: that 'other' is less than the total.
+  //
+  // That held while the gap was dominated by wool, planks, slabs and beds. It is now false BECAUSE
+  // those families were completed, and what remains is genuinely miscellaneous -- candle, chain, vine,
+  // and a scattering of stone variants. Requiring a family-shaped remainder would make this test fail
+  // precisely as the work succeeds, which is what happened.
+  //
+  // What still matters is that 'other' is not absorbing names the classifier should recognise, so the
+  // must-classify list below does the real work.
+  // Each name must EXIST *and* be one the classifier has a rule for. Two earlier drafts failed for one
+  // reason each: oak_fence is not implemented at all, and oak_door has no rule -- the classifier covers
+  // wool, planks, dye/carpet/concrete, slab/stairs and bed/banner/candle, and nothing else. A
+  // must-classify list has to respect both constraints or it tests the list rather than the code.
+  for (const name of ['oak_slab', 'oak_stairs', 'white_bed', 'white_carpet',
+    'white_wool', 'oak_planks', 'magenta_dye']) {
+    assert.notEqual(classify(name), 'other', name + ' should fall into a named family, not other');
+  }
   console.log('  blocker buckets: ' + [...buckets].map(([k, v]) => k + ' ' + v).join(', '));
 });

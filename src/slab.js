@@ -79,6 +79,103 @@ export function createSlabGeometry(def, tm, variant = 'bottom') {
 }
 
 /**
+ * Merge boxes into a single geometry, keeping exactly the attributes this pipeline uses.
+ *
+ * three.js's `mergeGeometries` handles position/normal/uv, but it requires every input to carry an
+ * identical attribute set and knows nothing about `emission` and `flame`. Merging by hand means a
+ * multi-box shape cannot silently lose an attribute and render as an invisible block.
+ */
+function mergeBoxes(parts) {
+  const total = parts.reduce((n, g) => n + g.attributes.position.count, 0);
+  const position = new Float32Array(total * 3);
+  const normal = new Float32Array(total * 3);
+  const uv = new Float32Array(total * 2);
+  const color = new Float32Array(total * 3);
+  const emission = new Float32Array(total);
+  const flame = new Float32Array(total);
+  const index = [];
+  let v = 0;
+  for (const g of parts) {
+    const p = g.attributes.position, n = g.attributes.normal, t = g.attributes.uv;
+    const c = g.attributes.color, e = g.attributes.emission, f = g.attributes.flame;
+    for (let i = 0; i < p.count; i++) {
+      position[(v + i) * 3] = p.getX(i);
+      position[(v + i) * 3 + 1] = p.getY(i);
+      position[(v + i) * 3 + 2] = p.getZ(i);
+      normal[(v + i) * 3] = n.getX(i);
+      normal[(v + i) * 3 + 1] = n.getY(i);
+      normal[(v + i) * 3 + 2] = n.getZ(i);
+      uv[(v + i) * 2] = t.getX(i);
+      uv[(v + i) * 2 + 1] = t.getY(i);
+      color[(v + i) * 3] = c.getX(i);
+      color[(v + i) * 3 + 1] = c.getY(i);
+      color[(v + i) * 3 + 2] = c.getZ(i);
+      emission[v + i] = e ? e.getX(i) : 0;
+      flame[v + i] = f ? f.getX(i) : 0;
+    }
+    const gi = g.index;
+    if (gi) for (let i = 0; i < gi.count; i++) index.push(gi.getX(i) + v);
+    v += p.count;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setAttribute('color', new THREE.BufferAttribute(color, 3));
+  out.setAttribute('emission', new THREE.BufferAttribute(emission, 1));
+  out.setAttribute('flame', new THREE.BufferAttribute(flame, 1));
+  out.setIndex(index);
+  return out;
+}
+
+// Horizontal rotations around the block centre, matching bed.js's convention.
+// 0: East (+X), 1: West (-X), 2: South (+Z), 3: North (-Z)
+export const STAIR_ROTATIONS = [
+  Math.PI / 2,   // 0: East
+  -Math.PI / 2,  // 1: West
+  Math.PI,       // 2: South
+  0,             // 3: North
+];
+
+/**
+ * A staircase: a bottom slab plus a half-height box on the back half.
+ *
+ * Vanilla stairs are the largest shape family this project was missing -- about 68 recipes. The step
+ * occupies z 0..0.5, so the front half of the upper level is open, and the whole shape is rotated
+ * around the block centre for the other three facings, the way bed.js and door.js do it.
+ *
+ * @param {number} dir    facing, 0 east, 1 west, 2 south, 3 north
+ * @param {boolean} isTop upside-down stairs, which occupy the upper half of the block
+ */
+export function createStairGeometry(def, tm, dir = 3, isTop = false) {
+  // The two orientations swap which half each box occupies.
+  //
+  //   normal    base y 0..0.5 (the slab)      step y 0.5..1 (on the back half)
+  //   inverted  base y 0.5..1 (the top slab)  step y 0..0.5 (hanging below it on the back half)
+  //
+  // The first version of this shifted BOTH boxes by the same amount when inverted, so the two shifts
+  // cancelled and the geometry was byte-identical in both orientations -- a parameter that silently did
+  // nothing. The test that caught it compared the y histograms, which is why they are compared directly
+  // rather than inferred from a bounding box.
+  const baseMinY = isTop ? 0.5 : 0;
+  const stepMinY = isTop ? 0 : 0.5;
+  const parts = [
+    buildBox({ x: 1, y: 0.5, z: 1 }, { x: 0, y: baseMinY, z: 0 }, def, tm),
+    buildBox({ x: 1, y: 0.5, z: 0.5 }, { x: 0, y: stepMinY, z: 0 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+
+  const rotAngle = STAIR_ROTATIONS[dir] || 0;
+  if (rotAngle !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rotAngle);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+
+/**
  * A glass pane: a thin sheet through the middle of the block, full height.
  *
  * Vanilla panes are 2 pixels thick (0.125) and centred on one axis. The UVs are inset because glass is

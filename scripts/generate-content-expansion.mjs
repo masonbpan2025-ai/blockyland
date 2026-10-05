@@ -85,6 +85,37 @@ const FAMILIES = [
     sound: 'stone',
   },
   {
+    // Bark blocks and the remaining stone variants: all plain full cubes.
+    //
+    // `_wood` is a log stripped of its bark on all six sides and `_hyphae` is its nether equivalent.
+    // Both are ordinary cubes, and the exclusion list would otherwise catch `_stem` on the hyphae.
+    id: 'wood_and_stone_variants',
+    match: (n) => /^([a-z_]+_wood|[a-z_]+_hyphae|polished_tuff|tuff_bricks|chiseled_tuff|chiseled_tuff_bricks|deepslate_bricks|cracked_deepslate_bricks|deepslate_tiles|cracked_deepslate_tiles|chiseled_deepslate|polished_deepslate|red_nether_bricks|polished_blackstone_bricks|cracked_polished_blackstone_bricks|chiseled_polished_blackstone|bamboo_mosaic|polished_basalt|smooth_quartz_block|cut_sandstone|chiseled_sandstone|cut_red_sandstone|chiseled_red_sandstone)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      // A bark block reuses its log texture, and a hyphae its stem.
+      const base = n.replace(/_wood$/, "_log").replace(/_hyphae$/, "_stem");
+      if (textureExists(base + ".png")) return base + ".png";
+      return n + ".png";
+    },
+    sound: 'wood',
+    extra: { cube: true },
+  },
+  {
+    // Stairs: two boxes, a base half and a step against the back. Declared with a shape marker so
+    // the name-based cube exclusion is skipped, which matters because `_stairs` is in that list.
+    id: 'stairs',
+    match: (n) => /_stairs$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_stairs$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      return base + ".png";
+    },
+    sound: 'wood',
+    extra: { stair: true },
+  },
+  {
     // Slabs: half-height boxes. Emitted now that src/slab.js can draw them; before that they were
     // deliberately excluded because a slab drawn as a full cube is visibly wrong.
     id: 'slabs',

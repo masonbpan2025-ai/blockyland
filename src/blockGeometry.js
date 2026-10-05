@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createPaneGeometry, createCarpetGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -25,6 +25,13 @@ export function createBlockGeometry(id, textures, state = {}) {
   const def = BLOCK_DEFS[numericId] || BLOCK_DEFS[id];
   // Partial-cube shapes. All are placed before the cube fallback so none is ever drawn full size;
   // the mesher's dispatch routes them here for the same reason.
+  if (def?.stair) {
+    // Stairs are two boxes: a base half and a step against the back. The facing comes from the
+    // block state, which the mesher passes in the same way it does for doors and beds.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    const isTop = Boolean(state?.isTop || def.isTop);
+    return ensureFlameAttributes(createStairGeometry(def, textures, dir, isTop));
+  }
   if (def?.pane) {
     return ensureFlameAttributes(createPaneGeometry(def, textures));
   }
