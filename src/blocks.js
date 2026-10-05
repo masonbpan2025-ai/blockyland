@@ -1244,6 +1244,7 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  tadpole_spawn_egg: { name: 'Tadpole Spawn Egg', icon: '/assets/items/tadpole_spawn_egg.png', type: 'spawn_egg', mob: 'tadpole' },
   frog_spawn_egg: { name: 'Frog Spawn Egg', icon: '/assets/items/frog_spawn_egg.png', type: 'spawn_egg', mob: 'frog' },
   turtle_spawn_egg: { name: 'Turtle Spawn Egg', icon: '/assets/items/turtle_spawn_egg.png', type: 'spawn_egg', mob: 'turtle' },
   llama_spawn_egg: { name: 'Llama Spawn Egg', icon: '/assets/items/llama_spawn_egg.png', type: 'spawn_egg', mob: 'llama' },

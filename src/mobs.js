@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
@@ -380,6 +381,7 @@ export class MobManager {
       case 'llama': return this.spawnLlama(x, y, z, {});
       case 'turtle': return this.spawnTurtle(x, y, z, {});
       case 'frog': return this.spawnFrog(x, y, z, {});
+      case 'tadpole': return this.spawnTadpole(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2349,6 +2351,8 @@ export class MobManager {
       case 'turtle': return TURTLE_DIMENSIONS;
       // Wiki: frogs are 0.5 x 0.5.
       case 'frog': return FROG_DIMENSIONS;
+      // Wiki: tadpoles are 0.4 x 0.3.
+      case 'tadpole': return TADPOLE_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3751,6 +3755,108 @@ export class MobManager {
     };
     this.mobs.push(mob);
     return mob;
+  }
+
+  /**
+   * Tadpole.
+   *
+   * Wiki: 6 HP, 0.4 x 0.3, a bucketable aquatic passive mob. It hatches from frogspawn, drowns
+   * after under 20 seconds out of water, is hunted by axolotls, and matures into whichever frog
+   * variant its *current biome* dictates — the game's only case of the environment, rather than the
+   * parents, deciding a baby's adult form.
+   */
+  spawnTadpole(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.body });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.belly });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: TADPOLE_COLORS.eye });
+    const { group, body, belly, head, eyes, tail } = createTadpoleModel(bodyMat, bellyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'tadpole',
+      name: 'Tadpole',
+      mesh: group,
+      body,
+      belly,
+      head,
+      eyes,
+      tail,
+      bodyMat,
+      bellyMat,
+      eyeMat,
+      // Wiki: 6 HP.
+      health: TADPOLE_HEALTH,
+      maxHealth: TADPOLE_HEALTH,
+      // Wiki: a tadpole is not a baby variant of the frog — it is its own mob — but it does mature,
+      // so the shared `isBaby` flag is deliberately NOT set. Growth is tracked by `growthTimer`.
+      isBaby: false,
+      width: TADPOLE_DIMENSIONS.width,
+      height: TADPOLE_DIMENSIONS.height,
+      // Wiki: aquatic, breathes under water, and is an axolotl hunt target.
+      isAquatic: true,
+      canBreatheUnderwater: true,
+      isAxolotlPrey: true,
+      // Wiki: bucketable with a water bucket, preserving health, age and name.
+      isBucketable: true,
+      inWater: false,
+      drySeconds: 0,
+      growthTimer: TADPOLE_GROWTH_SECONDS,
+      readyToMature: false,
+      // Wiki: golden dandelions stop it aging.
+      ageLocked: false,
+      waterTarget: null,
+      waterSearchTimer: 0,
+      swimCycle: 0,
+      tadpolePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * The nearest water for a beached tadpole.
+   *
+   * Same expanding-square search the turtle uses, on a smaller radius, because a tadpole's whole
+   * land behaviour is "get back to water".
+   */
+  findWaterNearTadpole(mob) {
+    return findWaterNear(this, mob, TADPOLE_WATER_SEARCH.radius);
+  }
+
+  /**
+   * Mature a tadpole into the frog its current biome dictates.
+   *
+   * Wiki: "A tadpole grows up into one of the variants of a frog depending on the tadpole's
+   * location", which is the game's only case of the *environment* rather than the parents deciding a
+   * baby's adult form. The tadpole is replaced by a frog rather than mutated, because the wiki is
+   * explicit that "the tadpole is treated by the game as a completely different mob from the frog".
+   *
+   * Returns the new frog, or null.
+   */
+  matureTadpole(tadpole) {
+    if (!isTadpole(tadpole)) return null;
+    const pos = tadpole.mesh.position;
+    const biome = this.world?.getBiome?.(Math.floor(pos.x), Math.floor(pos.z)) ?? null;
+    const variant = tadpoleVariantForBiome(biome);
+
+    // Remove the tadpole without running the death path: it grew up, it did not die.
+    tadpole.mesh.removeFromParent?.();
+    const index = this.mobs.indexOf(tadpole);
+    if (index >= 0) this.mobs.splice(index, 1);
+    tadpole.maturedInto = 'frog';
+
+    const frog = this.spawnFrog(pos.x, pos.y, pos.z, { variant });
+    // Wiki: a name survives the change, as it does for a bucketed tadpole.
+    if (tadpole.name && tadpole.name !== 'Tadpole') frog.name = tadpole.name;
+    return frog;
   }
 
   // --- PASSIVE COW ---
@@ -7105,7 +7211,9 @@ export class MobManager {
     const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
     // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
     const frogRows = isFrog(mob) ? frogDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows];
+    // Wiki: a tadpole drops nothing at all, and awards no experience.
+    const tadpoleRows = isTadpole(mob) ? tadpoleDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows];
   }
 
   /**
@@ -7194,7 +7302,9 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'tadpole' ? 0
+          : mob.type === 'tadpole' ? 0
+          : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
           : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
           : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
@@ -7456,10 +7566,12 @@ export class MobManager {
         continue;
       }
 
-      if (mob.isAquatic && !isTurtle(mob)) {
-        // Turtles are aquatic but not fish: they walk on land and swim in water, so they own their
-        // locomotion in their own branch. Sending them down this path made them beached-flop
-        // sideways with fish physics, which is what the exclusion is for.
+      if (mob.isAquatic && !isTurtle(mob) && !isTadpole(mob)) {
+        // Turtles and tadpoles are aquatic but not fish. A turtle walks on land and swims; a tadpole
+        // flops on land, seeks water, and drowns out of it, then grows into a frog. Both own their
+        // locomotion in their own branch. This path ends in an unconditional `return true`, so it
+        // claims *any* aquatic mob that reaches it — which is why each had to be excluded
+        // explicitly, and why the symptom was a mob that silently did nothing.
         if (this.updateAquaticMob(mob, dt, player)) continue;
       }
 
@@ -7601,6 +7713,72 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='tadpole'){
+      // Wiki: 6 HP aquatic passive. It swims aimlessly in water, flops on land and seeks the nearest
+      // water, dies in under 20 seconds out of water, and matures into whichever frog variant its
+      // current biome dictates.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const tX = Math.floor(mob.mesh.position.x);
+      const tY = Math.floor(mob.mesh.position.y + 0.05);
+      const tZ = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(tX, tY, tZ) === BLOCKS.WATER;
+      const remaining = updateTadpoleDryness(mob, dt, inWater);
+      mob.inWater = inWater;
+
+      // Wiki: "They die in less than 20 seconds after being out of water." It dies of exposure, not
+      // of a kill, so there is no loot and no XP either way.
+      if (remaining <= 0 && mob.health > 0) {
+        mob.health = 0;
+        mob.diedOfDryness = true;
+        this.updateDeath(mob, dt);
+        return true;
+      }
+
+      // Wiki: one Minecraft day to grow, 10% faster per slimeball, and the *biome it is in* decides
+      // the frog variant — the game's only case of the environment deciding a baby's adult form.
+      if (updateTadpoleGrowth(mob, dt)) {
+        this.matureTadpole(mob);
+        return true;
+      }
+
+      if (inWater) {
+        // Swim aimlessly, as the wiki describes.
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 1.5 + Math.random() * 2.5;
+          mob.yaw = Math.random() * Math.PI * 2;
+          mob.pitch = (Math.random() - 0.5) * 0.4;
+        }
+        mob.velocity.x = Math.sin(mob.yaw) * Math.cos(mob.pitch) * TADPOLE_SPEED.water;
+        mob.velocity.z = Math.cos(mob.yaw) * Math.cos(mob.pitch) * TADPOLE_SPEED.water;
+        mob.velocity.y = -Math.sin(mob.pitch) * TADPOLE_SPEED.water;
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+      } else {
+        // Wiki: on land it flops and seeks the nearest water.
+        mob.waterSearchTimer = (mob.waterSearchTimer || 0) + dt;
+        if (!mob.waterTarget || mob.mesh.position.distanceTo(mob.waterTarget) < 1.0) {
+          mob.waterTarget = this.findWaterNearTadpole(mob);
+        }
+        if (mob.waterTarget) {
+          const dir = mob.waterTarget.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+        }
+        mob.flopTimer = (mob.flopTimer || 0) - dt;
+        if (mob.flopTimer <= 0) {
+          mob.flopTimer = 0.5 + Math.random() * 0.6;
+          mob.velocity.y = 2.4 + Math.random();
+          mob.velocity.x = Math.sin(mob.yaw) * TADPOLE_SPEED.land * 2;
+          mob.velocity.z = Math.cos(mob.yaw) * TADPOLE_SPEED.land * 2;
+        }
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.tadpolePhase = (mob.tadpolePhase || 0) + dt * (inWater ? 8 : 14);
+      poseTadpole(mob, mob.tadpolePhase);
       return true;
     }
     if(mob.type==='frog'){
