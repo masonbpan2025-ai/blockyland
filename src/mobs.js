@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
 import { VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
@@ -489,6 +490,7 @@ export class MobManager {
       case 'armadillo': return this.spawnArmadillo(x, y, z, options);
       case 'breeze': return this.spawnBreeze(x, y, z, options);
       case 'sniffer': return this.spawnSniffer(x, y, z, options);
+      case 'allay': return this.spawnAllay(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2517,6 +2519,8 @@ export class MobManager {
       case 'breeze': return BREEZE_DIMENSIONS;
       // Wiki: a sniffer is 1.9 x 1.75, and a snifflet 0.95 x 0.875.
       case 'sniffer': return SNIFFER_DIMENSIONS;
+      // Wiki: an allay is 0.35 wide x 0.6 tall, and has no baby form.
+      case 'allay': return ALLAY_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -3610,6 +3614,9 @@ export class MobManager {
 
     const mob = {
       type: 'goat',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Goat',
       mesh: group,
       body,
@@ -3746,6 +3753,9 @@ export class MobManager {
     const health = llamaHealthFor(strength);
     const mob = {
       type: 'llama',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Llama',
       mesh: group,
       body,
@@ -3817,6 +3827,9 @@ export class MobManager {
     const dims = options.isBaby ? TURTLE_BABY_DIMENSIONS : TURTLE_DIMENSIONS;
     const mob = {
       type: 'turtle',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Turtle',
       mesh: group,
       shell,
@@ -3907,6 +3920,9 @@ export class MobManager {
 
     const mob = {
       type: 'frog',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Frog',
       mesh: group,
       body,
@@ -4565,6 +4581,73 @@ export class MobManager {
   }
 
   /**
+   * Allay.
+   *
+   * Wiki: a small flying passive mob, 20 HP, that follows the player who gave it an item and fetches
+   * dropped copies of that item. It is fall-damage immune, regenerates 2 HP a second, cannot be harmed
+   * by its owner, and has no baby form.
+   */
+  spawnAllay(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: ALLAY_COLORS.body });
+    const wingMat = new THREE.MeshLambertMaterial({
+      color: ALLAY_COLORS.wing, transparent: true, opacity: 0.85
+    });
+    const trimMat = new THREE.MeshBasicMaterial({
+      color: ALLAY_COLORS.trim, transparent: true, opacity: 0.7
+    });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: ALLAY_COLORS.eye });
+    const { group: model, body, head, eyes, wings, trim, arms } =
+      createAllayModel(bodyMat, wingMat, trimMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'allay',
+      name: 'Allay',
+      mesh: group,
+      body, head, eyes, wings, trim, arms,
+      // Wiki: 20 HP, raised from 10 in 22w16a.
+      health: ALLAY_HEALTH,
+      maxHealth: ALLAY_HEALTH,
+      width: ALLAY_DIMENSIONS.width,
+      height: ALLAY_DIMENSIONS.height,
+      speed: ALLAY_SPEED,
+      isFlying: true,
+      // Wiki entity tag: fall_damage_immune.
+      fallDamageImmune: ALLAY_FALL_IMMUNE,
+      // Wiki: allays cannot enter water, although it tries to gather underwater items.
+      avoidsWater: true,
+      // The job. Wiki: it flies aimlessly until a player gives it an item.
+      heldItem: options.heldItem ?? null,
+      owner: options.owner ?? null,
+      carriedCount: 0,
+      seekCooldown: 0,
+      // Wiki: delivers to a note block it heard within 16 blocks for the next 30 seconds.
+      noteFocus: null,
+      noteFocusTimer: 0,
+      // Wiki: a five-minute cooldown after duplicating.
+      duplicationCooldown: 0,
+      isDancing: false,
+      allayPhase: 0,
+      baseY: y,
+      // Wiki: allays cannot be harmed by their interacting owner.
+      ownerImmune: ALLAY_OWNER_IMMUNE,
+      // Flying, but set so the shared groundedness readers have a definite value.
+      onGround: false,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
    * Sniffer.
    *
    * Wiki: a passive ancient mob, 14 HP, that spawns only by hatching from a sniffer egg. It wanders,
@@ -4782,6 +4865,9 @@ export class MobManager {
     const dims = options.isBaby ? ARMADILLO_BABY_DIMENSIONS : ARMADILLO_DIMENSIONS;
     const mob = {
       type: 'armadillo',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Armadillo',
       mesh: group,
       head,
@@ -4917,6 +5003,9 @@ export class MobManager {
 
     const mob = {
       type: 'panda',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Panda',
       mesh: group,
       head: head,
@@ -7935,7 +8024,9 @@ export class MobManager {
     const breezeRows = isBreeze(mob) && (mob.playerDamaged || mob.wolfKilled) ? breezeDrops(mob, random) : [];
     // Wiki: a sniffer drops no items at all -- the seeds come from digging and the egg from breeding.
     const snifferRows = isSniffer(mob) ? snifferDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows];
+    // Wiki: an allay drops the item it is holding and nothing else, and no experience at all.
+    const allayRows = isAllay(mob) ? allayDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows];
   }
 
   /**
@@ -8024,7 +8115,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'allay' ? 0
+          : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
           : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
           : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
           : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
@@ -8828,6 +8920,41 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='allay'){
+      // Wiki: it flies aimlessly until given an item, then follows that player and fetches dropped
+      // copies of it. It also dances by a playing jukebox, focuses on a note block it hears, and
+      // regenerates 2 HP a second.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateAllayRegen(mob, dt);
+      mob.allayPhase = (mob.allayPhase || 0) + dt;
+
+      // Wiki: it cannot enter water, so a water tile is treated as a wall.
+      const ax = Math.floor(mob.mesh.position.x);
+      const ay = Math.floor(mob.mesh.position.y);
+      const az = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(ax, ay, az) === BLOCKS.WATER;
+
+      const outcome = updateAllayJob(this, mob, dt, player, {
+        mobGriefing: this.game?.mobGriefing !== false,
+        // `random` is not in scope in this branch; the manager's own source is what the neighbouring
+        // branches use, and the helper defaults to Math.random.
+        random: this.random ?? Math.random
+      });
+
+      // Wiki: it cannot enter water, so a planned move into water is cancelled.
+      if (inWater) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        mob.mesh.position.y += 1.5 * dt;
+      }
+
+      moveFlyingMob(this, mob, dt);
+      // The dance uses the resting height as its baseline, so it bobs instead of drifting upward.
+      if (outcome !== 'dancing') mob.baseY = mob.mesh.position.y;
+      poseAllay(mob, mob.allayPhase);
+      mob.state = outcome ?? 'idle';
       return true;
     }
     if(mob.type==='sniffer'){
