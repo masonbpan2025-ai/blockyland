@@ -69,8 +69,12 @@ test('the name mapper resolves present content and not absent content', { skip }
     assert.equal(have(name), false, `${name} does not exist anywhere and must not resolve`);
   }
   // And a name that is absent for a STRUCTURAL reason, not because a family is merely unbuilt: this
-  // game has no map item and adding one needs rendering and a world-to-map projection.
-  assert.equal(have('map'), false, 'the map item needs mechanics this game does not have');
+  // game has no spyglass because a spyglass IS its zoom, and the zoom needs camera plumbing the engine
+  // does not have. `map` used to stand here, on the argument that a map needs rendering and a
+  // world-to-map projection -- and the empty map has since been added, because this game's filled map
+  // was already an inert item the cartographer sells, so the crafted one only had to convert to it. The
+  // argument was about vanilla's map, not this game's.
+  assert.equal(have('spyglass'), false, 'the spyglass needs camera plumbing this game does not have');
 });
 
 test('coverage breakdown identifies what to add next', { skip }, () => {

@@ -70,6 +70,10 @@ export function addedItems() {
     // `stackSize: 1` because a banner pattern does not stack, which the four generated patterns also declare and
     // which `stack-size` checks against the pinned data -- it caught this one missing the field.
     globe_banner_pattern: { name: 'Globe Banner Pattern', icon: '/assets/items/globe_banner_pattern.png', stackSize: 1, type: 'material' },
+    // Vanilla's empty map: eight paper in a ring around a compass, and using it is what fills it. The filled
+    // form already existed as `filled_map` (the cartographer's explorer maps are that item); what was missing
+    // was the map you craft, so the filling had nothing to start from.
+    map: { name: 'Empty Map', icon: '/assets/items/map.png', stackSize: 64, type: 'utility' },
     cake: { name: 'Cake', icon: '/assets/items/cake.png', isBlock: true, blockId: BLOCKS.CAKE, stackSize: 1, type: 'block' },
     shulker_box: { name: 'Shulker Box', icon: '/assets/items/shulker_box.png', isBlock: true, blockId: BLOCKS.SHULKER_BOX, stackSize: 1, type: 'block' },
     white_shulker_box: { name: 'White Shulker Box', icon: '/assets/items/white_shulker_box.png', isBlock: true, blockId: BLOCKS.WHITE_SHULKER_BOX, stackSize: 1, type: 'block' },

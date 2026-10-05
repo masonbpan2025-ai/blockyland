@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1553 recipes.
+// 1554 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -1201,6 +1201,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['stick','stick','stick'],['stick','leather','stick'],['stick','stick','stick']],result:{id:'item_frame',isBlock:false,count:1}},
   {shapeless:true,ingredients:['item_frame','glow_ink_sac'],result:{id:'glow_item_frame',isBlock:false,count:1}},
   {pattern:[['brick',null,'brick'],[null,'brick',null]],result:{id:B.FLOWER_POT,isBlock:true,count:1}},
+  {pattern:[['paper','paper','paper'],['paper','compass','paper'],['paper','paper','paper']],result:{id:'map',isBlock:false,count:1}},
   {pattern:[['gold_nugget','gold_nugget','gold_nugget'],['gold_nugget','carrot','gold_nugget'],['gold_nugget','gold_nugget','gold_nugget']],result:{id:'golden_carrot',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.PUMPKIN,'sugar','egg'],result:{id:'pumpkin_pie',isBlock:false,count:1}},
   {shapeless:true,ingredients:['gunpowder','paper'],result:{id:'firework_rocket',isBlock:false,count:3}},
@@ -1573,21 +1574,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1553;
+export const EXTRA_RECIPE_COUNT = 1554;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1553,
-  "shaped": 1281,
+  "emitted": 1554,
+  "shaped": 1282,
   "shapeless": 272,
-  "skippedMissingResult": 3,
+  "skippedMissingResult": 2,
   "skippedMissingIngredient": 0,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1553,
+  "emittedBeforeDedupe": 1554,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

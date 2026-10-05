@@ -14,7 +14,7 @@ one of them can be reproduced with the commands at the end.
 
 | | Have | Vanilla | |
 | --- | --- | --- | --- |
-| Items (including item forms of blocks) | **1278** | 1385 | 92.3% |
+| Items (including item forms of blocks) | **1279** | 1385 | 92.3% |
 | Vanilla item names absent | **14** | 1385 | 99.0% named |
 | Registered blocks | 496 | 1095 | — |
 | Recipes | 3609 | 1557 vanilla | — |
@@ -104,12 +104,17 @@ trade-only item. `codeDropSources.js` names it so `has-source` can see it, and i
 other four patterns'. Its companion, `piglin_banner_pattern`, cannot follow: vanilla's barter table is the only
 source it has here, and that table is pinned to a version whose entries do not include it.
 
-Two notes on the count. `map` left the list this round without an empty map being
-implemented: correcting `filled_map`'s display name to vanilla's "Map" made the resolver answer for the name
-`map` as well as the id, and the empty map and the filled one share that name in vanilla. It is a name
-collision the count cannot see through -- a limitation worth knowing about when reading any of these figures.
-Every remaining entry carries the reason it is absent in the table above, `resin_brick` included: it waits on
-the resin clump block.
+One note on the count. `map` left the absent list a round early and for the wrong reason: correcting
+`filled_map`'s display name to vanilla's "Map" made the resolver answer for the name `map` as well, and vanilla
+gives the empty map and the filled one the same display name. The empty map is implemented now, so the figure is
+honest again -- but the collision was real, and it is worth knowing that this count cannot see through it.
+
+Adding that item exposed a defect worth more than it: auditing which ids the trade tables hand out, **seven**
+named something the game does not have. Four were rewards -- `ocean_map`, `woodland_map`,
+`enchanted_fishing_rod` and `carpet` -- and three were costs -- `boat`, `wool` and `dye`. A villager
+offering one of those grants `addItem(id, ...)`, which produces a stack with no definition, the same
+phantom-stack shape as the brewing result that once produced `splash_water_bottle`. `tests/mapItem.test.js`
+now derives the check from the tables, so a new offer with an invented id fails instead of selling nothing.
 
 ## What landed, by theme
 

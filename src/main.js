@@ -1488,6 +1488,19 @@ class Game {
       this.ui?.updateStats?.();
       return;
     }
+    // Using an empty map fills it. Vanilla's gesture is a right-click anywhere, with no target: the map is
+    // drawn from the world at that moment. This game's filled map is an inert item -- the cartographer already
+    // sells explorer maps as `filled_map` -- so the honest version of the gesture is the conversion itself,
+    // which is what makes the crafted map worth crafting.
+    if (bucketItem && !bucketItem.isBlock && bucketItem.id === 'map') {
+      this.inventory.consumeActiveItem?.();
+      if (!this.inventory.addItem('filled_map', false, 1)) {
+        this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 'filled_map', false);
+      }
+      this.sounds.playClick?.();
+      this.ui.updateHotbar();
+      return;
+    }
     // A bundle in hand gives one item back, into the world: that is how a full bundle empties, and it is the
     // only gesture vanilla gives it. The item goes where the player is looking, like any other drop.
     const held = takeFromBundle(bucketItem);
