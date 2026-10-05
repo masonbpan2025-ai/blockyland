@@ -33,6 +33,7 @@ import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, 
 import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
 import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, createEndermiteModel, poseEndermiteLegs, updateEndermiteLifetime, updateEndermiteHunt, updateEndermanEndermiteAggression } from './endermiteBehavior.js';
 import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
+import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -357,6 +358,7 @@ export class MobManager {
       case 'silverfish': return this.spawnSilverfish(x, y, z, {});
       case 'endermite': return this.spawnEndermite(x, y, z, {});
       case 'rabbit': return this.spawnRabbit(x, y, z, {});
+      case 'bat': return this.spawnBat(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2311,6 +2313,8 @@ export class MobManager {
       // Wiki: rabbits are 0.4 x 0.5. A spawned rabbit carries its own size, so babies
       // resolve through the instance values.
       case 'rabbit': return RABBIT_DIMENSIONS;
+      // Wiki: bats are 0.5 x 0.9.
+      case 'bat': return BAT_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3129,6 +3133,63 @@ export class MobManager {
       hitCooldown: 0
     };
     applyRabbitCoat(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Bat.
+   *
+   * Wiki: 6 HP, 0.5 x 0.9, passive, the game's only ambient mob. It hangs upside down from the
+   * underside of a solid block, flees when a player comes near even while hanging, and despawns
+   * past 32 blocks. It drops no items and no experience.
+   */
+  spawnBat(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4b3a2f });
+    const wingMat = new THREE.MeshLambertMaterial({ color: 0x3a2c24 });
+    const earMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+    const { group, body, head, ears, eyes, wings } = createBatModel(bodyMat, wingMat, earMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'bat',
+      name: 'Bat',
+      mesh: group,
+      body,
+      head,
+      ears,
+      eyes,
+      wings,
+      bodyMat,
+      wingMat,
+      earMat,
+      isFlying: true,
+      // Wiki: bats are ambient and do not count toward the passive mob cap.
+      isAmbient: true,
+      // Wiki: bats are immune to fall damage (the `fall_damage_immune` entity tag).
+      fallDamageImmune: true,
+      // Wiki: 6 HP.
+      health: BAT_HEALTH,
+      maxHealth: BAT_HEALTH,
+      width: BAT_DIMENSIONS.width,
+      height: BAT_DIMENSIONS.height,
+      // Wiki `BatFlags`: true while hanging upside down.
+      isHanging: false,
+      hangTimer: 0,
+      flyTimer: 0,
+      isFleeing: false,
+      batPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      targetPitch: 0,
+      wanderTimer: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
     this.mobs.push(mob);
     return mob;
   }
@@ -6444,7 +6505,7 @@ export class MobManager {
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random)];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob)];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6512,7 +6573,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'bat' ? 0
+          : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
           : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
           : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
           : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
@@ -6869,6 +6931,16 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='bat'){
+      // Wiki: flies around aimlessly, hangs under solid blocks, flees nearby players, and
+      // despawns past 32 blocks.
+      if (updateBatDespawn(this, mob, player)) return true;
+      updateBatFlight(this, mob, dt, player);
+      moveFlyingMob(this, mob, dt);
+      mob.batPhase = (mob.batPhase || 0) + dt * (mob.isHanging ? 1.5 : 22);
+      poseBatWings(mob, mob.batPhase);
+      return true;
+    }
     if(mob.type==='rabbit'){
       // Wiki: normal rabbits hop around aimlessly and flee players; the killer bunny hunts.
       if (isKillerBunny(mob)) {
