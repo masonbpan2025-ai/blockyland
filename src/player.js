@@ -3,8 +3,9 @@ import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
-import { applyGlide, wantsToStartGliding, shouldStopGliding } from './elytra.js';
+import { applyGlide, wantsToStartGliding, shouldStopGliding, tickElytraWear } from './elytra.js';
 import { fallDamageFor } from './fallDamage.js';
+import { isInVoid, VOID_DAMAGE } from './voidDamage.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -36,6 +37,8 @@ export class Player {
     this.isGliding = false;
     this.elytraActive = false;
     this.elytraBoost = 0;
+    // Seconds of glide accumulated toward the next point of elytra wear.
+    this.elytraFlight = 0;
     this.gamemode = 'creative'; // 'creative' | 'survival'
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
@@ -579,6 +582,17 @@ export class Player {
     } else if (this.isGliding) {
       // Vanilla's glide, approximated -- see src/elytra.js for what is tuned and what is asserted.
       this.elytraBoost = Math.max(0, (this.elytraBoost || 0) - dt);
+      // One point of elytra durability per second of flight, which is vanilla's rate. The 432 figure has
+      // been in `durability.js` since that file was written and nothing ever spent any of it, so an elytra
+      // was permanent -- the same gap tools, armour and the shield each had.
+      {
+        const roll = typeof this.random === 'function' ? this.random : Math.random;
+        const wear = tickElytraWear(this, dt, roll);
+        if (wear.broke) {
+          // A broken elytra stops gliding, because `hasElytraEquipped` can no longer find it.
+          this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your elytra broke.</span>');
+        }
+      }
       applyGlide({
         velocity: this.velocity,
         yaw: this.yaw,
@@ -626,9 +640,14 @@ export class Player {
     // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
     // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
     if (this.gamemode === 'survival' && !this.isDead) {
-      if (this.position.y < -10) {
-        this.takeDamage(10);
+      if (isInVoid(this.position)) {
+        // The type matters: `takeDamage` skips the armour formula for 'void', and excludes it from shield
+        // blocking and Thorns. This call passed no type at all, so armour was reducing void damage -- the
+        // one thing in vanilla that nothing protects you from.
+        this.takeDamage(VOID_DAMAGE, null, 'void');
         if (!this.isDead) {
+          // Deviation: the rescue point is hard-coded rather than the world spawn, so a player who falls out
+          // of the world lands at a fixed spot rather than where they started.
           this.position.set(8.5, 35, 8.5);
           this.velocity.set(0, 0, 0);
         }

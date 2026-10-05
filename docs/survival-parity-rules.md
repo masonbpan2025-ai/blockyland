@@ -520,7 +520,8 @@ recorded there.
   horizontal speed is bounded at both ends, and a firework rocket adds speed and lift. Those are what
   `tests/elytraGlide.test.js` checks.
 
-  Known deviations: there is no elytra durability loss for time spent gliding. **An earlier version of this
+  Elytra durability IS now spent, at one point per second of flight (see 4.2.4), so the deviation this
+  note used to record no longer applies. **An earlier version of this
   note claimed vanilla also deals damage on a fast impact, and that was wrong** — an elytra *negates* fall
   damage, which is most of why it is worth wearing. Corrected here rather than left standing. The glide also steers along the existing heading rather than
   turning with the camera, so a glide is committed to a direction once it has one.
@@ -618,6 +619,36 @@ recorded there.
   **Depth strider**: applied in `Player.selectBaseSpeed()`, the water branch, reaching 1.75x at level III
   where the penalty is gone and water speed passes land speed. Clamped above level III.
 
+### 4.2.4 Two rules that were declared and never applied
+
+Both were found the same way fall damage was: by asking which branches exist that nothing reaches.
+
+**The void damage was passed with no type at all.** `takeDamage` already skips the armour formula for
+`'void'`, and already excludes it from shield blocking and from Thorns — three rules written against a
+damage type nothing ever produced. The call site read `this.takeDamage(10)`, so void damage was being
+**reduced by armour**, which vanilla explicitly does not do: the void is one of the few things nothing
+protects you from. `src/voidDamage.js` names the threshold and the amount, and the call passes the type.
+
+  A deviation remains: the rescue point after falling out of the world is hard-coded to `(8.5, 35, 8.5)`
+  rather than the world spawn, so a player who falls out lands at a fixed spot rather than where they
+  started. `worldSpawn.js` has a `placePlayerOnSurface` that would be the right thing to use.
+
+**The elytra's 432 durability was never spent.** The figure has been in `durability.js` since that file
+was written, and gliding charged nothing for it, so an elytra was permanent — the same gap tools, armour
+and the shield each had, and the last of the four. Vanilla charges one point per second of flight, which
+is what `tickElytraWear` does, with unbreaking applied through the same `spendDurability` the other three
+use. At 60 fps the wear lands on **exactly 432 seconds for 432 points** over 25,920 frames, with no drift.
+
+**Floating-point accumulation needed fixing, and a tolerance was not enough.** Seconds sum in binary
+floating point, where `0.9 + 0.1` is `0.9999999999999999`. A tolerance on the comparison lets that past
+the guard and then `Math.floor` of it returns **0**, so the point is still delayed a frame — which is what
+the first attempt did and why the test kept failing. Rounding the accumulator to microseconds fixes it at
+the source.
+
+One of my own tests had to be loosened here. `tests/elytraGlide.test.js` pinned the exact import list
+from the elytra module, so adding `tickElytraWear` to a correct import failed it. That is the same
+over-specification as the husk row tuple in `tests/undeadVariantsParity.test.js`, and the fix is the same:
+assert the content, not the exact shape.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

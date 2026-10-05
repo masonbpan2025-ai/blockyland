@@ -148,8 +148,16 @@ test('the glide branch is wired into the player movement, and only while gliding
   // Checked at the source because driving `Player.update` needs most of an engine. This proves the branch
   // exists and sits where the other movement modes are, not that a specific keypress starts a glide.
   const source = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(source, /import \{ applyGlide, wantsToStartGliding, shouldStopGliding \} from '\.\/elytra\.js'/,
-    'player.js should import the glide helpers');
+  // Asserts the helpers are imported WITHOUT pinning the exact list. It read
+  // `/import \{ applyGlide, wantsToStartGliding, shouldStopGliding \} from/` until the elytra wear was added
+  // to the same import, at which point a correct change failed the test. That is the same
+  // over-specification as the husk row tuple in `undeadVariantsParity`, and the fix is the same: assert the
+  // content, not the exact shape.
+  const importLine = /import \{([^}]*)\} from '\.\/elytra\.js'/.exec(source);
+  assert.ok(importLine, 'player.js should import from the elytra module');
+  for (const helper of ['applyGlide', 'wantsToStartGliding', 'shouldStopGliding']) {
+    assert.ok(importLine[1].includes(helper), 'the import should bring in ' + helper);
+  }
   assert.match(source, /this\.isGliding = false;/, 'and the flags should be initialised in the constructor');
   const branch = source.indexOf('} else if (this.isGliding) {');
   assert.ok(branch > 0, 'the movement chain should have a gliding branch');

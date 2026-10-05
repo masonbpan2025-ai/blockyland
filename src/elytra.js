@@ -16,6 +16,7 @@
 //
 // The branch this drives only runs while `isGliding`, so none of it can affect ordinary movement.
 import * as THREE from 'three';
+import { spendDurability } from './durability.js';
 
 /** Gentle sink while gliding, against the 28.0 the player falls under normally. */
 export const ELYTRA_GRAVITY = 7.0;
@@ -30,6 +31,43 @@ export const ELYTRA_CLIMB_DRAG = 22.0;
 /** A firework rocket's contribution. */
 export const ELYTRA_BOOST_SPEED = 30.0;
 export const ELYTRA_BOOST_SECONDS = 2.0;
+
+/** One point of elytra durability per second of flight, which is vanilla's rate. */
+export const ELYTRA_SECONDS_PER_DURABILITY = 1;
+
+/**
+ * Accumulate glide time and spend elytra durability in whole points.
+ *
+ * The 432 figure has been in `durability.js` since that file was written and nothing ever spent any of it,
+ * so an elytra was permanent -- the same gap tools, armour and the shield each had. Split out of the
+ * movement loop so it can be tested without driving `Player.update`.
+ *
+ * @param {object} player mutated: `elytraFlight` accrues, the chest slot empties on a break
+ * @param {number} dt seconds
+ * @param {() => number} [random] for unbreaking, and injectable so tests are deterministic
+ * @returns {{spent:number, broke:boolean}}
+ */
+export function tickElytraWear(player, dt, random = Math.random) {
+  const none = { spent: 0, broke: false };
+  if (!player || player.gamemode !== 'survival') return none;
+  // A NaN or negative delta would poison the accumulator and silence the wear for the rest of the flight.
+  // `NaN || 0` is 0, so a poisoned accumulator recovers, but the guard keeps it from getting there.
+  if (!Number.isFinite(dt) || dt <= 0) return none;
+  // Seconds accumulate in binary floating point, where 0.9 + 0.1 is 0.9999999999999999 -- and `floor` of
+  // that is 0, so the point is delayed a frame. Rounding to microseconds fixes it at the source. A bare
+  // tolerance on the comparison is NOT enough: it lets the value past the guard and `floor` still returns 0,
+  // which is how the first attempt at this failed.
+  player.elytraFlight = Math.round(((player.elytraFlight || 0) + dt) * 1e6) / 1e6;
+  if (player.elytraFlight < ELYTRA_SECONDS_PER_DURABILITY) return none;
+  const whole = Math.floor(player.elytraFlight / ELYTRA_SECONDS_PER_DURABILITY);
+  // The remainder is kept, so a long frame is not rounded away into a free point.
+  player.elytraFlight = Math.max(0, player.elytraFlight - whole * ELYTRA_SECONDS_PER_DURABILITY);
+  const elytra = player.inventory?.armor?.chest;
+  if (elytra?.id !== 'elytra') return none;
+  const wear = spendDurability(elytra, whole, random);
+  if (wear.broke) player.inventory.armor.chest = null;
+  return { spent: wear.spent, broke: wear.broke };
+}
 
 /** True when the chest slot holds an elytra. */
 export function hasElytraEquipped(player) {
