@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createStructureInspectorSession, inspectorStructures, PREVIEW_MIN_Y, PREVIEW_MAX_Y } from './structureInspectorSession.js';
+import { renderStructurePanels } from './structureInspectorPanelsUi.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -276,6 +277,9 @@ function renderPanels() {
 }
 
 function refresh({ reflowCamera = false } = {}) {
+  // Rendered on every refresh, which is the one path every action already takes, so a panel cannot show a
+  // stale plan. A rendering failure must not break the page, hence the catch.
+  try { renderStructurePanels(session, { $ }); } catch (error) { log('error rendering panels: ' + error.message); }
   renderBlocks();
   renderCandidates();
   renderOverlays();
