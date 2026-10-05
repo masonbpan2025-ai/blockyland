@@ -714,6 +714,32 @@ flies a bullet for six seconds at 60 fps against a moving target and asserts the
 
 `haste` is therefore the only effect the table carries with nothing to grant it, and it needs a beacon.
 
+### 4.2.7 Thirty-nine splash potions did nothing when used
+
+Found by re-running the "which ITEMS has no code reference" sweep, which is what found the firework rocket
+and the ender eye. The throw in `main.js` read:
+
+    if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness'))
+
+Three faults in that one line:
+
+1. **Only Weakness was thrown.** Everything else fell through to block placement, so **39 splash potion
+   items did nothing at all** -- and every one of them brews from gunpowder plus any potion.
+2. **`potion_weakness` is not an item that exists.** The condition accepted an id that was never registered,
+   so half of it was dead.
+3. **The effect was hard-coded** to `weakness` for 60 seconds whatever the potion was, so even the one that
+   worked ignored its own duration.
+
+`src/splashPotion.js` derives the effect from `POTION_DATA` by stripping the `splash_` prefix, so a potion
+and its splash form cannot disagree and anything the brewing stand can produce is throwable by
+construction. All 39 resolve. A water bottle and the brewing intermediates are throwable and grant nothing,
+which is vanilla, so a null effect is a valid answer rather than an error.
+
+**The thrower is now a target.** The old loop walked `this.mobs.mobs` only, so the player was never
+affected by their own potion -- which is how a self-splash of Fire Resistance is meant to work, and why
+standing in your own Harming potion is meant to hurt. The radius is one named constant, four blocks as in
+vanilla, rather than inline arithmetic, and it is a sphere rather than a cylinder so a splash does not reach
+a player standing high above it.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

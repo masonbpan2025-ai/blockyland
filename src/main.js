@@ -9,6 +9,8 @@ import { useBarterPotion } from './barterItems.js';
 import { drinkPotion } from './potions.js';
 import { launchFirework } from './fireworks.js';
 import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
+import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
+import { POTION_DATA } from './brewing.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -1169,24 +1171,23 @@ class Game {
     if (useSnowball(this)) return;
     if (useBarterPotion(this)) return;
 
-    // Splash Potion of Weakness throwing
+    // Splash potions. This block was hard-coded to `splash_potion_of_weakness` -- plus `potion_weakness`,
+    // which is not an item that exists -- so 39 splash potion items did nothing at all when used, and any
+    // other one fell through to block placement. The effect now comes from POTION_DATA via the item id, the
+    // radius is one rule rather than inline arithmetic, and the thrower is a target like anything else,
+    // which is how a self-splash of Fire Resistance is meant to work.
     const splashItem = this.inventory.getActiveItem();
-    if (splashItem && (splashItem.id === 'splash_potion_of_weakness' || splashItem.id === 'potion_weakness')) {
+    if (isSplashPotion(splashItem?.id)) {
       if (this.player.gamemode !== 'creative') {
         this.inventory.consumeActiveItem(1);
         this.ui.updateHotbar();
       }
       this.sounds?.playBow?.();
-      const splashPos = this.player.position.clone().add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
-      for (const m of this.mobs?.mobs || []) {
-        if (m.health > 0 && m.mesh && m.mesh.position.distanceTo(splashPos) < 5.0) {
-          if(m.applyStatusEffect){m.applyStatusEffect('weakness',60,1,this.player);continue;}
-          m.hasWeakness = true;
-          m.statusEffects = m.statusEffects || {};
-          m.statusEffects.weakness = 60.0;
-        }
-      }
-      this.mobs?.spawnParticleBurst?.(splashPos, 0x4a044e, 16);
+      const splashPos = this.player.position.clone()
+        .add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+      throwSplashPotion(this, splashPos, splashItem.id);
+      const tint = POTION_DATA[splashItem.id.slice('splash_'.length)]?.color;
+      this.mobs?.spawnParticleBurst?.(splashPos, tint ? parseInt(tint.slice(1), 16) : 0x4a044e, 16);
       this.sounds?.playPotionSplash?.();
       return;
     }
