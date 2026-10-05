@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1551 | 1557 | 99.6% |
 | Crafting recipes expressible | 1552 | 1557 | 99.7% |
-| Blocks named | 1073 | 1095 | 98.0% |
+| Blocks named | 1074 | 1095 | 98.1% |
 | Items named | 1306 | 1385 | 94.3% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,11 +371,11 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1071 | 1295 |
-| missing | 24 | 90 |
+| present | 1073 | 1295 |
+| missing | 22 | 90 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **24** | **90** |
+| **missing, needs NEW art** | **22** | **90** |
 | art files | 545 | 1071 |
 
 A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
@@ -411,6 +411,8 @@ bare name and a few suffixes. FIVE rounds have now been unblocked without drawin
 | 3 filled cauldrons | composed from the pot and the fluids, which also had to be sliced |
 | 8 mob heads | EXTRACTED from `entity/` skin sheets, a different mirror directory entirely |
 | the wither skull | the same extraction, applied to a block that already "existed" as a coal cube |
+| 2 chest variants | composed from the chest, which the mirror has no variant of |
+| the sniffer egg, the end gateway | the egg is the TURTLE EGG's shape on the SNIFFER'S palette; the gateway is the end portal's art darkened |
 
 That last one is the widest reach yet, and it is why the column cannot be trusted: the art was not in
 `blocks/` at all. `scripts/extract-mob-head-textures.py` crops the head faces out of the standard 32x16
