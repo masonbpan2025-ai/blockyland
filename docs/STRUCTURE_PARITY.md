@@ -106,6 +106,7 @@ These generate like ores rather than through structure sets, and cannot be locat
    `mossiness` biases it are not), `blackstone_replace` (the wiki never prints the full replacement table, so
    the documented core is implemented and unmapped variants are left alone), and `capped` (vanilla's
    finalize pre-pass is not reproduced; the cap is applied greedily in placement order).
+0b. **`StructurePiece.index` comes from a module-level counter**, so it is not 0-based and not stable across a process. Generators that derive per-piece randomness from it (the igloo does) therefore depend on how many pieces were created earlier in the same process. The plans themselves are deterministic for a given object, but this must be replaced with a plan-local index before any golden-seed test is written.
 1. **Placement parity is not bit-exact.** The mixing is implemented from documented behaviour and
    cross-checked against one MIT implementation, but no structural diff against a vanilla oracle exists,
    so "placement parity" currently means "same rules", not "same chunks".
