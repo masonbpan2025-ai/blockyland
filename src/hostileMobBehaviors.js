@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
 import { startBarter, updatePiglin } from './piglin.js';
+import { applyDolphinsGrace } from './dolphinBehavior.js';
 export { PIGLIN_BARTER_LOOT } from './piglin.js';
 
 export class HostileMobBehaviors {
@@ -339,12 +340,11 @@ export class HostileMobBehaviors {
         }
       }
 
-      // I. Dolphins: Swimming Speed Boost (Dolphin's Grace)
+      // I. Dolphins: Swimming Speed Boost (Dolphin's Grace). The wiki distinguishes a
+      // 9-block grant radius from a 15-block keep radius, so a player drifting outward
+      // keeps the boost instead of losing it the moment they pass 9 blocks.
       if (mob.type === 'dolphin') {
-        const dist = mob.mesh.position.distanceTo(player.position);
-        if (dist < 10 && player.isInWater) {
-          player.applyStatusEffect?.('dolphins_grace', 5.0, 1);
-        }
+        applyDolphinsGrace(mob, player, this.mobManager);
       }
 
       // J. Phantom: Swooping Dive Attack

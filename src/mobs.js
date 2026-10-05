@@ -25,6 +25,7 @@ import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
+import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -2252,7 +2253,9 @@ export class MobManager {
       case 'pillager': return { width: 0.6, height: 1.95 };
       case 'salmon': return { width: 0.4, height: 0.35 };
       case 'cod': return { width: 0.35, height: 0.3 };
-      case 'dolphin': return { width: 0.9, height: 0.65 };
+      // Wiki: adult 0.9 x 0.6. A spawned dolphin also carries its own size, so babies
+      // resolve through the instance values rather than this adult table entry.
+      case 'dolphin': return DOLPHIN_DIMENSIONS.adult;
       case 'octopus':
       case 'squid':
       case 'glow_squid': return { width: 0.8, height: 0.8 };
@@ -5440,7 +5443,7 @@ export class MobManager {
   }
 
   // --- AQUATIC: DOLPHIN ---
-  spawnDolphin(x, y, z) {
+  spawnDolphin(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.dolphin });
 
@@ -5499,9 +5502,12 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    // Wiki: babies are 0.65 of the adult model.
+    group.scale.setScalar(options.isBaby ? DOLPHIN_BABY_SCALE : 1);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
+    const dims = options.isBaby ? DOLPHIN_DIMENSIONS.baby : DOLPHIN_DIMENSIONS.adult;
     const mob = {
       type: 'dolphin',
       name: 'Dolphin',
@@ -5513,8 +5519,17 @@ export class MobManager {
       flipperL: flipperL,
       flipperR: flipperR,
       mat: mat,
-      health: 20,
-      maxHealth: 20,
+      // Wiki: 10 HP. The 20 previously here matches no release.
+      health: DOLPHIN_HEALTH,
+      maxHealth: DOLPHIN_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki `Moistness`: 2400 ticks of air before a dry dolphin starts suffocating.
+      moistness: DOLPHIN_MOISTNESS_TICKS,
+      suffocationTimer: 0,
+      // Wiki: a dolphin that has been fed a fish leads the player to a shipwreck or ruins.
+      gotFish: false,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       pitch: 0,
@@ -6055,7 +6070,8 @@ export class MobManager {
       donkey: [['leather', false, 1, 2]],
       salmon: [[burned ? 'cooked_salmon' : 'salmon', false, 1, 1]],
       cod: [[burned ? 'cooked_cod' : 'cod', false, 1, 1]],
-      dolphin: [['salmon', false, 0, 1]],
+      // Wiki: 0-1 raw cod (cooked cod if burning), not salmon.
+      dolphin: [[burned ? 'cooked_cod' : 'cod', false, 0, 1]],
       octopus: [['ink_sac', false, 1, 3]],
       squid: [['ink_sac', false, 1, 3]],
       glow_squid: [['glow_ink_sac', false, 1, 3]],
@@ -7413,6 +7429,12 @@ export class MobManager {
       const currentVoxel = this.world.getVoxel(bX, bY, bZ);
       const inWater = (currentVoxel === BLOCKS.WATER);
       mob.inWater = inWater;
+
+      // Wiki: a dry dolphin suffocates after two minutes, and rain refills its moistness.
+      if (mob.type === 'dolphin') {
+        const raining = this.game?.weather?.isRaining?.() ?? false;
+        updateDolphinMoistness(this, mob, dt, raining);
+      }
 
       mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
 
