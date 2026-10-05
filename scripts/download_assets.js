@@ -52,6 +52,12 @@ const blocks1214 = [
   'reinforced_deepslate_side.png', 'reinforced_deepslate_top.png', 'reinforced_deepslate_bottom.png',
   'creaking_heart.png', 'frosted_ice_0.png', 'flowering_azalea_leaves.png',
   'azalea_side.png', 'azalea_top.png', 'flowering_azalea_side.png', 'flowering_azalea_top.png',
+  // Coral blocks, the eighth batch: ten textures for five colours, alive and dead. The coral fans and
+  // plants in the same family are a separate batch and are deliberately not listed here.
+  'tube_coral_block.png', 'brain_coral_block.png', 'bubble_coral_block.png',
+  'fire_coral_block.png', 'horn_coral_block.png',
+  'dead_tube_coral_block.png', 'dead_brain_coral_block.png', 'dead_bubble_coral_block.png',
+  'dead_fire_coral_block.png', 'dead_horn_coral_block.png',
 ];
 
 const items = [

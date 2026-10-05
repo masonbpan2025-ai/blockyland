@@ -348,7 +348,27 @@ export const BLOCKS = {
   FROSTED_ICE: 990,
   FLOWERING_AZALEA_LEAVES: 991,
   AZALEA: 992,
-  FLOWERING_AZALEA: 993
+  FLOWERING_AZALEA: 993,
+
+  // --- Coral blocks, eighth block-parity batch ---------------------------------------------------
+  //
+  // The ten coral BLOCKS: five colours, each alive and dead. All plain full cubes, so no geometry.
+  //
+  // The fans and plants in the same family are deliberately not here: they are cross-quad and
+  // wall-attached shapes and need their own batch.
+  //
+  // The dead forms are registered first in the definition order below because a LIVING coral block
+  // drops its dead counterpart, so the drop target has to exist.
+  TUBE_CORAL_BLOCK: 994,
+  BRAIN_CORAL_BLOCK: 995,
+  BUBBLE_CORAL_BLOCK: 996,
+  FIRE_CORAL_BLOCK: 997,
+  HORN_CORAL_BLOCK: 998,
+  DEAD_TUBE_CORAL_BLOCK: 999,
+  DEAD_BRAIN_CORAL_BLOCK: 1000,
+  DEAD_BUBBLE_CORAL_BLOCK: 1001,
+  DEAD_FIRE_CORAL_BLOCK: 1002,
+  DEAD_HORN_CORAL_BLOCK: 1003
 };
 
 export const BLOCK_DEFS = {
@@ -834,6 +854,29 @@ export const BLOCK_DEFS = {
   // The two azaleas are bushes, not leaves: side and top differ, and they are solid cubes.
   [BLOCKS.AZALEA]: { name: 'Azalea', hardness: 0.0, sound: 'grass', drop: BLOCKS.AZALEA, textures: { side: 'azalea_side.png', top: 'azalea_top.png', bottom: 'azalea_top.png' } },
   [BLOCKS.FLOWERING_AZALEA]: { name: 'Flowering Azalea', hardness: 0.0, sound: 'grass', drop: BLOCKS.FLOWERING_AZALEA, textures: { side: 'flowering_azalea_side.png', top: 'flowering_azalea_top.png', bottom: 'flowering_azalea_top.png' } },
+
+  // --- Coral blocks, eighth block-parity batch ---------------------------------------------------
+  //
+  // Hardness 1.5 with a wooden-pickaxe requirement for all ten, alive and dead alike.
+  //
+  // The interesting part is the drop, and it is the reason the dead forms are defined in this same
+  // batch: a LIVING coral block drops its DEAD counterpart, not itself, which is the mechanic that
+  // makes coral die. `drop` therefore points across to the dead block rather than back at the id, and
+  // the dead blocks drop themselves.
+  //
+  // Vanilla also kills coral that is left out of water; this game models no coral-death tick, so a
+  // living block stays alive until it is broken. The drop is still correct, which is the part a player
+  // notices.
+  [BLOCKS.DEAD_TUBE_CORAL_BLOCK]: { name: 'Dead Tube Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_TUBE_CORAL_BLOCK, textures: { all: 'dead_tube_coral_block.png' } },
+  [BLOCKS.DEAD_BRAIN_CORAL_BLOCK]: { name: 'Dead Brain Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_BRAIN_CORAL_BLOCK, textures: { all: 'dead_brain_coral_block.png' } },
+  [BLOCKS.DEAD_BUBBLE_CORAL_BLOCK]: { name: 'Dead Bubble Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_BUBBLE_CORAL_BLOCK, textures: { all: 'dead_bubble_coral_block.png' } },
+  [BLOCKS.DEAD_FIRE_CORAL_BLOCK]: { name: 'Dead Fire Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_FIRE_CORAL_BLOCK, textures: { all: 'dead_fire_coral_block.png' } },
+  [BLOCKS.DEAD_HORN_CORAL_BLOCK]: { name: 'Dead Horn Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_HORN_CORAL_BLOCK, textures: { all: 'dead_horn_coral_block.png' } },
+  [BLOCKS.TUBE_CORAL_BLOCK]: { name: 'Tube Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_TUBE_CORAL_BLOCK, textures: { all: 'tube_coral_block.png' } },
+  [BLOCKS.BRAIN_CORAL_BLOCK]: { name: 'Brain Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_BRAIN_CORAL_BLOCK, textures: { all: 'brain_coral_block.png' } },
+  [BLOCKS.BUBBLE_CORAL_BLOCK]: { name: 'Bubble Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_BUBBLE_CORAL_BLOCK, textures: { all: 'bubble_coral_block.png' } },
+  [BLOCKS.FIRE_CORAL_BLOCK]: { name: 'Fire Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_FIRE_CORAL_BLOCK, textures: { all: 'fire_coral_block.png' } },
+  [BLOCKS.HORN_CORAL_BLOCK]: { name: 'Horn Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_HORN_CORAL_BLOCK, textures: { all: 'horn_coral_block.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
