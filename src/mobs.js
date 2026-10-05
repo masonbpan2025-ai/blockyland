@@ -34,6 +34,7 @@ import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrop
 import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, createEndermiteModel, poseEndermiteLegs, updateEndermiteLifetime, updateEndermiteHunt, updateEndermanEndermiteAggression } from './endermiteBehavior.js';
 import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
 import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
+import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -359,6 +360,7 @@ export class MobManager {
       case 'endermite': return this.spawnEndermite(x, y, z, {});
       case 'rabbit': return this.spawnRabbit(x, y, z, {});
       case 'bat': return this.spawnBat(x, y, z, {});
+      case 'fox': return this.spawnFox(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2315,6 +2317,9 @@ export class MobManager {
       case 'rabbit': return RABBIT_DIMENSIONS;
       // Wiki: bats are 0.5 x 0.9.
       case 'bat': return BAT_DIMENSIONS;
+      // Wiki: foxes are 0.6 x 0.7. A spawned fox carries its own size, so babies resolve
+      // through the instance values.
+      case 'fox': return FOX_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3192,6 +3197,113 @@ export class MobManager {
     };
     this.mobs.push(mob);
     return mob;
+  }
+
+  /**
+   * Fox.
+   *
+   * Wiki: 10 HP, 0.6 x 0.7, red and snow variants chosen by biome, hunts chickens/rabbits/fish
+   * by pouncing, carries an item in its mouth which it always drops, sleeps during the day under
+   * cover, and *trusts* the player who bred it rather than being tamed.
+   */
+  spawnFox(x, y, z, options = {}) {
+    const coat = options.coat || rollFoxCoat(options.biome);
+    const colors = FOX_COAT_COLORS[coat] || FOX_COAT_COLORS.red;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const earMat = new THREE.MeshLambertMaterial({ color: colors.ear });
+    const { group, body, belly, head, muzzle, tail, ears, eyes, legs, mouth } = createFoxModel(bodyMat, bellyMat, earMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(FOX_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? FOX_BABY_DIMENSIONS : FOX_DIMENSIONS;
+    // Wiki: 20% of foxes spawn holding an item. An explicit option wins, so a caller can force
+    // an empty or a specific mouth.
+    const spawnedWithItem = options.heldItem !== undefined
+      ? options.heldItem
+      : rollFoxHeldItem(options.random || Math.random);
+
+    const mob = {
+      type: 'fox',
+      name: 'Fox',
+      mesh: group,
+      body,
+      belly,
+      head,
+      muzzle,
+      tail,
+      ears,
+      eyes,
+      legs,
+      mouth,
+      bodyMat,
+      bellyMat,
+      earMat,
+      // Wiki: 10 HP.
+      health: FOX_HEALTH,
+      maxHealth: FOX_HEALTH,
+      isBaby: !!options.isBaby,
+      coat,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: the item in its mouth, which always drops on death.
+      heldItem: spawnedWithItem,
+      spawnedWithItem,
+      heldItemMesh: null,
+      // Wiki: trust comes from breeding, not from feeding.
+      trustedPlayer: options.trustedPlayer ?? null,
+      isSleeping: false,
+      sleepingHeadTimer: 0,
+      pouncePhase: null,
+      pounceTimer: 0,
+      isPouncing: false,
+      // Wiki: a fox can safely fall 5 blocks rather than the usual 3.
+      safeFallBlocks: FOX_SAFE_FALL_BLOCKS,
+      // Wiki: sweet berry bushes neither damage nor slow a fox.
+      sweetBerryImmune: true,
+      // Wiki: a fox can walk on powder snow without falling in.
+      powderSnowWalkable: true,
+      eatTimer: 0,
+      foxPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0,
+      attackCooldown: 0
+    };
+    this.attachFoxHeldItem(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Show or clear the mesh for whatever the fox is holding in its mouth.
+   *
+   * Kept on the manager because it needs the item-visual machinery, which the behaviour module
+   * has no business importing.
+   */
+  attachFoxHeldItem(mob) {
+    if (!mob?.mouth) return null;
+    if (mob.heldItemMesh) {
+      mob.mouth.remove(mob.heldItemMesh);
+      mob.heldItemMesh.geometry?.dispose?.();
+      mob.heldItemMesh.material?.dispose?.();
+      mob.heldItemMesh = null;
+    }
+    if (!mob.heldItem) return null;
+    // A small stand-in marker: the inspector logs loot rather than rendering it, so the mouth
+    // mesh only has to read as "this fox is carrying something".
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.12),
+      new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+    );
+    mesh.name = 'fox-held-item';
+    mob.mouth.add(mesh);
+    mob.heldItemMesh = mesh;
+    return mesh;
   }
 
   // --- PASSIVE COW ---
@@ -6294,6 +6406,17 @@ export class MobManager {
       onKillerBunnyHurt(mob);
     }
 
+    if (mob.health <= 0 && mob.type === 'fox' && !mob.totemChecked) {
+      // Wiki: "If a fox is killed while holding a totem of undying, then the fox consumes the
+      // totem and revives itself instead of dropping the totem."
+      mob.totemChecked = true;
+      if (consumeFoxTotem(mob)) {
+        mob.health = Math.max(1, Math.ceil(mob.maxHealth * 0.5));
+        mob.dying = false;
+        this.attachFoxHeldItem(mob);
+      }
+    }
+
     if (mob.health <= 0 && mob.laserLine && this.scene) {
       this.scene.remove(mob.laserLine);
       mob.laserLine.geometry?.dispose();
@@ -6505,7 +6628,8 @@ export class MobManager {
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob)];
+    const foxRows = mob.type === 'fox' && !mob.isBaby ? foxDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6573,7 +6697,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'bat' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'bat' ? 0
           : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
           : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
           : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
@@ -6931,6 +7056,106 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='fox'){
+      // Wiki: hunts small animals by pouncing, flees untrusted non-sneaking players, sleeps
+      // during the day under cover, and drops whatever it is holding when it dies.
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // 1. Sleeping. Wiki: daytime, no thunderstorm, sky light 14 or less.
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      const thundering = this.game?.weather?.weatherType === 'thunder';
+      const canSleep = foxCanSleep(this, mob, isDaytime, thundering);
+      if (canSleep) {
+        mob.isSleeping = true;
+        mob.velocity.set(0, 0, 0);
+        // Wiki: while asleep it slowly moves its head up and down.
+        mob.sleepingHeadTimer = (mob.sleepingHeadTimer || 0) + dt;
+        if (mob.head) mob.head.rotation.x = Math.sin(mob.sleepingHeadTimer * 1.5) * 0.12;
+        // Wiki: it wakes if a player or mob approaches.
+        const near = this.mobs.some(m => m !== mob && m.health > 0
+          && m.mesh.position.distanceTo(mob.mesh.position) < 3);
+        const playerNear = player?.position && mob.mesh.position.distanceTo(player.position) < 4;
+        if (!near && !playerNear) return true;
+        mob.isSleeping = false;
+      } else {
+        mob.isSleeping = false;
+      }
+
+      // 2. Pouncing, once started.
+      if (mob.pouncePhase) {
+        updateFoxPounce(mob, dt, mob.pounceTarget?.mesh?.position || mob.pounceTarget?.position || null);
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 8;
+        poseFoxLegs(mob, mob.foxPhase, false);
+        return true;
+      }
+
+      // 3. Choose a target: prey first, as the wiki says a fox prefers attacking over looting.
+      let target = null;
+      let bestDist = 16;
+      for (const other of this.mobs) {
+        if (other === mob || other.health <= 0) continue;
+        if (!FOX_PREY.includes(other.type)) continue;
+        if (other.isBaby && other.type !== 'chicken' && other.type !== 'rabbit') continue;
+        const d = mob.mesh.position.distanceTo(other.mesh.position);
+        if (d < bestDist) { bestDist = d; target = other; }
+      }
+
+      if (target) {
+        const dir = target.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 0.001) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: it attacks by running against the target or by pouncing, and pounces from range.
+        // The guard matters: without it the fox re-triggers the crouch every frame while it is in
+        // range, resetting the timer forever, so it crouches and never actually leaps.
+        if (dist < FOX_POUNCE.reach && mob.onGround && !mob.pouncePhase) {
+          startFoxPounce(mob);
+          mob.pounceTarget = target;
+        } else {
+          mob.velocity.x = dir.x * 2.6;
+          mob.velocity.z = dir.z * 2.6;
+        }
+        // Bite when close enough.
+        if (dist < 1.2 && mob.attackCooldown <= 0) {
+          this.damageMob(target, foxDamageFor(this.game?.difficulty), mob.mesh.position, false, mob);
+          mob.attackCooldown = 1.0;
+        }
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 9;
+        poseFoxLegs(mob, mob.foxPhase, true);
+        return true;
+      }
+
+      // 4. Flee an untrusted player who is not sneaking.
+      // Wiki: it flees players "unless the player is trusted or approaches them while sneaking".
+      const sneaking = !!player?.keys?.ShiftLeft || !!player?.keys?.ShiftRight || !!player?.isSneaking;
+      if (foxShouldFlee(mob, player, { sneaking })) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          mob.velocity.x = away.x * 3.0;
+          mob.velocity.z = away.z * 3.0;
+        }
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 10;
+        poseFoxLegs(mob, mob.foxPhase, true);
+        return true;
+      }
+
+      // 5. Idle wander.
+      // `wanderMob` picks a goal and sets velocity; the fox still has to move itself, so the
+      // hazards are handled by the shared escape pass and locomotion by moveGroundMob.
+      wanderMob(this, mob, dt, 1.1);
+      moveGroundMob(this, mob, dt);
+      mob.foxPhase = (mob.foxPhase || 0) + dt * 6;
+      poseFoxLegs(mob, mob.foxPhase, Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
+      return true;
+    }
     if(mob.type==='bat'){
       // Wiki: flies around aimlessly, hangs under solid blocks, flees nearby players, and
       // despawns past 32 blocks.
