@@ -55,10 +55,13 @@ test('sun shadow camera follows the player without changing the light direction'
 });
 
 test('block drop resolution preserves logs, converts grass to dirt, and excludes undroppable blocks', () => {
-  assert.deepEqual(getBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.SEA_LANTERN), { id: BLOCKS.SEA_LANTERN, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false });
+  // `count` is part of the rule now: a clay block gives four clay balls and a redstone ore four or five dust.
+  // The sea lantern line changed too -- it used to drop itself, and vanilla gives two or three prismarine
+  // crystals -- which is one of the nine wrong drops `block-drop-parity` found.
+  assert.deepEqual(getBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true, count: 1 });
+  assert.deepEqual(getBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true, count: 1 });
+  assert.deepEqual(getBlockDrop(BLOCKS.SEA_LANTERN), { id: 'prismarine_crystals', isBlock: false, count: 2 });
+  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false, count: 1 });
   assert.equal(getBlockDrop(BLOCKS.GLASS), null); assert.equal(getBlockDrop(BLOCKS.WATER), null);
 });
 
