@@ -11,6 +11,7 @@ import { launchFirework } from './fireworks.js';
 import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
+import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -1841,6 +1842,25 @@ class Game {
     }
 
     const def = BLOCK_DEFS[blockId];
+
+    // The dragon egg teleports instead of breaking. `BLOCK_DEFS` has declared `dragonEgg: true` since the
+    // block was added and nothing read it, so the egg could be mined like any other block -- vanilla's egg
+    // is the one block in the game that jumps away when you hit it, which is what makes it awkward to
+    // collect rather than merely rare.
+    if (blockId === BLOCKS.DRAGON_EGG) {
+      const isSolid = (id) => id !== BLOCKS.AIR && BLOCK_DEFS[id]?.solid !== false;
+      const isValid = makeEggPlacementCheck((vx, vy, vz) => this.world.getVoxel(vx, vy, vz), BLOCKS.AIR, isSolid);
+      const to = dragonEggDestination({ origin: { x, y, z }, random: this.player.random ?? Math.random, isValid });
+      if (to) {
+        this.world.setVoxel(x, y, z, BLOCKS.AIR);
+        this.world.setVoxel(to.x, to.y, to.z, BLOCKS.DRAGON_EGG);
+        this.sounds?.playTeleport?.() ?? this.sounds?.playClick?.();
+        return;
+      }
+      // No valid spot after a thousand attempts: fall through and let it break, rather than making the block
+      // permanently unbreakable.
+    }
+
     this.sounds.playBreak(def ? def.sound : 'stone');
 
     // Recompute here rather than trusting a flag from updateMining: a block can also be
