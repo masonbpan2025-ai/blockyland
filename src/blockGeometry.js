@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createHangingSignGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createHangingSignGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -81,6 +81,19 @@ export function createBlockGeometry(id, textures, state = {}) {
     // recipe and its silhouette; the text layer is deliberately absent.
     const dir = state?.dir !== undefined ? state.dir : 3;
     return ensureFlameAttributes(createSignGeometry(def, textures, dir));
+  }
+  if (def?.rod) {
+    // A thin full-height post: an end rod or a lightning rod.
+    return ensureFlameAttributes(createRodGeometry(def, textures));
+  }
+  if (def?.rail) {
+    // A one-pixel plate covering the block.
+    return ensureFlameAttributes(createRailGeometry(def, textures));
+  }
+  if (def?.flowerPot) {
+    // A small box. Vanilla models a lip and an inner cavity; one box is the honest
+    // approximation for a decorative block whose plant-holding behaviour is not modelled.
+    return ensureFlameAttributes(createFlowerPotGeometry(def, textures));
   }
   if (def?.pane) {
     return ensureFlameAttributes(createPaneGeometry(def, textures));

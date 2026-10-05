@@ -444,3 +444,38 @@ export function createHangingSignGeometry(def, tm, dir = 3) {
   return merged;
 }
 
+/**
+ * A rod: a thin full-height post, for end rods and lightning rods.
+ *
+ * Separate from `chain`, which is deliberately segmented to suggest links. A rod is smooth.
+ */
+export function createRodGeometry(def, tm) {
+  const w = 3 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: 1, z: w }, { x: min, y: 0, z: min }, def, tm);
+}
+
+/**
+ * A rail: a one-pixel plate covering the block, for detector and activator rails.
+ *
+ * Vanilla rails are 1/16 tall and span the full block footprint, unlike a pressure plate which is
+ * inset. The raised profile of a powered rail is not modelled; the block is the plate.
+ */
+export function createRailGeometry(def, tm) {
+  return buildBox({ x: 1, y: 1 / 16, z: 1 }, { x: 0, y: 0, z: 0 }, def, tm);
+}
+
+/**
+ * A flower pot: a small box.
+ *
+ * Vanilla pots have a lip and an inner cavity modelled from five boxes. One box is the honest
+ * approximation for a decorative block whose only behaviour is holding a plant, which this project does
+ * not model.
+ */
+export function createFlowerPotGeometry(def, tm) {
+  const w = 6 / 16;
+  const h = 6 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
+}
+

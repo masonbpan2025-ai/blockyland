@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1525 recipes.
+// 1533 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -114,6 +114,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:[B.WEATHERED_CUT_COPPER_SLAB,'honeycomb'],result:{id:B.WAXED_WEATHERED_CUT_COPPER_SLAB,isBlock:true,count:1}},
   {pattern:[[B.WAXED_OXIDIZED_CUT_COPPER,B.WAXED_OXIDIZED_CUT_COPPER,B.WAXED_OXIDIZED_CUT_COPPER]],result:{id:B.WAXED_OXIDIZED_CUT_COPPER_SLAB,isBlock:true,count:6}},
   {shapeless:true,ingredients:[B.OXIDIZED_CUT_COPPER_SLAB,'honeycomb'],result:{id:B.WAXED_OXIDIZED_CUT_COPPER_SLAB,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.MUD,B.MANGROVE_ROOTS],result:{id:B.MUDDY_MANGROVE_ROOTS,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO,B.BAMBOO],result:{id:B.BAMBOO_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG],[B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG]],result:{id:B.STRIPPED_OAK_WOOD,isBlock:true,count:3}},
   {pattern:[[B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG],[B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG]],result:{id:B.STRIPPED_SPRUCE_WOOD,isBlock:true,count:3}},
@@ -225,6 +226,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:[B.COBBLESTONE,B.VINE],result:{id:B.MOSSY_COBBLESTONE,isBlock:true,count:1}},
   {pattern:[['charcoal'],['stick']],result:{id:B.TORCH,isBlock:true,count:4}},
   {pattern:[['coal'],['stick']],result:{id:B.TORCH,isBlock:true,count:4}},
+  {pattern:[['blaze_rod'],['popped_chorus_fruit']],result:{id:B.END_ROD,isBlock:true,count:4}},
   {pattern:[['popped_chorus_fruit','popped_chorus_fruit'],['popped_chorus_fruit','popped_chorus_fruit']],result:{id:B.PURPUR_BLOCK,isBlock:true,count:4}},
   {pattern:[[B.PURPUR_SLAB],[B.PURPUR_SLAB]],result:{id:B.PURPUR_PILLAR,isBlock:true,count:1}},
   {pattern:[[B.PURPUR_PILLAR,null,null],[B.PURPUR_PILLAR,B.PURPUR_PILLAR,null],[B.PURPUR_PILLAR,B.PURPUR_PILLAR,B.PURPUR_PILLAR]],result:{id:B.PURPUR_STAIRS,isBlock:true,count:4}},
@@ -298,6 +300,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE],[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE]],result:{id:B.DEEPSLATE_BRICKS,isBlock:true,count:4}},
   {pattern:[[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS],[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS]],result:{id:B.DEEPSLATE_TILES,isBlock:true,count:4}},
   {pattern:[[B.COBBLED_DEEPSLATE_SLAB],[B.COBBLED_DEEPSLATE_SLAB]],result:{id:B.CHISELED_DEEPSLATE,isBlock:true,count:1}},
+  {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot','iron_ingot','iron_ingot']],result:{id:B.IRON_BARS,isBlock:true,count:16}},
   {pattern:[['iron_nugget'],['iron_ingot'],['iron_nugget']],result:{id:B.CHAIN,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],[B.GLASS,B.GLASS,B.GLASS]],result:{id:B.GLASS_PANE,isBlock:true,count:16}},
   {shapeless:true,ingredients:['melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice','melon_slice'],result:{id:B.MELON,isBlock:true,count:1}},
@@ -564,6 +567,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.OAK_SLAB,B.OAK_SLAB,B.OAK_SLAB],[null,B.BOOKSHELF,null],[null,B.OAK_SLAB,null]],result:{id:B.LECTERN,isBlock:true,count:1}},
   {pattern:[[null,'redstone',null],['redstone',B.HAY_BLOCK,'redstone'],[null,'redstone',null]],result:{id:B.TARGET,isBlock:true,count:1}},
   {pattern:[['stick'],[B.COBBLESTONE]],result:{id:B.LEVER,isBlock:true,count:1}},
+  {pattern:[['copper_ingot'],['copper_ingot'],['copper_ingot']],result:{id:B.LIGHTNING_ROD,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.PALE_OAK_SLAB,B.PALE_OAK_SLAB,B.PALE_OAK_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.CHERRY_SLAB,B.CHERRY_SLAB,B.CHERRY_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
   {pattern:[[B.GLASS,B.GLASS,B.GLASS],['quartz','quartz','quartz'],[B.BAMBOO_SLAB,B.BAMBOO_SLAB,B.BAMBOO_SLAB]],result:{id:B.DAYLIGHT_DETECTOR,isBlock:true,count:1}},
@@ -683,7 +687,9 @@ export const EXTRA_RECIPES = [
   {pattern:[['stick',B.CRIMSON_PLANKS,'stick'],['stick',B.CRIMSON_PLANKS,'stick']],result:{id:B.CRIMSON_FENCE_GATE,isBlock:true,count:1}},
   {pattern:[['stick',B.WARPED_PLANKS,'stick'],['stick',B.WARPED_PLANKS,'stick']],result:{id:B.WARPED_FENCE_GATE,isBlock:true,count:1}},
   {pattern:[['gold_ingot',null,'gold_ingot'],['gold_ingot','stick','gold_ingot'],['gold_ingot','redstone','gold_ingot']],result:{id:B.POWERED_RAIL,isBlock:true,count:6}},
+  {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot',B.STONE_PRESSURE_PLATE,'iron_ingot'],['iron_ingot','redstone','iron_ingot']],result:{id:B.DETECTOR_RAIL,isBlock:true,count:6}},
   {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot','stick','iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:B.RAIL,isBlock:true,count:16}},
+  {pattern:[['iron_ingot','stick','iron_ingot'],['iron_ingot',B.REDSTONE_TORCH,'iron_ingot'],['iron_ingot','stick','iron_ingot']],result:{id:B.ACTIVATOR_RAIL,isBlock:true,count:6}},
   {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot','iron_ingot','iron_ingot']],result:{id:'minecart',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.CHEST,'minecart'],result:{id:'chest_minecart',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.FURNACE,'minecart'],result:{id:'furnace_minecart',isBlock:false,count:1}},
@@ -1178,6 +1184,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['book','ink_sac','feather'],result:{id:'writable_book',isBlock:false,count:1}},
   {pattern:[['stick','stick','stick'],['stick','leather','stick'],['stick','stick','stick']],result:{id:'item_frame',isBlock:false,count:1}},
   {shapeless:true,ingredients:['item_frame','glow_ink_sac'],result:{id:'glow_item_frame',isBlock:false,count:1}},
+  {pattern:[['brick',null,'brick'],[null,'brick',null]],result:{id:B.FLOWER_POT,isBlock:true,count:1}},
   {pattern:[['gold_nugget','gold_nugget','gold_nugget'],['gold_nugget','carrot','gold_nugget'],['gold_nugget','gold_nugget','gold_nugget']],result:{id:'golden_carrot',isBlock:false,count:1}},
   {shapeless:true,ingredients:['gunpowder','paper'],result:{id:'firework_rocket',isBlock:false,count:3}},
   {shapeless:true,ingredients:['baked_potato','cooked_rabbit','bowl','carrot',B.BROWN_MUSHROOM],result:{id:'rabbit_stew',isBlock:false,count:1}},
@@ -1369,6 +1376,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot','iron_ingot'],[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.SMITHING_TABLE,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot',null],[B.STONE,B.STONE,B.STONE]],result:{id:B.STONECUTTER,isBlock:true,count:1}},
   {pattern:[['iron_nugget','iron_nugget','iron_nugget'],['iron_nugget',B.TORCH,'iron_nugget'],['iron_nugget','iron_nugget','iron_nugget']],result:{id:B.LANTERN,isBlock:true,count:1}},
+  {pattern:[['iron_nugget','iron_nugget','iron_nugget'],['iron_nugget',B.SOUL_TORCH,'iron_nugget'],['iron_nugget','iron_nugget','iron_nugget']],result:{id:B.SOUL_LANTERN,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.STRIPPED_WARPED_HYPHAE,B.STRIPPED_WARPED_HYPHAE,B.STRIPPED_WARPED_HYPHAE]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.WARPED_HYPHAE,B.WARPED_HYPHAE,B.WARPED_HYPHAE]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
   {pattern:[[null,'stick',null],['stick','coal','stick'],[B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM]],result:{id:B.CAMPFIRE,isBlock:true,count:1}},
@@ -1545,21 +1553,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1525;
+export const EXTRA_RECIPE_COUNT = 1533;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1525,
-  "shaped": 1266,
-  "shapeless": 266,
-  "skippedMissingResult": 18,
+  "emitted": 1533,
+  "shaped": 1273,
+  "shapeless": 267,
+  "skippedMissingResult": 10,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1532,
+  "emittedBeforeDedupe": 1540,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

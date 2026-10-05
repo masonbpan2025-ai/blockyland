@@ -302,7 +302,7 @@ export class ChunkMesher {
           // they are routed through createBlockGeometry. An unrecognised shape falls through to the
           // fast path and is drawn full size, which for any of these looks like a rendering bug
           // rather than a missing feature.
-          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.sign) {
+          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.sign || def?.rod || def?.rail || def?.flowerPot) {
             const state = world.redstone?.state([wx, wy, wz]) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);

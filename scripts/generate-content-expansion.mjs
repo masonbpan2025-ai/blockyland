@@ -184,6 +184,59 @@ const FAMILIES = [
     extra: { hangingSign: true },
   },
   {
+    // Rods: thin full-height posts. Two blocks, two recipes.
+    id: 'rods',
+    match: (n) => /^(end_rod|lightning_rod)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      if (textureExists(n + ".svg")) return n + ".svg";
+      return "iron_bars.png";
+    },
+    sound: 'stone',
+    extra: { rod: true },
+  },
+  {
+    // Detector and activator rails: a one-pixel plate. The rails themselves are not simulated.
+    id: 'special_rails',
+    match: (n) => /^(detector_rail|activator_rail)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      if (textureExists("rail.png")) return "rail.png";
+      return "iron_bars.png";
+    },
+    sound: 'stone',
+    extra: { rail: true },
+  },
+  {
+    // A flower pot: a small box.
+    id: 'flower_pots',
+    match: (n) => /^flower_pot$/.test(n),
+    texture: (n) => (textureExists(n + ".png") ? n + ".png" : "iron_bars.png"),
+    sound: 'stone',
+    extra: { flowerPot: true },
+  },
+  {
+    // Iron bars: a thin sheet through the middle, the same shape as a pane. Vanilla draws a grid;
+    // the pane silhouette is the honest approximation and is documented on the builder.
+    id: 'bars',
+    match: (n) => /^iron_bars$/.test(n),
+    texture: (n) => (textureExists(n + ".png") ? n + ".png" : "iron_bars.svg"),
+    sound: 'stone',
+    extra: { pane: true },
+  },
+  {
+    // The last plain-cube blocker.
+    id: 'muddy_cubes',
+    match: (n) => /^(muddy_mangrove_roots|soul_lantern)$/.test(n),
+    texture: (n) => {
+      if (textureExists(n + ".png")) return n + ".png";
+      if (textureExists(n + ".svg")) return n + ".svg";
+      return "mangrove_roots.png";
+    },
+    sound: 'grass',
+    extra: { cube: true },
+  },
+  {
     // Standing signs: a post with a board. 12 recipes, and the largest remaining group.
     //
     // The negative lookahead-equivalent in the match matters: without it this family would also

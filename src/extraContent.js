@@ -728,6 +728,14 @@ export const EXTRA_BLOCK_IDS = {
   PALE_OAK_SIGN: 934,
   SPRUCE_SIGN: 935,
   WARPED_SIGN: 936,
+  IRON_BARS: 937,
+  FLOWER_POT: 938,
+  MUDDY_MANGROVE_ROOTS: 939,
+  SOUL_LANTERN: 940,
+  END_ROD: 941,
+  LIGHTNING_ROD: 942,
+  ACTIVATOR_RAIL: 943,
+  DETECTOR_RAIL: 944,
 };
 
 /** Definitions for the extra blocks, keyed by id like BLOCK_DEFS. */
@@ -1447,51 +1455,37 @@ export const EXTRA_BLOCK_DEFS = {
   934: { name: 'Pale Oak Sign', hardness: 1, sound: 'wood', sign: true, transparent: true, textures: { all: 'pale_oak_planks.png' } },
   935: { name: 'Spruce Sign', hardness: 1, sound: 'wood', sign: true, transparent: true, textures: { all: 'spruce_planks.png' } },
   936: { name: 'Warped Sign', hardness: 1, sound: 'wood', sign: true, transparent: true, textures: { all: 'oak_planks.png' } },
+  937: { name: 'Iron Bars', hardness: 5, sound: 'stone', pane: true, resistance: 6, transparent: true, textures: { all: 'iron_bars.svg' } },
+  938: { name: 'Flower Pot', hardness: 0, sound: 'stone', flowerPot: true, transparent: true, textures: { all: 'iron_bars.png' } },
+  939: { name: 'Muddy Mangrove Roots', hardness: 0.7, sound: 'grass', cube: true, textures: { all: 'mangrove_roots.png' } },
+  940: { name: 'Soul Lantern', hardness: 3.5, sound: 'grass', cube: true, light: 10, transparent: true, textures: { all: 'mangrove_roots.png' } },
+  941: { name: 'End Rod', hardness: 0, sound: 'stone', rod: true, light: 14, transparent: true, textures: { all: 'iron_bars.png' } },
+  942: { name: 'Lightning Rod', hardness: 3, sound: 'stone', rod: true, resistance: 6, transparent: true, textures: { all: 'iron_bars.png' } },
+  943: { name: 'Activator Rail', hardness: 0.7, sound: 'stone', rail: true, transparent: true, textures: { all: 'iron_bars.png' } },
+  944: { name: 'Detector Rail', hardness: 0.7, sound: 'stone', rail: true, transparent: true, textures: { all: 'iron_bars.png' } },
 };
 
 /** How many extra blocks this file defines, for tests and reporting. */
-export const EXTRA_BLOCK_COUNT = 715;
+export const EXTRA_BLOCK_COUNT = 723;
 
 /** Names added, by family, so the backlog can report what changed. */
 export const EXTRA_BLOCK_NAMES = {
-  hanging_signs: [
-    'acacia_hanging_sign',
-    'acacia_wall_hanging_sign',
-    'bamboo_hanging_sign',
-    'bamboo_wall_hanging_sign',
-    'birch_hanging_sign',
-    'birch_wall_hanging_sign',
-    'cherry_hanging_sign',
-    'cherry_wall_hanging_sign',
-    'crimson_hanging_sign',
-    'crimson_wall_hanging_sign',
-    'dark_oak_hanging_sign',
-    'dark_oak_wall_hanging_sign',
-    'jungle_hanging_sign',
-    'jungle_wall_hanging_sign',
-    'mangrove_hanging_sign',
-    'mangrove_wall_hanging_sign',
-    'oak_hanging_sign',
-    'oak_wall_hanging_sign',
-    'pale_oak_hanging_sign',
-    'pale_oak_wall_hanging_sign',
-    'spruce_hanging_sign',
-    'spruce_wall_hanging_sign',
-    'warped_hanging_sign',
-    'warped_wall_hanging_sign',
+  bars: [
+    'iron_bars',
   ],
-  signs: [
-    'acacia_sign',
-    'bamboo_sign',
-    'birch_sign',
-    'cherry_sign',
-    'crimson_sign',
-    'dark_oak_sign',
-    'jungle_sign',
-    'mangrove_sign',
-    'oak_sign',
-    'pale_oak_sign',
-    'spruce_sign',
-    'warped_sign',
+  flower_pots: [
+    'flower_pot',
+  ],
+  muddy_cubes: [
+    'muddy_mangrove_roots',
+    'soul_lantern',
+  ],
+  rods: [
+    'end_rod',
+    'lightning_rod',
+  ],
+  special_rails: [
+    'activator_rail',
+    'detector_rail',
   ],
 };
