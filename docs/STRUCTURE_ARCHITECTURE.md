@@ -117,6 +117,7 @@ Each phase is a branch, and each is testable without finishing the next.
 3. **Template provenance.** Vanilla `.nbt` files are Mojang assets; this repository ships none. The loader
    accepts clean-room data or user-supplied files, and every template-backed structure is gated behind that
    decision (STRUCTURE_REFERENCES.md).
+5. **A bounded scan measures the scan, not the engine.** Twice I reported a structure as unreachable or implausibly rare -- the jungle ruined portal, then the ruined-portals placement density -- and both times the cause was sampling rather than generation: a single chunkZ row for a sparse set, and three rows of a 40x40 region. Placement regions are spacing x spacing, so a count of candidates is only meaningful when NORMALISED by how much of a region was sampled. 	ests/structurePlacementDensity.test.js enforces the normalised form. The rule for any future measurement: state the sampling fraction before drawing a conclusion from a count.
 4. **No chunk-status pyramid.** Planning is lazy per chunk rather than driven by declared chunk
    dependencies, so a future structure that reads a neighbouring chunk's *generated* blocks (rather than
    recomputing them) would break determinism. The callback interface is the guard: keep terrain queries
