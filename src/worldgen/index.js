@@ -36,6 +36,7 @@ import { generateBastion, realizeBastion } from './generators/bastion.js';
 import { generateTrialChambers, realizeTrialChambers } from './generators/trialChambers.js';
 import { generateAncientCity, realizeAncientCity } from './generators/ancientCity.js';
 import { generateEndCity, realizeEndCity } from './generators/endCity.js';
+import { generateMansion, realizeMansion } from './generators/mansion.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -53,7 +54,8 @@ export const GENERATORS = {
   bastion: { generate: generateBastion, realize: realizeBastion },
   trialChambers: { generate: generateTrialChambers, realize: realizeTrialChambers },
   ancientCity: { generate: generateAncientCity, realize: realizeAncientCity },
-  endCity: { generate: generateEndCity, realize: realizeEndCity }
+  endCity: { generate: generateEndCity, realize: realizeEndCity },
+  mansion: { generate: generateMansion, realize: realizeMansion }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */

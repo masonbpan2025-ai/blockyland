@@ -156,7 +156,7 @@ export const STRUCTURES = {
   mansion: {
     type: 'woodland_mansion', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
     biomeTag: 'has_structure/woodland_mansion',
-    biomes: ['dark_forest'], // Pale Garden was added in 1.21.5 (post-1.21.4)
+    biomes: ['dark_forest'], implementation: 'mansion', // Pale Garden was added in 1.21.5 (post-1.21.4)
     notes: 'Procedural floor plan of template rooms over three floors; vindicators, evokers, jailed allays.'
   },
 

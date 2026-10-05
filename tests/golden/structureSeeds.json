@@ -183,6 +183,26 @@
       "contentHash": 795548258
     },
     {
+      "id": "mansion",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "dark_forest",
+      "chunkX": 1303,
+      "chunkZ": 0,
+      "planHash": 2957052992,
+      "pieces": 1,
+      "box": [
+        20852,
+        70,
+        4,
+        20873,
+        88,
+        25
+      ],
+      "blockCount": 1932,
+      "contentHash": 4267594902
+    },
+    {
       "id": "ocean_ruin_cold",
       "seed": 20250401,
       "dimension": "overworld",
