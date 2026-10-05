@@ -57,8 +57,10 @@ test('the recipe lists the game actually uses reflect the generated set', () => 
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 1445`);
   assert.ok(RECIPES_2X2.length >= 405,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1538,
-    'the generated recipe count changed; update this expectation deliberately if that was intended');
+  assert.equal(GENERATED_RECIPE_COUNT, 1546,
+    'the generated recipe count changed; update this expectation deliberately if that was intended. It went '
+    + '1538 -> 1546 by regenerating after earlier content additions that had never been re-run through '
+    + 'the recipe generator, which is worth doing whenever blocks or items are added.');
 });
 
 test('missing results remain the larger half of the gap', { skip }, () => {
