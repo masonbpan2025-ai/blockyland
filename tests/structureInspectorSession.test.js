@@ -172,3 +172,45 @@ test('switching structure resets the plan and adopts the new default biome', () 
   assert.equal(session.world.biome, 'snowy_taiga', 'igloo previews in its own biome');
   assert.throws(() => session.setStructure('not_a_structure'), /unknown structure/);
 });
+
+// --- air is never stored in the preview --------------------------------------
+
+test('realizing a template-backed structure stores NO air, and says how many cells it cleared', () => {
+  // The village is the case that exposed this: its parts carve doorways and interiors with air, and the
+  // preview used to store those cells and draw them as BLACK CUBES, so a 20-piece village looked like a
+  // handful of black blocks. The preview starts empty, so a template's air is a no-op and skipping it is
+  // correct rather than an optimisation.
+  const session = createStructureInspectorSession({ seed: 4242, structureId: 'village_plains', blockIds: BLOCKS });
+  session.setBiome('plains');
+  session.setSurface(70);
+  session.planNearest({ maxRadiusChunks: 1024 });
+  const written = session.realize();
+  const info = session.snapshot();
+
+  assert.ok(written > 500, 'a 20-piece village must realize hundreds of blocks, got ' + written);
+  // `written` counts what the template WROTE and `info.blocks` counts the CELLS the preview holds. They are not
+  // the same number, and asserting equality was my mistake: a cell a skipped air write would have cleared keeps
+  // the block an earlier write put there, so the preview can hold MORE cells than the last write pass counted.
+  assert.ok(info.blocks > 500, 'the preview must hold the village, got ' + info.blocks);
+  for (const id of session.world.blocks.values()) {
+    assert.notEqual(id, BLOCKS.AIR, 'air must never be stored in the preview');
+  }
+  // The cleared cells are REPORTED rather than folded into the total.
+  assert.ok(info.airSkipped > 0, 'this village clears cells, and the count must be reported: ' + info.airSkipped);
+  // And the preview must hold several distinct materials, not one: a village has paths, walls, roofs and loot.
+  const kinds = new Set(session.world.blocks.values());
+  assert.ok(kinds.size >= 4, 'expected several materials in the preview, got ' + kinds.size);
+  assert.equal(kinds.has(BLOCKS.AIR), false, 'air must not be among them');
+});
+
+test('a single-block structure reports zero air, so the skip is not simply always on', () => {
+  // The control: a structure that clears nothing must report zero, or the previous test would pass for a
+  // counter that was hard-wired.
+  const session = createStructureInspectorSession({ seed: 7, structureId: 'buried_treasure', blockIds: BLOCKS });
+  session.setBiome('beach');
+  session.setSurface(70);
+  if (session.planNearest({ maxRadiusChunks: 2048 })) {
+    session.realize();
+    assert.equal(session.snapshot().airSkipped, 0, 'a buried treasure clears nothing');
+  }
+});

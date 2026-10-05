@@ -129,6 +129,8 @@ export function createStructureInspectorSession(options = {}) {
   // The RAW plan is kept, not just its key: the Inspector's panels need pieces, connectors and boxes, and a
   // telemetry summary cannot be turned back into a plan.
   let lastPlan = null;
+  // What the last realize did, so the panel can say how many cells were air and therefore skipped.
+  let lastRealize = null;
 
   function buildEngine() {
     return createStructureEngine({
@@ -172,6 +174,9 @@ export function createStructureInspectorSession(options = {}) {
       chunkCount: start.affectedChunks().length,
       chunks: start.affectedChunks().map((c) => [c.x, c.z]),
       blocks: world.blocks.size,
+      // Air is never stored, so this counts the cells a template CLEARED. It is reported rather than hidden:
+      // "realized 1170 blocks and cleared 40 cells" says more than a total that folds the two together.
+      airSkipped: lastRealize ? lastRealize.airSkipped : 0,
       pieces: start.pieces.map((piece, index) => ({
         index,
         id: piece.id,
@@ -294,14 +299,22 @@ export function createStructureInspectorSession(options = {}) {
       if (!plan) return 0;
       world.clear();
       const engine = buildEngine();
+      // AIR IS NOT STORED, and this is deliberate rather than an optimisation. Templates write air to CARVE
+      // their interiors out of terrain, but the preview world is empty, so every cell a template clears is
+      // already empty: skipping it changes nothing about the result and stops the preview from being littered
+      // with air cells. Those cells used to render as BLACK CUBES -- air is black in the palette -- which made
+      // a village look like a handful of black blocks, and they inflated the reported block count.
+      let airSkipped = 0;
       // Side effects must not be chained with `&&`: the writer has to return a real boolean, and the
       // metadata has to land whether or not the caller would have short-circuited.
       const written = engine.realize(plan.start, (x, y, z, id, meta) => {
+        if (id === BLOCKS.AIR) { airSkipped++; return false; }
         if (!world.setBlock(x, y, z, id)) return false;
         if (meta) world.setBlockMeta(x, y, z, meta);
         return true;
       });
-      log(`realized ${written} block(s) into the preview`);
+      lastRealize = { written, airSkipped };
+      log(`realized ${written} block(s) into the preview${airSkipped ? ` (${airSkipped} air cell(s) skipped: the preview starts empty)` : ''}`);
       return written;
     },
 
@@ -378,7 +391,11 @@ export function createStructureInspectorSession(options = {}) {
       const engine = buildEngine();
       world.clear();
       const adaptationWrites = [];
+      let airSkipped = 0;
       const report = engine.realizeWithReport(plan.start, (x, y, z, id, meta) => {
+        // The same rule as `realize`: the preview starts empty, so a template's air changes nothing and would
+        // only litter the preview with black cubes.
+        if (id === BLOCKS.AIR) { airSkipped++; return false; }
         if (meta && meta.terrainAdaptation) adaptationWrites.push({ x, y, z, id, kind: meta.terrainAdaptation });
         const ok = world.setBlock(x, y, z, id);
         if (ok && meta) world.setBlockMeta(x, y, z, meta);
@@ -391,7 +408,7 @@ export function createStructureInspectorSession(options = {}) {
         airBlock,
         adaptation
       });
-      return { ...report, adaptationWrites };
+      return { ...report, adaptationWrites, airSkipped };
     },
     snapshot() {
       const info = telemetry();

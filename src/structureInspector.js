@@ -129,7 +129,10 @@ function clearGroup(group) {
 function renderBlocks() {
   clearGroup(blockGroup);
   blockIndex = [];
-  const entries = [...session.world.blocks.entries()];
+  // Air is filtered HERE as well as in the session, because a black cube is the one rendering outcome that
+  // reads as a broken preview rather than as missing data: air is black in the palette, and a structure whose
+  // air cells were drawn looked like a handful of black blocks instead of a building.
+  const entries = [...session.world.blocks.entries()].filter(([, id]) => id !== BLOCKS.AIR);
   if (entries.length === 0) return;
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -224,7 +227,7 @@ function renderPanels() {
       `start box: [${info.box.join(', ')}]`,
       `placement reference: [${info.reference.join(', ')}]`,
       `pieces: ${info.pieces.length}   chunks touched: ${info.chunkCount}`,
-      `blocks realized: ${info.blocks}`,
+      `blocks realized: ${info.blocks}${info.airSkipped ? `   (${info.airSkipped} air cell(s) skipped)` : ''}`,
       `plan hash: ${info.hash}`
     ].join('\n')
     : `no plan for ${session.state.structureId} at chunk ${session.state.chunkX}, ${session.state.chunkZ}.\nUse "Find nearest" — most structures are sparse, so a random chunk is usually empty.`;
@@ -308,12 +311,17 @@ function refresh({ reflowCamera = false } = {}) {
 /** The summary from the previous render, so the panel can say what a seed change actually changed. */
 let lastSummary = null;
 
-/** Plan the nearest instance of the selected structure at the current inputs, then re-render. */
+/** Plan the nearest instance at the current inputs, REALIZE it, then re-render.
+ *
+ * Realizing is part of the same step rather than a separate button, because otherwise the preview shows the
+ * previous structure's blocks underneath the new plan's boxes -- which reads as "the village generated a
+ * handful of blocks" when in fact nothing had been generated at all. */
 function planNearestAndRefresh({ reflowCamera = true } = {}) {
   readInputs();
   const found = session.planNearest({ maxRadiusChunks: 512 });
   $('chunk-x').value = String(session.state.chunkX);
   $('chunk-z').value = String(session.state.chunkZ);
+  session.realize();
   refresh({ reflowCamera });
   return found;
 }

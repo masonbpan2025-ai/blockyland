@@ -158,3 +158,22 @@ test('every element the page looks up exists on the page', () => {
     assert.ok(ids.has(id), `${id} should be looked up by the page or its panel renderer`);
   }
 });
+
+test('the preview realizes as part of planning, so the blocks match the boxes', () => {
+  // The bug this pins: picking a structure planned it but did NOT realize, so the preview kept the PREVIOUS
+  // structure's blocks under the new plan's boxes. That reads as "the village generated a handful of blocks"
+  // when nothing had been generated at all -- which is exactly how it was reported.
+  const plan = inspectorJs.slice(inspectorJs.indexOf('function planNearestAndRefresh'));
+  const body = plan.slice(0, plan.indexOf('\n}'));
+  assert.match(body, /session\.planNearest\(/, 'it plans');
+  assert.match(body, /session\.realize\(\)/, 'AND realizes in the same step');
+  assert.match(body, /refresh\(/, 'then re-renders');
+});
+
+test('air is never drawn, because a stored air cell renders as a black cube', () => {
+  // Air is black in the palette, so drawing it made a village look like black blocks. The renderer filters it
+  // as well as the session, because this is the one rendering outcome that reads as a broken preview.
+  const render = inspectorJs.slice(inspectorJs.indexOf('function renderBlocks'));
+  const body = render.slice(0, render.indexOf('\n}'));
+  assert.match(body, /filter\(\(\[, id\]\) => id !== BLOCKS\.AIR\)/, 'the renderer skips air');
+});
