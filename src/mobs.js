@@ -8,6 +8,8 @@ import { createStriderModel } from './striderModel.js';
 import { updateStrider, updateStriderSpawning, updateStriderExposure } from './striderBehavior.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
 import { createHorseModel } from './horseModel.js';
+import { createPackEquineModel, isPackEquine } from './packEquineModel.js';
+import { packEquineStats, hurtPackEquine, dropPackEquineLoot, updateDonkeySpawning } from './packEquine.js';
 import { isEquine, randomHorseStats } from './horseBehavior.js';
 import { setMagmaSize, updateSnowballs } from './netherCombat.js';
 import { updateBarterEffects } from './barterItems.js';
@@ -2250,9 +2252,9 @@ export class MobManager {
       case 'glow_squid': return { width: 0.8, height: 0.8 };
       case 'drowned': return { width: 0.6, height: 1.95 };
       case 'axolotl': return { width: 0.5, height: 0.35 };
-      case 'horse':
-      case 'donkey':
-      case 'mule': return { width: 1.4, height: 1.6 };
+      case 'horse': return { width: 1.4, height: 1.6 };
+      case 'donkey': return { width: 1.3965, height: 1.5 };
+      case 'mule': return { width: 1.3965, height: 1.6 };
       case 'wolf': return { width: 0.6, height: 0.85 };
       case 'cat':
       case 'ocelot': return { width: 0.6, height: 0.7 };
@@ -2286,7 +2288,7 @@ export class MobManager {
 
   checkMobCollision(mob, pos) {
     const dims = this.getMobDimensions(mob.type);
-    const scale = mob.isBaby ? (isSquid(mob) ? .625 : isEquine(mob) ? 0.7 : 0.5) : 1;
+    const scale = mob.isBaby ? (isSquid(mob) ? .625 : mob.type==='horse' ? 0.7 : 0.5) : 1;
     const hw = (mob.width || dims.width) * scale / 2;
     const h = (mob.height || dims.height) * scale;
 
@@ -2321,7 +2323,7 @@ export class MobManager {
         if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
 
         const dimsA = this.getMobDimensions ? this.getMobDimensions(mobA.type) : { width: 0.6, height: 1.0 };
-        const scaleA = mobA.isBaby ? (isSquid(mobA) ? .625 : isEquine(mobA) ? .7 : .5) : 1.0;
+        const scaleA = mobA.isBaby ? (isSquid(mobA) ? .625 : mobA.type==='horse' ? .7 : .5) : 1.0;
         const hA = (mobA.height || dimsA?.height || 1.0) * scaleA;
         const wA = (mobA.width || dimsA?.width || 0.6) * scaleA;
         const rA = Math.max(0.24, wA * 0.5);
@@ -2333,7 +2335,7 @@ export class MobManager {
           if (mobA.rider === mobB || mobB.rider === mobA) continue;
 
           const dimsB = this.getMobDimensions ? this.getMobDimensions(mobB.type) : { width: 0.6, height: 1.0 };
-          const scaleB = mobB.isBaby ? (isSquid(mobB) ? .625 : isEquine(mobB) ? .7 : .5) : 1.0;
+          const scaleB = mobB.isBaby ? (isSquid(mobB) ? .625 : mobB.type==='horse' ? .7 : .5) : 1.0;
           const hB = (mobB.height || dimsB?.height || 1.0) * scaleB;
           const yB = mobB.mesh.position.y;
 
@@ -3768,81 +3770,14 @@ export class MobManager {
     mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);return mob;
   }
 
-  spawnMule(x,y,z) {
-    const mob=this.spawnDonkey(x,y,z);mob.type='mule';mob.name='Mule';return mob;
-  }
-
-  spawnDonkey(x, y, z) {
-    const group = new THREE.Group();
-    const textureCache = this.textures || (this.textures = {});
-    const donkeyTexture = textureCache.donkey
-      || (textureCache.donkey = this.createHorseTexture(0x71717a));
-    const donkeyMat = new THREE.MeshLambertMaterial({
-      map: donkeyTexture,
-      color: 0xffffff
-    });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.85, 1.3), donkeyMat);
-    body.position.y = 1.05;
-    group.add(body);
-
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.65, 0.38), donkeyMat);
-    neck.position.set(0, 1.5, 0.55);
-    neck.rotation.x = -Math.PI / 6;
-    group.add(neck);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.42, 0.6), donkeyMat);
-    head.position.set(0, 1.85, 0.8);
-    group.add(head);
-
-    // Long donkey ears
-    const earGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
-    const earL = new THREE.Mesh(earGeo, donkeyMat); earL.position.set(-0.16, 2.2, 0.7); group.add(earL);
-    const earR = new THREE.Mesh(earGeo, donkeyMat); earR.position.set(0.16, 2.2, 0.7); group.add(earR);
-
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.22, 0.75, 0.22);
-    const fl = new THREE.Mesh(legGeo, donkeyMat); fl.position.set(-0.28, 0.38, 0.45); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, donkeyMat); fr.position.set(0.28, 0.38, 0.45); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, donkeyMat); bl.position.set(-0.28, 0.38, -0.45); group.add(bl);
-    const br = new THREE.Mesh(legGeo, donkeyMat); br.position.set(0.28, 0.38, -0.45); group.add(br);
-
-    // Saddlebags (chest mesh)
-    const chestMat = new THREE.MeshLambertMaterial({ color: 0x854d0e });
-    const chestGroup = new THREE.Group();
-    const bagL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), chestMat); bagL.position.set(-0.48, 1.15, 0); chestGroup.add(bagL);
-    const bagR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), chestMat); bagR.position.set(0.48, 1.15, 0); chestGroup.add(bagR);
-    chestGroup.visible = false;
-    group.add(chestGroup);
-
-    // Saddle
-    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), new THREE.MeshLambertMaterial({ color: 0x451a03 }));
-    saddle.position.set(0, 1.18, 0);
-    saddle.visible = false;
-    group.add(saddle);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
-
-    const mob = {
-      type: 'donkey',
-      name: 'Donkey',
-      mesh: group,
-      head: head,
-      legs: [fl, fr, bl, br],
-      saddleMesh: saddle,
-      chestMesh: chestGroup,
-      health: 26,
-      maxHealth: 26,
-      velocity: new THREE.Vector3(),
-      yaw: Math.random() * Math.PI * 2,
-      state: 'idle',
-      timer: 0,
-      hitCooldown: 0
-    };
-    this.mobs.push(mob);
-    return mob;
+  spawnMule(x,y,z) { return this.spawnPackEquine('mule',x,y,z); }
+  spawnDonkey(x,y,z) { return this.spawnPackEquine('donkey',x,y,z); }
+  spawnPackEquine(type,x,y,z) {
+    const r=this.random || Math.random, stats=packEquineStats(r);
+    const mob={type,name:type==='mule'?'Mule':'Donkey',...createPackEquineModel(type,this.textures),...stats,
+      health:stats.maxHealth,isTamed:false,isSaddled:false,horseArmor:null,hasChest:false,chestInventory:[],
+      velocity:new THREE.Vector3(),yaw:r()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
+    mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);return mob;
   }
 
   // --- WOLF ---
@@ -5842,6 +5777,7 @@ export class MobManager {
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     mob.health -= amount;
+    if(isPackEquine(mob))hurtPackEquine(this,mob,attacker);
     if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
     mob.hitCooldown = isPunch ? 0.15 : 0.35;
@@ -6064,6 +6000,7 @@ export class MobManager {
         this.hostileBehaviors?.handleMobDeathSplitting?.(mob);
       }
       const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+      if(isPackEquine(mob)){dropPackEquineLoot(this,mob,pos);mob.noLoot=true;}
       if(mob.type==='wither_skeleton'){dropWitherSkeletonLoot(this,mob,pos);mob.noLoot=true;}
       if(isSquid(mob)){dropSquidLoot(this,mob,pos);mob.noLoot=true;}
       if(isZombifiedPiglin(mob)){dropZombifiedLoot(this,mob,pos);mob.noLoot=true;}
@@ -6121,7 +6058,7 @@ export class MobManager {
         if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       }
       if(mob.type==='strider'&&!mob.isBaby&&mob.isSaddled)this.entities?.spawnDroppedItem(pos,'saddle',false,1);
-      if (isEquine(mob) && !mob.isBaby) {
+      if (mob.type==='horse' && !mob.isBaby) {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }
       if (!mob.noLoot) {
@@ -6297,6 +6234,7 @@ export class MobManager {
     updateStriderSpawning(this, dt, player);
     updateSquidSpawning(this, dt, player);
     updateWitherSkeletonSpawning(this,dt,player);
+    updateDonkeySpawning(this,dt,player);
     updateMobWither(this,dt);
     updateArrows(this, dt, player);
     updateSnowballs(this, dt);
@@ -6323,6 +6261,12 @@ export class MobManager {
         }
         if (mob.frozen) {
           mob.velocity?.set(0, 0, 0);
+          continue;
+        }
+        if(isPackEquine(mob)&&(mob.vehicle?.kind==='minecart'||mob.ridingBoat)){
+          const vehicle=mob.vehicle||mob.ridingBoat;
+          if(mob.health<=0){if(vehicle.rider===mob)vehicle.rider=null;if(vehicle.passenger===mob)vehicle.passenger=null;mob.vehicle=null;mob.ridingBoat=null;mob.isRiding=false;this.updateDeath(mob,dt);}
+          else mob.velocity.set(0,0,0);
           continue;
         }
 
@@ -6410,7 +6354,7 @@ export class MobManager {
     // a one-frame lag that looked like jitter behind a moving horse.
     const activeMount = this.animalBehaviors?.mount;
     if (activeMount?.mob?.rider === player && player?.position) {
-      const mountOffset = isEquine(activeMount.type) ? 1.4 : activeMount.type==='strider' ? 1.7 : 0.8;
+      const mountOffset = isPackEquine(activeMount.mob) ? 1.4*activeMount.mob.rig.scale.y : isEquine(activeMount.type) ? 1.4 : activeMount.type==='strider' ? 1.7 : 0.8;
       player.position.copy(activeMount.mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
       player.velocity?.set?.(0, 0, 0);
       player.updateCameraAndModel?.(0);
@@ -6466,6 +6410,11 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    if(isPackEquine(mob)&&mob.panicSeconds>0&&!mob.rider){
+      const speed=(mob.movementSpeed??.175)*20;mob.yaw=mob.panicYaw;mob.wanderGoal=null;
+      mob.velocity.x=Math.sin(mob.yaw)*speed;mob.velocity.z=Math.cos(mob.yaw)*speed;
+      this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
+    }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
     if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
@@ -6726,6 +6675,7 @@ export class MobManager {
         const cleanId = heldItem ? (typeof heldItem.id === 'string' ? heldItem.id : heldItem?.id?.id || '').toLowerCase().trim() : '';
         const isTempting = heldItem && (!mob.inLove || mob.inLove <= 0) && (
           this.animalBehaviors?.isBreedingFood(mob.type, cleanId) ||
+          (isPackEquine(mob) && ['golden_carrot','golden_apple','enchanted_golden_apple'].includes(cleanId)) ||
           (mob.type === 'chicken' && (cleanId.includes('seed') || cleanId.includes('pod'))) ||
           (mob.type === 'cow' && cleanId.includes('wheat') && !cleanId.includes('seed'))
         );

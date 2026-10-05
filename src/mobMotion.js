@@ -1,3 +1,4 @@
+import { isPackEquine } from './packEquineModel.js';
 import { isEquine } from './horseBehavior.js';
 import * as THREE from 'three';
 import { applyHeat } from './heat.js';
@@ -78,7 +79,7 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
   if (isLethalStep(hazards, cell.x, cell.y, cell.z)) return true;
   // Water stays an obstacle for land mobs, as before.
   const inWater = hazards.getVoxel(cell.x, cell.y, cell.z) === waterId;
-  if (inWater) return true;
+  if (inWater && !(isPackEquine(mob)&&mob.rider)) return true;
   // Deep drops were already avoided; keep that.
   return !hazards.isSolid(cell.x, cell.y - 1.05, cell.z);
 }
@@ -297,7 +298,9 @@ export function moveGroundMob(manager, mob, dt) {
     }
     const maxFall = mob.maxFallSpeed !== undefined ? mob.maxFallSpeed : (mob.type === 'chicken' ? -1.5 : -40);
     const gravity = mob.gravity !== undefined ? mob.gravity : (mob.type === 'chicken' ? 8 : 24);
-    mob.velocity.y = Math.max(maxFall, mob.velocity.y - gravity * step);
+    const swimming=isPackEquine(mob)&&hazards.getVoxel(Math.floor(pos.x),Math.floor(pos.y+.4),Math.floor(pos.z))===BLOCKS.WATER;
+    if(swimming) {mob.horseFallPeak=undefined;mob.velocity.y=Math.min(2,mob.velocity.y+12*step);}
+    else mob.velocity.y = Math.max(maxFall, mob.velocity.y - gravity * step);
     const candidate = pos.clone(); candidate.y += mob.velocity.y * step;
     mob.onGround = false;
     if (collision(candidate)) {
@@ -322,7 +325,9 @@ export function moveGroundMob(manager, mob, dt) {
   }
   if(isEquine(mob) && !mob.dying){
     if(!mob.onGround)mob.horseFallPeak=Math.max(mob.horseFallPeak ?? start.y,pos.y);
-    else if(mob.horseFallPeak!==undefined){const fall=mob.horseFallPeak-pos.y;delete mob.horseFallPeak;if(fall>7){const damage=Math.floor((fall-7)*.5);if(damage>0)manager.damageMob(mob,damage,null,false,null,true);mob.rider?.takeDamage?.(Math.floor(fall-3),null,'fall');}}
+    else if(mob.horseFallPeak!==undefined){const fall=mob.horseFallPeak-pos.y;delete mob.horseFallPeak;
+      const damage=isPackEquine(mob)?Math.max(0,Math.ceil((fall-6-.025)*.5)):Math.max(0,Math.floor((fall-7)*.5));
+      if(damage>0){manager.damageMob(mob,damage,null,false,null,true);mob.rider?.takeDamage?.(isPackEquine(mob)?damage:Math.floor(fall-3),null,'fall');}}
   }
   const turn = Math.atan2(Math.sin(mob.yaw - mob.mesh.rotation.y), Math.cos(mob.yaw - mob.mesh.rotation.y));
   mob.mesh.rotation.y += turn * (1 - Math.exp(-7 * dt));

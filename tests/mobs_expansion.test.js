@@ -7,6 +7,8 @@ import { HostileMobBehaviors } from '../src/hostileMobBehaviors.js';
 import { RaidManager } from '../src/raids.js';
 import { DeepDarkWardenManager } from '../src/deepDarkWarden.js';
 import { BossFightManager } from '../src/bossFights.js';
+import { createPackEquineModel } from '../src/packEquineModel.js';
+import { MobManager } from '../src/mobs.js';
 
 // Mock World
 function createMockWorld() {
@@ -75,12 +77,15 @@ function createMockMobManager(world, sounds, entities) {
     sounds,
     entities,
     customProjectiles: [],
+    getMobDimensions: MobManager.prototype.getMobDimensions,
     spawnMob(type, x, y, z) {
       const mob = {
         type,
         health: 20,
         maxHealth: 20,
         mesh: new THREE.Group(),
+        ...(type==='donkey'?createPackEquineModel('donkey'):{}),
+        velocity:new THREE.Vector3(),
         jumpTimer: 0
       };
       mob.mesh.position.set(x, y, z);

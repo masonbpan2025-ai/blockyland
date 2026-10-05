@@ -1,3 +1,4 @@
+import { packEquineScenarios } from './packEquineScenarios.js';
 import { witherSkeletonScenarios } from './witherSkeletonScenarios.js';
 import { isSquid } from './squidBehavior.js';
 import { squidScenarios } from './squidScenarios.js';
@@ -88,7 +89,7 @@ function locomotionRunning(s) {
 export function mobScenarios(type,definition=null) {
   if(type==='wither_skeleton')return witherSkeletonScenarios();
   if(isSquid(type))return squidScenarios(type);
-  const cases=type==='strider'?striderScenarios():[];
+  const cases=['donkey','mule'].includes(type)?packEquineScenarios(type):type==='strider'?striderScenarios():[];
   if(type==='horse')cases.push(...horseScenarios());
   if(['zombified_piglin','zombie_pigman'].includes(type))cases.push(...zombifiedScenarios(SCENARIO_SKIP));
   const add=(id,label,duration,setup,check)=>cases.push({id,label,duration,setup,check});

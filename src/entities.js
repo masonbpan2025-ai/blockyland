@@ -151,7 +151,8 @@ export class EntityManager {
         (Math.random() - 0.5) * 2
       ),
       age: 0,
-      enchantments: options.enchantments ? structuredClone(options.enchantments) : null,
+        enchantments: options.enchantments ? structuredClone(options.enchantments) : null,
+        ...(options.itemData?{itemData:structuredClone(options.itemData)}:{}),
       ...(options.durability!==undefined?{durability:options.durability}:{}),
       pickupDelay: options.pickupDelay ?? 1.0
     });
@@ -418,7 +419,7 @@ export class EntityManager {
         // Collect into inventory
         let added = 0;
         // Single-item transactions avoid duplicating a partially accepted stack.
-        while (item.count > 0 && inventory.addItem(item.itemType, item.isBlock, 1, item.enchantments)) { item.count--; added++; }
+        while (item.count > 0 && (item.itemData?inventory.addItem({...item.itemData,count:1}):inventory.addItem(item.itemType, item.isBlock, 1, item.enchantments))) { item.count--; added++; }
         if (added > 0) {
           this.sounds.playClick();
           this.onItemPickup?.(item.itemType, added);

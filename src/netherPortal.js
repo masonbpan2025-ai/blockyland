@@ -575,7 +575,7 @@ export class NetherPortalManager {
       this.portalCooldown -= dt;
     }
 
-    const inPortal = this.isPlayerInPortal(player, game.world);
+    const inPortal = !player.ridingMob && this.isPlayerInPortal(player, game.world);
     this.isInPortal = inPortal;
 
     const overlay = this.getOverlay();

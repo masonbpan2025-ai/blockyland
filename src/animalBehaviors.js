@@ -1,5 +1,6 @@
 import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squidBehavior.js';
 import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
+import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
@@ -296,6 +297,7 @@ export class AnimalBehaviors {
           mob.isBaby = false;
           mob.mesh.scale.set(1, 1, 1);
           if (mob.head) mob.head.scale.set(1, 1, 1);
+          if(isPackEquine(mob))syncPackEquineAppearance(mob);
           if (mob.horns) mob.horns.forEach(h => h.visible = true);
           if (mob.udder) mob.udder.visible = true;
           if (mob.wattle) mob.wattle.visible = true;
@@ -447,7 +449,7 @@ export class AnimalBehaviors {
                 if (baby) {
                   baby.isBaby = true;
                   baby.babyGrowthTimer = 120;
-                  baby.mesh?.scale?.setScalar?.(isEquine(baby)?.7:.5);
+                  baby.mesh?.scale?.setScalar?.(baby.type==='horse'?.7:.5);
                 }
               }
             }
@@ -472,7 +474,7 @@ export class AnimalBehaviors {
       if (mob.health <= 0) continue;
 
       if(isSquid(mob)){updateSquidAge(mob,dt);continue;}
-      if(isEquine(mob))updateHorse(mob,dt,this.mobManager.random || Math.random,this.sounds);
+      if(isEquine(mob))updateHorse(mob,dt,this.mobManager.random || Math.random,this.sounds,player,this.mobManager);
       // 1. Breeding cooldown & Love mode
       if (mob.breedingCooldown > 0) {
         mob.breedingCooldown -= dt;
@@ -624,7 +626,7 @@ export class AnimalBehaviors {
           mob.owner=player;
           mob.isTamed = true;
           this.spawnHeartParticles(mob.mesh.position);
-          if (this.sounds?.playHorse) this.sounds.playHorse();
+          if(isPackEquine(mob))this.sounds?.playDonkey?.('ambient',mob.isBaby);else this.sounds?.playHorse?.();
         } else {
           mob.temper=Math.min(100,(mob.temper || 0)+5);
           mob.rearTime=1;
@@ -638,11 +640,11 @@ export class AnimalBehaviors {
     }
 
     if(isEquine(type)) {
-      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount || this.world?.getVoxel(mob.mesh.position.x,mob.mesh.position.y+1.4,mob.mesh.position.z)===BLOCKS.WATER){this.dismount(player);return;}
+      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount || this.world?.getVoxel(mob.mesh.position.x,mob.mesh.position.y+(isPackEquine(mob)?this.mobManager.getMobDimensions(type).height+.1:1.4),mob.mesh.position.z)===BLOCKS.WATER){this.dismount(player);return;}
       if(!mob.isTamed || !mob.isSaddled){mob.velocity.x=mob.velocity.z=0;this.jumpCharge=0;this.isChargingJump=false;mob.jumpCharge=0;return;}
     }
     // Camera sync: Player position sits on top of mob
-    const mountOffset = isEquine(type) ? 1.4 : 0.8;
+    const mountOffset = isPackEquine(mob) ? 1.4*mob.rig.scale.y : isEquine(type) ? 1.4 : 0.8;
     player.position.copy(mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
 
     // Direction from camera
@@ -696,7 +698,7 @@ export class AnimalBehaviors {
         if (mob.onGround) {
           const jumpPower = Math.sqrt(2*(mob.gravity ?? 24)*horseJumpHeight(mob.jumpStrength ?? .5))*(.4+.6*this.jumpCharge);
           mob.velocity.y = jumpPower;mob.onGround=false;
-          if (this.sounds?.playHorse) this.sounds.playHorse();
+          if(isPackEquine(mob))this.sounds?.playDonkey?.('jump',mob.isBaby);else this.sounds?.playHorse?.();
         }
         this.isChargingJump = false;
         this.jumpCharge = 0;
@@ -810,7 +812,8 @@ export class AnimalBehaviors {
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
               baby.babyGrowthTimer = isEquine(mob) || mob.type==='hoglin' || mob.type==='strider' ? 1200 : 120;
               baby.parent = mob;
-              baby.mesh?.scale?.setScalar?.(isEquine(baby) ? .7 : .5);
+              baby.mesh?.scale?.setScalar?.(baby.type==='horse' ? .7 : .5);
+              if(isPackEquine(baby))syncPackEquineAppearance(baby);
               if (baby.head && !isEquine(baby) && baby.type!=='strider') baby.head.scale.set(1.5, 1.5, 1.5);
               if (baby.horns) baby.horns.forEach(h => h.visible = false);
               if (baby.udder) baby.udder.visible = false;

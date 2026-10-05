@@ -1,5 +1,13 @@
 // Web Audio API Procedural Sound Engine
 export class SoundEngine {
+  playDonkey(kind='ambient',baby=false) {
+    this.ensureContext();if(!this.ctx||!this.soundEnabled)return;
+    const t=this.ctx.currentTime,osc=this.ctx.createOscillator(),gain=this.ctx.createGain();
+    const pitch=(baby?1.5:1)*(kind==='death'?95:150);
+    osc.type='sawtooth';osc.frequency.setValueAtTime(pitch,t);osc.frequency.linearRampToValueAtTime(pitch*1.8,t+.15);osc.frequency.linearRampToValueAtTime(pitch*.7,t+.4);
+    gain.gain.setValueAtTime(.001,t);gain.gain.linearRampToValueAtTime(kind==='chest'?.04:.07,t+.05);gain.gain.exponentialRampToValueAtTime(.001,t+.45);
+    osc.connect(gain);gain.connect(this.masterGain);osc.start(t);osc.stop(t+.46);
+  }
   playWitherSkeleton(kind='idle') {
     if(!this.ctx || !this.soundEnabled)return;
     const oscillator=this.ctx.createOscillator(),gain=this.ctx.createGain(),time=this.ctx.currentTime;

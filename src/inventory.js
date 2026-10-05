@@ -279,6 +279,17 @@ export class Inventory {
 
   addItem(itemId, isBlock = true, count = 1, enchantments = null) {
     if (typeof itemId === 'object' && itemId !== null) {
+      // Cargo pickups retain names, durability and enchantments. Only identical
+      // stacks can merge, and a full inventory must leave the drop untouched.
+      if(Object.keys(itemId).some(k=>!['id','isBlock','count','enchantments'].includes(k))){
+        const incoming=structuredClone(itemId),limit=ITEMS[incoming.id]?.stackSize || (['tool','weapon'].includes(ITEMS[incoming.id]?.type)?1:64);
+        const compatible=s=>s&&JSON.stringify({...s,count:0})===JSON.stringify({...incoming,count:0});
+        const slots=[...this.hotbar,...this.storage];
+        if(incoming.count>slots.reduce((n,s)=>n+(!s?limit:compatible(s)?Math.max(0,limit-s.count):0),0))return false;
+        for(const s of slots)if(compatible(s)){const n=Math.min(incoming.count,limit-s.count);s.count+=n;incoming.count-=n;if(!incoming.count)return true;}
+        for(const list of [this.hotbar,this.storage])for(let i=0;i<list.length;i++)if(!list[i]){const n=Math.min(incoming.count,limit);list[i]={...incoming,count:n};incoming.count-=n;if(!incoming.count)return true;}
+        return false;
+      }
       count = itemId.count !== undefined ? itemId.count : 1;
       isBlock = itemId.isBlock !== undefined ? itemId.isBlock : false;
       enchantments = itemId.enchantments || null;

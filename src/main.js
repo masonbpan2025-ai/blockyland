@@ -1552,6 +1552,7 @@ class Game {
         else if (mobType === 'dolphin') this.mobs.spawnDolphin(sx, sy, sz);
         else if (mobType === 'octopus') this.mobs.spawnOctopus(sx, sy, sz);
         else if (mobType === 'axolotl') this.mobs.spawnAxolotl(sx, sy, sz);
+        else if(mobType==='mule'){const mob=this.mobs.spawnMule(sx,sy,sz);if(Math.random()<.2){mob.isBaby=true;mob.babyGrowthTimer=1200;mob.mesh.scale.setScalar(.5);}}
         else this.mobs.spawnMob(mobType, sx, sy, sz);
 
         this.sounds.playPop();
