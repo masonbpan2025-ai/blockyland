@@ -200,8 +200,9 @@ test('a shapeless recipe that fits 2x2 is available in the inventory grid', () =
 test('a hay block uncrafts into nine wheat, as vanilla has it', () => {
   // Found by the Resource Inspector rather than by looking: `recipe-parity` reported exactly three items
   // vanilla can craft that this game cannot, and this was the only one whose ingredients both exist here.
-  // The generator dropped it because the game registers the block twice -- as `hay_bale` and as the
-  // vanilla `hay_block` -- and the recipe names the vanilla spelling. See `inspector shadows`.
+  // The generator had dropped it because the block was registered twice -- as `hay_bale` and as the
+  // vanilla `hay_block` -- and the recipe names the vanilla spelling. The duplicate is gone and the recipe
+  // stays, because it is vanilla's and it is what makes a hay block give wheat back. See `inspector shadows`.
   const recipe = { id: 'hay_block', isBlock: true, count: 1 };
   const oneByOne = [recipe, null, null, null];
   assert.deepEqual(findMatchingRecipe(oneByOne, 2, 2, RECIPES_3X3), { id: 'wheat', isBlock: false, count: 9 });

@@ -472,8 +472,9 @@ export function buildVanillaIndex({ items = [], recipes = {}, foods = [], blocks
     recipesByResultName,
     recipesByIngredientName,
     itemNames: items.map((i) => i.name),
-    // Block names were not exposed, so the shadowing report could only see item spellings. `hay_bale`
-    // shadows a *block* name, and it would have been missed.
+    // Block names were not exposed, so the shadowing report could only see item spellings -- and the two
+    // worst duplicates shadowed a *block* name (`hay_bale`) or differed by vocabulary rather than by
+    // spelling (`slimeball`), so both would have been missed.
     blockNames: blocks.map((b) => b.name),
   };
 }

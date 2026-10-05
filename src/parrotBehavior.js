@@ -35,9 +35,9 @@ export const PARROT_COLORS = {
  * Wiki: parrots are tamed with any of these seeds, each with a 1-in-10 chance.
  */
 export const PARROT_TAMING_FOODS = [
-  'wheat_seeds', 'wheat_seed', 'seeds', 'seed',
-  'melon_seeds', 'melon_seed', 'pumpkin_seeds', 'pumpkin_seed',
-  'beetroot_seeds', 'beetroot_seed', 'torchflower_seeds', 'torchflower_seed', 'pitcher_pod'
+  'wheat_seeds',
+  'melon_seeds', 'pumpkin_seeds',
+  'beetroot_seeds', 'torchflower_seeds', 'pitcher_pod'
 ];
 
 /** Wiki: "Each item fed has a 1/10 chance of successfully taming them." */

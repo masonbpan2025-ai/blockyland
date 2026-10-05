@@ -839,11 +839,12 @@ export function harvestOrphans(reg = registry()) {
 }
 
 /**
- * Spellings this game uses for a vanilla id under a different name.
+ * Spellings this game has used for a vanilla id under a different name.
  *
  * Two of these are plain vocabulary differences rather than near-misses, so a singular/plural rule cannot
- * find them: vanilla's `slime_ball` is `slimeball` here, and vanilla's `hay_block` is also `hay_bale`.
- * Named, because a rule that guessed at word boundaries would produce more noise than list.
+ * find them: vanilla's `slime_ball` was `slimeball` here, and vanilla's `hay_block` was also `hay_bale`.
+ * Both are gone now, and the entries stay deliberately -- if either spelling is reintroduced, `shadows`
+ * names it again rather than reporting nothing because the alias table was cleaned up alongside the fix.
  */
 export const VANILLA_ID_ALIASES = {
   slimeball: 'slime_ball',
@@ -854,10 +855,11 @@ export const VANILLA_ID_ALIASES = {
  * Ids this game defines that shadow a vanilla id under a different spelling.
  *
  * The complement of `missingVanillaItems`, which asks what vanilla has and this game lacks. This asks the
- * opposite question -- what this game has under a name vanilla does not use -- and the answer matters
- * because six of them are *both* registered: `wheat_seed` and `wheat_seeds`, `slimeball` and `slime_ball`,
- * `hay_bale` and `hay_block`. Those are two items for one vanilla item, which a creative menu shows twice
- * and a recipe can only reach through one of.
+ * opposite question -- what this game has under a name vanilla does not use -- and the answer mattered:
+ * eight ids were duplicates of a vanilla item, six of them with *both* halves registered. Two slimeball
+ * ids meant a frog could not eat the slimeball a slime dropped, and two hay ids meant the horse food table
+ * was keyed on a name no block answered to. All eight are removed; this report is what found them and what
+ * will find the next one.
  *
  * A report rather than a fault: a differently-spelled id is legitimate when it is this project's own
  * content, and the two databases only disagree about the name. `bothRegistered` is what separates a

@@ -299,7 +299,7 @@ export function updatePandaSneeze(manager, mob, dt, random = Math.random) {
   }
   // Wiki: and it rarely drops a slimeball.
   if (random() < PANDA_SNEEZE_SLIMEBALL_CHANCE) {
-    manager?.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), 'slimeball', false, 1);
+    manager?.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), 'slime_ball', false, 1);
     mob.droppedSlimeball = true;
   }
   return 'sneezed';
