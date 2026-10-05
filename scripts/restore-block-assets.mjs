@@ -49,6 +49,11 @@ const COMPOSER_INPUTS = [
   ...['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray',
     'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'].map((c) => `${c}_candle.png`),
   'flower_pot.png',
+  // The cauldron family's inputs. `cauldron.png` does not exist upstream, so the pot is three faces, and
+  // the fluids have to be fetched for the composer to overlay. Same trap as `candle.png` above: the block
+  // definitions name the COMPOSED output, so the downloader never sees these.
+  'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
+  'water_still.png', 'lava_still.png', 'powder_snow.png',
   ...['acacia_sapling', 'allium', 'azure_bluet', 'bamboo_stage0', 'birch_sapling', 'blue_orchid',
     'brown_mushroom', 'cactus_side', 'cherry_sapling', 'closed_eyeblossom', 'cornflower',
     'crimson_fungus', 'crimson_roots', 'dandelion', 'dark_oak_sapling', 'dead_bush', 'fern',
@@ -90,6 +95,9 @@ const TRANSFORMS = [
   'compose-candle-cakes.py',
   'compose-potted-plants.py',
   'compose-filled-cauldrons.py',
+  // Extracts head faces from the entity skin sheets. Independent of the others, so its position does not
+  // matter; it is last only because it was added last.
+  'extract-mob-head-textures.py',
 ];
 
 for (const script of TRANSFORMS) {

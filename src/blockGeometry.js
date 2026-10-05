@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createWallFanGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createWallFanGeometry, createHeadGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -69,6 +69,17 @@ export function createBlockGeometry(id, textures, state = {}) {
     // through and applied as a tint -- only the cloth takes it, not the pole.
     const colour = def?.bannerColour || 'white';
     return ensureFlameAttributes(createBannerGeometry(def, textures, colour));
+  }
+  if (def?.wallHead) {
+    // A head fixed to a wall. Checked before the standing head below, since the two share the box and
+    // differ only in where it sits.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createHeadGeometry(def, textures, true, dir));
+  }
+  if (def?.head) {
+    // A mob head: an 8/16 cube. Without this it would be drawn as a full block, which is exactly what the
+    // vanilla model exists to avoid.
+    return ensureFlameAttributes(createHeadGeometry(def, textures, false));
   }
   if (def?.wallFan) {
     // Checked BEFORE the plant fallback, because a wall fan is also `plant: true` (so the upright fan's
