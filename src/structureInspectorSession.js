@@ -126,6 +126,9 @@ export function createStructureInspectorSession(options = {}) {
   let plan = null;
   let lastHash = null;
   let lastPlanKey = null;
+  // The RAW plan is kept, not just its key: the Inspector's panels need pieces, connectors and boxes, and a
+  // telemetry summary cannot be turned back into a plan.
+  let lastPlan = null;
 
   function buildEngine() {
     return createStructureEngine({
@@ -250,6 +253,7 @@ export function createStructureInspectorSession(options = {}) {
       plan = null;
       world.clear();
       const result = engine.planChunk(state.chunkX, state.chunkZ);
+    lastPlan = result;
       if (!result) {
         log(`no structure in chunk ${state.chunkX}, ${state.chunkZ}`);
         return null;
@@ -271,6 +275,7 @@ export function createStructureInspectorSession(options = {}) {
       const engine = buildEngine();
       world.clear();
       const found = engine.locate(state.structureId, state.chunkX * 16, state.chunkZ * 16, { maxRadiusChunks });
+    lastPlan = found;
       if (!found) {
         plan = null;
         log(`no ${state.structureId} within ${maxRadiusChunks} chunks of ${state.chunkX}, ${state.chunkZ}`);
@@ -345,6 +350,49 @@ export function createStructureInspectorSession(options = {}) {
     },
 
     /** Compact snapshot for tests and for the page's JSON pane. */
+    /** The last plan, so a panel can render pieces, connectors and boxes rather than a summary. */
+    currentPlan() {
+      return lastPlan ?? null;
+    },
+
+    /** The engine's plan hash, which is the value a golden file records. */
+    hashStart(start) {
+      return buildEngine().hashStart(start);
+    },
+
+    /** The chunks a start touches, so a panel can show its footprint. */
+    chunksForStart(start) {
+      return buildEngine().chunksForStart(start);
+    },
+
+    /**
+     * Realize with terrain adaptation applied, returning the engine's report plus the adaptation writes.
+     *
+     * The engine tags adaptation blocks through their meta, which is how they are told apart from the
+     * structure's own blocks here: the panel needs the distinction, because "adaptation added 400 blocks" and
+     * "the structure wrote 400 blocks" must not look the same.
+     */
+    realizeWithAdaptation({ surfaceY = null, foundationBlock = null, adaptation = null, airBlock = null } = {}) {
+      const plan = lastPlan ?? null;
+      if (!plan || !plan.start) return null;
+      const engine = buildEngine();
+      world.clear();
+      const adaptationWrites = [];
+      const report = engine.realizeWithReport(plan.start, (x, y, z, id, meta) => {
+        if (meta && meta.terrainAdaptation) adaptationWrites.push({ x, y, z, id, kind: meta.terrainAdaptation });
+        const ok = world.setBlock(x, y, z, id);
+        if (ok && meta) world.setBlockMeta(x, y, z, meta);
+        return ok;
+      }, {
+        chunkX: plan.start.chunkX,
+        chunkZ: plan.start.chunkZ,
+        surfaceY,
+        foundationBlock,
+        airBlock,
+        adaptation
+      });
+      return { ...report, adaptationWrites };
+    },
     snapshot() {
       const info = telemetry();
       return {
