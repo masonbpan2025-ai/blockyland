@@ -38,6 +38,7 @@ import {
 } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 import { INTERACTION_SOURCES } from '../src/interactionSources.js';
+import { codeDropSources } from '../src/codeDropSources.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -97,7 +98,13 @@ function loadVanilla() {
 function makeInspector({ vanilla, durabilityHas, smelting }) {
   // The interaction sources are a plain data table with no Three dependency, so they are imported here
   // rather than injected; the registry still takes them as a provider so every source kind shares a path.
-  const registry = buildDefaultRegistry({ durability: durabilityHas, smelting, interactions: INTERACTION_SOURCES });
+  const registry = buildDefaultRegistry({
+    durability: durabilityHas,
+    smelting,
+    // Both tables are sources that live in code: what the player does by hand, and what a mob drops through
+    // a rule the pinned loot data does not carry. The registry takes them as one kind.
+    interactions: [...INTERACTION_SOURCES, ...codeDropSources()],
+  });
   const showcase = new ResourceShowcase({
     registry,
     vanilla,
@@ -162,12 +169,13 @@ function printReport(report) {
   console.log(`  from        crafting ${sources.crafting.length}, smelting ${sources.smelting.length},`
     + ` brewing ${sources.brewing.length}, mob loot ${sources.mobLoot.length}, block drops ${sources.blockDrops.length}`);
   // The two kinds that are not data tables, listed with what they are so `show` does not look like it is
-  // missing a source the Inspector simply has not printed.
+  // missing a source the Inspector simply has not printed. `produced by` rather than "by hand", because
+  // this kind covers both what the player does and what a mob drops.
   if (sources.smithing.length) {
     for (const s of sources.smithing) console.log(`  smithing    ${s.base} + ${s.addition} at a smithing table`);
   }
   if (sources.interaction.length) {
-    for (const s of sources.interaction) console.log(`  by hand     ${s.how} (${s.source})`);
+    for (const s of sources.interaction) console.log(`  produced by ${s.how} (${s.source})`);
   }
   console.log(`  used as     ingredient ${usedAs.craftingIngredient}, smelted ${usedAs.smeltedInto}, brewed ${usedAs.brewingIngredient}`);
 }
