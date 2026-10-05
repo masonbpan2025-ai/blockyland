@@ -14,15 +14,38 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from '../src/extraContent.js';
 import { EXTRA_ITEMS, EXTRA_ITEM_COUNT } from '../src/extraItems.js';
 
-test('every generated block has a matching item', () => {
+test('every generated block the player can place has a matching item', () => {
+  // INTERNAL blocks are excluded, and that exclusion is the point: a door's open and top halves are
+  // placed by the door itself and are never picked up, so they must NOT have items. Requiring one for
+  // every block would have produced four creative items per door -- which is what the item generator's
+  // skip prevents, and what this test would otherwise demand.
   const missing = [];
-  for (const [constName] of Object.entries(EXTRA_BLOCK_IDS)) {
+  for (const [constName, id] of Object.entries(EXTRA_BLOCK_IDS)) {
+    if (EXTRA_BLOCK_DEFS[id]?.internal) continue;
     const name = constName.toLowerCase();
     if (ITEMS[name] === undefined) missing.push(name);
   }
   assert.deepEqual(missing, [],
     'these generated blocks cannot be picked up, so any recipe using them stays blocked: '
     + missing.slice(0, 12).join(', '));
+});
+
+test('internal blocks have no item of their own', () => {
+  // The other direction, so the skip cannot silently over-apply and leave a door unplaceable.
+  const internal = Object.entries(EXTRA_BLOCK_IDS)
+    .filter(([, id]) => EXTRA_BLOCK_DEFS[id]?.internal);
+  assert.ok(internal.length > 0, 'the door and trapdoor variants should be marked internal');
+  for (const [constName] of internal) {
+    const name = constName.toLowerCase();
+    assert.equal(ITEMS[name], undefined,
+      name + ' is placed by its parent block, so it should have no item');
+  }
+  // And each parent must have exactly one, or the door cannot be obtained.
+  for (const key of ['SPRUCE_DOOR', 'SPRUCE_TRAPDOOR', 'BAMBOO_DOOR', 'COPPER_DOOR']) {
+    const id = EXTRA_BLOCK_IDS[key];
+    if (id === undefined) continue;
+    assert.ok(ITEMS[key.toLowerCase()] !== undefined, key + ' should have an item');
+  }
 });
 
 test('a generated item points at the block it places', () => {

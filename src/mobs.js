@@ -3,7 +3,7 @@ import { initializeWitherSkeleton, updateWitherSkeleton, hurtWitherSkeleton, dro
 import { updateMobWither } from './witherEffect.js';
 import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
 import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
-import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified} from './zombifiedPiglin.js';
+import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified,updateZombified} from './zombifiedPiglin.js';
 import { createStriderModel } from './striderModel.js';
 import { updateStrider, updateStriderSpawning, updateStriderExposure } from './striderBehavior.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
@@ -11,17 +11,68 @@ import { createHorseModel } from './horseModel.js';
 import { createPackEquineModel, isPackEquine } from './packEquineModel.js';
 import { packEquineStats, hurtPackEquine, dropPackEquineLoot, updateDonkeySpawning } from './packEquine.js';
 import { isEquine, randomHorseStats } from './horseBehavior.js';
-import { setMagmaSize, updateSnowballs } from './netherCombat.js';
+import { createBlazeModel, animateBlaze } from './blazeModel.js';
+import { alertBlazes, setMagmaSize, updateSnowballs } from './netherCombat.js';
 import { updateBarterEffects } from './barterItems.js';
 import { retaliateHoglins } from './netherMobAI.js';
 import { separatePlayerFromMobs } from './mobPlayerCollision.js';
 import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
+import { PIGLIN_BRUTE_HEALTH, PIGLIN_BRUTE_DIMENSIONS, PIGLIN_BRUTE_DAMAGE, PIGLIN_BRUTE_WEAPON, PIGLIN_BRUTE_DIFFERENCES, PIGLIN_BRUTE_SHARED, PIGLIN_BRUTE_COLORS, isPiglinBrute, piglinBruteHealth, piglinBruteDimensions, piglinBruteDamageFor, piglinBruteBarters, piglinBruteRetreats, piglinBruteDistractedByGold, piglinBrutePursues, makePiglinBrute, piglinBruteDrops, piglinBruteXp } from './piglinBruteBehavior.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
-import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+
+/**
+ * Reverse lookup from a block id to its registry name, built on first use by `blockNameAt`.
+ *
+ * The goat's horn rule is defined against block names, and this is the only place that needs to
+ * resolve an id back to one.
+ */
+const BLOCK_NAMES_BY_ID = new Map();
+import { steerGround } from './netherMobAI.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
+import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
+import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
+import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
+import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
+import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
+import { cubeHealth, cubeSide, updateCubeHop, cubeSquashOnLand } from './cubeMobBehavior.js';
+import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
+import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
+import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
+import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, createEndermiteModel, poseEndermiteLegs, updateEndermiteLifetime, updateEndermiteHunt, updateEndermanEndermiteAggression } from './endermiteBehavior.js';
+import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
+import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
+import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
+import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
+import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
+import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { HAPPY_GHAST_HEALTH, HAPPY_GHAST_DIMENSIONS, GHASTLING_DIMENSIONS, HAPPY_GHAST_SPEED, HAPPY_GHAST_RIDDEN_SPEED, HAPPY_GHAST_SEATS, HAPPY_GHAST_SEAT_ORDER, HAPPY_GHAST_ROAM, GHASTLING_GROWTH_SECONDS, GHASTLING_SNOWBALL_SPEEDUP, GHASTLING_BEDROCK_SNOWBALLS, GHASTLING_FOLLOW_RANGE, GHASTLING_FOLLOW_SPEED_BOOST, GHASTLING_STOP_DISTANCE, GHASTLING_FOLLOWABLE, GHASTLING_NEVER_FOLLOWS, HAPPY_GHAST_BULKY_CARGO, HAPPY_GHAST_STANDING_FACING, DRIED_GHAST_REHYDRATION, HAPPY_GHAST_COLORS, HAPPY_GHAST_REHOME_EVENTS, isHappyGhast, isGhastling, happyGhastDimensions, happyGhastRoamRadius, setHappyGhastHome, onHappyGhastEvent, clampToHome, equipHappyGhastHarness, removeHappyGhastHarness, mountHappyGhast, dismountHappyGhast, happyGhastSeatOf, happyGhastIsStationary, happyGhastStationaryFacing, attachHappyGhastCargo, releaseHappyGhastCargo, temptHappyGhast, endHappyGhastTemptation, feedGhastlingSnowball, updateGhastlingGrowth, ghastlingFollows, findGhastlingTarget, ghastlingShouldStop, rehydrateDriedGhast, happyGhastWanderTarget, steerHappyGhast, happyGhastDrops, happyGhastXp, createHappyGhastModel, poseHappyGhast } from './happyGhastBehavior.js';
+import { COPPER_GOLEM_HEALTH, COPPER_GOLEM_DIMENSIONS, COPPER_GOLEM_SPEED, COPPER_OXIDATION_STAGES, COPPER_OXIDATION_SECONDS, COPPER_GOLEM_COLORS, isCopperGolem, copperGolemDimensions, copperGolemCanPlaceIn, copperGolemCanTakeFrom, copperGolemCanStoreIn, findCopperGolemSource, findCopperGolemDestination, copperGolemTake, copperGolemPlace, updateCopperGolemOxidation, waxCopperGolem, scrapeCopperGolem, reanimateCopperGolemStatue, shearCopperGolem, giveCopperGolemPoppy, copperGolemDrops, copperGolemXp, copperGolemColor, createCopperGolemModel, poseCopperGolem } from './copperGolemBehavior.js';
+import { CAMEL_HUSK_HEALTH, CAMEL_HUSK_DIMENSIONS, CAMEL_HUSK_SITTING_DIMENSIONS, CAMEL_HUSK_STAND_CLEARANCE, CAMEL_HUSK_SPEED, CAMEL_HUSK_CAMEL_SPEED, CAMEL_HUSK_UNDEAD_TRAITS, CAMEL_HUSK_JOCKEY, CAMEL_HUSK_SPAWN, CAMEL_HUSK_EQUIPMENT, CAMEL_HUSK_DROPS, CAMEL_HUSK_COLORS, isCamelHusk, camelHuskDimensions, camelHuskBurnsInDaylight, camelHuskCanStand, camelHuskSit, camelHuskStand, updateCamelHuskSitting, camelHuskIsHostile, separateCamelHuskRiders, mountCamelHuskJockey, camelHuskDrops, camelHuskXp, equipCamelHuskSaddle, shearCamelHuskSaddle, createCamelHuskModel, poseCamelHusk } from './camelHuskBehavior.js';
+import { GIANT_HEALTH, GIANT_DIMENSIONS, ZOMBIE_DIMENSIONS, GIANT_SCALE, GIANT_DAMAGE, GIANT_UNDEAD_PROPERTIES, GIANT_DROWNING, GIANT_FACING_YAW, GIANT_HAS_AI, GIANT_COLORS, isGiant, giantDimensions, giantDamageFor, giantBurnsInDaylight, giantFacing, giantMoves, giantReactionToDamage, giantAcceptsEffect, giantPotionOutcome, giantScaresArmadillos, giantUnderwaterOutcome, giantDrops, giantXp, giantAttack, createGiantModel, poseGiant } from './giantBehavior.js';
+import { PUFFERFISH_HEALTH, TROPICAL_FISH_HEALTH, PUFFERFISH_DIMENSIONS, TROPICAL_FISH_DIMENSIONS, FISH_SPEED, PUFFERFISH_CONTACT, PUFFERFISH_POISON, PUFFERFISH_TRIGGER, AQUATIC_TYPES, TROPICAL_FISH_VARIANTS, TROPICAL_FISH_SHAPES, TROPICAL_FISH_COLORS, TROPICAL_FISH_PATTERNS, FISH_COLORS, isPufferfish, isTropicalFish, isSmallFish, pufferfishDimensions, pufferfishStage, pufferfishDamageFor, pufferfishPoisonFor, pufferfishReactsTo, findPufferfishThreat, updatePufferfishPuff, pufferfishContact, rollTropicalFishVariant, tropicalFishVariantName, fishDrops, fishXp, createPufferfishModel, posePufferfish, createTropicalFishModel, poseTropicalFish } from './fishBehavior.js';
+import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSIONS, UNDEAD_HORSE_BABY_SCALE, UNDEAD_HORSE_SPEED, SKELETON_TRAP, UNDEAD_HORSE_SUN, UNDEAD_HORSE_TRAITS, UNDEAD_HORSE_TRANSPORT, UNDEAD_HORSE_EQUIPMENT, UNDEAD_HORSE_COLORS, isUndeadHorse, isSkeletonHorse, isZombieHorse, undeadHorseHealth, undeadHorseDimensions, undeadHorseBurnsInDaylight, undeadHorseIsHostile, undeadHorseSeparateFromRider, equipUndeadHorse, shearUndeadHorse, skeletonTrapReady, springSkeletonTrap, zombieHorseWantsRider, undeadHorseCanBreed, undeadHorseXp, createUndeadHorseModel, poseUndeadHorse } from './undeadHorseBehavior.js';
+import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
+import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
+import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
+import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
+import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
+import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
+import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
+import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
+import { PARCHED_ATTACK_COOLDOWN, PARCHED_WEAKNESS_SECONDS, PARCHED_WEAKNESS_IMMUNE, PARCHED_CONVERSIONS, PARCHED_PICKUP, PARCHED_EQUIPPED_IS_PERSISTENT, VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
+import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
+import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
+import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
+import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
+import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
+import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
+import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
+import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -64,6 +115,97 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
   return geo;
 }
 
+/**
+ * Rewrite a base zombie or skeleton into one of its variants.
+ *
+ * The base spawners build the geometry and the shared undead state; this applies everything that makes
+ * a husk, stray or bogged different. Centralised deliberately: the three variants differ from their base
+ * mob in the same five ways (identity, health, hitbox, tint, traits), and spreading that across three
+ * near-copies is how they drift apart.
+ */
+/** Wiki: the zombie family, which the husk belongs to. */
+export const ZOMBIE_FAMILY = ['zombie', 'husk', 'zombie_villager', 'drowned'];
+
+/** Wiki: the skeleton family, which the stray and bogged belong to. */
+export const SKELETON_FAMILY = ['skeleton', 'stray', 'bogged', 'parched', 'wither_skeleton'];
+
+/** True for any member of the zombie family. */
+export function inZombieFamily(type) {
+  return ZOMBIE_FAMILY.includes(type);
+}
+
+/** True for any member of the skeleton family. */
+export function inSkeletonFamily(type) {
+  return SKELETON_FAMILY.includes(type);
+}
+
+/**
+ * True for a llama OR a trader llama.
+ *
+ * A trader llama is a llama variant, so every llama code path must accept it. Matching only the literal
+ * 'llama' broke the trader llama's update branch the moment its type was renamed.
+ */
+/**
+ * Blocks that do not break a creaking's gaze.
+ *
+ * Wiki: the "visual box block obstructs the view", so only blocks that actually block sight count.
+ * Glass, ice, water and every non-colliding decoration are excluded.
+ */
+const CREAKING_VIEW_TRANSPARENT = new Set([
+  BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.WATER, BLOCKS.LAVA,
+  BLOCKS.GLASS_PANE, BLOCKS.TORCH, BLOCKS.RAIL, BLOCKS.LEVER, BLOCKS.SNOW
+].filter(id => id !== undefined));
+
+function isLlamaLike(mob) {
+  return mob?.type === 'llama' || mob?.type === 'trader_llama';
+}
+
+function applyVariantIdentity(mob, variant, options = {}) {
+  if (!mob || !variantHealth(variant)) return mob;
+  mob.type = variant;
+  mob.name = variant.charAt(0).toUpperCase() + variant.slice(1);
+  mob.variant = variant;
+  // Wiki: husk 20 HP, stray 20, bogged 16.
+  mob.health = variantHealth(variant);
+  mob.maxHealth = variantHealth(variant);
+  // Wiki: the husk has a natural armour rating of 2.
+  if (variant === 'husk') mob.armor = HUSK_ARMOR;
+  const dims = variantDimensions(variant, !!options.isBaby);
+  mob.width = dims.width;
+  mob.height = dims.height;
+  if (variant === 'husk') {
+    mob.isBaby = !!options.isBaby;
+    mob.speed = options.isBaby ? HUSK_SPEED.baby : HUSK_SPEED.adult;
+    if (options.isBaby) mob.mesh?.scale?.setScalar?.(HUSK_BABY_SCALE);
+  }
+  // The shared undead traits, so a variant is a threat to an armadillo like any other undead mob.
+  Object.assign(mob, VARIANT_UNDEAD_TRAITS);
+  // Wiki: the husk is immune to burning in sunlight; the stray and bogged are not.
+  mob.burnsInDaylight = variantBurnsInDaylight(variant);
+  // Initialised to false rather than left undefined: 'is it on fire?' must be answerable for a husk,
+  // which never burns, exactly as it is for a zombie that simply has not caught fire yet.
+  mob.isBurning = false;
+  mob.burnTimer = 0;
+  // Wiki: a husk avoids water; a stray and bogged walk into it.
+  mob.avoidsWater = variantAvoidsWater(variant);
+  // The attack effect, which is the reason each variant exists rather than being a recolour.
+  mob.attackEffect = VARIANT_ATTACK_EFFECT[variant]?.effect ?? null;
+  mob.huskSubmergedSeconds = 0;
+  mob.isSheared = false;
+  // Tint every material so the variant is visually distinct from its base mob.
+  const tint = variantTint(variant);
+  if (tint !== null) {
+    mob.mesh?.traverse?.((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const material of materials) {
+        if (material?.color) material.color.setHex(tint);
+      }
+    });
+  }
+  return mob;
+}
+
 export class MobManager {
   constructor(scene, world, sounds, entities = null) {
     this.entities = entities;
@@ -95,7 +237,11 @@ export class MobManager {
       chicken: this.loadTexture('/assets/entity/chicken.png'),
       creeper: this.loadTexture('/assets/entity/creeper.png'),
       skeleton: this.loadTexture('/assets/entity/skeleton.png'),
-      salmon: this.createAquaticTexture('salmon'),
+    // Wiki: husk, stray and bogged are variants of these two, so their skins are tints of them.
+    husk: this.createVariantTexture('zombie', '#c2a878'),
+    stray: this.createVariantTexture('skeleton', '#a8c4d4'),
+    bogged: this.createVariantTexture('skeleton', '#7c8f5a'),
+    salmon: this.createAquaticTexture('salmon'),
       dolphin: this.createAquaticTexture('dolphin'),
       octopus: this.createAquaticTexture('octopus'),
       squid: this.createAquaticTexture('octopus'),
@@ -115,6 +261,7 @@ export class MobManager {
       cat_british: this.createCatTexture('british'),
       ocelot: this.createCatTexture('ocelot'),
       wolf: this.createWolfTexture(),
+      spider: this.createSpiderTexture(),
       ghast_plain: this.createNetherTexture('ghast_plain'),
       ghast: this.createNetherTexture('ghast'),
       ghast_shooting: this.createNetherTexture('ghast_shooting'),
@@ -320,7 +467,15 @@ export class MobManager {
     }
   }
 
-  spawnMob(type, x, y, z) {
+  /**
+   * Spawn a mob by type.
+   *
+   * The optional `options` bag is forwarded to every handler, which is what lets a caller ask for a
+   * specific variant through the generic entry point. It used to be dropped silently, so a snow fox
+   * spawned as a red fox and a brown panda as black and white; variant-aware spawners take it and the
+   * rest simply ignore the extra argument.
+   */
+  spawnMob(type, x, y, z, options = {}) {
     if (typeof type === 'object' && type !== null) {
       return this.spawnCustomMob(type, x, y, z);
     }
@@ -332,32 +487,76 @@ export class MobManager {
       case 'villager': return this.spawnVillager(x, y, z);
       case 'tournament_host': return this.spawnTournamentHost(x, y, z);
       case 'site_manager': return this.spawnSiteManager(x, y, z);
-      case 'jackie_chun': return this.spawnJackieChun(x, y, z);
-      case 'enderman': return this.spawnEnderman(x, y, z);
+      case 'jackie_chun': return this.spawnJackieChun(x, y, z, options);
+      case 'enderman': return this.spawnEnderman(x, y, z, options);
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
       case 'zombie': return this.spawnZombie(x, y, z);
+      case 'giant': return this.spawnGiant(x, y, z, options);
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
+      case 'spider': return this.spawnSpider(x, y, z, options);
+      case 'cave_spider': return this.spawnCaveSpider(x, y, z, options);
+      case 'silverfish': return this.spawnSilverfish(x, y, z, options);
+      case 'endermite': return this.spawnEndermite(x, y, z, options);
+      case 'rabbit': return this.spawnRabbit(x, y, z, options);
+      // Wiki: The Killer Bunny "can only be spawned using commands", so it is a named entry that maps
+      // onto the rabbit spawner's killer flag rather than a separate mob. That keeps the hunt, the
+      // armour and the coat in one place.
+      case 'killer_bunny': return this.spawnRabbit(x, y, z, { ...options, killer: true });
+      case 'bat': return this.spawnBat(x, y, z, options);
+      case 'fox': return this.spawnFox(x, y, z, options);
+      case 'bee': return this.spawnBee(x, y, z, options);
+      case 'goat': return this.spawnGoat(x, y, z, options);
+      case 'llama': return this.spawnLlama(x, y, z, options);
+      case 'turtle': return this.spawnTurtle(x, y, z, options);
+      case 'frog': return this.spawnFrog(x, y, z, options);
+      case 'tadpole': return this.spawnTadpole(x, y, z, options);
+      case 'parrot': return this.spawnParrot(x, y, z, options);
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
-      case 'sheep': return this.spawnSheep(x, y, z);
+      case 'sheep': return this.spawnSheep(x, y, z, options);
       case 'chicken': return this.spawnChicken(x, y, z);
       case 'cod': return this.spawnCod(x, y, z);
-      case 'salmon': return this.spawnSalmon(x, y, z);
-      case 'dolphin': return this.spawnDolphin(x, y, z);
+      case 'pufferfish': return this.spawnPufferfish(x, y, z, options);
+      case 'tropical_fish': return this.spawnTropicalFish(x, y, z, options);
+      case 'salmon': return this.spawnSalmon(x, y, z, options);
+      case 'dolphin': return this.spawnDolphin(x, y, z, options);
       case 'octopus':
       case 'squid': return this.spawnSquid(x, y, z);
       case 'axolotl': return this.spawnAxolotl(x, y, z);
-      case 'mooshroom': return this.spawnMooshroom(x, y, z);
-      case 'polar_bear': return this.spawnPolarBear(x, y, z);
-      case 'panda': return this.spawnPanda(x, y, z);
+      case 'mooshroom': return this.spawnMooshroom(x, y, z, options);
+      case 'polar_bear': return this.spawnPolarBear(x, y, z, options);
+      case 'panda': return this.spawnPanda(x, y, z, options);
+      case 'armadillo': return this.spawnArmadillo(x, y, z, options);
+      case 'breeze': return this.spawnBreeze(x, y, z, options);
+      case 'sniffer': return this.spawnSniffer(x, y, z, options);
+      case 'allay': return this.spawnAllay(x, y, z, options);
+      case 'wandering_trader': return this.spawnWanderingTrader(x, y, z, options);
+      case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
+      case 'camel': return this.spawnCamel(x, y, z, options);
+      case 'camel_husk': return this.spawnCamelHusk(x, y, z, options);
+      case 'copper_golem': return this.spawnCopperGolem(x, y, z, options);
+      case 'happy_ghast': return this.spawnHappyGhast(x, y, z, options);
+      case 'creaking': return this.spawnCreaking(x, y, z, options);
+      case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
+      case 'illusioner': return this.spawnIllusioner(x, y, z, options);
+      case 'skeleton_horse': return this.spawnUndeadHorse(x, y, z, 'skeleton_horse', options);
+      case 'zombie_horse': return this.spawnUndeadHorse(x, y, z, 'zombie_horse', options);
+      // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
+      case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
+      case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
+      case 'bogged': return this.spawnSkeletonVariant(x, y, z, 'bogged', options);
+      case 'parched': return this.spawnSkeletonVariant(x, y, z, 'parched', options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
+      // Wiki: a brute is a stronger PIGLIN, so it is built by the piglin spawner and then given the
+      // brute's numbers rather than duplicating the model and the whole AI.
+      case 'piglin_brute': return this.spawnPiglinBrute(x, y, z, options);
       case 'zombified_piglin':
-      case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z);
+      case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z, options);
       case 'hoglin': return this.spawnHoglin(x, y, z);
       case 'zoglin': { const mob = this.spawnHoglin(x, y, z); mob.type = 'zoglin'; mob.name = 'Zoglin'; mob.fireImmune = true; return mob; }
       case 'ghast': return this.spawnGhast(x, y, z);
@@ -366,15 +565,15 @@ export class MobManager {
       case 'horse': return this.spawnHorse(x, y, z);
       case 'mule': return this.spawnMule(x,y,z);
       case 'donkey': return this.spawnDonkey(x, y, z);
-      case 'wolf': return this.spawnWolf(x, y, z);
+      case 'wolf': return this.spawnWolf(x, y, z, options);
       case 'cat': return this.spawnCat(x, y, z);
       case 'ocelot': return this.spawnOcelot(x, y, z);
       case 'slime': return this.spawnSlime(x, y, z);
       case 'witch': return this.spawnWitch(x, y, z);
-      case 'wither_skeleton': return this.spawnWitherSkeleton(x, y, z);
-      case 'strider': return this.spawnStrider(x, y, z);
-      case 'guardian': return this.spawnGuardian(x, y, z, false);
-      case 'elder_guardian': return this.spawnGuardian(x, y, z, true);
+      case 'wither_skeleton': return this.spawnWitherSkeleton(x, y, z, options);
+      case 'strider': return this.spawnStrider(x, y, z, options);
+      case 'guardian': return this.spawnGuardian(x, y, z, false, options);
+      case 'elder_guardian': return this.spawnGuardian(x, y, z, true, options);
       case 'drowned': return this.spawnDrowned(x, y, z);
       case 'glow_squid': return this.spawnGlowSquid(x, y, z);
       case 'phantom': return this.spawnPhantom(x, y, z);
@@ -388,7 +587,17 @@ export class MobManager {
         if (typeof type === 'string' && MobLibrary.getMob(type)) {
           return this.spawnCustomMob(MobLibrary.getMob(type), x, y, z);
         }
-        return this.spawnVillager(x, y, z);
+        // An unknown type used to fall through to a villager.
+        //
+        // That made every typo and every unported mob look like a villager instead of failing. It hid
+        // five mobs from scripts/mob-drop-live.mjs -- spawning 'pufferfish' returned a villager, so the
+        // harness measured a villager's drops and reported a drop gap that could not be fixed by adding a
+        // row. The same substitution would hide a typo in a spawn egg.
+        //
+        // Returning null lets the caller notice. The callers in this repository all handle it: raids.js
+        // checks `if (mob)`, and the spawn-egg chain in main.js does not dereference the result.
+        console.warn('[mobs] unknown mob type "' + type + '"; nothing spawned');
+        return null;
     }
   }
 
@@ -1157,6 +1366,42 @@ export class MobManager {
     return tex;
   }
 
+  /**
+   * Spider body texture: near-black body with a lighter underside, matching the wiki's
+   * dark spider with bright red eyes.
+   */
+  createSpiderTexture(createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Base near-black body.
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, 64, 32);
+
+    // Fuzz shading, so the flat body still reads as texture rather than a solid blob.
+    ctx.fillStyle = '#111827';
+    for (let x = 0; x < 64; x += 3) {
+      for (let y = 0; y < 32; y += 3) {
+        if ((x * 2 + y) % 6 === 0) ctx.fillRect(x, y, 1, 2);
+      }
+    }
+    // Lighter abdomen markings.
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(24, 18, 14, 8);
+    ctx.fillRect(28, 10, 6, 4);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   createWolfTexture(createCanvas = null) {
     const makeCanvas = createCanvas
       || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
@@ -1684,6 +1929,56 @@ export class MobManager {
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
+  }
+
+  /**
+   * A variant skin: the base mob's texture multiplied by a tint.
+   *
+   * Wiki: a husk is a sand-dry zombie, a stray a pale frozen skeleton and a bogged a moss-covered one.
+   * Multiplying keeps the base shading and detail, so the variant reads as the same creature in a
+   * different climate rather than as a flat recolour.
+   *
+   * Returns a texture that falls back to the base image when there is no canvas (headless tests), so a
+   * caller never has to check.
+   */
+  createVariantTexture(baseKey, color) {
+    const base = this.textures?.[baseKey] ?? null;
+    if (typeof document === 'undefined') return base ?? new THREE.Texture();
+    const source = base?.image;
+    if (!source?.width) return base ?? new THREE.Texture();
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(source, 0, 0);
+      // `multiply` keeps the darker shading and brightens only what the base already had.
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      // The base image may load after this runs; redraw once it does so the tint is not lost.
+      if (!base.image.complete) {
+        base.image.addEventListener?.('load', () => {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(base.image, 0, 0);
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
+          tex.needsUpdate = true;
+        }, { once: true });
+      }
+      return tex;
+    } catch {
+      // A tainted canvas or a stub without a real 2D context must not break spawning.
+      return base ?? new THREE.Texture();
+    }
   }
 
   createNetherTexture(type) {
@@ -2236,17 +2531,107 @@ export class MobManager {
       case 'golem': return { width: 1.4, height: 2.7 };
       case 'quadruped': return { width: 0.9, height: 1.2 };
       case 'flying': return { width: 1.0, height: 1.2 };
-      case 'slime': return { width: 0.8, height: 0.8 };
+      // Wiki: cube hitbox side is size * 0.52, so a large cube (size 4) is 2.08 blocks.
+      // A spawned cube also carries its own width/height, so this entry is the large
+      // default and babies/smaller cubes resolve through the instance values.
+      case 'slime': return { width: 2.08, height: 2.08 };
       case 'pig': return { width: 0.9, height: 0.9 };
       case 'cow': return { width: 0.9, height: 1.4 };
+      // Wiki: mooshrooms are 1.4 tall and 0.9 wide, like cows. They previously fell
+      // through to the humanoid default of 0.6 x 1.95.
+      case 'mooshroom': return { width: 0.9, height: 1.4 };
       case 'sheep': return { width: 0.9, height: 1.3 };
       case 'creeper': return { width: 0.6, height: 1.7 };
+      // Wiki: spiders are wider than they are tall.
+      case 'spider': return SPIDER_DIMENSIONS;
+      // Wiki: cave spiders are 0.7 x 0.5, exactly half the spider model.
+      case 'cave_spider': return CAVE_SPIDER_DIMENSIONS;
+      // Wiki: silverfish are 0.4 x 0.3, among the smallest mobs.
+      case 'silverfish': return SILVERFISH_DIMENSIONS;
+      // Wiki: endermites are also 0.4 x 0.3, and the smallest hostile hitbox.
+      case 'endermite': return ENDERMITE_DIMENSIONS;
+      // Wiki: rabbits are 0.4 x 0.5. A spawned rabbit carries its own size, so babies
+      // resolve through the instance values.
+      // Wiki: The Killer Bunny shares the rabbit hitbox: 0.4 x 0.5 adult, 0.2 x 0.25 baby. Spawned by
+      // name it has no options object, so the adult rabbit box is the right answer here.
+      case 'killer_bunny': return RABBIT_DIMENSIONS;
+      case 'rabbit': return RABBIT_DIMENSIONS;
+      // Wiki: bats are 0.5 x 0.9.
+      case 'bat': return BAT_DIMENSIONS;
+      // Wiki: foxes are 0.6 x 0.7. A spawned fox carries its own size, so babies resolve
+      // through the instance values.
+      case 'fox': return FOX_DIMENSIONS;
+      // Wiki: bees are 0.55 x 0.5.
+      case 'bee': return BEE_DIMENSIONS;
+      // Wiki: goats are 0.9 x 1.3, and shrink to 0.63 x 0.91 mid-jump.
+      case 'goat': return GOAT_DIMENSIONS;
+      // Wiki: llamas are 0.9 x 1.87.
+      case 'llama': return LLAMA_DIMENSIONS;
+      // Wiki: turtles are 1.2 x 0.4, and a pregnant one is 0.2 taller.
+      case 'turtle': return TURTLE_DIMENSIONS;
+      // Wiki: frogs are 0.5 x 0.5.
+      case 'frog': return FROG_DIMENSIONS;
+      // Wiki: tadpoles are 0.4 x 0.3.
+      case 'tadpole': return TADPOLE_DIMENSIONS;
+      // Wiki: parrots are 0.5 x 0.9 in Java.
+      case 'parrot': return PARROT_DIMENSIONS;
+      // Wiki: phantoms are 0.9 x 0.5. Without this row the collision fell back to the humanoid
+      // default of 0.6 x 1.95, which made a phantom a tall thin box instead of a flat wide one.
+      case 'phantom': return PHANTOM_DIMENSIONS;
+      // Wiki: polar bears are 1.4 x 1.4, and a cub is 0.7 x 0.7. Without these rows the collision
+      // fell back to the humanoid default of 0.6 x 1.95.
+      case 'polar_bear': return POLAR_BEAR_DIMENSIONS;
+      // Wiki: pandas are 1.3 x 1.25, and a baby is 0.65 x 0.625.
+      case 'panda': return PANDA_DIMENSIONS;
+      // Wiki: armadillos are 0.7 x 0.65, and a baby is 0.42 x 0.39.
+      case 'armadillo': return ARMADILLO_DIMENSIONS;
+      // Wiki: a breeze is 0.6 wide x 1.77 tall.
+      case 'breeze': return BREEZE_DIMENSIONS;
+      // Wiki: a sniffer is 1.9 x 1.75, and a snifflet 0.95 x 0.875.
+      case 'sniffer': return SNIFFER_DIMENSIONS;
+      // Wiki: an allay is 0.35 wide x 0.6 tall, and has no baby form.
+      case 'allay': return ALLAY_DIMENSIONS;
+      // Wiki: a wandering trader is 0.6 x 1.95, and the Age tag cannot make it a baby.
+      case 'wandering_trader': return WANDERING_TRADER_DIMENSIONS;
+      // Wiki: a trader llama is a llama, so it shares the llama hitbox.
+      case 'trader_llama': return LLAMA_DIMENSIONS;
+      // Wiki: a camel is 1.7 x 2.375 standing, 1.7 x 0.945 sitting, and 0.85 x 1.1875 as a baby.
+      case 'camel': return CAMEL_DIMENSIONS;
+      // Wiki: a camel husk is 1.7 x 2.375 standing and 1.7 x 0.945 sitting -- the camel box exactly.
+      case 'camel_husk': return CAMEL_HUSK_DIMENSIONS;
+      // Wiki: a copper golem is 0.49 x 0.98 in Java.
+      case 'copper_golem': return COPPER_GOLEM_DIMENSIONS;
+      // Wiki: a creaking is 0.9 x 2.7.
+      case 'creaking': return CREAKING_DIMENSIONS;
+      // Wiki: a snow golem is 0.7 x 1.9 in Java. Its loot table already existed while it had no
+      // dimension row, so it was silently using the humanoid box.
+      case 'snow_golem': return SNOW_GOLEM_DIMENSIONS;
+      // Wiki: an illusioner is 0.6 x 1.95, the standard illager box.
+      case 'illusioner': return ILLUSIONER_DIMENSIONS;
+      // Wiki: both undead horses are 1.3965 x 1.6, the same box as a living horse.
+      case 'skeleton_horse':
+      case 'zombie_horse': return UNDEAD_HORSE_DIMENSIONS;
+      // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
+      case 'husk': return VARIANT_DIMENSIONS.husk;
+      case 'stray': return VARIANT_DIMENSIONS.stray;
+      case 'bogged': return VARIANT_DIMENSIONS.bogged;
+      // Wiki: a parched is 0.6 x 1.99, the same as the other skeleton variants.
+      case 'parched': return VARIANT_DIMENSIONS.parched;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
+      // Wiki: a giant is 3.6 x 12 -- a six-times-enlarged zombie.
+      case 'giant': return GIANT_DIMENSIONS;
       case 'pillager': return { width: 0.6, height: 1.95 };
       case 'salmon': return { width: 0.4, height: 0.35 };
       case 'cod': return { width: 0.35, height: 0.3 };
-      case 'dolphin': return { width: 0.9, height: 0.65 };
+      // Wiki: a pufferfish has THREE hitboxes, 0.35 unpuffed, 0.49 semi-puffed and 0.7 fully puffed. The
+      // unpuffed one is reported here; the mob's own width/height track the live stage.
+      case 'pufferfish': return PUFFERFISH_DIMENSIONS.unpuffed;
+      // Wiki: a tropical fish is 0.5 x 0.4.
+      case 'tropical_fish': return TROPICAL_FISH_DIMENSIONS;
+      // Wiki: adult 0.9 x 0.6. A spawned dolphin also carries its own size, so babies
+      // resolve through the instance values rather than this adult table entry.
+      case 'dolphin': return DOLPHIN_DIMENSIONS.adult;
       case 'octopus':
       case 'squid':
       case 'glow_squid': return { width: 0.8, height: 0.8 };
@@ -2255,7 +2640,7 @@ export class MobManager {
       case 'horse': return { width: 1.4, height: 1.6 };
       case 'donkey': return { width: 1.3965, height: 1.5 };
       case 'mule': return { width: 1.3965, height: 1.6 };
-      case 'wolf': return { width: 0.6, height: 0.85 };
+      case 'wolf': return { width: WOLF_DIMENSIONS.adult.width, height: WOLF_DIMENSIONS.adult.height };
       case 'cat':
       case 'ocelot': return { width: 0.6, height: 0.7 };
       case 'chicken': return { width: 0.4, height: 0.7 };
@@ -2264,13 +2649,18 @@ export class MobManager {
       case 'ender_dragon': return { width: 3.5, height: 1.8 };
       case 'wither': return { width: 1.8, height: 2.4 };
       case 'ghast': return { width: 4.0, height: 4.0 };
+      // Wiki: a happy ghast is 4.0 x 4.0, and a ghastling 0.95.
+      case 'happy_ghast': return HAPPY_GHAST_DIMENSIONS;
       case 'blaze': return { width: 0.6, height: 1.8 };
       case 'piglin': return { width: 0.6, height: 1.95 };
+      // Wiki: a piglin brute shares the piglin box, 0.6 x 1.95.
+      case 'piglin_brute': return PIGLIN_BRUTE_DIMENSIONS;
       case 'zombified_piglin':
       case 'zombie_pigman': return { width: 0.6, height: 1.95 };
       case 'zoglin':
       case 'hoglin': return { width: 1.4, height: 1.4 };
-      case 'magma_cube': return { width: 2.04, height: 2.04 };
+      // Wiki: a large magma cube is also 2.08 blocks per side (size 4 * 0.52).
+      case 'magma_cube': return { width: 2.08, height: 2.08 };
       case 'strider': return { width: 0.9, height: 1.7 };
       case 'wither_skeleton': return { width: 0.7, height: 2.4 };
       case 'guardian': return { width: 0.85, height: 0.85 };
@@ -2278,7 +2668,8 @@ export class MobManager {
       case 'tournament_host': return { width: 0.6, height: 1.95 };
       case 'site_manager': return { width: 0.6, height: 1.95 };
       case 'jackie_chun': return { width: 0.6, height: 1.85 };
-      case 'enderman': return { width: 0.5, height: 2.85 };
+      // Wiki: 0.6 wide, 2.9 tall.
+      case 'enderman': return { width: 0.6, height: 2.9 };
       case 'villager':
       case 'zombie_villager':
       default:
@@ -2714,9 +3105,11 @@ export class MobManager {
   }
 
   // --- ZOMBIE ---
-  spawnZombie(x, y, z) {
+  spawnZombie(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ map: this.textures.zombie });
+    // Wiki: a husk is a desert zombie, so it uses a tinted zombie skin rather than a new model.
+    const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
+    const mat = new THREE.MeshLambertMaterial({ map: baseTex });
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64);
     const head = new THREE.Mesh(headGeo, mat);
@@ -2826,6 +3219,1030 @@ export class MobManager {
     return mob;
   }
 
+  /**
+   * Spider.
+   *
+   * Wiki: 16 HP, 1.4 x 0.9, neutral while the local light level is above 11. Spiders are
+   * arthropods, drop string plus a player-credited spider eye, and flip onto their backs
+   * when they die.
+   */
+  spawnSpider(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+    const { group, head, thorax, abdomen, legs, eyes } = createSpiderModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'spider',
+      name: 'Spider',
+      mesh: group,
+      head,
+      thorax,
+      abdomen,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: spiders are immune to poison and to cobweb slowing.
+      poisonImmune: true,
+      // Wiki: 16 HP (lowered from 20 in Beta 1.9-pre2).
+      health: SPIDER_HEALTH,
+      maxHealth: SPIDER_HEALTH,
+      width: SPIDER_DIMENSIONS.width,
+      height: SPIDER_DIMENSIONS.height,
+      // Wiki: no normal-difficulty damage scaling beyond 2; see the adapt note about
+      // contact damage. Stored so the value is inspectable and testable.
+      attackDamage: 2,
+      // Wiki: 1% chance of a skeleton rider, forming a spider jockey.
+      isJockey: !!options.isJockey,
+      // Retaliation window, set when the spider is attacked.
+      angerTimer: 0,
+      isClimbing: false,
+      climbTimer: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Cave spider.
+   *
+   * Wiki: a smaller spider variant — 12 HP, 0.7 x 0.5, exactly half the model scale — that
+   * shares the spider's model, light-based neutrality and drops, and additionally poisons on
+   * Normal and Hard difficulty.
+   */
+  spawnCaveSpider(x, y, z, options = {}) {
+    const mob = this.spawnSpider(x, y, z, options);
+    mob.type = 'cave_spider';
+    mob.name = 'Cave Spider';
+    // Wiki: 12 HP, a third less than a spider's 16.
+    mob.health = CAVE_SPIDER_HEALTH;
+    mob.maxHealth = CAVE_SPIDER_HEALTH;
+    // Wiki: 0.7 x 0.5 against the spider's 1.4 x 0.9.
+    mob.width = CAVE_SPIDER_DIMENSIONS.width;
+    mob.height = CAVE_SPIDER_DIMENSIONS.height;
+    // Wiki: the model is half the size of a spider's.
+    mob.mesh.scale.setScalar(CAVE_SPIDER_SCALE);
+    // Distinguishing flags rather than shared ones, so the two variants stay separable.
+    mob.isCaveSpider = true;
+    return mob;
+  }
+
+  /**
+   * Silverfish.
+   *
+   * Wiki: 8 HP, 0.4 x 0.3, hostile arthropod, no item drops and 5 XP, whose defining
+   * behaviour is calling other silverfish to help when it is hit.
+   */
+  spawnSilverfish(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
+    const { group, head, body, mid, tail, legs, eyes } = createSilverfishModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'silverfish',
+      name: 'Silverfish',
+      mesh: group,
+      head,
+      body,
+      mid,
+      tail,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: silverfish are immune to the Infested status effect.
+      infestedImmune: true,
+      // Wiki: 8 HP.
+      health: SILVERFISH_HEALTH,
+      maxHealth: SILVERFISH_HEALTH,
+      width: SILVERFISH_DIMENSIONS.width,
+      height: SILVERFISH_DIMENSIONS.height,
+      // Retaliation window, refreshed when it is hit or called by another silverfish.
+      angerTimer: 0,
+      attacker: null,
+      silverfishPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Endermite.
+   *
+   * Wiki: 8 HP, 0.4 x 0.3 (the smallest hostile hitbox), 2/2/3 damage, 3 XP and no items. It
+   * spawns from a thrown ender pearl, despawns after two minutes unless named, and endermen
+   * hunt it.
+   */
+  spawnEndermite(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2e1065 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+    const { group, head, body, legs, eyes } = createEndermiteModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'endermite',
+      name: 'Endermite',
+      mesh: group,
+      head,
+      body,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: 8 HP.
+      health: ENDERMITE_HEALTH,
+      maxHealth: ENDERMITE_HEALTH,
+      width: ENDERMITE_DIMENSIONS.width,
+      height: ENDERMITE_DIMENSIONS.height,
+      // Wiki `Lifetime`: despawns at around 2400 ticks unless named.
+      lifetime: 0,
+      despawned: false,
+      fromEnderPearl: !!options.fromEnderPearl,
+      // Targets, set by the enderman/endermite aggression pass and the player chase.
+      endermanTarget: null,
+      endermitePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Rabbit.
+   *
+   * Wiki: 3 HP, 0.4 x 0.5, six natural coat variants chosen by biome, breeding with
+   * carrots/golden carrots/dandelions, and a hop gait rather than a walk. The Killer Bunny
+   * (`RabbitType: 99`) is the hostile variant, spawnable only by command.
+   */
+  spawnRabbit(x, y, z, options = {}) {
+    const coat = options.coat || (options.killer ? 'killer' : rollRabbitCoat(options.biome));
+    const colors = RABBIT_COAT_COLORS[coat] || RABBIT_COAT_COLORS.brown;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const patchMat = new THREE.MeshLambertMaterial({ color: colors.patch });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group, head, body, patchMesh, tail, ears, legs, eyes } = createRabbitModel(bodyMat, patchMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(RABBIT_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? RABBIT_BABY_DIMENSIONS : RABBIT_DIMENSIONS;
+    const mob = {
+      type: 'rabbit',
+      name: options.killer ? 'The Killer Bunny' : 'Rabbit',
+      mesh: group,
+      head,
+      body,
+      patchMesh,
+      tail,
+      ears,
+      legs,
+      eyes,
+      bodyMat,
+      patchMat,
+      eyeMat,
+      // Wiki: 3 HP.
+      health: RABBIT_HEALTH,
+      maxHealth: RABBIT_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: `RabbitType`. 99 is The Killer Bunny.
+      rabbitType: options.killer ? KILLER_BUNNY_TYPE : RABBIT_COATS.indexOf(coat),
+      coat,
+      isHostile: !!options.killer,
+      // Wiki: the killer bunny has 8 armour points.
+      armor: options.killer ? KILLER_BUNNY_ARMOR : (options.armor ?? 0),
+      retreatTimer: 0,
+      hopTimer: Math.random() * 0.5,
+      rabbitPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    applyRabbitCoat(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Bat.
+   *
+   * Wiki: 6 HP, 0.5 x 0.9, passive, the game's only ambient mob. It hangs upside down from the
+   * underside of a solid block, flees when a player comes near even while hanging, and despawns
+   * past 32 blocks. It drops no items and no experience.
+   */
+  spawnBat(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4b3a2f });
+    const wingMat = new THREE.MeshLambertMaterial({ color: 0x3a2c24 });
+    const earMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+    const { group, body, head, ears, eyes, wings } = createBatModel(bodyMat, wingMat, earMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'bat',
+      name: 'Bat',
+      mesh: group,
+      body,
+      head,
+      ears,
+      eyes,
+      wings,
+      bodyMat,
+      wingMat,
+      earMat,
+      isFlying: true,
+      // Wiki: bats are ambient and do not count toward the passive mob cap.
+      isAmbient: true,
+      // Wiki: bats are immune to fall damage (the `fall_damage_immune` entity tag).
+      fallDamageImmune: true,
+      // Wiki: 6 HP.
+      health: BAT_HEALTH,
+      maxHealth: BAT_HEALTH,
+      width: BAT_DIMENSIONS.width,
+      height: BAT_DIMENSIONS.height,
+      // Wiki `BatFlags`: true while hanging upside down.
+      isHanging: false,
+      hangTimer: 0,
+      flyTimer: 0,
+      isFleeing: false,
+      batPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      targetPitch: 0,
+      wanderTimer: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Fox.
+   *
+   * Wiki: 10 HP, 0.6 x 0.7, red and snow variants chosen by biome, hunts chickens/rabbits/fish
+   * by pouncing, carries an item in its mouth which it always drops, sleeps during the day under
+   * cover, and *trusts* the player who bred it rather than being tamed.
+   */
+  spawnFox(x, y, z, options = {}) {
+    const coat = options.coat || rollFoxCoat(options.biome);
+    const colors = FOX_COAT_COLORS[coat] || FOX_COAT_COLORS.red;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const earMat = new THREE.MeshLambertMaterial({ color: colors.ear });
+    const { group, body, belly, head, muzzle, tail, ears, eyes, legs, mouth } = createFoxModel(bodyMat, bellyMat, earMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(FOX_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? FOX_BABY_DIMENSIONS : FOX_DIMENSIONS;
+    // Wiki: 20% of foxes spawn holding an item. An explicit option wins, so a caller can force
+    // an empty or a specific mouth.
+    const spawnedWithItem = options.heldItem !== undefined
+      ? options.heldItem
+      : rollFoxHeldItem(options.random || Math.random);
+
+    const mob = {
+      type: 'fox',
+      name: 'Fox',
+      mesh: group,
+      body,
+      belly,
+      head,
+      muzzle,
+      tail,
+      ears,
+      eyes,
+      legs,
+      mouth,
+      bodyMat,
+      bellyMat,
+      earMat,
+      // Wiki: 10 HP.
+      health: FOX_HEALTH,
+      maxHealth: FOX_HEALTH,
+      isBaby: !!options.isBaby,
+      coat,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: the item in its mouth, which always drops on death.
+      heldItem: spawnedWithItem,
+      spawnedWithItem,
+      heldItemMesh: null,
+      // Wiki: trust comes from breeding, not from feeding.
+      trustedPlayer: options.trustedPlayer ?? null,
+      isSleeping: false,
+      sleepingHeadTimer: 0,
+      pouncePhase: null,
+      pounceTimer: 0,
+      isPouncing: false,
+      // Wiki: a fox can safely fall 5 blocks rather than the usual 3.
+      safeFallBlocks: FOX_SAFE_FALL_BLOCKS,
+      // Wiki: sweet berry bushes neither damage nor slow a fox.
+      sweetBerryImmune: true,
+      // Wiki: a fox can walk on powder snow without falling in.
+      powderSnowWalkable: true,
+      eatTimer: 0,
+      foxPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0,
+      attackCooldown: 0
+    };
+    this.attachFoxHeldItem(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Show or clear the mesh for whatever the fox is holding in its mouth.
+   *
+   * Kept on the manager because it needs the item-visual machinery, which the behaviour module
+   * has no business importing.
+   */
+  attachFoxHeldItem(mob) {
+    if (!mob?.mouth) return null;
+    if (mob.heldItemMesh) {
+      mob.mouth.remove(mob.heldItemMesh);
+      mob.heldItemMesh.geometry?.dispose?.();
+      mob.heldItemMesh.material?.dispose?.();
+      mob.heldItemMesh = null;
+    }
+    if (!mob.heldItem) return null;
+    // A small stand-in marker: the inspector logs loot rather than rendering it, so the mouth
+    // mesh only has to read as "this fox is carrying something".
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.12),
+      new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+    );
+    mesh.name = 'fox-held-item';
+    mob.mouth.add(mesh);
+    mob.heldItemMesh = mesh;
+    return mesh;
+  }
+
+  /**
+   * Bee.
+   *
+   * Wiki: 10 HP, 0.55 x 0.5, neutral flying arthropod. Its defining mechanic is that stinging is
+   * fatal to the bee: it loses its stinger, can never attack again, and dies about a minute
+   * later. It pollinates flowers, carries nectar to a hive, and answers anger as a colony.
+   */
+  spawnBee(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body });
+    const stripeMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.stripe });
+    const wingMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.wing, transparent: true, opacity: 0.75 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: BEE_COLORS.eye });
+    const { group, body, head, eyes, stinger, wings } = createBeeModel(bodyMat, stripeMat, wingMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(BEE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? BEE_BABY_DIMENSIONS : BEE_DIMENSIONS;
+    const mob = {
+      type: 'bee',
+      name: 'Bee',
+      mesh: group,
+      body,
+      head,
+      eyes,
+      stinger,
+      wings,
+      bodyMat,
+      stripeMat,
+      wingMat,
+      eyeMat,
+      isFlying: true,
+      isArthropod: true,
+      // Wiki: bees are immune to poison (they inflict it), and take no fall damage.
+      poisonImmune: true,
+      fallDamageImmune: true,
+      // Wiki: 10 HP.
+      health: BEE_HEALTH,
+      maxHealth: BEE_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Anger and the sting.
+      angerTimer: 0,
+      angryAt: null,
+      hasStung: false,
+      stingerless: false,
+      deathTimer: 0,
+      // Nectar and pollination.
+      hasNectar: !!options.hasNectar,
+      nectarTicks: 0,
+      cropsGrownSincePollination: 0,
+      // Water exposure.
+      waterTicks: 0,
+      waterDamageTimer: 0,
+      // Wiki: a bee's home, which it refuses to stray more than 22 blocks from.
+      hive: options.hive ?? null,
+      // Wiki: affected by the Poison effect only in the sense that it inflicts it; recorded so
+      // the state is inspectable.
+      isBee: true,
+      beePhase: 0,
+      wanderTimer: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      targetPitch: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Goat.
+   *
+   * Wiki: 10 HP, 0.9 x 1.3, neutral mountain animal. Leaps up to 10 blocks high and 5 across on a
+   * 30-60 second cooldown, rams an unmoving target every 30s-5min, snaps a horn off against a hard
+   * block, and is milkable. A screaming goat rams every 5-15 seconds.
+   */
+  spawnGoat(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.body });
+    const darkMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.dark });
+    const hornMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.horn });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: GOAT_COLORS.eye });
+    const { group, body, head, muzzle, beard, tail, eyes, horns, hornSides, legs } = createGoatModel(bodyMat, darkMat, hornMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(GOAT_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const random = options.random || Math.random;
+    const dims = options.isBaby ? GOAT_BABY_DIMENSIONS : GOAT_DIMENSIONS;
+    const isScreamingGoat = options.isScreamingGoat ?? rollScreamingGoat(random);
+    // Wiki: 10% of adults are missing one horn; babies have both and never drop them.
+    const hornsPresent = options.horns || rollGoatHorns(!!options.isBaby, random);
+
+    const mob = {
+      type: 'goat',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
+      name: 'Goat',
+      mesh: group,
+      body,
+      head,
+      muzzle,
+      beard,
+      tail,
+      eyes,
+      horns,
+      hornSides,
+      legs,
+      bodyMat,
+      darkMat,
+      hornMat,
+      eyeMat,
+      // Wiki: 10 HP.
+      health: GOAT_HEALTH,
+      maxHealth: GOAT_HEALTH,
+      isBaby: !!options.isBaby,
+      version: 'java',
+      width: dims.width,
+      height: dims.height,
+      // Screaming goats are visually identical; only their ramming cadence and sounds differ.
+      isScreamingGoat,
+      hasLeftHorn: hornsPresent.left,
+      hasRightHorn: hornsPresent.right,
+      hornVariant: options.hornVariant || rollGoatHornVariant(isScreamingGoat, random),
+      // Wiki: goats take 10 less fall damage and avoid walking into powder snow.
+      fallDamageReduction: GOAT_FALL_DAMAGE_REDUCTION,
+      avoidsPowderSnow: true,
+      // Wiki: milkable with a bucket, breedable with wheat.
+      isMilkable: true,
+      ramState: null,
+      ramTarget: null,
+      ramLockedPosition: null,
+      ramPrepareTimer: 0,
+      ramTimer: 0,
+      ramCooldown: rollGoatRamCooldown(isScreamingGoat, random),
+      jumpCooldown: rollGoatJumpCooldown(random),
+      isGoatJumping: false,
+      goatJumpHeight: 0,
+      goatPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    poseGoat(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Pick something for a panda to maul.
+   *
+   * Wiki: a panda attacks whatever hurt it, and an aggressive one keeps attacking until the target
+   * dies or leaves its detection range. Aggressive pandas near an attacked panda join in.
+   */
+  findPandaTarget(panda, player) {
+    const candidates = [];
+    if (player?.position) candidates.push(player);
+    for (const other of this.mobs) {
+      if (other === panda) continue;
+      if (other.type !== 'panda' || !other.isHostile) continue;
+      candidates.push(other);
+    }
+    let best = null;
+    let bestDist = 16;
+    for (const candidate of candidates) {
+      if (!candidate || candidate === panda) continue;
+      if (candidate.health !== undefined && candidate.health <= 0) continue;
+      const pos = candidate.position ?? candidate.mesh?.position;
+      if (!pos) continue;
+      const dist = panda.mesh.position.distanceTo(pos);
+      if (dist < bestDist) { bestDist = dist; best = candidate; }
+    }
+    return best;
+  }
+
+  /**
+   * Pick something for a goat to ram.
+   *
+   * Wiki: it targets players, armor stands and any mob except ghasts and other goats, within 4-16
+   * blocks, and only if the target is not moving. Players in Creative or on Peaceful are excluded.
+   */
+  findGoatRamTarget(goat, player) {
+    const difficulty = this.game?.difficulty ?? 'normal';
+    const candidates = [];
+    if (player?.position) candidates.push(player);
+    for (const other of this.mobs) {
+      if (other === goat) continue;
+      candidates.push(other);
+    }
+
+    let best = null;
+    let bestDist = GOAT_RAM.maxRange;
+    for (const candidate of candidates) {
+      if (!isValidGoatTarget(goat, candidate, { difficulty })) continue;
+      if (!isUnmovingTarget(candidate)) continue;
+      const pos = candidate.position ?? candidate.mesh?.position;
+      if (!pos) continue;
+      const dist = goat.mesh.position.distanceTo(pos);
+      // Wiki: the range is 4 to 16 blocks, so something right on top of the goat is not a target.
+      if (dist < GOAT_RAM.minRange || dist > bestDist) continue;
+      bestDist = dist;
+      best = candidate;
+    }
+    return best;
+  }
+
+  /**
+   * Llama.
+   *
+   * Wiki: 15-30 HP scaling with strength, 0.9 x 1.87, neutral. Retaliates with spit, has a strength
+   * 1-5 that sets both health and its 3-to-15 inventory slots, carries a chest and a carpet, can be
+   * tamed by repeated riding, and takes only half fall damage after six safe blocks.
+   */
+  spawnLlama(x, y, z, options = {}) {
+    const random = options.random || Math.random;
+    const variant = options.variant || rollLlamaVariant(random);
+    const strength = options.strength ?? rollLlamaStrength(random);
+    const colors = llamaCoatColors(variant);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const darkMat = new THREE.MeshLambertMaterial({ color: colors.dark });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1c1917 });
+    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(LLAMA_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? LLAMA_BABY_DIMENSIONS : LLAMA_DIMENSIONS;
+    const health = llamaHealthFor(strength);
+    const mob = {
+      type: 'llama',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
+      name: 'Llama',
+      mesh: group,
+      body,
+      neck,
+      head,
+      muzzle,
+      ears,
+      eyes,
+      tail,
+      legs,
+      chestMesh,
+      carpetMesh,
+      bodyMat,
+      darkMat,
+      eyeMat,
+      health,
+      maxHealth: health,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: the four coat colours.
+      variant,
+      variantId: LLAMA_VARIANTS[variant],
+      // Wiki: strength 1-5 sets both health and how much it can carry.
+      strength,
+      chestSlots: llamaSlotsFor(strength),
+      hasChest: false,
+      chestInventory: new Array(llamaSlotsFor(strength)).fill(null),
+      carpetColor: null,
+      // Wiki: taming is by repeated riding; Temper starts at 0 and caps at 30.
+      isTamed: false,
+      temper: LLAMA_TEMPER.start,
+      // Wiki: llamas take only half fall damage, after six safe blocks.
+      safeFallBlocks: 6,
+      halfFallDamage: true,
+      // Combat.
+      recentAttacker: null,
+      spitCooldown: 0,
+      spitCharge: 0,
+      llamaPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    applyLlamaEquipment(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Turtle.
+   *
+   * Wiki: 30 HP, 1.2 x 0.4, passive aquatic. Slow on land and fast in water, remembers its spawn
+   * block as home and returns there to lay a cluster of 1-4 eggs, and a baby drops a turtle scute
+   * when it matures. Bred and led with seagrass.
+   */
+  spawnTurtle(x, y, z, options = {}) {
+    const shellMat = new THREE.MeshLambertMaterial({ color: 0x2f6b3a });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x4a8a52 });
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x1f4527 });
+    const { group, shell, rim, neck, head, eyes, flippers, tail } = createTurtleModel(shellMat, skinMat, darkMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(TURTLE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? TURTLE_BABY_DIMENSIONS : TURTLE_DIMENSIONS;
+    const mob = {
+      type: 'turtle',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
+      name: 'Turtle',
+      mesh: group,
+      shell,
+      rim,
+      neck,
+      head,
+      eyes,
+      flippers,
+      tail,
+      shellMat,
+      skinMat,
+      darkMat,
+      // Wiki: turtles are aquatic, breathe under water, and are not scared of pufferfish.
+      isAquatic: true,
+      canBreatheUnderwater: true,
+      // Wiki: 30 HP.
+      health: TURTLE_HEALTH,
+      maxHealth: TURTLE_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: it remembers where it spawned.
+      homePosition: null,
+      // Wiki: breeding makes one turtle pregnant, and a pregnant turtle is taller.
+      hasEgg: !!options.hasEgg,
+      digTimer: 0,
+      waterSearchTimer: 0,
+      waterTarget: null,
+      swimTarget: null,
+      inWater: false,
+      swimCycle: 0,
+      turtlePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    // Wiki: a turtle spawned from an egg, a spawn egg or a command remembers the spawn location.
+    setTurtleHome(mob, x, y, z);
+    applyTurtlePregnancy(mob);
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /** True when the block at a position is water. */
+  isWaterAt(x, y, z) {
+    return this.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z)) === BLOCKS.WATER;
+  }
+
+  /**
+   * Place a cluster of turtle eggs.
+   *
+   * Wiki: eggs are laid "as a single block" holding 1-4 eggs, and there is no turtle-egg block in
+   * this project's registry, so the cluster is tracked here and its position recorded. The crack
+   * stage is tracked alongside, because a block id alone could not carry it either.
+   *
+   * Returns the cluster size placed.
+   */
+  placeTurtleEggs(x, y, z, count) {
+    const size = Math.max(TURTLE_EGG_CLUSTER.min, Math.min(TURTLE_EGG.maxCluster, count));
+    if (!this.turtleEggs) this.turtleEggs = new Map();
+    const key = `${x},${y},${z}`;
+    const existing = this.turtleEggs.get(key);
+    // Wiki: an existing cluster merges up to the four-egg cap rather than replacing.
+    const total = Math.min(TURTLE_EGG.maxCluster, (existing?.count ?? 0) + size);
+    this.turtleEggs.set(key, { x, y, z, count: total, cracks: existing?.cracks ?? 0 });
+    return total;
+  }
+
+  /**
+   * Frog.
+   *
+   * Wiki: 10 HP, 0.5 x 0.5, passive. Makes long jumps of up to 8 blocks, swims fast and cannot
+   * drown, takes 5 less fall damage, has three biome-determined variants, and eats small slimes and
+   * magma cubes with its tongue — producing a froglight whose colour its variant decides.
+   */
+  spawnFrog(x, y, z, options = {}) {
+    const variant = options.variant || frogVariantForBiome(options.biome);
+    const colors = FROG_COLORS[variant] || FROG_COLORS.temperate;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'frog',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
+      name: 'Frog',
+      mesh: group,
+      body,
+      belly,
+      head,
+      eyes,
+      tongue,
+      legs,
+      bodyMat,
+      bellyMat,
+      eyeMat,
+      // Wiki: 10 HP.
+      health: FROG_HEALTH,
+      maxHealth: FROG_HEALTH,
+      isBaby: false,
+      width: FROG_DIMENSIONS.width,
+      height: FROG_DIMENSIONS.height,
+      // Wiki: three variants, set by the biome.
+      variant,
+      // Wiki: a frog cannot drown.
+      canBreatheUnderwater: true,
+      // Wiki: 5 less fall damage than most mobs.
+      fallDamageReduction: FROG_JUMP.fallDamageReduction,
+      // Wiki: it prefers jumping onto lily pads and dripleaves, and to higher ground.
+      prefersLilyPads: true,
+      // Tongue state.
+      tongueTimer: 0,
+      tongueCooldown: 0,
+      tongueTarget: null,
+      eatTimer: 0,
+      // Movement.
+      inWater: false,
+      isFrogJumping: false,
+      frogJumpHeight: 0,
+      hopTimer: 0.4 + Math.random() * 0.6,
+      croakTimer: 0,
+      frogPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Tadpole.
+   *
+   * Wiki: 6 HP, 0.4 x 0.3, a bucketable aquatic passive mob. It hatches from frogspawn, drowns
+   * after under 20 seconds out of water, is hunted by axolotls, and matures into whichever frog
+   * variant its *current biome* dictates — the game's only case of the environment, rather than the
+   * parents, deciding a baby's adult form.
+   */
+  spawnTadpole(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.body });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.belly });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: TADPOLE_COLORS.eye });
+    const { group, body, belly, head, eyes, tail } = createTadpoleModel(bodyMat, bellyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'tadpole',
+      name: 'Tadpole',
+      mesh: group,
+      body,
+      belly,
+      head,
+      eyes,
+      tail,
+      bodyMat,
+      bellyMat,
+      eyeMat,
+      // Wiki: 6 HP.
+      health: TADPOLE_HEALTH,
+      maxHealth: TADPOLE_HEALTH,
+      // Wiki: a tadpole is not a baby variant of the frog — it is its own mob — but it does mature,
+      // so the shared `isBaby` flag is deliberately NOT set. Growth is tracked by `growthTimer`.
+      isBaby: false,
+      width: TADPOLE_DIMENSIONS.width,
+      height: TADPOLE_DIMENSIONS.height,
+      // Wiki: aquatic, breathes under water, and is an axolotl hunt target.
+      isAquatic: true,
+      canBreatheUnderwater: true,
+      isAxolotlPrey: true,
+      // Wiki: bucketable with a water bucket, preserving health, age and name.
+      isBucketable: true,
+      inWater: false,
+      drySeconds: 0,
+      growthTimer: TADPOLE_GROWTH_SECONDS,
+      readyToMature: false,
+      // Wiki: golden dandelions stop it aging.
+      ageLocked: false,
+      waterTarget: null,
+      waterSearchTimer: 0,
+      swimCycle: 0,
+      tadpolePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      pitch: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * The nearest water for a beached tadpole.
+   *
+   * Same expanding-square search the turtle uses, on a smaller radius, because a tadpole's whole
+   * land behaviour is "get back to water".
+   */
+  findWaterNearTadpole(mob) {
+    return findWaterNear(this, mob, TADPOLE_WATER_SEARCH.radius);
+  }
+
+  /**
+   * Mature a tadpole into the frog its current biome dictates.
+   *
+   * Wiki: "A tadpole grows up into one of the variants of a frog depending on the tadpole's
+   * location", which is the game's only case of the *environment* rather than the parents deciding a
+   * baby's adult form. The tadpole is replaced by a frog rather than mutated, because the wiki is
+   * explicit that "the tadpole is treated by the game as a completely different mob from the frog".
+   *
+   * Returns the new frog, or null.
+   */
+  matureTadpole(tadpole) {
+    if (!isTadpole(tadpole)) return null;
+    const pos = tadpole.mesh.position;
+    const biome = this.world?.getBiome?.(Math.floor(pos.x), Math.floor(pos.z)) ?? null;
+    const variant = tadpoleVariantForBiome(biome);
+
+    // Remove the tadpole without running the death path: it grew up, it did not die.
+    tadpole.mesh.removeFromParent?.();
+    const index = this.mobs.indexOf(tadpole);
+    if (index >= 0) this.mobs.splice(index, 1);
+    tadpole.maturedInto = 'frog';
+
+    const frog = this.spawnFrog(pos.x, pos.y, pos.z, { variant });
+    // Wiki: a name survives the change, as it does for a bucketed tadpole.
+    if (tadpole.name && tadpole.name !== 'Tadpole') frog.name = tadpole.name;
+    return frog;
+  }
+
+  /**
+   * Parrot.
+   *
+   * Wiki: 6 HP, 0.5 x 0.9, tameable flying passive. Five colour variants, tamed with seed at a
+   * 1-in-10 chance, perches on the player's shoulder (left first), imitates nearby hostile mobs
+   * within 20 blocks, dances by a jukebox playing a disc, and is killed by a cookie.
+   */
+  spawnParrot(x, y, z, options = {}) {
+    const variant = options.variant ?? rollParrotVariant(options.random || Math.random);
+    const colors = parrotColors(variant);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body });
+    const wingMat = new THREE.MeshLambertMaterial({ color: colors.wing });
+    const headMat = new THREE.MeshLambertMaterial({ color: colors.head });
+    const beakMat = new THREE.MeshLambertMaterial({ color: colors.beak });
+    const { group, body, head, beakUpper, beakLower, eyes, wings, tail } = createParrotModel(bodyMat, wingMat, headMat, beakMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'parrot',
+      name: 'Parrot',
+      mesh: group,
+      body,
+      head,
+      beakUpper,
+      beakLower,
+      eyes,
+      wings,
+      tail,
+      bodyMat,
+      wingMat,
+      headMat,
+      beakMat,
+      isFlying: true,
+      // Wiki: 6 HP.
+      health: PARROT_HEALTH,
+      maxHealth: PARROT_HEALTH,
+      width: PARROT_DIMENSIONS.width,
+      height: PARROT_DIMENSIONS.height,
+      // Wiki: five variants with numeric ids 0-4.
+      variant,
+      variantName: parrotVariantName(variant),
+      // Wiki: parrots carry the fall_damage_immune tag, because they flap to slow their falls.
+      fallDamageImmune: true,
+      // Taming, sitting and perching.
+      isTamed: false,
+      isSitting: false,
+      perchedOn: null,
+      owner: null,
+      // Behaviour timers.
+      flightTimer: 0,
+      resting: false,
+      flyTargetY: y + 3,
+      isDancing: false,
+      imitateCooldown: 0,
+      imitating: null,
+      parrotPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
   // --- PASSIVE COW ---
   spawnCow(x, y, z) {
     const group = new THREE.Group();
@@ -2880,13 +4297,23 @@ export class MobManager {
   }
 
   // --- PASSIVE SHEEP ---
-  spawnSheep(x, y, z) {
+  spawnSheep(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.sheep });
+    // The wool layer is tinted per sheep instead of using sixteen textures. Colours
+    // come from SHEEP_COLOR_HEX, so the wool block a sheep drops and the tint on its
+    // back are derived from one source and cannot drift apart.
+    const woolMat = new THREE.MeshLambertMaterial({ map: this.textures.sheep });
 
     const body = new THREE.Mesh(createBoxWithUV(0.7, 0.6, 1.0, 28, 8, 64, 32), mat);
     body.position.y = 0.65;
     group.add(body);
+
+    // Wool shell, inflated slightly around the body so shearing reveals the skin cube
+    // underneath rather than deleting geometry.
+    const woolMesh = new THREE.Mesh(createBoxWithUV(0.79, 0.68, 1.09, 28, 8, 64, 32), woolMat);
+    woolMesh.position.y = 0.68;
+    group.add(woolMesh);
 
     const head = new THREE.Mesh(createBoxWithUV(0.42, 0.42, 0.45, 0, 0, 64, 32), mat);
     head.position.set(0, 0.88, 0.6);
@@ -2907,16 +4334,23 @@ export class MobManager {
       name: 'Sheep',
       mesh: group,
       head: head,
+      woolMesh: woolMesh,
+      woolMaterial: woolMat,
+      woolColor: options.woolColor || 'white',
+      isSheared: !!options.isSheared,
       legs: [fl, fr, bl, br],
       mat: mat,
-      health: 10,
-      maxHealth: 10,
+      // Wiki: 8 HP.
+      health: 8,
+      maxHealth: 8,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    sheepApplyWool(mob);
+
     this.mobs.push(mob);
     return mob;
   }
@@ -3062,9 +4496,13 @@ export class MobManager {
   }
 
   // --- HOSTILE SKELETON ---
-  spawnSkeleton(x, y, z) {
+  spawnSkeleton(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ map: this.textures.skeleton, transparent: true, alphaTest: 0.1 });
+    // Wiki: a stray is a frozen skeleton and a bogged a moss-covered one; both are tinted skins.
+    const baseTex = options.variant === 'stray' ? (this.textures.stray ?? this.textures.skeleton)
+      : options.variant === 'bogged' ? (this.textures.bogged ?? this.textures.skeleton)
+      : this.textures.skeleton;
+    const mat = new THREE.MeshLambertMaterial({ map: baseTex, transparent: true, alphaTest: 0.5 });
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8);
     const head = new THREE.Mesh(headGeo, mat);
@@ -3112,29 +4550,38 @@ export class MobManager {
   }
 
   // --- BIOME MOBS ---
-  spawnMooshroom(x, y, z) {
+  spawnMooshroom(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const redMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    const bodyMat = new THREE.MeshLambertMaterial({ color: MOOSHROOM_COLORS.red });
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
-    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), redMat);
+    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), bodyMat);
     body.position.y = 0.75;
     group.add(body);
 
-    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), redMat);
+    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), bodyMat);
     head.position.set(0, 1.05, 0.65);
     group.add(head);
 
-    // Mushrooms on back
+    // Mushrooms on the back: five of them, as the wiki's "5 corresponding mushrooms"
+    // implies. They are held so the variant can recolour them and the growth path can
+    // hide them on babies.
     const shroomGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-    const m1 = new THREE.Mesh(shroomGeo, redMat); m1.position.set(0.15, 1.25, 0.1); group.add(m1);
-    const m2 = new THREE.Mesh(shroomGeo, redMat); m2.position.set(-0.15, 1.25, -0.2); group.add(m2);
+    const mushroomMeshes = [
+      [0.15, 1.25, 0.1], [-0.15, 1.25, -0.2], [0.2, 1.25, -0.35],
+      [-0.2, 1.25, 0.35], [0.0, 1.25, 0.5]
+    ].map(([mx, my, mz]) => {
+      const mesh = new THREE.Mesh(shroomGeo, bodyMat);
+      mesh.position.set(mx, my, mz);
+      group.add(mesh);
+      return mesh;
+    });
 
     const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
-    const fl = new THREE.Mesh(legGeo, redMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, redMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, redMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
-    const br = new THREE.Mesh(legGeo, redMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
+    const fl = new THREE.Mesh(legGeo, bodyMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, bodyMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, bodyMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
+    const br = new THREE.Mesh(legGeo, bodyMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -3146,8 +4593,223 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 14,
-      maxHealth: 14,
+      variantMeshes: [body, head, ...mushroomMeshes, fl, fr, bl, br],
+      mushroomMeshes,
+      // 'red' spawns naturally; 'brown' only ever comes from lightning or breeding.
+      variant: options.variant === 'brown' ? 'brown' : 'red',
+      // Retained across a shear so the dropped mushrooms match the variant, mirroring
+      // woolColor on sheep.
+      mushroomType: options.variant === 'brown' ? 'brown' : 'red',
+      isBaby: !!options.isBaby,
+      // Wiki: 10 HP, not the 14 this used to report.
+      health: 10,
+      maxHealth: 10,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    applyMooshroomVariant(mob);
+
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Convert a mob in place to another type.
+   *
+   * Used by the husk's drowning conversion. Wiki: the zombie it becomes "has full health even if the
+   * husk has been damaged", so health is reset rather than carried over.
+   */
+  replaceMobType(mob, type) {
+    if (!mob) return null;
+    const index = this.mobs.indexOf(mob);
+    const dims = this.getMobDimensions(type);
+    const spawner = { zombie: () => this.spawnZombie(mob.mesh.position.x, mob.mesh.position.y, mob.mesh.position.z) }[type];
+    if (!spawner) return null;
+    const replacement = spawner();
+    if (!replacement) return null;
+    replacement.mesh.position.copy(mob.mesh.position);
+    replacement.yaw = mob.yaw;
+    replacement.width = dims.width;
+    replacement.height = dims.height;
+    replacement.health = replacement.maxHealth;
+    // Remove the original, including from the scene, so it does not linger as a ghost mesh.
+    if (index >= 0) this.mobs.splice(index, 1);
+    this.scene?.remove?.(mob.mesh);
+    return replacement;
+  }
+
+  /**
+   * Place a sniffer egg, which hatches into a snifflet.
+   *
+   * Wiki: "Once placed by a player, a sniffer egg hatches after 10 minutes if placed on a moss block or
+   * 20 minutes otherwise." Eggs are tracked in `manager.snifferEggs` because this codebase has no block
+   * entity system; each entry carries its own hatch timer.
+   */
+  placeSnifferEgg(x, y, z, { blockName = null } = {}) {
+    if (!this.snifferEggs) this.snifferEggs = [];
+    const egg = {
+      position: new THREE.Vector3(x, y, z),
+      // Wiki: the moss block halves the hatch time.
+      hatchTimer: snifferEggHatchSeconds(blockName),
+      blockName: blockName
+    };
+    this.snifferEggs.push(egg);
+    return egg;
+  }
+
+  /**
+   * Advance every placed sniffer egg, hatching one into a snifflet when its timer runs out.
+   *
+   * Returns the snifflets that hatched, which is what the tests assert on.
+   */
+  updateSnifferEggs(dt) {
+    if (!this.snifferEggs?.length) return [];
+    const hatched = [];
+    for (let i = this.snifferEggs.length - 1; i >= 0; i--) {
+      const egg = this.snifferEggs[i];
+      egg.hatchTimer -= dt;
+      if (egg.hatchTimer > 0) continue;
+      const baby = this.spawnSniffer(egg.position.x, egg.position.y, egg.position.z, { isBaby: true });
+      if (baby) {
+        baby.isBaby = true;
+        baby.growthTimer = SNIFFLET_GROWTH_SECONDS;
+        hatched.push(baby);
+      }
+      this.snifferEggs.splice(i, 1);
+    }
+    return hatched;
+  }
+
+  /**
+   * Skeleton horse and zombie horse.
+   *
+   * Wiki: both are undead HORSES at 1.3965 x 1.6 with speed 0.2 -- the skeleton horse 15 HP and the
+   * zombie horse 25 HP. Neither is bred. Both are passive alone and hostile only as a jockey, because
+   * the rider controls the pathfinding, and both become passive once separated so a player can saddle
+   * and ride them. The skeleton horse does not burn in sunlight; the zombie horse does.
+   */
+  spawnUndeadHorse(x, y, z, type, options = {}) {
+    if (!isUndeadHorse(type)) return null;
+    const colors = UNDEAD_HORSE_COLORS[type];
+    const group = new THREE.Group();
+    const coatMat = new THREE.MeshLambertMaterial({ color: colors.coat });
+    const maneMat = new THREE.MeshLambertMaterial({ color: colors.mane });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: 0x2b2b26 });
+    const { group: model, body, neck, head, eyes, mane, legs, tail, saddle } =
+      createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(UNDEAD_HORSE_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? UNDEAD_HORSE_BABY_DIMENSIONS : UNDEAD_HORSE_DIMENSIONS;
+    const mob = {
+      type,
+      name: type === 'skeleton_horse' ? 'Skeleton Horse' : 'Zombie Horse',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, neck, head, eyes, mane, legs, tail, saddle,
+      health: undeadHorseHealth(type),
+      maxHealth: undeadHorseHealth(type),
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: UNDEAD_HORSE_SPEED,
+      // Wiki: passive alone; hostile only as a jockey, because the rider steers.
+      isHostile: false,
+      // Wiki: undead traits, shared by both.
+      undead: UNDEAD_HORSE_TRAITS.undead,
+      poisonImmune: UNDEAD_HORSE_TRAITS.poisonImmune,
+      invertedHealing: UNDEAD_HORSE_TRAITS.invertedHealing,
+      canBreatheUnderwater: UNDEAD_HORSE_TRAITS.canBreatheUnderwater,
+      sensitiveToSmite: UNDEAD_HORSE_TRAITS.sensitiveToSmite,
+      // Wiki: the skeleton horse does not burn in sunlight; the zombie horse does.
+      burnsInDaylight: undeadHorseBurnsInDaylight(type),
+      // Wiki: neither is bred.
+      canBreed: undeadHorseCanBreed(),
+      // Wiki: the skeleton horse is the trap form and carries a saddle; the zombie horse can also wear
+      // horse armour.
+      isTrap: options.isTrap ?? (type === 'skeleton_horse' && options.trap !== false),
+      hasSaddle: options.hasSaddle ?? (type === 'skeleton_horse' && options.isTrap !== false),
+      horseArmor: options.horseArmor ?? null,
+      rider: null,
+      riderCount: 0,
+      // Wiki: a zombie horse spawns RIDDEN in the dark; that is opt-in so the dispatcher does not mount one.
+      wantsRider: options.wantsRider ?? false,
+      tame: !!options.tame,
+      horsePhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Illusioner.
+   *
+   * Wiki: 32 HP, 0.6 x 1.95, speed 0.5. A Java-exclusive illager that spawns only by command, fires an
+   * arrow a second (three times a skeleton), sees its target through walls, strafes at a fixed distance,
+   * and fights with two spells: Blindness on its opponent and Invisibility on itself behind four mirror
+   * duplicates.
+   */
+  spawnIllusioner(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.robe });
+    const trimMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.trim });
+    const skinMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.skin });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: ILLUSIONER_COLORS.eye });
+    const bowMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.bow });
+    const { group: model, body, sash, head, nose, eyes, legs, arms, bow } =
+      createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'illusioner',
+      name: 'Illusioner',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, sash, head, nose, eyes, legs, arms, bow,
+      // Wiki: 32 HP.
+      health: ILLUSIONER_HEALTH,
+      maxHealth: ILLUSIONER_HEALTH,
+      width: ILLUSIONER_DIMENSIONS.width,
+      height: ILLUSIONER_DIMENSIONS.height,
+      speed: ILLUSIONER_SPEED,
+      isHostile: true,
+      attackDamage: ILLUSIONER_DAMAGE.normal.min,
+      // Wiki: it is the only illager that can see its target through walls.
+      seesThroughWalls: ILLUSIONER_SEES_THROUGH_WALLS,
+      // The spells. `casting` drives the shared arm-raise animation.
+      invisibleTimer: 0,
+      invisibilityCooldown: 0,
+      blindnessCooldown: 0,
+      spellCooldown: 0,
+      castTimer: 0,
+      casting: null,
+      blindedTarget: null,
+      duplicates: [],
+      duplicatesTriggered: false,
+      // The archer and the strafing.
+      shootCooldown: 0,
+      target: null,
+      strafeTimer: 1.5,
+      strafeSign: 1,
+      illusionerPhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -3158,7 +4820,601 @@ export class MobManager {
     return mob;
   }
 
-  spawnPolarBear(x, y, z) {
+  /**
+   * Snow golem.
+   *
+   * Wiki: 4 HP, 0.7 x 1.9, speed 0.2. A buildable passive mob that throws snowballs at monsters to
+   * provoke them, leaves a trail of snow, dies in hot biomes unless fire resistant, is immune to powder
+   * snow and fall damage, and wears a sheareable carved pumpkin as a helmet.
+   */
+  spawnSnowGolem(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const snowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow });
+    const shadowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.shadow });
+    const pumpkinMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin });
+    const faceMat = new THREE.MeshBasicMaterial({ color: SNOW_GOLEM_COLORS.face });
+    const { group: model, lower, middle, head, face, pumpkin, arms } =
+      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'snow_golem',
+      name: 'Snow Golem',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      lower, middle, head, faceMesh: face, pumpkinMesh: pumpkin, arms,
+      // Wiki: 4 HP.
+      health: SNOW_GOLEM_HEALTH,
+      maxHealth: SNOW_GOLEM_HEALTH,
+      width: SNOW_GOLEM_DIMENSIONS.width,
+      height: SNOW_GOLEM_DIMENSIONS.height,
+      speed: SNOW_GOLEM_SPEED,
+      // Wiki: it is passive and never intentionally attacks the player.
+      isHostile: false,
+      // Wiki: immune to powder snow and to fall damage, and it avoids water.
+      powderSnowImmune: SNOW_GOLEM_TRAITS.powderSnowImmune,
+      fallDamageImmune: SNOW_GOLEM_TRAITS.fallDamageImmune,
+      avoidsWater: SNOW_GOLEM_TRAITS.avoidsWater,
+      // Wiki: it wears its carved pumpkin "like a helmet", hidden until sheared.
+      hasPumpkin: options.hasPumpkin !== false,
+      // The biome it stands in, which decides whether it takes heat damage.
+      biome: options.biome ?? null,
+      hasFireResistance: !!options.hasFireResistance,
+      heatDamageTaken: 0,
+      throwCooldown: 0,
+      target: null,
+      golemPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (face) face.visible = !mob.hasPumpkin;
+    if (pumpkin) pumpkin.visible = mob.hasPumpkin;
+    // Wiki: snowballs are its own projectiles, so they get their own array rather than sharing one owned
+    // by another behaviour.
+    this.snowballs = this.snowballs || [];
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Creaking.
+   *
+   * Wiki: 1 HP, 0.9 x 2.7, speed 0.3, spawned at night by an activated creaking heart. It attacks with
+   * melee headbutts but "cannot move at all while any players in Survival or Adventure mode can see it",
+   * and one linked to a heart "becomes completely invulnerable to all sources of damage".
+   */
+  spawnCreaking(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: CREAKING_COLORS.body });
+    const limbMat = new THREE.MeshLambertMaterial({ color: CREAKING_COLORS.limb });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: CREAKING_COLORS.eyeDim });
+    const { group: model, body, head, eyes, arms, legs } =
+      createCreakingModel(bodyMat, limbMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'creaking',
+      name: 'Creaking',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, arms, legs,
+      // Wiki: 1 HP.
+      health: CREAKING_HEALTH,
+      maxHealth: CREAKING_HEALTH,
+      width: CREAKING_DIMENSIONS.width,
+      height: CREAKING_DIMENSIONS.height,
+      speed: CREAKING_SPEED,
+      attackDamage: CREAKING_DAMAGE.normal,
+      isHostile: true,
+      // Wiki: it is fire resistant as of 24w44a.
+      fireResistant: CREAKING_FIRE_RESISTANT,
+      // The heart link. Options let a caller link it explicitly, which is what a heart would do.
+      linkedHeart: options.linkedHeart ?? null,
+      // Wiki: an egg- or command-spawned creaking is unlinked, CAN take damage, and does not despawn by
+      // day. A heart-spawned one is the inverse on all three.
+      natural: options.natural ?? !!options.linkedHeart,
+      // Wiki: it ignores cacti, sweet berry bushes and powder snow while walking.
+      ignoredBlocks: CREAKING_IGNORED_BLOCKS,
+      // The gaze state.
+      alerted: false,
+      frozen: false,
+      frozenBy: null,
+      target: null,
+      softlockTimer: 0,
+      dying: false,
+      twitchTimer: 0,
+      creakPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Camel.
+   *
+   * Wiki: a tall passive mob, 32 HP, that sits on a timer, can be saddled and ridden by two players,
+   * dashes 12 blocks with the jump control, steps up 1.5 blocks so it walks over fences, and falls six
+   * blocks safely at half damage.
+   */
+  spawnCamel(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const coatMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.coat });
+    const humpMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hump });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.belly });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hoof });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: CAMEL_COLORS.eye });
+    const { group: model, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle } =
+      createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(CAMEL_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? CAMEL_BABY_DIMENSIONS : CAMEL_DIMENSIONS;
+    const mob = {
+      type: 'camel',
+      name: 'Camel',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddleMesh: saddle,
+      // Wiki: 32 HP.
+      health: CAMEL_HEALTH,
+      maxHealth: CAMEL_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: CAMEL_SPEED.walk,
+      // Wiki: it steps up 1.5 blocks, which is what lets it surmount fences and walls. No other mob
+      // here declares a step height, so this is the camel's signature traversal trait.
+      stepHeight: CAMEL_STEP_HEIGHT,
+      // Wiki: six safe blocks and half damage per block beyond.
+      fallDamageReduction: CAMEL_FALL.safeBlocks,
+      fallDamageMultiplier: CAMEL_FALL.damagePerBlock,
+      // The sit cycle.
+      isSitting: false,
+      sitTimer: 0,
+      standTimer: rollCamelStandDelay(options.random || Math.random),
+      // Riding and the dash.
+      hasSaddle: !!options.hasSaddle,
+      riderCount: 0,
+      seats: CAMEL_SEATS,
+      dashCooldown: 0,
+      camelPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    // Wiki: a baby camel grows in 20 minutes.
+    if (options.isBaby) mob.growthTimer = CAMEL_BABY_GROWTH_SECONDS;
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Wandering trader.
+   *
+   * Wiki: a passive villager-like mob, 20 HP, that appears near a player with two leashed trader llamas,
+   * offers a randomized set of nine trades, drinks Invisibility at dusk and milk at dawn, avoids zombies
+   * and illagers, and despawns after 40 minutes.
+   */
+  spawnWanderingTrader(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.robe });
+    const trimMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.trim });
+    const skinMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.skin });
+    const hatMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.hat });
+    const { group: model, body, sash, head, brim, crown, eyes, legs, arms, pack } =
+      createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'wandering_trader',
+      name: 'Wandering Trader',
+      // A definite groundedness, so a branch reading it never sees undefined.
+      onGround: true,
+      mesh: group,
+      body, sash, head, brim, crown, eyes, legs, arms, pack,
+      // Wiki: 20 HP.
+      health: WANDERING_TRADER_HEALTH,
+      maxHealth: WANDERING_TRADER_HEALTH,
+      width: WANDERING_TRADER_DIMENSIONS.width,
+      height: WANDERING_TRADER_DIMENSIONS.height,
+      speed: WANDERING_TRADER_SPEED,
+      // Wiki: it despawns after 40 minutes unless it came from a command, egg or spawner.
+      despawnTimer: options.persistent ? 0 : WANDERING_TRADER_DESPAWN_SECONDS,
+      persistent: !!options.persistent,
+      // The trade table, rolled on spawn and locked per offer as it is used.
+      offers: [],
+      tradesRolled: false,
+      // Wiki: it drinks Invisibility at dusk and milk at dawn.
+      isInvisible: false,
+      drinking: false,
+      drinkingItem: null,
+      drinkCooldown: 0,
+      // Wiki: "prefers to wander within 16 blocks of the initial spawning target location".
+      homeX: x, homeZ: z,
+      llamaCount: 0,
+      traderPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    // Wiki: it spawns alongside two leashed trader llamas.
+    if (options.withLlamas !== false) {
+      mob.llamaCount = spawnTraderWithLlamas(this, mob, options.random || Math.random).length;
+    }
+    return mob;
+  }
+
+  /**
+   * Trader llama.
+   *
+   * Wiki: a trader llama is a llama variant that travels with a wandering trader, tied to it with a
+   * lead, and spits at whoever hurts it or its master, except on Peaceful.
+   */
+  spawnTraderLlama(x, y, z, options = {}) {
+    // Reuse the llama model, then mark it as a trader llama.
+    const llama = this.spawnLlama(x, y, z, options);
+    if (!llama) return llama;
+    llama.type = 'trader_llama';
+    llama.name = 'Trader Llama';
+    llama.isTraderLlama = true;
+    // Wiki: a trader llama has the trader llama carpet, which is its only visual difference.
+    llama.hasTraderCarpet = true;
+    return llama;
+  }
+
+  /**
+   * Allay.
+   *
+   * Wiki: a small flying passive mob, 20 HP, that follows the player who gave it an item and fetches
+   * dropped copies of that item. It is fall-damage immune, regenerates 2 HP a second, cannot be harmed
+   * by its owner, and has no baby form.
+   */
+  spawnAllay(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: ALLAY_COLORS.body });
+    const wingMat = new THREE.MeshLambertMaterial({
+      color: ALLAY_COLORS.wing, transparent: true, opacity: 0.85
+    });
+    const trimMat = new THREE.MeshBasicMaterial({
+      color: ALLAY_COLORS.trim, transparent: true, opacity: 0.7
+    });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: ALLAY_COLORS.eye });
+    const { group: model, body, head, eyes, wings, trim, arms } =
+      createAllayModel(bodyMat, wingMat, trimMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'allay',
+      name: 'Allay',
+      mesh: group,
+      body, head, eyes, wings, trim, arms,
+      // Wiki: 20 HP, raised from 10 in 22w16a.
+      health: ALLAY_HEALTH,
+      maxHealth: ALLAY_HEALTH,
+      width: ALLAY_DIMENSIONS.width,
+      height: ALLAY_DIMENSIONS.height,
+      speed: ALLAY_SPEED,
+      isFlying: true,
+      // Wiki entity tag: fall_damage_immune.
+      fallDamageImmune: ALLAY_FALL_IMMUNE,
+      // Wiki: allays cannot enter water, although it tries to gather underwater items.
+      avoidsWater: true,
+      // The job. Wiki: it flies aimlessly until a player gives it an item.
+      heldItem: options.heldItem ?? null,
+      owner: options.owner ?? null,
+      carriedCount: 0,
+      seekCooldown: 0,
+      // Wiki: delivers to a note block it heard within 16 blocks for the next 30 seconds.
+      noteFocus: null,
+      noteFocusTimer: 0,
+      // Wiki: a five-minute cooldown after duplicating.
+      duplicationCooldown: 0,
+      isDancing: false,
+      allayPhase: 0,
+      baseY: y,
+      // Wiki: allays cannot be harmed by their interacting owner.
+      ownerImmune: ALLAY_OWNER_IMMUNE,
+      // Flying, but set so the shared groundedness readers have a definite value.
+      onGround: false,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Sniffer.
+   *
+   * Wiki: a passive ancient mob, 14 HP, that spawns only by hatching from a sniffer egg. It wanders,
+   * scents the ground, sploots and digs up a torchflower seed or a pitcher pod. A baby is a snifflet,
+   * which cannot dig and takes twice as long as a normal baby to grow up.
+   */
+  spawnSniffer(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.body });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.belly });
+    const shellMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.shell });
+    const snoutMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.snout });
+    const legMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.leg });
+    const { group: model, body, belly, shell, bands, neck, head, snout, eyes, legs, tail } =
+      createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(SNIFFLET_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? SNIFFLET_DIMENSIONS : SNIFFER_DIMENSIONS;
+    const mob = {
+      type: 'sniffer',
+      name: 'Sniffer',
+      mesh: group,
+      body, belly, shell, bands, neck, head, snout, eyes, legs, tail,
+      // Wiki: 14 HP.
+      health: SNIFFER_HEALTH,
+      maxHealth: SNIFFER_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: SNIFFER_SPEED,
+      // The dig state machine.
+      digState: 'idle',
+      digTimer: 0,
+      digTarget: null,
+      // Wiki: it starts on an 8-minute cooldown, which is also the "initial lag" a new adult has.
+      digCooldown: SNIFFER_SEARCH_COOLDOWN,
+      // Wiki: it stores its prior 20 digging locations.
+      dugLocations: [],
+      // Set explicitly. updateSnifferDig refuses unless the sniffer is on the ground, and an undefined
+      // value read as not-on-the-ground, so a sniffer spawned standing on the ground never dug -- and the
+      // shared mover never settled it either, so it fell forever. The same defect as the breeze's, found
+      // the same way.
+      onGround: true,
+      snifferPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    // Wiki: a snifflet grows in 2400 s, twice the shared baby-growth constant.
+    if (options.isBaby) mob.growthTimer = SNIFFLET_GROWTH_SECONDS;
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Breeze.
+   *
+   * Wiki: 30 HP hostile mob that leaps up to 15 blocks instead of walking, fires wind charges, and
+   * deflects every projectile except another wind charge. It is fall-damage immune and the only
+   * source of breeze rods.
+   */
+  spawnBreeze(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.body });
+    const rodMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.rod });
+    const windMat = new THREE.MeshBasicMaterial({
+      color: BREEZE_COLORS.wind, transparent: true, opacity: 0.45, depthWrite: false
+    });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: BREEZE_COLORS.eye });
+    const { group: model, body, head, eyes, eyebrows, rods, wind } =
+      createBreezeModel(bodyMat, rodMat, windMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(0.6);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'breeze',
+      name: 'Breeze',
+      mesh: group,
+      body, head, eyes, eyebrows, rods, wind,
+      // Wiki: 30 HP.
+      health: BREEZE_HEALTH,
+      maxHealth: BREEZE_HEALTH,
+      width: BREEZE_DIMENSIONS.width,
+      height: BREEZE_DIMENSIONS.height,
+      isFlying: false,
+      // Wiki entity tags: deflects_arrows, deflects_tridents, fall_damage_immune, can_turn_in_boats.
+      ...BREEZE_TRAITS,
+      // The leap cycle.
+      leapState: 'idle',
+      // Set explicitly: updateBreezeLeap reads onGround to decide whether the leap cycle may start,
+      // and an undefined value took the airborne path, so a breezed spawned standing on the ground
+      // skipped its compression and never entered the cycle at all.
+      onGround: true,
+      jumpCooldown: rollBreezeJumpDelay(options.random || Math.random),
+      compressTimer: 0,
+      slideTimer: 0,
+      chargeCooldown: 0,
+      breezePhase: 0,
+      isHostile: false,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Build a zombie variant by reusing the zombie model.
+   *
+   * Wiki: a husk is "a variant of the zombie that spawn in deserts". It shares the geometry and
+   * differs in appearance, in not burning in sunlight, and in inflicting Hunger with an unarmed
+   * attack. Delegating here means the model cannot drift away from the zombie's.
+   */
+  spawnZombieVariant(x, y, z, variant, options = {}) {
+    const mob = this.spawnZombie(x, y, z, { variant, ...options });
+    if (!mob) return mob;
+    applyVariantIdentity(mob, variant, options);
+    return mob;
+  }
+
+  /**
+   * Build a skeleton variant (stray or bogged) by reusing the skeleton model.
+   *
+   * Wiki: a stray is "a skeleton variant that spawns in various snow-covered biomes" and a bogged is
+   * "a mushroom-covered skeleton variant". Both are archers differing in health, appearance and the
+   * status effect on their arrow.
+   */
+  spawnSkeletonVariant(x, y, z, variant, options = {}) {
+    const mob = this.spawnSkeleton(x, y, z, { variant, ...options });
+    if (!mob) return mob;
+    applyVariantIdentity(mob, variant, options);
+    return mob;
+  }
+
+  /**
+   * Armadillo.
+   *
+   * Wiki: 12 HP passive mob. It rolls into a ball when hurt or when it detects a threat (undead mobs,
+   * or players who are sprinting or mounted), takes `(damage - 1) / 2` while rolled, repels spiders and
+   * cave spiders while NOT rolled, and sheds an armadillo scute every 5-10 minutes. It is the only
+   * source of scutes, and it drops no items at all on death.
+   */
+  spawnArmadillo(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.body });
+    const shellMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.shell });
+    const bandMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.band });
+    const darkMat = new THREE.MeshLambertMaterial({ color: ARMADILLO_COLORS.dark });
+
+    // A low, long body with a domed banded shell on top.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.7), bodyMat);
+    body.position.y = 0.3;
+    group.add(body);
+
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.26, 0.66), shellMat);
+    shell.position.y = 0.5;
+    group.add(shell);
+
+    // Three darker bands across the shell, which is what makes it read as an armadillo.
+    const bands = [];
+    for (const z0 of [-0.2, 0, 0.2]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.28, 0.06), bandMat);
+      band.position.set(0, 0.5, z0);
+      group.add(band);
+      bands.push(band);
+    }
+
+    // A pointed snout on a small head, held low.
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.24), bodyMat);
+    head.position.set(0, 0.34, 0.44);
+    group.add(head);
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.16), darkMat);
+    snout.position.set(0, -0.02, 0.18);
+    head.add(snout);
+
+    // Ears, small and rounded.
+    const ears = [];
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.04), darkMat);
+      ear.position.set(side * 0.1, 0.12, -0.02);
+      head.add(ear);
+      ears.push(ear);
+    }
+
+    // Four short legs and a tapering tail.
+    const legGeo = new THREE.BoxGeometry(0.12, 0.2, 0.12);
+    const legs = [];
+    for (const [lx, lz] of [[-0.18, 0.22], [0.18, 0.22], [-0.18, -0.22], [0.18, -0.22]]) {
+      const leg = new THREE.Mesh(legGeo, darkMat);
+      leg.position.set(lx, 0.1, lz);
+      group.add(leg);
+      legs.push(leg);
+    }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.26), bandMat);
+    tail.position.set(0, 0.28, -0.44);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(ARMADILLO_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? ARMADILLO_BABY_DIMENSIONS : ARMADILLO_DIMENSIONS;
+    const mob = {
+      type: 'armadillo',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
+      name: 'Armadillo',
+      mesh: group,
+      head,
+      legs,
+      ears,
+      bands,
+      bodyMat, shellMat, bandMat, darkMat,
+      // Wiki: 12 HP.
+      health: ARMADILLO_HEALTH,
+      maxHealth: ARMADILLO_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: ARMADILLO_SPEED,
+      // The rolling state machine. Wiki: `state` is idle, scared or unrolling.
+      rollState: 'idle',
+      noThreatSeconds: 0,
+      peekTimer: 0,
+      peekHold: 0,
+      lastAttacker: null,
+      threatTimer: 0,
+      // Wiki: a scute drops every 5-10 minutes, on a timer reset to a fresh 6000-12000 ticks.
+      scuteTimer: rollScuteDelay(options.random || Math.random),
+      armadilloPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (options.isBaby) mob.growthTimer = ARMADILLO_GROWTH_SECONDS;
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  spawnPolarBear(x, y, z, options = {}) {
     const group = new THREE.Group();
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
     const darkMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
@@ -3191,20 +5447,46 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 30,
-      maxHealth: 30,
+      // Wiki: 30 HP.
+      health: POLAR_BEAR_HEALTH,
+      maxHealth: POLAR_BEAR_HEALTH,
+      isBaby: !!options.isBaby,
+      // Wiki: adult 1.4 x 1.4, baby 0.7 x 0.7. Without these the collision fell back to the
+      // humanoid default of 0.6 x 1.95, which is both too narrow and too tall for a bear.
+      width: (options.isBaby ? POLAR_BEAR_BABY_DIMENSIONS : POLAR_BEAR_DIMENSIONS).width,
+      height: (options.isBaby ? POLAR_BEAR_BABY_DIMENSIONS : POLAR_BEAR_DIMENSIONS).height,
+      // Wiki: 60% knockback resistance, and immune to freezing damage from powder snow.
+      knockbackResistance: POLAR_BEAR_KNOCKBACK_RESISTANCE,
+      freezeImmune: true,
+      // Wiki: immune to freezing, but NOT to fall damage.
+      fallDamageImmune: false,
+      // Stance: a cub is passive, an adult is neutral until provoked or a cub is threatened.
+      stance: options.isBaby ? 'passive' : 'neutral',
+      isHostile: false,
+      angryAt: null,
+      isMauling: false,
+      maulTimer: 0,
+      polarPhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    if (options.isBaby) {
+      group.scale.setScalar(POLAR_BEAR_BABY_SCALE);
+      mob.growthTimer = POLAR_BEAR_GROWTH_SECONDS;
+    }
     this.mobs.push(mob);
     return mob;
   }
 
-  spawnPanda(x, y, z) {
+  spawnPanda(x, y, z, options = {}) {
     const group = new THREE.Group();
+    // Wiki: the mutation table also applies to naturally spawned pandas, for both genes.
+    const genes = options.mainGene !== undefined
+      ? { mainGene: options.mainGene, hiddenGene: options.hiddenGene ?? options.mainGene }
+      : rollPandaGenes(options.random || Math.random);
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
     const blackMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
 
@@ -3232,18 +5514,44 @@ export class MobManager {
 
     const mob = {
       type: 'panda',
+      // A definite groundedness. A branch reads this to decide whether the mob may act, and leaving it
+      // undefined made a mob standing on solid ground behave as though it were airborne.
+      onGround: true,
       name: 'Panda',
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 20,
-      maxHealth: 20,
+      // The two materials the model is built from, so `applyPandaColors` can recolour a brown panda
+      // without traversing for them.
+      darkMat: blackMat,
+      lightMat: whiteMat,
+      // Wiki: a panda has a MainGene and a HiddenGene, and the personality follows from them.
+      mainGene: genes.mainGene,
+      hiddenGene: genes.hiddenGene,
+      isBaby: !!options.isBaby,
+      // Wiki: 1.3 x 1.25, and half that for a baby. Without these the collision fell back to
+      // the humanoid default of 0.6 x 1.95.
+      width: (options.isBaby ? PANDA_BABY_DIMENSIONS : PANDA_DIMENSIONS).width,
+      height: (options.isBaby ? PANDA_BABY_DIMENSIONS : PANDA_DIMENSIONS).height,
+      // Wiki: neutral, and passive on Peaceful. An aggressive panda hunts continuously and does
+      // not panic when harmed.
+      isHostile: false,
+      angryAt: null,
+      isLyingDown: false,
+      isRolling: false,
+      isThundering: false,
+      sneezeTimer: 0,
+      pandaPhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    applyPandaPersonality(mob);
+    // Wiki: a brown panda is brown and white. The other six personalities share the normal palette.
+    applyPandaColors(mob);
+    if (options.isBaby) group.scale.setScalar(PANDA_BABY_SCALE);
     this.mobs.push(mob);
     return mob;
   }
@@ -3303,62 +5611,7 @@ export class MobManager {
   }
 
   spawnBlaze(x, y, z) {
-    const group = new THREE.Group();
-    const headMat = new THREE.MeshLambertMaterial({
-      map: this.textures?.blaze_head || this.textures?.blaze,
-      color: 0xffffff
-    });
-    const rodMat = new THREE.MeshLambertMaterial({
-      color: 0xfbbf24,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.5
-    });
-    const smokeMat = new THREE.MeshLambertMaterial({
-      color: 0x1f140e
-    });
-
-    const sideMat = new THREE.MeshLambertMaterial({color:0xd6a321, map:this.textures?.blaze});
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), [sideMat,sideMat,sideMat,sideMat,headMat,sideMat]);
-    head.position.y = 1.35;
-    group.add(head);
-
-    const smoke = new THREE.Group();
-    for (let i=0; i<10; i++) {
-      const puff = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.13), new THREE.MeshBasicMaterial({color:0x34302b, transparent:true, opacity:.35, depthWrite:false}));
-      puff.position.set(Math.sin(i*2.4)*.3, i*.18, Math.cos(i*2.4)*.3);
-      smoke.add(puff);
-    }
-    group.add(smoke);
-    const flames = new THREE.Group();
-    for (let i=0;i<6;i++) {
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(.08,.45,5), new THREE.MeshBasicMaterial({color:0xffb52b,transparent:true,opacity:.75,depthWrite:false}));
-      flame.position.set(Math.sin(i)*.35,.4+(i%3)*.35,Math.cos(i)*.35);
-      flames.add(flame);
-    }
-    flames.visible=false; group.add(flames);
-
-    // 12 orbiting rods arranged in 3 tiers
-    const rodGeo = new THREE.BoxGeometry(0.12, 0.55, 0.12);
-    const tiers = [];
-    const tierConfigs = [
-      { count: 4, radius: 0.5, y: 1.25 },
-      { count: 4, radius: 0.65, y: 0.8 },
-      { count: 4, radius: 0.45, y: 0.35 }
-    ];
-
-    for (let t = 0; t < 3; t++) {
-      const cfg = tierConfigs[t];
-      const tierGroup = new THREE.Group();
-      tierGroup.position.y = cfg.y;
-      for (let i = 0; i < cfg.count; i++) {
-        const angle = (i / cfg.count) * Math.PI * 2;
-        const rod = new THREE.Mesh(rodGeo, rodMat);
-        rod.position.set(Math.cos(angle) * cfg.radius, 0, Math.sin(angle) * cfg.radius);
-        tierGroup.add(rod);
-      }
-      group.add(tierGroup);
-      tiers.push(tierGroup);
-    }
+    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -3500,6 +5753,29 @@ export class MobManager {
     }
     syncPiglinEquipment(mob);
     this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Piglin brute.
+   *
+   * Wiki: 50 HP, the piglin box, wielding a golden axe for 7.5/13/19.5 damage, and hostile. "Unlike
+   * piglins, piglin brutes do not barter, retreat, or get distracted by gold" -- those three differences
+   * are gated inside the piglin AI, so this builds a piglin and then applies the brute identity.
+   */
+  spawnPiglinBrute(x, y, z, options = {}) {
+    const mob = this.spawnPiglin(x, y, z);
+    if (!mob) return mob;
+    makePiglinBrute(mob);
+    // Wiki: a brute always wields its axe, unlike a piglin which sometimes spawns unarmed.
+    mob.weapon = PIGLIN_BRUTE_WEAPON;
+    mob.hasGoldenAxe = true;
+    // Wiki: "do not barter, retreat, or get distracted by gold", recorded on the mob so the flags travel
+    // with it and a save/reload keeps the identity.
+    mob.barters = PIGLIN_BRUTE_DIFFERENCES.barters;
+    mob.retreats = PIGLIN_BRUTE_DIFFERENCES.retreats;
+    mob.distractedByGold = PIGLIN_BRUTE_DIFFERENCES.distractedByGold;
+    mob.isBrute = true;
     return mob;
   }
 
@@ -3781,7 +6057,7 @@ export class MobManager {
   }
 
   // --- WOLF ---
-  spawnWolf(x, y, z) {
+  spawnWolf(x, y, z, options = {}) {
     const group = new THREE.Group();
     const wolfTex = this.textures?.wolf || this.createWolfTexture();
     const wolfMat = new THREE.MeshLambertMaterial({ map: wolfTex });
@@ -3826,8 +6102,13 @@ export class MobManager {
     rEye.position.set(0.12, 0.05, 0.21);
     head.add(rEye);
 
-    // Collar mesh (red default, hidden until tamed)
-    const collarMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+    // Collar mesh (hidden until tamed). Wiki: the default collar colour is red, but a caller can ask
+    // for another one; this used to be hardcoded, so `options.collarColor` was ignored at spawn even
+    // though dying a collar later worked.
+    const requestedCollar = options.collarColor ?? WOLF_DEFAULT_COLLAR;
+    const collarMat = new THREE.MeshLambertMaterial({
+      color: SHEEP_COLOR_HEX[requestedCollar] ?? SHEEP_COLOR_HEX[WOLF_DEFAULT_COLLAR]
+    });
     const collar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.42), collarMat);
     collar.position.set(0, 0.65, 0.45);
     collar.visible = false;
@@ -3847,9 +6128,11 @@ export class MobManager {
     group.add(tail);
 
     group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(0.5);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
+    const wolfDims = options.isBaby ? WOLF_DIMENSIONS.baby : WOLF_DIMENSIONS.adult;
     const mob = {
       type: 'wolf',
       name: 'Wolf',
@@ -3858,8 +6141,17 @@ export class MobManager {
       collarMesh: collar,
       tailMesh: tail,
       legs: [fl, fr, bl, br],
-      health: 20,
-      maxHealth: 20,
+      // Wiki: a wild wolf has 8 HP. The 20 previously here is neither the wild value nor
+      // the tamed value, and taming did not change it.
+      health: WOLF_WILD_HEALTH,
+      maxHealth: WOLF_WILD_HEALTH,
+      isBaby: !!options.isBaby,
+      isTamed: false,
+      width: wolfDims.width,
+      height: wolfDims.height,
+      collarColor: requestedCollar,
+      // Wiki: wolf armor is dropped when the wolf dies.
+      wolfArmor: options.wolfArmor ?? null,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -4003,13 +6295,21 @@ export class MobManager {
       name: 'Slime',
       mesh: group,
       slimeSize: size,
-      health: size * 4,
-      maxHealth: size * 4,
+      // Wiki: maximum health is the size squared, and the hitbox side is size * 0.52.
+      // This previously used `size * 4`, which was wrong for every size but large.
+      health: cubeHealth(size),
+      maxHealth: cubeHealth(size),
+      width: cubeSide(size),
+      height: cubeSide(size),
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      // Wiki: a cube hops every 0.5-1.5s, and turns every 2-5s while it has no target.
+      hopTimer: 0,
+      cubeTurnTimer: 0,
+      cubeAttackCooldown: 0
     };
     this.mobs.push(mob);
     return mob;
@@ -4421,11 +6721,10 @@ export class MobManager {
     const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeL.position.set(-0.12, 0.08, 0.65); group.add(eyeL);
     const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeR.position.set(0.12, 0.08, 0.65); group.add(eyeR);
 
-    // Broad wings
-    const wingGeo = new THREE.BoxGeometry(1.6, 0.06, 0.5);
-    const wings = new THREE.Mesh(wingGeo, phantomMat);
-    wings.position.set(0, 0.05, 0);
-    group.add(wings);
+    // Broad wings, split into two pivots. The shared `moveFlyingMob` helper writes
+    // `mob.wings.left.rotation.z`, so a single undivided wing mesh freezes the mob -- the trap the
+    // bat fell into.
+    const wings = createPhantomWings(phantomMat, group);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -4436,8 +6735,35 @@ export class MobManager {
       name: 'Phantom',
       mesh: group,
       isFlying: true,
-      health: 20,
-      maxHealth: 20,
+      // Wiki: 20 HP, and a phantom always has 20 regardless of its size.
+      health: PHANTOM_HEALTH,
+      maxHealth: PHANTOM_HEALTH,
+      width: PHANTOM_DIMENSIONS.width,
+      height: PHANTOM_DIMENSIONS.height,
+      wings,
+      eyeMeshes: [eyeL, eyeR],
+      // Wiki entity tags: undead, burn_in_daylight, fall_damage_immune, can_breathe_under_water,
+      // ignores_poison_and_regen, inverted_healing_and_harm, sensitive_to_smite.
+      isUndead: true,
+      burnsInDaylight: true,
+      fallDamageImmune: true,
+      canBreatheUnderwater: true,
+      poisonImmune: true,
+      // Undead are healed by Instant Damage and hurt by Instant Health, which the shared status
+      // system reads.
+      invertedHealing: true,
+      // Wiki: a phantom "tries to stay at least 16 blocks away" from cats.
+      fearsCats: true,
+      // Sunlight burning, and the swoop state.
+      isBurning: false,
+      burnTimer: 0,
+      inSunlight: false,
+      swoopState: null,
+      swoopTimer: 0,
+      anchorPos: null,
+      circlePhase: 0,
+      pitch: 0,
+      target: null,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -5165,7 +7491,7 @@ export class MobManager {
   }
 
   // --- ENDERMAN (TOURNAMENT CHALLENGER BOSS) ---
-  spawnEnderman(x, y, z) {
+  spawnEnderman(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({
       map: this.textures.enderman,
@@ -5221,7 +7547,8 @@ export class MobManager {
 
     const mob = {
       type: 'enderman',
-      name: 'World Martial Arts Challenger: The Enderman',
+      // This is a wild enderman; the tournament alias belongs to the arena, not the species.
+      name: 'Enderman',
       mesh: group,
       head: head,
       leftArm: leftArm,
@@ -5230,18 +7557,25 @@ export class MobManager {
       rightLeg: rightLeg,
       mat: mat,
       eyeMat: eyeMat,
-      width: 0.5,
-      height: 2.85,
-      health: 60,
-      maxHealth: 60,
-      isBoss: true,
+      // Wiki: 0.6 wide, 2.9 tall.
+      width: 0.6,
+      height: 2.9,
+      // Wiki: 40 HP. The 60 previously here matches no release.
+      health: 40,
+      maxHealth: 40,
+      // Wiki: neutral, not a boss. Marking it a boss halved its knockback through the
+      // generic `isBoss` factor, which is a boss-only rule it never had.
+      isBoss: false,
       velocity: new THREE.Vector3(),
       yaw: 0,
       state: 'combat',
       timer: 0,
       teleportCooldown: 4.5,
       attackCooldown: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      // Wiki: the block it is carrying drops on death. Not yet implemented; the slot
+      // exists so the drop path and telemetry can report it.
+      carriedBlock: options.carriedBlock ?? null
     };
     this.mobs.push(mob);
     return mob;
@@ -5305,10 +7639,406 @@ export class MobManager {
     }
   }
 
+  /**
+   * Happy ghast.
+   *
+   * Wiki: 20 HP, 4.0 x 4.0 (a ghastling 0.95), speed 0.05, passive. It is a FLYING MOUNT: "Up to four
+   * players can ride a happy ghast", it is bound to a home it roams around, and it can airlift leashed
+   * entities. It spawns when a dried ghast is rehydrated in water, as a ghastling.
+   */
+  spawnHappyGhast(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const colors = HAPPY_GHAST_COLORS;
+    const skinMat = new THREE.MeshLambertMaterial({ color: colors.skin });
+    const tentacleMat = new THREE.MeshLambertMaterial({ color: colors.tentacle });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const mouthMat = new THREE.MeshLambertMaterial({ color: colors.mouth });
+    const { group: model, body, face, eyes, mouth, tentacles, harness, goggles } =
+      createHappyGhastModel(skinMat, tentacleMat, eyeMat, mouthMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const isBaby = !!options.isBaby;
+    const mob = {
+      type: 'happy_ghast',
+      name: isBaby ? 'Ghastling' : 'Happy Ghast',
+      isBaby,
+      // Wiki: the ghastling is 0.95 and the adult 4.0.
+      width: isBaby ? GHASTLING_DIMENSIONS.width : HAPPY_GHAST_DIMENSIONS.width,
+      height: isBaby ? GHASTLING_DIMENSIONS.height : HAPPY_GHAST_DIMENSIONS.height,
+      mesh: group,
+      body, face, eyes, mouth, tentacles, harness, goggles,
+      // Wiki: 20 HP, the same for both ages.
+      health: HAPPY_GHAST_HEALTH,
+      maxHealth: HAPPY_GHAST_HEALTH,
+      // Wiki: speed 0.05, and 3.6 m/s when ridden.
+      speed: HAPPY_GHAST_SPEED,
+      riddenSpeed: HAPPY_GHAST_RIDDEN_SPEED,
+      // Wiki: passive, and a flying mob.
+      isHostile: false,
+      isPassive: true,
+      isFlying: true,
+      flying: true,
+      // Wiki: it does not burn and is not undead.
+      undead: false,
+      burnsInDaylight: false,
+      fireImmune: false,
+      // Wiki: ghastlings, unlike adults, do NOT drown when submerged.
+      canBreatheUnderwater: isBaby,
+      // A flying mount, so it needs a hover altitude and no gravity.
+      homeAltitude: y,
+      // Wiki: the home is set where it spawns.
+      home: new THREE.Vector3(x, y, z),
+      // Wiki: only an adult can be harnessed and ridden.
+      hasHarness: isBaby ? false : !!options.hasHarness,
+      riders: [],
+      seats: {},
+      pilot: null,
+      cargo: [],
+      tempted: false,
+      // The ghastling growth clock.
+      growthRemaining: isBaby ? GHASTLING_GROWTH_SECONDS : 0,
+      snowballsFed: 0,
+      target: null,
+      bobPhase: Math.random() * Math.PI * 2,
+      velocity: new THREE.Vector3(),
+      yaw: 0,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Copper golem.
+   *
+   * Wiki: 12 HP, 0.49 x 0.98, speed 0.2, passive. It "takes items out of copper chests, and attempts to
+   * store them in nearby wooden chests and trapped chests", and if it is not waxed it oxidizes through four
+   * stages until it becomes a statue, dropping whatever it was holding.
+   */
+  spawnCopperGolem(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const stage = options.oxidationStage ?? 'unoxidized';
+    const color = copperGolemColor(stage);
+    const bodyMat = new THREE.MeshLambertMaterial({ color });
+    const trimMat = new THREE.MeshLambertMaterial({ color: 0xd98d63 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1d2b1a });
+    const { group: model, body, head, eyes, antenna, bulb, arms, legs, held } =
+      createCopperGolemModel(bodyMat, trimMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'copper_golem',
+      name: 'Copper Golem',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, antenna, bulb, arms, legs, held,
+      bodyMat, trimMat,
+      // Wiki: 12 HP.
+      health: COPPER_GOLEM_HEALTH,
+      maxHealth: COPPER_GOLEM_HEALTH,
+      width: COPPER_GOLEM_DIMENSIONS.width,
+      height: COPPER_GOLEM_DIMENSIONS.height,
+      // Wiki: speed 0.2.
+      speed: COPPER_GOLEM_SPEED,
+      // Wiki: passive.
+      isHostile: false,
+      isPassive: true,
+      // The oxidation ladder.
+      oxidationStage: stage,
+      oxidationTimer: 0,
+      waxed: !!options.waxed,
+      isStatue: false,
+      // The hauling job.
+      heldItem: null,
+      heldCount: 0,
+      hasPoppy: false,
+      // It is NOT undead, and it does not burn.
+      undead: false,
+      burnsInDaylight: false,
+      copperGolemPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Camel husk.
+   *
+   * Wiki: 32 HP, the camel box, speed 0.09. The camel's UNDEAD variant: passive alone but hostile as a
+   * jockey, ridden by an iron-spear husk with a parched passenger; it does not burn in sunlight, and it is
+   * passive again once separated from its riders.
+   */
+  spawnCamelHusk(x, y, z, options = {}) {
+    // The camel model is reused rather than duplicated: the wiki calls this a VARIANT and gives the same
+    // hitbox, so only the palette differs.
+    const group = new THREE.Group();
+    const colors = CAMEL_HUSK_COLORS;
+    const coatMat = new THREE.MeshLambertMaterial({ color: colors.coat });
+    const humpMat = new THREE.MeshLambertMaterial({ color: colors.hump });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: colors.hoof });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle } =
+      createCamelHuskModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat, createCamelModel);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'camel_husk',
+      name: 'Camel Husk',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddleMesh: saddle,
+      // Wiki: 32 HP.
+      health: CAMEL_HUSK_HEALTH,
+      maxHealth: CAMEL_HUSK_HEALTH,
+      width: CAMEL_HUSK_DIMENSIONS.width,
+      height: CAMEL_HUSK_DIMENSIONS.height,
+      // Wiki: speed 0.09.
+      speed: CAMEL_HUSK_SPEED,
+      // Wiki: undead, and it does not burn in sunlight.
+      undead: CAMEL_HUSK_UNDEAD_TRAITS.undead,
+      poisonImmune: CAMEL_HUSK_UNDEAD_TRAITS.poisonImmune,
+      invertedHealing: CAMEL_HUSK_UNDEAD_TRAITS.invertedHealing,
+      canBreatheUnderwater: CAMEL_HUSK_UNDEAD_TRAITS.canBreatheUnderwater,
+      sensitiveToSmite: CAMEL_HUSK_UNDEAD_TRAITS.sensitiveToSmite,
+      burnsInDaylight: camelHuskBurnsInDaylight(),
+      // Wiki: passive alone, hostile as a jockey. The flag tracks the riders.
+      isHostile: false,
+      riders: [],
+      riderCount: 0,
+      isJockey: false,
+      // It shares the camel's step and fall traits, since the wiki gives it the camel body.
+      stepHeight: CAMEL_STEP_HEIGHT,
+      fallDamageReduction: CAMEL_FALL.safeBlocks,
+      fallDamageMultiplier: CAMEL_FALL.damagePerBlock,
+      // The sit cycle, shared with the camel.
+      isSitting: false,
+      sitTimer: 0,
+      standTimer: rollCamelStandDelay(options.random || Math.random),
+      hasSaddle: !!options.hasSaddle,
+      tame: !!options.tame,
+      camelHuskPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    this.mobs.push(mob);
+    // Wiki: it arrives as a jockey, ridden by a husk with a parched passenger. Opt-out so a test or a bare
+    // spawn does not have to build three mobs.
+    if (options.withJockey) mountCamelHuskJockey(this, mob);
+    return mob;
+  }
+
+  /**
+   * Giant.
+   *
+   * Wiki: 100 HP, 3.6 x 12 -- a six-times-enlarged zombie model -- dealing 26/50/75 by difficulty, and
+   * spawnable only by command. It is NOT undead, so it does not burn in sunlight and is neither harmed by
+   * Smite nor healed by Harming. Most importantly it "currently ha[s] no AI": it always faces south, never
+   * wanders, cannot turn its head, chase, or respond to damage.
+   */
+  spawnGiant(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const colors = GIANT_COLORS;
+    const skinMat = new THREE.MeshLambertMaterial({ color: colors.skin });
+    const shirtMat = new THREE.MeshLambertMaterial({ color: colors.shirt });
+    const trousersMat = new THREE.MeshLambertMaterial({ color: colors.trousers });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, head, eyes, arms, legs } =
+      createGiantModel(skinMat, shirtMat, trousersMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    // Wiki: "they always face south when summoned, and they always stay that way".
+    group.rotation.y = GIANT_FACING_YAW;
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'giant',
+      name: 'Giant',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, arms, legs,
+      // Wiki: 100 HP.
+      health: GIANT_HEALTH,
+      maxHealth: GIANT_HEALTH,
+      width: GIANT_DIMENSIONS.width,
+      height: GIANT_DIMENSIONS.height,
+      // Wiki: the giant has no speed listed and no AI to use one with.
+      speed: 0,
+      isHostile: true,
+      attackDamage: GIANT_DAMAGE.normal,
+      // Wiki: "Giants are not undead mobs." Every one of these follows from that sentence.
+      undead: GIANT_UNDEAD_PROPERTIES.undead,
+      burnsInDaylight: GIANT_UNDEAD_PROPERTIES.burnsInDaylight,
+      immuneToSmite: GIANT_UNDEAD_PROPERTIES.harmedBySmite === false,
+      // Wiki: no AI at all.
+      hasAI: GIANT_HAS_AI,
+      immobile: true,
+      giantPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: GIANT_FACING_YAW,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Pufferfish.
+   *
+   * Wiki: 3 HP, neutral, speed 0.7. It never seeks a fight and instead inflates through two stages as a
+   * player, an axolotl or a NON-AQUATIC mob approaches, dealing contact damage TOGETHER WITH Poison that
+   * scales with how puffed it is. Its hitbox grows from 0.35 to 0.7 with the puff.
+   */
+  spawnPufferfish(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const colors = FISH_COLORS.pufferfish;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const spineMat = new THREE.MeshLambertMaterial({ color: colors.spine });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, belly, eyes, tail, spines } =
+      createPufferfishModel(bodyMat, bellyMat, spineMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'pufferfish',
+      name: 'Pufferfish',
+      mesh: group,
+      body, belly, eyes, tail, spines,
+      health: PUFFERFISH_HEALTH,
+      maxHealth: PUFFERFISH_HEALTH,
+      width: PUFFERFISH_DIMENSIONS.unpuffed.width,
+      height: PUFFERFISH_DIMENSIONS.unpuffed.height,
+      speed: FISH_SPEED,
+      // Wiki: neutral, not hostile. It never seeks a fight.
+      isHostile: false,
+      isNeutral: true,
+      // `updateAquaticMob` keys off `isAquatic`, not `aquatic`, and it needs the swim state below.
+      isAquatic: true,
+      aquatic: true,
+      inWater: true,
+      // The shared aquatic handler reads these; without them `swimCycle` becomes NaN and the fish never
+      // chooses a swim target, so it spawns and then never moves.
+      swimCycle: Math.random() * 10,
+      targetPos: null,
+      pitch: 0,
+      // `updateAquaticMob`'s out-of-water branch does `flopTimer -= dt`, and on `undefined` that is NaN --
+      // and `NaN <= 0` is always false, so the flop impulse never fired and the fish never moved at all.
+      flopTimer: 0,
+      // The puff state.
+      puffStage: 'unpuffed',
+      puffProgress: 0,
+      puffed: false,
+      threat: null,
+      puffDamageCooldown: 0,
+      fishPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Tropical fish.
+   *
+   * Wiki: 3 HP, passive, speed 0.7, 0.5 x 0.4, with 3,072 naturally occurring variants in Java drawn
+   * from two body shapes, a pattern, and three colours from a palette of 16.
+   */
+  spawnTropicalFish(x, y, z, options = {}) {
+    const variant = options.variant ?? rollTropicalFishVariant(options.random || Math.random);
+    const group = new THREE.Group();
+    const colors = FISH_COLORS.tropical_fish;
+    // The variant colours drive the materials, which is the only visual difference between the 3,072.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: options.baseHex ?? colors.body });
+    const finMat = new THREE.MeshLambertMaterial({ color: options.finHex ?? colors.fin });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, tail, fins, dorsal, eyes } =
+      createTropicalFishModel(bodyMat, finMat, eyeMat);
+    if (variant.shape === 'large') {
+      // The large shapes are taller, which the wiki contrasts with the small ones.
+      model.scale.set(1, 1.25, 1);
+    }
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'tropical_fish',
+      name: 'Tropical Fish',
+      mesh: group,
+      body, tail, fins, dorsal, eyes,
+      variant,
+      variantName: tropicalFishVariantName(variant),
+      health: TROPICAL_FISH_HEALTH,
+      maxHealth: TROPICAL_FISH_HEALTH,
+      width: TROPICAL_FISH_DIMENSIONS.width,
+      height: TROPICAL_FISH_DIMENSIONS.height,
+      speed: FISH_SPEED,
+      // Wiki: passive.
+      isHostile: false,
+      isAquatic: true,
+      aquatic: true,
+      inWater: true,
+      // The same swim state the pufferfish needs, for the same reason.
+      swimCycle: Math.random() * 10,
+      targetPos: null,
+      pitch: 0,
+      // `updateAquaticMob`'s out-of-water branch does `flopTimer -= dt`, and on `undefined` that is NaN --
+      // and `NaN <= 0` is always false, so the flop impulse never fired and the fish never moved at all.
+      flopTimer: 0,
+      fishPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
   // --- AQUATIC: SALMON ---
-  spawnSalmon(x, y, z) {
+  spawnSalmon(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.salmon });
+
+    // Wiki: salmon spawn in three sizes at 31.6% / 52.6% / 15.8%, with distinct hitboxes.
+    const size = SALMON_SIZES[options.size] ? options.size : rollSalmonSize();
+    const scale = SALMON_SIZES[size].scale;
 
     // Main Torso
     const bodyGeo = new THREE.BoxGeometry(0.18, 0.28, 0.48);
@@ -5357,6 +8087,8 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    // The three sizes are one model at three scales, so every part stays proportional.
+    group.scale.setScalar(scale);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
@@ -5370,8 +8102,13 @@ export class MobManager {
       finL: finL,
       finR: finR,
       mat: mat,
-      health: 6,
-      maxHealth: 6,
+      // Wiki: 3 HP. This previously reported 6, which was an early-1.13-era value.
+      health: 3,
+      maxHealth: 3,
+      size,
+      // Pinned so a scenario can force a size and the hitbox lookup agrees.
+      width: SALMON_SIZES[size].width,
+      height: SALMON_SIZES[size].height,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       pitch: 0,
@@ -5386,7 +8123,7 @@ export class MobManager {
   }
 
   // --- AQUATIC: DOLPHIN ---
-  spawnDolphin(x, y, z) {
+  spawnDolphin(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.dolphin });
 
@@ -5445,9 +8182,12 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    // Wiki: babies are 0.65 of the adult model.
+    group.scale.setScalar(options.isBaby ? DOLPHIN_BABY_SCALE : 1);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
+    const dims = options.isBaby ? DOLPHIN_DIMENSIONS.baby : DOLPHIN_DIMENSIONS.adult;
     const mob = {
       type: 'dolphin',
       name: 'Dolphin',
@@ -5459,8 +8199,17 @@ export class MobManager {
       flipperL: flipperL,
       flipperR: flipperR,
       mat: mat,
-      health: 20,
-      maxHealth: 20,
+      // Wiki: 10 HP. The 20 previously here matches no release.
+      health: DOLPHIN_HEALTH,
+      maxHealth: DOLPHIN_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki `Moistness`: 2400 ticks of air before a dry dolphin starts suffocating.
+      moistness: DOLPHIN_MOISTNESS_TICKS,
+      suffocationTimer: 0,
+      // Wiki: a dolphin that has been fed a fish leads the player to a shipwreck or ruins.
+      gotFish: false,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       pitch: 0,
@@ -5629,7 +8378,7 @@ export class MobManager {
   isTrainingSiteMob(mob) {
     if (!mob || !mob.mesh) return false;
     if (this.game && !this.game.tournament?.isTournamentMap) return false;
-    const hostileTypes = ['zombie', 'skeleton', 'pillager', 'creeper', 'enderman'];
+    const hostileTypes = ['zombie', 'husk', 'skeleton', 'stray', 'bogged', 'parched', 'pillager', 'creeper', 'enderman'];
     if (!hostileTypes.includes(mob.type)) return false;
 
     if (this.game?.dungeonMode?.isActive) return true;
@@ -5768,7 +8517,18 @@ export class MobManager {
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
     if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
-    if (attacker === this.game?.player || (!isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if (attacker === this.game?.player || (mob.type !== 'blaze' && !isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
+    if (mob.type === 'blaze') {
+      if (attacker === this.game?.player || (attacker?.type === 'wolf' && attacker.isTamed)) {
+        mob.playerDamaged = true;
+      }
+      if (attacker === this.game?.player) {
+        const enchantments = attacker.inventory?.getActiveItem?.()?.enchantments;
+        const level = Array.isArray(enchantments) ? enchantments.find(e => e.id === 'looting')?.level : enchantments?.looting;
+        mob.blazeLooting = Math.max(0, Math.min(3, level || 0));
+      }
+      if (attacker) alertBlazes(this, mob, attacker);
+    }
     if(mob.type==='strider'){
       this.sounds?.playStrider?.(mob.health<=amount?'death':'retreat');mob.soundTimer=3;
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
@@ -5776,6 +8536,12 @@ export class MobManager {
     }
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
+    // Wiki: a rolled armadillo "takes a reduced amount of damage given by (original damage-1)/2", and
+    // self-destruct damage is exempt. Applied before the subtraction so the hurt flash and cooldown
+    // still fire for an attack that lands for zero.
+    if (isArmadillo(mob) && isRolledUp(mob)) {
+      amount = armadilloDamageReduction(amount, { rolled: true });
+    }
     mob.health -= amount;
     if(isPackEquine(mob))hurtPackEquine(this,mob,attacker);
     if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
@@ -5830,6 +8596,64 @@ export class MobManager {
     } else if (mob.type === 'piglin') {
       if ((!attacker && knockbackOrigin) || (attacker && attacker === this.game?.player)) angerPiglins(this, mob.mesh.position);
       else if (attacker) { mob.combatTarget = attacker; mob.retaliationTimer = 30; mob.isBartering = false; }
+    } else if (mob.type === 'spider' || mob.type === 'cave_spider') {
+      // Wiki: both variants pursue whatever attacked them regardless of the light level,
+      // even if they had returned to neutral in bright light.
+      angerSpider(mob, attacker);
+    } else if (mob.type === 'silverfish') {
+      // Wiki: hitting one calls other silverfish in a 21x11x21 area to help.
+      angerSilverfish(mob, attacker);
+      alertSilverfish(this, mob, attacker);
+    } else if (mob.type === 'goat') {
+      // A goat never retaliates; the wiki is explicit that it cannot be provoked.
+      return;
+    } else if (mob.type === 'armadillo') {
+      // Wiki: an armadillo hides in its shell when it is hurt, and remembers the attacker as a threat.
+      onArmadilloHurt(mob, attacker ?? (knockbackOrigin ? this.game?.player : null));
+    } else if (mob.type === 'panda') {
+      // Wiki: when a panda is attacked, aggressive pandas nearby turn hostile unless it was killed
+      // in one hit. A non-aggressive panda retaliates only once, which the branch enforces.
+      if (!mob.isBaby) {
+        mob.isHostile = true;
+        mob.angryAt = attacker ?? null;
+      }
+      alertAggressivePandas(this, mob, attacker, { lethal: mob.health <= 0 });
+    } else if (mob.type === 'polar_bear') {
+      // Wiki: a surviving cub makes every adult in a 41x21x41 area hostile; an adult near a cub
+      // provokes the adults around it.
+      onPolarBearHurt(this, mob, attacker, {
+        lethal: mob.health <= 0,
+        difficulty: this.game?.difficulty ?? 'normal'
+      });
+    } else if (mob.type === 'phantom') {
+      // Wiki: hurt mid-swoop makes it retreat to its anchor instead of pressing the attack.
+      onPhantomHurt(mob);
+    } else if (mob.type === 'parrot') {
+      // Wiki: taking damage is one of the states that forces a parrot off a shoulder.
+      if (mob.perchedOn) { dismountShoulder(mob, this.game?.player); mob.velocity.set(0, 1.5, 0); }
+    } else if (isLlamaLike(mob)) {
+      // Wiki: a llama retaliates when attacked by a player or another mob, and is hostile toward
+      // wolves without provocation.
+      mob.recentAttacker = attacker || null;
+      mob.spitCooldown = 0;
+    } else if (isKillerBunny(mob)) {
+      // Wiki: the killer bunny retreats briefly when struck, then returns to lunging.
+      onKillerBunnyHurt(mob);
+    } else if (mob.type === 'bee') {
+      // Wiki: "All bees nearby are angered when an individual bee is attacked, unless the bee
+      // attacked is killed in one hit."
+      angerBees(this, mob, attacker, { lethal: mob.health <= 0 });
+    }
+
+    if (mob.health <= 0 && mob.type === 'fox' && !mob.totemChecked) {
+      // Wiki: "If a fox is killed while holding a totem of undying, then the fox consumes the
+      // totem and revives itself instead of dropping the totem."
+      mob.totemChecked = true;
+      if (consumeFoxTotem(mob)) {
+        mob.health = Math.max(1, Math.ceil(mob.maxHealth * 0.5));
+        mob.dying = false;
+        this.attachFoxHeldItem(mob);
+      }
     }
 
     if (mob.health <= 0 && mob.laserLine && this.scene) {
@@ -5969,6 +8793,191 @@ export class MobManager {
     return true;
   }
 
+  /**
+   * Death loot for a mob, as `[itemId, isBlock, minCount, maxCount]` rows.
+   *
+   * Split out of updateDeath so the table can be asserted directly instead of being
+   * inferred from dropped-item entities. That matters because `updateDeath` adds rows
+   * from several specialized handlers (pack equines, squids, wither skeletons,
+   * zombified piglins) *and* suppresses the whole table via `mob.noLoot`, so a
+   * dropped-item count alone cannot tell a missing row from a suppressed one.
+   *
+   * Rows may also be conditional on mob state, which is how the two sheep-only rules
+   * from the wiki are expressed: a sheared sheep drops no wool, and a burned sheep
+   * drops cooked mutton.
+   *
+   * `random` is injectable so the flat independent chances (salmon bone meal) can be
+   * asserted deterministically instead of sampled.
+   */
+  getMobDeathDrops(mob, random = Math.random) {
+    const burned = mob.isOnFire || mob.fireTicks > 0;
+    const sheepWool = BLOCKS[`${(mob.woolColor || 'white').toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL;
+    const base = {
+      pig: [[burned ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
+      cow: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
+      // Wiki: mooshrooms drop the same beef and leather as cows, not mushrooms.
+      mooshroom: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
+      // A sheared sheep has no wool to drop. Mutton is unaffected by shearing.
+      sheep: [...(mob.isSheared ? [] : [[sheepWool, true, 1, 1]]), [burned ? 'cooked_mutton' : 'mutton', false, 1, 2]],
+      chicken: [[burned ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
+      horse: [['leather', false, 0, 2]],
+      mule: [['leather', false, 0, 2]],
+      donkey: [['leather', false, 1, 2]],
+      salmon: [[burned ? 'cooked_salmon' : 'salmon', false, 1, 1]],
+      cod: [[burned ? 'cooked_cod' : 'cod', false, 1, 1]],
+      // Wiki: 0-1 ender pearl.
+      enderman: [['ender_pearl', false, 0, 1]],
+      // Wiki: 0-1 raw cod (cooked cod if burning), not salmon.
+      dolphin: [[burned ? 'cooked_cod' : 'cod', false, 0, 1]],
+      octopus: [['ink_sac', false, 1, 3]],
+      squid: [['ink_sac', false, 1, 3]],
+      glow_squid: [['glow_ink_sac', false, 1, 3]],
+      skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],      // Wiki: a stray and a bogged drop bones and arrows like a skeleton, plus their tipped arrow.
+      stray: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
+      bogged: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
+      // Wiki: a parched drops bones and arrows like a skeleton, plus its Arrow of Weakness.
+      parched: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
+      creeper: [['gunpowder', false, 1, 2]],
+      zombie: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 1, 1, 0.008333333333333333], ['carrot', false, 1, 1, 0.008333333333333333], ['potato', false, 1, 1, 0.008333333333333333]],
+      // Wiki: a husk drops rotten flesh like a zombie.
+      husk: [['rotten_flesh', false, 0, 2], ['iron_ingot', false, 1, 1, 0.008333333333333333], ['carrot', false, 1, 1, 0.008333333333333333], ['potato', false, 1, 1, 0.008333333333333333]],
+      zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1], ['carrot', false, 1, 1, 0.008333333333333333], ['potato', false, 1, 1, 0.008333333333333333]],
+      iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
+      pillager: [['arrow', false, 1, 2]],
+      vindicator: [['emerald', false, 0, 1]],
+      evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
+      blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1 + (mob.blazeLooting || 0)]] : [],
+      ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
+      piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
+      zoglin: [['rotten_flesh', false, 1, 3]],
+      zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+      zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
+      hoglin: [[burned ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
+      strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
+      // Wiki: only small slimes drop slimeballs. 0-2, and none when killed by a frog.
+      // Slimes previously had no loot row at all, so they dropped nothing.
+      slime: mob.playerDamaged && mob.slimeSize === 1 ? [['slime_ball', false, 0, 2]] : [],
+      magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
+      wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
+      witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
+      guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
+      elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
+      drowned: [['rotten_flesh', false, 1, 2], ['copper_ingot', false, 1, 1, 0.11]],
+      warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
+      wither: [['nether_star', false, 1, 1]],
+
+      // Seven mobs that dropped nothing at all.
+      //
+      // Found by scripts/mob-drop-live.mjs, which spawns every vanilla loot-bearing mob and compares the
+      // roll against vanilla's data. Each of these had neither a row here nor a per-mob helper, and each
+      // drops something in vanilla. The counts are vanilla's own ranges rather than the simplified [1,1]
+      // that minecraft-data publishes, because the rows around them follow the real ranges.
+      //
+      // The three near-misses that script also reports are deliberately NOT fixed here, because they are
+      // not missing drops: the stray drops a named tipped-arrow variant, the turtle drops the seagrass
+      // vanilla gives it, and the elder guardian's listed trim template is structure loot rather than a
+      // mob drop.
+      cat: [['string', false, 0, 2]],
+      pufferfish: [['pufferfish', false, 1, 1]],
+      ravager: [['saddle', false, 1, 1]],
+      skeleton_horse: [['bone', false, 0, 2]],
+      snow_golem: [['snowball', false, 0, 15]],
+      tropical_fish: [['tropical_fish', false, 1, 1]],
+      // Wiki: 2-3 rotten flesh, not 0-2. Its page gives a tighter floor than the zombie's own row.
+      zombie_horse: [['rotten_flesh', false, 2, 3]]
+    }[mob.type] || [];
+    // Wiki: salmon have a flat 5% chance of bone meal, independent of the raw salmon drop.
+    // Wiki: an enderman always drops the block it was carrying, in addition to its loot.
+    const carried = mob.type === 'enderman' && mob.carriedBlock
+      ? [[mob.carriedBlock, true, 1, 1]]
+      : [];
+    // Wiki: spiders drop string, plus a spider eye only with player kill credit.
+    const foxRows = mob.type === 'fox' && !mob.isBaby ? foxDrops(mob) : [];
+    // Wiki: a bee that died of its own sting was not killed, so it awards nothing.
+    const beeRows = mob.type === 'bee' && !mob.diedOfSting ? beeDrops(mob) : [];
+    // Wiki: a goat drops no items on death; its horns only come off against a hard block.
+    const goatRows = isGoat(mob) ? goatDrops(mob) : [];
+    // Wiki: a llama drops 0-2 leather, anything it is wearing, and everything it was carrying.
+    const llamaRows = isLlamaLike(mob)
+      ? [...(mob.playerDamaged || mob.wolfKilled ? [['leather', false, 0, 2]] : []),
+         ...(mob.carpetColor ? [[mob.carpetColor, false, 1, 1]] : []),
+         ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
+      : [];
+    const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
+    // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
+    const frogRows = isFrog(mob) ? frogDrops(mob) : [];
+    // Wiki: a tadpole drops nothing at all, and awards no experience.
+    const tadpoleRows = isTadpole(mob) ? tadpoleDrops(mob) : [];
+    // Wiki: a parrot drops 1-2 feathers.
+    const parrotRows = isParrot(mob) ? parrotDrops(mob) : [];
+    // Wiki: a phantom drops 0-1 phantom membrane, with Looting adding 0-1 more, and a flat 5 XP.
+    // The drop is produced by phantomDrops rather than a row here: the row this replaced hardcoded
+    // 1-2, which is neither the wiki's base count nor its Looting behaviour.
+    const phantomRows = isPhantom(mob) && (mob.playerDamaged || mob.wolfKilled) ? phantomDrops(mob, random) : [];
+    // Wiki: Java picks one of cod or salmon on a 3/4 and 1/4 split, 0-2 of it, cooked if the bear
+    // died on fire. A cub drops nothing.
+    const polarRows = isPolarBear(mob) && (mob.playerDamaged || mob.wolfKilled) ? polarBearDrops(mob, random) : [];
+    // Wiki: Java pandas drop exactly one bamboo, and a baby drops nothing.
+    const pandaRows = isPanda(mob) ? pandaDrops(mob) : [];
+    // Wiki: an armadillo drops no items on death -- the scute comes from shedding and brushing.
+    const armadilloRows = isArmadillo(mob) ? armadilloDrops(mob) : [];
+    // Wiki: a stray can drop an Arrow of Slowness and a bogged an Arrow of Poison, with player credit.
+    const variantRows = variantBonusDrops(mob, random);
+    // Wiki: a breeze drops 1-2 breeze rods, with Looting adding more, and a flat 10 XP.
+    const breezeRows = isBreeze(mob) && (mob.playerDamaged || mob.wolfKilled) ? breezeDrops(mob, random) : [];
+    // Wiki: a sniffer drops no items at all -- the seeds come from digging and the egg from breeding.
+    const snifferRows = isSniffer(mob) ? snifferDrops(mob) : [];
+    // Wiki: an allay drops the item it is holding and nothing else, and no experience at all.
+    const allayRows = isAllay(mob) ? allayDrops(mob) : [];
+    // Wiki: a wandering trader drops nothing and no experience, except the consumable it was holding.
+    const traderRows = isWanderingTrader(mob) ? wanderingTraderDrops(mob, random) : [];
+    // Wiki: a camel drops its saddle if it had one, and a baby camel drops nothing.
+    const camelRows = isCamel(mob) ? camelDrops(mob) : [];
+    // Wiki: a creaking drops no items at all.
+    const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: the happy ghast's page has NO 'On death' section and its infobox lists only USABLE items, so it
+    // drops nothing. That is deliberate rather than an omission, and the base table has no row for it.
+    // Wiki: a copper golem drops 1-3 copper ingots. The row does not exist in the base table, so the manager
+    // has to be told about it.
+    const copperGolemRows = isCopperGolem(mob) ? copperGolemDrops(mob, random) : [];
+    // Wiki: a camel husk drops 2-3 rotten flesh. This row does NOT exist in the base table yet, so unlike
+    // the other mobs here the manager has to be told about it.
+    const camelHuskRows = isCamelHusk(mob) ? camelHuskDrops(mob, random) : [];
+    // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
+    const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
+    // Wiki: the giant's page gives no drop table and no experience value.
+    // It is routed through the base table like every other mob, so nothing is added here.
+    // Wiki: each fish drops its own item. That row ALREADY EXISTS in the base table below, so it is
+    // deliberately not recomputed here: adding a second roll produced each drop twice.
+    // Wiki: BOTH undead horses have their own rows in the base table below -- 0-2 bones for the skeleton
+    // horse and 2-3 rotten flesh for the zombie horse -- so they are deliberately NOT recomputed here.
+    // Wiki: an illusioner drops its bow on an 8.5% roll.
+    const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
+    // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
+    // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows];
+  }
+
+  /**
+   * The registry name of the block at a position, lower case, or null.
+   *
+   * Needed by the goat's horn rule, which the wiki defines against a list of block *names* rather
+   * than ids. The reverse lookup is built once on first use, because block ids are registry values
+   * and this is the only place that needs to go backwards.
+   */
+  blockNameAt(x, y, z) {
+    const id = this.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z));
+    if (id === undefined || id === null || id === 0) return null;
+    if (!BLOCK_NAMES_BY_ID.size) {
+      for (const [name, value] of Object.entries(BLOCKS)) {
+        // Several aliases can share an id; the first name wins, which is the canonical one.
+        if (typeof value === 'number' && !BLOCK_NAMES_BY_ID.has(value)) {
+          BLOCK_NAMES_BY_ID.set(value, name.toLowerCase());
+        }
+      }
+    }
+    return BLOCK_NAMES_BY_ID.get(id) ?? null;
+  }
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
@@ -6008,46 +9017,7 @@ export class MobManager {
         mob.noLoot = true;
         if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
       }
-      const loot = {
-        pig: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
-        cow: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
-        sheep: [[mob.woolColor ? (BLOCKS[`${mob.woolColor.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL) : BLOCKS.WHITE_WOOL, true, 1, 1], [(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_mutton' : 'mutton', false, 1, 2]],
-        chicken: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_chicken' : 'chicken', false, 1, 1], ['feather', false, 1, 2]],
-        horse: [['leather', false, 0, 2]],
-        mule: [['leather', false, 0, 2]],
-        donkey: [['leather', false, 1, 2]],
-        salmon: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_salmon' : 'salmon', false, 1, 1]],
-        cod: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_cod' : 'cod', false, 1, 1]],
-        dolphin: [['salmon', false, 0, 1]],
-        octopus: [['ink_sac', false, 1, 3]],
-        squid: [['ink_sac', false, 1, 3]],
-        glow_squid: [['glow_ink_sac', false, 1, 3]],
-        skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],
-        creeper: [['gunpowder', false, 1, 2]],
-        zombie: [['rotten_flesh', false, 1, 2]],
-        zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1]],
-        iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
-        pillager: [['arrow', false, 1, 2]],
-        vindicator: [['emerald', false, 0, 1]],
-        evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
-        blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1]] : [],
-        ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
-        piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
-        zoglin: [['rotten_flesh', false, 1, 3]],
-        zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
-        zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
-        hoglin: [[(mob.isOnFire || mob.fireTicks > 0) ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
-        strider: [['string', false, 2, 5 + (mob.lootingLevel || 0)]],
-        magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
-        wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
-        witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
-        guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
-        elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
-        drowned: [['rotten_flesh', false, 1, 2]],
-        phantom: [['phantom_membrane', false, 1, 2]],
-        warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
-        wither: [['nether_star', false, 1, 1]]
-      };
+      const loot = this.getMobDeathDrops(mob);
       if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
         this.game.player.applyStatusEffect('bad_omen', 100);
       }
@@ -6058,19 +9028,75 @@ export class MobManager {
         if (mob.admiredItem) this.entities?.spawnDroppedItem(pos, mob.admiredItem.id, !!mob.admiredItem.isBlock, 1, { enchantments: mob.admiredItem.enchantments });
       }
       if(mob.type==='strider'&&!mob.isBaby&&mob.isSaddled)this.entities?.spawnDroppedItem(pos,'saddle',false,1);
+      // Wiki: a wolf wearing wolf armor always drops it, regardless of what killed it.
+      if(mob.type==='wolf'&&mob.wolfArmor)this.entities?.spawnDroppedItem(pos,mob.wolfArmor,false,1);
       if (mob.type==='horse' && !mob.isBaby) {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }
       if (!mob.noLoot) {
-        for (const [id, isBlock, min, max] of loot[mob.type] || []) {
-          const count = min + Math.floor(Math.random() * (max - min + 1));
+        // A row is `[id, isBlock, min, max]`, or `[id, isBlock, min, max, chance]` for a drop that
+        // only sometimes happens. The optional fifth field is what let the rare equipment drops be
+        // added at all: an iron ingot from a zombie is about one in a hundred and twenty, and a range
+        // with no probability has no way to express that, so those drops were simply absent.
+        //
+        // Looting applies to these rows the way vanilla does, `chance + 0.01 * level` capped at 1,
+        // read from `mob.lootingLevel` which the kill path already sets from the killer's weapon.
+        for (const [id, isBlock, min, max, chance] of loot) {
+          if (chance !== undefined) {
+            const looting = Math.max(0, Math.floor(mob.lootingLevel || 0));
+            const effective = Math.min(1, chance + 0.01 * looting);
+            // `this.random` is the manager's injectable seam, used by the rest of the mob code.
+            // Calling `Math.random` here would make the rare drops impossible to exercise.
+            const roll = typeof this.random === 'function' ? this.random : Math.random;
+            if (roll() >= effective) continue;
+          }
+          const rollCount = typeof this.random === 'function' ? this.random : Math.random;
+          const count = min + Math.floor(rollCount() * (max - min + 1));
           if (count > 0) {
             this.entities?.spawnDroppedItem(pos, id, isBlock, count, { pickupDelay: 1.2 });
           }
         }
         if (this.entities?.spawnXpOrbs) {
-          const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
+          // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
+          // flat hostile value. Magma cubes keep their existing size-valued drop.
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? 0
+          : isCopperGolem(mob) ? 0
+          : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
+          : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
+          : isGiant(mob) ? 0
+          : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
+          : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
+          : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
+          : mob.type === 'snow_golem' ? 0
+          : mob.type === 'creaking' ? 0
+          : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
+          : mob.type === 'wandering_trader' ? 0
+          : mob.type === 'allay' ? 0
+          : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
+          : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
+          : mob.type === 'parched' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) + (mob.armor ? 1 + Math.floor(Math.random() * 3) : 0) : 0)
+          : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
+          : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
+          : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
+          : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
+          : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
+          : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
+          : mob.type === 'tadpole' ? 0
+          : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
+          : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
+          : mob.type === 'tadpole' ? 0
+          : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
+          : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
+          : isLlamaLike(mob) ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
+          : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : mob.type === 'bat' ? 0
+          : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
+          : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
+          : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
+          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6165,13 +9191,13 @@ export class MobManager {
           mob.headMat.needsUpdate = true;
         }
       }
+    } else if ((mob.type === 'spider' || mob.type === 'cave_spider') && mob.legs) {
+      // Eight legs in two alternating tripods, driven by the same swim cycle the other
+      // models use so it advances with movement rather than on a separate clock.
+      mob.spiderPhase = (mob.spiderPhase || 0) + dt * (Math.hypot(vx, vz) > 0.05 ? 6.5 : 1.2);
+      poseSpiderLegs(mob, mob.spiderPhase);
     } else if (mob.type === 'blaze' && mob.tiers) {
-      mob.flames.visible = !!mob.charging;
-      mob.flames.rotation.y += dt*2;
-      for (const puff of mob.smoke.children) { puff.position.y = (puff.position.y+dt*.6)%1.9; puff.material.opacity=.4*(1-puff.position.y/1.9); }
-      if (mob.tiers[0]) mob.tiers[0].rotation.y += dt * 2.0;
-      if (mob.tiers[1]) mob.tiers[1].rotation.y -= dt * 1.5;
-      if (mob.tiers[2]) mob.tiers[2].rotation.y += dt * 2.5;
+      animateBlaze(mob, dt);
     } else if (mob.type === 'magma_cube' && mob.layers) {
       const isJumping = (mob.velocity && Math.abs(mob.velocity.y) > 0.5);
       const expand = isJumping ? Math.min(1.0, Math.abs(mob.velocity.y) / 4.0) : 0;
@@ -6227,6 +9253,124 @@ export class MobManager {
     return summary;
   }
 
+  /**
+   * Deflect any projectile sitting on a breeze.
+   *
+   * Wiki: "Breezes automatically deflect all projectiles that hit them except wind charges. Unlike
+   * shields, deflected projectiles maintain the same velocity, and can potentially harm the attacker."
+   * So the speed is preserved and only the direction is reversed back toward the shooter.
+   *
+   * Returns the number deflected, which is what the tests assert on.
+   */
+  deflectBreezeProjectiles() {
+    const breezes = this.mobs.filter(isBreeze);
+    if (!breezes.length) return 0;
+    let deflected = 0;
+    for (const arrow of this.arrows ?? []) {
+      if (!arrow?.mesh || !arrow.velocity || arrow.deflectedByBreeze) continue;
+      for (const breeze of breezes) {
+        if (!shouldDeflect(arrow)) continue;
+        // A hit is the arrow's position inside the breeze's box, inflated slightly so a fast arrow
+        // cannot tunnel through in one frame.
+        const dx = Math.abs(arrow.mesh.position.x - breeze.mesh.position.x);
+        const dz = Math.abs(arrow.mesh.position.z - breeze.mesh.position.z);
+        const dy = Math.abs(arrow.mesh.position.y - (breeze.mesh.position.y + breeze.height * 0.5));
+        if (dx > breeze.width * 0.5 + 0.35) continue;
+        if (dz > breeze.width * 0.5 + 0.35) continue;
+        if (dy > breeze.height * 0.5 + 0.35) continue;
+        const reflected = deflectVelocity(arrow, breeze);
+        if (!reflected) continue;
+        arrow.velocity.copy(reflected);
+        arrow.deflectedByBreeze = true;
+        arrow.shooter = null; // A deflected arrow is nobody's any more, so it can hit its firer.
+        // The arrow's own trail follows its velocity, so the mesh is re-aimed to match.
+        if (arrow.mesh.quaternion?.setFromUnitVectors) {
+          arrow.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), arrow.velocity.clone().normalize());
+        }
+        deflected++;
+        break;
+      }
+    }
+    return deflected;
+  }
+
+  /**
+   * Advance the breeze wind charges and burst them on impact.
+   *
+   * Wiki: "When a breeze's wind charge attack directly hits an entity, the entity takes damage, and a
+   * burst of wind appears. If a wind charge hits a block, only a burst of wind appears. This wind burst
+   * deals knockback but does not deal any damage by itself."
+   */
+  updateWindCharges(dt) {
+    if (!this.windCharges?.length) return;
+    for (let i = this.windCharges.length - 1; i >= 0; i--) {
+      const charge = this.windCharges[i];
+      charge.age += dt;
+      charge.velocity.y -= 6 * dt;
+      charge.position.addScaledVector(charge.velocity, dt);
+      charge.mesh?.position.copy(charge.position);
+
+      let burst = charge.age > WIND_CHARGE_BURST.lifetime;
+      if (!burst) {
+        const block = this.world.getVoxel(
+          Math.floor(charge.position.x),
+          Math.floor(charge.position.y),
+          Math.floor(charge.position.z)
+        );
+        if (block && block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
+          burst = true;
+        } else {
+          // A direct hit on an entity: damage, then the burst.
+          const hit = this.findWindChargeHit(charge);
+          if (hit) {
+            charge.target = hit.target;
+            charge.hitBlock = false;
+            const damage = charge.damage ?? windChargeDamageFor(this.game?.difficulty ?? 'normal');
+            if (damage > 0 && typeof hit.target.takeDamage === 'function') {
+              hit.target.takeDamage(damage, charge.position.clone(), 'breeze');
+            } else if (damage > 0) {
+              this.damageMob(hit.target, damage, charge.position.clone(), false, charge.shooter);
+            }
+            burst = true;
+          }
+        }
+      }
+
+      if (burst) {
+        windChargeBurst(this, charge, { hitBlock: charge.hitBlock === true });
+        charge.mesh?.removeFromParent?.();
+        charge.mesh?.geometry?.dispose?.();
+        charge.mesh?.material?.dispose?.();
+        this.windCharges.splice(i, 1);
+      }
+    }
+  }
+
+  /** The first mob or player a wind charge is inside. */
+  findWindChargeHit(charge) {
+    const player = this.game?.player;
+    if (player?.position && player.health > 0) {
+      const dims = { width: 0.6, height: 1.8 };
+      if (Math.abs(charge.position.x - player.position.x) < dims.width * 0.5 + 0.3
+        && Math.abs(charge.position.z - player.position.z) < dims.width * 0.5 + 0.3
+        && charge.position.y > player.position.y - 0.3
+        && charge.position.y < player.position.y + dims.height + 0.3) {
+        return { target: player };
+      }
+    }
+    for (const mob of this.mobs) {
+      if (mob === charge.shooter || mob.health <= 0) continue;
+      const dims = this.getMobDimensions(mob.type);
+      if (Math.abs(charge.position.x - mob.mesh.position.x) < dims.width * 0.5 + 0.3
+        && Math.abs(charge.position.z - mob.mesh.position.z) < dims.width * 0.5 + 0.3
+        && charge.position.y > mob.mesh.position.y - 0.3
+        && charge.position.y < mob.mesh.position.y + dims.height + 0.3) {
+        return { target: mob };
+      }
+    }
+    return null;
+  }
+
   update(dt, player) {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
@@ -6237,6 +9381,12 @@ export class MobManager {
     updateDonkeySpawning(this,dt,player);
     updateMobWither(this,dt);
     updateArrows(this, dt, player);
+    // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own
+    // wind charges burst on impact. Both run here so they see the arrows after the arrow pass moved
+    // them, which is what makes the deflection happen on the frame of contact.
+    this.updateSnifferEggs(dt);
+    this.deflectBreezeProjectiles();
+    this.updateWindCharges(dt);
     updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
     this.hostileBehaviors?.update(dt, player);
@@ -6317,8 +9467,42 @@ export class MobManager {
         continue;
       }
 
-      if (mob.isAquatic) {
-        if (this.updateAquaticMob(mob, dt, player)) continue;
+      if (mob.isAquatic && !isTurtle(mob) && !isTadpole(mob)) {
+        // Turtles and tadpoles are aquatic but not fish. A turtle walks on land and swims; a tadpole
+        // flops on land, seeks water, and drowns out of it, then grows into a frog. Both own their
+        // locomotion in their own branch. This path ends in an unconditional `return true`, so it
+        // claims *any* aquatic mob that reaches it — which is why each had to be excluded
+        // explicitly, and why the symptom was a mob that silently did nothing.
+        // Wiki: the pufferfish is NEUTRAL and inflates at non-aquatic things; it needs its own step before the
+    // shared aquatic handler, which would otherwise treat it as an ordinary fish.
+    if (isPufferfish(mob)) {
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.puffDamageCooldown = Math.max(0, (mob.puffDamageCooldown || 0) - dt);
+      updatePufferfishPuff(this, mob, player);
+      const stage = pufferfishStage(mob);
+      // Wiki: contact deals damage AND Poison, and only while puffed.
+      if (stage !== 'unpuffed' && mob.threat && mob.puffDamageCooldown <= 0) {
+        const hit = pufferfishContact(mob, mob.threat, this.game?.difficulty ?? 'normal');
+        if (hit) {
+          const target = mob.threat;
+          if (target.type === 'player') {
+            target.takeDamage?.(hit.damage, mob.mesh.position, mob.type);
+            target.applyStatusEffect?.('poison', hit.poison);
+          } else {
+            this.damageMob?.(target, hit.damage, mob.mesh.position, false, mob);
+            target.applyStatusEffect?.('poison', hit.poison);
+          }
+          mob.puffDamageCooldown = 1;
+        }
+      }
+      posePufferfish(mob, (mob.fishPhase = (mob.fishPhase || 0) + dt));
+      if (this.updateAquaticMob(mob, dt, player)) continue;
+    }
+    if (isTropicalFish(mob)) {
+      poseTropicalFish(mob, (mob.fishPhase = (mob.fishPhase || 0) + dt));
+      if (this.updateAquaticMob(mob, dt, player)) continue;
+    }
+    if (this.updateAquaticMob(mob, dt, player)) continue;
       }
 
       // Distance to player
@@ -6347,6 +9531,12 @@ export class MobManager {
     // Apply mob-to-mob soft collision separation so mobs never squeeze/collapse into one position
     this.applyMobCollisions(dt);
     separatePlayerFromMobs(this, player, dt);
+    // Wiki: endermen attack endermites in line of sight within 64 blocks, and endermites
+    // fight back. This pairs them once per frame rather than per mob.
+    updateEndermanEndermiteAggression(this);
+    // Llama spit flies as its own projectile list, separate from the hostile-mob queue.
+    if (!this.llamaSpits) this.llamaSpits = [];
+    updateLlamaSpit(this, dt, player);
 
     for(const mob of this.mobs){if(!mob.jockeyMount)continue;const mount=mob.jockeyMount;if(mob.health<=0||mount.health<=0){mount.rider=null;mob.jockeyMount=null;continue;}mob.mesh.position.copy(mount.mesh.position).y+=mount.type==='chicken'?.55:1.4;mob.velocity.set(0,0,0);}
     // Apply the final mount pose after the mob and separation passes. Animal
@@ -6410,15 +9600,1840 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    // Wiki: undead burn in sunlight, and "the husk is one of the few undead mobs that are immune to
+    // burning in sunlight, which allows them to stay around during the day". Whether a mob burns is
+    // read from `burnsInDaylight`, which the husk sets false and the stray and bogged set true, so the
+    // exemption is data rather than a special case here. This is a standalone block near the top rather
+    // than a clause deep in the if/else chain below: the chain is entered by whichever branch matches
+    // first, and a behaviour that every undead mob shares should not depend on that ordering.
+    if (mob.isUndead || mob.burnsInDaylight !== undefined) {
+      const ux = Math.floor(mob.mesh.position.x);
+      const uy = Math.floor(mob.mesh.position.y);
+      const uz = Math.floor(mob.mesh.position.z);
+      const skyLight = this.world.getLightLevel?.(ux, uy, uz) ?? 15;
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      const exposed = mob.burnsInDaylight === true && isDaytime && skyLight > 11;
+      if (exposed && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
+      if (!exposed && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+      if (mob.isBurning && mob.type !== 'phantom') {
+        // The phantom owns its own burning branch, so this skips it rather than double-ticking.
+        mob.burnTimer -= dt;
+        if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+        else {
+          mob.burnTick = (mob.burnTick ?? 1) - dt;
+          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+        }
+      }
+    }
+    // Wiki: a husk that is fully submerged for 30 s begins converting to a zombie, which takes 15 s
+    // more and cannot be stopped. The replacement has full health.
+    if (mob.type === 'husk') {
+      const submerged = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x),
+        Math.floor(mob.mesh.position.y + (mob.height ?? 1.95) * 0.5),
+        Math.floor(mob.mesh.position.z)
+      ) === BLOCKS.WATER;
+      const phase = updateHuskDrowning(mob, dt, { submerged, manager: this });
+      if (phase === 'converted') return true;
+      if (phase === 'converting') mob.state = 'converting';
+    }
+
     if(isPackEquine(mob)&&mob.panicSeconds>0&&!mob.rider){
       const speed=(mob.movementSpeed??.175)*20;mob.yaw=mob.panicYaw;mob.wanderGoal=null;
       mob.velocity.x=Math.sin(mob.yaw)*speed;mob.velocity.z=Math.cos(mob.yaw)*speed;
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='slime'||mob.type==='magma_cube'){
+      // Wiki: cubes move by hopping every 0.5-1.5s, three times as often when they have a target,
+      // always jump one block high, do not pathfind, and damage whatever they land on. Neither had
+      // any locomotion before, so both stood in one place forever while the renderer read a
+      // vertical velocity that nothing ever set.
+      const hopTarget = updateCubeHop(this, mob, dt, player, {
+        findTarget: (mgr, cube, range) => {
+          // Wiki: the cube looks for a player within 16 blocks, or failing that an iron golem.
+          if (player?.position && cube.mesh.position.distanceTo(player.position) < range) return player;
+          let best = null;
+          let bestDist = range;
+          for (const other of mgr.mobs) {
+            if (other === cube || other.type !== 'iron_golem' || other.health <= 0) continue;
+            const d = cube.mesh.position.distanceTo(other.mesh.position);
+            if (d < bestDist) { bestDist = d; best = other; }
+          }
+          return best;
+        }
+      });
+
+      moveGroundMob(this, mob, dt);
+
+      // Contact damage on landing. Wiki: the damage equals the cube's size and the smallest deals
+      // none, and damage immunity limits it to one hit per half second.
+      if (mob.onGround && mob.cubeSquashPending) {
+        mob.cubeSquashPending = false;
+        if (mob.cubeTarget) cubeSquashOnLand(this, mob, mob.cubeTarget, dt);
+      }
+      mob.cubeAttackCooldown = Math.max(0, (mob.cubeAttackCooldown || 0) - dt);
+
+      // A cube squash: the model flattens on landing and stretches during the jump, which is what
+      // makes the hop read rather than slide.
+      const airborne = !mob.onGround;
+      const stretch = airborne ? 1 + Math.min(0.25, Math.abs(mob.velocity.y) * 0.04) : 0.88;
+      const base = mob.slimeSize / 4;
+      mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
+      mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    // Wiki: spiders and cave spiders flee from an armadillo within 6 blocks, but only while it is NOT
+    // rolled up. This runs before the armadillo's own branch so the spider's own update sees the flee.
+    if (ARMADILLO_SPIDER_TYPES.includes(mob.type)) {
+      for (const other of this.mobs) {
+        if (!repelsMob(other, mob.type)) continue;
+        if (other.mesh.position.distanceTo(mob.mesh.position) > ARMADILLO_SPIDER_FEAR_RANGE) continue;
+        const away = mob.mesh.position.clone().sub(other.mesh.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) away.normalize();
+        mob.yaw = Math.atan2(away.x, away.z);
+        mob.velocity.x = away.x * 3.2;
+        mob.velocity.z = away.z * 3.2;
+        mob.state = 'fleeing-armadillo';
+        moveGroundMob(this, mob, dt);
+        return true;
+      }
+    }
+    if(mob.type==='armadillo'){
+      // Wiki: passive. It rolls into a ball when hurt or threatened, takes (damage-1)/2 while rolled,
+      // repels spiders while NOT rolled, and sheds a scute every 5-10 minutes.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const ax = Math.floor(mob.mesh.position.x);
+      const ay = Math.floor(mob.mesh.position.y);
+      const az = Math.floor(mob.mesh.position.z);
+      const here = this.world.getVoxel(ax, ay, az);
+      const feet = this.world.getVoxel(ax, ay - 1, az);
+      updateArmadilloRoll(this, mob, dt, player, {
+        inWater: here === BLOCKS.WATER,
+        onFire: !!mob.isBurning,
+        inAir: !mob.onGround && mob.mesh.position.y > (feet === BLOCKS.AIR ? -1 : 0) + 0.2,
+        onLead: !!mob.leashHolder,
+        fleeing: mob.fleeing === true
+      });
+
+      // Wiki: a baby grows in 20 minutes, accelerated by spider eyes.
+      if (mob.isBaby && updateArmadilloGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step.
+      }
+
+      // Wiki: it sheds one scute every 5-10 minutes, like a chicken laying an egg.
+      if (updateArmadilloScutes(mob, dt)) {
+        this.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), 'armadillo_scute', false, 1);
+      }
+
+      // Wiki: a rolled armadillo does not walk, and is not tempted by food.
+      if (isRolledUp(mob)) {
+        mob.velocity.x *= 0.2;
+        mob.velocity.z *= 0.2;
+        mob.state = 'rolled';
+      } else {
+        // Wiki: they follow a player holding a spider eye within 10 blocks, and a baby follows adults.
+        const held = player?.inventory?.getActiveItem?.();
+        const heldId = typeof held?.id === 'string' ? held.id : '';
+        const parent = mob.isBaby ? this.mobs.find(o => o.type === 'armadillo' && !o.isBaby) : null;
+        if (armadilloFollows(mob, player, heldId, parent)) {
+          const target = mob.isBaby && parent ? parent.mesh.position : player.position;
+          const dir = target.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const dist = dir.length();
+          if (dist > 1.6) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 1.6;
+            mob.velocity.z = dir.z * 1.6;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else {
+          wanderMob(this, mob, dt, 0.8);
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.armadilloPhase = (mob.armadilloPhase || 0) + dt;
+      poseArmadillo(mob, mob.armadilloPhase);
+      return true;
+    }
+    if(mob.type==='panda'){
+      // Wiki: neutral, with seven personalities. Aggressive pandas hunt continuously; lazy ones
+      // are the slowest land mob; worried ones shake in thunderstorms; playful ones roll; weak
+      // ones have half health and sneeze far more; brown is only a colour.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.isThundering = this.game?.weather?.weatherType === 'thunder';
+      mob.stance = pandaStance(mob, {
+        difficulty: this.game?.difficulty ?? 'normal',
+        provoked: mob.isHostile
+      });
+
+      // Wiki: a baby sneezes, which makes adults nearby jump and can drop a slimeball.
+      updatePandaSneeze(this, mob, dt);
+
+      // Wiki: a lazy panda lies on its back much of the time, and a playful one rolls.
+      mob.pandaPhase = (mob.pandaPhase || 0) + dt;
+      if (mob.isLazy && mob.onGround) {
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 6 + Math.random() * 8;
+          mob.isLyingDown = !mob.isLyingDown;
+        }
+      } else {
+        mob.isLyingDown = false;
+      }
+      if (mob.isPlayful && mob.onGround) {
+        mob.rollTimer = (mob.rollTimer || 0) - dt;
+        if (mob.rollTimer <= 0) {
+          mob.rollTimer = 4 + Math.random() * 6;
+          mob.isRolling = true;
+          mob.rollEnd = mob.pandaPhase + 1.2;
+        }
+        if (mob.isRolling && mob.pandaPhase > mob.rollEnd) mob.isRolling = false;
+      }
+
+      // Wiki: only a hostile panda hunts, and an aggressive one keeps going until the target is
+      // dead or out of range. A non-aggressive panda attacks only once.
+      const target = mob.stance === 'hostile'
+        ? this.findPandaTarget(mob, player)
+        : null;
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        const dir = pos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1e-6) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: a lazy panda ambles at 0.07, the slowest land speed in the game.
+        const speed = mob.speed ?? (mob.isLazy ? PANDA_SPEED.lazy : PANDA_SPEED.normal);
+        mob.velocity.x = dir.x * speed * 8;
+        mob.velocity.z = dir.z * speed * 8;
+        if (dist < 1.9 && mob.hitCooldown <= 0) {
+          const damage = pandaDamageFor(mob, this.game?.difficulty ?? 'normal');
+          if (damage > 0) target.takeDamage?.(damage, mob.mesh.position, 'panda');
+          mob.hitCooldown = 1.0;
+          // Wiki: a non-aggressive panda attacks only once, so it calms after landing the blow.
+          if (!aggressivePandaKeepsHunting(mob)) { mob.isHostile = false; mob.angryAt = null; }
+        }
+        mob.state = 'hostile';
+      } else {
+        // Wiki: pandas follow a player carrying bamboo, within about 16 blocks.
+        const heldItem = player?.inventory?.getActiveItem?.();
+        const heldId = typeof heldItem?.id === 'string' ? heldItem.id : '';
+        if (pandaFollowsBamboo(mob, player, heldId)) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const dist = dir.length();
+          if (dist > 2) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 2.0;
+            mob.velocity.z = dir.z * 2.0;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else if (!mob.isLyingDown) {
+          wanderMob(this, mob, dt, 1.0);
+        } else {
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      posePanda(mob, mob.pandaPhase);
+      return true;
+    }
+    if(mob.type==='polar_bear'){
+      // Wiki: a cub is passive, an adult is neutral, and an adult turns hostile to protect any cub
+      // near it. Adults also attack foxes. Growth cannot be sped up, only stopped.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.stance = polarBearStance(mob, {
+        difficulty: this.game?.difficulty ?? 'normal',
+        provoked: mob.isHostile,
+        cubThreatened: false
+      });
+
+      // Wiki: a cub matures after 20 minutes and its growth cannot be accelerated.
+      if (mob.isBaby && updatePolarBearGrowth(mob, dt)) {
+        const dims = polarBearDimensions(mob);
+        mob.mesh.position.y += dims.height - POLAR_BEAR_BABY_DIMENSIONS.height;
+      }
+
+      // The rearing maul, once begun, has to land before anything else happens.
+      if (mob.isMauling) {
+        const target = mob.maulTarget ?? null;
+        updatePolarBearMaul(this, mob, target, dt);
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        moveGroundMob(this, mob, dt);
+        posePolarBear(mob, mob.polarPhase || 0);
+        return true;
+      }
+
+      // Wiki: only a hostile bear hunts.
+      const target = findPolarBearTarget(this, mob, player, { difficulty: this.game?.difficulty ?? 'normal' });
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        const dir = pos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1e-6) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: its swim speed equals the player's, which is what makes water no escape.
+        const inWater = this.world.getVoxel(Math.floor(mob.mesh.position.x), Math.floor(mob.mesh.position.y), Math.floor(mob.mesh.position.z)) === BLOCKS.WATER;
+        const speed = inWater ? POLAR_BEAR_SPEED.water : POLAR_BEAR_SPEED.land;
+        mob.velocity.x = dir.x * speed;
+        mob.velocity.z = dir.z * speed;
+        // Wiki: it attacks by rearing on its back legs and mauling down.
+        if (dist < 2.2 && mob.hitCooldown <= 0) {
+          startPolarBearMaul(mob);
+          mob.maulTarget = target;
+          mob.hitCooldown = 1.2;
+        }
+        mob.state = 'hostile';
+      } else {
+        wanderMob(this, mob, dt, 1.2);
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      posePolarBear(mob, mob.polarPhase || 0);
+      mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isHappyGhast(mob)){
+      // Wiki: a passive FLYING mob that is ridden by up to four players and roams around a home it is
+      // bound to. It never uses the ground mover.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: a ghastling grows up in 20 minutes, sped up by snowballs.
+      if (updateGhastlingGrowth(mob, dt) === 'grown') {
+        mob.name = 'Happy Ghast';
+        // Wiki: an adult is 4.0 and a ghastling 0.95, so the hover altitude has to be raised or the newly
+        // grown body would spawn inside the ground.
+        mob.mesh.position.y = Math.max(mob.mesh.position.y, mob.home.y + 2);
+        mob.homeAltitude = mob.mesh.position.y;
+      }
+
+      // Wiki: "Players can stand on top of a happy ghast ... While players are standing on it, the happy ghast
+      // becomes stationary". So the standers are counted by geometry: anything close above it is on top.
+      const top = mob.mesh.position.y + mob.height;
+      const standers = this.mobs.filter(other => other !== mob && other.health > 0 &&
+        Math.abs(other.mesh.position.y - top) < 1.5 &&
+        Math.abs(other.mesh.position.x - mob.mesh.position.x) < mob.width * 0.6 &&
+        Math.abs(other.mesh.position.z - mob.mesh.position.z) < mob.width * 0.6).length
+        + (this.game?.player && Math.abs(this.game.player.position.y - top) < 1.5 &&
+          Math.abs(this.game.player.position.x - mob.mesh.position.x) < mob.width * 0.6 &&
+          Math.abs(this.game.player.position.z - mob.mesh.position.z) < mob.width * 0.6 ? 1 : 0);
+      const stationary = happyGhastIsStationary(mob, { standers });
+      if (stationary) {
+        // Wiki: "While players are standing on it, the happy ghast becomes stationary and aligns to one of the
+        // cardinal directions", and south after a chunk reload.
+        mob.velocity.set(0, 0, 0);
+        mob.yaw = happyGhastStationaryFacing();
+        mob.mesh.rotation.y = mob.yaw;
+        mob.state = 'stood-on';
+      } else if ((mob.riders?.length ?? 0) > 0) {
+        // Wiki: "A ridden happy ghast moves at about 3.6 m/s", flown by the pilot, with no gravity.
+        const pilot = mob.pilot ?? mob.riders[0];
+        const dir = new THREE.Vector3(0, 0, 1).applyEuler(pilot.mesh?.rotation ?? pilot.rotation ?? new THREE.Euler());
+        if (pilot.keys?.forward) mob.velocity.set(dir.x * HAPPY_GHAST_RIDDEN_SPEED, dir.y * HAPPY_GHAST_RIDDEN_SPEED, dir.z * HAPPY_GHAST_RIDDEN_SPEED);
+        else mob.velocity.set(0, 0, 0);
+        // Wiki: jump moves it straight up, and there is no dedicated downward control.
+        if (pilot.keys?.jump || pilot.keys?.space) mob.velocity.y = HAPPY_GHAST_RIDDEN_SPEED;
+        else if (!pilot.keys?.forward) mob.velocity.y = 0;
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.mesh.rotation.y = mob.yaw;
+        mob.state = 'ridden';
+      } else {
+        // Unridden: a ghastling follows a nearby target, and an adult hovers around its home.
+        if (isGhastling(mob)) {
+          const candidates = [this.game?.player, ...this.mobs].filter(Boolean);
+          const target = findGhastlingTarget(mob, candidates);
+          mob.target = target;
+          if (target && !ghastlingShouldStop(mob, target)) {
+            const pos = target.position ?? target.mesh?.position;
+            const dir = pos.clone().sub(mob.mesh.position);
+            const length = dir.length() || 1;
+            const speed = HAPPY_GHAST_SPEED * 20 * GHASTLING_FOLLOW_SPEED_BOOST;
+            mob.velocity.copy(dir.multiplyScalar(speed / length));
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.mesh.rotation.y = mob.yaw;
+            mob.state = 'following';
+          } else {
+            mob.velocity.set(0, 0, 0);
+            mob.state = 'idle';
+          }
+        } else {
+          // Wiki: "Unharnessed happy ghasts roam within a 64-block radius of their home". It picks a point
+          // inside that radius and drifts to it, which is what keeps an idle one from hanging motionless.
+          if (!mob.wanderTarget || mob.mesh.position.distanceTo(mob.wanderTarget) < 1) {
+            mob.wanderTarget = happyGhastWanderTarget(mob, this.random ?? Math.random);
+          }
+          steerHappyGhast(mob, mob.wanderTarget, dt, HAPPY_GHAST_SPEED * 20);
+          mob.mesh.rotation.y = mob.yaw;
+          mob.state = 'roaming';
+        }
+        // Wiki: it roams within a radius of its home, and holds its altitude.
+        const wanted = mob.mesh.position.clone().add(mob.velocity);
+        const clamped = clampToHome(mob, wanted);
+        if (clamped && wanted.distanceTo(clamped) > 1e-6) {
+          mob.velocity.copy(clamped.sub(mob.mesh.position));
+        }
+        // A hover bob, so an idle one breathes rather than hanging perfectly still. It is added to the vertical
+        // velocity rather than REPLACING it, which would cancel the roamer's climb whenever it drifted below its
+        // altitude.
+        mob.bobPhase = (mob.bobPhase || 0) + dt;
+        mob.velocity.y += Math.sin(mob.bobPhase * 1.1) * 0.25;
+      }
+
+      // It is not undead, so it never burns.
+      mob.isBurning = false;
+      mob.mesh.position.addScaledVector(mob.velocity, dt);
+      // Keep it above the ground, since it has no gravity model of its own.
+      const groundY = (this.world.surfaceHeightAt?.(mob.mesh.position.x, mob.mesh.position.z) ?? 1) + 2;
+      if (mob.mesh.position.y < groundY) mob.mesh.position.y = groundY;
+      if (mob.onGround === undefined) mob.onGround = false;
+      poseHappyGhast(mob, mob.bobPhase || 0);
+      return true;
+    }
+    if(isCopperGolem(mob)){
+      // Wiki: a passive mob whose job is hauling items, and which oxidizes into a statue over time.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: "If not waxed, a copper golem oxidizes over time and eventually turns into a copper golem
+      // statue, dropping its currently held items."
+      const oxidized = updateCopperGolemOxidation(mob, dt);
+      if (oxidized) {
+        // The palette follows the stage, so the change is visible as well as mechanical.
+        const color = copperGolemColor(mob.oxidationStage);
+        if (mob.bodyMat) mob.bodyMat.color.setHex(color);
+        if (mob.droppedOnOxidizing) {
+          this.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), mob.droppedOnOxidizing.id, false, mob.droppedOnOxidizing.count);
+          mob.droppedOnOxidizing = null;
+        }
+        if (oxidized === 'statue') {
+          mob.state = 'statue';
+          mob.velocity.set(0, 0, 0);
+          poseCopperGolem(mob, mob.copperGolemPhase || 0);
+          return true;
+        }
+      }
+
+      if (mob.isStatue) {
+        mob.velocity.set(0, 0, 0);
+        return true;
+      }
+
+      // The hauling job: take from a copper chest, carry one type, put it in a wooden chest that is empty
+      // or already holds that type.
+      if (!mob.heldItem) {
+        const source = findCopperGolemSource(this, mob);
+        if (source) {
+          const pos = source.position ?? source.mesh?.position;
+          if (pos && mob.mesh.position.distanceTo(pos) < 1.5) {
+            copperGolemTake(mob, source);
+            mob.state = 'taking';
+          } else if (pos) {
+            steerGround(this, mob, pos, dt, 2);
+            mob.state = 'hauling-to-source';
+          }
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+        }
+      } else {
+        const destination = findCopperGolemDestination(this, mob, mob.heldItem);
+        if (destination) {
+          const pos = destination.position ?? destination.mesh?.position;
+          if (pos && mob.mesh.position.distanceTo(pos) < 1.5) {
+            copperGolemPlace(mob, destination);
+            mob.state = 'storing';
+          } else if (pos) {
+            steerGround(this, mob, pos, dt, 2);
+            mob.state = 'hauling-to-chest';
+          }
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+        }
+      }
+
+      // It is not undead, so it never burns.
+      mob.isBurning = false;
+      if (mob.held && mob.held.visible !== !!mob.heldItem) mob.held.visible = !!mob.heldItem;
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.copperGolemPhase = (mob.copperGolemPhase || 0) + dt;
+      poseCopperGolem(mob, mob.copperGolemPhase);
+      return true;
+    }
+    if(isCamelHusk(mob)){
+      // Wiki: passive alone, hostile as a jockey; it does not burn in sunlight; and it shares the camel's
+      // sit cycle, including the headroom guard.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      const hx = Math.floor(mob.mesh.position.x);
+      const hy = Math.floor(mob.mesh.position.y);
+      const hz = Math.floor(mob.mesh.position.z);
+      let clearance = 0;
+      for (let dy = 0; dy < 4; dy++) {
+        const id = this.world.getVoxel(hx, hy + dy, hz);
+        if (id === undefined || id === null || id === BLOCKS.AIR) clearance += 1; else break;
+      }
+      const sit = updateCamelHuskSitting(mob, dt, {
+        clearance,
+        random: this.random ?? Math.random,
+        fleeing: mob.fleeing === true
+      });
+      if (sit === 'stood') mob.state = 'standing';
+      else if (sit === 'sat') mob.state = 'sitting';
+      else if (sit === 'blocked') mob.state = 'sitting-blocked';
+
+      // Wiki: hostile only because its RIDERS control the pathfinding.
+      mob.isHostile = camelHuskIsHostile(mob);
+      if (mob.isSitting) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = mob.isHostile ? 'ridden' : mob.state;
+      }
+      // Wiki: "It does not burn in sunlight", stated on its own page.
+      mob.isBurning = false;
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.camelHuskPhase = (mob.camelHuskPhase || 0) + dt;
+      if (mob.saddleMesh) mob.saddleMesh.visible = mob.hasSaddle === true;
+      poseCamelHusk(mob, mob.camelHuskPhase, poseCamel);
+      return true;
+    }
+    if(isGiant(mob)){
+      // Wiki: "Giants currently have no AI. The consequence of this is that they always face south when
+      // summoned, and they always stay that way, never wandering. They cannot turn their head, chase the
+      // player, or respond to damage."
+      //
+      // So this branch deliberately does almost nothing: it holds the mob still and pins its facing. The
+      // absence IS the behaviour, and a test asserts it rather than treating it as unfinished.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.velocity.set(0, 0, 0);
+      mob.mesh.rotation.y = GIANT_FACING_YAW;
+      mob.yaw = GIANT_FACING_YAW;
+      // Wiki: it does not burn in sunlight, unlike the zombie it is modelled on.
+      mob.isBurning = false;
+      // Wiki: it suffocates underwater rather than converting to a drowned.
+      mob.giantPhase = (mob.giantPhase || 0) + dt;
+      poseGiant(mob, mob.giantPhase);
+      return true;
+    }
+    if(isUndeadHorse(mob)){
+      // Wiki: it is passive alone, hostile only as a jockey, becomes passive once separated, and the
+      // skeleton horse's trap springs into four skeleton horsemen.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: a skeleton trap horse transforms when approached, during a thunderstorm.
+      if (mob.isTrap) {
+        const distance = player?.position ? mob.mesh.position.distanceTo(player.position) : Infinity;
+        if (skeletonTrapReady(mob, {
+          weatherType: this.game?.weather?.weatherType ?? 'clear',
+          distanceToPlayer: distance
+        })) {
+          springSkeletonTrap(this, mob, this.random ?? Math.random);
+        }
+      }
+
+      // Wiki: a zombie horse "rarely spawns in dark areas as a hostile mob being ridden and controlled by a
+      // zombie horseman". That is a SPAWN-TIME property, so it is opt-in via the spawner rather than automatic
+      // on every update: doing it here meant a horse spawned by the generic dispatcher acquired a rider on its
+      // first frame, became 'ridden', and therefore never moved -- which the frozen-mob guard caught. The
+      // preference query is kept so the rule stays testable.
+      if (isZombieHorse(mob) && mob.wantsRider === true && !mob.rider && zombieHorseWantsRider(mob, {
+        lightLevel: this.world.getLightLevel?.(Math.floor(mob.mesh.position.x), Math.floor(mob.mesh.position.y), Math.floor(mob.mesh.position.z)) ?? 15,
+        night: (this.game?.worldTime ?? 6000) >= 13000
+      })) {
+        const zombie = this.spawnMob('zombie', mob.mesh.position.x, mob.mesh.position.y, mob.mesh.position.z);
+        if (zombie) { zombie.rider = mob; zombie.mount = mob; mob.rider = zombie; mob.riderCount = 1; }
+      }
+
+      // Wiki: a ridden one is steered by its rider, so the horse does not wander on its own.
+      if (mob.riderCount > 0) {
+        mob.velocity.x *= 0.85;
+        mob.velocity.z *= 0.85;
+        mob.state = 'ridden';
+      } else {
+        wanderMob(this, mob, dt, 0.4);
+        mob.state = mob.tame ? 'tame' : 'idle';
+      }
+
+      // Wiki: the zombie horse burns in sunlight; the skeleton horse explicitly does not.
+      if (mob.burnsInDaylight && this.game?.worldTime !== undefined) {
+        const time = ((this.game.worldTime % 24000) + 24000) % 24000;
+        const day = time < 12000;
+        if (day) { mob.isBurning = true; mob.health -= 1 * dt; }
+        else mob.isBurning = false;
+      } else {
+        mob.isBurning = false;
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.horsePhase = (mob.horsePhase || 0) + dt;
+      poseUndeadHorse(mob, mob.horsePhase);
+      return true;
+    }
+    if(mob.type==='illusioner'){
+      // Wiki: it fires an arrow a second (three times a skeleton), strafes at a fixed distance, can see
+      // through walls, and fights with two spells behind four mirror duplicates.
+      updateIllusionerCooldowns(this, mob, dt);
+
+      const found = findIllusionerTarget(this, mob, player);
+      if (found !== mob.target) switchIllusionerTarget(mob, found);
+
+      if (mob.target) {
+        // Wiki: while engaged it keeps Invisibility up, refreshing when it lapses.
+        if (!illusionerIsInvisible(mob) && (mob.invisibilityCooldown || 0) <= 0) {
+          castIllusionerInvisibility(this, mob);
+        }
+        // Wiki: Blindness only for a player opponent, only above regional difficulty 2, and not twice on
+        // the same opponent without looking away and back.
+        if (!mob.blindedTarget && (mob.spellCooldown || 0) <= 0) {
+          castIllusionerBlindness(mob, mob.target, {
+            regionalDifficulty: mob.regionalDifficulty ?? 3,
+            dt
+          });
+        }
+
+        mob.state = illusionerMovement(mob, mob.target, dt) ?? 'idle';
+
+        // Wiki: it shoots through walls, so no line-of-sight check here -- that is its distinguishing
+        // trait, and adding one would silently make it an ordinary skeleton.
+        const shot = illusionerShoot(mob, mob.target, this.game?.difficulty ?? 'normal', this.random ?? Math.random);
+        if (shot) {
+          // `spawnArrow(origin, direction, shooter, options)` is an INSTANCE method, so it takes no manager.
+          this.spawnArrow(
+            mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0)),
+            shot.direction,
+            mob,
+            { damage: shot.damage }
+          );
+          mob.state = 'shooting';
+        }
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = 'idle';
+      }
+
+      // Wiki: only the real illusioner can shoot and be damaged; the clones are purely visual.
+      updateIllusionerDuplicates(mob, dt, {
+        triggered: mob.duplicatesTriggered === true,
+        ownerPosition: mob.mesh.position,
+        ownerYaw: mob.mesh.rotation.y
+      });
+
+      moveGroundMob(this, mob, dt);
+      mob.illusionerPhase = (mob.illusionerPhase || 0) + dt;
+      poseIllusioner(mob, mob.illusionerPhase);
+      return true;
+    }
+    if(mob.type==='snow_golem'){
+      // Wiki: it wanders, throws a snowball a second at monsters to provoke them, leaves a snow trail,
+      // and dies in hot biomes unless it has Fire Resistance.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateSnowGolemThrow(mob, dt);
+
+      // Wiki: 1 damage per tick in contact with rain or water in a biome above temperature 1.0.
+      const gy = Math.floor(mob.mesh.position.y);
+      const inWater = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x), gy, Math.floor(mob.mesh.position.z)) === BLOCKS.WATER;
+      const raining = this.game?.weather?.weatherType === 'rain' || this.game?.weather?.weatherType === 'thunder';
+      const heat = updateSnowGolemHeat(mob, dt, { biome: mob.biome, inWater, raining });
+      if (heat > 0 && mob.health <= 0) {
+        // It died of heat, which is the wiki's whole point for hot biomes.
+        return true;
+      }
+
+      // Wiki: it throws at monsters within 10 blocks, up to 16 when tethered.
+      if (!mob.target || mob.target.health <= 0
+        || mob.mesh.position.distanceTo(mob.target.mesh.position) > SNOW_GOLEM_RANGE.roam * 1.5) {
+        mob.target = findSnowGolemTarget(this, mob);
+      }
+      const throwInfo = mob.target ? snowGolemThrow(mob, mob.target, { dt }) : null;
+      if (throwInfo) {
+        // Wiki: snowballs knock back and PROVOKE whatever they hit, and only damage blazes.
+        // The shared `updateSnowballs` walks `p.mesh.position`, disposes `p.mesh.geometry`, and uses
+        // `p.owner.position` as the damage origin, so all three have to be real. It is spawned just
+        // outside the golem's own hitbox, because the updater damages the first mob it overlaps and
+        // would otherwise have the golem shoot itself.
+        const shot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 6, 5),
+          new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow })
+        );
+        shot.castShadow = true;
+        const launch = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        launch.addScaledVector(throwInfo.direction, 0.45);
+        shot.position.copy(launch);
+        this.scene.add(shot);
+        this.snowballs.push({
+          mesh: shot,
+          position: launch,
+          velocity: throwInfo.direction.clone().multiplyScalar(12),
+          damage: throwInfo.damage,
+          provokes: true,
+          // `owner` is the field the shared updater credits the hit to.
+          owner: mob,
+          shooter: mob,
+          life: 3
+        });
+        mob.state = 'throwing';
+      } else if (mob.target) {
+        // Close the distance while reloading.
+        const dir = mob.target.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        if (dir.lengthSq() > 1e-6) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * SNOW_GOLEM_SPEED * 4;
+          mob.velocity.z = dir.z * SNOW_GOLEM_SPEED * 4;
+        }
+        mob.state = 'approaching';
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = 'idle';
+      }
+
+      // Wiki: it leaves a trail of snow as it moves, suppressed by mobGriefing. `snow_block` is not a
+      // registered block here, so the trail is reported rather than written; the guard is explicit so
+      // the mechanic is not silently missing.
+      const moved = mob.velocity.lengthSq() > 0.01;
+      if (moved && (this.game?.mobGriefing !== false) && mob.mesh.position.y > 1) {
+        const trail = snowGolemTrailAt(mob, {
+          mobGriefing: this.game?.mobGriefing !== false,
+          canPlace: false
+        });
+        if (trail) mob.trail = trail;
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.golemPhase = (mob.golemPhase || 0) + dt;
+      poseSnowGolem(mob, mob.golemPhase);
+      return true;
+    }
+    if(mob.type==='creaking'){
+      // Wiki: it attacks by melee headbutt, but "cannot move at all while any players in Survival or
+      // Adventure mode can see it". Its gaze logic is the whole mob, so it runs first and gates the rest.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      const watchers = this.getWatchers ? this.getWatchers() : (player ? [player] : []);
+      // There is no shared line-of-sight helper in this codebase, so the creaking samples voxels along the
+      // segment. Wiki: the "visual box block obstructs the view", so a solid block breaks the gaze.
+      const hasLineOfSight = (m, p) => {
+        const from = p?.position ?? p;
+        const to = m?.mesh?.position ?? m?.position;
+        if (!from || !to) return false;
+        const toEye = to.clone();
+        toEye.y += (m.height ?? 2.7) * 0.5;
+        const delta = toEye.clone().sub(from);
+        const distance = delta.length();
+        if (distance < 1e-3) return true;
+        const steps = Math.ceil(distance * 2);
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps;
+          const x = Math.floor(from.x + delta.x * t);
+          const y = Math.floor(from.y + delta.y * t);
+          const z = Math.floor(from.z + delta.z * t);
+          const id = this.world?.getVoxel?.(x, y, z);
+          if (id === undefined || id === null || id === BLOCKS.AIR) continue;
+          // Wiki: glass, ice and the like do not break the view, and neither do blocks with no collision.
+          if (CREAKING_VIEW_TRANSPARENT.has(id)) continue;
+          return false;
+        }
+        return true;
+      };
+
+      updateCreakingAlert(mob, watchers, { hasLineOfSight });
+      const observer = creakingFrozenBy(mob, watchers, { hasLineOfSight });
+      mob.frozen = !!observer;
+      mob.frozenBy = observer;
+
+      // Wiki: while dying from its heart being destroyed it twitches, then dies.
+      if (mob.dying) {
+        mob.twitchTimer -= dt;
+        mob.velocity.set(0, 0, 0);
+        if (mob.twitchTimer <= 0) { mob.health = 0; }
+        poseCreaking(mob, (mob.creakPhase = (mob.creakPhase || 0) + dt));
+        return true;
+      }
+
+      // Wiki: naturally-spawned creakings despawn by day, out of heart range, or after 5 s sharing a
+      // block with a player.
+      let sameBlock = false;
+      for (const w of watchers) {
+        if (!w?.position) continue;
+        if (Math.floor(w.position.x) === Math.floor(mob.mesh.position.x)
+          && Math.floor(w.position.y) === Math.floor(mob.mesh.position.y)
+          && Math.floor(w.position.z) === Math.floor(mob.mesh.position.z)) { sameBlock = true; break; }
+      }
+      if (updateCreakingDespawn(mob, dt, {
+        worldTime: this.game?.worldTime ?? 6000,
+        inSameBlockAsPlayer: sameBlock
+      }) === 'despawned') {
+        mob.health = 0;
+        return true;
+      }
+      if (updateCreakingHeartLink(mob) === 'out-of-range') {
+        // Wiki: pushed out of the 32-block radius, it dies.
+        mob.health = 0;
+        return true;
+      }
+
+      if (mob.frozen) {
+        // Wiki: immobile, cannot attack, and cannot be pushed or knocked back.
+        mob.velocity.set(0, 0, 0);
+        mob.state = 'frozen';
+      } else {
+        const attack = creakingAttack(mob, watchers, { hasLineOfSight });
+        if (attack && mob.hitCooldown <= 0) {
+          player.takeDamage(attack.damage, mob.mesh.position, 'Creaking');
+          mob.hitCooldown = 1;
+          mob.state = 'attacking';
+        } else if (mob.alerted && mob.target?.position) {
+          // Wiki: alerted it "moves quickly, faster than an attacking vindicator". It only moves while
+          // unobserved, which the frozen check above already guarantees.
+          const dir = mob.target.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            // Wiki: it never intentionally moves beyond 32 blocks from its heart.
+            const step = mob.mesh.position.clone().add(dir.multiplyScalar(1));
+            const clamped = creakingClampToHeart(mob, step);
+            const toward = clamped.clone().sub(mob.mesh.position);
+            toward.y = 0;
+            if (toward.lengthSq() > 1e-6) {
+              toward.normalize();
+              mob.velocity.x = toward.x * CREAKING_SPEED * 6;
+              mob.velocity.z = toward.z * CREAKING_SPEED * 6;
+            }
+          }
+          mob.state = 'pursuing';
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+          mob.state = 'idle';
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.creakPhase = (mob.creakPhase || 0) + dt;
+      poseCreaking(mob, mob.creakPhase);
+      return true;
+    }
+    if(mob.type==='camel'){
+      // Wiki: it wanders, sits for 2-7 seconds at a time, stands if there is headroom, flees when harmed
+      // even while sitting, and follows a cactus-holding player within 10 blocks.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateCamelDash(mob, dt);
+
+      // The headroom above is what decides whether it may stand: the wiki refuses when there are solid
+      // blocks overhead, because standing would suffocate it.
+      const cx = Math.floor(mob.mesh.position.x);
+      const cy = Math.floor(mob.mesh.position.y);
+      const cz = Math.floor(mob.mesh.position.z);
+      let clearance = 0;
+      for (let dy = 0; dy < 4; dy++) {
+        const id = this.world.getVoxel(cx, cy + dy, cz);
+        if (id === undefined || id === null || id === BLOCKS.AIR) clearance += 1;
+        else break;
+      }
+
+      const held = player?.inventory?.getActiveItem?.();
+      const heldId = typeof held?.id === 'string' ? held.id : '';
+      const tempted = isCamelBreedingFood(heldId);
+
+      // Wiki: a baby camel grows in 20 minutes and cannot be ridden or equipped.
+      if (mob.isBaby && updateCamelGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step.
+      }
+
+      const sit = updateCamelSitting(mob, dt, {
+        clearance,
+        random: this.random ?? Math.random,
+        alerted: mob.fleeing === true,
+        fleeing: mob.fleeing === true,
+        tempted
+      });
+      if (sit === 'stood') mob.state = 'standing';
+      else if (sit === 'sat') mob.state = 'sitting';
+      else if (sit === 'blocked') mob.state = 'sitting-blocked';
+
+      // Wiki: a sitting camel does not move, and cannot be pushed by players or mobs.
+      if (mob.isSitting) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else if (tempted && player?.position) {
+        // Wiki: a cactus-tempted camel follows within 10 blocks.
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const distance = dir.length();
+        if (distance > 2) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * 2.2;
+          mob.velocity.z = dir.z * 2.2;
+        } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        mob.state = 'following';
+      } else {
+        wanderMob(this, mob, dt, 0.9);
+        mob.state = 'idle';
+      }
+
+      // Wiki: it heals slowly on its own, at 1/900 per tick.
+      updateCamelRegen(mob, dt, this.random ?? Math.random);
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.camelPhase = (mob.camelPhase || 0) + dt;
+      if (mob.saddleMesh) mob.saddleMesh.visible = mob.hasSaddle === true;
+      poseCamel(mob, mob.camelPhase);
+      return true;
+    }
+    if(mob.type==='wandering_trader'){
+      // Wiki: it wanders within 16 blocks of where it appeared, drinks Invisibility at dusk and milk at
+      // dawn, avoids zombies and illagers, and despawns after 40 minutes.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      // Roll the offers once, which the wiki defers until the trading UI is first opened.
+      if (!mob.tradesRolled) {
+        mob.offers = rollTrades(ITEMS, BLOCKS, this.random ?? Math.random);
+        mob.tradesRolled = true;
+      }
+
+      // Wiki: the despawn timer does not run while the trading UI is open.
+      if (updateTraderDespawn(mob, dt, { tradingOpen: this.game?.tradingOpen === true }) === 'despawned') {
+        // Wiki: a wandering trader that despawns leaves nothing behind.
+        this.removeMob?.(mob);
+        mob.health = 0;
+        return true;
+      }
+
+      // Wiki: Invisibility from dusk through the night, milk at dawn.
+      const drink = updateTraderInvisibility(mob, dt, this.game?.worldTime ?? 6000);
+      if (drink) {
+        mob.drinking = true;
+        mob.drinkingItem = drink === 'drank_potion' ? 'potion_of_invisibility' : 'milk_bucket';
+        mob.drinkTimer = 1.2;
+      }
+      if (mob.drinking) {
+        mob.drinkTimer -= dt;
+        if (mob.drinkTimer <= 0) { mob.drinking = false; mob.drinkingItem = null; }
+      }
+      // The invisible state is a visibility toggle, not a status effect, because the wiki describes it
+      // as the trader drinking a potion rather than being affected by one.
+      if (mob.mesh) mob.mesh.visible = !mob.isInvisible || mob.drinking;
+
+      // Wiki: it flees hazards, staying at least 8 blocks away.
+      const hazard = findTraderHazard(this, mob);
+      if (hazard) {
+        const away = mob.mesh.position.clone().sub(hazard.mesh.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) away.normalize();
+        mob.yaw = Math.atan2(away.x, away.z);
+        mob.velocity.x = away.x * 2.4;
+        mob.velocity.z = away.z * 2.4;
+        mob.state = 'fleeing';
+      } else {
+        // Wiki: it prefers to wander within 16 blocks of its spawn point rather than following a player.
+        wanderMob(this, mob, dt, 0.7);
+        const fromHome = Math.hypot(mob.mesh.position.x - (mob.homeX ?? mob.mesh.position.x), mob.mesh.position.z - (mob.homeZ ?? mob.mesh.position.z));
+        if (fromHome > WANDERING_TRADER_WANDER_RANGE) {
+          const home = new THREE.Vector3(mob.homeX ?? mob.mesh.position.x, mob.mesh.position.y, mob.homeZ ?? mob.mesh.position.z);
+          const back = home.sub(mob.mesh.position);
+          back.y = 0;
+          if (back.lengthSq() > 1e-6) back.normalize();
+          mob.yaw = Math.atan2(back.x, back.z);
+          mob.velocity.x = back.x * 1.6;
+          mob.velocity.z = back.z * 1.6;
+        }
+        mob.state = 'wandering';
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.traderPhase = (mob.traderPhase || 0) + dt;
+      poseWanderingTrader(mob, mob.traderPhase);
+      return true;
+    }
+    if(mob.type==='allay'){
+      // Wiki: it flies aimlessly until given an item, then follows that player and fetches dropped
+      // copies of it. It also dances by a playing jukebox, focuses on a note block it hears, and
+      // regenerates 2 HP a second.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateAllayRegen(mob, dt);
+      mob.allayPhase = (mob.allayPhase || 0) + dt;
+
+      // Wiki: it cannot enter water, so a water tile is treated as a wall.
+      const ax = Math.floor(mob.mesh.position.x);
+      const ay = Math.floor(mob.mesh.position.y);
+      const az = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(ax, ay, az) === BLOCKS.WATER;
+
+      const outcome = updateAllayJob(this, mob, dt, player, {
+        mobGriefing: this.game?.mobGriefing !== false,
+        // `random` is not in scope in this branch; the manager's own source is what the neighbouring
+        // branches use, and the helper defaults to Math.random.
+        random: this.random ?? Math.random
+      });
+
+      // Wiki: it cannot enter water, so a planned move into water is cancelled.
+      if (inWater) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        mob.mesh.position.y += 1.5 * dt;
+      }
+
+      moveFlyingMob(this, mob, dt);
+      // The dance uses the resting height as its baseline, so it bobs instead of drifting upward.
+      if (outcome !== 'dancing') mob.baseY = mob.mesh.position.y;
+      poseAllay(mob, mob.allayPhase);
+      mob.state = outcome ?? 'idle';
+      return true;
+    }
+    if(mob.type==='sniffer'){
+      // Wiki: passive. It wanders, scents the ground and digs up a torchflower seed or a pitcher pod,
+      // but only under a long list of conditions -- which `updateSnifferDig` owns.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const sx = Math.floor(mob.mesh.position.x);
+      const sy = Math.floor(mob.mesh.position.y);
+      const sz = Math.floor(mob.mesh.position.z);
+      // sy is the floor of the mob's y, so its FEET are one below that. Using sy - 1 for the ground
+      // was an off-by-one that made the sniffer treat the block under the floor as its footing.
+      const feetY = sy - 1;
+      const feetId = this.world.getVoxel(sx, feetY, sz);
+      // The block under the snout, 2.25 blocks ahead.
+      const headPos = snifferHeadPosition(mob);
+      const headGroundId = this.world.getVoxel(
+        Math.floor(headPos.x), feetY, Math.floor(headPos.z)
+      );
+      const held = player?.inventory?.getActiveItem?.();
+      const heldId = typeof held?.id === 'string' ? held.id : '';
+
+      // Wiki: a snifflet takes 2400 s and cannot dig.
+      if (mob.isBaby && updateSniffletGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step, and the initial dig lag is set there.
+      }
+
+      // Groundedness is tested against the world rather than read from `mob.onGround`. Wiki: "A sniffer
+      // can only dig if it is on the ground", and the shared mover only sets `onGround` through the
+      // collision path, which a headless arena does not exercise -- so relying on it meant a sniffer
+      // standing on grass refused to dig forever. The block under its feet is the durable answer.
+      const solidBelow = (x, y, z) => {
+        const id = this.world.getVoxel(x, y, z);
+        if (id === undefined || id === null) return false;
+        return id !== BLOCKS.AIR && id !== BLOCKS.WATER && id !== BLOCKS.LAVA;
+      };
+      const standingOnSolid = solidBelow(sx, feetY, sz);
+      // The sniffer is heavy and wide, and the shared mover settles a mob on the floor only through the
+      // collision path, which a headless arena does not exercise. Pinning it to the surface directly is
+      // what keeps a 1.9-wide mob on the ground instead of sinking through it; a mob that fell forever
+      // could never satisfy "a sniffer can only dig if it is on the ground".
+      if (standingOnSolid && mob.mesh.position.y < feetY + 1) {
+        mob.mesh.position.y = feetY + 1;
+        mob.velocity.y = 0;
+        mob.onGround = true;
+      }
+      const digOutcome = updateSnifferDig(this, mob, dt, {
+        onGround: standingOnSolid,
+        leashed: !!mob.leashHolder,
+        inWater: this.world.getVoxel(sx, sy, sz) === BLOCKS.WATER,
+        tempted: isSnifferBreedingFood(heldId),
+        panicking: mob.fleeing === true,
+        inVehicle: !!mob.vehicle,
+        headBlockId: headGroundId,
+        groundBlockId: feetId
+      });
+
+      if (digOutcome === 'searching') {
+        // `updateSnifferDig` set the velocity toward the spot; the mover below applies it.
+        mob.state = 'searching';
+      } else if (digOutcome === 'splooting') {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        mob.state = 'splooting';
+      } else if (digOutcome === 'dug') {
+        mob.state = 'idle';
+      } else {
+        // Wiki: a sniffer is tempted by torchflower seeds like other breedable animals, and otherwise
+        // wanders aimlessly.
+        if (isSnifferBreedingFood(heldId) && player?.position) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const distance = dir.length();
+          if (distance > 2) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 1.2;
+            mob.velocity.z = dir.z * 1.2;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else {
+          wanderMob(this, mob, dt, 0.5);
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      // `poseSniffer` needs to know the ground height, because the sploot drops the whole model.
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.snifferPhase = (mob.snifferPhase || 0) + dt;
+      poseSniffer(mob, mob.snifferPhase);
+      return true;
+    }
+    if(mob.type==='breeze'){
+      // Wiki: it leaps around between firing wind charges at its target, and does not retaliate
+      // against the trial-spawner mobs.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.inLava = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x),
+        Math.floor(mob.mesh.position.y),
+        Math.floor(mob.mesh.position.z)
+      ) === BLOCKS.LAVA;
+
+      const target = findBreezeTarget(this, mob, player, {
+        difficulty: this.game?.difficulty ?? 'normal'
+      });
+
+      // Wiki: it shoots a wind charge at a target within 16 blocks on a 1.6 s cooldown.
+      const charge = fireWindCharge(this, mob, dt, target);
+      if (charge) {
+        if (!this.windCharges) this.windCharges = [];
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.28, 6, 6),
+          new THREE.MeshBasicMaterial({ color: BREEZE_COLORS.wind, transparent: true, opacity: 0.8 })
+        );
+        mesh.position.copy(charge.position);
+        this.scene.add(mesh);
+        charge.mesh = mesh;
+        this.windCharges.push(charge);
+      }
+
+      // The leap, which is this mob's locomotion. Wiki: it can leap up to 15 blocks horizontally
+      // and 5 vertically, compressing first and sliding on landing.
+      updateBreezeLeap(this, mob, dt, target);
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        if (pos) {
+          const dir = pos.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) mob.yaw = Math.atan2(dir.x, dir.z);
+        }
+      } else {
+        // Wiki: it leaps around even with no target.
+        mob.yaw += Math.sin((mob.breezePhase || 0) * 0.4) * dt * 0.8;
+        if (mob.leapState === 'idle') {
+          mob.velocity.x = Math.sin(mob.yaw) * 1.6;
+          mob.velocity.z = Math.cos(mob.yaw) * 1.6;
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.breezePhase = (mob.breezePhase || 0) + dt;
+      poseBreeze(mob, mob.breezePhase);
+      mob.state = mob.leapState;
+      return true;
+    }
+    if(mob.type==='phantom'){
+      // Wiki: hostile undead flyer. It circles above its target, swoops every 8-12s to bite, retreats
+      // to its anchor when hurt mid-swoop, keeps 16 blocks from cats, burns in sunlight, and is
+      // fall-damage immune.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.target = findPhantomTarget(this, mob, player, { difficulty: this.game?.difficulty ?? 'normal' });
+
+      // Wiki: like other undead, it burns in sunlight.
+      const phX = Math.floor(mob.mesh.position.x);
+      const phY = Math.floor(mob.mesh.position.y);
+      const phZ = Math.floor(mob.mesh.position.z);
+      const skyLight = this.world.getLightLevel?.(phX, phY, phZ) ?? 15;
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      mob.inSunlight = phantomBurnsInSunlight(mob, skyLight, isDaytime);
+      // `isBurning` is set in both directions. Leaving it undefined when the phantom is not on fire
+      // made "is it burning?" unanswerable rather than false, which telemetry and tests both care
+      // about.
+      if (mob.inSunlight && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
+      if (!mob.inSunlight && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; }
+      if (mob.isBurning) {
+        mob.burnTimer -= dt;
+        if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+        else {
+          mob.burnTick = (mob.burnTick ?? 1) - dt;
+          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+        }
+      }
+
+      updatePhantomFlight(this, mob, dt, player, { move: moveFlyingMob });
+      posePhantom(mob);
+      return true;
+    }
+    if(mob.type==='parrot'){
+      // Wiki: 6 HP tameable flying passive. It flies idly and rests often, follows its owner and
+      // teleports at 12 blocks, perches on a shoulder, imitates nearby hostile mobs, and dances by a
+      // jukebox that is playing a disc.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.imitateCooldown = Math.max(0, (mob.imitateCooldown || 0) - dt);
+
+      // 1. Perched: drawn on the player's shoulder, and it takes no part in the world.
+      if (mob.perchedOn) {
+        updateParrotFlight(this, mob, dt, player, { move: moveFlyingMob });
+        // Wiki lists the states that force a dismount; the previous height is what the rise and drop
+        // thresholds are measured against.
+        const previous = { y: mob.lastOwnerY ?? player?.position?.y };
+        if (shouldDismountForPlayerState(player, previous)) {
+          dismountShoulder(mob, player);
+          mob.velocity.set(0, 1.5, 0);
+        }
+        mob.lastOwnerY = player?.position?.y;
+        poseParrot(mob, mob.parrotPhase || 0);
+        return true;
+      }
+
+      // 2. Dancing, when a jukebox nearby is playing.
+      mob.isDancing = canDance(this, mob);
+      if (mob.isDancing) {
+        mob.velocity.set(0, 0, 0);
+        const groundY = this.world.surfaceHeightAt?.(mob.mesh.position.x, mob.mesh.position.z);
+        if (typeof groundY === 'number' && mob.mesh.position.y > groundY + 1.5) mob.velocity.y = -1.5;
+        moveFlyingMob(this, mob, dt);
+        mob.parrotPhase = (mob.parrotPhase || 0) + dt * 6;
+        poseParrot(mob, mob.parrotPhase);
+        return true;
+      }
+
+      // 3. Imitating a nearby hostile mob. Wiki: within 20 blocks, and never on Peaceful.
+      if (mob.imitateCooldown <= 0) {
+        mob.imitateCooldown = 4 + Math.random() * 6;
+        const target = findImitateTarget(this, mob, { difficulty: this.game?.difficulty ?? 'normal' });
+        mob.imitating = target ? target.type : null;
+      }
+
+      // 4. Flight, or following the owner.
+      updateParrotFlight(this, mob, dt, player, { move: moveFlyingMob });
+
+      mob.parrotPhase = (mob.parrotPhase || 0) + dt * 8;
+      poseParrot(mob, mob.parrotPhase);
+      return true;
+    }
+    if(mob.type==='tadpole'){
+      // Wiki: 6 HP aquatic passive. It swims aimlessly in water, flops on land and seeks the nearest
+      // water, dies in under 20 seconds out of water, and matures into whichever frog variant its
+      // current biome dictates.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const tX = Math.floor(mob.mesh.position.x);
+      const tY = Math.floor(mob.mesh.position.y + 0.05);
+      const tZ = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(tX, tY, tZ) === BLOCKS.WATER;
+      const remaining = updateTadpoleDryness(mob, dt, inWater);
+      mob.inWater = inWater;
+
+      // Wiki: "They die in less than 20 seconds after being out of water." It dies of exposure, not
+      // of a kill, so there is no loot and no XP either way.
+      if (remaining <= 0 && mob.health > 0) {
+        mob.health = 0;
+        mob.diedOfDryness = true;
+        this.updateDeath(mob, dt);
+        return true;
+      }
+
+      // Wiki: one Minecraft day to grow, 10% faster per slimeball, and the *biome it is in* decides
+      // the frog variant — the game's only case of the environment deciding a baby's adult form.
+      if (updateTadpoleGrowth(mob, dt)) {
+        this.matureTadpole(mob);
+        return true;
+      }
+
+      if (inWater) {
+        // Swim aimlessly, as the wiki describes.
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 1.5 + Math.random() * 2.5;
+          mob.yaw = Math.random() * Math.PI * 2;
+          mob.pitch = (Math.random() - 0.5) * 0.4;
+        }
+        mob.velocity.x = Math.sin(mob.yaw) * Math.cos(mob.pitch) * TADPOLE_SPEED.water;
+        mob.velocity.z = Math.cos(mob.yaw) * Math.cos(mob.pitch) * TADPOLE_SPEED.water;
+        mob.velocity.y = -Math.sin(mob.pitch) * TADPOLE_SPEED.water;
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+      } else {
+        // Wiki: on land it flops and seeks the nearest water.
+        mob.waterSearchTimer = (mob.waterSearchTimer || 0) + dt;
+        if (!mob.waterTarget || mob.mesh.position.distanceTo(mob.waterTarget) < 1.0) {
+          mob.waterTarget = this.findWaterNearTadpole(mob);
+        }
+        if (mob.waterTarget) {
+          const dir = mob.waterTarget.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+        }
+        mob.flopTimer = (mob.flopTimer || 0) - dt;
+        if (mob.flopTimer <= 0) {
+          mob.flopTimer = 0.5 + Math.random() * 0.6;
+          mob.velocity.y = 2.4 + Math.random();
+          mob.velocity.x = Math.sin(mob.yaw) * TADPOLE_SPEED.land * 2;
+          mob.velocity.z = Math.cos(mob.yaw) * TADPOLE_SPEED.land * 2;
+        }
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.tadpolePhase = (mob.tadpolePhase || 0) + dt * (inWater ? 8 : 14);
+      poseTadpole(mob, mob.tadpolePhase);
+      return true;
+    }
+    if(mob.type==='frog'){
+      // Wiki: passive. It makes long jumps of up to 8 blocks, swims fast without drowning, and eats
+      // small slimes and magma cubes with its tongue.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.tongueCooldown = Math.max(0, (mob.tongueCooldown || 0) - dt);
+      mob.eatTimer = Math.max(0, (mob.eatTimer || 0) - dt);
+      mob.croakTimer = Math.max(0, (mob.croakTimer || 0) - dt);
+
+      const fX = Math.floor(mob.mesh.position.x);
+      const fY = Math.floor(mob.mesh.position.y + 0.1);
+      const fZ = Math.floor(mob.mesh.position.z);
+      mob.inWater = this.world.getVoxel(fX, fY, fZ) === BLOCKS.WATER;
+
+      // 1. A tongue flick in progress: drag the prey in and eat it.
+      if (mob.tongueTimer > 0) {
+        updateFrogTongue(this, mob, dt);
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        if (mob.inWater) mob.mesh.position.addScaledVector(mob.velocity, dt);
+        else moveGroundMob(this, mob, dt);
+        poseFrog(mob, mob.frogPhase || 0);
+        return true;
+      }
+
+      // 2. Look for something edible: only size-1 slimes and magma cubes.
+      if (mob.tongueCooldown <= 0 && !mob.isFrogJumping) {
+        let prey = null;
+        let bestDist = FROG_TONGUE.range;
+        for (const other of this.mobs) {
+          if (!frogCanEat(mob, other)) continue;
+          const d = mob.mesh.position.distanceTo(other.mesh.position);
+          if (d < bestDist) { bestDist = d; prey = other; }
+        }
+        if (prey) {
+          const dir = prey.mesh.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          startFrogTongue(mob, prey);
+          poseFrog(mob, mob.frogPhase || 0);
+          return true;
+        }
+      }
+
+      // 3. Movement: swim in water, otherwise a slow wander punctuated by long jumps.
+      if (mob.inWater) {
+        // Wiki: it swims upward and stays at the surface, and cannot drown.
+        mob.velocity.x = Math.sin(mob.yaw) * FROG_SPEED.water;
+        mob.velocity.z = Math.cos(mob.yaw) * FROG_SPEED.water;
+        mob.velocity.y = mob.mesh.position.y < (this.world.surfaceHeightAt?.(fX, fZ) ?? 0) + 1 ? 1.6 : 0;
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+        mob.swimCycle = (mob.swimCycle || 0) + dt * 4;
+        mob.isFrogJumping = false;
+      } else {
+        if (mob.isFrogJumping && mob.onGround) mob.isFrogJumping = false;
+        mob.hopTimer = (mob.hopTimer || 0) - dt;
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 2 + Math.random() * 3;
+          mob.yaw = Math.random() * Math.PI * 2;
+          // Wiki: it occasionally croaks and inflates its vocal sac.
+          if (Math.random() < 0.3) mob.croakTimer = 0.6;
+        }
+        if (mob.hopTimer <= 0 && mob.onGround) {
+          // Wiki: a frog prefers jumping to higher ground, so each hop aims a little upward.
+          mob.hopTimer = 0.8 + Math.random() * 1.2;
+          startFrogJump(mob, { height: 2.2 + Math.random() * 1.5, forward: 1.5 + Math.random() });
+        }
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.frogPhase = (mob.frogPhase || 0) + dt * (mob.inWater ? 4 : 6);
+      poseFrog(mob, mob.frogPhase);
+      return true;
+    }
+    if(mob.type==='turtle'){
+      // Wiki: passive. Slow on land, fast in water, heads for water while on land, flees when
+      // attacked, and returns to its home block to lay a cluster of eggs after breeding.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const movement = updateTurtleMovement(this, mob, dt, player, { wander: wanderMob });
+
+      // Wiki: the turtle digs for a few seconds, then lays 1-4 eggs on nearby sand at home.
+      if (mob.hasEgg && movement === 'returning-home' && mob.state === 'digging') {
+        const laid = tryLayTurtleEggs(this, mob, dt);
+        if (laid > 0) mob.breedCooldown = TURTLE_BREED_COOLDOWN_SECONDS;
+      } else if (mob.hasEgg) {
+        mob.digTimer = 0;
+      }
+
+      // Fleeing when hurt, like other passive mobs.
+      if (mob.hurtTime > 0 && player?.position) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          const speed = mob.inWater ? 2.6 : 1.6;
+          mob.velocity.x = away.x * speed;
+          mob.velocity.z = away.z * speed;
+        }
+      }
+
+      // A turtle in water floats rather than falling, so gravity is skipped there.
+      if (mob.inWater) {
+        mob.mesh.position.addScaledVector(mob.velocity, dt);
+      } else {
+        moveGroundMob(this, mob, dt);
+      }
+
+      mob.turtlePhase = (mob.turtlePhase || 0) + dt * (mob.inWater ? 6 : 4);
+      poseTurtle(mob, mob.turtlePhase);
+      return true;
+    }
+    if(isLlamaLike(mob)){
+      // Wiki: neutral. It spits at whatever attacked it and at wolves without provocation, is
+      // completely passive on Peaceful, and has a 1/900 chance per tick to regenerate 1 HP.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.spitCooldown = Math.max(0, (mob.spitCooldown || 0) - dt);
+
+      if (mob.health < mob.maxHealth && Math.random() < dt * 20 / 900) {
+        mob.health = Math.min(mob.maxHealth, mob.health + 1);
+      }
+
+      // The head comes up, then it fires. The charge is on a timer so the pose is visible.
+      mob.spitCharge = Math.max(0, (mob.spitCharge || 0) - dt);
+      if (mob.pendingSpitTarget && mob.spitCharge <= 0) {
+        spawnLlamaSpit(this, mob, mob.pendingSpitTarget);
+        mob.pendingSpitTarget = null;
+        mob.spitCooldown = 1.5;
+      }
+
+      // Pick something to spit at: its attacker, or a wolf without provocation.
+      if (!mob.pendingSpitTarget && mob.spitCooldown <= 0) {
+        let target = null;
+        let bestDist = 16;
+        const candidates = [];
+        if (player?.position) candidates.push(player);
+        for (const other of this.mobs) if (other !== mob) candidates.push(other);
+        for (const candidate of candidates) {
+          if (!llamaWantsToSpit(mob, candidate, {
+            difficulty: this.game?.difficulty ?? 'normal',
+            recentAttacker: mob.recentAttacker
+          })) continue;
+          const pos = candidate.position ?? candidate.mesh?.position;
+          if (!pos) continue;
+          const dist = mob.mesh.position.distanceTo(pos);
+          if (dist < bestDist) { bestDist = dist; target = candidate; }
+        }
+        if (target) {
+          mob.pendingSpitTarget = target;
+          mob.spitCharge = 0.5;
+          const pos = target.position ?? target.mesh?.position;
+          const dir = pos.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+          moveGroundMob(this, mob, dt);
+          poseLlamaLegs(mob, mob.llamaPhase || 0, false);
+          return true;
+        }
+      }
+
+      // Firing, or wandering.
+      if (mob.pendingSpitTarget) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+      }
+      moveGroundMob(this, mob, dt);
+      mob.llamaPhase = (mob.llamaPhase || 0) + dt * 7;
+      poseLlamaLegs(mob, mob.llamaPhase, !mob.pendingSpitTarget && Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
+      return true;
+    }
+    if(mob.type==='goat'){
+      // Wiki: neutral. It leaps up to 10 blocks high and 5 across on a 30-60s cooldown, and every
+      // 30s-5min (5-15s for a screaming goat) tries to ram an unmoving target it can see 4-16 blocks
+      // away. A goat does not retaliate when harmed.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.jumpCooldown = Math.max(0, (mob.jumpCooldown || 0) - dt);
+      mob.ramCooldown = Math.max(0, (mob.ramCooldown || 0) - dt);
+
+      // 1. A ram already in progress: the head is down and the goat is committed.
+      if (mob.ramState) {
+        updateGoatRam(this, mob, dt, { move: moveGroundMob });
+        poseGoat(mob);
+        mob.goatPhase = (mob.goatPhase || 0) + dt * 10;
+        poseGoatLegs(mob, mob.goatPhase, mob.ramState !== 'preparing');
+        return true;
+      }
+
+      // 2. Land a long jump, restoring the walking hitbox.
+      if (mob.isGoatJumping && mob.onGround) {
+        landGoatJump(mob);
+        mob.height = mob.isBaby ? GOAT_BABY_DIMENSIONS.height : GOAT_DIMENSIONS.height;
+      }
+
+      // 3. Wiki: holding wheat makes a goat that was preparing to ram stop and walk to the player.
+      const heldItem = player?.inventory?.getActiveItem?.();
+      const heldId = typeof heldItem?.id === 'string' ? heldItem.id.toLowerCase() : '';
+      const tempted = heldId.includes('wheat') && !heldId.includes('seed');
+
+      // 4. Look for something to ram. Wiki: it must be unmoving, within 4-16 blocks, and not a
+      // ghast or another goat.
+      if (mob.ramCooldown <= 0 && !tempted) {
+        const target = this.findGoatRamTarget(mob, player);
+        if (target) {
+          startGoatRam(mob, target);
+          mob.ramCooldown = rollGoatRamCooldown(mob.isScreamingGoat);
+        } else {
+          // Nothing worth charging right now; wait before looking again.
+          mob.ramCooldown = 1 + Math.random() * 2;
+        }
+      }
+
+      // 5. Wander, but a goat prefers to climb rather than keep to the low ground.
+      if (tempted && player?.position) {
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist <= GOAT_FOLLOW_RANGE && dist > 1.6) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * 1.8;
+          mob.velocity.z = dir.z * 1.8;
+        } else {
+          mob.velocity.x *= 0.6;
+          mob.velocity.z *= 0.6;
+        }
+      } else {
+        wanderMob(this, mob, dt, 1.0);
+        // Wiki: a goat jumps when trying to cross an obstacle, and it tends to ascend hills.
+        if (mob.jumpCooldown <= 0 && mob.onGround && Math.random() < dt * 0.8) {
+          // Aim at the next waypoint so the leap carries it up the slope.
+          if (mob.wanderGoal) {
+            const dir = mob.wanderGoal.clone().sub(mob.mesh.position);
+            dir.y = 0;
+            if (dir.lengthSq() > 1e-6) { dir.normalize(); mob.yaw = Math.atan2(dir.x, dir.z); }
+          }
+          const ahead = new THREE.Vector3(
+            mob.mesh.position.x + Math.sin(mob.yaw) * 1.5,
+            mob.mesh.position.y,
+            mob.mesh.position.z + Math.cos(mob.yaw) * 1.5
+          );
+          // Only jump when the ground ahead is a step up, which is the obstacle case.
+          const stepUp = this.world?.getVoxel?.(Math.floor(ahead.x), Math.floor(ahead.y) + 1, Math.floor(ahead.z));
+          if (typeof stepUp === 'number' && stepUp !== 0) {
+            startGoatJump(mob, { height: 2.5, distance: 3 });
+            mob.width = GOAT_JUMP_DIMENSIONS.width;
+            mob.height = GOAT_JUMP_DIMENSIONS.height;
+          }
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      poseGoat(mob);
+      mob.goatPhase = (mob.goatPhase || 0) + dt * (mob.isGoatJumping ? 4 : 8);
+      poseGoatLegs(mob, mob.goatPhase, Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
+      return true;
+    }
+    if(mob.type==='bee'){
+      // Wiki: a bee that has stung loses its stinger, cannot attack again, does not return home,
+      // and dies about a minute later. It also drowns in water.
+      updateBeeAnger(mob, dt);
+      if (updateBeeStingerless(mob, dt)) {
+        // It dies of its injuries rather than being killed, so this goes through the normal
+        // death path with no loot or XP.
+        if (mob.health <= 0) this.updateDeath(mob, dt);
+        return true;
+      }
+
+      const bX = Math.floor(mob.mesh.position.x);
+      const bY = Math.floor(mob.mesh.position.y + 0.15);
+      const bZ = Math.floor(mob.mesh.position.z);
+      const inWater = this.world.getVoxel(bX, bY, bZ) === BLOCKS.WATER;
+      updateBeeWater(this, mob, dt, inWater);
+
+      // Nectar: gathered while circling a flower, delivered at the hive.
+      const flowerBelow = this.world.getVoxel(bX, bY - 1, bZ);
+      const atFlower = isBeeFlower(flowerBelow);
+      if (!mob.hasNectar && atFlower) updateBeeNectar(mob, dt, { atFlower: true });
+
+      // A stung bee cannot sting again, so it flees instead of attacking.
+      if (mob.stingerless) {
+        if (player?.position) {
+          const away = mob.mesh.position.clone().sub(player.position);
+          away.y = 0;
+          if (away.lengthSq() > 1e-6) {
+            away.normalize();
+            mob.yaw = Math.atan2(away.x, away.z);
+            mob.velocity.set(away.x * 2.4, 1.0, away.z * 2.4);
+          }
+        }
+        poseBee(mob);
+        moveFlyingMob(this, mob, dt);
+        mob.beePhase = (mob.beePhase || 0) + dt * 24;
+        return true;
+      }
+
+      // Anger: chase and sting.
+      if (beeIsAngry(mob) && mob.angryAt?.position) {
+        const target = mob.angryAt;
+        const dir = target.position.clone().sub(mob.mesh.position);
+        const dist = dir.length();
+        if (dist > 0.001) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        mob.pitch = -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.6;
+        mob.velocity.set(
+          Math.sin(mob.yaw) * Math.cos(mob.pitch) * 3.4,
+          dir.y * 3.4,
+          Math.cos(mob.yaw) * Math.cos(mob.pitch) * 3.4
+        );
+        // Wiki: the sting lands on contact, and is what kills the bee.
+        if (dist < 1.2) beeSting(this, mob, target);
+        poseBee(mob);
+        moveFlyingMob(this, mob, dt);
+        mob.beePhase = (mob.beePhase || 0) + dt * 28;
+        return true;
+      }
+
+      // Calm flight: wander, and return toward the hive when carrying nectar.
+      if (mob.hasNectar && mob.hive?.mesh?.position) {
+        const toHive = mob.hive.mesh.position.clone().sub(mob.mesh.position);
+        const dist = toHive.length();
+        if (dist > 0.001) toHive.normalize();
+        mob.yaw = Math.atan2(toHive.x, toHive.z);
+        mob.velocity.set(toHive.x * 2.2, toHive.y * 2.2, toHive.z * 2.2);
+      } else {
+        mob.wanderTimer = (mob.wanderTimer || 0) - dt;
+        if (mob.wanderTimer <= 0) {
+          mob.wanderTimer = 1 + Math.random() * 2;
+          mob.yaw += (Math.random() - 0.5) * 2.2;
+          mob.targetPitch = (Math.random() - 0.5) * 0.5;
+        }
+        mob.pitch = (mob.pitch || 0) + ((mob.targetPitch ?? 0) - (mob.pitch || 0)) * Math.min(1, dt * 3);
+        mob.velocity.set(
+          Math.sin(mob.yaw) * Math.cos(mob.pitch) * 1.8,
+          -Math.sin(mob.pitch) * 1.8,
+          Math.cos(mob.yaw) * Math.cos(mob.pitch) * 1.8
+        );
+      }
+      poseBee(mob);
+      moveFlyingMob(this, mob, dt);
+      mob.beePhase = (mob.beePhase || 0) + dt * 22;
+      return true;
+    }
+    if(mob.type==='fox'){
+      // Wiki: hunts small animals by pouncing, flees untrusted non-sneaking players, sleeps
+      // during the day under cover, and drops whatever it is holding when it dies.
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // 1. Sleeping. Wiki: daytime, no thunderstorm, sky light 14 or less.
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      const thundering = this.game?.weather?.weatherType === 'thunder';
+      const canSleep = foxCanSleep(this, mob, isDaytime, thundering);
+      if (canSleep) {
+        mob.isSleeping = true;
+        mob.velocity.set(0, 0, 0);
+        // Wiki: while asleep it slowly moves its head up and down.
+        mob.sleepingHeadTimer = (mob.sleepingHeadTimer || 0) + dt;
+        if (mob.head) mob.head.rotation.x = Math.sin(mob.sleepingHeadTimer * 1.5) * 0.12;
+        // Wiki: it wakes if a player or mob approaches.
+        const near = this.mobs.some(m => m !== mob && m.health > 0
+          && m.mesh.position.distanceTo(mob.mesh.position) < 3);
+        const playerNear = player?.position && mob.mesh.position.distanceTo(player.position) < 4;
+        if (!near && !playerNear) return true;
+        mob.isSleeping = false;
+      } else {
+        mob.isSleeping = false;
+      }
+
+      // 2. Pouncing, once started.
+      if (mob.pouncePhase) {
+        updateFoxPounce(mob, dt, mob.pounceTarget?.mesh?.position || mob.pounceTarget?.position || null);
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 8;
+        poseFoxLegs(mob, mob.foxPhase, false);
+        return true;
+      }
+
+      // 3. Choose a target: prey first, as the wiki says a fox prefers attacking over looting.
+      let target = null;
+      let bestDist = 16;
+      for (const other of this.mobs) {
+        if (other === mob || other.health <= 0) continue;
+        if (!FOX_PREY.includes(other.type)) continue;
+        if (other.isBaby && other.type !== 'chicken' && other.type !== 'rabbit') continue;
+        const d = mob.mesh.position.distanceTo(other.mesh.position);
+        if (d < bestDist) { bestDist = d; target = other; }
+      }
+
+      if (target) {
+        const dir = target.mesh.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 0.001) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: it attacks by running against the target or by pouncing, and pounces from range.
+        // The guard matters: without it the fox re-triggers the crouch every frame while it is in
+        // range, resetting the timer forever, so it crouches and never actually leaps.
+        if (dist < FOX_POUNCE.reach && mob.onGround && !mob.pouncePhase) {
+          startFoxPounce(mob);
+          mob.pounceTarget = target;
+        } else {
+          mob.velocity.x = dir.x * 2.6;
+          mob.velocity.z = dir.z * 2.6;
+        }
+        // Bite when close enough.
+        if (dist < 1.2 && mob.attackCooldown <= 0) {
+          this.damageMob(target, foxDamageFor(this.game?.difficulty), mob.mesh.position, false, mob);
+          mob.attackCooldown = 1.0;
+        }
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 9;
+        poseFoxLegs(mob, mob.foxPhase, true);
+        return true;
+      }
+
+      // 4. Flee an untrusted player who is not sneaking.
+      // Wiki: it flees players "unless the player is trusted or approaches them while sneaking".
+      const sneaking = !!player?.keys?.ShiftLeft || !!player?.keys?.ShiftRight || !!player?.isSneaking;
+      if (foxShouldFlee(mob, player, { sneaking })) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          mob.velocity.x = away.x * 3.0;
+          mob.velocity.z = away.z * 3.0;
+        }
+        moveGroundMob(this, mob, dt);
+        mob.foxPhase = (mob.foxPhase || 0) + dt * 10;
+        poseFoxLegs(mob, mob.foxPhase, true);
+        return true;
+      }
+
+      // 5. Idle wander.
+      // `wanderMob` picks a goal and sets velocity; the fox still has to move itself, so the
+      // hazards are handled by the shared escape pass and locomotion by moveGroundMob.
+      wanderMob(this, mob, dt, 1.1);
+      moveGroundMob(this, mob, dt);
+      mob.foxPhase = (mob.foxPhase || 0) + dt * 6;
+      poseFoxLegs(mob, mob.foxPhase, Math.hypot(mob.velocity.x, mob.velocity.z) > 0.1);
+      return true;
+    }
+    if(mob.type==='bat'){
+      // Wiki: flies around aimlessly, hangs under solid blocks, flees nearby players, and
+      // despawns past 32 blocks.
+      if (updateBatDespawn(this, mob, player)) return true;
+      updateBatFlight(this, mob, dt, player);
+      moveFlyingMob(this, mob, dt);
+      mob.batPhase = (mob.batPhase || 0) + dt * (mob.isHanging ? 1.5 : 22);
+      poseBatWings(mob, mob.batPhase);
+      return true;
+    }
+    if(mob.type==='rabbit'){
+      // Wiki: normal rabbits hop around aimlessly and flee players; the killer bunny hunts.
+      if (isKillerBunny(mob)) {
+        updateKillerBunnyHunt(this, mob, dt, player);
+        moveGroundMob(this, mob, dt);
+        mob.rabbitPhase = (mob.rabbitPhase || 0) + dt * 9;
+        poseRabbitHop(mob, mob.rabbitPhase, !mob.onGround);
+        return true;
+      }
+      // Passive: hop in a wander direction and take a new one periodically.
+      mob.hopTimer = (mob.hopTimer || 0) - dt;
+      mob.timer = (mob.timer || 0) - dt;
+      if (mob.timer <= 0) {
+        mob.timer = 2 + Math.random() * 4;
+        mob.yaw = Math.random() * Math.PI * 2;
+      }
+      // Wiki: normal rabbits avoid players within 8 blocks.
+      if (player?.position && mob.mesh.position.distanceTo(player.position) < RABBIT_PLAYER_AVOID_RANGE) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          mob.timer = 2;
+        }
+      }
+      if (mob.hopTimer <= 0) {
+        // Wiki: rabbits hop rather than walk. Each hop is a short burst of velocity.
+        mob.hopTimer = 0.45 + Math.random() * 0.4;
+        if (mob.onGround) {
+          mob.velocity.x = Math.sin(mob.yaw) * 2.4;
+          mob.velocity.z = Math.cos(mob.yaw) * 2.4;
+          mob.velocity.y = 3.0;
+          mob.onGround = false;
+        }
+      } else {
+        // Between hops it settles, so the movement reads as a hop and not a glide.
+        mob.velocity.x *= 0.9;
+        mob.velocity.z *= 0.9;
+      }
+      moveGroundMob(this, mob, dt);
+      mob.rabbitPhase = (mob.rabbitPhase || 0) + dt * 8;
+      poseRabbitHop(mob, mob.rabbitPhase, !mob.onGround);
+      return true;
+    }
+    if(mob.type==='endermite'){
+      // Wiki: endermites chase players, fight endermen, and despawn after two minutes
+      // unless named. The enderman/endermite pairing is refreshed elsewhere in the update.
+      if (updateEndermiteLifetime(this, mob, dt)) return true;
+      updateEndermiteHunt(this, mob, dt, player);
+      moveGroundMob(this, mob, dt);
+      mob.endermitePhase = (mob.endermitePhase || 0) + dt * (Math.hypot(mob.velocity.x, mob.velocity.z) > 0.05 ? 14 : 3);
+      poseEndermiteLegs(mob, mob.endermitePhase);
+      return true;
+    }
+    if(mob.type==='silverfish'){
+      // Wiki: always hostile, pathfinds to the player, and sees through walls.
+      updateSilverfishAnger(mob, dt);
+      updateSilverfishHunt(this, mob, dt, player);
+      // Mob types own their locomotion here, so the silverfish must move itself.
+      moveGroundMob(this, mob, dt);
+      mob.silverfishPhase = (mob.silverfishPhase || 0) + dt * (Math.hypot(mob.velocity.x, mob.velocity.z) > 0.05 ? 14 : 3);
+      poseSilverfishLegs(mob, mob.silverfishPhase);
+      return true;
+    }
+    if(mob.type==='spider'||mob.type==='cave_spider'){
+      // Wiki: both spider variants are neutral above light level 11 and climb walls when
+      // blocked; cave spiders additionally poison on Normal and Hard. The hunt is gated by
+      // the same light rule, so a spider in bright light stops chasing.
+      updateSpiderAnger(mob, dt);
+      updateSpiderClimbing(this, mob, dt);
+      updateSpiderHunt(this, mob, dt, player);
+      // Mob types own their locomotion here, so the spider must move itself.
+      moveSpider(this, mob, dt);
+      // The walk cycle is driven here because returning `true` skips the shared animation
+      // step at the end of the mob update loop.
+      this.updateMobAnimation(mob, dt, mob.velocity.x, mob.velocity.z);
+      return true;
+    }
     if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
-      if(!mob.jockeyMount){const speed=moveGroundMob(this,mob,dt);mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;}
+      // This branch used to call moveGroundMob without anything having set a velocity, so the
+      // zombified piglin stood at zero velocity forever: inert, error-free and invisible as a bug.
+      // `updateZombified` owns its targeting, anger and equipment, and applies its steering through
+      // the shared pathfinder, so it is what gives this mob something to move with. It also runs
+      // the arm and head animation, which is why the walk cycle below is left alone.
+      if(!mob.jockeyMount){
+        updateZombified(this, mob, dt);
+        const speed=moveGroundMob(this,mob,dt);
+        mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;
+        const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);
+        mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;
+      }
       return false;
     }
     if(mob.type==='strider'){updateStrider(this,mob,dt,player);return true;}
@@ -6485,7 +11500,7 @@ export class MobManager {
       let threat = null;
       let threatDist = 12;
       for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager')) {
+        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager' || other.type === 'husk')) {
           const d = mob.mesh.position.distanceTo(other.mesh.position);
           if (d < threatDist) {
             threatDist = d;
@@ -6529,7 +11544,7 @@ export class MobManager {
       let nearestHostile = null;
       let minDist = 16;
       for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'wither_skeleton')) {
+        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'husk' || other.type === 'wither_skeleton')) {
           const d = mob.mesh.position.distanceTo(other.mesh.position);
           if (d < minDist) {
             minDist = d;
@@ -6608,8 +11623,22 @@ export class MobManager {
         // Patrol wander
         wanderMob(this, mob, dt, 1.2);
       }
-    } else if (mob.type === 'zombie') {
-      // Chase player or villagers
+    } else if (mob.type === 'zombie' || mob.type === 'husk') {
+      // Wiki: a husk that is fully submerged for 30 s begins converting to a zombie, which takes 15 s
+      // more and cannot be stopped. The replacement has full health.
+      if (mob.type === 'husk') {
+        const submerged = this.world.getVoxel(
+          Math.floor(mob.mesh.position.x),
+          Math.floor(mob.mesh.position.y + mob.height * 0.5),
+          Math.floor(mob.mesh.position.z)
+        ) === BLOCKS.WATER;
+        const before = mob.convertTimer;
+        const phase = updateHuskDrowning(mob, dt, { submerged, manager: this });
+        if (phase === 'converted') return true;
+        if (before === undefined && mob.convertTimer !== undefined) mob.state = 'converting';
+        }
+      // Chase player or villagers. Wiki: a husk is a zombie variant, so it shares this AI; its own
+      // differences (no sunlight burning, Hunger on an unarmed hit, avoiding water) are applied below.
       let targetPos = null;
       let targetEntity = null;
       if (distToPlayer < 16) {
@@ -6644,6 +11673,12 @@ export class MobManager {
         // Wander
         wanderMob(this, mob, dt, 1.0);
       }
+      // The branch did not return, so control fell through to the passive-animal chain below: a husk --
+      // and a plain zombie -- ran the cow/sheep follow code, and the method reported `false`, which let
+      // the shared fallback locomotion run on top of the velocity just set here. Returning true claims
+      // the mob, which is what every neighbouring branch does.
+      moveGroundMob(this, mob, dt);
+      return true;
     } else if (isEquine(mob) || mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
       let isFollowing = false;
 
@@ -6972,7 +12007,7 @@ export class MobManager {
       } else {
         wanderMob(this, mob, dt, 0.8);
       }
-    } else if (mob.type === 'skeleton') {
+    } else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'bogged' || mob.type === 'parched') {
       if (distToPlayer < 18) {
         const dir = player.position.clone().sub(mob.mesh.position);
         dir.y = 0;
@@ -6988,10 +12023,23 @@ export class MobManager {
 
         mob.shootCooldown -= dt;
         if (mob.shootCooldown <= 0) {
-          mob.shootCooldown = 2.5;
+        // Wiki: a bogged and a parched both fire more slowly than a skeleton -- 4.5 s normally and 3.5 s
+        // on Hard, against the skeleton's 2.5 s here. A stray is as fast as a skeleton.
+        const slowArcher = mob.type === 'bogged' || mob.type === 'parched';
+        mob.shootCooldown = slowArcher
+          ? (mob.type === 'parched'
+            ? (this.game?.difficulty === 'hard' ? PARCHED_ATTACK_COOLDOWN.hard : PARCHED_ATTACK_COOLDOWN.normal)
+            : boggedAttackCooldown(this.game?.difficulty ?? 'normal'))
+          : 2.5;
           const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
           const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(shootOrigin).normalize();
           this.spawnArrow(shootOrigin, shootDir, mob);
+        // Wiki: a stray's arrow carries Slowness for 30 s and a bogged's Poison for 4 s. The effect is
+        // applied here because it is the only reason the variant exists rather than being a recolour.
+        const effect = variantAttackEffect(mob.type, { unarmed: true });
+        if (effect && player?.applyStatusEffect) {
+          player.applyStatusEffect(effect.effect, effect.seconds);
+        }
         }
       } else {
         wanderMob(this, mob, dt, 0.8);
@@ -7266,10 +12314,27 @@ export class MobManager {
         const targetY = baseHeight + bob;
         mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
         mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
+      } else {
+        // A flyer with no branch of its own reaches here with a zero velocity, exactly like a ground
+        // mob with no branch reaches the fallback below, and for the same reason: nothing sets one.
+        // The declared role gives it a heading and an approach altitude.
+        const flySpec = locomotionFor(mob.type);
+        if (flySpec?.flying) updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
       }
       moveFlyingMob(this, mob, dt);
     } else {
       if(isEquine(mob))updateHorseLead(this,mob);
+      // A mob with no branch of its own used to arrive here with a zero velocity and simply stand
+      // still forever. Hostile and passive roles that were never wired up are declared in
+      // ambientLocomotion.js, which gives them a target or a wander goal before the mover runs.
+      const ambientSpec = locomotionFor(mob.type);
+      if (ambientSpec) {
+        updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        // A declared stationary mob still gets the leg pose, so it does not look frozen mid-stride.
+        if (ambientSpec.speed <= 0) {
+          mob.walkCycle = (mob.walkCycle || 0);
+        }
+      }
       const moveSpeed = moveGroundMob(this, mob, dt);
       mob.walkCycle = (mob.walkCycle || 0) + moveSpeed * dt * 7;
       const legSwing = Math.sin(mob.walkCycle) * Math.min(0.8, moveSpeed * 0.4);
@@ -7333,6 +12398,12 @@ export class MobManager {
       const currentVoxel = this.world.getVoxel(bX, bY, bZ);
       const inWater = (currentVoxel === BLOCKS.WATER);
       mob.inWater = inWater;
+
+      // Wiki: a dry dolphin suffocates after two minutes, and rain refills its moistness.
+      if (mob.type === 'dolphin') {
+        const raining = this.game?.weather?.isRaining?.() ?? false;
+        updateDolphinMoistness(this, mob, dt, raining);
+      }
 
       mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
 
@@ -7654,7 +12725,7 @@ export class MobManager {
       let targetMob = null;
       let closestDist = 14;
       for (const m of this.mobs) {
-        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'skeleton' || m.type === 'creeper' || m.type === 'enderman')) {
+        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'husk' || m.type === 'skeleton' || m.type === 'stray' || m.type === 'bogged' || m.type === 'parched' || m.type === 'creeper' || m.type === 'enderman')) {
           const d = mob.mesh.position.distanceTo(m.mesh.position);
           if (d < closestDist) {
             closestDist = d;

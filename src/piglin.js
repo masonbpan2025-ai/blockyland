@@ -1,5 +1,6 @@
 import {setZombifiedBaby,syncZombifiedEquipment} from './zombifiedPiglin.js';
 import * as THREE from 'three';
+import { isPiglinBrute, piglinBruteRetreats, piglinBruteDistractedByGold, piglinBrutePursues } from './piglinBruteBehavior.js';
 import { BLOCKS, ITEMS } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
 import { steerGround, flee } from './netherMobAI.js';
@@ -98,8 +99,14 @@ export function updatePiglin(behaviors, mob, dt, player) {
   mob.angerTimer = Math.max(0, (mob.angerTimer || 0) - dt);
   if (mob.angerTimer === 0) mob.aggroToPlayer = false;
   // Cache the block scan so a crowd does not scan its surroundings every frame.
+  //
+  // Wiki: a brute "do[es] not ... retreat", and soul fire is one of the two things a piglin retreats FROM. So a
+  // brute skips the fear scan entirely -- it never even records a repellent, which is the difference stated as
+  // directly as it can be. Merely skipping the flee left it scanning a threat it would then ignore.
   mob.repellentTimer = (mob.repellentTimer || 0) - dt;
-  if (mob.repellentTimer <= 0) {
+  if (isPiglinBrute(mob)) {
+    mob.repellent = null;
+  } else if (mob.repellentTimer <= 0) {
     mob.repellentTimer = 0.5;
     mob.repellent = null;
     for (let x = -4; x <= 4; x++) for (let y = -2; y <= 2; y++) for (let z = -4; z <= 4; z++) {
@@ -112,9 +119,23 @@ export function updatePiglin(behaviors, mob, dt, player) {
   }
   const undead = manager.mobs.find(other => other !== mob && other.health > 0 &&
     ['zombified_piglin', 'zombie_pigman', 'zoglin'].includes(other.type) && other.mesh.position.distanceTo(pos) < 6);
-  const pursuingPlayer = !mob.isBaby && player?.position && !['creative', 'spectator'].includes(player.gamemode) && (mob.aggroToPlayer || !behaviors.isPlayerWearingGold(player));
+  // Wiki: "Unlike piglins, piglin brutes do not barter, retreat, or get distracted by gold." A brute has no
+  // gold-armour condition at all, so it pursues a gold-clad player exactly as it pursues anyone else.
+  //
+  // The `!mob.isBaby` short-circuit is load-bearing and must stay FIRST: a baby piglin flees zombified piglins
+  // and soul fire, and it only does so because `pursuingPlayer` is false for it, which is what lets `danger`
+  // be non-null. Dropping it silently stopped babies retreating.
+  const pursuingPlayer = !mob.isBaby && !!player?.position && (
+    isPiglinBrute(mob)
+      ? piglinBrutePursues(player)
+      : !['creative', 'spectator'].includes(player.gamemode)
+        && (mob.aggroToPlayer || !behaviors.isPlayerWearingGold(player))
+  );
   const danger = undead?.mesh.position || (!pursuingPlayer && mob.repellent);
-  if (danger) {
+  // Wiki: a brute does not retreat, so it stands its ground instead of fleeing the undead or soul fire. The
+  // guard is `!isPiglinBrute`, because `piglinBruteRetreats(mob)` answers "does a BRUTE retreat" -- false for
+  // every piglin -- and using it here inverted the condition and stopped ORDINARY piglins retreating.
+  if (danger && !isPiglinBrute(mob)) {
     const escape = pos.clone().sub(danger).setY(0);
     if (escape.lengthSq() < 0.01) escape.x = 1;
     escape.normalize();
@@ -141,6 +162,13 @@ export function updatePiglin(behaviors, mob, dt, player) {
     }
     return;
   }
+  // Wiki: "piglin brutes do not barter ... or get distracted by gold". So the entire gold-seeking path is
+  // skipped for a brute rather than being started and then cancelled.
+  if (isPiglinBrute(mob)) {
+    mob.isBartering = false;
+    mob.admiredItem = null;
+    if (mob.admiredGold) mob.admiredGold.visible = false;
+  } else
   // Seek one ingot from a stack, rather than deleting the whole dropped stack.
   if (!mob.admireDisabledTime && world.mobGriefing !== false) {
     const drops = behaviors.entities?.droppedItems || [];
@@ -171,7 +199,11 @@ export function updatePiglin(behaviors, mob, dt, player) {
   }
   const targetable = player?.position && player.gamemode !== 'creative' && player.gamemode !== 'spectator' && !player.isDead;
   const distance = player?.position ? player.position.distanceTo(pos) : Infinity;
-  if (!mob.isBaby && targetable && distance < 16 && (mob.aggroToPlayer || !behaviors.isPlayerWearingGold(player))) {
+  // There are TWO gold gates in the piglin AI, and both have to be lifted for a brute: one above guarding the
+  // retreat, and this one guarding the chase. Fixing only the first left a gold-clad player un-pursued, which
+  // is the exact opposite of the brute's defining difference.
+  const goldPacifies = isPiglinBrute(mob) ? false : behaviors.isPlayerWearingGold(player);
+  if (!mob.isBaby && targetable && distance < 16 && (mob.aggroToPlayer || !goldPacifies)) {
     mob.target = player;
     const direction = player.position.clone().sub(pos).setY(0).normalize();
     mob.yaw = Math.atan2(direction.x, direction.z);

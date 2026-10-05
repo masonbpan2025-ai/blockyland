@@ -1,5 +1,8 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
+import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
+import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
+import { spendDurability } from './durability.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -79,6 +82,9 @@ export class Player {
     // Dragon Ball Ki Gathering state
     this.isGatheringKi = false;
     this.onKiInterrupted = null;
+    // Called when thorns has damage to reflect, as (attacker, damage, procs). Wired by main.js to the
+    // mob manager, so the player never damages a mob itself.
+    this.onThornsReflect = null;
 
     // Minecraft Dungeons mode & combat states
     this.isDungeonMode = false;
@@ -390,6 +396,8 @@ export class Player {
         continue;
       }
       data.duration -= dt;
+      // Poison keeps its own inline handling because the "cannot kill" floor is about this player's
+      // health, not about the effect table.
       data.tickTimer = (data.tickTimer || 0) + dt;
       if (effect === 'poison' && data.tickTimer >= 1.25) {
         data.tickTimer = 0;
@@ -398,8 +406,13 @@ export class Player {
           this.sounds?.playHurt?.();
         }
       }
-      // Regeneration heals on the same 1.25 s cadence, one point at a time, and never past full.
-      // Without this a Potion of Regeneration was stored, listed in the HUD and did nothing.
+      // Regeneration heals on the same 1.25 s cadence as poison, one point per level, and never past
+      // full. Without this a Potion of Regeneration was stored, listed in the HUD and did nothing.
+      //
+      // This is deliberately the inline form rather than the shared effect table: the potion adds to
+      // the player's own natural regeneration instead of replacing it, and
+      // tests/itemPotionDrinking.test.js asserts exactly that contribution (level I adds one point,
+      // level II two). Routing it through tickEffect made the contribution zero in that window.
       if (effect === 'regeneration' && data.tickTimer >= 1.25) {
         data.tickTimer = 0;
         if (this.health > 0 && this.health < this.maxHealth) {
@@ -469,15 +482,7 @@ export class Player {
       return;
     }
 
-    let targetSpeed = this.walkSpeed;
-    if (this.isFlying) targetSpeed = this.flySpeed;
-    else if (this.isBlocking) targetSpeed = this.sneakSpeed;
-    else if (this.isSprinting) targetSpeed = this.sprintSpeed;
-    else if (this.isSneaking) targetSpeed = this.sneakSpeed;
-    else if (this.inWater) {
-      targetSpeed = this.walkSpeed * 0.65;
-      if (this.hasStatusEffect('dolphins_grace')) targetSpeed *= 2.2;
-    }
+    let targetSpeed = this.selectBaseSpeed();
 
     if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
@@ -804,7 +809,107 @@ export class Player {
     return (def && def.sound) ? def.sound : 'grass';
   }
 
-  takeDamage(amount, sourcePos = null, damageType = 'generic') {
+  /**
+   * The multiplier this player's outgoing damage takes from strength and weakness.
+   *
+   * Lives here so the melee call site needs no import from the effect module, and so a test can ask a
+   * Player rather than reaching into its effect map.
+   */
+  attackDamageMultiplier() {
+    return attackMultiplier(this.statusEffects);
+  }
+
+  /** The multiplier this player's incoming damage takes from resistance. */
+  damageTakenMultiplier() {
+    return damageTakenMultiplier(this.statusEffects);
+  }
+
+  /**
+   * The enchantment lists of the four worn armour pieces, for effects that roll per piece.
+   *
+   * Returns an array of arrays rather than a flat list because thorns procs INDEPENDENTLY on each piece,
+   * so two level-III pieces are two 45% rolls and not one 90% roll.
+   */
+  armourEnchantmentLists() {
+    const armour = this.inventory?.armor;
+    if (!armour) return [];
+    const lists = [];
+    for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
+      const piece = armour[slotKey];
+      lists.push(Array.isArray(piece?.enchantments) ? piece.enchantments : []);
+    }
+    return lists;
+  }
+
+  /**
+   * Wear the armour for damage taken, the way a tool wears for use.
+   *
+   * Vanilla charges every worn piece `max(1, floor(damage / 4))` points per hit, with unbreaking rolled
+   * per piece. Armour that never wears out is an infinite shield, which is why this is here now that a
+   * durability system exists.
+   *
+   * @param {number} damage the damage actually taken, after reductions
+   * @returns {string[]} the slots whose piece broke
+   */
+  wearArmour(damage) {
+    const armour = this.inventory?.armor;
+    if (!armour || !(damage > 0)) return [];
+    const perPiece = Math.max(1, Math.floor(damage / 4));
+    const roll = typeof this.random === 'function' ? this.random : Math.random;
+    const broken = [];
+    for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
+      const piece = armour[slotKey];
+      if (!piece) continue;
+      const wear = spendDurability(piece, perPiece, roll);
+      if (wear.broke) {
+        armour[slotKey] = null;
+        broken.push(slotKey);
+      }
+    }
+    return broken;
+  }
+
+  /**
+   * The base movement speed for the player's current state, before status effects and soul speed.
+   *
+   * Extracted from `update` so the stairs of conditionals -- and the depth strider factor inside the
+   * water branch -- can be asserted directly. Driving `update` to reach this line needs most of a game
+   * engine stubbed, and an untestable branch is one that quietly stops being applied.
+   */
+  selectBaseSpeed() {
+    if (this.isFlying) return this.flySpeed;
+    if (this.isBlocking) return this.sneakSpeed;
+    if (this.isSprinting) return this.sprintSpeed;
+    if (this.isSneaking) return this.sneakSpeed;
+    if (this.inWater) {
+      let speed = this.walkSpeed * 0.65;
+      if (this.hasStatusEffect('dolphins_grace')) speed *= 2.2;
+      // Depth strider reduces the water penalty, reaching 1.75x at level III where the penalty is
+      // effectively gone. The multiplier is 1 at level 0, so a player without the enchantment is
+      // unaffected -- and `depthStriderMultiplier` clamps above level III, which is vanilla's cap.
+      speed *= depthStriderMultiplier(this.armourEnchantmentLevel('depth_strider'));
+      return speed;
+    }
+    return this.walkSpeed;
+  }
+
+  /**
+   * The highest level of an enchantment across the worn armour, or 0.
+   *
+   * The highest rather than the sum, because that is how a single-piece effect works: depth strider only
+   * usefully exists on boots, and two pieces carrying the same enchantment do not stack in vanilla.
+   */
+  armourEnchantmentLevel(id) {
+    let level = 0;
+    for (const list of this.armourEnchantmentLists()) {
+      for (const ench of list) {
+        if (ench?.id === id && typeof ench.level === 'number') level = Math.max(level, ench.level);
+      }
+    }
+    return level;
+  }
+
+  takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
     if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
 
@@ -855,6 +960,11 @@ export class Player {
         amount = amount * (1 - damageReduction);
       }
 
+      // Resistance reduces what actually gets through, after armour, which is the order vanilla uses.
+      // The level cap lives in statusEffects.js so every caller gets it.
+      const resistance = damageTakenMultiplier(this.statusEffects);
+      if (resistance !== 1) amount = amount * resistance;
+
       // Protection enchantment reduction (4% per level, up to 80%)
       if (this.inventory?.armor) {
         let epf = 0;
@@ -892,6 +1002,37 @@ export class Player {
       this.velocity.y = Math.max(this.velocity.y, 2.5);
     }
     this.sounds.playHurt();
+
+    // Armour wears for the damage that got through. In vanilla every worn piece is charged, so this runs
+    // after the reductions rather than on the raw amount.
+    if (amount > 0 && this.gamemode === 'survival') {
+      const broken = this.wearArmour(amount);
+      for (const slotKey of broken) {
+        this.ui?.addChatMessage?.(
+          `<span style="color:#ef4444;">Your ${slotKey} armour broke.</span>`);
+      }
+    }
+
+    // Thorns reflects on to whoever struck. Reported through a hook rather than applied here, because
+    // damaging a mob is the mob manager's job and the player should not reach into it -- the same reason
+    // `onKiInterrupted` exists.
+    //
+    // The hook receives the damage SOURCE POSITION as well as the attacker, because most call sites pass
+    // only a position: `mobs.js` calls `takeDamage(amount, mob.mesh.position, mob.type)` in four places and
+    // changing them all would mean editing a file another agent is actively working in. The position is
+    // enough for the receiver to identify the mob, and an explicit attacker is used directly when a
+    // caller does provide one.
+    //
+    // Rolled only when the player survived: a fatal blow has nothing to reflect from, and fall and void
+    // damage have no attacker by definition.
+    if (this.health > 0 && damageType !== 'fall' && damageType !== 'void' && (attacker || sourcePos)) {
+      // `this.random` is injectable so a test can force the proc on or off. Without it the thorns roll is
+      // 45% at level III, which makes every assertion about it flaky -- and makes the NEGATIVE assertions
+      // pass for the wrong reason half the time. `rollLoot` in mobLootData.js uses the same pattern.
+      const roll = typeof this.random === 'function' ? this.random : Math.random;
+      const reflect = thornsReflect(this.armourEnchantmentLists(), roll);
+      if (reflect.damage > 0) this.onThornsReflect?.(attacker || null, reflect.damage, reflect.procs, sourcePos);
+    }
 
     if (this.health <= 0) {
       this.die();

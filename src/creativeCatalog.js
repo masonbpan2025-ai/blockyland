@@ -83,6 +83,12 @@ export function buildCreativeCatalog() {
     BLOCKS.POPPY, BLOCKS.DANDELION,
     BLOCKS.COAL_ORE, BLOCKS.IRON_ORE, BLOCKS.GOLD_ORE, BLOCKS.DIAMOND_ORE,
     BLOCKS.REDSTONE_ORE, BLOCKS.EMERALD_ORE,
+    // The rest of the ore family. blockItem() derives the icon from the definition's texture, so
+    // these need no separate icon asset.
+    BLOCKS.COPPER_ORE, BLOCKS.LAPIS_ORE, BLOCKS.NETHER_GOLD_ORE, BLOCKS.NETHER_QUARTZ_ORE,
+    BLOCKS.DEEPSLATE_COAL_ORE, BLOCKS.DEEPSLATE_IRON_ORE, BLOCKS.DEEPSLATE_GOLD_ORE,
+    BLOCKS.DEEPSLATE_DIAMOND_ORE, BLOCKS.DEEPSLATE_EMERALD_ORE, BLOCKS.DEEPSLATE_REDSTONE_ORE,
+    BLOCKS.DEEPSLATE_LAPIS_ORE, BLOCKS.DEEPSLATE_COPPER_ORE,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];
@@ -207,13 +213,18 @@ export function buildCreativeCatalog() {
   // 10. Mob Spawn Eggs
   const spawnEggsList = [
     'villager_spawn_egg', 'iron_golem_spawn_egg', 'pillager_spawn_egg',
-    'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg',
+    'zombie_spawn_egg', 'skeleton_spawn_egg', 'creeper_spawn_egg', 'spider_spawn_egg', 'cave_spider_spawn_egg', 'silverfish_spawn_egg', 'endermite_spawn_egg', 'rabbit_spawn_egg', 'bat_spawn_egg', 'fox_spawn_egg', 'bee_spawn_egg', 'goat_spawn_egg', 'llama_spawn_egg', 'turtle_spawn_egg', 'frog_spawn_egg', 'tadpole_spawn_egg', 'parrot_spawn_egg',
     'pig_spawn_egg', 'cow_spawn_egg', 'sheep_spawn_egg', 'chicken_spawn_egg',
     'salmon_spawn_egg', 'cod_spawn_egg', 'dolphin_spawn_egg', 'squid_spawn_egg', 'glow_squid_spawn_egg', 'guardian_spawn_egg', 'elder_guardian_spawn_egg', 'drowned_spawn_egg', 'octopus_spawn_egg', 'axolotl_spawn_egg',
     'horse_spawn_egg', 'donkey_spawn_egg', 'mule_spawn_egg', 'wolf_spawn_egg', 'cat_spawn_egg',
     'slime_spawn_egg', 'magma_cube_spawn_egg', 'witch_spawn_egg',
     'ghast_spawn_egg', 'blaze_spawn_egg', 'wither_skeleton_spawn_egg', 'piglin_spawn_egg', 'zombified_piglin_spawn_egg', 'zombie_pigman_spawn_egg', 'hoglin_spawn_egg', 'strider_spawn_egg',
-    'phantom_spawn_egg', 'vindicator_spawn_egg', 'evoker_spawn_egg', 'ravager_spawn_egg', 'warden_spawn_egg', 'ender_dragon_spawn_egg', 'wither_spawn_egg'
+    'phantom_spawn_egg', 'vindicator_spawn_egg', 'evoker_spawn_egg', 'ravager_spawn_egg', 'warden_spawn_egg', 'ender_dragon_spawn_egg', 'wither_spawn_egg',
+    // Added after the fact. These eggs were registered as real items and were reachable through the mob
+    // dispatcher and the Inspector, but the creative spawn-egg category reads THIS list and it stopped at the
+    // older mobs, so they never appeared in the creative menu.
+    'allay_spawn_egg', 'sniffer_spawn_egg', 'breeze_spawn_egg', 'armadillo_spawn_egg',
+    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg', 'skeleton_horse_spawn_egg', 'zombie_horse_spawn_egg', 'pufferfish_spawn_egg', 'tropical_fish_spawn_egg', 'giant_spawn_egg', 'piglin_brute_spawn_egg', 'camel_husk_spawn_egg', 'copper_golem_spawn_egg', 'happy_ghast_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');

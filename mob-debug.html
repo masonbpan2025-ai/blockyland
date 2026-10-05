@@ -11,11 +11,12 @@
 <label for="fluid">Environment</label><select id="fluid"><option value="air">Dry floor</option><option value="water">Water immersion</option><option value="lava">Lava immersion</option></select>
 <label for="distance">Target distance: <span id="distance-value">6</span> blocks</label><input id="distance" type="range" min="1" max="48" value="6">
 <div class="row"><button id="pause">Pause</button><button id="step">Step 0.1s</button><button id="hit">Hit (3)</button><button id="kill">Kill</button></div>
-<label for="speed">Simulation speed</label><select id="speed"><option value=".25">¼ speed</option><option value="1" selected>Normal</option><option value="2">2× speed</option></select>
+<label for="speed">Simulation speed</label><select id="speed"><option value=".25">¼ speed</option><option value="1" selected>Normal</option><option value="2">2× speed</option><option value="8">8× speed</option></select>
 <div class="row"><button id="showcase" title="Run every behavioural scenario built for this mob">▶ Run showcase</button><button id="showcase-stop" disabled>Stop</button></div>
+<label for="test-case">Test case</label><select id="test-case"><option value="">All cases</option></select>
 <label>Showcase</label><div id="showcase-status">Idle — press Run showcase to exercise this mob's behaviours.</div>
 <div id="showcase-results-wrap"><pre id="showcase-results"></pre></div>
 <p>Drag to orbit · scroll to zoom · right-drag to pan. Orange dummy is separate from the camera.</p>
-<details open><summary>Wiki comparison</summary><p><a id="wiki" target="_blank" rel="noopener">Open mob reference ↗</a></p><ul id="checklist"></ul><small>Manual checklist, not an automatic parity verdict. Dummy records raw attacks; it does not simulate player armor or shields.</small></details>
+<details open><summary>Wiki comparison</summary><p><a id="wiki" target="_blank" rel="noopener">Open mob reference ↗</a></p><ul id="checklist"></ul><small>Manual checklist, not an automatic parity verdict. Dummy records raw attacks and simplified shield/effect checks; it does not simulate player armor.</small></details>
 <label>Events</label><div id="events" aria-live="polite"></div><pre id="error" role="alert"></pre>
 </aside><section id="view" aria-label="3D mob preview"><div id="badge">Loading…</div><pre id="telemetry"></pre></section></main><script type="module" src="/src/mobDebug.js"></script></body></html>

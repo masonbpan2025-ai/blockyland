@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { applyHeat } from './heat.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
+import { BABY_GROWTH_SECONDS, updateBabyGrowth } from './babyGrowth.js';
 import { createSquidModel, poseSquid } from './squidModel.js';
 
 export const isSquid=m=>['squid','glow_squid'].includes(typeof m==='string'?m:m?.type);
@@ -26,7 +27,7 @@ export function canInteractSquid(m,id) {
 export function interactSquid(b,m,p,inventory,id) {
   if(!canInteractSquid(m,id))return false;
   const consume=()=>{if(p.gamemode!=='creative')inventory.consumeActiveItem(1);};
-  if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=1200;m.ageLockCooldown=2;consume();}
+  if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=BABY_GROWTH_SECONDS;m.ageLockCooldown=2;consume();}
   if(id==='lead'){if(m.leashHolder||m.leashAnchor)releaseHorseLead(b.mobManager,m);else{m.leashHolder=p;m.persistent=true;consume();}}
   if(id==='name_tag'){const item=inventory.getActiveItem(),name=item?.customName||item?.name;if(!name||name==='Name Tag')return false;m.name=String(name).slice(0,64);m.persistent=true;consume();}
   return true;
@@ -44,7 +45,8 @@ export function hurtSquid(manager,m,attacker,origin) {
 }
 export function updateSquidAge(m,dt) {
   m.ageLockCooldown=Math.max(0,(m.ageLockCooldown||0)-dt);
-  if(m.isBaby&&!m.ageLocked){m.babyGrowthTimer=(m.babyGrowthTimer??1200)-dt;if(m.babyGrowthTimer<=0){m.isBaby=false;m.babyGrowthTimer=0;}}
+  // Wiki: 20 minutes, via the shared rule so the squid cannot drift from the other mobs.
+  if(m.isBaby&&!m.ageLocked){updateBabyGrowth(m,dt);}
 }
 export function updateSquid(manager,m,dt,player) {
   const r=random(manager),p=m.mesh.position;m.inWater=squidInWater(manager,m);

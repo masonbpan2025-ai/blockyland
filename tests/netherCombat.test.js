@@ -60,7 +60,7 @@ test('Blaze takes water damage and slowly descends; creative players are ignored
 });
 test('Magma size determines health, armor, hitbox and mesh consistently',()=>{
  const {manager}=fixture();const m=manager.spawnMagmaCube(0,0,0);
- for(const size of [1,2,4]){setMagmaSize(m,size);assert.equal(m.health,size*size);assert.equal(m.armor,size*3);assert.equal(m.width,.51*size);assert.equal(m.mesh.scale.x,.51*size/.8);}
+ for(const size of [1,2,4]){setMagmaSize(m,size);assert.equal(m.health,size*size);assert.equal(m.armor,size*3);assert.equal(m.width,.52*size);assert.equal(m.mesh.scale.x,.52*size/.8);}
  assert.equal(m.layers.length,8);assert.notEqual(m.layers[0].material[4],m.layers[0].material[0]);
  assert.ok(m.layers[0].geometry.attributes.uv.getY(0)<=.125);
 });
@@ -81,7 +81,7 @@ test('Magma splits once into two to four half-sized children with squared health
  const {manager}=fixture();const m=manager.spawnMagmaCube(0,0,0);
  manager.hostileBehaviors.handleMobDeathSplitting(m);
  const children=manager.mobs.slice(1);assert.ok(children.length>=2&&children.length<=4);
- for(const c of children){assert.equal(c.slimeSize,2);assert.equal(c.health,4);assert.equal(c.width,1.02);}
+ for(const c of children){assert.equal(c.slimeSize,2);assert.equal(c.health,4);assert.equal(c.width,1.04);}
  manager.hostileBehaviors.handleMobDeathSplitting(m);assert.equal(manager.mobs.length,children.length+1);
  const tiny=children[0];setMagmaSize(tiny,1);assert.equal(manager.hostileBehaviors.handleMobDeathSplitting(tiny),false);
 });

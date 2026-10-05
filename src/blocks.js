@@ -249,7 +249,27 @@ export const BLOCKS = {
   // itself was never registered, so BLOCKS.COBBLED_DEEPSLATE read undefined. The id sits above the
   // generated range: scripts/generate-content-expansion.mjs allocates max(ids)+1, so a generated block
   // never collides with it.
-  COBBLED_DEEPSLATE: 946
+  COBBLED_DEEPSLATE: 946,
+
+  // --- Ores, first block-parity batch ---------------------------------------------------------
+  //
+  // Twelve ore blocks that were absent while their harvest rows and their drops already existed in
+  // the generated tables. All are plain full cubes with an `all` texture, so they need no geometry.
+  //
+  // Ids 947+ because 222-945 is the generated range and 946 is cobbled deepslate; the collision guard
+  // at the bottom of this file turns a mistake here into a loud failure rather than a wrong block.
+  DEEPSLATE_COAL_ORE: 947,
+  DEEPSLATE_IRON_ORE: 948,
+  DEEPSLATE_GOLD_ORE: 949,
+  DEEPSLATE_DIAMOND_ORE: 950,
+  DEEPSLATE_EMERALD_ORE: 951,
+  DEEPSLATE_REDSTONE_ORE: 952,
+  DEEPSLATE_LAPIS_ORE: 953,
+  DEEPSLATE_COPPER_ORE: 954,
+  COPPER_ORE: 955,
+  LAPIS_ORE: 956,
+  NETHER_GOLD_ORE: 957,
+  NETHER_QUARTZ_ORE: 958
 };
 
 export const BLOCK_DEFS = {
@@ -463,6 +483,29 @@ export const BLOCK_DEFS = {
       all: 'emerald_ore.png'
     }
   },
+  // --- Ores, first block-parity batch ---------------------------------------------------------
+  //
+  // `dropItem` is what actually spawns on break: getBlockDrop() reads it and ignores the harvest
+  // table's `drops`, which only gates WHETHER a drop happens. So each entry has to name its drop
+  // explicitly, which is why the deepslate ores repeat what blockHarvestData.js already declares.
+  //
+  // Hardness matches the generated harvest row (deepslate ores 4.5, surface ores 3) so the two tables
+  // agree rather than the harvest row silently overriding a different number here.
+  [BLOCKS.DEEPSLATE_COAL_ORE]: { name: 'Deepslate Coal Ore', hardness: 4.5, sound: 'stone', dropItem: 'coal', textures: { all: 'deepslate_coal_ore.png' } },
+  [BLOCKS.DEEPSLATE_IRON_ORE]: { name: 'Deepslate Iron Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_iron', textures: { all: 'deepslate_iron_ore.png' } },
+  [BLOCKS.DEEPSLATE_GOLD_ORE]: { name: 'Deepslate Gold Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_gold', textures: { all: 'deepslate_gold_ore.png' } },
+  [BLOCKS.DEEPSLATE_DIAMOND_ORE]: { name: 'Deepslate Diamond Ore', hardness: 4.5, sound: 'stone', dropItem: 'diamond', textures: { all: 'deepslate_diamond_ore.png' } },
+  [BLOCKS.DEEPSLATE_EMERALD_ORE]: { name: 'Deepslate Emerald Ore', hardness: 4.5, sound: 'stone', dropItem: 'emerald', textures: { all: 'deepslate_emerald_ore.png' } },
+  // Redstone drops one item per break here, as the existing surface Redstone Ore does; vanilla's 4-5
+  // dust roll is a separate mechanic this game has not modelled for any ore.
+  [BLOCKS.DEEPSLATE_REDSTONE_ORE]: { name: 'Deepslate Redstone Ore', hardness: 4.5, sound: 'stone', dropItem: 'redstone', textures: { all: 'deepslate_redstone_ore.png' } },
+  [BLOCKS.DEEPSLATE_LAPIS_ORE]: { name: 'Deepslate Lapis Lazuli Ore', hardness: 4.5, sound: 'stone', dropItem: 'lapis_lazuli', textures: { all: 'deepslate_lapis_ore.png' } },
+  [BLOCKS.DEEPSLATE_COPPER_ORE]: { name: 'Deepslate Copper Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_copper', textures: { all: 'deepslate_copper_ore.png' } },
+  [BLOCKS.COPPER_ORE]: { name: 'Copper Ore', hardness: 3.0, sound: 'stone', dropItem: 'raw_copper', textures: { all: 'copper_ore.png' } },
+  [BLOCKS.LAPIS_ORE]: { name: 'Lapis Lazuli Ore', hardness: 3.0, sound: 'stone', dropItem: 'lapis_lazuli', textures: { all: 'lapis_ore.png' } },
+  // Nether gold ore drops nuggets, not the ore and not an ingot.
+  [BLOCKS.NETHER_GOLD_ORE]: { name: 'Nether Gold Ore', hardness: 3.0, sound: 'stone', dropItem: 'gold_nugget', textures: { all: 'nether_gold_ore.png' } },
+  [BLOCKS.NETHER_QUARTZ_ORE]: { name: 'Nether Quartz Ore', hardness: 3.0, sound: 'stone', dropItem: 'quartz', textures: { all: 'nether_quartz_ore.png' } },
   [BLOCKS.OBSIDIAN]: {
     name: 'Obsidian',
     hardness: 10.0,
@@ -993,6 +1036,10 @@ export const ITEMS = {
   wooden_sword: { name: 'Wooden Sword', attack: 4, icon: '/assets/items/wooden_sword.png', type: 'weapon' },
   bow: { name: 'Bow', attack: 6, icon: '/assets/items/bow.png', type: 'weapon' },
   crossbow: { name: 'Crossbow', attack: 8, icon: '/assets/items/crossbow.png', type: 'weapon' },
+  // Wiki: a stray drops an Arrow of Slowness and a bogged an Arrow of Poison.
+  tipped_arrow_slowness: { name: 'Arrow of Slowness', icon: '/assets/items/tipped_arrow_slowness.png', type: 'material' },
+  tipped_arrow_weakness: { name: 'Arrow of Weakness', icon: '/assets/items/tipped_arrow_weakness.png', type: 'material' },
+  tipped_arrow_poison: { name: 'Arrow of Poison', icon: '/assets/items/tipped_arrow_poison.png', type: 'material' },
   arrow: { name: 'Arrow', icon: '/assets/items/arrow.png', type: 'projectile' },
   trident: { name: 'Trident', attack: 9, icon: '/assets/items/trident.png', type: 'weapon' },
   totem_of_undying: { name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png', type: 'special' },
@@ -1075,6 +1122,8 @@ export const ITEMS = {
   lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
   milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
   flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
+  // Wiki: the harness, which a happy ghast must have before it can be ridden.
+  harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },
   shears: { name: 'Shears', icon: '/assets/items/shears.png', type: 'tool' },
   fishing_rod: { name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png', type: 'tool' },
   compass: { name: 'Compass', icon: '/assets/items/compass.png', type: 'tool' },
@@ -1153,6 +1202,10 @@ export const ITEMS = {
   // Both of these are named by loot tables that already run: `mobs.js` drops seagrass from a turtle,
   // and the generated stray table drops a tipped arrow. Naming an id with no definition produced a
   // fallback sprite and a phantom stack, so the entries are the fix.
+  //
+  // seagrass is defined once, here. Both sides of the ore-batch merge added it independently and the
+  // merge kept both copies; a duplicate key in an object literal is legal JavaScript that silently
+  // keeps the last one, which is exactly what tests/itemDefinitions.test.js exists to catch.
   seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', type: 'material' },
   tipped_arrow: { name: 'Tipped Arrow', icon: '/assets/items/tipped_arrow.png', type: 'projectile' },
   raw_iron: { name: 'Raw Iron', icon: '/assets/items/raw_iron.png', type: 'material' },
@@ -1182,6 +1235,16 @@ export const ITEMS = {
   bone_meal: { name: 'Bone Meal', icon: '/assets/items/bone_meal.png', type: 'material' },
   sugar: { name: 'Sugar', icon: '/assets/items/sugar.png', type: 'material' },
   leather: { name: 'Leather', icon: '/assets/items/leather.png', type: 'material' },
+  // Wiki: a goat horn is dropped when a goat rams a hard block. Both horns of one goat are always
+  // the same variant, so the item carries the variant in its name rather than the stack.
+  // Wiki: seagrass is what turtles eat, breed with and follow, and 0-2 drop on death.
+  // Wiki: a small slime killed by a frog always drops exactly one slimeball, and frogs breed with it.
+  // Wiki: pandas eat, follow and breed around bamboo, and drop exactly one when killed.
+  // Wiki: a brush takes 16 durability per armadillo scute, so one is good for four scutes.
+  brush: { name: 'Brush', icon: '/assets/items/brush.png', type: 'tool', durability: 64 },
+  bamboo: { name: 'Bamboo', icon: '/assets/items/bamboo.png', type: 'material' },
+  slimeball: { name: 'Slimeball', icon: '/assets/items/slimeball.png', type: 'material' },
+  goat_horn: { name: 'Goat Horn', icon: '/assets/items/goat_horn.png', type: 'material' },
   paper: { name: 'Paper', icon: '/assets/items/paper.png', type: 'material' },
   book: { name: 'Book', icon: '/assets/items/book.png', type: 'material' },
   enchanted_book: { name: 'Enchanted Book', icon: '/assets/items/enchanted_book.png', type: 'utility' },
@@ -1253,6 +1316,39 @@ export const ITEMS = {
   zombie_spawn_egg: { name: 'Zombie Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie' },
   skeleton_spawn_egg: { name: 'Skeleton Spawn Egg', icon: '/assets/items/skeleton_spawn_egg.png', type: 'spawn_egg', mob: 'skeleton' },
   creeper_spawn_egg: { name: 'Creeper Spawn Egg', icon: '/assets/items/creeper_spawn_egg.png', type: 'spawn_egg', mob: 'creeper' },
+  spider_spawn_egg: { name: 'Spider Spawn Egg', icon: '/assets/items/spider_spawn_egg.png', type: 'spawn_egg', mob: 'spider' },
+  cave_spider_spawn_egg: { name: 'Cave Spider Spawn Egg', icon: '/assets/items/cave_spider_spawn_egg.png', type: 'spawn_egg', mob: 'cave_spider' },
+  silverfish_spawn_egg: { name: 'Silverfish Spawn Egg', icon: '/assets/items/silverfish_spawn_egg.png', type: 'spawn_egg', mob: 'silverfish' },
+  endermite_spawn_egg: { name: 'Endermite Spawn Egg', icon: '/assets/items/endermite_spawn_egg.png', type: 'spawn_egg', mob: 'endermite' },
+  rabbit_spawn_egg: { name: 'Rabbit Spawn Egg', icon: '/assets/items/rabbit_spawn_egg.png', type: 'spawn_egg', mob: 'rabbit' },
+  bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
+  fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
+  bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  skeleton_horse_spawn_egg: { name: 'Skeleton Horse Spawn Egg', icon: '/assets/items/skeleton_horse_spawn_egg.png', type: 'spawn_egg', mob: 'skeleton_horse' },
+  zombie_horse_spawn_egg: { name: 'Zombie Horse Spawn Egg', icon: '/assets/items/zombie_horse_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_horse' },
+  illusioner_spawn_egg: { name: 'Illusioner Spawn Egg', icon: '/assets/items/illusioner_spawn_egg.png', type: 'spawn_egg', mob: 'illusioner' },
+  snow_golem_spawn_egg: { name: 'Snow Golem Spawn Egg', icon: '/assets/items/snow_golem_spawn_egg.png', type: 'spawn_egg', mob: 'snow_golem' },
+  killer_bunny_spawn_egg: { name: 'Killer Bunny Spawn Egg', icon: '/assets/items/killer_bunny_spawn_egg.png', type: 'spawn_egg', mob: 'killer_bunny' },
+  creaking_spawn_egg: { name: 'Creaking Spawn Egg', icon: '/assets/items/creaking_spawn_egg.png', type: 'spawn_egg', mob: 'creaking' },
+  parched_spawn_egg: { name: 'Parched Spawn Egg', icon: '/assets/items/parched_spawn_egg.png', type: 'spawn_egg', mob: 'parched' },
+  camel_spawn_egg: { name: 'Camel Spawn Egg', icon: '/assets/items/camel_spawn_egg.png', type: 'spawn_egg', mob: 'camel' },
+  wandering_trader_spawn_egg: { name: 'Wandering Trader Spawn Egg', icon: '/assets/items/wandering_trader_spawn_egg.png', type: 'spawn_egg', mob: 'wandering_trader' },
+  allay_spawn_egg: { name: 'Allay Spawn Egg', icon: '/assets/items/allay_spawn_egg.png', type: 'spawn_egg', mob: 'allay' },
+  sniffer_spawn_egg: { name: 'Sniffer Spawn Egg', icon: '/assets/items/sniffer_spawn_egg.png', type: 'spawn_egg', mob: 'sniffer' },
+  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'material' },
+  breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
+  husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
+  stray_spawn_egg: { name: 'Stray Spawn Egg', icon: '/assets/items/stray_spawn_egg.png', type: 'spawn_egg', mob: 'stray' },
+  bogged_spawn_egg: { name: 'Bogged Spawn Egg', icon: '/assets/items/bogged_spawn_egg.png', type: 'spawn_egg', mob: 'bogged' },
+  armadillo_spawn_egg: { name: 'Armadillo Spawn Egg', icon: '/assets/items/armadillo_spawn_egg.png', type: 'spawn_egg', mob: 'armadillo' },
+  panda_spawn_egg: { name: 'Panda Spawn Egg', icon: '/assets/items/panda_spawn_egg.png', type: 'spawn_egg', mob: 'panda' },
+  polar_bear_spawn_egg: { name: 'Polar Bear Spawn Egg', icon: '/assets/items/polar_bear_spawn_egg.png', type: 'spawn_egg', mob: 'polar_bear' },
+  parrot_spawn_egg: { name: 'Parrot Spawn Egg', icon: '/assets/items/parrot_spawn_egg.png', type: 'spawn_egg', mob: 'parrot' },
+  tadpole_spawn_egg: { name: 'Tadpole Spawn Egg', icon: '/assets/items/tadpole_spawn_egg.png', type: 'spawn_egg', mob: 'tadpole' },
+  frog_spawn_egg: { name: 'Frog Spawn Egg', icon: '/assets/items/frog_spawn_egg.png', type: 'spawn_egg', mob: 'frog' },
+  turtle_spawn_egg: { name: 'Turtle Spawn Egg', icon: '/assets/items/turtle_spawn_egg.png', type: 'spawn_egg', mob: 'turtle' },
+  llama_spawn_egg: { name: 'Llama Spawn Egg', icon: '/assets/items/llama_spawn_egg.png', type: 'spawn_egg', mob: 'llama' },
+  goat_spawn_egg: { name: 'Goat Spawn Egg', icon: '/assets/items/goat_spawn_egg.png', type: 'spawn_egg', mob: 'goat' },
   pig_spawn_egg: { name: 'Pig Spawn Egg', icon: '/assets/items/pig_spawn_egg.png', type: 'spawn_egg', mob: 'pig' },
   cow_spawn_egg: { name: 'Cow Spawn Egg', icon: '/assets/items/cow_spawn_egg.png', type: 'spawn_egg', mob: 'cow' },
   sheep_spawn_egg: { name: 'Sheep Spawn Egg', icon: '/assets/items/sheep_spawn_egg.png', type: 'spawn_egg', mob: 'sheep' },
@@ -1305,7 +1401,12 @@ export const ITEMS = {
   ravager_spawn_egg: { name: 'Ravager Spawn Egg', icon: '/assets/items/ravager_spawn_egg.png', type: 'spawn_egg', mob: 'ravager' },
   warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
-  wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' }
+  wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' },
+  happy_ghast_spawn_egg: { name: 'Happy Ghast Spawn Egg', icon: '/assets/items/happy_ghast_spawn_egg.png', type: 'spawn_egg', mob: 'happy_ghast' },
+  copper_golem_spawn_egg: { name: 'Copper Golem Spawn Egg', icon: '/assets/items/copper_golem_spawn_egg.png', type: 'spawn_egg', mob: 'copper_golem' },
+  camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
+  piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
+  giant_spawn_egg: { name: 'Giant Spawn Egg', icon: '/assets/items/giant_spawn_egg.png', type: 'spawn_egg', mob: 'giant' },
 };
 
 // --- generated item additions for vanilla parity -----------------------------

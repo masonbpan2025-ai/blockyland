@@ -330,19 +330,219 @@ This is the most important section for planning. Copying the following would mov
 
 ## 4. Where this project stands against it
 
-Measured by `scripts/parity-coverage.mjs` against minecraft-data 1.21.4, and recorded as a floor in
-`tests/survivalParity.test.js`:
+Measured against minecraft-data 1.21.4. Recipe figures come from `scripts/parity-coverage.mjs`, block
+and item figures from `scripts/parity-coverage.mjs`, and mob drops from
+`scripts/mob-loot-parity.mjs`. Each is pinned as a floor in the tests, so a regression fails rather than
+going unnoticed.
+
+### 4.1 Content
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Crafting recipes expressible | 421 | 1557 | 27.0% |
-| Blocks named | 271 | 1095 | 24.7% |
-| Items named | 486 | 1385 | 35.1% |
+| Vanilla recipes implemented | 1546 | 1557 | 99.3% |
+| Crafting recipes expressible | 1547 | 1557 | 99.4% |
+| Blocks named | 831 | 1095 | 75.9% |
+| Items named | 1136 | 1385 | 82.0% |
+
+"Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
+Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
+of them are vanilla (the red bed item and several redstone components are this project's own additions),
+and folding them in once produced a headline of 100.3%.
 
 "Expressible" means the result and every ingredient resolve to real content. It is a ceiling on what
-could be crafted, not a count of implemented recipes, which is much lower.
+could be crafted, not a count of implemented recipes.
 
-The remaining gap is dominated by content that needs **new geometry in the mesher**, not just data:
-slabs, stairs, fences, doors, beds and panes. The backlog quantifies it as 62 ingredient slots needing
-geometry against 158 plain ones, and ranks the families by recipes blocked — beds first at 196 recipes
-from only 15 names.
+The remaining ten recipes are blocked by results that need **engine work, not shapes** — `ender_chest`,
+`shulker_box`, `trapped_chest`, `scaffolding`, `cake`, `bundle`, `map`, `spyglass`, `recovery_compass`
+and `brush`. The geometry work is complete: this project now draws slabs, stairs, fences, gates, walls,
+doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
+rods, rails and flower pots, each with tests.
+
+### 4.1.1 The remaining gap is ART, not code — for blocks and for items
+
+The "Blocks named 75.9%" and "Items named 82%" rows read like missing implementation. They are not, and the
+distinction decides what work is left.
+
+The content generator emits a block only when `textureExists()` finds a PNG in `public/assets/blocks`, and
+`tests/item_icons.test.js` requires a non-empty PNG at `/assets/items/<name>.png` for every entry in ITEMS.
+So an item with no art cannot be added however well it is understood — and every geometry family this
+project needed already exists. Measured by `scripts/content-gap.mjs`:
+
+| | blocks | items |
+|---|---|---|
+| vanilla | 1095 | 1385 |
+| present | 827 | 1130 |
+| missing | 268 | 255 |
+| **missing, has its OWN art** | **0** | **0** |
+| missing, could reuse art already present | **1** | **9** |
+| **missing, needs NEW art** | **267** | **246** |
+| art files | 241 | 974 |
+
+Both gaps are the same shape. Of 268 missing blocks, **one** is reachable by writing code —
+`redstone_wall_torch`, reusing `redstone_torch.png`. Of 255 missing items, **nine** are — all spawn eggs
+drawing the shared `spawn_egg.png`. Everything else needs art that does not exist.
+
+The item row counts 1130 present where `scripts/parity-coverage.mjs` reports 1138. The difference is the
+name-derivation rule, not the conclusion: this measurement asks "is there an icon file", and eight items
+the coverage script can name have no icon of their own. Both figures are honest about different questions.
+
+The reuse counts are deliberately conservative rather than a guess. The generator really does draw a sign
+with its wood's plank texture, so a missing wall sign can reuse one; it does **not** draw a sapling that way,
+and a sapling textured as planks would be a visual bug. Likewise a birch boat must not reuse an oak boat's
+icon, though a spawn egg may share the egg. Counting those would have reported 15 code-reachable blocks and
+some hundreds of items instead of 1 and 9, which is the kind of number that sends the next person down the
+wrong path.
+
+`tests/contentGap.test.js` pins all of it, including that no missing block or item acquires its own art —
+the moment one does, it becomes a code gap and this section has to change.
+
+### 4.2 Mob drops — there are TWO tables, and the verified one is the unused one
+
+**This is the most misleading corner of the repository and the earlier versions of this section made it
+worse.** There are two independent mob drop tables:
+
+| table | where | imported by | verified against vanilla |
+|---|---|---|---|
+| `MOB_LOOT` | `src/mobLootData.js` | **nothing** | **yes**, 104/104 entries |
+| `getMobDeathDrops` | `src/mobs.js` | `mobs.js`, i.e. the live path | **not measured** |
+
+`MOB_LOOT` is dead code: nothing imports `mobLootData.js`, and the only reference anywhere is a comment in
+`player.js`. The table that actually produces drops is `MobManager.getMobDeathDrops`, which is thorough --
+it has a base table plus about twenty per-mob helper functions (`spiderDrops`, `phantomDrops`,
+`polarBearDrops`, `variantBonusDrops` and so on) and cites the wiki at most rows. It had never been
+compared against vanilla.
+
+So the honest position is: **the data that matches vanilla is unused, and the data that is used is
+unmeasured.** A section that reported "mob drops verified 104/104" was describing the wrong table.
+
+### 4.2.1 Two attempts to measure the live table, both invalid
+
+Recorded because both produced confident-looking numbers that were wrong, and because the next person to
+try should start from a different place.
+
+1. **Calling `getMobDeathDrops` with a stub mob and an empty `this`.** It reported 21 entities missing
+   items. Invalid: the method delegates to per-mob helpers that read live mob state, so a stub produces
+   nothing for any mob handled that way. It also reported `sheep` as having no wool row when the row is
+   right there and simply needs `mob.woolColor`.
+2. **Checking the source text for each mob type.** It reported 22 entities "not named at all", including
+   `blaze`, `sheep` and `spider`, all of which are present. The regex required `type: [[` while the real
+   rows look like `blaze: mob.playerDamaged ? [['blaze_rod', ...]] : []`, and the helper-based mobs name no
+   type at all.
+
+A valid comparison needs real mob instances driven through each drop path. **One now exists:**
+`scripts/mob-drop-live.mjs` spawns every loot-bearing mob through the ordinary dispatcher using the fixture
+`tests/mobUpdateSmoke.test.js` established, forces the drop roll so chance checks pass, and compares the
+result against vanilla's chance-1 drops.
+
+### 4.2.2 The live table, measured
+
+| | |
+|---|---|
+| Vanilla entities with drops | 55 |
+| Measured with real mobs | **50** |
+| **In this game at all** | **5 missing** |
+| Spawn or drop errors | 0 |
+| Real drop gaps | **2, both now fixed** |
+| Name or vanilla-data differences | 3 |
+
+**Two real gaps, fixed**: `cat` (string) and `ravager` (saddle) had no drop row and no helper. Rows added.
+
+**No mob is missing any more**: all five that were absent have since been added: `pufferfish`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
+`zombie_horse`. Round 34 reported these as drop gaps, which was wrong, and the reason is a defect worth
+naming: **`spawnMob` falls back to a VILLAGER for any type it does not know** -- its `default:` branch ends
+in `return this.spawnVillager(...)`. So spawning by name and reading the mob measures a villager for any
+mob that does not exist, and a drop row for one of these would fix nothing. The harness now detects the
+substitution and reports it as its own category.
+
+That fallback is silent, so any typo or unported mob becomes a villager rather than failing. It is worth
+fixing on its own account; `tests/mobDropLive.test.js` asserts the current behaviour and will fail the day
+it is corrected, which is the signal to update this section.
+
+**Three differences that are not gaps**, kept separate because round 34 lumped them in and overstated the
+result: `stray` drops `tipped_arrow_slowness` where vanilla's data says `tipped_arrow`, a variant name
+rather than a missing drop; `turtle` drops seagrass as vanilla does, and its listed `bowl` looks like a
+minecraft-data artifact; `elder_guardian` lists `tide_armor_trim_smithing_template`, which is structure
+loot in vanilla rather than a mob drop.
+
+**Two harness traps, both recorded because both produced confident numbers.** The roll was first forced
+with `random = () => 0.5`, and `phantomDrops` tests `random() < 0.5`, so the phantom looked empty; the roll
+is now forced to 0 with a test for both directions. And the villager substitution above hid five mobs
+entirely.
+
+| | compared | differences |
+|---|---|---|
+| `MOB_LOOT` entities with drops | 55 | — |
+| `MOB_LOOT` drop entries | 104 | — |
+| `MOB_LOOT` drop chance | 104 | 0 |
+| `MOB_LOOT` stack count | 104 | 0 |
+| `MOB_LOOT` `playerKill` condition | 104 | 0 |
+| `getMobDeathDrops` | not measured | — |
+
+**This project follows vanilla's semantics, not Mineclonia's.** Mineclonia's `chance` field is 1-in-N
+(see 3.12 above), so a smaller number means a *rarer* drop; vanilla's is a probability, so a smaller
+number also means rarer but the arithmetic is inverted. This game uses vanilla's: a zombie's iron ingot
+is stored as `0.008333`, matching vanilla's `dropChance`, and a reroll of the table reproduces vanilla's
+outcomes.
+
+One structural note: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
+today. The ranged form is implemented and covered by a test, but it is unexercised by the current data.
+
+### 4.3 What is not verified
+
+- **Drop probabilities under Looting.** Vanilla raises several chances with the enchantment; the loot
+  table has no per-level figures, so this is not measurable from the available data.
+- ~~Brewing and potion-to-effect mapping~~ — **now implemented and verified against section 2.6.** An
+  earlier version of this list said it was not implemented, which was wrong: `src/brewing.js` already had
+  40 recipes and 36 potions. Auditing it against the researched rules found three faults, all silent:
+
+  - The brew took **20 seconds** where vanilla and Mineclonia both take 10, and the comment asserted 20 as
+    well — so the code and its own documentation agreed with each other and disagreed with the game.
+  - **`potion_of_slowness` did not exist at all.** The fermented spider eye table converted night vision,
+    healing and poison, and had no row for swiftness or leaping, so the potion could not be brewed.
+  - **`potion_of_slowness_2` then existed with no recipe able to produce it**, which is the same fault in
+    the other direction. Referential integrity is now checked BOTH ways by a test, since either direction
+    can be broken silently.
+
+  Not verified: the lingering (`x0.25`) and tipped-arrow (`x0.125`) duration factors, and splash-potion
+  behaviour beyond the fire-resistance case in `barterItems.js`.
+- **Unbreaking is now wired, because tool durability now exists.** It had been recorded as outstanding for
+  three rounds on the reasoning that it "needs a durability system to spend against". That was correct, and
+  the system genuinely did not exist: mining a block never wore the tool, and the only item in the registry
+  carrying a `durability` value was the brush, so a diamond pickaxe was permanent. That removes one of the
+  central pressures of survival mode.
+
+  `src/durability.js` now holds vanilla's maxima -- wood 59, gold 32, stone 131, iron 250, diamond 1561,
+  netherite 2031, plus the fixed figures for shears, flint and steel, fishing rod, bow, crossbow, shield,
+  trident, elytra, brush and the five armour materials -- and `spendDurability` applies unbreaking. The
+  measured lifetimes come out at the vanilla multipliers of level + 1: 250, 500, 754 and 1004 uses for
+  unbreaking 0 to III on an iron pickaxe. Mining wears the held tool in survival and clears the slot when
+  it breaks.
+
+  **Thorns**: `Player.takeDamage` rolls it per armour piece and reports through an `onThornsReflect` hook
+  that `main.js` connects to the mob manager, so the player never damages a mob itself. The attacker is
+  identified from the damage source POSITION rather than passed by the caller, because `mobs.js` passes
+  `mob.mesh.position` in four places and that file is another agent's workspace; the lookup in `main.js`
+  also covers every damage source with a position rather than only those four call sites.
+
+  **Depth strider**: applied in `Player.selectBaseSpeed()`, the water branch, reaching 1.75x at level III
+  where the penalty is gone and water speed passes land speed. Clamped above level III.
+
+### 4.4 Enchantment damage — implemented
+
+`src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers
+live in one place and can be asserted directly:
+
+| Enchantment | Effect | Applies to |
+|---|---|---|
+| Sharpness | +0.5 × level + 0.5 | everything |
+| Smite | +2.5 × level | undead (16 types) |
+| Bane of Arthropods | +2.5 × level | arthropods (6 types) |
+| Impaling | +2.5 × level | aquatic (13 types) |
+| Fire Aspect | burns 4 × level seconds | everything |
+
+Two notes on fidelity. The extraction preserved sharpness and smite exactly, which the tests assert
+against the numbers the inline code produced. **Impaling was broadened**: the inline code applied it only
+to `squid` and `glow_squid`, and vanilla 1.21 applies it to aquatic mobs generally, so the wider set is a
+deliberate correction rather than a faithful extraction. Bane of Arthropods and Fire Aspect are new.
+
+

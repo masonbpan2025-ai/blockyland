@@ -108,8 +108,10 @@ test('enderman teleports locally in normal world and pursues without jittering i
   const { manager, player } = fixture();
   player.position.set(50, 1, 50);
   const enderman = manager.spawnEnderman(40, 1, 40);
-  assert.equal(enderman.width, 0.5);
-  assert.equal(enderman.height, 2.85);
+  // Wiki: 0.6 wide, 2.9 tall. These were previously pinned at the pre-fix 0.5 / 2.85.
+  assert.equal(enderman.width, 0.6);
+  assert.equal(enderman.height, 2.9);
+  assert.equal(enderman.maxHealth, 40, 'wiki: endermen have 40 HP');
 
   // In a normal world, teleportEnderman should NOT teleport to arena coordinates (0, 24.5, 0)
   manager.teleportEnderman(enderman);

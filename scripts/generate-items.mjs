@@ -89,7 +89,9 @@ for (const key of Object.keys(recipes)) {
 // Only take materials that are genuinely simple items: an item with no vanilla block form that is not
 // itself a tool, armour or spawn egg. Tools and armour need stats this generator does not derive, and
 // emitting them with none would produce items that cannot be used.
-const NEEDS_STATS = /(_pickaxe|_axe|_shovel|_hoe|_sword|_helmet|_chestplate|_leggings|_boots|_horse_armor|_spawn_egg|_bucket|_rod|_bow$|_crossbow$|_shield|_trident|_elytra|_totem|_potion|_arrow$|_tipped_arrow|_firework|_disc|_template$|_smithing_template|_banner_pattern|_armor_trim)/;
+// `fishing_rod` rather than `_rod`: the suffix form also swallowed breeze_rod, a plain material
+// that blocks three recipes. A broad pattern here fails silently, so it names what it means.
+const NEEDS_STATS = /(_pickaxe|_axe|_shovel|_hoe|_sword|_helmet|_chestplate|_leggings|_boots|_horse_armor|_spawn_egg|_bucket|fishing_rod|_bow$|_crossbow$|_shield|_trident|_elytra|_totem|_potion|_arrow$|_tipped_arrow|_firework|_disc|_template$|_smithing_template|_banner_pattern|_armor_trim)/;
 const simpleMaterials = [...materialNeeds]
   .filter(([n]) => !NEEDS_STATS.test(n))
   .sort((a, b) => b[1] - a[1]);
@@ -131,10 +133,13 @@ console.log('  carried forward from the previous run: ' + PREVIOUS_ITEMS.length)
 // swallowed it and emitted zero items with no visible error.
 let generatedBlockItems = 0;
 try {
-  const { EXTRA_BLOCK_IDS } = await import('../src/extraContent.js');
+  const { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } = await import('../src/extraContent.js');
   const { ITEMS: REGISTERED } = await import('../src/blocks.js');
   for (const [constName, id] of Object.entries(EXTRA_BLOCK_IDS)) {
     const name = constName.toLowerCase();
+    // A door's open and top halves are placed by the door itself, so they need no item of their own.
+    // Without this skip, one door would produce four creative items.
+    if (EXTRA_BLOCK_DEFS?.[id]?.internal) continue;
     // The test is whether an ITEM exists, not whether the name is known anywhere.
     //
     // `present` includes every block name, so testing it skipped every generated block -- including

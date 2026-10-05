@@ -3,8 +3,23 @@ import { serializeSquid, restoreSquid } from './squidBehavior.js';
 import {serializeZombified,restoreZombified,restoreZombifiedLinks,isZombifiedPiglin} from './zombifiedPiglin.js';
 import { serializeStrider, restoreStrider, attachStriderPassenger } from './striderBehavior.js';
 import { serializeHorse, restoreHorse } from './horseBehavior.js';
+import { serializeMobState, restoreMobState, mobAppearanceRestorers } from './mobState.js';
+import { sheepApplyWool } from './sheepBehavior.js';
+import { applyMooshroomVariant } from './mooshroomBehavior.js';
+import { applyRabbitCoat, applyRabbitName } from './rabbitBehavior.js';
 import * as THREE from 'three';
 import { Chunk } from './world.js';
+
+/**
+ * Re-apply variant appearance after a load, so a restored mob looks like what was saved rather
+ * than like a fresh default spawn.
+ */
+const restoreMobAppearance = mobAppearanceRestorers({
+  sheepApplyWool,
+  applyMooshroomVariant,
+  applyRabbitCoat,
+  applyRabbitName
+});
 
 /**
  * Run-length encode a Uint8Array of voxels.
@@ -71,6 +86,8 @@ export function serializeWorld(game, mapName = 'World 1') {
     squid: serializeSquid(mob),
     witherSkeleton: serializeWitherSkeleton(mob),
     striderVehicle: mob.vehicle?.type==='strider' ? game.mobs.mobs.indexOf(mob.vehicle) : undefined,
+    // Everything the per-mob blobs above do not cover: age, taming, variants, timers and roles.
+    state: serializeMobState(mob, game),
     health: mob.health ?? 20
   }));
 
@@ -270,6 +287,9 @@ export function deserializeWorld(game, mapData, options = {}) {
           restoreHorse(spawned,m.equine,game.mobs);
           restoreZombified(spawned,m.zombified,game.mobs);
         }
+        // Applied after the health clamp above, since a restored wolf's maximum health depends
+        // on whether it is tamed and its current health must be clamped to that.
+        restoreMobState(spawned, m.state, { player: game.player, applyAppearance: restoreMobAppearance });
       } catch (err) {
         restoredMobs[recordIndex]=null;
         console.warn(`Could not spawn mob ${m.type}:`, err);

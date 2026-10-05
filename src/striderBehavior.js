@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { poseStrider } from './striderModel.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
+import { BABY_GROWTH_SECONDS, accelerateBabyGrowth } from './babyGrowth.js';
 
 export const isStriderFood=id=>id==='warped_fungus'||id===BLOCKS.WARPED_FUNGUS;
 const heldItems=p=>[p?.inventory?.getActiveItem?.(),p?.inventory?.getOffhandItem?.()].filter(Boolean);
@@ -20,11 +21,11 @@ export function interactStrider(b,m,p,inventory,id){
   if(!canInteractStrider(m,id))return false;
   const consume=()=>{if(p.gamemode!=='creative')inventory.consumeActiveItem(1);};
   if(isStriderFood(id)){
-    if(m.isBaby){if(!m.ageLocked)m.babyGrowthTimer=(m.babyGrowthTimer??1200)*.9;}
+    if(m.isBaby){if(!m.ageLocked)accelerateBabyGrowth(m);}
     else{m.inLove=m.inLoveTimer=30;m.matingTimer=0;b.spawnHeartParticles(m.mesh.position);}
     consume();b.sounds?.playEat?.();return true;
   }
-  if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=1200;m.ageLockCooldown=2;consume();return true;}
+  if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=BABY_GROWTH_SECONDS;m.ageLockCooldown=2;consume();return true;}
   if(id==='lead'){if(m.leashHolder||m.leashAnchor)releaseHorseLead(b.mobManager,m);else{m.leashHolder=p;consume();}return true;}
   if(id==='name_tag'){const name=inventory.getActiveItem()?.customName;if(!name)return false;m.name=String(name).slice(0,64);m.persistent=true;consume();return true;}
   if(id==='saddle'){m.isSaddled=m.hasSaddle=true;m.saddleMesh.visible=true;consume();return true;}

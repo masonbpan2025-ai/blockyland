@@ -2,38 +2,50 @@ import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squi
 import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
 import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
+import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
+import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
+import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariantName, applyParrotVariant } from './parrotBehavior.js';
+import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
+import { inheritFoxCoat } from './foxBehavior.js';
+// Wiki: a killer bunny can breed with any rabbit, so the offspring rule lives with the mob.
+import { inheritKillerBunny, makeKillerBunny } from './rabbitBehavior.js';
+import { SNIFFER_BREEDING } from './snifferBehavior.js';
+import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
+import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
-export const SHEEP_COLORS = [
-  'white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray',
-  'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'
-];
-
-export const SHEEP_COLOR_HEX = {
-  white: 0xe9ecef,
-  orange: 0xf97316,
-  magenta: 0xd946ef,
-  light_blue: 0x38bdf8,
-  yellow: 0xfacc15,
-  lime: 0x84cc16,
-  pink: 0xf472b6,
-  gray: 0x4b5563,
-  light_gray: 0x9ca3af,
-  cyan: 0x06b6d4,
-  purple: 0xa855f7,
-  blue: 0x2563eb,
-  brown: 0x78350f,
-  green: 0x16a34a,
-  red: 0xdc2626,
-  black: 0x18181b
-};
+// Re-exported so existing importers (mobShowcase, tests) keep working now that the
+// canonical sheep tables live in sheepBehavior.js.
+export { SHEEP_COLORS, SHEEP_COLOR_HEX };
 
 export const BREEDING_FOODS = {
   cow: ['wheat'],
+  // Wiki: mooshrooms breed with wheat, and the pair check below requires matching types,
+  // so a mooshroom and a cow cannot breed with each other.
+  mooshroom: ['wheat'],
+  // Wiki: goats breed with wheat, and follow a wheat-holding player within ten blocks.
+  goat: ['wheat'],
+  // Wiki: turtles breed when fed seagrass, and follow a player holding it within ten blocks.
+  turtle: ['seagrass'],
+  // Wiki: frogs are tempted and bred with slimeballs, and follow a slimeball-holding player.
+  frog: ['slimeball'],
+  // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
+  // id here, so it is listed as the block constant rather than a string.
+  rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],
   strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
+  // Wiki: pandas "are bred using bamboo". Bamboo is not a shared food, and on Java the pair only
+  // actually breeds with a plant within 7x7x3, which `checkBreedingPair` enforces below.
+  panda: ['bamboo'],
+  // Wiki: armadillos are bred with spider eyes, and follow a spider-eye-holding player within 10 blocks.
+  armadillo: ['spider_eye'],
+  // Wiki: sniffers are bred with torchflower seeds, which also accelerate a snifflet's growth.
+  sniffer: ['torchflower_seeds'],
+  // Wiki: camels are bred with cactus, which also takes 10 s off a baby's growth.
+  camel: ['cactus'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
     'wheat_seeds', 'wheat_seed', 'seeds', 'seed',
@@ -83,11 +95,20 @@ export class AnimalBehaviors {
     // Milking cow
     if ((mob.type === 'cow' || mob.type === 'mooshroom') && itemId === 'bucket' && !mob.isBaby) return true;
 
+    // Mooshroom stew and shearing. Wiki: a bowl yields mushroom stew, or suspicious stew
+    // from a brown mooshroom that has been fed a small flower; shears convert it to a cow.
+    // A baby cannot be milked, and shearing a baby would destroy the mob for no mushrooms.
+    if (isMooshroom(mob) && !mob.isBaby) {
+      if (itemId === 'bowl') return !isBrownMooshroom(mob) || !!mob.stewEffect;
+      if (itemId === 'shears') return true;
+    }
+
     // Shearing sheep
     if (mob.type === 'sheep' && itemId === 'shears' && !mob.isSheared) return true;
 
-    // Dyeing sheep
-    if (mob.type === 'sheep' && itemId.endsWith('_dye')) return true;
+    // Dyeing sheep. Wiki: a sheared sheep cannot be dyed until its wool regrows by
+    // grazing, so holding dye must not advertise a usable interaction.
+    if (mob.type === 'sheep' && itemId.endsWith('_dye')) return !mob.isSheared;
 
     // Wolf taming or healing or sitting
     if (mob.type === 'wolf') {
@@ -137,6 +158,34 @@ export class AnimalBehaviors {
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
 
+    // --- Parrots ---------------------------------------------------------------
+    // Wiki: tamed with any seed at a 1-in-10 chance, sitting toggled by interacting with a tamed
+    // one, and killed outright by a cookie because chocolate is toxic to real parrots.
+    if (mob.type === 'parrot' && mob.health > 0) {
+      if (!itemId) {
+        // An empty hand toggles sitting on a tamed parrot; on a wild one it does nothing.
+        if (mob.isTamed) { mob.isSitting = !mob.isSitting; return true; }
+        return false;
+      }
+      if (isParrotLethalFood(itemId)) {
+        // It dies, and the player who fed it gets the credit: the wiki says that affects the death
+        // message and the loot.
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        mob.health = 0;
+        mob.playerDamaged = true;
+        return true;
+      }
+      if (isParrotTamingFood(itemId)) {
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (!mob.isTamed && rollParrotTaming()) {
+          mob.isTamed = true;
+          mob.owner = player;
+        }
+        return true;
+      }
+      return false;
+    }
+
     if(mob.type==='wither_skeleton'){
       if(mob.health<=0||itemId!=='name_tag'||!activeItem.customName)return false;
       mob.name=activeItem.customName;mob.persistent=true;
@@ -160,32 +209,84 @@ export class AnimalBehaviors {
       return true;
     }
 
+    // 2. Mooshroom: stew from a bowl, and shearing into a plain cow.
+    if (isMooshroom(mob) && !mob.isBaby) {
+      // Wiki: a bowl yields mushroom stew, or suspicious stew when a brown mooshroom has
+      // been fed a small flower. A brown mooshroom without a flower gives mushroom stew.
+      if (itemId === 'bowl') {
+        const suspicious = isBrownMooshroom(mob) && !!mob.stewEffect;
+        if (player.gamemode !== 'creative') {
+          inventory.consumeActiveItem(1);
+          inventory.addItem(suspicious ? 'suspicious_stew' : 'mushroom_stew', false, 1);
+        }
+        // The flower effect is spent once it has been milked out.
+        if (suspicious) mob.stewEffect = null;
+        if (this.sounds?.playMilk) this.sounds.playMilk();
+        this.mobManager.spawnParticleBurst?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xffffff, 8);
+        return true;
+      }
+
+      // Wiki: feeding a small flower to a brown mooshroom sets the effect of the next
+      // suspicious stew it gives. Red mooshrooms do not produce suspicious stew.
+      if (isBrownMooshroom(mob) && isSmallFlower(itemId)) {
+        mob.stewEffect = STEW_EFFECTS[itemId];
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playPop) this.sounds.playPop();
+        return true;
+      }
+
+      // Wiki: shearing drops 5 corresponding mushrooms and turns the mooshroom into a
+      // temperate cow. The mushrooms do not grow back, so this is a one-way conversion.
+      if (itemId === 'shears') {
+        const dropPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0));
+        const mushroom = BLOCKS[MOOSHROOM_MUSHROOM_BLOCK[mob.mushroomType] || MOOSHROOM_MUSHROOM_BLOCK.red];
+        for (let i = 0; i < MOOSHROOM_SHEAR_DROPS; i++) {
+          this.entities?.spawnDroppedItem(dropPos, mushroom, true);
+        }
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
+        }
+        if (this.sounds?.playShears) this.sounds.playShears();
+        this.mobManager.spawnParticleBurst?.(dropPos, 0xf43f5e, 8);
+        convertMooshroomToCow(this.mobManager, mob);
+        return true;
+      }
+    }
+
     // 2. Shearing a Sheep
-    if (mob.type === 'sheep' && itemId === 'shears') {
-      if (!mob.isSheared) {
+    if (mob.type === 'sheep' && itemId === 'shears') {      if (!mob.isSheared) {
         mob.isSheared = true;
-        if (mob.woolMesh) mob.woolMesh.visible = false;
+        // Hide the wool layer through the shared helper so the mesh and the flag stay
+        // in step. A sheared sheep keeps its colour and regrows it by grazing.
+        sheepApplyWool(mob);
         if (this.sounds?.playShears) this.sounds.playShears();
 
         const colorName = mob.woolColor || 'white';
         const woolBlockId = BLOCKS[`${colorName.toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL;
         const dropPos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0));
-        const count = 1 + Math.floor(Math.random() * 3);
+        // Wiki: 1-3 wool, not affected by Fortune or Looting.
+        const count = rollSheepWoolCount();
         for (let i = 0; i < count; i++) {
           this.entities?.spawnDroppedItem(dropPos, woolBlockId, true);
+        }
+        // Shears lose one durability per sheep, like any other shearable block.
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
         }
         return true;
       }
     }
 
-    // 3. Dyeing a Sheep
+    // 3. Dyeing a Sheep. Wiki: a sheared sheep cannot be dyed until the wool grows
+    // back by grazing, so this comes after the shearing branch that sets isSheared.
     if (mob.type === 'sheep' && itemId && itemId.endsWith('_dye')) {
+      if (mob.isSheared) return false;
       const dyeColor = itemId.replace('_dye', '');
       if (SHEEP_COLOR_HEX[dyeColor]) {
         mob.woolColor = dyeColor;
-        if (mob.woolMesh?.material) {
-          mob.woolMesh.material.color.setHex(SHEEP_COLOR_HEX[dyeColor]);
-        }
+        sheepApplyWool(mob);
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (this.sounds?.playPop) this.sounds.playPop();
         return true;
@@ -196,10 +297,12 @@ export class AnimalBehaviors {
     if (mob.type === 'wolf') {
       if (!mob.isTamed && itemId === 'bone') {
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
-        if (Math.random() < 0.35) {
-          mob.isTamed = true;
+        if (Math.random() < WOLF_TAME_CHANCE) {
+          // Wiki: taming raises the maximum health from 8 to 40, keeping any existing
+          // injuries relative to the new maximum.
+          applyWolfTamed(mob);
           mob.owner = player;
-          mob.collarColor = 'red';
+          mob.collarColor = WOLF_DEFAULT_COLLAR;
           if (mob.collarMesh) {
             mob.collarMesh.visible = true;
             mob.collarMesh.material.color.setHex(SHEEP_COLOR_HEX.red);
@@ -286,8 +389,10 @@ export class AnimalBehaviors {
     // 8. Animal Breeding (Love mode with food) & Baby growth acceleration
     if (this.isBreedingFood(mob.type, itemId)) {
       if (mob.isBaby) {
-        // Accelerate baby growth by 10%
-        mob.babyGrowthTimer = mob.type === 'hoglin' ? (mob.babyGrowthTimer ?? 1200) * 0.9 : (mob.babyGrowthTimer ?? 120) - 12;
+        // Wiki: each feeding removes 10% of the remaining growth time, with no effect below
+        // 9 seconds. This used to be a flat "- 12" seconds for ordinary animals, which
+        // happened to equal 10% of the wrong 120-second timer.
+        accelerateBabyGrowth(mob);
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (this.mobManager?.spawnParticleBurst) {
           this.mobManager.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22c55e, 6);
@@ -448,7 +553,8 @@ export class AnimalBehaviors {
                 const baby = this.mobManager.spawnMob('chicken', p.position.x + ox, Math.max(1, p.position.y), p.position.z + oz);
                 if (baby) {
                   baby.isBaby = true;
-                  baby.babyGrowthTimer = 120;
+                  // Wiki: a hatched chick gets the full 20-minute growth time.
+                  startBabyGrowth(baby);
                   baby.mesh?.scale?.setScalar?.(baby.type==='horse'?.7:.5);
                 }
               }
@@ -492,15 +598,25 @@ export class AnimalBehaviors {
 
       if (isEquine(mob)||mob.type==='strider') mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
       // 2. Baby growth timer
-      if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
-        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || mob.type==='strider' || isEquine(mob)) ? 1200 : 120)) - dt;
-        if (mob.babyGrowthTimer <= 0) {
-          mob.isBaby = false;
-          mob.mesh.scale.set(1, 1, 1);
-          if (mob.head) mob.head.scale.set(1, 1, 1);
-          if (mob.horns) mob.horns.forEach(h => h.visible = true);
-          if (mob.udder) mob.udder.visible = true;
-          if (mob.wattle) mob.wattle.visible = true;
+      // A snifflet's growth is owned by its own branch: the wiki gives it 2400 s, twice the shared
+      // constant, so the shared pass must not also tick it and halve the time.
+      if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin', 'sniffer'].includes(mob.type)) {
+        // Wiki: 20 minutes, not the 120 seconds ordinary animals used to get.
+        if (updateBabyGrowth(mob, dt)) {
+          if(isPackEquine(mob))syncPackEquineAppearance(mob);
+          // Wiki: a baby mooshroom has no mushrooms; they appear once it grows up.
+          applyMooshroomVariant(mob);
+          // Wiki: "When a baby turtle matures into an adult, it drops 1 turtle scute."
+          if (mob.type === 'turtle') {
+            const dims = turtleDimensions(mob);
+            mob.width = dims.width;
+            mob.height = dims.height;
+            // `matured` is passed because the shared growth step has already cleared `isBaby`.
+            for (const [id, isBlock, min, max] of turtleMaturationDrops(mob, { matured: true })) {
+              const count = min + Math.floor(Math.random() * (max - min + 1));
+              if (count > 0) this.entities?.spawnDroppedItem(mob.mesh.position.clone(), id, isBlock, count);
+            }
+          }
         }
       }
 
@@ -526,7 +642,9 @@ export class AnimalBehaviors {
           if (blockBelow === BLOCKS.GRASS || blockBelow === BLOCKS.GRASS_BLOCK) {
             this.world?.setVoxel(bx, by, bz, BLOCKS.DIRT);
             mob.isSheared = false;
-            if (mob.woolMesh) mob.woolMesh.visible = true;
+            // Regrowing the wool restores the sheep's retained colour, so a dyed sheep
+            // is still that colour after it is sheared and regrows.
+            sheepApplyWool(mob);
             if (this.sounds?.playStep) this.sounds.playStep('grass');
           }
         }
@@ -724,7 +842,140 @@ export class AnimalBehaviors {
   /**
    * Breeding matchmaking between two in-love animals
    */
+  /**
+   * Copy the per-type traits a baby should inherit from its parents.
+   *
+   * The baby is built by `spawnMob(type, ...)`, so it starts as a plain member of the species;
+   * everything that varies between individuals is applied here. Each mob that has a variant system
+   * and can breed has a branch, so the rule lives with the mob rather than being patched in at the
+   * call site.
+   *
+   * Returns the trait name that was applied, for telemetry and tests.
+   */
+  inheritBabyTraits(baby, parentA, parentB) {
+    if (!baby || !parentA || !parentB) return null;
+    const random = this.mobManager?.random || Math.random;
+
+    // Wiki: pandas inherit one gene from each parent, randomly ordered, with an independent 1/32
+    // mutation chance per gene. This is the most involved inheritance here, because the
+    // personality of the child follows from the two genes rather than from either parent directly.
+    if (baby.type === 'panda') {
+      const genes = breedPandaGenes(parentA, parentB, random);
+      baby.mainGene = genes.mainGene;
+      baby.hiddenGene = genes.hiddenGene;
+      applyPandaPersonality(baby);
+      return 'pandaGenes';
+    }
+
+    // Wiki: a baby rabbit inherits one parent's coat at random, or -- unusually -- becomes a killer
+    // bunny when a parent is one. The earlier note here claimed the killer bunny could not be bred
+    // at all, which the wiki contradicts: a killer bunny "can breed with other rabbits and with each
+    // other, having the unusual chance of creating a baby killer bunny".
+    if (baby.type === 'rabbit') {
+      if (inheritKillerBunny(parentA, parentB, random)) {
+        // The killer identity wins over the coat, because it is a RabbitType and not a coat.
+        makeKillerBunny(baby);
+        return 'killerBunny';
+      }
+      const coats = [parentA.coat, parentB.coat].filter(c => c !== undefined && c !== null && c !== 'killer');
+      if (coats.length) {
+        baby.coat = coats[Math.floor(random() * coats.length)];
+        return 'rabbitCoat';
+      }
+      // Neither parent carried an inheritable coat -- both were killers and the roll failed, or the coat
+      // was never set at all. `null` is the honest answer: a bare mob stays bare rather than being
+      // silently re-coloured, and the caller can decide what to do.
+      return null;
+    }
+
+    // Wiki: a fox cub inherits one parent's type, and a red x snow pairing is a 50/50. The rule
+    // lives in `inheritFoxCoat` so the mob owns it.
+    if (baby.type === 'fox') {
+      const inherited = inheritFoxCoat(
+        parentA.coat ?? parentA.variant,
+        parentB.coat ?? parentB.variant,
+        random
+      );
+      if (inherited !== undefined) {
+        baby.coat = inherited;
+        baby.variant = inherited;
+        return 'foxCoat';
+      }
+      return null;
+    }
+
+    // Wiki: a baby cat inherits one parent's coat at random.
+    if (baby.type === 'cat') {
+      const coats = ['tabby', 'black', 'red', 'siamese', 'british_shorthair', 'calico',
+        'persian', 'ragdoll', 'white', 'jellie', 'all_black'];
+      // Only coats the parents actually have are candidates, which is what the wiki says.
+      const candidates = [parentA.catVariant, parentB.catVariant].filter(v => coats.includes(v));
+      if (candidates.length) {
+        baby.catVariant = candidates[Math.floor(random() * candidates.length)];
+        return 'catVariant';
+      }
+      return null;
+    }
+
+    // Wiki: a baby parrot inherits one parent's colour at random.
+    if (baby.type === 'parrot') {
+      const variants = [parentA.variant, parentB.variant].filter(v => typeof v === 'number');
+      if (variants.length) {
+        const chosen = variants[Math.floor(random() * variants.length)];
+        baby.variant = chosen;
+        baby.variantName = parrotVariantName(chosen);
+        applyParrotVariant(baby);
+        return 'parrotVariant';
+      }
+      return null;
+    }
+
+    // Wiki: a baby goat inherits its horns from one parent, and a screaming goat
+    // (a 1-in-1000 birth) is separate from that. The screaming roll is the wiki's own rare event.
+    if (baby.type === 'goat') {
+      const from = random() < 0.5 ? parentA : parentB;
+      if (from.horns && baby.horns) {
+        // `horns` is an object keyed left/right in this codebase, not an array.
+        baby.hasLeftHorn = from.hasLeftHorn !== false;
+        baby.hasRightHorn = from.hasRightHorn !== false;
+      }
+      baby.isScreamingGoat = random() < 0.002;
+      // Wiki: the screaming trait is 1 in 1000, and it is inherited by 50% of offspring when one
+      // parent is a screaming goat, so the inherited roll is checked first.
+      if (parentA.isScreamingGoat || parentB.isScreamingGoat) baby.isScreamingGoat = random() < 0.5;
+      return 'goatTraits';
+    }
+
+    // Wiki: a wolf pup inherits a random collar colour from its parents when tamed.
+    if (baby.type === 'wolf') {
+      const colors = [parentA.collarColor, parentB.collarColor].filter(c => c !== undefined && c !== null);
+      if (colors.length) {
+        baby.collarColor = colors[Math.floor(random() * colors.length)];
+        return 'wolfCollar';
+      }
+      return null;
+    }
+
+    // Wiki: a mooshroom is brown or red, and a baby takes one parent's variant.
+    if (baby.type === 'mooshroom') {
+      const variants = [parentA.variant, parentB.variant].filter(v => v !== undefined);
+      if (variants.length) {
+        baby.variant = variants[Math.floor(random() * variants.length)];
+        applyMooshroomVariant(baby);
+        return 'mooshroomVariant';
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+
   checkBreedingPair(mob, dt = 2.0) {
+    // Wiki: Java pandas "breed only if there is at least one bamboo plant (not including shoots)
+    // within a 7x7x3 area", and otherwise shake their heads and do not breed. This is checked
+    // before anything else, so two pandas full of bamboo in a stone room never produce a cub.
+    if (mob.type === 'panda' && mob.inLove > 0 && !pandaCanBreed(this.mobManager, mob)) return;
     if(mob.isBaby || mob.health<=0 || mob.breedingCooldown>0 || (isEquine(mob)&&(!mob.isTamed||mob.type==='mule')))return;
     const mobs = this.mobManager.mobs;
     for (let i = 0; i < mobs.length; i++) {
@@ -806,11 +1057,24 @@ export class AnimalBehaviors {
 
             // Spawn baby
             const babyPos = mob.mesh.position.clone().lerp(other.mesh.position, 0.5);
-            const baby = this.mobManager.spawnMob(isEquine(mob)&&mob.type!==other.type?'mule':mob.type, babyPos.x, babyPos.y, babyPos.z);
+            // Wiki: "Breeding two sniffers now causes a sniffer egg to drop as an item." A sniffer pair
+        // therefore produces an egg rather than a baby, which is the only way a sniffer is ever created.
+        if (mob.type === 'sniffer') {
+          this.entities?.spawnDroppedItem?.(babyPos, SNIFFER_BREEDING.eggItem, false, 1);
+          const snifferXpGain = 1 + Math.floor(Math.random() * 7);
+          if (this.mobManager.spawnXpOrbs) this.mobManager.spawnXpOrbs(babyPos, snifferXpGain);
+          else this.entities?.spawnXpOrbs?.(babyPos, snifferXpGain);
+          this.spawnHeartParticles(babyPos);
+          break;
+        }
+        const baby = this.mobManager.spawnMob(isEquine(mob)&&mob.type!==other.type?'mule':mob.type, babyPos.x, babyPos.y, babyPos.z);
             if (baby) {
               baby.isBaby = true;
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
-              baby.babyGrowthTimer = isEquine(mob) || mob.type==='hoglin' || mob.type==='strider' ? 1200 : 120;
+        // Everything that varies between individuals of a species: genes, variants, coat colours.
+        this.inheritBabyTraits(baby, mob, other);
+              // Wiki: every breedable mob's baby gets the same 20-minute growth timer.
+              startBabyGrowth(baby);
               baby.parent = mob;
               baby.mesh?.scale?.setScalar?.(baby.type==='horse' ? .7 : .5);
               if(isPackEquine(baby))syncPackEquineAppearance(baby);
@@ -818,12 +1082,12 @@ export class AnimalBehaviors {
               if (baby.horns) baby.horns.forEach(h => h.visible = false);
               if (baby.udder) baby.udder.visible = false;
               if (baby.wattle) baby.wattle.visible = false;
-              // Genetics for sheep wool color
+              // Colour genetics for sheep. Wiki: compatible parent colours mix (blue +
+              // white = light blue); incompatible pairs give the lamb one parent's
+              // colour at random.
               if (mob.type === 'sheep') {
-                baby.woolColor = Math.random() < 0.5 ? mob.woolColor : other.woolColor;
-                if (baby.woolMesh?.material) {
-                  baby.woolMesh.material.color.setHex(SHEEP_COLOR_HEX[baby.woolColor] || 0xe9ecef);
-                }
+                baby.woolColor = inheritSheepColor(mob.woolColor, other.woolColor);
+                sheepApplyWool(baby);
               }
             }
 
