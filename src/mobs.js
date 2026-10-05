@@ -287,6 +287,66 @@ export class MobManager {
     this.hostileBehaviors = new HostileMobBehaviors(this, world, sounds, entities);
   }
 
+  /**
+   * Remove one mob from the world, with no death, no loot and no XP.
+   *
+   * This is what natural despawning calls. The engine had no such method: `wanderingTraderBehavior`
+   * already called `this.removeMob?.(mob)` behind an optional-chain, so a wandering trader that timed
+   * out was never actually removed -- the optional call silently did nothing. Every other removal
+   * path in the codebase open-codes the scene teardown, which is why there were five subtly different
+   * versions of it.
+   *
+   * The teardown mirrors `clearMobs` for a single mob: owned textures, the squid's per-instance
+   * materials, the laser and leash lines, the glow outline, then the mesh and its geometries. Debug
+   * labels are dropped through `removeDebugLabel`, which keeps its own bookkeeping honest.
+   *
+   * @param {object} mob
+   * @param {string} [reason] recorded on the mob as `despawnReason`, for telemetry and tests
+   * @returns {boolean} whether the mob was present and has been removed
+   */
+  removeMob(mob, reason = 'removed') {
+    if (!mob) return false;
+    const index = this.mobs.indexOf(mob);
+    if (index === -1) return false;
+
+    for (const texture of mob.ownedTextures || []) texture.dispose?.();
+    if (isSquid(mob)) {
+      for (const mat of mob.squidMaterials || []) mat.map?.dispose();
+    }
+    for (const slot of ['laserLine', 'leashLine']) {
+      const line = mob[slot];
+      if (!line) continue;
+      line.removeFromParent();
+      line.geometry?.dispose();
+      line.material?.dispose();
+      mob[slot] = null;
+    }
+    if (mob.glowOutline) {
+      mob.glowOutline.removeFromParent();
+      mob.glowOutline.geometry?.dispose();
+      mob.glowOutline.material?.dispose();
+      mob.glowOutline = null;
+    }
+    // A rider must not be left pointing at a mob that no longer exists.
+    if (mob.rider) {
+      mob.rider.vehicle = null;
+      mob.rider = null;
+    }
+    if (mob.vehicle?.rider === mob) mob.vehicle.rider = null;
+    mob.leashHolder = null;
+
+    this.removeDebugLabel?.(mob);
+    if (mob.mesh) {
+      mob.mesh.removeFromParent();
+      mob.mesh.traverse(obj => { obj.geometry?.dispose(); });
+    }
+
+    this.mobs.splice(index, 1);
+    mob.despawned = true;
+    mob.despawnReason = reason;
+    return true;
+  }
+
   clearMobs() {
     for(const mob of this.mobs){for(const texture of mob.ownedTextures || [])texture.dispose();if(isSquid(mob)){for(const mat of mob.squidMaterials||[])mat.map?.dispose();}if(mob.laserLine){mob.laserLine.removeFromParent();mob.laserLine.geometry.dispose();mob.laserLine.material.dispose();mob.laserLine=null;}if(mob.leashLine){mob.leashLine.removeFromParent();mob.leashLine.geometry.dispose();mob.leashLine.material.dispose();mob.leashLine=null;}mob.leashHolder=null;}
     this.playerContactStart = null;
@@ -9390,10 +9450,20 @@ export class MobManager {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
-    updateStriderSpawning(this, dt, player);
-    updateSquidSpawning(this, dt, player);
-    updateWitherSkeletonSpawning(this,dt,player);
-    updateDonkeySpawning(this,dt,player);
+    // The four ad-hoc natural spawners that used to live here have been retired.
+    //
+    // `updateStriderSpawning`, `updateSquidSpawning`, `updateWitherSkeletonSpawning` and
+    // `updateDonkeySpawning` each created mobs on their own timer with a hard-coded cap and their own
+    // search pattern near the player. They are now covered by the natural spawn cycle, which reads
+    // the same biomes' real spawn tables, works against the mob caps and the category system, and
+    // applies the same placement and light rules as every other mob.
+    //
+    // They are not merely superseded, they were the bug: they only searched within 40-90 blocks of
+    // the player and only for four species, so everywhere else in the world had nothing that could
+    // create a mob at all. Leaving them running alongside the new system would also double the spawn
+    // rate for exactly those four species. Their exported functions remain (tests and inspectors
+    // still call `spawnSquid`, `spawnNaturalStrider`, `spawnWitherSkeleton` directly), but nothing
+    // drives them from the tick loop any more.
     updateMobWither(this,dt);
     updateArrows(this, dt, player);
     // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own
