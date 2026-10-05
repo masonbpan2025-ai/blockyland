@@ -303,6 +303,8 @@ const FAMILIES = [
       if (textureExists(base + ".png")) return base + ".png";
       if (textureExists(n + ".png")) return n + ".png";
       if (textureExists(base + ".svg")) return base + ".svg";
+      // Plural fallback: resin_brick_wall resolves to resin_bricks.png.
+      if (textureExists(base + "s.png")) return base + "s.png";
       return base + ".png";
     },
     sound: 'stone',
@@ -331,6 +333,8 @@ const FAMILIES = [
       const base = n.replace(/_stairs$/, "");
       if (textureExists(base + "_planks.png")) return base + "_planks.png";
       if (textureExists(base + ".png")) return base + ".png";
+      // Plural fallback: resin_brick_stairs resolves to resin_bricks.png.
+      if (textureExists(base + "s.png")) return base + "s.png";
       return base + ".png";
     },
     sound: 'wood',
@@ -352,8 +356,15 @@ const FAMILIES = [
       //
       // An earlier version returned the planks form unconditionally when neither candidate existed,
       // which is why stone_slab pointed at stone_planks.png -- a name that was never plausible.
+      //
+      // The plural form is tried last because a few vanilla bricks blocks are plural upstream and the
+      // singular is not a file at all: a resin brick slab resolves to resin_bricks.png, not
+      // resin_brick.png. Without this the three resin variants named a missing texture and rendered the
+      // placeholder tile.
       const planks = `${base}_planks.png`;
       if (textureExists(planks)) return planks;
+      if (textureExists(`${base}.png`)) return `${base}.png`;
+      if (textureExists(`${base}s.png`)) return `${base}s.png`;
       return `${base}.png`;
     },
     sound: 'wood',
@@ -450,13 +461,17 @@ const FAMILIES = [
   {
     // Base stone variants that are plain cubes.
     id: 'stone_cubes',
-    match: (n) => /^(diorite|andesite|granite|polished_diorite|polished_andesite|polished_granite|calcite|tuff|dripstone_block|deepslate|cobbled_deepslate|polished_deepslate|smooth_stone|stone_bricks|mossy_stone_bricks|cracked_stone_bricks|chiseled_stone_bricks|bricks|prismarine|prismarine_bricks|dark_prismarine|netherrack|soul_sand|soul_soil|basalt|smooth_basalt|blackstone|polished_blackstone|gilded_blackstone|end_stone|end_stone_bricks|purpur_block|packed_mud|mud_bricks|quartz_block|smooth_quartz|chiseled_quartz_block|quartz_pillar|hay_block|dried_kelp_block|sponge|wet_sponge|honeycomb_block|ochre_froglight|verdant_froglight|pearlescent_froglight|sculk|moss_block|rooted_dirt|coarse_dirt|podzol|mycelium|red_sand|smooth_sandstone|chiseled_sandstone|cut_sandstone|red_sandstone|smooth_red_sandstone|chiseled_red_sandstone|cut_red_sandstone|smooth_stone_slab)$/.test(n),
+    match: (n) => /^(diorite|andesite|granite|polished_diorite|polished_andesite|polished_granite|calcite|tuff|dripstone_block|deepslate|cobbled_deepslate|polished_deepslate|smooth_stone|stone_bricks|mossy_stone_bricks|cracked_stone_bricks|chiseled_stone_bricks|bricks|prismarine|prismarine_bricks|dark_prismarine|netherrack|soul_sand|soul_soil|basalt|smooth_basalt|blackstone|polished_blackstone|gilded_blackstone|end_stone|end_stone_bricks|purpur_block|packed_mud|mud_bricks|quartz_block|smooth_quartz|chiseled_quartz_block|quartz_pillar|hay_block|dried_kelp_block|sponge|wet_sponge|honeycomb_block|ochre_froglight|verdant_froglight|pearlescent_froglight|sculk|moss_block|rooted_dirt|coarse_dirt|podzol|mycelium|red_sand|smooth_sandstone|chiseled_sandstone|cut_sandstone|red_sandstone|smooth_red_sandstone|chiseled_red_sandstone|cut_red_sandstone|smooth_stone_slab|resin_block|resin_bricks|chiseled_resin_bricks)$/.test(n),
     texture: (n) => {
       // The default is `<name>.png`. Some of these ship as an SVG instead, and pointing a definition at
       // a filename that does not exist renders the grey placeholder tile, so prefer an asset that is
       // actually on disk and fall back to the conventional name only when neither exists.
       if (textureExists(`${n}.png`)) return `${n}.png`;
       if (textureExists(`${n}.svg`)) return `${n}.svg`;
+      // A few vanilla bricks blocks are plural upstream while the singular is not a file at all:
+      // resin_bricks.png exists and resin_brick.png does not. Guessing the plural is cheaper than not
+      // drawing the block, and it is still checked against the assets the game ships.
+      if (textureExists(`${n}s.png`)) return `${n}s.png`;
       return `${n}.png`;
     },
     sound: 'stone',
@@ -464,7 +479,7 @@ const FAMILIES = [
 ];
 
 // Materials that are definitely NOT plain full cubes, even inside a matched family.
-const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
+const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_building_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
 
 // --- work out what to add ---------------------------------------------------
 // Anything a previous run emitted is carried through verbatim, so re-running is a no-op rather

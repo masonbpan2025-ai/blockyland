@@ -32,7 +32,13 @@ const blocks = [
 ];
 
 // Textures that exist only in the newer asset tree, fetched from BASE_1214.
-const blocks1214 = ['pale_oak_sapling.png'];
+const blocks1214 = [
+  'pale_oak_sapling.png',
+  // Resin is a 1.21.4 addition. Its brick variants already existed in this game and pointed at
+  // `resin_brick.png`, which does not exist upstream -- the real file is plural -- so they rendered the
+  // placeholder tile until this landed.
+  'resin_clump.png', 'resin_block.png', 'resin_bricks.png', 'chiseled_resin_bricks.png',
+];
 
 const items = [
   'diamond_sword.png', 'iron_sword.png', 'stone_sword.png', 'wooden_sword.png',
