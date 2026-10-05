@@ -163,6 +163,26 @@
       "contentHash": 1144357234
     },
     {
+      "id": "end_city",
+      "seed": 20250401,
+      "dimension": "the_end",
+      "biome": "end_midlands",
+      "chunkX": 105,
+      "chunkZ": 0,
+      "planHash": 1573064337,
+      "pieces": 2,
+      "box": [
+        1685,
+        70,
+        5,
+        1692,
+        95,
+        12
+      ],
+      "blockCount": 526,
+      "contentHash": 795548258
+    },
+    {
       "id": "ocean_ruin_cold",
       "seed": 20250401,
       "dimension": "overworld",

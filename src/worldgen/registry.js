@@ -150,7 +150,7 @@ export const STRUCTURES = {
   },
   end_city: {
     type: 'end_city', dimension: END, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/end_city', biomes: ['end_midlands', 'end_highlands'],
+    biomeTag: 'has_structure/end_city', biomes: ['end_midlands', 'end_highlands'], implementation: 'endCity',
     notes: '20 templates; towers with a 50% bridge chance and a 12.5% ship chance, at most one ship.'
   },
   mansion: {
