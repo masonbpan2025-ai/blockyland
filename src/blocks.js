@@ -781,6 +781,19 @@ export const BLOCKS = {
   // chest plus a latch on its front.
   ENDER_CHEST: 1189,
   TRAPPED_CHEST: 1190,
+
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // Two more blocks that were sitting in the "needs new art" column and did not, in fact, need new art.
+  // This is the SEVENTH time in this goal that a block was unblocked by deriving art.
+  //
+  // scripts/compose-egg-and-gateway.py builds both, and says where each came from:
+  //   - the sniffer egg is the TURTLE EGG's shape recoloured onto the SNIFFER'S OWN palette, read out of
+  //     entity/sniffer/sniffer.png. An egg is an egg, but the colours are what make it the sniffer's.
+  //   - the end gateway is nether_portal.png, which this project already uses for the end portal,
+  //     darkened to the gateway's deeper violet with a few sparks on a fixed lattice.
+  SNIFFER_EGG: 1191,
+  END_GATEWAY: 1192,
 };
 
 export const BLOCK_DEFS = {
@@ -2102,7 +2115,25 @@ export const BLOCK_DEFS = {
   [BLOCKS.GOLD_BLOCK]: { name: 'Block of Gold', hardness: 3.0, sound: 'metal', textures: { all: 'gold_block.png' } },
   [BLOCKS.DIAMOND_BLOCK]: { name: 'Block of Diamond', hardness: 5.0, sound: 'stone', textures: { all: 'diamond_block.png' } },
   [BLOCKS.EMERALD_BLOCK]: { name: 'Block of Emerald', hardness: 5.0, sound: 'stone', textures: { all: 'emerald_block.png' } },
-  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } }
+  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } },
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // THE SNIFFER EGG MATCHES THE TURTLE EGG, deliberately. The turtle egg is already in this registry as a
+  // plain textured cube with no special geometry, so giving the sniffer egg a `egg: true` flag that nothing
+  // dispatches on would have been a flag that reads as meaningful and is not -- the same mistake the wither
+  // skeleton skull's dead `skull: true` flag turned out to be. Both are cubes here and now say so.
+  //
+  // It DOES drop itself, unlike the turtle egg, which declares `drop: null`: the harvest row says hardness
+  // 0.5 with a self drop. The turtle egg's row says `drops: []`, which is a difference in the table rather
+  // than an inconsistency in this batch.
+  //
+  // THE END GATEWAY IS A PORTAL, like the end portal next to it: not solid, transparent, and a light source.
+  // It is NOT a way to travel anywhere, and neither is the portal it is modelled on -- this engine has no
+  // dimension travel, so both are decorative surfaces. That is a pre-existing limit rather than one this
+  // block introduces, the same category as the shulker boxes not being containers.
+  [BLOCKS.SNIFFER_EGG]: { name: 'Sniffer Egg', hardness: 0.5, sound: 'stone', drop: BLOCKS.SNIFFER_EGG, textures: { all: 'sniffer_egg.png' } },
+  [BLOCKS.END_GATEWAY]: { name: 'End Gateway', portal: true, endPortal: true, hardness: -1, sound: 'glass', transparent: true, solid: false, light: 15, lightColor: 0x7b2fbe, textures: { all: 'end_gateway.png' } },
+
 };
 
 // --- generated additions for vanilla parity ---------------------------------
@@ -2489,7 +2520,10 @@ export const ITEMS = {
   wandering_trader_spawn_egg: { name: 'Wandering Trader Spawn Egg', icon: '/assets/items/wandering_trader_spawn_egg.png', type: 'spawn_egg', mob: 'wandering_trader' },
   allay_spawn_egg: { name: 'Allay Spawn Egg', icon: '/assets/items/allay_spawn_egg.png', type: 'spawn_egg', mob: 'allay' },
   sniffer_spawn_egg: { name: 'Sniffer Spawn Egg', icon: '/assets/items/sniffer_spawn_egg.png', type: 'spawn_egg', mob: 'sniffer' },
-  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'material' },
+  // This was a `type: 'material'` item before the sniffer egg became a BLOCK, so it was an item named
+  // `sniffer_egg` with a texture and no way to place it. tests/placeableItems.test.js requires an item that
+  // names a registered block to be JOINED to it, which is what caught this. The icon was already correct.
+  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
   husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
   stray_spawn_egg: { name: 'Stray Spawn Egg', icon: '/assets/items/stray_spawn_egg.png', type: 'spawn_egg', mob: 'stray' },

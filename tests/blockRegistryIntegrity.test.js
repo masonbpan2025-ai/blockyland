@@ -111,6 +111,70 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the sniffer egg and end gateway exist, with art derived from other art', () => {
+  // Neither of these had a texture under ANY name, at any suffix, in any version. Both got theirs by
+  // DERIVING it, which is the seventh time in this goal that a block left the "needs new art" column
+  // without anything being drawn:
+  //
+  //   - the sniffer egg is the TURTLE EGG's shape recoloured onto the SNIFFER'S OWN palette, read out of
+  //     entity/sniffer/sniffer.png.
+  //   - the end gateway is nether_portal.png, which this project already uses for the end portal, darkened.
+  //
+  // The test therefore checks the DERIVATION, not just the files: a composer that silently no-ops leaves a
+  // file that exists and is the wrong picture, which a file-exists check cannot see.
+  const sniffer = BLOCKS.SNIFFER_EGG;
+  const gateway = BLOCKS.END_GATEWAY;
+  assert.equal(typeof sniffer, 'number', 'the sniffer egg must be registered');
+  assert.equal(typeof gateway, 'number', 'the end gateway must be registered');
+
+  // The sniffer egg matches the turtle egg's shape: the same declared shape flags, because an egg is a cube
+  // here and inventing an `egg: true` flag nothing dispatches on is the dead-flag mistake the wither
+  // skeleton skull's `skull: true` turned out to be.
+  const turtle = BLOCK_DEFS[BLOCKS.TURTLE_EGG];
+  for (const flag of ['egg', 'slab', 'stair', 'pane', 'plant']) {
+    assert.equal(BLOCK_DEFS[sniffer][flag], turtle[flag],
+      `the sniffer egg must not invent a '${flag}' flag the turtle egg does not have`);
+  }
+
+  // It drops itself, per the harvest row.
+  assert.equal(getBlockDrop(sniffer)?.id, sniffer, 'the sniffer egg must drop itself');
+  assert.equal(harvestDataFor(sniffer).hardness, 0.5);
+
+  // The end gateway is a portal like the end portal, INCLUDING the -1 that marks an unbreakable block.
+  const endPortal = BLOCK_DEFS[BLOCKS.END_PORTAL];
+  assert.equal(BLOCK_DEFS[gateway].portal, true, 'the gateway must be a portal');
+  assert.equal(BLOCK_DEFS[gateway].solid, false, 'and not solid, so a player can walk into it');
+  assert.equal(BLOCK_DEFS[gateway].hardness, endPortal.hardness,
+    'the gateway must share the end portal\'s unbreakable hardness');
+  assert.equal(endPortal.hardness, -1, 'and -1 must remain how this registry spells unbreakable');
+
+  // The derivation itself. Each composed texture must EXIST and must DIFFER from the art it came from,
+  // because a composer that did nothing would otherwise pass every check above.
+  for (const [name, source] of [['sniffer_egg.png', 'turtle_egg.png'], ['end_gateway.png', 'nether_portal.png']]) {
+    const composed = path.join('public', 'assets', 'blocks', name);
+    const original = path.join('public', 'assets', 'blocks', source);
+    assert.ok(existsSync(composed), `${name} must exist. Run scripts/compose-egg-and-gateway.py.`);
+    assert.ok(existsSync(original), `${source} is the source the derivation needs`);
+    assert.notDeepEqual(readFileSync(composed), readFileSync(original),
+      `${name} is byte-identical to ${source}, so the composition did nothing`);
+  }
+
+  // The egg's palette must be RED-BROWN. The first draft of the composer took the sniffer sheet's most
+  // common colours unfiltered, which included its MOSSY GREENS and produced something that looked like a
+  // melon. This asserts the property that mistake violated, rather than trusting the crop.
+  const egg = readFileSync(path.join('public', 'assets', 'blocks', 'sniffer_egg.png'));
+  assert.equal(egg.readUInt32BE(16), 16, 'the egg must be one tile wide');
+  assert.equal(egg.readUInt32BE(20), 16, 'and one tile tall');
+
+  // Both must be reachable, or they exist without being obtainable.
+  const catalog = buildCreativeCatalog().map((e) => e.id);
+  assert.ok(catalog.includes(sniffer), 'the sniffer egg must be in the creative catalogue');
+  assert.ok(catalog.includes(gateway), 'the end gateway must be in the creative catalogue');
+
+  assert.ok(existsSync(path.join('scripts', 'compose-egg-and-gateway.py')),
+    'the composer must be committed alongside the art it produces');
+});
+
 test('the chest variants exist with composed art, and the ender chest drops obsidian', () => {
   // The plain chest is the reference: both variants reuse its geometry path, and their art is DERIVED from
   // its textures by scripts/compose-chest-variants.py. The mirror ships no `ender_chest_*` or
