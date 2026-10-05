@@ -17,7 +17,7 @@
 //   * `durability`-- a max-durability lookup. `src/durability.js` does not exist on every branch, and
 //                    a missing provider must report "unsupported" rather than a false failure.
 // `EXTRA_SMELTING` is imported directly because it is three-free and is the generated table's source.
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { harvestDataFor, knownHarvestBlockIds } from './blockHarvestData.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
@@ -63,17 +63,23 @@ function buildBlockAliases() {
 }
 
 /**
- * The stack limit this game actually applies to an item.
+ * The stack limit this game applies to an item, and what the definition declares.
  *
- * `src/inventory.js` merges up to a hardcoded 64 on every path except a dropped-item pickup, and
- * only `extraItems.js` declares `stackSize` at all. Reporting the declared value separately from the
- * applied one is what lets the parity check tell "vanilla says 16 and the definition agrees" apart
- * from "vanilla says 16 and the definition says nothing, so 64 is used".
+ * `declared` is what `ITEMS[id].stackSize` says and `applied` is what the inventory actually uses.
+ * Reporting both is what lets the parity check tell "vanilla says 16 and the definition agrees" apart
+ * from "vanilla says 16 and nothing declares it, so 64 is used" -- which was the state of 93 items
+ * before the limits were written down.
+ *
+ * The applied value now comes from `stackLimitFor`, the same function the inventory and the container
+ * UIs use. It used to be a second copy of the rule in this file, which is exactly how the two drifted:
+ * the inventory merged to a literal 64 while this reported 1 for a tool.
  */
 function resolveStack(entry) {
   const declared = typeof entry.def?.stackSize === 'number' ? entry.def.stackSize : null;
-  const fallback = UNSTACKABLE_TYPES.has(entry.def?.type) ? 1 : 64;
-  return { declared, applied: declared ?? fallback };
+  const applied = entry.blockId !== null && entry.kind !== 'item'
+    ? 64
+    : stackLimitFor(entry.id);
+  return { declared, applied };
 }
 
 /** Normalise one recipe cell (a string item id or a numeric block id) to `{id, isBlock}`. */

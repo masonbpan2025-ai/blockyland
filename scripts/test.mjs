@@ -49,7 +49,7 @@ export const AREAS = {
   // --- rendering and effects ---
   render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'meshTimeSlicing', 'progressOverlay', 'confirmDialog'],
   // --- survival parity: how much of vanilla's content the game can express ---
-  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'resourceInspector', 'resourceInspectorEntry', 'itemDefinitions', 'itemPotions', 'itemPotionDrinking', 'itemFurnaceTables'],
+  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'resourceInspector', 'resourceInspectorEntry', 'itemDefinitions', 'itemPotions', 'itemPotionDrinking', 'itemFurnaceTables', 'itemStackSizes'],
   // --- save/load ---
   persist: ['mapManager']
 };

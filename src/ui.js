@@ -1,5 +1,5 @@
 import { renderHorseInventory } from './horseInventory.js';
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
@@ -1527,14 +1527,17 @@ export class UIManager {
           this.inv.cursorItem = null;
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+        // Slot merges use the item's own limit, never a literal 64: two pickaxes must not become one
+        // stack of two, and a stack of signs must stop at sixteen.
+        const limit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < 64) {
+          if (target.count < limit) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           }
         } else {
-          const space = 64 - target.count;
+          const space = limit - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1575,7 +1578,7 @@ export class UIManager {
         furnace.output = null;
       }
     } else if (this.inv.cursorItem.id === target.id && this.inv.cursorItem.isBlock === target.isBlock) {
-      const space = 64 - this.inv.cursorItem.count;
+      const space = stackLimitFor(this.inv.cursorItem.id) - this.inv.cursorItem.count;
       const transfer = Math.min(space, target.count);
       this.inv.cursorItem.count += transfer;
       target.count -= transfer;
@@ -1594,14 +1597,14 @@ export class UIManager {
     const recipe = getSmeltingRecipe(item);
 
     // If item is fuel and fuel slot can take it
-    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < 64))) {
+    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < stackLimitFor(item.id)))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'fuel');
       this.sounds.playClick();
       return;
     }
 
     // If item is cookable and input slot can take it
-    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < 64))) {
+    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < stackLimitFor(item.id)))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'input');
       this.sounds.playClick();
       return;
@@ -1619,7 +1622,7 @@ export class UIManager {
       furnace[slotKey] = { ...item };
       fromList[fromIdx] = null;
     } else if (dest.id === item.id && dest.isBlock === item.isBlock) {
-      const space = 64 - dest.count;
+      const space = stackLimitFor(dest.id) - dest.count;
       const transfer = Math.min(space, item.count);
       dest.count += transfer;
       item.count -= transfer;
@@ -1830,15 +1833,16 @@ export class UIManager {
           this.inv.cursorItem = null;
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+        const limit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < 64) {
+          if (target.count < limit) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
             this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
           }
         } else {
-          const space = 64 - target.count;
+          const space = limit - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1863,8 +1867,8 @@ export class UIManager {
     // 1. Try stacking into player hotbar
     for (let i = 0; i < 9; i++) {
       const slot = this.inv.hotbar[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
-        const space = 64 - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+        const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -1878,8 +1882,8 @@ export class UIManager {
     // 2. Try stacking into player storage
     for (let i = 0; i < 27; i++) {
       const slot = this.inv.storage[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
-        const space = 64 - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+        const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -1922,8 +1926,8 @@ export class UIManager {
     // 1. Try stacking into existing matching chest slots
     for (let i = 0; i < totalSlots; i++) {
       const slot = items[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
-        const space = 64 - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(item.id)) {
+        const space = stackLimitFor(slot.id) - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -2133,7 +2137,7 @@ export class UIManager {
             this.inv.cursorItem = null;
           }
         } else {
-          const space = 64 - this.enchantSlottedLapis.count;
+          const space = stackLimitFor(this.enchantSlottedLapis.id) - this.enchantSlottedLapis.count;
           if (isRightClick) {
             if (space > 0) {
               this.enchantSlottedLapis.count++;
@@ -2189,8 +2193,8 @@ export class UIManager {
         list[idx] = null;
         this.sounds.playClick?.();
         return;
-      } else if (this.enchantSlottedLapis.count < 64) {
-        const space = 64 - this.enchantSlottedLapis.count;
+      } else if (this.enchantSlottedLapis.count < stackLimitFor(this.enchantSlottedLapis.id)) {
+        const space = stackLimitFor(this.enchantSlottedLapis.id) - this.enchantSlottedLapis.count;
         const add = Math.min(space, item.count);
         this.enchantSlottedLapis.count += add;
         item.count -= add;
@@ -2334,7 +2338,7 @@ export class UIManager {
           this.inv.cursorItem = null;
           this.sounds.playClick?.();
         } else if (this.brewingStand.ingredient.id === this.inv.cursorItem.id) {
-          const space = 64 - this.brewingStand.ingredient.count;
+          const space = stackLimitFor(this.brewingStand.ingredient.id) - this.brewingStand.ingredient.count;
           const add = Math.min(space, this.inv.cursorItem.count);
           this.brewingStand.ingredient.count += add;
           this.inv.cursorItem.count -= add;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { angerPiglins } from './piglin.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 
 // Chest facing rotations:
 // 0: South (+Z front), 1: West (-X front), 2: North (-Z front), 3: East (+X front)
@@ -340,11 +340,12 @@ export class ChestManager {
   addItem(x, y, z, id, isBlock = false, count = 1) {
     const items = this.getCombinedItems(x, y, z);
     let remaining = count;
-    // 1. Stack into existing slots
+    // 1. Stack into existing slots, up to the item's own limit rather than a literal 64.
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < 64) {
-        const canAdd = Math.min(remaining, 64 - it.count);
+      const limit = stackLimitFor(id);
+      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < limit) {
+        const canAdd = Math.min(remaining, limit - it.count);
         it.count += canAdd;
         this.setCombinedSlot(x, y, z, i, it);
         remaining -= canAdd;

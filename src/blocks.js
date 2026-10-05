@@ -1330,6 +1330,82 @@ for (const [key, def] of Object.entries(POTION_ITEMS)) {
   ITEMS[key] = def;
 }
 
+// --- stack limits that differ from 64 ----------------------------------------
+//
+// Vanilla stacks most things to 64, a few to 16 and everything with a durability or a container
+// capacity to 1. Nothing declared any of that here: `stackSize` existed on the generated items only,
+// and `inventory.js` merged to a hardcoded 64, so two diamond pickaxes became one stack of two and a
+// stack of signs could hold sixty-four.
+//
+// Listed explicitly rather than matched by a pattern. `_helmet$|_sword$|...` would read shorter and
+// would also swallow the next item whose name happens to end that way -- and the failure would be a
+// silent stacking change, which is the kind of thing `scripts/generate-items.mjs` warns about in its
+// own suffix table. The 16s are separated out because they are the interesting half: they are the
+// items a player notices merging wrongly.
+const STACK_LIMITS = {
+  // Typed `tool` -- they are held and used like one -- but they carry no durability and vanilla stacks
+  // them to 64. Without this they fell to the unstackable rule below and a compass could not be
+  // stacked at all. Declared rather than special-cased in the rule, because the rule is about
+  // durability and these four are the exceptions to the typing.
+  64: [
+    'compass', 'clock', 'lead', 'name_tag',
+  ],
+  16: [
+    'bucket', 'honey_bottle', 'ender_pearl', 'snowball', 'egg', 'armor_stand',
+  ],
+  1: [
+    'netherite_sword', 'diamond_sword', 'golden_sword', 'iron_sword', 'stone_sword', 'wooden_sword',
+    'bow', 'crossbow', 'trident', 'totem_of_undying', 'netherite_helmet', 'netherite_chestplate',
+    'netherite_leggings', 'netherite_boots', 'diamond_helmet', 'diamond_chestplate',
+    'diamond_leggings', 'diamond_boots', 'iron_helmet', 'iron_chestplate', 'iron_leggings',
+    'iron_boots', 'golden_helmet', 'golden_chestplate', 'golden_leggings', 'golden_boots',
+    'chainmail_helmet', 'chainmail_chestplate', 'chainmail_leggings', 'chainmail_boots',
+    'leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots', 'turtle_helmet',
+    'shield', 'leather_horse_armor', 'diamond_horse_armor', 'golden_horse_armor', 'iron_horse_armor',
+    'netherite_pickaxe', 'diamond_pickaxe', 'golden_pickaxe', 'iron_pickaxe', 'stone_pickaxe',
+    'wooden_pickaxe', 'netherite_axe', 'diamond_axe', 'golden_axe', 'iron_axe', 'stone_axe',
+    'wooden_axe', 'netherite_shovel', 'diamond_shovel', 'golden_shovel', 'iron_shovel',
+    'stone_shovel', 'wooden_shovel', 'netherite_hoe', 'diamond_hoe', 'golden_hoe', 'iron_hoe',
+    'stone_hoe', 'wooden_hoe', 'water_bucket', 'lava_bucket', 'milk_bucket', 'flint_and_steel',
+    'shears', 'fishing_rod', 'saddle', 'oak_boat', 'minecart', 'chest_minecart',
+    'furnace_minecart', 'hopper_minecart', 'tnt_minecart', 'elytra', 'beetroot_soup',
+    'mushroom_stew', 'potion', 'enchanted_book', 'red_bed', 'carrot_on_a_stick',
+    'warped_fungus_on_a_stick', 'suspicious_stew', 'rabbit_stew',
+  ],
+};
+
+for (const [limit, ids] of Object.entries(STACK_LIMITS)) {
+  for (const id of ids) {
+    const def = ITEMS[id];
+    // Missing means a renamed or removed item, and silently skipping it would leave a stack limit
+    // unapplied -- the exact defect this table exists to fix. Fail loudly instead.
+    if (!def) throw new Error(`STACK_LIMITS names '${id}', which is not an item`);
+    if (def.stackSize !== undefined && def.stackSize !== Number(limit)) {
+      throw new Error(`STACK_LIMITS disagrees with the definition of '${id}' (${def.stackSize})`);
+    }
+    def.stackSize = Number(limit);
+  }
+}
+
+/**
+ * How many of an item fit in one stack.
+ *
+ * The one place this is decided, so the inventory, the container UIs and the Resource Inspector cannot
+ * drift apart. A block addressed by numeric id has no `ITEMS` entry and stacks to 64.
+ *
+ * @param {string|number} id
+ * @returns {number}
+ */
+export function stackLimitFor(id) {
+  const def = ITEMS[id];
+  if (def && typeof def.stackSize === 'number') return def.stackSize;
+  // A tool or weapon that declares nothing is unstackable; this is the rule the inventory already
+  // applied on its dropped-item path, kept so a new tool is not silently stackable before its limit is
+  // declared. Everything else, including every block, is 64.
+  if (def && (def.type === 'tool' || def.type === 'weapon')) return 1;
+  return 64;
+}
+
 
 BLOCK_DEFS[BLOCKS.REDSTONE_WIRE] = {name: 'Redstone Wire', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_wire.svg'};
 BLOCK_DEFS[BLOCKS.REDSTONE_BLOCK] = {name: 'Redstone Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/redstone_block.svg'};

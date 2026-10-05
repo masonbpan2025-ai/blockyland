@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { EXTRA_SMELTING, EXTRA_FUEL, SMELTING_XP, DEFAULT_SMELTING_XP } from './extraSmelting.js';
 
 // Cook time per item in seconds (Minecraft default is 10s)
@@ -244,26 +244,29 @@ export class FurnaceManager {
   addItem(x, y, z, id, isBlock = false, count = 1, slotType = 'input') {
     const furnace = this.getOrCreateFurnace(x, y, z);
     if (!furnace) return false;
+    // A furnace slot holds a stack of the item, so the limit is the item's own: 64 for coal, one for a
+    // lava bucket. A literal 64 let a slot hold sixty-four of something unstackable.
+    const limit = stackLimitFor(id);
 
     if (slotType === 'fuel') {
       if (getFuelBurnTime(id) <= 0 && (!furnace.fuel || furnace.fuel.id !== id)) {
         return false;
       }
       if (!furnace.fuel) {
-        furnace.fuel = { id, isBlock, count: Math.min(count, 64) };
+        furnace.fuel = { id, isBlock, count: Math.min(count, limit) };
         return true;
-      } else if (furnace.fuel.id === id && !!furnace.fuel.isBlock === !!isBlock && furnace.fuel.count < 64) {
-        const canAdd = Math.min(count, 64 - furnace.fuel.count);
+      } else if (furnace.fuel.id === id && !!furnace.fuel.isBlock === !!isBlock && furnace.fuel.count < limit) {
+        const canAdd = Math.min(count, limit - furnace.fuel.count);
         furnace.fuel.count += canAdd;
         return true;
       }
       return false;
     } else {
       if (!furnace.input) {
-        furnace.input = { id, isBlock, count: Math.min(count, 64) };
+        furnace.input = { id, isBlock, count: Math.min(count, limit) };
         return true;
-      } else if (furnace.input.id === id && !!furnace.input.isBlock === !!isBlock && furnace.input.count < 64) {
-        const canAdd = Math.min(count, 64 - furnace.input.count);
+      } else if (furnace.input.id === id && !!furnace.input.isBlock === !!isBlock && furnace.input.count < limit) {
+        const canAdd = Math.min(count, limit - furnace.input.count);
         furnace.input.count += canAdd;
         return true;
       }
