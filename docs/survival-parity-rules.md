@@ -401,29 +401,35 @@ result against vanilla's chance-1 drops.
 | | |
 |---|---|
 | Vanilla entities with drops | 55 |
-| Measured with real mobs | 55 |
+| Measured with real mobs | **50** |
+| **In this game at all** | **5 missing** |
 | Spawn or drop errors | 0 |
-| **Mobs with no drop row at all** | **7** |
-| Name or data differences | 3 |
+| Real drop gaps | **2, both now fixed** |
+| Name or vanilla-data differences | 3 |
 
-**The seven**: `cat`, `pufferfish`, `ravager`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
-`zombie_horse`. Each has neither a base-table row nor a per-mob helper, and each drops something in
-vanilla -- string, pufferfish, a saddle, bones, snowballs, tropical fish and rotten flesh respectively.
-These are genuine gaps in the live path and are the concrete output of this measurement.
+**Two real gaps, fixed**: `cat` (string) and `ravager` (saddle) had no drop row and no helper. Rows added.
 
-**The three near-misses**, kept separate because lumping them in would overstate the gap: `stray` drops
-`tipped_arrow_slowness` where vanilla's data says `tipped_arrow`, which is a variant name rather than a
-missing drop; `turtle` drops seagrass as vanilla does, and its listed `bowl` looks like a minecraft-data
-artifact; `elder_guardian` lists `tide_armor_trim_smithing_template`, which is structure loot in vanilla
-rather than a mob drop.
+**Five mobs are not in the game**: `pufferfish`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
+`zombie_horse`. Round 34 reported these as drop gaps, which was wrong, and the reason is a defect worth
+naming: **`spawnMob` falls back to a VILLAGER for any type it does not know** -- its `default:` branch ends
+in `return this.spawnVillager(...)`. So spawning by name and reading the mob measures a villager for any
+mob that does not exist, and a drop row for one of these would fix nothing. The harness now detects the
+substitution and reports it as its own category.
 
-**One trap worth recording.** The first version of this harness forced the roll with `random = () => 0.5`
-and reported the phantom as dropping nothing. `phantomDrops` tests `random() < 0.5`, and 0.5 does not pass.
-A harness that reports a conditional drop as absent is measuring its own dice, so the roll is now forced to
-0 and there is a test for both directions of it.
+That fallback is silent, so any typo or unported mob becomes a villager rather than failing. It is worth
+fixing on its own account; `tests/mobDropLive.test.js` asserts the current behaviour and will fail the day
+it is corrected, which is the signal to update this section.
 
-`tests/mobDropLive.test.js` pins the seven by name, so adding their rows shrinks the list and forces this
-section to be updated rather than quietly becoming wrong.
+**Three differences that are not gaps**, kept separate because round 34 lumped them in and overstated the
+result: `stray` drops `tipped_arrow_slowness` where vanilla's data says `tipped_arrow`, a variant name
+rather than a missing drop; `turtle` drops seagrass as vanilla does, and its listed `bowl` looks like a
+minecraft-data artifact; `elder_guardian` lists `tide_armor_trim_smithing_template`, which is structure
+loot in vanilla rather than a mob drop.
+
+**Two harness traps, both recorded because both produced confident numbers.** The roll was first forced
+with `random = () => 0.5`, and `phantomDrops` tests `random() < 0.5`, so the phantom looked empty; the roll
+is now forced to 0 with a test for both directions. And the villager substitution above hid five mobs
+entirely.
 
 | | compared | differences |
 |---|---|---|

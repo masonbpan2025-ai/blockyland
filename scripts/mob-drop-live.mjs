@@ -80,6 +80,14 @@ export function liveItemsFor(manager, mobType, random = () => 0) {
     return { error: 'spawn: ' + e.message };
   }
   if (!mob) return { error: 'spawn returned nothing' };
+  // `spawnMob` falls back to a VILLAGER for any type it does not know -- its `default:` branch ends in
+  // `return this.spawnVillager(...)`. So spawning by name and reading the mob measures a villager for any
+  // mob that does not exist, and the first version of this harness reported five unported mobs as "missing
+  // a drop" because of it. The substitution is detected here and reported as its own category, because a
+  // missing mob and a missing drop are different findings with different fixes.
+  if (mob.type !== mobType) {
+    return { substituted: mob.type, names: new Set() };
+  }
   // The state the per-mob helpers branch on. Every one of these is a flag vanilla conditions its drops
   // on, so leaving them unset measures the "killed by something other than the player" case for every
   // mob -- which is the first invalid attempt wearing a different hat.
@@ -133,10 +141,16 @@ export function compareLiveDrops() {
   const loot = JSON.parse(readFileSync(CACHE, 'utf8'));
   const manager = makeDropFixture().manager;
   const entities = loot.filter(e => (e.drops || []).some(d => d && d.item));
-  const result = { compared: 0, errors: [], missing: [], surplus: [] };
+  const result = { compared: 0, errors: [], missing: [], surplus: [], notSpawnable: [] };
   for (const e of entities) {
     const live = liveItemsFor(manager, e.entity);
     if (live.error) { result.errors.push({ entity: e.entity, error: live.error }); continue; }
+    if (live.substituted) {
+      // The mob does not exist and the dispatcher handed back a villager. Reported as its own category:
+      // the drop table is not at fault and adding a row for it would do nothing.
+      result.notSpawnable.push({ entity: e.entity, substituted: live.substituted });
+      continue;
+    }
     result.compared++;
     const absent = [...vanillaGuaranteed(e)].filter(n => !live.names.has(n));
     if (absent.length) result.missing.push({ entity: e.entity, absent, live: [...live.names] });
@@ -154,12 +168,19 @@ if (invokedDirectly) {
   }
   const r = compareLiveDrops();
   console.log('=== LIVE MOB DROPS vs VANILLA ===');
-  console.log('vanilla entities with drops       : ' + (r.compared + r.errors.length));
+  console.log('vanilla entities with drops       : ' + (r.compared + r.errors.length + r.notSpawnable.length));
   console.log('measured with real mobs           : ' + r.compared);
+  console.log('the mob does not exist at all     : ' + r.notSpawnable.length);
   console.log('spawn or drop errors              : ' + r.errors.length);
   console.log('missing a GUARANTEED vanilla drop : ' + r.missing.length);
   console.log('with an item vanilla does not list: ' + r.surplus.length);
   for (const e of r.errors) console.log('  ERROR ' + e.entity + ': ' + e.error);
+  if (r.notSpawnable.length) {
+    console.log('\n=== these mobs are not in the game; spawnMob returns a '
+      + r.notSpawnable[0].substituted + ' ===');
+    for (const n of r.notSpawnable) console.log('  ' + n.entity);
+    console.log('  (a drop row for any of these would do nothing, so they are not drop gaps)');
+  }
   if (r.missing.length) {
     console.log('\n=== vanilla guarantees an item the live table does not produce ===');
     for (const m of r.missing) {
