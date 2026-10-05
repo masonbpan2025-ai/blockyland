@@ -31,7 +31,11 @@ const KNOWN_ALIASES = {
   // Wiki: The Killer Bunny "can only be spawned using commands", so it is a named entry that maps onto the
   // rabbit spawner's killer flag rather than a separate mob. Declared rather than silently tolerated,
   // because the alias is a design choice: it keeps the hunt, armour and coat in one place.
-  killer_bunny: 'rabbit'
+  killer_bunny: 'rabbit',
+  // Wiki: a brute is a stronger PIGLIN, so it keeps the piglin type and carries an isBrute flag. That is a
+  // design choice, not a missing implementation: the alternative was duplicating the piglin's whole AI to
+  // change three behaviours.
+  piglin_brute: 'piglin'
 };
 
 test('every spawn egg maps to a mob that spawns as its own type', () => {

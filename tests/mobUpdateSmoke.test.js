@@ -157,6 +157,11 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
     // movement. mobJitter.test.js drives both through `spawnPiglin` and `spawnHoglin` and confirms
     // they travel without shuddering, which is where they are actually covered.
     'piglin', 'hoglin',
+    // The piglin brute has exactly the same limitation as the piglin above, and for the same reason: it is
+    // built by `spawnPiglinBrute`, which delegates to `spawnPiglin`, so it too needs the path state the
+    // generic dispatcher does not set up. Listed separately because the ids differ even though the type
+    // does not -- a brute keeps `type: 'piglin'` and carries an `isBrute` flag.
+    'piglin_brute',
     // Declared stationary: the shulker has no reach and no walking role, so there is nothing to
     // drive. `vex` was here too until its flying role was declared; it needed an approach altitude
     // rather than the wanderer, which picks goals that stand on solid ground.

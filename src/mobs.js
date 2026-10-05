@@ -16,6 +16,7 @@ import { updateBarterEffects } from './barterItems.js';
 import { retaliateHoglins } from './netherMobAI.js';
 import { separatePlayerFromMobs } from './mobPlayerCollision.js';
 import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
+import { PIGLIN_BRUTE_HEALTH, PIGLIN_BRUTE_DIMENSIONS, PIGLIN_BRUTE_DAMAGE, PIGLIN_BRUTE_WEAPON, PIGLIN_BRUTE_DIFFERENCES, PIGLIN_BRUTE_SHARED, PIGLIN_BRUTE_COLORS, isPiglinBrute, piglinBruteHealth, piglinBruteDimensions, piglinBruteDamageFor, piglinBruteBarters, piglinBruteRetreats, piglinBruteDistractedByGold, piglinBrutePursues, makePiglinBrute, piglinBruteDrops, piglinBruteXp } from './piglinBruteBehavior.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
@@ -543,6 +544,9 @@ export class MobManager {
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
+      // Wiki: a brute is a stronger PIGLIN, so it is built by the piglin spawner and then given the
+      // brute's numbers rather than duplicating the model and the whole AI.
+      case 'piglin_brute': return this.spawnPiglinBrute(x, y, z, options);
       case 'zombified_piglin':
       case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z, options);
       case 'hoglin': return this.spawnHoglin(x, y, z);
@@ -2635,6 +2639,8 @@ export class MobManager {
       case 'ghast': return { width: 4.0, height: 4.0 };
       case 'blaze': return { width: 0.6, height: 1.8 };
       case 'piglin': return { width: 0.6, height: 1.95 };
+      // Wiki: a piglin brute shares the piglin box, 0.6 x 1.95.
+      case 'piglin_brute': return PIGLIN_BRUTE_DIMENSIONS;
       case 'zombified_piglin':
       case 'zombie_pigman': return { width: 0.6, height: 1.95 };
       case 'zoglin':
@@ -5791,6 +5797,29 @@ export class MobManager {
     return mob;
   }
 
+  /**
+   * Piglin brute.
+   *
+   * Wiki: 50 HP, the piglin box, wielding a golden axe for 7.5/13/19.5 damage, and hostile. "Unlike
+   * piglins, piglin brutes do not barter, retreat, or get distracted by gold" -- those three differences
+   * are gated inside the piglin AI, so this builds a piglin and then applies the brute identity.
+   */
+  spawnPiglinBrute(x, y, z, options = {}) {
+    const mob = this.spawnPiglin(x, y, z);
+    if (!mob) return mob;
+    makePiglinBrute(mob);
+    // Wiki: a brute always wields its axe, unlike a piglin which sometimes spawns unarmed.
+    mob.weapon = PIGLIN_BRUTE_WEAPON;
+    mob.hasGoldenAxe = true;
+    // Wiki: "do not barter, retreat, or get distracted by gold", recorded on the mob so the flags travel
+    // with it and a save/reload keeps the identity.
+    mob.barters = PIGLIN_BRUTE_DIFFERENCES.barters;
+    mob.retreats = PIGLIN_BRUTE_DIFFERENCES.retreats;
+    mob.distractedByGold = PIGLIN_BRUTE_DIFFERENCES.distractedByGold;
+    mob.isBrute = true;
+    return mob;
+  }
+
   spawnZombifiedPiglin(x, y, z, options = {}) {
     const model=createZombifiedPiglinModel(this.textures);
     const mob={type:'zombified_piglin',name:'Zombified Piglin',...model,health:20,maxHealth:20,velocity:new THREE.Vector3(),yaw:(this.random||Math.random)()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
@@ -8725,6 +8754,8 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
+    const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
     // Wiki: the giant's page gives no drop table and no experience value.
     // It is routed through the base table like every other mob, so nothing is added here.
     // Wiki: each fish drops its own item. That row ALREADY EXISTS in the base table below, so it is
@@ -8735,7 +8766,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows];
   }
 
   /**
@@ -8839,7 +8870,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isGiant(mob) ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
+          : isGiant(mob) ? 0
           : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
           : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
           : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)

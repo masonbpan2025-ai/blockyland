@@ -1240,8 +1240,6 @@ export const ITEMS = {
   golden_carrot: { name: 'Golden Carrot', icon: '/assets/items/golden_carrot.png', type: 'food' },
   rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
   pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
-  // Wiki: the tropical fish item. The fish mob is the only source of it, so the item has to exist.
-  tropical_fish: { name: 'Tropical Fish', icon: '/assets/items/tropical_fish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
   splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
@@ -1264,9 +1262,6 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
-  pufferfish_spawn_egg: { name: 'Pufferfish Spawn Egg', icon: '/assets/items/pufferfish_spawn_egg.png', type: 'spawn_egg', mob: 'pufferfish' },
-  tropical_fish_spawn_egg: { name: 'Tropical Fish Spawn Egg', icon: '/assets/items/tropical_fish_spawn_egg.png', type: 'spawn_egg', mob: 'tropical_fish' },
-  giant_spawn_egg: { name: 'Giant Spawn Egg', icon: '/assets/items/giant_spawn_egg.png', type: 'spawn_egg', mob: 'giant' },
   skeleton_horse_spawn_egg: { name: 'Skeleton Horse Spawn Egg', icon: '/assets/items/skeleton_horse_spawn_egg.png', type: 'spawn_egg', mob: 'skeleton_horse' },
   zombie_horse_spawn_egg: { name: 'Zombie Horse Spawn Egg', icon: '/assets/items/zombie_horse_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_horse' },
   illusioner_spawn_egg: { name: 'Illusioner Spawn Egg', icon: '/assets/items/illusioner_spawn_egg.png', type: 'spawn_egg', mob: 'illusioner' },
@@ -1344,7 +1339,8 @@ export const ITEMS = {
   ravager_spawn_egg: { name: 'Ravager Spawn Egg', icon: '/assets/items/ravager_spawn_egg.png', type: 'spawn_egg', mob: 'ravager' },
   warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
-  wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' }
+  wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' },
+  piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
 };
 
 // --- generated item additions for vanilla parity -----------------------------
