@@ -5,7 +5,9 @@ import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeigh
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
 import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
-import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming } from './parrotBehavior.js';
+import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariantName, applyParrotVariant } from './parrotBehavior.js';
+import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
+import { inheritFoxCoat } from './foxBehavior.js';
 import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
 import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
 import * as THREE from 'three';
@@ -32,6 +34,9 @@ export const BREEDING_FOODS = {
   strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
+  // Wiki: pandas "are bred using bamboo". Bamboo is not a shared food, and on Java the pair only
+  // actually breeds with a plant within 7x7x3, which `checkBreedingPair` enforces below.
+  panda: ['bamboo'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
     'wheat_seeds', 'wheat_seed', 'seeds', 'seed',
@@ -826,7 +831,131 @@ export class AnimalBehaviors {
   /**
    * Breeding matchmaking between two in-love animals
    */
+  /**
+   * Copy the per-type traits a baby should inherit from its parents.
+   *
+   * The baby is built by `spawnMob(type, ...)`, so it starts as a plain member of the species;
+   * everything that varies between individuals is applied here. Each mob that has a variant system
+   * and can breed has a branch, so the rule lives with the mob rather than being patched in at the
+   * call site.
+   *
+   * Returns the trait name that was applied, for telemetry and tests.
+   */
+  inheritBabyTraits(baby, parentA, parentB) {
+    if (!baby || !parentA || !parentB) return null;
+    const random = this.mobManager?.random || Math.random;
+
+    // Wiki: pandas inherit one gene from each parent, randomly ordered, with an independent 1/32
+    // mutation chance per gene. This is the most involved inheritance here, because the
+    // personality of the child follows from the two genes rather than from either parent directly.
+    if (baby.type === 'panda') {
+      const genes = breedPandaGenes(parentA, parentB, random);
+      baby.mainGene = genes.mainGene;
+      baby.hiddenGene = genes.hiddenGene;
+      applyPandaPersonality(baby);
+      return 'pandaGenes';
+    }
+
+    // Wiki: a baby rabbit inherits one parent's coat at random. This codebase stores it as `coat`,
+    // and the killer bunny is a rare named spawn rather than something breeding can produce, so it
+    // is deliberately not a possible outcome here.
+    if (baby.type === 'rabbit') {
+      const coats = [parentA.coat, parentB.coat].filter(c => c !== undefined && c !== null);
+      if (coats.length) {
+        baby.coat = coats[Math.floor(random() * coats.length)];
+        return 'rabbitCoat';
+      }
+      return null;
+    }
+
+    // Wiki: a fox cub inherits one parent's type, and a red x snow pairing is a 50/50. The rule
+    // lives in `inheritFoxCoat` so the mob owns it.
+    if (baby.type === 'fox') {
+      const inherited = inheritFoxCoat(
+        parentA.coat ?? parentA.variant,
+        parentB.coat ?? parentB.variant,
+        random
+      );
+      if (inherited !== undefined) {
+        baby.coat = inherited;
+        baby.variant = inherited;
+        return 'foxCoat';
+      }
+      return null;
+    }
+
+    // Wiki: a baby cat inherits one parent's coat at random.
+    if (baby.type === 'cat') {
+      const coats = ['tabby', 'black', 'red', 'siamese', 'british_shorthair', 'calico',
+        'persian', 'ragdoll', 'white', 'jellie', 'all_black'];
+      // Only coats the parents actually have are candidates, which is what the wiki says.
+      const candidates = [parentA.catVariant, parentB.catVariant].filter(v => coats.includes(v));
+      if (candidates.length) {
+        baby.catVariant = candidates[Math.floor(random() * candidates.length)];
+        return 'catVariant';
+      }
+      return null;
+    }
+
+    // Wiki: a baby parrot inherits one parent's colour at random.
+    if (baby.type === 'parrot') {
+      const variants = [parentA.variant, parentB.variant].filter(v => typeof v === 'number');
+      if (variants.length) {
+        const chosen = variants[Math.floor(random() * variants.length)];
+        baby.variant = chosen;
+        baby.variantName = parrotVariantName(chosen);
+        applyParrotVariant(baby);
+        return 'parrotVariant';
+      }
+      return null;
+    }
+
+    // Wiki: a baby goat inherits its horns from one parent, and a screaming goat
+    // (a 1-in-1000 birth) is separate from that. The screaming roll is the wiki's own rare event.
+    if (baby.type === 'goat') {
+      const from = random() < 0.5 ? parentA : parentB;
+      if (from.horns && baby.horns) {
+        // `horns` is an object keyed left/right in this codebase, not an array.
+        baby.hasLeftHorn = from.hasLeftHorn !== false;
+        baby.hasRightHorn = from.hasRightHorn !== false;
+      }
+      baby.isScreamingGoat = random() < 0.002;
+      // Wiki: the screaming trait is 1 in 1000, and it is inherited by 50% of offspring when one
+      // parent is a screaming goat, so the inherited roll is checked first.
+      if (parentA.isScreamingGoat || parentB.isScreamingGoat) baby.isScreamingGoat = random() < 0.5;
+      return 'goatTraits';
+    }
+
+    // Wiki: a wolf pup inherits a random collar colour from its parents when tamed.
+    if (baby.type === 'wolf') {
+      const colors = [parentA.collarColor, parentB.collarColor].filter(c => c !== undefined && c !== null);
+      if (colors.length) {
+        baby.collarColor = colors[Math.floor(random() * colors.length)];
+        return 'wolfCollar';
+      }
+      return null;
+    }
+
+    // Wiki: a mooshroom is brown or red, and a baby takes one parent's variant.
+    if (baby.type === 'mooshroom') {
+      const variants = [parentA.variant, parentB.variant].filter(v => v !== undefined);
+      if (variants.length) {
+        baby.variant = variants[Math.floor(random() * variants.length)];
+        applyMooshroomVariant(baby);
+        return 'mooshroomVariant';
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+
   checkBreedingPair(mob, dt = 2.0) {
+    // Wiki: Java pandas "breed only if there is at least one bamboo plant (not including shoots)
+    // within a 7x7x3 area", and otherwise shake their heads and do not breed. This is checked
+    // before anything else, so two pandas full of bamboo in a stone room never produce a cub.
+    if (mob.type === 'panda' && mob.inLove > 0 && !pandaCanBreed(this.mobManager, mob)) return;
     if(mob.isBaby || mob.health<=0 || mob.breedingCooldown>0 || (isEquine(mob)&&(!mob.isTamed||mob.type==='mule')))return;
     const mobs = this.mobManager.mobs;
     for (let i = 0; i < mobs.length; i++) {
@@ -912,6 +1041,8 @@ export class AnimalBehaviors {
             if (baby) {
               baby.isBaby = true;
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
+        // Everything that varies between individuals of a species: genes, variants, coat colours.
+        this.inheritBabyTraits(baby, mob, other);
               // Wiki: every breedable mob's baby gets the same 20-minute growth timer.
               startBabyGrowth(baby);
               baby.parent = mob;
