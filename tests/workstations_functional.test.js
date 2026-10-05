@@ -211,12 +211,21 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   world.setVoxel(bx, by + 5, bz, BLOCKS.AIR); // restore sky
 
   // Apply Beacon Buffs to Player
+  //
+  // The mock used to be `{ statusEffects: {} }` and the assertion read `statusEffects.speed > 0`, which is
+  // the shape the bug produced: a plain property on an object that no reader consults. A player's
+  // `statusEffects` is a Map, and `applyStatusEffect` is how an effect gets into it, so the mock is that
+  // shape now and the assertion reads the way the game reads.
   const mockPlayer = {
     position: new THREE.Vector3(bx + 5, by, bz + 5),
-    statusEffects: {}
+    statusEffects: new Map(),
+    applyStatusEffect(name, duration, level = 1) { this.statusEffects.set(name, { duration, level }); },
+    hasStatusEffect(name) { return this.statusEffects.has(name); },
   };
-  applyBeaconBuffs({ active: true, range: 20, primary: 'speed' }, mockPlayer, new THREE.Vector3(bx, by, bz));
-  assert.ok(mockPlayer.statusEffects.speed > 0, 'Player received Speed buff from Beacon');
+  applyBeaconBuffs({ active: true, range: 20, tier: 1, primary: 'speed' }, mockPlayer, new THREE.Vector3(bx, by, bz));
+  assert.equal(mockPlayer.hasStatusEffect('speed'), true, 'Player received Speed buff from Beacon');
+  assert.equal(mockPlayer.statusEffects.get('speed').level, 1, 'a tier 1 pyramid grants level I');
+  assert.equal(mockPlayer.statusEffects.get('speed').duration, 16, 'with the 16 s buffer');
 
   // 2. Conduit Frame Check
   const cx = 30, cy = 15, cz = 30;
@@ -239,11 +248,14 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   const underwaterPlayer = {
     position: new THREE.Vector3(cx + 4, cy, cz + 4),
     inWater: true,
-    statusEffects: {}
+    statusEffects: new Map(),
+    applyStatusEffect(name, duration, level = 1) { this.statusEffects.set(name, { duration, level }); },
+    hasStatusEffect(name) { return this.statusEffects.has(name); },
   };
   applyConduitPower(conduitCheck, underwaterPlayer, new THREE.Vector3(cx, cy, cz));
-  assert.ok(underwaterPlayer.statusEffects.conduit_power > 0);
-  assert.ok(underwaterPlayer.statusEffects.water_breathing > 0);
+  assert.equal(underwaterPlayer.hasStatusEffect('conduit_power'), true, 'Conduit Power is applied');
+  assert.equal(underwaterPlayer.hasStatusEffect('water_breathing'), true, 'and the breathing it carries');
+  assert.equal(underwaterPlayer.hasStatusEffect('haste'), true, 'and the haste, which now speeds mining');
 });
 
 test('Interactive Workstation UI Modals: Opening, Interacting, Slotted items, and Clean Close', () => {

@@ -15,6 +15,7 @@ import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { drinkPotion, isDrinkablePotion } from './potionUse.js';
+import { miningSpeedMultiplier } from './statusEffects.js';
 import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
@@ -2162,7 +2163,12 @@ class Game {
       if (eff) efficiencyLevel = eff.level;
     }
 
-    const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel));
+    // Haste and Mining Fatigue scale this. The Elder Guardian has been applying Mining Fatigue III to the
+    // player since it was written and nothing read it, so its curse -- the reason mining near an ocean
+    // monument is hopeless in vanilla -- did nothing at all. At level III the multiplier is 0.027, which
+    // turns a quarter-second block into ten seconds.
+    const effectMultiplier = miningSpeedMultiplier(this.player.statusEffects);
+    const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel, effectMultiplier));
     this.miningTime += dt;
 
     // Digging periodic sound

@@ -52,9 +52,20 @@ export const EFFECTS = {
   jump_boost: { name: 'Jump Boost', category: 'beneficial', jumpPerLevel: true },
   levitation: { name: 'Levitation', category: 'harmful' },
 
+  // --- mining speed ----------------------------------------------------------
+  // Java's two rules are not the same shape and cannot share a field. Haste is additive on the
+  // multiplier -- `1 + 0.2 * level` -- while Mining Fatigue is exponential and floors at level 4:
+  // 0.3, 0.09, 0.0027, then 0.00081 for level 4 and above. That last one is why an Elder Guardian's
+  // curse famously stops a player mining at all.
+  haste: { name: 'Haste', category: 'beneficial', miningAddPerLevel: 0.2 },
+  mining_fatigue: { name: 'Mining Fatigue', category: 'harmful', miningBasePerLevel: 0.3, miningMaxLevel: 4 },
+
   // --- protection and utility ------------------------------------------------
   fire_resistance: { name: 'Fire Resistance', category: 'beneficial' },
   water_breathing: { name: 'Water Breathing', category: 'beneficial' },
+  // A conduit grants Conduit Power, which is its own status in vanilla and carries water breathing, night
+  // vision and haste. Named here so the effect a conduit applies is a real one.
+  conduit_power: { name: 'Conduit Power', category: 'beneficial' },
   dolphins_grace: { name: 'Dolphin\'s Grace', category: 'beneficial' },
   // Slow Falling was named by a potion and absent from this table, so it had no name, no category and no
   // rule. Its rule is in `fallDamage` below, next to the distance it modifies.
@@ -65,8 +76,6 @@ export const EFFECTS = {
   // not come back. Four points per level, two hearts.
   absorption: { name: 'Absorption', category: 'beneficial', absorptionPerLevel: 4 },
   hunger: { name: 'Hunger', category: 'harmful' },
-  mining_fatigue: { name: 'Mining Fatigue', category: 'harmful' },
-  haste: { name: 'Haste', category: 'beneficial' },
   blindness: { name: 'Blindness', category: 'harmful' },
   glowing: { name: 'Glowing', category: 'neutral' },
 
@@ -181,6 +190,31 @@ export function speedMultiplier(effects) {
     m *= Math.pow(def.speedPerLevel, levelOf(data));
   }
   return Math.min(5, Math.max(0.05, m));
+}
+
+/**
+ * The combined multiplier a set of active effects applies to MINING speed.
+ *
+ * Haste and Mining Fatigue are the one pair here that are not the same shape, so they cannot share a
+ * field or a `Math.pow`. Haste adds 20% of the base per level. Mining Fatigue is `0.3^min(level, 4)`,
+ * which the wiki tabulates as 30%, 9%, 2.7% and 0.81% for levels I to IV and 0.81% beyond -- mining
+ * durations of 3.3x, 11.1x, 37x and 123x. Level III is the Elder Guardian's curse, which is why mining
+ * near an ocean monument is hopeless.
+ *
+ * Both can be active at once and they multiply, as in Java.
+ */
+export function miningSpeedMultiplier(effects) {
+  let m = 1;
+  for (const [name, data] of entriesOf(effects)) {
+    const def = EFFECTS[name];
+    if (!def) continue;
+    const level = levelOf(data);
+    if (def.miningAddPerLevel) m *= 1 + def.miningAddPerLevel * level;
+    if (def.miningBasePerLevel) {
+      m *= Math.pow(def.miningBasePerLevel, Math.min(def.miningMaxLevel ?? level, level));
+    }
+  }
+  return m;
 }
 
 /**

@@ -83,15 +83,20 @@ export function applyBeaconBuffs(beaconState, player, beaconPos) {
 
   if (distSq <= beaconState.range * beaconState.range) {
     const duration = 16.0; // 16s buffer
+    // Vanilla gives the primary power at level I, and at level II once the pyramid is a full four tiers.
+    //
+    // `applyStatusEffect` is the only way an effect is meant to be put on a player, because it writes into
+    // `player.statusEffects`, which is a Map. This used to assign `player.statusEffects[name] = duration`,
+    // which sets a plain property on the Map object -- `has`, `get` and `hasStatusEffect` all ignore it, so
+    // every beacon power did nothing while looking applied.
+    const primaryLevel = beaconState.tier >= 4 ? 2 : 1;
 
     if (beaconState.primary) {
-      player.statusEffects = player.statusEffects || {};
-      player.statusEffects[beaconState.primary] = duration;
+      player.applyStatusEffect?.(beaconState.primary, duration, primaryLevel);
     }
 
     if (beaconState.secondary === 'regeneration') {
-      player.statusEffects = player.statusEffects || {};
-      player.statusEffects.regeneration = duration;
+      player.applyStatusEffect?.('regeneration', duration, 1);
     }
   }
 }
@@ -163,11 +168,15 @@ export function applyConduitPower(conduitState, player, conduitPos, mobs = []) {
   const distSq = dx * dx + dy * dy + dz * dz;
 
   if (distSq <= conduitState.range * conduitState.range && player.inWater) {
-    player.statusEffects = player.statusEffects || {};
-    player.statusEffects.conduit_power = 16.0;
-    player.statusEffects.water_breathing = 16.0;
-    player.statusEffects.night_vision = 16.0;
-    player.statusEffects.haste = 16.0;
+    // Conduit Power is its own status in vanilla and carries water breathing, night vision and haste, so
+    // applying all four is what leaves the player with what a conduit grants. These were written as plain
+    // properties on the `statusEffects` Map, which nothing reads -- and `conduit_power` was not even an
+    // effect this game knew about.
+    const duration = 16.0;
+    player.applyStatusEffect?.('conduit_power', duration, 1);
+    player.applyStatusEffect?.('water_breathing', duration, 1);
+    player.applyStatusEffect?.('night_vision', duration, 1);
+    player.applyStatusEffect?.('haste', duration, 1);
   }
 
   // Complete conduit (42 blocks) attacks hostile underwater mobs within 8 blocks

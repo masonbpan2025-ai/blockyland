@@ -115,9 +115,10 @@ export function miningEffect(blockId, tool = null, toolId = null) {
  * @param {object|null} tool
  * @param {string|null} toolId
  * @param {number} [efficiencyLevel] Efficiency enchantment level, adds level^2+1 to speed
+ * @param {number} [effectMultiplier] from `statusEffects.miningSpeedMultiplier`: Haste and Mining Fatigue
  * @returns {number} seconds
  */
-export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiencyLevel = 0) {
+export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiencyLevel = 0, effectMultiplier = 1) {
   const effect = miningEffect(blockId, tool, toolId);
   if (!effect.known) {
     // Not in the harvest table. Blocks the game marks unbreakable (bedrock and friends carry
@@ -133,6 +134,11 @@ export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiency
 
   let speed = effect.speedMultiplier;
   if (effect.toolCorrect && efficiencyLevel > 0) speed += efficiencyLevel * efficiencyLevel + 1;
+  // Haste and Mining Fatigue scale the mining speed, so they shorten or stretch the time. Applied to the
+  // speed rather than to the result, because Efficiency adds to the speed as well and the two have to
+  // combine the way Java combines them.
+  if (effectMultiplier !== 1) speed *= effectMultiplier;
+  if (!(speed > 0)) return Infinity;
 
   const divisor = effect.canHarvest ? 30 : 100;
   const damagePerTick = speed / effect.hardness / divisor;
