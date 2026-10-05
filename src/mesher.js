@@ -298,9 +298,11 @@ export class ChunkMesher {
           const wy = ly;
           const wz = worldOffsetZ + lz;
 
-          // Slabs are not cubes, so they must be routed to createBlockGeometry rather than the
-          // plain-cube fast path.
-          if (def?.slab) {
+          // Partial-cube shapes -- slabs, panes, carpets -- cannot use the plain-cube fast path, so
+          // they are routed through createBlockGeometry. An unrecognised shape falls through to the
+          // fast path and is drawn full size, which for any of these looks like a rendering bug
+          // rather than a missing feature.
+          if (def?.slab || def?.pane || def?.carpet) {
             const state = world.redstone?.state([wx, wy, wz]) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);

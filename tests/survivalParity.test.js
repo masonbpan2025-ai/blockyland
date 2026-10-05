@@ -59,11 +59,18 @@ test('the name mapper resolves present content and not absent content', { skip }
     'diorite', 'andesite', 'granite', 'honeycomb_block']) {
     assert.equal(have(name), true, `${name} should resolve, it exists in the game`);
   }
-  // Genuinely still absent, and among the largest remaining blockers. If one of these starts
-  // resolving that is progress, and this test should be updated deliberately rather than silently.
-  for (const name of ['glass_pane', 'white_candle', 'white_bed', 'oak_stairs', 'white_carpet', 'oak_fence', 'written_book']) {
-    assert.equal(have(name), false, `${name} is absent from the game and must not resolve`);
+  // The negative case uses names that cannot ever resolve.
+  //
+  // Twice this list named real content that a later round then implemented -- slabs, then panes --
+  // and the test failed on each improvement. Naming real content is inherently fragile here. What the
+  // check is actually for is that the mapper is not so permissive that everything resolves, which
+  // would inflate every coverage figure silently, and nonsense names prove that permanently.
+  for (const name of ['definitely_not_a_block', 'not_a_real_item_at_all', 'oak_planks_that_never_existed', 'zzz_zzz_zzz']) {
+    assert.equal(have(name), false, `${name} does not exist anywhere and must not resolve`);
   }
+  // And a name that is absent for a STRUCTURAL reason, not because a family is merely unbuilt: this
+  // game has no map item and adding one needs rendering and a world-to-map projection.
+  assert.equal(have('map'), false, 'the map item needs mechanics this game does not have');
 });
 
 test('coverage breakdown identifies what to add next', { skip }, () => {

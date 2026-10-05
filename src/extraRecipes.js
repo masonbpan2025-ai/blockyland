@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 723 recipes.
+// 772 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -180,6 +180,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.STONE_BRICK_SLAB],[B.STONE_BRICK_SLAB]],result:{id:B.CHISELED_STONE_BRICKS,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.MUD,B.WHEAT],result:{id:B.PACKED_MUD,isBlock:true,count:1}},
   {pattern:[[B.PACKED_MUD,B.PACKED_MUD],[B.PACKED_MUD,B.PACKED_MUD]],result:{id:B.MUD_BRICKS,isBlock:true,count:4}},
+  {pattern:[[B.GLASS,B.GLASS,B.GLASS],[B.GLASS,B.GLASS,B.GLASS]],result:{id:B.GLASS_PANE,isBlock:true,count:16}},
   {pattern:[['nether_brick','nether_brick'],['nether_brick','nether_brick']],result:{id:B.NETHER_BRICKS,isBlock:true,count:1}},
   {pattern:[[null,'book',null],['diamond',B.OBSIDIAN,'diamond'],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.ENCHANTING_TABLE,isBlock:true,count:1}},
   {pattern:[[B.END_STONE,B.END_STONE],[B.END_STONE,B.END_STONE]],result:{id:B.END_STONE_BRICKS,isBlock:true,count:4}},
@@ -206,7 +207,55 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA],[B.TERRACOTTA,'red_dye',B.TERRACOTTA],[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA]],result:{id:B.RED_TERRACOTTA,isBlock:true,count:8}},
   {pattern:[[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA],[B.TERRACOTTA,'black_dye',B.TERRACOTTA],[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA]],result:{id:B.BLACK_TERRACOTTA,isBlock:true,count:8}},
   {shapeless:true,ingredients:[B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT],result:{id:B.HAY_BLOCK,isBlock:true,count:1}},
+  {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL]],result:{id:B.WHITE_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['white_dye',B.BLACK_CARPET],result:{id:B.WHITE_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.ORANGE_WOOL,B.ORANGE_WOOL]],result:{id:B.ORANGE_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['orange_dye',B.BLACK_CARPET],result:{id:B.ORANGE_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.MAGENTA_WOOL,B.MAGENTA_WOOL]],result:{id:B.MAGENTA_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['magenta_dye',B.BLACK_CARPET],result:{id:B.MAGENTA_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.LIGHT_BLUE_WOOL,B.LIGHT_BLUE_WOOL]],result:{id:B.LIGHT_BLUE_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['light_blue_dye',B.BLACK_CARPET],result:{id:B.LIGHT_BLUE_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.YELLOW_WOOL,B.YELLOW_WOOL]],result:{id:B.YELLOW_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['yellow_dye',B.BLACK_CARPET],result:{id:B.YELLOW_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.LIME_WOOL,B.LIME_WOOL]],result:{id:B.LIME_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['lime_dye',B.BLACK_CARPET],result:{id:B.LIME_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.PINK_WOOL,B.PINK_WOOL]],result:{id:B.PINK_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['pink_dye',B.BLACK_CARPET],result:{id:B.PINK_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.GRAY_WOOL,B.GRAY_WOOL]],result:{id:B.GRAY_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['gray_dye',B.BLACK_CARPET],result:{id:B.GRAY_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.LIGHT_GRAY_WOOL,B.LIGHT_GRAY_WOOL]],result:{id:B.LIGHT_GRAY_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['light_gray_dye',B.BLACK_CARPET],result:{id:B.LIGHT_GRAY_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.CYAN_WOOL,B.CYAN_WOOL]],result:{id:B.CYAN_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['cyan_dye',B.BLACK_CARPET],result:{id:B.CYAN_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.PURPLE_WOOL,B.PURPLE_WOOL]],result:{id:B.PURPLE_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['purple_dye',B.BLACK_CARPET],result:{id:B.PURPLE_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.BLUE_WOOL,B.BLUE_WOOL]],result:{id:B.BLUE_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['blue_dye',B.BLACK_CARPET],result:{id:B.BLUE_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.BROWN_WOOL,B.BROWN_WOOL]],result:{id:B.BROWN_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['brown_dye',B.BLACK_CARPET],result:{id:B.BROWN_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.GREEN_WOOL,B.GREEN_WOOL]],result:{id:B.GREEN_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['green_dye',B.BLACK_CARPET],result:{id:B.GREEN_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.RED_WOOL,B.RED_WOOL]],result:{id:B.RED_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['red_dye',B.BLACK_CARPET],result:{id:B.RED_CARPET,isBlock:true,count:1}},
+  {pattern:[[B.BLACK_WOOL,B.BLACK_WOOL]],result:{id:B.BLACK_CARPET,isBlock:true,count:3}},
+  {shapeless:true,ingredients:['black_dye',B.BLUE_CARPET],result:{id:B.BLACK_CARPET,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.ICE,B.ICE,B.ICE,B.ICE,B.ICE,B.ICE,B.ICE,B.ICE,B.ICE],result:{id:B.PACKED_ICE,isBlock:true,count:1}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'white_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.WHITE_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'orange_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.ORANGE_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'magenta_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.MAGENTA_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'light_blue_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.LIGHT_BLUE_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'yellow_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.YELLOW_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'lime_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.LIME_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'pink_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.PINK_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'gray_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.GRAY_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'light_gray_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.LIGHT_GRAY_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'cyan_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.CYAN_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'purple_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.PURPLE_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'blue_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.BLUE_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'brown_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.BROWN_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'green_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.GREEN_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'red_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.RED_STAINED_GLASS_PANE,isBlock:true,count:8}},
+  {pattern:[[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE],[B.GLASS_PANE,'black_dye',B.GLASS_PANE],[B.GLASS_PANE,B.GLASS_PANE,B.GLASS_PANE]],result:{id:B.BLACK_STAINED_GLASS_PANE,isBlock:true,count:8}},
   {pattern:[['prismarine_shard','prismarine_shard'],['prismarine_shard','prismarine_shard']],result:{id:B.PRISMARINE,isBlock:true,count:1}},
   {shapeless:true,ingredients:['prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard','prismarine_shard'],result:{id:B.PRISMARINE_BRICKS,isBlock:true,count:1}},
   {pattern:[['prismarine_shard','prismarine_shard','prismarine_shard'],['prismarine_shard','black_dye','prismarine_shard'],['prismarine_shard','prismarine_shard','prismarine_shard']],result:{id:B.DARK_PRISMARINE,isBlock:true,count:1}},
@@ -743,21 +792,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 723;
+export const EXTRA_RECIPE_COUNT = 772;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 723,
-  "shaped": 623,
-  "shapeless": 107,
-  "skippedMissingResult": 653,
-  "skippedMissingIngredient": 173,
+  "emitted": 772,
+  "shaped": 656,
+  "shapeless": 123,
+  "skippedMissingResult": 587,
+  "skippedMissingIngredient": 190,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 730,
+  "emittedBeforeDedupe": 779,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

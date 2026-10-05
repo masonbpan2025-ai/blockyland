@@ -106,6 +106,33 @@ const FAMILIES = [
     extra: { slab: true },
   },
   {
+    // Glass panes: a thin sheet through the middle of the block. Not a cube, so marked and routed.
+    id: 'panes',
+    match: (n) => /_pane$/.test(n),
+    // A pane reuses its glass texture. Plain glass_pane maps to glass.png; a stained pane maps to its
+    // own stained texture where one exists, which textureExists checks.
+    texture: (n) => {
+      const base = n.replace(/_pane$/, '');
+      if (textureExists(base + '.png')) return base + '.png';
+      return 'glass.png';
+    },
+    sound: 'glass',
+    extra: { pane: true },
+    transparent: true,
+  },
+  {
+    // Carpets: one pixel tall, covering the block. Marked so they are not drawn as cubes.
+    id: 'carpets',
+    match: (n) => /_carpet$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_carpet$/, '');
+      if (textureExists(base + '.png')) return base + '.png';
+      return n + '.png';
+    },
+    sound: 'grass',
+    extra: { carpet: true },
+  },
+  {
     // Utility blocks vanilla treats as full cubes. Ranked by recipes unblocked: campfire alone blocks
     // 44. Campfire and soul_campfire emit light, which the generator carries through from the data.
     id: 'utility_cubes',
@@ -123,7 +150,7 @@ const FAMILIES = [
 ];
 
 // Materials that are definitely NOT plain full cubes, even inside a matched family.
-const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_pane|_carpet|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
+const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
 
 const constName = (n) => n.toUpperCase();
 
