@@ -1,6 +1,6 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
-import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
+import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import * as THREE from 'three';
@@ -8,6 +8,24 @@ import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
+
+/**
+ * How much of a fall the block landed on absorbs.
+ *
+ * Vanilla has a handful of these and they are not all the same rule: hay and honey take a fifth of the
+ * damage, while slime, powder snow and water take none of it. A named table rather than a chain of
+ * conditionals, so the list can be read at a glance and a test can walk it.
+ *
+ * Deliberately absent: sweet berry bushes, which reduce the damage by one per block fallen rather than by
+ * a fraction, and scaffolding and cobwebs, which this game does not have.
+ */
+export const FALL_ABSORBING_BLOCKS = new Map([
+  [BLOCKS.HAY_BLOCK, 0.2],
+  [BLOCKS.HONEY_BLOCK, 0.2],
+  [BLOCKS.SLIME_BLOCK, 0],
+  [BLOCKS.POWDER_SNOW, 0],
+  [BLOCKS.WATER, 0],
+]);
 
 export class Player {
   constructor(camera, domElement, world, soundEngine) {
@@ -486,16 +504,12 @@ export class Player {
 
     if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
-    if (this.hasStatusEffect('slowness')) {
-      targetSpeed *= 0.6;
-    }
-
-    // Swiftness and Slowness are the two potion effects that change walking speed outright, and
-    // Swiftness had no reader at all: a Potion of Swiftness was drunk, stored, shown in the HUD and
-    // had no effect on the player. Vanilla adds 20% per level; Slowness is a flat 15% reduction per
-    // level there, but the 0.6 above is this game's existing value and is left alone.
-    const speedEffect = this.statusEffects?.get?.('speed');
-    if (speedEffect) targetSpeed *= 1 + 0.2 * (speedEffect.level || 1);
+    // Swiftness and Slowness were read inline here, and the effect table had a copy of the same rule that
+    // nothing called. Both now come from `speedMultiplier`, so the two cannot disagree and both scale with
+    // level. The inline slowness was a flat 0.6 where vanilla is 15% per level; this is the vanilla value,
+    // which makes Slowness IV (0.52) bite much harder than Slowness I (0.85) for the first time -- the
+    // Turtle Master and Slowness IV potions both carry level 4.
+    targetSpeed *= speedMultiplier(this.statusEffects);
 
     // Movement direction input
     let moveForward = 0;
@@ -572,6 +586,11 @@ export class Player {
     } else {
       // Normal Gravity
       this.velocity.y -= this.gravity * dt;
+      // Slow Falling holds the descent as well as negating the damage, which is the half a player
+      // notices: the landing is gentle rather than merely harmless.
+      if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) {
+        this.velocity.y = -FALL_DAMAGE.slowFallingSpeed;
+      }
       if (this.velocity.y < -78) this.velocity.y = -78;
 
       if (!controlsDisabled && this.onGround && this.keys['Space']) {
@@ -761,8 +780,10 @@ export class Player {
           }
           // Snap to top of block
           newPos.y = Math.ceil(newPos.y);
+          const fell = this.fallDistance;
           this.velocity.y = 0;
           this.fallDistance = 0;
+          this.applyFallDamage(fell, belowY);
         }
       } else {
         // Bump head
@@ -907,6 +928,34 @@ export class Player {
       }
     }
     return level;
+  }
+
+  /**
+   * Damage the player for a fall, taking the landing block into account.
+   *
+   * Called on landing with the distance fallen before it was reset. The effect half of the rule lives in
+   * `statusEffects.fallDamage`, next to the distance it modifies; what is here is the block the player
+   * landed on, and the armour that reduces it is already handled inside `takeDamage`.
+   *
+   * A bed bounce never reaches this, because the bounce is checked first and returns through its own
+   * branch -- which is why `tests/bed.test.js` can assert that landing on a bed negates fall damage.
+   *
+   * Returns the health actually lost rather than the amount asked for, because Feather Falling and armour
+   * both reduce it inside `takeDamage` and a caller that wants to know what a landing cost wants the
+   * truth. Creative mode, invulnerability frames and a harmless landing all report zero.
+   */
+  applyFallDamage(fallDistance, blockY) {
+    if (!(fallDistance > 0)) return 0;
+    let damage = fallDamage(fallDistance, this.statusEffects);
+    if (damage <= 0) return 0;
+    const landed = this.world?.getVoxel(Math.floor(this.position.x), blockY, Math.floor(this.position.z));
+    const factor = FALL_ABSORBING_BLOCKS.get(landed);
+    if (factor !== undefined) damage *= factor;
+    damage = Math.floor(damage);
+    if (damage <= 0) return 0;
+    const before = this.health;
+    this.takeDamage(damage, null, 'fall');
+    return before - this.health;
   }
 
   takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {

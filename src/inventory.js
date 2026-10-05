@@ -1,6 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { StructureLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export class Inventory {

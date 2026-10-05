@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { StructureLibrary } from '../src/structureLibrary.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
+import { StructureLibrary } from '../src/buildingLibrary.js';
+import { StructureStudioManager } from '../src/buildingStudio.js';
 import { CREATIVE_TABS, buildCreativeCatalog } from '../src/creativeCatalog.js';
 import { BLOCKS } from '../src/blocks.js';
 import { World } from '../src/world.js';

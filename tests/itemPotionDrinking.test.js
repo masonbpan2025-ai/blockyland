@@ -228,7 +228,18 @@ test('Swiftness actually makes the player move faster, and Slowness slower', () 
 
   assert.ok(base > 0.1, `the control player should be moving, measured ${base}`);
   assert.ok(Math.abs(fast / base - 1.2) < 0.02, `Swiftness I should be 1.2x, was ${(fast / base).toFixed(3)}x`);
-  assert.ok(Math.abs(slow / base - 0.6) < 0.02, `Slowness should be 0.6x, was ${(slow / base).toFixed(3)}x`);
+  // Vanilla is 15% per level, so Slowness I is 0.85x. This was asserted as 0.6x, which was this game's own
+  // flat value and not vanilla's; the effect table now owns the rule and scales it by level, so the flat
+  // value went away with the duplicate rule that carried it. Slowness IV (0.52x) is the one the Turtle
+  // Master and Slowness IV potions carry.
+  assert.ok(Math.abs(slow / base - 0.85) < 0.02, `Slowness I should be 0.85x, was ${(slow / base).toFixed(3)}x`);
+
+  const slowedFour = realPlayer();
+  slowedFour.applyStatusEffect('slowness', 600, 4);
+  const slower = slow / base;
+  const slowest = flyingSpeed(slowedFour) / base;
+  assert.ok(slowest < slower - 0.05, `Slowness IV should be slower than Slowness I: ${slowest.toFixed(3)}x vs ${slower.toFixed(3)}x`);
+  assert.ok(Math.abs(slowest - 0.85 ** 4) < 0.02, `Slowness IV should be ${(0.85 ** 4).toFixed(3)}x, was ${slowest.toFixed(3)}x`);
 });
 
 test('Swiftness II is faster than Swiftness I', () => {

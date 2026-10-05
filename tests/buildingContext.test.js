@@ -9,10 +9,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { StructureStudioManager } from '../src/structureStudio.js';
-import { StructureLibrary } from '../src/structureLibrary.js';
+import { StructureStudioManager } from '../src/buildingStudio.js';
+import { StructureLibrary } from '../src/buildingLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
-import { describeDirection, describeOpenStructure, formatStructureContext } from '../src/structureContext.js';
+import { describeDirection, describeOpenStructure, formatStructureContext } from '../src/buildingContext.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function studioWith(id, params = {}) {
@@ -165,6 +165,6 @@ test('the prompt section includes size, bounds and live parameters', () => {
 
 test('structureContext is imported by the agent', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'src/worldAgent.js'), 'utf8');
-  assert.match(source, /from '\.\/structureContext\.js'/, 'the agent must import the structure context');
+  assert.match(source, /from '\.\/buildingContext\.js'/, 'the agent must import the structure context');
   assert.match(source, /studioSection/, 'and splice it into the prompt');
 });

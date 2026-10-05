@@ -1,5 +1,5 @@
 import { BLOCKS } from './blocks.js';
-import { BUILTIN_STRUCTURES } from './structures/index.js';
+import { BUILTIN_STRUCTURES } from './buildings/index.js';
 
 const STORAGE_KEY = 'minecraft_structure_library_v1';
 const OVERRIDES_KEY = 'minecraft_structure_library_overrides_v1';
@@ -274,6 +274,28 @@ export class StructureLibraryManager {
     return blocks;
   }
 
+  /**
+   * The building-vocabulary names for the same operations.
+   *
+   * The building/structure rename reached `main.js` before it reached this file. `main.js` imports
+   * `BuildingLibrary` and calls `getBuilding` and `executeBuildingBuild`; `buildingStudio.js`, the
+   * creative catalogue and `inventory.js` still call `getStructure` and `executeStructureBuild`. Only the
+   * new spelling is missing, so it is spelled out here rather than by renaming twenty-eight call sites in
+   * another branch's in-flight work -- and because `main.js` imports a name this module did not export,
+   * the whole game failed to load: `SyntaxError: The requested module './buildingLibrary.js' does not
+   * provide an export named 'BuildingLibrary'`.
+   *
+   * Both spellings reach the same instance and the same state. When the rename is finished, these three
+   * methods are what gets deleted.
+   */
+  getBuilding(idOrName) { return this.getStructure(idOrName); }
+
+  getAllBuildings() { return this.getAllStructures(); }
+
+  executeBuildingBuild(building, origin, params, world) {
+    return this.executeStructureBuild(building, origin, params, world);
+  }
+
   subscribe(listener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -291,4 +313,6 @@ export class StructureLibraryManager {
 }
 
 export const StructureLibrary = new StructureLibraryManager();
+/** The same instance under the name `main.js` imports. See `getBuilding` for why both exist. */
+export const BuildingLibrary = StructureLibrary;
 export default StructureLibrary;

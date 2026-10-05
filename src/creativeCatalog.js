@@ -1,5 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { StructureLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export const CREATIVE_TABS = [

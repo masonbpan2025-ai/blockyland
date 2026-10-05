@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { StructureLibrary } from './buildingLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
 
 export class StructureStudioManager {
@@ -910,3 +910,12 @@ function generate(origin, params, B) {
 }
 
 export default StructureStudioManager;
+/**
+ * The name `main.js` imports.
+ *
+ * The building/structure rename reached `main.js` before it reached this file, so `main.js` imported
+ * `BuildingStudioManager` from a module that exports `StructureStudioManager` and the game failed to load.
+ * Both spellings are the same class; this is the alias, not a second implementation. See
+ * `buildingLibrary.js` for the same situation one module over.
+ */
+export { StructureStudioManager as BuildingStudioManager };

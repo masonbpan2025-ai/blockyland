@@ -686,6 +686,111 @@ export function undefinedBlockConstants(source) {
 }
 
 /**
+ * Every `import` in a set of modules that would fail, checked without running anything.
+ *
+ * This exists because a rename can leave a tree that looks consistent and cannot load. The
+ * building/structure rename moved `structureLibrary.js` to `buildingLibrary.js` and updated `main.js` to
+ * the new vocabulary, but left four modules importing the old path and left the library exporting the old
+ * names -- so `main.js` died on `Cannot find module './structureLibrary.js'`, and once that was fixed, on
+ * `does not provide an export named 'BuildingLibrary'`. Neither is visible to a test that never imports
+ * the entry point, and both are invisible to the resource checks, which only read data.
+ *
+ * Takes `{path: text}` rather than reading files, so this module keeps its no-filesystem property.
+ *
+ * Deliberately conservative: a name is only reported when the target module is present in `sources`,
+ * parses as plain exports, and has no `export *` that could supply it. A false accusation here would be
+ * worse than a missed one, because the fix is to edit an import.
+ *
+ * @param {Record<string, string>} sources path -> file text, paths relative to the same root
+ * @returns {Array<{file: string, line: number, kind: string, specifier: string, name?: string}>}
+ */
+export function unresolvedImports(sources) {
+  const norm = (p) => String(p).replace(/\\/g, '/');
+  const known = new Map(Object.entries(sources).map(([p, text]) => [norm(p), text]));
+
+  // What a module exports: names it declares, plus names it re-exports by name.
+  const exportsOf = (text) => {
+    const clean = stripComments(text);
+    const named = new Set();
+    let hasDefault = /^\s*export\s+default\b/m.test(clean);
+    let star = false;
+    for (const m of clean.matchAll(/^\s*export\s+(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z0-9_$]+)/gm)) {
+      named.add(m[1]);
+    }
+    for (const m of clean.matchAll(/^\s*export\s*\{([^}]*)\}/gm)) {
+      for (const part of m[1].split(',')) {
+        const piece = part.trim();
+        if (!piece) continue;
+        const as = piece.match(/\bas\s+([A-Za-z0-9_$]+)$/);
+        if (as) named.add(as[1]);
+        else if (/^[A-Za-z0-9_$]+$/.test(piece)) named.add(piece);
+      }
+      if (/\bdefault\b/.test(m[1])) hasDefault = true;
+    }
+    if (/^\s*export\s*\*\s*from\b/m.test(clean)) star = true;
+    return { named, hasDefault, star };
+  };
+
+  const resolve = (fromFile, spec) => {
+    if (!spec.startsWith('.')) return null;
+    const base = norm(fromFile).split('/').slice(0, -1);
+    const parts = spec.split('/');
+    const out = [...base];
+    for (const part of parts) {
+      if (part === '.' || part === '') continue;
+      if (part === '..') out.pop();
+      else out.push(part);
+    }
+    const path = out.join('/');
+    if (known.has(path)) return path;
+    // Only `.js` modules are indexed, so a bare directory is not followed.
+    return null;
+  };
+
+  const out = [];
+  for (const [file, text] of known) {
+    const clean = stripComments(text);
+    // `stripComments` blanks string contents as well as comments, which preserves line numbers but
+    // destroys the module specifier inside the quotes. So the two are used together: the stripped line
+    // decides whether this line really is code, and the raw line supplies the path. Reading only the
+    // stripped text made this scan report zero faults on a tree whose entry point did not load.
+    const codeLines = clean.split('\n');
+    const rawLines = String(text).split('\n');
+    for (let i = 0; i < codeLines.length; i++) {
+      if (!/\bimport\b/.test(codeLines[i])) continue;
+      const line = rawLines[i] ?? '';
+      const spec = line.match(/\bfrom\s+'(\.[^']+)'/)?.[1] ?? line.match(/\bimport\s*\(\s*'(\.[^']+)'/)?.[1];
+      if (!spec) continue;
+      const target = resolve(file, spec);
+      if (!target) {
+        // A relative specifier that no indexed module answers to is a broken path, unless it is a
+        // directory import this scan cannot follow or an asset the bundler handles.
+        if (!/\.(js|mjs)$/.test(spec)) continue;
+        out.push({ file, line: i + 1, kind: 'unresolved-path', specifier: spec });
+        continue;
+      }
+      const targetExports = exportsOf(known.get(target));
+      const clause = line.match(/\bimport\s*\{([^}]*)\}\s*from/);
+      if (clause) {
+        for (const part of clause[1].split(',')) {
+          const piece = part.trim();
+          if (!piece) continue;
+          const local = piece.match(/^([A-Za-z0-9_$]+)(?:\s+as\s+[A-Za-z0-9_$]+)?$/);
+          if (!local) continue;
+          if (targetExports.named.has(local[1]) || targetExports.star) continue;
+          out.push({ file, line: i + 1, kind: 'missing-export', specifier: spec, name: local[1] });
+        }
+        continue;
+      }
+      if (/\bimport\s+[A-Za-z0-9_$]+\s+from/.test(line) && !targetExports.hasDefault && !targetExports.star) {
+        out.push({ file, line: i + 1, kind: 'missing-default-export', specifier: spec });
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * The other direction: vanilla item names this game does not answer to.
  *
  * `danglingReferences` asks "does this game reference something it never defined"; this asks "does

@@ -19,7 +19,7 @@ import {
   describePlanShape,
   supportsEffort
 } from './agentProviders.js';
-import { describeOpenStructure, formatStructureContext } from './structureContext.js';
+import { describeOpenStructure, formatStructureContext } from './buildingContext.js';
 import { explainFailure, isExternalFailure } from './agentCapabilities.js';
 
 // A thinking model can be silent for a long time before its first token, so we

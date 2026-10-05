@@ -8,8 +8,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WorldAgent } from '../src/worldAgent.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
-import { StructureLibrary } from '../src/structureLibrary.js';
+import { StructureStudioManager } from '../src/buildingStudio.js';
+import { StructureLibrary } from '../src/buildingLibrary.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function fixture({ studioOpen = true } = {}) {

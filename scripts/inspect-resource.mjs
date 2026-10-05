@@ -28,6 +28,7 @@ import {
   resourceReport,
   searchResources,
   undefinedBlockConstants,
+  unresolvedImports,
 } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 
@@ -296,7 +297,33 @@ export async function main() {
       for (const d of duplicates) console.log(`   ${d.file} ${d.literal}.${d.key} at lines ${d.lines.join(', ')}`);
       console.log(`undefined BLOCKS constants used as keys: ${undefinedKeys.length}`);
       for (const u of undefinedKeys) console.log(`   src/${u.file}:${u.line}  BLOCKS.${u.constant}`);
-      if (problems.length || duplicates.length) process.exitCode = 1;
+
+      // Every module in src/ and tests/, so a rename that moves a file or changes an export is caught here
+      // rather than by a browser that will not load. The building/structure rename left five stale paths in
+      // src/ and six in tests/ -- the studio area reported five failed files for a day, and the cause was
+      // three deleted module paths rather than anything the tests were testing.
+      const sources = {};
+      const collect = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) { if (entry.name !== 'node_modules') collect(full); }
+          else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+            sources[path.relative(root, full).replace(/\\/g, '/')] = fs.readFileSync(full, 'utf8');
+          }
+        }
+      };
+      collect(path.join(root, 'src'));
+      collect(path.join(root, 'tests'));
+      collect(path.join(root, 'scripts'));
+      const moduleFaults = unresolvedImports(sources);
+      const inTests = moduleFaults.filter((m) => m.file.startsWith('tests/')).length;
+      console.log(`unresolved imports and missing exports: ${moduleFaults.length}`
+        + ` (src ${moduleFaults.length - inTests}, tests ${inTests})`);
+      for (const m of moduleFaults) {
+        console.log(`   ${m.file}:${m.line}  ${m.kind}  ${m.specifier}${m.name ? ` -> ${m.name}` : ''}`);
+      }
+      report.moduleFaults = moduleFaults;
+      if (problems.length || duplicates.length || moduleFaults.length) process.exitCode = 1;
       break;
     }
     case 'audit': {

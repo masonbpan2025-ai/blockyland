@@ -8,8 +8,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { StructureStudioManager } from '../src/structureStudio.js';
-import { StructureLibrary } from '../src/structureLibrary.js';
+import { StructureStudioManager } from '../src/buildingStudio.js';
+import { StructureLibrary } from '../src/buildingLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
 
@@ -46,7 +46,7 @@ test('an unrecognised English structure is yielded, not defaulted to stairs', ()
 });
 
 test('the old behaviour is gone: no catch-all default structure', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/structureStudio.js'), 'utf8');
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/buildingStudio.js'), 'utf8');
   assert.doesNotMatch(source, /else\s+matchedStructure\s*=\s*StructureLibrary\.getStructure\('stairs'\)\s*;\s*\/\/\s*default/,
     'the unconditional stairs fallback must not come back');
 });

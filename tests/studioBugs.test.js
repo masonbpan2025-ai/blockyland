@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WorldAgent } from '../src/worldAgent.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
+import { StructureStudioManager } from '../src/buildingStudio.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function fixture() {

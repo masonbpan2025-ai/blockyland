@@ -24,6 +24,7 @@ import {
   resourceReport,
   searchResources,
   smeltingTable,
+  unresolvedImports,
 } from '../src/resourceRegistry.js';
 import {
   CHECK_SKIP,
@@ -332,8 +333,7 @@ test('has-source counts every kind of source', () => {
   }
 });
 
-test('has-source excuses a spawn egg and nothing else', () => {
-  // A spawn egg has no survival source in vanilla, so asking for one reported all ninety as gaps --
+test('has-source excuses a spawn egg and nothing else', () => {  // A spawn egg has no survival source in vanilla, so asking for one reported all ninety as gaps --
   // a fifth of the report, burying the items that genuinely have none. The exemption is narrow: it is
   // keyed on the item's type, not on a name pattern, and the non-egg cases below must still fail.
   const { check } = contextFor('has-source', fakeEntry());
@@ -475,4 +475,82 @@ test('every food value with no item behind it is reported, and nothing else is',
   );
   const expected = new Set(Object.keys(FOODS).filter((id) => ITEMS[id] === undefined));
   assert.deepEqual([...reported].sort(), [...expected].sort());
+});
+
+// --- the module scan ---------------------------------------------------------
+//
+// Added after a rename left the tree unable to load. `main.js` imported `BuildingLibrary` from a module
+// that exported `StructureLibrary` and `./structureLibrary.js` after that file had been renamed, so the
+// game died with "Cannot find module" and then "does not provide an export named". No data check could
+// see it and no test did, because no test imports the entry point. These cases pin the scan's behaviour,
+// including the mistake its first version made.
+
+test('the module scan finds a path that no longer exists', () => {
+  const faults = unresolvedImports({
+    'src/a.js': "import { x } from './gone.js';\n",
+    'src/b.js': 'export const x = 1;\n',
+  });
+  assert.deepEqual(faults, [{ file: 'src/a.js', line: 1, kind: 'unresolved-path', specifier: './gone.js' }]);
+});
+
+test('the module scan finds a name the target does not export', () => {
+  const faults = unresolvedImports({
+    'src/a.js': "import { StructureLibrary } from './b.js';\n",
+    'src/b.js': 'export const BuildingLibrary = {};\n',
+  });
+  assert.equal(faults.length, 1);
+  assert.equal(faults[0].kind, 'missing-export');
+  assert.equal(faults[0].name, 'StructureLibrary');
+});
+
+test('the module scan finds a missing default export', () => {
+  const faults = unresolvedImports({
+    'src/a.js': "import Thing from './b.js';\n",
+    'src/b.js': 'export const Thing = {};\n',
+  });
+  assert.equal(faults.length, 1);
+  assert.equal(faults[0].kind, 'missing-default-export');
+});
+
+test('the module scan accepts what really is exported', () => {
+  const sources = {
+    'src/a.js': [
+      "import def, { one, two as renamed } from './b.js';",
+      "import * as ns from './b.js';",
+      "import { deep } from './c.js';",
+    ].join('\n'),
+    'src/b.js': [
+      'export const one = 1;',
+      'export function two() {}',
+      'export class Three {}',
+      'export default Three;',
+    ].join('\n'),
+    'src/c.js': "export * from './b.js';\n",
+  };
+  assert.deepEqual(unresolvedImports(sources), []);
+});
+
+test('an import inside a comment is not an import', () => {
+  const faults = unresolvedImports({
+    'src/a.js': [
+      "// import { ghost } from './gone.js';",
+      '/*',
+      "import { alsoGhost } from './gone.js';",
+      '*/',
+      'export const ok = 1;',
+    ].join('\n'),
+  });
+  assert.deepEqual(faults, []);
+});
+
+test('a specifier survives the comment stripper', () => {
+  // The first version of this scan read the stripped text, and `stripComments` blanks string contents as
+  // well as comments to preserve line numbers -- so every specifier became spaces and the scan reported
+  // zero faults on a tree whose entry point did not load. The specifier has to come from the raw line.
+  const faults = unresolvedImports({
+    'src/a.js': "import { thing } from './missing.js'; // a trailing comment\n",
+  });
+  assert.equal(faults.length, 1, 'the path must survive, quoted and followed by a comment');
+  assert.equal(faults[0].specifier, './missing.js');
+  assert.equal(faults[0].line, 1);
 });

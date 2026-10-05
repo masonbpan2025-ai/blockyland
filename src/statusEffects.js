@@ -55,6 +55,9 @@ export const EFFECTS = {
   fire_resistance: { name: 'Fire Resistance', category: 'beneficial' },
   water_breathing: { name: 'Water Breathing', category: 'beneficial' },
   dolphins_grace: { name: 'Dolphin\'s Grace', category: 'beneficial' },
+  // Slow Falling was named by a potion and absent from this table, so it had no name, no category and no
+  // rule. Its rule is in `fallDamage` below, next to the distance it modifies.
+  slow_falling: { name: 'Slow Falling', category: 'beneficial' },
   night_vision: { name: 'Night Vision', category: 'beneficial' },
   invisibility: { name: 'Invisibility', category: 'beneficial' },
   absorption: { name: 'Absorption', category: 'beneficial' },
@@ -98,6 +101,24 @@ export function effectFor(name) {
 }
 
 /**
+ * The level of an active effect, as a positive integer.
+ *
+ * `player.applyStatusEffect` stores `level`, 1-based. This file read `amplifier` instead, which nothing
+ * in the game sets -- so `data?.amplifier || 0` was always 0 and every effect applied at level 1. A
+ * Strength II potion was indistinguishable from Strength I, and Resistance IV reduced incoming damage by
+ * 20% where vanilla reduces it by 59%. The three multipliers below were the only readers of a field that
+ * did not exist; `player.js`, `witherEffect.js` and `striderBehavior.js` all read `level` or handle both.
+ *
+ * `amplifier` is still accepted, 0-based, because that is vanilla's name for the field and
+ * `striderBehavior.js` already builds that shape. An explicit `amplifier` wins over `level`.
+ */
+function levelOf(data) {
+  if (Number.isFinite(data?.amplifier)) return Math.max(1, Math.floor(data.amplifier) + 1);
+  if (Number.isFinite(data?.level)) return Math.max(1, Math.floor(data.level));
+  return 1;
+}
+
+/**
  * The combined multiplier a set of active effects applies to damage DEALT.
  *
  * Effects multiply together, so strength and weakness at once cancel to 1.04 rather than to 1.0, which
@@ -110,7 +131,7 @@ export function attackMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.attackPerLevel) continue;
-    m *= Math.pow(def.attackPerLevel, 1 + Math.max(0, data?.amplifier || 0));
+    m *= Math.pow(def.attackPerLevel, levelOf(data));
   }
   return m;
 }
@@ -126,7 +147,7 @@ export function damageTakenMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.takenPerLevel) continue;
-    const level = Math.min(4, 1 + Math.max(0, data?.amplifier || 0));
+    const level = Math.min(4, levelOf(data));
     m *= Math.pow(def.takenPerLevel, level);
   }
   return m;
@@ -143,9 +164,63 @@ export function speedMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.speedPerLevel) continue;
-    m *= Math.pow(def.speedPerLevel, 1 + Math.max(0, data?.amplifier || 0));
+    m *= Math.pow(def.speedPerLevel, levelOf(data));
   }
   return Math.min(5, Math.max(0.05, m));
+}
+
+/**
+ * Fall damage rules.
+ *
+ * Vanilla takes nothing for the first three blocks and then one point per block beyond that. The game
+ * tracked `fallDistance` and then reset it on landing without ever applying damage, so a fall from any
+ * height was free -- and two items that exist only to reduce fall damage, Feather Falling and the Potion
+ * of Slow Falling, could not do anything because there was nothing to reduce.
+ */
+export const FALL_DAMAGE = {
+  /** Blocks fallen before any damage is taken. */
+  freeBlocks: 3,
+  /** Descent speed Slow Falling holds the player to, in blocks per second. */
+  slowFallingSpeed: 3.0,
+};
+
+/**
+ * Damage from landing after a fall, after the effects that modify the distance.
+ *
+ * Slow Falling negates the damage outright rather than scaling it. Jump Boost subtracts its level from
+ * the distance before the free blocks come off, which is order-dependent and is why this is one function
+ * rather than two adjustments at the call site.
+ *
+ * Feather Falling is deliberately not here: it reduces the damage after armour has been accounted for,
+ * which `player.takeDamage` already does when it is handed a `'fall'` damage type.
+ *
+ * @param {number} fallDistance blocks fallen
+ * @param {Iterable<[string, {level?:number, amplifier?:number}]>} effects as player.statusEffects yields
+ * @returns {number} HP of damage, zero when the fall is harmless
+ */
+export function fallDamage(fallDistance, effects) {
+  if (!(fallDistance > 0)) return 0;
+  let jumpBoost = 0;
+  let slowFalling = false;
+  for (const [name, data] of entriesOf(effects)) {
+    if (name === 'slow_falling') slowFalling = true;
+    else if (name === 'jump_boost') jumpBoost = Math.max(jumpBoost, levelOf(data));
+  }
+  if (slowFalling) return 0;
+  const distance = fallDistance - jumpBoost;
+  if (!(distance > FALL_DAMAGE.freeBlocks)) return 0;
+  return Math.floor(distance - FALL_DAMAGE.freeBlocks);
+}
+
+/**
+ * True when Slow Falling is holding the player's descent.
+ *
+ * Separate from `fallDamage` because it applies while falling rather than on landing, and vanilla has
+ * both: the potion makes the fall slow AND makes it harmless.
+ */
+export function hasSlowFalling(effects) {
+  for (const [name] of entriesOf(effects)) if (name === 'slow_falling') return true;
+  return false;
 }
 
 /**
