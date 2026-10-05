@@ -530,7 +530,93 @@ export const BLOCKS = {
   VAULT: 1083,
   END_PORTAL_FRAME: 1084,
   TURTLE_EGG: 1085,
-  FROGSPAWN: 1086
+  FROGSPAWN: 1086,
+
+  // --- Cake and candle cakes, seventeenth block-parity batch -------------------------------------
+  //
+  // Eighteen blocks: the cake, the plain candle cake, and the sixteen dyed candle cakes.
+  //
+  // THE CANDLE CAKE TEXTURES ARE COMPOSED, NOT DOWNLOADED, which is unusual enough to state here. The
+  // asset mirror has no `*_candle_cake` texture at any orientation suffix -- vanilla does not ship one
+  // either, because the block is a model that puts the candle sprite on top of the cake. So
+  // scripts/compose-candle-cakes.py builds each one by alpha-compositing the candle tile onto
+  // `cake_top`, and that script is committed so the art is reproducible rather than pasted bytes.
+  //
+  // It is an approximation of the vanilla model, which draws the candle as a 3D box; the composite reads
+  // correctly from above, which is the face a player looks at on a placed cake.
+  //
+  // The drops are the interesting part and the harvest table is explicit about them: a CANDLE CAKE DROPS
+  // ITS CANDLE, not the cake and not itself, while a plain CAKE drops nothing at all (vanilla makes you
+  // eat it rather than recover it, and this game has no cake-eating yet either).
+  CAKE: 1087,
+  WHITE_CANDLE_CAKE: 1088,
+  ORANGE_CANDLE_CAKE: 1089,
+  MAGENTA_CANDLE_CAKE: 1090,
+  LIGHT_BLUE_CANDLE_CAKE: 1091,
+  YELLOW_CANDLE_CAKE: 1092,
+  LIME_CANDLE_CAKE: 1093,
+  PINK_CANDLE_CAKE: 1094,
+  GRAY_CANDLE_CAKE: 1095,
+  LIGHT_GRAY_CANDLE_CAKE: 1096,
+  CYAN_CANDLE_CAKE: 1097,
+  PURPLE_CANDLE_CAKE: 1098,
+  BLUE_CANDLE_CAKE: 1099,
+  BROWN_CANDLE_CAKE: 1100,
+  GREEN_CANDLE_CAKE: 1101,
+  RED_CANDLE_CAKE: 1102,
+  BLACK_CANDLE_CAKE: 1103,
+  CANDLE_CAKE: 1104,
+
+  // --- Potted plants, eighteenth block-parity batch ----------------------------------------------
+  //
+  // All thirty-seven: every plant vanilla lets you put in a flower pot.
+  //
+  // THE TEXTURES ARE COMPOSED, NOT DOWNLOADED, for the same reason the candle cakes were: vanilla ships
+  // no `potted_*` block texture at any suffix, because a potted plant is a MODEL that draws the pot and
+  // then the plant inside it. scripts/compose-potted-plants.py alpha-overlays each plant sprite onto
+  // `flower_pot.png`, and that script is committed so the art is reproducible.
+  //
+  // The blocks reuse the EXISTING flower-pot geometry -- `createFlowerPotGeometry` already draws a 6/16
+  // box, which is the pot -- so no new geometry was needed. That is also the approximation to know about:
+  // the pot box is 6/16 tall, so a plant taller than the pot in vanilla (bamboo, a cactus, a sapling) is
+  // squeezed into the pot's footprint here rather than rising above it.
+  POTTED_ACACIA_SAPLING: 1105,
+  POTTED_ALLIUM: 1106,
+  POTTED_AZALEA_BUSH: 1107,
+  POTTED_AZURE_BLUET: 1108,
+  POTTED_BAMBOO: 1109,
+  POTTED_BIRCH_SAPLING: 1110,
+  POTTED_BLUE_ORCHID: 1111,
+  POTTED_BROWN_MUSHROOM: 1112,
+  POTTED_CACTUS: 1113,
+  POTTED_CHERRY_SAPLING: 1114,
+  POTTED_CLOSED_EYEBLOSSOM: 1115,
+  POTTED_CORNFLOWER: 1116,
+  POTTED_CRIMSON_FUNGUS: 1117,
+  POTTED_CRIMSON_ROOTS: 1118,
+  POTTED_DANDELION: 1119,
+  POTTED_DARK_OAK_SAPLING: 1120,
+  POTTED_DEAD_BUSH: 1121,
+  POTTED_FERN: 1122,
+  POTTED_FLOWERING_AZALEA_BUSH: 1123,
+  POTTED_JUNGLE_SAPLING: 1124,
+  POTTED_LILY_OF_THE_VALLEY: 1125,
+  POTTED_MANGROVE_PROPAGULE: 1126,
+  POTTED_OAK_SAPLING: 1127,
+  POTTED_OPEN_EYEBLOSSOM: 1128,
+  POTTED_ORANGE_TULIP: 1129,
+  POTTED_OXEYE_DAISY: 1130,
+  POTTED_PALE_OAK_SAPLING: 1131,
+  POTTED_PINK_TULIP: 1132,
+  POTTED_POPPY: 1133,
+  POTTED_RED_MUSHROOM: 1134,
+  POTTED_RED_TULIP: 1135,
+  POTTED_SPRUCE_SAPLING: 1136,
+  POTTED_TORCHFLOWER: 1137,
+  POTTED_WARPED_FUNGUS: 1138,
+  POTTED_WARPED_ROOTS: 1139,
+  POTTED_WHITE_TULIP: 1140,
+  POTTED_WITHER_ROSE: 1141,
 };
 
 export const BLOCK_DEFS = {
@@ -1265,6 +1351,89 @@ export const BLOCK_DEFS = {
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
   [BLOCKS.FROGSPAWN]: { name: 'Frogspawn', hardness: 0.0, sound: 'stone', drop: BLOCKS.FROGSPAWN, textures: { all: 'frogspawn.png' } },
+
+  // --- Cake and candle cakes, seventeenth block-parity batch -------------------------------------
+  //
+  // Hardness 0.5 for all eighteen, per the harvest table. The cake itself drops nothing; each candle cake
+  // yields its own candle, which is why they use `dropItem` rather than `drop` -- the drop is an ITEM,
+  // and every one of those candle items already existed in the registry before this batch.
+  //
+  // The candle cakes carry `candle: true`, the same marker the sixteen standing candles use, so they
+  // share that family's geometry path rather than being treated as plain cubes. A cake is a partial shape
+  // in vanilla; the candle-cake composite is drawn on the cake's footprint.
+  //
+  // NOT MODELLED, and it is the whole point of a cake: you cannot eat it. The game has hunger and food
+  // items, but no block that is eaten from, and no slice-removal state. So a cake here is decoration you
+  // can place and break, not a meal.
+  [BLOCKS.CAKE]: { name: 'Cake', hardness: 0.5, sound: 'stone', drop: null, textures: { top: 'cake_top.png', side: 'cake_side.png', bottom: 'cake_bottom.png' } },
+  [BLOCKS.WHITE_CANDLE_CAKE]: { name: 'White Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'white_candle', textures: { all: 'white_candle_cake.png' } },
+  [BLOCKS.ORANGE_CANDLE_CAKE]: { name: 'Orange Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'orange_candle', textures: { all: 'orange_candle_cake.png' } },
+  [BLOCKS.MAGENTA_CANDLE_CAKE]: { name: 'Magenta Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'magenta_candle', textures: { all: 'magenta_candle_cake.png' } },
+  [BLOCKS.LIGHT_BLUE_CANDLE_CAKE]: { name: 'Light Blue Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'light_blue_candle', textures: { all: 'light_blue_candle_cake.png' } },
+  [BLOCKS.YELLOW_CANDLE_CAKE]: { name: 'Yellow Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'yellow_candle', textures: { all: 'yellow_candle_cake.png' } },
+  [BLOCKS.LIME_CANDLE_CAKE]: { name: 'Lime Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'lime_candle', textures: { all: 'lime_candle_cake.png' } },
+  [BLOCKS.PINK_CANDLE_CAKE]: { name: 'Pink Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'pink_candle', textures: { all: 'pink_candle_cake.png' } },
+  [BLOCKS.GRAY_CANDLE_CAKE]: { name: 'Gray Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'gray_candle', textures: { all: 'gray_candle_cake.png' } },
+  [BLOCKS.LIGHT_GRAY_CANDLE_CAKE]: { name: 'Light Gray Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'light_gray_candle', textures: { all: 'light_gray_candle_cake.png' } },
+  [BLOCKS.CYAN_CANDLE_CAKE]: { name: 'Cyan Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'cyan_candle', textures: { all: 'cyan_candle_cake.png' } },
+  [BLOCKS.PURPLE_CANDLE_CAKE]: { name: 'Purple Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'purple_candle', textures: { all: 'purple_candle_cake.png' } },
+  [BLOCKS.BLUE_CANDLE_CAKE]: { name: 'Blue Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'blue_candle', textures: { all: 'blue_candle_cake.png' } },
+  [BLOCKS.BROWN_CANDLE_CAKE]: { name: 'Brown Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'brown_candle', textures: { all: 'brown_candle_cake.png' } },
+  [BLOCKS.GREEN_CANDLE_CAKE]: { name: 'Green Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'green_candle', textures: { all: 'green_candle_cake.png' } },
+  [BLOCKS.RED_CANDLE_CAKE]: { name: 'Red Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'red_candle', textures: { all: 'red_candle_cake.png' } },
+  [BLOCKS.BLACK_CANDLE_CAKE]: { name: 'Black Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'black_candle', textures: { all: 'black_candle_cake.png' } },
+  [BLOCKS.CANDLE_CAKE]: { name: 'Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'candle', textures: { all: 'candle_cake.png' } },
+
+  // --- Potted plants, eighteenth block-parity batch ----------------------------------------------
+  //
+  // THE DROP IS A DELIBERATE SIMPLIFICATION, and it is the one place this batch knowingly departs from
+  // vanilla. A potted plant in vanilla drops TWO things when broken -- the flower pot and the plant it
+  // held -- and this engine's drop model carries exactly one drop per block. Rather than pick one of the
+  // two (producing a potted oak sapling that yields only a pot, or only a sapling, either of which reads
+  // as a bug), each potted plant drops ITSELF. The pot and the plant both come back, still assembled, and
+  // you can place it again. That is friendlier than vanilla and it is recorded here rather than implied.
+  //
+  // Each carries `flowerPot: true` so it shares the flower pot's geometry path, and `transparent: true`
+  // because the pot is a partial shape and must not occlude its neighbours.
+  [BLOCKS.POTTED_ACACIA_SAPLING]: { name: 'Potted Acacia Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_ACACIA_SAPLING, textures: { all: 'potted_acacia_sapling.png' } },
+  [BLOCKS.POTTED_ALLIUM]: { name: 'Potted Allium', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_ALLIUM, textures: { all: 'potted_allium.png' } },
+  [BLOCKS.POTTED_AZALEA_BUSH]: { name: 'Potted Azalea Bush', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_AZALEA_BUSH, textures: { all: 'potted_azalea_bush.png' } },
+  [BLOCKS.POTTED_AZURE_BLUET]: { name: 'Potted Azure Bluet', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_AZURE_BLUET, textures: { all: 'potted_azure_bluet.png' } },
+  [BLOCKS.POTTED_BAMBOO]: { name: 'Potted Bamboo', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_BAMBOO, textures: { all: 'potted_bamboo.png' } },
+  [BLOCKS.POTTED_BIRCH_SAPLING]: { name: 'Potted Birch Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_BIRCH_SAPLING, textures: { all: 'potted_birch_sapling.png' } },
+  [BLOCKS.POTTED_BLUE_ORCHID]: { name: 'Potted Blue Orchid', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_BLUE_ORCHID, textures: { all: 'potted_blue_orchid.png' } },
+  [BLOCKS.POTTED_BROWN_MUSHROOM]: { name: 'Potted Brown Mushroom', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_BROWN_MUSHROOM, textures: { all: 'potted_brown_mushroom.png' } },
+  [BLOCKS.POTTED_CACTUS]: { name: 'Potted Cactus', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CACTUS, textures: { all: 'potted_cactus.png' } },
+  [BLOCKS.POTTED_CHERRY_SAPLING]: { name: 'Potted Cherry Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CHERRY_SAPLING, textures: { all: 'potted_cherry_sapling.png' } },
+  [BLOCKS.POTTED_CLOSED_EYEBLOSSOM]: { name: 'Potted Closed Eyeblossom', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CLOSED_EYEBLOSSOM, textures: { all: 'potted_closed_eyeblossom.png' } },
+  [BLOCKS.POTTED_CORNFLOWER]: { name: 'Potted Cornflower', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CORNFLOWER, textures: { all: 'potted_cornflower.png' } },
+  [BLOCKS.POTTED_CRIMSON_FUNGUS]: { name: 'Potted Crimson Fungus', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CRIMSON_FUNGUS, textures: { all: 'potted_crimson_fungus.png' } },
+  [BLOCKS.POTTED_CRIMSON_ROOTS]: { name: 'Potted Crimson Roots', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_CRIMSON_ROOTS, textures: { all: 'potted_crimson_roots.png' } },
+  [BLOCKS.POTTED_DANDELION]: { name: 'Potted Dandelion', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_DANDELION, textures: { all: 'potted_dandelion.png' } },
+  [BLOCKS.POTTED_DARK_OAK_SAPLING]: { name: 'Potted Dark Oak Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_DARK_OAK_SAPLING, textures: { all: 'potted_dark_oak_sapling.png' } },
+  [BLOCKS.POTTED_DEAD_BUSH]: { name: 'Potted Dead Bush', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_DEAD_BUSH, textures: { all: 'potted_dead_bush.png' } },
+  [BLOCKS.POTTED_FERN]: { name: 'Potted Fern', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_FERN, textures: { all: 'potted_fern.png' } },
+  [BLOCKS.POTTED_FLOWERING_AZALEA_BUSH]: { name: 'Potted Flowering Azalea Bush', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_FLOWERING_AZALEA_BUSH, textures: { all: 'potted_flowering_azalea_bush.png' } },
+  [BLOCKS.POTTED_JUNGLE_SAPLING]: { name: 'Potted Jungle Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_JUNGLE_SAPLING, textures: { all: 'potted_jungle_sapling.png' } },
+  [BLOCKS.POTTED_LILY_OF_THE_VALLEY]: { name: 'Potted Lily of the Valley', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_LILY_OF_THE_VALLEY, textures: { all: 'potted_lily_of_the_valley.png' } },
+  [BLOCKS.POTTED_MANGROVE_PROPAGULE]: { name: 'Potted Mangrove Propagule', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_MANGROVE_PROPAGULE, textures: { all: 'potted_mangrove_propagule.png' } },
+  [BLOCKS.POTTED_OAK_SAPLING]: { name: 'Potted Oak Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_OAK_SAPLING, textures: { all: 'potted_oak_sapling.png' } },
+  [BLOCKS.POTTED_OPEN_EYEBLOSSOM]: { name: 'Potted Open Eyeblossom', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_OPEN_EYEBLOSSOM, textures: { all: 'potted_open_eyeblossom.png' } },
+  [BLOCKS.POTTED_ORANGE_TULIP]: { name: 'Potted Orange Tulip', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_ORANGE_TULIP, textures: { all: 'potted_orange_tulip.png' } },
+  [BLOCKS.POTTED_OXEYE_DAISY]: { name: 'Potted Oxeye Daisy', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_OXEYE_DAISY, textures: { all: 'potted_oxeye_daisy.png' } },
+  [BLOCKS.POTTED_PALE_OAK_SAPLING]: { name: 'Potted Pale Oak Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_PALE_OAK_SAPLING, textures: { all: 'potted_pale_oak_sapling.png' } },
+  [BLOCKS.POTTED_PINK_TULIP]: { name: 'Potted Pink Tulip', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_PINK_TULIP, textures: { all: 'potted_pink_tulip.png' } },
+  [BLOCKS.POTTED_POPPY]: { name: 'Potted Poppy', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_POPPY, textures: { all: 'potted_poppy.png' } },
+  [BLOCKS.POTTED_RED_MUSHROOM]: { name: 'Potted Red Mushroom', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_RED_MUSHROOM, textures: { all: 'potted_red_mushroom.png' } },
+  [BLOCKS.POTTED_RED_TULIP]: { name: 'Potted Red Tulip', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_RED_TULIP, textures: { all: 'potted_red_tulip.png' } },
+  [BLOCKS.POTTED_SPRUCE_SAPLING]: { name: 'Potted Spruce Sapling', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_SPRUCE_SAPLING, textures: { all: 'potted_spruce_sapling.png' } },
+  [BLOCKS.POTTED_TORCHFLOWER]: { name: 'Potted Torchflower', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_TORCHFLOWER, textures: { all: 'potted_torchflower.png' } },
+  [BLOCKS.POTTED_WARPED_FUNGUS]: { name: 'Potted Warped Fungus', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WARPED_FUNGUS, textures: { all: 'potted_warped_fungus.png' } },
+  [BLOCKS.POTTED_WARPED_ROOTS]: { name: 'Potted Warped Roots', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WARPED_ROOTS, textures: { all: 'potted_warped_roots.png' } },
+  [BLOCKS.POTTED_WHITE_TULIP]: { name: 'Potted White Tulip', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WHITE_TULIP, textures: { all: 'potted_white_tulip.png' } },
+  [BLOCKS.POTTED_WITHER_ROSE]: { name: 'Potted Wither Rose', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WITHER_ROSE, textures: { all: 'potted_wither_rose.png' } },
+
+
 
 
 

@@ -114,6 +114,30 @@ const blocks1214 = [
   'trial_spawner_top_inactive.png', 'trial_spawner_side_inactive.png', 'trial_spawner_bottom.png',
   'vault_top.png', 'vault_front_off.png', 'vault_side_off.png', 'vault_bottom.png',
   'end_portal_frame_top.png', 'end_portal_frame_side.png', 'turtle_egg.png', 'frogspawn.png',
+  // Cake and candle cakes, the seventeenth batch. Only the cake and the CANDLE sprites are listed here,
+  // because the candle-cake textures are NOT downloadable -- vanilla composes them from a model rather
+  // than shipping a tile. Run `python scripts/compose-candle-cakes.py` after this list to build them from
+  // what is fetched here; that script is the reason these blocks can exist at all.
+  'cake_top.png', 'cake_side.png', 'cake_bottom.png', 'candle.png',
+  'white_candle.png', 'orange_candle.png', 'magenta_candle.png', 'light_blue_candle.png',
+  'yellow_candle.png', 'lime_candle.png', 'pink_candle.png', 'gray_candle.png',
+  'light_gray_candle.png', 'cyan_candle.png', 'purple_candle.png', 'blue_candle.png',
+  'brown_candle.png', 'green_candle.png', 'red_candle.png', 'black_candle.png',
+  // Potted plants, the eighteenth batch. Same arrangement as the candle cakes: the POT and every PLANT it
+  // can hold are downloadable, but the combined `potted_*` tiles are not, because vanilla draws a potted
+  // plant as a model rather than as a single texture. Run `python scripts/compose-potted-plants.py` after
+  // this list. The flower pot sprite is also a FIX, not an addition: the generator had been falling back
+  // to iron_bars.png for it because this file was missing.
+  'flower_pot.png',
+  'acacia_sapling.png', 'allium.png', 'azure_bluet.png', 'bamboo_stage0.png', 'birch_sapling.png',
+  'blue_orchid.png', 'brown_mushroom.png', 'cactus_side.png', 'cherry_sapling.png',
+  'closed_eyeblossom.png', 'cornflower.png', 'crimson_fungus.png', 'crimson_roots.png',
+  'dandelion.png', 'dark_oak_sapling.png', 'dead_bush.png', 'fern.png', 'jungle_sapling.png',
+  'lily_of_the_valley.png', 'mangrove_propagule.png', 'oak_sapling.png', 'open_eyeblossom.png',
+  'orange_tulip.png', 'oxeye_daisy.png', 'pale_oak_sapling.png', 'pink_tulip.png', 'poppy.png',
+  'red_mushroom.png', 'red_tulip.png', 'spruce_sapling.png', 'torchflower.png',
+  'warped_fungus.png', 'warped_roots.png', 'white_tulip.png', 'wither_rose.png',
+  'azalea_side.png', 'flowering_azalea_side.png',
 ];
 
 const items = [

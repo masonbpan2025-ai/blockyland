@@ -109,6 +109,119 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('every potted plant exists, matches its own sprite, and drops itself', () => {
+  // Thirty-seven near-identical definitions is the largest copy-paste surface in the registry, so each is
+  // checked against its OWN key: a potted poppy drawn with the dandelion sprite, or named for one plant
+  // and textured for another, is the failure this looks for.
+  //
+  // The drop is checked as a deliberate simplification too. Vanilla drops the pot AND the plant, which
+  // this one-drop-per-block model cannot express, so each potted plant drops itself and both come back
+  // assembled.
+  const POT = 'potted_';
+  const potted = Object.keys(BLOCKS)
+    .filter((k) => k.startsWith('POTTED_') && typeof BLOCKS[k] === 'number')
+    .sort();
+
+  assert.equal(potted.length, 37, `expected thirty-seven potted plants, found ${potted.length}`);
+
+  for (const key of potted) {
+    const id = BLOCKS[key];
+    const def = BLOCK_DEFS[id];
+
+    // The texture must be this plant's own composed tile.
+    const expected = `${POT}${key.slice('POTTED_'.length).toLowerCase()}.png`;
+    assert.deepEqual(def.textures, { all: expected }, `${key} must use ${expected}`);
+
+    // It must actually be on disk, since these are composed rather than downloaded.
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', expected)),
+      `${key} points at ${expected}, which is not on disk. Run scripts/compose-potted-plants.py.`);
+
+    // It shares the flower pot's geometry, and is not a full cube.
+    assert.equal(def.flowerPot, true, `${key} must use the flower pot geometry`);
+    assert.equal(def.transparent, true, `${key} is a partial shape and must not occlude neighbours`);
+
+    // And it drops itself, so the pot and plant both come back.
+    const drop = getBlockDrop(id);
+    assert.ok(drop, `${key} must drop something`);
+    assert.equal(drop.id, id, `${key} must drop itself`);
+  }
+});
+
+test('the flower pot is drawn with the flower pot sprite, not a stand-in', () => {
+  // The pot's definition had been pointing at iron_bars.png. That was not a deliberate reuse: the
+  // generator's texture resolver falls back to iron_bars when `flower_pot.png` is absent, so the block
+  // rendered as a fence-like tile purely because the sprite was never downloaded. The fallback still
+  // exists for genuinely untextured blocks, which is why this asserts the OUTCOME rather than the path.
+  const def = BLOCK_DEFS[BLOCKS.FLOWER_POT];
+  assert.deepEqual(def.textures, { all: 'flower_pot.png' },
+    'the flower pot must use its own sprite');
+  assert.ok(existsSync(path.join('public', 'assets', 'blocks', 'flower_pot.png')),
+    'flower_pot.png must be on disk, or the generator will fall back to iron_bars.png again');
+
+  // The pot itself is still a pot: shared geometry, partial shape.
+  assert.equal(def.flowerPot, true, 'the flower pot uses the flower pot geometry');
+
+  // The composer that builds the potted tiles must be committed, since the art is unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'compose-potted-plants.py')),
+    'scripts/compose-potted-plants.py must be committed alongside the textures it produces');
+});
+
+test('a candle cake drops its candle, and a plain cake drops nothing', () => {
+  // The harvest table is explicit and the two rules differ, which is the same trap the coral family set:
+  // a CANDLE CAKE yields its CANDLE -- not the cake, not itself -- while a plain CAKE yields nothing,
+  // because vanilla makes you eat it rather than recover it.
+  const COLORS = [
+    'WHITE', 'ORANGE', 'MAGENTA', 'LIGHT_BLUE', 'YELLOW', 'LIME', 'PINK', 'GRAY',
+    'LIGHT_GRAY', 'CYAN', 'PURPLE', 'BLUE', 'BROWN', 'GREEN', 'RED', 'BLACK',
+  ];
+
+  assert.equal(getBlockDrop(BLOCKS.CAKE), null,
+    'a plain cake drops nothing; it is eaten, not recovered');
+
+  // The plain candle cake drops the undyed candle.
+  const plain = getBlockDrop(BLOCKS.CANDLE_CAKE);
+  assert.ok(plain, 'the plain candle cake must drop something');
+  assert.equal(plain.id, 'candle', 'and it is the plain candle');
+  assert.equal(plain.isBlock, false, 'which is an ITEM, not a block');
+
+  for (const colour of COLORS) {
+    const key = `${colour}_CANDLE_CAKE`;
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+
+    const drop = getBlockDrop(id);
+    const expectedItem = `${colour.toLowerCase()}_candle`;
+    assert.ok(drop, `${key} must drop its candle`);
+    assert.equal(drop.id, expectedItem, `${key} must drop ${expectedItem}, not another colour's`);
+    assert.equal(drop.isBlock, false, `${key} drops an ITEM`);
+
+    // The candle item must really exist, or the drop resolves to nothing in play.
+    assert.ok(expectedItem in ITEMS, `${expectedItem} must be a real item`);
+
+    // And the texture must be this colour's, which is the copy-paste failure this checks for.
+    assert.deepEqual(BLOCK_DEFS[id].textures, { all: `${colour.toLowerCase()}_candle_cake.png` },
+      `${key} must be drawn with its own composed texture`);
+  }
+});
+
+test('the candle-cake textures exist even though the mirror does not ship them', () => {
+  // These are the only textures in the project that are COMPOSED rather than downloaded, so this test
+  // guards the committed composition script as much as the art: if someone clears public/assets and
+  // re-runs the downloader, the candle cakes come back only if they also run the composer.
+  const colours = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink',
+    'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'];
+  const needed = ['candle_cake.png', ...colours.map((c) => `${c}_candle_cake.png`)];
+  const missing = needed.filter((f) => !existsSync(path.join('public', 'assets', 'blocks', f)));
+  assert.deepEqual(missing, [],
+    `composed candle-cake textures missing: ${missing.join(', ')}. Run `
+    + '`python scripts/compose-candle-cakes.py` after the asset downloader, which fetches the cake and '
+    + 'candle sprites it composites from.');
+
+  // The composer itself must be committed, since without it the art is unreproducible.
+  assert.ok(existsSync(path.join('scripts', 'compose-candle-cakes.py')),
+    'scripts/compose-candle-cakes.py must be committed alongside the textures it produces');
+});
+
 test('the technical blocks exist, are drawable, and claim no behaviour they lack', () => {
   // Every block in this family is machinery in vanilla and inert decoration here. The point of the test
   // is the SECOND half: each must be a real, drawable cube, and must NOT carry a marker promising a

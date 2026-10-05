@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1547 recipes.
+// 1548 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -964,6 +964,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:[B.BONE_BLOCK],result:{id:'bone_meal',isBlock:false,count:9}},
   {shapeless:true,ingredients:['honey_bottle'],result:{id:'sugar',isBlock:false,count:3}},
   {shapeless:true,ingredients:[B.SUGAR_CANE],result:{id:'sugar',isBlock:false,count:1}},
+  {pattern:[['milk_bucket','milk_bucket','milk_bucket'],['sugar','egg','sugar'],[B.WHEAT,B.WHEAT,B.WHEAT]],result:{id:B.CAKE,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
@@ -1567,21 +1568,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1547;
+export const EXTRA_RECIPE_COUNT = 1548;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1547,
-  "shaped": 1277,
+  "emitted": 1548,
+  "shaped": 1278,
   "shapeless": 270,
-  "skippedMissingResult": 8,
+  "skippedMissingResult": 7,
   "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1547,
+  "emittedBeforeDedupe": 1548,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

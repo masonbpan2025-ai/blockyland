@@ -1,4 +1,4 @@
-﻿// The harvest table is generated for every vanilla block, so it runs ahead of the registry by design:
+// The harvest table is generated for every vanilla block, so it runs ahead of the registry by design:
 // 175 of its 1056 rows name a block this game does not have yet. That is a to-do list.
 //
 // Three rows were a defect instead. The table was keyed on `BLOCKS[name.toUpperCase()]`, and the game
@@ -56,7 +56,12 @@ test('the skull that dropped nothing now drops itself', () => {
 test('the orphan report splits a to-do list from a defect', () => {
   const { missingBlock, deadByKey } = harvestOrphans(registry());
   // Blocks this game does not have yet: expected, and the report names the drop each is holding ready.
-  assert.ok(missingBlock.length > 100, `expected a long to-do list, got ${missingBlock.length}`);
+  //
+  // The floor was 100 and the block-parity batches brought the real figure to 94. That is the wrong reason
+  // for this test to fail -- shrinking this list IS the objective -- so the bound is now well below the
+  // current number and exists only to catch a report that has stopped working. The claims that matter are
+  // the shape checks below, which are unaffected by how long the list is.
+  assert.ok(missingBlock.length > 25, `the orphan report looks broken, got ${missingBlock.length}`);
   assert.ok(missingBlock.every((r) => typeof r.name === 'string' && Array.isArray(r.drops)));
   const holding = missingBlock.filter((r) => r.drops.length);
   assert.ok(holding.length > 0, 'some missing blocks should declare what they would drop');
