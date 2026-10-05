@@ -161,11 +161,11 @@ export const STRUCTURES = {
   },
 
   // --- Jigsaw structures -----------------------------------------------------------------------
-  village_plains: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_plains', biomes: ['plains', 'meadow'], notes: 'town_centers/houses/streets/terminators/villagers pools.' },
-  village_desert: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_desert', biomes: ['desert'], notes: 'Smooth sandstone paths; one camel at the meeting point.' },
-  village_savanna: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_savanna', biomes: ['savanna'], notes: 'Farmland and crops around the houses.' },
-  village_snowy: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_snowy', biomes: ['snowy_plains'], notes: 'Snowy architecture.' },
-  village_taiga: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_taiga', biomes: ['taiga'], notes: 'The only structure where armour stands generate naturally.' },
+  village_plains: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_plains', implementation: 'village', biomes: ['plains', 'meadow'], notes: 'town_centers/houses/streets/terminators/villagers pools.' },
+  village_desert: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_desert', implementation: 'village', biomes: ['desert'], notes: 'Smooth sandstone paths; one camel at the meeting point.' },
+  village_savanna: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_savanna', implementation: 'village', biomes: ['savanna'], notes: 'Farmland and crops around the houses.' },
+  village_snowy: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_snowy', implementation: 'village', biomes: ['snowy_plains'], notes: 'Snowy architecture.' },
+  village_taiga: { type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW, terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/village_taiga', implementation: 'village', biomes: ['taiga'], notes: 'The only structure where armour stands generate naturally.' },
   pillager_outpost: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
     terrainAdaptation: TerrainAdaptation.BEARD_THIN, biomeTag: 'has_structure/pillager_outpost', implementation: 'pillagerOutpost',

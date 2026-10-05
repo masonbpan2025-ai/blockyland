@@ -341,6 +341,106 @@
       ],
       "blockCount": 95,
       "contentHash": 4025683444
+    },
+    {
+      "id": "village_desert",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 467,
+      "chunkZ": 0,
+      "planHash": 1847312475,
+      "pieces": 20,
+      "box": [
+        7453,
+        58,
+        -19,
+        7501,
+        86,
+        74
+      ],
+      "blockCount": 229,
+      "contentHash": 3465653140
+    },
+    {
+      "id": "village_plains",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 467,
+      "chunkZ": 0,
+      "planHash": 1847312475,
+      "pieces": 20,
+      "box": [
+        7453,
+        58,
+        -19,
+        7501,
+        86,
+        74
+      ],
+      "blockCount": 229,
+      "contentHash": 2056273032
+    },
+    {
+      "id": "village_savanna",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "savanna",
+      "chunkX": 467,
+      "chunkZ": 0,
+      "planHash": 1847312475,
+      "pieces": 20,
+      "box": [
+        7453,
+        58,
+        -19,
+        7501,
+        86,
+        74
+      ],
+      "blockCount": 229,
+      "contentHash": 1364429011
+    },
+    {
+      "id": "village_snowy",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "snowy_plains",
+      "chunkX": 467,
+      "chunkZ": 0,
+      "planHash": 1847312475,
+      "pieces": 20,
+      "box": [
+        7453,
+        58,
+        -19,
+        7501,
+        86,
+        74
+      ],
+      "blockCount": 229,
+      "contentHash": 1695024768
+    },
+    {
+      "id": "village_taiga",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "taiga",
+      "chunkX": 467,
+      "chunkZ": 0,
+      "planHash": 1847312475,
+      "pieces": 20,
+      "box": [
+        7453,
+        58,
+        -19,
+        7501,
+        86,
+        74
+      ],
+      "blockCount": 229,
+      "contentHash": 3032268520
     }
   ],
   "unfound": []

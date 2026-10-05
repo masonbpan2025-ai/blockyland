@@ -22,9 +22,9 @@ test('the picker lists every registry structure with its set and placement', () 
   assert.match(buried.placement, /frequency=0\.01/);
   assert.equal(buried.defaultBiome, 'beach', 'the default preview biome comes from the structure gate');
 
-  const village = list.find((entry) => entry.id === 'village_plains');
-  assert.equal(village.implemented, false, 'an unimplemented structure is marked as such, not hidden');
-  assert.equal(village.terrainAdaptation, 'beard_thin');
+  const pending = list.find((entry) => entry.id === 'mansion');
+  assert.equal(pending.implemented, false, 'an unimplemented structure is marked as such, not hidden');
+  assert.equal(typeof pending.terrainAdaptation, 'string');
   const stronghold = list.find((entry) => entry.id === 'stronghold');
   assert.match(stronghold.placement, /concentric_rings/);
 });
@@ -122,14 +122,14 @@ test('a chunk with no structure plans nothing and says so', () => {
 });
 
 test('an unimplemented structure reports a plan is impossible rather than crashing', () => {
-  const session = createStructureInspectorSession({ seed: 1, structureId: 'village_plains' });
-  const entry = session.setStructure('village_plains');
+  const session = createStructureInspectorSession({ seed: 1, structureId: 'mansion' });
+  const entry = session.setStructure('mansion');
   assert.equal(entry.implemented, false);
   session.setBiome('plains');
   const found = session.planNearest({ maxRadiusChunks: 64 });
   assert.equal(found, null, 'no generator means no start, and the harness must not invent one');
   assert.equal(session.snapshot().planned, false);
-  assert.ok(session.events.some((line) => line.includes('no village_plains')), 'the log explains why');
+  assert.ok(session.events.some((line) => line.includes('no mansion')), 'the log explains why');
 });
 
 test('the seed setter rejects non-integers instead of truncating them', () => {
