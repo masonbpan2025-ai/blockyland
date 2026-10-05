@@ -645,6 +645,30 @@ export const BLOCKS = {
   BAMBOO_WALL_SIGN: 1151,
   CRIMSON_WALL_SIGN: 1152,
   WARPED_WALL_SIGN: 1153,
+
+  // --- Coral wall fans, twentieth block-parity batch ---------------------------------------------
+  //
+  // The ten wall-mounted coral fans, alive and dead. These were the eleven entries the gap report listed
+  // as "reachable without new art but blocked on facing state"; the wall-sign batch proved wall mounting
+  // is tractable, so this is that work applied to the plant shapes.
+  //
+  // No new art: a wall fan in vanilla uses the SAME sprite as the upright fan of its colour, which is why
+  // every one of these was already counted as reusable. The texture is shared deliberately, not by
+  // fallback.
+  //
+  // `wallFan` is the flag the geometry router and the mesher both dispatch on. It is load-bearing in BOTH
+  // places -- the same duplicate-flag trap the wall signs hit, where having it in one and not the other
+  // made the block render as a cross-quad plant.
+  DEAD_TUBE_CORAL_WALL_FAN: 1154,
+  DEAD_BRAIN_CORAL_WALL_FAN: 1155,
+  DEAD_BUBBLE_CORAL_WALL_FAN: 1156,
+  DEAD_FIRE_CORAL_WALL_FAN: 1157,
+  DEAD_HORN_CORAL_WALL_FAN: 1158,
+  TUBE_CORAL_WALL_FAN: 1159,
+  BRAIN_CORAL_WALL_FAN: 1160,
+  BUBBLE_CORAL_WALL_FAN: 1161,
+  FIRE_CORAL_WALL_FAN: 1162,
+  HORN_CORAL_WALL_FAN: 1163,
 };
 
 export const BLOCK_DEFS = {
@@ -1480,6 +1504,28 @@ export const BLOCK_DEFS = {
   [BLOCKS.BAMBOO_WALL_SIGN]: { name: 'Bamboo Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.BAMBOO_WALL_SIGN, textures: { all: 'bamboo_planks.png' } },
   [BLOCKS.CRIMSON_WALL_SIGN]: { name: 'Crimson Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.CRIMSON_WALL_SIGN, textures: { all: 'crimson_planks.png' } },
   [BLOCKS.WARPED_WALL_SIGN]: { name: 'Warped Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.WARPED_WALL_SIGN, textures: { all: 'warped_planks.png' } },
+
+  // --- Coral wall fans, twentieth block-parity batch ---------------------------------------------
+  //
+  // THE DROPS FOLLOW THE UPRIGHT FANS, not the coral blocks: a living wall fan drops ITSELF, and a dead one
+  // drops nothing, matching the dead fans' empty harvest rows. There is no living-to-dead degradation for a
+  // fan, which is the distinction the coral-block batch set up and this one keeps.
+  //
+  // They do NOT carry `plant: true`. The upright fans do, because that is what routes them to the
+  // cross-quad path; a wall fan must route to the wall-fan geometry instead, and giving it both flags would
+  // put it at the mercy of whichever branch ran first. `wallFan` alone is the correct and unambiguous
+  // marker, and `solid: false` keeps it walkable-through like the upright fan.
+  [BLOCKS.DEAD_TUBE_CORAL_WALL_FAN]: { name: 'Dead Tube Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: null, textures: { all: 'dead_tube_coral_fan.png' } },
+  [BLOCKS.DEAD_BRAIN_CORAL_WALL_FAN]: { name: 'Dead Brain Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: null, textures: { all: 'dead_brain_coral_fan.png' } },
+  [BLOCKS.DEAD_BUBBLE_CORAL_WALL_FAN]: { name: 'Dead Bubble Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: null, textures: { all: 'dead_bubble_coral_fan.png' } },
+  [BLOCKS.DEAD_FIRE_CORAL_WALL_FAN]: { name: 'Dead Fire Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: null, textures: { all: 'dead_fire_coral_fan.png' } },
+  [BLOCKS.DEAD_HORN_CORAL_WALL_FAN]: { name: 'Dead Horn Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: null, textures: { all: 'dead_horn_coral_fan.png' } },
+  [BLOCKS.TUBE_CORAL_WALL_FAN]: { name: 'Tube Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: BLOCKS.TUBE_CORAL_WALL_FAN, textures: { all: 'tube_coral_fan.png' } },
+  [BLOCKS.BRAIN_CORAL_WALL_FAN]: { name: 'Brain Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: BLOCKS.BRAIN_CORAL_WALL_FAN, textures: { all: 'brain_coral_fan.png' } },
+  [BLOCKS.BUBBLE_CORAL_WALL_FAN]: { name: 'Bubble Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: BLOCKS.BUBBLE_CORAL_WALL_FAN, textures: { all: 'bubble_coral_fan.png' } },
+  [BLOCKS.FIRE_CORAL_WALL_FAN]: { name: 'Fire Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: BLOCKS.FIRE_CORAL_WALL_FAN, textures: { all: 'fire_coral_fan.png' } },
+  [BLOCKS.HORN_CORAL_WALL_FAN]: { name: 'Horn Coral Wall Fan', hardness: 0.0, sound: 'stone', wallFan: true, transparent: true, solid: false, drop: BLOCKS.HORN_CORAL_WALL_FAN, textures: { all: 'horn_coral_fan.png' } },
+
 
 
 

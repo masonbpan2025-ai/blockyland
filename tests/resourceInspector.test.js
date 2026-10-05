@@ -233,12 +233,19 @@ function contextFor(checkId, entry, extra = {}) {
   return { check, ctx: { entry, registry: registry(), vanilla: null, ...extra } };
 }
 
+// Derived from a real registry entry, then overridden.
+//
+// This used to be a hand-written object, and every time a source kind was added to `sourceSummary` --
+// `smithingFrom`, then `codeFrom` -- the checks that read the summary threw on a missing field and five
+// tests failed at once. Starting from what the registry actually builds means a kind added later arrives
+// here by itself, and only the intent of the fixture is written down.
 const fakeEntry = (over = {}) => ({
+  ...registry().entries.get('stone'),
   key: 'fake', kind: 'item', id: 'fake', name: 'Fake', def: {}, isBlock: false,
   blockId: null, blockDef: null, blockAliases: [], internal: false, icon: null, type: null,
   declared: null, applied: 64,
   recipesAsResult: [], recipesAsIngredient: [], smeltingFrom: [], smeltedInto: [],
-  brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [], smithingFrom: [],
+  brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [], smithingFrom: [], codeFrom: [],
   harvest: null, food: null, tool: null, enchantCategory: null, durabilityMax: null,
   ...over,
 });
@@ -321,7 +328,7 @@ test('has-source fails for an item nothing produces and passes once a source exi
   const { check } = contextFor('has-source', fakeEntry());
   const failure = check.run({ entry: fakeEntry(), registry: registry() });
   assert.equal(failure.ok, false);
-  assert.match(failure.detail, /no crafting, smelting, brewing, mob-loot, smithing or block-drop source/);
+  assert.match(failure.detail, /no crafting, smelting, brewing, mob-loot, smithing, interaction or block-drop source/);
   const sourced = check.run({
     entry: fakeEntry({ recipesAsResult: [{ source: 'crafting-3x3', ingredients: ['a'], resultId: 'fake' }] }),
     registry: registry(),
@@ -335,14 +342,14 @@ test('has-source counts every kind of source', () => {
   // transformation and a creeper killed by a skeleton are not expressible as recipes or loot rows. A kind
   // added to `sourceSummary` without being added here would make this test pass while the check stayed
   // blind to it, so the list is asserted to cover the summary's own fields below.
-  const kinds = ['smeltingFrom', 'brewingFrom', 'lootFrom', 'droppedBy', 'smithingFrom'];
+  const kinds = ['smeltingFrom', 'brewingFrom', 'lootFrom', 'droppedBy', 'smithingFrom', 'codeFrom'];
   for (const field of kinds) {
     const entry = fakeEntry({ [field]: ['something'] });
     assert.equal(check.run({ entry, registry: registry() }), true, `${field} should count as a source`);
   }
   // A vector of every non-slot kind at once, to catch a total that adds only some of them.
   const all = fakeEntry({
-    smeltingFrom: ['a'], brewingFrom: ['b'], lootFrom: ['c'], droppedBy: ['d'], smithingFrom: ['e'],
+    smeltingFrom: ['a'], brewingFrom: ['b'], lootFrom: ['c'], droppedBy: ['d'], smithingFrom: ['e'], codeFrom: ['f'],
   });
   assert.equal(check.run({ entry: all, registry: registry() }), true);
 });

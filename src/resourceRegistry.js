@@ -210,6 +210,10 @@ export function buildRegistry(sources = {}) {
   const brewing = brewingSources();
   const loot = lootSources();
   const durability = sources.durability ?? null;
+  // Interaction sources are supplied rather than imported, like `smelting`: the modules that produce them
+  // pull in Three. `interactionSources.js` itself is data and could be imported, but taking it from the
+  // caller keeps every source kind on one path.
+  const interactions = sources.interactions ?? [];
 
   /** @type {Map<string, object>} */
   const entries = new Map();
@@ -240,6 +244,8 @@ export function buildRegistry(sources = {}) {
       // A smithing table transformation: netherite gear comes from nowhere else in vanilla, so without
       // this every piece of it reads as having no source at all.
       smithingFrom: [],
+      // Interaction sources: filling a bucket, milking a cow. See `interactionSources.js`.
+      codeFrom: [],
       harvest: null,
       food: null,
       tool: null,
@@ -323,6 +329,9 @@ export function buildRegistry(sources = {}) {
   // Netherite gear, which comes from a smithing table and from nowhere else. `recipes.json` has no entry
   // for it -- a smithing transformation is not a crafting recipe -- so this is the only way the Inspector
   // can know the gear is obtainable.
+  for (const interaction of interactions) {
+    for (const key of keysForId(interaction.item)) entries.get(key)?.codeFrom.push(interaction);
+  }
   for (const [from, to] of Object.entries(NETHERITE_UPGRADE)) {
     for (const key of keysForId(to)) {
       entries.get(key)?.smithingFrom.push({ base: from, template: NETHERITE_UPGRADE_TEMPLATE, addition: NETHERITE_INGOT });
@@ -496,6 +505,7 @@ export function resourceReport(ref, reg = registry()) {
       brewing: entry.brewingFrom.slice(),
       mobLoot: entry.lootFrom.slice(),
     smithing: entry.smithingFrom.slice(),
+    interaction: entry.codeFrom.slice(),
       blockDrops: entry.droppedBy.slice(),
     },
     usedAs: {
