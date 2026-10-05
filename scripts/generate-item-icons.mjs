@@ -97,7 +97,7 @@ const COLOUR_OVERRIDES = {
   mushroom_stew: '#b08a5a', pumpkin_pie: '#e3a13c',
   // Hand-written items the sweep below now covers too.
   rotten_flesh: '#8a5a44', tropical_fish: '#f28c28', chorus_fruit: '#8a5aa8',
-  seagrass: '#4a7a2a', tipped_arrow: '#8a8a9a',
+  seagrass: '#4a7a2a', tipped_arrow: '#8a8a9a', ominous_bottle: '#4a5a4a',
 };
 
 /** Which pixel shape to draw, from the item name. Keeps icons distinguishable at 16x16. */

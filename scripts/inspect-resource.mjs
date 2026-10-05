@@ -27,6 +27,7 @@ import {
   registry as buildDefaultRegistry,
   resourceReport,
   searchResources,
+  undefinedBlockConstants,
 } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 
@@ -270,18 +271,31 @@ export async function main() {
     }
     case 'faults': {
       const problems = danglingReferences(active.registry);
-      const registrySource = fs.readFileSync(path.join(root, 'src', 'blocks.js'), 'utf8');
-      const duplicates = ['ITEMS', 'BLOCKS', 'BLOCK_DEFS']
-        .flatMap((literal) => duplicateDefinitions(registrySource, literal).map((d) => ({ literal, ...d })));
+      // Source scans need the file text, so they are read here; the registry itself stays free of the
+      // filesystem so it can run in the browser too.
+      const scanFiles = ['blocks.js', 'furnace.js', 'extraItems.js', 'extraContent.js'];
+      const duplicates = [];
+      const undefinedKeys = [];
+      for (const file of scanFiles) {
+        const text = fs.readFileSync(path.join(root, 'src', file), 'utf8');
+        for (const literal of ['ITEMS', 'BLOCKS', 'BLOCK_DEFS']) {
+          for (const d of duplicateDefinitions(text, literal)) duplicates.push({ file, literal, ...d });
+        }
+        for (const u of undefinedBlockConstants(text)) undefinedKeys.push({ file, ...u });
+      }
       const report = {
         dangling: problems.length,
         danglingByKind: problems.reduce((acc, p) => ({ ...acc, [p.kind]: (acc[p.kind] ?? 0) + 1 }), {}),
         duplicates,
+        undefinedBlockConstants: undefinedKeys,
       };
       if (json) { out(report); break; }
       console.log(`dangling references: ${problems.length}`);
       for (const [kind, n] of Object.entries(report.danglingByKind)) console.log(`   ${kind.padEnd(18)} ${n}`);
       console.log(`duplicate definitions: ${duplicates.length}`);
+      for (const d of duplicates) console.log(`   ${d.file} ${d.literal}.${d.key} at lines ${d.lines.join(', ')}`);
+      console.log(`undefined BLOCKS constants used as keys: ${undefinedKeys.length}`);
+      for (const u of undefinedKeys) console.log(`   src/${u.file}:${u.line}  BLOCKS.${u.constant}`);
       if (problems.length || duplicates.length) process.exitCode = 1;
       break;
     }

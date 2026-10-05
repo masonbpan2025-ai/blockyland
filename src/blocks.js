@@ -1239,6 +1239,11 @@ export const ITEMS = {
   splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
   water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
+  // `foodData.js` and the pinned vanilla data both treat the ominous bottle as edible (1 hunger), and
+  // it was the last id in the registry that something referenced and nothing defined. Its real source
+  // -- vaults, trial spawners and raid captains -- is not implemented, so this is the item and its food
+  // value only; the Bad Omen it grants in vanilla is not modelled.
+  ominous_bottle: { name: 'Ominous Bottle', food: 1, icon: '/assets/items/ominous_bottle.png', type: 'food' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
   // --- Mob Spawn Eggs ---

@@ -618,6 +618,68 @@ export function duplicateDefinitions(source, literal) {
 }
 
 /**
+ * Blank out comments and the contents of strings, preserving line numbers and quote positions.
+ *
+ * A scan that reads either reports prose as code: this file's description of the idiom, the comment in
+ * `furnace.js` that explains the fix, and any message that mentions the pattern all name `[BLOCKS.X]`.
+ * Characters are replaced rather than lines removed so a reported line number stays usable, and quote
+ * characters are kept so a caller can still see that something was a string.
+ */
+function stripComments(source) {
+  const out = [];
+  let inBlock = false;
+  for (const line of String(source).split('\n')) {
+    let text = '';
+    let quote = null;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      const next = line[i + 1];
+      if (inBlock) {
+        if (ch === '*' && next === '/') { inBlock = false; i++; }
+        continue;
+      }
+      if (quote) {
+        if (ch === '\\') { i++; continue; }
+        if (ch === quote) { quote = null; text += ch; continue; }
+        // Inside a string: keep the column, drop the content.
+        continue;
+      }
+      if (ch === '/' && next === '*') { inBlock = true; i++; continue; }
+      if (ch === '/' && next === '/') break;
+      if (ch === "'" || ch === '"' || ch === '`') { quote = ch; text += ch; continue; }
+      text += ch;
+    }
+    out.push(text);
+  }
+  return out.join('\n');
+}
+
+/**
+ * `[BLOCKS.X]` used as a computed object key where `BLOCKS.X` is not a registered block.
+ *
+ * The idiom is everywhere in the block tables, and it fails silently in a way nothing else catches: an
+ * undefined constant becomes the string key "undefined", so five unregistered ores and one unregistered
+ * sapling produced two phantom rows in the furnace tables rather than six dead ones, and the last ore
+ * won the key -- `getSmeltingRecipe('undefined')` returned a copper ingot.
+ *
+ * Takes the file text rather than reading it, so this module keeps its no-filesystem property.
+ *
+ * @param {string} source
+ * @returns {Array<{constant: string, line: number}>}
+ */
+export function undefinedBlockConstants(source) {
+  const out = [];
+  const lines = stripComments(source).split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    for (const match of lines[i].matchAll(/\[BLOCKS\.([A-Z0-9_]+)\]/g)) {
+      if (typeof BLOCKS[match[1]] === 'number') continue;
+      out.push({ constant: match[1], line: i + 1 });
+    }
+  }
+  return out;
+}
+
+/**
  * The other direction: vanilla item names this game does not answer to.
  *
  * `danglingReferences` asks "does this game reference something it never defined"; this asks "does
