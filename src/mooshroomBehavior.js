@@ -8,6 +8,7 @@
  *
  * Reference: https://minecraft.wiki/w/Mooshroom
  */
+import { babyGrowthSecondsFor } from './babyGrowth.js';
 
 /** The two variants. Only red spawns naturally; brown comes from lightning. */
 export const MOOSHROOM_VARIANTS = ['red', 'brown'];
@@ -160,7 +161,9 @@ export function convertMooshroomToCow(manager, mob) {
   cow.velocity.copy(mob.velocity);
   if (mob.isBaby) {
     cow.isBaby = true;
-    cow.babyGrowthTimer = mob.babyGrowthTimer ?? 120;
+    // Preserve the remaining growth time, falling back to the wiki's 20 minutes rather than
+    // the 120 seconds ordinary animals used to get.
+    cow.babyGrowthTimer = mob.babyGrowthTimer ?? babyGrowthSecondsFor('cow');
     cow.mesh.scale.copy(mob.mesh.scale);
     if (cow.head) cow.head.scale.copy(mob.head?.scale ?? cow.head.scale);
   }

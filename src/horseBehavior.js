@@ -3,6 +3,7 @@ import { BLOCKS } from './blocks.js';
 import { createHorseModel } from './horseModel.js';
 import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isChestItem, chestSlots, updatePackEquine } from './packEquine.js';
+import { BABY_GROWTH_SECONDS, startBabyGrowth } from './babyGrowth.js';
 export const isEquine=m=>['horse','donkey','mule'].includes(typeof m==='string'?m:m.type);
 export const HORSE_FOODS={sugar:[1,30,3],wheat:[2,20,3],apple:[3,60,3],carrot:[3,60,3],golden_carrot:[4,60,5],golden_apple:[10,240,10],enchanted_golden_apple:[10,240,10],hay_bale:[20,180,0]};
 export const HORSE_ARMOR={leather_horse_armor:3,iron_horse_armor:5,golden_horse_armor:7,diamond_horse_armor:11};
@@ -20,15 +21,15 @@ export function canInteractHorse(m,id){
 }
 export function interactHorse(b,m,player,inventory,id){
  if(m.health<=0 || !canInteractHorse(m,id))return false;
- if(isPackEquine(m)&&id===`${m.type}_spawn_egg`){const p=m.mesh.position;const baby=b.mobManager.spawnMob(m.type,p.x+1,p.y,p.z);baby.isBaby=true;baby.babyGrowthTimer=1200;syncPackEquineAppearance(baby);if(player.gamemode!=='creative')inventory.consumeActiveItem();return true;}
+ if(isPackEquine(m)&&id===`${m.type}_spawn_egg`){const p=m.mesh.position;const baby=b.mobManager.spawnMob(m.type,p.x+1,p.y,p.z);baby.isBaby=true;startBabyGrowth(baby);syncPackEquineAppearance(baby);if(player.gamemode!=='creative')inventory.consumeActiveItem();return true;}
  if(isPackEquine(m)&&id==='saddle'&&!m.isTamed){m.rearTime=1;b.sounds?.playDonkey?.('angry',m.isBaby);return true;}
- if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=1200;m.ageLockCooldown=2;if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
+ if(id==='golden_dandelion'){m.ageLocked=!m.ageLocked;m.babyGrowthTimer=BABY_GROWTH_SECONDS;m.ageLockCooldown=2;if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(id==='lead'){if(m.leashHolder||m.leashAnchor){releaseHorseLead(b.mobManager,m);return true;}m.leashHolder=player;if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(id==='name_tag'){const item=inventory.getActiveItem();const name=item?.customName || item?.name;if(!name||name==='Name Tag')return false;m.name=String(name).slice(0,64);if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;}
  if(horseFood(id)){
   const wasFull=m.health===m.maxHealth;
   const [heal,growth,temper]=horseFood(id);m.health=Math.min(m.maxHealth,m.health+heal);if(!m.isTamed)m.temper=Math.min(100,(m.temper||0)+temper);
-  if(m.isBaby&&!m.ageLocked)m.babyGrowthTimer=Math.max(0,(m.babyGrowthTimer??1200)-growth);
+  if(m.isBaby&&!m.ageLocked)m.babyGrowthTimer=Math.max(0,(m.babyGrowthTimer??BABY_GROWTH_SECONDS)-growth);
   else if(m.type!=='mule'&&!m.isBaby&&m.isTamed&&goldenFood(id)&&(!isPackEquine(m)||wasFull)&&!(m.breedingCooldown>0)&&!(m.inLove>0)){m.inLove=m.inLoveTimer=30;m.matingTimer=0;b.spawnHeartParticles(m.mesh.position);}
   b.sounds?.playEat?.();
  }else if(id==='shears'){

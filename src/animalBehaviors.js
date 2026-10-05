@@ -5,6 +5,7 @@ import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeigh
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
 import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
@@ -338,8 +339,10 @@ export class AnimalBehaviors {
     // 8. Animal Breeding (Love mode with food) & Baby growth acceleration
     if (this.isBreedingFood(mob.type, itemId)) {
       if (mob.isBaby) {
-        // Accelerate baby growth by 10%
-        mob.babyGrowthTimer = mob.type === 'hoglin' ? (mob.babyGrowthTimer ?? 1200) * 0.9 : (mob.babyGrowthTimer ?? 120) - 12;
+        // Wiki: each feeding removes 10% of the remaining growth time, with no effect below
+        // 9 seconds. This used to be a flat "- 12" seconds for ordinary animals, which
+        // happened to equal 10% of the wrong 120-second timer.
+        accelerateBabyGrowth(mob);
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (this.mobManager?.spawnParticleBurst) {
           this.mobManager.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x22c55e, 6);
@@ -500,7 +503,8 @@ export class AnimalBehaviors {
                 const baby = this.mobManager.spawnMob('chicken', p.position.x + ox, Math.max(1, p.position.y), p.position.z + oz);
                 if (baby) {
                   baby.isBaby = true;
-                  baby.babyGrowthTimer = 120;
+                  // Wiki: a hatched chick gets the full 20-minute growth time.
+                  startBabyGrowth(baby);
                   baby.mesh?.scale?.setScalar?.(baby.type==='horse'?.7:.5);
                 }
               }
@@ -545,14 +549,9 @@ export class AnimalBehaviors {
       if (isEquine(mob)||mob.type==='strider') mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
       // 2. Baby growth timer
       if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin'].includes(mob.type)) {
-        mob.babyGrowthTimer = (mob.babyGrowthTimer ?? ((mob.type === 'hoglin' || mob.type==='strider' || isEquine(mob)) ? 1200 : 120)) - dt;
-        if (mob.babyGrowthTimer <= 0) {
-          mob.isBaby = false;
-          mob.mesh.scale.set(1, 1, 1);
-          if (mob.head) mob.head.scale.set(1, 1, 1);
-          if (mob.horns) mob.horns.forEach(h => h.visible = true);
-          if (mob.udder) mob.udder.visible = true;
-          if (mob.wattle) mob.wattle.visible = true;
+        // Wiki: 20 minutes, not the 120 seconds ordinary animals used to get.
+        if (updateBabyGrowth(mob, dt)) {
+          if(isPackEquine(mob))syncPackEquineAppearance(mob);
           // Wiki: a baby mooshroom has no mushrooms; they appear once it grows up.
           applyMooshroomVariant(mob);
         }
@@ -866,7 +865,8 @@ export class AnimalBehaviors {
             if (baby) {
               baby.isBaby = true;
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
-              baby.babyGrowthTimer = isEquine(mob) || mob.type==='hoglin' || mob.type==='strider' ? 1200 : 120;
+              // Wiki: every breedable mob's baby gets the same 20-minute growth timer.
+              startBabyGrowth(baby);
               baby.parent = mob;
               baby.mesh?.scale?.setScalar?.(baby.type==='horse' ? .7 : .5);
               if(isPackEquine(baby))syncPackEquineAppearance(baby);
