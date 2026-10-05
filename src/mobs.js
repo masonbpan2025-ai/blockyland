@@ -24,6 +24,7 @@ import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
+import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -5348,9 +5349,13 @@ export class MobManager {
   }
 
   // --- AQUATIC: SALMON ---
-  spawnSalmon(x, y, z) {
+  spawnSalmon(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.salmon });
+
+    // Wiki: salmon spawn in three sizes at 31.6% / 52.6% / 15.8%, with distinct hitboxes.
+    const size = SALMON_SIZES[options.size] ? options.size : rollSalmonSize();
+    const scale = SALMON_SIZES[size].scale;
 
     // Main Torso
     const bodyGeo = new THREE.BoxGeometry(0.18, 0.28, 0.48);
@@ -5399,6 +5404,8 @@ export class MobManager {
     group.add(tailGroup);
 
     group.position.set(x, y, z);
+    // The three sizes are one model at three scales, so every part stays proportional.
+    group.scale.setScalar(scale);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
@@ -5412,8 +5419,13 @@ export class MobManager {
       finL: finL,
       finR: finR,
       mat: mat,
-      health: 6,
-      maxHealth: 6,
+      // Wiki: 3 HP. This previously reported 6, which was an early-1.13-era value.
+      health: 3,
+      maxHealth: 3,
+      size,
+      // Pinned so a scenario can force a size and the hitbox lookup agrees.
+      width: SALMON_SIZES[size].width,
+      height: SALMON_SIZES[size].height,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       pitch: 0,
@@ -6023,11 +6035,14 @@ export class MobManager {
    * Rows may also be conditional on mob state, which is how the two sheep-only rules
    * from the wiki are expressed: a sheared sheep drops no wool, and a burned sheep
    * drops cooked mutton.
+   *
+   * `random` is injectable so the flat independent chances (salmon bone meal) can be
+   * asserted deterministically instead of sampled.
    */
-  getMobDeathDrops(mob) {
+  getMobDeathDrops(mob, random = Math.random) {
     const burned = mob.isOnFire || mob.fireTicks > 0;
     const sheepWool = BLOCKS[`${(mob.woolColor || 'white').toUpperCase()}_WOOL`] || BLOCKS.WHITE_WOOL;
-    return {
+    const base = {
       pig: [[burned ? 'cooked_porkchop' : 'porkchop', false, 1, 3]],
       cow: [[burned ? 'cooked_beef' : 'beef', false, 1, 3], ['leather', false, 0, 2]],
       // Wiki: mooshrooms drop the same beef and leather as cows, not mushrooms.
@@ -6070,8 +6085,9 @@ export class MobManager {
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
       wither: [['nether_star', false, 1, 1]]
     }[mob.type] || [];
+    // Wiki: salmon have a flat 5% chance of bone meal, independent of the raw salmon drop.
+    return [...base, ...salmonBonusDrops(mob, random)];
   }
-
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
