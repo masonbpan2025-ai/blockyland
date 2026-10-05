@@ -99,6 +99,11 @@ const blocks1214 = [
   'cyan_shulker_box.png', 'purple_shulker_box.png', 'blue_shulker_box.png',
   'brown_shulker_box.png', 'green_shulker_box.png', 'red_shulker_box.png',
   'black_shulker_box.png',
+  // Dripleaf and sculk, the fifteenth batch. `soul_fire` is deliberately NOT here: its upstream texture is
+  // a 16x512 animation strip rather than a tile, and the game has no machinery to slice it, so registering
+  // the block would draw the whole strip across one quad. That block needs an SVG or a frame slicer first.
+  'big_dripleaf_top.png', 'big_dripleaf_stem.png', 'small_dripleaf_top.png',
+  'sculk_vein.png', 'pale_hanging_moss.png',
 ];
 
 const items = [

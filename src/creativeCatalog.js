@@ -153,6 +153,10 @@ export function buildCreativeCatalog() {
     // spirit, but they sit in the natural tab with the other plants because that is what they are.
     BLOCKS.PUMPKIN_STEM, BLOCKS.ATTACHED_PUMPKIN_STEM, BLOCKS.MELON_STEM, BLOCKS.ATTACHED_MELON_STEM,
     BLOCKS.SEAGRASS, BLOCKS.TALL_SEAGRASS, BLOCKS.KELP, BLOCKS.KELP_PLANT, BLOCKS.SEA_PICKLE,
+    // Dripleaf and sculk. The stem is listed beside its leaf because a player builds the two-high plant by
+    // hand here rather than growing it, so both halves need to be reachable.
+    BLOCKS.BIG_DRIPLEAF, BLOCKS.BIG_DRIPLEAF_STEM, BLOCKS.SMALL_DRIPLEAF,
+    BLOCKS.SCULK_VEIN, BLOCKS.PALE_HANGING_MOSS,
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
     BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,

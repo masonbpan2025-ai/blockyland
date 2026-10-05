@@ -501,6 +501,16 @@ export const BLOCKS = {
   GREEN_SHULKER_BOX: 1068,
   RED_SHULKER_BOX: 1069,
   BLACK_SHULKER_BOX: 1070,
+
+  // --- Dripleaf and sculk, fifteenth block-parity batch -------------------------------------------
+  //
+  // Five cross-quad plants. Three are the dripleaf family and two are surface growths that also draw as
+  // crosses. All reuse the existing cross model, so no geometry.
+  BIG_DRIPLEAF: 1071,
+  BIG_DRIPLEAF_STEM: 1072,
+  SMALL_DRIPLEAF: 1073,
+  SCULK_VEIN: 1074,
+  PALE_HANGING_MOSS: 1075
 };
 
 export const BLOCK_DEFS = {
@@ -1176,6 +1186,31 @@ export const BLOCK_DEFS = {
   [BLOCKS.GREEN_SHULKER_BOX]: { name: 'Green Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.GREEN_SHULKER_BOX, textures: { all: 'green_shulker_box.png' } },
   [BLOCKS.RED_SHULKER_BOX]: { name: 'Red Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.RED_SHULKER_BOX, textures: { all: 'red_shulker_box.png' } },
   [BLOCKS.BLACK_SHULKER_BOX]: { name: 'Black Shulker Box', hardness: 2.0, sound: 'stone', drop: BLOCKS.BLACK_SHULKER_BOX, textures: { all: 'black_shulker_box.png' } },
+
+  // --- Dripleaf and sculk, fifteenth block-parity batch -------------------------------------------
+  //
+  // The dripleaf family carries the batch's interesting drop rule, and it is asymmetric. Per the harvest
+  // table a big dripleaf drops ITSELF, but a big dripleaf STEM also drops a big dripleaf rather than a
+  // stem -- the stem is the stalk that holds the leaf up, and breaking either end gives you the leaf. A
+  // small dripleaf drops nothing at all.
+  //
+  // Two approximations, both the same shape as earlier batches and both stated rather than left to be
+  // found:
+  //
+  //   - A big dripleaf TILTS when stood on and recovers after a moment. That is entity-adjacent behaviour
+  //     with no home in this engine's block model, so it is a static leaf here.
+  //   - A dripleaf is two blocks tall in vanilla: a stem with a leaf on top. Both are registered and both
+  //     are single blocks, so a player builds the two-high plant rather than growing it.
+  //
+  // The sculk vein and pale hanging moss are the surface growths. A sculk vein in vanilla spreads across
+  // any face of a block and is part of the sculk family's spreading mechanic, neither of which is
+  // modelled; it is drawn as a cross and drops nothing, matching its empty harvest row. Pale hanging moss
+  // hangs like the vines and drops itself.
+  [BLOCKS.BIG_DRIPLEAF]: { name: 'Big Dripleaf', hardness: 0.1, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.BIG_DRIPLEAF, textures: { all: 'big_dripleaf_top.png' } },
+  [BLOCKS.BIG_DRIPLEAF_STEM]: { name: 'Big Dripleaf Stem', hardness: 0.1, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.BIG_DRIPLEAF, textures: { all: 'big_dripleaf_stem.png' } },
+  [BLOCKS.SMALL_DRIPLEAF]: { name: 'Small Dripleaf', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'small_dripleaf_top.png' } },
+  [BLOCKS.SCULK_VEIN]: { name: 'Sculk Vein', hardness: 0.2, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'sculk_vein.png' } },
+  [BLOCKS.PALE_HANGING_MOSS]: { name: 'Pale Hanging Moss', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: BLOCKS.PALE_HANGING_MOSS, textures: { all: 'pale_hanging_moss.png' } },
 
 
 
