@@ -95,6 +95,9 @@ const ENTITY_SHEETS = [
   'creeper/creeper.png',
   'player/wide/steve.png',
   'piglin/piglin.png',
+  // The ender dragon lives under its own mob directory rather than a bare mob name, and its sheet is a
+  // 256x256 model texture rather than a 64x32 skin -- the extractor handles it as a special case.
+  'enderdragon/dragon.png',
 ];
 {
   const absent = ENTITY_SHEETS.filter((f) => !existsSync(path.join(root, 'public', 'assets', 'entity', f)));

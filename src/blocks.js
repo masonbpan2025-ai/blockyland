@@ -753,7 +753,22 @@ export const BLOCKS = {
   //
   // The wall form is genuinely new.
   WITHER_SKELETON_SKULL: 185,
-  WITHER_SKELETON_WALL_SKULL: 1186,};
+  WITHER_SKELETON_WALL_SKULL: 1186,
+
+  // --- The ender dragon head, twenty-sixth block-parity batch ------------------------------------
+  //
+  // The last mob head that can be built. The CREEPER head is still out, and its reason is recorded in the
+  // extraction script: the creeper sheet is not in the standard skin layout, so what sits at the head
+  // coordinates is body noise rather than a face.
+  //
+  // The dragon needed a DIFFERENT extraction than every other head. Its sheet is 256x256 -- one continuous
+  // texture stretched over a model, with no 8x8 face layout anywhere -- so there is no rectangle to crop by
+  // convention. Instead the script locates the FACE by colour: the two eyes are the only magenta pixels on
+  // the sheet, which pins the head box, and the largest mostly-opaque square containing them becomes the
+  // tile. The result reads as a dragon, with glowing eyes and a mouth, which is the bar the creeper failed.
+  DRAGON_HEAD: 1187,
+  DRAGON_WALL_HEAD: 1188,
+};
 
 export const BLOCK_DEFS = {
   [BLOCKS.POWDER_SNOW]: {name:'Powder Snow',hardness:.25,solid:false,transparent:true,sound:'snow',drop:BLOCKS.POWDER_SNOW,textures:{all:'snow.png'}},
@@ -2031,6 +2046,17 @@ export const BLOCK_DEFS = {
   // the item pipeline's BLOCK path, which is what `SKELETON_SKULL` does and what actually yields an item.
   [BLOCKS.WITHER_SKELETON_SKULL_BLOCK]: { name: 'Wither Skeleton Skull', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.WITHER_SKELETON_SKULL, textures: { top: 'wither_skeleton_skull_top.png', side: 'wither_skeleton_skull_front.png', bottom: 'wither_skeleton_skull_bottom.png' } },
   [BLOCKS.WITHER_SKELETON_WALL_SKULL]: { name: 'Wither Skeleton Wall Skull', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.WITHER_SKELETON_SKULL, textures: { top: 'wither_skeleton_skull_top.png', side: 'wither_skeleton_skull_front.png', bottom: 'wither_skeleton_skull_bottom.png' } },
+
+  // --- The ender dragon head, twenty-sixth block-parity batch ------------------------------------
+  //
+  // The wall form drops the STANDING head, per the harvest table, like every other wall-mounted head.
+  //
+  // The approximation is larger here than for the other heads: the vanilla dragon head is a custom model
+  // with a long snout, and this is an 8/16 cube showing the extracted face on all four sides. It reads as
+  // a dragon, and it is honest to say that is the extent of it.
+  [BLOCKS.DRAGON_HEAD]: { name: 'Dragon Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.DRAGON_HEAD, textures: { top: 'dragon_head_top.png', side: 'dragon_head_front.png', bottom: 'dragon_head_bottom.png' } },
+  [BLOCKS.DRAGON_WALL_HEAD]: { name: 'Dragon Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.DRAGON_HEAD, textures: { top: 'dragon_head_top.png', side: 'dragon_head_front.png', bottom: 'dragon_head_bottom.png' } },
+
 
   // --- Villager Workstation Blocks ---
   [BLOCKS.BLAST_FURNACE]: { name: 'Blast Furnace', hardness: 3.5, sound: 'stone', workstation: 'armorer', textures: { top: 'furnace_top.png', front: 'furnace_front.png', side: 'smooth_stone.png', bottom: 'stone.png' } },

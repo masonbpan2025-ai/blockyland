@@ -126,6 +126,11 @@ test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and dro
     // nothing reads, so it rendered as a coal cube -- and because the gap report resolves the vanilla NAME
     // to that key, only the wall form ever showed up as missing.
     ['WITHER_SKELETON_SKULL', 'WITHER_SKELETON_WALL_SKULL', 'wither_skeleton_skull'],
+    // The ender dragon, which needed a DIFFERENT extraction from the rest: its sheet is a 256x256 model
+    // texture with no 8x8 face layout, so the extractor locates the face by colour instead of by
+    // convention. It is in this list because the test checks the tiles have PIXEL CONTENT, which is what
+    // separates a successful crop from a blank one -- and a blank one is exactly what a wrong box gives.
+    ['DRAGON_HEAD', 'DRAGON_WALL_HEAD', 'dragon_head'],
   ];
 
   for (const [key, wallKey, stem] of HEADS) {
