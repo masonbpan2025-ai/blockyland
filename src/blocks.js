@@ -867,6 +867,29 @@ export const BLOCKS = {
   // mound. So this is the second block in this goal unblocked by dead art rather than new art.
   BAMBOO_SAPLING: 1202,
 
+  // --- Coral plants and nether wart, thirty-fifth block-parity batch -------------------------------
+  //
+  // THE CORAL PLANTS WERE GENUINELY ABSENT AND A MEASUREMENT HID IT. The coral BLOCKS and FANS were added
+  // rounds ago, but the plants themselves -- the small living coral you place on the seabed -- never were.
+  // The name-based gap check reported zero missing because it resolves `tube_coral` onto `TUBE_CORAL_BLOCK`
+  // and counts the name as satisfied; `scripts/content-gap.mjs` looks for the name in the registry instead
+  // and correctly flagged all ten. THIS IS WHY THE COVERAGE SCRIPT'S NUMBER IS WORTH READING even when the
+  // name-based one says the work is finished.
+  //
+  // Their textures are real and downloadable: `blocks/tube_coral.png` and its nine siblings.
+  TUBE_CORAL: 1203,
+  BRAIN_CORAL: 1204,
+  BUBBLE_CORAL: 1205,
+  FIRE_CORAL: 1206,
+  HORN_CORAL: 1207,
+  DEAD_TUBE_CORAL: 1208,
+  DEAD_BRAIN_CORAL: 1209,
+  DEAD_BUBBLE_CORAL: 1210,
+  DEAD_FIRE_CORAL: 1211,
+  DEAD_HORN_CORAL: 1212,
+  NETHER_WART: 1213,
+  DIRT_PATH: 1214,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2556,7 +2579,10 @@ export const ITEMS = {
   conduit: { name: 'Conduit', icon: '/assets/items/prismarine_crystals.png', type: 'utility', isBlock: true, blockId: BLOCKS.CONDUIT },
 
   // Alchemy & Brewing Ingredients
-  nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'material' },
+  // Was a `type: 'material'` item before the nether wart BLOCK existed, so it was an item with an icon and
+  // no block it came from. tests/placeableItems.test.js requires an item that names a registered block to be
+  // JOINED to it, which is what caught this -- the same shape as the sniffer egg. The icon was correct.
+  nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'block', isBlock: true, blockId: BLOCKS.NETHER_WART },
   fermented_spider_eye: { name: 'Fermented Spider Eye', icon: '/assets/items/fermented_spider_eye.png', type: 'material' },
   glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
   rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
@@ -2658,6 +2684,19 @@ export const ITEMS = {
   // has NO item, because vanilla gives it none -- it is a water state rather than something you hold.
   creeper_head: { name: 'Creeper Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_HEAD },
   creeper_wall_head: { name: 'Creeper Wall Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_WALL_HEAD },
+  // The coral plants drop nothing, so they would be unreachable without an item. Vanilla gives them
+  // item forms, and their icons are their own block textures scaled, which is what the other plants do.
+  tube_coral: { name: 'Tube Coral', icon: '/assets/blocks/tube_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.TUBE_CORAL },
+  dead_tube_coral: { name: 'Dead Tube Coral', icon: '/assets/blocks/dead_tube_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_TUBE_CORAL },
+  brain_coral: { name: 'Brain Coral', icon: '/assets/blocks/brain_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.BRAIN_CORAL },
+  dead_brain_coral: { name: 'Dead Brain Coral', icon: '/assets/blocks/dead_brain_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_BRAIN_CORAL },
+  bubble_coral: { name: 'Bubble Coral', icon: '/assets/blocks/bubble_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.BUBBLE_CORAL },
+  dead_bubble_coral: { name: 'Dead Bubble Coral', icon: '/assets/blocks/dead_bubble_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_BUBBLE_CORAL },
+  fire_coral: { name: 'Fire Coral', icon: '/assets/blocks/fire_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.FIRE_CORAL },
+  dead_fire_coral: { name: 'Dead Fire Coral', icon: '/assets/blocks/dead_fire_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_FIRE_CORAL },
+  horn_coral: { name: 'Horn Coral', icon: '/assets/blocks/horn_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.HORN_CORAL },
+  dead_horn_coral: { name: 'Dead Horn Coral', icon: '/assets/blocks/dead_horn_coral.png', type: 'block', isBlock: true, blockId: BLOCKS.DEAD_HORN_CORAL },
+  dirt_path: { name: 'Dirt Path', icon: '/assets/items/dirt_path.png', type: 'block', isBlock: true, blockId: BLOCKS.DIRT_PATH },
   bamboo_sapling: { name: 'Bamboo Sapling', icon: '/assets/blocks/bamboo_stage0.png', type: 'block', isBlock: true, blockId: BLOCKS.BAMBOO_SAPLING },
   sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
@@ -2975,6 +3014,45 @@ BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN] = { name: 'Bubble Column', hardness: 0.0, sound
   //
   // IT DROPS BAMBOO, not itself, per its harvest row.
 BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING] = { name: 'Bamboo Sapling', hardness: 1.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'bamboo', textures: { all: 'bamboo_stage0.png' } };
+
+  // --- Coral plants and nether wart, thirty-fifth block-parity batch -------------------------------
+  //
+  // PLANTS, drawn as cross-quads like the other small growths. EVERY ONE OF THE TEN DROPS NOTHING, per
+  // its harvest row: live coral needs silk touch in vanilla and this engine has no enchantment-driven
+  // drop rule, and the table records an empty drops array for the dead ones too. So `drop: null` on all
+  // ten, which is not the same as omitting it -- the pipeline falls back to the block id and they would
+  // all drop themselves, the trap the air variants and the bubble column hit.
+BLOCK_DEFS[BLOCKS.TUBE_CORAL] = { name: 'Tube Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'tube_coral.png' } };
+BLOCK_DEFS[BLOCKS.BRAIN_CORAL] = { name: 'Brain Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'brain_coral.png' } };
+BLOCK_DEFS[BLOCKS.BUBBLE_CORAL] = { name: 'Bubble Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'bubble_coral.png' } };
+BLOCK_DEFS[BLOCKS.FIRE_CORAL] = { name: 'Fire Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'fire_coral.png' } };
+BLOCK_DEFS[BLOCKS.HORN_CORAL] = { name: 'Horn Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'horn_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_TUBE_CORAL] = { name: 'Dead Tube Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_tube_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_BRAIN_CORAL] = { name: 'Dead Brain Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_brain_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_BUBBLE_CORAL] = { name: 'Dead Bubble Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_bubble_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_FIRE_CORAL] = { name: 'Dead Fire Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_fire_coral.png' } };
+BLOCK_DEFS[BLOCKS.DEAD_HORN_CORAL] = { name: 'Dead Horn Coral', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_horn_coral.png' } };
+
+  // --- Nether wart and the dirt path, thirty-sixth block-parity batch ------------------------------
+  //
+  // The last two of the twelve that scripts/content-gap.mjs caught while the name-based check said the
+  // work was finished. Both had art available in a form other than a block tile:
+  //
+  //   - NETHER WART's art is its ITEM sprite, items/nether_wart.png -- the same situation as the barrier
+  //     and the light, where the sprite IS the art and the block tile is a copy of it.
+  //   - the DIRT PATH has no tile upstream at all, so its top is COMPOSED from the dirt texture by
+  //     scripts/compose-dirt-path.py, the same technique as the bubble column.
+  //
+  // THE NETHER WART IS A PLANT on soul sand, drawn as a cross-quad, and it DROPS THE nether_wart ITEM:
+  // the ITEMS entry has existed as a `material` all along, so the item finally has a block it comes
+  // from. The drop is declared BY ITEM NAME and that name IS in ITEMS, which is the check that caught
+  // the wither skeleton skull dropping nothing.
+  //
+  // THE DIRT PATH is a full cube whose top face is the packed surface. Vanilla makes it by using a
+  // shovel on grass, which needs a tool-action rule this engine does not have, so it is a plain block
+  // here rather than a transformation. Its harvest row is hardness 0.65 with a SHOVEL and drops dirt.
+BLOCK_DEFS[BLOCKS.NETHER_WART] = { name: 'Nether Wart', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'nether_wart', textures: { all: 'nether_wart.png' } };
+BLOCK_DEFS[BLOCKS.DIRT_PATH] = { name: 'Dirt Path', hardness: 0.65, sound: 'grass', drop: BLOCKS.DIRT, textures: { top: 'dirt_path_top.png', side: 'dirt.png', bottom: 'dirt.png' } };
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};

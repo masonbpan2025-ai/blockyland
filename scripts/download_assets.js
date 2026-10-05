@@ -162,6 +162,9 @@ const blocks1214 = [
   // to iron_bars.png for it because this file was missing.
   'flower_pot.png',
   'acacia_sapling.png', 'allium.png', 'azure_bluet.png', 'bamboo_stage0.png', 'birch_sapling.png',
+  // The coral PLANTS, thirty-fifth batch. Real downloadable block tiles, unlike the coral BLOCKS
+  // which needed the atlas; nothing referenced these until the plants were registered.
+  'tube_coral.png', 'dead_tube_coral.png', 'brain_coral.png', 'dead_brain_coral.png', 'bubble_coral.png', 'dead_bubble_coral.png', 'fire_coral.png', 'dead_fire_coral.png', 'horn_coral.png', 'dead_horn_coral.png',
   'blue_orchid.png', 'brown_mushroom.png', 'cactus_side.png', 'cherry_sapling.png',
   'closed_eyeblossom.png', 'cornflower.png', 'crimson_fungus.png', 'crimson_roots.png',
   'dandelion.png', 'dark_oak_sapling.png', 'dead_bush.png', 'fern.png', 'jungle_sapling.png',
@@ -190,6 +193,9 @@ const itemSprites = [
   { url: `${BASE_1214}/items/barrier.png`, out: 'public/assets/items/barrier.png' },
   { url: `${BASE_1214}/items/light.png`, out: 'public/assets/items/light.png' },
   { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' },
+  // Nether wart: the last block whose art is an ITEM sprite rather than a block tile. The restore step
+  // fetches this and copies it to `blocks/nether_wart.png`; the test asserts the copies are identical.
+  { url: `${BASE_1214}/items/nether_wart.png`, out: 'public/assets/items/nether_wart.png' },
   // The bubble column's input. It is a PARTICLE sprite rather than an item or a block tile, which is why it
   // is here: vanilla ships no `bubble_column` block texture at all, and scripts/compose-bubble-column.py
   // overlays this onto the water tile to make one. `alsoBlockTile: false` matters -- the loop that copies

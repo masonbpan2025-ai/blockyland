@@ -167,6 +167,8 @@ const TRANSFORMS = [
   // The bubble column: water_still frame 0 plus four bubble particles. It slices the water tile
   // itself, because water_still is an animation strip.
   'compose-bubble-column.py',
+  // The dirt path's top face: dirt darkened, because vanilla ships no `dirt_path` tile at any version.
+  'compose-dirt-path.py',
 ];
 
 for (const script of TRANSFORMS) {

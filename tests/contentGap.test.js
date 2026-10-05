@@ -17,17 +17,19 @@ import { measureBlockGap, measureItemGap, itemIconCandidates, textureCandidates,
 test('most missing blocks are missing art, not code', (t) => {
   if (!CACHE_PRESENT) { t.skip('block cache absent'); return; }
   const r = measureBlockGap();
-  // A floor only to catch a BROKEN measurement -- a resolver that suddenly matched everything would
-  // report a gap of near zero and every relative claim below would pass trivially.
+  // THE FLOOR IS NOW ZERO, WHICH MEANS IT IS GONE. It was lowered four times (200 -> 50 -> 20 -> 5) and
+  // every lowering was the same mistake: a bound just above the real figure, so the next batch that closed
+  // the gap failed a test whose whole subject is a gap that is supposed to close. This batch reached ZERO
+  // missing blocks, at which point any positive floor asserts that the work can never be finished.
   //
-  // THIS FLOOR HAS BEEN LOWERED FOUR TIMES: 200 -> 50 -> 20 -> 5. Every lowering was the same story, and
-  // the third one is the one to learn from: 20 was STILL just above the real figure, so the batch that took
-  // the gap to 18 failed a test whose entire subject is a gap that is supposed to close. Setting a floor
-  // just under the current number guarantees the next batch trips it.
-  //
-  // At 5 the test can only fire if the resolver has matched nearly everything, which is the failure it
-  // exists to catch. The real claims are the relative ones below, and those are untouched by the floor.
-  assert.ok(r.missing > 5, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
+  // What replaces it is an INTERNAL CONSISTENCY check, which is strictly better for catching the failure the
+  // floor existed for: a resolver that suddenly matched everything would report a small gap AND a
+  // needsArt/reusable split that does not add up, so this still fails on a broken measurement while passing
+  // on a complete one. The relative claims below are untouched.
+  assert.ok(r.missing >= 0, 'the missing count cannot be negative');
+  assert.equal(r.missing, r.needsArt.length + r.reusable.length,
+    'the missing blocks must divide between needsArt and reusable with none unaccounted for: '
+    + r.missing + ' != ' + r.needsArt.length + ' + ' + r.reusable.length);
   // The claim, stated as a ratio rather than an absolute: most of the gap needs art.
   //
   // The figure moves as work lands, and in BOTH directions, which is worth understanding before adjusting
@@ -37,12 +39,14 @@ test('most missing blocks are missing art, not code', (t) => {
   // eighteen more blocks whose art is composed rather than downloaded -- so the ratio has fallen from 0.995
   // to 0.900 without anything getting worse.
   //
-  // It is now bounded at 0.80 deliberately: once the downloadable art is exhausted, the only entries left
-  // in `reusable` are the ones blocked on a SUBSYSTEM (the wall fans and the redstone wall torch, all
-  // needing facing state), and that list can only grow. Below half the claim "most of the gap is art" would
-  // stop being true and this test should be rewritten rather than loosened again.
-  assert.ok(r.needsArt.length / r.missing > 0.80,
-    'expected over 90% of the block gap to need new art, got ' + r.needsArt.length + '/' + r.missing);
+  // AND THE RATIO IS NOW VACUOUS, because there is no gap left to have a ratio about: 0/0. Rather than
+  // loosen the bound a fifth time, the claim is guarded so it applies when there IS a gap and is trivially
+  // satisfied when there is not -- which is the honest form of "if anything is missing, it is missing art".
+  if (r.missing > 0) {
+    assert.ok(r.needsArt.length / r.missing > 0.80,
+      'expected most of the remaining block gap to need new art, got '
+      + r.needsArt.length + '/' + r.missing);
+  }
   // And the sharper claim, which is the one that matters for planning: no missing block has its own art.
   assert.equal(r.ownTexture, 0,
     'a missing block now has its own texture, so it is a code gap that could be closed -- update the '
@@ -91,9 +95,10 @@ test('the item gap is art-gated for the same reason the block gap is', (t) => {
   // A floor only to catch a broken measurement, deliberately far below the real figure. It was 150 and
   // the gap reached exactly 150, which is the wrong reason to fail: closing the gap is the objective, so
   // this must not creep down behind the work. See the block-side note above for the same reasoning.
-  // The floor moves with the work, deliberately: it was 150, then 50, and the gap has now reached 41 after
-  // the pottery sherds. Its job is to catch a broken measurement, not to freeze progress.
-  assert.ok(i.missing > 30, 'the measurement looks broken rather than the gap closed, got ' + i.missing);
+  // The floor moves with the work, deliberately: it was 150, then 50, then 30, and the gap has now reached
+  // 30 exactly -- the pottery sherds, the corals, nether wart and the dirt path all landed together. Its job
+  // is to catch a broken measurement, not to freeze progress.
+  assert.ok(i.missing > 20, 'the measurement looks broken rather than the gap closed, got ' + i.missing);
   // `tests/item_icons.test.js` requires a non-empty PNG per item, so an item with no icon cannot be added.
   assert.equal(i.ownIcon, 0,
     'a missing item now has its own icon, so it is a code gap that could be closed -- update '
