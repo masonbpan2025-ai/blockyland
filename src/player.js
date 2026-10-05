@@ -1,4 +1,5 @@
 import { soulSpeedMultiplier } from './barterItems.js';
+import { tickWither } from './witherEffect.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -383,6 +384,11 @@ export class Player {
 
     // Update active status effects (poison, wither, slowness, dolphins_grace, etc.)
     for (const [effect, data] of this.statusEffects.entries()) {
+      if(effect==='wither'){
+        tickWither(data,dt,amount=>this.takeDamage(amount,null,'wither'));
+        if(data.duration<=0)this.statusEffects.delete(effect);
+        continue;
+      }
       data.duration -= dt;
       data.tickTimer = (data.tickTimer || 0) + dt;
       if (effect === 'poison' && data.tickTimer >= 1.25) {
@@ -391,9 +397,6 @@ export class Player {
           this.health = Math.max(1, this.health - 1);
           this.sounds?.playHurt?.();
         }
-      } else if (effect === 'wither' && data.tickTimer >= 1.0) {
-        data.tickTimer = 0;
-        this.takeDamage(1, null, 'wither');
       }
       if (data.duration <= 0) {
         this.statusEffects.delete(effect);
@@ -799,7 +802,7 @@ export class Player {
     // Shield blocking check: 100% deflection within frontal 180° cone
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
                       (this.inventory?.getActiveItem()?.id === 'shield');
-    if (this.isBlocking && hasShield && damageType !== 'fall' && damageType !== 'starvation' && damageType !== 'void') {
+    if (this.isBlocking && hasShield && !['fall','starvation','void','wither'].includes(damageType)) {
       let blocked = true;
       if (sourcePos) {
         const toSource = new THREE.Vector3(sourcePos.x - this.position.x, 0, sourcePos.z - this.position.z).normalize();
@@ -831,7 +834,7 @@ export class Player {
     if (damageType !== 'void' && damageType !== 'starvation' && damageType !== 'fall') {
       const armor = this.inventory ? this.inventory.getTotalArmorPoints() : 0;
       const toughness = this.inventory ? this.inventory.getTotalArmorToughness() : 0;
-      if (armor > 0) {
+      if (armor > 0 && damageType !== 'wither') {
         const effectiveArmor = Math.max(armor / 5, armor - amount / (2 + toughness / 4));
         const damageReduction = Math.min(20, Math.max(0, effectiveArmor)) / 25;
         amount = amount * (1 - damageReduction);

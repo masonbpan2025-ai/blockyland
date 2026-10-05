@@ -283,20 +283,6 @@ export class HostileMobBehaviors {
         updateBlaze(this.mobManager, mob, player, dt);
       }
 
-      // E. Wither Skeleton: Wither Status on Melee
-      if (mob.type === 'wither_skeleton') {
-        const dist = mob.mesh.position.distanceTo(player.position);
-        if (dist < 1.8) {
-          mob.attackCooldown = (mob.attackCooldown || 0) - dt;
-          if (mob.attackCooldown <= 0) {
-            mob.attackCooldown = 1.2;
-            player.takeDamage?.(5, mob.mesh.position, 'wither_skeleton');
-            player.applyStatusEffect?.('wither', 10.0, 1);
-            if (this.sounds?.playHurt) this.sounds.playHurt();
-          }
-        }
-      }
-
       if (mob.type === 'piglin') updatePiglin(this, mob, dt, player);
 
       if(isZombifiedPiglin(mob))updateZombified(this.mobManager,mob,dt);

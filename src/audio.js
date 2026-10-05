@@ -1,5 +1,13 @@
 // Web Audio API Procedural Sound Engine
 export class SoundEngine {
+  playWitherSkeleton(kind='idle') {
+    if(!this.ctx || !this.soundEnabled)return;
+    const oscillator=this.ctx.createOscillator(),gain=this.ctx.createGain(),time=this.ctx.currentTime;
+    oscillator.type='triangle';oscillator.frequency.setValueAtTime(kind==='death'?95:kind==='hurt'?140:180,time);
+    oscillator.frequency.exponentialRampToValueAtTime(45,time+.18);
+    gain.gain.setValueAtTime(.09,time);gain.gain.exponentialRampToValueAtTime(.001,time+.2);
+    oscillator.connect(gain);gain.connect(this.masterGain || this.ctx.destination);oscillator.start(time);oscillator.stop(time+.21);
+  }
   constructor() {
     this.ctx = null;
     this.masterGain = null;
