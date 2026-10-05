@@ -1,6 +1,7 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
+import { thornsReflect } from './enchantmentEffects.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -80,6 +81,9 @@ export class Player {
     // Dragon Ball Ki Gathering state
     this.isGatheringKi = false;
     this.onKiInterrupted = null;
+    // Called when thorns has damage to reflect, as (attacker, damage, procs). Wired by main.js to the
+    // mob manager, so the player never damages a mob itself.
+    this.onThornsReflect = null;
 
     // Minecraft Dungeons mode & combat states
     this.isDungeonMode = false;
@@ -817,7 +821,24 @@ export class Player {
     return damageTakenMultiplier(this.statusEffects);
   }
 
-  takeDamage(amount, sourcePos = null, damageType = 'generic') {
+  /**
+   * The enchantment lists of the four worn armour pieces, for effects that roll per piece.
+   *
+   * Returns an array of arrays rather than a flat list because thorns procs INDEPENDENTLY on each piece,
+   * so two level-III pieces are two 45% rolls and not one 90% roll.
+   */
+  armourEnchantmentLists() {
+    const armour = this.inventory?.armor;
+    if (!armour) return [];
+    const lists = [];
+    for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
+      const piece = armour[slotKey];
+      lists.push(Array.isArray(piece?.enchantments) ? piece.enchantments : []);
+    }
+    return lists;
+  }
+
+  takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
     if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
 
@@ -910,6 +931,27 @@ export class Player {
       this.velocity.y = Math.max(this.velocity.y, 2.5);
     }
     this.sounds.playHurt();
+
+    // Thorns reflects on to whoever struck. Reported through a hook rather than applied here, because
+    // damaging a mob is the mob manager's job and the player should not reach into it -- the same reason
+    // `onKiInterrupted` exists.
+    //
+    // The hook receives the damage SOURCE POSITION as well as the attacker, because most call sites pass
+    // only a position: `mobs.js` calls `takeDamage(amount, mob.mesh.position, mob.type)` in four places and
+    // changing them all would mean editing a file another agent is actively working in. The position is
+    // enough for the receiver to identify the mob, and an explicit attacker is used directly when a
+    // caller does provide one.
+    //
+    // Rolled only when the player survived: a fatal blow has nothing to reflect from, and fall and void
+    // damage have no attacker by definition.
+    if (this.health > 0 && damageType !== 'fall' && damageType !== 'void' && (attacker || sourcePos)) {
+      // `this.random` is injectable so a test can force the proc on or off. Without it the thorns roll is
+      // 45% at level III, which makes every assertion about it flaky -- and makes the NEGATIVE assertions
+      // pass for the wrong reason half the time. `rollLoot` in mobLootData.js uses the same pattern.
+      const roll = typeof this.random === 'function' ? this.random : Math.random;
+      const reflect = thornsReflect(this.armourEnchantmentLists(), roll);
+      if (reflect.damage > 0) this.onThornsReflect?.(attacker || null, reflect.damage, reflect.procs, sourcePos);
+    }
 
     if (this.health <= 0) {
       this.die();

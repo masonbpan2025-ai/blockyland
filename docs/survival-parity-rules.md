@@ -342,7 +342,7 @@ going unnoticed.
 | Vanilla recipes implemented | 1538 | 1557 | 98.8% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
 | Blocks named | 831 | 1095 | 75.9% |
-| Items named | 1129 | 1385 | 81.5% |
+| Items named | 1130 | 1385 | 81.6% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -387,10 +387,17 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 - **Brewing and potion-to-effect mapping.** Section 2.6 documents Mineclonia's durations; the mapping
   from ingredients to effects (fermented spider eye inverting healing to harming, and so on) is not
   implemented.
-- **Thorns, unbreaking and depth strider are computed but not wired.** Section 2.5's formulas for all
-  three are implemented in `src/enchantmentEffects.js` and asserted by tests, but no gameplay path calls
-  them yet: thorns needs the attacker passed to `Player.takeDamage`, which currently receives only a
-  position, and unbreaking needs a durability system to spend against.
+- **Thorns, unbreaking and depth strider are computed; thorns is now wired, the other two are not.**
+  All three formulas live in `src/enchantmentEffects.js` and are asserted by tests. **Thorns is wired**:
+  `Player.takeDamage` rolls it per armour piece and reports through an `onThornsReflect` hook that
+  `main.js` connects to the mob manager, so the player never damages a mob itself. **Unbreaking and depth
+  strider are not wired** — unbreaking needs a durability system to spend against, and depth strider needs
+  the water movement path, neither of which exists yet.
+
+  The attacker is identified from the damage source POSITION rather than passed by the caller. `mobs.js`
+  passes `mob.mesh.position` in four places, and that file is another agent's active workspace, so the
+  lookup happens in `main.js` instead. It also covers every damage source with a position rather than only
+  the four call sites that happen to have the mob to hand.
 
 ### 4.4 Enchantment damage — implemented
 

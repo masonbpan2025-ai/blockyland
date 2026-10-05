@@ -211,6 +211,33 @@ class Game {
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
     this.mobs.game = this;
 
+    // Thorns reflects damage on to whoever struck the player. Wired here rather than inside the player,
+    // because damaging a mob is the mob manager's job -- the same reason onKiInterrupted exists as a hook.
+    //
+    // The attacker is identified from the source position when the caller did not name one, which is the
+    // usual case: mobs.js passes `mob.mesh.position` rather than the mob. Looking it up here keeps the
+    // change out of a file another agent is working in, and it covers every damage source with a position
+    // rather than only the four call sites that happen to have the mob to hand.
+    this.player.onThornsReflect = (attacker, damage, procs, sourcePos) => {
+      if (!this.mobs) return;
+      let target = attacker;
+      if (!target && sourcePos) {
+        // A mob's mesh position is its feet, and a hit lands from nearby, so the search radius is
+        // generous enough to cover a mob's own width without reaching a second one.
+        let best = null;
+        let bestDist = 1.5;
+        for (const mob of this.mobs.mobs || []) {
+          if (!mob || mob.health <= 0 || !mob.mesh) continue;
+          const d = mob.mesh.position.distanceTo(sourcePos);
+          if (d < bestDist) { best = mob; bestDist = d; }
+        }
+        target = best;
+      }
+      if (!target) return;
+      this.mobs.damageMob(target, damage, this.player.position, false, this.player);
+      void procs;
+    };
+
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
     this.player.inventory = this.inventory;
