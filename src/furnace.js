@@ -22,7 +22,11 @@ export const SMELTING_RECIPES = {
   salmon: { id: 'cooked_salmon', isBlock: false, count: 1 },
   cod: { id: 'cooked_cod', isBlock: false, count: 1 },
   potato: { id: 'baked_potato', isBlock: false, count: 1 },
-  kelp: { id: 'dried_kelp', isBlock: false, count: 1 },
+  // Keyed by the block id, because that is how the game carries kelp: it is placed as well as eaten, so the
+  // inventory holds `{id: 1051, isBlock: true}`. A name key here meant nothing could look it up -- kelp
+  // stopped being smeltable the round it gained a block form, and nothing noticed because kelp is also a mob
+  // drop. Every other block input in this file is keyed the same way.
+  [BLOCKS.KELP]: { id: 'dried_kelp', isBlock: false, count: 1 },
 
   // --- Raw Metals & Ores ---
   raw_iron: { id: 'iron_ingot', isBlock: false, count: 1 },

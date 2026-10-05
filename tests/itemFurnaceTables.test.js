@@ -109,14 +109,18 @@ test('every fuel key is a registered block or item', () => {
 test('cooking still works through the names this game actually uses', () => {
   // The regression guard for removing the `raw_*` rows: they were redundant aliases, and if they had
   // been the only spelling of a recipe then deleting them would have removed the ability to cook.
+  //
+  // `kelp` is keyed by its block id rather than its name, and the title of this test is why: kelp is placed
+  // as well as eaten, so the id the game holds is `BLOCKS.KELP`. Keyed by name it was unreachable and kelp
+  // silently stopped smelting -- see tests/smeltingVanilla.test.js, which guards the keying of both tables.
   const expected = {
     beef: 'cooked_beef', porkchop: 'cooked_porkchop', chicken: 'cooked_chicken',
     mutton: 'cooked_mutton', rabbit: 'cooked_rabbit', salmon: 'cooked_salmon', cod: 'cooked_cod',
-    potato: 'baked_potato', kelp: 'dried_kelp',
+    potato: 'baked_potato', [BLOCKS.KELP]: 'dried_kelp',
     raw_iron: 'iron_ingot', raw_gold: 'gold_ingot', raw_copper: 'copper_ingot', clay_ball: 'brick',
   };
   for (const [input, output] of Object.entries(expected)) {
-    const recipe = getSmeltingRecipe(input);
+    const recipe = getSmeltingRecipe(/^\d+$/.test(input) ? Number(input) : input);
     assert.ok(recipe, `${input} should smelt`);
     assert.equal(recipe.id, output, `${input}`);
   }
