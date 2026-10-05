@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1546 | 1557 | 99.3% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
-| Blocks named | 831 | 1095 | 75.9% |
-| Items named | 1136 | 1385 | 82.0% |
+| Blocks named | 852 | 1095 | 77.8% |
+| Items named | 1159 | 1385 | 83.7% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -503,8 +503,34 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
     the other direction. Referential integrity is now checked BOTH ways by a test, since either direction
     can be broken silently.
 
-  Not verified: the lingering (`x0.25`) and tipped-arrow (`x0.125`) duration factors, and splash-potion
-  behaviour beyond the fire-resistance case in `barterItems.js`.
+  **The tipped-arrow factor is now implemented and the lingering one cannot be.** The arrow side turned out
+  not to be a duration problem at all: `updateArrows` already applied `arrow.effect` and `spawnArrow` already
+  stored it, but `bow.js` chose ammo from `['arrow','spectral_arrow']` and passed no effect, so the three
+  tipped-arrow items in the game could not be fired and were droppable loot with no use. `src/tippedArrows.js`
+  now derives each arrow's effect and duration from `POTION_DATA` at `1/8`, and the bow loads them.
+
+  Weakness (11 s from a 90 s potion) and Poison (5 s from 45 s) come out at exactly the wiki's figures, which
+  is the check on flooring rather than rounding — rounding gives six for the poison arrow. **Slowness is the
+  one value this data cannot confirm**: the table gives 90 s so the eighth rule yields 11 s, where the figure
+  often quoted is 30 s, which would be a third. Nothing in `.cache/mc-data` carries potion durations, so the
+  rule is applied consistently rather than special-cased on a half-remembered number, and
+  `tests/tippedArrows.test.js` names that one assertion as the thing to change if a source turns up.
+
+- **Potions could not be drunk at all, and only three of thirty-nine existed as items.**
+  POTION_DATA defines 39 potions and getBrewingResult can produce every one of them, but nothing
+  consumed a 	ype: 'potion' item -- main.js handled 	ype === 'food' and stopped -- and only
+  potion_of_fire_resistance, splash_potion_of_fire_resistance and splash_potion_of_weakness\n  were registered in ITEMS. So the brewing stand could hand the player a Potion of Healing with no name,
+  no icon and no way to use it. 	ests/item_icons.test.js walks ITEMS only, so a brewable potion with
+  no entry was invisible to every test in the suite.
+
+  src/potions.js now drinks a potion by reading its effect from POTION_DATA, and 73 potion items
+  (37 drinkable plus their 36 splash forms) were registered beside the three that existed. Both halves
+  are derived from the table, so anything the brewing stand can produce is obtainable and drinkable by
+  construction rather than by a list somebody has to remember to extend.
+
+  Lingering potions do not exist in this game at all — no item, no cloud — so the `x0.25` factor has nothing
+  to apply to. It is not implemented rather than unimplemented; splash-potion behaviour beyond the
+  fire-resistance case in `barterItems.js` also remains unverified.
 - **Unbreaking is now wired, because tool durability now exists.** It had been recorded as outstanding for
   three rounds on the reasoning that it "needs a durability system to spend against". That was correct, and
   the system genuinely did not exist: mining a block never wore the tool, and the only item in the registry

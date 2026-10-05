@@ -3,6 +3,8 @@ import path from 'path';
 
 const BASE_120 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2';
 const BASE_119 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.19.1';
+// Pale oak is a 1.21.4 addition, so its texture is only in the newer asset tree.
+const BASE_1214 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
 
 const blocks = [
   'dirt.png', 'grass_block_top.png', 'grass_block_side.png', 'stone.png', 'cobblestone.png',
@@ -18,8 +20,15 @@ const blocks = [
   'deepslate_coal_ore.png', 'deepslate_iron_ore.png', 'deepslate_gold_ore.png', 'deepslate_diamond_ore.png',
   'deepslate_emerald_ore.png', 'deepslate_redstone_ore.png', 'deepslate_lapis_ore.png', 'deepslate_copper_ore.png',
   'obsidian.png', 'bricks.png', 'bookshelf.png', 'dandelion.png', 'poppy.png',
+  // Saplings, for the second block-parity batch. All are cross-quad plants like the flowers above.
+  'oak_sapling.png', 'spruce_sapling.png', 'birch_sapling.png', 'jungle_sapling.png',
+  'acacia_sapling.png', 'cherry_sapling.png', 'dark_oak_sapling.png',
+  'mangrove_propagule.png',
   'cactus_top.png', 'cactus_side.png', 'cactus_bottom.png', 'snow.png', 'ice.png'
 ];
+
+// Textures that exist only in the newer asset tree, fetched from BASE_1214.
+const blocks1214 = ['pale_oak_sapling.png'];
 
 const items = [
   'diamond_sword.png', 'iron_sword.png', 'stone_sword.png', 'wooden_sword.png',
@@ -79,6 +88,10 @@ async function run() {
   console.log('Downloading blocks...');
   for (const b of blocks) {
     await downloadFile(`${BASE_120}/blocks/${b}`, `public/assets/blocks/${b}`);
+  }
+  console.log('Downloading blocks added after 1.20.2...');
+  for (const b of blocks1214) {
+    await downloadFile(`${BASE_1214}/blocks/${b}`, `public/assets/blocks/${b}`);
   }
   console.log('Downloading items...');
   for (const it of items) {
