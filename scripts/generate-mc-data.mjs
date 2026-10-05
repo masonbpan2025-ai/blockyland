@@ -94,12 +94,18 @@ function materialTool(material) {
   return m ? m[1] : null;
 }
 
-// Only blocks the game can actually place are useful; skip fluid/technical entries with no
-// hardness concept. Keep them out so the table stays focused and diffable.
+// Every block vanilla publishes, including the ones that cannot be mined and the ones that drop nothing by
+// hand. Two filters used to drop them -- `diggable === false` and a "material default, hardness 0, empty
+// bounding box, no drops" rule -- to keep the table focused. That read well and cost 27 blocks the game
+// implements: bedrock, fire, soul fire, both portals, the end portal frame, the command, structure and jigsaw
+// blocks, frogspawn, seagrass and its tall form, and all ten live coral fans. The Inspector asked each of them
+// for hardness and tool data, which is a question the table can answer -- "unbreakable", "hardness 0, no tool"
+// -- and refusing to answer it looked exactly like a gap in the game.
+//
+// A row for these is also the honest reference for `block-drop`: vanilla's own data says none of them drops
+// anything by hand, and coral fans and seagrass need shears or Silk Touch, which this table does not model.
 const harvestRows = [];
 for (const b of blocks) {
-  if (b.diggable === false) continue;
-  if (b.material === 'default' && b.hardness === 0 && b.boundingBox === 'empty' && !b.drops?.length) continue;
   const harvest = describeHarvestTools(b.harvestTools);
   const row = {
     name: b.name,
@@ -174,11 +180,15 @@ export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 
  * which lists the rows still waiting on a block and the ones that are dead although the block exists.
  */
 const BY_NAME = new Map();
+/** Every block id sharing a normalised display name, for the state-variant fallback below. */
+const IDS_BY_NAME = new Map();
 for (const [id, def] of Object.entries(BLOCK_DEFS)) {
   const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
   if (!key) continue;
   const existing = BY_NAME.get(key);
   if (existing === undefined || Number(id) < existing) BY_NAME.set(key, Number(id));
+  if (!IDS_BY_NAME.has(key)) IDS_BY_NAME.set(key, []);
+  IDS_BY_NAME.get(key).push(Number(id));
 }
 
 const BY_ID = new Map();
@@ -187,9 +197,18 @@ for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
-/** Harvest data for a block id, or null when the block has no data. */
+/**
+ * Harvest data for a block id, or null when the block has no data.
+ *
+ * An id with no row of its own falls back to the row of the block it is a *state* of -- an open door, a bed's
+ * head, a coral fan's wall form, seven of wheat's eight growth stages. Vanilla names those once and the table
+ * is generated per name, so 144 blocks read as having no hardness or tool data at all while the block they
+ * are a state of had a row the whole time. The suffixes and the sibling rule are hand-written in the tail.
+ */
 export function harvestDataFor(blockId) {
-  return BY_ID.get(blockId) || null;
+  const row = BY_ID.get(blockId);
+  if (row) return row;
+  return sharedHarvestRowFor(blockId, BY_ID, IDS_BY_NAME);
 }
 
 /** Every block id this table knows about, for tests and tooling. */

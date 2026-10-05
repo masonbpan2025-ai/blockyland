@@ -23,14 +23,15 @@ const never = () => 1;
 
 test('the base drop rule is exactly what it was', () => {
   // Contract pinned by tests/visualEffects.test.js and tests/blockRegistryIntegrity.test.js; the rule
-  // moved modules and must behave identically.
-  assert.deepEqual(baseBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true });
-  assert.deepEqual(baseBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true });
-  assert.deepEqual(baseBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false });
+  // moved modules and must behave identically. `count` is newer than the rest and defaults to one: vanilla
+  // gives four clay balls for a clay block and five redstone for an ore, so the count is part of the rule now.
+  assert.deepEqual(baseBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true, count: 1 });
+  assert.deepEqual(baseBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true, count: 1 });
+  assert.deepEqual(baseBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false, count: 1 });
   assert.equal(baseBlockDrop(BLOCKS.GLASS), null);
   assert.equal(baseBlockDrop(BLOCKS.WATER), null);
   // And the name the five existing callers use still resolves to it.
-  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false });
+  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false, count: 1 });
 });
 
 test('a block that yields nothing yields an empty list, not a null', () => {

@@ -202,6 +202,8 @@ export function buildCreativeCatalog() {
   // 4. Functional Blocks
   const functionalBlocksList = [
     BLOCKS.CHEST, BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.RED_BED_FOOT, BLOCKS.LADDER,
+    // The chest variants, next to the chest they derive from.
+    BLOCKS.ENDER_CHEST, BLOCKS.TRAPPED_CHEST,
     // The wall torches, beside the standing ones. They drop their standing form, so both are obtainable.
     BLOCKS.WALL_TORCH, BLOCKS.SOUL_WALL_TORCH, BLOCKS.REDSTONE_WALL_TORCH,
     BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL,
@@ -217,12 +219,22 @@ export function buildCreativeCatalog() {
     // The wither skeleton, which the first head batch missed: its standing block existed under a
     // non-standard key and rendered as a coal cube, so only its wall form was ever flagged. Both are here.
     BLOCKS.WITHER_SKELETON_SKULL, BLOCKS.WITHER_SKELETON_WALL_SKULL,
+    // The ender dragon head, whose art needed a different extraction from every other head: its sheet is a
+    // 256x256 model texture with no face layout, so the extractor finds the face by colour.
+    BLOCKS.DRAGON_HEAD, BLOCKS.DRAGON_WALL_HEAD,
     // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
     // machinery -- even though in this engine every one of them is inert decoration. Putting them
     // anywhere else would imply they are building material, which is further from the truth.
     BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
     BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
+    // The invisible technical blocks, beside the other creative-only machinery. A vanilla barrier is an
+    // invisible wall a creative-mode player places to stop others; here it shows its own item icon, which
+    // the batch that added it records as an approximation.
+    BLOCKS.BARRIER, BLOCKS.LIGHT, BLOCKS.STRUCTURE_VOID,
     BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN,
+    // The sniffer egg, beside the turtle egg it borrows its shape from, and the end gateway beside the end
+    // portal frame. Both had their art DERIVED rather than drawn; the composer says where from.
+    BLOCKS.SNIFFER_EGG, BLOCKS.END_GATEWAY,
     // Cake and candle cakes. In the functional tab beside the other candles because a candle cake is a
     // candle on a cake, and the plain cake is there so the family reads together -- even though a cake
     // cannot be eaten here, which is recorded in the source.

@@ -904,6 +904,10 @@ export function harvestOrphans(reg = registry()) {
 export const VANILLA_ID_ALIASES = {
   slimeball: 'slime_ball',
   hay_bale: 'hay_block',
+  // A block this game registers under the plain material name and vanilla under the '_block' one. Without the
+  // pairing, lock-drop-parity read the game dropping its own snow block as a wrong drop.
+  snow: 'snow_block',
+  target_block: 'target',
 };
 
 /**

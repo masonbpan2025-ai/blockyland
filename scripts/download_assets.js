@@ -126,6 +126,11 @@ const blocks1214 = [
   // faces rather than one.
   'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
   'water_still.png', 'lava_still.png', 'powder_snow.png',
+  // Piston tiles, the twenty-ninth batch. `piston_side` and `piston_inner` are the two the MOVING PISTON
+  // block uses, and neither was referenced by anything in this codebase before it. The other three are
+  // fetched alongside them because they belong to the same machine and a future piston-facing pass will
+  // want them; they are real tiles rather than SVG stand-ins.
+  'piston_side.png', 'piston_inner.png', 'piston_top.png', 'piston_top_sticky.png', 'piston_bottom.png',
   // Mob heads, the twenty-fourth batch. These are ENTITY skin sheets, not block textures -- a different
   // mirror directory -- and the head faces are extracted from them by
   // scripts/extract-mob-head-textures.py. Listing them here is what makes the extraction reproducible.
@@ -174,6 +179,17 @@ const items = [
   'stick.png', 'coal.png', 'iron_ingot.png', 'gold_ingot.png', 'diamond.png', 'emerald.png',
   'bread.png', 'apple.png', 'cooked_beef.png', 'beef.png', 'wheat.png', 'bow.png', 'arrow.png', 'crossbow.png',
   'totem_of_undying.png'
+];
+
+// Items whose art is an ITEM sprite rather than a block tile, fetched by explicit URL. They are NOT
+// `blocks1214` entries: that list is bare block filenames and its loop builds `blocks/${b}`, so an
+// `{url, out}` object in it would be stringified into `blocks/[object Object]` and write a junk file while
+// quietly never fetching the real one. The invisible technical blocks need these because vanilla draws no
+// block texture for them at all -- the item sprite IS the art, and the block tile is copied from it.
+const itemSprites = [
+  { url: `${BASE_1214}/items/barrier.png`, out: 'public/assets/items/barrier.png' },
+  { url: `${BASE_1214}/items/light.png`, out: 'public/assets/items/light.png' },
+  { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' }
 ];
 
 const guis = [
@@ -237,6 +253,14 @@ async function run() {
   console.log('Downloading GUIs...');
   for (const g of guis) {
     await downloadFile(g.url, g.out);
+  }
+  console.log('Downloading item sprites that stand in for block textures...');
+  for (const s of itemSprites) {
+    await downloadFile(s.url, s.out);
+    // A copy lands in the BLOCK atlas too, because a vanilla barrier is an invisible cube and there is no
+    // block tile upstream. Writing it here rather than by hand is what keeps a clean checkout working: the
+    // two copies must stay byte-identical, and the test asserts that they are.
+    await downloadFile(s.url, `public/assets/blocks/${s.out.split('/').pop()}`);
   }
   console.log('Downloading Entities...');
   for (const e of entities) {

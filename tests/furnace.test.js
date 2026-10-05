@@ -54,7 +54,10 @@ test('Furnace cooking recipes: supports all raw foods and smelting items', () =>
   assert.equal(getSmeltingRecipe('cod')?.id, 'cooked_cod');
   assert.equal(getSmeltingRecipe('salmon')?.id, 'cooked_salmon');
   assert.equal(getSmeltingRecipe('potato')?.id, 'baked_potato');
-  assert.equal(getSmeltingRecipe('kelp')?.id, 'dried_kelp');
+  // Kelp by its block id, which is the id this game actually uses for it: kelp is placed as well as eaten,
+  // so the inventory holds `{id: BLOCKS.KELP, isBlock: true}`. Keyed by name the row was unreachable and
+  // kelp stopped smelting, which is the same failure this test's `raw_*` block was written about.
+  assert.equal(getSmeltingRecipe(BLOCKS.KELP)?.id, 'dried_kelp');
 
   // The vanilla spellings are deliberately not entries: nothing is registered under them, so a caller
   // that asks for one is asking for an id no item can hold. `inspect-resource.mjs faults` reports any

@@ -151,6 +151,11 @@ export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiency
   }
   // Unbreakable blocks (bedrock and friends) are marked with an absurd hardness.
   if (effect.hardness >= 99999) return Infinity;
+  // And vanilla marks its own unbreakable blocks with a *negative* hardness -- bedrock, both portals, the
+  // command, structure and jigsaw blocks carry -1 in the pinned data. The table has rows for those now, where
+  // it had none and this function fell back to the block definition; without this they read as hardness -1
+  // and became instant to break.
+  if (effect.hardness < 0) return Infinity;
   if (effect.hardness <= 0) return 0;
 
   let speed = effect.speedMultiplier;

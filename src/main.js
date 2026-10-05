@@ -13,7 +13,7 @@ import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, blockIdForPlacement } from './blocks.js';
 import { drinkPotion, isDrinkablePotion } from './potionUse.js';
 import { miningSpeedMultiplier } from './statusEffects.js';
 import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
@@ -1883,7 +1883,8 @@ class Game {
       );
 
       if (!collidesWithPlayer) {
-        const blockIdToPlace = activeItem.isBlock ? activeItem.id : (ITEMS[activeItem.id]?.blockId || activeItem.id);
+        // Name- or id-keyed, whichever this game used for the item: see lockIdForPlacement.
+        const blockIdToPlace = blockIdForPlacement(activeItem);
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
