@@ -17,6 +17,9 @@ export const BREEDING_FOODS = {
   // Wiki: mooshrooms breed with wheat, and the pair check below requires matching types,
   // so a mooshroom and a cow cannot breed with each other.
   mooshroom: ['wheat'],
+  // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
+  // id here, so it is listed as the block constant rather than a string.
+  rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],
   strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],

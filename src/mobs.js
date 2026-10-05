@@ -32,6 +32,7 @@ import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
 import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
 import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
 import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, createEndermiteModel, poseEndermiteLegs, updateEndermiteLifetime, updateEndermiteHunt, updateEndermanEndermiteAggression } from './endermiteBehavior.js';
+import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -355,6 +356,7 @@ export class MobManager {
       case 'cave_spider': return this.spawnCaveSpider(x, y, z, {});
       case 'silverfish': return this.spawnSilverfish(x, y, z, {});
       case 'endermite': return this.spawnEndermite(x, y, z, {});
+      case 'rabbit': return this.spawnRabbit(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2306,6 +2308,9 @@ export class MobManager {
       case 'silverfish': return SILVERFISH_DIMENSIONS;
       // Wiki: endermites are also 0.4 x 0.3, and the smallest hostile hitbox.
       case 'endermite': return ENDERMITE_DIMENSIONS;
+      // Wiki: rabbits are 0.4 x 0.5. A spawned rabbit carries its own size, so babies
+      // resolve through the instance values.
+      case 'rabbit': return RABBIT_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3064,6 +3069,66 @@ export class MobManager {
       timer: 0,
       hitCooldown: 0
     };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Rabbit.
+   *
+   * Wiki: 3 HP, 0.4 x 0.5, six natural coat variants chosen by biome, breeding with
+   * carrots/golden carrots/dandelions, and a hop gait rather than a walk. The Killer Bunny
+   * (`RabbitType: 99`) is the hostile variant, spawnable only by command.
+   */
+  spawnRabbit(x, y, z, options = {}) {
+    const coat = options.coat || (options.killer ? 'killer' : rollRabbitCoat(options.biome));
+    const colors = RABBIT_COAT_COLORS[coat] || RABBIT_COAT_COLORS.brown;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    const patchMat = new THREE.MeshLambertMaterial({ color: colors.patch });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group, head, body, patchMesh, tail, ears, legs, eyes } = createRabbitModel(bodyMat, patchMat, eyeMat);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(RABBIT_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? RABBIT_BABY_DIMENSIONS : RABBIT_DIMENSIONS;
+    const mob = {
+      type: 'rabbit',
+      name: options.killer ? 'The Killer Bunny' : 'Rabbit',
+      mesh: group,
+      head,
+      body,
+      patchMesh,
+      tail,
+      ears,
+      legs,
+      eyes,
+      bodyMat,
+      patchMat,
+      eyeMat,
+      // Wiki: 3 HP.
+      health: RABBIT_HEALTH,
+      maxHealth: RABBIT_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      // Wiki: `RabbitType`. 99 is The Killer Bunny.
+      rabbitType: options.killer ? KILLER_BUNNY_TYPE : RABBIT_COATS.indexOf(coat),
+      coat,
+      isHostile: !!options.killer,
+      // Wiki: the killer bunny has 8 armour points.
+      armor: options.killer ? KILLER_BUNNY_ARMOR : (options.armor ?? 0),
+      retreatTimer: 0,
+      hopTimer: Math.random() * 0.5,
+      rabbitPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    applyRabbitCoat(mob);
     this.mobs.push(mob);
     return mob;
   }
@@ -6163,6 +6228,9 @@ export class MobManager {
       // Wiki: hitting one calls other silverfish in a 21x11x21 area to help.
       angerSilverfish(mob, attacker);
       alertSilverfish(this, mob, attacker);
+    } else if (isKillerBunny(mob)) {
+      // Wiki: the killer bunny retreats briefly when struck, then returns to lunging.
+      onKillerBunnyHurt(mob);
     }
 
     if (mob.health <= 0 && mob.laserLine && this.scene) {
@@ -6376,7 +6444,7 @@ export class MobManager {
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
     // Wiki: spiders drop string, plus a spider eye only with player kill credit.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob)];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random)];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6444,7 +6512,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
+          : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
           : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
           : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
@@ -6800,6 +6869,51 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='rabbit'){
+      // Wiki: normal rabbits hop around aimlessly and flee players; the killer bunny hunts.
+      if (isKillerBunny(mob)) {
+        updateKillerBunnyHunt(this, mob, dt, player);
+        moveGroundMob(this, mob, dt);
+        mob.rabbitPhase = (mob.rabbitPhase || 0) + dt * 9;
+        poseRabbitHop(mob, mob.rabbitPhase, !mob.onGround);
+        return true;
+      }
+      // Passive: hop in a wander direction and take a new one periodically.
+      mob.hopTimer = (mob.hopTimer || 0) - dt;
+      mob.timer = (mob.timer || 0) - dt;
+      if (mob.timer <= 0) {
+        mob.timer = 2 + Math.random() * 4;
+        mob.yaw = Math.random() * Math.PI * 2;
+      }
+      // Wiki: normal rabbits avoid players within 8 blocks.
+      if (player?.position && mob.mesh.position.distanceTo(player.position) < RABBIT_PLAYER_AVOID_RANGE) {
+        const away = mob.mesh.position.clone().sub(player.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) {
+          away.normalize();
+          mob.yaw = Math.atan2(away.x, away.z);
+          mob.timer = 2;
+        }
+      }
+      if (mob.hopTimer <= 0) {
+        // Wiki: rabbits hop rather than walk. Each hop is a short burst of velocity.
+        mob.hopTimer = 0.45 + Math.random() * 0.4;
+        if (mob.onGround) {
+          mob.velocity.x = Math.sin(mob.yaw) * 2.4;
+          mob.velocity.z = Math.cos(mob.yaw) * 2.4;
+          mob.velocity.y = 3.0;
+          mob.onGround = false;
+        }
+      } else {
+        // Between hops it settles, so the movement reads as a hop and not a glide.
+        mob.velocity.x *= 0.9;
+        mob.velocity.z *= 0.9;
+      }
+      moveGroundMob(this, mob, dt);
+      mob.rabbitPhase = (mob.rabbitPhase || 0) + dt * 8;
+      poseRabbitHop(mob, mob.rabbitPhase, !mob.onGround);
+      return true;
+    }
     if(mob.type==='endermite'){
       // Wiki: endermites chase players, fight endermen, and despawn after two minutes
       // unless named. The enderman/endermite pairing is refreshed elsewhere in the update.
