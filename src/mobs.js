@@ -52,7 +52,7 @@ import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
-import { VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
+import { PARCHED_ATTACK_COOLDOWN, PARCHED_WEAKNESS_SECONDS, PARCHED_WEAKNESS_IMMUNE, PARCHED_CONVERSIONS, PARCHED_PICKUP, PARCHED_EQUIPPED_IS_PERSISTENT, VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
 import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
@@ -115,7 +115,7 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
 export const ZOMBIE_FAMILY = ['zombie', 'husk', 'zombie_villager', 'drowned'];
 
 /** Wiki: the skeleton family, which the stray and bogged belong to. */
-export const SKELETON_FAMILY = ['skeleton', 'stray', 'bogged', 'wither_skeleton'];
+export const SKELETON_FAMILY = ['skeleton', 'stray', 'bogged', 'parched', 'wither_skeleton'];
 
 /** True for any member of the zombie family. */
 export function inZombieFamily(type) {
@@ -510,6 +510,7 @@ export class MobManager {
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
       case 'bogged': return this.spawnSkeletonVariant(x, y, z, 'bogged', options);
+      case 'parched': return this.spawnSkeletonVariant(x, y, z, 'parched', options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
@@ -2546,6 +2547,8 @@ export class MobManager {
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
       case 'bogged': return VARIANT_DIMENSIONS.bogged;
+      // Wiki: a parched is 0.6 x 1.99, the same as the other skeleton variants.
+      case 'parched': return VARIANT_DIMENSIONS.parched;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -7674,7 +7677,7 @@ export class MobManager {
   isTrainingSiteMob(mob) {
     if (!mob || !mob.mesh) return false;
     if (this.game && !this.game.tournament?.isTournamentMap) return false;
-    const hostileTypes = ['zombie', 'husk', 'skeleton', 'stray', 'bogged', 'pillager', 'creeper', 'enderman'];
+    const hostileTypes = ['zombie', 'husk', 'skeleton', 'stray', 'bogged', 'parched', 'pillager', 'creeper', 'enderman'];
     if (!hostileTypes.includes(mob.type)) return false;
 
     if (this.game?.dungeonMode?.isActive) return true;
@@ -8121,6 +8124,8 @@ export class MobManager {
       // Wiki: a stray and a bogged drop bones and arrows like a skeleton, plus their tipped arrow.
       stray: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
       bogged: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
+      // Wiki: a parched drops bones and arrows like a skeleton, plus its Arrow of Weakness.
+      parched: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
       creeper: [['gunpowder', false, 1, 2]],
       zombie: [['rotten_flesh', false, 1, 2]],
       // Wiki: a husk drops rotten flesh like a zombie.
@@ -8283,7 +8288,7 @@ export class MobManager {
           }
         }
         if (this.entities?.spawnXpOrbs) {
-          const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
+          const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
           const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
@@ -8291,6 +8296,7 @@ export class MobManager {
           : mob.type === 'allay' ? 0
           : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
           : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
+          : mob.type === 'parched' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) + (mob.armor ? 1 + Math.floor(Math.random() * 3) : 0) : 0)
           : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
           : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
           : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
@@ -10675,7 +10681,7 @@ export class MobManager {
       } else {
         wanderMob(this, mob, dt, 0.8);
       }
-    } else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'bogged') {
+    } else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'bogged' || mob.type === 'parched') {
       if (distToPlayer < 18) {
         const dir = player.position.clone().sub(mob.mesh.position);
         dir.y = 0;
@@ -10691,10 +10697,13 @@ export class MobManager {
 
         mob.shootCooldown -= dt;
         if (mob.shootCooldown <= 0) {
-        // Wiki: a bogged fires as fast but has a longer cooldown between attacks -- 4.5 s normally
-        // and 3.5 s on Hard, against the skeleton's 2.5 s here. A stray is as fast as a skeleton.
-        mob.shootCooldown = mob.type === 'bogged'
-          ? boggedAttackCooldown(this.game?.difficulty ?? 'normal')
+        // Wiki: a bogged and a parched both fire more slowly than a skeleton -- 4.5 s normally and 3.5 s
+        // on Hard, against the skeleton's 2.5 s here. A stray is as fast as a skeleton.
+        const slowArcher = mob.type === 'bogged' || mob.type === 'parched';
+        mob.shootCooldown = slowArcher
+          ? (mob.type === 'parched'
+            ? (this.game?.difficulty === 'hard' ? PARCHED_ATTACK_COOLDOWN.hard : PARCHED_ATTACK_COOLDOWN.normal)
+            : boggedAttackCooldown(this.game?.difficulty ?? 'normal'))
           : 2.5;
           const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
           const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(shootOrigin).normalize();
@@ -11390,7 +11399,7 @@ export class MobManager {
       let targetMob = null;
       let closestDist = 14;
       for (const m of this.mobs) {
-        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'husk' || m.type === 'skeleton' || m.type === 'stray' || m.type === 'bogged' || m.type === 'creeper' || m.type === 'enderman')) {
+        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'husk' || m.type === 'skeleton' || m.type === 'stray' || m.type === 'bogged' || m.type === 'parched' || m.type === 'creeper' || m.type === 'enderman')) {
           const d = mob.mesh.position.distanceTo(m.mesh.position);
           if (d < closestDist) {
             closestDist = d;

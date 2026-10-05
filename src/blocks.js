@@ -986,6 +986,7 @@ export const ITEMS = {
   crossbow: { name: 'Crossbow', attack: 8, icon: '/assets/items/crossbow.png', type: 'weapon' },
   // Wiki: a stray drops an Arrow of Slowness and a bogged an Arrow of Poison.
   tipped_arrow_slowness: { name: 'Arrow of Slowness', icon: '/assets/items/tipped_arrow_slowness.png', type: 'material' },
+  tipped_arrow_weakness: { name: 'Arrow of Weakness', icon: '/assets/items/tipped_arrow_weakness.png', type: 'material' },
   tipped_arrow_poison: { name: 'Arrow of Poison', icon: '/assets/items/tipped_arrow_poison.png', type: 'material' },
   arrow: { name: 'Arrow', icon: '/assets/items/arrow.png', type: 'projectile' },
   trident: { name: 'Trident', attack: 9, icon: '/assets/items/trident.png', type: 'weapon' },
@@ -1251,6 +1252,7 @@ export const ITEMS = {
   bat_spawn_egg: { name: 'Bat Spawn Egg', icon: '/assets/items/bat_spawn_egg.png', type: 'spawn_egg', mob: 'bat' },
   fox_spawn_egg: { name: 'Fox Spawn Egg', icon: '/assets/items/fox_spawn_egg.png', type: 'spawn_egg', mob: 'fox' },
   bee_spawn_egg: { name: 'Bee Spawn Egg', icon: '/assets/items/bee_spawn_egg.png', type: 'spawn_egg', mob: 'bee' },
+  parched_spawn_egg: { name: 'Parched Spawn Egg', icon: '/assets/items/parched_spawn_egg.png', type: 'spawn_egg', mob: 'parched' },
   camel_spawn_egg: { name: 'Camel Spawn Egg', icon: '/assets/items/camel_spawn_egg.png', type: 'spawn_egg', mob: 'camel' },
   wandering_trader_spawn_egg: { name: 'Wandering Trader Spawn Egg', icon: '/assets/items/wandering_trader_spawn_egg.png', type: 'spawn_egg', mob: 'wandering_trader' },
   allay_spawn_egg: { name: 'Allay Spawn Egg', icon: '/assets/items/allay_spawn_egg.png', type: 'spawn_egg', mob: 'allay' },

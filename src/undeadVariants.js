@@ -1,24 +1,26 @@
 /**
- * Zombie and skeleton variants: husk, stray and bogged.
+ * Zombie and skeleton variants: husk, stray, bogged and parched.
  *
- * Reference: https://minecraft.wiki/w/Husk · https://minecraft.wiki/w/Stray · https://minecraft.wiki/w/Bogged
+ * References: https://minecraft.wiki/w/Husk · /w/Stray · /w/Bogged · /w/Parched
+ *
  *
  * All three are variants of a mob that already exists, so the *geometry* is shared and only the
  * appearance, stats and one signature behaviour differ. Keeping the differences in one table means the
  * three spawners are thin delegations rather than three near-copies of the zombie and skeleton models.
  */
 
-/** Wiki: husk 20 HP with 2 armour; stray 20 HP; bogged 16 HP. */
-export const VARIANT_HEALTH = { husk: 20, stray: 20, bogged: 16 };
+/** Wiki: husk 20 HP with 2 armour; stray 20 HP; bogged 16 HP; parched 16 HP. */
+export const VARIANT_HEALTH = { husk: 20, stray: 20, bogged: 16, parched: 16 };
 
 /** Wiki: husk has a natural armour rating of 2. */
 export const HUSK_ARMOR = 2;
 
-/** Wiki: adult 1.95 tall for the husk, 1.99 for the stray and bogged; all 0.6 wide. */
+/** Wiki: adult 1.95 tall for the husk, 1.99 for the archers; all 0.6 wide. */
 export const VARIANT_DIMENSIONS = {
   husk: { width: 0.6, height: 1.95 },
   stray: { width: 0.6, height: 1.99 },
-  bogged: { width: 0.6, height: 1.99 }
+  bogged: { width: 0.6, height: 1.99 },
+  parched: { width: 0.6, height: 1.99 }
 };
 
 /** Wiki: husk babies are 0.49 x 0.98. Zombie and skeleton babies are not implemented. */
@@ -46,6 +48,44 @@ export const BOGGED_POISON_SECONDS = 4;
 /** Wiki: the bogged's attack cooldown is 4.5 s (3.5 on Hard), against the skeleton's 3 s. */
 export const BOGGED_ATTACK_COOLDOWN = { normal: 4.5, hard: 3.5 };
 
+/**
+ * Wiki: the parched fires "more slowly" than a skeleton -- every 4.5 s on Easy and Normal and every 3.5 s
+ * on Hard, in Java.
+ */
+export const PARCHED_ATTACK_COOLDOWN = { normal: 4.5, hard: 3.5 };
+
+/** Wiki: parched shoot Arrow of Weakness, giving Weakness for 30 seconds. */
+export const PARCHED_WEAKNESS_SECONDS = 30;
+
+/**
+ * Wiki: "Parched are also immune to the Weakness effect, although this typically makes no effective
+ * difference since parched attack using projectiles." Recorded because it is a real immunity.
+ */
+export const PARCHED_WEAKNESS_IMMUNE = true;
+
+/**
+ * Wiki: like the bogged, "parched take freezing damage and do not convert into strays", and "unlike
+ * husks converting into zombies, parched do not turn into skeletons when submerged in water for too
+ * long". So the parched has NO conversion path, which is a deliberate absence rather than an omission.
+ */
+export const PARCHED_CONVERSIONS = { toStray: false, toSkeleton: false };
+
+/**
+ * Wiki: "Some parched spawn with the ability to pick up dropped items from the ground. Unlike zombies,
+ * however, they pick up only weapons, shields, and armor." It prefers more damaging weapons "without
+ * considering enchantments", then NBT-bearing ones, then less damaged ones, and prefers bows.
+ *
+ * It never picks up spears.
+ */
+export const PARCHED_PICKUP = {
+  kinds: ['weapon', 'shield', 'armor'],
+  alwaysIgnored: ['spear'],
+  prefersBowOverOtherWeapons: true
+};
+
+/** Wiki: a parched equipped with a picked-up item "becomes persistent and does not despawn". */
+export const PARCHED_EQUIPPED_IS_PERSISTENT = true;
+
 /** Wiki: shearing a bogged drops 2 mushrooms, each independently red or brown, once only. */
 export const BOGGED_SHEAR_DROPS = { count: 2, types: ['red_mushroom', 'brown_mushroom'] };
 
@@ -67,14 +107,16 @@ export const VARIANT_UNDEAD_TRAITS = {
 export const VARIANT_ATTACK_EFFECT = {
   husk: { effect: 'hunger', seconds: HUSK_HUNGER_SECONDS },
   stray: { effect: 'slowness', seconds: STRAY_SLOWNESS_SECONDS },
-  bogged: { effect: 'poison', seconds: BOGGED_POISON_SECONDS }
+  bogged: { effect: 'poison', seconds: BOGGED_POISON_SECONDS },
+  parched: { effect: 'weakness', seconds: PARCHED_WEAKNESS_SECONDS }
 };
 
-/** Body colours: husks are sand-dry, strays pale blue, bogged moss-covered. */
+/** Body colours: husks are sand-dry, strays pale blue, bogged moss-covered, parched sun-bleached. */
 export const VARIANT_TINTS = {
   husk: 0xc2a878,
   stray: 0xa8c4d4,
-  bogged: 0x7c8f5a
+  bogged: 0x7c8f5a,
+  parched: 0xd6c9a8
 };
 
 /** True for any of the three variants. */
@@ -94,15 +136,24 @@ export function variantDimensions(type, isBaby = false) {
 }
 
 /**
+ * The undead variants that do NOT burn in sunlight.
+ *
+ * Wiki: the husk is "one of the few undead mobs that are immune to burning in sunlight", and the parched
+ * "do not burn in sunlight" either. The stray and bogged both carry `burn_in_daylight`.
+ *
+ * A list rather than a single negative, because the function was first written when only the husk was
+ * exempt and had to be corrected the moment a second immune variant existed.
+ */
+export const VARIANT_SUN_IMMUNE = ['husk', 'parched'];
+
+/**
  * Whether this variant burns in sunlight.
  *
- * Wiki: the husk is "one of the few undead mobs that are immune to burning in sunlight"; the stray and
- * bogged both carry `burn_in_daylight`. So this is a real behavioural difference, not cosmetic.
+ * So this is a real behavioural difference, not cosmetic.
  */
 export function variantBurnsInDaylight(type) {
   if (!Object.hasOwn(VARIANT_HEALTH, type ?? '')) return false;
-  // Only the husk is immune. Its helmets also do not break in daylight, which follows from this.
-  return type !== 'husk';
+  return !VARIANT_SUN_IMMUNE.includes(type);
 }
 
 /** Wiki: a husk avoids water, and a stray or bogged does not. */
@@ -198,6 +249,7 @@ export function variantBonusDrops(mob, random = Math.random) {
   if (!credited) return rows;
   if (mob.type === 'stray' && random() < 0.5) rows.push(['tipped_arrow_slowness', false, 1, 1]);
   if (mob.type === 'bogged' && random() < 0.5) rows.push(['tipped_arrow_poison', false, 1, 1]);
+  if (mob.type === 'parched' && random() < 0.5) rows.push(['tipped_arrow_weakness', false, 1, 1]);
   return rows;
 }
 
