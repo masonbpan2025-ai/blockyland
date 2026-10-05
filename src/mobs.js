@@ -28,6 +28,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
  * resolve an id back to one.
  */
 const BLOCK_NAMES_BY_ID = new Map();
+import { steerGround } from './netherMobAI.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { MobLibrary } from './mobLibrary.js';
@@ -48,6 +49,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { COPPER_GOLEM_HEALTH, COPPER_GOLEM_DIMENSIONS, COPPER_GOLEM_SPEED, COPPER_OXIDATION_STAGES, COPPER_OXIDATION_SECONDS, COPPER_GOLEM_COLORS, isCopperGolem, copperGolemDimensions, copperGolemCanPlaceIn, copperGolemCanTakeFrom, copperGolemCanStoreIn, findCopperGolemSource, findCopperGolemDestination, copperGolemTake, copperGolemPlace, updateCopperGolemOxidation, waxCopperGolem, scrapeCopperGolem, reanimateCopperGolemStatue, shearCopperGolem, giveCopperGolemPoppy, copperGolemDrops, copperGolemXp, copperGolemColor, createCopperGolemModel, poseCopperGolem } from './copperGolemBehavior.js';
 import { CAMEL_HUSK_HEALTH, CAMEL_HUSK_DIMENSIONS, CAMEL_HUSK_SITTING_DIMENSIONS, CAMEL_HUSK_STAND_CLEARANCE, CAMEL_HUSK_SPEED, CAMEL_HUSK_CAMEL_SPEED, CAMEL_HUSK_UNDEAD_TRAITS, CAMEL_HUSK_JOCKEY, CAMEL_HUSK_SPAWN, CAMEL_HUSK_EQUIPMENT, CAMEL_HUSK_DROPS, CAMEL_HUSK_COLORS, isCamelHusk, camelHuskDimensions, camelHuskBurnsInDaylight, camelHuskCanStand, camelHuskSit, camelHuskStand, updateCamelHuskSitting, camelHuskIsHostile, separateCamelHuskRiders, mountCamelHuskJockey, camelHuskDrops, camelHuskXp, equipCamelHuskSaddle, shearCamelHuskSaddle, createCamelHuskModel, poseCamelHusk } from './camelHuskBehavior.js';
 import { GIANT_HEALTH, GIANT_DIMENSIONS, ZOMBIE_DIMENSIONS, GIANT_SCALE, GIANT_DAMAGE, GIANT_UNDEAD_PROPERTIES, GIANT_DROWNING, GIANT_FACING_YAW, GIANT_HAS_AI, GIANT_COLORS, isGiant, giantDimensions, giantDamageFor, giantBurnsInDaylight, giantFacing, giantMoves, giantReactionToDamage, giantAcceptsEffect, giantPotionOutcome, giantScaresArmadillos, giantUnderwaterOutcome, giantDrops, giantXp, giantAttack, createGiantModel, poseGiant } from './giantBehavior.js';
 import { PUFFERFISH_HEALTH, TROPICAL_FISH_HEALTH, PUFFERFISH_DIMENSIONS, TROPICAL_FISH_DIMENSIONS, FISH_SPEED, PUFFERFISH_CONTACT, PUFFERFISH_POISON, PUFFERFISH_TRIGGER, AQUATIC_TYPES, TROPICAL_FISH_VARIANTS, TROPICAL_FISH_SHAPES, TROPICAL_FISH_COLORS, TROPICAL_FISH_PATTERNS, FISH_COLORS, isPufferfish, isTropicalFish, isSmallFish, pufferfishDimensions, pufferfishStage, pufferfishDamageFor, pufferfishPoisonFor, pufferfishReactsTo, findPufferfishThreat, updatePufferfishPuff, pufferfishContact, rollTropicalFishVariant, tropicalFishVariantName, fishDrops, fishXp, createPufferfishModel, posePufferfish, createTropicalFishModel, poseTropicalFish } from './fishBehavior.js';
@@ -533,6 +535,7 @@ export class MobManager {
       case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
       case 'camel': return this.spawnCamel(x, y, z, options);
       case 'camel_husk': return this.spawnCamelHusk(x, y, z, options);
+      case 'copper_golem': return this.spawnCopperGolem(x, y, z, options);
       case 'creaking': return this.spawnCreaking(x, y, z, options);
       case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
       case 'illusioner': return this.spawnIllusioner(x, y, z, options);
@@ -2593,6 +2596,8 @@ export class MobManager {
       case 'camel': return CAMEL_DIMENSIONS;
       // Wiki: a camel husk is 1.7 x 2.375 standing and 1.7 x 0.945 sitting -- the camel box exactly.
       case 'camel_husk': return CAMEL_HUSK_DIMENSIONS;
+      // Wiki: a copper golem is 0.49 x 0.98 in Java.
+      case 'copper_golem': return COPPER_GOLEM_DIMENSIONS;
       // Wiki: a creaking is 0.9 x 2.7.
       case 'creaking': return CREAKING_DIMENSIONS;
       // Wiki: a snow golem is 0.7 x 1.9 in Java. Its loot table already existed while it had no
@@ -7685,6 +7690,68 @@ export class MobManager {
   }
 
   /**
+   * Copper golem.
+   *
+   * Wiki: 12 HP, 0.49 x 0.98, speed 0.2, passive. It "takes items out of copper chests, and attempts to
+   * store them in nearby wooden chests and trapped chests", and if it is not waxed it oxidizes through four
+   * stages until it becomes a statue, dropping whatever it was holding.
+   */
+  spawnCopperGolem(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const stage = options.oxidationStage ?? 'unoxidized';
+    const color = copperGolemColor(stage);
+    const bodyMat = new THREE.MeshLambertMaterial({ color });
+    const trimMat = new THREE.MeshLambertMaterial({ color: 0xd98d63 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1d2b1a });
+    const { group: model, body, head, eyes, antenna, bulb, arms, legs, held } =
+      createCopperGolemModel(bodyMat, trimMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'copper_golem',
+      name: 'Copper Golem',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, antenna, bulb, arms, legs, held,
+      bodyMat, trimMat,
+      // Wiki: 12 HP.
+      health: COPPER_GOLEM_HEALTH,
+      maxHealth: COPPER_GOLEM_HEALTH,
+      width: COPPER_GOLEM_DIMENSIONS.width,
+      height: COPPER_GOLEM_DIMENSIONS.height,
+      // Wiki: speed 0.2.
+      speed: COPPER_GOLEM_SPEED,
+      // Wiki: passive.
+      isHostile: false,
+      isPassive: true,
+      // The oxidation ladder.
+      oxidationStage: stage,
+      oxidationTimer: 0,
+      waxed: !!options.waxed,
+      isStatue: false,
+      // The hauling job.
+      heldItem: null,
+      heldCount: 0,
+      hasPoppy: false,
+      // It is NOT undead, and it does not burn.
+      undead: false,
+      burnsInDaylight: false,
+      copperGolemPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
    * Camel husk.
    *
    * Wiki: 32 HP, the camel box, speed 0.09. The camel's UNDEAD variant: passive alone but hostile as a
@@ -8833,6 +8900,9 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: a copper golem drops 1-3 copper ingots. The row does not exist in the base table, so the manager
+    // has to be told about it.
+    const copperGolemRows = isCopperGolem(mob) ? copperGolemDrops(mob, random) : [];
     // Wiki: a camel husk drops 2-3 rotten flesh. This row does NOT exist in the base table yet, so unlike
     // the other mobs here the manager has to be told about it.
     const camelHuskRows = isCamelHusk(mob) ? camelHuskDrops(mob, random) : [];
@@ -8848,7 +8918,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows];
   }
 
   /**
@@ -8952,7 +9022,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isCopperGolem(mob) ? 0
+          : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
           : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
           : isGiant(mob) ? 0
           : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
@@ -9797,6 +9868,76 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isCopperGolem(mob)){
+      // Wiki: a passive mob whose job is hauling items, and which oxidizes into a statue over time.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      // Wiki: "If not waxed, a copper golem oxidizes over time and eventually turns into a copper golem
+      // statue, dropping its currently held items."
+      const oxidized = updateCopperGolemOxidation(mob, dt);
+      if (oxidized) {
+        // The palette follows the stage, so the change is visible as well as mechanical.
+        const color = copperGolemColor(mob.oxidationStage);
+        if (mob.bodyMat) mob.bodyMat.color.setHex(color);
+        if (mob.droppedOnOxidizing) {
+          this.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), mob.droppedOnOxidizing.id, false, mob.droppedOnOxidizing.count);
+          mob.droppedOnOxidizing = null;
+        }
+        if (oxidized === 'statue') {
+          mob.state = 'statue';
+          mob.velocity.set(0, 0, 0);
+          poseCopperGolem(mob, mob.copperGolemPhase || 0);
+          return true;
+        }
+      }
+
+      if (mob.isStatue) {
+        mob.velocity.set(0, 0, 0);
+        return true;
+      }
+
+      // The hauling job: take from a copper chest, carry one type, put it in a wooden chest that is empty
+      // or already holds that type.
+      if (!mob.heldItem) {
+        const source = findCopperGolemSource(this, mob);
+        if (source) {
+          const pos = source.position ?? source.mesh?.position;
+          if (pos && mob.mesh.position.distanceTo(pos) < 1.5) {
+            copperGolemTake(mob, source);
+            mob.state = 'taking';
+          } else if (pos) {
+            steerGround(this, mob, pos, dt, 2);
+            mob.state = 'hauling-to-source';
+          }
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+        }
+      } else {
+        const destination = findCopperGolemDestination(this, mob, mob.heldItem);
+        if (destination) {
+          const pos = destination.position ?? destination.mesh?.position;
+          if (pos && mob.mesh.position.distanceTo(pos) < 1.5) {
+            copperGolemPlace(mob, destination);
+            mob.state = 'storing';
+          } else if (pos) {
+            steerGround(this, mob, pos, dt, 2);
+            mob.state = 'hauling-to-chest';
+          }
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+        }
+      }
+
+      // It is not undead, so it never burns.
+      mob.isBurning = false;
+      if (mob.held && mob.held.visible !== !!mob.heldItem) mob.held.visible = !!mob.heldItem;
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.copperGolemPhase = (mob.copperGolemPhase || 0) + dt;
+      poseCopperGolem(mob, mob.copperGolemPhase);
       return true;
     }
     if(isCamelHusk(mob)){

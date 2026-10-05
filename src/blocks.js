@@ -1343,6 +1343,7 @@ export const ITEMS = {
   warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
   wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' },
+  copper_golem_spawn_egg: { name: 'Copper Golem Spawn Egg', icon: '/assets/items/copper_golem_spawn_egg.png', type: 'spawn_egg', mob: 'copper_golem' },
   camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
 };
