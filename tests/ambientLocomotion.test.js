@@ -19,7 +19,15 @@ import {
 function fixture({ playerAt = new THREE.Vector3(12, 1, 0), worldTime = 18000 } = {}) {
   const scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
-  const world = { getVoxel: (x, y, z) => (y < 1 ? BLOCKS.STONE : BLOCKS.AIR), getHeightAt: () => 0, getLightLevel: () => 0, setVoxel() {} };
+  const world = {
+    getVoxel: (x, y, z) => (y < 1 ? BLOCKS.STONE : BLOCKS.AIR),
+    getHeightAt: () => 0,
+    // A flying mob needs the ground height to hold its altitude; without it there is nothing to
+    // hover above and the drift path leaves it level.
+    surfaceHeightAt: () => 1,
+    getLightLevel: () => 0,
+    setVoxel() {}
+  };
   const entities = new EntityManager(scene, world, sounds);
   entities.spawnDroppedItem = () => {};
   const manager = Object.assign(Object.create(MobManager.prototype), {
@@ -219,6 +227,72 @@ test('the mooshroom specifically walks like the cow it is', () => {
   assert.ok(results.cow > 0.25, `the cow walks (${results.cow.toFixed(2)})`);
   assert.ok(results.mooshroom > 0.25,
     `the mooshroom must walk too, moved ${results.mooshroom.toFixed(2)}`);
+});
+
+test('a flying mob steers horizontally without diving at the ground', () => {
+  // A flyer sits above its target, so measuring yaw from the full three-dimensional vector would
+  // pitch it down into the terrain. The yaw must come from the horizontal component alone.
+  const { manager, player } = fixture({ playerAt: new THREE.Vector3(12, 1, 0) });
+  const vex = manager.spawnMob('vex', 0, 6, 0);
+  assert.equal(vex.isFlying, true, 'the fixture mob really is a flyer');
+  assert.equal(locomotionFor('vex').flying, true, 'and its role knows that');
+
+  const outcome = updateAmbientLocomotion(manager, vex, 1 / 60, player, { wander: () => { throw new Error('a flyer must not use the ground wanderer'); } });
+  assert.equal(outcome, 'chasing');
+  // Horizontal movement toward the player, and a vertical component that descends toward the
+  // player's altitude rather than continuing up or slamming down.
+  assert.ok(vex.velocity.y < 0, 'it descends toward its target altitude');
+  assert.ok(Math.abs(vex.velocity.y) <= 2.5, 'the descent is bounded');
+  assert.ok(Math.hypot(vex.velocity.x, vex.velocity.z) > 0, 'and it closes horizontally');
+});
+
+test('a flying mob never uses the ground wanderer when out of range', () => {
+  // The shared wanderer picks goals that stand on solid ground, so a flyer using it would be driven
+  // into the terrain. It drifts at a fixed altitude instead.
+  const { manager, player } = fixture({ playerAt: new THREE.Vector3(200, 1, 200) });
+  const vex = manager.spawnMob('vex', 0, 6, 0);
+  let wandered = 0;
+  const outcome = updateAmbientLocomotion(manager, vex, 1 / 60, player, { wander: () => { wandered++; } });
+  assert.equal(outcome, 'drifting');
+  assert.equal(wandered, 0, 'it did not call the ground wanderer');
+  assert.equal(vex.state, 'idle');
+  assert.ok(Math.hypot(vex.velocity.x, vex.velocity.z) > 0, 'it still drifts horizontally');
+});
+
+test('a flying mob climbs back to its altitude when it drifts low', () => {
+  const { manager, player } = fixture({ playerAt: new THREE.Vector3(200, 1, 200) });
+  const vex = manager.spawnMob('vex', 0, 1, 0);
+  // Hovering just above the ground, well below the declared altitude.
+  updateAmbientLocomotion(manager, vex, 1 / 60, player);
+  assert.ok(vex.velocity.y > 0, `it climbs back up, vy=${vex.velocity.y}`);
+});
+
+test('the zombified piglin is steered by updateZombified rather than standing inert', () => {
+  // Its branch used to call moveGroundMob with nothing having set a velocity, so it never moved.
+  const { manager, player } = fixture();
+  player.position.set(12, 1, 0);
+  const mob = manager.spawnZombifiedPiglin(0, 1, 0);
+  const start = mob.mesh.position.clone();
+  let moved = 0;
+  for (let i = 0; i < 600; i++) {
+    manager.update(1 / 60, player);
+    moved = Math.max(moved, mob.mesh.position.distanceTo(start));
+  }
+  assert.ok(moved > 0.25, `it should move, moved ${moved.toFixed(3)}`);
+  assert.deepEqual([...(manager.mobErrors || [])], [], 'with no reported fault');
+});
+
+test('the zombified piglin still retaliates when attacked', () => {
+  // A zombified piglin is passive until provoked. The fix must not have made it permanently
+  // aggressive, which would be a larger behaviour change than the one intended.
+  const { manager, player } = fixture();
+  player.position.set(12, 1, 0);
+  const mob = manager.spawnZombifiedPiglin(0, 1, 0);
+  assert.equal(mob.angerTimer || 0, 0, 'it starts calm');
+  manager.damageMob(mob, 1, null, false, player);
+  for (let i = 0; i < 60; i++) manager.update(1 / 60, player);
+  assert.ok((mob.angerTimer || 0) > 0, 'being hit angers it');
+  assert.equal(mob.state, 'angry', 'and it enters its angry state');
 });
 
 test('the Inspector still updates covered mobs cleanly', async () => {

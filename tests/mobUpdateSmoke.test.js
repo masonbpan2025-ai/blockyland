@@ -153,10 +153,10 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
     // movement. mobJitter.test.js drives both through `spawnPiglin` and `spawnHoglin` and confirms
     // they travel without shuddering, which is where they are actually covered.
     'piglin', 'hoglin',
-    // Intercepted by an early branch that moves the mob without ever setting a velocity, so the
-    // generic fallback is never reached. zombified_piglin is the clearest case: its branch calls
-    // moveGroundMob directly and returns.
-    'zombified_piglin', 'vex', 'shulker',
+    // Declared stationary: the shulker has no reach and no walking role, so there is nothing to
+    // drive. `vex` was here too until its flying role was declared; it needed an approach altitude
+    // rather than the wanderer, which picks goals that stand on solid ground.
+    'shulker',
     // Aquatic; the adapted arena has no water to swim in.
     'drowned', 'squid', 'glow_squid', 'guardian', 'elder_guardian',
     // Training-arena mobs with their own dedicated loop.

@@ -3,7 +3,7 @@ import { initializeWitherSkeleton, updateWitherSkeleton, hurtWitherSkeleton, dro
 import { updateMobWither } from './witherEffect.js';
 import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
 import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
-import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified} from './zombifiedPiglin.js';
+import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified,updateZombified} from './zombifiedPiglin.js';
 import { createStriderModel } from './striderModel.js';
 import { updateStrider, updateStriderSpawning, updateStriderExposure } from './striderBehavior.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
@@ -7420,7 +7420,18 @@ export class MobManager {
     }
     if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
-      if(!mob.jockeyMount){const speed=moveGroundMob(this,mob,dt);mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;}
+      // This branch used to call moveGroundMob without anything having set a velocity, so the
+      // zombified piglin stood at zero velocity forever: inert, error-free and invisible as a bug.
+      // `updateZombified` owns its targeting, anger and equipment, and applies its steering through
+      // the shared pathfinder, so it is what gives this mob something to move with. It also runs
+      // the arm and head animation, which is why the walk cycle below is left alone.
+      if(!mob.jockeyMount){
+        updateZombified(this, mob, dt);
+        const speed=moveGroundMob(this,mob,dt);
+        mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;
+        const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);
+        mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;
+      }
       return false;
     }
     if(mob.type==='strider'){updateStrider(this,mob,dt,player);return true;}
@@ -8268,6 +8279,12 @@ export class MobManager {
         const targetY = baseHeight + bob;
         mob.velocity.y += (targetY - mob.mesh.position.y) * 1.8 * dt;
         mob.velocity.y = Math.max(-3, Math.min(3, mob.velocity.y));
+      } else {
+        // A flyer with no branch of its own reaches here with a zero velocity, exactly like a ground
+        // mob with no branch reaches the fallback below, and for the same reason: nothing sets one.
+        // The declared role gives it a heading and an approach altitude.
+        const flySpec = locomotionFor(mob.type);
+        if (flySpec?.flying) updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
       }
       moveFlyingMob(this, mob, dt);
     } else {

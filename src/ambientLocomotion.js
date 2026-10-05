@@ -35,7 +35,7 @@ export const HOSTILE_LOCOMOTION = {
   ravager: { range: 24, speed: 3.4, damage: 12, attackReach: 2.2 },
   vindicator: { range: 20, speed: 3.0, damage: 13, attackReach: 1.6 },
   evoker: { range: 20, speed: 2.4, damage: 6, attackReach: 1.6 },
-  vex: { range: 24, speed: 3.6, damage: 9, attackReach: 1.6 },
+  vex: { range: 24, speed: 3.6, damage: 9, attackReach: 1.6, flying: true, flyHeight: 1.2 },
   witch: { range: 16, speed: 2.4, damage: 0, attackReach: 0 },
   warden: { range: 24, speed: 3.6, damage: 30, attackReach: 2.0 },
   guardian: { range: 16, speed: 2.4, damage: 6, attackReach: 1.8 },
@@ -104,9 +104,27 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
 
   if (spec.role === 'hostile' && distToPlayer < spec.range) {
     const dir = player.position.clone().sub(mob.mesh.position);
-    dir.y = 0;
     const dist = dir.length();
-    if (dist > 1.2) {
+    if (spec.flying) {
+      // A flyer is already above the target, so the yaw must be measured on the horizontal
+      // component alone; using the full vector would pitch it into the ground.
+      const flat = new THREE.Vector3(dir.x, 0, dir.z);
+      if (flat.lengthSq() > 1e-6) {
+        flat.normalize();
+        const targetYaw = Math.atan2(flat.x, flat.z);
+        const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+        mob.yaw += turn * Math.min(1, 9 * dt);
+      }
+      if (dist > 1.4) {
+        const approachY = player.position.y + (spec.flyHeight ?? 1.0);
+        mob.velocity.x = Math.sin(mob.yaw) * spec.speed;
+        mob.velocity.z = Math.cos(mob.yaw) * spec.speed;
+        mob.velocity.y = Math.max(-2.5, Math.min(2.5, (approachY - mob.mesh.position.y) * 2.0));
+      } else {
+        mob.velocity.multiplyScalar(0.5);
+      }
+    } else if (dist > 1.2) {
+      dir.y = 0;
       dir.normalize();
       // Turn toward the target rather than snapping, so the mob reads as navigating.
       const targetYaw = Math.atan2(dir.x, dir.z);
@@ -120,7 +138,7 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
       mob.velocity.z *= 0.5;
     }
 
-    if (spec.damage > 0 && distToPlayer < spec.attackReach && (mob.hitCooldown ?? 0) <= 0) {
+    if (spec.damage > 0 && dist < spec.attackReach && (mob.hitCooldown ?? 0) <= 0) {
       player.takeDamage?.(spec.damage, mob.mesh.position, mob.type);
       mob.hitCooldown = 1.0;
     }
@@ -129,6 +147,29 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
   }
 
   // Otherwise wander, using the shared goal-picking wanderer.
+  //
+  // A flying mob cannot use it: the wanderer picks goals that stand on solid ground, which would
+  // drive a flyer down into the terrain. It drifts at a fixed altitude instead.
+  if (spec.flying) {
+    const groundY = manager.world?.surfaceHeightAt?.(mob.mesh.position.x, mob.mesh.position.z);
+    const altitude = spec.flyHeight ?? 2.0;
+    if (typeof groundY === 'number') {
+      const targetY = groundY + 1 + altitude;
+      mob.velocity.y = Math.max(-2, Math.min(2, (targetY - mob.mesh.position.y) * 2));
+    } else {
+      mob.velocity.y = 0;
+    }
+    mob.wanderTimer = (mob.wanderTimer || 0) - dt;
+    if (mob.wanderTimer <= 0) {
+      mob.wanderTimer = 1 + random() * 2;
+      mob.yaw += (random() - 0.5) * 2.2;
+    }
+    mob.velocity.x = Math.sin(mob.yaw) * spec.speed * 0.5;
+    mob.velocity.z = Math.cos(mob.yaw) * spec.speed * 0.5;
+    mob.state = 'idle';
+    return 'drifting';
+  }
+
   wander?.(manager, mob, dt, spec.speed, random);
   mob.state = 'idle';
   return 'wandering';

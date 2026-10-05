@@ -7,7 +7,7 @@ sets a velocity *and* calls a mover. A mob with no branch falls through to `move
 a zero velocity and stands in `state: 'idle'` forever: healthy, error-free and completely inert.
 
 `docs/mob-update-smoke-coverage.md` measured this at **27 of the 60 advertised mobs**. This change
-fixes **nine** of them, and is the first to fix any.
+fixes **eleven** of them.
 
 | Mob | Before | Now |
 | --- | --- | --- |
@@ -20,8 +20,26 @@ fixes **nine** of them, and is the first to fix any.
 | `evoker` | never moved | chases and strikes |
 | `warden` | never moved | chases and strikes |
 | `witch` | never moved | closes on the player (no melee; its threat is potions) |
+| `zombified_piglin` | never moved | chases and strikes, and still retaliates only when provoked |
+| `vex` | never moved | flies at its target and strikes |
 
 Measured by the smoke suite: mobile mobs went from **33 of 60 to 45 of 60**.
+
+Two of those needed a different fix from the rest, because they never reach the generic fallback at
+all:
+
+- **`zombified_piglin`** is intercepted early by `if(isZombifiedPiglin(mob))`, whose branch called
+  `moveGroundMob` **without anything having set a velocity** and then returned. It was in the
+  declared table already and the table was never consulted. The branch now calls `updateZombified`,
+  which owns that mob's targeting, anger and equipment and steers through the shared pathfinder —
+  so the fix is to *call the AI that already existed*, not to write a new one.
+- **`vex`** is flying, and flying mobs take a different path in the update loop that never consulted
+  the table either. A flyer also cannot use the shared wanderer, because it picks goals that stand
+  on solid ground and would drive the mob into the terrain. The role therefore gained a `flying`
+  flag with an approach altitude: a flyer aims its yaw from the **horizontal** component alone (or
+  it would pitch into the ground), descends toward the player's altitude when chasing, and drifts at
+  a fixed height above the surface when idle.
+
 
 ## Why the mooshroom is the case that matters
 
