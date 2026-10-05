@@ -217,6 +217,9 @@ export function buildCreativeCatalog() {
     // The wither skeleton, which the first head batch missed: its standing block existed under a
     // non-standard key and rendered as a coal cube, so only its wall form was ever flagged. Both are here.
     BLOCKS.WITHER_SKELETON_SKULL, BLOCKS.WITHER_SKELETON_WALL_SKULL,
+    // The ender dragon head, whose art needed a different extraction from every other head: its sheet is a
+    // 256x256 model texture with no face layout, so the extractor finds the face by colour.
+    BLOCKS.DRAGON_HEAD, BLOCKS.DRAGON_WALL_HEAD,
     // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
     // machinery -- even though in this engine every one of them is inert decoration. Putting them
     // anywhere else would imply they are building material, which is further from the truth.

@@ -56,12 +56,32 @@ FACES = {
     "front": (8, 8, 8, 8),
 }
 
+# THE ENDER DRAGON IS NOT A STANDARD SKIN and cannot use the rectangles above. Its sheet is 256x256 and is
+# one continuous texture stretched over a model, with no 8x8 face layout anywhere. What it DOES have is a
+# face: locating the eye pixels by colour puts the two eyes at x=130..212, y=44..48 with a magenta mouth
+# below, and the head box around them spans x=124..200, y=36..72.
+#
+# So the dragon is a special case with its own square crop, taken as the largest mostly-opaque square that
+# contains the face. It is an approximation of a model-drawn head, and it reads as a dragon -- dark scales
+# with glowing eyes and a mouth -- rather than as body noise, which is the bar the creeper failed to clear.
+SPECIAL = {
+    "dragon_head": ("enderdragon/dragon.png", (120, 36, 152, 68)),
+}
+
 TILE = 16
 
 
-def extract(skin_path, out_stem):
+def extract(skin_path, out_stem, box=None):
     skin = Image.open(skin_path).convert("RGBA")
     made = []
+    if box is not None:
+        # One square crop, used for all three faces. A model-drawn head has no per-face layout to slice.
+        tile = skin.crop(box).resize((TILE, TILE), Image.Resampling.NEAREST)
+        for face in FACES:
+            tile.save(os.path.join(BLOCKS, f"{out_stem}_{face}.png"), "PNG")
+            made.append(face)
+        return made
+
     for face, (x, y, w, h) in FACES.items():
         tile = skin.crop((x, y, x + w, y + h))
         # The block atlas wants 16x16 tiles, and a head face is 8x8, so scale it up. NEAREST keeps the
@@ -87,6 +107,16 @@ def main():
         faces = extract(skin_path, stem)
         total += len(faces)
         print(f"  {stem:<18} {','.join(faces)}  <- {rel}")
+
+    # The special cases, which have their own crop rather than the standard face rectangles.
+    for stem, (rel, box) in sorted(SPECIAL.items()):
+        skin_path = os.path.join(SKINS, rel)
+        if not os.path.exists(skin_path):
+            print(f"  {stem}: skin {rel} absent, skipping", file=sys.stderr)
+            continue
+        faces = extract(skin_path, stem, box)
+        total += len(faces)
+        print(f"  {stem:<18} {','.join(faces)}  <- {rel} box={box}")
 
     print(f"extracted {total} head-face tiles")
     return 0
