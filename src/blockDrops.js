@@ -91,11 +91,60 @@ function isBlockName(name) {
   return blockNames.has(name);
 }
 
+/**
+ * Blocks whose drop is a different item from the one their definition names.
+ *
+ * Keyed by vanilla name like the other tables here, and consulted *before* the definition's `dropItem`,
+ * because several of these blocks are defined in the generated content file, where a hand edit would be lost
+ * on the next regeneration -- `melon` and `campfire` among them. This file is the one place a drop rule lives.
+ *
+ * Found by `block-drop-parity`, which compares the game's base drop against the drop vanilla's harvest row
+ * names. Nine blocks disagreed, and eight of them had the wrong *item*, not just the wrong count:
+ *
+ *   melon         itself, where vanilla gives three to seven slices
+ *   campfire      itself, where vanilla gives two charcoal
+ *   iron ore      an iron ingot, where vanilla gives raw iron -- skipping the smelting step entirely
+ *   gold ore      a gold ingot, for the same reason
+ *   redstone ore  the ore block back, which is a duplication trick, where vanilla gives four or five dust
+ *   bookshelf     itself, where vanilla gives three books
+ *   snow block    itself, where vanilla gives four snowballs
+ *   sea lantern   itself, where vanilla gives two or three prismarine crystals
+ *   clay block    itself, where vanilla gives four clay balls
+ *
+ * A tenth block disagrees and is not here: vanilla's soul campfire gives two soul soil, and this game has no
+ * soul soil item to give.
+ */
+export const DROP_ITEM_OVERRIDES = {
+  melon: 'melon_slice',
+  campfire: 'charcoal',
+  iron_ore: 'raw_iron',
+  gold_ore: 'raw_gold',
+  redstone_ore: 'redstone',
+  bookshelf: 'book',
+  snow_block: 'snowball',
+  sea_lantern: 'prismarine_crystals',
+  // Keyed by the block's own name as this game spells it -- 'Clay Block' -- not vanilla's clay.
+  clay_block: 'clay_ball',
+};
+
 /** The base drop for a block: the one thing it always gives up, or null when it gives nothing. */
-export function baseBlockDrop(id) {
+export function baseBlockDrop(id, random = Math.random) {
   const def = BLOCK_DEFS[id];
-  if (id === BLOCKS.AIR || !def || def.drop === null || def.liquid) return null;
-  return { id: def.dropItem ?? def.drop ?? id, isBlock: !def.dropItem };
+  if (id === BLOCKS.AIR || !def || def.liquid) return null;
+  const key = bonusKeyFor(id);
+  const override = DROP_ITEM_OVERRIDES[key];
+  // `drop: null` means the block deliberately gives nothing -- but only where no override names what it gives
+  // instead, which is how a block that used to drop itself comes to drop an item.
+  if (!override && def.drop === null) return null;
+  const item = override ?? def.dropItem ?? def.drop ?? id;
+  const range = BASE_DROP_COUNTS[key];
+  const count = range ? range[0] + Math.floor(random() * (range[1] - range[0] + 1)) : 1;
+  // `isBlock` says which *kind* of id the drop is, and it is not inferable from the name: a candle is both a
+  // block and an item, and the door blocks name their item in `drop`, so deriving this from `isBlockName`
+  // turned every door's drop into a block id. A drop that came from `dropItem` -- or from an override, which
+  // is always an item -- is an item; anything else is the block's own id.
+  const namedAnItem = override !== undefined || def.dropItem !== undefined;
+  return { id: item, isBlock: !namedAnItem, count };
 }
 
 /** The name `BONUS_DROPS` keys a block by, matching how the block is registered rather than how it is named. */
@@ -134,17 +183,43 @@ export function replacementDropFor(id, random = Math.random) {
 }
 
 /**
+ * How many of its item a block gives up, where vanilla's number is not one.
+ *
+ * Keyed by vanilla name like the other two tables, and `[min, max]` because vanilla's numbers are ranges: a
+ * redstone ore gives four or five, a melon three to seven. The roll is the caller's, so an Inspector check can
+ * pin it. Everything not named here gives exactly one.
+ *
+ * Found by `block-drop-parity`, which compares the game's base drop with the drop vanilla's harvest row
+ * names. Ten blocks disagreed, and nine of them disagreed about the *item* as well: a bookshelf gave itself
+ * instead of three books, a clay block gave itself instead of four clay balls, a redstone ore gave the ore
+ * block back -- which is a duplication trick, not a drop.
+ */
+export const BASE_DROP_COUNTS = {
+  bookshelf: [3, 3],
+  // Keyed the way this game spells the block -- 'Clay Block' -- like the overrides above, because that is what
+  // `bonusKeyFor` produces. Keyed `clay`, the count silently did not apply and the block gave one ball.
+  clay_block: [4, 4],
+  snow_block: [4, 4],
+  sea_lantern: [2, 3],
+  redstone_ore: [4, 5],
+  melon: [3, 7],
+  campfire: [2, 2],
+  // A soul campfire is deliberately *not* here. Vanilla gives two soul soil and this game has no soul soil
+  // item, so a count would only make it drop two of itself instead of one -- further from vanilla, not closer.
+};
+
+/**
  * Everything breaking this block yields: the base drop or the drop that replaces it, then any bonus drops.
  *
  * @returns {Array<{id: (string|number), isBlock: boolean, count: number}>} empty when the block yields nothing
  */
 export function blockDrops(id, random = Math.random) {
   const replacement = replacementDropFor(id, random);
-  const base = baseBlockDrop(id);
+  const base = baseBlockDrop(id, random);
   const out = [];
   // A replacement takes the base's place: gravel gives flint or gravel, never both.
   if (replacement) out.push(replacement);
-  else if (base) out.push({ ...base, count: 1 });
+  else if (base) out.push(base);
   out.push(...bonusDropsFor(id, random));
   return out;
 }

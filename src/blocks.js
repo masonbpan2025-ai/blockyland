@@ -768,6 +768,105 @@ export const BLOCKS = {
   // tile. The result reads as a dragon, with glowing eyes and a mouth, which is the bar the creeper failed.
   DRAGON_HEAD: 1187,
   DRAGON_WALL_HEAD: 1188,
+
+  // --- Chest variants, twenty-seventh block-parity batch -----------------------------------------
+  //
+  // The ender chest and the trapped chest. The plain chest already existed with proper art; these are its
+  // two variants, and BOTH NEEDED COMPOSED TEXTURES because the mirror ships no `ender_chest_*` or
+  // `trapped_chest_*` sprite at any suffix in any version, and this project's own `chest_*.png` files are
+  // hand-made rather than downloaded.
+  //
+  // scripts/compose-chest-variants.py derives them: the ender chest is the chest in the End's palette,
+  // applied as a per-pixel transform so it stays recognisably the same chest, and the trapped chest is the
+  // chest plus a latch on its front.
+  ENDER_CHEST: 1189,
+  TRAPPED_CHEST: 1190,
+
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // Two more blocks that were sitting in the "needs new art" column and did not, in fact, need new art.
+  // This is the SEVENTH time in this goal that a block was unblocked by deriving art.
+  //
+  // scripts/compose-egg-and-gateway.py builds both, and says where each came from:
+  //   - the sniffer egg is the TURTLE EGG's shape recoloured onto the SNIFFER'S OWN palette, read out of
+  //     entity/sniffer/sniffer.png. An egg is an egg, but the colours are what make it the sniffer's.
+  //   - the end gateway is nether_portal.png, which this project already uses for the end portal,
+  //     darkened to the gateway's deeper violet with a few sparks on a fixed lattice.
+  SNIFFER_EGG: 1191,
+  END_GATEWAY: 1192,
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // THE PISTON FAMILY IS DRAWN WITH SVG ICONS on purpose -- piston.svg, sticky_piston.svg and
+  // piston_head.svg -- so its three existing blocks name `redstone_white.svg` as a texture and carry an
+  // icon instead. That is a deliberate convention for redstone components here, not a gap, and this batch
+  // does not churn it.
+  //
+  // What it does use is the real piston TILE art, which was sitting on the mirror UNUSED:
+  // `piston_side.png` and `piston_inner.png` were referenced by nothing in this codebase. A moving
+  // piston is exactly the piston's body with its head extended, which is what `piston_inner` draws, so
+  // those two tiles are the whole block.
+  MOVING_PISTON: 1193,
+
+  // --- Invisible technical blocks, thirtieth block-parity batch -----------------------------------
+  //
+  // Barrier, light and structure void. All three are INVISIBLE IN VANILLA, which is why they sat in the
+  // "needs new art" column: there is no `blocks/barrier.png` to find at any suffix or version, because
+  // vanilla draws none. What DOES exist is their ITEM sprite, at `items/<name>.png`, and the mirror ships
+  // all three -- a red crossed ring for the barrier, a yellow sparkle for the light, a teal cube outline
+  // for the structure void.
+  //
+  // So the block texture is the item sprite, and THAT IS AN APPROXIMATION THIS BATCH OWNS: a vanilla
+  // barrier is a fully transparent cube, and this one shows its item icon. The alternative was to leave
+  // three registered vanilla blocks out over a rendering nicety, which is worse. They are grouped here
+  // rather than mixed into the ordinary blocks so the approximation is easy to find.
+  BARRIER: 1194,
+  LIGHT: 1195,
+  STRUCTURE_VOID: 1196,
+
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Cave air and void air. Both are AIR with a different meaning and no different rendering: vanilla uses
+  // them to distinguish the air inside a cave or outside the world from the air in the open sky, and NOTHING
+  // DRAWS THEM. A block that is by definition invisible needs no texture, which is why neither has one and
+  // why neither should get one.
+  //
+  // They are registered as EXACT PEERS of the existing AIR entry -- same flags, no textures -- rather than
+  // approximated with a stand-in tile, unlike the barrier and light blocks in the batch before. Those two
+  // needed to be VISIBLE to be useful; these two must not be.
+  CAVE_AIR: 1197,
+  VOID_AIR: 1198,
+
+  // --- The creeper head, thirty-second block-parity batch -----------------------------------------
+  //
+  // THIS BLOCK WAS WRONGLY EXCLUDED FOR SEVERAL ROUNDS. The extraction script carried a claim that the
+  // creeper's sheet "is not in the standard layout" and that what sits at the head coordinates is "body
+  // noise rather than a face". That was FALSE. The standard front rectangle at (8,8)-(16,16) is the
+  // creeper's face -- two eyes and a mouth -- and it renders unmistakably as one.
+  //
+  // The wrong call came from counting distinct colours in the 8x8 region and reading 50 as noise. A creeper
+  // is CAMOUFLAGED: its face legitimately uses many greens, so a colour count was never evidence of
+  // anything. The lesson is that a cheap numeric proxy is not a substitute for looking at the picture, and
+  // that a negative finding recorded in a comment needs the same scrutiny as a positive one.
+  CREEPER_HEAD: 1199,
+  CREEPER_WALL_HEAD: 1200,
+
+  // --- Bubble column, thirty-third block-parity batch ---------------------------------------------
+  //
+  // Vanilla has NO bubble-column texture at any suffix or version, because a bubble column IS water with
+  // bubbles rising through it: the game draws the water tile and spawns particles. So the tile is COMPOSED
+  // from the two ingredients that do ship -- water_still.png, which WATER already uses here, and
+  // particle/bubble.png, which is the bubble sprite the game already draws in water. scripts/
+  // compose-bubble-column.py builds it, and that is the eighth block in this goal unblocked by deriving art.
+  BUBBLE_COLUMN: 1201,
+
+  // --- Bamboo sapling, thirty-fourth block-parity batch -------------------------------------------
+  //
+  // THE LAST BLOCK IN THE PINNED LIST, and it also had its art on the mirror already. `bamboo_stage0.png`
+  // was referenced by NOTHING in this codebase -- the BAMBOO block uses plain `bamboo.png` -- and stage 0
+  // is exactly right for a sapling: it is the young shoot, a single stalk with leaves, drawn on a small
+  // mound. So this is the second block in this goal unblocked by dead art rather than new art.
+  BAMBOO_SAPLING: 1202,
+
 };
 
 export const BLOCK_DEFS = {
@@ -1556,15 +1655,19 @@ export const BLOCK_DEFS = {
   // The monster spawner is the exception that follows its data: hardness 5, a wooden pickaxe required,
   // and an empty drops array, so it breaks and yields nothing.
   // Runs a command when powered. This game has no command layer, so it is inert decoration.
-  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
+  // Vanilla marks these unbreakable: hardness -1 in the pinned data against this game's bedrock sentinel.
+  // The harvest table carries a row for them now, so the difference became visible.
+  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
   // Runs a command every tick while powered. Inert here, like the plain command block.
-  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
+  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
   // Runs a command when the block behind it runs. Inert here, like the other two.
-  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
+  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
   // Saves and loads structures. The game has its own building library, but it is not driven by this block, so the block is inert.
-  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
+  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
   // Assembles generated structures. No world-generation layer to hook into, so inert.
-  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
+  // Vanilla marks the jigsaw block unbreakable (hardness -1 in the pinned data); this game's sentinel is
+  // bedrock's. The harvest table has a row for it now, so the difference was visible.
+  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 999999, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
   // Spawns mobs on a timer while a player is near. This engine spawns mobs but has no spawner block entity, so it does not spawn anything. It IS breakable and drops nothing, matching its harvest row.
   [BLOCKS.SPAWNER]: { name: 'Monster Spawner', hardness: 5.0, sound: 'stone', drop: null, textures: { all: 'spawner.png' } },
   // Runs a trial when a player enters, then ejects rewards. Uses the INACTIVE textures because it is always inactive here; the active and ominous variants would need the trial mechanic.
@@ -1572,7 +1675,7 @@ export const BLOCK_DEFS = {
   // Opens for a key and dispenses loot. Uses the OFF textures for the same reason; the front face is the one that would light up.
   [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
   // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
-  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 0.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
   // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
@@ -2085,7 +2188,25 @@ export const BLOCK_DEFS = {
   [BLOCKS.GOLD_BLOCK]: { name: 'Block of Gold', hardness: 3.0, sound: 'metal', textures: { all: 'gold_block.png' } },
   [BLOCKS.DIAMOND_BLOCK]: { name: 'Block of Diamond', hardness: 5.0, sound: 'stone', textures: { all: 'diamond_block.png' } },
   [BLOCKS.EMERALD_BLOCK]: { name: 'Block of Emerald', hardness: 5.0, sound: 'stone', textures: { all: 'emerald_block.png' } },
-  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } }
+  [BLOCKS.NETHERITE_BLOCK]: { name: 'Block of Netherite', hardness: 50.0, sound: 'metal', textures: { all: 'netherite_block.png' } },
+  // --- The sniffer egg and the end gateway, twenty-eighth block-parity batch ----------------------
+  //
+  // THE SNIFFER EGG MATCHES THE TURTLE EGG, deliberately. The turtle egg is already in this registry as a
+  // plain textured cube with no special geometry, so giving the sniffer egg a `egg: true` flag that nothing
+  // dispatches on would have been a flag that reads as meaningful and is not -- the same mistake the wither
+  // skeleton skull's dead `skull: true` flag turned out to be. Both are cubes here and now say so.
+  //
+  // It DOES drop itself, unlike the turtle egg, which declares `drop: null`: the harvest row says hardness
+  // 0.5 with a self drop. The turtle egg's row says `drops: []`, which is a difference in the table rather
+  // than an inconsistency in this batch.
+  //
+  // THE END GATEWAY IS A PORTAL, like the end portal next to it: not solid, transparent, and a light source.
+  // It is NOT a way to travel anywhere, and neither is the portal it is modelled on -- this engine has no
+  // dimension travel, so both are decorative surfaces. That is a pre-existing limit rather than one this
+  // block introduces, the same category as the shulker boxes not being containers.
+  [BLOCKS.SNIFFER_EGG]: { name: 'Sniffer Egg', hardness: 0.5, sound: 'stone', drop: BLOCKS.SNIFFER_EGG, textures: { all: 'sniffer_egg.png' } },
+  [BLOCKS.END_GATEWAY]: { name: 'End Gateway', portal: true, endPortal: true, hardness: -1, sound: 'glass', transparent: true, solid: false, light: 15, lightColor: 0x7b2fbe, textures: { all: 'end_gateway.png' } },
+
 };
 
 // --- generated additions for vanilla parity ---------------------------------
@@ -2351,6 +2472,10 @@ export const ITEMS = {
   red_bed: { name: 'Red Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   bed: { name: 'Bed', icon: '/assets/items/red_bed.png', type: 'utility', isBlock: true, blockId: BLOCKS.RED_BED_FOOT },
   chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.CHEST },
+  // The chest variants. Their icons are DERIVED from their own front faces, because the mirror ships no
+  // `ender_chest` or `trapped_chest` item sprite either -- the same gap the block textures had.
+  ender_chest: { name: 'Ender Chest', icon: '/assets/items/ender_chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.ENDER_CHEST },
+  trapped_chest: { name: 'Trapped Chest', icon: '/assets/items/trapped_chest.png', type: 'utility', isBlock: true, blockId: BLOCKS.TRAPPED_CHEST },
   oak_door: { name: 'Oak Door', icon: '/assets/items/oak_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_DOOR },
   iron_door: { name: 'Iron Door', icon: '/assets/items/iron_door.png', type: 'utility', isBlock: true, blockId: BLOCKS.IRON_DOOR },
   oak_trapdoor: { name: 'Oak Trapdoor', icon: '/assets/items/oak_trapdoor.png', type: 'utility', isBlock: true, blockId: BLOCKS.OAK_TRAPDOOR },
@@ -2468,7 +2593,20 @@ export const ITEMS = {
   wandering_trader_spawn_egg: { name: 'Wandering Trader Spawn Egg', icon: '/assets/items/wandering_trader_spawn_egg.png', type: 'spawn_egg', mob: 'wandering_trader' },
   allay_spawn_egg: { name: 'Allay Spawn Egg', icon: '/assets/items/allay_spawn_egg.png', type: 'spawn_egg', mob: 'allay' },
   sniffer_spawn_egg: { name: 'Sniffer Spawn Egg', icon: '/assets/items/sniffer_spawn_egg.png', type: 'spawn_egg', mob: 'sniffer' },
-  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'material' },
+  // This was a `type: 'material'` item before the sniffer egg became a BLOCK, so it was an item named
+  // `sniffer_egg` with a texture and no way to place it. tests/placeableItems.test.js requires an item that
+  // names a registered block to be JOINED to it, which is what caught this. The icon was already correct.
+  // The invisible technical blocks. They have had ITEM sprites on the mirror all along -- that is where
+  // their block textures came from -- so the only thing missing was the binding that makes them placeable.
+  barrier: { name: 'Barrier', icon: '/assets/items/barrier.png', type: 'block', isBlock: true, blockId: BLOCKS.BARRIER },
+  light: { name: 'Light', icon: '/assets/items/light.png', type: 'block', isBlock: true, blockId: BLOCKS.LIGHT },
+  structure_void: { name: 'Structure Void', icon: '/assets/items/structure_void.png', type: 'block', isBlock: true, blockId: BLOCKS.STRUCTURE_VOID },
+  // The last four blocks. The creeper head and the bamboo sapling are placeable items; the bubble column
+  // has NO item, because vanilla gives it none -- it is a water state rather than something you hold.
+  creeper_head: { name: 'Creeper Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_HEAD },
+  creeper_wall_head: { name: 'Creeper Wall Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_WALL_HEAD },
+  bamboo_sapling: { name: 'Bamboo Sapling', icon: '/assets/blocks/bamboo_stage0.png', type: 'block', isBlock: true, blockId: BLOCKS.BAMBOO_SAPLING },
+  sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
   husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
   stray_spawn_egg: { name: 'Stray Spawn Egg', icon: '/assets/items/stray_spawn_egg.png', type: 'spawn_egg', mob: 'stray' },
@@ -2710,6 +2848,80 @@ BLOCK_DEFS[BLOCKS.OBSERVER] = {name: 'Observer', redstone: true, hardness: 1.5, 
 BLOCK_DEFS[BLOCKS.PISTON] = {name: 'Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston.svg'};
 BLOCK_DEFS[BLOCKS.STICKY_PISTON] = {name: 'Sticky Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/sticky_piston.svg'};
 BLOCK_DEFS[BLOCKS.PISTON_HEAD] = {name: 'Piston Head', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/piston_head.svg', internal: true};
+
+  // --- Moving piston, twenty-ninth block-parity batch --------------------------------------------
+  //
+  // Its art is `piston_side` and `piston_inner`, neither of which anything in this codebase referenced
+  // before. `piston_inner` is what a piston looks like with its head extended, which is what a moving
+  // piston IS, so the dead art was the missing piece rather than a new drawing.
+  //
+  // IT HAS NO ITEM, deliberately: the harvest row drops nothing and vanilla gives it no item either. It
+  // exists only as the mid-animation state of a piston, and since this engine has no piston movement it
+  // is inert like the rest of the family. It is left out of the creative catalogue for the same reason.
+BLOCK_DEFS[BLOCKS.MOVING_PISTON] = {name: 'Moving Piston', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, drop: null, textures: { top: 'piston_inner.png', side: 'piston_side.png', bottom: 'piston_side.png', front: 'piston_inner.png', all: 'piston_side.png' }};
+
+  // --- Invisible technical blocks, thirtieth block-parity batch -----------------------------------
+  //
+  // Each uses its own ITEM sprite as its block texture, which is an approximation: a vanilla barrier is
+  // a transparent cube, and these show their icons. Recorded rather than hidden.
+  //
+  // BREAKABILITY FOLLOWS THE HARVEST TABLE, NOT MY EXPECTATIONS, and the two disagreed on two of the three.
+  // I had assumed the light was a removable lamp and the structure void an unbreakable marker; the table
+  // says the opposite -- `light` carries hardness -1 with the unbreakable resistance, and `structure_void`
+  // carries hardness 0 with no resistance. That reads backwards from a player's intuition, but the pinned
+  // data is the authority here AND the table is what the mining and explosion code consults, so a definition
+  // disagreeing with it would give two different answers to "can this be broken". The definitions follow the
+  // table; the disagreement is recorded in tests/blockRegistryIntegrity.test.js rather than papered over.
+  //
+  // What the table does NOT say is solidity, which is a property of this engine rather than of vanilla data:
+  // a barrier is a wall you cannot pass, the other two are not.
+BLOCK_DEFS[BLOCKS.BARRIER] = {name: 'Barrier', hardness: -1, sound: 'stone', transparent: true, solid: true, drop: BLOCKS.BARRIER, textures: {all: 'barrier.png'}};
+BLOCK_DEFS[BLOCKS.LIGHT] = {name: 'Light', hardness: -1, sound: 'stone', transparent: true, solid: false, light: 15, lightColor: 0xfff3a0, drop: BLOCKS.LIGHT, textures: {all: 'light.png'}};
+BLOCK_DEFS[BLOCKS.STRUCTURE_VOID] = {name: 'Structure Void', hardness: 0.0, sound: 'stone', transparent: true, solid: false, drop: BLOCKS.STRUCTURE_VOID, textures: {all: 'structure_void.png'}};
+
+  // --- Air variants, thirty-first block-parity batch ----------------------------------------------
+  //
+  // Deliberately IDENTICAL to AIR: transparent, not solid, and with NO TEXTURE, because air is invisible
+  // by definition. They also get no item and no catalogue entry, exactly as AIR has none, so they cannot
+  // be placed by a player -- which is what they are for. Their harvest rows all say hardness 0, no drops
+  // and an empty bounding box, so there is nothing to obtain from any of them either.
+  //
+  // `drop: null` IS LOAD-BEARING and is NOT the same as declaring nothing. The drop pipeline falls back to
+  // the block's own id when a definition has no drop, so omitting it made cave air and void air DROP
+  // THEMSELVES -- a block obtainable without ever being placed, contradicting the empty `drops` array in
+  // their own harvest rows. AIR returns null only because it predates this registry and has no definition.
+  // The explicit null is what makes the empty row authoritative.
+BLOCK_DEFS[BLOCKS.CAVE_AIR] = {name: 'Cave Air', transparent: true, solid: false, drop: null};
+BLOCK_DEFS[BLOCKS.VOID_AIR] = {name: 'Void Air', transparent: true, solid: false, drop: null};
+
+  // --- The creeper head, thirty-second block-parity batch -----------------------------------------
+  //
+  // The same 8/16 cube every other head uses. The wall form drops the STANDING head, per the harvest
+  // table, like every other wall-mounted head here.
+BLOCK_DEFS[BLOCKS.CREEPER_HEAD] = { name: 'Creeper Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.CREEPER_HEAD, textures: { top: 'creeper_head_top.png', side: 'creeper_head_front.png', bottom: 'creeper_head_bottom.png' } };
+BLOCK_DEFS[BLOCKS.CREEPER_WALL_HEAD] = { name: 'Creeper Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.CREEPER_HEAD, textures: { top: 'creeper_head_top.png', side: 'creeper_head_front.png', bottom: 'creeper_head_bottom.png' } };
+
+  // --- Bubble column, thirty-third block-parity batch ---------------------------------------------
+  //
+  // IT IS WATER, and is defined as a liquid for that reason: transparent, not solid, and `liquid: true`
+  // like the WATER entry it is built from. Its harvest row is hardness 0 with NO drops and an empty
+  // bounding box, so `drop: null` is required -- omitting it would make the block drop itself, which is
+  // the same trap cave air and void air hit.
+  //
+  // WHAT IS NOT MODELLED: in vanilla a bubble column is created by placing soul sand or magma under
+  // water, and it pushes the player up or pulls them down. This engine has no such interaction, so the
+  // block is a decorative water surface with bubbles on it -- the same category as the shulker boxes
+  // not being containers and the cauldrons not holding fluid.
+BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN] = { name: 'Bubble Column', hardness: 0.0, sound: 'water', transparent: true, solid: false, liquid: true, drop: null, textures: { all: 'bubble_column.png' } };
+
+  // --- Bamboo sapling, thirty-fourth block-parity batch -------------------------------------------
+  //
+  // A PLANT, like the other saplings: `plant: true` so the mesher draws it as a cross-quad, transparent
+  // and not solid so it does not block movement or occlude its neighbours. The BAMBOO block next to it is
+  // already defined this way, so the two are consistent.
+  //
+  // IT DROPS BAMBOO, not itself, per its harvest row.
+BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING] = { name: 'Bamboo Sapling', hardness: 1.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'bamboo', textures: { all: 'bamboo_stage0.png' } };
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};
@@ -2809,6 +3021,32 @@ BLOCK_DEFS[BLOCKS.CHEST] = {
   },
   icon: '/assets/items/chest.png'
 };
+
+// --- Chest variants, twenty-seventh block-parity batch -------------------------------------------
+//
+// The ender chest and the trapped chest. The plain chest already existed with proper art; these are its
+// two variants, and BOTH NEEDED COMPOSED TEXTURES because the mirror ships no `ender_chest_*` or
+// `trapped_chest_*` sprite at any suffix in any version, and this project's own `chest_*.png` files are
+// hand-made rather than downloaded.
+//
+// scripts/compose-chest-variants.py derives them: the ender chest is the chest in the End's palette,
+// applied as a per-pixel transform so it stays recognisably the same chest, and the trapped chest is the
+// chest plus a small latch on its front.
+//
+// Both carry `chest: true`, which is what routes a block to the chest GEOMETRY rather than treating it as
+// a plain cube. They keep the chest's `lock` key with their own dark-fitting lock art.
+//
+// THE ENDER CHEST DROPS OBSIDIAN, not itself, and that is a vanilla rule rather than an oversight: it
+// cannot be picked up. That is declared as `drop: BLOCKS.OBSIDIAN` rather than `dropItem: 'obsidian'`,
+// because there is no `obsidian` key in ITEMS -- obsidian is a BLOCK here -- and an item name that resolves
+// to nothing is exactly the bug the wither skeleton skull shipped with. Its harvest row also carries a
+// blast resistance of 600, so a TNT blast leaves it standing, and hardness 22.5 makes it the hardest chest
+// in the game. All three come from that table.
+//
+// WHAT IS NOT MODELLED for either: a chest here has no inventory. The plain chest is in the same position,
+// so this is a family-wide gap rather than one these two introduce.
+BLOCK_DEFS[BLOCKS.ENDER_CHEST] = { name: 'Ender Chest', chest: true, hardness: 22.5, sound: 'stone', transparent: true, drop: BLOCKS.OBSIDIAN, textures: { top: 'ender_chest_top.png', side: 'ender_chest_side.png', front: 'ender_chest_front.png', bottom: 'ender_chest_top.png', all: 'ender_chest_side.png', lock: 'ender_chest_lock.png' } };
+BLOCK_DEFS[BLOCKS.TRAPPED_CHEST] = { name: 'Trapped Chest', chest: true, hardness: 2.5, sound: 'wood', transparent: true, drop: BLOCKS.TRAPPED_CHEST, textures: { top: 'trapped_chest_top.png', side: 'trapped_chest_side.png', front: 'trapped_chest_front.png', bottom: 'trapped_chest_top.png', all: 'trapped_chest_side.png', lock: 'trapped_chest_lock.png' } };
 
 // --- Nether Portal Block ----------------------------------------------------
 BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {

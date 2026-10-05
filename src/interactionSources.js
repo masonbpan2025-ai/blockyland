@@ -40,6 +40,39 @@ export const INTERACTION_SOURCES = [
     how: 'Fill a glass bottle from a water source block.',
     source: 'bottles.js useGlassBottle',
   },
+  // The six bucketable mobs. `catchFish` is the decision -- a water bucket on a fish -- and it is in its own
+  // module precisely so this test can call it and see the bucket come out, rather than trusting a comment
+  // about a line inside the frame loop.
+  {
+    item: 'cod_bucket',
+    how: 'Catch a cod with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
+  {
+    item: 'salmon_bucket',
+    how: 'Catch a salmon with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
+  {
+    item: 'pufferfish_bucket',
+    how: 'Catch a pufferfish with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
+  {
+    item: 'tropical_fish_bucket',
+    how: 'Catch a tropical fish with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
+  {
+    item: 'axolotl_bucket',
+    how: 'Catch an axolotl with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
+  {
+    item: 'tadpole_bucket',
+    how: 'Catch a tadpole with a water bucket.',
+    source: 'fishBuckets.js catchFish',
+  },
 ];
 
 /** The item ids this table claims, for the registry to mark and for tests to check. */

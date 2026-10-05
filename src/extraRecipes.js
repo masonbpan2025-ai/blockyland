@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1549 recipes.
+// 1552 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -296,7 +296,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:[B.STONE_BRICKS,B.MOSS_BLOCK],result:{id:B.MOSSY_STONE_BRICKS,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.STONE_BRICKS,B.VINE],result:{id:B.MOSSY_STONE_BRICKS,isBlock:true,count:1}},
   {pattern:[[B.STONE_BRICK_SLAB],[B.STONE_BRICK_SLAB]],result:{id:B.CHISELED_STONE_BRICKS,isBlock:true,count:1}},
-  {shapeless:true,ingredients:[B.MUD,B.WHEAT],result:{id:B.PACKED_MUD,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.MUD,'wheat'],result:{id:B.PACKED_MUD,isBlock:true,count:1}},
   {pattern:[[B.PACKED_MUD,B.PACKED_MUD],[B.PACKED_MUD,B.PACKED_MUD]],result:{id:B.MUD_BRICKS,isBlock:true,count:4}},
   {pattern:[[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE],[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE]],result:{id:B.DEEPSLATE_BRICKS,isBlock:true,count:4}},
   {pattern:[[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS],[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS]],result:{id:B.DEEPSLATE_TILES,isBlock:true,count:4}},
@@ -317,6 +317,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.CUT_SANDSTONE,null,null],[B.CUT_SANDSTONE,B.CUT_SANDSTONE,null],[B.CUT_SANDSTONE,B.CUT_SANDSTONE,B.CUT_SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.CHISELED_SANDSTONE,null,null],[B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE,null],[B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.SANDSTONE,null,null],[B.SANDSTONE,B.SANDSTONE,null],[B.SANDSTONE,B.SANDSTONE,B.SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
+  {pattern:[[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN],[B.OBSIDIAN,'ender_eye',B.OBSIDIAN],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.ENDER_CHEST,isBlock:true,count:1}},
   {pattern:[['emerald','emerald','emerald'],['emerald','emerald','emerald'],['emerald','emerald','emerald']],result:{id:B.EMERALD_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,null,null],[B.OAK_PLANKS,B.OAK_PLANKS,null],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.SPRUCE_PLANKS,null,null],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,null],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_STAIRS,isBlock:true,count:4}},
@@ -378,7 +379,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA],[B.TERRACOTTA,'green_dye',B.TERRACOTTA],[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA]],result:{id:B.GREEN_TERRACOTTA,isBlock:true,count:8}},
   {pattern:[[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA],[B.TERRACOTTA,'red_dye',B.TERRACOTTA],[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA]],result:{id:B.RED_TERRACOTTA,isBlock:true,count:8}},
   {pattern:[[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA],[B.TERRACOTTA,'black_dye',B.TERRACOTTA],[B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA]],result:{id:B.BLACK_TERRACOTTA,isBlock:true,count:8}},
-  {shapeless:true,ingredients:[B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT,B.WHEAT],result:{id:B.HAY_BLOCK,isBlock:true,count:1}},
+  {shapeless:true,ingredients:['wheat','wheat','wheat','wheat','wheat','wheat','wheat','wheat','wheat'],result:{id:B.HAY_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL]],result:{id:B.WHITE_CARPET,isBlock:true,count:3}},
   {shapeless:true,ingredients:['white_dye',B.BLACK_CARPET],result:{id:B.WHITE_CARPET,isBlock:true,count:1}},
   {pattern:[[B.ORANGE_WOOL,B.ORANGE_WOOL]],result:{id:B.ORANGE_CARPET,isBlock:true,count:3}},
@@ -596,6 +597,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot'],['stick'],[B.BIRCH_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.SPRUCE_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.OAK_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
+  {shapeless:true,ingredients:[B.CHEST,B.TRIPWIRE_HOOK],result:{id:B.TRAPPED_CHEST,isBlock:true,count:1}},
   {pattern:[['gunpowder',B.RED_SAND,'gunpowder'],[B.RED_SAND,'gunpowder',B.RED_SAND],['gunpowder',B.RED_SAND,'gunpowder']],result:{id:B.TNT,isBlock:true,count:1}},
   {pattern:[['gunpowder',B.SAND,'gunpowder'],[B.SAND,'gunpowder',B.SAND],['gunpowder',B.SAND,'gunpowder']],result:{id:B.TNT,isBlock:true,count:1}},
   {pattern:[[null,'redstone',null],['redstone',B.GLOWSTONE,'redstone'],[null,'redstone',null]],result:{id:B.REDSTONE_LAMP,isBlock:true,count:1}},
@@ -856,8 +858,8 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.OAK_PLANKS],[B.OAK_PLANKS]],result:{id:'stick',isBlock:false,count:4}},
   {pattern:[[B.BAMBOO],[B.BAMBOO]],result:{id:'stick',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.BROWN_MUSHROOM,B.RED_MUSHROOM,'bowl'],result:{id:'mushroom_stew',isBlock:false,count:1}},
-  {shapeless:true,ingredients:[B.HAY_BLOCK],result:{id:B.WHEAT,isBlock:true,count:9}},
-  {pattern:[[B.WHEAT,B.WHEAT,B.WHEAT]],result:{id:'bread',isBlock:false,count:1}},
+  {shapeless:true,ingredients:[B.HAY_BLOCK],result:{id:'wheat',isBlock:false,count:9}},
+  {pattern:[['wheat','wheat','wheat']],result:{id:'bread',isBlock:false,count:1}},
   {pattern:[['leather','leather','leather'],['leather',null,'leather']],result:{id:'leather_helmet',isBlock:false,count:1}},
   {pattern:[['leather',null,'leather'],['leather','leather','leather'],['leather','leather','leather']],result:{id:'leather_chestplate',isBlock:false,count:1}},
   {pattern:[['leather','leather','leather'],['leather',null,'leather'],['leather',null,'leather']],result:{id:'leather_leggings',isBlock:false,count:1}},
@@ -965,7 +967,7 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:[B.BONE_BLOCK],result:{id:'bone_meal',isBlock:false,count:9}},
   {shapeless:true,ingredients:['honey_bottle'],result:{id:'sugar',isBlock:false,count:3}},
   {shapeless:true,ingredients:[B.SUGAR_CANE],result:{id:'sugar',isBlock:false,count:1}},
-  {pattern:[['milk_bucket','milk_bucket','milk_bucket'],['sugar','egg','sugar'],[B.WHEAT,B.WHEAT,B.WHEAT]],result:{id:B.CAKE,isBlock:true,count:1}},
+  {pattern:[['milk_bucket','milk_bucket','milk_bucket'],['sugar','egg','sugar'],['wheat','wheat','wheat']],result:{id:B.CAKE,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
   {pattern:[[B.WHITE_WOOL,B.WHITE_WOOL,B.WHITE_WOOL],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.WHITE_BED,isBlock:true,count:1}},
@@ -1174,7 +1176,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.BLACK_WOOL,B.BLACK_WOOL,B.BLACK_WOOL],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.BLACK_BED,isBlock:true,count:1}},
   {pattern:[[B.BLACK_WOOL,B.BLACK_WOOL,B.BLACK_WOOL],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.BLACK_BED,isBlock:true,count:1}},
   {shapeless:true,ingredients:['black_dye',B.BLUE_BED],result:{id:B.BLACK_BED,isBlock:true,count:1}},
-  {pattern:[[B.WHEAT,'cocoa_beans',B.WHEAT]],result:{id:'cookie',isBlock:false,count:8}},
+  {pattern:[['wheat','cocoa_beans','wheat']],result:{id:'cookie',isBlock:false,count:8}},
   {pattern:[['iron_ingot','iron_ingot','iron_ingot'],['iron_ingot',B.CRAFTING_TABLE,'iron_ingot'],['redstone',B.DROPPER,'redstone']],result:{id:B.CRAFTER,isBlock:true,count:1}},
   {pattern:[[null,'iron_ingot'],['iron_ingot',null]],result:{id:'shears',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.DRIED_KELP_BLOCK],result:{id:'dried_kelp',isBlock:false,count:9}},
@@ -1267,6 +1269,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['string','string'],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.LOOM,isBlock:true,count:1}},
   {pattern:[['string','string'],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.LOOM,isBlock:true,count:1}},
   {shapeless:true,ingredients:['paper',B.OXEYE_DAISY],result:{id:'flower_banner_pattern',isBlock:false,count:1}},
+  {shapeless:true,ingredients:['paper',B.CREEPER_HEAD],result:{id:'creeper_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper',B.WITHER_SKELETON_SKULL],result:{id:'skull_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper','enchanted_golden_apple'],result:{id:'mojang_banner_pattern',isBlock:false,count:1}},
   {shapeless:true,ingredients:['paper',B.BRICKS],result:{id:'field_masoned_banner_pattern',isBlock:false,count:1}},
@@ -1569,21 +1572,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1549;
+export const EXTRA_RECIPE_COUNT = 1552;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1549,
-  "shaped": 1279,
-  "shapeless": 270,
-  "skippedMissingResult": 6,
-  "skippedMissingIngredient": 1,
+  "emitted": 1552,
+  "shaped": 1280,
+  "shapeless": 272,
+  "skippedMissingResult": 4,
+  "skippedMissingIngredient": 0,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1549,
+  "emittedBeforeDedupe": 1552,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

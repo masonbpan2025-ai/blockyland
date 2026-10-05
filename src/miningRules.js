@@ -57,6 +57,9 @@ export const NON_MINING_TOOLS = new Set([
   'shield', 'fishing_rod', 'flint_and_steel', 'brush',
   'carrot_on_a_stick', 'warped_fungus_on_a_stick',
   'bucket', 'water_bucket', 'lava_bucket',
+  // The mob buckets. This game types a bucket as a tool -- it is something you hold -- and a bucket mines
+  // nothing. Added by the fish-bucket batch, which two of these guards caught the same round it landed.
+  'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'axolotl_bucket', 'tadpole_bucket',
   'compass', 'clock', 'lead', 'name_tag', 'saddle',
   // This project's own weapon: a spear thrusts, it does not mine.
   'golden_spear',
@@ -151,6 +154,11 @@ export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiency
   }
   // Unbreakable blocks (bedrock and friends) are marked with an absurd hardness.
   if (effect.hardness >= 99999) return Infinity;
+  // And vanilla marks its own unbreakable blocks with a *negative* hardness -- bedrock, both portals, the
+  // command, structure and jigsaw blocks carry -1 in the pinned data. The table has rows for those now, where
+  // it had none and this function fell back to the block definition; without this they read as hardness -1
+  // and became instant to break.
+  if (effect.hardness < 0) return Infinity;
   if (effect.hardness <= 0) return 0;
 
   let speed = effect.speedMultiplier;

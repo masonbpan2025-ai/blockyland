@@ -44,6 +44,12 @@ HEADS = {
     # is what surfaced the problem. Its sheet is in the same standard layout as the plain skeleton's.
     "wither_skeleton_skull": "skeleton/wither_skeleton.png",
     "zombie_head": "zombie/zombie.png",
+    # THE CREEPER WAS WRONGLY EXCLUDED FOR SEVERAL ROUNDS, on a claim in this file that its sheet "is not
+    # in the standard layout" and that what sits at the head coordinates is "body noise rather than a face".
+    # THAT CLAIM WAS FALSE. The standard front rectangle at (8,8)-(16,16) is unmistakably the creeper's face
+    # -- two eyes and a mouth, rendered and checked. The original judgement came from sampling the 8x8 region
+    # at (8,8) and finding 50 distinct colours, which was read as noise; a creeper is CAMOUFLAGED and its
+    # face genuinely uses many greens, so the colour count was never evidence of anything.
     "creeper_head": "creeper/creeper.png",
     "player_head": "player/wide/steve.png",
     "piglin_head": "piglin/piglin.png",
@@ -63,7 +69,12 @@ FACES = {
 #
 # So the dragon is a special case with its own square crop, taken as the largest mostly-opaque square that
 # contains the face. It is an approximation of a model-drawn head, and it reads as a dragon -- dark scales
-# with glowing eyes and a mouth -- rather than as body noise, which is the bar the creeper failed to clear.
+# with glowing eyes and a mouth.
+#
+# (An earlier version of this comment ended "...rather than as body noise, which is the bar the creeper
+# failed to clear." The creeper did clear that bar; the comparison was wrong and the creeper is now in HEADS
+# above. Left here as a note rather than silently deleted, because the false claim was load-bearing for a
+# while and cost several rounds.)
 SPECIAL = {
     "dragon_head": ("enderdragon/dragon.png", (120, 36, 152, 68)),
 }

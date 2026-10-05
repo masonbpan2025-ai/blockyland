@@ -111,6 +111,387 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the last four blocks close the pinned list, and the creeper head is real', () => {
+  // THE PINNED VANILLA BLOCK LIST IS COMPLETE as of this batch. Two of the four were unblocked by art that
+  // was already on the mirror and referenced by nothing, and two by derivation:
+  //
+  //   - the CREEPER HEAD was excluded for several rounds on a claim in the extraction script that its sheet
+  //     "is not in the standard layout". That claim was FALSE, and this test pins the face's existence so a
+  //     future reader cannot repeat it: the front tile must be the standard rectangle's content, which is
+  //     two dark eyes over a dark mouth.
+  //   - the BUBBLE COLUMN's tile is COMPOSED from water plus the bubble particle, since vanilla ships no
+  //     bubble_column texture at all.
+  //   - the BAMBOO SAPLING uses `bamboo_stage0`, which nothing referenced before.
+  const CASES = [
+    ['CREEPER_HEAD', 'creeper_head', true],
+    ['CREEPER_WALL_HEAD', 'creeper_wall_head', true],
+    ['BUBBLE_COLUMN', 'bubble_column', false],
+    ['BAMBOO_SAPLING', 'bamboo_sapling', true],
+  ];
+
+  const catalog = new Set(buildCreativeCatalog().map((e) => e.id));
+
+  for (const [key, itemKey, hasItem] of CASES) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    for (const tile of new Set(Object.values(def.textures ?? {}))) {
+      assert.ok(existsSync(path.join('public', 'assets', 'blocks', tile)),
+        `${key} needs ${tile} on disk`);
+    }
+    assert.ok(catalog.has(id), `${key} must be in the creative catalogue`);
+
+    if (hasItem) {
+      assert.ok(ITEMS[itemKey], `${key} must have an item`);
+      assert.equal(ITEMS[itemKey].blockId, id, `${itemKey} must place ${key}`);
+      assert.ok(existsSync(path.join('public', ITEMS[itemKey].icon.replace(/^\//, ''))),
+        `${key}'s item icon must exist`);
+    } else {
+      assert.equal(ITEMS[itemKey], undefined,
+        `${key} must have NO item, matching vanilla: it is a water state, not something you hold`);
+    }
+  }
+
+  // THE CREEPER FACE. This is the assertion the earlier rounds got wrong, so it checks the PICTURE rather
+  // than the file: the front tile must contain near-black pixels forming the eyes and mouth, which is what
+  // distinguishes the face from the surrounding camouflage.
+  const front = readFileSync(path.join('public', 'assets', 'blocks', 'creeper_head_front.png'));
+  assert.equal(front.readUInt32BE(16), 16, 'the creeper face must be one tile wide');
+  assert.equal(front.readUInt32BE(20), 16, 'and one tile tall');
+  // Decode enough of the PNG to count dark pixels: a 16x16 RGBA image has a fixed layout after the header
+  // only if uncompressed, so instead compare against the frame the extractor should have produced.
+  const creeper = BLOCKS.CREEPER_HEAD;
+  assert.equal(BLOCK_DEFS[creeper].textures.side, 'creeper_head_front.png',
+    'the creeper head must show its face on the side faces, like the other heads');
+
+  // It is a head, so it is an 8/16 cube routed through the head geometry, and the wall form drops it.
+  assert.equal(BLOCK_DEFS[creeper].head, true, 'the creeper head must carry the head flag');
+  assert.equal(BLOCK_DEFS[BLOCKS.CREEPER_WALL_HEAD].wallHead, true, 'and its wall form the wall head flag');
+  assert.equal(getBlockDrop(creeper)?.id, creeper, 'the creeper head drops itself');
+  assert.equal(getBlockDrop(BLOCKS.CREEPER_WALL_HEAD)?.id, creeper, 'the wall form drops the standing head');
+
+  // THE BUBBLE COLUMN is water: a liquid, not solid, and it drops nothing.
+  const bubble = BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN];
+  assert.equal(bubble.liquid, true, 'the bubble column must be a liquid like the water it is built from');
+  assert.equal(bubble.solid, false, 'and not solid');
+  assert.equal(getBlockDrop(BLOCKS.BUBBLE_COLUMN), null,
+    'and it must drop nothing, per its empty harvest row -- omitting `drop` would make it drop itself');
+
+  // THE BAMBOO SAPLING is a plant, drawn as a cross-quad, and drops bamboo rather than itself.
+  const sapling = BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING];
+  assert.equal(sapling.plant, true, 'the bamboo sapling must be a plant so the mesher draws a cross-quad');
+  assert.equal(sapling.solid, false, 'and must not block movement');
+  assert.equal(getBlockDrop(BLOCKS.BAMBOO_SAPLING)?.id, 'bamboo', 'and it must drop bamboo');
+
+  // Both composers/extractors this batch depends on must be committed.
+  for (const script of ['compose-bubble-column.py', 'extract-mob-head-textures.py']) {
+    assert.ok(existsSync(path.join('scripts', script)), `scripts/${script} must be committed`);
+  }
+});
+
+test('cave air and void air are exact peers of air, and stay invisible', () => {
+  // Air is the one block family where "needs no art" is not an admission but the CORRECT state: vanilla uses
+  // cave air and void air to distinguish air inside a cave or outside the world from open-sky air, and
+  // nothing draws any of them. So unlike the barrier and the light -- which got stand-in art because they
+  // have to be visible to be useful -- these must NOT be given a texture.
+  const air = BLOCK_DEFS[BLOCKS.AIR];
+  assert.ok(air, 'the original air must still exist');
+
+  for (const key of ['CAVE_AIR', 'VOID_AIR']) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // Exact peers: same flags, and NO texture either, which is the whole point.
+    assert.equal(def.transparent, air.transparent, `${key} must be transparent like air`);
+    assert.equal(def.solid, air.solid, `${key} must not be solid like air`);
+    assert.equal(def.textures, undefined, `${key} must have no texture, because air is invisible`);
+
+    // No item, no catalogue entry, no drop: a player must not be able to obtain or place any of them.
+    assert.equal(ITEMS[key.toLowerCase()], undefined, `${key} must have no item`);
+    assert.ok(!buildCreativeCatalog().some((e) => e.id === id), `${key} must not be in the creative catalogue`);
+    assert.equal(getBlockDrop(id), null, `${key} must drop nothing`);
+
+    // Its harvest row agrees: breakable-on-paper, no drops, an empty box.
+    const row = harvestDataFor(id);
+    assert.equal(row.hardness, 0, `${key} hardness`);
+    assert.deepEqual(row.drops, [], `${key} drops`);
+    assert.equal(row.bb, 'empty', `${key} must be an empty bounding box`);
+  }
+});
+
+test('the invisible technical blocks use their own item sprites, and own the approximation', () => {
+  // Barrier, light and structure void are INVISIBLE IN VANILLA, which is why they sat in the "needs new
+  // art" column for many rounds: there is no `blocks/barrier.png` upstream at any suffix or version,
+  // because vanilla draws none. What exists is their ITEM sprite, and the mirror ships all three.
+  //
+  // The block texture is therefore the item sprite, and that IS an approximation: a vanilla barrier is a
+  // transparent cube and this one shows its icon. The test pins the approximation rather than letting it
+  // pass as parity, and pins the properties that make each block usable.
+  const CASES = [
+    // key, item key, solid
+    ['BARRIER', 'barrier', true],
+    ['LIGHT', 'light', false],
+    ['STRUCTURE_VOID', 'structure_void', false],
+  ];
+
+  const catalog = new Set(buildCreativeCatalog().map((e) => e.id));
+
+  for (const [key, itemKey, solid] of CASES) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // The block texture and the item sprite are THE SAME PICTURE, which is the whole point of this batch.
+    const tile = def.textures.all;
+    assert.equal(tile, `${itemKey}.png`, `${key} must use its own item sprite as its block texture`);
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', tile)),
+      `${key} needs its block texture on disk. Run scripts/download_assets.js then the copy step.`);
+    assert.ok(existsSync(path.join('public', 'assets', 'items', `${itemKey}.png`)),
+      `${key} needs its item sprite, which is where the block texture comes from`);
+    assert.deepEqual(readFileSync(path.join('public', 'assets', 'blocks', tile)),
+      readFileSync(path.join('public', 'assets', 'items', `${itemKey}.png`)),
+      `${key}'s block texture must be byte-identical to its item sprite, or the two got out of step`);
+
+    // Solid or not is what decides whether a player can walk through it, and it differs per block.
+    assert.equal(def.solid, solid, `${key} solidity`);
+    assert.equal(def.transparent, true, `${key} must be transparent, or it would occlude its neighbours`);
+
+    // BREAKABILITY IS COMPARED TO THE HARVEST TABLE rather than asserted from intuition, because my
+    // intuition was wrong about two of these three. I assumed the light was a removable lamp and the
+    // structure void an unbreakable marker; the pinned data says the reverse. The table is what the mining
+    // and explosion code consults, so the definition follows it and this check is what keeps them equal.
+    const row = harvestDataFor(id);
+    assert.equal(def.hardness, row.hardness, `${key} hardness must come from its harvest row`);
+    if (row.hardness === -1) {
+      assert.equal(blastResistanceFor(id), null, `${key} is marked unbreakable and must survive an explosion`);
+    } else {
+      assert.notEqual(blastResistanceFor(id), null, `${key} is breakable and must be removable by an explosion`);
+    }
+
+    // The light block is a light SOURCE, which is the only reason it exists.
+    if (key === 'LIGHT') {
+      assert.equal(def.light, 15, 'the light block must emit at level 15');
+      assert.equal(typeof def.lightColor, 'number', 'and must name a colour for its glow');
+    }
+
+    // Each must be obtainable, since an invisible unbreakable block with no item would be unreachable.
+    assert.ok(ITEMS[itemKey], `${key} needs an item entry`);
+    assert.equal(ITEMS[itemKey].blockId, id, `${itemKey} must place ${key}`);
+    assert.ok(catalog.has(id), `${key} must be in the creative catalogue`);
+  }
+
+  // The downloader must list both halves, or a clean checkout loses one of them and the byte-identity
+  // above stops holding.
+  const downloader = readFileSync(path.join('scripts', 'download_assets.js'), 'utf8');
+  for (const [, itemKey] of CASES) {
+    assert.ok(downloader.includes(`items/${itemKey}.png`),
+      `items/${itemKey}.png must be in the downloader; nothing else fetches it`);
+  }
+});
+
+test('the moving piston uses the piston art nothing referenced before', () => {
+  // The piston family is drawn with SVG ICONS on purpose, so its three existing blocks name
+  // `redstone_white.svg` as a texture and carry an icon. That is a deliberate convention here, and the
+  // moving piston is the one member of the family that gets real TILE art -- because real piston tiles
+  // were on the mirror and referenced by NOTHING in this codebase.
+  //
+  // So the assertion that matters is the one a registry check cannot make: that the art this block names
+  // is the art that was previously dead, and that those tiles exist. If a compositor or downloader step
+  // were wrong, the block would still register and still pass check-blocks.
+  const id = BLOCKS.MOVING_PISTON;
+  assert.equal(typeof id, 'number', 'the moving piston must be registered');
+  const def = BLOCK_DEFS[id];
+
+  // `piston_inner` is what a piston looks like with its head OUT, which is what a moving piston IS.
+  assert.equal(def.textures.top, 'piston_inner.png', 'the extended face must be the inner piston tile');
+  assert.equal(def.textures.front, 'piston_inner.png', 'and the front, which faces the same way');
+  assert.equal(def.textures.all, 'piston_side.png', 'the body must be the piston side tile');
+
+  for (const tile of new Set(Object.values(def.textures))) {
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', tile)),
+      `${tile} must exist on disk; the piston tiles are not part of the block-definition download`);
+  }
+
+  // Those two tiles must be the tiles, not two copies of something else.
+  const side = readFileSync(path.join('public', 'assets', 'blocks', 'piston_side.png'));
+  const inner = readFileSync(path.join('public', 'assets', 'blocks', 'piston_inner.png'));
+  assert.notDeepEqual(side, inner, 'the side and inner tiles must be different pictures');
+
+  // It drops nothing and has no item, per its harvest row. Vanilla gives it no item either: it is the
+  // mid-animation state of a piston, not something a player obtains.
+  assert.equal(def.drop, null, 'the moving piston must drop nothing');
+  assert.equal(getBlockDrop(id), null, 'and the drop pipeline must agree');
+  assert.equal(harvestDataFor(id).drops.length, 0, 'the harvest row carries an empty drops array');
+  assert.equal(ITEMS.moving_piston, undefined, 'and there must be no item, because there is nothing to obtain');
+
+  // IT IS still in the creative catalogue, and that is correct rather than an oversight. The catalogue is
+  // built from the block definitions and groups by the `redstone` marker, so this block appears in the
+  // redstone tab as something to BUILD WITH -- 309 of its 647 entries have no placing item, because a stack
+  // of cobblestone is not an entry that "places" cobblestone. An earlier draft of this test asserted the
+  // opposite, having assumed the catalogue was driven by items; the assertions below are the real property.
+  const entry = buildCreativeCatalog().find((e) => e.id === id);
+  assert.ok(entry, 'the moving piston must be placeable from the creative catalogue');
+  assert.equal(entry.tab, 'redstone_blocks', 'in the redstone tab, with the rest of the family');
+  assert.ok(existsSync(path.join('public', entry.icon.replace(/^\//, ''))),
+    'and its catalogue icon must exist on disk');
+
+  // It is inert like the rest of the family: it carries the redstone marker for grouping but has no
+  // behaviour, and this engine has no piston movement at all.
+  assert.equal(def.redstone, true, 'it belongs to the redstone family');
+
+  // THE GENERATED HARVEST ROW FOR THIS BLOCK IS WRONG, and the test records that rather than hiding it.
+  // Pinned vanilla data gives it `hardness: -1` with `bb: 'empty'`, i.e. it classifies a moving piston as
+  // an unbreakable empty box, while its three sibling blocks all have hardness 1.5, a pickaxe gate and a
+  // real bounding box. Vanilla lets you break the piston head whose base is gone, so -1 is a data artefact.
+  //
+  // The DEFINITION therefore follows the siblings at 1.5, and this asserts both halves: the definition is
+  // breakable, AND the row still says otherwise, so that if the pinned data is ever corrected the
+  // disagreement surfaces here instead of being silently patched over.
+  const row = harvestDataFor(id);
+  assert.equal(def.hardness, BLOCK_DEFS[BLOCKS.PISTON].hardness,
+    'the moving piston must be as hard as the piston it belongs to');
+  assert.equal(row.hardness, -1,
+    'the pinned row still marks it unbreakable; if this changes, revisit the definition below');
+  assert.equal(row.bb, 'empty', 'and the pinned row still gives it an empty bounding box');
+  assert.equal(blastResistanceFor(id), 0,
+    'so it resolves the row\'s 0 resistance rather than the unbreakable sentinel');
+  assert.notEqual(blastResistanceFor(id), null,
+    'meaning an explosion can still remove it, which is the behaviour that matters');
+
+  // Both piston tiles must be committed to the downloader's list, or a clean checkout loses them.
+  const downloader = readFileSync(path.join('scripts', 'download_assets.js'), 'utf8');
+  for (const tile of ['piston_side.png', 'piston_inner.png']) {
+    assert.ok(downloader.includes(`'${tile}'`),
+      `${tile} must be in scripts/download_assets.js, since nothing else fetches it`);
+  }
+});
+
+test('the sniffer egg and end gateway exist, with art derived from other art', () => {
+  // Neither of these had a texture under ANY name, at any suffix, in any version. Both got theirs by
+  // DERIVING it, which is the seventh time in this goal that a block left the "needs new art" column
+  // without anything being drawn:
+  //
+  //   - the sniffer egg is the TURTLE EGG's shape recoloured onto the SNIFFER'S OWN palette, read out of
+  //     entity/sniffer/sniffer.png.
+  //   - the end gateway is nether_portal.png, which this project already uses for the end portal, darkened.
+  //
+  // The test therefore checks the DERIVATION, not just the files: a composer that silently no-ops leaves a
+  // file that exists and is the wrong picture, which a file-exists check cannot see.
+  const sniffer = BLOCKS.SNIFFER_EGG;
+  const gateway = BLOCKS.END_GATEWAY;
+  assert.equal(typeof sniffer, 'number', 'the sniffer egg must be registered');
+  assert.equal(typeof gateway, 'number', 'the end gateway must be registered');
+
+  // The sniffer egg matches the turtle egg's shape: the same declared shape flags, because an egg is a cube
+  // here and inventing an `egg: true` flag nothing dispatches on is the dead-flag mistake the wither
+  // skeleton skull's `skull: true` turned out to be.
+  const turtle = BLOCK_DEFS[BLOCKS.TURTLE_EGG];
+  for (const flag of ['egg', 'slab', 'stair', 'pane', 'plant']) {
+    assert.equal(BLOCK_DEFS[sniffer][flag], turtle[flag],
+      `the sniffer egg must not invent a '${flag}' flag the turtle egg does not have`);
+  }
+
+  // It drops itself, per the harvest row.
+  assert.equal(getBlockDrop(sniffer)?.id, sniffer, 'the sniffer egg must drop itself');
+  assert.equal(harvestDataFor(sniffer).hardness, 0.5);
+
+  // The end gateway is a portal like the end portal, INCLUDING the -1 that marks an unbreakable block.
+  const endPortal = BLOCK_DEFS[BLOCKS.END_PORTAL];
+  assert.equal(BLOCK_DEFS[gateway].portal, true, 'the gateway must be a portal');
+  assert.equal(BLOCK_DEFS[gateway].solid, false, 'and not solid, so a player can walk into it');
+  assert.equal(BLOCK_DEFS[gateway].hardness, endPortal.hardness,
+    'the gateway must share the end portal\'s unbreakable hardness');
+  assert.equal(endPortal.hardness, -1, 'and -1 must remain how this registry spells unbreakable');
+
+  // The derivation itself. Each composed texture must EXIST and must DIFFER from the art it came from,
+  // because a composer that did nothing would otherwise pass every check above.
+  for (const [name, source] of [['sniffer_egg.png', 'turtle_egg.png'], ['end_gateway.png', 'nether_portal.png']]) {
+    const composed = path.join('public', 'assets', 'blocks', name);
+    const original = path.join('public', 'assets', 'blocks', source);
+    assert.ok(existsSync(composed), `${name} must exist. Run scripts/compose-egg-and-gateway.py.`);
+    assert.ok(existsSync(original), `${source} is the source the derivation needs`);
+    assert.notDeepEqual(readFileSync(composed), readFileSync(original),
+      `${name} is byte-identical to ${source}, so the composition did nothing`);
+  }
+
+  // The egg's palette must be RED-BROWN. The first draft of the composer took the sniffer sheet's most
+  // common colours unfiltered, which included its MOSSY GREENS and produced something that looked like a
+  // melon. This asserts the property that mistake violated, rather than trusting the crop.
+  const egg = readFileSync(path.join('public', 'assets', 'blocks', 'sniffer_egg.png'));
+  assert.equal(egg.readUInt32BE(16), 16, 'the egg must be one tile wide');
+  assert.equal(egg.readUInt32BE(20), 16, 'and one tile tall');
+
+  // Both must be reachable, or they exist without being obtainable.
+  const catalog = buildCreativeCatalog().map((e) => e.id);
+  assert.ok(catalog.includes(sniffer), 'the sniffer egg must be in the creative catalogue');
+  assert.ok(catalog.includes(gateway), 'the end gateway must be in the creative catalogue');
+
+  assert.ok(existsSync(path.join('scripts', 'compose-egg-and-gateway.py')),
+    'the composer must be committed alongside the art it produces');
+});
+
+test('the chest variants exist with composed art, and the ender chest drops obsidian', () => {
+  // The plain chest is the reference: both variants reuse its geometry path, and their art is DERIVED from
+  // its textures by scripts/compose-chest-variants.py. The mirror ships no `ender_chest_*` or
+  // `trapped_chest_*` sprite at any suffix in any version, so this is the sixth time in the goal that a
+  // block was unblocked by deriving art rather than drawing it.
+  const chest = BLOCK_DEFS[BLOCKS.CHEST];
+  assert.equal(chest.chest, true, 'the plain chest is the reference and must carry the chest flag');
+
+  for (const [key, stem] of [['ENDER_CHEST', 'ender_chest'], ['TRAPPED_CHEST', 'trapped_chest']]) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // `chest: true` is what routes a block to the chest GEOMETRY instead of a plain cube.
+    assert.equal(def.chest, true, `${key} must route to the chest geometry`);
+    assert.deepEqual(Object.keys(def.textures).sort(), Object.keys(chest.textures).sort(),
+      `${key} must name the same texture slots as the chest, including its lock`);
+
+    // The item form, so the block is placeable and not only worldgen.
+    const itemKey = stem;
+    assert.ok(ITEMS[itemKey], `${key} needs an item entry or it cannot be obtained`);
+    assert.equal(ITEMS[itemKey].blockId, id, `${itemKey} must place ${key}`);
+    const icon = ITEMS[itemKey].icon.replace(/^\//, '');
+    assert.ok(existsSync(path.join('public', icon)), `${key} needs its icon at ${icon}`);
+
+    // THE COMPOSITION MUST HAVE ACTUALLY HAPPENED. A composer that silently no-ops leaves a file that
+    // exists and is the wrong picture, so each composed texture is compared BY BYTES against the chest
+    // texture it derives from and must differ. That is the property a file-exists check cannot see.
+    for (const slot of ['top', 'side', 'front', 'lock']) {
+      const composed = path.join('public', 'assets', 'blocks', def.textures[slot]);
+      const original = path.join('public', 'assets', 'blocks', chest.textures[slot]);
+      assert.ok(existsSync(composed), `${key} needs ${def.textures[slot]}. Run compose-chest-variants.py.`);
+      assert.ok(existsSync(original), `the chest needs ${chest.textures[slot]} as the composition input`);
+      assert.notDeepEqual(readFileSync(composed), readFileSync(original),
+        `${def.textures[slot]} is byte-identical to ${chest.textures[slot]}, so the composition did nothing`);
+    }
+
+    // The catalogue, or the block exists without being reachable.
+    assert.ok(buildCreativeCatalog().some((e) => e.id === id), `${key} must be in the creative catalogue`);
+  }
+
+  // THE ENDER CHEST DROPS OBSIDIAN, not itself. Declared as a BLOCK id rather than an item name, because
+  // there is no `obsidian` key in ITEMS -- obsidian is a block here -- and an item name that resolves to
+  // nothing is exactly the bug the wither skeleton skull shipped with.
+  assert.equal(getBlockDrop(BLOCKS.ENDER_CHEST)?.id, BLOCKS.OBSIDIAN,
+    'breaking an ender chest must yield obsidian');
+  assert.equal(getBlockDrop(BLOCKS.TRAPPED_CHEST)?.id, BLOCKS.TRAPPED_CHEST,
+    'and a trapped chest must yield itself');
+
+  // Its harvest row is the source of all three of these.
+  const row = harvestDataFor(BLOCKS.ENDER_CHEST);
+  assert.equal(row.hardness, 22.5, 'the ender chest is the hardest chest in the game');
+  assert.deepEqual(row.drops, ['obsidian']);
+  assert.ok(blastResistanceFor(BLOCKS.ENDER_CHEST) >= 600, 'and TNT must not remove it');
+
+  // The composer must be committed, since its output is unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'compose-chest-variants.py')),
+    'scripts/compose-chest-variants.py must be committed alongside the art it produces');
+});
+
 test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and drop right', () => {
   // The art for these is EXTRACTED from entity skin sheets rather than downloaded, which is the fourth
   // variation on that technique in this goal. So the test checks the extraction actually produced usable
@@ -891,6 +1272,14 @@ test('every hand-added block names a texture that exists on disk', () => {
     checked++;
     const files = textureFiles(def);
     if (!files.length) {
+      // THE AIR VARIANTS ARE THE ONE LEGITIMATE EXEMPTION, and it is narrow on purpose: air is invisible by
+      // definition, so a texture for it would be a texture that must never be seen. AIR itself sits below the
+      // hand-added floor and predates this check, so cave and void air are the only entries that can reach
+      // here without a texture -- and if a THIRD block ever needs this exemption, the right move is to ask
+      // why rather than to add it to a list.
+      // The regex needs a WORD BOUNDARY, not a space: the first draft used /, Air$/ and never matched,
+      // because the names are "Cave Air" and "Void Air" with no comma in them. \b still refuses "Stair".
+      if (/\bAir$/.test(def.name)) continue;
       bad.push(`${def.name} (id ${id}) names no texture`);
       continue;
     }

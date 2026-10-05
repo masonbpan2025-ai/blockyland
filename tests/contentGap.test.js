@@ -20,11 +20,14 @@ test('most missing blocks are missing art, not code', (t) => {
   // A floor only to catch a BROKEN measurement -- a resolver that suddenly matched everything would
   // report a gap of near zero and every relative claim below would pass trivially.
   //
-  // This has been lowered three times as batches closed the gap: 200 -> 50 -> 20. Each time the failure
-  // was the wrong reason to fail, because closing the gap IS the objective. The floor is now a fifth of
-  // the real figure so that ordinary progress cannot trip it, and small enough that only a resolver
-  // matching nearly everything would.
-  assert.ok(r.missing > 20, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
+  // THIS FLOOR HAS BEEN LOWERED FOUR TIMES: 200 -> 50 -> 20 -> 5. Every lowering was the same story, and
+  // the third one is the one to learn from: 20 was STILL just above the real figure, so the batch that took
+  // the gap to 18 failed a test whose entire subject is a gap that is supposed to close. Setting a floor
+  // just under the current number guarantees the next batch trips it.
+  //
+  // At 5 the test can only fire if the resolver has matched nearly everything, which is the failure it
+  // exists to catch. The real claims are the relative ones below, and those are untouched by the floor.
+  assert.ok(r.missing > 5, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
   // The claim, stated as a ratio rather than an absolute: most of the gap needs art.
   //
   // The figure moves as work lands, and in BOTH directions, which is worth understanding before adjusting

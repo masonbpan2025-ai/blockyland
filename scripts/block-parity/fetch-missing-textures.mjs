@@ -39,7 +39,25 @@ for (const [id, def] of Object.entries(BLOCK_DEFS)) {
   }
 }
 
-const missing = [...wanted].filter((f) => !existsSync(path.join(BLOCK_DIR, f))).sort();
+// BLOCK TEXTURES THAT ARE COMPOSED RATHER THAN DOWNLOADED. These are outputs of the scripts in
+// `scripts/compose-*.py`, which build them from other art, so a 404 under `blocks/` AND `items/` is the
+// expected result rather than a failure. Listing them here is what stops the restore step reporting
+// INCOMPLETE for a texture the NEXT step is about to produce -- which is exactly what happened with
+// `bubble_column.png`, whose composer runs a few lines later in scripts/restore-block-assets.mjs.
+//
+// They are asserted to be produced by tests/blockRegistryIntegrity.test.js, so skipping them here does not
+// let a silently-broken composer through: the test fails instead.
+const COMPOSED_TEXTURES = new Set([
+  'bubble_column.png',
+]);
+const composed = [...wanted].filter((f) => COMPOSED_TEXTURES.has(f));
+const missing = [...wanted]
+  .filter((f) => !COMPOSED_TEXTURES.has(f))
+  .filter((f) => !existsSync(path.join(BLOCK_DIR, f)))
+  .sort();
+if (composed.length) {
+  console.log(`${composed.length} texture(s) are composed rather than downloaded: ${composed.join(", ")}`);
+}
 console.log(`hand-added blocks reference ${wanted.size} textures; ${missing.length} are missing`);
 if (!missing.length) {
   console.log('nothing to do');
@@ -68,6 +86,28 @@ for (const file of missing) {
       break;
     } catch {
       // Try the next version.
+    }
+  }
+
+  // SOME BLOCK TEXTURES ONLY EXIST AS ITEM SPRITES, and this is why the fetch above finds nothing for
+  // them. A vanilla barrier, light and structure void are INVISIBLE and have NO block tile upstream at any
+  // version; their ITEM sprite is the art. Without this fallback the restore step reports them as missing
+  // and fails, even though the art is one directory away and the block tile is simply a copy of it.
+  if (!done) {
+    for (const version of VERSIONS) {
+      try {
+        const res = await fetch(`${MIRROR}/${version}/items/${file}`);
+        if (!res.ok) continue;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        writeFileSync(path.join(BLOCK_DIR, file), bytes);
+        writeFileSync(path.join(path.dirname(BLOCK_DIR), "items", file), bytes);
+        console.log(`  ${file}  <- ${version}/items (block tile is a copy of the item sprite)`);
+        fetched++;
+        done = true;
+        break;
+      } catch {
+        // Try the next version.
+      }
     }
   }
   if (!done) failed.push(file);

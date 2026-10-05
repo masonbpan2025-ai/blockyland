@@ -22,6 +22,7 @@
 // it has one.
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import {
+  VANILLA_ID_ALIASES,
   danglingReferences,
   normaliseCell,
   registry as defaultRegistry,
@@ -29,7 +30,7 @@ import {
 } from './resourceRegistry.js';
 import { getItemEnchantCategory, NOT_ENCHANTABLE } from './enchanting.js';
 import { describeTool, NON_MINING_TOOLS } from './miningRules.js';
-import { blockDrops } from './blockDrops.js';
+import { blockDrops, baseBlockDrop } from './blockDrops.js';
 
 /**
  * Returned by a check that cannot be evaluated in this environment. Distinct from `false`, because
@@ -47,6 +48,29 @@ const isTechnical = (entry) =>
 /** Vanilla block defs with no gameplay identity: nothing to mine, nothing to hold. */
 const NON_SOLID_NAMES = new Set(['air', 'void_air', 'cave_air', 'light', 'moving_piston', 'bubble_column']);
 
+/**
+ * Blocks whose vanilla harvest row is about one growth stage rather than about the block.
+ *
+ * A pumpkin stem's row is `['air']` and a wheat crop's is `['wheat_seeds']`, because the row describes the
+ * immature stage: the mature wheat crop gives wheat and seeds together, and the game models the stages as
+ * separate ids. Comparing a stage's row against the game's drop is comparing two different things, so these
+ * vanilla names are skipped. Named rather than matched, and a test requires each name to still be a block
+ * here, so a typo cannot quietly exempt something else.
+ */
+const STAGE_SPECIFIC_ROWS = new Set([
+  'wheat', 'carrots', 'potatoes', 'beetroots', 'pumpkin_stem', 'attached_pumpkin_stem',
+  'melon_stem', 'attached_melon_stem', 'sweet_berry_bush', 'cave_vines', 'cave_vines_plant',
+  'torchflower_crop', 'pitcher_crop', 'nether_wart', 'cocoa',
+]);
+
+/**
+ * Blocks with no vanilla counterpart to take harvest data from.
+ *
+ * pressure_plate is this game's own generic block; sulfur_block and dried_ghast postdate the pinned
+ * 1.21.4 data. Named rather than patterned, and a test requires each name to still be a block the game has, so
+ * the list cannot rot into a place where real gaps hide.
+ */
+const NO_VANILLA_HARVEST = new Set(['pressure_plate', 'sulfur_block', 'dried_ghast']);
 const skipTechnical = (entry) =>
   NON_SOLID_NAMES.has(entry.blockAliases?.[0]) || entry.blockAliases?.some((a) => NON_SOLID_NAMES.has(a));
 
@@ -64,8 +88,18 @@ const skipTechnical = (entry) =>
  */
 const PLACEMENT_VARIANTS = [
   ['_wall_banner', '_banner'],
+  // A wall sign is a sign placed against a wall, and vanilla drops the sign.
+  ['_wall_sign', '_sign'],
   ['_bed_head', '_bed'],
   ['_wall_hanging_sign', '_hanging_sign'],
+  // A door's and a trapdoor's states, which vanilla models with block states and this game with separate
+  // block ids: an open door, the top half of a door, and the top half of an open door are all still that
+  // door, and vanilla drops the door. Longest first, because "Spruce Door Top Open" ends with neither
+  // "_door_open" nor "_door_top" -- it ends with the two of them together.
+  ['_door_top_open', '_door'],
+  ['_door_open', '_door'],
+  ['_door_top', '_door'],
+  ['_trapdoor_open', '_trapdoor'],
 ];
 
 /** The item a placement variant is a placement of, or null when it is an item in its own right. */
@@ -91,11 +125,77 @@ function vanillaIdOf(entry, vanilla) {
   if (entry.kind === 'item') return entry.id;
   const aliases = entry.blockAliases ?? [];
   if (!aliases.length) return null;
+  // The alias table first, because it is hand-verified and the search below is a heuristic. This game's block
+  // 28 is the *snow block* and its alias `snow` is also a vanilla item -- the snow layer -- so the heuristic
+  // matched the layer and the Inspector then compared a snow block against the layer's recipe.
+  const mapped = aliases.map((alias) => VANILLA_ID_ALIASES[alias]).find(Boolean);
+  if (mapped) return mapped;
+  // Otherwise the first alias vanilla knows, which fixes the cases the table does not cover: alias order in
+  // `BLOCKS` is not vanilla's order, so `GRASS` is declared before `GRASS_BLOCK` and the first alias is
+  // `grass` while vanilla calls the item `grass_block`.
   if (vanilla) {
     const known = aliases.find((alias) => vanilla.itemByName.has(alias));
     if (known) return known;
   }
   return aliases[0];
+}
+
+/**
+ * A comparable key for a recipe's ingredients: the names, sorted, with duplicates kept.
+ *
+ * Duplicates matter -- nine wheat is not one wheat -- and so does order-insensitivity: a shaped recipe's
+ * arrangement is a separate question, and the one that mattered here was *what* a recipe asks for.
+ */
+function ingredientKey(names) {
+  return names.length ? [...names].sort().join('+') : null;
+}
+
+/** The ingredients vanilla's recipe names, in vanilla's own vocabulary. */
+function vanillaIngredients(recipe, vanilla) {
+  const cells = recipe.inShape ? recipe.inShape.flat() : (recipe.ingredients ?? []);
+  const out = [];
+  for (const cell of cells) {
+    if (cell === null || cell === undefined) continue;
+    const id = Number(Array.isArray(cell) ? (cell[0]?.id ?? cell[0]) : cell);
+    const name = vanilla.itemById.get(id) ?? vanilla.blockNameById.get(id);
+    if (name) out.push(name);
+  }
+  return out;
+}
+
+/** The ingredients one of this game's recipes names, translated into vanilla's vocabulary. */
+function gameIngredients(recipe, registry, vanilla) {
+  const cells = [];
+  if (Array.isArray(recipe.pattern)) {
+    for (const row of recipe.pattern) for (const cell of row) if (cell !== null && cell !== undefined) cells.push(cell);
+  }
+  if (Array.isArray(recipe.ingredients)) {
+    for (const cell of recipe.ingredients) if (cell !== null && cell !== undefined) cells.push(cell);
+  }
+  const out = [];
+  for (const cell of cells) {
+    // A numeric cell is a block id and a string one an item name, and both go through the registry so the
+    // name compared against vanilla is the same one the rest of the Inspector uses.
+    const entry = resolveResource(cell, registry);
+    out.push(entry ? vanillaIdOf(entry, vanilla) : String(cell));
+  }
+  return out;
+}
+
+/**
+ * Is this block's vanilla name answered for by an *item* here?
+ *
+ * A name can belong to both a block and an item: the wheat crop block and the wheat item share `wheat`, and
+ * this game registers the target block twice, one of which carries the item form. Vanilla keys its recipes,
+ * sources and ingredients by the item, so asking the *block* entry where its recipe is reports the placed form
+ * as uncraftable -- which is what it is, because you craft the item and place it. The item entry answers for
+ * the name, and the block entry is skipped by the item-level checks.
+ */
+function answeredByAnItem(entry, registry, vanilla) {
+  if (entry.kind === 'item') return false;
+  const vanillaName = vanillaIdOf(entry, vanilla);
+  if (!vanillaName) return false;
+  return registry?.entries?.get(vanillaName)?.kind === 'item';
 }
 
 /**
@@ -234,7 +334,7 @@ export const RESOURCE_CHECKS = [
     id: 'has-source',
     label: 'Can be obtained in survival',
     group: 'obtainable',
-    run: ({ entry, registry }) => {
+    run: ({ entry, registry, vanilla }) => {
       // A spawn egg is creative-only in vanilla: no recipe, no drop, no trade. Asking for a survival
       // source reported all ninety of them as gaps, which is a fifth of the report and buries the items
       // that genuinely have no source. The one case is named rather than matched by a pattern, and
@@ -244,6 +344,9 @@ export const RESOURCE_CHECKS = [
       // half, a crop's third growth stage. This check was asking all eighty-five of them where they could
       // be obtained, which is not a question about an item. `block-drop` and `harvest-data` cover blocks.
       if (entry.internal) return CHECK_SKIP;
+      // A block whose vanilla name is an item here: the wheat crop block and the wheat item, a chest. What a
+      // player obtains is the item, and the item entry answers for the name.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       // A wall banner, a bed head and a wall hanging sign are one item placed differently. See
       // PLACEMENT_VARIANTS; the exemption needs the standing counterpart to be registered.
       // Item entries are keyed by their bare id (`black_banner`); a block with no item form is keyed
@@ -262,7 +365,10 @@ export const RESOURCE_CHECKS = [
     id: 'recipe-parity',
     label: 'Vanilla crafting recipe exists here too',
     group: 'obtainable',
-    run: ({ entry, vanilla }) => {
+    run: ({ entry, registry, vanilla }) => {
+      // A block whose vanilla name is an item here is answered for by that item: vanilla's recipe is for the
+      // item, and asking the placed form reports it as uncraftable, which is what a crop block is.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       // Air is not something anyone crafts. The pinned recipe data carries one `paper + filled_map` entry
       // whose result is air, which is how minecraft-data represents the map-zooming recipe; without this it
       // reads as "vanilla has a recipe for air and this game does not".
@@ -277,13 +383,47 @@ export const RESOURCE_CHECKS = [
     id: 'ingredient-parity',
     label: 'Usable as an ingredient like vanilla',
     group: 'obtainable',
-    run: ({ entry, vanilla }) => {
+    run: ({ entry, registry, vanilla }) => {
+      // Same rule: vanilla's ingredients name the item, not the block that places it.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       const expected = vanilla?.recipesByIngredientName.get(vanillaIdOf(entry, vanilla));
       if (!expected || !expected.length) return CHECK_SKIP;
       if (entry.recipesAsIngredient.length) return true;
       return {
         ok: false,
         detail: `vanilla uses this in ${expected.length} recipe(s); nothing here consumes it`,
+      };
+    },
+  },
+  {
+    id: 'recipe-ingredient-parity',
+    label: 'Recipe ingredients match vanilla\'s',
+    group: 'obtainable',
+    run: ({ entry, registry, vanilla }) => {
+      // `recipe-parity` asks whether a recipe exists and `ingredient-parity` whether the item is used at all.
+      // Neither asks whether the recipe *asks for the same things*, which is how nine wheat items came to be
+      // unable to make a hay block: the recipe existed, was counted, and named the wheat crop block.
+      if (!vanilla) return CHECK_SKIP;
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
+      const expected = vanilla.recipesByResultName.get(vanillaIdOf(entry, vanilla));
+      if (!expected || !expected.length) return CHECK_SKIP;
+      // A result with no recipe here at all is `recipe-parity`'s finding, not this one's.
+      const mine = entry.recipesAsResult ?? [];
+      if (!mine.length) return CHECK_SKIP;
+
+      const mineSets = new Set(mine.map((recipe) => ingredientKey(gameIngredients(recipe, registry, vanilla))));
+      const wanted = [];
+      for (const recipe of expected) {
+        const key = ingredientKey(vanillaIngredients(recipe, vanilla));
+        if (!key) continue;
+        wanted.push({ key, recipe });
+        if (mineSets.has(key)) return true;
+      }
+      if (!wanted.length) return CHECK_SKIP;
+      const first = wanted[0];
+      return {
+        ok: false,
+        detail: `vanilla asks for ${first.recipe.name ?? first.key} and no recipe here does`,
       };
     },
   },
@@ -307,6 +447,11 @@ export const RESOURCE_CHECKS = [
     run: ({ entry }) => {
       if (entry.blockId === null) return CHECK_SKIP;
       if (skipTechnical(entry)) return CHECK_SKIP;
+      // Nothing to compare these against. `pressure_plate` is this game's own generic block -- vanilla names
+      // its eight variants instead -- and `sulfur_block` and `dried_ghast` are newer than the pinned 1.21.4
+      // data, which is why neither appears in it. Reporting "no row" for them is reporting the cache's age,
+      // not a gap in the game, so they are named here with that reason rather than exempted by a pattern.
+      if (NO_VANILLA_HARVEST.has(entry.blockAliases?.[0])) return CHECK_SKIP;
       return entry.harvest
         ? true
         : { ok: false, detail: `${entry.blockDef?.name ?? entry.id} has no BLOCK_HARVEST row` };
@@ -340,6 +485,51 @@ export const RESOURCE_CHECKS = [
         .filter((drop) => String(drop).toLowerCase() !== 'air');
       if (!vanillaDrops.length) return CHECK_SKIP;
       return { ok: false, detail: `vanilla drops ${vanillaDrops.join(', ')} and this block drops nothing` };
+    },
+  },
+  {
+    id: 'block-drop-parity',
+    label: 'Block drops what vanilla drops',
+    group: 'block',
+    run: ({ entry, registry, vanilla }) => {
+      if (entry.blockId === null) return CHECK_SKIP;
+      if (skipTechnical(entry)) return CHECK_SKIP;
+      // A placement is obtained by placing its base, and this game models several of vanilla's block states
+      // as blocks of their own: a wall banner, a bed's head, an open door. Their drops follow the game's own
+      // model, and vanilla has one row for the base block, so comparing them is comparing two shapes.
+      //
+      // Matched on a *name*, not on the entry's key: a block with no item form is keyed `block:788`, and
+      // `'block:788'` ends with none of the state suffixes.
+      const names = entry.blockAliases ?? [];
+      const baseName = names[0] ?? String(entry.id);
+      if (placementVariantOf(baseName, (id) => registry.entries.has(id)) !== null) return CHECK_SKIP;
+      // A farm block's row names the *seed* an immature stage gives up -- a pumpkin stem's is `air`, a wheat
+      // crop's is `wheat_seeds` -- so the row is about one stage rather than about the block. Named blocks,
+      // not a pattern: these are the vanilla names whose rows are stage-specific. Any alias, because a wheat
+      // crop carries both `wheat_stage_7` and `wheat`.
+      if (names.some((name) => STAGE_SPECIFIC_ROWS.has(name))) return CHECK_SKIP;
+
+      const vanillaDrops = (entry.harvest?.drops ?? [])
+        .filter((drop) => String(drop).toLowerCase() !== 'air');
+      // Only a row that names exactly one item is comparable. A row naming several is a shape this check
+      // does not model (a bookshelf's books and a gravel's flint are both single, but a crop's item plus
+      // seeds is not), and a row naming none is the other check's business.
+      if (vanillaDrops.length !== 1) return CHECK_SKIP;
+
+      // The game's *base* drop -- what it gives up before the bonus and replacement rolls, both of which are
+      // this game's way of spelling vanilla's probabilities (gravel gives flint, a grass plant gives a seed).
+      const base = baseBlockDrop(entry.blockId);
+      // The drop's name as vanilla knows it, which is neither the block's display name nor its registry key:
+      // block 151 is "Block of Coal" here and `coal_block` to vanilla, and a bare block's entry is keyed
+      // `block:3` rather than `stone`. Without the vanilla index nothing can be compared.
+      if (base !== null && !vanilla) return CHECK_SKIP;
+      const droppedEntry = base === null ? null : resolveResource(base.id, registry);
+      const gameName = droppedEntry === null ? null : vanillaIdOf(droppedEntry, vanilla);
+      if (gameName === vanillaDrops[0]) return true;
+      return {
+        ok: false,
+        detail: `drops ${gameName ?? 'nothing'}, vanilla drops ${vanillaDrops[0]}`,
+      };
     },
   },
   {
@@ -505,6 +695,10 @@ export function buildVanillaIndex({ items = [], recipes = {}, foods = [], blocks
     // worst duplicates shadowed a *block* name (`hay_bale`) or differed by vocabulary rather than by
     // spelling (`slimeball`), so both would have been missed.
     blockNames: blocks.map((b) => b.name),
+    // Recipe ingredients arrive as numeric ids, so comparing them needs the reverse of `itemByName`. The
+    // recipe-ingredient check resolves both sides through this and through the block list.
+    itemById: nameById,
+    blockNameById: new Map(blocks.map((b) => [b.id, b.name])),
   };
 }
 
