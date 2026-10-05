@@ -40,7 +40,9 @@ for (const key of keys) {
   note(Boolean(def), `definition${def ? ` "${def.name}"` : ' MISSING'}`);
   if (!def) continue;
 
-  note(def.hardness > 0, `hardness ${def.hardness}`);
+  // Hardness 0 is correct for plants (flowers and saplings are instantly breakable), so the check is
+  // that the value is present and sane, not that it is positive.
+  note(typeof def.hardness === 'number' && def.hardness >= 0, `hardness ${def.hardness}`);
   const tex = Object.values(def.textures ?? {});
   note(tex.length > 0, `textures ${JSON.stringify(tex)}`);
 
