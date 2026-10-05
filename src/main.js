@@ -1,7 +1,7 @@
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
-import { eat } from './hunger.js';
+import { EXHAUSTION } from './hunger.js';
 import { FOODS } from './foodData.js';
 import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
@@ -1944,16 +1944,16 @@ class Game {
         if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
         if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
           this.sounds.playEat();
-          // Eating goes through the hunger model rather than doing the arithmetic here. `hunger.js` has had an
-          // `eat(state, hungerPoints, saturationPoints)` that applies vanilla's rule -- saturation is capped at
-          // the *final* hunger, so the same golden carrot gives less when you are nearly starving -- and this
-          // path never called it: it added hunger, added two health, and never touched saturation at all. Every
-          // meal was therefore hunger without saturation, which is what the hunger system spends first.
+          // `Player.eatFood` owns this: it calls the model in `hunger.js` and keeps the player's own fields in
+          // sync with it, which is the arrangement the rest of the player already uses for exhaustion and the
+          // per-tick model. Doing the arithmetic here instead -- which this path did originally, adding hunger
+          // and two health and never touching saturation -- left the hunger system spending something eating
+          // never granted.
           //
           // The item's own saturation is preferred and `foodData.js` answers for the items that do not declare
-          // one; the table is generated from vanilla's data and is the same source the Inspector checks.
+          // one; that table is generated from vanilla's data and is the same source the Inspector checks.
           const saturation = it.saturation ?? FOODS[activeItem.id]?.saturation ?? 0;
-          eat(this.player, it.food || 4, saturation);
+          this.player.eatFood?.(it.food || 4, saturation);
           // Vanilla grants no instant health for eating: health comes back from the saturation boost, which
           // `hunger.js` regenerates at 1.5 saturation per point, the wiki's own figure.
           // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,

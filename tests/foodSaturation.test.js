@@ -81,10 +81,14 @@ test('the saturation boost spends what the wiki says', () => {
 });
 
 test('the eating path calls the model rather than doing its own arithmetic', () => {
-  // A wiring check, as for the buckets, bundles and brush: `hunger.js` was a model with tests and no caller.
+  // A wiring check, as for the buckets, bundles and brush. Eating goes through `Player.eatFood`, which owns the
+  // model in `hunger.js` and keeps the player's fields in sync with it; doing the arithmetic in `main.js`, as
+  // this path originally did, left the hunger system spending saturation that eating never granted.
   const main = readFileSync('src/main.js', 'utf8');
-  assert.match(main, /from '\.\/hunger\.js'/, 'main.js should import the hunger model');
-  assert.match(main, /eat\(this\.player, it\.food \|\| 4, saturation\)/, 'and call it when a food is eaten');
+  assert.match(main, /this\.player\.eatFood\?\.\(it\.food \|\| 4, saturation\)/,
+    'eating should go through the player, which owns the hunger model');
   assert.doesNotMatch(main, /this\.player\.health = Math\.min\(this\.player\.maxHealth, this\.player\.health \+ 2\)/,
     'eating should not grant instant health: vanilla heals through saturation');
+  const player = readFileSync('src/player.js', 'utf8');
+  assert.match(player, /eatFood\(hungerPoints, saturationPoints = 0\)/, 'the player owns the eating path');
 });
