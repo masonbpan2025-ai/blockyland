@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1549 recipes.
+// 1551 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -317,6 +317,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.CUT_SANDSTONE,null,null],[B.CUT_SANDSTONE,B.CUT_SANDSTONE,null],[B.CUT_SANDSTONE,B.CUT_SANDSTONE,B.CUT_SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.CHISELED_SANDSTONE,null,null],[B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE,null],[B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE,B.CHISELED_SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.SANDSTONE,null,null],[B.SANDSTONE,B.SANDSTONE,null],[B.SANDSTONE,B.SANDSTONE,B.SANDSTONE]],result:{id:B.SANDSTONE_STAIRS,isBlock:true,count:4}},
+  {pattern:[[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN],[B.OBSIDIAN,'ender_eye',B.OBSIDIAN],[B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN]],result:{id:B.ENDER_CHEST,isBlock:true,count:1}},
   {pattern:[['emerald','emerald','emerald'],['emerald','emerald','emerald'],['emerald','emerald','emerald']],result:{id:B.EMERALD_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,null,null],[B.OAK_PLANKS,B.OAK_PLANKS,null],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_STAIRS,isBlock:true,count:4}},
   {pattern:[[B.SPRUCE_PLANKS,null,null],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,null],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_STAIRS,isBlock:true,count:4}},
@@ -596,6 +597,7 @@ export const EXTRA_RECIPES = [
   {pattern:[['iron_ingot'],['stick'],[B.BIRCH_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.SPRUCE_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
   {pattern:[['iron_ingot'],['stick'],[B.OAK_PLANKS]],result:{id:B.TRIPWIRE_HOOK,isBlock:true,count:2}},
+  {shapeless:true,ingredients:[B.CHEST,B.TRIPWIRE_HOOK],result:{id:B.TRAPPED_CHEST,isBlock:true,count:1}},
   {pattern:[['gunpowder',B.RED_SAND,'gunpowder'],[B.RED_SAND,'gunpowder',B.RED_SAND],['gunpowder',B.RED_SAND,'gunpowder']],result:{id:B.TNT,isBlock:true,count:1}},
   {pattern:[['gunpowder',B.SAND,'gunpowder'],[B.SAND,'gunpowder',B.SAND],['gunpowder',B.SAND,'gunpowder']],result:{id:B.TNT,isBlock:true,count:1}},
   {pattern:[[null,'redstone',null],['redstone',B.GLOWSTONE,'redstone'],[null,'redstone',null]],result:{id:B.REDSTONE_LAMP,isBlock:true,count:1}},
@@ -1569,21 +1571,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1549;
+export const EXTRA_RECIPE_COUNT = 1551;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1549,
-  "shaped": 1279,
-  "shapeless": 270,
-  "skippedMissingResult": 6,
+  "emitted": 1551,
+  "shaped": 1280,
+  "shapeless": 271,
+  "skippedMissingResult": 4,
   "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1549,
+  "emittedBeforeDedupe": 1551,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

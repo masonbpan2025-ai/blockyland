@@ -339,10 +339,10 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1549 | 1557 | 99.5% |
-| Crafting recipes expressible | 1550 | 1557 | 99.6% |
-| Blocks named | 1069 | 1095 | 97.6% |
-| Items named | 1303 | 1385 | 94.1% |
+| Vanilla recipes implemented | 1551 | 1557 | 99.6% |
+| Crafting recipes expressible | 1552 | 1557 | 99.7% |
+| Blocks named | 1073 | 1095 | 98.0% |
+| Items named | 1306 | 1385 | 94.3% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,12 +371,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1069 | 1292 |
-| missing | 26 | 93 |
+| present | 1071 | 1295 |
+| missing | 24 | 90 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **26** | **93** |
-| art files | 535 | 1071 |
+| **missing, needs NEW art** | **24** | **90** |
+| art files | 545 | 1071 |
 
 A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind

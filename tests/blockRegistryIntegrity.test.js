@@ -111,6 +111,66 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the chest variants exist with composed art, and the ender chest drops obsidian', () => {
+  // The plain chest is the reference: both variants reuse its geometry path, and their art is DERIVED from
+  // its textures by scripts/compose-chest-variants.py. The mirror ships no `ender_chest_*` or
+  // `trapped_chest_*` sprite at any suffix in any version, so this is the sixth time in the goal that a
+  // block was unblocked by deriving art rather than drawing it.
+  const chest = BLOCK_DEFS[BLOCKS.CHEST];
+  assert.equal(chest.chest, true, 'the plain chest is the reference and must carry the chest flag');
+
+  for (const [key, stem] of [['ENDER_CHEST', 'ender_chest'], ['TRAPPED_CHEST', 'trapped_chest']]) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // `chest: true` is what routes a block to the chest GEOMETRY instead of a plain cube.
+    assert.equal(def.chest, true, `${key} must route to the chest geometry`);
+    assert.deepEqual(Object.keys(def.textures).sort(), Object.keys(chest.textures).sort(),
+      `${key} must name the same texture slots as the chest, including its lock`);
+
+    // The item form, so the block is placeable and not only worldgen.
+    const itemKey = stem;
+    assert.ok(ITEMS[itemKey], `${key} needs an item entry or it cannot be obtained`);
+    assert.equal(ITEMS[itemKey].blockId, id, `${itemKey} must place ${key}`);
+    const icon = ITEMS[itemKey].icon.replace(/^\//, '');
+    assert.ok(existsSync(path.join('public', icon)), `${key} needs its icon at ${icon}`);
+
+    // THE COMPOSITION MUST HAVE ACTUALLY HAPPENED. A composer that silently no-ops leaves a file that
+    // exists and is the wrong picture, so each composed texture is compared BY BYTES against the chest
+    // texture it derives from and must differ. That is the property a file-exists check cannot see.
+    for (const slot of ['top', 'side', 'front', 'lock']) {
+      const composed = path.join('public', 'assets', 'blocks', def.textures[slot]);
+      const original = path.join('public', 'assets', 'blocks', chest.textures[slot]);
+      assert.ok(existsSync(composed), `${key} needs ${def.textures[slot]}. Run compose-chest-variants.py.`);
+      assert.ok(existsSync(original), `the chest needs ${chest.textures[slot]} as the composition input`);
+      assert.notDeepEqual(readFileSync(composed), readFileSync(original),
+        `${def.textures[slot]} is byte-identical to ${chest.textures[slot]}, so the composition did nothing`);
+    }
+
+    // The catalogue, or the block exists without being reachable.
+    assert.ok(buildCreativeCatalog().some((e) => e.id === id), `${key} must be in the creative catalogue`);
+  }
+
+  // THE ENDER CHEST DROPS OBSIDIAN, not itself. Declared as a BLOCK id rather than an item name, because
+  // there is no `obsidian` key in ITEMS -- obsidian is a block here -- and an item name that resolves to
+  // nothing is exactly the bug the wither skeleton skull shipped with.
+  assert.equal(getBlockDrop(BLOCKS.ENDER_CHEST)?.id, BLOCKS.OBSIDIAN,
+    'breaking an ender chest must yield obsidian');
+  assert.equal(getBlockDrop(BLOCKS.TRAPPED_CHEST)?.id, BLOCKS.TRAPPED_CHEST,
+    'and a trapped chest must yield itself');
+
+  // Its harvest row is the source of all three of these.
+  const row = harvestDataFor(BLOCKS.ENDER_CHEST);
+  assert.equal(row.hardness, 22.5, 'the ender chest is the hardest chest in the game');
+  assert.deepEqual(row.drops, ['obsidian']);
+  assert.ok(blastResistanceFor(BLOCKS.ENDER_CHEST) >= 600, 'and TNT must not remove it');
+
+  // The composer must be committed, since its output is unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'compose-chest-variants.py')),
+    'scripts/compose-chest-variants.py must be committed alongside the art it produces');
+});
+
 test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and drop right', () => {
   // The art for these is EXTRACTED from entity skin sheets rather than downloaded, which is the fourth
   // variation on that technique in this goal. So the test checks the extraction actually produced usable
@@ -126,6 +186,11 @@ test('the four mob heads and their wall forms exist, mesh as 8/16 cubes, and dro
     // nothing reads, so it rendered as a coal cube -- and because the gap report resolves the vanilla NAME
     // to that key, only the wall form ever showed up as missing.
     ['WITHER_SKELETON_SKULL', 'WITHER_SKELETON_WALL_SKULL', 'wither_skeleton_skull'],
+    // The ender dragon, which needed a DIFFERENT extraction from the rest: its sheet is a 256x256 model
+    // texture with no 8x8 face layout, so the extractor locates the face by colour instead of by
+    // convention. It is in this list because the test checks the tiles have PIXEL CONTENT, which is what
+    // separates a successful crop from a blank one -- and a blank one is exactly what a wrong box gives.
+    ['DRAGON_HEAD', 'DRAGON_WALL_HEAD', 'dragon_head'],
   ];
 
   for (const [key, wallKey, stem] of HEADS) {
