@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { MobManager } from './mobs.js';
 import { BLOCKS } from './blocks.js';
 
-export const DEBUG_MOBS = 'blaze magma_cube ghast piglin zombified_piglin hoglin zoglin strider wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite rabbit bat fox bee goat llama turtle frog tadpole parrot armadillo husk stray bogged breeze sniffer allay wandering_trader trader_llama camel parched creaking killer_bunny snow_golem pig cow sheep chicken horse donkey mule wolf cat ocelot villager iron_golem pillager ravager witch slime enderman shulker guardian elder_guardian drowned cod salmon squid glow_squid dolphin axolotl mooshroom polar_bear panda warden phantom vindicator evoker vex ender_dragon wither tournament_host site_manager jackie_chun'.split(' ');
+export const DEBUG_MOBS = 'blaze magma_cube ghast piglin zombified_piglin hoglin zoglin strider wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite rabbit bat fox bee goat llama turtle frog tadpole parrot armadillo husk stray bogged breeze sniffer allay wandering_trader trader_llama camel parched creaking killer_bunny snow_golem illusioner pig cow sheep chicken horse donkey mule wolf cat ocelot villager iron_golem pillager ravager witch slime enderman shulker guardian elder_guardian drowned cod salmon squid glow_squid dolphin axolotl mooshroom polar_bear panda warden phantom vindicator evoker vex ender_dragon wither tournament_host site_manager jackie_chun'.split(' ');
 
 // An infinite flat floor and sparse edits: no chunks, map generator or saved worlds.
 export function createDebugWorld() {

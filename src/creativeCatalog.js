@@ -218,7 +218,7 @@ export function buildCreativeCatalog() {
     // dispatcher and the Inspector, but the creative spawn-egg category reads THIS list and it stopped at the
     // older mobs, so they never appeared in the creative menu.
     'allay_spawn_egg', 'sniffer_spawn_egg', 'breeze_spawn_egg', 'armadillo_spawn_egg',
-    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg'
+    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');

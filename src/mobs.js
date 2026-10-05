@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
 import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
 import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
@@ -525,6 +526,7 @@ export class MobManager {
       case 'camel': return this.spawnCamel(x, y, z, options);
       case 'creaking': return this.spawnCreaking(x, y, z, options);
       case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
+      case 'illusioner': return this.spawnIllusioner(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2580,6 +2582,8 @@ export class MobManager {
       // Wiki: a snow golem is 0.7 x 1.9 in Java. Its loot table already existed while it had no
       // dimension row, so it was silently using the humanoid box.
       case 'snow_golem': return SNOW_GOLEM_DIMENSIONS;
+      // Wiki: an illusioner is 0.6 x 1.95, the standard illager box.
+      case 'illusioner': return ILLUSIONER_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4639,6 +4643,71 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Illusioner.
+   *
+   * Wiki: 32 HP, 0.6 x 1.95, speed 0.5. A Java-exclusive illager that spawns only by command, fires an
+   * arrow a second (three times a skeleton), sees its target through walls, strafes at a fixed distance,
+   * and fights with two spells: Blindness on its opponent and Invisibility on itself behind four mirror
+   * duplicates.
+   */
+  spawnIllusioner(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.robe });
+    const trimMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.trim });
+    const skinMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.skin });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: ILLUSIONER_COLORS.eye });
+    const bowMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.bow });
+    const { group: model, body, sash, head, nose, eyes, legs, arms, bow } =
+      createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'illusioner',
+      name: 'Illusioner',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, sash, head, nose, eyes, legs, arms, bow,
+      // Wiki: 32 HP.
+      health: ILLUSIONER_HEALTH,
+      maxHealth: ILLUSIONER_HEALTH,
+      width: ILLUSIONER_DIMENSIONS.width,
+      height: ILLUSIONER_DIMENSIONS.height,
+      speed: ILLUSIONER_SPEED,
+      isHostile: true,
+      attackDamage: ILLUSIONER_DAMAGE.normal.min,
+      // Wiki: it is the only illager that can see its target through walls.
+      seesThroughWalls: ILLUSIONER_SEES_THROUGH_WALLS,
+      // The spells. `casting` drives the shared arm-raise animation.
+      invisibleTimer: 0,
+      invisibilityCooldown: 0,
+      blindnessCooldown: 0,
+      spellCooldown: 0,
+      castTimer: 0,
+      casting: null,
+      blindedTarget: null,
+      duplicates: [],
+      duplicatesTriggered: false,
+      // The archer and the strafing.
+      shootCooldown: 0,
+      target: null,
+      strafeTimer: 1.5,
+      strafeSign: 1,
+      illusionerPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -8385,9 +8454,11 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: an illusioner drops its bow on an 8.5% roll.
+    const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows];
   }
 
   /**
@@ -8476,7 +8547,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'snow_golem' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
+          : mob.type === 'snow_golem' ? 0
           : mob.type === 'creaking' ? 0
           : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
           : mob.type === 'wandering_trader' ? 0
@@ -9286,6 +9358,60 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='illusioner'){
+      // Wiki: it fires an arrow a second (three times a skeleton), strafes at a fixed distance, can see
+      // through walls, and fights with two spells behind four mirror duplicates.
+      updateIllusionerCooldowns(this, mob, dt);
+
+      const found = findIllusionerTarget(this, mob, player);
+      if (found !== mob.target) switchIllusionerTarget(mob, found);
+
+      if (mob.target) {
+        // Wiki: while engaged it keeps Invisibility up, refreshing when it lapses.
+        if (!illusionerIsInvisible(mob) && (mob.invisibilityCooldown || 0) <= 0) {
+          castIllusionerInvisibility(this, mob);
+        }
+        // Wiki: Blindness only for a player opponent, only above regional difficulty 2, and not twice on
+        // the same opponent without looking away and back.
+        if (!mob.blindedTarget && (mob.spellCooldown || 0) <= 0) {
+          castIllusionerBlindness(mob, mob.target, {
+            regionalDifficulty: mob.regionalDifficulty ?? 3,
+            dt
+          });
+        }
+
+        mob.state = illusionerMovement(mob, mob.target, dt) ?? 'idle';
+
+        // Wiki: it shoots through walls, so no line-of-sight check here -- that is its distinguishing
+        // trait, and adding one would silently make it an ordinary skeleton.
+        const shot = illusionerShoot(mob, mob.target, this.game?.difficulty ?? 'normal', this.random ?? Math.random);
+        if (shot) {
+          // `spawnArrow(origin, direction, shooter, options)` is an INSTANCE method, so it takes no manager.
+          this.spawnArrow(
+            mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0)),
+            shot.direction,
+            mob,
+            { damage: shot.damage }
+          );
+          mob.state = 'shooting';
+        }
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = 'idle';
+      }
+
+      // Wiki: only the real illusioner can shoot and be damaged; the clones are purely visual.
+      updateIllusionerDuplicates(mob, dt, {
+        triggered: mob.duplicatesTriggered === true,
+        ownerPosition: mob.mesh.position,
+        ownerYaw: mob.mesh.rotation.y
+      });
+
+      moveGroundMob(this, mob, dt);
+      mob.illusionerPhase = (mob.illusionerPhase || 0) + dt;
+      poseIllusioner(mob, mob.illusionerPhase);
       return true;
     }
     if(mob.type==='snow_golem'){
