@@ -417,7 +417,40 @@ export const BLOCKS = {
   BROWN_GLAZED_TERRACOTTA: 1025,
   GREEN_GLAZED_TERRACOTTA: 1026,
   RED_GLAZED_TERRACOTTA: 1027,
-  BLACK_GLAZED_TERRACOTTA: 1028
+  BLACK_GLAZED_TERRACOTTA: 1028,
+
+  // --- Coral fans and hanging vines, twelfth block-parity batch ----------------------------------
+  //
+  // Ten coral fans, which complete the coral family the block batch started, plus the three hanging
+  // vines. All are cross-quad shapes, and every vine hangs, so this batch needed no new geometry at
+  // all -- it reuses the cross model and the `hang` flip added for hanging roots.
+  //
+  // The vine `_plant` segments (weeping_vines_plant and the rest) are deliberately NOT here. They are
+  // the non-tip body segments of a vine whose tip the player actually harvests, they look nearly
+  // identical to the tip, and there is no growth layer to distinguish them from it, so registering
+  // them would add near-duplicate blocks that behave identically.
+  TUBE_CORAL_FAN: 1029,
+  BRAIN_CORAL_FAN: 1030,
+  BUBBLE_CORAL_FAN: 1031,
+  FIRE_CORAL_FAN: 1032,
+  HORN_CORAL_FAN: 1033,
+  DEAD_TUBE_CORAL_FAN: 1034,
+  DEAD_BRAIN_CORAL_FAN: 1035,
+  DEAD_BUBBLE_CORAL_FAN: 1036,
+  DEAD_FIRE_CORAL_FAN: 1037,
+  DEAD_HORN_CORAL_FAN: 1038,
+  WEEPING_VINES: 1039,
+  TWISTING_VINES: 1040,
+  CAVE_VINES: 1041,
+
+  // The vine BODY segments. These were first left out on the reasoning that they are near-duplicate
+  // blocks a player never places directly -- but they are not duplicates here: the tip and the body have
+  // DIFFERENT textures upstream, and tests/contentGap.test.js counts a missing block whose own texture
+  // already exists as a code gap that could be closed. That check was right and this was the gap, so
+  // they are registered rather than the check being relaxed.
+  WEEPING_VINES_PLANT: 1042,
+  TWISTING_VINES_PLANT: 1043,
+  CAVE_VINES_PLANT: 1044
 };
 
 export const BLOCK_DEFS = {
@@ -996,6 +1029,46 @@ export const BLOCK_DEFS = {
   [BLOCKS.GREEN_GLAZED_TERRACOTTA]: { name: 'Green Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.GREEN_GLAZED_TERRACOTTA, textures: { all: 'green_glazed_terracotta.png' } },
   [BLOCKS.RED_GLAZED_TERRACOTTA]: { name: 'Red Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.RED_GLAZED_TERRACOTTA, textures: { all: 'red_glazed_terracotta.png' } },
   [BLOCKS.BLACK_GLAZED_TERRACOTTA]: { name: 'Black Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.BLACK_GLAZED_TERRACOTTA, textures: { all: 'black_glazed_terracotta.png' } },
+
+  // --- Coral fans and hanging vines, twelfth block-parity batch ----------------------------------
+  //
+  // THE DROPS ARE NOT THE SAME AS THE CORAL BLOCKS, which is the trap in this family. A living coral
+  // BLOCK drops its dead counterpart, but a living coral FAN drops ITSELF: there is no dead version of
+  // a fan to degrade into, and the dead fans are their own blocks that a player places deliberately.
+  // The generated harvest table agrees -- every dead fan carries an empty drops array, and the living
+  // fans have no harvest row at all, so they need no tool and keep themselves.
+  //
+  // Vanilla requires Silk Touch to pick up a fan and otherwise leaves nothing. This game models no
+  // enchantment-gated drops, so the table's answer is the one taken.
+  //
+  // A fan in vanilla attaches to the six faces, and wall and ceiling fans are horizontal rather than
+  // upright. As with the amethyst growths, this game has no per-face placement state, so every fan draws
+  // as a standing cross.
+  [BLOCKS.DEAD_TUBE_CORAL_FAN]: { name: 'Dead Tube Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_tube_coral_fan.png' } },
+  [BLOCKS.DEAD_BRAIN_CORAL_FAN]: { name: 'Dead Brain Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_brain_coral_fan.png' } },
+  [BLOCKS.DEAD_BUBBLE_CORAL_FAN]: { name: 'Dead Bubble Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_bubble_coral_fan.png' } },
+  [BLOCKS.DEAD_FIRE_CORAL_FAN]: { name: 'Dead Fire Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_fire_coral_fan.png' } },
+  [BLOCKS.DEAD_HORN_CORAL_FAN]: { name: 'Dead Horn Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'dead_horn_coral_fan.png' } },
+  [BLOCKS.TUBE_CORAL_FAN]: { name: 'Tube Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: BLOCKS.TUBE_CORAL_FAN, textures: { all: 'tube_coral_fan.png' } },
+  [BLOCKS.BRAIN_CORAL_FAN]: { name: 'Brain Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: BLOCKS.BRAIN_CORAL_FAN, textures: { all: 'brain_coral_fan.png' } },
+  [BLOCKS.BUBBLE_CORAL_FAN]: { name: 'Bubble Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: BLOCKS.BUBBLE_CORAL_FAN, textures: { all: 'bubble_coral_fan.png' } },
+  [BLOCKS.FIRE_CORAL_FAN]: { name: 'Fire Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: BLOCKS.FIRE_CORAL_FAN, textures: { all: 'fire_coral_fan.png' } },
+  [BLOCKS.HORN_CORAL_FAN]: { name: 'Horn Coral Fan', hardness: 0.0, sound: 'stone', transparent: true, solid: false, plant: true, drop: BLOCKS.HORN_CORAL_FAN, textures: { all: 'horn_coral_fan.png' } },
+
+  // The hanging vines. Weeping and twisting vines grow from a ceiling downward and cave vines likewise,
+  // so all three use the ceiling-anchored flip. Twisting vines is the one that can also grow upward,
+  // which is not modelled -- it draws downward here.
+  //
+  // Drops per the harvest table: a weeping vine yields itself and the other two yield nothing.
+  [BLOCKS.WEEPING_VINES]: { name: 'Weeping Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: BLOCKS.WEEPING_VINES, textures: { all: 'weeping_vines.png' } },
+  [BLOCKS.TWISTING_VINES]: { name: 'Twisting Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'twisting_vines.png' } },
+  [BLOCKS.CAVE_VINES]: { name: 'Cave Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'cave_vines.png' } },
+  // The body segments. Same shape and the same ceiling anchor as the tips, but their own textures, and
+  // all three drop nothing per the harvest table.
+  [BLOCKS.WEEPING_VINES_PLANT]: { name: 'Weeping Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'weeping_vines_plant.png' } },
+  [BLOCKS.TWISTING_VINES_PLANT]: { name: 'Twisting Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'twisting_vines_plant.png' } },
+  [BLOCKS.CAVE_VINES_PLANT]: { name: 'Cave Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'cave_vines_plant.png' } },
+
 
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
