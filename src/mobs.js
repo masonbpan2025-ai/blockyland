@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
 import { VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
 import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
@@ -485,6 +486,7 @@ export class MobManager {
       case 'polar_bear': return this.spawnPolarBear(x, y, z, options);
       case 'panda': return this.spawnPanda(x, y, z, options);
       case 'armadillo': return this.spawnArmadillo(x, y, z, options);
+      case 'breeze': return this.spawnBreeze(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2509,6 +2511,8 @@ export class MobManager {
       case 'panda': return PANDA_DIMENSIONS;
       // Wiki: armadillos are 0.7 x 0.65, and a baby is 0.42 x 0.39.
       case 'armadillo': return ARMADILLO_DIMENSIONS;
+      // Wiki: a breeze is 0.6 wide x 1.77 tall.
+      case 'breeze': return BREEZE_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4512,6 +4516,64 @@ export class MobManager {
     if (index >= 0) this.mobs.splice(index, 1);
     this.scene?.remove?.(mob.mesh);
     return replacement;
+  }
+
+  /**
+   * Breeze.
+   *
+   * Wiki: 30 HP hostile mob that leaps up to 15 blocks instead of walking, fires wind charges, and
+   * deflects every projectile except another wind charge. It is fall-damage immune and the only
+   * source of breeze rods.
+   */
+  spawnBreeze(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.body });
+    const rodMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.rod });
+    const windMat = new THREE.MeshBasicMaterial({
+      color: BREEZE_COLORS.wind, transparent: true, opacity: 0.45, depthWrite: false
+    });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: BREEZE_COLORS.eye });
+    const { group: model, body, head, eyes, eyebrows, rods, wind } =
+      createBreezeModel(bodyMat, rodMat, windMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(0.6);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'breeze',
+      name: 'Breeze',
+      mesh: group,
+      body, head, eyes, eyebrows, rods, wind,
+      // Wiki: 30 HP.
+      health: BREEZE_HEALTH,
+      maxHealth: BREEZE_HEALTH,
+      width: BREEZE_DIMENSIONS.width,
+      height: BREEZE_DIMENSIONS.height,
+      isFlying: false,
+      // Wiki entity tags: deflects_arrows, deflects_tridents, fall_damage_immune, can_turn_in_boats.
+      ...BREEZE_TRAITS,
+      // The leap cycle.
+      leapState: 'idle',
+      // Set explicitly: updateBreezeLeap reads onGround to decide whether the leap cycle may start,
+      // and an undefined value took the airborne path, so a breezed spawned standing on the ground
+      // skipped its compression and never entered the cycle at all.
+      onGround: true,
+      jumpCooldown: rollBreezeJumpDelay(options.random || Math.random),
+      compressTimer: 0,
+      slideTimer: 0,
+      chargeCooldown: 0,
+      breezePhase: 0,
+      isHostile: false,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -7762,7 +7824,9 @@ export class MobManager {
     const armadilloRows = isArmadillo(mob) ? armadilloDrops(mob) : [];
     // Wiki: a stray can drop an Arrow of Slowness and a bogged an Arrow of Poison, with player credit.
     const variantRows = variantBonusDrops(mob, random);
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows];
+    // Wiki: a breeze drops 1-2 breeze rods, with Looting adding more, and a flat 10 XP.
+    const breezeRows = isBreeze(mob) && (mob.playerDamaged || mob.wolfKilled) ? breezeDrops(mob, random) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows];
   }
 
   /**
@@ -7851,7 +7915,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
+          : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
           : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
           : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
           : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
@@ -8033,6 +8098,124 @@ export class MobManager {
     return summary;
   }
 
+  /**
+   * Deflect any projectile sitting on a breeze.
+   *
+   * Wiki: "Breezes automatically deflect all projectiles that hit them except wind charges. Unlike
+   * shields, deflected projectiles maintain the same velocity, and can potentially harm the attacker."
+   * So the speed is preserved and only the direction is reversed back toward the shooter.
+   *
+   * Returns the number deflected, which is what the tests assert on.
+   */
+  deflectBreezeProjectiles() {
+    const breezes = this.mobs.filter(isBreeze);
+    if (!breezes.length) return 0;
+    let deflected = 0;
+    for (const arrow of this.arrows ?? []) {
+      if (!arrow?.mesh || !arrow.velocity || arrow.deflectedByBreeze) continue;
+      for (const breeze of breezes) {
+        if (!shouldDeflect(arrow)) continue;
+        // A hit is the arrow's position inside the breeze's box, inflated slightly so a fast arrow
+        // cannot tunnel through in one frame.
+        const dx = Math.abs(arrow.mesh.position.x - breeze.mesh.position.x);
+        const dz = Math.abs(arrow.mesh.position.z - breeze.mesh.position.z);
+        const dy = Math.abs(arrow.mesh.position.y - (breeze.mesh.position.y + breeze.height * 0.5));
+        if (dx > breeze.width * 0.5 + 0.35) continue;
+        if (dz > breeze.width * 0.5 + 0.35) continue;
+        if (dy > breeze.height * 0.5 + 0.35) continue;
+        const reflected = deflectVelocity(arrow, breeze);
+        if (!reflected) continue;
+        arrow.velocity.copy(reflected);
+        arrow.deflectedByBreeze = true;
+        arrow.shooter = null; // A deflected arrow is nobody's any more, so it can hit its firer.
+        // The arrow's own trail follows its velocity, so the mesh is re-aimed to match.
+        if (arrow.mesh.quaternion?.setFromUnitVectors) {
+          arrow.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), arrow.velocity.clone().normalize());
+        }
+        deflected++;
+        break;
+      }
+    }
+    return deflected;
+  }
+
+  /**
+   * Advance the breeze wind charges and burst them on impact.
+   *
+   * Wiki: "When a breeze's wind charge attack directly hits an entity, the entity takes damage, and a
+   * burst of wind appears. If a wind charge hits a block, only a burst of wind appears. This wind burst
+   * deals knockback but does not deal any damage by itself."
+   */
+  updateWindCharges(dt) {
+    if (!this.windCharges?.length) return;
+    for (let i = this.windCharges.length - 1; i >= 0; i--) {
+      const charge = this.windCharges[i];
+      charge.age += dt;
+      charge.velocity.y -= 6 * dt;
+      charge.position.addScaledVector(charge.velocity, dt);
+      charge.mesh?.position.copy(charge.position);
+
+      let burst = charge.age > WIND_CHARGE_BURST.lifetime;
+      if (!burst) {
+        const block = this.world.getVoxel(
+          Math.floor(charge.position.x),
+          Math.floor(charge.position.y),
+          Math.floor(charge.position.z)
+        );
+        if (block && block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
+          burst = true;
+        } else {
+          // A direct hit on an entity: damage, then the burst.
+          const hit = this.findWindChargeHit(charge);
+          if (hit) {
+            charge.target = hit.target;
+            charge.hitBlock = false;
+            const damage = charge.damage ?? windChargeDamageFor(this.game?.difficulty ?? 'normal');
+            if (damage > 0 && typeof hit.target.takeDamage === 'function') {
+              hit.target.takeDamage(damage, charge.position.clone(), 'breeze');
+            } else if (damage > 0) {
+              this.damageMob(hit.target, damage, charge.position.clone(), false, charge.shooter);
+            }
+            burst = true;
+          }
+        }
+      }
+
+      if (burst) {
+        windChargeBurst(this, charge, { hitBlock: charge.hitBlock === true });
+        charge.mesh?.removeFromParent?.();
+        charge.mesh?.geometry?.dispose?.();
+        charge.mesh?.material?.dispose?.();
+        this.windCharges.splice(i, 1);
+      }
+    }
+  }
+
+  /** The first mob or player a wind charge is inside. */
+  findWindChargeHit(charge) {
+    const player = this.game?.player;
+    if (player?.position && player.health > 0) {
+      const dims = { width: 0.6, height: 1.8 };
+      if (Math.abs(charge.position.x - player.position.x) < dims.width * 0.5 + 0.3
+        && Math.abs(charge.position.z - player.position.z) < dims.width * 0.5 + 0.3
+        && charge.position.y > player.position.y - 0.3
+        && charge.position.y < player.position.y + dims.height + 0.3) {
+        return { target: player };
+      }
+    }
+    for (const mob of this.mobs) {
+      if (mob === charge.shooter || mob.health <= 0) continue;
+      const dims = this.getMobDimensions(mob.type);
+      if (Math.abs(charge.position.x - mob.mesh.position.x) < dims.width * 0.5 + 0.3
+        && Math.abs(charge.position.z - mob.mesh.position.z) < dims.width * 0.5 + 0.3
+        && charge.position.y > mob.mesh.position.y - 0.3
+        && charge.position.y < mob.mesh.position.y + dims.height + 0.3) {
+        return { target: mob };
+      }
+    }
+    return null;
+  }
+
   update(dt, player) {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
@@ -8043,6 +8226,11 @@ export class MobManager {
     updateDonkeySpawning(this,dt,player);
     updateMobWither(this,dt);
     updateArrows(this, dt, player);
+    // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own
+    // wind charges burst on impact. Both run here so they see the arrows after the arrow pass moved
+    // them, which is what makes the deflection happen on the frame of contact.
+    this.deflectBreezeProjectiles();
+    this.updateWindCharges(dt);
     updateSnowballs(this, dt);
     this.animalBehaviors?.update(dt, player, this.game?.controls || {});
     this.hostileBehaviors?.update(dt, player);
@@ -8529,6 +8717,59 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='breeze'){
+      // Wiki: it leaps around between firing wind charges at its target, and does not retaliate
+      // against the trial-spawner mobs.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.inLava = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x),
+        Math.floor(mob.mesh.position.y),
+        Math.floor(mob.mesh.position.z)
+      ) === BLOCKS.LAVA;
+
+      const target = findBreezeTarget(this, mob, player, {
+        difficulty: this.game?.difficulty ?? 'normal'
+      });
+
+      // Wiki: it shoots a wind charge at a target within 16 blocks on a 1.6 s cooldown.
+      const charge = fireWindCharge(this, mob, dt, target);
+      if (charge) {
+        if (!this.windCharges) this.windCharges = [];
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.28, 6, 6),
+          new THREE.MeshBasicMaterial({ color: BREEZE_COLORS.wind, transparent: true, opacity: 0.8 })
+        );
+        mesh.position.copy(charge.position);
+        this.scene.add(mesh);
+        charge.mesh = mesh;
+        this.windCharges.push(charge);
+      }
+
+      // The leap, which is this mob's locomotion. Wiki: it can leap up to 15 blocks horizontally
+      // and 5 vertically, compressing first and sliding on landing.
+      updateBreezeLeap(this, mob, dt, target);
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        if (pos) {
+          const dir = pos.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) mob.yaw = Math.atan2(dir.x, dir.z);
+        }
+      } else {
+        // Wiki: it leaps around even with no target.
+        mob.yaw += Math.sin((mob.breezePhase || 0) * 0.4) * dt * 0.8;
+        if (mob.leapState === 'idle') {
+          mob.velocity.x = Math.sin(mob.yaw) * 1.6;
+          mob.velocity.z = Math.cos(mob.yaw) * 1.6;
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.breezePhase = (mob.breezePhase || 0) + dt;
+      poseBreeze(mob, mob.breezePhase);
+      mob.state = mob.leapState;
       return true;
     }
     if(mob.type==='phantom'){
