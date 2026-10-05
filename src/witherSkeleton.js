@@ -174,7 +174,8 @@ export function canSpawnWitherSkeleton(manager,x,y,z,light) {
   const fortress=(world.netherFortresses||[]).find(f=>inside(f.bounds));
   if(!fortress)return false;
   if(!(fortress.pieces||[]).some(inside)&&world.getVoxel(x,y-1,z)!==BLOCKS.NETHER_BRICKS)return false;
-  if(light===undefined) {light=world.getLightLevel?.(x,y,z)??0;for(let dx=-7;dx<=7;dx++)for(let dy=-7;dy<=7;dy++)for(let dz=-7;dz<=7;dz++){const emission=BLOCK_DEFS[world.getVoxel(x+dx,y+dy,z+dz)]?.light||0;light=Math.max(light,emission-Math.abs(dx)-Math.abs(dy)-Math.abs(dz));}}
+  if(light===undefined && world.getLightLevel) light=world.getLightLevel(x,y,z);
+  if(light===undefined) {light=0;for(let dx=-7;dx<=7;dx++)for(let dy=-7;dy<=7;dy++)for(let dz=-7;dz<=7;dz++){const emission=BLOCK_DEFS[world.getVoxel(x+dx,y+dy,z+dz)]?.light||0;light=Math.max(light,emission-Math.abs(dx)-Math.abs(dy)-Math.abs(dz));}}
   return light<=7&&manager.isBlockSolid(x,y-1,z)&&!manager.checkMobCollision({type:'wither_skeleton'},new THREE.Vector3(x+.5,y,z+.5));
 }
 
