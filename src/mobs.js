@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
@@ -504,6 +505,7 @@ export class MobManager {
       case 'allay': return this.spawnAllay(x, y, z, options);
       case 'wandering_trader': return this.spawnWanderingTrader(x, y, z, options);
       case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
+      case 'camel': return this.spawnCamel(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2538,6 +2540,8 @@ export class MobManager {
       case 'wandering_trader': return WANDERING_TRADER_DIMENSIONS;
       // Wiki: a trader llama is a llama, so it shares the llama hitbox.
       case 'trader_llama': return LLAMA_DIMENSIONS;
+      // Wiki: a camel is 1.7 x 2.375 standing, 1.7 x 0.945 sitting, and 0.85 x 1.1875 as a baby.
+      case 'camel': return CAMEL_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4595,6 +4599,72 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Camel.
+   *
+   * Wiki: a tall passive mob, 32 HP, that sits on a timer, can be saddled and ridden by two players,
+   * dashes 12 blocks with the jump control, steps up 1.5 blocks so it walks over fences, and falls six
+   * blocks safely at half damage.
+   */
+  spawnCamel(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const coatMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.coat });
+    const humpMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hump });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.belly });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hoof });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: CAMEL_COLORS.eye });
+    const { group: model, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle } =
+      createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(CAMEL_BABY_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? CAMEL_BABY_DIMENSIONS : CAMEL_DIMENSIONS;
+    const mob = {
+      type: 'camel',
+      name: 'Camel',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddleMesh: saddle,
+      // Wiki: 32 HP.
+      health: CAMEL_HEALTH,
+      maxHealth: CAMEL_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: CAMEL_SPEED.walk,
+      // Wiki: it steps up 1.5 blocks, which is what lets it surmount fences and walls. No other mob
+      // here declares a step height, so this is the camel's signature traversal trait.
+      stepHeight: CAMEL_STEP_HEIGHT,
+      // Wiki: six safe blocks and half damage per block beyond.
+      fallDamageReduction: CAMEL_FALL.safeBlocks,
+      fallDamageMultiplier: CAMEL_FALL.damagePerBlock,
+      // The sit cycle.
+      isSitting: false,
+      sitTimer: 0,
+      standTimer: rollCamelStandDelay(options.random || Math.random),
+      // Riding and the dash.
+      hasSaddle: !!options.hasSaddle,
+      riderCount: 0,
+      seats: CAMEL_SEATS,
+      dashCooldown: 0,
+      camelPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    // Wiki: a baby camel grows in 20 minutes.
+    if (options.isBaby) mob.growthTimer = CAMEL_BABY_GROWTH_SECONDS;
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -8125,7 +8195,9 @@ export class MobManager {
     const allayRows = isAllay(mob) ? allayDrops(mob) : [];
     // Wiki: a wandering trader drops nothing and no experience, except the consumable it was holding.
     const traderRows = isWanderingTrader(mob) ? wanderingTraderDrops(mob, random) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows];
+    // Wiki: a camel drops its saddle if it had one, and a baby camel drops nothing.
+    const camelRows = isCamel(mob) ? camelDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows];
   }
 
   /**
@@ -8214,7 +8286,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'wandering_trader' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
+          : mob.type === 'wandering_trader' ? 0
           : mob.type === 'allay' ? 0
           : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
           : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
@@ -9020,6 +9093,75 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='camel'){
+      // Wiki: it wanders, sits for 2-7 seconds at a time, stands if there is headroom, flees when harmed
+      // even while sitting, and follows a cactus-holding player within 10 blocks.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      updateCamelDash(mob, dt);
+
+      // The headroom above is what decides whether it may stand: the wiki refuses when there are solid
+      // blocks overhead, because standing would suffocate it.
+      const cx = Math.floor(mob.mesh.position.x);
+      const cy = Math.floor(mob.mesh.position.y);
+      const cz = Math.floor(mob.mesh.position.z);
+      let clearance = 0;
+      for (let dy = 0; dy < 4; dy++) {
+        const id = this.world.getVoxel(cx, cy + dy, cz);
+        if (id === undefined || id === null || id === BLOCKS.AIR) clearance += 1;
+        else break;
+      }
+
+      const held = player?.inventory?.getActiveItem?.();
+      const heldId = typeof held?.id === 'string' ? held.id : '';
+      const tempted = isCamelBreedingFood(heldId);
+
+      // Wiki: a baby camel grows in 20 minutes and cannot be ridden or equipped.
+      if (mob.isBaby && updateCamelGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step.
+      }
+
+      const sit = updateCamelSitting(mob, dt, {
+        clearance,
+        random: this.random ?? Math.random,
+        alerted: mob.fleeing === true,
+        fleeing: mob.fleeing === true,
+        tempted
+      });
+      if (sit === 'stood') mob.state = 'standing';
+      else if (sit === 'sat') mob.state = 'sitting';
+      else if (sit === 'blocked') mob.state = 'sitting-blocked';
+
+      // Wiki: a sitting camel does not move, and cannot be pushed by players or mobs.
+      if (mob.isSitting) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else if (tempted && player?.position) {
+        // Wiki: a cactus-tempted camel follows within 10 blocks.
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const distance = dir.length();
+        if (distance > 2) {
+          dir.normalize();
+          mob.yaw = Math.atan2(dir.x, dir.z);
+          mob.velocity.x = dir.x * 2.2;
+          mob.velocity.z = dir.z * 2.2;
+        } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        mob.state = 'following';
+      } else {
+        wanderMob(this, mob, dt, 0.9);
+        mob.state = 'idle';
+      }
+
+      // Wiki: it heals slowly on its own, at 1/900 per tick.
+      updateCamelRegen(mob, dt, this.random ?? Math.random);
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.camelPhase = (mob.camelPhase || 0) + dt;
+      if (mob.saddleMesh) mob.saddleMesh.visible = mob.hasSaddle === true;
+      poseCamel(mob, mob.camelPhase);
       return true;
     }
     if(mob.type==='wandering_trader'){

@@ -42,6 +42,8 @@ export const BREEDING_FOODS = {
   armadillo: ['spider_eye'],
   // Wiki: sniffers are bred with torchflower seeds, which also accelerate a snifflet's growth.
   sniffer: ['torchflower_seeds'],
+  // Wiki: camels are bred with cactus, which also takes 10 s off a baby's growth.
+  camel: ['cactus'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
     'wheat_seeds', 'wheat_seed', 'seeds', 'seed',
