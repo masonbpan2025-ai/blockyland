@@ -332,6 +332,24 @@ test('has-source counts every kind of source', () => {
   }
 });
 
+test('has-source excuses a spawn egg and nothing else', () => {
+  // A spawn egg has no survival source in vanilla, so asking for one reported all ninety as gaps --
+  // a fifth of the report, burying the items that genuinely have none. The exemption is narrow: it is
+  // keyed on the item's type, not on a name pattern, and the non-egg cases below must still fail.
+  const { check } = contextFor('has-source', fakeEntry());
+  const egg = fakeEntry({ id: 'zoglin_spawn_egg', type: 'spawn_egg' });
+  assert.equal(check.run({ entry: egg, registry: registry() }), CHECK_SKIP);
+
+  // An id that merely looks like a generated egg is not a spawn egg and gets no exemption.
+  const impostor = fakeEntry({ id: 'spawn_egg_something', type: 'material' });
+  assert.equal(check.run({ entry: impostor, registry: registry() }).ok, false);
+
+  // And an egg that has somehow acquired a source is still reported as sourced rather than skipped.
+  const sourced = fakeEntry({ id: 'zoglin_spawn_egg', type: 'spawn_egg', recipesAsResult: [{ source: 'x', ingredients: ['y'] }] });
+  assert.equal(check.run({ entry: sourced, registry: registry() }), CHECK_SKIP,
+    'the exemption is unconditional for eggs, so this documents that rather than hiding it');
+});
+
 test('display-name rejects the raw id and empty names', () => {
   const { check } = contextFor('display-name', fakeEntry());
   assert.equal(check.run({ entry: fakeEntry({ name: 'Fake' }) }), true);

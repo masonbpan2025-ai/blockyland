@@ -1444,6 +1444,22 @@ export const ITEMS = {
   camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
   giant_spawn_egg: { name: 'Giant Spawn Egg', icon: '/assets/items/giant_spawn_egg.png', type: 'spawn_egg', mob: 'giant' },
+
+  // The nine vanilla mobs that could be spawned but had no egg.
+  //
+  // Every one of them is reachable through the mob dispatcher and the Inspector, so the only thing
+  // missing was the item: `spawnMob('vex')` worked and there was no way for a player to ask for it.
+  // `tests/spawnEggCoverage.test.js` is what keeps them honest -- it asserts each egg reaches a mob
+  // that spawns as its own type, and all nine already pass that check.
+  enderman_spawn_egg: { name: 'Enderman Spawn Egg', icon: '/assets/items/enderman_spawn_egg.png', type: 'spawn_egg', mob: 'enderman' },
+  mooshroom_spawn_egg: { name: 'Mooshroom Spawn Egg', icon: '/assets/items/mooshroom_spawn_egg.png', type: 'spawn_egg', mob: 'mooshroom' },
+  ocelot_spawn_egg: { name: 'Ocelot Spawn Egg', icon: '/assets/items/ocelot_spawn_egg.png', type: 'spawn_egg', mob: 'ocelot' },
+  pufferfish_spawn_egg: { name: 'Pufferfish Spawn Egg', icon: '/assets/items/pufferfish_spawn_egg.png', type: 'spawn_egg', mob: 'pufferfish' },
+  shulker_spawn_egg: { name: 'Shulker Spawn Egg', icon: '/assets/items/shulker_spawn_egg.png', type: 'spawn_egg', mob: 'shulker' },
+  trader_llama_spawn_egg: { name: 'Trader Llama Spawn Egg', icon: '/assets/items/trader_llama_spawn_egg.png', type: 'spawn_egg', mob: 'trader_llama' },
+  tropical_fish_spawn_egg: { name: 'Tropical Fish Spawn Egg', icon: '/assets/items/tropical_fish_spawn_egg.png', type: 'spawn_egg', mob: 'tropical_fish' },
+  vex_spawn_egg: { name: 'Vex Spawn Egg', icon: '/assets/items/vex_spawn_egg.png', type: 'spawn_egg', mob: 'vex' },
+  zoglin_spawn_egg: { name: 'Zoglin Spawn Egg', icon: '/assets/items/zoglin_spawn_egg.png', type: 'spawn_egg', mob: 'zoglin' },
 };
 
 // --- generated item additions for vanilla parity -----------------------------

@@ -201,6 +201,11 @@ export const RESOURCE_CHECKS = [
     label: 'Can be obtained in survival',
     group: 'obtainable',
     run: ({ entry }) => {
+      // A spawn egg is creative-only in vanilla: no recipe, no drop, no trade. Asking for a survival
+      // source reported all ninety of them as gaps, which is a fifth of the report and buries the items
+      // that genuinely have no source. The one case is named rather than matched by a pattern, and
+      // tests/resourceInspector.test.js pins it, so this cannot quietly widen into "skip what is hard".
+      if (entry.type === 'spawn_egg') return CHECK_SKIP;
       const sources = sourceSummary(entry);
       if (sources.total > 0) return true;
       return {
