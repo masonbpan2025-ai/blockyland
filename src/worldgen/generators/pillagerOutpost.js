@@ -70,17 +70,23 @@ export function buildOutpostPart(part) {
   };
 
   if (part === 'base_plate') {
-    const width = 9;
+    // The plate must be WIDE ENOUGH FOR ITS FEATURES, not just for the tower. A 9x9 plate leaves two blocks
+    // of margin around the 5x5 tower, so every 3x3 cage and 5x5 tent candidate was rejected as a collision
+    // and only the 1x1 log could ever fit -- which looked exactly like a broken weighted draw. This is a
+    // geometry bug, not an engine bug: the engine's try-and-retry is the correct vanilla behaviour.
+    const width = 15;
+    const centre = Math.floor(width / 2);
     const size = [width, 1, width];
     for (let x = 0; x < width; x++) {
       for (let z = 0; z < width; z++) blocks.push({ pos: [x, 0, z], state: materialIndex('minecraft:cobblestone') });
     }
-    // The centre connector takes the watchtower; the corners offer features.
+    // The centre connector takes the watchtower; the corners offer features with clearance for the largest
+    // of them (a 5x5 tent reaches three blocks in from a corner connector, and the tower starts nine).
     blocks.push({
-      pos: [4, 0, 4], state: jigsawIndexFor('up_north'),
+      pos: [centre, 0, centre], state: jigsawIndexFor('up_north'),
       nbt: jigsawBlock('pillager_outpost/tower', OUTPOST_POOLS.tower, 'up_north')
     });
-    for (const [x, z] of [[1, 1], [1, 7], [7, 1], [7, 7]]) {
+    for (const [x, z] of [[2, 2], [2, 12], [12, 2], [12, 12]]) {
       blocks.push({
         pos: [x, 0, z], state: jigsawIndexFor('up_north'),
         nbt: jigsawBlock('pillager_outpost/feature', OUTPOST_POOLS.features, 'up_north')

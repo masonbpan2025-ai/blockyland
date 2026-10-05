@@ -77,19 +77,26 @@ test('the outpost is deterministic and its parts vary with the seed', () => {
   assert.deepEqual(first.pieces.map((piece) => piece.box.toArray()), again.pieces.map((piece) => piece.box.toArray()));
   assert.deepEqual(first.meta.partMix, again.meta.partMix);
 
-  // The feature pool is WEIGHTED, so variety across seeds is expected. It was NOT observed: across 60 chunks
-  // the mix was identical every time, which means either the weighted draw is not reaching the feature
-  // connectors or every candidate is being rejected. This test therefore asserts only what is proven -- that
-  // every part is one the graph declares -- and the unobserved variety is recorded as an open question in
-  // docs/STRUCTURE_PARITY.md rather than asserted away.
+  // The feature pool is WEIGHTED, so the mix must vary across seeds. This assertion previously FAILED, and
+  // the cause was my base plate being too small: at 9x9 the 5x5 tower left two blocks of margin, so every
+  // cage and tent candidate was rejected as a collision and only the 1x1 log ever fit -- which looked exactly
+  // like a broken weighted draw. The engine's try-and-retry was correct throughout. The plate is now 15x15
+  // and variety is real, so this is asserted again rather than weakened.
   const allowed = new Set(['base_plate', 'watchtower', 'cage', 'cage_golem', 'tent', 'log']);
   const mixes = new Set();
+  let sawFeatureVariety = false;
   for (let chunkX = 0; chunkX < 60; chunkX++) {
-    const mix = generatePillagerOutpost({ seed: 9, chunkX, chunkZ: 0, context: plains }).meta.partMix;
-    for (const part of mix) assert.ok(allowed.has(part), `unexpected outpost part "${part}"`);
-    mixes.add(mix.join('|'));
+    const start = generatePillagerOutpost({ seed: 9, chunkX, chunkZ: 0, context: plains });
+    for (const part of start.meta.partMix) assert.ok(allowed.has(part), `unexpected outpost part "${part}"`);
+    mixes.add(start.meta.partMix.join('|'));
+    // At least one feature must be something other than the highest-weight log, or the weighting is inert.
+    if (start.meta.partMix.some((part) => part === 'cage' || part === 'cage_golem' || part === 'tent')) sawFeatureVariety = true;
+    // A plate wide enough for its features means nothing has to be rejected.
+    assert.equal(start.meta.diagnostics.rejectedByCollision, 0,
+      `chunk ${chunkX} needed a collision rejection, so the plate is too small for its features`);
   }
-  assert.ok(mixes.size >= 1);
+  assert.ok(mixes.size > 1, 'the feature pool is weighted, so different seeds must produce different mixes');
+  assert.ok(sawFeatureVariety, 'the weighted draw must sometimes pick something other than the heaviest element');
 });
 
 test('realization writes every piece, spawns the tower occupants, and resolves all ids', () => {
