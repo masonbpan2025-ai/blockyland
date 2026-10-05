@@ -2341,6 +2341,32 @@ export const ITEMS = {
   harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },
   // Bundles: vanilla's one-stack pouch, in a plain form and sixteen dyed ones. They stack to one because a
   // bundle *is* the stack; `src/bundles.js` owns what it holds and how much.
+  // The twenty-three pottery sherds, which a brush turns up from suspicious sand or gravel.
+  // src/archaeology.js owns the pool; every one of them is obtainable and the distribution is not
+  // vanilla's, which is stated there.
+  angler_pottery_sherd: { name: 'Angler Pottery Sherd', icon: '/assets/items/angler_pottery_sherd.png', type: 'material' },
+  archer_pottery_sherd: { name: 'Archer Pottery Sherd', icon: '/assets/items/archer_pottery_sherd.png', type: 'material' },
+  arms_up_pottery_sherd: { name: 'Arms Up Pottery Sherd', icon: '/assets/items/arms_up_pottery_sherd.png', type: 'material' },
+  blade_pottery_sherd: { name: 'Blade Pottery Sherd', icon: '/assets/items/blade_pottery_sherd.png', type: 'material' },
+  brewer_pottery_sherd: { name: 'Brewer Pottery Sherd', icon: '/assets/items/brewer_pottery_sherd.png', type: 'material' },
+  burn_pottery_sherd: { name: 'Burn Pottery Sherd', icon: '/assets/items/burn_pottery_sherd.png', type: 'material' },
+  danger_pottery_sherd: { name: 'Danger Pottery Sherd', icon: '/assets/items/danger_pottery_sherd.png', type: 'material' },
+  explorer_pottery_sherd: { name: 'Explorer Pottery Sherd', icon: '/assets/items/explorer_pottery_sherd.png', type: 'material' },
+  flow_pottery_sherd: { name: 'Flow Pottery Sherd', icon: '/assets/items/flow_pottery_sherd.png', type: 'material' },
+  friend_pottery_sherd: { name: 'Friend Pottery Sherd', icon: '/assets/items/friend_pottery_sherd.png', type: 'material' },
+  guster_pottery_sherd: { name: 'Guster Pottery Sherd', icon: '/assets/items/guster_pottery_sherd.png', type: 'material' },
+  heart_pottery_sherd: { name: 'Heart Pottery Sherd', icon: '/assets/items/heart_pottery_sherd.png', type: 'material' },
+  heartbreak_pottery_sherd: { name: 'Heartbreak Pottery Sherd', icon: '/assets/items/heartbreak_pottery_sherd.png', type: 'material' },
+  howl_pottery_sherd: { name: 'Howl Pottery Sherd', icon: '/assets/items/howl_pottery_sherd.png', type: 'material' },
+  miner_pottery_sherd: { name: 'Miner Pottery Sherd', icon: '/assets/items/miner_pottery_sherd.png', type: 'material' },
+  mourner_pottery_sherd: { name: 'Mourner Pottery Sherd', icon: '/assets/items/mourner_pottery_sherd.png', type: 'material' },
+  plenty_pottery_sherd: { name: 'Plenty Pottery Sherd', icon: '/assets/items/plenty_pottery_sherd.png', type: 'material' },
+  prize_pottery_sherd: { name: 'Prize Pottery Sherd', icon: '/assets/items/prize_pottery_sherd.png', type: 'material' },
+  scrape_pottery_sherd: { name: 'Scrape Pottery Sherd', icon: '/assets/items/scrape_pottery_sherd.png', type: 'material' },
+  sheaf_pottery_sherd: { name: 'Sheaf Pottery Sherd', icon: '/assets/items/sheaf_pottery_sherd.png', type: 'material' },
+  shelter_pottery_sherd: { name: 'Shelter Pottery Sherd', icon: '/assets/items/shelter_pottery_sherd.png', type: 'material' },
+  skull_pottery_sherd: { name: 'Skull Pottery Sherd', icon: '/assets/items/skull_pottery_sherd.png', type: 'material' },
+  snort_pottery_sherd: { name: 'Snort Pottery Sherd', icon: '/assets/items/snort_pottery_sherd.png', type: 'material' },
   bundle: { name: 'Bundle', icon: '/assets/items/bundle.png', type: 'tool', stackSize: 1 },
   white_bundle: { name: 'White Bundle', icon: '/assets/items/white_bundle.png', type: 'tool', stackSize: 1 },
   orange_bundle: { name: 'Orange Bundle', icon: '/assets/items/orange_bundle.png', type: 'tool', stackSize: 1 },

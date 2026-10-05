@@ -48,6 +48,7 @@ import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { catchFish, releaseFish } from './fishBuckets.js';
 import { takeFromBundle } from './bundles.js';
+import { brushSuspiciousBlock } from './archaeology.js';
 import { isGlassBottle, useGlassBottle } from './bottles.js';
 import { blockDrops } from './blockDrops.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
@@ -1367,6 +1368,34 @@ class Game {
       if (filled) {
         this.sounds.playWater?.();
         this.ui.updateHotbar();
+      }
+      return;
+    }
+    // A brush on suspicious sand or gravel: vanilla's archaeology, and the only way a pottery sherd is found.
+    // The block is *emptied* rather than mined, which is why the suspicious blocks themselves yield nothing.
+    if (bucketItem && !bucketItem.isBlock && bucketItem.id === 'brush') {
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      const hit = traceBucket(this.world, this.camera.position, direction, true);
+      const target = hit ? BLOCK_DEFS[hit.blockId] : null;
+      const blockName = target?.name ? String(target.name).toLowerCase().replace(/[^a-z0-9]+/g, '_') : null;
+      const found = blockName ? brushSuspiciousBlock(bucketItem, blockName, Math.random) : null;
+      if (found) {
+        // Vanilla leaves plain sand or gravel behind, never the suspicious block.
+        this.world.setVoxel(hit.x, hit.y, hit.z,
+          hit.blockId === BLOCKS.SUSPICIOUS_GRAVEL ? BLOCKS.GRAVEL : BLOCKS.SAND);
+        if (!this.inventory.addItem(found.sherd, false, 1)) {
+          this.entities.spawnDroppedItem(new THREE.Vector3(hit.x + 0.5, hit.y + 1, hit.z + 0.5), found.sherd, false);
+        }
+        if (this.player.gamemode === 'survival') {
+          const wear = spendDurability(bucketItem, found.durabilityUsed);
+          if (wear?.broke) {
+            this.inventory.consumeActiveItem?.(1);
+            this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your Brush broke.</span>');
+          }
+        }
+        this.sounds.playBrush?.() ?? this.sounds.playWater?.();
+        this.ui.updateHotbar();
+        this.refreshDirtyChunks();
       }
       return;
     }

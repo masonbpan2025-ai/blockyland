@@ -136,6 +136,9 @@ function shapeFor(name) {
   if (/(_stick|_rod)$/.test(name)) return 'rod';
   if (/(_seeds|_pod)$/.test(name)) return 'seeds';
   if (/(_template|_pattern|_banner)/.test(name)) return 'sheet';
+  // A pottery sherd is a shard of a sheet, so it shares the sheet shape; the twenty-three of them are told
+  // apart by colour, which the hash gives them.
+  if (/_pottery_sherd$/.test(name)) return 'sheet';
   if (/_bucket$/.test(name)) return 'bucket';
   // A bundle is a pouch: the dyed ones are told apart by colour, not by shape. Checked before the
   // generic suffixes so undle does not fall through to the nugget square.

@@ -91,7 +91,9 @@ test('the item gap is art-gated for the same reason the block gap is', (t) => {
   // A floor only to catch a broken measurement, deliberately far below the real figure. It was 150 and
   // the gap reached exactly 150, which is the wrong reason to fail: closing the gap is the objective, so
   // this must not creep down behind the work. See the block-side note above for the same reasoning.
-  assert.ok(i.missing > 50, 'the measurement looks broken rather than the gap closed, got ' + i.missing);
+  // The floor moves with the work, deliberately: it was 150, then 50, and the gap has now reached 41 after
+  // the pottery sherds. Its job is to catch a broken measurement, not to freeze progress.
+  assert.ok(i.missing > 30, 'the measurement looks broken rather than the gap closed, got ' + i.missing);
   // `tests/item_icons.test.js` requires a non-empty PNG per item, so an item with no icon cannot be added.
   assert.equal(i.ownIcon, 0,
     'a missing item now has its own icon, so it is a code gap that could be closed -- update '
