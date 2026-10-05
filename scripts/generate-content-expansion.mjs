@@ -12,7 +12,7 @@
 // wrong and silently breaks e.g. placing two into a double slab.
 //
 // Run: node scripts/generate-content-expansion.mjs
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { have, gameNames } from './parity-coverage.mjs';
 
@@ -28,6 +28,25 @@ const vanillaByName = new Map(vanillaBlocks.map(b => [b.name, b]));
 const itemByName = new Map(vanillaItems.map(i => [i.name, i]));
 
 // Material -> the sound group this game already uses for that material, and a texture strategy.
+
+// Texture files the game ships, so a generated definition can point at a real asset instead of at a
+// plausible-looking name that would 404 into a grey fallback.
+//
+// Declared here, above every family, because the family texture functions run during generation and
+// a const declared later would be in its temporal dead zone at that point. That is not hypothetical:
+// it is what made every slab resolve to a planks texture, the helper try/catch having turned the
+// ReferenceError into an empty Set.
+const BLOCK_TEXTURES = (() => {
+  try {
+    return new Set(readdirSync('public/assets/blocks'));
+  } catch {
+    return new Set();
+  }
+})();
+function textureExists(name) {
+  return BLOCK_TEXTURES.has(name);
+}
+
 const MATERIAL_SOUND = {
   wool: 'grass', cloth: 'grass', wood: 'wood', stone: 'stone', 'rock': 'stone', dirt: 'dirt',
   grass: 'grass', sand: 'sand', glass: 'glass', metal: 'stone', plant: 'grass', leaves: 'grass',
@@ -63,6 +82,30 @@ const FAMILIES = [
     sound: 'stone',
   },
   {
+    // Slabs: half-height boxes. Emitted now that src/slab.js can draw them; before that they were
+    // deliberately excluded because a slab drawn as a full cube is visibly wrong.
+    id: 'slabs',
+    match: (n) => /_slab$/.test(n),
+    // A slab uses its BASE block's texture. Wooden slabs resolve to planks; stone ones to the stone
+    // itself. Both are looked up from the vanilla block the slab is made of, with a planks fallback
+    // for wood types whose base block is named differently.
+    texture: (n) => {
+      const base = n.replace(/_slab$/, '');
+      // Prefer the planks texture, which is what a wooden slab uses, and fall back to the base
+      // block's own texture, which is what a stone slab uses. Both are checked against the assets the
+      // game actually ships, so a name that would 404 is never chosen.
+      //
+      // An earlier version returned the planks form unconditionally when neither candidate existed,
+      // which is why stone_slab pointed at stone_planks.png -- a name that was never plausible.
+      const planks = `${base}_planks.png`;
+      if (textureExists(planks)) return planks;
+      return `${base}.png`;
+    },
+    sound: 'wood',
+    // Marked in the generated definition so the geometry dispatcher and the mesher route it correctly.
+    extra: { slab: true },
+  },
+  {
     // Utility blocks vanilla treats as full cubes. Ranked by recipes unblocked: campfire alone blocks
     // 44. Campfire and soul_campfire emit light, which the generator carries through from the data.
     id: 'utility_cubes',
@@ -80,7 +123,7 @@ const FAMILIES = [
 ];
 
 // Materials that are definitely NOT plain full cubes, even inside a matched family.
-const NOT_A_CUBE = /(_slab|_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_pane|_carpet|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
+const NOT_A_CUBE = /(_stairs|_wall|_fence|_fence_gate|_door|_trapdoor|_pane|_carpet|_sign|_button|_pressure_plate|_bed|_banner|_candle|_shulker_box|_boat|_minecart|_rail|_repeater|_comparator|_piston|_observer|_hopper|_dispenser|_dropper|_brewing_stand|_cauldron|_anvil|_enchanting_table|_note_block|_chest|_furnace|_conduit|_beacon|_spawner|_head|_skull|_frame|_stand|_ladder|_torch|_lantern|_chain|_rod|_vine|_sapling|_flower|_bush|_grass|_fern|_seeds|_crop|_stem|_wart|_mushroom|_fungus|_roots|_sprouts|_coral|_fan|_egg|_turtle_egg|_cake|_candle_cake|_pumpkin_pie|_sculk_sensor|_sculk_shrieker|_calibrated_sculk_sensor|_amethyst_cluster|_bud|_stalactite|_stalagmite|_dripstone|_pointed_dripstone|_glow_lichen|_hanging_roots|_big_dripleaf|_small_dripleaf|_azalea|_mangrove_propagule|_frogspawn|_sea_pickle|_sniffer_egg|_decorated_pot|_chiseled_bookshelf|_crafter|_trial_spawner|_vault|_heavy_core|_creaking_heart|_pale_moss|_pale_hanging_moss|_resin|_fire|_water|_lava|_portal|_bubble_column|_structure_void|_barrier|_light|air|_moving_piston|_piston_head|_tripwire|_cocoa|_nether_portal|_end_portal|_end_gateway|_frosted_ice|_ice|_snow|_powder_snow|_lily_pad|_conduit)$/;
 
 const constName = (n) => n.toUpperCase();
 
@@ -127,6 +170,7 @@ for (const family of FAMILIES) {
     toAdd.push({
       name: n,
       family: family.id,
+      extra: family.extra || null,
       texture: family.texture(n),
       sound: family.sound ?? MATERIAL_SOUND[vb.material] ?? 'stone',
       hardness: typeof vb.hardness === 'number' ? vb.hardness : 1,
@@ -185,6 +229,8 @@ for (const a of toAdd) {
     `hardness: ${a.hardness}`,
     `sound: '${a.sound}'`,
   ];
+  // Shape markers, e.g. slab: true, so the renderer knows this is not a full cube.
+  for (const [k, v] of Object.entries(a.extra || {})) parts.push(`${k}: ${v}`);
   if (a.resistance !== null && a.resistance !== a.hardness) parts.push(`resistance: ${a.resistance}`);
   if (a.emitLight) parts.push(`light: ${a.emitLight}`);
   if (a.transparent) parts.push('transparent: true');

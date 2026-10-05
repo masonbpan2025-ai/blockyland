@@ -298,6 +298,18 @@ export class ChunkMesher {
           const wy = ly;
           const wz = worldOffsetZ + lz;
 
+          // Slabs are not cubes, so they must be routed to createBlockGeometry rather than the
+          // plain-cube fast path.
+          if (def?.slab) {
+            const state = world.redstone?.state([wx, wy, wz]) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
           if (def?.door) {
             const doorMgr = world.game?.doorManager || this.game?.doorManager || world.doorManager;
             const state = doorMgr?.getDoor(wx, wy, wz) || {};
