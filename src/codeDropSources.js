@@ -17,6 +17,7 @@
 import { breezeDrops } from './breezeBehavior.js';
 import { turtleMaturationDrops } from './turtleBehavior.js';
 import { variantBonusDrops } from './undeadVariants.js';
+import { HIVE_PRODUCTS } from './hives.js';
 
 /** Run a drop helper and return the item ids it produced, in order. */
 const idsFrom = (rows) => (rows ?? []).map((row) => row[0]).filter((id) => typeof id === 'string');
@@ -78,6 +79,14 @@ export function codeDropSources() {
     item: 'armadillo_scute',
     how: 'Shed by an armadillo every five to ten minutes.',
     source: 'mobs.js armadillo update loop',
+  });
+  // Only the honeycomb. A hive also gives a honey bottle, but a honey bottle is already craftable from a
+  // honey block and four glass bottles (`extraRecipes.js`), and this table is for items with no other
+  // source -- a test asserts exactly that, and it caught this entry when it was first written.
+  entries.push({
+    item: 'honeycomb',
+    how: 'Shear a full bee nest or beehive.',
+    source: 'hives.js HiveManager.harvest',
   });
 
   return entries;

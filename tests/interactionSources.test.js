@@ -132,7 +132,7 @@ test('the code-drop table is derived from the helpers, and lists what they retur
   // Pinned as a set: the derivation is what keeps it true, and this is what notices if a helper stops
   // returning an item or a new mob drop appears without being described.
   assert.deepEqual(items, [
-    'armadillo_scute', 'breeze_rod', 'egg', 'nether_star', 'tipped_arrow_poison',
+    'armadillo_scute', 'breeze_rod', 'egg', 'honeycomb', 'nether_star', 'tipped_arrow_poison',
     'tipped_arrow_slowness', 'tipped_arrow_weakness', 'turtle_scute',
   ]);
   for (const entry of entries) {

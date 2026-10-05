@@ -70,6 +70,7 @@ import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { BeaconManager } from './beaconManager.js';
+import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
@@ -283,6 +284,8 @@ class Game {
     // Beacons and conduits: what remembers where they are and applies what they grant. Registered on
     // placement and unregistered on break, like a crop, rather than scanned for.
     this.beaconManager = new BeaconManager(this);
+    // Bee nests and beehives: the only source of honeycomb, and so of every waxed copper block.
+    this.hiveManager = new HiveManager(this);
     this.enchantingManager = new EnchantingManager(this);
     this.portalManager = new NetherPortalManager(this);
     this.raidManager = new RaidManager(this.mobs, this.world, this.sounds, this.ui, this.entities);
@@ -1467,6 +1470,23 @@ class Game {
       return;
     }
 
+    // A bee nest or beehive, harvested with shears or a bottle. This is the only way to get honeycomb, and
+    // honeycomb is what waxes copper, so without it seventy-seven recipes had no ingredient at all.
+    if (isHive(clickedBlock)) {
+      const outcome = this.hiveManager?.harvest(bX, bY, bZ, this.player);
+      if (outcome?.ok) {
+        this.sounds.playShears?.();
+        this.ui?.updateHotbar?.();
+        const name = ITEMS[outcome.product.id]?.name ?? outcome.product.id;
+        this.ui?.addChatMessage?.(`Collected ${outcome.product.count} ${name}`, 'system');
+      } else if (outcome?.reason) {
+        // Worth saying out loud: "not full yet" and "use shears" are different problems, and a silent
+        // refusal reads as a broken block.
+        this.ui?.addChatMessage?.(outcome.reason, 'system');
+      }
+      return;
+    }
+
     // Smithing Table interaction. The block had a `workstation` field and no interaction at all, so the
     // nine pieces of netherite gear had no way to exist outside the creative menu.
     if (clickedBlock === BLOCKS.SMITHING_TABLE) {
@@ -1841,6 +1861,7 @@ class Game {
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
+        this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
@@ -2021,6 +2042,7 @@ class Game {
     // A broken beacon or conduit stops granting anything. Checked before the door, bed and chest branches
     // below, because those return early and a beacon must unregister whichever branch handles the break.
     this.beaconManager?.onBlockBroken(x, y, z);
+    this.hiveManager?.onBlockBroken(x, y, z);
 
     if (blockId === BLOCKS.CHEST) {
       if (this.chestManager) this.chestManager.onBlockBroken(x, y, z);
@@ -2687,6 +2709,9 @@ class Game {
     // 5a3b. Update beacons and conduits: re-check the structure and apply what it grants.
     if (this.beaconManager) {
       this.beaconManager.update(dt, this.player);
+    }
+    if (this.hiveManager) {
+      this.hiveManager.update(dt);
     }
 
     // 5a4. Update Nether Portal & Dimensional Travel
