@@ -55,7 +55,10 @@ export const RECIPES_3X3 = [
   // found none. The generator had dropped it because the block was registered twice, as `hay_bale` and as
   // the vanilla `hay_block`, and the recipe names the vanilla spelling. The duplicate is gone; the recipe
   // stays, because it is vanilla's and it is what makes a hay block give wheat back.
-  { shapeless: true, ingredients: ['hay_block'], result: { id: 'wheat', isBlock: false, count: 9 } },
+  // The hay-block recipe that used to live here was the same one the generator emits, and it keyed its
+  // ingredient by the *name* `hay_block` while the game carries a hay block by its block id -- so the matcher
+  // compared `'hay_block'` against `578` and found nothing, and a hay block could not be uncrafted. The
+  // generated entry keys it correctly; the hand-written twin is gone.
   // 8 Cobblestone -> 1 Furnace
   {
     pattern: [
@@ -278,9 +281,19 @@ import { PROFESSION_TRADES } from './villagerEconomy.js';
 
 export const VILLAGER_TRADES = PROFESSION_TRADES.farmer.slice(0, 5);
 
-/** The value a recipe slot holds for a grid cell: a block id or an item name. */
+/**
+ * The value a recipe slot holds for a grid cell: a block id, or an item name.
+ *
+ * An item that places a block is carried by that block's id, but a caller can hand it over *by name* -- the
+ * creative catalogue, a villager trade, a hand-written recipe, or a test. Comparing the raw value made such a
+ * grid match nothing, which is how a name-keyed hay block failed to uncraft. Both spellings mean the same
+ * item, so both are normalised to the id the recipes are written against.
+ */
 function slotValue(cell) {
-  return cell && cell.count > 0 ? cell.id : null;
+  if (!cell || !(cell.count > 0)) return null;
+  const def = typeof cell.id === 'string' ? ITEMS[cell.id] : undefined;
+  if (def && typeof def.blockId === 'number') return def.blockId;
+  return cell.id;
 }
 
 /**
@@ -393,14 +406,14 @@ RECIPES_3X3.push(...RECIPES_2X2.slice(-4),{pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OA
 // Minecraft, so a station can be built from scratch.
 RECIPES_3X3.push(
   {pattern:[['iron_ingot',null,null],['iron_ingot','stick',null],['iron_ingot',null,null]],result:{id:'minecart',isBlock:false,count:1}},
-  {pattern:[['chest'],['minecart']],result:{id:'chest_minecart',isBlock:false,count:1}},
+  {pattern:[[BLOCKS.CHEST],['minecart']],result:{id:'chest_minecart',isBlock:false,count:1}},
   {pattern:[[BLOCKS.FURNACE],['minecart']],result:{id:'furnace_minecart',isBlock:false,count:1}},
   {pattern:[[BLOCKS.HOPPER],['minecart']],result:{id:'hopper_minecart',isBlock:false,count:1}},
   {pattern:[[BLOCKS.TNT],['minecart']],result:{id:'tnt_minecart',isBlock:false,count:1}},
   {pattern:[['redstone','iron_ingot','redstone'],['iron_ingot','stick','iron_ingot'],['iron_ingot','stick','iron_ingot']],result:{id:BLOCKS.POWERED_RAIL,isBlock:true,count:6}},
   {pattern:[['iron_ingot','stick','iron_ingot']],result:{id:BLOCKS.RAIL,isBlock:true,count:16}},
   {pattern:[[BLOCKS.OAK_PLANKS,null,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:'oak_boat',isBlock:false,count:1}},
-  {pattern:[['chest'],['oak_boat']],result:{id:'chest_boat',isBlock:false,count:1}},
+  {pattern:[[BLOCKS.CHEST],['oak_boat']],result:{id:'chest_boat',isBlock:false,count:1}},
   {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_DOOR,isBlock:true,count:3}},
   {pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS]],result:{id:BLOCKS.OAK_TRAPDOOR,isBlock:true,count:2}},
   // Shield

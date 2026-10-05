@@ -137,6 +137,22 @@ function vanillaIdOf(entry, vanilla) {
 }
 
 /**
+ * Is this block's vanilla name answered for by an *item* here?
+ *
+ * A name can belong to both a block and an item: the wheat crop block and the wheat item share `wheat`, and
+ * this game registers the target block twice, one of which carries the item form. Vanilla keys its recipes,
+ * sources and ingredients by the item, so asking the *block* entry where its recipe is reports the placed form
+ * as uncraftable -- which is what it is, because you craft the item and place it. The item entry answers for
+ * the name, and the block entry is skipped by the item-level checks.
+ */
+function answeredByAnItem(entry, registry, vanilla) {
+  if (entry.kind === 'item') return false;
+  const vanillaName = vanillaIdOf(entry, vanilla);
+  if (!vanillaName) return false;
+  return registry?.entries?.get(vanillaName)?.kind === 'item';
+}
+
+/**
  * Does the game have any way to obtain this resource?
  *
  * Deliberately does not count "it is in the creative menu", because a creative-only entry is exactly
@@ -272,7 +288,7 @@ export const RESOURCE_CHECKS = [
     id: 'has-source',
     label: 'Can be obtained in survival',
     group: 'obtainable',
-    run: ({ entry, registry }) => {
+    run: ({ entry, registry, vanilla }) => {
       // A spawn egg is creative-only in vanilla: no recipe, no drop, no trade. Asking for a survival
       // source reported all ninety of them as gaps, which is a fifth of the report and buries the items
       // that genuinely have no source. The one case is named rather than matched by a pattern, and
@@ -282,6 +298,9 @@ export const RESOURCE_CHECKS = [
       // half, a crop's third growth stage. This check was asking all eighty-five of them where they could
       // be obtained, which is not a question about an item. `block-drop` and `harvest-data` cover blocks.
       if (entry.internal) return CHECK_SKIP;
+      // A block whose vanilla name is an item here: the wheat crop block and the wheat item, a chest. What a
+      // player obtains is the item, and the item entry answers for the name.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       // A wall banner, a bed head and a wall hanging sign are one item placed differently. See
       // PLACEMENT_VARIANTS; the exemption needs the standing counterpart to be registered.
       // Item entries are keyed by their bare id (`black_banner`); a block with no item form is keyed
@@ -300,7 +319,10 @@ export const RESOURCE_CHECKS = [
     id: 'recipe-parity',
     label: 'Vanilla crafting recipe exists here too',
     group: 'obtainable',
-    run: ({ entry, vanilla }) => {
+    run: ({ entry, registry, vanilla }) => {
+      // A block whose vanilla name is an item here is answered for by that item: vanilla's recipe is for the
+      // item, and asking the placed form reports it as uncraftable, which is what a crop block is.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       // Air is not something anyone crafts. The pinned recipe data carries one `paper + filled_map` entry
       // whose result is air, which is how minecraft-data represents the map-zooming recipe; without this it
       // reads as "vanilla has a recipe for air and this game does not".
@@ -315,7 +337,9 @@ export const RESOURCE_CHECKS = [
     id: 'ingredient-parity',
     label: 'Usable as an ingredient like vanilla',
     group: 'obtainable',
-    run: ({ entry, vanilla }) => {
+    run: ({ entry, registry, vanilla }) => {
+      // Same rule: vanilla's ingredients name the item, not the block that places it.
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
       const expected = vanilla?.recipesByIngredientName.get(vanillaIdOf(entry, vanilla));
       if (!expected || !expected.length) return CHECK_SKIP;
       if (entry.recipesAsIngredient.length) return true;
