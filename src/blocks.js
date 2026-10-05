@@ -836,6 +836,37 @@ export const BLOCKS = {
   CAVE_AIR: 1197,
   VOID_AIR: 1198,
 
+  // --- The creeper head, thirty-second block-parity batch -----------------------------------------
+  //
+  // THIS BLOCK WAS WRONGLY EXCLUDED FOR SEVERAL ROUNDS. The extraction script carried a claim that the
+  // creeper's sheet "is not in the standard layout" and that what sits at the head coordinates is "body
+  // noise rather than a face". That was FALSE. The standard front rectangle at (8,8)-(16,16) is the
+  // creeper's face -- two eyes and a mouth -- and it renders unmistakably as one.
+  //
+  // The wrong call came from counting distinct colours in the 8x8 region and reading 50 as noise. A creeper
+  // is CAMOUFLAGED: its face legitimately uses many greens, so a colour count was never evidence of
+  // anything. The lesson is that a cheap numeric proxy is not a substitute for looking at the picture, and
+  // that a negative finding recorded in a comment needs the same scrutiny as a positive one.
+  CREEPER_HEAD: 1199,
+  CREEPER_WALL_HEAD: 1200,
+
+  // --- Bubble column, thirty-third block-parity batch ---------------------------------------------
+  //
+  // Vanilla has NO bubble-column texture at any suffix or version, because a bubble column IS water with
+  // bubbles rising through it: the game draws the water tile and spawns particles. So the tile is COMPOSED
+  // from the two ingredients that do ship -- water_still.png, which WATER already uses here, and
+  // particle/bubble.png, which is the bubble sprite the game already draws in water. scripts/
+  // compose-bubble-column.py builds it, and that is the eighth block in this goal unblocked by deriving art.
+  BUBBLE_COLUMN: 1201,
+
+  // --- Bamboo sapling, thirty-fourth block-parity batch -------------------------------------------
+  //
+  // THE LAST BLOCK IN THE PINNED LIST, and it also had its art on the mirror already. `bamboo_stage0.png`
+  // was referenced by NOTHING in this codebase -- the BAMBOO block uses plain `bamboo.png` -- and stage 0
+  // is exactly right for a sapling: it is the young shoot, a single stalk with leaves, drawn on a small
+  // mound. So this is the second block in this goal unblocked by dead art rather than new art.
+  BAMBOO_SAPLING: 1202,
+
 };
 
 export const BLOCK_DEFS = {
@@ -2297,14 +2328,6 @@ export const ITEMS = {
   water_bucket: { name: 'Water Bucket', icon: '/assets/items/water_bucket.png', type: 'tool' },
   lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
   milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
-  // The six bucketable mobs, vanilla's fish buckets. A bucket holds one thing, so these stack to one while
-  // their neighbours stack to sixty-four; `src/fishBuckets.js` owns the catch and release rules.
-  cod_bucket: { name: 'Bucket of Cod', icon: '/assets/items/cod_bucket.png', type: 'tool', stackSize: 1 },
-  salmon_bucket: { name: 'Bucket of Salmon', icon: '/assets/items/salmon_bucket.png', type: 'tool', stackSize: 1 },
-  pufferfish_bucket: { name: 'Bucket of Pufferfish', icon: '/assets/items/pufferfish_bucket.png', type: 'tool', stackSize: 1 },
-  tropical_fish_bucket: { name: 'Bucket of Tropical Fish', icon: '/assets/items/tropical_fish_bucket.png', type: 'tool', stackSize: 1 },
-  axolotl_bucket: { name: 'Bucket of Axolotl', icon: '/assets/items/axolotl_bucket.png', type: 'tool', stackSize: 1 },
-  tadpole_bucket: { name: 'Bucket of Tadpole', icon: '/assets/items/tadpole_bucket.png', type: 'tool', stackSize: 1 },
   flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
   // Wiki: the harness, which a happy ghast must have before it can be ridden.
   harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },
@@ -2597,6 +2620,11 @@ export const ITEMS = {
   barrier: { name: 'Barrier', icon: '/assets/items/barrier.png', type: 'block', isBlock: true, blockId: BLOCKS.BARRIER },
   light: { name: 'Light', icon: '/assets/items/light.png', type: 'block', isBlock: true, blockId: BLOCKS.LIGHT },
   structure_void: { name: 'Structure Void', icon: '/assets/items/structure_void.png', type: 'block', isBlock: true, blockId: BLOCKS.STRUCTURE_VOID },
+  // The last four blocks. The creeper head and the bamboo sapling are placeable items; the bubble column
+  // has NO item, because vanilla gives it none -- it is a water state rather than something you hold.
+  creeper_head: { name: 'Creeper Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_HEAD },
+  creeper_wall_head: { name: 'Creeper Wall Head', icon: '/assets/blocks/creeper_head_front.png', type: 'block', isBlock: true, blockId: BLOCKS.CREEPER_WALL_HEAD },
+  bamboo_sapling: { name: 'Bamboo Sapling', icon: '/assets/blocks/bamboo_stage0.png', type: 'block', isBlock: true, blockId: BLOCKS.BAMBOO_SAPLING },
   sniffer_egg: { name: 'Sniffer Egg', icon: '/assets/items/sniffer_egg.png', type: 'block', isBlock: true, blockId: BLOCKS.SNIFFER_EGG },
   breeze_spawn_egg: { name: 'Breeze Spawn Egg', icon: '/assets/items/breeze_spawn_egg.png', type: 'spawn_egg', mob: 'breeze' },
   husk_spawn_egg: { name: 'Husk Spawn Egg', icon: '/assets/items/husk_spawn_egg.png', type: 'spawn_egg', mob: 'husk' },
@@ -2884,6 +2912,35 @@ BLOCK_DEFS[BLOCKS.STRUCTURE_VOID] = {name: 'Structure Void', hardness: 0.0, soun
   // The explicit null is what makes the empty row authoritative.
 BLOCK_DEFS[BLOCKS.CAVE_AIR] = {name: 'Cave Air', transparent: true, solid: false, drop: null};
 BLOCK_DEFS[BLOCKS.VOID_AIR] = {name: 'Void Air', transparent: true, solid: false, drop: null};
+
+  // --- The creeper head, thirty-second block-parity batch -----------------------------------------
+  //
+  // The same 8/16 cube every other head uses. The wall form drops the STANDING head, per the harvest
+  // table, like every other wall-mounted head here.
+BLOCK_DEFS[BLOCKS.CREEPER_HEAD] = { name: 'Creeper Head', hardness: 1.0, sound: 'stone', head: true, transparent: true, drop: BLOCKS.CREEPER_HEAD, textures: { top: 'creeper_head_top.png', side: 'creeper_head_front.png', bottom: 'creeper_head_bottom.png' } };
+BLOCK_DEFS[BLOCKS.CREEPER_WALL_HEAD] = { name: 'Creeper Wall Head', hardness: 1.0, sound: 'stone', wallHead: true, transparent: true, drop: BLOCKS.CREEPER_HEAD, textures: { top: 'creeper_head_top.png', side: 'creeper_head_front.png', bottom: 'creeper_head_bottom.png' } };
+
+  // --- Bubble column, thirty-third block-parity batch ---------------------------------------------
+  //
+  // IT IS WATER, and is defined as a liquid for that reason: transparent, not solid, and `liquid: true`
+  // like the WATER entry it is built from. Its harvest row is hardness 0 with NO drops and an empty
+  // bounding box, so `drop: null` is required -- omitting it would make the block drop itself, which is
+  // the same trap cave air and void air hit.
+  //
+  // WHAT IS NOT MODELLED: in vanilla a bubble column is created by placing soul sand or magma under
+  // water, and it pushes the player up or pulls them down. This engine has no such interaction, so the
+  // block is a decorative water surface with bubbles on it -- the same category as the shulker boxes
+  // not being containers and the cauldrons not holding fluid.
+BLOCK_DEFS[BLOCKS.BUBBLE_COLUMN] = { name: 'Bubble Column', hardness: 0.0, sound: 'water', transparent: true, solid: false, liquid: true, drop: null, textures: { all: 'bubble_column.png' } };
+
+  // --- Bamboo sapling, thirty-fourth block-parity batch -------------------------------------------
+  //
+  // A PLANT, like the other saplings: `plant: true` so the mesher draws it as a cross-quad, transparent
+  // and not solid so it does not block movement or occlude its neighbours. The BAMBOO block next to it is
+  // already defined this way, so the two are consistent.
+  //
+  // IT DROPS BAMBOO, not itself, per its harvest row.
+BLOCK_DEFS[BLOCKS.BAMBOO_SAPLING] = { name: 'Bamboo Sapling', hardness: 1.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'bamboo', textures: { all: 'bamboo_stage0.png' } };
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};

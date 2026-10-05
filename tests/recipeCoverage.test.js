@@ -57,7 +57,7 @@ test('the recipe lists the game actually uses reflect the generated set', () => 
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 1445`);
   assert.ok(RECIPES_2X2.length >= 405,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1552,
+  assert.equal(GENERATED_RECIPE_COUNT, 1553,
     'the generated recipe count changed; update this expectation deliberately if that was intended. It went '
     + '1538 -> 1546 by regenerating after earlier content additions that had never been re-run through '
     + 'the recipe generator, which is worth doing whenever blocks or items are added. It went 1546 -> 1547 '
@@ -68,9 +68,11 @@ test('the recipe lists the game actually uses reflect the generated set', () => 
     + 'scaffolding, which needed bamboo and string -- both long since present. It went 1549 -> 1551 with the '
     + 'two chest variants: obsidian plus an eye of ender for the ender chest, and a chest plus a tripwire '
     + 'hook for the trapped chest, every ingredient of which was already registered. And 1551 -> 1552 with '
-    + 'the bundle, one string over one leather, which had been skipped as a missing result for as long as the '
-    + 'item was absent. The sixteen dyed bundles are NOT in this number: vanilla\'s data has no recipe for '
-    + 'them, so their dyeing recipes are hand-written in crafting.js.');
+    + 'the CREEPER HEAD, which unlocked the creeper banner pattern -- paper plus a creeper head, the same '
+    + 'shape as the other head banner patterns -- and 1552 -> 1553 with the bundle, one string over one '
+    + 'leather, which had been skipped as a missing result for as long as the item was absent. The sixteen '
+    + 'dyed bundles are NOT in this number: vanilla\'s data has no recipe for them, so their dyeing recipes '
+    + 'are hand-written in crafting.js.');
 });
 
 test('missing results remain the larger half of the gap', { skip }, () => {

@@ -83,19 +83,17 @@ test('coverage breakdown identifies what to add next', { skip }, () => {
   const blocked = [...m.blockedBy].sort((a, b) => b[1] - a[1]);
   // NEITHER the count NOR the top magnitude is asserted any more, and the reason is the same for both.
   //
-  // The count was over 50 when this was written and is now 1, and the top magnitude was required to be
-  // at least 2 and is now 1 -- because ingredient-side coverage is essentially complete. Both
-  // thresholds turn progress into a failure, which is the mistake this file has now made three times
-  // (an absent-name list, a blocker count, and this magnitude floor).
+  // The count was over 50 when this was written, then 1, and is now ZERO -- every recipe that can be
+  // expressed from names this game has, has been. Both earlier thresholds (a count floor and a magnitude
+  // floor) turned progress into a failure, which is the mistake this file has made three times.
   //
-  // The durable claims are that the report exists, that it is non-empty, and that its numbers are
-  // internally consistent. A broken measurement fails those; a finished one does not.
-  assert.ok(blocked.length > 0, 'the report should identify what to add next');
-  assert.ok(blocked[0][1] >= 1, 'a blocker must block at least one recipe, or it is not a blocker');
-  assert.ok(blocked[0][1] <= m.total,
-    'a single name cannot block more recipes than exist');
-  // Everything in the report must be genuinely absent, or the report is describing solved work.
-  for (const [name] of blocked) {
+  // SO THE FLOOR IS GONE ENTIRELY. `blocked.length > 0` was the last of them, and it is now a claim that is
+  // FALSE and should be false: asserting it would mean the work can never be finished. What remains is the
+  // part that stays true either way -- the report is internally consistent, and every name it does list is
+  // genuinely absent -- so a broken measurement still fails while a complete one passes.
+  for (const [name, count] of blocked) {
+    assert.ok(count >= 1, `${name} is listed as a blocker but blocks ${count} recipes`);
+    assert.ok(count <= m.total, 'a single name cannot block more recipes than exist');
     assert.equal(have(name), false, name + ' is listed as a blocker but the game already has it');
   }
 
