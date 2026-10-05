@@ -32,12 +32,12 @@ test('spawnMob returns nothing for a type it does not know, and says so', (t) =>
   //
   // The assertion is inverted deliberately: if the substitution ever comes back, this fails.
   //
-  // `snow_golem` was in this list and is not any more. It was added as a real mob, and this test failed
-  // with a message saying exactly that -- which is the property that makes pinning a list of gaps worth
-  // doing rather than merely recording it.
+  // Every vanilla type this file once listed has since been added -- snow_golem, then pufferfish,
+  // skeleton_horse, tropical_fish and zombie_horse -- each time failing this list and asking for it to be
+  // shrunk. Only a name that is not a mob at all is left, which is the case the fallback must still
+  // refuse.
   const manager = makeDropFixture().manager;
-  for (const type of ['pufferfish', 'skeleton_horse', 'tropical_fish', 'zombie_horse',
-    'definitely_not_a_mob']) {
+  for (const type of ['definitely_not_a_mob', 'not_a_mob_either', '']) {
     const mob = manager.spawnMob(type, 0, 1, 0);
     assert.equal(mob, null,
       type + ' is unknown, so nothing should spawn. It returned ' + (mob && mob.type));
@@ -51,11 +51,14 @@ test('spawnMob returns nothing for a type it does not know, and says so', (t) =>
 test('the five unported mobs are reported as unported, not as drop gaps', (t) => {
   if (!LOOT_CACHE_PRESENT) { t.skip('vanilla loot cache absent'); return; }
   const r = compareLiveDrops();
-  assert.deepEqual(r.notSpawnable.map(n => n.entity).sort(),
-    ['pufferfish', 'skeleton_horse', 'tropical_fish', 'zombie_horse'],
-    'the set of mobs this game does not have changed. If they were ADDED, this list should shrink and '
-    + 'docs/survival-parity-rules.md section 4.2.2 updated with it. snow_golem was on this list until it '
-    + 'was added, and removing it here is what that failure asked for.');
+  // EMPTY, and asserted as empty rather than deleted.
+  //
+  // This began as a list of five mobs the game did not have. Each was added in turn and each addition
+  // failed this assertion with a message naming what to do about it, which is what a pinned gap list is
+  // for. Keeping the assertion means a regression that removes a spawn path fails here too.
+  assert.deepEqual(r.notSpawnable.map(n => n.entity).sort(), [],
+    'every vanilla loot-bearing mob should now be spawnable; these are not: '
+    + r.notSpawnable.map(n => n.entity).join(', '));
   // None of them may appear in the drop-gap list, because a row for a mob that cannot spawn fixes nothing.
   for (const n of r.notSpawnable) {
     assert.equal(r.missing.some(m => m.entity === n.entity), false,

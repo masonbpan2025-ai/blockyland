@@ -409,7 +409,7 @@ result against vanilla's chance-1 drops.
 
 **Two real gaps, fixed**: `cat` (string) and `ravager` (saddle) had no drop row and no helper. Rows added.
 
-**Four mobs are not in the game** (`snow_golem` was one and has since been added): `pufferfish`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
+**No mob is missing any more**: all five that were absent have since been added: `pufferfish`, `skeleton_horse`, `snow_golem`, `tropical_fish`,
 `zombie_horse`. Round 34 reported these as drop gaps, which was wrong, and the reason is a defect worth
 naming: **`spawnMob` falls back to a VILLAGER for any type it does not know** -- its `default:` branch ends
 in `return this.spawnVillager(...)`. So spawning by name and reading the mob measures a villager for any
