@@ -223,3 +223,5 @@ export {
   createProcessor, createProcessorList, ProcessorList, PROCESSOR_TYPES, PROCESSOR_REQUIREMENTS
 } from './processors.js';
 export { placeTemplate, describePlacement, TERRAIN_MATCHING_GRAVITY_OFFSET } from './templatePlacement.js';
+export { adaptToTerrain, adaptationFor, TERRAIN_ADAPTATIONS, TERRAIN_ADAPTATION_INFLATE } from './terrainAdaptation.js';
+export { TemplatePool, TemplatePoolRegistry, PoolElement, addPieces, ELEMENT_TYPES } from './jigsaw.js';
