@@ -1898,6 +1898,14 @@ class Game {
         }
       }
 
+      // An infested block releases its silverfish where it stood. The block definitions mark which
+      // ones with `silverfish: true` rather than this being an id list, so a new infested variant is
+      // data only. It spawns regardless of tool and gamemode, as in vanilla: the silverfish is the
+      // block's contents, not its drop.
+      if (BLOCK_DEFS[blockId]?.silverfish && this.mobs?.spawnSilverfish) {
+        this.mobs.spawnSilverfish(x + 0.5, y, z + 0.5);
+      }
+
       // Ore experience drops matching Minecraft wiki
       const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
       if (this.entities?.spawnXpOrbs) {

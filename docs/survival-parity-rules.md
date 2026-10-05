@@ -489,8 +489,28 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 
 ### 4.3 What is not verified
 
-- **Drop probabilities under Looting.** Vanilla raises several chances with the enchantment; the loot
-  table has no per-level figures, so this is not measurable from the available data.
+- **Drop probabilities under Looting — implemented and now tested.** The earlier note here said the loot
+  table "has no per-level figures, so this is not measurable from the available data". That was true of the
+  table and beside the point: the rule is not per-level data, it is vanilla's formula, `chance + 0.01 *
+  level` capped at one, and the table needed a way to carry a chance at all before it could apply.
+
+  The live rows were `[id, isBlock, min, max]` — a range with no probability — so a drop that happens one
+  time in a hundred and twenty had no representation and was simply absent. An optional fifth field carries
+  it, and the death handler rolls it against `mob.lootingLevel`, which the kill path already sets from the
+  killer's weapon. That closed nine missing rare drops: iron ingot, carrot and potato from a zombie and a
+  husk, carrot and potato from a zombie villager, and copper ingot from a drowned.
+
+  `tests/lootingChance.test.js` drives `updateDeath` rather than reading the table, because the roll happens
+  in the death handler and a test of the table alone would pass whether or not anything ever rolled it. The
+  roll is forced to a constant, which makes the outcome a pure function of the effective chance: at a roll
+  of 0.02 a zombie drops no iron ingot at level 0 and does drop one at level 3, since the threshold moves
+  from 0.008333 to 0.038333.
+
+  **The cap is defensive rather than load-bearing, and the test now says so.** Mutation testing showed that
+  deleting `Math.min(1, …)` fails nothing: the cap and its absence behave identically whenever the roll is
+  below one, which `Math.random` guarantees. The test that claimed to check it was overclaiming and has been
+  renamed to what it actually checks. No row has a chance within one percent of certainty at Looting III, so
+  the cap cannot be reached in practice either.
 - ~~Brewing and potion-to-effect mapping~~ — **now implemented and verified against section 2.6.** An
   earlier version of this list said it was not implemented, which was wrong: `src/brewing.js` already had
   40 recipes and 36 potions. Auditing it against the researched rules found three faults, all silent:
