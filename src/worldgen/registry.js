@@ -122,13 +122,13 @@ export const STRUCTURES = {
   ruined_portal_nether: { type: 'ruined_portal', dimension: NETHER, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_nether', implementation: 'ruinedPortal', biomes: [], notes: 'Blackstone materials, mossiness 0, replace_with_blackstone.' },
   shipwreck: {
     type: 'shipwreck', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/shipwreck',
+    biomeTag: 'has_structure/shipwreck', implementation: 'shipwreck',
     biomes: ['ocean', 'deep_ocean', 'cold_ocean', 'deep_cold_ocean', 'frozen_ocean', 'deep_frozen_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean', 'warm_ocean'],
     notes: '20 wreck templates in three orientations, intact and degraded; up to 3 chests.'
   },
   shipwreck_beached: {
     type: 'shipwreck', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/shipwreck_beached', biomes: ['beach', 'snowy_beach'],
+    biomeTag: 'has_structure/shipwreck_beached', implementation: 'shipwreck', biomes: ['beach', 'snowy_beach'],
     notes: 'Same templates with is_beached true.'
   },
   ocean_ruin_cold: {

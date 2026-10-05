@@ -450,7 +450,8 @@ test('generator coverage is honest about what is not implemented yet', () => {
   assert.ok(missing.length >= 20, `expected most structures to be unimplemented, got ${missing.length}`);
   assert.ok(missing.includes('village_plains'));
   assert.ok(missing.includes('stronghold'));
-  assert.ok(missing.includes('shipwreck'));
+  assert.ok(missing.includes('mansion'));
+  assert.ok(missing.includes('ocean_ruin_cold'));
   assert.equal(implemented.length + missing.length, Object.keys(STRUCTURES).filter((id) => STRUCTURES[id]).length,
     'every registry structure must be either implemented or reported missing');
 });
