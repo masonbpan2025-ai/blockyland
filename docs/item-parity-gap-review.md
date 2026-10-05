@@ -15,7 +15,7 @@ one of them can be reproduced with the commands at the end.
 | | Have | Vanilla | |
 | --- | --- | --- | --- |
 | Items (including item forms of blocks) | **1277** | 1385 | 92.2% |
-| Vanilla item names absent | **18** | 1385 | 98.7% named |
+| Vanilla item names absent | **16** | 1385 | 98.8% named |
 | Registered blocks | 496 | 1095 | — |
 | Recipes | 3609 | 1557 vanilla | — |
 | Smelting rows | 90 | — | — |
@@ -62,14 +62,13 @@ vanilla can obtain and this game cannot, so far as vanilla's pinned recipe, loot
 That is a statement about *obtainability*, not about behaviour. An item can be obtainable and still lack the
 feature it exists for, which is what the next section is about.
 
-## The eighteen absent vanilla names, by owner
+## The sixteen absent vanilla names, by owner
 
 | Item | Why it is absent | Owner |
 | --- | --- | --- |
 | `map`, `written_book` | Neither is an item so much as a UI: a map is drawn from a rendered world view and a book is a text editor. Both need a screen, not a definition | engine |
 | `spyglass`, `recovery_compass` | A zoom view and a pointer to a place you died. Both need camera and world-history plumbing, and the item-addition path excludes them for that reason: a crafted spyglass with no zoom is a dead item | engine |
 | `resin_brick` | Vanilla's route is a creaking heart dropping resin clumps, which are then crafted. The **creaking** exists here; the resin clump block does not | block lane, then item |
-| `splash_potion`, `lingering_potion` | The same two items this game calls `splash_water_bottle` and `lingering_water_bottle` — a potion with no stored effect is water. Reconciling them is a **rename**, not an alias: the alias was written and `tests/duplicateIds.test.js` refused it, because the shadow report requires this game to register vanilla's own spelling rather than a synonym for it | rename |
 | `command_block_minecart`, `knowledge_book`, `debug_stick` | Creative-only and operator-only. Vanilla gives them no survival source either | creative menu only |
 | `trial_key`, `ominous_trial_key` | Vanilla's source is a defeated **trial spawner**, and this game's trial spawner is an inert block with no block entity | block entity, then item |
 | `flow_banner_pattern`, `guster_banner_pattern` | From *ominous* vaults, which need the trial-spawner chain above | as above |
@@ -80,17 +79,24 @@ feature it exists for, which is what the next section is about.
 in vanilla and pointless here until rockets carry colours, so adding it would put an item in the registry that
 can be made and cannot be used — the trap this series has avoided at every step.
 
-The list was twenty, and then eighteen. `splash_potion` and `lingering_potion` came off it by
-*reconciliation* for one commit — an alias in `VANILLA_ID_ALIASES`, the table that exists for exactly this —
-and then went back on when `tests/duplicateIds.test.js` refused the alias. That report tells a duplicate from a
-rename, and the rule it enforces is that this game registers vanilla's own spelling rather than a synonym for
-it; `slimeball` and `hay_bale` had been fixed that way in earlier rounds, which is why their aliases were
-stale and are now gone. So the two potion names are a rename waiting to happen, recorded here rather than
-papered over.
+The list was twenty, then eighteen, then sixteen. `splash_potion` and `lingering_potion` are
+vanilla's generic splash and lingering potions, which **are** the water ones -- a potion with no stored effect is
+water -- and this game had them all along under the names `splash_water_bottle` and
+`lingering_water_bottle`.
 
-Two more names came off the list by reconciliation in an earlier round: `snow` and `target_block` are blocks
-this game registers under the plain material name while vanilla appends `_block`. Their aliases stay, because
-the ids really are those spellings and `block-drop-parity` needs the pairing.
+The alias route was tried first, since `VANILLA_ID_ALIASES` exists for exactly this, and
+`tests/duplicateIds.test.js` refused it: `shadowedVanillaIds` reads that table to tell a duplicate from a
+rename, and the rule it enforces is that this game registers vanilla's own spelling rather than a synonym for
+it. `slimeball` and `hay_bale` had been fixed that way in earlier rounds, which is why their aliases were
+stale and are now gone.
+
+So the rename is what happened, and it is worth recording what it touched, because the ids were not the hard
+part. `generate-potion-items.mjs` derives a `splash_` and a `lingering_` form from every core potion;
+the two generic forms now take vanilla's names instead. `brewing.js` gained the table that maps them back to
+their core, because `potionDataFor` and the splash recogniser both resolve a derived id by stripping its
+prefix -- and `splash_potion` does not strip to a core that exists. Without that, brewing into the new id
+produced a phantom stack and a thrown splash potion fell through to block placement, which is exactly what
+`tests/splashPotion.test.js` caught.
 
 ## What landed, by theme
 

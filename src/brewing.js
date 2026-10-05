@@ -126,19 +126,59 @@ export const BASE_BREWING_RECIPES = [
 ];
 
 /**
+ * Vanilla's *generic* potion ids, and the core this game derives them from.
+ *
+ * Vanilla's generic splash and lingering potions **are** the water ones: `minecraft:splash_potion` with no
+ * stored effect is water, and it displays as "Splash Water Bottle". This game models the water potion as the
+ * core `water_bottle`, so deriving `splash_water_bottle` produced an id vanilla does not have. The two derived
+ * forms therefore take vanilla's names.
+ *
+ * Both the item generator and the accessors below read this table, so the ids and the data behind them cannot
+ * drift apart -- which is exactly what happened when the generator was the only thing that knew.
+ */
+export const VANILLA_GENERIC_POTION_FORMS = {
+  water_bottle: { splash: 'splash_potion', lingering: 'lingering_potion' },
+};
+
+/**
+ * The core potion a splash or lingering id belongs to, or the id itself when it is already a core.
+ *
+ * Both potionDataFor here and splashPotion.js need this, and both used to derive it by stripping the
+ * prefix -- which cannot resolve vanilla's generic splash_potion, whose core is this game's water_bottle
+ * and not anything called potion. That made a thrown splash potion fall through to block placement, which
+ * 	ests/splashPotion.test.js caught the round the rename landed.
+ *
+ * @param {string} itemId
+ * @returns {string} a POTION_DATA key when there is one
+ */
+export function potionCoreFor(itemId) {
+  if (typeof itemId !== 'string') return '';
+  return CORE_FOR_GENERIC_FORM[itemId] ?? itemId.replace(/^(splash|lingering)_/, '');
+}
+/** The core a derived id belongs to, inverted from the table above. */
+const CORE_FOR_GENERIC_FORM = Object.fromEntries(
+  Object.entries(VANILLA_GENERIC_POTION_FORMS)
+    .flatMap(([core, forms]) => Object.values(forms).map((id) => [id, core])),
+);
+
+/**
  * Returns resulting potion id when given a bottle and ingredient, or null if no recipe matches
  */
 export function getBrewingResult(bottleId, ingredientId) {
   if (!bottleId || !ingredientId) return null;
 
-  // Gunpowder: converts any regular drinkable potion to a Splash potion
+  // Gunpowder: converts any regular drinkable potion to a Splash potion. The water potion is vanilla's
+  // generic one, so this asks the table rather than gluing a prefix on -- `splash_water_bottle` was an id
+  // vanilla does not have, and brewing into it would have produced a phantom stack.
   if (ingredientId === 'gunpowder') {
     if (bottleId.startsWith('splash_') || bottleId.startsWith('lingering_')) return null;
-    return `splash_${bottleId}`;
+    return VANILLA_GENERIC_POTION_FORMS[bottleId]?.splash ?? `splash_${bottleId}`;
   }
 
-  // Dragon's Breath: converts any Splash potion to a Lingering potion
+  // Dragon's Breath: converts any Splash potion to a Lingering potion. The generic case needs the table too,
+  // because `splash_potion` does not start with a core name this can prefix.
   if (ingredientId === 'dragon_breath') {
+    if (CORE_FOR_GENERIC_FORM[bottleId]) return VANILLA_GENERIC_POTION_FORMS[CORE_FOR_GENERIC_FORM[bottleId]].lingering;
     if (bottleId.startsWith('splash_')) {
       return bottleId.replace(/^splash_/, 'lingering_');
     }
@@ -180,7 +220,9 @@ export function potionDataFor(itemId) {
   if (typeof itemId !== 'string' || !itemId) return null;
   const splash = itemId.startsWith('splash_');
   const lingering = itemId.startsWith('lingering_');
-  const base = itemId.replace(/^(splash|lingering)_/, '');
+  // Vanilla's generic splash_potion and lingering_potion are the water potion, whose core is this
+  // game's water_bottle; the table is authoritative for them and the prefix rule handles the other 110.
+  const base = potionCoreFor(itemId);
   const data = POTION_DATA[base];
   if (!data) return null;
   return { id: itemId, base, ...data, splash, lingering };

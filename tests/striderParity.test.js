@@ -42,7 +42,7 @@ test('lava flow slows upstream riding',()=>{
  assert.ok(run(Math.PI/2)<run(-Math.PI/2)*.7);
 });
 test('splash water potion follows the actual projectile path and hurts Strider without granting fire resistance',async()=>{
- const {useBarterPotion}=await import('../src/barterItems.js');const s=session();s.player.gamemode='survival';s.player.position.set(0,0,3);s.inventory.active={id:'splash_water_bottle',count:1};s.player.camera={getWorldDirection:v=>v.set(0,0,-1)};
+ const {useBarterPotion}=await import('../src/barterItems.js');const s=session();s.player.gamemode='survival';s.player.position.set(0,0,3);s.inventory.active={id:'splash_potion',count:1};s.player.camera={getWorldDirection:v=>v.set(0,0,-1)};
  assert.equal(useBarterPotion({...s.manager.game,camera:s.player.camera,mobs:s.manager,inventory:s.inventory}),true);tick(s,.6);assert.equal(s.mob.health,19);assert.equal(s.mob.fireResistanceTime,0);assert.equal(s.inventory.active.count,0);
 });
 test('map save/load restores age, saddle and passenger links through real map API',async()=>{

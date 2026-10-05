@@ -15,6 +15,8 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { VANILLA_ID_ALIASES, missingVanillaItems, registry } from '../src/resourceRegistry.js';
 import { buildVanillaIndex } from '../src/resourceShowcase.js';
 import { measureItemGap } from '../scripts/content-gap.mjs';
+import { potionDataFor } from '../src/brewing.js';
+import { isSplashPotion } from '../src/splashPotion.js';
 
 const CACHE_PRESENT = existsSync('.cache/mc-data/items.json');
 const skip = CACHE_PRESENT ? false : 'vanilla data cache not present';
@@ -32,22 +34,24 @@ test('an aliased name is not reported missing by either measurement', { skip }, 
   assert.deepEqual(stillMissing, [], 'an alias should reconcile the name everywhere it is reported');
 });
 
-test('the two potion names are a rename that has not happened, not an alias', { skip }, () => {
+test('the two potion names were renamed, not aliased', { skip }, () => {
   // Vanilla's generic splash and lingering potions *are* the water ones -- a potion with no stored effect is
-  // water -- and this game carries them as `splash_water_bottle` and `lingering_water_bottle`. The alias was
-  // written and `tests/duplicateIds.test.js` refused it: `shadowedVanillaIds` reads this table to tell a
-  // duplicate from a rename, and what that report enforces is that this game registers vanilla's own spelling
-  // rather than a synonym for it. So the two names stay on the absent list, and the fix is a rename.
-  //
-  // This test exists so that decision is recorded rather than looking like an oversight, and so that a future
-  // round adding the alias back is told why it will fail.
-  for (const [gameId, vanillaId] of [['splash_water_bottle', 'splash_potion'],
+  // water -- and this game used to carry them as `splash_water_bottle` and `lingering_water_bottle`. The alias
+  // was written first and `tests/duplicateIds.test.js` refused it, because that report requires this game to
+  // register vanilla's own spelling rather than a synonym for it. The rename is what happened instead.
+  for (const [oldId, vanillaId] of [['splash_water_bottle', 'splash_potion'],
     ['lingering_water_bottle', 'lingering_potion']]) {
-    assert.ok(ITEMS[gameId], `${gameId} should be the item that vanilla calls ${vanillaId}`);
-    assert.equal(ITEMS[gameId].type, 'potion', 'and it should be a potion');
-    assert.equal(VANILLA_ID_ALIASES[gameId], undefined,
-      `${gameId} must not be aliased to ${vanillaId}: the shadow report requires vanilla's spelling, not a synonym`);
+    assert.equal(ITEMS[oldId], undefined, `${oldId} should be gone, replaced by ${vanillaId}`);
+    assert.ok(ITEMS[vanillaId], `${vanillaId} should be a real item now`);
+    assert.equal(ITEMS[vanillaId].type, 'potion', 'and it should be a potion');
+    assert.equal(VANILLA_ID_ALIASES[oldId], undefined, 'renamed, so no alias is needed');
   }
+  // And the data behind the new ids resolves, which is the half that breaks silently: `potionDataFor` and the
+  // splash recogniser both ask `brewing.js` which core a derived id belongs to, and a prefix rule cannot
+  // answer for `splash_potion` at all.
+  assert.equal(potionDataFor('splash_potion')?.base, 'water_bottle');
+  assert.equal(potionDataFor('lingering_potion')?.base, 'water_bottle');
+  assert.equal(isSplashPotion('splash_potion'), true, 'a thrown splash potion must not fall through to a block');
 });
 
 test('every alias points at something real, and at a real vanilla name', { skip }, () => {

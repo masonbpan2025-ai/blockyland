@@ -9,7 +9,8 @@
 // delivery and the icon set needs no third identical bottle.
 
 export const POTION_ITEMS = {
-  lingering_water_bottle: { name: 'Lingering Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
+  splash_potion: { name: 'Splash Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
+  lingering_potion: { name: 'Lingering Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
   awkward_potion: { name: 'Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },
   splash_awkward_potion: { name: 'Splash Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },
   lingering_awkward_potion: { name: 'Lingering Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },
@@ -123,11 +124,12 @@ export const POTION_ITEMS = {
   lingering_potion_of_slowness_2: { name: 'Lingering Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
 };
 
-export const POTION_ITEM_COUNT = 112;
+export const POTION_ITEM_COUNT = 113;
 
 /** The potion id each item is a form of, so a consumer can reach POTION_DATA without parsing prefixes. */
 export const POTION_ITEM_BASE = {
-  lingering_water_bottle: 'water_bottle',
+  splash_potion: 'potion',
+  lingering_potion: 'potion',
   awkward_potion: 'awkward_potion',
   splash_awkward_potion: 'awkward_potion',
   lingering_awkward_potion: 'awkward_potion',

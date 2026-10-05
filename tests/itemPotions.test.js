@@ -71,7 +71,7 @@ test('the generated potion set is exactly the derivable set', () => {
   assert.deepEqual(extra, [], 'generated potions that nothing can produce');
   assert.deepEqual(handWritten.sort(), [
     'potion_of_fire_resistance', 'splash_potion_of_fire_resistance', 'splash_potion_of_weakness',
-    'splash_water_bottle', 'water_bottle',
+    'water_bottle',
   ].sort(), 'the hand-written potions this generator must not touch');
 });
 

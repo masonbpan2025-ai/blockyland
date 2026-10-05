@@ -13,7 +13,7 @@
 // Run: node scripts/generate-potion-items.mjs
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { ITEMS } from '../src/blocks.js';
-import { POTION_DATA } from '../src/brewing.js';
+import { POTION_DATA, VANILLA_GENERIC_POTION_FORMS } from '../src/brewing.js';
 
 /**
  * Ids this generator produced last time.
@@ -35,6 +35,10 @@ const previous = previouslyGenerated();
 /** The core potion ids, in POTION_DATA's declaration order so regeneration is stable. */
 const coreIds = Object.keys(POTION_DATA).filter((id) => !id.startsWith('splash_') && !id.startsWith('lingering_'));
 
+// The generic-form table lives in rewing.js, next to POTION_DATA and next to the accessor that has to read
+// the same ids back. It was written here first, and the accessor could not resolve splash_potion because it
+// only knew the prefix rule -- the ids and the data behind them drifted the moment they were in two places.
+
 const entries = [];
 const skippedHandWritten = [];
 for (const core of coreIds) {
@@ -51,10 +55,11 @@ for (const core of coreIds) {
   // oracle for "I generated this id", so anything it names is derived fresh from the id instead.
   const handWrittenIcon = previous.has(core) ? undefined : ITEMS[core]?.icon;
   const icon = handWrittenIcon ?? `/assets/items/${core}.png`;
+  const generic = VANILLA_GENERIC_POTION_FORMS[core];
   const forms = [
     { id: core, name: data.name },
-    { id: `splash_${core}`, name: `Splash ${data.name}` },
-    { id: `lingering_${core}`, name: `Lingering ${data.name}` },
+    { id: generic?.splash ?? `splash_${core}`, name: `Splash ${data.name}` },
+    { id: generic?.lingering ?? `lingering_${core}`, name: `Lingering ${data.name}` },
   ];
   for (const form of forms) {
     // Hand-written wins. An id that exists in ITEMS but was not emitted here last time was typed by

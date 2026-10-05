@@ -2553,7 +2553,9 @@ export const ITEMS = {
   pufferfish: { name: 'Pufferfish', food: 1, icon: '/assets/items/pufferfish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
-  splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
+  // `splash_water_bottle` was here by hand and is gone: the generated potion items now derive vanilla's
+  // `splash_potion` from the `water_bottle` core, because vanilla's generic splash potion IS the water one.
+  // Leaving the hand-written entry behind registered the same item twice, under a name vanilla does not use.
   water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
   // `foodData.js` and the pinned vanilla data both treat the ominous bottle as edible (1 hunger), and

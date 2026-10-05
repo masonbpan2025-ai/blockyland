@@ -908,12 +908,12 @@ export const VANILLA_ID_ALIASES = {
   // `tests/vanillaAliases.test.js` fails when an alias points at an id that is neither an item, a block nor
   // a block name.
   //
-  // Vanilla's generic `splash_potion` and `lingering_potion` are deliberately NOT aliased to this game's
-  // `splash_water_bottle` and `lingering_water_bottle`, although they are the same two items under another
-  // spelling -- a potion with no stored effect is water. The alias was written and `tests/duplicateIds.test.js`
-  // refused it: `shadowedVanillaIds` reads this table to tell a duplicate from a rename, and the rule it
-  // enforces is that this game registers vanilla's own spelling rather than a synonym for it. The honest fix is
-  // a rename of those two ids, not an alias -- the same rename `slime_ball` and `hay_block` already had.
+  // Vanilla's generic `splash_potion` and `lingering_potion` were once carried here too, aliased to this
+  // game's `splash_water_bottle` and `lingering_water_bottle` -- the same two items under another spelling,
+  // since a potion with no stored effect is water. `tests/duplicateIds.test.js` refused the alias:
+  // `shadowedVanillaIds` reads this table to tell a duplicate from a rename, and the rule it enforces is that
+  // this game registers vanilla's own spelling rather than a synonym for it. The rename happened instead, in
+  // the potion generator and in `brewing.js` together, which is why the table has no entry for them.
   // A block this game registers under the plain material name and vanilla under the '_block' one. Without the
   // pairing, `block-drop-parity` read the game dropping its own snow block as a wrong drop.
   snow: 'snow_block',
