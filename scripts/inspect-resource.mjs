@@ -5,6 +5,8 @@
 //   node scripts/inspect-resource.mjs check <id|name> [--json]
 //   node scripts/inspect-resource.mjs check --all [--json] [--group behaviour]
 //   node scripts/inspect-resource.mjs dangling [--json]
+//   node scripts/inspect-resource.mjs duplicates [--json]        keys a literal defines twice
+//   node scripts/inspect-resource.mjs faults [--json]            dangling + duplicates, as a gate
 //   node scripts/inspect-resource.mjs missing [--limit 40]        vanilla items this game lacks
 //   node scripts/inspect-resource.mjs audit [--json]              per-check counts over everything
 //
@@ -20,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   danglingReferences,
+  duplicateDefinitions,
   missingVanillaItems,
   registry as buildDefaultRegistry,
   resourceReport,
@@ -246,6 +249,40 @@ export async function main() {
     case 'missing': {
       if (!vanilla) { console.error('vanilla cache missing; run scripts/generate-mc-data.mjs'); process.exitCode = 1; break; }
       printMissing(active.registry, vanilla);
+      break;
+    }
+    case 'duplicates': {
+      // A repeated key in a registry literal silently discards the earlier definition, which is how a
+      // golden carrot lost its food value. The scan needs the file text, so it is read here rather
+      // than in the registry, which stays free of the filesystem.
+      const registrySource = fs.readFileSync(path.join(root, 'src', 'blocks.js'), 'utf8');
+      const found = ['ITEMS', 'BLOCKS', 'BLOCK_DEFS']
+        .flatMap((literal) => duplicateDefinitions(registrySource, literal).map((d) => ({ literal, ...d })));
+      if (json) { out(found); break; }
+      if (!found.length) { console.log('no duplicate definitions in src/blocks.js'); break; }
+      for (const d of found) {
+        console.log(`${d.literal}.${d.key}  defined at lines ${d.lines.join(', ')}`
+          + '  (only the last one is used)');
+      }
+      console.log(`\n${found.length} silently overridden definition(s)`);
+      process.exitCode = 1;
+      break;
+    }
+    case 'faults': {
+      const problems = danglingReferences(active.registry);
+      const registrySource = fs.readFileSync(path.join(root, 'src', 'blocks.js'), 'utf8');
+      const duplicates = ['ITEMS', 'BLOCKS', 'BLOCK_DEFS']
+        .flatMap((literal) => duplicateDefinitions(registrySource, literal).map((d) => ({ literal, ...d })));
+      const report = {
+        dangling: problems.length,
+        danglingByKind: problems.reduce((acc, p) => ({ ...acc, [p.kind]: (acc[p.kind] ?? 0) + 1 }), {}),
+        duplicates,
+      };
+      if (json) { out(report); break; }
+      console.log(`dangling references: ${problems.length}`);
+      for (const [kind, n] of Object.entries(report.danglingByKind)) console.log(`   ${kind.padEnd(18)} ${n}`);
+      console.log(`duplicate definitions: ${duplicates.length}`);
+      if (problems.length || duplicates.length) process.exitCode = 1;
       break;
     }
     case 'audit': {

@@ -68,7 +68,9 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'awkward_potion', ingredient: 'pufferfish', result: 'potion_of_water_breathing' },
   { bottle: 'awkward_potion', ingredient: 'golden_carrot', result: 'potion_of_night_vision' },
   { bottle: 'awkward_potion', ingredient: 'phantom_membrane', result: 'potion_of_slow_falling' },
-  { bottle: 'awkward_potion', ingredient: 'scute', result: 'potion_of_turtle_master' },
+  // The ingredient is `turtle_scute`; naming it `scute` meant no bottle could ever produce this
+  // potion, because the ingredient id did not exist. The item itself was already registered.
+  { bottle: 'awkward_potion', ingredient: 'turtle_scute', result: 'potion_of_turtle_master' },
 
   // Fermented Spider Eye Corruptions
   { bottle: 'potion_of_night_vision', ingredient: 'fermented_spider_eye', result: 'potion_of_invisibility' },

@@ -130,6 +130,9 @@ export const RESOURCE_CHECKS = [
     label: 'Declares an icon or block textures',
     group: 'identity',
     run: ({ entry }) => {
+      // Air and the fluid/technical helper states have no inventory form, so demanding an icon of
+      // them reports a failure nobody can fix and buries the ones that matter.
+      if (skipTechnical(entry)) return CHECK_SKIP;
       if (entry.icon) return true;
       if (entry.blockDef?.textures) return { ok: true, detail: 'block textures, no item icon' };
       return { ok: false, detail: 'no icon and no textures' };

@@ -555,6 +555,53 @@ function hasResultBlock(id) {
 }
 
 /**
+ * Object keys that appear more than once in a registry literal.
+ *
+ * An object literal with a repeated key is not an error, so the earlier definition is discarded with
+ * no warning at all -- and the later one wins. Five `ITEMS` keys were in that state on this branch: a
+ * `golden_carrot` with `food: 6` was overridden by a later one without it, so a golden carrot could be
+ * held but never eaten, and the icon test could not see it because both definitions named the same
+ * asset. Nothing in the codebase could report this, which is why the check lives here.
+ *
+ * Takes the file text rather than reading it, so this module keeps its no-filesystem property.
+ *
+ * @param {string} source    the contents of a module
+ * @param {string} literal   the exported binding name, e.g. `ITEMS`
+ * @returns {Array<{key: string, lines: number[]}>}
+ */
+export function duplicateDefinitions(source, literal) {
+  const marker = `export const ${literal} = {`;
+  const start = source.indexOf(marker);
+  if (start < 0) return [];
+  // Walk the braces so a nested object literal cannot end the scan early.
+  let depth = 0;
+  let end = -1;
+  for (let i = source.indexOf('{', start); i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}') {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  if (end < 0) return [];
+  const body = source.slice(start, end);
+  const lineOf = (index) => source.slice(0, start + index).split('\n').length;
+  const lines = new Map();
+  // Two leading spaces is this file's indentation for a top-level key, which is what keeps a nested
+  // entry such as a `textures: { all: ... }` field from being read as a registry key.
+  const re = /^ {2}([A-Za-z_][A-Za-z0-9_]*):/gm;
+  let match;
+  while ((match = re.exec(body))) {
+    const key = match[1];
+    if (!lines.has(key)) lines.set(key, []);
+    lines.get(key).push(lineOf(match.index));
+  }
+  return [...lines]
+    .filter(([, found]) => found.length > 1)
+    .map(([key, found]) => ({ key, lines: found }));
+}
+
+/**
  * The other direction: vanilla item names this game does not answer to.
  *
  * `danglingReferences` asks "does this game reference something it never defined"; this asks "does

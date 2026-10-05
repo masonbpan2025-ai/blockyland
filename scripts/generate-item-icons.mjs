@@ -94,6 +94,9 @@ const COLOUR_OVERRIDES = {
   leather: '#a06a3a', paper: '#f2f2f2', brick: '#9a5a44', gunpowder: '#5a5a5a',
   suspicious_stew: '#9a7b3a', rabbit_stew: '#a9773f', beetroot_soup: '#8e2b3a',
   mushroom_stew: '#b08a5a', pumpkin_pie: '#e3a13c',
+  // Hand-written items the sweep below now covers too.
+  rotten_flesh: '#8a5a44', tropical_fish: '#f28c28', chorus_fruit: '#8a5aa8',
+  seagrass: '#4a7a2a', tipped_arrow: '#8a8a9a',
 };
 
 /** Which pixel shape to draw, from the item name. Keeps icons distinguishable at 16x16. */
@@ -184,9 +187,22 @@ const existing = new Set(readdirSync(OUT).map(f => f.replace(/\.(png|svg)$/, '')
 
 let written = 0;
 let skipped = 0;
-const names = Object.keys(EXTRA_ITEMS);
+// Every registered item, not only the generated batch. A hand-written item added to `src/blocks.js`
+// needs an icon just as much, and `tests/item_icons.test.js` requires one for all of `ITEMS` -- so
+// leaving hand-written items out of this sweep meant the test could only be satisfied by hand-drawing
+// a PNG. Existing assets are kept, so this adds files rather than replacing art.
+//
+// The file written is the path the item DECLARES, not `<key>.png` in this directory. Seventeen items
+// point at a shared or block asset (`anvil` at `/assets/blocks/anvil.png`, every potion variant at
+// `/assets/items/potion.png`); naming the output after the key invented 34 unreferenced duplicates
+// that no code path could ever load, and the "every ITEMS entry has an icon" check could not see them
+// because it follows the declared path.
+const names = [...new Set([...Object.keys(EXTRA_ITEMS), ...Object.keys(ITEMS)])];
+const ITEM_ASSET = '/assets/items/';
 for (const name of names) {
-  const file = `${OUT}/${name}.png`;
+  const declared = ITEMS[name]?.icon ?? EXTRA_ITEMS[name]?.icon ?? null;
+  if (!declared || !declared.startsWith(ITEM_ASSET)) { skipped++; continue; }
+  const file = `public${declared}`;
   // Never overwrite a hand-authored asset, and do not rewrite identical output.
   if (existing.has(name)) { skipped++; continue; }
   if (existsSync(file)) { skipped++; continue; }

@@ -62,7 +62,6 @@ export const BLOCKS = {
   REDSTONE_TORCH: 51,
   REDSTONE_LAMP: 52,
   ENCHANTING_TABLE: 53,
-  ANVIL: 54,
   LIT_FURNACE: 55,
   SOUL_TORCH: 56,
   FIRE: 57,
@@ -980,7 +979,6 @@ Object.assign(BLOCK_DEFS, EXTRA_BLOCK_DEFS);
 // Complete Item definitions
 export const ITEMS = {
   iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.svg', type: 'material' },
-  nether_brick: { name: 'Nether Brick', icon: '/assets/items/nether_brick.svg', type: 'material' },
   spectral_arrow: { name: 'Spectral Arrow', icon: '/assets/items/spectral_arrow.svg', type: 'material' },
   potion_of_fire_resistance: { name: 'Potion of Fire Resistance (3:00)', icon: '/assets/items/fire_resistance.svg', type: 'potion' },
   splash_potion_of_fire_resistance: { name: 'Splash Potion of Fire Resistance (3:00)', icon: '/assets/items/splash_fire_resistance.svg', type: 'potion' },
@@ -1084,7 +1082,6 @@ export const ITEMS = {
   name_tag: { name: 'Name Tag', icon: '/assets/items/name_tag.png', type: 'tool' },
   saddle: { name: 'Saddle', icon: '/assets/items/saddle.png', type: 'tool' },
   oak_boat: { name: 'Oak Boat', icon: '/assets/items/oak_boat.png', type: 'transport' },
-  chest: { name: 'Chest', icon: '/assets/items/chest.png', type: 'block', blockId: BLOCKS.CHEST },
   chest_boat: { name: 'Boat with Chest', icon: '/assets/items/chest_boat.png', type: 'transport' },
   minecart: { name: 'Minecart', icon: '/assets/items/minecart.png', type: 'transport' },
   chest_minecart: { name: 'Minecart with Chest', icon: '/assets/items/chest_minecart.png', type: 'transport' },
@@ -1112,6 +1109,13 @@ export const ITEMS = {
   cooked_mutton: { name: 'Cooked Mutton', food: 6, icon: '/assets/items/cooked_mutton.png', type: 'food' },
   rabbit: { name: 'Raw Rabbit', food: 3, icon: '/assets/items/rabbit.png', type: 'food' },
   cooked_rabbit: { name: 'Cooked Rabbit', food: 5, icon: '/assets/items/cooked_rabbit.png', type: 'food' },
+  // Rotten flesh is dropped by six mobs in `mobs.js`'s loot table and eaten as a last resort. Its
+  // Hunger effect is not implemented yet; the item and its food value are, because a zombie dropping
+  // an id that has no definition yields a placeholder sprite and a phantom stack.
+  rotten_flesh: { name: 'Rotten Flesh', food: 4, icon: '/assets/items/rotten_flesh.png', type: 'food' },
+  tropical_fish: { name: 'Tropical Fish', food: 1, icon: '/assets/items/tropical_fish.png', type: 'food' },
+  // Chorus fruit is in foodData.js already; vanilla also teleports on eat, which is a separate job.
+  chorus_fruit: { name: 'Chorus Fruit', food: 4, icon: '/assets/items/chorus_fruit.png', type: 'food' },
   kelp: { name: 'Kelp', icon: '/assets/items/kelp.png', type: 'food' },
   dried_kelp: { name: 'Dried Kelp', food: 1, icon: '/assets/items/dried_kelp.png', type: 'food' },
   carrot: { name: 'Carrot', food: 3, icon: '/assets/items/carrot.png', type: 'food', crop: 'carrots' },
@@ -1137,16 +1141,19 @@ export const ITEMS = {
   mushroom_stew: { name: 'Mushroom Stew', food: 6, icon: '/assets/items/mushroom_stew.png', type: 'food' },
   cookie: { name: 'Cookie', food: 2, icon: '/assets/items/cookie.png', type: 'food' },
   melon_slice: { name: 'Melon Slice', food: 2, icon: '/assets/items/melon_slice.png', type: 'food' },
-  glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
   sweet_berries: { name: 'Sweet Berries', food: 2, icon: '/assets/items/sweet_berries.png', type: 'food' },
   glow_berries: { name: 'Glow Berries', food: 2, icon: '/assets/items/glow_berries.png', type: 'food' },
   honey_bottle: { name: 'Honey Bottle', food: 6, icon: '/assets/items/honey_bottle.png', type: 'food' },
   potion: { name: 'Water Bottle / Potion', icon: '/assets/items/potion.png', type: 'food' },
-  glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'material' },
 
   // --- Ingredients & Materials ---
   coal: { name: 'Coal', icon: '/assets/items/coal.png', type: 'material' },
   charcoal: { name: 'Charcoal', icon: '/assets/items/charcoal.png', type: 'material' },
+  // Both of these are named by loot tables that already run: `mobs.js` drops seagrass from a turtle,
+  // and the generated stray table drops a tipped arrow. Naming an id with no definition produced a
+  // fallback sprite and a phantom stack, so the entries are the fix.
+  seagrass: { name: 'Seagrass', icon: '/assets/items/seagrass.png', type: 'material' },
+  tipped_arrow: { name: 'Tipped Arrow', icon: '/assets/items/tipped_arrow.png', type: 'projectile' },
   raw_iron: { name: 'Raw Iron', icon: '/assets/items/raw_iron.png', type: 'material' },
   raw_gold: { name: 'Raw Gold', icon: '/assets/items/raw_gold.png', type: 'material' },
   raw_copper: { name: 'Raw Copper', icon: '/assets/items/raw_copper.png', type: 'material' },
@@ -1222,9 +1229,10 @@ export const ITEMS = {
   nether_wart: { name: 'Nether Wart', icon: '/assets/items/nether_wart.png', type: 'material' },
   fermented_spider_eye: { name: 'Fermented Spider Eye', icon: '/assets/items/fermented_spider_eye.png', type: 'material' },
   glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
-  golden_carrot: { name: 'Golden Carrot', icon: '/assets/items/golden_carrot.png', type: 'food' },
   rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
-  pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
+  // `foodData.js` has carried a pufferfish hunger value all along, but the item never declared one,
+  // and eating reads `ITEMS[id].food` -- so a pufferfish could be held but never eaten.
+  pufferfish: { name: 'Pufferfish', food: 1, icon: '/assets/items/pufferfish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
   splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
