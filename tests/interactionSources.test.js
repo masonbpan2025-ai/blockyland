@@ -16,8 +16,20 @@ import { BLOCKS } from '../src/blocks.js';
 import { useBucket } from '../src/buckets.js';
 import { AnimalBehaviors } from '../src/animalBehaviors.js';
 import { INTERACTION_SOURCES, INTERACTION_ITEMS } from '../src/interactionSources.js';
+import { codeDropSources } from '../src/codeDropSources.js';
+import { breezeDrops } from '../src/breezeBehavior.js';
+import { turtleMaturationDrops } from '../src/turtleBehavior.js';
+import { variantBonusDrops } from '../src/undeadVariants.js';
+import { EntityManager } from '../src/entities.js';
+import { MobManager } from '../src/mobs.js';
 import { registry } from '../src/resourceRegistry.js';
 import { SMELTING_RECIPES } from '../src/furnace.js';
+
+// Both tables of sources that live in code: what the player does by hand, and what a mob drops through a
+// rule the pinned loot data does not carry. The registry takes them as one kind, so the guards below run
+// over the combination rather than over half of it.
+const ALL_CODE_SOURCES = [...INTERACTION_SOURCES, ...codeDropSources()];
+const ALL_CODE_ITEMS = ALL_CODE_SOURCES.map((entry) => entry.item);
 
 /** An inventory just real enough for `useBucket` and `interact`. */
 function fakeInventory(activeId, { gamemode = 'survival' } = {}) {
@@ -89,13 +101,71 @@ test('milking a cow with a bucket really gives a milk bucket', () => {
   assert.deepEqual(second.added, [], 'a baby cow gives no milk');
 });
 
-// --- the table itself -----------------------------------------------------------
+// --- drops that live in code rather than in the loot data -----------------------
+
+/** The MobManager fixture the other parity tests use: real manager, no rendering. */
+function mobFixture() {
+  const scene = new THREE.Scene();
+  const sounds = new Proxy({}, { get: () => () => {} });
+  const world = {
+    getVoxel: (x, y, z) => (y < 1 ? BLOCKS.STONE : BLOCKS.AIR),
+    getHeightAt: () => 0,
+    getLightLevel: () => 15,
+  };
+  const entities = new EntityManager(scene, world, sounds);
+  const manager = Object.assign(Object.create(MobManager.prototype), {
+    world, scene, sounds, entities, mobs: [], arrows: [], customProjectiles: [],
+    textures: {}, isBlockSolid: (x, y, z) => world.getVoxel(x, y, z) === BLOCKS.STONE,
+  });
+  const player = {
+    position: new THREE.Vector3(0, 3, 0), gamemode: 'survival', health: 20, keys: {},
+    takeDamage() {}, applyStatusEffect() {}, hasStatusEffect: () => false,
+  };
+  manager.game = { player, difficulty: 'normal', weather: { weatherType: 'clear' }, worldTime: 18000, controls: {} };
+  return { manager, player };
+}
+
+test('the code-drop table is derived from the helpers, and lists what they return', () => {
+  const entries = codeDropSources();
+  const items = entries.map((e) => e.item).sort();
+  // Pinned as a set: the derivation is what keeps it true, and this is what notices if a helper stops
+  // returning an item or a new mob drop appears without being described.
+  assert.deepEqual(items, [
+    'breeze_rod', 'nether_star', 'tipped_arrow_poison', 'tipped_arrow_slowness',
+    'tipped_arrow_weakness', 'turtle_scute',
+  ]);
+  for (const entry of entries) {
+    assert.match(entry.how, /^[A-Z].*\.$/, `${entry.item} should have a sentence describing the drop`);
+    assert.match(entry.source, /^\S+\.js /, `${entry.item} should name a module`);
+  }
+  assert.equal(new Set(items).size, items.length, 'no duplicates');
+});
+
+test('each code drop is proved by running the code that makes it', () => {
+  // Not "the table says so": the helpers are called and asked what they return. A helper that stopped
+  // dropping its item would empty the derived table above, and this is the second, narrower check.
+  assert.ok(breezeDrops({ type: 'breeze', lootingLevel: 0 }).some((r) => r[0] === 'breeze_rod'));
+  assert.ok(turtleMaturationDrops({ type: 'turtle', isBaby: true }, { matured: true })
+    .some((r) => r[0] === 'turtle_scute'));
+  for (const [type, arrow] of [['stray', 'tipped_arrow_slowness'], ['bogged', 'tipped_arrow_poison'], ['parched', 'tipped_arrow_weakness']]) {
+    // With credit and a roll that always succeeds.
+    assert.ok(variantBonusDrops({ type, playerDamaged: true }, () => 0).some((r) => r[0] === arrow), type);
+    // And without credit it gives nothing, which is vanilla's rule rather than an oversight.
+    assert.deepEqual(variantBonusDrops({ type }, () => 0), [], `${type} without credit`);
+  }
+
+  // The nether star is the one entry that could not be derived, so it is proved here instead: a real
+  // manager, asked what a wither drops.
+  const { manager } = mobFixture();
+  const rows = manager.getMobDeathDrops({ type: 'wither', health: 0 }, () => 0.5);
+  assert.ok(rows.some((r) => r[0] === 'nether_star'), 'a wither should drop its nether star');
+});
 
 test('every claim names a file that exists and an export that is there', () => {
   // The anti-rot guard: a `source` string that names a deleted module, or a symbol that was renamed, would
   // otherwise leave the table claiming a source nothing implements -- exactly the failure mode it exists to
   // prevent. Only the module is checked for existence here; the three tests above are what prove behaviour.
-  for (const entry of INTERACTION_SOURCES) {
+  for (const entry of ALL_CODE_SOURCES) {
     assert.ok(entry.item && entry.how && entry.source, `${entry.item} should be fully described`);
     const file = entry.source.split(/\s+/)[0];
     assert.ok(existsSync(`src/${file}`), `${file} should exist, for ${entry.item}`);
@@ -107,15 +177,15 @@ test('every claim names a file that exists and an export that is there', () => {
       assert.match(body, new RegExp(`\\b${last}\\b`), `${file} should still mention ${symbol}`);
     }
   }
-  assert.equal(new Set(INTERACTION_ITEMS).size, INTERACTION_ITEMS.length, 'no duplicates');
-  for (const id of INTERACTION_ITEMS) assert.ok(registry().entries.get(id), `${id} should be a real item`);
+  assert.equal(new Set(ALL_CODE_ITEMS).size, ALL_CODE_ITEMS.length, 'no duplicates');
+  for (const id of ALL_CODE_ITEMS) assert.ok(registry().entries.get(id), `${id} should be a real item`);
 });
 
 test('the table only covers items nothing else produces', () => {
   // Without the interaction provider these three have no source of any other kind, which is why they are
   // here. If one of them gained a recipe or a drop, this table would be dead weight claiming credit.
   const bare = registry({ fresh: true, smelting: SMELTING_RECIPES });
-  for (const id of INTERACTION_ITEMS) {
+  for (const id of ALL_CODE_ITEMS) {
     const entry = bare.entries.get(id);
     const dataSources = entry.recipesAsResult.length + entry.smeltingFrom.length + entry.brewingFrom.length
       + entry.lootFrom.length + entry.droppedBy.length + entry.smithingFrom.length;
@@ -124,13 +194,13 @@ test('the table only covers items nothing else produces', () => {
 });
 
 test('the registry records the interaction source, and has-source accepts it', () => {
-  const reg = registry({ fresh: true, smelting: SMELTING_RECIPES, interactions: INTERACTION_SOURCES });
-  for (const id of INTERACTION_ITEMS) {
+  const reg = registry({ fresh: true, smelting: SMELTING_RECIPES, interactions: ALL_CODE_SOURCES });
+  for (const id of ALL_CODE_ITEMS) {
     const entry = reg.entries.get(id);
-    assert.equal(entry.codeFrom.length, 1, `${id} should carry exactly one interaction source`);
-    assert.match(entry.codeFrom[0].how, /\w/, 'and it should say what the player does');
+    assert.equal(entry.codeFrom.length, 1, `${id} should carry exactly one coded source`);
+    assert.match(entry.codeFrom[0].how, /\w/, 'and it should say where the item comes from');
   }
   // Nothing else claims to be made by hand, which would be inventing a source.
   const claimed = [...reg.entries.values()].filter((e) => e.codeFrom.length).map((e) => e.id).sort();
-  assert.deepEqual(claimed, [...INTERACTION_ITEMS].sort());
+  assert.deepEqual(claimed, [...ALL_CODE_ITEMS].sort());
 });
