@@ -2287,7 +2287,8 @@ export class MobManager {
       case 'tournament_host': return { width: 0.6, height: 1.95 };
       case 'site_manager': return { width: 0.6, height: 1.95 };
       case 'jackie_chun': return { width: 0.6, height: 1.85 };
-      case 'enderman': return { width: 0.5, height: 2.85 };
+      // Wiki: 0.6 wide, 2.9 tall.
+      case 'enderman': return { width: 0.6, height: 2.9 };
       case 'villager':
       case 'zombie_villager':
       default:
@@ -5211,7 +5212,7 @@ export class MobManager {
   }
 
   // --- ENDERMAN (TOURNAMENT CHALLENGER BOSS) ---
-  spawnEnderman(x, y, z) {
+  spawnEnderman(x, y, z, options = {}) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({
       map: this.textures.enderman,
@@ -5267,7 +5268,8 @@ export class MobManager {
 
     const mob = {
       type: 'enderman',
-      name: 'World Martial Arts Challenger: The Enderman',
+      // This is a wild enderman; the tournament alias belongs to the arena, not the species.
+      name: 'Enderman',
       mesh: group,
       head: head,
       leftArm: leftArm,
@@ -5276,18 +5278,25 @@ export class MobManager {
       rightLeg: rightLeg,
       mat: mat,
       eyeMat: eyeMat,
-      width: 0.5,
-      height: 2.85,
-      health: 60,
-      maxHealth: 60,
-      isBoss: true,
+      // Wiki: 0.6 wide, 2.9 tall.
+      width: 0.6,
+      height: 2.9,
+      // Wiki: 40 HP. The 60 previously here matches no release.
+      health: 40,
+      maxHealth: 40,
+      // Wiki: neutral, not a boss. Marking it a boss halved its knockback through the
+      // generic `isBoss` factor, which is a boss-only rule it never had.
+      isBoss: false,
       velocity: new THREE.Vector3(),
       yaw: 0,
       state: 'combat',
       timer: 0,
       teleportCooldown: 4.5,
       attackCooldown: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      // Wiki: the block it is carrying drops on death. Not yet implemented; the slot
+      // exists so the drop path and telemetry can report it.
+      carriedBlock: options.carriedBlock ?? null
     };
     this.mobs.push(mob);
     return mob;
@@ -6070,6 +6079,8 @@ export class MobManager {
       donkey: [['leather', false, 1, 2]],
       salmon: [[burned ? 'cooked_salmon' : 'salmon', false, 1, 1]],
       cod: [[burned ? 'cooked_cod' : 'cod', false, 1, 1]],
+      // Wiki: 0-1 ender pearl.
+      enderman: [['ender_pearl', false, 0, 1]],
       // Wiki: 0-1 raw cod (cooked cod if burning), not salmon.
       dolphin: [[burned ? 'cooked_cod' : 'cod', false, 0, 1]],
       octopus: [['ink_sac', false, 1, 3]],
@@ -6102,7 +6113,11 @@ export class MobManager {
       wither: [['nether_star', false, 1, 1]]
     }[mob.type] || [];
     // Wiki: salmon have a flat 5% chance of bone meal, independent of the raw salmon drop.
-    return [...base, ...salmonBonusDrops(mob, random)];
+    // Wiki: an enderman always drops the block it was carrying, in addition to its loot.
+    const carried = mob.type === 'enderman' && mob.carriedBlock
+      ? [[mob.carriedBlock, true, 1, 1]]
+      : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
