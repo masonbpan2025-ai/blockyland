@@ -7,6 +7,7 @@ import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
 import { drinkPotion } from './potions.js';
+import { launchFirework } from './fireworks.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -57,8 +58,8 @@ import { DragonballSkillsManager } from './dragonballSkills.js';
 import { TrainingSitesManager } from './trainingSites.js';
 import { DungeonModeManager } from './dungeonMode.js';
 import { WorldMechanismManager } from './worldMechanisms.js';
-import { StructureStudioManager } from './structureStudio.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { BuildingStudioManager } from './buildingStudio.js';
+import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
@@ -136,7 +137,7 @@ class Game {
     this.ui = null;
     this.heldItemRenderer = null;
     this.tournament = null;
-    this.structureStudio = null;
+    this.buildingStudio = null;
     this.portalManager = null;
     this.currentDimension = 'overworld';
 
@@ -269,7 +270,7 @@ class Game {
     this.skills = this.dragonballSkills;
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
-    this.structureStudio = new StructureStudioManager(this);
+    this.buildingStudio = new BuildingStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
     this.chestManager = new ChestManager(this);
@@ -311,7 +312,7 @@ class Game {
     this.worldGenerated = true;
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
-    this.structureStudio?.exitStudio();
+    this.buildingStudio?.exitStudio();
     // Catch a missing UI method up front: previously such a call threw late in
     // this method and silently aborted the start flow.
     const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
@@ -406,16 +407,16 @@ class Game {
     this.worldReady = true;
   }
 
-  async startStructureStudio() {
+  async startBuildingStudio() {
     if (this._worldStartInFlight) return;
     this._worldStartInFlight = true;
     this.sounds.init();
-    const btnStudio = document.getElementById('btn-start-structure-studio');
+    const btnStudio = document.getElementById('btn-start-building-studio');
     if (btnStudio) btnStudio.disabled = true;
 
     try {
       this.worldGenerated = true;
-      this.worldType = 'structure_studio';
+      this.worldType = 'building_studio';
       this.world.isFlatWorld = true;
 
       if (this.mechanisms) {
@@ -453,9 +454,9 @@ class Game {
       }
 
       this.worldReady = true;
-      this.structureStudio?.enterStudio();
+      this.buildingStudio?.enterStudio();
     } catch (err) {
-      console.error('[Structure Studio] Failed to enter Structure Studio:', err);
+      console.error('[Building Studio] Failed to enter Building Studio:', err);
       this.failWorldStart(err);
     } finally {
       if (btnStudio) btnStudio.disabled = false;
@@ -554,7 +555,7 @@ class Game {
 
   loadChunksAroundPlayer() {
     // Streaming now owns this. Kept as the entry point that the nether portal, the bed, the
-    // structure studio and the world-start path all call, but it no longer generates and meshes
+    // building studio and the world-start path all call, but it no longer generates and meshes
     // the whole view area in one synchronous loop -- that was the source of the multi-second
     // freeze when the view distance grew.
     if (!this.streamer || !this.world) return;
@@ -650,7 +651,7 @@ class Game {
 
   /**
    * Flush dirty chunks. Kept as the public hook that block edits, doors, chests, farming and the
-   * structure studio all call.
+   * building studio all call.
    *
    * The body used to be `[...world.chunks.values()].filter(c => c.dirty).sort(...)` on every call,
    * and it was called from the render loop -- so every frame allocated and sorted an array of all
@@ -932,11 +933,11 @@ class Game {
       });
     }
 
-    const btnStructureStudio = document.getElementById('btn-start-structure-studio');
-    if (btnStructureStudio) {
-      btnStructureStudio.addEventListener('click', async (e) => {
+    const btnBuildingStudio = document.getElementById('btn-start-building-studio');
+    if (btnBuildingStudio) {
+      btnBuildingStudio.addEventListener('click', async (e) => {
         e.stopPropagation();
-        await this.startStructureStudio();
+        await this.startBuildingStudio();
       });
     }
 
@@ -1474,15 +1475,15 @@ class Game {
       }
     }
 
-    // Place structure from Structure Library
-    if (activeItem && (activeItem.isStructure || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_')))) {
+    // Place building from Building Library
+    if (activeItem && (activeItem.isBuilding || (typeof activeItem.id === 'string' && activeItem.id.startsWith('building_')))) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
       const placeX = bX + (norm.x || 0);
       const placeY = bY + (norm.y !== undefined ? (norm.y > 0 ? 1 : (norm.y < 0 ? -1 : 0)) : 1);
       const placeZ = bZ + (norm.z || 0);
 
-      const structureId = activeItem.structureId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('structure_') ? activeItem.id.replace('structure_', '') : activeItem.id);
-      const struct = StructureLibrary.getStructure(structureId);
+      const buildingId = activeItem.buildingId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('building_') ? activeItem.id.replace('building_', '') : activeItem.id);
+      const struct = BuildingLibrary.getBuilding(buildingId);
       if (struct) {
         const defaultParams = {};
         if (Array.isArray(struct.parameters)) {
@@ -1490,11 +1491,11 @@ class Game {
             defaultParams[p.id || p.name] = p.default ?? p.defaultValue ?? 10;
           }
         }
-        StructureLibrary.executeStructureBuild(struct, { x: placeX, y: placeY, z: placeZ }, defaultParams, this.world);
+        BuildingLibrary.executeBuildingBuild(struct, { x: placeX, y: placeY, z: placeZ }, defaultParams, this.world);
         this.sounds.playPlace('stone');
         this.loadChunksAroundPlayer();
         this.refreshDirtyChunks();
-        this.ui?.addChatMessage?.(`Placed structure "${struct.name}"`, 'system');
+        this.ui?.addChatMessage?.(`Placed building "${struct.name}"`, 'system');
       }
       return;
     }
@@ -1538,6 +1539,11 @@ class Game {
       // brewing stand produced could not be used -- alchemy was a chain with no end to it. `drinkPotion`
       // reads the effect from POTION_DATA, so anything the brewing table can produce is drinkable.
       if (drinkPotion(this, activeItem?.id)) return;
+
+      // A firework rocket is launched. `spawnFireworkRocket` was already fully built -- mesh, rising trail,
+      // burst and launch sound -- and was called from exactly one place, a tournament celebration, so the
+      // item itself did nothing at all when used.
+      if (launchFirework(this, activeItem?.id)) return;
 
       if (!activeItem?.isBlock && activeItem && ['minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart', 'oak_boat', 'chest_boat'].includes(activeItem.id)) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
@@ -1774,7 +1780,7 @@ class Game {
           this.ui.updateHotbar();
         }
 
-        // Check Wither summon structure
+        // Check Wither summon building
         this.bossManager?.checkWitherSummon(placeX, placeY, placeZ);
 
         // Sculk vibration check on block place

@@ -39,7 +39,7 @@ export const AREAS = {
   // --- redstone and machines ---
   redstone: ['redstone', 'advanced_redstone', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
-  studio: ['structureStudio', 'structureStudioAgent', 'structureContext', 'studioBugs', 'studioEditTarget'],
+  studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
   // --- world, terrain, fluids ---
   world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---
@@ -49,7 +49,7 @@ export const AREAS = {
   // --- rendering and effects ---
   render: ['visualEffects', 'lightweightShader', 'mesherParity', 'mesherPerformance', 'meshTimeSlicing', 'mesherFaceTextures', 'progressOverlay', 'confirmDialog'],
   // --- survival parity: how much of vanilla's content the game can express ---
-  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'recipeFreshness', 'contentGap', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'statusEffects', 'statusEffectsStubs', 'enchantmentEffects', 'thornsReflect', 'waterMovement', 'brewingParity', 'tippedArrows', 'potionDrinking', 'durability', 'armourDurability', 'shieldDurability', 'materialExclusions', 'mobLootParity', 'mobDropLive', 'lootingChance', 'docsParityFigures', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry', 'doorWoodTypes', 'signGeometry', 'smallShapes', 'blockNameMatch', 'blockRegistryIntegrity'],
+  survival: ['survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeCoverage', 'recipeFreshness', 'contentGap', 'shapelessRecipes', 'smeltingData', 'hungerModel', 'statusEffects', 'statusEffectsStubs', 'enchantmentEffects', 'thornsReflect', 'waterMovement', 'brewingParity', 'tippedArrows', 'potionDrinking', 'fireworkLaunch', 'durability', 'armourDurability', 'shieldDurability', 'materialExclusions', 'mobLootParity', 'mobDropLive', 'lootingChance', 'docsParityFigures', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry', 'doorWoodTypes', 'signGeometry', 'smallShapes', 'blockNameMatch', 'blockRegistryIntegrity'],
   // --- save/load ---
   persist: ['mapManager', 'mobStatePersistence']
 };
