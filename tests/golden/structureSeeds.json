@@ -540,7 +540,7 @@
         74
       ],
       "blockCount": 229,
-      "contentHash": 2056273032
+      "contentHash": 2466008140
     },
     {
       "id": "village_savanna",
@@ -560,7 +560,7 @@
         74
       ],
       "blockCount": 229,
-      "contentHash": 1364429011
+      "contentHash": 365569911
     },
     {
       "id": "village_snowy",
@@ -600,7 +600,7 @@
         74
       ],
       "blockCount": 229,
-      "contentHash": 3032268520
+      "contentHash": 2469936604
     }
   ],
   "unfound": []
