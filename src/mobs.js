@@ -18,7 +18,7 @@ import { separatePlayerFromMobs } from './mobPlayerCollision.js';
 import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
 import * as THREE from 'three';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
-import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
 /**
  * Reverse lookup from a block id to its registry name, built on first use by `blockNameAt`.
@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
@@ -123,6 +124,16 @@ export function inZombieFamily(type) {
 /** True for any member of the skeleton family. */
 export function inSkeletonFamily(type) {
   return SKELETON_FAMILY.includes(type);
+}
+
+/**
+ * True for a llama OR a trader llama.
+ *
+ * A trader llama is a llama variant, so every llama code path must accept it. Matching only the literal
+ * 'llama' broke the trader llama's update branch the moment its type was renamed.
+ */
+function isLlamaLike(mob) {
+  return mob?.type === 'llama' || mob?.type === 'trader_llama';
 }
 
 function applyVariantIdentity(mob, variant, options = {}) {
@@ -491,6 +502,8 @@ export class MobManager {
       case 'breeze': return this.spawnBreeze(x, y, z, options);
       case 'sniffer': return this.spawnSniffer(x, y, z, options);
       case 'allay': return this.spawnAllay(x, y, z, options);
+      case 'wandering_trader': return this.spawnWanderingTrader(x, y, z, options);
+      case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2521,6 +2534,10 @@ export class MobManager {
       case 'sniffer': return SNIFFER_DIMENSIONS;
       // Wiki: an allay is 0.35 wide x 0.6 tall, and has no baby form.
       case 'allay': return ALLAY_DIMENSIONS;
+      // Wiki: a wandering trader is 0.6 x 1.95, and the Age tag cannot make it a baby.
+      case 'wandering_trader': return WANDERING_TRADER_DIMENSIONS;
+      // Wiki: a trader llama is a llama, so it shares the llama hitbox.
+      case 'trader_llama': return LLAMA_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4578,6 +4595,86 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Wandering trader.
+   *
+   * Wiki: a passive villager-like mob, 20 HP, that appears near a player with two leashed trader llamas,
+   * offers a randomized set of nine trades, drinks Invisibility at dusk and milk at dawn, avoids zombies
+   * and illagers, and despawns after 40 minutes.
+   */
+  spawnWanderingTrader(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const robeMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.robe });
+    const trimMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.trim });
+    const skinMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.skin });
+    const hatMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.hat });
+    const { group: model, body, sash, head, brim, crown, eyes, legs, arms, pack } =
+      createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'wandering_trader',
+      name: 'Wandering Trader',
+      // A definite groundedness, so a branch reading it never sees undefined.
+      onGround: true,
+      mesh: group,
+      body, sash, head, brim, crown, eyes, legs, arms, pack,
+      // Wiki: 20 HP.
+      health: WANDERING_TRADER_HEALTH,
+      maxHealth: WANDERING_TRADER_HEALTH,
+      width: WANDERING_TRADER_DIMENSIONS.width,
+      height: WANDERING_TRADER_DIMENSIONS.height,
+      speed: WANDERING_TRADER_SPEED,
+      // Wiki: it despawns after 40 minutes unless it came from a command, egg or spawner.
+      despawnTimer: options.persistent ? 0 : WANDERING_TRADER_DESPAWN_SECONDS,
+      persistent: !!options.persistent,
+      // The trade table, rolled on spawn and locked per offer as it is used.
+      offers: [],
+      tradesRolled: false,
+      // Wiki: it drinks Invisibility at dusk and milk at dawn.
+      isInvisible: false,
+      drinking: false,
+      drinkingItem: null,
+      drinkCooldown: 0,
+      // Wiki: "prefers to wander within 16 blocks of the initial spawning target location".
+      homeX: x, homeZ: z,
+      llamaCount: 0,
+      traderPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    // Wiki: it spawns alongside two leashed trader llamas.
+    if (options.withLlamas !== false) {
+      mob.llamaCount = spawnTraderWithLlamas(this, mob, options.random || Math.random).length;
+    }
+    return mob;
+  }
+
+  /**
+   * Trader llama.
+   *
+   * Wiki: a trader llama is a llama variant that travels with a wandering trader, tied to it with a
+   * lead, and spits at whoever hurts it or its master, except on Peaceful.
+   */
+  spawnTraderLlama(x, y, z, options = {}) {
+    // Reuse the llama model, then mark it as a trader llama.
+    const llama = this.spawnLlama(x, y, z, options);
+    if (!llama) return llama;
+    llama.type = 'trader_llama';
+    llama.name = 'Trader Llama';
+    llama.isTraderLlama = true;
+    // Wiki: a trader llama has the trader llama carpet, which is its only visual difference.
+    llama.hasTraderCarpet = true;
+    return llama;
   }
 
   /**
@@ -7749,7 +7846,7 @@ export class MobManager {
     } else if (mob.type === 'parrot') {
       // Wiki: taking damage is one of the states that forces a parrot off a shoulder.
       if (mob.perchedOn) { dismountShoulder(mob, this.game?.player); mob.velocity.set(0, 1.5, 0); }
-    } else if (mob.type === 'llama') {
+    } else if (isLlamaLike(mob)) {
       // Wiki: a llama retaliates when attacked by a player or another mob, and is hostile toward
       // wolves without provocation.
       mob.recentAttacker = attacker || null;
@@ -7995,7 +8092,7 @@ export class MobManager {
     // Wiki: a goat drops no items on death; its horns only come off against a hard block.
     const goatRows = isGoat(mob) ? goatDrops(mob) : [];
     // Wiki: a llama drops 0-2 leather, anything it is wearing, and everything it was carrying.
-    const llamaRows = mob.type === 'llama'
+    const llamaRows = isLlamaLike(mob)
       ? [...(mob.playerDamaged || mob.wolfKilled ? [['leather', false, 0, 2]] : []),
          ...(mob.carpetColor ? [[mob.carpetColor, false, 1, 1]] : []),
          ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
@@ -8026,7 +8123,9 @@ export class MobManager {
     const snifferRows = isSniffer(mob) ? snifferDrops(mob) : [];
     // Wiki: an allay drops the item it is holding and nothing else, and no experience at all.
     const allayRows = isAllay(mob) ? allayDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows];
+    // Wiki: a wandering trader drops nothing and no experience, except the consumable it was holding.
+    const traderRows = isWanderingTrader(mob) ? wanderingTraderDrops(mob, random) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows];
   }
 
   /**
@@ -8115,7 +8214,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'allay' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'wandering_trader' ? 0
+          : mob.type === 'allay' ? 0
           : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
           : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
           : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
@@ -8130,7 +8230,7 @@ export class MobManager {
           : mob.type === 'tadpole' ? 0
           : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
           : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
-          : mob.type === 'llama' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : isLlamaLike(mob) ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
           : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
@@ -8922,6 +9022,70 @@ export class MobManager {
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
       return true;
     }
+    if(mob.type==='wandering_trader'){
+      // Wiki: it wanders within 16 blocks of where it appeared, drinks Invisibility at dusk and milk at
+      // dawn, avoids zombies and illagers, and despawns after 40 minutes.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      // Roll the offers once, which the wiki defers until the trading UI is first opened.
+      if (!mob.tradesRolled) {
+        mob.offers = rollTrades(ITEMS, BLOCKS, this.random ?? Math.random);
+        mob.tradesRolled = true;
+      }
+
+      // Wiki: the despawn timer does not run while the trading UI is open.
+      if (updateTraderDespawn(mob, dt, { tradingOpen: this.game?.tradingOpen === true }) === 'despawned') {
+        // Wiki: a wandering trader that despawns leaves nothing behind.
+        this.removeMob?.(mob);
+        mob.health = 0;
+        return true;
+      }
+
+      // Wiki: Invisibility from dusk through the night, milk at dawn.
+      const drink = updateTraderInvisibility(mob, dt, this.game?.worldTime ?? 6000);
+      if (drink) {
+        mob.drinking = true;
+        mob.drinkingItem = drink === 'drank_potion' ? 'potion_of_invisibility' : 'milk_bucket';
+        mob.drinkTimer = 1.2;
+      }
+      if (mob.drinking) {
+        mob.drinkTimer -= dt;
+        if (mob.drinkTimer <= 0) { mob.drinking = false; mob.drinkingItem = null; }
+      }
+      // The invisible state is a visibility toggle, not a status effect, because the wiki describes it
+      // as the trader drinking a potion rather than being affected by one.
+      if (mob.mesh) mob.mesh.visible = !mob.isInvisible || mob.drinking;
+
+      // Wiki: it flees hazards, staying at least 8 blocks away.
+      const hazard = findTraderHazard(this, mob);
+      if (hazard) {
+        const away = mob.mesh.position.clone().sub(hazard.mesh.position);
+        away.y = 0;
+        if (away.lengthSq() > 1e-6) away.normalize();
+        mob.yaw = Math.atan2(away.x, away.z);
+        mob.velocity.x = away.x * 2.4;
+        mob.velocity.z = away.z * 2.4;
+        mob.state = 'fleeing';
+      } else {
+        // Wiki: it prefers to wander within 16 blocks of its spawn point rather than following a player.
+        wanderMob(this, mob, dt, 0.7);
+        const fromHome = Math.hypot(mob.mesh.position.x - (mob.homeX ?? mob.mesh.position.x), mob.mesh.position.z - (mob.homeZ ?? mob.mesh.position.z));
+        if (fromHome > WANDERING_TRADER_WANDER_RANGE) {
+          const home = new THREE.Vector3(mob.homeX ?? mob.mesh.position.x, mob.mesh.position.y, mob.homeZ ?? mob.mesh.position.z);
+          const back = home.sub(mob.mesh.position);
+          back.y = 0;
+          if (back.lengthSq() > 1e-6) back.normalize();
+          mob.yaw = Math.atan2(back.x, back.z);
+          mob.velocity.x = back.x * 1.6;
+          mob.velocity.z = back.z * 1.6;
+        }
+        mob.state = 'wandering';
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.traderPhase = (mob.traderPhase || 0) + dt;
+      poseWanderingTrader(mob, mob.traderPhase);
+      return true;
+    }
     if(mob.type==='allay'){
       // Wiki: it flies aimlessly until given an item, then follows that player and fetches dropped
       // copies of it. It also dances by a playing jukebox, focuses on a note block it hears, and
@@ -9359,7 +9523,7 @@ export class MobManager {
       poseTurtle(mob, mob.turtlePhase);
       return true;
     }
-    if(mob.type==='llama'){
+    if(isLlamaLike(mob)){
       // Wiki: neutral. It spits at whatever attacked it and at wolves without provocation, is
       // completely passive on Peaceful, and has a 1/900 chance per tick to regenerate 1 HP.
       mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
