@@ -133,13 +133,13 @@ export const STRUCTURES = {
   },
   ocean_ruin_cold: {
     type: 'ocean_ruin', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/ocean_ruin_cold',
+    biomeTag: 'has_structure/ocean_ruin_cold', implementation: 'oceanRuin',
     biomes: ['frozen_ocean', 'cold_ocean', 'ocean', 'deep_frozen_ocean', 'deep_cold_ocean', 'deep_ocean'],
     notes: 'underwater_ruin brick/cracked/mossy templates, integrity 0.9/0.8/0.7/0.5; 30% large, and a large ruin seeds 4-8 small ones.'
   },
   ocean_ruin_warm: {
     type: 'ocean_ruin', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/ocean_ruin_warm',
+    biomeTag: 'has_structure/ocean_ruin_warm', implementation: 'oceanRuin',
     biomes: ['lukewarm_ocean', 'warm_ocean', 'deep_lukewarm_ocean'],
     notes: 'warm_1..8 / big_warm_1..8 sandstone templates; suspicious sand here is the only sniffer egg source.'
   },

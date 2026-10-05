@@ -58,8 +58,8 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Igloo | `igloo` | template | yes | yes | yes | yes | no | villager + zombie villager, chest state | yes | no | `PARTIAL` | Geometry is a clean-room approximation of the wiki's description, because this repository ships no vanilla assets; the chest carries a state but not loot-table contents; the basement's iron-bar cell is approximate; the surface is a flat preview height rather than the real heightmap. |
 | Shipwreck | `shipwreck` | template | yes | yes | yes | yes | no | chests with loot tables | yes | no | `PARTIAL` | Blocked on templates (20 files across three orientations); chest placement depends on intact sections. |
 | Shipwreck (Beached) | `shipwreck_beached` | template | yes | yes | yes | yes | no | chests with loot tables | yes | no | `PARTIAL` | Same templates with `is_beached`. |
-| Ocean Ruins (Cold) | `ocean_ruin_cold` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Templates + structure integrity (0.9/0.8/0.7/0.5) + the 30%-large / 4–8-cluster rule + suspicious gravel. |
-| Ocean Ruins (Warm) | `ocean_ruin_warm` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | As cold, plus suspicious sand (the sniffer-egg source). |
+| Ocean Ruins (Cold) | `ocean_ruin_cold` | template | yes | yes | yes | yes | no | suspicious blocks with loot tables | yes | no | `PARTIAL` | Templates + structure integrity (0.9/0.8/0.7/0.5) + the 30%-large / 4–8-cluster rule + suspicious gravel. |
+| Ocean Ruins (Warm) | `ocean_ruin_warm` | template | yes | yes | yes | yes | no | suspicious blocks with loot tables | yes | no | `PARTIAL` | As cold, plus suspicious sand (the sniffer-egg source). |
 | Nether Fossil | `nether_fossil` | template | yes | yes | yes | yes | no | none (no loot, no spawner) | yes | no | `PARTIAL` | Clean-room bone templates. The wiki does not publish the `start_height` values, so Y is uniform over 33..60; vanilla's rotation is applied and recorded as an assumption. Runs NO processors by design, which is the documented difference from the overworld fossil. |
 | End City | `end_city` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | 20 templates, tower/bridge/ship assembly rules, shulkers, the elytra item frame. |
 | Woodland Mansion | `mansion` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Needs a procedural floor-plan generator over template rooms, three floors, and the room-type tables. |
@@ -77,8 +77,8 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Trail Ruins | `trail_ruins` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `bury` + three processor lists + archaeology. |
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
-Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 11 `PARTIAL` (+ shipwreck, shipwreck_beached), 8 `NOT STARTED`
-(4 hardcoded + 5 procedural minus the implemented one), 14 `INFRASTRUCTURE BLOCKED` (4 template + 10
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 13 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins), 8 `NOT STARTED`
+(4 hardcoded + 5 procedural minus the implemented one), 12 `INFRASTRUCTURE BLOCKED` (2 template + 10
 jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
 ## Structure-like features

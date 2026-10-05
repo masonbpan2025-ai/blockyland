@@ -447,11 +447,16 @@ test('generator coverage is honest about what is not implemented yet', () => {
   assert.ok(implemented.includes('buried_treasure'));
   assert.ok(implemented.includes('igloo'));
   assert.ok(implemented.includes('ruined_portal'));
-  assert.ok(missing.length >= 20, `expected most structures to be unimplemented, got ${missing.length}`);
-  assert.ok(missing.includes('village_plains'));
-  assert.ok(missing.includes('stronghold'));
-  assert.ok(missing.includes('mansion'));
-  assert.ok(missing.includes('ocean_ruin_cold'));
+  // Invariants, not a hardcoded list of ids that are still missing. A hardcoded id breaks the moment that
+  // structure lands -- which happened three rounds running -- and that trains a reader to edit the
+  // assertion rather than read it.
+  assert.ok(missing.length >= 10, `expected many structures to remain unimplemented, got ${missing.length}`);
+  for (const id of implemented) {
+    assert.equal(missing.includes(id), false, `${id} is reported as both implemented and missing`);
+    assert.ok(STRUCTURES[id], `${id} has a generator but is not in the registry`);
+    assert.ok(STRUCTURES[id].implementation, `${id} has a generator but no registry implementation key`);
+  }
+  assert.ok(missing.every((id) => STRUCTURES[id]), 'every missing id must be a real registry structure');
   assert.equal(implemented.length + missing.length, Object.keys(STRUCTURES).filter((id) => STRUCTURES[id]).length,
     'every registry structure must be either implemented or reported missing');
 });
