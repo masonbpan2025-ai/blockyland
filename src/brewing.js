@@ -144,6 +144,28 @@ export function getBrewingResult(bottleId, ingredientId) {
 }
 
 /**
+ * The potion data behind an item id, whichever of the three forms it names.
+ *
+ * A potion is one entry in POTION_DATA plus a delivery form that `getBrewingResult` encodes in the id
+ * prefix. Callers should not parse that prefix themselves: the generated item set and the brewing
+ * table both derive from POTION_DATA, so this is the one place the mapping is written down.
+ *
+ * @param {string} itemId  `potion_of_healing`, `splash_potion_of_healing`, `lingering_...`
+ * @returns {{id: string, base: string, name: string, color: string, effect?: string,
+ *            duration?: number, amount?: number, level?: number,
+ *            splash: boolean, lingering: boolean}|null}
+ */
+export function potionDataFor(itemId) {
+  if (typeof itemId !== 'string' || !itemId) return null;
+  const splash = itemId.startsWith('splash_');
+  const lingering = itemId.startsWith('lingering_');
+  const base = itemId.replace(/^(splash|lingering)_/, '');
+  const data = POTION_DATA[base];
+  if (!data) return null;
+  return { id: itemId, base, ...data, splash, lingering };
+}
+
+/**
  * BrewingStand Simulation Model
  */
 export class BrewingStand {

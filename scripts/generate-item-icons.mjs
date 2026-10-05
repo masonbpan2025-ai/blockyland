@@ -17,6 +17,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from 
 import { deflateSync } from 'node:zlib';
 import { ITEMS } from '../src/blocks.js';
 import { EXTRA_ITEMS } from '../src/extraItems.js';
+import { POTION_DATA } from '../src/brewing.js';
 
 const OUT = 'public/assets/items';
 const SIZE = 16;
@@ -117,7 +118,23 @@ function shapeFor(name) {
   if (/(honeycomb|flint|charcoal)/.test(name)) return 'shard';
   if (/_dust$/.test(name)) return 'pile';
   if (/mushroom/.test(name)) return 'mushroom';
+  // Checked last so `honey_bottle` and `glass_bottle` keep their own shapes; only the potion family
+  // has no hand-authored art.
+  if (/(potion|_bottle)$/.test(name)) return 'potion';
   return 'nugget';
+}
+
+/**
+ * A potion's colour, taken from POTION_DATA rather than hashed from its name.
+ *
+ * Potions are the one family whose colour is already game data and carries meaning: the player picks
+ * a healing potion out of a hotbar by its colour. Hashing the name would give every potion an
+ * arbitrary hue and make a row of them unreadable. A splash or lingering item shares its core
+ * potion's icon, so the prefix is stripped before the lookup.
+ */
+function potionColour(name) {
+  const data = POTION_DATA[name] ?? POTION_DATA[name.replace(/^(splash|lingering)_/, '')];
+  return data?.color ?? null;
 }
 
 // Each shape is a list of [x, y] cells in a 16x16 grid, plus an optional darker outline pass.
@@ -175,6 +192,14 @@ function cells(shape) {
       for (let x = 5; x <= 10; x++) add(x, 7);
       for (let y = 8; y <= 11; y++) { add(7, y); add(8, y); }
       break;
+    case 'potion':
+      // A bottle: narrow neck, shoulders, then a wide body. The colour is the potion's own, so the
+      // silhouette only has to read as a bottle.
+      for (let y = 3; y <= 4; y++) { add(7, y); add(8, y); }
+      for (let x = 6; x <= 9; x++) add(x, 5);
+      for (let y = 6; y <= 11; y++) for (let x = 5; x <= 10; x++) add(x, y);
+      for (let x = 5; x <= 10; x++) add(x, 12);
+      break;
     default:
       for (let y = 5; y <= 10; y++) for (let x = 5; x <= 10; x++) add(x, y);
   }
@@ -208,7 +233,7 @@ for (const name of names) {
   if (existsSync(file)) { skipped++; continue; }
 
   const h = hash(name);
-  const override = COLOUR_OVERRIDES[name];
+  const override = potionColour(name) ?? COLOUR_OVERRIDES[name];
   const [r, g, b] = override
     ? [parseInt(override.slice(1, 3), 16), parseInt(override.slice(3, 5), 16), parseInt(override.slice(5, 7), 16)]
     : hslToRgb(h % 360, 45 + (h % 20), 48 + (h % 12));

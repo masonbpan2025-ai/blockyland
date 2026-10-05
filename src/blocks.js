@@ -5,6 +5,7 @@
 // file, and the additions stay reviewable as a diff.
 import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from './extraContent.js';
 import { EXTRA_ITEMS } from './extraItems.js';
+import { POTION_ITEMS } from './extraPotions.js';
 
 export const BLOCKS = {
   AIR: 0,
@@ -1310,6 +1311,16 @@ export const ITEMS = {
 for (const [key, def] of Object.entries(EXTRA_ITEMS)) {
   if (ITEMS[key] !== undefined) {
     throw new Error(`extraItems collision: '${key}' is already a hand-written item`);
+  }
+  ITEMS[key] = def;
+}
+
+// Potions are generated from POTION_DATA rather than from the recipe blocker analysis, so they live in
+// their own module. Same guard, same reason: a generated potion must never replace a hand-written one,
+// and `water_bottle` and `potion_of_fire_resistance` are hand-written.
+for (const [key, def] of Object.entries(POTION_ITEMS)) {
+  if (ITEMS[key] !== undefined) {
+    throw new Error(`extraPotions collision: '${key}' is already a hand-written item`);
   }
   ITEMS[key] = def;
 }

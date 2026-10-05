@@ -23,7 +23,7 @@ import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
 import { MOB_LOOT } from './mobLootData.js';
-import { BASE_BREWING_RECIPES, POTION_DATA } from './brewing.js';
+import { BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult } from './brewing.js';
 import { FOODS } from './foodData.js';
 import { describeTool } from './miningRules.js';
 import { getItemEnchantCategory } from './enchanting.js';
@@ -159,15 +159,31 @@ export function lootSources() {
 export function brewingSources() {
   const asResult = new Map();
   const asIngredient = new Map();
+  const record = (id, from) => {
+    if (!id) return;
+    if (!asResult.has(id)) asResult.set(id, []);
+    asResult.get(id).push(from);
+  };
   for (const row of BASE_BREWING_RECIPES) {
     if (!row?.result) continue;
-    if (!asResult.has(row.result)) asResult.set(row.result, []);
-    asResult.get(row.result).push(`${row.bottle} + ${row.ingredient}`);
+    record(row.result, `${row.bottle} + ${row.ingredient}`);
     if (row.ingredient) {
       if (!asIngredient.has(row.ingredient)) asIngredient.set(row.ingredient, []);
       asIngredient.get(row.ingredient).push(row.result);
     }
   }
+  // The splash and lingering forms are not rows in the table: gunpowder turns any potion into its
+  // splash form and dragon's breath turns a splash into a lingering one. Without this they were
+  // reported as having no source at all, which is wrong -- they are the most common way a potion is
+  // used. `getBrewingResult` is asked rather than the rule restated, so the two cannot drift.
+  const derive = (ingredient) => {
+    for (const id of [...asResult.keys()]) {
+      const produced = getBrewingResult(id, ingredient);
+      if (produced && !asResult.has(produced)) record(produced, `${id} + ${ingredient}`);
+    }
+  };
+  derive('gunpowder');       // core -> splash
+  derive('dragon_breath');   // splash -> lingering
   return { asResult, asIngredient, potions: new Set(Object.keys(POTION_DATA)) };
 }
 
