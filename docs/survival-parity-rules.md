@@ -398,8 +398,18 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 
   Not verified: the lingering (`x0.25`) and tipped-arrow (`x0.125`) duration factors, and splash-potion
   behaviour beyond the fire-resistance case in `barterItems.js`.
-- **Thorns and depth strider are now wired; unbreaking is not.** All three formulas live in
-  `src/enchantmentEffects.js` and are asserted by tests.
+- **Unbreaking is now wired, because tool durability now exists.** It had been recorded as outstanding for
+  three rounds on the reasoning that it "needs a durability system to spend against". That was correct, and
+  the system genuinely did not exist: mining a block never wore the tool, and the only item in the registry
+  carrying a `durability` value was the brush, so a diamond pickaxe was permanent. That removes one of the
+  central pressures of survival mode.
+
+  `src/durability.js` now holds vanilla's maxima -- wood 59, gold 32, stone 131, iron 250, diamond 1561,
+  netherite 2031, plus the fixed figures for shears, flint and steel, fishing rod, bow, crossbow, shield,
+  trident, elytra, brush and the five armour materials -- and `spendDurability` applies unbreaking. The
+  measured lifetimes come out at the vanilla multipliers of level + 1: 250, 500, 754 and 1004 uses for
+  unbreaking 0 to III on an iron pickaxe. Mining wears the held tool in survival and clears the slot when
+  it breaks.
 
   **Thorns**: `Player.takeDamage` rolls it per armour piece and reports through an `onThornsReflect` hook
   that `main.js` connects to the mob manager, so the player never damages a mob itself. The attacker is
@@ -409,12 +419,6 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
 
   **Depth strider**: applied in `Player.selectBaseSpeed()`, the water branch, reaching 1.75x at level III
   where the penalty is gone and water speed passes land speed. Clamped above level III.
-
-  **Unbreaking is NOT wired.** It needs a durability system to spend against, and there is no central one:
-  30 call sites across nine files touch durability or consume an item, most of them consumables (wheat,
-  leads, name tags) rather than tools, and six of those files belong to another agent. Wiring it properly
-  means first introducing a single `spendDurability(player, item, amount)` entry point, which is a
-  refactor rather than a wiring change.
 
 ### 4.4 Enchantment damage — implemented
 

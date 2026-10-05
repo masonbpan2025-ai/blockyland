@@ -1,5 +1,6 @@
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
+import { spendDurability } from './durability.js';
 import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
@@ -1871,6 +1872,23 @@ class Game {
     } else {
       if (this.farmingManager) {
         this.farmingManager.unregisterCrop(x, y, z);
+      }
+    }
+
+    // Wear the tool. A block was broken -- the guards above already rejected air and bedrock -- so the
+    // held tool spends a point whether or not it was the right tool for the job, which is vanilla's
+    // behaviour: mining stone with a sword still damages the sword.
+    //
+    // Charged in creative too would be wrong, so it is gated on survival along with the drops. The
+    // durability module handles unbreaking and reports whether the tool broke; clearing the slot is this
+    // layer's job, because breaking a stack is an inventory event.
+    if (heldAtBreak && !heldAtBreak.isBlock && this.player.gamemode === 'survival') {
+      const wear = spendDurability(heldAtBreak, 1);
+      if (wear.broke) {
+        const name = heldDefAtBreak?.name || heldIdAtBreak || 'Tool';
+        this.inventory.consumeActiveItem?.(1);
+        this.ui?.addChatMessage?.(`<span style="color:#ef4444;">Your ${name} broke.</span>`);
+        this.sounds?.playBreak?.('wood');
       }
     }
 
