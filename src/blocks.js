@@ -680,6 +680,29 @@ export const BLOCKS = {
   WALL_TORCH: 1164,
   SOUL_WALL_TORCH: 1165,
   REDSTONE_WALL_TORCH: 1166,
+
+  // --- Crops, soul fire, suspicious blocks and scaffolding, twenty-second batch -------------------
+  //
+  // Eight blocks that have almost nothing in common except that each needed a WIDER ART SWEEP to find its
+  // texture. Every one of them had been written off in an earlier round as art-blocked:
+  //
+  //   beetroots, cocoa, pitcher crop, torchflower crop   their art is under a STAGE suffix
+  //   soul fire                                          its art is a 32-frame ANIMATION STRIP
+  //   suspicious sand and gravel                         their art is under a numbered suffix
+  //   scaffolding                                        its art is under top/side/bottom suffixes
+  //
+  // scripts/block-parity/art-sweep.mjs is what found them, by trying every suffix against two version
+  // directories instead of the bare name. It is the third time that lesson has paid: the earlier
+  // "art-blocked" conclusions for ancient debris, tall grass, the candle cakes and the potted plants were
+  // all the same mistake.
+  BEETROOTS: 1167,
+  COCOA: 1168,
+  PITCHER_CROP: 1169,
+  TORCHFLOWER_CROP: 1170,
+  SOUL_FIRE: 1171,
+  SUSPICIOUS_SAND: 1172,
+  SUSPICIOUS_GRAVEL: 1173,
+  SCAFFOLDING: 1174
 };
 
 export const BLOCK_DEFS = {
@@ -980,6 +1003,36 @@ export const BLOCK_DEFS = {
   [BLOCKS.WALL_TORCH]: { name: 'Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 14, lightColor: 0xffb958, drop: BLOCKS.TORCH, textures: { all: 'torch.png' } },
   [BLOCKS.SOUL_WALL_TORCH]: { name: 'Soul Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 10, lightColor: 0x5cc9d6, drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' } },
   [BLOCKS.REDSTONE_WALL_TORCH]: { name: 'Redstone Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 7, lightColor: 0xff3b30, drop: BLOCKS.REDSTONE_TORCH, textures: { all: 'redstone_torch.png' } },
+
+  // --- Crops, soul fire, suspicious blocks and scaffolding, twenty-second batch -------------------
+  //
+  // THE CROPS ARE SINGLE-STAGE, like the wheat and carrots already here. Vanilla grows beetroots and
+  // torchflowers through four stages and a pitcher crop through five; this game has no crop-growth layer,
+  // so each is registered once at its MATURE stage and placed rather than grown. Cocoa is the same idea
+  // with a twist: it is a wall-mounted pod with its own top and side art, modelled here as a plant so it
+  // reads as a pod rather than a cube.
+  //
+  // SOUL FIRE IS THE FIRST BLOCK IN THIS PROJECT WHOSE ART NEEDED SLICING. Its texture upstream is a
+  // 16x512 animation strip, which this engine cannot animate or slice, so all 32 frames would have been
+  // stretched across one quad. scripts/slice-texture-frames.py takes frame 0 -- the at-rest state -- and
+  // keeps the full strip alongside as soul_fire_0_strip.png in case a texture animator is ever added.
+  //
+  // THE SUSPICIOUS BLOCKS DROP NOTHING, which their harvest rows state with empty drops arrays. In vanilla
+  // that is because you BRUSH them, and brushing yields loot rather than the block; this game has no
+  // brushing, so they are solid sand and gravel that simply vanish when broken. Their hardness and shovel
+  // requirement are taken from the table so the mining feel is right.
+  //
+  // SCAFFOLDING DROPS ITSELF. Vanilla also lets you climb it and place it without support; neither is
+  // modelled, so it is a solid block drawn from its top, side and bottom art.
+  [BLOCKS.BEETROOTS]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage3.png' } },
+  [BLOCKS.COCOA]: { name: 'Cocoa', hardness: 0.2, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'cocoa_beans', textures: { all: 'cocoa_stage2.png' } },
+  [BLOCKS.PITCHER_CROP]: { name: 'Pitcher Crop', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'pitcher_pod', textures: { all: 'pitcher_crop_top.png' } },
+  [BLOCKS.TORCHFLOWER_CROP]: { name: 'Torchflower Crop', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'torchflower_seeds', textures: { all: 'torchflower_crop_stage0.png' } },
+  [BLOCKS.SOUL_FIRE]: { name: 'Soul Fire', hardness: 0.0, sound: 'wool', transparent: true, solid: false, plant: true, light: 10, lightColor: 0x5cc9d6, drop: null, textures: { all: 'soul_fire_0.png' } },
+  [BLOCKS.SUSPICIOUS_SAND]: { name: 'Suspicious Sand', hardness: 0.25, sound: 'sand', drop: null, textures: { all: 'suspicious_sand_0.png' } },
+  [BLOCKS.SUSPICIOUS_GRAVEL]: { name: 'Suspicious Gravel', hardness: 0.25, sound: 'sand', drop: null, textures: { all: 'suspicious_gravel_0.png' } },
+  [BLOCKS.SCAFFOLDING]: { name: 'Scaffolding', hardness: 0.0, sound: 'wood', transparent: true, drop: BLOCKS.SCAFFOLDING, textures: { top: 'scaffolding_top.png', side: 'scaffolding_side.png', bottom: 'scaffolding_bottom.png' } },
+
   [BLOCKS.BRICKS]: {
     name: 'Bricks',
     hardness: 2.0,

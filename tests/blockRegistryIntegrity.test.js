@@ -13,7 +13,7 @@
 // so a list that has grown is visible in review rather than swallowed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { harvestDataFor, blastResistanceFor } from '../src/blockHarvestData.js';
@@ -110,6 +110,89 @@ test('an infested block breaks faster than the block it imitates', () => {
 });
 
 // --- the ground-cover family --------------------------------------------------
+
+test('the twenty-second batch blocks exist with their own art and the right drops', () => {
+  // Eight blocks whose art only turned up when the sweep stopped probing bare names. Each is checked
+  // against its own expectation rather than as a set, because they have almost nothing in common: three
+  // crops dropping seeds, a fire, two blocks that drop NOTHING, and a building block.
+  const CASES = [
+    // key,            texture,                    drop (item string or block key or null), behaviour
+    ['BEETROOTS', 'beetroots_stage3.png', 'beetroot_seeds'],
+    ['COCOA', 'cocoa_stage2.png', 'cocoa_beans'],
+    ['PITCHER_CROP', 'pitcher_crop_top.png', 'pitcher_pod'],
+    ['TORCHFLOWER_CROP', 'torchflower_crop_stage0.png', 'torchflower_seeds'],
+  ];
+
+  for (const [key, texture, item] of CASES) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // A crop is a cross-quad plant at its mature stage, and drops its seed or produce as an ITEM.
+    assert.equal(def.plant, true, `${key} draws as a cross`);
+    assert.equal(def.solid, false, `${key} must not block movement`);
+    assert.deepEqual(def.textures, { all: texture }, `${key} must use its own stage texture`);
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', texture)),
+      `${key} needs ${texture} on disk`);
+
+    const drop = getBlockDrop(id);
+    assert.equal(drop?.id, item, `${key} must drop ${item}`);
+    assert.equal(drop?.isBlock, false, `${key} drops an ITEM`);
+    assert.ok(item in ITEMS, `${item} must be a real item`);
+  }
+
+  // Soul fire: a plant like the ordinary fire, but it emits at 10 and drops nothing.
+  const soulFire = BLOCK_DEFS[BLOCKS.SOUL_FIRE];
+  assert.equal(soulFire.plant, true, 'soul fire draws as a cross, like fire');
+  assert.equal(soulFire.light, 10, 'soul fire emits at 10, matching the soul torch');
+  assert.equal(getBlockDrop(BLOCKS.SOUL_FIRE), null, 'soul fire drops nothing');
+
+  // The suspicious blocks drop NOTHING, which their harvest rows state, and they are SOLID cubes because
+  // they are sand and gravel rather than decoration.
+  for (const [key, texture] of [['SUSPICIOUS_SAND', 'suspicious_sand_0.png'], ['SUSPICIOUS_GRAVEL', 'suspicious_gravel_0.png']]) {
+    const def = BLOCK_DEFS[BLOCKS[key]];
+    assert.equal(getBlockDrop(BLOCKS[key]), null, `${key} drops nothing`);
+    assert.notEqual(def.solid, false, `${key} is a solid cube`);
+    assert.deepEqual(def.textures, { all: texture }, `${key} must use its own numbered frame`);
+  }
+  // And they need a shovel, which is the one thing their empty harvest rows DO carry.
+  assert.equal(harvestDataFor(BLOCKS.SUSPICIOUS_SAND).tool, 'shovel',
+    'suspicious sand is dug with a shovel');
+
+  // Scaffolding drops itself and uses all three of its faces.
+  assert.equal(getBlockDrop(BLOCKS.SCAFFOLDING)?.id, BLOCKS.SCAFFOLDING, 'scaffolding drops itself');
+  assert.deepEqual(BLOCK_DEFS[BLOCKS.SCAFFOLDING].textures,
+    { top: 'scaffolding_top.png', side: 'scaffolding_side.png', bottom: 'scaffolding_bottom.png' },
+    'scaffolding names its top, side and bottom art');
+});
+
+test('soul fire is a SLICED tile, not the 32-frame animation strip', () => {
+  // This is the whole reason soul fire was unbuildable for several rounds, so it is worth a test of its
+  // own. Its upstream texture is 16x512 -- 32 stacked frames -- and this engine has no texture animation.
+  // Registering the block without slicing would stretch every frame across a single quad.
+  //
+  // The check is on PIXEL DIMENSIONS, read straight from the PNG header, because that is the property that
+  // distinguishes a tile from a strip. A test that only checked the file existed would pass on the strip.
+  const tile = path.join('public', 'assets', 'blocks', 'soul_fire_0.png');
+  assert.ok(existsSync(tile), 'soul_fire_0.png must exist');
+
+  const header = readFileSync(tile).subarray(0, 24);
+  const width = header.readUInt32BE(16);
+  const height = header.readUInt32BE(20);
+  assert.equal(width, 16, `soul fire must be one tile wide, got ${width}`);
+  assert.equal(height, 16,
+    `soul fire must be ONE 16x16 frame, got ${height}; a height of 512 means the animation strip is `
+    + 'still there and the block will draw all 32 frames across one quad. Run '
+    + '`python scripts/slice-texture-frames.py`.');
+
+  // The strip must be preserved alongside it, so the full animation is recoverable if an animator lands.
+  assert.ok(existsSync(path.join('public', 'assets', 'blocks', 'soul_fire_0_strip.png')),
+    'the original strip must be kept as soul_fire_0_strip.png');
+
+  // And the slicer must be committed, since the tile is unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'slice-texture-frames.py')),
+    'scripts/slice-texture-frames.py must be committed alongside the tile it produces');
+});
 
 test('a wall torch is the standing torch shape on a wall, and drops its standing form', () => {
   // A CORRECTION WORTH RECORDING. My first version of this test claimed torches had no geometry and
