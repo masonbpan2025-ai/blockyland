@@ -172,7 +172,10 @@ test('a land turtle heads for water rather than idling', () => {
     if (turtle.state === 'seeking water') sawSeeking = true;
   }
   assert.equal(sawSeeking, true, 'it spends time seeking water');
-  assert.ok(turtle.mesh.position.x > 0.5, `it moves toward the water, x=${turtle.mesh.position.x.toFixed(2)}`);
+  // Two blocks rather than half a block. The observed position was 0.55, so a 0.5 threshold had only
+    // 0.05 of margin and crossed back under real randomness; two blocks still proves it moved toward the
+    // water, which is what the case is for.
+    assert.ok(turtle.mesh.position.x > 2, `it moves toward the water, x=${turtle.mesh.position.x.toFixed(2)}`);
 });
 
 test('a turtle swims once it is in water', () => {

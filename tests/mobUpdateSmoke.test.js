@@ -179,17 +179,23 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
     }
     // A quarter of a block over ten seconds is a low bar, but it is enough to distinguish
     // "working" from "frozen", which is the whole point.
-    if (moved < 0.25 && !deliberatelyStill.has(type)) frozen.push(type);
+    // Recorded with the distance travelled, so a failure names the mob and how close it came rather
+    // than only that something in the list never moved.
+    if (moved < 0.25 && !deliberatelyStill.has(type)) frozen.push(`${type} (moved ${moved.toFixed(3)})`);
   }
 
-  const unexpected = frozen.filter(type => !knownFrozen.has(type));
+  // `frozen` holds annotated entries now, so the bare mob name is recovered before any set lookup. The
+  // annotation is ' (moved N)'; stripping the TRAILING one leaves two-word names like 'polar bear' intact.
+  const stripDistance = (entry) => entry.replace(/ \(moved [\d.]+\)$/, '');
+  const frozenNames = new Set(frozen.map(stripDistance));
+  const unexpected = frozen.filter(entry => !knownFrozen.has(stripDistance(entry)));
   assert.deepEqual(unexpected, [],
     `these mobs never moved and are not known-frozen, so something regressed:\n  ${unexpected.join('\n  ')}`);
 
   // The known-frozen list must not drift out of date in the other direction either: if an entry
   // starts moving, it should be removed so the record stays accurate. `blaze` is exempt because it
   // belongs to work in flight on another branch.
-  const recovered = [...knownFrozen].filter(type => !frozen.includes(type) && type !== 'blaze');
+  const recovered = [...knownFrozen].filter(type => !frozenNames.has(type) && type !== 'blaze');
   assert.deepEqual(recovered, [],
     `these mobs move now, so remove them from knownFrozen:\n  ${recovered.join('\n  ')}`);
 });

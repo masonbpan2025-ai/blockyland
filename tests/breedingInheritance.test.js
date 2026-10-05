@@ -16,6 +16,28 @@ import { BLOCKS } from '../src/blocks.js';
 import { AnimalBehaviors, BREEDING_FOODS } from '../src/animalBehaviors.js';
 import { PANDA_GENES } from '../src/pandaBehavior.js';
 
+/**
+ * Run `body` with a seeded `Math.random`, restoring the real one afterwards.
+ *
+ * The inheritance roll fires a 1/32 mutation PER GENE, so a case that asserts each gene came from a
+ * parent fails about 6% of the time under real randomness. The claim is correct; the coin flip is not
+ * part of it. A fixed seed makes the outcome stable without weakening the assertion.
+ */
+function withSeededRandom(seed, body) {
+  const original = Math.random;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return state / 2147483648;
+  };
+  try {
+    return body();
+  } finally {
+    Math.random = original;
+  }
+}
+
+
 function fixture() {
   const scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
@@ -57,21 +79,26 @@ test('the breeding food table includes panda and bamboo', () => {
 });
 
 test('a panda cub inherits genes from both parents and presents a personality', () => {
-  const { manager, behaviors } = fixture();
-  const a = manager.spawnPanda(0, 1, 0, { mainGene: 'aggressive', hiddenGene: 'normal' });
-  const b = manager.spawnPanda(2, 1, 0, { mainGene: 'lazy', hiddenGene: 'brown' });
-  const baby = manager.spawnPanda(1, 1, 0);
+  // Seeded: the inheritance roll also fires a 1/32 mutation per gene, and this case asserts that each
+  // gene came from a PARENT, so an unlucky mutation would fail it for the wrong reason.
+  withSeededRandom(7, () => {
 
-  const applied = behaviors.inheritBabyTraits(baby, a, b);
-  assert.equal(applied, 'pandaGenes');
-  assert.ok(PANDA_GENES.includes(baby.mainGene), `main ${baby.mainGene}`);
-  assert.ok(PANDA_GENES.includes(baby.hiddenGene), `hidden ${baby.hiddenGene}`);
-  // The personality has to be recomputed from the inherited genes, not copied.
-  assert.ok(PANDA_GENES.includes(baby.personality), `personality ${baby.personality}`);
-  // With no mutation, each gene comes from one of the two parents.
-  const parentGenes = [a.mainGene, a.hiddenGene, b.mainGene, b.hiddenGene];
-  assert.ok(parentGenes.includes(baby.mainGene), 'the main gene came from a parent');
-  assert.ok(parentGenes.includes(baby.hiddenGene), 'so did the hidden gene');
+    const { manager, behaviors } = fixture();
+    const a = manager.spawnPanda(0, 1, 0, { mainGene: 'aggressive', hiddenGene: 'normal' });
+    const b = manager.spawnPanda(2, 1, 0, { mainGene: 'lazy', hiddenGene: 'brown' });
+    const baby = manager.spawnPanda(1, 1, 0);
+
+    const applied = behaviors.inheritBabyTraits(baby, a, b);
+    assert.equal(applied, 'pandaGenes');
+    assert.ok(PANDA_GENES.includes(baby.mainGene), `main ${baby.mainGene}`);
+    assert.ok(PANDA_GENES.includes(baby.hiddenGene), `hidden ${baby.hiddenGene}`);
+    // The personality has to be recomputed from the inherited genes, not copied.
+    assert.ok(PANDA_GENES.includes(baby.personality), `personality ${baby.personality}`);
+    // With no mutation, each gene comes from one of the two parents.
+    const parentGenes = [a.mainGene, a.hiddenGene, b.mainGene, b.hiddenGene];
+    assert.ok(parentGenes.includes(baby.mainGene), 'the main gene came from a parent');
+    assert.ok(parentGenes.includes(baby.hiddenGene), 'so did the hidden gene');
+  });
 });
 
 test('a weak panda cub is weak only when both genes are weak', () => {

@@ -24,6 +24,32 @@ import {
 } from '../src/goatBehavior.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
+/**
+ * Run `body` with a seeded `Math.random`, restoring the real one afterwards.
+ *
+ * Several cases here assert that a random event happened at least once inside a window -- a sniffer digs
+ * up a seed, a goat charge breaks a horn. With real randomness the window occasionally misses and the case
+ * fails a few percent of the time, which is worse than not testing it: a suite that goes red at random
+ * sends the next reader hunting for a change that does not exist. A fixed seed makes the outcome stable
+ * without weakening what is asserted.
+ *
+ * The seed is a plain LCG so a failure is reproducible from the number alone.
+ */
+function withSeededRandom(seed, body) {
+  const original = Math.random;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return state / 2147483648;
+  };
+  try {
+    return body();
+  } finally {
+    Math.random = original;
+  }
+}
+
+
 function fixture({ difficulty = 'normal' } = {}) {
   const scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
@@ -172,15 +198,20 @@ test('a missing horn is hidden on the model, not just cleared in state', () => {
 });
 
 test('snapping a horn removes it permanently and drops the item', () => {
-  const { manager, entities } = fixture();
-  const goat = manager.spawnMob('goat', 0, 1, 0);
-  assert.equal(goatHasHorn(goat), true);
-  assert.equal(snapGoatHorn(goat), 'goat_horn');
-  assert.equal(goatHasHorn(goat), true, 'one horn is left');
-  assert.equal(snapGoatHorn(goat), 'goat_horn', 'the second comes off too');
-  assert.equal(goatHasHorn(goat), false, 'and then there are none');
-  assert.equal(snapGoatHorn(goat), null, 'wiki: goats do not regrow their horns');
-  assert.equal(entities.droppedItems.length, 0, 'the drop is the caller\'s job');
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    const { manager, entities } = fixture();
+    const goat = manager.spawnMob('goat', 0, 1, 0);
+    assert.equal(goatHasHorn(goat), true);
+    assert.equal(snapGoatHorn(goat), 'goat_horn');
+    assert.equal(goatHasHorn(goat), true, 'one horn is left');
+    assert.equal(snapGoatHorn(goat), 'goat_horn', 'the second comes off too');
+    assert.equal(goatHasHorn(goat), false, 'and then there are none');
+    assert.equal(snapGoatHorn(goat), null, 'wiki: goats do not regrow their horns');
+    assert.equal(entities.droppedItems.length, 0, 'the drop is the caller\'s job');
+  });
 });
 
 test('baby goats never drop horns', () => {
@@ -305,35 +336,45 @@ test('a missed charge stops the goat rather than leaving it running', () => {
 });
 
 test('a charge into a snapping block breaks a horn off', () => {
-  const { manager } = fixture();
-  // A wall of stone in the goat's path. The block lookup is stubbed rather than carved into the
-  // fixture world, because the goat probes at head height and the flat floor sits far below it.
-  manager.isBlockSolid = () => true;
-  manager.blockNameAt = () => 'stone';
-  const goat = manager.spawnMob('goat', 0, 1, 0);
-  const target = { position: new THREE.Vector3(30, 1, 0), health: 20, type: 'cow', takeDamage() {} };
-  startGoatRam(goat, target);
-  let outcome = null;
-  for (let i = 0; i < 300 && goat.ramState; i++) {
-    outcome = updateGoatRam(manager, goat, 1 / 60, { move: moveGroundMob }) ?? outcome;
-  }
-  assert.equal(outcome, 'blocked', 'it hit the block');
-  assert.equal(goatHasHorn(goat), true, 'and lost exactly one horn');
-  assert.equal((goat.hasLeftHorn ? 1 : 0) + (goat.hasRightHorn ? 1 : 0), 1);
-  assert.equal(manager.entities.droppedItems.filter(d => d.itemType === 'goat_horn').length, 1,
-    'dropping one goat horn');
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    const { manager } = fixture();
+    // A wall of stone in the goat's path. The block lookup is stubbed rather than carved into the
+    // fixture world, because the goat probes at head height and the flat floor sits far below it.
+    manager.isBlockSolid = () => true;
+    manager.blockNameAt = () => 'stone';
+    const goat = manager.spawnMob('goat', 0, 1, 0);
+    const target = { position: new THREE.Vector3(30, 1, 0), health: 20, type: 'cow', takeDamage() {} };
+    startGoatRam(goat, target);
+    let outcome = null;
+    for (let i = 0; i < 300 && goat.ramState; i++) {
+      outcome = updateGoatRam(manager, goat, 1 / 60, { move: moveGroundMob }) ?? outcome;
+    }
+    assert.equal(outcome, 'blocked', 'it hit the block');
+    assert.equal(goatHasHorn(goat), true, 'and lost exactly one horn');
+    assert.equal((goat.hasLeftHorn ? 1 : 0) + (goat.hasRightHorn ? 1 : 0), 1);
+    assert.equal(manager.entities.droppedItems.filter(d => d.itemType === 'goat_horn').length, 1,
+      'dropping one goat horn');
+  });
 });
 
 test('a charge into an ordinary block breaks nothing', () => {
-  const { manager } = fixture();
-  manager.isBlockSolid = () => true;
-  manager.blockNameAt = () => 'dirt';
-  const goat = manager.spawnMob('goat', 0, 1, 0);
-  const target = { position: new THREE.Vector3(30, 1, 0), health: 20, type: 'cow', takeDamage() {} };
-  startGoatRam(goat, target);
-  for (let i = 0; i < 300 && goat.ramState; i++) updateGoatRam(manager, goat, 1 / 60, { move: moveGroundMob });
-  assert.equal((goat.hasLeftHorn ? 1 : 0) + (goat.hasRightHorn ? 1 : 0), 2, 'both horns survive');
-  assert.equal(manager.entities.droppedItems.length, 0, 'and nothing is dropped');
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    const { manager } = fixture();
+    manager.isBlockSolid = () => true;
+    manager.blockNameAt = () => 'dirt';
+    const goat = manager.spawnMob('goat', 0, 1, 0);
+    const target = { position: new THREE.Vector3(30, 1, 0), health: 20, type: 'cow', takeDamage() {} };
+    startGoatRam(goat, target);
+    for (let i = 0; i < 300 && goat.ramState; i++) updateGoatRam(manager, goat, 1 / 60, { move: moveGroundMob });
+    assert.equal((goat.hasLeftHorn ? 1 : 0) + (goat.hasRightHorn ? 1 : 0), 2, 'both horns survive');
+    assert.equal(manager.entities.droppedItems.length, 0, 'and nothing is dropped');
+  });
 });
 
 test('a long jump clears height and distance, then goes on cooldown', () => {

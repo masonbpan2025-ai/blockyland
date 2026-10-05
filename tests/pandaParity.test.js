@@ -26,6 +26,32 @@ import {
 } from '../src/pandaBehavior.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
+/**
+ * Run `body` with a seeded `Math.random`, restoring the real one afterwards.
+ *
+ * Several cases here assert that a random event happened at least once inside a window -- a sniffer digs
+ * up a seed, a goat charge breaks a horn. With real randomness the window occasionally misses and the case
+ * fails a few percent of the time, which is worse than not testing it: a suite that goes red at random
+ * sends the next reader hunting for a change that does not exist. A fixed seed makes the outcome stable
+ * without weakening what is asserted.
+ *
+ * The seed is a plain LCG so a failure is reproducible from the number alone.
+ */
+function withSeededRandom(seed, body) {
+  const original = Math.random;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return state / 2147483648;
+  };
+  try {
+    return body();
+  } finally {
+    Math.random = original;
+  }
+}
+
+
 function fixture({ difficulty = 'normal', weatherType = 'clear' } = {}) {
   const scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
@@ -64,16 +90,21 @@ function fixture({ difficulty = 'normal', weatherType = 'clear' } = {}) {
 }
 
 test('panda is a native type with the wiki health and hitboxes', () => {
-  const { manager } = fixture();
-  const panda = manager.spawnMob('panda', 0, 1, 0);
-  assert.equal(panda.type, 'panda');
-  assert.equal(panda.maxHealth, PANDA_HEALTH.normal);
-  assert.equal(panda.maxHealth, 20, 'wiki: 20 HP');
-  assert.deepEqual(PANDA_DIMENSIONS, { width: 1.3, height: 1.25 });
-  assert.deepEqual(PANDA_BABY_DIMENSIONS, { width: 0.65, height: 0.625 });
-  assert.deepEqual(manager.getMobDimensions('panda'), { width: 1.3, height: 1.25 });
-  assert.deepEqual([panda.width, panda.height], [1.3, 1.25],
-    'the spawner used to leave these undefined, so collision fell back to 0.6 x 1.95');
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    const { manager } = fixture();
+    const panda = manager.spawnMob('panda', 0, 1, 0);
+    assert.equal(panda.type, 'panda');
+    assert.equal(panda.maxHealth, PANDA_HEALTH.normal);
+    assert.equal(panda.maxHealth, 20, 'wiki: 20 HP');
+    assert.deepEqual(PANDA_DIMENSIONS, { width: 1.3, height: 1.25 });
+    assert.deepEqual(PANDA_BABY_DIMENSIONS, { width: 0.65, height: 0.625 });
+    assert.deepEqual(manager.getMobDimensions('panda'), { width: 1.3, height: 1.25 });
+    assert.deepEqual([panda.width, panda.height], [1.3, 1.25],
+      'the spawner used to leave these undefined, so collision fell back to 0.6 x 1.95');
+  });
 });
 
 test('a baby is half size with its own hitbox', () => {
@@ -329,24 +360,29 @@ test('a sneeze normally does nothing', () => {
 });
 
 test('breeding passes one gene from each parent, with a 1/32 mutation each', () => {
-  // Wiki: each parent passes one gene, the two are randomly ordered, and each has a 1/32 mutation.
-  const a = { mainGene: 'aggressive', hiddenGene: 'normal' };
-  const b = { mainGene: 'lazy', hiddenGene: 'brown' };
-  const seenGenes = new Set();
-  let sawMutation = false;
-  for (let i = 0; i < 500; i++) {
-    const child = breedPandaGenes(a, b);
-    assert.ok(PANDA_GENES.includes(child.mainGene), `main ${child.mainGene}`);
-    assert.ok(PANDA_GENES.includes(child.hiddenGene), `hidden ${child.hiddenGene}`);
-    seenGenes.add(child.mainGene);
-    seenGenes.add(child.hiddenGene);
-    // A gene outside the parents' four can only come from a mutation.
-    for (const g of [child.mainGene, child.hiddenGene]) {
-      if (!['aggressive', 'normal', 'lazy', 'brown'].includes(g)) sawMutation = true;
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    // Wiki: each parent passes one gene, the two are randomly ordered, and each has a 1/32 mutation.
+    const a = { mainGene: 'aggressive', hiddenGene: 'normal' };
+    const b = { mainGene: 'lazy', hiddenGene: 'brown' };
+    const seenGenes = new Set();
+    let sawMutation = false;
+    for (let i = 0; i < 500; i++) {
+      const child = breedPandaGenes(a, b);
+      assert.ok(PANDA_GENES.includes(child.mainGene), `main ${child.mainGene}`);
+      assert.ok(PANDA_GENES.includes(child.hiddenGene), `hidden ${child.hiddenGene}`);
+      seenGenes.add(child.mainGene);
+      seenGenes.add(child.hiddenGene);
+      // A gene outside the parents' four can only come from a mutation.
+      for (const g of [child.mainGene, child.hiddenGene]) {
+        if (!['aggressive', 'normal', 'lazy', 'brown'].includes(g)) sawMutation = true;
+      }
     }
-  }
-  assert.ok(seenGenes.size >= 4, 'the parents genes are passed down');
-  assert.equal(sawMutation, true, 'mutations occur');
+    assert.ok(seenGenes.size >= 4, 'the parents genes are passed down');
+    assert.equal(sawMutation, true, 'mutations occur');
+  });
 });
 
 test('a mutation is rare but present', () => {

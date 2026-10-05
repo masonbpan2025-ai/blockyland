@@ -24,6 +24,32 @@ import {
 } from '../src/snifferBehavior.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
+/**
+ * Run `body` with a seeded `Math.random`, restoring the real one afterwards.
+ *
+ * Several cases here assert that a random event happened at least once inside a window -- a sniffer digs
+ * up a seed, a goat charge breaks a horn. With real randomness the window occasionally misses and the case
+ * fails a few percent of the time, which is worse than not testing it: a suite that goes red at random
+ * sends the next reader hunting for a change that does not exist. A fixed seed makes the outcome stable
+ * without weakening what is asserted.
+ *
+ * The seed is a plain LCG so a failure is reproducible from the number alone.
+ */
+function withSeededRandom(seed, body) {
+  const original = Math.random;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return state / 2147483648;
+  };
+  try {
+    return body();
+  } finally {
+    Math.random = original;
+  }
+}
+
+
 function fixture({ difficulty = 'normal', digBlock = BLOCKS.GRASS_BLOCK } = {}) {
   const scene = new THREE.Scene();
   const sounds = new Proxy({}, { get: () => () => {} });
@@ -352,19 +378,24 @@ test('a sniffer egg hatches in 10 minutes on moss and 20 otherwise', () => {
 });
 
 test('a sniffer really digs through the real update loop', () => {
-  const { manager, player, entities } = fixture();
-  player.position.set(200, 1, 200);
-  const sniffer = manager.spawnMob('sniffer', 0, 1, 0);
-  sniffer.digCooldown = 0;
-  let dug = false;
-  for (let i = 0; i < 6000 && !dug; i++) {
-    manager.update(1 / 60, player);
-    if (entities.droppedItems.length) dug = true;
-  }
-  assert.equal(dug, true, 'it dug up something');
-  assert.ok(SNIFFER_DIG_DROPS.includes(entities.droppedItems[0].itemType), 'a seed or a pod');
-  assert.equal(sniffer.dugLocations.length, 1, 'and remembered where');
-  assert.deepEqual([...(manager.mobErrors || [])], [], 'with no reported fault');
+  // The outcome here is a random draw, so it is seeded: with real randomness the window occasionally
+  // misses and the case fails a few percent of the time, which is worse than not testing it.
+  withSeededRandom(1, () => {
+
+    const { manager, player, entities } = fixture();
+    player.position.set(200, 1, 200);
+    const sniffer = manager.spawnMob('sniffer', 0, 1, 0);
+    sniffer.digCooldown = 0;
+    let dug = false;
+    for (let i = 0; i < 6000 && !dug; i++) {
+      manager.update(1 / 60, player);
+      if (entities.droppedItems.length) dug = true;
+    }
+    assert.equal(dug, true, 'it dug up something');
+    assert.ok(SNIFFER_DIG_DROPS.includes(entities.droppedItems[0].itemType), 'a seed or a pod');
+    assert.equal(sniffer.dugLocations.length, 1, 'and remembered where');
+    assert.deepEqual([...(manager.mobErrors || [])], [], 'with no reported fault');
+  });
 });
 
 test('it drops no items on death, and 1-3 XP only with credit', () => {
