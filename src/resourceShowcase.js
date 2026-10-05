@@ -110,13 +110,15 @@ function sourceSummary(entry) {
     smelting: entry.smeltingFrom.length,
     brewing: entry.brewingFrom.length,
     mobLoot: entry.lootFrom.length,
+    smithing: entry.smithingFrom.length,
     blockDrops: entry.droppedBy.length,
     total:
       entry.recipesAsResult.length +
       entry.smeltingFrom.length +
       entry.brewingFrom.length +
       entry.lootFrom.length +
-      entry.droppedBy.length,
+      entry.droppedBy.length +
+      entry.smithingFrom.length,
   };
 }
 
@@ -249,7 +251,7 @@ export const RESOURCE_CHECKS = [
       if (sources.total > 0) return true;
       return {
         ok: false,
-        detail: 'no crafting, smelting, brewing, mob-loot or block-drop source',
+        detail: 'no crafting, smelting, brewing, mob-loot, smithing or block-drop source',
       };
     },
   },

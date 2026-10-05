@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1548 | 1557 | 99.4% |
 | Crafting recipes expressible | 1549 | 1557 | 99.5% |
-| Blocks named | 1024 | 1095 | 93.5% |
+| Blocks named | 1036 | 1095 | 94.6% |
 | Items named | 1278 | 1385 | 92.3% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,20 +371,22 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1022 | 1266 |
-| missing | 73 | 119 |
+| present | 1034 | 1266 |
+| missing | 61 | 119 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **11** | **0** |
-| **missing, needs NEW art** | **62** | **119** |
+| **missing, needs NEW art** | **50** | **119** |
 | art files | 454 | 1071 |
 
-Both gaps are the same shape, but not identical, and the difference grew. Of 73 missing blocks,
+Both gaps are the same shape, but not identical, and the difference grew. Of 61 missing blocks,
 **eleven** are reachable by writing code and no new art: `redstone_wall_torch` reusing
 `redstone_torch.png`, and ten coral WALL fans each reusing its upright fan's texture. They are
 unimplemented because every one is a wall-attached block and this game stores no facing state for
-decoration. Of 119 missing items, **none** is reachable without art.
+decoration. The twelve wooden wall signs were in the same position until the sign geometry gained a
+wall-mounted shape; the wall fans need the equivalent for the plant geometry, which is why they remain
+here. Of 119 missing items, **none** is reachable without art.
 
-The 62 "needs NEW art" blocks are not uniformly blocked, and the composition scripts are the reason to
+The 50 "needs NEW art" blocks are not uniformly blocked, and the composition scripts are the reason to
 say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
 this column** until committed composition scripts built their textures from art the mirror does ship —
 vanilla draws both as models rather than as single tiles, so no combined texture exists upstream, but

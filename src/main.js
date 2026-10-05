@@ -1451,6 +1451,14 @@ class Game {
       return;
     }
 
+    // Smithing Table interaction. The block had a `workstation` field and no interaction at all, so the
+    // nine pieces of netherite gear had no way to exist outside the creative menu.
+    if (clickedBlock === BLOCKS.SMITHING_TABLE) {
+      this.sounds.playClick?.();
+      this.ui.openSmithing(bX, bY, bZ);
+      return;
+    }
+
     // Beacon interaction (Open Beacon GUI)
     if (clickedBlock === BLOCKS.BEACON) {
       this.sounds.playClick?.();

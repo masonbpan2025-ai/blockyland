@@ -571,6 +571,34 @@
     </div>
   </div>
 
+  <!-- Smithing Table GUI. Three inputs, because a vanilla smithing transformation is a template plus a
+       piece of gear plus a material, and the netherite upgrade is the one this game implements. -->
+  <div id="smithing-modal" class="game-modal hidden">
+    <div class="container-gui" style="width: 460px;">
+      <div class="gui-header">
+        <span>Smithing Table</span>
+        <span class="close-btn" id="close-smithing">✕</span>
+      </div>
+      <div style="padding: 12px; background: rgba(0, 0, 0, 0.35); border-radius: 4px; margin: 8px 0; border: 1px solid #334155;">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="inv-slot" id="smithing-template-slot" title="Smithing Template"></div>
+            <div class="inv-slot" id="smithing-base-slot" title="Gear"></div>
+            <div class="inv-slot" id="smithing-addition-slot" title="Material"></div>
+          </div>
+          <span style="font-size: 20px; color: #10b981; font-weight: bold;">➔</span>
+          <div class="inv-slot" id="smithing-output-slot" title="Result"></div>
+        </div>
+        <div id="smithing-hint-container" style="margin-top: 8px; text-align: center; font-size: 12px; color: #94a3b8;">
+          <span id="smithing-hint-label"></span>
+        </div>
+      </div>
+      <div class="gui-header"><span>Inventory</span></div>
+      <div class="grid-slots" id="smithing-storage-grid" style="grid-template-columns: repeat(9, 36px); margin-bottom: 8px;"></div>
+      <div class="grid-slots" id="smithing-hotbar-grid" style="grid-template-columns: repeat(9, 36px);"></div>
+    </div>
+  </div>
+
   <!-- Beacon GUI -->
   <div id="beacon-modal" class="game-modal hidden">
     <div class="container-gui" style="width: 460px;">

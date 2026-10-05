@@ -27,6 +27,7 @@ import { renderPlayerDoll } from './playerDoll.js';
 import { BrewingStand, getBrewingResult, POTION_DATA } from './brewing.js';
 import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
+import { calculateSmithingResult } from './smithing.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 
 /**
@@ -136,6 +137,14 @@ export class UIManager {
     this.anvilRightItem = null;
     this.anvilCustomName = '';
     this.currentAnvilPos = null;
+
+    // Smithing Table
+    this.smithingModal = document.getElementById('smithing-modal');
+    this.closeSmithingBtn = document.getElementById('close-smithing');
+    this.smithingTemplateItem = null;
+    this.smithingBaseItem = null;
+    this.smithingAdditionItem = null;
+    this.currentSmithingPos = null;
 
     // Grindstone
     this.grindstoneModal = document.getElementById('grindstone-modal');
@@ -447,6 +456,9 @@ export class UIManager {
     }
     if (this.grindstoneModal && !this.grindstoneModal.classList.contains('hidden')) {
       this.closeGrindstoneModal();
+    }
+    if (this.smithingModal && !this.smithingModal.classList.contains('hidden')) {
+      this.closeSmithingModal();
     }
     if (this.beaconModal && !this.beaconModal.classList.contains('hidden')) {
       this.closeBeaconModal();
@@ -1248,7 +1260,8 @@ export class UIManager {
     document.getElementById('close-villager').onclick = () => this.closeAllModals();
     document.getElementById('close-brewing')?.addEventListener('click', () => this.closeAllModals());
     document.getElementById('close-anvil')?.addEventListener('click', () => this.closeAllModals());
-    document.getElementById('close-grindstone')?.addEventListener('click', () => this.closeAllModals());
+    document.getElementById('close-grindstone')?.addEventListener('click', () => this.closeAllModals())
+    document.getElementById('close-smithing')?.addEventListener('click', () => this.closeAllModals());
     document.getElementById('close-beacon')?.addEventListener('click', () => this.closeAllModals());
 
     // 2x2 Craft Result
@@ -2732,6 +2745,136 @@ export class UIManager {
       return;
     }
 
+    this.inv.handleSlotClick(list, idx, false, true);
+  }
+
+  // --- Smithing Table GUI ---------------------------------------------------
+  //
+  // Mirrors the grindstone: three input slots held by the modal, one output, and the inventory below.
+  openSmithing(x, y, z) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    this.closeAllModals();
+    if (!this.smithingModal) return;
+
+    this.currentSmithingPos = { x, y, z };
+    this.smithingTemplateItem = null;
+    this.smithingBaseItem = null;
+    this.smithingAdditionItem = null;
+    this.smithingModal.classList.remove('hidden');
+    this.renderSmithingGUI();
+  }
+
+  closeSmithingModal() {
+    if (this.smithingModal) this.smithingModal.classList.add('hidden');
+    this.currentSmithingPos = null;
+
+    for (const slot of ['smithingTemplateItem', 'smithingBaseItem', 'smithingAdditionItem']) {
+      const item = this[slot];
+      if (item) {
+        this.inv.addItem(item.id, item.isBlock, item.count, item.enchantments);
+        this[slot] = null;
+      }
+    }
+    if (this.inv.cursorItem) {
+      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count, this.inv.cursorItem.enchantments);
+      this.inv.cursorItem = null;
+    }
+    this.updateFloatingCursor();
+    this.updateHotbar();
+  }
+
+  renderSmithingGUI() {
+    if (!this.smithingModal || this.smithingModal.classList.contains('hidden')) return;
+
+    const templateSlot = document.getElementById('smithing-template-slot');
+    const baseSlot = document.getElementById('smithing-base-slot');
+    const additionSlot = document.getElementById('smithing-addition-slot');
+    const outputSlot = document.getElementById('smithing-output-slot');
+    const hintLabel = document.getElementById('smithing-hint-label');
+
+    const inputs = [
+      [templateSlot, 'smithingTemplateItem', 'template'],
+      [baseSlot, 'smithingBaseItem', 'base'],
+      [additionSlot, 'smithingAdditionItem', 'addition'],
+    ];
+    for (const [element, field, kind] of inputs) {
+      if (!element) continue;
+      this.renderSlotContent(element, this[field]);
+      element.onclick = () => this.handleSmithingSlotClick(kind);
+    }
+
+    const calculation = calculateSmithingResult(this.smithingTemplateItem, this.smithingBaseItem, this.smithingAdditionItem);
+
+    if (outputSlot) {
+      this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
+      outputSlot.onclick = () => {
+        if (calculation.valid) this.takeSmithingOutput(calculation);
+      };
+    }
+
+    if (hintLabel) {
+      // The reason, not just "invalid": an armour trim explains itself, and so does the wrong ingot.
+      const empty = !this.smithingTemplateItem && !this.smithingBaseItem && !this.smithingAdditionItem;
+      hintLabel.textContent = calculation.valid || empty ? '' : calculation.reason;
+      hintLabel.style.color = calculation.valid ? '#10b981' : '#94a3b8';
+    }
+
+    this.renderSlotGrid('smithing-storage-grid', this.inv.storage, (idx, right, shift) => {
+      if (shift) this.quickMoveToSmithing(this.inv.storage, idx);
+      else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
+      this.renderSmithingGUI();
+      this.updateHotbar();
+    });
+
+    this.renderSlotGrid('smithing-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
+      if (shift) this.quickMoveToSmithing(this.inv.hotbar, idx);
+      else this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
+      this.renderSmithingGUI();
+      this.updateHotbar();
+    });
+  }
+
+  handleSmithingSlotClick(kind) {
+    const field = kind === 'template' ? 'smithingTemplateItem' : kind === 'base' ? 'smithingBaseItem' : 'smithingAdditionItem';
+    const tmp = this[field];
+    this[field] = this.inv.cursorItem;
+    this.inv.cursorItem = tmp;
+
+    this.updateFloatingCursor();
+    this.renderSmithingGUI();
+  }
+
+  takeSmithingOutput(calculation) {
+    if (!calculation.valid || !calculation.result) return;
+    // One result at a time, and only with an empty cursor, so a stack cannot be duplicated.
+    if (this.inv.cursorItem) return;
+
+    this.inv.cursorItem = calculation.result;
+    // The gear and the material are consumed. The template is not: vanilla returns it.
+    this.smithingBaseItem = null;
+    this.smithingAdditionItem = null;
+
+    this.sounds.playAnvil?.() ?? this.sounds.playClick?.();
+    this.updateFloatingCursor();
+    this.renderSmithingGUI();
+    this.updateHotbar();
+    this.updateStats();
+  }
+
+  quickMoveToSmithing(list, idx) {
+    const item = list[idx];
+    if (!item) return;
+
+    // Shift-click fills the slots in the order a player would: the template first, then the gear, then the
+    // material. Falls through to the ordinary move when all three are taken.
+    for (const field of ['smithingTemplateItem', 'smithingBaseItem', 'smithingAdditionItem']) {
+      if (!this[field]) {
+        this[field] = item;
+        list[idx] = null;
+        this.sounds.playClick?.();
+        return;
+      }
+    }
     this.inv.handleSlotClick(list, idx, false, true);
   }
 

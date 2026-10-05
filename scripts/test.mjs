@@ -45,7 +45,7 @@ export const AREAS = {
   // --- world, terrain, fluids ---
   world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---
-  build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'spawnEggCatalogue', 'workstations_functional', 'beaconManager', 'bed'],
+  build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'spawnEggCatalogue', 'workstations_functional', 'beaconManager', 'smithing', 'bed'],
   // --- combat, skills, progression ---
   combat: ['arrows', 'skills', 'tournament', 'dungeonMode', 'farming'],
   // --- rendering and effects ---

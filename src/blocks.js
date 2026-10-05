@@ -617,6 +617,34 @@ export const BLOCKS = {
   POTTED_WARPED_ROOTS: 1139,
   POTTED_WHITE_TULIP: 1140,
   POTTED_WITHER_ROSE: 1141,
+
+  // --- Wall signs, nineteenth block-parity batch -------------------------------------------------
+  //
+  // The twelve wooden wall signs. The standing signs and both hanging-sign variants already existed; these
+  // are the shapes that were missing.
+  //
+  // A wall sign is the same board as a standing sign with no post, held off the wall by two pegs, so it
+  // needed one new geometry function rather than a texture. `createWallSignGeometry` lives beside the
+  // other sign shapes in slab.js and takes the same direction argument they do.
+  //
+  // THE FACING IS NOT DRIVEN BY PLACEMENT, and that is the limitation to know about. Nothing in this
+  // engine owns a sign's direction: the block-state layer belongs to the redstone manager, which deletes
+  // state for anything without a redstone definition, and the mesher falls back to north. So a wall sign
+  // draws facing north whichever wall it is placed on. The hanging signs shipped with exactly the same
+  // limitation, so this is consistent rather than a new gap -- and fixing it properly means giving signs a
+  // state owner, not adding a flag to these definitions.
+  OAK_WALL_SIGN: 1142,
+  SPRUCE_WALL_SIGN: 1143,
+  BIRCH_WALL_SIGN: 1144,
+  ACACIA_WALL_SIGN: 1145,
+  CHERRY_WALL_SIGN: 1146,
+  JUNGLE_WALL_SIGN: 1147,
+  DARK_OAK_WALL_SIGN: 1148,
+  PALE_OAK_WALL_SIGN: 1149,
+  MANGROVE_WALL_SIGN: 1150,
+  BAMBOO_WALL_SIGN: 1151,
+  CRIMSON_WALL_SIGN: 1152,
+  WARPED_WALL_SIGN: 1153,
 };
 
 export const BLOCK_DEFS = {
@@ -1432,6 +1460,27 @@ export const BLOCK_DEFS = {
   [BLOCKS.POTTED_WARPED_ROOTS]: { name: 'Potted Warped Roots', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WARPED_ROOTS, textures: { all: 'potted_warped_roots.png' } },
   [BLOCKS.POTTED_WHITE_TULIP]: { name: 'Potted White Tulip', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WHITE_TULIP, textures: { all: 'potted_white_tulip.png' } },
   [BLOCKS.POTTED_WITHER_ROSE]: { name: 'Potted Wither Rose', hardness: 0.0, sound: 'stone', flowerPot: true, transparent: true, drop: BLOCKS.POTTED_WITHER_ROSE, textures: { all: 'potted_wither_rose.png' } },
+
+  // --- Wall signs, nineteenth block-parity batch -------------------------------------------------
+  //
+  // Each carries BOTH `wallSign` and the plank texture its standing sign uses. The geometry router checks
+  // `wallSign` before `sign`, so they do not need a `sign` flag as well; adding one would be misleading
+  // because it would suggest the standing shape.
+  //
+  // They are TRANSPARENT partial shapes like every other sign, and each drops itself.
+  [BLOCKS.OAK_WALL_SIGN]: { name: 'Oak Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.OAK_WALL_SIGN, textures: { all: 'oak_planks.png' } },
+  [BLOCKS.SPRUCE_WALL_SIGN]: { name: 'Spruce Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.SPRUCE_WALL_SIGN, textures: { all: 'spruce_planks.png' } },
+  [BLOCKS.BIRCH_WALL_SIGN]: { name: 'Birch Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.BIRCH_WALL_SIGN, textures: { all: 'birch_planks.png' } },
+  [BLOCKS.ACACIA_WALL_SIGN]: { name: 'Acacia Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.ACACIA_WALL_SIGN, textures: { all: 'acacia_planks.png' } },
+  [BLOCKS.CHERRY_WALL_SIGN]: { name: 'Cherry Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.CHERRY_WALL_SIGN, textures: { all: 'cherry_planks.png' } },
+  [BLOCKS.JUNGLE_WALL_SIGN]: { name: 'Jungle Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.JUNGLE_WALL_SIGN, textures: { all: 'jungle_planks.png' } },
+  [BLOCKS.DARK_OAK_WALL_SIGN]: { name: 'Dark Oak Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.DARK_OAK_WALL_SIGN, textures: { all: 'dark_oak_planks.png' } },
+  [BLOCKS.PALE_OAK_WALL_SIGN]: { name: 'Pale Oak Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.PALE_OAK_WALL_SIGN, textures: { all: 'pale_oak_planks.png' } },
+  [BLOCKS.MANGROVE_WALL_SIGN]: { name: 'Mangrove Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.MANGROVE_WALL_SIGN, textures: { all: 'mangrove_planks.png' } },
+  [BLOCKS.BAMBOO_WALL_SIGN]: { name: 'Bamboo Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.BAMBOO_WALL_SIGN, textures: { all: 'bamboo_planks.png' } },
+  [BLOCKS.CRIMSON_WALL_SIGN]: { name: 'Crimson Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.CRIMSON_WALL_SIGN, textures: { all: 'crimson_planks.png' } },
+  [BLOCKS.WARPED_WALL_SIGN]: { name: 'Warped Wall Sign', hardness: 1.0, sound: 'wood', sign: true, wallSign: true, transparent: true, drop: BLOCKS.WARPED_WALL_SIGN, textures: { all: 'warped_planks.png' } },
+
 
 
 

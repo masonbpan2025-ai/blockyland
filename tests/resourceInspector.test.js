@@ -238,7 +238,7 @@ const fakeEntry = (over = {}) => ({
   blockId: null, blockDef: null, blockAliases: [], internal: false, icon: null, type: null,
   declared: null, applied: 64,
   recipesAsResult: [], recipesAsIngredient: [], smeltingFrom: [], smeltedInto: [],
-  brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [],
+  brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [], smithingFrom: [],
   harvest: null, food: null, tool: null, enchantCategory: null, durabilityMax: null,
   ...over,
 });
@@ -321,7 +321,7 @@ test('has-source fails for an item nothing produces and passes once a source exi
   const { check } = contextFor('has-source', fakeEntry());
   const failure = check.run({ entry: fakeEntry(), registry: registry() });
   assert.equal(failure.ok, false);
-  assert.match(failure.detail, /no crafting, smelting, brewing, mob-loot or block-drop source/);
+  assert.match(failure.detail, /no crafting, smelting, brewing, mob-loot, smithing or block-drop source/);
   const sourced = check.run({
     entry: fakeEntry({ recipesAsResult: [{ source: 'crafting-3x3', ingredients: ['a'], resultId: 'fake' }] }),
     registry: registry(),
@@ -331,10 +331,20 @@ test('has-source fails for an item nothing produces and passes once a source exi
 
 test('has-source counts every kind of source', () => {
   const { check } = contextFor('has-source', fakeEntry());
-  for (const field of ['smeltingFrom', 'brewingFrom', 'lootFrom', 'droppedBy']) {
+  // Every field the summary reads, including the two whose sources are code rather than data: a smithing
+  // transformation and a creeper killed by a skeleton are not expressible as recipes or loot rows. A kind
+  // added to `sourceSummary` without being added here would make this test pass while the check stayed
+  // blind to it, so the list is asserted to cover the summary's own fields below.
+  const kinds = ['smeltingFrom', 'brewingFrom', 'lootFrom', 'droppedBy', 'smithingFrom'];
+  for (const field of kinds) {
     const entry = fakeEntry({ [field]: ['something'] });
     assert.equal(check.run({ entry, registry: registry() }), true, `${field} should count as a source`);
   }
+  // A vector of every non-slot kind at once, to catch a total that adds only some of them.
+  const all = fakeEntry({
+    smeltingFrom: ['a'], brewingFrom: ['b'], lootFrom: ['c'], droppedBy: ['d'], smithingFrom: ['e'],
+  });
+  assert.equal(check.run({ entry: all, registry: registry() }), true);
 });
 
 test('has-source excuses a spawn egg and nothing else', () => {  // A spawn egg has no survival source in vanilla, so asking for one reported all ninety as gaps --
