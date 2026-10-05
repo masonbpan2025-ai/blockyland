@@ -21,6 +21,7 @@ import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
 import { ChunkStreamer } from './chunkStreamer.js';
+import { MobSpawnManager } from './spawning/mobSpawnManager.js';
 import { ChunkMesher } from './mesher.js';
 import { SoundEngine } from './audio.js';
 import { Player } from './player.js';
@@ -125,6 +126,17 @@ class Game {
     this.worldTime = 6000; // 0..24000 (6000 = midday, 18000 = midnight)
     this.dayLengthSeconds = 600; // 10 minutes full day/night cycle
 
+    /**
+     * World difficulty.
+     *
+     * `mobs.js` and a dozen behaviour modules have read `game.difficulty` for a long time, defaulting
+     * to 'normal' when it was absent -- so the property was never actually set anywhere and the
+     * default was doing all the work. Setting it here makes it a real, changeable value, which the
+     * spawning subsystem needs: hostile natural spawning is switched off entirely on PEACEFUL, and
+     * the existing mob code was already branching on it.
+     */
+    this.difficulty = 'normal';
+
     // Subsystems
     this.sounds = new SoundEngine();
     this.textures = new TextureManager();
@@ -218,6 +230,21 @@ class Game {
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
     this.mobs.game = this;
 
+    // 3b. Natural mob spawning.
+    //
+    // Owns the continuous per-tick spawn cycle, the mob caps, biome spawn tables, the light-driven
+    // hostile rules and natural despawning. It replaces nothing here: before it existed the only
+    // ways to create a mob were a spawn egg, /summon, and four ad-hoc per-tick functions in
+    // mobs.js -- which is why a world contained mobs near the start point and nowhere else.
+    //
+    // Constructed in start() rather than the constructor because it needs `this.mobs`, which does
+    // not exist until textures have loaded. See src/spawning/mobSpawnManager.js.
+    this.spawnManager = new MobSpawnManager({ game: this });
+    // Structures may override the biome spawn table where they stand. The engine has a structure
+    // index (see structureManager), so the override is wired when one is present rather than
+    // assumed; with no index, `structureAt` stays null and no override applies.
+    this.spawnManager.structureAt = (x, y, z) => this.structureIdAt?.(x, y, z) ?? null;
+
     // Thorns reflects damage on to whoever struck the player. Wired here rather than inside the player,
     // because damaging a mob is the mob manager's job -- the same reason onKiInterrupted exists as a hook.
     //
@@ -268,8 +295,7 @@ class Game {
     this.riding = null;
 
     // 5b. Initialize Tournament & Dragon Ball Skills
-    this.tournament = new TournamentManager(this);
-    this.dragonballSkills = new DragonballSkillsManager(this);
+    this.tournament = new TournamentManager(this);    this.dragonballSkills = new DragonballSkillsManager(this);
     this.skills = this.dragonballSkills;
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
@@ -2654,6 +2680,32 @@ class Game {
     // Keep optional mob inspection labels in sync with movement and damage.
     this.mobs.updateDebugLabels?.();
 
+    // 4a. Natural mob spawning.
+    //
+    // Runs AFTER the mob update so a mob spawned this frame is not also simulated for a tick it was
+    // never alive for, and so the despawn pass sees this frame's positions. The manager converts the
+    // frame delta into game ticks internally: spawning is a 20 Hz process, not a 60 Hz one, and
+    // running it per frame would triple every spawn rate.
+    //
+    // Contained in its own try/catch like the mob update: a fault in the spawner must not stop the
+    // world from rendering, and a fault in the world must not leave the spawner half-run.
+    if (this.spawnManager && this.worldGenerated) {
+      try {
+        this.spawnManager.update(dt);
+        this.mobSpawnError = null;
+      } catch (err) {
+        const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
+        if (this.mobSpawnError !== summary) {
+          this.mobSpawnError = summary;
+          console.error('Error in the mob spawning system:', err);
+          this.ui?.addChatMessage?.(
+            `⚠ The mob spawning system hit an error: ${summary}. New mobs may stop appearing until it clears. See the browser console for the full trace.`,
+            'error'
+          );
+        }
+      }
+    }
+
     // 4b. Update Mob Expansion Managers (Raids, Deep Dark Warden, Bosses)
     if (this.raidManager) {
       this.raidManager.update(dt, this.player);
@@ -2756,6 +2808,10 @@ class Game {
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
     this.sky.update(dt, this.camera, this.weather, this.isUnderwater);
     this.blockLighting.update(dt, this.camera.position);
+    // Propagated sky/block light, on a time budget. Spawn predicates read it, so it must be current
+    // before the next spawn pass; one or two chunks a frame is enough because a chunk is only dirty
+    // when it is generated or edited.
+    this.world.light?.update?.();
     this.textures.update(dt, this.sunLight, this.scene.background, this.scene.fog);
 
     // 7. Update UI Stats & Debug Overlay

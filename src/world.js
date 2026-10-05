@@ -3,6 +3,8 @@ import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
 import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
+import { LightEngine } from './spawning/lightEngine.js';
+import { JavaRandom } from './spawning/spawnRandom.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -430,8 +432,36 @@ export class World {
     this.water = new WaterSimulation(this);
     this.lava = new LavaSimulation(this);
     this.redstone = new Redstone(this);
+    /**
+     * Sky and block light, propagated per chunk and kept per dimension.
+     *
+     * Natural mob spawning is gated on light level, so without this every spawn rule had to guess
+     * (the old code answered "15" for every position). See src/spawning/lightEngine.js.
+     *
+     * One engine per dimension, not one per world: the three dimensions reuse the same chunk keys
+     * (`0,0` names a chunk in each of them), so a single engine would answer with the surface
+     * dimension's light while the player stood in the Nether.
+     */
+    this.lightByDimension = {
+      overworld: new LightEngine(this),
+      nether: new LightEngine(this),
+      the_end: new LightEngine(this),
+    };
+    /**
+     * Seeded generator for natural spawning.
+     *
+     * Derived from the world seed rather than from `Math.random`, so the spawn decisions that are
+     * not player-movement dependent replay identically for a given seed, which is what makes the
+     * differential and travel regression tests possible.
+     */
+    this.spawnRandom = new JavaRandom(seed ^ 0x5EED5EED);
 
     this.reseed(seed, selectedBiome);
+  }
+
+  /** The light engine for the dimension currently being played. */
+  get light() {
+    return this.lightByDimension[this.currentDimension] || this.lightByDimension.overworld;
   }
 
   reseed(seed = 4289, selectedBiome = this.selectedBiome) {
@@ -445,6 +475,11 @@ export class World {
     this.chunks.clear();
     // The Map is now empty, so any cached slot would answer for a chunk that no longer exists.
     this.invalidateChunkCache();
+    // Light is stored per chunk, so every engine must forget its chunks too -- otherwise a reseed
+    // would keep lighting a world that no longer exists at those coordinates.
+    for (const engine of Object.values(this.lightByDimension)) engine.clear();
+    // A new seed is a new sequence of spawn decisions.
+    if (this.spawnRandom?.setSeed) this.spawnRandom.setSeed(seed ^ 0x5EED5EED);
 
     const def = getBiomeDef(this.selectedBiome);
     if (def?.isNether || def?.dimension === 'nether' || this.selectedBiome === 'nether') {
@@ -534,7 +569,44 @@ export class World {
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
     this.generateChunkTerrain(chunk);
     this.water.initChunk(chunk);
+    // Light must exist before anything asks whether a position is dark: the generator writes
+    // terrain, so the first light query can only answer once this chunk has been seeded.
+    this.light.initChunk(cx, cz);
+    // Chunk-generation creature population.
+    //
+    // Deliberately here rather than in the streamer: chunks are also created by the world start, by
+    // `placePlayerOnSurface`'s padding ring, and by the structure and studio paths, and a page of
+    // terrain that skipped population would be a visible hole in the animal distribution. The
+    // generator is idempotent per chunk, so a chunk created twice is still populated once.
+    this.game?.spawnManager?.chunkGenerationSpawner?.onChunkGenerated?.(cx, cz);
     return chunk;
+  }
+
+  /**
+   * Light level at a world position, as mob spawn predicates and several mob behaviours ask for it.
+   *
+   * This accessor is what `world.getLightLevel?.() ?? 15` used to be missing: callers now get a
+   * real propagated value instead of a literal fallback. Kept on the World rather than requiring
+   * every caller to know about `world.light`, because `getLightLevel` is the name the existing
+   * mob code already probes for.
+   *
+   * @param {number} wx
+   * @param {number} wy
+   * @param {number} wz
+   * @param {number} [skyDarken] day/night reduction applied to sky light only
+   */
+  getLightLevel(wx, wy, wz, skyDarken) {
+    return this.light.getLightLevel(Math.floor(wx), Math.floor(wy), Math.floor(wz), skyDarken);
+  }
+
+  /** Raw sky light (0..15) at a world position, before any day/night reduction. */
+  getSkyLight(wx, wy, wz) {
+    return this.light.getSkyLight(Math.floor(wx), Math.floor(wy), Math.floor(wz));
+  }
+
+  /** Raw block light (0..15) at a world position. */
+  getBlockLight(wx, wy, wz) {
+    return this.light.getBlockLight(Math.floor(wx), Math.floor(wy), Math.floor(wz));
   }
 
   getBiome(wx, wz) {
@@ -1572,5 +1644,10 @@ export class World {
       const diagonal = this.getChunk(cx + dx, cz + dz);
       if (diagonal) diagonal.dirty = true;
     }
+
+    // Light is a derived quantity, so a block change invalidates it. Marked rather than recomputed
+    // here: `setVoxel` is called in tight loops by fluid flow and redstone, and relighting inside
+    // it would make one edit cost a chunk relight. LightEngine.update() does the work on a budget.
+    this.light.markBlockChanged(wx, wy, wz);
   }
 }
