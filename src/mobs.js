@@ -28,6 +28,8 @@ import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
+import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget } from './spiderBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -121,6 +123,7 @@ export class MobManager {
       cat_british: this.createCatTexture('british'),
       ocelot: this.createCatTexture('ocelot'),
       wolf: this.createWolfTexture(),
+      spider: this.createSpiderTexture(),
       ghast_plain: this.createNetherTexture('ghast_plain'),
       ghast: this.createNetherTexture('ghast'),
       ghast_shooting: this.createNetherTexture('ghast_shooting'),
@@ -346,6 +349,7 @@ export class MobManager {
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
+      case 'spider': return this.spawnSpider(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -1155,6 +1159,42 @@ export class MobManager {
       ctx.fillStyle = '#3e2723';
       ctx.fillRect(0, 15, 6, 8);
     }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Spider body texture: near-black body with a lighter underside, matching the wiki's
+   * dark spider with bright red eyes.
+   */
+  createSpiderTexture(createCanvas = null) {
+    const makeCanvas = createCanvas
+      || (typeof document !== 'undefined' ? () => document.createElement('canvas') : null);
+    if (!makeCanvas) return new THREE.Texture();
+    const canvas = makeCanvas();
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Base near-black body.
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, 64, 32);
+
+    // Fuzz shading, so the flat body still reads as texture rather than a solid blob.
+    ctx.fillStyle = '#111827';
+    for (let x = 0; x < 64; x += 3) {
+      for (let y = 0; y < 32; y += 3) {
+        if ((x * 2 + y) % 6 === 0) ctx.fillRect(x, y, 1, 2);
+      }
+    }
+    // Lighter abdomen markings.
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(24, 18, 14, 8);
+    ctx.fillRect(28, 10, 6, 4);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.magFilter = THREE.NearestFilter;
@@ -2253,6 +2293,8 @@ export class MobManager {
       case 'mooshroom': return { width: 0.9, height: 1.4 };
       case 'sheep': return { width: 0.9, height: 1.3 };
       case 'creeper': return { width: 0.6, height: 1.7 };
+      // Wiki: spiders are wider than they are tall.
+      case 'spider': return SPIDER_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -2838,6 +2880,59 @@ export class MobManager {
       hitCooldown: 0
     };
 
+    this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Spider.
+   *
+   * Wiki: 16 HP, 1.4 x 0.9, neutral while the local light level is above 11. Spiders are
+   * arthropods, drop string plus a player-credited spider eye, and flip onto their backs
+   * when they die.
+   */
+  spawnSpider(x, y, z, options = {}) {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+    const { group, head, thorax, abdomen, legs, eyes } = createSpiderModel(bodyMat, eyeMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'spider',
+      name: 'Spider',
+      mesh: group,
+      head,
+      thorax,
+      abdomen,
+      legs,
+      eyes,
+      bodyMat,
+      eyeMat,
+      isArthropod: true,
+      // Wiki: spiders are immune to poison and to cobweb slowing.
+      poisonImmune: true,
+      // Wiki: 16 HP (lowered from 20 in Beta 1.9-pre2).
+      health: SPIDER_HEALTH,
+      maxHealth: SPIDER_HEALTH,
+      width: SPIDER_DIMENSIONS.width,
+      height: SPIDER_DIMENSIONS.height,
+      // Wiki: no normal-difficulty damage scaling beyond 2; see the adapt note about
+      // contact damage. Stored so the value is inspectable and testable.
+      attackDamage: 2,
+      // Wiki: 1% chance of a skeleton rider, forming a spider jockey.
+      isJockey: !!options.isJockey,
+      // Retaliation window, set when the spider is attacked.
+      angerTimer: 0,
+      isClimbing: false,
+      climbTimer: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
     this.mobs.push(mob);
     return mob;
   }
@@ -5929,6 +6024,10 @@ export class MobManager {
     } else if (mob.type === 'piglin') {
       if ((!attacker && knockbackOrigin) || (attacker && attacker === this.game?.player)) angerPiglins(this, mob.mesh.position);
       else if (attacker) { mob.combatTarget = attacker; mob.retaliationTimer = 30; mob.isBartering = false; }
+    } else if (mob.type === 'spider') {
+      // Wiki: a spider pursues whatever attacked it regardless of the light level, even if
+      // it had returned to neutral in bright light.
+      angerSpider(mob, attacker);
     }
 
     if (mob.health <= 0 && mob.laserLine && this.scene) {
@@ -6141,7 +6240,8 @@ export class MobManager {
     const carried = mob.type === 'enderman' && mob.carriedBlock
       ? [[mob.carriedBlock, true, 1, 1]]
       : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried];
+    // Wiki: spiders drop string, plus a spider eye only with player kill credit.
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random)];
   }
   updateDeath(mob, dt) {
     if (!mob.dying) {
@@ -6209,7 +6309,7 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
           if (xpVal > 0) this.entities.spawnXpOrbs(pos, xpVal);
         }
       }
@@ -6304,6 +6404,11 @@ export class MobManager {
           mob.headMat.needsUpdate = true;
         }
       }
+    } else if (mob.type === 'spider' && mob.legs) {
+      // Eight legs in two alternating tripods, driven by the same swim cycle the other
+      // models use so it advances with movement rather than on a separate clock.
+      mob.spiderPhase = (mob.spiderPhase || 0) + dt * (Math.hypot(vx, vz) > 0.05 ? 6.5 : 1.2);
+      poseSpiderLegs(mob, mob.spiderPhase);
     } else if (mob.type === 'blaze' && mob.tiers) {
       mob.flames.visible = !!mob.charging;
       mob.flames.rotation.y += dt*2;
@@ -6555,6 +6660,12 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='spider'){
+      // Wiki: spiders are neutral above light level 11 and climb walls when blocked.
+      updateSpiderAnger(mob, dt);
+      updateSpiderClimbing(this, mob, dt);
+      return false;
+    }
     if(mob.type==='wolf'&&updateWolfWitherHunt(this,mob,dt))return true;
     if(isZombifiedPiglin(mob)) {
       if(!mob.jockeyMount){const speed=moveGroundMob(this,mob,dt);mob.walkCycle=(mob.walkCycle||0)+speed*dt*7;const swing=Math.sin(mob.walkCycle)*Math.min(.8,speed*.4);mob.leftLeg.rotation.x=swing;mob.rightLeg.rotation.x=-swing;}
