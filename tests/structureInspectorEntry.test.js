@@ -140,8 +140,13 @@ test('selecting another structure plans it rather than leaving the old plan on s
   // The panels describe a plan, so a picker that changed the selection without planning would leave them
   // describing a structure the picker no longer shows.
   assert.match(inspectorJs, /planNearestAndRefresh\(\)/, 'there is a single plan-and-refresh path');
+  // The boundary comes from the code's own structure rather than a character count. This was a magic 400 until
+  // a CRLF checkout added one character per line and pushed the call just outside the window: a test that
+  // depends on how many characters of comment precede the thing it checks is testing the comment.
   const onChange = inspectorJs.slice(inspectorJs.indexOf("$('structure').onchange"));
-  assert.match(onChange.slice(0, 400), /planNearestAndRefresh\(\)/, 'the structure picker uses it');
+  const handler = onChange.slice(0, onChange.indexOf("$('btn-nearest')"));
+  assert.match(handler, /session\.setStructure\(/, 'the picker selects the structure');
+  assert.match(handler, /planNearestAndRefresh\(\)/, 'and plans it through the shared path');
 });
 
 test('every element the page looks up exists on the page', () => {
