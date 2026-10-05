@@ -19,7 +19,7 @@
 // `EXTRA_SMELTING` is imported directly because it is three-free and is the generated table's source.
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { harvestDataFor, knownHarvestBlockIds, knownHarvestNames, BLOCK_HARVEST } from './blockHarvestData.js';
-import { BONUS_DROPS, bonusKeyFor } from './blockDrops.js';
+import { BONUS_DROPS, REPLACEMENT_DROPS, bonusKeyFor } from './blockDrops.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
@@ -377,6 +377,18 @@ export function buildRegistry(sources = {}) {
       if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
         target.droppedBy.push(label);
       }
+    }
+  }
+  // The drops that replace a block's own. Gravel gives flint or gravel and never both, so flint is a source
+  // here even though no single break yields two rows.
+  for (const entry of entries.values()) {
+    if (entry.blockId === null || entry.blockId === undefined) continue;
+    const rule = REPLACEMENT_DROPS[bonusKeyFor(entry.blockId)];
+    if (!rule) continue;
+    const target = entries.get(rule.id);
+    const label = entry.blockDef?.name ?? entry.name ?? String(entry.blockId);
+    if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
+      target.droppedBy.push(label);
     }
   }
 
