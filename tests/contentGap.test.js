@@ -17,9 +17,15 @@ import { measureBlockGap, measureItemGap, itemIconCandidates, textureCandidates,
 test('most missing blocks are missing art, not code', (t) => {
   if (!CACHE_PRESENT) { t.skip('block cache absent'); return; }
   const r = measureBlockGap();
-  assert.ok(r.missing > 200, 'the gap should still be substantial, got ' + r.missing);
-  // The claim, stated as a ratio rather than an absolute so it survives content growth: nearly all of the
-  // gap needs art.
+  // A floor only to catch a BROKEN measurement -- a resolver that suddenly matched everything would
+  // report a gap of near zero and every relative claim below would pass trivially.
+  //
+  // It was 200 and the glazed-terracotta batch pushed the real gap to 186, which is the wrong reason
+  // for a test to fail: closing the gap is the objective, so this must not creep upward behind the
+  // work. Kept deliberately far below the current figure so it only fires on a broken count.
+  assert.ok(r.missing > 50, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
+  // The claim, stated as a ratio rather than an absolute so it survives content growth: nearly all of
+  // the gap needs art.
   assert.ok(r.needsArt.length / r.missing > 0.95,
     'expected over 95% of the block gap to need new art, got ' + r.needsArt.length + '/' + r.missing);
   // And the sharper claim, which is the one that matters for planning: no missing block has its own art.

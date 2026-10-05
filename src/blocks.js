@@ -394,7 +394,30 @@ export const BLOCKS = {
   AMETHYST_CLUSTER: 1009,
   LARGE_AMETHYST_BUD: 1010,
   MEDIUM_AMETHYST_BUD: 1011,
-  SMALL_AMETHYST_BUD: 1012
+  SMALL_AMETHYST_BUD: 1012,
+
+  // --- Glazed terracotta, eleventh block-parity batch --------------------------------------------
+  //
+  // All sixteen colours. Plain full cubes, one texture each, so no geometry -- but see the definition
+  // notes below for the respect in which these are NOT just another colour family: vanilla rotates the
+  // pattern per face according to the direction the block was placed, and this game has no oriented
+  // face state outside the redstone and door managers.
+  WHITE_GLAZED_TERRACOTTA: 1013,
+  ORANGE_GLAZED_TERRACOTTA: 1014,
+  MAGENTA_GLAZED_TERRACOTTA: 1015,
+  LIGHT_BLUE_GLAZED_TERRACOTTA: 1016,
+  YELLOW_GLAZED_TERRACOTTA: 1017,
+  LIME_GLAZED_TERRACOTTA: 1018,
+  PINK_GLAZED_TERRACOTTA: 1019,
+  GRAY_GLAZED_TERRACOTTA: 1020,
+  LIGHT_GRAY_GLAZED_TERRACOTTA: 1021,
+  CYAN_GLAZED_TERRACOTTA: 1022,
+  PURPLE_GLAZED_TERRACOTTA: 1023,
+  BLUE_GLAZED_TERRACOTTA: 1024,
+  BROWN_GLAZED_TERRACOTTA: 1025,
+  GREEN_GLAZED_TERRACOTTA: 1026,
+  RED_GLAZED_TERRACOTTA: 1027,
+  BLACK_GLAZED_TERRACOTTA: 1028
 };
 
 export const BLOCK_DEFS = {
@@ -942,6 +965,38 @@ export const BLOCK_DEFS = {
   [BLOCKS.LARGE_AMETHYST_BUD]: { name: 'Large Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'large_amethyst_bud.png' } },
   [BLOCKS.MEDIUM_AMETHYST_BUD]: { name: 'Medium Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'medium_amethyst_bud.png' } },
   [BLOCKS.SMALL_AMETHYST_BUD]: { name: 'Small Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'small_amethyst_bud.png' } },
+
+  // --- Glazed terracotta, eleventh block-parity batch --------------------------------------------
+  //
+  // Sixteen colours, hardness 1.4, mined with a pickaxe, each dropping itself. All derived from the
+  // generated harvest table, where every colour carries the same row.
+  //
+  // THE ORIENTATION CAVEAT, which is the one thing that makes these different from the other colour
+  // families already in the registry. In vanilla the pattern on a glazed terracotta block is rotated
+  // according to the direction the player was facing when it was placed, so a wall of them reads as one
+  // continuous design. This game stores no facing state for ordinary cubes -- the redstone components
+  // and the door manager keep their own side tables, and nothing else does -- so each block draws its
+  // texture in the same orientation on every face. Placing a row therefore gives sixteen repeated tiles
+  // rather than a flowing pattern. The block is recognisable and behaves correctly; the decorative
+  // rotation is the part that is missing, and adding it needs a real block-state system rather than a
+  // flag on these definitions.
+  [BLOCKS.WHITE_GLAZED_TERRACOTTA]: { name: 'White Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.WHITE_GLAZED_TERRACOTTA, textures: { all: 'white_glazed_terracotta.png' } },
+  [BLOCKS.ORANGE_GLAZED_TERRACOTTA]: { name: 'Orange Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.ORANGE_GLAZED_TERRACOTTA, textures: { all: 'orange_glazed_terracotta.png' } },
+  [BLOCKS.MAGENTA_GLAZED_TERRACOTTA]: { name: 'Magenta Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.MAGENTA_GLAZED_TERRACOTTA, textures: { all: 'magenta_glazed_terracotta.png' } },
+  [BLOCKS.LIGHT_BLUE_GLAZED_TERRACOTTA]: { name: 'Light Blue Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.LIGHT_BLUE_GLAZED_TERRACOTTA, textures: { all: 'light_blue_glazed_terracotta.png' } },
+  [BLOCKS.YELLOW_GLAZED_TERRACOTTA]: { name: 'Yellow Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.YELLOW_GLAZED_TERRACOTTA, textures: { all: 'yellow_glazed_terracotta.png' } },
+  [BLOCKS.LIME_GLAZED_TERRACOTTA]: { name: 'Lime Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.LIME_GLAZED_TERRACOTTA, textures: { all: 'lime_glazed_terracotta.png' } },
+  [BLOCKS.PINK_GLAZED_TERRACOTTA]: { name: 'Pink Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.PINK_GLAZED_TERRACOTTA, textures: { all: 'pink_glazed_terracotta.png' } },
+  [BLOCKS.GRAY_GLAZED_TERRACOTTA]: { name: 'Gray Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.GRAY_GLAZED_TERRACOTTA, textures: { all: 'gray_glazed_terracotta.png' } },
+  [BLOCKS.LIGHT_GRAY_GLAZED_TERRACOTTA]: { name: 'Light Gray Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.LIGHT_GRAY_GLAZED_TERRACOTTA, textures: { all: 'light_gray_glazed_terracotta.png' } },
+  [BLOCKS.CYAN_GLAZED_TERRACOTTA]: { name: 'Cyan Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.CYAN_GLAZED_TERRACOTTA, textures: { all: 'cyan_glazed_terracotta.png' } },
+  [BLOCKS.PURPLE_GLAZED_TERRACOTTA]: { name: 'Purple Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.PURPLE_GLAZED_TERRACOTTA, textures: { all: 'purple_glazed_terracotta.png' } },
+  [BLOCKS.BLUE_GLAZED_TERRACOTTA]: { name: 'Blue Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.BLUE_GLAZED_TERRACOTTA, textures: { all: 'blue_glazed_terracotta.png' } },
+  [BLOCKS.BROWN_GLAZED_TERRACOTTA]: { name: 'Brown Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.BROWN_GLAZED_TERRACOTTA, textures: { all: 'brown_glazed_terracotta.png' } },
+  [BLOCKS.GREEN_GLAZED_TERRACOTTA]: { name: 'Green Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.GREEN_GLAZED_TERRACOTTA, textures: { all: 'green_glazed_terracotta.png' } },
+  [BLOCKS.RED_GLAZED_TERRACOTTA]: { name: 'Red Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.RED_GLAZED_TERRACOTTA, textures: { all: 'red_glazed_terracotta.png' } },
+  [BLOCKS.BLACK_GLAZED_TERRACOTTA]: { name: 'Black Glazed Terracotta', hardness: 1.4, sound: 'stone', drop: BLOCKS.BLACK_GLAZED_TERRACOTTA, textures: { all: 'black_glazed_terracotta.png' } },
+
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,

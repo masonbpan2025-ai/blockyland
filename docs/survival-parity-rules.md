@@ -358,9 +358,9 @@ and `brush`. The geometry work is complete: this project now draws slabs, stairs
 doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
 rods, rails and flower pots, each with tests.
 
-### 4.1.1 The remaining gap is ART, not code — for blocks and for items
+### 4.1.1 Most of the remaining gap is ART, not code — for blocks and for items
 
-The "Blocks named 78.8%" and "Items named 85.4%" rows read like missing implementation. They are not, and the
+The "Blocks named 81.9%" and "Items named 87.8%" rows read like missing implementation. Mostly they are not, and the
 distinction decides what work is left.
 
 The content generator emits a block only when `textureExists()` finds a PNG in `public/assets/blocks`, and
@@ -371,16 +371,24 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 827 | 1130 |
-| missing | 268 | 255 |
+| present | 909 | 1222 |
+| missing | 186 | 163 |
 | **missing, has its OWN art** | **0** | **0** |
-| missing, could reuse art already present | **1** | **9** |
-| **missing, needs NEW art** | **267** | **246** |
-| art files | 241 | 974 |
+| missing, could reuse art already present | **1** | **0** |
+| **missing, needs NEW art** | **185** | **163** |
+| art files | 285 | 1072 |
 
-Both gaps are the same shape. Of 268 missing blocks, **one** is reachable by writing code —
-`redstone_wall_torch`, reusing `redstone_torch.png`. Of 255 missing items, **nine** are — all spawn eggs
-drawing the shared `spawn_egg.png`. Everything else needs art that does not exist.
+Both gaps are the same shape. Of 186 missing blocks, **one** is reachable by writing code —
+`redstone_wall_torch`, reusing `redstone_torch.png`. The rest need art that does not exist.
+
+Worth stating plainly, because this heading used to read "the remaining gap is ART, not code" and that
+was wrong: the gap is *currently* art-gated, but it is not intrinsically so. Adding art is one way to
+close it and writing definitions against art that already exists is another, and the second is how the
+ores, saplings, infested stone, coral, amethyst and the other block-parity batches were closed. What
+the table measures is which missing blocks *already have* a texture file to point at, not whether a
+missing block is implementable in principle. `ancient_debris` was counted as art-blocked until its
+`_side`/`_top` textures were found under part-suffixed names.
+
 
 The item row counts 1130 present where `scripts/parity-coverage.mjs` reports 1138. The difference is the
 name-derivation rule, not the conclusion: this measurement asks "is there an icon file", and eight items

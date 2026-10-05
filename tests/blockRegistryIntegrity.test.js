@@ -109,6 +109,38 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('all sixteen glazed terracotta colours exist and behave identically', () => {
+  // Sixteen near-identical definitions are where a copy-paste error survives review -- the wrong colour
+  // in a name, or a texture pointing at another colour's file. So each is checked against its own key
+  // rather than as a set: a definition whose texture does not match its own name is the failure this
+  // is looking for.
+  const COLORS = [
+    'WHITE', 'ORANGE', 'MAGENTA', 'LIGHT_BLUE', 'YELLOW', 'LIME', 'PINK', 'GRAY',
+    'LIGHT_GRAY', 'CYAN', 'PURPLE', 'BLUE', 'BROWN', 'GREEN', 'RED', 'BLACK',
+  ];
+  assert.equal(COLORS.length, 16, 'there are sixteen colours');
+
+  for (const colour of COLORS) {
+    const key = `${colour}_GLAZED_TERRACOTTA`;
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+
+    const def = BLOCK_DEFS[id];
+    assert.ok(def, `${key} must have a definition`);
+    assert.equal(def.hardness, 1.4, `${key} has the harvest table's hardness`);
+    assert.equal(def.drop, id, `${key} drops itself`);
+
+    // The texture must be THIS colour's, not another's -- the copy-paste bug this test exists for.
+    assert.deepEqual(def.textures, { all: `${colour.toLowerCase()}_glazed_terracotta.png` },
+      `${key} must be drawn with its own texture`);
+
+    // And it must be a plain solid cube: an oriented block would carry a facing flag, which this game
+    // cannot render, so asserting its absence records the limitation rather than hiding it.
+    assert.notEqual(def.solid, false, `${key} is a full cube`);
+    assert.equal(def.plant, undefined, `${key} is not a plant`);
+  }
+});
+
 test('the amethyst family drops only what vanilla drops', () => {
   // This is the reason the family is one batch: four of the five blocks yield NOTHING and only the
   // cluster yields, so a copy-pasted definition in either direction is a silent bug. Budding amethyst
