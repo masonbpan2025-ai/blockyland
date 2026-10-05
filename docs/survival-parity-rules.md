@@ -487,22 +487,32 @@ outcomes.
 One structural note: no drop entry uses the `"lo-hi"` string count form, so every drop is a single item
 today. The ranged form is implemented and covered by a test, but it is unexercised by the current data.
 
-- **A firework rocket did nothing when used, and elytra flight does not exist.** Both were found by the
-  same question that found the tipped arrows and the potions: which registered items has no consumer.
-  `firework_rocket` had **zero** references outside the registry, while `spawnFireworkRocket` was already
-  fully built -- mesh, rising trail, burst, launch sound -- and called from exactly one place, a
-  tournament celebration. `src/fireworks.js` now launches one from the player, with the look direction
-  choosing the burst height.
+- **Elytra gliding now exists, as a tuned approximation.** `player.isGliding` and `player.elytraActive`
+  were read in exactly one place (`parrotBehavior.js`) and **set nowhere**, while the `elytra` item and its
+  432 durability were both registered with no glide physics behind any of it. `src/elytra.js` is that
+  physics, wired into the movement chain as a branch that runs only while gliding, so it cannot affect
+  ordinary movement.
 
-  Two honest deviations. Vanilla fires a rocket **along the look direction**; the existing rocket
-  animates straight up to a burst height, and changing that is a renderer change rather than an item
-  hook, so a rocket always rises and the pitch only sets how high. And **vanilla's main use for a rocket
-  is boosting elytra flight, which this game does not have at all**: `player.isGliding` and
-  `player.elytraActive` are read in one place, `parrotBehavior.js`, and **set nowhere**. The item
-  `elytra` exists, its 432 durability is in `durability.js`, and there is no glide physics behind any of
-  it. Implementing elytra is a movement-system job rather than an item hook, and it is not done.
-### 4.3 What is not verified
+  **The constants are approximations and the tests assert properties instead of numbers.** Vanilla's glide
+  is defined per tick with figures that are not in `.cache/mc-data` and that this project has no other
+  source for, so rather than invent them with false precision the model is built to satisfy what actually
+  defines gliding: you always sink and looking up only slows it, diving accelerates, climbing decelerates,
+  horizontal speed is bounded at both ends, and a firework rocket adds speed and lift. Those are what
+  `tests/elytraGlide.test.js` checks.
 
+  Known deviations: there is no elytra durability loss for time spent gliding, and no damage taken on a
+  fast impact, both of which vanilla has. The glide also steers along the existing heading rather than
+  turning with the camera, so a glide is committed to a direction once it has one.
+
+- **A firework rocket did nothing when used.** `firework_rocket` had **zero** references outside the
+  registry, while `spawnFireworkRocket` was already fully built -- mesh, rising trail, burst, launch sound
+  -- and called from exactly one place, a tournament celebration. `src/fireworks.js` now launches one from
+  the player, and **boosts a glide instead when gliding**, which is a rocket's primary vanilla purpose; no
+  rocket is spawned in that case because the thrust goes to the player.
+
+  One deviation: vanilla fires a rocket **along the look direction**. The existing rocket animates straight
+  up to a burst height, and changing that is a renderer change rather than an item hook, so a rocket always
+  rises and the pitch only sets how high.
 - **Drop probabilities under Looting — implemented and now tested.** The earlier note here said the loot
   table "has no per-level figures, so this is not measurable from the available data". That was true of the
   table and beside the point: the rule is not per-level data, it is vanilla's formula, `chance + 0.01 *

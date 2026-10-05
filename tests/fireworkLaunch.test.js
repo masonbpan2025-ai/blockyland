@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { launchFirework, FIREWORK_BASE_RISE, FIREWORK_RISE_PER_PITCH } from '../src/fireworks.js';
+import { ELYTRA_BOOST_SECONDS } from '../src/elytra.js';
 
 /** A game stub that records what a launch did. */
 function launcher({ pitch = 0, gamemode = 'survival' } = {}) {
@@ -88,6 +89,18 @@ test('a missing entity manager or camera does not throw', () => {
   assert.doesNotThrow(() => launchFirework(bare, 'firework_rocket'));
   const noPlayer = { entities: { spawnFireworkRocket() {} } };
   assert.equal(launchFirework(noPlayer, 'firework_rocket'), false, 'and without a player there is nothing to launch');
+});
+
+test('a rocket boosts a glide instead of spawning one', () => {
+  // This is what a rocket is primarily FOR in vanilla, and it is why `src/fireworks.js` imports the boost
+  // duration from `src/elytra.js` rather than declaring its own.
+  const { game, log } = launcher();
+  game.player.isGliding = true;
+  assert.equal(launchFirework(game, 'firework_rocket'), true, 'the rocket should be used');
+  assert.equal(game.player.elytraBoost, ELYTRA_BOOST_SECONDS, 'and set the glide boost');
+  assert.equal(log.some(x => x.did === 'spawn'), false,
+    'no rising rocket should spawn while gliding -- the thrust goes to the player');
+  assert.ok(log.some(x => x.did === 'consume' && x.n === 1), 'and the rocket is still used up');
 });
 
 test('the launch hook is wired into the use chain', () => {

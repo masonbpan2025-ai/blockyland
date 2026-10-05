@@ -3,6 +3,7 @@ import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
+import { applyGlide, wantsToStartGliding, shouldStopGliding } from './elytra.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -29,6 +30,11 @@ export class Player {
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;
+    // Elytra gliding. These were read by `parrotBehavior.js` and set nowhere at all before the glide physics
+    // existed, so they are declared here rather than left to appear on first use.
+    this.isGliding = false;
+    this.elytraActive = false;
+    this.elytraBoost = 0;
     this.gamemode = 'creative'; // 'creative' | 'survival'
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
@@ -547,6 +553,16 @@ export class Player {
     if (Math.abs(this.velocity.z) < 1e-4) this.velocity.z = 0;
 
     // Vertical Movement (Gravity & Jump)
+    // Elytra gliding is decided before the branches below, so the flags are current for this frame.
+    if (wantsToStartGliding(this, controlsDisabled ? {} : this.keys)) {
+      this.isGliding = true;
+      this.elytraActive = true;
+    } else if (shouldStopGliding(this)) {
+      this.isGliding = false;
+      this.elytraActive = false;
+      this.elytraBoost = 0;
+    }
+
     if (this.isFlying) {
       this.velocity.y = 0;
       if (!controlsDisabled) {
@@ -559,6 +575,16 @@ export class Player {
       if (!controlsDisabled && this.keys['Space']) {
         this.velocity.y = 4.0; // swim upwards
       }
+    } else if (this.isGliding) {
+      // Vanilla's glide, approximated -- see src/elytra.js for what is tuned and what is asserted.
+      this.elytraBoost = Math.max(0, (this.elytraBoost || 0) - dt);
+      applyGlide({
+        velocity: this.velocity,
+        yaw: this.yaw,
+        pitch: this.pitch || 0,
+        dt,
+        boost: this.elytraBoost,
+      });
     } else {
       // Normal Gravity
       this.velocity.y -= this.gravity * dt;
