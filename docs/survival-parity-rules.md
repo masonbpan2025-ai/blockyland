@@ -342,7 +342,10 @@ going unnoticed.
 | Vanilla recipes implemented | 1552 | 1557 | 99.7% |
 | Crafting recipes expressible | 1554 | 1557 | 99.8% |
 | Blocks named | 1095 | 1095 | 100.0% |
-| Items named | 1361 | 1385 | 98.3% |
+| Vanilla recipes implemented | 1553 | 1557 | 99.7% |
+| Crafting recipes expressible | 1554 | 1557 | 99.8% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Items named | 1367 | 1385 | 98.7% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,12 +374,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1095 | 1298 |
-| missing | **0** | 87 |
+| present | 1095 | 1309 |
+| missing | **0** | 76 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **0** | **87** |
-| art files | 551 | 1071 |
+| **missing, needs NEW art** | **0** | **76** |
+| art files | 563 | 1071 |
 
 ### 4.1.1a The pinned block list is COMPLETE
 
@@ -393,17 +396,31 @@ Everything else the wiki lists is NEWER THAN THE PINNED DATA -- 277 entries, `ne
 which is a different objective rather than a gap in this one: the copper family, shelves, the poplar wood
 set, cinnabar and sulfur, from versions after 1.21.4.
 
-TWO RESIDUAL MEASUREMENTS STILL REPORT A NON-ZERO BLOCK GAP AND BOTH ARE WRONG, recorded here so the next
-person does not chase them:
+**THE DISTINCTION THAT MATTERS, stated precisely**, because it is easy to read the 277 as unfinished work:
 
-  - `scripts/content-gap.mjs` reports 12. They are RESOLVER FALSE POSITIVES rather than absent blocks:
-    `nether_wart` resolves to `NETHER_WART_BLOCK`, `tube_coral` to `TUBE_CORAL_BLOCK`, `dirt_path` to
-    `DIRT`. Each of those is a DISTINCT vanilla block that is separately registered, so the resolver is
-    matching a name onto a neighbouring family member and then reporting the real block as missing because
-    the one it matched is not the one it wanted.
-  - `scripts/parity-coverage.mjs` reports about 15, because `resolveVanillaBlock` returns an ARRAY of keys
-    for names that match several (`white_bed` gives the foot and the head) and the script looks that array
-    up as a single key. A count of the cache puts 65 names in that category.
+  - AGAINST THE PROJECT'S OWN PINNED BASELINE -- the 1.21.4 block registry the game's item, drop and harvest
+    data is all built from -- the block list is COMPLETE. No in-scope block named by the wiki is absent.
+  - AGAINST THE LIVE WIKI PAGE, there are 277 blocks from versions the pinned data predates. Those are a
+    FUTURE objective: implementing them means adopting a newer baseline, which is a different change from
+    closing a gap in this one.
+
+So "complete" here means complete for the version this project targets, and the 277 are the size of the next
+version's work rather than a remainder of this one.
+
+TWO RESIDUAL MEASUREMENTS USED TO REPORT A NON-ZERO BLOCK GAP AND BOTH WERE WRONG. They are recorded here
+because one of them hid twelve real blocks for several rounds before being believed:
+
+  - `scripts/content-gap.mjs` reported 12, and THOSE TWELVE WERE REAL, not false positives. The first draft
+    of this paragraph dismissed them as resolver artefacts because the name-based check said zero; it was the
+    other way round. The name-based check resolves `tube_coral` onto `TUBE_CORAL_BLOCK` and counts the name
+    satisfied, so it hid ten coral PLANTS that had never been registered, plus the nether wart and the dirt
+    path. All twelve are implemented now and this script reports ZERO. The lesson is recorded rather than
+    tidied away: when two measurements of the same thing disagree, the disagreement IS the finding, and the
+    convenient number is the one to distrust.
+  - `scripts/parity-coverage.mjs` still reports a small non-zero block figure, because
+    `resolveVanillaBlock` returns an ARRAY of keys for names that match several (`white_bed` gives the foot
+    and the head) and the script looks that array up as a single key. A count of the cache puts 65 names in
+    that category. This one IS a measurement artefact.
 
 A CAVEAT ON THE "present" ROW, because a batch below turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
