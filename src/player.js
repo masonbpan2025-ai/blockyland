@@ -6,6 +6,7 @@ import { spendDurability } from './durability.js';
 import { applyGlide, wantsToStartGliding, shouldStopGliding, tickElytraWear } from './elytra.js';
 import { fallDamageFor } from './fallDamage.js';
 import { isInVoid, VOID_DAMAGE } from './voidDamage.js';
+import { absorbDamage, absorptionForLevel } from './absorption.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -1064,6 +1065,18 @@ export class Player {
       }
     }
 
+    // Absorption soaks damage before health does, and does not regenerate. Vanilla's order is after armour
+    // and enchantments, which is where this sits.
+    //
+    // Absorption was defined in `statusEffects.js` from the start and implemented nowhere -- absent from the
+    // damage path and from the UI -- so applying it did literally nothing, and a golden apple's whole point
+    // was missing.
+    if ((this.absorption || 0) > 0 && amount > 0) {
+      const soak = absorbDamage(amount, this.absorption);
+      this.absorption = soak.pool;
+      amount = soak.remaining;
+    }
+
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = 0.5;
     if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0) {
@@ -1195,6 +1208,12 @@ export class Player {
 
   applyStatusEffect(effect, duration = 30, level = 1) {
     this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
+    // Absorption carries a damage buffer as well as a timer, and it takes the MAXIMUM rather than summing,
+    // so a second golden apple does not stack a second buffer on top of an unspent one. `statusEffects.js`
+    // has defined this effect since that table was written and nothing implemented it.
+    if (effect === 'absorption') {
+      this.absorption = absorptionForLevel(level, this.absorption || 0);
+    }
     if (this.game?.ui?.addChatMessage) {
       const name = effect.replace(/_/g, ' ').toUpperCase();
       this.game.ui.addChatMessage(`<span style="color:#c084fc;">[Effect] Applied ${name} (${Math.round(duration)}s)</span>`, 'system');

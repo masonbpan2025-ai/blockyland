@@ -649,6 +649,30 @@ One of my own tests had to be loosened here. `tests/elytraGlide.test.js` pinned 
 from the elytra module, so adding `tickElytraWear` to a correct import failed it. That is the same
 over-specification as the husk row tuple in `tests/undeadVariantsParity.test.js`, and the fix is the same:
 assert the content, not the exact shape.
+### 4.2.5 Absorption was inert, and the golden apple was missing half of itself
+
+Found by the same sweep in the other direction: which **status effects** does `statusEffects.js` define that
+nothing ever applies. Five came back — `resistance`, `levitation`, `dolphins_grace`, `absorption` and
+`haste` — and two of them are granted by a golden apple, which is the classic emergency survival item.
+
+**Absorption was implemented nowhere at all.** It was absent from the damage path and from the UI, so
+applying it did literally nothing. `src/absorption.js` gives it a real buffer: four points per level,
+damage taken out of it **after** armour and enchantments and **before** health, and re-application taking
+the maximum rather than summing, so a second golden apple does not stack on an unspent one. The buffer does
+not regenerate, which is what makes it a one-shot shield rather than a second health bar.
+
+**Eating a golden apple gave nothing but food.** The only code that mentioned one was the zombie-villager
+curing ritual. `src/goldenApple.js` restores vanilla's figures:
+
+| item | effects |
+|---|---|
+| Golden Apple | Absorption II 2:00, Regeneration II 0:05 |
+| Enchanted Golden Apple | Absorption IV 2:00, Regeneration V 0:30, Fire Resistance 5:00, Resistance 5:00 |
+
+That also gives `resistance` its first user, so two of the five unapplied effects now have one. The
+remaining three — `levitation`, `dolphins_grace` and `haste` — come from a shulker bullet, a nearby dolphin
+and a beacon respectively, none of which exist yet, so they are recorded here as effects the table carries
+with nothing to grant them.
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers

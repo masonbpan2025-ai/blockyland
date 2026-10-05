@@ -8,6 +8,7 @@ import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
 import { drinkPotion } from './potions.js';
 import { launchFirework } from './fireworks.js';
+import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -1523,6 +1524,9 @@ class Game {
 
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
+        // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
+        // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
+        if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
         if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
           this.sounds.playEat();
           this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + (it.food || 4));
