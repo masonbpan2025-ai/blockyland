@@ -32,6 +32,7 @@ const BLOCK_NAMES_BY_ID = new Map();
 import { steerGround } from './netherMobAI.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
+import { shulkerBulletData, steerShulkerBullet } from './shulkerBullet.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
@@ -6002,8 +6003,30 @@ export class MobManager {
     return mob;
   }
 
-  spawnShulker(x, y, z) {
-    const group = new THREE.Group();
+  /**
+   * Fire a shulker bullet at the player.
+   *
+   * The shulker carried `range: 16` and `damage: 4` in `ambientLocomotion.js` and could never use either: the
+   * stationary branch returned before any attack logic, so a shulker was a turret that never fired. Its
+   * bullet is also the only source of `levitation` in vanilla.
+   */
+  fireShulkerBullet(mob, player, spec) {
+    const data = shulkerBulletData(mob, player, spec);
+    if (!data) return null;
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x9333ea }),
+    );
+    mesh.position.copy(mob.mesh.position);
+    mesh.position.y += 0.5;
+    this.scene.add(mesh);
+    if (!this.customProjectiles) this.customProjectiles = [];
+    this.customProjectiles.push({ mesh, ...data, isShulkerBullet: true });
+    this.sounds?.playShulkerShoot?.();
+    return data;
+  }
+
+  spawnShulker(x, y, z) {    const group = new THREE.Group();
     const purpurMat = new THREE.MeshLambertMaterial({ color: 0x9333ea });
     const headMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
 
@@ -9556,12 +9579,19 @@ export class MobManager {
         const p = this.customProjectiles[pIdx];
         if (p.isBlazeFireball) continue;
         p.life -= dt;
+        // A homing projectile steers before it moves, so it tracks rather than flying a fixed line.
+        if (p.homing) steerShulkerBullet(p, player, dt);
         p.mesh.position.addScaledVector(p.velocity, dt);
 
         let hit = false;
         const hitThreshold = p.isDragonFireball ? 1.8 : 1.0;
         if (player && p.mesh.position.distanceTo(player.position) < hitThreshold) {
           player.takeDamage(p.damage);
+          // A projectile that carries an effect applies it on hit. Generic rather than special-cased to the
+          // shulker, so a future bullet with a different effect needs no change here.
+          if (p.effect?.id) {
+            player.applyStatusEffect?.(p.effect.id, p.effect.seconds, p.effect.level ?? 1);
+          }
           if (p.isDragonFireball && player.velocity) {
             const knock = p.velocity.clone().normalize();
             player.velocity.x += knock.x * 8;
@@ -12329,7 +12359,11 @@ export class MobManager {
       // ambientLocomotion.js, which gives them a target or a wander goal before the mover runs.
       const ambientSpec = locomotionFor(mob.type);
       if (ambientSpec) {
-        updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        // `fire` is injected rather than imported so `ambientLocomotion.js` can decide WHEN a turret shoots
+        // without knowing how a projectile is built. A stationary spec with `ranged` and no hook fired
+        // nothing at all, which is what the shulker did.
+        updateAmbientLocomotion(this, mob, dt, player,
+          { wander: wanderMob, fire: (shooter, target, spec) => this.fireShulkerBullet(shooter, target, spec) });
         // A declared stationary mob still gets the leg pose, so it does not look frozen mid-stride.
         if (ambientSpec.speed <= 0) {
           mob.walkCycle = (mob.walkCycle || 0);

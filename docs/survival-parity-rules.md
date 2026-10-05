@@ -680,7 +680,7 @@ curing ritual. `src/goldenApple.js` restores vanilla's figures:
 
 That also gives `resistance` its first user, so two of the four genuinely-unapplied effects now have one. That leaves `levitation` and `haste` (see 4.2.6), while `dolphins_grace` was never missing.
 
-### 4.2.6 Levitation was inert, and the shulker is a turret that never fires
+### 4.2.6 Levitation was inert, and the shulker never fired
 
 `statusEffects.js` defines Levitation and nothing consumed it: it is absent from `speedMultiplier` and from
 `damageTakenMultiplier`, and `player.js` never read it. Applying it did nothing at all, exactly as
@@ -692,14 +692,28 @@ player cannot sink while it lasts, and it sits after creative flight (which wins
 gliding, because it is a forced effect rather than a movement mode. Its danger is that it ends — the player
 falls from whatever height it reached — and that comes free from the shared effect countdown.
 
-**It still has no source in the game.** In vanilla the only sources are a shulker bullet and the `/effect`
-command. Shulkers exist here: they spawn, and `ambientLocomotion.js` carries `shulker: { range: 16, speed: 0,
-damage: 4, attackReach: 0 }` for them. But `attackReach: 0` means they cannot melee, and there is no bullet
-code, so a shulker is a stationary turret that **never attacks at all** despite carrying a damage figure.
-Adding the bullet is a projectile feature rather than an effect hook, and it is not done.
+**The shulker now fires, and that is levitation's source.** `ambientLocomotion.js` carried
+`shulker: { range: 16, speed: 0, damage: 4, attackReach: 0 }` — a damage figure and an aggro radius that
+neither could ever be used, because the `speed <= 0` branch returned **before** any attack logic. A shulker
+spawned, held its post, and never attacked anything at all.
 
-`levitation` and `haste` are therefore the two effects the table still carries with nothing to grant them —
-`haste` needs a beacon, and levitation needs the shulker bullet above.
+The stationary branch now handles a declared **turret**: it turns to face the player and fires on a cooldown
+when in range. The firing itself is an injected callback, for the same reason `wander` already is — this
+module decides *when* a turret shoots without knowing how a projectile is built. `src/shulkerBullet.js` holds
+the projectile data, and `mobs.js` supplies the mesh and pushes it into the `customProjectiles` loop it
+already had.
+
+Vanilla's figures: 4 damage, Levitation for 10 seconds, on a 1.5 second cooldown, from a bullet that
+**tracks** its target. The tracking is not decoration — a straight-line shot is trivially side-stepped, and
+the whole point of the mob is to lift you off a ledge.
+
+**A steering bug worth recording.** The first implementation blended the velocity toward the target with
+`lerp`, which between two vectors of equal length yields a **shorter** one — so the bullet decelerated every
+frame and would have stalled mid-air. Re-normalising after the blend fixes it, and there is now a test that
+flies a bullet for six seconds at 60 fps against a moving target and asserts the speed is unchanged.
+
+`haste` is therefore the only effect the table carries with nothing to grant it, and it needs a beacon.
+
 ### 4.4 Enchantment damage — implemented
 
 `src/enchantmentEffects.js` holds the damage bonuses, extracted from the melee call site so the numbers
