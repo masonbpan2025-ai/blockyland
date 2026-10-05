@@ -114,8 +114,20 @@ if (existsSync('src/extraItems.js')) {
   // entries overwrite the real definitions -- 86 items became 172 half-broken ones.
   const block = prev.match(/export const EXTRA_ITEMS = \{([\s\S]*?)\n\};/);
   if (block) {
-    for (const m of block[1].matchAll(/^\s{2}([a-z0-9_]+): \{ ([^}]*?) \},$/gm)) {
-      PREVIOUS_ITEMS.push({ name: m[1], body: m[2] });
+    // Whole entries, not lines. The regex this replaced matched every single-line entry and silently
+    // dropped every multi-line one, so a re-run deleted `enchanted_golden_apple` and its effects array.
+    // An entry opens at a two-space id and closes at the next two-space brace; nothing nested sits at
+    // that indentation, and the `\r?` is there because the checked-out file is CRLF while this writes LF.
+    const lines = block[1].split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const open = /^ {2}([a-z0-9_]+): \{/.exec(lines[i]);
+      if (!open) continue;
+      const body = [lines[i]];
+      // Single-line entries close on their own line; missing this case made the scan swallow the file.
+      if (/ \},$/.test(lines[i])) { PREVIOUS_ITEMS.push({ name: open[1], lines: body }); continue; }
+      while (i + 1 < lines.length && !/^ {2}\},?$/.test(lines[i + 1])) body.push(lines[++i]);
+      if (i + 1 < lines.length) body.push(lines[++i]);
+      PREVIOUS_ITEMS.push({ name: open[1], lines: body });
     }
   }
 }
@@ -159,6 +171,23 @@ if (generatedBlockItems) console.log('  generated blocks needing an item: ' + ge
 // --- emit -------------------------------------------------------------------
 const titleCase = (n) => n.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 
+// Vanilla's own display name wins whenever the pinned data has one: it is the string a player sees, and it is
+// neither the title-cased id nor the block's name. Title-casing produced "Hay Block" for `hay_block` (vanilla:
+// "Hay Bale"), "Heart Of The Sea" (vanilla: "Heart of the Sea"), "Jack O Lantern" (vanilla: "Jack o'Lantern")
+// and "Oak Chest Boat" (vanilla: "Oak Boat with Chest") -- fifty items, which `name-parity` now reports.
+/**
+ * Generated ids whose vanilla display name is the generic base of a component-named family.
+ *
+ * A music disc is "Music Disc" plus the disc's own name, which the pinned data does not carry, so vanilla's
+ * `displayName` is just "Music Disc". The other eighteen discs are hand-written in `blocks.js` and kept their
+ * fuller names; this one is generated, so it has to say so here or the regeneration flattens it to the base.
+ */
+const COMPONENT_NAMED_GENERATED = new Set(['music_disc_5']);
+
+const displayNameOf = (name) => (COMPONENT_NAMED_GENERATED.has(name)
+  ? titleCase(name)
+  : itemByName.get(name)?.displayName ?? titleCase(name));
+
 const lines = [];
 lines.push('// GENERATED FILE - do not edit by hand.');
 lines.push('//');
@@ -176,13 +205,33 @@ lines.push('// back to a generated placeholder tile showing the item\'s initial.
 lines.push('');
 lines.push('export const EXTRA_ITEMS = {');
 // Carried forward first, verbatim, so a re-run changes nothing.
-for (const p of PREVIOUS_ITEMS) lines.push(`  ${p.name}: { ${p.body} },`);
+// A carried-forward entry is re-emitted verbatim -- its icon is tuned by the icon generator and its type is
+// a deliberate choice -- except for its `name`, which is re-derived from vanilla's data on every run. Without
+// that refresh, correcting a display name only reached newly-emitted items: fifty block items this generator
+// had written as "Hay Block" and "Heart Of The Sea" kept those names forever, because the body was carried
+// forward as an opaque string.
+let refreshedFromVanilla = 0;
+for (const p of PREVIOUS_ITEMS) {
+  for (const line of p.lines) {
+    // A line with no `name:` is an entry's opening line for a multi-line body, or a continuation such as an
+    // effects array; only the line carrying the name is rewritten. An earlier version also skipped any line
+    // that looked like an entry opener, which silently skipped every *single-line* entry -- 733 of the 735.
+    //
+    // The pattern allows an escaped quote inside the name, because some names contain an apostrophe: with a
+    // plain `[^']*` the replacement stopped at the backslash in "Jack o'Lantern" and produced
+    // `'Jack o\'Lantern'Lantern'`, which is a syntax error in the generated module.
+    if (!/name: '(?:[^'\\]|\\.)*'/.test(line)) { lines.push(line); continue; }
+    refreshedFromVanilla++;
+    lines.push(line.replace(/name: '(?:[^'\\]|\\.)*'/, `name: '${displayNameOf(p.name).replace(/'/g, "\\'")}'`));
+  }
+}
+console.log('  display names refreshed from vanilla: ' + refreshedFromVanilla);
 for (const a of all) {
   // Skip anything already emitted, or a re-run would duplicate it.
   if (previouslyEmitted.has(a.name)) continue;
   const icon = `/assets/items/${a.name}.png`;
   const food = FOODS[a.name];
-  const parts = [`name: '${titleCase(a.name).replace(/'/g, "\\'")}'`, `icon: '${icon}'`];
+  const parts = [`name: '${displayNameOf(a.name).replace(/'/g, "\\'")}'`, `icon: '${icon}'`];
   if (food) {
     // foodData already carries canonical hunger/saturation, so a food item is created edible rather
     // than inert.

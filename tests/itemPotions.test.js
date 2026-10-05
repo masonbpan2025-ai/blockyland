@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ITEMS } from '../src/blocks.js';
-import { POTION_DATA, BASE_BREWING_RECIPES, getBrewingResult, potionDataFor } from '../src/brewing.js';
+import { POTION_DATA, BASE_BREWING_RECIPES, getBrewingResult, potionDataFor, VANILLA_GENERIC_POTION_FORMS } from '../src/brewing.js';
 import { POTION_ITEMS, POTION_ITEM_COUNT } from '../src/extraPotions.js';
 import { danglingReferences, registry, resolveResource } from '../src/resourceRegistry.js';
 
@@ -84,7 +84,15 @@ test('names come from POTION_DATA, prefixed by form', () => {
   for (const [id, def] of Object.entries(POTION_ITEMS)) {
     const data = potionDataFor(id);
     assert.ok(data, `${id} should resolve to POTION_DATA`);
-    const expected = data.splash ? `Splash ${data.name}` : data.lingering ? `Lingering ${data.name}` : data.name;
+    // Two ids take vanilla's own name rather than the prefix rule: `splash_potion` and `lingering_potion` are
+    // the water potion's forms, and vanilla calls them "Splash Potion" and "Lingering Potion" -- not
+    // "Splash Water Bottle", which is what prefixing the core's name would produce. See
+    // `VANILLA_GENERIC_POTION_FORMS` in brewing.js.
+    const generic = Object.values(VANILLA_GENERIC_POTION_FORMS)
+      .find((forms) => forms.splash === id || forms.lingering === id);
+    const expected = generic
+      ? (generic.splash === id ? generic.splashName : generic.lingeringName)
+      : data.splash ? `Splash ${data.name}` : data.lingering ? `Lingering ${data.name}` : data.name;
     assert.equal(def.name, expected, `${id} name`);
   }
 });

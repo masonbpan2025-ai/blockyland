@@ -9,8 +9,8 @@
 // delivery and the icon set needs no third identical bottle.
 
 export const POTION_ITEMS = {
-  splash_potion: { name: 'Splash Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
-  lingering_potion: { name: 'Lingering Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
+  splash_potion: { name: 'Splash Potion', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
+  lingering_potion: { name: 'Lingering Potion', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
   awkward_potion: { name: 'Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },
   splash_awkward_potion: { name: 'Splash Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },
   lingering_awkward_potion: { name: 'Lingering Awkward Potion', icon: '/assets/items/awkward_potion.png', type: 'potion', stackSize: 1 },

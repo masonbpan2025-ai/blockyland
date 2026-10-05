@@ -86,6 +86,26 @@ const skipTechnical = (entry) =>
  * when the counterpart is registered: if `black_banner` were missing, `black_wall_banner` would correctly
  * be reported as unobtainable. `tests/resourceInspector.test.js` pins both halves.
  */
+/**
+ * Items whose vanilla *display* name is the generic base, with the distinguishing part carried by a data
+ * component the pinned data does not model.
+ *
+ * The four banner patterns were here too, until the item generator started writing vanilla's display name:
+ * vanilla calls those "Flower Charge Banner Pattern" and so on, which is now what this game calls them, so
+ * they need no exemption. Every remaining entry is a music disc, where vanilla's pinned name is the bare
+ * "Music Disc" and the disc's own name is the component. See the note in the `name-parity` check.
+ */
+export const COMPONENT_NAMED_ITEMS = new Set([
+  // The disc's name is a component, so the pinned data has only the generic base.
+  'music_disc_13', 'music_disc_cat', 'music_disc_blocks', 'music_disc_chirp', 'music_disc_far',
+  'music_disc_mall', 'music_disc_mellohi', 'music_disc_stal', 'music_disc_strad', 'music_disc_ward',
+  'music_disc_11', 'music_disc_wait', 'music_disc_otherside', 'music_disc_pigstep', 'music_disc_relic',
+  'music_disc_creator', 'music_disc_creator_music_box', 'music_disc_precipice', 'music_disc_5',
+]);
+
+/** The one item this game names deliberately differently: see the note in the `name-parity` check. */
+export const DELIBERATE_NAMES = new Set(['potion']);
+
 const PLACEMENT_VARIANTS = [
   ['_wall_banner', '_banner'],
   // A wall sign is a sign placed against a wall, and vanilla drops the sign.
@@ -257,6 +277,35 @@ export const RESOURCE_CHECKS = [
         if (/[<>]/.test(name)) return { ok: false, detail: `name contains markup: ${name}` };
       } catch { /* the regex cannot throw; kept for clarity of intent */ }
       return true;
+    },
+  },
+  {
+    id: 'name-parity',
+    label: 'Named what vanilla names it',
+    group: 'identity',
+    run: ({ entry, vanilla }) => {
+      // Only items. A block's own name is a different string from its item's, and the block-side review owns
+      // those; an item with no vanilla counterpart cannot be compared at all.
+      if (entry.kind !== 'item') return CHECK_SKIP;
+      const vanillaId = vanillaIdOf(entry, vanilla);
+      const expected = vanilla?.itemByName?.get(vanillaId)?.displayName;
+      if (!expected) return CHECK_SKIP;
+      if (entry.name === expected) return true;
+      // Two families where vanilla's *pinned* display name is the generic base and the distinguishing part
+      // comes from a data component, so this game's longer name is the one a player actually sees: a music
+      // disc is "Music Disc" plus the disc's component, and a banner pattern is "Banner Pattern" plus the
+      // pattern. Reporting "Music Disc Cat" as wrong would be asking for a regression.
+      //
+      // Named one by one rather than matched by a prefix, so this cannot quietly widen into "skip whatever is
+      // inconvenient" -- the failure mode these tables exist to avoid.
+      if (COMPONENT_NAMED_ITEMS.has(entry.id)) return CHECK_SKIP;
+      // And one deliberate difference: this game names the drinkable potion "Water Bottle / Potion", because
+      // it models the water bottle and the potion as one item where vanilla splits them by contents.
+      if (DELIBERATE_NAMES.has(entry.id)) return CHECK_SKIP;
+      return {
+        ok: false,
+        detail: `this game calls it "${entry.name}"; vanilla calls it "${expected}"`,
+      };
     },
   },
   {

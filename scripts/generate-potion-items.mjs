@@ -56,10 +56,12 @@ for (const core of coreIds) {
   const handWrittenIcon = previous.has(core) ? undefined : ITEMS[core]?.icon;
   const icon = handWrittenIcon ?? `/assets/items/${core}.png`;
   const generic = VANILLA_GENERIC_POTION_FORMS[core];
+  // The generic forms take vanilla's display names as well as vanilla's ids: "Splash " + the water potion's
+  // name would be "Splash Water Bottle", while vanilla's item is "Splash Potion".
   const forms = [
     { id: core, name: data.name },
-    { id: generic?.splash ?? `splash_${core}`, name: `Splash ${data.name}` },
-    { id: generic?.lingering ?? `lingering_${core}`, name: `Lingering ${data.name}` },
+    { id: generic?.splash ?? `splash_${core}`, name: generic?.splashName ?? `Splash ${data.name}` },
+    { id: generic?.lingering ?? `lingering_${core}`, name: generic?.lingeringName ?? `Lingering ${data.name}` },
   ];
   for (const form of forms) {
     // Hand-written wins. An id that exists in ITEMS but was not emitted here last time was typed by

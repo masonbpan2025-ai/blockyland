@@ -15,7 +15,7 @@ one of them can be reproduced with the commands at the end.
 | | Have | Vanilla | |
 | --- | --- | --- | --- |
 | Items (including item forms of blocks) | **1277** | 1385 | 92.2% |
-| Vanilla item names absent | **16** | 1385 | 98.8% named |
+| Vanilla item names absent | **15** | 1385 | 98.9% named |
 | Registered blocks | 496 | 1095 | — |
 | Recipes | 3609 | 1557 vanilla | — |
 | Smelting rows | 90 | — | — |
@@ -62,7 +62,7 @@ vanilla can obtain and this game cannot, so far as vanilla's pinned recipe, loot
 That is a statement about *obtainability*, not about behaviour. An item can be obtainable and still lack the
 feature it exists for, which is what the next section is about.
 
-## The sixteen absent vanilla names, by owner
+## The fifteen absent vanilla names, by owner
 
 | Item | Why it is absent | Owner |
 | --- | --- | --- |
@@ -97,6 +97,13 @@ their core, because `potionDataFor` and the splash recogniser both resolve a der
 prefix -- and `splash_potion` does not strip to a core that exists. Without that, brewing into the new id
 produced a phantom stack and a thrown splash potion fell through to block placement, which is exactly what
 `tests/splashPotion.test.js` caught.
+
+Two notes on the count. `map` left the list this round without an empty map being
+implemented: correcting `filled_map`'s display name to vanilla's "Map" made the resolver answer for the name
+`map` as well as the id, and the empty map and the filled one share that name in vanilla. It is a name
+collision the count cannot see through -- a limitation worth knowing about when reading any of these figures.
+And fourteen of the remaining fifteen entries carry the reason they are absent in the table above; `resin_brick`
+is the fifteenth, waiting on the resin clump block.
 
 ## What landed, by theme
 

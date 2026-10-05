@@ -137,7 +137,15 @@ export const BASE_BREWING_RECIPES = [
  * drift apart -- which is exactly what happened when the generator was the only thing that knew.
  */
 export const VANILLA_GENERIC_POTION_FORMS = {
-  water_bottle: { splash: 'splash_potion', lingering: 'lingering_potion' },
+  // The display names are vanilla's too. This game builds a splash potion's name as "Splash " + the core's
+  // name, which for the water potion gives "Splash Water Bottle" -- but vanilla's *item* is `splash_potion`
+  // and its name is "Splash Potion", which is what the Inspector's `name-parity` check compares against.
+  water_bottle: {
+    splash: 'splash_potion',
+    lingering: 'lingering_potion',
+    splashName: 'Splash Potion',
+    lingeringName: 'Lingering Potion',
+  },
 };
 
 /**
