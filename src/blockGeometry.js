@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -50,6 +50,19 @@ export function createBlockGeometry(id, textures, state = {}) {
     // A wall is a chunky post with full-height rails, drawn as a cross for the same reason
     // fences are; see the note in slab.js.
     return ensureFlameAttributes(createWallGeometry(def, textures));
+  }
+  if (def?.pressurePlate) {
+    // A thin plate on the floor: the same construction as a carpet with a different footprint.
+    return ensureFlameAttributes(createPressurePlateGeometry(def, textures));
+  }
+  if (def?.button) {
+    // A small box. Modelled floor-mounted; this project has no per-face placement state for
+    // buttons yet, and a floor-mounted button is never wrong about being a button.
+    return ensureFlameAttributes(createButtonGeometry(def, textures));
+  }
+  if (def?.fenceGate) {
+    // Four corner posts with slatted panels between them, drawn closed.
+    return ensureFlameAttributes(createFenceGateGeometry(def, textures));
   }
   if (def?.pane) {
     return ensureFlameAttributes(createPaneGeometry(def, textures));

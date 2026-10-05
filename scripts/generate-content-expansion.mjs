@@ -154,6 +154,47 @@ const FAMILIES = [
     extra: { cube: true },
   },
   {
+    // Pressure plates: a thin plate on the floor, 13 recipes.
+    id: 'pressure_plates',
+    match: (n) => /_pressure_plate$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_pressure_plate$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      if (textureExists(n + ".png")) return n + ".png";
+      return base + ".png";
+    },
+    sound: 'wood',
+    extra: { pressurePlate: true },
+  },
+  {
+    // Buttons: a small box, 13 recipes.
+    id: 'buttons',
+    match: (n) => /_button$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_button$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      if (textureExists(n + ".png")) return n + ".png";
+      return base + ".png";
+    },
+    sound: 'wood',
+    extra: { button: true },
+  },
+  {
+    // Fence gates: four corner posts with slatted panels, 12 recipes.
+    id: 'fence_gates',
+    match: (n) => /_fence_gate$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_fence_gate$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      return base + ".png";
+    },
+    sound: 'wood',
+    extra: { fenceGate: true },
+  },
+  {
     // Walls: a chunky post with full-height rails. One shape, 25 recipes, which is the best
     // remaining payoff. `_wall` is in the name-based cube exclusion, bypassed by the marker.
     id: 'walls',

@@ -289,3 +289,57 @@ export function createChainGeometry(def, tm) {
   return merged;
 }
 
+/**
+ * A pressure plate: a thin plate lying on the floor.
+ *
+ * Vanilla plates are 1/16 tall and slightly inset. This is the same construction as a carpet with a
+ * different footprint, which is why it is a box rather than anything new.
+ *
+ * The plate is not animated when stepped on. That is a redstone behaviour rather than geometry, and
+ * this project's `redstone` flag already drives the block's own state; the shape here is what makes it
+ * a plate rather than a cube.
+ */
+export function createPressurePlateGeometry(def, tm) {
+  const inset = 1 / 16;
+  const size = 1 - inset * 2;
+  return buildBox({ x: size, y: 1 / 16, z: size }, { x: inset, y: 0, z: inset }, def, tm);
+}
+
+/**
+ * A button: a small box on the floor.
+ *
+ * Vanilla buttons are 6/16 across and 4/16 tall when floor-mounted. Wall-mounted buttons are modelled
+ * the same way here rather than by facing, because this project has no per-face placement state for
+ * them yet -- and a floor-mounted button is never wrong about being a button.
+ */
+export function createButtonGeometry(def, tm) {
+  const w = 6 / 16;
+  const h = 4 / 16;
+  const min = (1 - w) / 2;
+  return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
+}
+
+/**
+ * A fence gate: a post at each side with a slatted panel between them.
+ *
+ * Modelled closed. An open gate would be a different geometry, and this project's doors already show
+ * that an open state is a separate block id, so a gate could follow the same pattern later.
+ */
+export function createFenceGateGeometry(def, tm) {
+  const post = 2 / 16;
+  const railY = [5 / 16, 9 / 16];
+  const railH = 2 / 16;
+  const parts = [
+    buildBox({ x: post, y: 1, z: post }, { x: 0, y: 0, z: 0 }, def, tm),
+    buildBox({ x: post, y: 1, z: post }, { x: 1 - post, y: 0, z: 0 }, def, tm),
+    buildBox({ x: post, y: 1, z: post }, { x: 0, y: 0, z: 1 - post }, def, tm),
+    buildBox({ x: post, y: 1, z: post }, { x: 1 - post, y: 0, z: 1 - post }, def, tm),
+  ];
+  for (const y of railY) {
+    parts.push(buildBox({ x: 1, y: railH, z: 1 / 16 }, { x: 0, y, z: (1 - 1 / 16) / 2 }, def, tm));
+  }
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  return merged;
+}
+

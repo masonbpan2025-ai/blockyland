@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1412 recipes.
+// 1453 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -605,10 +605,51 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,'redstone',B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.NOTE_BLOCK,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,'redstone',B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.NOTE_BLOCK,isBlock:true,count:1}},
   {shapeless:true,ingredients:[B.STONE],result:{id:B.STONE_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.POLISHED_BLACKSTONE],result:{id:B.POLISHED_BLACKSTONE_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.OAK_PLANKS],result:{id:B.OAK_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.SPRUCE_PLANKS],result:{id:B.SPRUCE_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.BIRCH_PLANKS],result:{id:B.BIRCH_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.JUNGLE_PLANKS],result:{id:B.JUNGLE_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.ACACIA_PLANKS],result:{id:B.ACACIA_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.CHERRY_PLANKS],result:{id:B.CHERRY_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.DARK_OAK_PLANKS],result:{id:B.DARK_OAK_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.PALE_OAK_PLANKS],result:{id:B.PALE_OAK_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.MANGROVE_PLANKS],result:{id:B.MANGROVE_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.BAMBOO_PLANKS],result:{id:B.BAMBOO_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.CRIMSON_PLANKS],result:{id:B.CRIMSON_BUTTON,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.WARPED_PLANKS],result:{id:B.WARPED_BUTTON,isBlock:true,count:1}},
+  {pattern:[[B.STONE,B.STONE]],result:{id:B.STONE_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.POLISHED_BLACKSTONE,B.POLISHED_BLACKSTONE]],result:{id:B.POLISHED_BLACKSTONE_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[['gold_ingot','gold_ingot']],result:{id:B.LIGHT_WEIGHTED_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[['iron_ingot','iron_ingot']],result:{id:B.HEAVY_WEIGHTED_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.BIRCH_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS]],result:{id:B.JUNGLE_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS]],result:{id:B.ACACIA_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.CHERRY_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS]],result:{id:B.DARK_OAK_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.PALE_OAK_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS]],result:{id:B.MANGROVE_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.BAMBOO_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.CRIMSON_PRESSURE_PLATE,isBlock:true,count:1}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.WARPED_PRESSURE_PLATE,isBlock:true,count:1}},
   {pattern:[['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot']],result:{id:B.IRON_DOOR,isBlock:true,count:3}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_DOOR,isBlock:true,count:3}},
   {pattern:[['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot']],result:{id:B.IRON_TRAPDOOR,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[['stick',B.OAK_PLANKS,'stick'],['stick',B.OAK_PLANKS,'stick']],result:{id:B.OAK_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.SPRUCE_PLANKS,'stick'],['stick',B.SPRUCE_PLANKS,'stick']],result:{id:B.SPRUCE_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.BIRCH_PLANKS,'stick'],['stick',B.BIRCH_PLANKS,'stick']],result:{id:B.BIRCH_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.JUNGLE_PLANKS,'stick'],['stick',B.JUNGLE_PLANKS,'stick']],result:{id:B.JUNGLE_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.ACACIA_PLANKS,'stick'],['stick',B.ACACIA_PLANKS,'stick']],result:{id:B.ACACIA_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.CHERRY_PLANKS,'stick'],['stick',B.CHERRY_PLANKS,'stick']],result:{id:B.CHERRY_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.DARK_OAK_PLANKS,'stick'],['stick',B.DARK_OAK_PLANKS,'stick']],result:{id:B.DARK_OAK_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.PALE_OAK_PLANKS,'stick'],['stick',B.PALE_OAK_PLANKS,'stick']],result:{id:B.PALE_OAK_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.MANGROVE_PLANKS,'stick'],['stick',B.MANGROVE_PLANKS,'stick']],result:{id:B.MANGROVE_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.BAMBOO_PLANKS,'stick'],['stick',B.BAMBOO_PLANKS,'stick']],result:{id:B.BAMBOO_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.CRIMSON_PLANKS,'stick'],['stick',B.CRIMSON_PLANKS,'stick']],result:{id:B.CRIMSON_FENCE_GATE,isBlock:true,count:1}},
+  {pattern:[['stick',B.WARPED_PLANKS,'stick'],['stick',B.WARPED_PLANKS,'stick']],result:{id:B.WARPED_FENCE_GATE,isBlock:true,count:1}},
   {pattern:[['gold_ingot',null,'gold_ingot'],['gold_ingot','stick','gold_ingot'],['gold_ingot','redstone','gold_ingot']],result:{id:B.POWERED_RAIL,isBlock:true,count:6}},
   {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot','stick','iron_ingot'],['iron_ingot',null,'iron_ingot']],result:{id:B.RAIL,isBlock:true,count:16}},
   {pattern:[['iron_ingot',null,'iron_ingot'],['iron_ingot','iron_ingot','iron_ingot']],result:{id:'minecart',isBlock:false,count:1}},
@@ -1432,21 +1473,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1412;
+export const EXTRA_RECIPE_COUNT = 1453;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1412,
-  "shaped": 1174,
-  "shapeless": 245,
-  "skippedMissingResult": 131,
+  "emitted": 1453,
+  "shaped": 1202,
+  "shapeless": 258,
+  "skippedMissingResult": 90,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1419,
+  "emittedBeforeDedupe": 1460,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0
