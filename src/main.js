@@ -10,6 +10,7 @@ import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { drinkPotion, isDrinkablePotion } from './potionUse.js';
 import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
@@ -1175,6 +1176,21 @@ class Game {
       this.mobs?.spawnParticleBurst?.(splashPos, 0x4a044e, 16);
       this.sounds?.playPotionSplash?.();
       return;
+    }
+
+    // Potion drinking. `potionUse.js` owns what a potion does; this only decides that the player is
+    // using one. A splash or lingering potion is refused there rather than consumed with no effect.
+    const potionItem = this.inventory.getActiveItem();
+    if (potionItem && isDrinkablePotion(potionItem.id)) {
+      const result = drinkPotion(potionItem.id, this.player, this.inventory, { gamemode: this.player.gamemode });
+      if (result.drunk) {
+        // There is no dedicated potion sound, so the milk-drink one is the fallback; picking the first
+        // that exists rather than chaining `??` avoids calling both when the first returns undefined.
+        (this.sounds?.playPotionDrink ?? this.sounds?.playMilk)?.();
+        this.ui?.updateHotbar?.();
+        this.ui?.updateStats?.();
+        return;
+      }
     }
 
     const bucketItem = this.inventory.getActiveItem();

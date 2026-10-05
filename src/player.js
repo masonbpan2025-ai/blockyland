@@ -398,6 +398,14 @@ export class Player {
           this.sounds?.playHurt?.();
         }
       }
+      // Regeneration heals on the same 1.25 s cadence, one point at a time, and never past full.
+      // Without this a Potion of Regeneration was stored, listed in the HUD and did nothing.
+      if (effect === 'regeneration' && data.tickTimer >= 1.25) {
+        data.tickTimer = 0;
+        if (this.health > 0 && this.health < this.maxHealth) {
+          this.health = Math.min(this.maxHealth, this.health + (data.level || 1));
+        }
+      }
       if (data.duration <= 0) {
         this.statusEffects.delete(effect);
       }
@@ -476,6 +484,13 @@ export class Player {
     if (this.hasStatusEffect('slowness')) {
       targetSpeed *= 0.6;
     }
+
+    // Swiftness and Slowness are the two potion effects that change walking speed outright, and
+    // Swiftness had no reader at all: a Potion of Swiftness was drunk, stored, shown in the HUD and
+    // had no effect on the player. Vanilla adds 20% per level; Slowness is a flat 15% reduction per
+    // level there, but the 0.6 above is this game's existing value and is left alone.
+    const speedEffect = this.statusEffects?.get?.('speed');
+    if (speedEffect) targetSpeed *= 1 + 0.2 * (speedEffect.level || 1);
 
     // Movement direction input
     let moveForward = 0;
