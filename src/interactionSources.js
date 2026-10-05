@@ -35,6 +35,11 @@ export const INTERACTION_SOURCES = [
     how: 'Use a bucket on a cow or a mooshroom.',
     source: 'animalBehaviors.js AnimalBehaviors.interact',
   },
+  {
+    item: 'water_bottle',
+    how: 'Fill a glass bottle from a water source block.',
+    source: 'bottles.js useGlassBottle',
+  },
 ];
 
 /** The item ids this table claims, for the registry to mark and for tests to check. */

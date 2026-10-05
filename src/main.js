@@ -45,6 +45,7 @@ import {
 import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
+import { isGlassBottle, useGlassBottle } from './bottles.js';
 import { blockDrops } from './blockDrops.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
@@ -1260,6 +1261,21 @@ class Game {
       if (result) {
         this.sounds.playWater(); this.ui.updateHotbar();
         this.refreshDirtyChunks();
+      }
+      return;
+    }
+    // A glass bottle on water. This is the only way to get a water bottle, and a water bottle is the root of
+    // every brewing recipe, so without it the brewing stand is furniture.
+    if (isGlassBottle(bucketItem)) {
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      // `true` for "empty": the trace stops at a water source block, which is what a bottle needs. The same
+      // trace the bucket uses, because the reach and the source-only rule are identical.
+      const hit = traceBucket(this.world, this.camera.position, direction, true);
+      const filled = useGlassBottle(this.world, this.inventory, this.player.gamemode, hit,
+        id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false));
+      if (filled) {
+        this.sounds.playWater?.();
+        this.ui.updateHotbar();
       }
       return;
     }
