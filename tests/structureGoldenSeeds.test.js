@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { generateGoldens, goldenFor, goldenStructureIds, LOCATE_CHUNK_LIMIT } from '../scripts/structure-goldens.mjs';
+import { generateGoldens, goldenFor, goldenStructureIds, LOCATE_CHUNK_LIMIT, LOCATE_CHUNK_ROWS } from '../scripts/structure-goldens.mjs';
 import { generatorCoverage } from '../src/worldgen/index.js';
 
 const PATH = new URL('./golden/structureSeeds.json', import.meta.url);
@@ -74,16 +74,11 @@ test('the goldens cover the structures with the most moving parts, not just the 
   assert.equal(byId.get('buried_treasure').blockCount, 1);
 });
 
-test('one structure is recorded as not found, and that is visible rather than hidden', () => {
-  // `ruined_portal_jungle` was not located within the search bound while every other portal variant was. That
-  // is a finding, not a rounding error: either its placement or its biome gate keeps it out of reach, and
-  // recording it as "unfound" keeps it in view instead of silently dropping it from the net.
-  assert.ok(goldens.unfound.length <= 1, `too many structures unlocatable: ${goldens.unfound.join(', ')}`);
-  if (goldens.unfound.includes('ruined_portal_jungle')) {
-    assert.ok(LOCATE_CHUNK_LIMIT >= 6000, 'the search bound must be generous enough for sparse sets');
-  }
-  // No id may be both recorded and unfound.
-  for (const id of goldens.unfound) {
-    assert.equal(goldens.entries.some((entry) => entry.id === id), false, `${id} is both found and unfound`);
-  }
+test('every implemented structure is actually reachable', () => {
+  // The jungle ruined portal was briefly recorded as UNREACHABLE. It is reachable: it simply does not appear
+  // on chunkZ row 0 at the golden seed, so a single-row scan was too thin a sample of a sparse set. The
+  // harness now scans several rows and requires an EMPTY unfound list, which turns "unreachable" from an
+  // observation into a hard failure -- the correct severity for a structure that cannot generate.
+  assert.deepEqual(goldens.unfound, [],
+    `these structures could not be located in ${LOCATE_CHUNK_LIMIT} chunks over ${LOCATE_CHUNK_ROWS + 1} rows: ${goldens.unfound.join(', ')}`);
 });

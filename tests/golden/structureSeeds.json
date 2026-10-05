@@ -203,6 +203,26 @@
       "contentHash": 958711843
     },
     {
+      "id": "ruined_portal_jungle",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "jungle",
+      "chunkX": 2164,
+      "chunkZ": 1,
+      "planHash": 346990697,
+      "pieces": 1,
+      "box": [
+        34630,
+        70,
+        22,
+        34634,
+        75,
+        26
+      ],
+      "blockCount": 32,
+      "contentHash": 3720951727
+    },
+    {
       "id": "ruined_portal_mountain",
       "seed": 20250401,
       "dimension": "overworld",
@@ -323,7 +343,5 @@
       "contentHash": 4025683444
     }
   ],
-  "unfound": [
-    "ruined_portal_jungle"
-  ]
+  "unfound": []
 }

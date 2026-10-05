@@ -22,6 +22,13 @@ import { BLOCKS } from '../src/blocks.js';
 /** The search bound for locating each structure. Generous, because a sparse set must still be findable. */
 export const LOCATE_CHUNK_LIMIT = 6000;
 
+/**
+ * How many chunkZ ROWS to scan. More than one, because a single row is a thin sample of a sparse set: the
+ * ruined-portal jungle variant is reachable but does not appear on row 0 at the golden seed, which made an
+ * earlier version of this harness report a reachable structure as unreachable.
+ */
+export const LOCATE_CHUNK_ROWS = 2;
+
 /** Structures whose goldens are recorded, in a fixed order so the file's diff is readable. */
 export function goldenStructureIds() {
   const { implemented } = generatorCoverage();
@@ -60,9 +67,11 @@ export function goldenFor(id, seed) {
   });
 
   let found = null;
-  for (let chunkX = 0; chunkX < LOCATE_CHUNK_LIMIT && !found; chunkX++) {
-    const plan = engine.planChunk(chunkX, 0);
-    if (plan && plan.structureId === id) found = plan;
+  for (let chunkZ = 0; chunkZ <= LOCATE_CHUNK_ROWS && !found; chunkZ++) {
+    for (let chunkX = 0; chunkX < LOCATE_CHUNK_LIMIT && !found; chunkX++) {
+      const plan = engine.planChunk(chunkX, chunkZ);
+      if (plan && plan.structureId === id) found = plan;
+    }
   }
   if (!found) return null;
 
