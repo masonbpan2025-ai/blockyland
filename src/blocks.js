@@ -269,7 +269,24 @@ export const BLOCKS = {
   COPPER_ORE: 955,
   LAPIS_ORE: 956,
   NETHER_GOLD_ORE: 957,
-  NETHER_QUARTZ_ORE: 958
+  NETHER_QUARTZ_ORE: 958,
+
+  // --- Saplings, second block-parity batch ------------------------------------------------------
+  //
+  // Eight tree saplings plus the mangrove propagule. All render as the existing cross-quad plant
+  // model, so like the ores they need no new geometry -- only data plus a texture.
+  //
+  // `_sapling` and `_propagule` are in the generator's NOT_A_CUBE exclusion list, so it never emitted
+  // these; that is why they were absent despite the wood types themselves existing.
+  OAK_SAPLING: 959,
+  SPRUCE_SAPLING: 960,
+  BIRCH_SAPLING: 961,
+  JUNGLE_SAPLING: 962,
+  ACACIA_SAPLING: 963,
+  CHERRY_SAPLING: 964,
+  DARK_OAK_SAPLING: 965,
+  PALE_OAK_SAPLING: 966,
+  MANGROVE_PROPAGULE: 967
 };
 
 export const BLOCK_DEFS = {
@@ -641,6 +658,26 @@ export const BLOCK_DEFS = {
       all: 'dandelion.png'
     }
   },
+  // --- Saplings, second block-parity batch ------------------------------------------------------
+  //
+  // A sapling is a cross-quad plant exactly like a flower: hardness 0, no collision (`solid: false`)
+  // so it does not block movement, `transparent` so it does not occlude, and `drop` itself so breaking
+  // it returns the sapling. It is a block rather than a `dropItem` because the held item is the block.
+  //
+  // Vanilla would grow these into trees on a random tick. This game has no random-tick layer, so a
+  // sapling is decorative for now -- which is also why the block is worth adding: it is the item the
+  // recipe and loot tables already expect to exist, and its absence was a phantom id.
+  [BLOCKS.OAK_SAPLING]: { name: 'Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.OAK_SAPLING, textures: { all: 'oak_sapling.png' } },
+  [BLOCKS.SPRUCE_SAPLING]: { name: 'Spruce Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SPRUCE_SAPLING, textures: { all: 'spruce_sapling.png' } },
+  [BLOCKS.BIRCH_SAPLING]: { name: 'Birch Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.BIRCH_SAPLING, textures: { all: 'birch_sapling.png' } },
+  [BLOCKS.JUNGLE_SAPLING]: { name: 'Jungle Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.JUNGLE_SAPLING, textures: { all: 'jungle_sapling.png' } },
+  [BLOCKS.ACACIA_SAPLING]: { name: 'Acacia Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.ACACIA_SAPLING, textures: { all: 'acacia_sapling.png' } },
+  [BLOCKS.CHERRY_SAPLING]: { name: 'Cherry Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.CHERRY_SAPLING, textures: { all: 'cherry_sapling.png' } },
+  [BLOCKS.DARK_OAK_SAPLING]: { name: 'Dark Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.DARK_OAK_SAPLING, textures: { all: 'dark_oak_sapling.png' } },
+  [BLOCKS.PALE_OAK_SAPLING]: { name: 'Pale Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.PALE_OAK_SAPLING, textures: { all: 'pale_oak_sapling.png' } },
+  // The propagule is the mangrove's sapling and hangs as well as stands; the upright form is what is
+  // registered here, matching how vanilla itemises it.
+  [BLOCKS.MANGROVE_PROPAGULE]: { name: 'Mangrove Propagule', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.MANGROVE_PROPAGULE, textures: { all: 'mangrove_propagule.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
@@ -1293,6 +1330,79 @@ export const ITEMS = {
   splash_water_bottle: {name:'Splash Water Bottle',icon:'/assets/items/potion.png',type:'potion'},
   water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
   splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
+  awkward_potion: { name: "Awkward Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  thick_potion: { name: "Thick Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  mundane_potion: { name: "Mundane Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_healing: { name: "Potion of Healing", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_regeneration: { name: "Potion of Regeneration", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_strength: { name: "Potion of Strength", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_swiftness: { name: "Potion of Swiftness", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_night_vision: { name: "Potion of Night Vision", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_invisibility: { name: "Potion of Invisibility", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_water_breathing: { name: "Potion of Water Breathing", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_leaping: { name: "Potion of Leaping", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_slow_falling: { name: "Potion of Slow Falling", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_poison: { name: "Potion of Poison", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_weakness: { name: "Potion of Weakness", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_harming: { name: "Potion of Harming", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_turtle_master: { name: "Potion of the Turtle Master", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_healing_2: { name: "Potion of Healing II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_regeneration_2: { name: "Potion of Regeneration II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_strength_2: { name: "Potion of Strength II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_swiftness_2: { name: "Potion of Swiftness II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_leaping_2: { name: "Potion of Leaping II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_poison_2: { name: "Potion of Poison II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_harming_2: { name: "Potion of Harming II", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_regeneration_long: { name: "Potion of Regeneration (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_strength_long: { name: "Potion of Strength (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_swiftness_long: { name: "Potion of Swiftness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_fire_resistance_long: { name: "Potion of Fire Resistance (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_night_vision_long: { name: "Potion of Night Vision (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_invisibility_long: { name: "Potion of Invisibility (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_water_breathing_long: { name: "Potion of Water Breathing (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_leaping_long: { name: "Potion of Leaping (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_slow_falling_long: { name: "Potion of Slow Falling (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_poison_long: { name: "Potion of Poison (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_weakness_long: { name: "Potion of Weakness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_slowness: { name: "Potion of Slowness", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_slowness_long: { name: "Potion of Slowness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  potion_of_slowness_2: { name: "Potion of Slowness IV", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_awkward_potion: { name: "Awkward Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_thick_potion: { name: "Thick Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_mundane_potion: { name: "Mundane Potion", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_healing: { name: "Splash Potion of Healing", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_regeneration: { name: "Splash Potion of Regeneration", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_strength: { name: "Splash Potion of Strength", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_swiftness: { name: "Splash Potion of Swiftness", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_night_vision: { name: "Splash Potion of Night Vision", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_invisibility: { name: "Splash Potion of Invisibility", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_water_breathing: { name: "Splash Potion of Water Breathing", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_leaping: { name: "Splash Potion of Leaping", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_slow_falling: { name: "Splash Potion of Slow Falling", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_poison: { name: "Splash Potion of Poison", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_harming: { name: "Splash Potion of Harming", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_turtle_master: { name: "Splash Potion of the Turtle Master", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_healing_2: { name: "Splash Potion of Healing II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_regeneration_2: { name: "Splash Potion of Regeneration II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_strength_2: { name: "Splash Potion of Strength II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_swiftness_2: { name: "Splash Potion of Swiftness II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_leaping_2: { name: "Splash Potion of Leaping II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_poison_2: { name: "Splash Potion of Poison II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_harming_2: { name: "Splash Potion of Harming II", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_regeneration_long: { name: "Splash Potion of Regeneration (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_strength_long: { name: "Splash Potion of Strength (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_swiftness_long: { name: "Splash Potion of Swiftness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_fire_resistance_long: { name: "Splash Potion of Fire Resistance (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_night_vision_long: { name: "Splash Potion of Night Vision (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_invisibility_long: { name: "Splash Potion of Invisibility (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_water_breathing_long: { name: "Splash Potion of Water Breathing (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_leaping_long: { name: "Splash Potion of Leaping (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_slow_falling_long: { name: "Splash Potion of Slow Falling (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_poison_long: { name: "Splash Potion of Poison (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_weakness_long: { name: "Splash Potion of Weakness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_slowness: { name: "Splash Potion of Slowness", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_slowness_long: { name: "Splash Potion of Slowness (Extended)", icon: '/assets/items/potion.png', type: 'potion' },
+  splash_potion_of_slowness_2: { name: "Splash Potion of Slowness IV", icon: '/assets/items/potion.png', type: 'potion' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
   // --- Mob Spawn Eggs ---

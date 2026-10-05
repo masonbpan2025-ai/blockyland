@@ -516,6 +516,18 @@ today. The ranged form is implemented and covered by a test, but it is unexercis
   rule is applied consistently rather than special-cased on a half-remembered number, and
   `tests/tippedArrows.test.js` names that one assertion as the thing to change if a source turns up.
 
+- **Potions could not be drunk at all, and only three of thirty-nine existed as items.**
+  POTION_DATA defines 39 potions and getBrewingResult can produce every one of them, but nothing
+  consumed a 	ype: 'potion' item -- main.js handled 	ype === 'food' and stopped -- and only
+  potion_of_fire_resistance, splash_potion_of_fire_resistance and splash_potion_of_weakness\n  were registered in ITEMS. So the brewing stand could hand the player a Potion of Healing with no name,
+  no icon and no way to use it. 	ests/item_icons.test.js walks ITEMS only, so a brewable potion with
+  no entry was invisible to every test in the suite.
+
+  src/potions.js now drinks a potion by reading its effect from POTION_DATA, and 73 potion items
+  (37 drinkable plus their 36 splash forms) were registered beside the three that existed. Both halves
+  are derived from the table, so anything the brewing stand can produce is obtainable and drinkable by
+  construction rather than by a list somebody has to remember to extend.
+
   Lingering potions do not exist in this game at all — no item, no cloud — so the `x0.25` factor has nothing
   to apply to. It is not implemented rather than unimplemented; splash-potion behaviour beyond the
   fire-resistance case in `barterItems.js` also remains unverified.
