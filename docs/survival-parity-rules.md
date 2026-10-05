@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1549 | 1557 | 99.5% |
 | Crafting recipes expressible | 1550 | 1557 | 99.6% |
-| Blocks named | 1060 | 1095 | 96.8% |
-| Items named | 1299 | 1385 | 93.8% |
+| Blocks named | 1068 | 1095 | 97.5% |
+| Items named | 1303 | 1385 | 94.1% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,12 +371,12 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1058 | 1287 |
-| missing | 37 | 98 |
+| present | 1066 | 1291 |
+| missing | 29 | 94 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **37** | **98** |
-| art files | 457 | 1071 |
+| **missing, needs NEW art** | **29** | **94** |
+| art files | 529 | 1071 |
 
 BOTH reachability columns are empty, and the caveat that used to follow them was WRONG. The previous
 version of this section said "there is no longer any block reachable by writing code alone" and named
@@ -390,7 +390,7 @@ version directories.
 
 So the honest statement is narrower than the one it replaces: **no remaining block has art that can be
 used as-is**, but "needs NEW art" is a claim this table cannot actually make, because it only tests the
-bare name and a few suffixes. FOUR rounds have now been unblocked without drawing anything:
+bare name and a few suffixes. FIVE rounds have now been unblocked without drawing anything:
 
 | blocks | how the art was obtained |
 |---|---|
@@ -398,12 +398,19 @@ bare name and a few suffixes. FOUR rounds have now been unblocked without drawin
 | 37 potted plants | composed from the flower pot and plant sprites |
 | soul fire | sliced from a 32-frame animation strip |
 | 3 filled cauldrons | composed from the pot and the fluids, which also had to be sliced |
+| 8 mob heads | EXTRACTED from `entity/` skin sheets, a different mirror directory entirely |
 
-`scripts/compose-candle-cakes.py`, `scripts/compose-potted-plants.py`, `scripts/slice-texture-frames.py`
-and `scripts/compose-filled-cauldrons.py` are those four tools, all committed and all asserted by tests
-so that clearing `public/assets` and re-running only the downloader cannot silently lose their output.
-`scripts/restore-block-assets.mjs` runs them in the one order that works, with the slicer before the
-composers because two of the cauldron fluids are strips.
+That last one is the widest reach yet, and it is why the column cannot be trusted: the art was not in
+`blocks/` at all. `scripts/extract-mob-head-textures.py` crops the head faces out of the standard 32x16
+head region of each mob's skin. Two of the six mob heads still fail that way and the script records why
+-- the creeper's sheet is not in the standard layout, and the dragon has no sheet in the mirror -- so
+four arrived and two did not, rather than all six arriving half-done.
+
+`scripts/compose-candle-cakes.py`, `scripts/compose-potted-plants.py`, `scripts/slice-texture-frames.py`,
+`scripts/compose-filled-cauldrons.py` and `scripts/extract-mob-head-textures.py` are those five tools, all
+committed and all asserted by tests so that clearing `public/assets` and re-running only the downloader
+cannot silently lose their output. `scripts/restore-block-assets.mjs` runs them in the one order that
+works, with the slicer before the composers because two of the cauldron fluids are strips.
 
 Of the 37 remaining blocks, the six mob heads are the next candidate on the same basis: their art exists,
 as `entity/` skin sheets rather than block tiles, so they need a UV mapping rather than a drawing.
