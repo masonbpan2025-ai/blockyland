@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
 import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
 import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
@@ -2357,6 +2358,9 @@ export class MobManager {
       case 'tadpole': return TADPOLE_DIMENSIONS;
       // Wiki: parrots are 0.5 x 0.9 in Java.
       case 'parrot': return PARROT_DIMENSIONS;
+      // Wiki: phantoms are 0.9 x 0.5. Without this row the collision fell back to the humanoid
+      // default of 0.6 x 1.95, which made a phantom a tall thin box instead of a flat wide one.
+      case 'phantom': return PHANTOM_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -5582,11 +5586,10 @@ export class MobManager {
     const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeL.position.set(-0.12, 0.08, 0.65); group.add(eyeL);
     const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeR.position.set(0.12, 0.08, 0.65); group.add(eyeR);
 
-    // Broad wings
-    const wingGeo = new THREE.BoxGeometry(1.6, 0.06, 0.5);
-    const wings = new THREE.Mesh(wingGeo, phantomMat);
-    wings.position.set(0, 0.05, 0);
-    group.add(wings);
+    // Broad wings, split into two pivots. The shared `moveFlyingMob` helper writes
+    // `mob.wings.left.rotation.z`, so a single undivided wing mesh freezes the mob -- the trap the
+    // bat fell into.
+    const wings = createPhantomWings(phantomMat, group);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5597,8 +5600,35 @@ export class MobManager {
       name: 'Phantom',
       mesh: group,
       isFlying: true,
-      health: 20,
-      maxHealth: 20,
+      // Wiki: 20 HP, and a phantom always has 20 regardless of its size.
+      health: PHANTOM_HEALTH,
+      maxHealth: PHANTOM_HEALTH,
+      width: PHANTOM_DIMENSIONS.width,
+      height: PHANTOM_DIMENSIONS.height,
+      wings,
+      eyeMeshes: [eyeL, eyeR],
+      // Wiki entity tags: undead, burn_in_daylight, fall_damage_immune, can_breathe_under_water,
+      // ignores_poison_and_regen, inverted_healing_and_harm, sensitive_to_smite.
+      isUndead: true,
+      burnsInDaylight: true,
+      fallDamageImmune: true,
+      canBreatheUnderwater: true,
+      poisonImmune: true,
+      // Undead are healed by Instant Damage and hurt by Instant Health, which the shared status
+      // system reads.
+      invertedHealing: true,
+      // Wiki: a phantom "tries to stay at least 16 blocks away" from cats.
+      fearsCats: true,
+      // Sunlight burning, and the swoop state.
+      isBurning: false,
+      burnTimer: 0,
+      inSunlight: false,
+      swoopState: null,
+      swoopTimer: 0,
+      anchorPos: null,
+      circlePhase: 0,
+      pitch: 0,
+      target: null,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -7033,6 +7063,9 @@ export class MobManager {
     } else if (mob.type === 'goat') {
       // A goat never retaliates; the wiki is explicit that it cannot be provoked.
       return;
+    } else if (mob.type === 'phantom') {
+      // Wiki: hurt mid-swoop makes it retreat to its anchor instead of pressing the attack.
+      onPhantomHurt(mob);
     } else if (mob.type === 'parrot') {
       // Wiki: taking damage is one of the states that forces a parrot off a shoulder.
       if (mob.perchedOn) { dismountShoulder(mob, this.game?.player); mob.velocity.set(0, 1.5, 0); }
@@ -7262,7 +7295,6 @@ export class MobManager {
       guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
       elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
       drowned: [['rotten_flesh', false, 1, 2]],
-      phantom: [['phantom_membrane', false, 1, 2]],
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
       wither: [['nether_star', false, 1, 1]]
     }[mob.type] || [];
@@ -7290,7 +7322,11 @@ export class MobManager {
     const tadpoleRows = isTadpole(mob) ? tadpoleDrops(mob) : [];
     // Wiki: a parrot drops 1-2 feathers.
     const parrotRows = isParrot(mob) ? parrotDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows];
+    // Wiki: a phantom drops 0-1 phantom membrane, with Looting adding 0-1 more, and a flat 5 XP.
+    // The drop is produced by phantomDrops rather than a row here: the row this replaced hardcoded
+    // 1-2, which is neither the wiki's base count nor its Looting behaviour.
+    const phantomRows = isPhantom(mob) && (mob.playerDamaged || mob.wolfKilled) ? phantomDrops(mob, random) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows];
   }
 
   /**
@@ -7379,8 +7415,10 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
+          : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
           : mob.type === 'tadpole' ? 0
+          : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
           : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
           : mob.type === 'tadpole' ? 0
           : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
@@ -7792,6 +7830,38 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='phantom'){
+      // Wiki: hostile undead flyer. It circles above its target, swoops every 8-12s to bite, retreats
+      // to its anchor when hurt mid-swoop, keeps 16 blocks from cats, burns in sunlight, and is
+      // fall-damage immune.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.target = findPhantomTarget(this, mob, player, { difficulty: this.game?.difficulty ?? 'normal' });
+
+      // Wiki: like other undead, it burns in sunlight.
+      const phX = Math.floor(mob.mesh.position.x);
+      const phY = Math.floor(mob.mesh.position.y);
+      const phZ = Math.floor(mob.mesh.position.z);
+      const skyLight = this.world.getLightLevel?.(phX, phY, phZ) ?? 15;
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      mob.inSunlight = phantomBurnsInSunlight(mob, skyLight, isDaytime);
+      // `isBurning` is set in both directions. Leaving it undefined when the phantom is not on fire
+      // made "is it burning?" unanswerable rather than false, which telemetry and tests both care
+      // about.
+      if (mob.inSunlight && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
+      if (!mob.inSunlight && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; }
+      if (mob.isBurning) {
+        mob.burnTimer -= dt;
+        if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+        else {
+          mob.burnTick = (mob.burnTick ?? 1) - dt;
+          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+        }
+      }
+
+      updatePhantomFlight(this, mob, dt, player, { move: moveFlyingMob });
+      posePhantom(mob);
       return true;
     }
     if(mob.type==='parrot'){

@@ -145,9 +145,8 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
   ]);
   const knownFrozen = new Set([
     'blaze',        // owned by the in-flight Blaze work on another branch
-    // Cube mobs: `slime` and `magma_cube` now hop, but `phantom` still has no locomotion — it is
-    // flying and needs its own swooping AI rather than a cube hop.
-    'phantom',
+    // The cube mobs all hop now, and the phantom has its own circling-and-swooping flight, so none
+    // of them are listed here any more.
     // These two DO steer, but only when built by their dedicated spawners, which set up the
     // path-following state that `spawnMob` does not. This harness deliberately uses the generic
     // dispatcher for every mob, the same way a spawn egg does, so it cannot observe their
