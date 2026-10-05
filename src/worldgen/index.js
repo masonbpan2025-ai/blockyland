@@ -38,6 +38,7 @@ import { generateAncientCity, realizeAncientCity } from './generators/ancientCit
 import { generateEndCity, realizeEndCity } from './generators/endCity.js';
 import { generateMansion, realizeMansion } from './generators/mansion.js';
 import { generateTrailRuins, realizeTrailRuins } from './generators/trailRuins.js';
+import { generateJunglePyramid, realizeJunglePyramid } from './generators/junglePyramid.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -57,7 +58,8 @@ export const GENERATORS = {
   ancientCity: { generate: generateAncientCity, realize: realizeAncientCity },
   endCity: { generate: generateEndCity, realize: realizeEndCity },
   mansion: { generate: generateMansion, realize: realizeMansion },
-  trailRuins: { generate: generateTrailRuins, realize: realizeTrailRuins }
+  trailRuins: { generate: generateTrailRuins, realize: realizeTrailRuins },
+  junglePyramid: { generate: generateJunglePyramid, realize: realizeJunglePyramid }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */

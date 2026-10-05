@@ -62,7 +62,7 @@ export const STRUCTURES = {
   },
   jungle_pyramid: {
     type: 'jungle_temple', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/jungle_temple', biomes: ['jungle', 'bamboo_jungle'],
+    biomeTag: 'has_structure/jungle_temple', biomes: ['jungle', 'bamboo_jungle'], implementation: 'junglePyramid',
     notes: 'Three floors, lever puzzle with a sticky piston, two dispensers firing arrows.'
   },
   swamp_hut: {

@@ -183,6 +183,26 @@
       "contentHash": 795548258
     },
     {
+      "id": "jungle_pyramid",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "jungle",
+      "chunkX": 298,
+      "chunkZ": 0,
+      "planHash": 945918024,
+      "pieces": 1,
+      "box": [
+        4771,
+        66,
+        3,
+        4779,
+        74,
+        11
+      ],
+      "blockCount": 285,
+      "contentHash": 1178865750
+    },
+    {
       "id": "mansion",
       "seed": 20250401,
       "dimension": "overworld",
