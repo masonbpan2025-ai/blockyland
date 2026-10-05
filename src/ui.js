@@ -2744,8 +2744,11 @@ export class UIManager {
     this.beaconPos = { x, y, z };
     this.beaconState = calculateBeaconPyramid(this.world, x, y, z);
     this.beaconPaymentItem = null;
-    this.beaconSelectedPrimary = null;
-    this.beaconSelectedSecondary = null;
+    // Show what this beacon was already given, rather than forgetting it every time the panel opens. The
+    // panel used to reset both to null, so the choice never survived being closed.
+    const stored = this.game?.beaconManager?.powerAt(x, y, z);
+    this.beaconSelectedPrimary = stored?.primary ?? null;
+    this.beaconSelectedSecondary = stored?.secondary ?? null;
     this.beaconModal.classList.remove('hidden');
     this.renderBeaconGUI();
   }
@@ -2790,6 +2793,17 @@ export class UIManager {
         btn.onclick = () => {
           if (isAvailable) {
             this.beaconSelectedPrimary = p;
+            // Choosing a power is what activates a beacon, and vanilla charges a payment for it. The slot
+            // has already checked the item is one of the five that work, so the payment is consumed here
+            // and the choice is handed to the manager, which is what makes the beacon grant anything.
+            if (this.beaconPaymentItem && this.beaconPos) {
+              this.beaconPaymentItem = null;
+              this.game?.beaconManager?.setPower(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z, {
+                primary: this.beaconSelectedPrimary,
+                secondary: this.beaconSelectedSecondary,
+              });
+              this.addChatMessage?.(`Beacon set to ${p.replace(/_/g, ' ')}`, 'system');
+            }
             this.renderBeaconGUI();
           }
         };
@@ -2807,6 +2821,14 @@ export class UIManager {
         btn.onclick = () => {
           if (isAvailable) {
             this.beaconSelectedSecondary = s;
+            // The secondary costs nothing extra: the beacon is already activated by its primary, and a
+            // four-tier pyramid is what makes this available at all.
+            if (this.beaconPos && this.game?.beaconManager?.isActiveBeacon(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z)) {
+              this.game.beaconManager.setPower(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z, {
+                primary: this.beaconSelectedPrimary,
+                secondary: this.beaconSelectedSecondary,
+              });
+            }
             this.renderBeaconGUI();
           }
         };

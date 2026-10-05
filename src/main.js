@@ -68,6 +68,7 @@ import { ChestManager } from './chest.js';
 import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
+import { BeaconManager } from './beaconManager.js';
 import { EnchantingManager } from './enchanting.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
@@ -278,6 +279,9 @@ class Game {
     this.doorManager = new DoorManager(this);
     this.world.doorManager = this.doorManager;
     this.farmingManager = new FarmingManager(this);
+    // Beacons and conduits: what remembers where they are and applies what they grant. Registered on
+    // placement and unregistered on break, like a crop, rather than scanned for.
+    this.beaconManager = new BeaconManager(this);
     this.enchantingManager = new EnchantingManager(this);
     this.portalManager = new NetherPortalManager(this);
     this.raidManager = new RaidManager(this.mobs, this.world, this.sounds, this.ui, this.entities);
@@ -1812,6 +1816,7 @@ class Game {
         const blockIdToPlace = activeItem.isBlock ? activeItem.id : (ITEMS[activeItem.id]?.blockId || activeItem.id);
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
+        this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
@@ -1988,6 +1993,10 @@ class Game {
     if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
       if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
     }
+
+    // A broken beacon or conduit stops granting anything. Checked before the door, bed and chest branches
+    // below, because those return early and a beacon must unregister whichever branch handles the break.
+    this.beaconManager?.onBlockBroken(x, y, z);
 
     if (blockId === BLOCKS.CHEST) {
       if (this.chestManager) this.chestManager.onBlockBroken(x, y, z);
@@ -2649,6 +2658,11 @@ class Game {
     // 5a3. Update Agriculture (crop growth ticks, farmland hydration)
     if (this.farmingManager) {
       this.farmingManager.update(dt, this.player.position);
+    }
+
+    // 5a3b. Update beacons and conduits: re-check the structure and apply what it grants.
+    if (this.beaconManager) {
+      this.beaconManager.update(dt, this.player);
     }
 
     // 5a4. Update Nether Portal & Dimensional Travel
