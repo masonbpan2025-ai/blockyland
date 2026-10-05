@@ -112,9 +112,16 @@ export function implementedRecipes() {
   const m = text.match(/EXTRA_RECIPE_STATS = (\{[\s\S]*?\});/);
   if (!m) return null;
   const stats = JSON.parse(m[1]);
-  // Hand-written recipes predate the generator and are still real implementations.
+  // Hand-written recipes predate the generator. Only SOME of them are vanilla -- the red bed item and
+  // several redstone components are this game's own additions -- so adding all 61 to a vanilla count
+  // pushed the headline past 100%, which is not a parity figure at all.
+  //
+  // `vanillaImplemented` is therefore the generated count alone: every one of those came from vanilla's
+  // own recipe data, so it cannot exceed the total. The hand-written set is reported separately as
+  // additional coverage rather than folded into the percentage.
   const handWritten = 61;
   return {
+    vanillaImplemented: stats.emitted,
     implemented: stats.emitted + handWritten,
     generated: stats.emitted,
     handWritten,
@@ -136,9 +143,13 @@ if (invokedDirectly) {
   const impl = implementedRecipes();
   if (impl) {
     console.log('');
-    console.log('crafting recipes implemented : ' + impl.implemented + '/' + impl.vanillaTotal
-      + '  (' + (100 * impl.implemented / impl.vanillaTotal).toFixed(1) + '%)'
-      + '   [' + impl.generated + ' generated + ' + impl.handWritten + ' hand-written]');
+    console.log('vanilla recipes implemented  : ' + impl.vanillaImplemented + '/' + impl.vanillaTotal
+      + '  (' + (100 * impl.vanillaImplemented / impl.vanillaTotal).toFixed(1) + '%)'
+      + '   [generated from vanilla recipe data]');
+    // Reported, not counted. Only some of these are vanilla, so folding them into the percentage would
+    // overstate parity -- which it did, past 100%, until this was separated.
+    console.log('  plus hand-written recipes    : ' + impl.handWritten
+      + '   (not counted; not all are vanilla)');
     console.log('  blocked by a MISSING RESULT    : ' + impl.skippedMissingResult);
     console.log('  blocked by a MISSING INGREDIENT: ' + impl.skippedMissingIngredient);
   }

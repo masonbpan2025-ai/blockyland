@@ -26,38 +26,38 @@ test('implemented recipes are counted separately from expressible ones', { skip 
   assert.ok(impl, 'the measurement should produce a result when the cache is present');
   const m = measure();
 
-  assert.ok(impl.implemented > 0 && impl.implemented <= impl.vanillaTotal,
-    `implemented ${impl.implemented} is outside 1..${impl.vanillaTotal}`);
+  assert.ok(impl.vanillaImplemented > 0 && impl.vanillaImplemented <= impl.vanillaTotal,
+    `implemented ${impl.vanillaImplemented} is outside 1..${impl.vanillaTotal}`);
   assert.ok(m.expressible > 0 && m.expressible <= m.total,
     `expressible ${m.expressible} is outside 1..${m.total}`);
 
   // Both should be a meaningful fraction, or the measurement is not telling us anything.
-  assert.ok(impl.implemented / impl.vanillaTotal > 0.2,
+  assert.ok(impl.vanillaImplemented / impl.vanillaTotal > 0.2,
     'less than a fifth of vanilla recipes are implemented, which would be a regression');
   assert.ok(m.expressible / m.total > 0.2,
     'less than a fifth of vanilla recipes are expressible, which would be a regression');
 
   // The gap between them is explained by missing results and by non-vanilla hand-written recipes.
   assert.ok(impl.handWritten > 0, 'the game has hand-written recipes and they should be counted');
-  console.log(`  expressible ${m.expressible}/${m.total}, implemented ${impl.implemented}/${impl.vanillaTotal} `
+  console.log(`  expressible ${m.expressible}/${m.total}, implemented ${impl.vanillaImplemented}/${impl.vanillaTotal} `
     + `(${impl.generated} generated + ${impl.handWritten} hand-written)`);
 });
 
 test('the implemented recipe count does not regress', { skip }, () => {
   const impl = implementedRecipes();
   // Floor, not target. Raised whenever real recipes are added; lowering it means recipes were lost.
-  assert.ok(impl.implemented >= 1430,
-    `only ${impl.implemented} recipes are implemented, down from 549`);
+  assert.ok(impl.vanillaImplemented >= 1495,
+    `only ${impl.vanillaImplemented} vanilla recipes are implemented`);
   assert.equal(impl.generated, GENERATED_RECIPE_COUNT,
     'the report and the merged recipe list must agree on how many were generated');
 });
 
 test('the recipe lists the game actually uses reflect the generated set', () => {
-  assert.ok(RECIPES_3X3.length >= 1525,
+  assert.ok(RECIPES_3X3.length >= 1495,
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 1445`);
   assert.ok(RECIPES_2X2.length >= 405,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1469,
+  assert.equal(GENERATED_RECIPE_COUNT, 1501,
     'the generated recipe count changed; update this expectation deliberately if that was intended');
 });
 

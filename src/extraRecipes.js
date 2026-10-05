@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1469 recipes.
+// 1501 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -636,8 +636,40 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.WARPED_PRESSURE_PLATE,isBlock:true,count:1}},
   {pattern:[['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot']],result:{id:B.IRON_DOOR,isBlock:true,count:3}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.BIRCH_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS]],result:{id:B.JUNGLE_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS],[B.ACACIA_PLANKS,B.ACACIA_PLANKS],[B.ACACIA_PLANKS,B.ACACIA_PLANKS]],result:{id:B.ACACIA_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS],[B.CHERRY_PLANKS,B.CHERRY_PLANKS],[B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.CHERRY_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS]],result:{id:B.DARK_OAK_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.PALE_OAK_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS]],result:{id:B.MANGROVE_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.BAMBOO_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.CRIMSON_DOOR,isBlock:true,count:3}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS],[B.WARPED_PLANKS,B.WARPED_PLANKS],[B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.WARPED_DOOR,isBlock:true,count:3}},
+  {pattern:[['copper_ingot','copper_ingot'],['copper_ingot','copper_ingot'],['copper_ingot','copper_ingot']],result:{id:B.COPPER_DOOR,isBlock:true,count:3}},
+  {shapeless:true,ingredients:[B.COPPER_DOOR,'honeycomb'],result:{id:B.WAXED_COPPER_DOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.EXPOSED_COPPER_DOOR,'honeycomb'],result:{id:B.WAXED_EXPOSED_COPPER_DOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.WEATHERED_COPPER_DOOR,'honeycomb'],result:{id:B.WAXED_WEATHERED_COPPER_DOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.OXIDIZED_COPPER_DOOR,'honeycomb'],result:{id:B.WAXED_OXIDIZED_COPPER_DOOR,isBlock:true,count:1}},
   {pattern:[['iron_ingot','iron_ingot'],['iron_ingot','iron_ingot']],result:{id:B.IRON_TRAPDOOR,isBlock:true,count:1}},
   {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS]],result:{id:B.OAK_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS]],result:{id:B.SPRUCE_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS]],result:{id:B.BIRCH_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS]],result:{id:B.JUNGLE_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS],[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS]],result:{id:B.ACACIA_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS]],result:{id:B.CHERRY_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS]],result:{id:B.DARK_OAK_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS]],result:{id:B.PALE_OAK_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS]],result:{id:B.MANGROVE_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS]],result:{id:B.BAMBOO_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS]],result:{id:B.CRIMSON_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS],[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS]],result:{id:B.WARPED_TRAPDOOR,isBlock:true,count:2}},
+  {pattern:[['copper_ingot','copper_ingot','copper_ingot'],['copper_ingot','copper_ingot','copper_ingot']],result:{id:B.COPPER_TRAPDOOR,isBlock:true,count:2}},
+  {shapeless:true,ingredients:[B.COPPER_TRAPDOOR,'honeycomb'],result:{id:B.WAXED_COPPER_TRAPDOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.EXPOSED_COPPER_TRAPDOOR,'honeycomb'],result:{id:B.WAXED_EXPOSED_COPPER_TRAPDOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.WEATHERED_COPPER_TRAPDOOR,'honeycomb'],result:{id:B.WAXED_WEATHERED_COPPER_TRAPDOOR,isBlock:true,count:1}},
+  {shapeless:true,ingredients:[B.OXIDIZED_COPPER_TRAPDOOR,'honeycomb'],result:{id:B.WAXED_OXIDIZED_COPPER_TRAPDOOR,isBlock:true,count:1}},
   {pattern:[['stick',B.OAK_PLANKS,'stick'],['stick',B.OAK_PLANKS,'stick']],result:{id:B.OAK_FENCE_GATE,isBlock:true,count:1}},
   {pattern:[['stick',B.SPRUCE_PLANKS,'stick'],['stick',B.SPRUCE_PLANKS,'stick']],result:{id:B.SPRUCE_FENCE_GATE,isBlock:true,count:1}},
   {pattern:[['stick',B.BIRCH_PLANKS,'stick'],['stick',B.BIRCH_PLANKS,'stick']],result:{id:B.BIRCH_FENCE_GATE,isBlock:true,count:1}},
@@ -1489,21 +1521,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1469;
+export const EXTRA_RECIPE_COUNT = 1501;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1469,
-  "shaped": 1218,
-  "shapeless": 258,
-  "skippedMissingResult": 74,
+  "emitted": 1501,
+  "shaped": 1242,
+  "shapeless": 266,
+  "skippedMissingResult": 42,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1476,
+  "emittedBeforeDedupe": 1508,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

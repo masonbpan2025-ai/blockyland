@@ -131,10 +131,13 @@ console.log('  carried forward from the previous run: ' + PREVIOUS_ITEMS.length)
 // swallowed it and emitted zero items with no visible error.
 let generatedBlockItems = 0;
 try {
-  const { EXTRA_BLOCK_IDS } = await import('../src/extraContent.js');
+  const { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } = await import('../src/extraContent.js');
   const { ITEMS: REGISTERED } = await import('../src/blocks.js');
   for (const [constName, id] of Object.entries(EXTRA_BLOCK_IDS)) {
     const name = constName.toLowerCase();
+    // A door's open and top halves are placed by the door itself, so they need no item of their own.
+    // Without this skip, one door would produce four creative items.
+    if (EXTRA_BLOCK_DEFS?.[id]?.internal) continue;
     // The test is whether an ITEM exists, not whether the name is known anywhere.
     //
     // `present` includes every block name, so testing it skipped every generated block -- including

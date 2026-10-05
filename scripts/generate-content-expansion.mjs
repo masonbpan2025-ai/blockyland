@@ -460,6 +460,75 @@ for (const a of toAdd) a.id = nextId++;
   if (bedFeet.length) console.log('  (beds: ' + bedFeet.length + ' feet + ' + bedFeet.length + ' heads)');
 }
 
+// --- doors are four blocks per wood, trapdoors two ---------------------------
+//
+// A door in this game is four ids (closed, open, top, top-open) and a trapdoor is two. The geometry and
+// the door manager already exist -- door.js resolves a door's four ids from its definition name, which
+// is what lets one code path serve every wood -- so this is data plus texture resolution.
+//
+// Doors are NOT a family. `_door` and `_trapdoor` are in the name-based cube exclusion, so the family
+// loop already skips them, and the expansion below emits the whole structure with explicit ids the way
+// the bed-head expansion does.
+{
+  // Only oak and iron door textures ship with this game, so a door for any other wood uses that wood's
+  // plank texture. It reads as that wood rather than as a grey fallback.
+  const doorTexture = (name, part) => {
+    const base = name.replace(/_(door|trapdoor)$/, '');
+    if (part === 'bottom' && textureExists(base + '_door_bottom.png')) return base + '_door_bottom.png';
+    if (part === 'top' && textureExists(base + '_door_top.png')) return base + '_door_top.png';
+    if (part === 'trapdoor' && textureExists(base + '_trapdoor.png')) return base + '_trapdoor.png';
+    if (textureExists(base + '_planks.png')) return base + '_planks.png';
+    if (textureExists(base + '_block.png')) return base + '_block.png';
+    if (textureExists(base + '.png')) return base + '.png';
+    return part === 'trapdoor' ? 'oak_trapdoor.png' : 'oak_door_bottom.png';
+  };
+
+  const doorBlocks = [];
+  for (const vb of vanillaBlocks) {
+    const n = vb.name;
+    if (!/_(door|trapdoor)$/.test(n)) continue;
+    if (n === 'iron_door' || n === 'iron_trapdoor') continue;   // hand-written already
+    if (have(n)) continue;
+    const hardness = typeof vb.hardness === 'number' ? vb.hardness : 3;
+    if (/_trapdoor$/.test(n)) {
+      const base = {
+        family: 'trapdoors', hardness, sound: 'wood', transparent: true, isIron: false,
+        texture: doorTexture(n, 'trapdoor'),
+      };
+      // Closed first, then open, so the open variant's id is the closed one's plus one.
+      doorBlocks.push({ ...base, name: n, solid: true, open: false },
+        { ...base, name: n + '_open', solid: false, open: true });
+    } else {
+      const bottom = doorTexture(n, 'bottom');
+      const top = doorTexture(n, 'top');
+      const base = {
+        family: 'doors', hardness, sound: 'wood', transparent: true, isIron: false,
+        texture: bottom, textureBottom: bottom, textureTop: top,
+      };
+      doorBlocks.push(
+        { ...base, name: n, solid: true, isTop: false, open: false },
+        { ...base, name: n + '_open', solid: false, isTop: false, open: true },
+        { ...base, name: n + '_top', solid: true, isTop: true, open: false },
+        { ...base, name: n + '_top_open', solid: false, isTop: true, open: true });
+    }
+  }
+  // Ids are assigned here rather than in the main loop, so each group's variants stay adjacent and the
+  // open id can be expressed as "the next one".
+  for (const d of doorBlocks) d.id = nextId++;
+  for (let i = 0; i < doorBlocks.length; i++) {
+    const d = doorBlocks[i];
+    // Only the CLOSED BOTTOM form carries an openId, matching the hand-written oak and iron doors. The
+    // open variant is always emitted immediately after it.
+    if (d.isTop || d.open) continue;
+    d.openId = doorBlocks[i + 1].id;
+  }
+  toAdd.push(...doorBlocks);
+  if (doorBlocks.length) {
+    console.log('  (doors: ' + doorBlocks.filter(d => d.family === 'doors').length + ' blocks + '
+      + doorBlocks.filter(d => d.family === 'trapdoors').length + ' trapdoor blocks)');
+  }
+}
+
 
 
 
@@ -510,6 +579,25 @@ for (const a of toAdd) {
   ];
   // Shape markers, e.g. slab: true, so the renderer knows this is not a full cube.
   for (const [k, v] of Object.entries(a.extra || {})) parts.push(`${k}: ${v}`);
+  // A door is four blocks and a trapdoor two, so the definition carries the state flags that door.js
+  // reads rather than a shape marker.
+  if (a.family === 'doors' || a.family === 'trapdoors') {
+    parts.push(a.family === 'doors' ? 'door: true' : 'trapdoor: true');
+    parts.push(`isIron: ${Boolean(a.isIron)}`);
+    parts.push(`isTop: ${Boolean(a.isTop)}`);
+    if (a.solid === false) parts.push('solid: false');
+    if (a.openId !== undefined) parts.push(`openId: ${a.openId}`);
+    // The open and top halves are placed by the door itself, so they must not become creative items
+    // or tooltips in their own right.
+    if (a.isTop || a.open) parts.push('internal: true');
+    if (a.textureBottom || a.textureTop) {
+      const b = a.textureBottom || a.texture;
+      const tp = a.textureTop || a.texture;
+      parts.push(`textures: { bottom: '${b}', top: '${tp}', all: '${b}' }`);
+    } else {
+      parts.push(`textures: { all: '${a.texture}' }`);
+    }
+  }
   // separate lookup table. Only beds carry this.
   if (a.extra?.bedColourFrom) {
     const m = /^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_bed/.exec(a.name);
@@ -527,7 +615,10 @@ for (const a of toAdd) {
   if (a.resistance !== null && a.resistance !== a.hardness) parts.push(`resistance: ${a.resistance}`);
   if (a.emitLight) parts.push(`light: ${a.emitLight}`);
   if (a.transparent) parts.push('transparent: true');
-  parts.push(`textures: { all: '${a.texture}' }`);
+  // Doors and trapdoors wrote their own textures above, including the separate bottom and top tiles.
+  if (a.family !== 'doors' && a.family !== 'trapdoors') {
+    parts.push(`textures: { all: '${a.texture}' }`);
+  }
   lines.push(`  ${a.id}: { ${parts.join(', ')} },`);
 }
 lines.push('};');
