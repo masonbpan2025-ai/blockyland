@@ -131,20 +131,22 @@ test('undead and sprinting players are threats, and passives are not', () => {
   assert.ok(ARMADILLO_UNDEAD.includes('phantom'));
   assert.ok(ARMADILLO_UNDEAD.includes('zoglin'));
 
-  // Only the undead this build actually implements. `husk`, `stray` and `bogged` are real undead but
-  // are not implemented yet -- `spawnMob` silently falls back to a villager for them -- so asserting
-  // them here would have tested the fallback rather than the armadillo. The fallback is asserted
-  // instead, so this test will fail loudly when one of them is implemented and the table is not used.
-  for (const undead of ['zombie', 'skeleton', 'wither_skeleton', 'drowned', 'phantom', 'zoglin']) {
+  // Every undead type the armadillo table lists and this build implements. `husk`, `stray` and `bogged`
+  // were added in a later round; this case originally asserted they fell back to a villager precisely so
+  // it would fail when they landed, which it did.
+  for (const undead of [
+    'zombie', 'husk', 'skeleton', 'stray', 'bogged', 'wither_skeleton', 'drowned', 'phantom', 'zoglin'
+  ]) {
     const other = manager.spawnMob(undead, 0, 1, 0);
     assert.equal(other.type, undead, `${undead} should be implemented`);
     assert.equal(isArmadilloThreat(mob, other), true, `${undead} should be a threat`);
   }
-  for (const unimplemented of ['husk', 'stray', 'bogged']) {
-    const fallback = manager.spawnMob(unimplemented, 0, 1, 0);
-    assert.equal(fallback.type, 'villager',
-      `${unimplemented} is not implemented yet, so it falls back; if this fails, remove it from` +
-      ' that list and add it to the threat assertions above');
+  // The table must not list an undead type the build cannot spawn, or a threat silently never appears.
+  for (const listed of ARMADILLO_UNDEAD) {
+    const spawned = manager.spawnMob(listed, 0, 1, 0);
+    assert.equal(spawned.type, listed,
+      `${listed} is in ARMADILLO_UNDEAD but spawns as ${spawned.type}; either implement it or remove` +
+      ' it from the table');
   }
   const cow = manager.spawnMob('cow', 0, 1, 0);
   assert.equal(isArmadilloThreat(mob, cow), false, 'a passive mob is not a threat');

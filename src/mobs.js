@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
 import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
@@ -97,6 +98,76 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
   return geo;
 }
 
+/**
+ * Rewrite a base zombie or skeleton into one of its variants.
+ *
+ * The base spawners build the geometry and the shared undead state; this applies everything that makes
+ * a husk, stray or bogged different. Centralised deliberately: the three variants differ from their base
+ * mob in the same five ways (identity, health, hitbox, tint, traits), and spreading that across three
+ * near-copies is how they drift apart.
+ */
+/** Wiki: the zombie family, which the husk belongs to. */
+export const ZOMBIE_FAMILY = ['zombie', 'husk', 'zombie_villager', 'drowned'];
+
+/** Wiki: the skeleton family, which the stray and bogged belong to. */
+export const SKELETON_FAMILY = ['skeleton', 'stray', 'bogged', 'wither_skeleton'];
+
+/** True for any member of the zombie family. */
+export function inZombieFamily(type) {
+  return ZOMBIE_FAMILY.includes(type);
+}
+
+/** True for any member of the skeleton family. */
+export function inSkeletonFamily(type) {
+  return SKELETON_FAMILY.includes(type);
+}
+
+function applyVariantIdentity(mob, variant, options = {}) {
+  if (!mob || !variantHealth(variant)) return mob;
+  mob.type = variant;
+  mob.name = variant.charAt(0).toUpperCase() + variant.slice(1);
+  mob.variant = variant;
+  // Wiki: husk 20 HP, stray 20, bogged 16.
+  mob.health = variantHealth(variant);
+  mob.maxHealth = variantHealth(variant);
+  // Wiki: the husk has a natural armour rating of 2.
+  if (variant === 'husk') mob.armor = HUSK_ARMOR;
+  const dims = variantDimensions(variant, !!options.isBaby);
+  mob.width = dims.width;
+  mob.height = dims.height;
+  if (variant === 'husk') {
+    mob.isBaby = !!options.isBaby;
+    mob.speed = options.isBaby ? HUSK_SPEED.baby : HUSK_SPEED.adult;
+    if (options.isBaby) mob.mesh?.scale?.setScalar?.(HUSK_BABY_SCALE);
+  }
+  // The shared undead traits, so a variant is a threat to an armadillo like any other undead mob.
+  Object.assign(mob, VARIANT_UNDEAD_TRAITS);
+  // Wiki: the husk is immune to burning in sunlight; the stray and bogged are not.
+  mob.burnsInDaylight = variantBurnsInDaylight(variant);
+  // Initialised to false rather than left undefined: 'is it on fire?' must be answerable for a husk,
+  // which never burns, exactly as it is for a zombie that simply has not caught fire yet.
+  mob.isBurning = false;
+  mob.burnTimer = 0;
+  // Wiki: a husk avoids water; a stray and bogged walk into it.
+  mob.avoidsWater = variantAvoidsWater(variant);
+  // The attack effect, which is the reason each variant exists rather than being a recolour.
+  mob.attackEffect = VARIANT_ATTACK_EFFECT[variant]?.effect ?? null;
+  mob.huskSubmergedSeconds = 0;
+  mob.isSheared = false;
+  // Tint every material so the variant is visually distinct from its base mob.
+  const tint = variantTint(variant);
+  if (tint !== null) {
+    mob.mesh?.traverse?.((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const material of materials) {
+        if (material?.color) material.color.setHex(tint);
+      }
+    });
+  }
+  return mob;
+}
+
 export class MobManager {
   constructor(scene, world, sounds, entities = null) {
     this.entities = entities;
@@ -128,7 +199,11 @@ export class MobManager {
       chicken: this.loadTexture('/assets/entity/chicken.png'),
       creeper: this.loadTexture('/assets/entity/creeper.png'),
       skeleton: this.loadTexture('/assets/entity/skeleton.png'),
-      salmon: this.createAquaticTexture('salmon'),
+    // Wiki: husk, stray and bogged are variants of these two, so their skins are tints of them.
+    husk: this.createVariantTexture('zombie', '#c2a878'),
+    stray: this.createVariantTexture('skeleton', '#a8c4d4'),
+    bogged: this.createVariantTexture('skeleton', '#7c8f5a'),
+    salmon: this.createAquaticTexture('salmon'),
       dolphin: this.createAquaticTexture('dolphin'),
       octopus: this.createAquaticTexture('octopus'),
       squid: this.createAquaticTexture('octopus'),
@@ -410,6 +485,10 @@ export class MobManager {
       case 'polar_bear': return this.spawnPolarBear(x, y, z, options);
       case 'panda': return this.spawnPanda(x, y, z, options);
       case 'armadillo': return this.spawnArmadillo(x, y, z, options);
+      // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
+      case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
+      case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
+      case 'bogged': return this.spawnSkeletonVariant(x, y, z, 'bogged', options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
       case 'piglin': return this.spawnPiglin(x, y, z);
@@ -1779,6 +1858,56 @@ export class MobManager {
     return tex;
   }
 
+  /**
+   * A variant skin: the base mob's texture multiplied by a tint.
+   *
+   * Wiki: a husk is a sand-dry zombie, a stray a pale frozen skeleton and a bogged a moss-covered one.
+   * Multiplying keeps the base shading and detail, so the variant reads as the same creature in a
+   * different climate rather than as a flat recolour.
+   *
+   * Returns a texture that falls back to the base image when there is no canvas (headless tests), so a
+   * caller never has to check.
+   */
+  createVariantTexture(baseKey, color) {
+    const base = this.textures?.[baseKey] ?? null;
+    if (typeof document === 'undefined') return base ?? new THREE.Texture();
+    const source = base?.image;
+    if (!source?.width) return base ?? new THREE.Texture();
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(source, 0, 0);
+      // `multiply` keeps the darker shading and brightens only what the base already had.
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      // The base image may load after this runs; redraw once it does so the tint is not lost.
+      if (!base.image.complete) {
+        base.image.addEventListener?.('load', () => {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(base.image, 0, 0);
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
+          tex.needsUpdate = true;
+        }, { once: true });
+      }
+      return tex;
+    } catch {
+      // A tainted canvas or a stub without a real 2D context must not break spawning.
+      return base ?? new THREE.Texture();
+    }
+  }
+
   createNetherTexture(type) {
     if (typeof document === 'undefined') return new THREE.Texture();
     const canvas = document.createElement('canvas');
@@ -2380,6 +2509,10 @@ export class MobManager {
       case 'panda': return PANDA_DIMENSIONS;
       // Wiki: armadillos are 0.7 x 0.65, and a baby is 0.42 x 0.39.
       case 'armadillo': return ARMADILLO_DIMENSIONS;
+      // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
+      case 'husk': return VARIANT_DIMENSIONS.husk;
+      case 'stray': return VARIANT_DIMENSIONS.stray;
+      case 'bogged': return VARIANT_DIMENSIONS.bogged;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -2857,9 +2990,11 @@ export class MobManager {
   }
 
   // --- ZOMBIE ---
-  spawnZombie(x, y, z) {
+  spawnZombie(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ map: this.textures.zombie });
+    // Wiki: a husk is a desert zombie, so it uses a tinted zombie skin rather than a new model.
+    const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
+    const mat = new THREE.MeshLambertMaterial({ map: baseTex });
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64);
     const head = new THREE.Mesh(headGeo, mat);
@@ -4234,9 +4369,13 @@ export class MobManager {
   }
 
   // --- HOSTILE SKELETON ---
-  spawnSkeleton(x, y, z) {
+  spawnSkeleton(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ map: this.textures.skeleton, transparent: true, alphaTest: 0.1 });
+    // Wiki: a stray is a frozen skeleton and a bogged a moss-covered one; both are tinted skins.
+    const baseTex = options.variant === 'stray' ? (this.textures.stray ?? this.textures.skeleton)
+      : options.variant === 'bogged' ? (this.textures.bogged ?? this.textures.skeleton)
+      : this.textures.skeleton;
+    const mat = new THREE.MeshLambertMaterial({ map: baseTex, transparent: true, alphaTest: 0.5 });
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8);
     const head = new THREE.Mesh(headGeo, mat);
@@ -4347,6 +4486,59 @@ export class MobManager {
     applyMooshroomVariant(mob);
 
     this.mobs.push(mob);
+    return mob;
+  }
+
+  /**
+   * Convert a mob in place to another type.
+   *
+   * Used by the husk's drowning conversion. Wiki: the zombie it becomes "has full health even if the
+   * husk has been damaged", so health is reset rather than carried over.
+   */
+  replaceMobType(mob, type) {
+    if (!mob) return null;
+    const index = this.mobs.indexOf(mob);
+    const dims = this.getMobDimensions(type);
+    const spawner = { zombie: () => this.spawnZombie(mob.mesh.position.x, mob.mesh.position.y, mob.mesh.position.z) }[type];
+    if (!spawner) return null;
+    const replacement = spawner();
+    if (!replacement) return null;
+    replacement.mesh.position.copy(mob.mesh.position);
+    replacement.yaw = mob.yaw;
+    replacement.width = dims.width;
+    replacement.height = dims.height;
+    replacement.health = replacement.maxHealth;
+    // Remove the original, including from the scene, so it does not linger as a ghost mesh.
+    if (index >= 0) this.mobs.splice(index, 1);
+    this.scene?.remove?.(mob.mesh);
+    return replacement;
+  }
+
+  /**
+   * Build a zombie variant by reusing the zombie model.
+   *
+   * Wiki: a husk is "a variant of the zombie that spawn in deserts". It shares the geometry and
+   * differs in appearance, in not burning in sunlight, and in inflicting Hunger with an unarmed
+   * attack. Delegating here means the model cannot drift away from the zombie's.
+   */
+  spawnZombieVariant(x, y, z, variant, options = {}) {
+    const mob = this.spawnZombie(x, y, z, { variant, ...options });
+    if (!mob) return mob;
+    applyVariantIdentity(mob, variant, options);
+    return mob;
+  }
+
+  /**
+   * Build a skeleton variant (stray or bogged) by reusing the skeleton model.
+   *
+   * Wiki: a stray is "a skeleton variant that spawns in various snow-covered biomes" and a bogged is
+   * "a mushroom-covered skeleton variant". Both are archers differing in health, appearance and the
+   * status effect on their arrow.
+   */
+  spawnSkeletonVariant(x, y, z, variant, options = {}) {
+    const mob = this.spawnSkeleton(x, y, z, { variant, ...options });
+    if (!mob) return mob;
+    applyVariantIdentity(mob, variant, options);
     return mob;
   }
 
@@ -7057,7 +7249,7 @@ export class MobManager {
   isTrainingSiteMob(mob) {
     if (!mob || !mob.mesh) return false;
     if (this.game && !this.game.tournament?.isTournamentMap) return false;
-    const hostileTypes = ['zombie', 'skeleton', 'pillager', 'creeper', 'enderman'];
+    const hostileTypes = ['zombie', 'husk', 'skeleton', 'stray', 'bogged', 'pillager', 'creeper', 'enderman'];
     if (!hostileTypes.includes(mob.type)) return false;
 
     if (this.game?.dungeonMode?.isActive) return true;
@@ -7501,8 +7693,13 @@ export class MobManager {
       squid: [['ink_sac', false, 1, 3]],
       glow_squid: [['glow_ink_sac', false, 1, 3]],
       skeleton: [['bone', false, 1, 2], ['arrow', false, 1, 2]],
+      // Wiki: a stray and a bogged drop bones and arrows like a skeleton, plus their tipped arrow.
+      stray: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
+      bogged: [['bone', false, 0, 2], ['arrow', false, 0, 2]],
       creeper: [['gunpowder', false, 1, 2]],
       zombie: [['rotten_flesh', false, 1, 2]],
+      // Wiki: a husk drops rotten flesh like a zombie.
+      husk: [['rotten_flesh', false, 0, 2]],
       zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1]],
       iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
       pillager: [['arrow', false, 1, 2]],
@@ -7563,7 +7760,9 @@ export class MobManager {
     const pandaRows = isPanda(mob) ? pandaDrops(mob) : [];
     // Wiki: an armadillo drops no items on death -- the scute comes from shedding and brushing.
     const armadilloRows = isArmadillo(mob) ? armadilloDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows];
+    // Wiki: a stray can drop an Arrow of Slowness and a bogged an Arrow of Poison, with player credit.
+    const variantRows = variantBonusDrops(mob, random);
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows];
   }
 
   /**
@@ -7649,10 +7848,11 @@ export class MobManager {
           }
         }
         if (this.entities?.spawnXpOrbs) {
-          const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
+          const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
+          : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
           : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
           : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
           : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
@@ -8027,6 +8227,44 @@ export class MobManager {
    * @returns {boolean} true when the caller should stop processing this mob
    */
   updateMobTypeBehavior(mob, dt, player, distToPlayer) {
+    // Wiki: undead burn in sunlight, and "the husk is one of the few undead mobs that are immune to
+    // burning in sunlight, which allows them to stay around during the day". Whether a mob burns is
+    // read from `burnsInDaylight`, which the husk sets false and the stray and bogged set true, so the
+    // exemption is data rather than a special case here. This is a standalone block near the top rather
+    // than a clause deep in the if/else chain below: the chain is entered by whichever branch matches
+    // first, and a behaviour that every undead mob shares should not depend on that ordering.
+    if (mob.isUndead || mob.burnsInDaylight !== undefined) {
+      const ux = Math.floor(mob.mesh.position.x);
+      const uy = Math.floor(mob.mesh.position.y);
+      const uz = Math.floor(mob.mesh.position.z);
+      const skyLight = this.world.getLightLevel?.(ux, uy, uz) ?? 15;
+      const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
+      const exposed = mob.burnsInDaylight === true && isDaytime && skyLight > 11;
+      if (exposed && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
+      if (!exposed && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+      if (mob.isBurning && mob.type !== 'phantom') {
+        // The phantom owns its own burning branch, so this skips it rather than double-ticking.
+        mob.burnTimer -= dt;
+        if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
+        else {
+          mob.burnTick = (mob.burnTick ?? 1) - dt;
+          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+        }
+      }
+    }
+    // Wiki: a husk that is fully submerged for 30 s begins converting to a zombie, which takes 15 s
+    // more and cannot be stopped. The replacement has full health.
+    if (mob.type === 'husk') {
+      const submerged = this.world.getVoxel(
+        Math.floor(mob.mesh.position.x),
+        Math.floor(mob.mesh.position.y + (mob.height ?? 1.95) * 0.5),
+        Math.floor(mob.mesh.position.z)
+      ) === BLOCKS.WATER;
+      const phase = updateHuskDrowning(mob, dt, { submerged, manager: this });
+      if (phase === 'converted') return true;
+      if (phase === 'converting') mob.state = 'converting';
+    }
+
     if(isPackEquine(mob)&&mob.panicSeconds>0&&!mob.rider){
       const speed=(mob.movementSpeed??.175)*20;mob.yaw=mob.panicYaw;mob.wanderGoal=null;
       mob.velocity.x=Math.sin(mob.yaw)*speed;mob.velocity.z=Math.cos(mob.yaw)*speed;
@@ -9055,7 +9293,7 @@ export class MobManager {
       let threat = null;
       let threatDist = 12;
       for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager')) {
+        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager' || other.type === 'husk')) {
           const d = mob.mesh.position.distanceTo(other.mesh.position);
           if (d < threatDist) {
             threatDist = d;
@@ -9099,7 +9337,7 @@ export class MobManager {
       let nearestHostile = null;
       let minDist = 16;
       for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'wither_skeleton')) {
+        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'husk' || other.type === 'wither_skeleton')) {
           const d = mob.mesh.position.distanceTo(other.mesh.position);
           if (d < minDist) {
             minDist = d;
@@ -9178,8 +9416,22 @@ export class MobManager {
         // Patrol wander
         wanderMob(this, mob, dt, 1.2);
       }
-    } else if (mob.type === 'zombie') {
-      // Chase player or villagers
+    } else if (mob.type === 'zombie' || mob.type === 'husk') {
+      // Wiki: a husk that is fully submerged for 30 s begins converting to a zombie, which takes 15 s
+      // more and cannot be stopped. The replacement has full health.
+      if (mob.type === 'husk') {
+        const submerged = this.world.getVoxel(
+          Math.floor(mob.mesh.position.x),
+          Math.floor(mob.mesh.position.y + mob.height * 0.5),
+          Math.floor(mob.mesh.position.z)
+        ) === BLOCKS.WATER;
+        const before = mob.convertTimer;
+        const phase = updateHuskDrowning(mob, dt, { submerged, manager: this });
+        if (phase === 'converted') return true;
+        if (before === undefined && mob.convertTimer !== undefined) mob.state = 'converting';
+        }
+      // Chase player or villagers. Wiki: a husk is a zombie variant, so it shares this AI; its own
+      // differences (no sunlight burning, Hunger on an unarmed hit, avoiding water) are applied below.
       let targetPos = null;
       let targetEntity = null;
       if (distToPlayer < 16) {
@@ -9214,6 +9466,12 @@ export class MobManager {
         // Wander
         wanderMob(this, mob, dt, 1.0);
       }
+      // The branch did not return, so control fell through to the passive-animal chain below: a husk --
+      // and a plain zombie -- ran the cow/sheep follow code, and the method reported `false`, which let
+      // the shared fallback locomotion run on top of the velocity just set here. Returning true claims
+      // the mob, which is what every neighbouring branch does.
+      moveGroundMob(this, mob, dt);
+      return true;
     } else if (isEquine(mob) || mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
       let isFollowing = false;
 
@@ -9542,7 +9800,7 @@ export class MobManager {
       } else {
         wanderMob(this, mob, dt, 0.8);
       }
-    } else if (mob.type === 'skeleton') {
+    } else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'bogged') {
       if (distToPlayer < 18) {
         const dir = player.position.clone().sub(mob.mesh.position);
         dir.y = 0;
@@ -9558,10 +9816,20 @@ export class MobManager {
 
         mob.shootCooldown -= dt;
         if (mob.shootCooldown <= 0) {
-          mob.shootCooldown = 2.5;
+        // Wiki: a bogged fires as fast but has a longer cooldown between attacks -- 4.5 s normally
+        // and 3.5 s on Hard, against the skeleton's 2.5 s here. A stray is as fast as a skeleton.
+        mob.shootCooldown = mob.type === 'bogged'
+          ? boggedAttackCooldown(this.game?.difficulty ?? 'normal')
+          : 2.5;
           const shootOrigin = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
           const shootDir = player.position.clone().add(new THREE.Vector3(0, 0.8, 0)).sub(shootOrigin).normalize();
           this.spawnArrow(shootOrigin, shootDir, mob);
+        // Wiki: a stray's arrow carries Slowness for 30 s and a bogged's Poison for 4 s. The effect is
+        // applied here because it is the only reason the variant exists rather than being a recolour.
+        const effect = variantAttackEffect(mob.type, { unarmed: true });
+        if (effect && player?.applyStatusEffect) {
+          player.applyStatusEffect(effect.effect, effect.seconds);
+        }
         }
       } else {
         wanderMob(this, mob, dt, 0.8);
@@ -10247,7 +10515,7 @@ export class MobManager {
       let targetMob = null;
       let closestDist = 14;
       for (const m of this.mobs) {
-        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'skeleton' || m.type === 'creeper' || m.type === 'enderman')) {
+        if (m !== mob && !m.isCustomMob && (m.type === 'zombie' || m.type === 'husk' || m.type === 'skeleton' || m.type === 'stray' || m.type === 'bogged' || m.type === 'creeper' || m.type === 'enderman')) {
           const d = mob.mesh.position.distanceTo(m.mesh.position);
           if (d < closestDist) {
             closestDist = d;

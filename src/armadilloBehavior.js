@@ -51,14 +51,16 @@ export const ARMADILLO_SPIDER_TYPES = ['spider', 'cave_spider'];
  * The undead mobs an armadillo hides from.
  *
  * This codebase has no shared `isUndead` flag — only the phantom carries one, because it was added for
- * its sunlight burning — so the list is explicit rather than a property lookup. Right-clicking an
- * armadillo should not make it cower, so `zombie_horse` and `skeleton_horse` are included only when
- * ridden, which the caller handles.
+ * its sunlight burning — so the list is explicit rather than a property lookup.
+ *
+ * A test asserts every entry here actually spawns as itself, because a name that falls back to the
+ * villager default is a threat that silently never appears. That check has already caught two entries:
+ * `zombie_pigman`, which is a legacy alias for `zombified_piglin`, and `skeleton_horse` and
+ * `zombie_horse`, which are not implemented at all.
  */
 export const ARMADILLO_UNDEAD = [
-  'zombie', 'husk', 'drowned', 'zombie_villager', 'zombified_piglin', 'zombie_pigman',
-  'skeleton', 'stray', 'bogged', 'wither_skeleton', 'wither', 'phantom', 'zoglin',
-  'skeleton_horse', 'zombie_horse'
+  'zombie', 'husk', 'drowned', 'zombie_villager', 'zombified_piglin',
+  'skeleton', 'stray', 'bogged', 'wither_skeleton', 'wither', 'phantom', 'zoglin'
 ];
 
 /** Wiki: "Baby armadillos take 24000 ticks (20 minutes) to grow up", accelerated 10% per spider eye. */
