@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
 import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
@@ -133,6 +134,17 @@ export function inSkeletonFamily(type) {
  * A trader llama is a llama variant, so every llama code path must accept it. Matching only the literal
  * 'llama' broke the trader llama's update branch the moment its type was renamed.
  */
+/**
+ * Blocks that do not break a creaking's gaze.
+ *
+ * Wiki: the "visual box block obstructs the view", so only blocks that actually block sight count.
+ * Glass, ice, water and every non-colliding decoration are excluded.
+ */
+const CREAKING_VIEW_TRANSPARENT = new Set([
+  BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.WATER, BLOCKS.LAVA,
+  BLOCKS.GLASS_PANE, BLOCKS.TORCH, BLOCKS.RAIL, BLOCKS.LEVER, BLOCKS.SNOW
+].filter(id => id !== undefined));
+
 function isLlamaLike(mob) {
   return mob?.type === 'llama' || mob?.type === 'trader_llama';
 }
@@ -506,6 +518,7 @@ export class MobManager {
       case 'wandering_trader': return this.spawnWanderingTrader(x, y, z, options);
       case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
       case 'camel': return this.spawnCamel(x, y, z, options);
+      case 'creaking': return this.spawnCreaking(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2543,6 +2556,8 @@ export class MobManager {
       case 'trader_llama': return LLAMA_DIMENSIONS;
       // Wiki: a camel is 1.7 x 2.375 standing, 1.7 x 0.945 sitting, and 0.85 x 1.1875 as a baby.
       case 'camel': return CAMEL_DIMENSIONS;
+      // Wiki: a creaking is 0.9 x 2.7.
+      case 'creaking': return CREAKING_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4602,6 +4617,68 @@ export class MobManager {
       this.snifferEggs.splice(i, 1);
     }
     return hatched;
+  }
+
+  /**
+   * Creaking.
+   *
+   * Wiki: 1 HP, 0.9 x 2.7, speed 0.3, spawned at night by an activated creaking heart. It attacks with
+   * melee headbutts but "cannot move at all while any players in Survival or Adventure mode can see it",
+   * and one linked to a heart "becomes completely invulnerable to all sources of damage".
+   */
+  spawnCreaking(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: CREAKING_COLORS.body });
+    const limbMat = new THREE.MeshLambertMaterial({ color: CREAKING_COLORS.limb });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: CREAKING_COLORS.eyeDim });
+    const { group: model, body, head, eyes, arms, legs } =
+      createCreakingModel(bodyMat, limbMat, eyeMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'creaking',
+      name: 'Creaking',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, head, eyes, arms, legs,
+      // Wiki: 1 HP.
+      health: CREAKING_HEALTH,
+      maxHealth: CREAKING_HEALTH,
+      width: CREAKING_DIMENSIONS.width,
+      height: CREAKING_DIMENSIONS.height,
+      speed: CREAKING_SPEED,
+      attackDamage: CREAKING_DAMAGE.normal,
+      isHostile: true,
+      // Wiki: it is fire resistant as of 24w44a.
+      fireResistant: CREAKING_FIRE_RESISTANT,
+      // The heart link. Options let a caller link it explicitly, which is what a heart would do.
+      linkedHeart: options.linkedHeart ?? null,
+      // Wiki: an egg- or command-spawned creaking is unlinked, CAN take damage, and does not despawn by
+      // day. A heart-spawned one is the inverse on all three.
+      natural: options.natural ?? !!options.linkedHeart,
+      // Wiki: it ignores cacti, sweet berry bushes and powder snow while walking.
+      ignoredBlocks: CREAKING_IGNORED_BLOCKS,
+      // The gaze state.
+      alerted: false,
+      frozen: false,
+      frozenBy: null,
+      target: null,
+      softlockTimer: 0,
+      dying: false,
+      twitchTimer: 0,
+      creakPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -8153,7 +8230,26 @@ export class MobManager {
       elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
       drowned: [['rotten_flesh', false, 1, 2]],
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
-      wither: [['nether_star', false, 1, 1]]
+      wither: [['nether_star', false, 1, 1]],
+
+      // Seven mobs that dropped nothing at all.
+      //
+      // Found by scripts/mob-drop-live.mjs, which spawns every vanilla loot-bearing mob and compares the
+      // roll against vanilla's data. Each of these had neither a row here nor a per-mob helper, and each
+      // drops something in vanilla. The counts are vanilla's own ranges rather than the simplified [1,1]
+      // that minecraft-data publishes, because the rows around them follow the real ranges.
+      //
+      // The three near-misses that script also reports are deliberately NOT fixed here, because they are
+      // not missing drops: the stray drops a named tipped-arrow variant, the turtle drops the seagrass
+      // vanilla gives it, and the elder guardian's listed trim template is structure loot rather than a
+      // mob drop.
+      cat: [['string', false, 0, 2]],
+      pufferfish: [['pufferfish', false, 1, 1]],
+      ravager: [['saddle', false, 1, 1]],
+      skeleton_horse: [['bone', false, 0, 2]],
+      snow_golem: [['snowball', false, 0, 15]],
+      tropical_fish: [['tropical_fish', false, 1, 1]],
+      zombie_horse: [['rotten_flesh', false, 0, 2]]
     }[mob.type] || [];
     // Wiki: salmon have a flat 5% chance of bone meal, independent of the raw salmon drop.
     // Wiki: an enderman always drops the block it was carrying, in addition to its loot.
@@ -8202,7 +8298,9 @@ export class MobManager {
     const traderRows = isWanderingTrader(mob) ? wanderingTraderDrops(mob, random) : [];
     // Wiki: a camel drops its saddle if it had one, and a baby camel drops nothing.
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows];
+    // Wiki: a creaking drops no items at all.
+    const creakingRows = isCreaking(mob) ? [] : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows];
   }
 
   /**
@@ -8291,7 +8389,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'creaking' ? 0
+          : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
           : mob.type === 'wandering_trader' ? 0
           : mob.type === 'allay' ? 0
           : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
@@ -9099,6 +9198,114 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='creaking'){
+      // Wiki: it attacks by melee headbutt, but "cannot move at all while any players in Survival or
+      // Adventure mode can see it". Its gaze logic is the whole mob, so it runs first and gates the rest.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      const watchers = this.getWatchers ? this.getWatchers() : (player ? [player] : []);
+      // There is no shared line-of-sight helper in this codebase, so the creaking samples voxels along the
+      // segment. Wiki: the "visual box block obstructs the view", so a solid block breaks the gaze.
+      const hasLineOfSight = (m, p) => {
+        const from = p?.position ?? p;
+        const to = m?.mesh?.position ?? m?.position;
+        if (!from || !to) return false;
+        const toEye = to.clone();
+        toEye.y += (m.height ?? 2.7) * 0.5;
+        const delta = toEye.clone().sub(from);
+        const distance = delta.length();
+        if (distance < 1e-3) return true;
+        const steps = Math.ceil(distance * 2);
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps;
+          const x = Math.floor(from.x + delta.x * t);
+          const y = Math.floor(from.y + delta.y * t);
+          const z = Math.floor(from.z + delta.z * t);
+          const id = this.world?.getVoxel?.(x, y, z);
+          if (id === undefined || id === null || id === BLOCKS.AIR) continue;
+          // Wiki: glass, ice and the like do not break the view, and neither do blocks with no collision.
+          if (CREAKING_VIEW_TRANSPARENT.has(id)) continue;
+          return false;
+        }
+        return true;
+      };
+
+      updateCreakingAlert(mob, watchers, { hasLineOfSight });
+      const observer = creakingFrozenBy(mob, watchers, { hasLineOfSight });
+      mob.frozen = !!observer;
+      mob.frozenBy = observer;
+
+      // Wiki: while dying from its heart being destroyed it twitches, then dies.
+      if (mob.dying) {
+        mob.twitchTimer -= dt;
+        mob.velocity.set(0, 0, 0);
+        if (mob.twitchTimer <= 0) { mob.health = 0; }
+        poseCreaking(mob, (mob.creakPhase = (mob.creakPhase || 0) + dt));
+        return true;
+      }
+
+      // Wiki: naturally-spawned creakings despawn by day, out of heart range, or after 5 s sharing a
+      // block with a player.
+      let sameBlock = false;
+      for (const w of watchers) {
+        if (!w?.position) continue;
+        if (Math.floor(w.position.x) === Math.floor(mob.mesh.position.x)
+          && Math.floor(w.position.y) === Math.floor(mob.mesh.position.y)
+          && Math.floor(w.position.z) === Math.floor(mob.mesh.position.z)) { sameBlock = true; break; }
+      }
+      if (updateCreakingDespawn(mob, dt, {
+        worldTime: this.game?.worldTime ?? 6000,
+        inSameBlockAsPlayer: sameBlock
+      }) === 'despawned') {
+        mob.health = 0;
+        return true;
+      }
+      if (updateCreakingHeartLink(mob) === 'out-of-range') {
+        // Wiki: pushed out of the 32-block radius, it dies.
+        mob.health = 0;
+        return true;
+      }
+
+      if (mob.frozen) {
+        // Wiki: immobile, cannot attack, and cannot be pushed or knocked back.
+        mob.velocity.set(0, 0, 0);
+        mob.state = 'frozen';
+      } else {
+        const attack = creakingAttack(mob, watchers, { hasLineOfSight });
+        if (attack && mob.hitCooldown <= 0) {
+          player.takeDamage(attack.damage, mob.mesh.position, 'Creaking');
+          mob.hitCooldown = 1;
+          mob.state = 'attacking';
+        } else if (mob.alerted && mob.target?.position) {
+          // Wiki: alerted it "moves quickly, faster than an attacking vindicator". It only moves while
+          // unobserved, which the frozen check above already guarantees.
+          const dir = mob.target.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            // Wiki: it never intentionally moves beyond 32 blocks from its heart.
+            const step = mob.mesh.position.clone().add(dir.multiplyScalar(1));
+            const clamped = creakingClampToHeart(mob, step);
+            const toward = clamped.clone().sub(mob.mesh.position);
+            toward.y = 0;
+            if (toward.lengthSq() > 1e-6) {
+              toward.normalize();
+              mob.velocity.x = toward.x * CREAKING_SPEED * 6;
+              mob.velocity.z = toward.z * CREAKING_SPEED * 6;
+            }
+          }
+          mob.state = 'pursuing';
+        } else {
+          wanderMob(this, mob, dt, 0.6);
+          mob.state = 'idle';
+        }
+      }
+
+      moveGroundMob(this, mob, dt);
+      mob.creakPhase = (mob.creakPhase || 0) + dt;
+      poseCreaking(mob, mob.creakPhase);
       return true;
     }
     if(mob.type==='camel'){

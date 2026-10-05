@@ -213,7 +213,12 @@ export function buildCreativeCatalog() {
     'horse_spawn_egg', 'donkey_spawn_egg', 'mule_spawn_egg', 'wolf_spawn_egg', 'cat_spawn_egg',
     'slime_spawn_egg', 'magma_cube_spawn_egg', 'witch_spawn_egg',
     'ghast_spawn_egg', 'blaze_spawn_egg', 'wither_skeleton_spawn_egg', 'piglin_spawn_egg', 'zombified_piglin_spawn_egg', 'zombie_pigman_spawn_egg', 'hoglin_spawn_egg', 'strider_spawn_egg',
-    'phantom_spawn_egg', 'vindicator_spawn_egg', 'evoker_spawn_egg', 'ravager_spawn_egg', 'warden_spawn_egg', 'ender_dragon_spawn_egg', 'wither_spawn_egg'
+    'phantom_spawn_egg', 'vindicator_spawn_egg', 'evoker_spawn_egg', 'ravager_spawn_egg', 'warden_spawn_egg', 'ender_dragon_spawn_egg', 'wither_spawn_egg',
+    // Added after the fact. These eggs were registered as real items and were reachable through the mob
+    // dispatcher and the Inspector, but the creative spawn-egg category reads THIS list and it stopped at the
+    // older mobs, so they never appeared in the creative menu.
+    'allay_spawn_egg', 'sniffer_spawn_egg', 'breeze_spawn_egg', 'armadillo_spawn_egg',
+    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');
