@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
 import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
@@ -2365,6 +2366,8 @@ export class MobManager {
       // Wiki: polar bears are 1.4 x 1.4, and a cub is 0.7 x 0.7. Without these rows the collision
       // fell back to the humanoid default of 0.6 x 1.95.
       case 'polar_bear': return POLAR_BEAR_DIMENSIONS;
+      // Wiki: pandas are 1.3 x 1.25, and a baby is 0.65 x 0.625.
+      case 'panda': return PANDA_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3506,6 +3509,33 @@ export class MobManager {
   }
 
   /**
+   * Pick something for a panda to maul.
+   *
+   * Wiki: a panda attacks whatever hurt it, and an aggressive one keeps attacking until the target
+   * dies or leaves its detection range. Aggressive pandas near an attacked panda join in.
+   */
+  findPandaTarget(panda, player) {
+    const candidates = [];
+    if (player?.position) candidates.push(player);
+    for (const other of this.mobs) {
+      if (other === panda) continue;
+      if (other.type !== 'panda' || !other.isHostile) continue;
+      candidates.push(other);
+    }
+    let best = null;
+    let bestDist = 16;
+    for (const candidate of candidates) {
+      if (!candidate || candidate === panda) continue;
+      if (candidate.health !== undefined && candidate.health <= 0) continue;
+      const pos = candidate.position ?? candidate.mesh?.position;
+      if (!pos) continue;
+      const dist = panda.mesh.position.distanceTo(pos);
+      if (dist < bestDist) { bestDist = dist; best = candidate; }
+    }
+    return best;
+  }
+
+  /**
    * Pick something for a goat to ram.
    *
    * Wiki: it targets players, armor stands and any mob except ghasts and other goats, within 4-16
@@ -4375,8 +4405,12 @@ export class MobManager {
     return mob;
   }
 
-  spawnPanda(x, y, z) {
+  spawnPanda(x, y, z, options = {}) {
     const group = new THREE.Group();
+    // Wiki: the mutation table also applies to naturally spawned pandas, for both genes.
+    const genes = options.mainGene !== undefined
+      ? { mainGene: options.mainGene, hiddenGene: options.hiddenGene ?? options.mainGene }
+      : rollPandaGenes(options.random || Math.random);
     const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
     const blackMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
 
@@ -4408,14 +4442,31 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: [fl, fr, bl, br],
-      health: 20,
-      maxHealth: 20,
+      // Wiki: a panda has a MainGene and a HiddenGene, and the personality follows from them.
+      mainGene: genes.mainGene,
+      hiddenGene: genes.hiddenGene,
+      isBaby: !!options.isBaby,
+      // Wiki: 1.3 x 1.25, and half that for a baby. Without these the collision fell back to
+      // the humanoid default of 0.6 x 1.95.
+      width: (options.isBaby ? PANDA_BABY_DIMENSIONS : PANDA_DIMENSIONS).width,
+      height: (options.isBaby ? PANDA_BABY_DIMENSIONS : PANDA_DIMENSIONS).height,
+      // Wiki: neutral, and passive on Peaceful. An aggressive panda hunts continuously and does
+      // not panic when harmed.
+      isHostile: false,
+      angryAt: null,
+      isLyingDown: false,
+      isRolling: false,
+      isThundering: false,
+      sneezeTimer: 0,
+      pandaPhase: 0,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
       timer: 0,
       hitCooldown: 0
     };
+    applyPandaPersonality(mob);
+    if (options.isBaby) group.scale.setScalar(PANDA_BABY_SCALE);
     this.mobs.push(mob);
     return mob;
   }
@@ -7089,6 +7140,14 @@ export class MobManager {
     } else if (mob.type === 'goat') {
       // A goat never retaliates; the wiki is explicit that it cannot be provoked.
       return;
+    } else if (mob.type === 'panda') {
+      // Wiki: when a panda is attacked, aggressive pandas nearby turn hostile unless it was killed
+      // in one hit. A non-aggressive panda retaliates only once, which the branch enforces.
+      if (!mob.isBaby) {
+        mob.isHostile = true;
+        mob.angryAt = attacker ?? null;
+      }
+      alertAggressivePandas(this, mob, attacker, { lethal: mob.health <= 0 });
     } else if (mob.type === 'polar_bear') {
       // Wiki: a surviving cub makes every adult in a 41x21x41 area hostile; an adult near a cub
       // provokes the adults around it.
@@ -7362,7 +7421,9 @@ export class MobManager {
     // Wiki: Java picks one of cod or salmon on a 3/4 and 1/4 split, 0-2 of it, cooked if the bear
     // died on fire. A cub drops nothing.
     const polarRows = isPolarBear(mob) && (mob.playerDamaged || mob.wolfKilled) ? polarBearDrops(mob, random) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows];
+    // Wiki: Java pandas drop exactly one bamboo, and a baby drops nothing.
+    const pandaRows = isPanda(mob) ? pandaDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows];
   }
 
   /**
@@ -7451,7 +7512,8 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
+          : mob.type === 'polar_bear' ? (mob.playerDamaged || mob.wolfKilled ? polarBearXp(mob) : 0)
           : mob.type === 'phantom' ? (mob.playerDamaged || mob.wolfKilled ? phantomXp(mob) : 0)
           : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
           : mob.type === 'tadpole' ? 0
@@ -7867,6 +7929,92 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='panda'){
+      // Wiki: neutral, with seven personalities. Aggressive pandas hunt continuously; lazy ones
+      // are the slowest land mob; worried ones shake in thunderstorms; playful ones roll; weak
+      // ones have half health and sneeze far more; brown is only a colour.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.isThundering = this.game?.weather?.weatherType === 'thunder';
+      mob.stance = pandaStance(mob, {
+        difficulty: this.game?.difficulty ?? 'normal',
+        provoked: mob.isHostile
+      });
+
+      // Wiki: a baby sneezes, which makes adults nearby jump and can drop a slimeball.
+      updatePandaSneeze(this, mob, dt);
+
+      // Wiki: a lazy panda lies on its back much of the time, and a playful one rolls.
+      mob.pandaPhase = (mob.pandaPhase || 0) + dt;
+      if (mob.isLazy && mob.onGround) {
+        mob.timer = (mob.timer || 0) - dt;
+        if (mob.timer <= 0) {
+          mob.timer = 6 + Math.random() * 8;
+          mob.isLyingDown = !mob.isLyingDown;
+        }
+      } else {
+        mob.isLyingDown = false;
+      }
+      if (mob.isPlayful && mob.onGround) {
+        mob.rollTimer = (mob.rollTimer || 0) - dt;
+        if (mob.rollTimer <= 0) {
+          mob.rollTimer = 4 + Math.random() * 6;
+          mob.isRolling = true;
+          mob.rollEnd = mob.pandaPhase + 1.2;
+        }
+        if (mob.isRolling && mob.pandaPhase > mob.rollEnd) mob.isRolling = false;
+      }
+
+      // Wiki: only a hostile panda hunts, and an aggressive one keeps going until the target is
+      // dead or out of range. A non-aggressive panda attacks only once.
+      const target = mob.stance === 'hostile'
+        ? this.findPandaTarget(mob, player)
+        : null;
+      if (target) {
+        const pos = target.position ?? target.mesh?.position;
+        const dir = pos.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1e-6) dir.normalize();
+        mob.yaw = Math.atan2(dir.x, dir.z);
+        // Wiki: a lazy panda ambles at 0.07, the slowest land speed in the game.
+        const speed = mob.speed ?? (mob.isLazy ? PANDA_SPEED.lazy : PANDA_SPEED.normal);
+        mob.velocity.x = dir.x * speed * 8;
+        mob.velocity.z = dir.z * speed * 8;
+        if (dist < 1.9 && mob.hitCooldown <= 0) {
+          const damage = pandaDamageFor(mob, this.game?.difficulty ?? 'normal');
+          if (damage > 0) target.takeDamage?.(damage, mob.mesh.position, 'panda');
+          mob.hitCooldown = 1.0;
+          // Wiki: a non-aggressive panda attacks only once, so it calms after landing the blow.
+          if (!aggressivePandaKeepsHunting(mob)) { mob.isHostile = false; mob.angryAt = null; }
+        }
+        mob.state = 'hostile';
+      } else {
+        // Wiki: pandas follow a player carrying bamboo, within about 16 blocks.
+        const heldItem = player?.inventory?.getActiveItem?.();
+        const heldId = typeof heldItem?.id === 'string' ? heldItem.id : '';
+        if (pandaFollowsBamboo(mob, player, heldId)) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const dist = dir.length();
+          if (dist > 2) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 2.0;
+            mob.velocity.z = dir.z * 2.0;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else if (!mob.isLyingDown) {
+          wanderMob(this, mob, dt, 1.0);
+        } else {
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      posePanda(mob, mob.pandaPhase);
       return true;
     }
     if(mob.type==='polar_bear'){

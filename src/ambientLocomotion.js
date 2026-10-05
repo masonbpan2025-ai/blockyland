@@ -51,11 +51,11 @@ export const HOSTILE_LOCOMOTION = {
  */
 export const PASSIVE_LOCOMOTION = {
   mooshroom: { speed: 1.0 },
-  // `polar_bear` is deliberately NOT here. It is a neutral mob whose only aggression is the
-  // cub-defence rule -- a conditional stance rather than a chase -- and it owns its locomotion in
-  // its own branch. A generic "hostile within range" role would have made it attack every player
-  // on sight, which is not what the wiki describes. `panda` stays.
-  panda: { speed: 1.0 },
+  // Neither `polar_bear` nor `panda` is here any more. Both are neutral mobs whose aggression is a
+  // *conditional stance* -- cub defence for the bear, a personality for the panda -- rather than a
+  // chase, and both own their locomotion in their own branches. This table's only mobile behaviour
+  // is to chase a player in range, so declaring them here made them attack every player on sight,
+  // which is not what the wiki describes.,
   // Boss-scale mobs are driven by their own event code; listed so the intent is recorded rather
   // than left to look like an oversight.
   ender_dragon: { speed: 0, flying: true },

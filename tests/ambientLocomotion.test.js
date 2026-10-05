@@ -48,7 +48,7 @@ test('the mobs that had no branch now have a declared role', () => {
   // These are the ones this fix is for. Each was measured frozen before it. `piglin` and `hoglin`
   // are deliberately NOT here: they already have path-following steering of their own, and driving
   // them from this table bypasses it and makes them shudder, which mobJitter.test.js measures.
-  for (const type of ['mooshroom', 'panda', 'zoglin',
+  for (const type of ['mooshroom', 'zoglin',
     'ravager', 'witch', 'vindicator', 'evoker', 'warden']) {
     const spec = locomotionFor(type);
     assert.ok(spec, `${type} should have a declared role`);
@@ -62,6 +62,8 @@ test('the mobs that had no branch now have a declared role', () => {
   // `polar_bear` was in this table until it gained its own branch. Declaring it here would have
   // made a *neutral* mob attack every player on sight, which the wiki does not describe.
   assert.equal(hasAmbientLocomotion('polar_bear'), false, 'polar_bear owns its locomotion now');
+  // `panda` left for the same reason: its aggression is a personality, not a chase.
+  assert.equal(hasAmbientLocomotion('panda'), false, 'panda owns its locomotion now');
 });
 
 test('the passive roles never attack and the hostile ones do', () => {
@@ -198,7 +200,7 @@ test('the wanderer takes an injectable random so it can be tested', async () => 
 
 test('the fix works through the real update loop for every mob it covers', () => {
   const frozen = [];
-  for (const type of ['mooshroom', 'panda', 'zoglin',
+  for (const type of ['mooshroom', 'zoglin',
     'ravager', 'witch', 'vindicator', 'evoker', 'warden']) {
     const { manager, player } = fixture();
     const mob = manager.spawnMob(type, 0, 1, 0);
