@@ -107,6 +107,11 @@ export function buildCreativeCatalog() {
     BLOCKS.SHORT_GRASS, BLOCKS.FERN, BLOCKS.DEAD_BUSH, BLOCKS.COBWEB,
     // Eyeblossoms. Both daylight states are listed because neither opens or closes on its own here.
     BLOCKS.OPEN_EYEBLOSSOM, BLOCKS.CLOSED_EYEBLOSSOM,
+    // Nether and deepslate cubes, plus the two azalea bushes. Shroomlight is here rather than with the
+    // light sources because it is a natural block, even though it emits at 15.
+    BLOCKS.SHROOMLIGHT, BLOCKS.CRACKED_NETHER_BRICKS, BLOCKS.ANCIENT_DEBRIS,
+    BLOCKS.REINFORCED_DEEPSLATE, BLOCKS.CREAKING_HEART, BLOCKS.FROSTED_ICE,
+    BLOCKS.FLOWERING_AZALEA_LEAVES, BLOCKS.AZALEA, BLOCKS.FLOWERING_AZALEA,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];

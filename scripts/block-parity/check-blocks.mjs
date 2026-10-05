@@ -60,18 +60,22 @@ for (const key of keys) {
   }
 
   // The drop: getBlockDrop() is what actually spawns an item on break. `drop: null` is legitimate when
-  // the block deliberately yields nothing, so it is only a failure when the block neither drops nor has
-  // a declared alternative. There are three such cases in this game and they are distinguished by what
-  // the definition declares, not by a special case per block:
+  // the block deliberately yields nothing, so it is only a failure when the block neither drops nor is
+  // documented as yielding nothing.
   //
-  //   silverfish: true   an infested block releases a mob instead of an item;
-  //   plant: true        short grass and ferns drop nothing in vanilla (grass yields seeds only
-  //                      sometimes, and this game models no seed drop from it);
-  //   (anything else)    must declare a real drop.
+  // The generated harvest table is the authority here, not a per-definition flag: it carries an empty
+  // `drops` array for exactly the blocks vanilla makes yield nothing (short grass, ferns, infested
+  // blocks, reinforced deepslate, frosted ice, flowering azalea leaves), and a non-empty one for
+  // everything else. So a null definition drop is allowed when the harvest row agrees, and is a failure
+  // when the harvest row expects a drop the definition has dropped on the floor.
   const drop = getBlockDrop(id);
-  const alternative = def.silverfish ? 'releases a silverfish' : (def.plant ? 'a plant that yields nothing' : null);
-  if (def.drop === null && alternative) {
-    note(true, `drop NONE, by design (${alternative})`);
+  const acknowledged = Array.isArray(harvest?.drops) && harvest.drops.length === 0
+    ? 'the harvest table also declares no drops'
+    : null;
+  if (def.drop === null && acknowledged) {
+    note(true, `drop NONE, by design (${acknowledged})`);
+  } else if (def.drop === null && (def.plant || def.silverfish)) {
+    note(true, `drop NONE, by design (${def.silverfish ? 'releases a silverfish' : 'a plant that yields nothing'})`);
   } else {
     note(Boolean(drop), `drop ${drop ? `${drop.id} (isBlock=${drop.isBlock})` : 'NONE'}`);
   }
