@@ -52,12 +52,26 @@ test('normalisation folds case, spaces, underscores and hyphens to one key', () 
 
 test('normalisation keeps state suffixes, because a suffix can be part of a real block name', () => {
   // `wall_sign` is a distinct vanilla block with its own wiki page, so folding it away would make an
-  // unimplemented block look covered by its floor-standing sibling. This game implements no wall signs
-  // at all, so the check is that the two names stay distinct and that nothing folds the wall variant
-  // onto the floor-standing block.
+  // unimplemented block look covered by its floor-standing sibling. The two names must stay distinct, and
+  // nothing may fold the wall variant onto the floor-standing block.
+  //
+  // This test used to assert that `Oak Wall Sign` resolved to NOTHING, on the grounds that the game had no
+  // wall signs at all. The wall-sign batch invalidated that premise, so it now asserts the stronger and
+  // more useful thing: the wall sign resolves to the WALL SIGN, not to the standing one it shares a prefix
+  // with. That is the confusion this test exists to catch, and it is now catchable with real blocks.
   assert.notEqual(normaliseBlockName('Oak Wall Sign'), normaliseBlockName('Oak Sign'));
-  assert.equal(resolveVanillaBlock('Oak Wall Sign').length, 0,
-    'the game has no wall signs, so this must resolve to nothing rather than to OAK_SIGN');
+
+  if ('OAK_WALL_SIGN' in BLOCKS) {
+    const resolved = resolveVanillaBlock('Oak Wall Sign');
+    assert.ok(resolved.includes('OAK_WALL_SIGN'),
+      `the wall sign must resolve to OAK_WALL_SIGN, got ${resolved.join(', ') || 'nothing'}`);
+    assert.deepEqual(resolved, ['OAK_WALL_SIGN'],
+      'and it must resolve to ONLY the wall sign, never the standing sign as well');
+  } else {
+    assert.equal(resolveVanillaBlock('Oak Wall Sign').length, 0,
+      'with no wall signs registered, this must resolve to nothing rather than to OAK_SIGN');
+  }
+
   // The floor-standing sign is only asserted where the registry actually has signs: on an earlier
   // revision of this game it has none, and that is a missing family rather than a matcher failure.
   if ('OAK_SIGN' in BLOCKS) {

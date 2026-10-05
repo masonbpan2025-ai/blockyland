@@ -479,3 +479,39 @@ export function createFlowerPotGeometry(def, tm) {
   return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
 }
 
+/**
+ * A wall sign: the same board as a standing sign, mounted flat against a wall with no post.
+ *
+ * A standing sign is a post plus a board; a wall sign is just the board, held off the wall by two short
+ * pegs. It is a separate function rather than a flag on `createSignGeometry` because the two share only
+ * the board dimensions and differ in every position, and mixing them would make the post conditional.
+ *
+ * `dir` is the direction the sign faces, using the same rotation table the other sign shapes use. As with
+ * the hanging signs, nothing in this engine drives that from placement: no block-state layer owns signs,
+ * so a wall sign is drawn facing north until one does.
+ */
+export function createWallSignGeometry(def, tm, dir = 3) {
+  const boardW = 12 / 16;
+  const boardH = 6 / 16;
+  const boardT = 1 / 16;
+  // The board sits at the back of the cell so the pegs reach the wall behind it.
+  const boardZ = 15 / 16 - boardT;
+  const peg = 1 / 16;
+  const parts = [
+    buildBox({ x: boardW, y: boardH, z: boardT },
+      { x: (1 - boardW) / 2, y: 8 / 16, z: boardZ }, def, tm),
+    // Two pegs, one near each end of the board, running back to the wall.
+    buildBox({ x: peg, y: peg, z: 1 / 16 }, { x: 2.5 / 16, y: 11 / 16, z: boardZ + boardT }, def, tm),
+    buildBox({ x: peg, y: peg, z: 1 / 16 }, { x: 12.5 / 16, y: 11 / 16, z: boardZ + boardT }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+
