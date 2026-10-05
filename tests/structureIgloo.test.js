@@ -18,7 +18,9 @@ const snowy = { biomeAt: () => 'snowy_plains', surfaceY: () => 70 };
 
 test('the igloo is registered, gated on the right biomes and now has a generator', () => {
   const coverage = generatorCoverage();
-  assert.deepEqual(coverage.implemented.sort(), ['buried_treasure', 'igloo']);
+  // Membership, not an exact list: an exact list breaks every time another structure lands.
+  assert.ok(coverage.implemented.includes('buried_treasure'));
+  assert.ok(coverage.implemented.includes('igloo'));
   assert.ok(GENERATORS.igloo.realize, 'the igloo needs a realize step, not just a plan');
   const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, ...snowy });
   const entry = engine.registry.igloo;
@@ -93,9 +95,14 @@ test('an igloo plan has the right pieces for its basement roll', () => {
 });
 
 test('the biome gate refuses a warm biome and accepts every snowy one', () => {
+  // Count IGLOO plans, not plans in general: other implemented structures (ruined portals) legitimately
+  // generate in a desert, so "no plan at all in a desert" stopped being a statement about the igloo.
   const warm = createStructureEngine({ seed: 3, blockIds: BLOCKS, biomeAt: () => 'desert', surfaceY: () => 70 });
   let planned = 0;
-  for (let chunk = 0; chunk < 300; chunk++) if (warm.planChunk(chunk, 0)) planned++;
+  for (let chunk = 0; chunk < 300; chunk++) {
+    const plan = warm.planChunk(chunk, 0);
+    if (plan && plan.structureId === 'igloo') planned++;
+  }
   assert.equal(planned, 0, 'no igloo may generate in a desert');
 
   for (const biome of ['snowy_plains', 'snowy_taiga', 'snowy_slopes']) {

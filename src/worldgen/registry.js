@@ -111,15 +111,15 @@ export const STRUCTURES = {
   },
   ruined_portal: {
     type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
-    biomeTag: 'has_structure/ruined_portal_standard', biomes: [],
+    biomeTag: 'has_structure/ruined_portal_standard', implementation: 'ruinedPortal', biomeTagExcludes: ['deep_dark'], biomes: [],
     notes: 'portal_1..10 and giant_portal_1..3; block_age processor; the only structure in two dimensions.'
   },
-  ruined_portal_desert: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_desert', biomes: ['desert'], notes: 'Partly buried, mossiness 0.' },
-  ruined_portal_jungle: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_jungle', biomes: ['jungle', 'sparse_jungle', 'bamboo_jungle'], notes: 'Surface, mossiness 0.8.' },
-  ruined_portal_mountain: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_mountain', biomes: ['windswept_hills', 'windswept_forest', 'windswept_gravelly_hills', 'stony_shore', 'savanna_plateau', 'windswept_savanna', 'eroded_badlands', 'wooded_badlands', 'cherry_grove', 'frozen_peaks', 'jagged_peaks', 'meadow', 'snowy_slopes', 'stony_peaks'], notes: 'Half inside a mountain, mossiness 0.2.' },
-  ruined_portal_ocean: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_ocean', biomes: ['ocean', 'deep_ocean', 'cold_ocean', 'deep_cold_ocean', 'frozen_ocean', 'deep_frozen_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean', 'warm_ocean'], notes: 'On the ocean floor, mossiness 0.8.' },
-  ruined_portal_swamp: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_swamp', biomes: ['swamp', 'mangrove_swamp'], notes: 'Surface, mossiness 0.5.' },
-  ruined_portal_nether: { type: 'ruined_portal', dimension: NETHER, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_nether', biomes: [], notes: 'Blackstone materials, mossiness 0, replace_with_blackstone.' },
+  ruined_portal_desert: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_desert', implementation: 'ruinedPortal', biomes: ['desert'], notes: 'Partly buried, mossiness 0.' },
+  ruined_portal_jungle: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_jungle', implementation: 'ruinedPortal', biomes: ['jungle', 'sparse_jungle', 'bamboo_jungle'], notes: 'Surface, mossiness 0.8.' },
+  ruined_portal_mountain: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_mountain', implementation: 'ruinedPortal', biomes: ['windswept_hills', 'windswept_forest', 'windswept_gravelly_hills', 'stony_shore', 'savanna_plateau', 'windswept_savanna', 'eroded_badlands', 'wooded_badlands', 'cherry_grove', 'frozen_peaks', 'jagged_peaks', 'meadow', 'snowy_slopes', 'stony_peaks'], notes: 'Half inside a mountain, mossiness 0.2.' },
+  ruined_portal_ocean: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_ocean', implementation: 'ruinedPortal', biomes: ['ocean', 'deep_ocean', 'cold_ocean', 'deep_cold_ocean', 'frozen_ocean', 'deep_frozen_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean', 'warm_ocean'], notes: 'On the ocean floor, mossiness 0.8.' },
+  ruined_portal_swamp: { type: 'ruined_portal', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_swamp', implementation: 'ruinedPortal', biomes: ['swamp', 'mangrove_swamp'], notes: 'Surface, mossiness 0.5.' },
+  ruined_portal_nether: { type: 'ruined_portal', dimension: NETHER, family: GeneratorFamily.TEMPLATE, biomeTag: 'has_structure/ruined_portal_nether', implementation: 'ruinedPortal', biomes: [], notes: 'Blackstone materials, mossiness 0, replace_with_blackstone.' },
   shipwreck: {
     type: 'shipwreck', dimension: OVERWORLD, family: GeneratorFamily.TEMPLATE,
     biomeTag: 'has_structure/shipwreck',

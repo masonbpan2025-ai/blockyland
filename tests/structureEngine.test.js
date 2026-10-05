@@ -446,7 +446,8 @@ test('generator coverage is honest about what is not implemented yet', () => {
   // lands, which trains a reader to update the assertion instead of reading it.
   assert.ok(implemented.includes('buried_treasure'));
   assert.ok(implemented.includes('igloo'));
-  assert.ok(missing.length >= 28, `expected most structures to be unimplemented, got ${missing.length}`);
+  assert.ok(implemented.includes('ruined_portal'));
+  assert.ok(missing.length >= 25, `expected most structures to be unimplemented, got ${missing.length}`);
   assert.ok(missing.includes('village_plains'));
   assert.ok(missing.includes('stronghold'));
   assert.ok(missing.includes('shipwreck'));
