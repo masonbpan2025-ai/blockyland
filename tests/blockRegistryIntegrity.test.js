@@ -109,6 +109,63 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('every potted plant exists, matches its own sprite, and drops itself', () => {
+  // Thirty-seven near-identical definitions is the largest copy-paste surface in the registry, so each is
+  // checked against its OWN key: a potted poppy drawn with the dandelion sprite, or named for one plant
+  // and textured for another, is the failure this looks for.
+  //
+  // The drop is checked as a deliberate simplification too. Vanilla drops the pot AND the plant, which
+  // this one-drop-per-block model cannot express, so each potted plant drops itself and both come back
+  // assembled.
+  const POT = 'potted_';
+  const potted = Object.keys(BLOCKS)
+    .filter((k) => k.startsWith('POTTED_') && typeof BLOCKS[k] === 'number')
+    .sort();
+
+  assert.equal(potted.length, 37, `expected thirty-seven potted plants, found ${potted.length}`);
+
+  for (const key of potted) {
+    const id = BLOCKS[key];
+    const def = BLOCK_DEFS[id];
+
+    // The texture must be this plant's own composed tile.
+    const expected = `${POT}${key.slice('POTTED_'.length).toLowerCase()}.png`;
+    assert.deepEqual(def.textures, { all: expected }, `${key} must use ${expected}`);
+
+    // It must actually be on disk, since these are composed rather than downloaded.
+    assert.ok(existsSync(path.join('public', 'assets', 'blocks', expected)),
+      `${key} points at ${expected}, which is not on disk. Run scripts/compose-potted-plants.py.`);
+
+    // It shares the flower pot's geometry, and is not a full cube.
+    assert.equal(def.flowerPot, true, `${key} must use the flower pot geometry`);
+    assert.equal(def.transparent, true, `${key} is a partial shape and must not occlude neighbours`);
+
+    // And it drops itself, so the pot and plant both come back.
+    const drop = getBlockDrop(id);
+    assert.ok(drop, `${key} must drop something`);
+    assert.equal(drop.id, id, `${key} must drop itself`);
+  }
+});
+
+test('the flower pot is drawn with the flower pot sprite, not a stand-in', () => {
+  // The pot's definition had been pointing at iron_bars.png. That was not a deliberate reuse: the
+  // generator's texture resolver falls back to iron_bars when `flower_pot.png` is absent, so the block
+  // rendered as a fence-like tile purely because the sprite was never downloaded. The fallback still
+  // exists for genuinely untextured blocks, which is why this asserts the OUTCOME rather than the path.
+  const def = BLOCK_DEFS[BLOCKS.FLOWER_POT];
+  assert.deepEqual(def.textures, { all: 'flower_pot.png' },
+    'the flower pot must use its own sprite');
+  assert.ok(existsSync(path.join('public', 'assets', 'blocks', 'flower_pot.png')),
+    'flower_pot.png must be on disk, or the generator will fall back to iron_bars.png again');
+
+  // The pot itself is still a pot: shared geometry, partial shape.
+  assert.equal(def.flowerPot, true, 'the flower pot uses the flower pot geometry');
+
+  // The composer that builds the potted tiles must be committed, since the art is unreproducible without it.
+  assert.ok(existsSync(path.join('scripts', 'compose-potted-plants.py')),
+    'scripts/compose-potted-plants.py must be committed alongside the textures it produces');
+});
+
 test('a candle cake drops its candle, and a plain cake drops nothing', () => {
   // The harvest table is explicit and the two rules differ, which is the same trap the coral family set:
   // a CANDLE CAKE yields its CANDLE -- not the cake, not itself -- while a plain CAKE yields nothing,

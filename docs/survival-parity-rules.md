@@ -341,7 +341,7 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1548 | 1557 | 99.4% |
 | Crafting recipes expressible | 1549 | 1557 | 99.5% |
-| Blocks named | 987 | 1095 | 90.1% |
+| Blocks named | 1024 | 1095 | 93.5% |
 | Items named | 1278 | 1385 | 92.3% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
@@ -371,25 +371,27 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 985 | 1266 |
-| missing | 110 | 119 |
+| present | 1022 | 1266 |
+| missing | 73 | 119 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **11** | **0** |
-| **missing, needs NEW art** | **99** | **119** |
-| art files | 397 | 1071 |
+| **missing, needs NEW art** | **62** | **119** |
+| art files | 454 | 1071 |
 
-Both gaps are the same shape, but not identical, and the difference grew. Of 110 missing blocks,
+Both gaps are the same shape, but not identical, and the difference grew. Of 73 missing blocks,
 **eleven** are reachable by writing code and no new art: `redstone_wall_torch` reusing
 `redstone_torch.png`, and ten coral WALL fans each reusing its upright fan's texture. They are
 unimplemented because every one is a wall-attached block and this game stores no facing state for
 decoration. Of 119 missing items, **none** is reachable without art.
 
-Worth noting for whoever continues this: the 99 "needs NEW art" blocks are not uniformly blocked.
-Thirty-seven are the potted plants, which need a flower-pot-plus-plant model rather than a flat tile;
-six are mob heads, whose art exists only as `entity/` skin sheets rather than block textures; and the
-rest would need new art drawn. The **18 candle cakes** were in this column until a committed
-composition script combined the cake and candle tiles the mirror does ship — so "needs new art" can
-sometimes be answered by composing existing art instead, and `scripts/compose-candle-cakes.py` is the
+The 62 "needs NEW art" blocks are not uniformly blocked, and the composition scripts are the reason to
+say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
+this column** until committed composition scripts built their textures from art the mirror does ship —
+vanilla draws both as models rather than as single tiles, so no combined texture exists upstream, but
+the parts do. `scripts/compose-potted-plants.py` and `scripts/compose-candle-cakes.py` are the worked
+examples, and both are asserted to exist by tests. The six mob heads are a harder case: their art exists
+only as `entity/` skin sheets, not as block textures, so they need either a skin-sheet UV mapping or
+new art. The rest would need art actually drawn.
 worked example.
 
 ### 4.1.2 The shulker boxes are the clearest block-versus-behaviour gap

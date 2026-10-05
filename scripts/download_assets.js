@@ -123,6 +123,21 @@ const blocks1214 = [
   'yellow_candle.png', 'lime_candle.png', 'pink_candle.png', 'gray_candle.png',
   'light_gray_candle.png', 'cyan_candle.png', 'purple_candle.png', 'blue_candle.png',
   'brown_candle.png', 'green_candle.png', 'red_candle.png', 'black_candle.png',
+  // Potted plants, the eighteenth batch. Same arrangement as the candle cakes: the POT and every PLANT it
+  // can hold are downloadable, but the combined `potted_*` tiles are not, because vanilla draws a potted
+  // plant as a model rather than as a single texture. Run `python scripts/compose-potted-plants.py` after
+  // this list. The flower pot sprite is also a FIX, not an addition: the generator had been falling back
+  // to iron_bars.png for it because this file was missing.
+  'flower_pot.png',
+  'acacia_sapling.png', 'allium.png', 'azure_bluet.png', 'bamboo_stage0.png', 'birch_sapling.png',
+  'blue_orchid.png', 'brown_mushroom.png', 'cactus_side.png', 'cherry_sapling.png',
+  'closed_eyeblossom.png', 'cornflower.png', 'crimson_fungus.png', 'crimson_roots.png',
+  'dandelion.png', 'dark_oak_sapling.png', 'dead_bush.png', 'fern.png', 'jungle_sapling.png',
+  'lily_of_the_valley.png', 'mangrove_propagule.png', 'oak_sapling.png', 'open_eyeblossom.png',
+  'orange_tulip.png', 'oxeye_daisy.png', 'pale_oak_sapling.png', 'pink_tulip.png', 'poppy.png',
+  'red_mushroom.png', 'red_tulip.png', 'spruce_sapling.png', 'torchflower.png',
+  'warped_fungus.png', 'warped_roots.png', 'white_tulip.png', 'wither_rose.png',
+  'azalea_side.png', 'flowering_azalea_side.png',
 ];
 
 const items = [
