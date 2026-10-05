@@ -2297,6 +2297,14 @@ export const ITEMS = {
   water_bucket: { name: 'Water Bucket', icon: '/assets/items/water_bucket.png', type: 'tool' },
   lava_bucket: { name: 'Lava Bucket', icon: '/assets/items/lava_bucket.png', type: 'tool' },
   milk_bucket: { name: 'Milk Bucket', icon: '/assets/items/milk_bucket.png', type: 'food' },
+  // The six bucketable mobs, vanilla's fish buckets. A bucket holds one thing, so these stack to one while
+  // their neighbours stack to sixty-four; `src/fishBuckets.js` owns the catch and release rules.
+  cod_bucket: { name: 'Bucket of Cod', icon: '/assets/items/cod_bucket.png', type: 'tool', stackSize: 1 },
+  salmon_bucket: { name: 'Bucket of Salmon', icon: '/assets/items/salmon_bucket.png', type: 'tool', stackSize: 1 },
+  pufferfish_bucket: { name: 'Bucket of Pufferfish', icon: '/assets/items/pufferfish_bucket.png', type: 'tool', stackSize: 1 },
+  tropical_fish_bucket: { name: 'Bucket of Tropical Fish', icon: '/assets/items/tropical_fish_bucket.png', type: 'tool', stackSize: 1 },
+  axolotl_bucket: { name: 'Bucket of Axolotl', icon: '/assets/items/axolotl_bucket.png', type: 'tool', stackSize: 1 },
+  tadpole_bucket: { name: 'Bucket of Tadpole', icon: '/assets/items/tadpole_bucket.png', type: 'tool', stackSize: 1 },
   flint_and_steel: { name: 'Flint and Steel', icon: '/assets/items/flint_and_steel.png', type: 'tool' },
   // Wiki: the harness, which a happy ghast must have before it can be ridden.
   harness: { name: 'Harness', icon: '/assets/items/harness.png', type: 'item' },

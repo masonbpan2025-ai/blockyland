@@ -45,6 +45,7 @@ import {
 import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
+import { catchFish, releaseFish } from './fishBuckets.js';
 import { isGlassBottle, useGlassBottle } from './bottles.js';
 import { blockDrops } from './blockDrops.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
@@ -1187,6 +1188,28 @@ class Game {
     if (!interactMob) interactMob = this.targetMob;
 
     if (interactMob) {
+      // A water bucket on a fish catches it, which is how every fish bucket is obtained. The mob-side
+      // behaviours module owns breeding, taming and shearing; this is the bucket, and it is an item action.
+      const caught = catchFish(this.inventory.getActiveItem(), interactMob.type);
+      if (caught) {
+        const index = this.mobs?.mobs ? this.mobs.mobs.indexOf(interactMob) : -1;
+        if (index >= 0) this.mobs.mobs.splice(index, 1);
+        if (interactMob.mesh) this.scene.remove(interactMob.mesh);
+        const active = this.inventory.getActiveItem();
+        if (this.player.gamemode !== 'creative') {
+          if (active.count === 1) this.inventory.hotbar[this.inventory.activeSlot] = { id: caught, isBlock: false, count: 1 };
+          else {
+            this.inventory.consumeActiveItem();
+            if (!this.inventory.addItem(caught, false, 1)) {
+              this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), caught, false);
+            }
+          }
+        } else if (![...this.inventory.hotbar, ...this.inventory.storage].some((item) => item?.id === caught)) {
+          this.inventory.addItem(caught, false, 1);
+        }
+        this.sounds.playWater(); this.ui.updateHotbar();
+        return;
+      }
       if (this.mobs?.animalBehaviors?.interact(interactMob, this.player)) {
         this.ui?.updateHotbar?.();
         return;
@@ -1254,6 +1277,33 @@ class Game {
       if (this.sounds?.playMilk) this.sounds.playMilk();
       this.ui?.updateHotbar?.();
       this.ui?.updateStats?.();
+      return;
+    }
+    // A fish bucket used on water releases the mob, which is the only way a caught fish gets back out. The
+    // bucket is spent into an empty one; vanilla's rule is asymmetric, which is why this is not `isBucket`.
+    const release = releaseFish(bucketItem);
+    if (release) {
+      const direction = this.camera.getWorldDirection(new THREE.Vector3());
+      const hit = traceBucket(this.world, this.camera.position, direction, true);
+      const intoWater = hit && hit.blockId === BLOCKS.WATER && this.world.getWaterLevel(hit.x, hit.y, hit.z) === 0;
+      if (intoWater && this.mobs?.spawnMob) {
+        this.mobs.spawnMob(release.mob, hit.x + 0.5, hit.y, hit.z + 0.5);
+        const active = this.inventory.getActiveItem();
+        if (this.player.gamemode !== 'creative') {
+          if (active.count === 1) this.inventory.hotbar[this.inventory.activeSlot] = { id: release.replacement, isBlock: false, count: 1 };
+          else {
+            this.inventory.consumeActiveItem();
+            if (!this.inventory.addItem(release.replacement, false, 1)) {
+              this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), release.replacement, false);
+            }
+          }
+        } else if (![...this.inventory.hotbar, ...this.inventory.storage].some((item) => item?.id === release.replacement)) {
+          this.inventory.addItem(release.replacement, false, 1);
+        }
+        this.sounds.playWater(); this.ui.updateHotbar();
+        this.refreshDirtyChunks();
+      }
+      // Nothing else a fish bucket can do: vanilla spends the click either way rather than placing a block.
       return;
     }
     if (isBucket(bucketItem)) {

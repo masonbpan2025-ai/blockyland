@@ -193,6 +193,8 @@ const EXTRA_ENCHANTABLE = {
  */
 export const NOT_ENCHANTABLE = new Set([
   'bucket', 'water_bucket', 'lava_bucket',
+  // And the mob buckets, for the same reason: vanilla enchants none of them.
+  'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'axolotl_bucket', 'tadpole_bucket',
   'compass', 'clock', 'lead', 'name_tag', 'saddle', 'flint_and_steel',
   'leather_horse_armor', 'iron_horse_armor', 'golden_horse_armor', 'diamond_horse_armor',
 ]);

@@ -125,15 +125,61 @@ function vanillaIdOf(entry, vanilla) {
   if (entry.kind === 'item') return entry.id;
   const aliases = entry.blockAliases ?? [];
   if (!aliases.length) return null;
+  // The alias table first, because it is hand-verified and the search below is a heuristic. This game's block
+  // 28 is the *snow block* and its alias `snow` is also a vanilla item -- the snow layer -- so the heuristic
+  // matched the layer and the Inspector then compared a snow block against the layer's recipe.
+  const mapped = aliases.map((alias) => VANILLA_ID_ALIASES[alias]).find(Boolean);
+  if (mapped) return mapped;
+  // Otherwise the first alias vanilla knows, which fixes the cases the table does not cover: alias order in
+  // `BLOCKS` is not vanilla's order, so `GRASS` is declared before `GRASS_BLOCK` and the first alias is
+  // `grass` while vanilla calls the item `grass_block`.
   if (vanilla) {
     const known = aliases.find((alias) => vanilla.itemByName.has(alias));
     if (known) return known;
   }
-  // The alias table is for exactly this: an id this game defines under a spelling vanilla does not use. The
-  // game's block 71 is "Target Block" and vanilla's is `target`, and without consulting the table the
-  // Inspector reported the block dropping itself as a wrong drop.
-  const mapped = aliases.map((alias) => VANILLA_ID_ALIASES[alias]).find(Boolean);
-  return mapped ?? aliases[0];
+  return aliases[0];
+}
+
+/**
+ * A comparable key for a recipe's ingredients: the names, sorted, with duplicates kept.
+ *
+ * Duplicates matter -- nine wheat is not one wheat -- and so does order-insensitivity: a shaped recipe's
+ * arrangement is a separate question, and the one that mattered here was *what* a recipe asks for.
+ */
+function ingredientKey(names) {
+  return names.length ? [...names].sort().join('+') : null;
+}
+
+/** The ingredients vanilla's recipe names, in vanilla's own vocabulary. */
+function vanillaIngredients(recipe, vanilla) {
+  const cells = recipe.inShape ? recipe.inShape.flat() : (recipe.ingredients ?? []);
+  const out = [];
+  for (const cell of cells) {
+    if (cell === null || cell === undefined) continue;
+    const id = Number(Array.isArray(cell) ? (cell[0]?.id ?? cell[0]) : cell);
+    const name = vanilla.itemById.get(id) ?? vanilla.blockNameById.get(id);
+    if (name) out.push(name);
+  }
+  return out;
+}
+
+/** The ingredients one of this game's recipes names, translated into vanilla's vocabulary. */
+function gameIngredients(recipe, registry, vanilla) {
+  const cells = [];
+  if (Array.isArray(recipe.pattern)) {
+    for (const row of recipe.pattern) for (const cell of row) if (cell !== null && cell !== undefined) cells.push(cell);
+  }
+  if (Array.isArray(recipe.ingredients)) {
+    for (const cell of recipe.ingredients) if (cell !== null && cell !== undefined) cells.push(cell);
+  }
+  const out = [];
+  for (const cell of cells) {
+    // A numeric cell is a block id and a string one an item name, and both go through the registry so the
+    // name compared against vanilla is the same one the rest of the Inspector uses.
+    const entry = resolveResource(cell, registry);
+    out.push(entry ? vanillaIdOf(entry, vanilla) : String(cell));
+  }
+  return out;
 }
 
 /**
@@ -346,6 +392,38 @@ export const RESOURCE_CHECKS = [
       return {
         ok: false,
         detail: `vanilla uses this in ${expected.length} recipe(s); nothing here consumes it`,
+      };
+    },
+  },
+  {
+    id: 'recipe-ingredient-parity',
+    label: 'Recipe ingredients match vanilla\'s',
+    group: 'obtainable',
+    run: ({ entry, registry, vanilla }) => {
+      // `recipe-parity` asks whether a recipe exists and `ingredient-parity` whether the item is used at all.
+      // Neither asks whether the recipe *asks for the same things*, which is how nine wheat items came to be
+      // unable to make a hay block: the recipe existed, was counted, and named the wheat crop block.
+      if (!vanilla) return CHECK_SKIP;
+      if (answeredByAnItem(entry, registry, vanilla)) return CHECK_SKIP;
+      const expected = vanilla.recipesByResultName.get(vanillaIdOf(entry, vanilla));
+      if (!expected || !expected.length) return CHECK_SKIP;
+      // A result with no recipe here at all is `recipe-parity`'s finding, not this one's.
+      const mine = entry.recipesAsResult ?? [];
+      if (!mine.length) return CHECK_SKIP;
+
+      const mineSets = new Set(mine.map((recipe) => ingredientKey(gameIngredients(recipe, registry, vanilla))));
+      const wanted = [];
+      for (const recipe of expected) {
+        const key = ingredientKey(vanillaIngredients(recipe, vanilla));
+        if (!key) continue;
+        wanted.push({ key, recipe });
+        if (mineSets.has(key)) return true;
+      }
+      if (!wanted.length) return CHECK_SKIP;
+      const first = wanted[0];
+      return {
+        ok: false,
+        detail: `vanilla asks for ${first.recipe.name ?? first.key} and no recipe here does`,
       };
     },
   },
@@ -617,6 +695,10 @@ export function buildVanillaIndex({ items = [], recipes = {}, foods = [], blocks
     // worst duplicates shadowed a *block* name (`hay_bale`) or differed by vocabulary rather than by
     // spelling (`slimeball`), so both would have been missed.
     blockNames: blocks.map((b) => b.name),
+    // Recipe ingredients arrive as numeric ids, so comparing them needs the reverse of `itemByName`. The
+    // recipe-ingredient check resolves both sides through this and through the block list.
+    itemById: nameById,
+    blockNameById: new Map(blocks.map((b) => [b.id, b.name])),
   };
 }
 
