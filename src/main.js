@@ -6,6 +6,7 @@ import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
+import { drinkPotion } from './potions.js';
 import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
@@ -1573,6 +1574,11 @@ class Game {
           return;
         }
       }
+
+      // Potions are drunk, not eaten. `type: 'potion'` was consumed by nothing at all, so a potion the
+      // brewing stand produced could not be used -- alchemy was a chain with no end to it. `drinkPotion`
+      // reads the effect from POTION_DATA, so anything the brewing table can produce is drinkable.
+      if (drinkPotion(this, activeItem?.id)) return;
 
       if (!activeItem?.isBlock && activeItem && ['minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart', 'oak_boat', 'chest_boat'].includes(activeItem.id)) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };

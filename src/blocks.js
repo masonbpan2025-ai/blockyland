@@ -269,7 +269,24 @@ export const BLOCKS = {
   COPPER_ORE: 955,
   LAPIS_ORE: 956,
   NETHER_GOLD_ORE: 957,
-  NETHER_QUARTZ_ORE: 958
+  NETHER_QUARTZ_ORE: 958,
+
+  // --- Saplings, second block-parity batch ------------------------------------------------------
+  //
+  // Eight tree saplings plus the mangrove propagule. All render as the existing cross-quad plant
+  // model, so like the ores they need no new geometry -- only data plus a texture.
+  //
+  // `_sapling` and `_propagule` are in the generator's NOT_A_CUBE exclusion list, so it never emitted
+  // these; that is why they were absent despite the wood types themselves existing.
+  OAK_SAPLING: 959,
+  SPRUCE_SAPLING: 960,
+  BIRCH_SAPLING: 961,
+  JUNGLE_SAPLING: 962,
+  ACACIA_SAPLING: 963,
+  CHERRY_SAPLING: 964,
+  DARK_OAK_SAPLING: 965,
+  PALE_OAK_SAPLING: 966,
+  MANGROVE_PROPAGULE: 967
 };
 
 export const BLOCK_DEFS = {
@@ -641,6 +658,26 @@ export const BLOCK_DEFS = {
       all: 'dandelion.png'
     }
   },
+  // --- Saplings, second block-parity batch ------------------------------------------------------
+  //
+  // A sapling is a cross-quad plant exactly like a flower: hardness 0, no collision (`solid: false`)
+  // so it does not block movement, `transparent` so it does not occlude, and `drop` itself so breaking
+  // it returns the sapling. It is a block rather than a `dropItem` because the held item is the block.
+  //
+  // Vanilla would grow these into trees on a random tick. This game has no random-tick layer, so a
+  // sapling is decorative for now -- which is also why the block is worth adding: it is the item the
+  // recipe and loot tables already expect to exist, and its absence was a phantom id.
+  [BLOCKS.OAK_SAPLING]: { name: 'Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.OAK_SAPLING, textures: { all: 'oak_sapling.png' } },
+  [BLOCKS.SPRUCE_SAPLING]: { name: 'Spruce Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SPRUCE_SAPLING, textures: { all: 'spruce_sapling.png' } },
+  [BLOCKS.BIRCH_SAPLING]: { name: 'Birch Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.BIRCH_SAPLING, textures: { all: 'birch_sapling.png' } },
+  [BLOCKS.JUNGLE_SAPLING]: { name: 'Jungle Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.JUNGLE_SAPLING, textures: { all: 'jungle_sapling.png' } },
+  [BLOCKS.ACACIA_SAPLING]: { name: 'Acacia Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.ACACIA_SAPLING, textures: { all: 'acacia_sapling.png' } },
+  [BLOCKS.CHERRY_SAPLING]: { name: 'Cherry Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.CHERRY_SAPLING, textures: { all: 'cherry_sapling.png' } },
+  [BLOCKS.DARK_OAK_SAPLING]: { name: 'Dark Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.DARK_OAK_SAPLING, textures: { all: 'dark_oak_sapling.png' } },
+  [BLOCKS.PALE_OAK_SAPLING]: { name: 'Pale Oak Sapling', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.PALE_OAK_SAPLING, textures: { all: 'pale_oak_sapling.png' } },
+  // The propagule is the mangrove's sapling and hangs as well as stands; the upright form is what is
+  // registered here, matching how vanilla itemises it.
+  [BLOCKS.MANGROVE_PROPAGULE]: { name: 'Mangrove Propagule', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.MANGROVE_PROPAGULE, textures: { all: 'mangrove_propagule.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,

@@ -81,6 +81,11 @@ export function buildCreativeCatalog() {
     BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST, BLOCKS.SAND, BLOCKS.GRAVEL,
     BLOCKS.OAK_LOG, BLOCKS.OAK_LEAVES, BLOCKS.CACTUS, BLOCKS.SNOW, BLOCKS.ICE,
     BLOCKS.POPPY, BLOCKS.DANDELION,
+    // The saplings. Each is its own item because breaking one returns the sapling itself, so they need
+    // no separate ITEMS entry -- blockItem() derives name and icon from the definition.
+    BLOCKS.OAK_SAPLING, BLOCKS.SPRUCE_SAPLING, BLOCKS.BIRCH_SAPLING, BLOCKS.JUNGLE_SAPLING,
+    BLOCKS.ACACIA_SAPLING, BLOCKS.CHERRY_SAPLING, BLOCKS.DARK_OAK_SAPLING, BLOCKS.PALE_OAK_SAPLING,
+    BLOCKS.MANGROVE_PROPAGULE,
     BLOCKS.COAL_ORE, BLOCKS.IRON_ORE, BLOCKS.GOLD_ORE, BLOCKS.DIAMOND_ORE,
     BLOCKS.REDSTONE_ORE, BLOCKS.EMERALD_ORE,
     // The rest of the ore family. blockItem() derives the icon from the definition's texture, so

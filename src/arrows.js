@@ -22,7 +22,7 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
   const mesh=createArrowModel();mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(forward,direction.clone().normalize());
   const trail=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffedc2,transparent:true,opacity:.65,vertexColors:true,depthWrite:false}));trail.frustumCulled=false;
   manager.scene.add(mesh,trail);manager.sounds?.playBowShoot?.();
-  const arrow={flaming:!!options.flaming,effect:options.effect,spectral:!!options.spectral,target:options.target,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
+  const arrow={flaming:!!options.flaming,effect:options.effect,spectral:!!options.spectral,target:options.target,arrowItem:options.arrowItem,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
 }
 
 function projectileHitBounds(manager, target) {
@@ -43,7 +43,10 @@ export function updateArrows(manager,dt,player){
     arrow.life-=dt;if(arrow.life<=0){removeArrow(manager,arrow);continue;}
     if(arrow.stuck){
       if(!solid(manager.world,arrow.anchor)){arrow.stuck=false;arrow.velocity.set(0,-1,0);arrow.life=10;arrow.points=[];continue;}
-      if(arrow.pickup && arrow.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0,.5,0)))<1.4 && manager.game?.inventory?.addItem(arrow.spectral?'spectral_arrow':'arrow',false,1)){manager.game.ui?.updateHotbar();removeArrow(manager,arrow);continue;}
+      // A stuck arrow is picked back up as the item that was fired. This read `arrow.spectral ?
+      // 'spectral_arrow' : 'arrow'`, so a tipped arrow came back as a plain one -- firing a finite supply
+      // of tipped arrows converted them to ordinary arrows.
+      if(arrow.pickup && arrow.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0,.5,0)))<1.4 && manager.game?.inventory?.addItem(arrow.arrowItem ?? (arrow.spectral?'spectral_arrow':'arrow'),false,1)){manager.game.ui?.updateHotbar();removeArrow(manager,arrow);continue;}
       arrow.mesh.quaternion.copy(arrow.orientation);arrow.mesh.rotateZ(Math.sin(arrow.life*65)*.06*Math.max(0,arrow.life-59));continue;
     }
     const steps=Math.max(1,Math.ceil(arrow.velocity.length()*dt/.08)),step=dt/steps;
