@@ -136,6 +136,10 @@ export function buildCreativeCatalog() {
     // The vine body segments. Listed even though a player rarely places them, because they are real
     // blocks with their own textures and a builder placing a long vine wants both parts.
     BLOCKS.WEEPING_VINES_PLANT, BLOCKS.TWISTING_VINES_PLANT, BLOCKS.CAVE_VINES_PLANT,
+    // Crop stems and water plants. The stems are listed beside the pumpkin and melon they belong to in
+    // spirit, but they sit in the natural tab with the other plants because that is what they are.
+    BLOCKS.PUMPKIN_STEM, BLOCKS.ATTACHED_PUMPKIN_STEM, BLOCKS.MELON_STEM, BLOCKS.ATTACHED_MELON_STEM,
+    BLOCKS.SEAGRASS, BLOCKS.TALL_SEAGRASS, BLOCKS.KELP, BLOCKS.KELP_PLANT, BLOCKS.SEA_PICKLE,
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
     BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,

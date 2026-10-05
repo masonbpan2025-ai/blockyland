@@ -85,6 +85,10 @@ const blocks1214 = [
   // The vine body segments have DIFFERENT textures from the tips upstream, which is why they are separate
   // blocks rather than duplicates; tests/contentGap.test.js is what caught them being left out.
   'weeping_vines_plant.png', 'twisting_vines_plant.png', 'cave_vines_plant.png',
+  // Crop stems and water plants, the thirteenth batch. `tall_seagrass` uses the `_top` texture, the same
+  // part-suffix case that made earlier rounds mis-report plants as art-blocked.
+  'pumpkin_stem.png', 'attached_pumpkin_stem.png', 'melon_stem.png', 'attached_melon_stem.png',
+  'seagrass.png', 'tall_seagrass_top.png', 'kelp.png', 'kelp_plant.png', 'sea_pickle.png',
 ];
 
 const items = [
