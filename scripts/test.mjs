@@ -41,7 +41,7 @@ export const AREAS = {
   // --- studio tools ---
   studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
   // --- vanilla structure generation ---
-  structures: ['structureEngine'],
+  structures: ['structureEngine', 'structureInspectorSession', 'structureInspectorPage'],
   // --- world, terrain, fluids ---
   world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---

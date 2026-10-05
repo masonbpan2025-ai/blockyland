@@ -225,7 +225,8 @@ export default defineConfig({
       input: {
         game: path.resolve('index.html'),
         mobDebug: path.resolve('mob-debug.html'),
-        resourceDebug: path.resolve('resource-debug.html')
+        resourceDebug: path.resolve('resource-debug.html'),
+        structureInspector: path.resolve('structure-inspector.html')
       }
     },
     target: 'esnext'
