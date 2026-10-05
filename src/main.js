@@ -44,7 +44,7 @@ import {
 import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
-import { getBlockDrop } from './itemVisuals.js';
+import { blockDrops } from './blockDrops.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
 import {
@@ -253,8 +253,7 @@ class Game {
     this.geminiAgent.viewCaptureProvider = () => this.captureCurrentView();
     this.entities.onItemPickup = () => this.ui.updateHotbar();
     this.world.water.onDisplace = (x,y,z,id) => {
-      const drop=getBlockDrop(id);
-      if(drop) this.entities.spawnDroppedItem(new THREE.Vector3(x+.5,y+.5,z+.5),drop.id,drop.isBlock);
+      this.spawnBlockDrops(new THREE.Vector3(x+.5,y+.5,z+.5), id);
     };
 
     // 5. Initialize Held Item 3D Renderer
@@ -1867,6 +1866,26 @@ class Game {
     this.ui.updateHotbar();
   }
 
+  /**
+   * Spawn what a broken block yields.
+   *
+   * One call rather than one drop, because a block can give more than one thing: an oak leaf gives an
+   * apple, a stick and a sapling on separate rolls, and a grass plant gives a seed. The list comes from
+   * `blockDrops`, which owns both the always-drop and the probabilistic table.
+   *
+   * The argument order is the part worth being careful about. This used to pass the drop's `count` field
+   * as the third argument -- where `isBlock` belongs -- so it was always `undefined` and every drop
+   * defaulted to `isBlock: true`. For the 56 blocks whose drop is an item rather than a block, which is
+   * every ore and every door, breaking one by hand put an item in the inventory that claimed to be a
+   * block. The explosion path in `entities.js` passed the right field and was correct, so the same
+   * diamond was a block when mined and an item when blown up.
+   */
+  spawnBlockDrops(pos, blockId) {
+    for (const drop of blockDrops(blockId)) {
+      this.entities.spawnDroppedItem(pos, drop.id, drop.isBlock, drop.count ?? 1);
+    }
+  }
+
   breakTargetBlock() {
     if (!this.targetBlock) return;
     const { x, y, z, blockId } = this.targetBlock;
@@ -1908,8 +1927,7 @@ class Game {
         // A block broken with the wrong tool yields nothing. This is the harvest table's
         // verdict rather than a per-block special case.
         if (!wrongTool) {
-          const drop = getBlockDrop(blockId);
-          if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.count);
+          this.spawnBlockDrops(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), blockId);
         }
       }
 

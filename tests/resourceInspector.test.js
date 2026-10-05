@@ -26,6 +26,7 @@ import {
   smeltingTable,
   unresolvedImports,
   shadowedVanillaIds,
+  harvestOrphans,
 } from '../src/resourceRegistry.js';
 import {
   CHECK_SKIP,
@@ -36,6 +37,7 @@ import {
 } from '../src/resourceShowcase.js';
 import { EXTRA_SMELTING } from '../src/extraSmelting.js';
 import { FOODS } from '../src/foodData.js';
+import { harvestDataFor } from '../src/blockHarvestData.js';
 
 const STATUSES = new Set(['observed', 'not observed', 'unsupported', 'error']);
 
@@ -623,4 +625,43 @@ test('the shadowing report does not flag content that is only this project own',
   // An internal block state is skipped here for the same reason as in has-source.
   const state = { entries: new Map([['iron_door_opens', { key: 'block:78', kind: 'block', id: 'iron_door_opens', internal: true }]]) };
   assert.deepEqual(shadowedVanillaIds(state, new Set(['iron_door_open'])), []);
+});
+
+// --- guards for work that a concurrent commit reverted wholesale --------------
+//
+// Round 7 fixed three unreachable harvest rows, added `harvestOrphans`, added an `orphans` command and
+// wrote tests/harvestLookup.test.js. A later commit from another branch was built on a stale copy of six
+// files and removed all of it -- the function, the command, the test file and the area-list entry, in one
+// internally consistent change. Nothing failed, because the test that would have failed was deleted in the
+// same commit; the only trace was `git log`.
+//
+// So the assertions that matter live here as well, in the Inspector's own test file, next to the checks
+// they are about. A revert of the harvest lookup now fails a test rather than passing silently.
+
+test('the harvest lookup still reaches a block registered under a non-constant name', () => {
+  // `wither_skeleton_skull` has no `drop` in its definition, so its harvest row is the only mechanism.
+  // With the lookup keyed on `BLOCKS[NAME]` alone the row is unreachable and breaking one yields nothing.
+  const id = Number(Object.entries(BLOCK_DEFS).find(([, def]) => def.name === 'Wither Skeleton Skull')?.[0]);
+  assert.ok(Number.isFinite(id), 'the block should be registered');
+  const row = harvestDataFor(id);
+  assert.ok(row, 'its harvest row must be reachable even though there is no BLOCKS constant for it');
+  assert.ok(row.drops.includes('wither_skeleton_skull'));
+});
+
+test('the orphan report exists and finds no unreachable row', () => {
+  assert.equal(typeof harvestOrphans, 'function', 'the report is part of the Inspector surface');
+  const { deadByKey, missingBlock } = harvestOrphans(registry());
+  assert.deepEqual(deadByKey, [], 'no harvest row may be unreachable although its block exists');
+  assert.ok(Array.isArray(missingBlock), 'and the to-do list should be a list');
+});
+
+test('the probabilistic drops count as a source, so an apple is obtainable', () => {
+  // A leaf gives an apple at half a percent and a grass plant gives a seed at an eighth. Neither the leaf's
+  // definition nor its harvest row names them, so without the registry reading the bonus table both items
+  // are reported as unobtainable.
+  const reg = registry();
+  const apple = reg.entries.get('apple');
+  const seeds = reg.entries.get('wheat_seeds');
+  assert.ok(apple.droppedBy.length > 0, 'an apple comes from leaves');
+  assert.ok(seeds.droppedBy.length > 0, 'wheat seeds come from grass and from wheat');
 });

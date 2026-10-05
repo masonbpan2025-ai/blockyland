@@ -127,10 +127,30 @@ const harvestBody = harvestRows.map(r => {
   return `  ${r.name}: {${parts.join(',')}},`;
 }).join('\n');
 
+/**
+ * The part of `blockHarvestData.js` that is written by hand and carried forward.
+ *
+ * The blast-resistance rules were added directly to the generated file and the generator never learned
+ * about them, so every regeneration silently deleted them. Nothing that reads the file could tell: the
+ * exports simply stopped existing.
+ *
+ * Everything from the marker to the end of the file is copied verbatim into the new output. Adding to that
+ * section by hand is therefore safe, and moving it into this script is still the better fix.
+ */
+const HARVEST_TAIL_MARKER = '// --- blast resistance';
+const previousHarvest = existsSync('src/blockHarvestData.js')
+  ? readFileSync('src/blockHarvestData.js', 'utf8')
+  : '';
+const harvestTailAt = previousHarvest.indexOf(HARVEST_TAIL_MARKER);
+const harvestTail = harvestTailAt >= 0 ? '\n' + previousHarvest.slice(harvestTailAt) : '';
+if (!harvestTail) {
+  console.warn('  blockHarvestData.js: no hand-written tail found; the blast-resistance rules would be lost');
+}
+
 writeFileSync('src/blockHarvestData.js', header(
   'Canonical per-block mining data: hardness, the tool class and minimum tier needed to',
   'harvest it, and what it drops.\n//\n// Used by the mining path to gate harvesting and to compute break times the way the real\n// game does, instead of the flat hardness/speed divide it used before.\n//\n// `drops` lists item names; an empty array means the block drops itself, and an absent\n// `drops` key means the block is not harvestable into an item.'
-) + `import { BLOCKS } from './blocks.js';
+) + `import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 export const BLOCK_HARVEST = {
 ${harvestBody}
@@ -139,9 +159,31 @@ ${harvestBody}
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
 
+/**
+ * Block ids by the name a harvest row uses.
+ *
+ * The game registers blocks through two routes -- \`BLOCKS\` constants and the generated content tables --
+ * and this table is keyed by the vanilla name, which matches the constant for most blocks and not for the
+ * rest. Looking up \`BLOCKS[name.toUpperCase()]\` alone therefore leaves rows unreachable, and three of them
+ * were for blocks the game really has: \`snow_block\`, \`potatoes\` and \`wither_skeleton_skull\`. The last has
+ * no \`drop\` in its definition, so its row was the only thing that would have made it drop anything, and
+ * breaking one yielded nothing.
+ *
+ * Where several blocks share a name -- a crop's four growth stages are all "Potatoes" -- the lowest id
+ * wins, which is the stage a harvest row is about. Checked with \`scripts/inspect-resource.mjs orphans\`,
+ * which lists the rows still waiting on a block and the ones that are dead although the block exists.
+ */
+const BY_NAME = new Map();
+for (const [id, def] of Object.entries(BLOCK_DEFS)) {
+  const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (!key) continue;
+  const existing = BY_NAME.get(key);
+  if (existing === undefined || Number(id) < existing) BY_NAME.set(key, Number(id));
+}
+
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()];
+  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
@@ -154,7 +196,12 @@ export function harvestDataFor(blockId) {
 export function knownHarvestBlockIds() {
   return [...BY_ID.keys()];
 }
-`, 'utf8');
+
+/** Every harvest row name, whether or not a block answers to it, for the orphan report. */
+export function knownHarvestNames() {
+  return Object.keys(BLOCK_HARVEST);
+}
+` + harvestTail, 'utf8');
 console.log(`  blockHarvestData.js: ${harvestRows.length} blocks`);
 
 // --- 2. mob loot ------------------------------------------------------------

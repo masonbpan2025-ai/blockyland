@@ -1078,9 +1078,31 @@ export const BLOCK_HARVEST = {
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
 
+/**
+ * Block ids by the name a harvest row uses.
+ *
+ * The game registers blocks through two routes -- `BLOCKS` constants and the generated content tables --
+ * and this table is keyed by the vanilla name, which matches the constant for most blocks and not for the
+ * rest. Looking up `BLOCKS[name.toUpperCase()]` alone therefore leaves rows unreachable, and three of them
+ * were for blocks the game really has: `snow_block`, `potatoes` and `wither_skeleton_skull`. The last has
+ * no `drop` in its definition, so its row was the only thing that would have made it drop anything, and
+ * breaking one yielded nothing.
+ *
+ * Where several blocks share a name -- a crop's four growth stages are all "Potatoes" -- the lowest id
+ * wins, which is the stage a harvest row is about. Checked with `scripts/inspect-resource.mjs orphans`,
+ * which lists the rows still waiting on a block and the ones that are dead although the block exists.
+ */
+const BY_NAME = new Map();
+for (const [id, def] of Object.entries(BLOCK_DEFS)) {
+  const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (!key) continue;
+  const existing = BY_NAME.get(key);
+  if (existing === undefined || Number(id) < existing) BY_NAME.set(key, Number(id));
+}
+
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()];
+  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
@@ -1092,6 +1114,11 @@ export function harvestDataFor(blockId) {
 /** Every block id this table knows about, for tests and tooling. */
 export function knownHarvestBlockIds() {
   return [...BY_ID.keys()];
+}
+
+/** Every harvest row name, whether or not a block answers to it, for the orphan report. */
+export function knownHarvestNames() {
+  return Object.keys(BLOCK_HARVEST);
 }
 
 // --- blast resistance -------------------------------------------------------

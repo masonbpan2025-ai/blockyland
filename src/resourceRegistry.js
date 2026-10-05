@@ -18,7 +18,8 @@
 //                    a missing provider must report "unsupported" rather than a false failure.
 // `EXTRA_SMELTING` is imported directly because it is three-free and is the generated table's source.
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
-import { harvestDataFor, knownHarvestBlockIds } from './blockHarvestData.js';
+import { harvestDataFor, knownHarvestBlockIds, knownHarvestNames, BLOCK_HARVEST } from './blockHarvestData.js';
+import { BONUS_DROPS, bonusKeyFor } from './blockDrops.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { EXTRA_RECIPES } from './extraRecipes.js';
 import { EXTRA_SMELTING } from './extraSmelting.js';
@@ -330,6 +331,23 @@ export function buildRegistry(sources = {}) {
       // definition says `stone` -- so the label is compared case-insensitively.
       if (entry && !entry.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
         entry.droppedBy.push(label);
+      }
+    }
+  }
+
+  // Probabilistic drops are a source too. An apple comes from an oak leaf at half a percent and a wheat
+  // seed from a grass plant at an eighth, and neither the leaf's definition nor its harvest row names
+  // them -- without this pass `has-source` reports both as items nothing can obtain, which is exactly
+  // what it did before `BONUS_DROPS` existed.
+  for (const entry of entries.values()) {
+    if (entry.blockId === null || entry.blockId === undefined) continue;
+    const table = BONUS_DROPS[bonusKeyFor(entry.blockId)];
+    if (!table) continue;
+    for (const [item] of table) {
+      const target = entries.get(item);
+      const label = entry.blockDef?.name ?? entry.name ?? String(entry.blockId);
+      if (target && !target.droppedBy.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
+        target.droppedBy.push(label);
       }
     }
   }
@@ -788,6 +806,36 @@ export function unresolvedImports(sources) {
     }
   }
   return out;
+}
+
+/**
+ * Harvest rows that no block answers to, split by whether the block exists.
+ *
+ * `BLOCK_HARVEST` is generated for every vanilla block, so it runs ahead of the registry by design --
+ * 173 of its 1056 rows name a block this game does not have yet. Those are a to-do list for block work,
+ * not a defect, and `missingBlock` is that list, with the drop it is holding ready.
+ *
+ * `deadByKey` is the defect. It is a row whose block *is* registered and which could not be reached
+ * anyway, because the table was keyed only on `BLOCKS[name.toUpperCase()]` and the game registers blocks
+ * through two routes. Three rows were in that state: `snow_block`, `potatoes` and
+ * `wither_skeleton_skull`. The last had no `drop` in its definition, so its harvest row was the only
+ * thing that would have made breaking one yield anything.
+ *
+ * @param {object} [reg]
+ * @returns {{missingBlock: Array<{name: string, drops: string[]}>, deadByKey: Array<{name: string, blockId: number}>}}
+ */
+export function harvestOrphans(reg = registry()) {
+  const missingBlock = [];
+  const deadByKey = [];
+  for (const name of knownHarvestNames()) {
+    const entry = resolveResource(name, reg);
+    if (!entry || entry.blockId === null || entry.blockId === undefined) {
+      missingBlock.push({ name, drops: (BLOCK_HARVEST[name]?.drops ?? []).map(String) });
+      continue;
+    }
+    if (!harvestDataFor(entry.blockId)) deadByKey.push({ name, blockId: entry.blockId });
+  }
+  return { missingBlock, deadByKey };
 }
 
 /**

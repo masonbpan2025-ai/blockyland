@@ -1,0 +1,121 @@
+// What a block gives up when it is broken.
+//
+// There are two kinds of drop and the game only ever had one of them.
+//
+// The **base drop** is a property of the block: `BLOCK_DEFS[id].drop` (a block id) or `.dropItem` (an item
+// name), and a block that declares neither gives itself. `getBlockDrop` has always resolved that, and its
+// contract is pinned by tests, so it still does -- it now lives here so the rule can be reached without
+// Three.js.
+//
+// The **bonus drops** are the probabilistic extras vanilla has: an apple from an oak leaf, seeds from a
+// handful of grass. `BLOCK_HARVEST` cannot carry them -- it is generated from minecraft-data, which has no
+// probability data -- so they are hand-written below. Before this, `short_grass` and its three relatives
+// declared `drop: null`, which is why wheat seeds could not be obtained at all, and no leaf ever gave an
+// apple.
+//
+// `blockDrops` is the whole answer for one block: the base drop plus whatever the rolls produced.
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+
+/**
+ * Probabilistic drops, keyed by the block's name.
+ *
+ * Java Edition 1.21, broken by a player without Silk Touch. Leaves give their sapling at 5% (jungle at
+ * 2.5%) and a stick at 2%; oak and dark oak also give an apple at 0.5%. The four grass plants give a
+ * wheat seed at 12.5%, which is their only drop -- they declare none outright.
+ *
+ * Keyed by name rather than by block id so it keeps working for a block the game registers through either
+ * route, and `tests/blockDrops.test.js` asserts that every key here is a registered block, so a typo fails
+ * rather than quietly doing nothing.
+ */
+export const BONUS_DROPS = {
+  // --- leaves ------------------------------------------------------------------
+  oak_leaves: [['apple', 0.005], ['stick', 0.02], ['oak_sapling', 0.05]],
+  dark_oak_leaves: [['apple', 0.005], ['stick', 0.02], ['dark_oak_sapling', 0.05]],
+  jungle_leaves: [['stick', 0.02], ['jungle_sapling', 0.025]],
+  spruce_leaves: [['stick', 0.02], ['spruce_sapling', 0.05]],
+  birch_leaves: [['stick', 0.02], ['birch_sapling', 0.05]],
+  acacia_leaves: [['stick', 0.02], ['acacia_sapling', 0.05]],
+  cherry_leaves: [['stick', 0.02], ['cherry_sapling', 0.05]],
+  pale_oak_leaves: [['stick', 0.02], ['pale_oak_sapling', 0.05]],
+  mangrove_leaves: [['stick', 0.02], ['mangrove_propagule', 0.05]],
+  azalea_leaves: [['stick', 0.02], ['azalea', 0.05]],
+  flowering_azalea_leaves: [['stick', 0.02], ['flowering_azalea', 0.05]],
+
+  // --- the grass plants, whose only drop is the seed ---------------------------
+  short_grass: [['wheat_seeds', 0.125]],
+  fern: [['wheat_seeds', 0.125]],
+  tall_grass: [['wheat_seeds', 0.125]],
+  large_fern: [['wheat_seeds', 0.125]],
+
+  // --- miscellaneous ----------------------------------------------------------
+  // Vanilla gives nought to two sticks; modelled as the average one, because the roll table here is a
+  // chance per item rather than a distribution and a second shape would be more mechanism than the one
+  // block needs.
+  dead_bush: [['stick', 0.5]],
+};
+
+const normalise = (text) => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+/**
+ * Block names, normalised, so a named drop can be told apart from an item.
+ *
+ * `ITEMS` does not hold a block's item form -- `oak_sapling` and `oak_log` are blocks, and the registry
+ * joins them to their item form separately -- so `ITEMS[name]` cannot answer this. Looking the name up in
+ * the block definitions can: a sapling dropped from a leaf is a block and an apple is not, and getting
+ * that wrong puts a block in the inventory claiming to be an item.
+ */
+let blockNames = null;
+function isBlockName(name) {
+  if (!blockNames) {
+    blockNames = new Set();
+    for (const def of Object.values(BLOCK_DEFS)) {
+      const key = normalise(def?.name);
+      if (key) blockNames.add(key);
+    }
+  }
+  return blockNames.has(name);
+}
+
+/** The base drop for a block: the one thing it always gives up, or null when it gives nothing. */
+export function baseBlockDrop(id) {
+  const def = BLOCK_DEFS[id];
+  if (id === BLOCKS.AIR || !def || def.drop === null || def.liquid) return null;
+  return { id: def.dropItem ?? def.drop ?? id, isBlock: !def.dropItem };
+}
+
+/** The name `BONUS_DROPS` keys a block by, matching how the block is registered rather than how it is named. */
+export function bonusKeyFor(id) {
+  return normalise(BLOCK_DEFS[id]?.name);
+}
+
+/**
+ * The bonus drops this block's rolls produced.
+ *
+ * @param {number} id
+ * @param {() => number} random injected so a test can ask for "always" or "never"
+ * @returns {Array<{id: string, isBlock: boolean, count: number}>}
+ */
+export function bonusDropsFor(id, random = Math.random) {
+  const table = BONUS_DROPS[bonusKeyFor(id)];
+  if (!table) return [];
+  const out = [];
+  for (const [item, chance] of table) {
+    if (!(random() < chance)) continue;
+    out.push({ id: item, isBlock: isBlockName(item), count: 1 });
+  }
+  return out;
+}
+
+/**
+ * Everything breaking this block yields: the base drop first, then any bonus drops.
+ *
+ * @returns {Array<{id: (string|number), isBlock: boolean, count: number}>} empty when the block yields nothing
+ */
+export function blockDrops(id, random = Math.random) {
+  const base = baseBlockDrop(id);
+  const bonus = bonusDropsFor(id, random);
+  const out = [];
+  if (base) out.push({ ...base, count: 1 });
+  out.push(...bonus);
+  return out;
+}

@@ -2,11 +2,9 @@ import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { createBlockGeometry } from './blockGeometry.js';
 
-export function getBlockDrop(id) {
-  const def = BLOCK_DEFS[id];
-  if (id === BLOCKS.AIR || !def || def.drop === null || def.liquid) return null;
-  return { id: def.dropItem ?? def.drop ?? id, isBlock: !def.dropItem };
-}
+// The drop rule lives in `blockDrops.js` now, which imports no Three.js, so a test can reach it without a
+// renderer. Re-exported under the name every existing caller uses, so nothing had to change.
+export { baseBlockDrop as getBlockDrop } from './blockDrops.js';
 
 export class ItemVisuals {
   constructor(textures = null) {
