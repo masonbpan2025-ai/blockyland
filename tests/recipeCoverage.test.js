@@ -57,13 +57,14 @@ test('the recipe lists the game actually uses reflect the generated set', () => 
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 1445`);
   assert.ok(RECIPES_2X2.length >= 405,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 1547,
+  assert.equal(GENERATED_RECIPE_COUNT, 1548,
     'the generated recipe count changed; update this expectation deliberately if that was intended. It went '
     + '1538 -> 1546 by regenerating after earlier content additions that had never been re-run through '
     + 'the recipe generator, which is worth doing whenever blocks or items are added. It went 1546 -> 1547 '
     + 'with the shulker boxes, and that one is worth recording: registering the block is what made the real '
     + 'vanilla recipe (chest plus two shulker shells) expressible at all, so it had been counted as a missing '
-    + 'RESULT until then.');
+    + 'RESULT until then. The same happened again at 1547 -> 1548 with the cake: milk, sugar, egg and wheat '
+    + 'had all been in the registry for a long time with nothing to craft.');
 });
 
 test('missing results remain the larger half of the gap', { skip }, () => {

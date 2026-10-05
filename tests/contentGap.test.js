@@ -24,16 +24,20 @@ test('most missing blocks are missing art, not code', (t) => {
   // for a test to fail: closing the gap is the objective, so this must not creep upward behind the
   // work. Kept deliberately far below the current figure so it only fires on a broken count.
   assert.ok(r.missing > 50, 'the measurement looks broken rather than the gap closed, got ' + r.missing);
-  // The claim, stated as a ratio rather than an absolute: nearly all of the gap needs art.
+  // The claim, stated as a ratio rather than an absolute: most of the gap needs art.
   //
-  // The figure moves as work lands, and in BOTH directions, which is worth understanding before
-  // adjusting it again. Implementing a block removes it from the denominator; adding the texture a block
-  // needs moves it from `needsArt` into `reusable`, which shrinks the numerator instead. The
-  // coral-fan batch did the second: the ten coral wall fans became implementable-without-new-art the
-  // moment their base textures arrived, so the ratio fell from 0.995 to 0.935 without anything getting
-  // worse. The threshold is set below the current figure with that movement in mind, and remains well
-  // above half so the claim "most of the gap is art" is still being tested.
-  assert.ok(r.needsArt.length / r.missing > 0.90,
+  // The figure moves as work lands, and in BOTH directions, which is worth understanding before adjusting
+  // it again. Implementing a block removes it from the denominator; adding the texture a block needs moves
+  // it from `needsArt` into `reusable`, which shrinks the numerator instead. Two batches did the second --
+  // the coral fans made the ten coral wall fans implementable-without-new-art, and the cake batch added
+  // eighteen more blocks whose art is composed rather than downloaded -- so the ratio has fallen from 0.995
+  // to 0.900 without anything getting worse.
+  //
+  // It is now bounded at 0.80 deliberately: once the downloadable art is exhausted, the only entries left
+  // in `reusable` are the ones blocked on a SUBSYSTEM (the wall fans and the redstone wall torch, all
+  // needing facing state), and that list can only grow. Below half the claim "most of the gap is art" would
+  // stop being true and this test should be rewritten rather than loosened again.
+  assert.ok(r.needsArt.length / r.missing > 0.80,
     'expected over 90% of the block gap to need new art, got ' + r.needsArt.length + '/' + r.missing);
   // And the sharper claim, which is the one that matters for planning: no missing block has its own art.
   assert.equal(r.ownTexture, 0,

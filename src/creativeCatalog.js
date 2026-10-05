@@ -181,7 +181,17 @@ export function buildCreativeCatalog() {
     // anywhere else would imply they are building material, which is further from the truth.
     BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
     BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
-    BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN
+    BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN,
+    // Cake and candle cakes. In the functional tab beside the other candles because a candle cake is a
+    // candle on a cake, and the plain cake is there so the family reads together -- even though a cake
+    // cannot be eaten here, which is recorded in the source.
+    BLOCKS.CAKE, BLOCKS.CANDLE_CAKE,
+    BLOCKS.WHITE_CANDLE_CAKE, BLOCKS.ORANGE_CANDLE_CAKE, BLOCKS.MAGENTA_CANDLE_CAKE,
+    BLOCKS.LIGHT_BLUE_CANDLE_CAKE, BLOCKS.YELLOW_CANDLE_CAKE, BLOCKS.LIME_CANDLE_CAKE,
+    BLOCKS.PINK_CANDLE_CAKE, BLOCKS.GRAY_CANDLE_CAKE, BLOCKS.LIGHT_GRAY_CANDLE_CAKE,
+    BLOCKS.CYAN_CANDLE_CAKE, BLOCKS.PURPLE_CANDLE_CAKE, BLOCKS.BLUE_CANDLE_CAKE,
+    BLOCKS.BROWN_CANDLE_CAKE, BLOCKS.GREEN_CANDLE_CAKE, BLOCKS.RED_CANDLE_CAKE,
+    BLOCKS.BLACK_CANDLE_CAKE
   ];
   for (const b of functionalBlocksList) {
     const entry = blockItem(b, 'functional_blocks');

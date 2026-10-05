@@ -114,6 +114,15 @@ const blocks1214 = [
   'trial_spawner_top_inactive.png', 'trial_spawner_side_inactive.png', 'trial_spawner_bottom.png',
   'vault_top.png', 'vault_front_off.png', 'vault_side_off.png', 'vault_bottom.png',
   'end_portal_frame_top.png', 'end_portal_frame_side.png', 'turtle_egg.png', 'frogspawn.png',
+  // Cake and candle cakes, the seventeenth batch. Only the cake and the CANDLE sprites are listed here,
+  // because the candle-cake textures are NOT downloadable -- vanilla composes them from a model rather
+  // than shipping a tile. Run `python scripts/compose-candle-cakes.py` after this list to build them from
+  // what is fetched here; that script is the reason these blocks can exist at all.
+  'cake_top.png', 'cake_side.png', 'cake_bottom.png', 'candle.png',
+  'white_candle.png', 'orange_candle.png', 'magenta_candle.png', 'light_blue_candle.png',
+  'yellow_candle.png', 'lime_candle.png', 'pink_candle.png', 'gray_candle.png',
+  'light_gray_candle.png', 'cyan_candle.png', 'purple_candle.png', 'blue_candle.png',
+  'brown_candle.png', 'green_candle.png', 'red_candle.png', 'black_candle.png',
 ];
 
 const items = [

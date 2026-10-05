@@ -109,6 +109,62 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('a candle cake drops its candle, and a plain cake drops nothing', () => {
+  // The harvest table is explicit and the two rules differ, which is the same trap the coral family set:
+  // a CANDLE CAKE yields its CANDLE -- not the cake, not itself -- while a plain CAKE yields nothing,
+  // because vanilla makes you eat it rather than recover it.
+  const COLORS = [
+    'WHITE', 'ORANGE', 'MAGENTA', 'LIGHT_BLUE', 'YELLOW', 'LIME', 'PINK', 'GRAY',
+    'LIGHT_GRAY', 'CYAN', 'PURPLE', 'BLUE', 'BROWN', 'GREEN', 'RED', 'BLACK',
+  ];
+
+  assert.equal(getBlockDrop(BLOCKS.CAKE), null,
+    'a plain cake drops nothing; it is eaten, not recovered');
+
+  // The plain candle cake drops the undyed candle.
+  const plain = getBlockDrop(BLOCKS.CANDLE_CAKE);
+  assert.ok(plain, 'the plain candle cake must drop something');
+  assert.equal(plain.id, 'candle', 'and it is the plain candle');
+  assert.equal(plain.isBlock, false, 'which is an ITEM, not a block');
+
+  for (const colour of COLORS) {
+    const key = `${colour}_CANDLE_CAKE`;
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+
+    const drop = getBlockDrop(id);
+    const expectedItem = `${colour.toLowerCase()}_candle`;
+    assert.ok(drop, `${key} must drop its candle`);
+    assert.equal(drop.id, expectedItem, `${key} must drop ${expectedItem}, not another colour's`);
+    assert.equal(drop.isBlock, false, `${key} drops an ITEM`);
+
+    // The candle item must really exist, or the drop resolves to nothing in play.
+    assert.ok(expectedItem in ITEMS, `${expectedItem} must be a real item`);
+
+    // And the texture must be this colour's, which is the copy-paste failure this checks for.
+    assert.deepEqual(BLOCK_DEFS[id].textures, { all: `${colour.toLowerCase()}_candle_cake.png` },
+      `${key} must be drawn with its own composed texture`);
+  }
+});
+
+test('the candle-cake textures exist even though the mirror does not ship them', () => {
+  // These are the only textures in the project that are COMPOSED rather than downloaded, so this test
+  // guards the committed composition script as much as the art: if someone clears public/assets and
+  // re-runs the downloader, the candle cakes come back only if they also run the composer.
+  const colours = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink',
+    'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'];
+  const needed = ['candle_cake.png', ...colours.map((c) => `${c}_candle_cake.png`)];
+  const missing = needed.filter((f) => !existsSync(path.join('public', 'assets', 'blocks', f)));
+  assert.deepEqual(missing, [],
+    `composed candle-cake textures missing: ${missing.join(', ')}. Run `
+    + '`python scripts/compose-candle-cakes.py` after the asset downloader, which fetches the cake and '
+    + 'candle sprites it composites from.');
+
+  // The composer itself must be committed, since without it the art is unreproducible.
+  assert.ok(existsSync(path.join('scripts', 'compose-candle-cakes.py')),
+    'scripts/compose-candle-cakes.py must be committed alongside the textures it produces');
+});
+
 test('the technical blocks exist, are drawable, and claim no behaviour they lack', () => {
   // Every block in this family is machinery in vanilla and inert decoration here. The point of the test
   // is the SECOND half: each must be a real, drawable cube, and must NOT carry a marker promising a

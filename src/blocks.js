@@ -530,7 +530,42 @@ export const BLOCKS = {
   VAULT: 1083,
   END_PORTAL_FRAME: 1084,
   TURTLE_EGG: 1085,
-  FROGSPAWN: 1086
+  FROGSPAWN: 1086,
+
+  // --- Cake and candle cakes, seventeenth block-parity batch -------------------------------------
+  //
+  // Eighteen blocks: the cake, the plain candle cake, and the sixteen dyed candle cakes.
+  //
+  // THE CANDLE CAKE TEXTURES ARE COMPOSED, NOT DOWNLOADED, which is unusual enough to state here. The
+  // asset mirror has no `*_candle_cake` texture at any orientation suffix -- vanilla does not ship one
+  // either, because the block is a model that puts the candle sprite on top of the cake. So
+  // scripts/compose-candle-cakes.py builds each one by alpha-compositing the candle tile onto
+  // `cake_top`, and that script is committed so the art is reproducible rather than pasted bytes.
+  //
+  // It is an approximation of the vanilla model, which draws the candle as a 3D box; the composite reads
+  // correctly from above, which is the face a player looks at on a placed cake.
+  //
+  // The drops are the interesting part and the harvest table is explicit about them: a CANDLE CAKE DROPS
+  // ITS CANDLE, not the cake and not itself, while a plain CAKE drops nothing at all (vanilla makes you
+  // eat it rather than recover it, and this game has no cake-eating yet either).
+  CAKE: 1087,
+  WHITE_CANDLE_CAKE: 1088,
+  ORANGE_CANDLE_CAKE: 1089,
+  MAGENTA_CANDLE_CAKE: 1090,
+  LIGHT_BLUE_CANDLE_CAKE: 1091,
+  YELLOW_CANDLE_CAKE: 1092,
+  LIME_CANDLE_CAKE: 1093,
+  PINK_CANDLE_CAKE: 1094,
+  GRAY_CANDLE_CAKE: 1095,
+  LIGHT_GRAY_CANDLE_CAKE: 1096,
+  CYAN_CANDLE_CAKE: 1097,
+  PURPLE_CANDLE_CAKE: 1098,
+  BLUE_CANDLE_CAKE: 1099,
+  BROWN_CANDLE_CAKE: 1100,
+  GREEN_CANDLE_CAKE: 1101,
+  RED_CANDLE_CAKE: 1102,
+  BLACK_CANDLE_CAKE: 1103,
+  CANDLE_CAKE: 1104,
 };
 
 export const BLOCK_DEFS = {
@@ -1265,6 +1300,39 @@ export const BLOCK_DEFS = {
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
   [BLOCKS.FROGSPAWN]: { name: 'Frogspawn', hardness: 0.0, sound: 'stone', drop: BLOCKS.FROGSPAWN, textures: { all: 'frogspawn.png' } },
+
+  // --- Cake and candle cakes, seventeenth block-parity batch -------------------------------------
+  //
+  // Hardness 0.5 for all eighteen, per the harvest table. The cake itself drops nothing; each candle cake
+  // yields its own candle, which is why they use `dropItem` rather than `drop` -- the drop is an ITEM,
+  // and every one of those candle items already existed in the registry before this batch.
+  //
+  // The candle cakes carry `candle: true`, the same marker the sixteen standing candles use, so they
+  // share that family's geometry path rather than being treated as plain cubes. A cake is a partial shape
+  // in vanilla; the candle-cake composite is drawn on the cake's footprint.
+  //
+  // NOT MODELLED, and it is the whole point of a cake: you cannot eat it. The game has hunger and food
+  // items, but no block that is eaten from, and no slice-removal state. So a cake here is decoration you
+  // can place and break, not a meal.
+  [BLOCKS.CAKE]: { name: 'Cake', hardness: 0.5, sound: 'stone', drop: null, textures: { top: 'cake_top.png', side: 'cake_side.png', bottom: 'cake_bottom.png' } },
+  [BLOCKS.WHITE_CANDLE_CAKE]: { name: 'White Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'white_candle', textures: { all: 'white_candle_cake.png' } },
+  [BLOCKS.ORANGE_CANDLE_CAKE]: { name: 'Orange Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'orange_candle', textures: { all: 'orange_candle_cake.png' } },
+  [BLOCKS.MAGENTA_CANDLE_CAKE]: { name: 'Magenta Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'magenta_candle', textures: { all: 'magenta_candle_cake.png' } },
+  [BLOCKS.LIGHT_BLUE_CANDLE_CAKE]: { name: 'Light Blue Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'light_blue_candle', textures: { all: 'light_blue_candle_cake.png' } },
+  [BLOCKS.YELLOW_CANDLE_CAKE]: { name: 'Yellow Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'yellow_candle', textures: { all: 'yellow_candle_cake.png' } },
+  [BLOCKS.LIME_CANDLE_CAKE]: { name: 'Lime Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'lime_candle', textures: { all: 'lime_candle_cake.png' } },
+  [BLOCKS.PINK_CANDLE_CAKE]: { name: 'Pink Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'pink_candle', textures: { all: 'pink_candle_cake.png' } },
+  [BLOCKS.GRAY_CANDLE_CAKE]: { name: 'Gray Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'gray_candle', textures: { all: 'gray_candle_cake.png' } },
+  [BLOCKS.LIGHT_GRAY_CANDLE_CAKE]: { name: 'Light Gray Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'light_gray_candle', textures: { all: 'light_gray_candle_cake.png' } },
+  [BLOCKS.CYAN_CANDLE_CAKE]: { name: 'Cyan Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'cyan_candle', textures: { all: 'cyan_candle_cake.png' } },
+  [BLOCKS.PURPLE_CANDLE_CAKE]: { name: 'Purple Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'purple_candle', textures: { all: 'purple_candle_cake.png' } },
+  [BLOCKS.BLUE_CANDLE_CAKE]: { name: 'Blue Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'blue_candle', textures: { all: 'blue_candle_cake.png' } },
+  [BLOCKS.BROWN_CANDLE_CAKE]: { name: 'Brown Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'brown_candle', textures: { all: 'brown_candle_cake.png' } },
+  [BLOCKS.GREEN_CANDLE_CAKE]: { name: 'Green Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'green_candle', textures: { all: 'green_candle_cake.png' } },
+  [BLOCKS.RED_CANDLE_CAKE]: { name: 'Red Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'red_candle', textures: { all: 'red_candle_cake.png' } },
+  [BLOCKS.BLACK_CANDLE_CAKE]: { name: 'Black Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'black_candle', textures: { all: 'black_candle_cake.png' } },
+  [BLOCKS.CANDLE_CAKE]: { name: 'Candle Cake', hardness: 0.5, sound: 'stone', candle: true, dropItem: 'candle', textures: { all: 'candle_cake.png' } },
+
 
 
 
