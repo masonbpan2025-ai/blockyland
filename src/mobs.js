@@ -48,6 +48,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { CAMEL_HUSK_HEALTH, CAMEL_HUSK_DIMENSIONS, CAMEL_HUSK_SITTING_DIMENSIONS, CAMEL_HUSK_STAND_CLEARANCE, CAMEL_HUSK_SPEED, CAMEL_HUSK_CAMEL_SPEED, CAMEL_HUSK_UNDEAD_TRAITS, CAMEL_HUSK_JOCKEY, CAMEL_HUSK_SPAWN, CAMEL_HUSK_EQUIPMENT, CAMEL_HUSK_DROPS, CAMEL_HUSK_COLORS, isCamelHusk, camelHuskDimensions, camelHuskBurnsInDaylight, camelHuskCanStand, camelHuskSit, camelHuskStand, updateCamelHuskSitting, camelHuskIsHostile, separateCamelHuskRiders, mountCamelHuskJockey, camelHuskDrops, camelHuskXp, equipCamelHuskSaddle, shearCamelHuskSaddle, createCamelHuskModel, poseCamelHusk } from './camelHuskBehavior.js';
 import { GIANT_HEALTH, GIANT_DIMENSIONS, ZOMBIE_DIMENSIONS, GIANT_SCALE, GIANT_DAMAGE, GIANT_UNDEAD_PROPERTIES, GIANT_DROWNING, GIANT_FACING_YAW, GIANT_HAS_AI, GIANT_COLORS, isGiant, giantDimensions, giantDamageFor, giantBurnsInDaylight, giantFacing, giantMoves, giantReactionToDamage, giantAcceptsEffect, giantPotionOutcome, giantScaresArmadillos, giantUnderwaterOutcome, giantDrops, giantXp, giantAttack, createGiantModel, poseGiant } from './giantBehavior.js';
 import { PUFFERFISH_HEALTH, TROPICAL_FISH_HEALTH, PUFFERFISH_DIMENSIONS, TROPICAL_FISH_DIMENSIONS, FISH_SPEED, PUFFERFISH_CONTACT, PUFFERFISH_POISON, PUFFERFISH_TRIGGER, AQUATIC_TYPES, TROPICAL_FISH_VARIANTS, TROPICAL_FISH_SHAPES, TROPICAL_FISH_COLORS, TROPICAL_FISH_PATTERNS, FISH_COLORS, isPufferfish, isTropicalFish, isSmallFish, pufferfishDimensions, pufferfishStage, pufferfishDamageFor, pufferfishPoisonFor, pufferfishReactsTo, findPufferfishThreat, updatePufferfishPuff, pufferfishContact, rollTropicalFishVariant, tropicalFishVariantName, fishDrops, fishXp, createPufferfishModel, posePufferfish, createTropicalFishModel, poseTropicalFish } from './fishBehavior.js';
 import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSIONS, UNDEAD_HORSE_BABY_SCALE, UNDEAD_HORSE_SPEED, SKELETON_TRAP, UNDEAD_HORSE_SUN, UNDEAD_HORSE_TRAITS, UNDEAD_HORSE_TRANSPORT, UNDEAD_HORSE_EQUIPMENT, UNDEAD_HORSE_COLORS, isUndeadHorse, isSkeletonHorse, isZombieHorse, undeadHorseHealth, undeadHorseDimensions, undeadHorseBurnsInDaylight, undeadHorseIsHostile, undeadHorseSeparateFromRider, equipUndeadHorse, shearUndeadHorse, skeletonTrapReady, springSkeletonTrap, zombieHorseWantsRider, undeadHorseCanBreed, undeadHorseXp, createUndeadHorseModel, poseUndeadHorse } from './undeadHorseBehavior.js';
@@ -531,6 +532,7 @@ export class MobManager {
       case 'wandering_trader': return this.spawnWanderingTrader(x, y, z, options);
       case 'trader_llama': return this.spawnTraderLlama(x, y, z, options);
       case 'camel': return this.spawnCamel(x, y, z, options);
+      case 'camel_husk': return this.spawnCamelHusk(x, y, z, options);
       case 'creaking': return this.spawnCreaking(x, y, z, options);
       case 'snow_golem': return this.spawnSnowGolem(x, y, z, options);
       case 'illusioner': return this.spawnIllusioner(x, y, z, options);
@@ -2589,6 +2591,8 @@ export class MobManager {
       case 'trader_llama': return LLAMA_DIMENSIONS;
       // Wiki: a camel is 1.7 x 2.375 standing, 1.7 x 0.945 sitting, and 0.85 x 1.1875 as a baby.
       case 'camel': return CAMEL_DIMENSIONS;
+      // Wiki: a camel husk is 1.7 x 2.375 standing and 1.7 x 0.945 sitting -- the camel box exactly.
+      case 'camel_husk': return CAMEL_HUSK_DIMENSIONS;
       // Wiki: a creaking is 0.9 x 2.7.
       case 'creaking': return CREAKING_DIMENSIONS;
       // Wiki: a snow golem is 0.7 x 1.9 in Java. Its loot table already existed while it had no
@@ -7681,6 +7685,81 @@ export class MobManager {
   }
 
   /**
+   * Camel husk.
+   *
+   * Wiki: 32 HP, the camel box, speed 0.09. The camel's UNDEAD variant: passive alone but hostile as a
+   * jockey, ridden by an iron-spear husk with a parched passenger; it does not burn in sunlight, and it is
+   * passive again once separated from its riders.
+   */
+  spawnCamelHusk(x, y, z, options = {}) {
+    // The camel model is reused rather than duplicated: the wiki calls this a VARIANT and gives the same
+    // hitbox, so only the palette differs.
+    const group = new THREE.Group();
+    const colors = CAMEL_HUSK_COLORS;
+    const coatMat = new THREE.MeshLambertMaterial({ color: colors.coat });
+    const humpMat = new THREE.MeshLambertMaterial({ color: colors.hump });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: colors.hoof });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+    const { group: model, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle } =
+      createCamelHuskModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat, createCamelModel);
+    group.add(model);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'camel_husk',
+      name: 'Camel Husk',
+      // A definite groundedness, so no branch reads undefined.
+      onGround: true,
+      mesh: group,
+      body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddleMesh: saddle,
+      // Wiki: 32 HP.
+      health: CAMEL_HUSK_HEALTH,
+      maxHealth: CAMEL_HUSK_HEALTH,
+      width: CAMEL_HUSK_DIMENSIONS.width,
+      height: CAMEL_HUSK_DIMENSIONS.height,
+      // Wiki: speed 0.09.
+      speed: CAMEL_HUSK_SPEED,
+      // Wiki: undead, and it does not burn in sunlight.
+      undead: CAMEL_HUSK_UNDEAD_TRAITS.undead,
+      poisonImmune: CAMEL_HUSK_UNDEAD_TRAITS.poisonImmune,
+      invertedHealing: CAMEL_HUSK_UNDEAD_TRAITS.invertedHealing,
+      canBreatheUnderwater: CAMEL_HUSK_UNDEAD_TRAITS.canBreatheUnderwater,
+      sensitiveToSmite: CAMEL_HUSK_UNDEAD_TRAITS.sensitiveToSmite,
+      burnsInDaylight: camelHuskBurnsInDaylight(),
+      // Wiki: passive alone, hostile as a jockey. The flag tracks the riders.
+      isHostile: false,
+      riders: [],
+      riderCount: 0,
+      isJockey: false,
+      // It shares the camel's step and fall traits, since the wiki gives it the camel body.
+      stepHeight: CAMEL_STEP_HEIGHT,
+      fallDamageReduction: CAMEL_FALL.safeBlocks,
+      fallDamageMultiplier: CAMEL_FALL.damagePerBlock,
+      // The sit cycle, shared with the camel.
+      isSitting: false,
+      sitTimer: 0,
+      standTimer: rollCamelStandDelay(options.random || Math.random),
+      hasSaddle: !!options.hasSaddle,
+      tame: !!options.tame,
+      camelHuskPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    if (saddle) saddle.visible = mob.hasSaddle;
+    this.mobs.push(mob);
+    // Wiki: it arrives as a jockey, ridden by a husk with a parched passenger. Opt-out so a test or a bare
+    // spawn does not have to build three mobs.
+    if (options.withJockey) mountCamelHuskJockey(this, mob);
+    return mob;
+  }
+
+  /**
    * Giant.
    *
    * Wiki: 100 HP, 3.6 x 12 -- a six-times-enlarged zombie model -- dealing 26/50/75 by difficulty, and
@@ -8754,6 +8833,9 @@ export class MobManager {
     const camelRows = isCamel(mob) ? camelDrops(mob) : [];
     // Wiki: a creaking drops no items at all.
     const creakingRows = isCreaking(mob) ? [] : [];
+    // Wiki: a camel husk drops 2-3 rotten flesh. This row does NOT exist in the base table yet, so unlike
+    // the other mobs here the manager has to be told about it.
+    const camelHuskRows = isCamelHusk(mob) ? camelHuskDrops(mob, random) : [];
     // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
     const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
     // Wiki: the giant's page gives no drop table and no experience value.
@@ -8766,7 +8848,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows];
   }
 
   /**
@@ -8870,7 +8952,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
+          : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
           : isGiant(mob) ? 0
           : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
           : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
@@ -9714,6 +9797,46 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(isCamelHusk(mob)){
+      // Wiki: passive alone, hostile as a jockey; it does not burn in sunlight; and it shares the camel's
+      // sit cycle, including the headroom guard.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      const hx = Math.floor(mob.mesh.position.x);
+      const hy = Math.floor(mob.mesh.position.y);
+      const hz = Math.floor(mob.mesh.position.z);
+      let clearance = 0;
+      for (let dy = 0; dy < 4; dy++) {
+        const id = this.world.getVoxel(hx, hy + dy, hz);
+        if (id === undefined || id === null || id === BLOCKS.AIR) clearance += 1; else break;
+      }
+      const sit = updateCamelHuskSitting(mob, dt, {
+        clearance,
+        random: this.random ?? Math.random,
+        fleeing: mob.fleeing === true
+      });
+      if (sit === 'stood') mob.state = 'standing';
+      else if (sit === 'sat') mob.state = 'sitting';
+      else if (sit === 'blocked') mob.state = 'sitting-blocked';
+
+      // Wiki: hostile only because its RIDERS control the pathfinding.
+      mob.isHostile = camelHuskIsHostile(mob);
+      if (mob.isSitting) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+      } else {
+        wanderMob(this, mob, dt, 0.5);
+        mob.state = mob.isHostile ? 'ridden' : mob.state;
+      }
+      // Wiki: "It does not burn in sunlight", stated on its own page.
+      mob.isBurning = false;
+
+      moveGroundMob(this, mob, dt);
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.camelHuskPhase = (mob.camelHuskPhase || 0) + dt;
+      if (mob.saddleMesh) mob.saddleMesh.visible = mob.hasSaddle === true;
+      poseCamelHusk(mob, mob.camelHuskPhase, poseCamel);
       return true;
     }
     if(isGiant(mob)){

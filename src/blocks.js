@@ -1239,6 +1239,9 @@ export const ITEMS = {
   glistering_melon_slice: { name: 'Glistering Melon Slice', icon: '/assets/items/glistering_melon_slice.png', type: 'material' },
   golden_carrot: { name: 'Golden Carrot', icon: '/assets/items/golden_carrot.png', type: 'food' },
   rabbit_foot: { name: "Rabbit's Foot", icon: '/assets/items/rabbit_foot.png', type: 'material' },
+  // Wiki: rotten flesh. Several loot tables already name it, but the item was never registered, so every one of
+  // those drops produced an id with no icon or name.
+  rotten_flesh: { name: 'Rotten Flesh', food: 4, icon: '/assets/items/rotten_flesh.png', type: 'food' },
   pufferfish: { name: 'Pufferfish', icon: '/assets/items/pufferfish.png', type: 'food' },
   dragon_breath: { name: "Dragon's Breath", icon: '/assets/items/dragon_breath.png', type: 'material' },
   glass_bottle: { name: 'Glass Bottle', icon: '/assets/items/glass_bottle.png', type: 'utility' },
@@ -1340,6 +1343,7 @@ export const ITEMS = {
   warden_spawn_egg: { name: 'Warden Spawn Egg', icon: '/assets/items/warden_spawn_egg.png', type: 'spawn_egg', mob: 'warden' },
   ender_dragon_spawn_egg: { name: 'Ender Dragon Spawn Egg', icon: '/assets/items/ender_dragon_spawn_egg.png', type: 'spawn_egg', mob: 'ender_dragon' },
   wither_spawn_egg: { name: 'Wither Spawn Egg', icon: '/assets/items/wither_spawn_egg.png', type: 'spawn_egg', mob: 'wither' },
+  camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
 };
 
