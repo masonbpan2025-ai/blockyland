@@ -102,6 +102,9 @@ export function buildCreativeCatalog() {
     // Resin. The clump is a plant-like growth; the block and the two brick forms are building blocks.
     // Their slab, stair and wall variants already existed.
     BLOCKS.RESIN_CLUMP, BLOCKS.RESIN_BLOCK, BLOCKS.RESIN_BRICKS, BLOCKS.CHISELED_RESIN_BRICKS,
+    // Ground cover. Dead bush and cobweb are listed alongside the two plants because they are the same
+    // cross-quad shape, even though cobweb is harvested with a sword and drops string.
+    BLOCKS.SHORT_GRASS, BLOCKS.FERN, BLOCKS.DEAD_BUSH, BLOCKS.COBWEB,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];

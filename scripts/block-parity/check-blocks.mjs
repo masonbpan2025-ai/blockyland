@@ -59,13 +59,19 @@ for (const key of keys) {
     note(!bare.canHarvest, 'NOT harvestable by hand');
   }
 
-  // The drop: getBlockDrop is what actually spawns an item on break. `drop: null` is legitimate for a
-  // block that deliberately yields nothing -- an infested block releases a silverfish instead -- so it
-  // is only a failure when the block neither drops nor has a declared alternative.
+  // The drop: getBlockDrop() is what actually spawns an item on break. `drop: null` is legitimate when
+  // the block deliberately yields nothing, so it is only a failure when the block neither drops nor has
+  // a declared alternative. There are three such cases in this game and they are distinguished by what
+  // the definition declares, not by a special case per block:
+  //
+  //   silverfish: true   an infested block releases a mob instead of an item;
+  //   plant: true        short grass and ferns drop nothing in vanilla (grass yields seeds only
+  //                      sometimes, and this game models no seed drop from it);
+  //   (anything else)    must declare a real drop.
   const drop = getBlockDrop(id);
-  const yieldsSomethingElse = Boolean(def.silverfish);
-  if (def.drop === null && yieldsSomethingElse) {
-    note(true, 'drop NONE, by design (releases a silverfish)');
+  const alternative = def.silverfish ? 'releases a silverfish' : (def.plant ? 'a plant that yields nothing' : null);
+  if (def.drop === null && alternative) {
+    note(true, `drop NONE, by design (${alternative})`);
   } else {
     note(Boolean(drop), `drop ${drop ? `${drop.id} (isBlock=${drop.isBlock})` : 'NONE'}`);
   }
