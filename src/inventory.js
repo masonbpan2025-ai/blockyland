@@ -1,6 +1,6 @@
-import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export class Inventory {
@@ -49,16 +49,16 @@ export class Inventory {
 
   getItemMeta(item) {
     if (!item) return null;
-    if (item.isStructure || (typeof item.id === 'string' && item.id.startsWith('structure_'))) {
-      const structId = item.structureId || item.id.replace('structure_', '');
-      const st = StructureLibrary?.getStructure(structId);
+    if (item.isBuilding || (typeof item.id === 'string' && item.id.startsWith('building_'))) {
+      const structId = item.buildingId || item.id.replace('building_', '');
+      const st = BuildingLibrary?.getBuilding(structId);
       return {
         id: item.id,
-        name: st ? st.name : (item.name || 'Structure'),
+        name: st ? st.name : (item.name || 'Building'),
         icon: st?.icon || item.icon || '/assets/blocks/crafting_table_top.png',
         isBlock: false,
-        isStructure: true,
-        structureId: st?.id || structId,
+        isBuilding: true,
+        buildingId: st?.id || structId,
         count: item.count || 1
       };
     }
@@ -282,7 +282,7 @@ export class Inventory {
       // Cargo pickups retain names, durability and enchantments. Only identical
       // stacks can merge, and a full inventory must leave the drop untouched.
       if(Object.keys(itemId).some(k=>!['id','isBlock','count','enchantments'].includes(k))){
-        const incoming=structuredClone(itemId),limit=stackLimitFor(incoming.id);
+        const incoming=structuredClone(itemId),limit=ITEMS[incoming.id]?.stackSize || (['tool','weapon'].includes(ITEMS[incoming.id]?.type)?1:64);
         const compatible=s=>s&&JSON.stringify({...s,count:0})===JSON.stringify({...incoming,count:0});
         const slots=[...this.hotbar,...this.storage];
         if(incoming.count>slots.reduce((n,s)=>n+(!s?limit:compatible(s)?Math.max(0,limit-s.count):0),0))return false;
@@ -295,15 +295,12 @@ export class Inventory {
       enchantments = itemId.enchantments || null;
       itemId = itemId.id;
     }
-    // 1. Try to merge into existing stacks (only if unenchanted), up to the item's own limit.
-    // The limit used to be a literal 64 here, which is why a stack of two diamond pickaxes was
-    // reachable at all: everything else about stacking was already correct.
+    // 1. Try to merge into existing stacks (only if unenchanted)
     if (!enchantments) {
-      const limit = stackLimitFor(itemId);
       const allSlots = [...this.hotbar, ...this.storage];
       for (const slot of allSlots) {
-        if (slot && slot.id === itemId && slot.isBlock === isBlock && !slot.enchantments && slot.count < limit) {
-          const canTake = limit - slot.count;
+        if (slot && slot.id === itemId && slot.isBlock === isBlock && !slot.enchantments && slot.count < 64) {
+          const canTake = 64 - slot.count;
           const add = Math.min(canTake, count);
           slot.count += add;
           count -= add;
@@ -312,30 +309,24 @@ export class Inventory {
       }
     }
 
-    // 2. Open new stacks until the count is placed, each capped at the item's limit.
-    //
-    // The previous version put the whole remaining count into the first empty slot, so asking for 20
-    // snowballs produced one stack of 20 -- and asking for 100 planks produced a stack of 100. The cap
-    // has to be applied when a *new* stack is created, not only when an existing one is topped up.
-    const createLimit = stackLimitFor(itemId);
-    const placeInto = (list) => {
-      for (let i = 0; i < list.length; i++) {
-        if (list[i]) continue;
-        const n = Math.min(count, createLimit);
-        const stack = { id: itemId, isBlock, count: n };
-        if (enchantments) stack.enchantments = enchantments;
-        list[i] = stack;
-        count -= n;
-        if (count <= 0) return true;
+    const itemObj = { id: itemId, isBlock, count };
+    if (enchantments) itemObj.enchantments = enchantments;
+
+    // 2. Put into empty hotbar slot
+    for (let i = 0; i < 9; i++) {
+      if (!this.hotbar[i]) {
+        this.hotbar[i] = itemObj;
+        return true;
       }
-      return false;
-    };
+    }
 
-    // 2. Put into empty hotbar slots
-    if (placeInto(this.hotbar)) return true;
-
-    // 3. Put into empty storage slots
-    if (placeInto(this.storage)) return true;
+    // 3. Put into empty storage slot
+    for (let i = 0; i < 27; i++) {
+      if (!this.storage[i]) {
+        this.storage[i] = itemObj;
+        return true;
+      }
+    }
 
     return false; // full inventory
   }
@@ -413,16 +404,15 @@ export class Inventory {
           this.cursorItem = null;
         }
       } else if (target.id === this.cursorItem.id && target.isBlock === this.cursorItem.isBlock) {
-        // Merge identical stacks, up to the item's own limit: two pickaxes must not become one.
-        const limit = stackLimitFor(target.id);
+        // Merge identical stacks
         if (isRightClick) {
-          if (target.count < limit) {
+          if (target.count < 64) {
             target.count++;
             this.cursorItem.count--;
             if (this.cursorItem.count <= 0) this.cursorItem = null;
           }
         } else {
-          const space = limit - target.count;
+          const space = 64 - target.count;
           const transfer = Math.min(space, this.cursorItem.count);
           target.count += transfer;
           this.cursorItem.count -= transfer;
@@ -455,8 +445,7 @@ export class Inventory {
 
     if (!this.cursorItem) {
       this.cursorItem = { id: res.id, isBlock: res.isBlock, count: res.count };
-    } else if (this.cursorItem.id === res.id
-      && this.cursorItem.count + res.count <= stackLimitFor(res.id)) {
+    } else if (this.cursorItem.id === res.id && this.cursorItem.count + res.count <= 64) {
       this.cursorItem.count += res.count;
     } else {
       return; // Cannot pick up if full

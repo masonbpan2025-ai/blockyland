@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const pyramidStructure = {
+export const pyramidBuilding = {
   id: 'pyramid',
   name: 'Pyramid',
   icon: '/assets/blocks/sandstone.png',
@@ -83,4 +83,4 @@ export const pyramidStructure = {
   }
 };
 
-export default pyramidStructure;
+export default pyramidBuilding;

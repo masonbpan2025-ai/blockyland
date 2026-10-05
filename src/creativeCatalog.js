@@ -1,5 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export const CREATIVE_TABS = [
@@ -13,7 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
-  { id: 'structure', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
+  { id: 'building', name: 'Buildings', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -237,15 +237,7 @@ export function buildCreativeCatalog() {
     // dispatcher and the Inspector, but the creative spawn-egg category reads THIS list and it stopped at the
     // older mobs, so they never appeared in the creative menu.
     'allay_spawn_egg', 'sniffer_spawn_egg', 'breeze_spawn_egg', 'armadillo_spawn_egg',
-    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg', 'skeleton_horse_spawn_egg', 'zombie_horse_spawn_egg', 'pufferfish_spawn_egg', 'tropical_fish_spawn_egg', 'giant_spawn_egg', 'piglin_brute_spawn_egg', 'camel_husk_spawn_egg', 'copper_golem_spawn_egg', 'happy_ghast_spawn_egg',
-    // Six eggs that were registered as items and reachable in the world but absent from this list, so a
-    // player could not find them in the menu at all. They were found by comparing this list against the
-    // registry in both directions; tests/spawnEggCatalogue.test.js now asserts both halves.
-    'zombie_villager_spawn_egg', 'husk_spawn_egg', 'stray_spawn_egg', 'bogged_spawn_egg', 'panda_spawn_egg', 'polar_bear_spawn_egg',
-    // The nine mobs that had no egg until the spawn-egg batch added one. `pufferfish_spawn_egg` and
-    // `tropical_fish_spawn_egg` were already named above, as entries this list could not resolve --
-    // `itemEntry` returns null for a missing item and the row was dropped without a word.
-    'enderman_spawn_egg', 'mooshroom_spawn_egg', 'ocelot_spawn_egg', 'shulker_spawn_egg', 'trader_llama_spawn_egg', 'vex_spawn_egg', 'zoglin_spawn_egg'
+    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg', 'skeleton_horse_spawn_egg', 'zombie_horse_spawn_egg', 'pufferfish_spawn_egg', 'tropical_fish_spawn_egg', 'giant_spawn_egg', 'piglin_brute_spawn_egg', 'camel_husk_spawn_egg', 'copper_golem_spawn_egg', 'happy_ghast_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');
@@ -279,20 +271,20 @@ export function buildCreativeCatalog() {
     }
   }
 
-  // 11. Structures
-  if (typeof StructureLibrary !== 'undefined') {
-    for (const st of StructureLibrary.getAllStructures()) {
+  // 11. Buildings (the player-placeable Building Library templates, built in Building Studio)
+  if (typeof BuildingLibrary !== 'undefined') {
+    for (const st of BuildingLibrary.getAllBuildings()) {
       catalog.push({
-        id: `structure_${st.id}`,
+        id: `building_${st.id}`,
         name: st.name,
         icon: st.icon || '/assets/blocks/crafting_table_top.png',
         isBlock: false,
-        isStructure: true,
-        structureId: st.id,
-        tab: 'structure',
-        category: 'structure',
+        isBuilding: true,
+        buildingId: st.id,
+        tab: 'building',
+        category: 'building',
         count: 1,
-        searchTerms: `${st.name.toLowerCase()} structure build ${st.id}`
+        searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
       });
     }
   }
@@ -307,8 +299,8 @@ export function refreshCreativeCatalog() {
   return ALL_CREATIVE_ITEMS;
 }
 
-if (typeof StructureLibrary !== 'undefined' && typeof StructureLibrary.subscribe === 'function') {
-  StructureLibrary.subscribe(() => {
+if (typeof BuildingLibrary !== 'undefined' && typeof BuildingLibrary.subscribe === 'function') {
+  BuildingLibrary.subscribe(() => {
     refreshCreativeCatalog();
   });
 }
