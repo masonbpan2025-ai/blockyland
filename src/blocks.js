@@ -368,7 +368,20 @@ export const BLOCKS = {
   DEAD_BRAIN_CORAL_BLOCK: 1000,
   DEAD_BUBBLE_CORAL_BLOCK: 1001,
   DEAD_FIRE_CORAL_BLOCK: 1002,
-  DEAD_HORN_CORAL_BLOCK: 1003
+  DEAD_HORN_CORAL_BLOCK: 1003,
+
+  // --- Tall plants and ceiling plants, ninth block-parity batch ----------------------------------
+  //
+  // Four cross-quad plants that an earlier round wrongly wrote off as art-blocked. Their textures
+  // exist under names carrying a PART suffix (`tall_grass_top`, not `tall_grass`), which is exactly
+  // what a probe for the bare block name does not find.
+  //
+  // Tall grass and large fern are two blocks tall in vanilla, with a bottom texture as well. This game
+  // registers the single block with the TOP texture; see the definition notes for the consequence.
+  TALL_GRASS: 1004,
+  LARGE_FERN: 1005,
+  SPORE_BLOSSOM: 1006,
+  HANGING_ROOTS: 1007
 };
 
 export const BLOCK_DEFS = {
@@ -877,6 +890,24 @@ export const BLOCK_DEFS = {
   [BLOCKS.BUBBLE_CORAL_BLOCK]: { name: 'Bubble Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_BUBBLE_CORAL_BLOCK, textures: { all: 'bubble_coral_block.png' } },
   [BLOCKS.FIRE_CORAL_BLOCK]: { name: 'Fire Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_FIRE_CORAL_BLOCK, textures: { all: 'fire_coral_block.png' } },
   [BLOCKS.HORN_CORAL_BLOCK]: { name: 'Horn Coral Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DEAD_HORN_CORAL_BLOCK, textures: { all: 'horn_coral_block.png' } },
+
+  // --- Tall plants and ceiling plants, ninth block-parity batch ----------------------------------
+  //
+  // Four cross-quad plants. Two of them hang from a ceiling rather than standing on a floor, which is
+  // what `hang: true` marks: the mesher reads it and flips the cross quad so the artwork's top edge sits
+  // at the ceiling instead of the floor. Without the flag a hanging plant renders upside down.
+  //
+  // Tall grass and large fern are TWO blocks tall in vanilla, modelled as a lower and an upper block
+  // sharing a bottom and a top texture. This game registers one block, drawn with the TOP texture, so
+  // the result is a single-block plant. That is an approximation with a consequence a player can see,
+  // so it is recorded rather than left to be discovered: placing "tall grass" gives one block, not two.
+  //
+  // Drops follow the harvest table: tall grass, large fern and hanging roots drop nothing, and a spore
+  // blossom drops itself.
+  [BLOCKS.TALL_GRASS]: { name: 'Tall Grass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'tall_grass_top.png' } },
+  [BLOCKS.LARGE_FERN]: { name: 'Large Fern', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'large_fern_top.png' } },
+  [BLOCKS.SPORE_BLOSSOM]: { name: 'Spore Blossom', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SPORE_BLOSSOM, textures: { all: 'spore_blossom.png' } },
+  [BLOCKS.HANGING_ROOTS]: { name: 'Hanging Roots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'hanging_roots.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,

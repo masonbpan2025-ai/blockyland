@@ -390,11 +390,21 @@ export class ChunkMesher {
           // Cross-quad rendering for flowers (Poppy, Dandelion)
           if (isPlant) {
             const uv = this.tm.getFaceUVs(blockId, 'all');
+            // A plant anchored to a ceiling draws downward from the block's top face, so its texture has
+            // to be flipped: the artwork's top edge belongs at the ceiling, not at the floor. The quad's
+            // vertex POSITIONS are unchanged -- the cell is the cell -- so this is a V swap, and the
+            // winding is left alone because the quad is double-sided in effect through the second
+            // crossing quad.
+            const hanging = Boolean(def.hang);
             const addCrossQuad = (p1, p2, p3, p4) => {
               const baseIdx = trVertCount;
               trPos.push(...p1, ...p2, ...p3, ...p4);
               trNorm.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
-              trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              if (hanging) {
+                trUv.push(uv.u0, uv.v1, uv.u1, uv.v1, uv.u1, uv.v0, uv.u0, uv.v0);
+              } else {
+                trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              }
               trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
               trWind.push(0,0,1,1);
               trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);

@@ -118,6 +118,9 @@ export function buildCreativeCatalog() {
     BLOCKS.FIRE_CORAL_BLOCK, BLOCKS.HORN_CORAL_BLOCK,
     BLOCKS.DEAD_TUBE_CORAL_BLOCK, BLOCKS.DEAD_BRAIN_CORAL_BLOCK, BLOCKS.DEAD_BUBBLE_CORAL_BLOCK,
     BLOCKS.DEAD_FIRE_CORAL_BLOCK, BLOCKS.DEAD_HORN_CORAL_BLOCK,
+    // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
+    // rather than a catalogue one, so it sits here with the rest of the ground cover.
+    BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];
