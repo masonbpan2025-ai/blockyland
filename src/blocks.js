@@ -510,7 +510,27 @@ export const BLOCKS = {
   BIG_DRIPLEAF_STEM: 1072,
   SMALL_DRIPLEAF: 1073,
   SCULK_VEIN: 1074,
-  PALE_HANGING_MOSS: 1075
+  PALE_HANGING_MOSS: 1075,
+
+  // --- Technical blocks, sixteenth block-parity batch --------------------------------------------
+  //
+  // Eleven blocks that share one thing: they are machinery rather than building material, and every one
+  // of them does something in vanilla that this engine has no layer for. They are registered as
+  // placeable, breakable cubes with correct art so the blocks exist and can be built with, and the
+  // behaviour each one lacks is named in its own comment below rather than left to be discovered.
+  //
+  // All eleven are full cubes drawn from side/top textures, so no geometry.
+  COMMAND_BLOCK: 1076,
+  REPEATING_COMMAND_BLOCK: 1077,
+  CHAIN_COMMAND_BLOCK: 1078,
+  STRUCTURE_BLOCK: 1079,
+  JIGSAW: 1080,
+  SPAWNER: 1081,
+  TRIAL_SPAWNER: 1082,
+  VAULT: 1083,
+  END_PORTAL_FRAME: 1084,
+  TURTLE_EGG: 1085,
+  FROGSPAWN: 1086
 };
 
 export const BLOCK_DEFS = {
@@ -1211,6 +1231,41 @@ export const BLOCK_DEFS = {
   [BLOCKS.SMALL_DRIPLEAF]: { name: 'Small Dripleaf', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'small_dripleaf_top.png' } },
   [BLOCKS.SCULK_VEIN]: { name: 'Sculk Vein', hardness: 0.2, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'sculk_vein.png' } },
   [BLOCKS.PALE_HANGING_MOSS]: { name: 'Pale Hanging Moss', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: BLOCKS.PALE_HANGING_MOSS, textures: { all: 'pale_hanging_moss.png' } },
+
+  // --- Technical blocks, sixteenth block-parity batch --------------------------------------------
+  //
+  // None of these has a harvest row except the monster spawner and the turtle egg, so most fall to the
+  // engine's default for an unlisted block: hardness 0, no tool gate, breakable by hand. That differs
+  // from vanilla, where the command, structure and jigsaw blocks are unobtainable and the vault and trial
+  // spawner are near-indestructible. The alternative would be hardness -1 for all of them, which would
+  // make them unbuildable-with, and a block you cannot break is not useful as decoration. So they are
+  // placeable and breakable, and this comment is the record of that choice.
+  //
+  // The monster spawner is the exception that follows its data: hardness 5, a wooden pickaxe required,
+  // and an empty drops array, so it breaks and yields nothing.
+  // Runs a command when powered. This game has no command layer, so it is inert decoration.
+  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
+  // Runs a command every tick while powered. Inert here, like the plain command block.
+  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
+  // Runs a command when the block behind it runs. Inert here, like the other two.
+  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
+  // Saves and loads structures. The game has its own building library, but it is not driven by this block, so the block is inert.
+  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
+  // Assembles generated structures. No world-generation layer to hook into, so inert.
+  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 0.0, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
+  // Spawns mobs on a timer while a player is near. This engine spawns mobs but has no spawner block entity, so it does not spawn anything. It IS breakable and drops nothing, matching its harvest row.
+  [BLOCKS.SPAWNER]: { name: 'Monster Spawner', hardness: 5.0, sound: 'stone', drop: null, textures: { all: 'spawner.png' } },
+  // Runs a trial when a player enters, then ejects rewards. Uses the INACTIVE textures because it is always inactive here; the active and ominous variants would need the trial mechanic.
+  [BLOCKS.TRIAL_SPAWNER]: { name: 'Trial Spawner', hardness: 0.0, sound: 'stone', drop: BLOCKS.TRIAL_SPAWNER, textures: { top: 'trial_spawner_top_inactive.png', side: 'trial_spawner_side_inactive.png', bottom: 'trial_spawner_bottom.png' } },
+  // Opens for a key and dispenses loot. Uses the OFF textures for the same reason; the front face is the one that would light up.
+  [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
+  // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
+  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 0.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
+  [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
+  // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
+  [BLOCKS.FROGSPAWN]: { name: 'Frogspawn', hardness: 0.0, sound: 'stone', drop: BLOCKS.FROGSPAWN, textures: { all: 'frogspawn.png' } },
+
 
 
 

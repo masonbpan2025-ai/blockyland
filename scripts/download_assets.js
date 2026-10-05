@@ -104,6 +104,16 @@ const blocks1214 = [
   // the block would draw the whole strip across one quad. That block needs an SVG or a frame slicer first.
   'big_dripleaf_top.png', 'big_dripleaf_stem.png', 'small_dripleaf_top.png',
   'sculk_vein.png', 'pale_hanging_moss.png',
+  // Technical blocks, the sixteenth batch. The three command blocks each need four textures -- front,
+  // side, back and the conditional top/bottom -- which is why this list is longer than the block count.
+  // The trial spawner and vault use their INACTIVE / OFF variants, since they are never active here.
+  'command_block_front.png', 'command_block_side.png', 'command_block_back.png', 'command_block_conditional.png',
+  'repeating_command_block_front.png', 'repeating_command_block_side.png', 'repeating_command_block_back.png', 'repeating_command_block_conditional.png',
+  'chain_command_block_front.png', 'chain_command_block_side.png', 'chain_command_block_back.png', 'chain_command_block_conditional.png',
+  'structure_block.png', 'jigsaw_top.png', 'jigsaw_side.png', 'jigsaw_bottom.png', 'spawner.png',
+  'trial_spawner_top_inactive.png', 'trial_spawner_side_inactive.png', 'trial_spawner_bottom.png',
+  'vault_top.png', 'vault_front_off.png', 'vault_side_off.png', 'vault_bottom.png',
+  'end_portal_frame_top.png', 'end_portal_frame_side.png', 'turtle_egg.png', 'frogspawn.png',
 ];
 
 const items = [

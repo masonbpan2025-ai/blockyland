@@ -109,6 +109,57 @@ test('an infested block breaks faster than the block it imitates', () => {
 
 // --- the ground-cover family --------------------------------------------------
 
+test('the technical blocks exist, are drawable, and claim no behaviour they lack', () => {
+  // Every block in this family is machinery in vanilla and inert decoration here. The point of the test
+  // is the SECOND half: each must be a real, drawable cube, and must NOT carry a marker promising a
+  // mechanic this engine has no layer for. If a command layer, a spawner entity or a vault mechanic
+  // lands, these assertions should be replaced rather than quietly deleted.
+  const TECHNICAL = {
+    COMMAND_BLOCK: ['front', 'side', 'back', 'top', 'bottom'],
+    REPEATING_COMMAND_BLOCK: ['front', 'side', 'back', 'top', 'bottom'],
+    CHAIN_COMMAND_BLOCK: ['front', 'side', 'back', 'top', 'bottom'],
+    STRUCTURE_BLOCK: ['all'],
+    JIGSAW: ['top', 'side', 'bottom'],
+    SPAWNER: ['all'],
+    TRIAL_SPAWNER: ['top', 'side', 'bottom'],
+    VAULT: ['top', 'side', 'front', 'bottom'],
+    END_PORTAL_FRAME: ['top', 'side', 'bottom'],
+    TURTLE_EGG: ['all'],
+    FROGSPAWN: ['all'],
+  };
+
+  for (const [key, faces] of Object.entries(TECHNICAL)) {
+    const id = BLOCKS[key];
+    assert.equal(typeof id, 'number', `${key} must be registered`);
+    const def = BLOCK_DEFS[id];
+
+    // Drawable: every face it names must resolve to a texture file that exists.
+    assert.deepEqual(Object.keys(def.textures).sort(), [...faces].sort(),
+      `${key} must name exactly the faces its model uses`);
+    for (const [face, file] of Object.entries(def.textures)) {
+      assert.ok(existsSync(path.join('public', 'assets', 'blocks', file)),
+        `${key}.${face} points at ${file}, which does not exist`);
+    }
+
+    // A real cube, not a plant or a partial shape.
+    assert.notEqual(def.solid, false, `${key} is a full cube`);
+    assert.equal(def.plant, undefined, `${key} is not a plant`);
+
+    // And no promise of a mechanic this engine does not have.
+    for (const marker of ['command', 'runsCommand', 'spawns', 'spawner', 'container', 'inventory', 'lootTable', 'opens']) {
+      assert.equal(def[marker], undefined, `${key} must not claim a "${marker}" behaviour it lacks`);
+    }
+  }
+
+  // The monster spawner is the one with harvest data, and it follows it: hardness 5, pickaxe required,
+  // and it yields nothing.
+  const spawner = BLOCKS.SPAWNER;
+  assert.equal(BLOCK_DEFS[spawner].hardness, 5.0, 'the spawner has hardness 5 per its harvest row');
+  assert.equal(getBlockDrop(spawner), null, 'the spawner drops nothing');
+  assert.equal(miningEffect(spawner, null, null).canHarvest, false, 'and needs a pickaxe');
+  assert.ok(miningEffect(spawner, { speed: 8 }, 'wooden_pickaxe').canHarvest, 'which does harvest it');
+});
+
 test('all seventeen shulker boxes exist, match their own colour, and drop themselves', () => {
   // Same copy-paste risk as the glazed terracotta family, checked the same way: against each colour's OWN
   // key, so a box drawn with another colour's texture fails.
