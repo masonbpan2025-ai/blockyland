@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1548 recipes.
+// 1549 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -531,6 +531,7 @@ export const EXTRA_RECIPES = [
   {pattern:[[B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE,B.POLISHED_DEEPSLATE]],result:{id:B.POLISHED_DEEPSLATE_SLAB,isBlock:true,count:6}},
   {pattern:[[B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS,B.DEEPSLATE_BRICKS]],result:{id:B.DEEPSLATE_BRICK_SLAB,isBlock:true,count:6}},
   {pattern:[[B.DEEPSLATE_TILES,B.DEEPSLATE_TILES,B.DEEPSLATE_TILES]],result:{id:B.DEEPSLATE_TILE_SLAB,isBlock:true,count:6}},
+  {pattern:[[B.BAMBOO,'string',B.BAMBOO],[B.BAMBOO,null,B.BAMBOO],[B.BAMBOO,null,B.BAMBOO]],result:{id:B.SCAFFOLDING,isBlock:true,count:6}},
   {shapeless:true,ingredients:[B.REDSTONE_BLOCK],result:{id:'redstone',isBlock:false,count:9}},
   {pattern:[['redstone'],['stick']],result:{id:B.REDSTONE_TORCH,isBlock:true,count:1}},
   {pattern:[['redstone','redstone','redstone'],['redstone','redstone','redstone'],['redstone','redstone','redstone']],result:{id:B.REDSTONE_BLOCK,isBlock:true,count:1}},
@@ -1568,21 +1569,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1548;
+export const EXTRA_RECIPE_COUNT = 1549;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1548,
-  "shaped": 1278,
+  "emitted": 1549,
+  "shaped": 1279,
   "shapeless": 270,
-  "skippedMissingResult": 7,
+  "skippedMissingResult": 6,
   "skippedMissingIngredient": 1,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1548,
+  "emittedBeforeDedupe": 1549,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0
