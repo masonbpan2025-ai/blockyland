@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1501 recipes.
+// 1525 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -877,6 +877,30 @@ export const EXTRA_RECIPES = [
   {pattern:[['stick','stick','stick'],['stick',B.ORANGE_WOOL,'stick'],['stick','stick','stick']],result:{id:'painting',isBlock:false,count:1}},
   {pattern:[['stick','stick','stick'],['stick',B.WHITE_WOOL,'stick'],['stick','stick','stick']],result:{id:'painting',isBlock:false,count:1}},
   {pattern:[['gold_ingot','gold_ingot','gold_ingot'],['gold_ingot','apple','gold_ingot'],['gold_ingot','gold_ingot','gold_ingot']],result:{id:'golden_apple',isBlock:false,count:1}},
+  {pattern:[[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[B.OAK_PLANKS,B.OAK_PLANKS,B.OAK_PLANKS],[null,'stick',null]],result:{id:B.OAK_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[B.SPRUCE_PLANKS,B.SPRUCE_PLANKS,B.SPRUCE_PLANKS],[null,'stick',null]],result:{id:B.SPRUCE_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],[B.BIRCH_PLANKS,B.BIRCH_PLANKS,B.BIRCH_PLANKS],[null,'stick',null]],result:{id:B.BIRCH_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[B.JUNGLE_PLANKS,B.JUNGLE_PLANKS,B.JUNGLE_PLANKS],[null,'stick',null]],result:{id:B.JUNGLE_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS],[B.ACACIA_PLANKS,B.ACACIA_PLANKS,B.ACACIA_PLANKS],[null,'stick',null]],result:{id:B.ACACIA_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS],[B.CHERRY_PLANKS,B.CHERRY_PLANKS,B.CHERRY_PLANKS],[null,'stick',null]],result:{id:B.CHERRY_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS,B.DARK_OAK_PLANKS],[null,'stick',null]],result:{id:B.DARK_OAK_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS,B.PALE_OAK_PLANKS],[null,'stick',null]],result:{id:B.PALE_OAK_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[B.MANGROVE_PLANKS,B.MANGROVE_PLANKS,B.MANGROVE_PLANKS],[null,'stick',null]],result:{id:B.MANGROVE_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS],[null,'stick',null]],result:{id:B.BAMBOO_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[B.CRIMSON_PLANKS,B.CRIMSON_PLANKS,B.CRIMSON_PLANKS],[null,'stick',null]],result:{id:B.CRIMSON_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS],[B.WARPED_PLANKS,B.WARPED_PLANKS,B.WARPED_PLANKS],[null,'stick',null]],result:{id:B.WARPED_SIGN,isBlock:true,count:3}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG],[B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG,B.STRIPPED_OAK_LOG]],result:{id:B.OAK_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG],[B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG,B.STRIPPED_SPRUCE_LOG]],result:{id:B.SPRUCE_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_BIRCH_LOG,B.STRIPPED_BIRCH_LOG,B.STRIPPED_BIRCH_LOG],[B.STRIPPED_BIRCH_LOG,B.STRIPPED_BIRCH_LOG,B.STRIPPED_BIRCH_LOG]],result:{id:B.BIRCH_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_JUNGLE_LOG,B.STRIPPED_JUNGLE_LOG,B.STRIPPED_JUNGLE_LOG],[B.STRIPPED_JUNGLE_LOG,B.STRIPPED_JUNGLE_LOG,B.STRIPPED_JUNGLE_LOG]],result:{id:B.JUNGLE_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_ACACIA_LOG,B.STRIPPED_ACACIA_LOG,B.STRIPPED_ACACIA_LOG],[B.STRIPPED_ACACIA_LOG,B.STRIPPED_ACACIA_LOG,B.STRIPPED_ACACIA_LOG]],result:{id:B.ACACIA_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_CHERRY_LOG,B.STRIPPED_CHERRY_LOG,B.STRIPPED_CHERRY_LOG],[B.STRIPPED_CHERRY_LOG,B.STRIPPED_CHERRY_LOG,B.STRIPPED_CHERRY_LOG]],result:{id:B.CHERRY_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_DARK_OAK_LOG,B.STRIPPED_DARK_OAK_LOG,B.STRIPPED_DARK_OAK_LOG],[B.STRIPPED_DARK_OAK_LOG,B.STRIPPED_DARK_OAK_LOG,B.STRIPPED_DARK_OAK_LOG]],result:{id:B.DARK_OAK_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_PALE_OAK_LOG,B.STRIPPED_PALE_OAK_LOG,B.STRIPPED_PALE_OAK_LOG],[B.STRIPPED_PALE_OAK_LOG,B.STRIPPED_PALE_OAK_LOG,B.STRIPPED_PALE_OAK_LOG]],result:{id:B.PALE_OAK_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_MANGROVE_LOG,B.STRIPPED_MANGROVE_LOG,B.STRIPPED_MANGROVE_LOG],[B.STRIPPED_MANGROVE_LOG,B.STRIPPED_MANGROVE_LOG,B.STRIPPED_MANGROVE_LOG]],result:{id:B.MANGROVE_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_BAMBOO_BLOCK,B.STRIPPED_BAMBOO_BLOCK,B.STRIPPED_BAMBOO_BLOCK],[B.STRIPPED_BAMBOO_BLOCK,B.STRIPPED_BAMBOO_BLOCK,B.STRIPPED_BAMBOO_BLOCK]],result:{id:B.BAMBOO_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_CRIMSON_STEM,B.STRIPPED_CRIMSON_STEM,B.STRIPPED_CRIMSON_STEM],[B.STRIPPED_CRIMSON_STEM,B.STRIPPED_CRIMSON_STEM,B.STRIPPED_CRIMSON_STEM]],result:{id:B.CRIMSON_HANGING_SIGN,isBlock:true,count:6}},
+  {pattern:[[B.CHAIN,null,B.CHAIN],[B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM],[B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM,B.STRIPPED_WARPED_STEM]],result:{id:B.WARPED_HANGING_SIGN,isBlock:true,count:6}},
   {pattern:[['iron_ingot',null,'iron_ingot'],[null,'iron_ingot',null]],result:{id:'bucket',isBlock:false,count:1}},
   {pattern:[['rabbit_hide','rabbit_hide'],['rabbit_hide','rabbit_hide']],result:{id:'leather',isBlock:false,count:1}},
   {pattern:[['dried_kelp','dried_kelp','dried_kelp'],['dried_kelp','dried_kelp','dried_kelp'],['dried_kelp','dried_kelp','dried_kelp']],result:{id:B.DRIED_KELP_BLOCK,isBlock:true,count:1}},
@@ -1521,21 +1545,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1501;
+export const EXTRA_RECIPE_COUNT = 1525;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1501,
-  "shaped": 1242,
+  "emitted": 1525,
+  "shaped": 1266,
   "shapeless": 266,
-  "skippedMissingResult": 42,
+  "skippedMissingResult": 18,
   "skippedMissingIngredient": 6,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1508,
+  "emittedBeforeDedupe": 1532,
   "duplicatesCollapsed": 7,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0

@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createHangingSignGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -69,6 +69,18 @@ export function createBlockGeometry(id, textures, state = {}) {
     // through and applied as a tint -- only the cloth takes it, not the pole.
     const colour = def?.bannerColour || 'white';
     return ensureFlameAttributes(createBannerGeometry(def, textures, colour));
+  }
+  if (def?.hangingSign) {
+    // Checked BEFORE sign, because a hanging sign's name also ends in _sign and a shared
+    // branch would give it a standing sign's shape.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createHangingSignGeometry(def, textures, dir));
+  }
+  if (def?.sign) {
+    // A post with a board. This project has no sign-editing UI, so the block exists for its
+    // recipe and its silhouette; the text layer is deliberately absent.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createSignGeometry(def, textures, dir));
   }
   if (def?.pane) {
     return ensureFlameAttributes(createPaneGeometry(def, textures));

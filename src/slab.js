@@ -380,3 +380,67 @@ export function createFenceGateGeometry(def, tm) {
   return merged;
 }
 
+/**
+ * A standing sign: a post with a board near the top.
+ *
+ * Vanilla signs are block entities holding text, and this project has no sign-editing UI. The block is
+ * modelled so the RECIPE has a destination and the block reads as a sign in the world; the text layer is
+ * deliberately absent rather than half-built.
+ */
+export function createSignGeometry(def, tm, dir = 3) {
+  const post = 2 / 16;
+  const postMin = (1 - post) / 2;
+  const boardW = 12 / 16;
+  const boardH = 6 / 16;
+  const boardT = 1 / 16;
+  const parts = [
+    // The post, from the floor to just under the board.
+    buildBox({ x: post, y: 10 / 16, z: post }, { x: postMin, y: 0, z: postMin }, def, tm),
+    // The board, mounted on the post and slightly in front of its centre.
+    buildBox({ x: boardW, y: boardH, z: boardT },
+      { x: (1 - boardW) / 2, y: 8 / 16, z: postMin - boardT / 2 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+
+/**
+ * A hanging sign: a top bar with a board suspended below it.
+ *
+ * Two thin links stand in for the chains, so the block reads as hanging rather than as a sign floating
+ * in mid-air.
+ */
+export function createHangingSignGeometry(def, tm, dir = 3) {
+  const boardW = 10 / 16;
+  const boardH = 10 / 16;
+  const boardT = 1 / 16;
+  const barT = 1 / 16;
+  const link = 1.5 / 16;
+  const parts = [
+    // The bar it hangs from, at the top of the block.
+    buildBox({ x: 14 / 16, y: barT, z: 2 / 16 }, { x: 1 / 16, y: 1 - barT, z: 7 / 16 }, def, tm),
+    // The board, suspended below the bar.
+    buildBox({ x: boardW, y: boardH, z: boardT },
+      { x: (1 - boardW) / 2, y: 2 / 16, z: 7.5 / 16 }, def, tm),
+    // Two links standing in for the chains.
+    buildBox({ x: link, y: 2 / 16, z: link }, { x: 3 / 16, y: 14 / 16, z: 7.25 / 16 }, def, tm),
+    buildBox({ x: link, y: 2 / 16, z: link }, { x: 12 / 16 - link, y: 14 / 16, z: 7.25 / 16 }, def, tm),
+  ];
+  const merged = mergeBoxes(parts);
+  for (const p of parts) p.dispose();
+  const rot = STAIR_ROTATIONS[dir] || 0;
+  if (rot !== 0) {
+    merged.translate(-0.5, 0, -0.5);
+    merged.rotateY(rot);
+    merged.translate(0.5, 0, 0.5);
+  }
+  return merged;
+}
+

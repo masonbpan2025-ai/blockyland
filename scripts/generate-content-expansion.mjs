@@ -170,6 +170,36 @@ const FAMILIES = [
     extra: { banner: true, bannerColourFrom: true },
   },
   {
+    // Hanging signs: a bar with a board suspended below it. Declared BEFORE signs, because the
+    // signs regex would also match these names.
+    id: 'hanging_signs',
+    match: (n) => /_hanging_sign$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_hanging_sign$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      return "oak_planks.png";
+    },
+    sound: 'wood',
+    extra: { hangingSign: true },
+  },
+  {
+    // Standing signs: a post with a board. 12 recipes, and the largest remaining group.
+    //
+    // The negative lookahead-equivalent in the match matters: without it this family would also
+    // claim every hanging sign and give it a standing sign shape.
+    id: 'signs',
+    match: (n) => /_sign$/.test(n) && !/_hanging_sign$/.test(n) && !/_wall_sign$/.test(n),
+    texture: (n) => {
+      const base = n.replace(/_sign$/, "");
+      if (textureExists(base + "_planks.png")) return base + "_planks.png";
+      if (textureExists(base + ".png")) return base + ".png";
+      return "oak_planks.png";
+    },
+    sound: 'wood',
+    extra: { sign: true },
+  },
+  {
     // Pressure plates: a thin plate on the floor, 13 recipes.
     id: 'pressure_plates',
     match: (n) => /_pressure_plate$/.test(n),
