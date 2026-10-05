@@ -81,6 +81,9 @@ const blocks1214 = [
   'fire_coral_fan.png', 'horn_coral_fan.png',
   'dead_tube_coral_fan.png', 'dead_brain_coral_fan.png', 'dead_bubble_coral_fan.png',
   'dead_fire_coral_fan.png', 'dead_horn_coral_fan.png',
+  // The wall fans share the upright fans' sprites, so this batch adds NO new textures. The comment is here
+  // so a future reader does not go looking for `*_coral_wall_fan.png`, which does not exist upstream and
+  // which no definition references.
   'weeping_vines.png', 'twisting_vines.png', 'cave_vines.png',
   // The vine body segments have DIFFERENT textures from the tips upstream, which is why they are separate
   // blocks rather than duplicates; tests/contentGap.test.js is what caught them being left out.

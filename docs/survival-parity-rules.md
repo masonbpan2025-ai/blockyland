@@ -341,8 +341,8 @@ going unnoticed.
 |---|---|---|---|
 | Vanilla recipes implemented | 1548 | 1557 | 99.4% |
 | Crafting recipes expressible | 1549 | 1557 | 99.5% |
-| Blocks named | 1036 | 1095 | 94.6% |
-| Items named | 1278 | 1385 | 92.3% |
+| Blocks named | 1046 | 1095 | 95.5% |
+| Items named | 1296 | 1385 | 93.6% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,20 +371,22 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1034 | 1266 |
-| missing | 61 | 119 |
+| present | 1044 | 1284 |
+| missing | 51 | 101 |
 | **missing, has its OWN art** | **0** | **0** |
-| missing, could reuse art already present | **11** | **0** |
-| **missing, needs NEW art** | **50** | **119** |
+| missing, could reuse art already present | **1** | **0** |
+| **missing, needs NEW art** | **50** | **101** |
 | art files | 454 | 1071 |
 
-Both gaps are the same shape, but not identical, and the difference grew. Of 61 missing blocks,
-**eleven** are reachable by writing code and no new art: `redstone_wall_torch` reusing
-`redstone_torch.png`, and ten coral WALL fans each reusing its upright fan's texture. They are
-unimplemented because every one is a wall-attached block and this game stores no facing state for
-decoration. The twelve wooden wall signs were in the same position until the sign geometry gained a
-wall-mounted shape; the wall fans need the equivalent for the plant geometry, which is why they remain
-here. Of 119 missing items, **none** is reachable without art.
+This table's "could reuse art" column has collapsed from eleven to **one**, and that is the wall-state
+story in a single number. For several rounds the column held `redstone_wall_torch` plus ten coral wall
+fans: blocks whose art already existed but whose SHAPE did not, because this engine had no
+wall-mounted form for a torch or a plant. The wall-sign batch added one for signs; the wall-fan batch
+added one for plants. `redstone_wall_torch` is what remains, and it needs the torch equivalent rather
+than anything new drawn.
+
+Of the 51 missing blocks, then, exactly **one** is reachable by writing code and no new art. Of 101
+missing items, **none** is reachable without art.
 
 The 50 "needs NEW art" blocks are not uniformly blocked, and the composition scripts are the reason to
 say so rather than writing them all off. **Thirty-seven potted plants and 18 candle cakes were both in
