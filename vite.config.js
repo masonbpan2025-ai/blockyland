@@ -221,7 +221,13 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    rollupOptions: { input: { game: path.resolve('index.html'), mobDebug: path.resolve('mob-debug.html') } },
+    rollupOptions: {
+      input: {
+        game: path.resolve('index.html'),
+        mobDebug: path.resolve('mob-debug.html'),
+        resourceDebug: path.resolve('resource-debug.html')
+      }
+    },
     target: 'esnext'
   }
 });

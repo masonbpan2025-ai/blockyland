@@ -917,6 +917,14 @@ class Game {
       });
     }
 
+    const btnResourceInspector = document.getElementById('btn-start-resource-inspector');
+    if (btnResourceInspector) {
+      btnResourceInspector.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openResourceInspector();
+      });
+    }
+
     this.renderer.domElement.addEventListener('click', () => {
       if (this.player?.isDead) return;
       if (this.worldGenerated && !this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
@@ -1012,6 +1020,23 @@ class Game {
     // Carry the mob the player was last examining, when one is known.
     const mob = this.mobInspectorTarget || '';
     const url = mob ? `/mob-debug.html?mob=${encodeURIComponent(mob)}` : '/mob-debug.html';
+    if (typeof window !== 'undefined') window.location.href = url;
+    return url;
+  }
+
+  /**
+   * Open the Resource Inspector, the block and item counterpart to the Mob Inspector.
+   *
+   * Like the Mob Inspector it is a separate page with its own preview, so this navigates rather than
+   * starting a world. Carries the item the player was examining when one is known.
+   *
+   * @returns {string} the URL that was navigated to, so it can be asserted in tests
+   */
+  openResourceInspector() {
+    const resource = this.resourceInspectorTarget || '';
+    const url = resource
+      ? `/resource-debug.html?resource=${encodeURIComponent(resource)}`
+      : '/resource-debug.html';
     if (typeof window !== 'undefined') window.location.href = url;
     return url;
   }
