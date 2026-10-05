@@ -54,7 +54,10 @@ export function createBlockGeometry(id, textures, state = {}) {
   if (def?.bed || numericId === BLOCKS.RED_BED_FOOT || numericId === BLOCKS.RED_BED_HEAD) {
     const isHead = (numericId === BLOCKS.RED_BED_HEAD) || Boolean(def?.isHead);
     const dir = state.dir !== undefined ? state.dir : 3;
-    return ensureFlameAttributes(createBedGeometry(isHead, dir, textures));
+    // The bed's colour comes from its definition, so one geometry builder serves all 16
+    // vanilla bed colours instead of each needing its own copy.
+    const colour = def?.bedColour || 'red';
+    return ensureFlameAttributes(createBedGeometry(isHead, dir, textures, colour));
   }
   if (def?.chest || numericId === BLOCKS.CHEST || id === 'chest') {
     const isDouble = Boolean(state.isDouble);

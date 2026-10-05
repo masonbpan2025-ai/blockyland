@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+// The 16 dye colours, shared with the wool and concrete families so a bed's blanket cannot drift
+// from a wool block of the same colour.
+import { DYE_COLOURS } from './colourPalette.js';
+
+/** Hex tints for a bed blanket, keyed by colour name. */
+const BED_TINTS = DYE_COLOURS;
 
 // Direction vector mapping: [dx, dy, dz]
 // 0: East (+X), 1: West (-X), 2: South (+Z), 3: North (-Z)
@@ -49,7 +55,14 @@ function createBoxPart(size, pos, textureId, tm, colorHex = 0xffffff) {
 /**
  * Procedural 3D Minecraft Bed geometry (9/16 = 0.5625 height, wood legs & frame, red wool blanket, white pillow)
  */
-export function createBedGeometry(isHead, dir = 3, tm = null) {
+export function createBedGeometry(isHead, dir = 3, tm = null, colour = null) {
+  // A bed's blanket is its dye colour; the pillow stays white in vanilla for every colour. The colour
+  // defaults to red, which is what this function did before it took a parameter -- the game only had
+  // red beds, so both the wool block and the tint were hard-coded.
+  const woolBlock = (colour && BLOCKS[colour.toUpperCase() + '_WOOL'] !== undefined)
+    ? BLOCKS[colour.toUpperCase() + '_WOOL']
+    : BLOCKS.RED_WOOL;
+  const blanketTint = (colour && BED_TINTS[colour]) ? BED_TINTS[colour] : BED_TINTS.red;
   const parts = [];
 
   // 1. Legs (3/16 = 0.1875 height and width)
@@ -72,17 +85,17 @@ export function createBedGeometry(isHead, dir = 3, tm = null) {
 
   // 3. Mattress & Blanket (y = 6/16 to 9/16 -> height 3/16, centered at y = 7.5/16)
   if (!isHead) {
-    // Foot: Full red blanket
-    const blanketGeo = createBoxPart([1.0, 3 / 16, 1.0], [0.5, 7.5 / 16, 0.5], BLOCKS.RED_WOOL, tm, 0xb81e1e);
+    // Foot: the full blanket, in this bed's colour
+    const blanketGeo = createBoxPart([1.0, 3 / 16, 1.0], [0.5, 7.5 / 16, 0.5], woolBlock, tm, blanketTint);
     parts.push(blanketGeo);
   } else {
-    // Head: White pillow at north (z = 0..0.4), red blanket for remainder (z = 0.4..1.0)
+    // Head: white pillow at north (z = 0..0.4) and the coloured blanket for the remainder
     // Pillow (slightly raised for authentic puffy Minecraft pillow feel: height 3.5/16, centered at y = 7.75/16)
     const pillowGeo = createBoxPart([0.88, 3.5 / 16, 0.42], [0.5, 7.75 / 16, 0.28], BLOCKS.WHITE_WOOL, tm, 0xf4f4f4);
     parts.push(pillowGeo);
 
     // Remaining blanket under and behind pillow
-    const blanketGeo = createBoxPart([1.0, 3 / 16, 0.58], [0.5, 7.5 / 16, 0.71], BLOCKS.RED_WOOL, tm, 0xb81e1e);
+    const blanketGeo = createBoxPart([1.0, 3 / 16, 0.58], [0.5, 7.5 / 16, 0.71], woolBlock, tm, blanketTint);
     parts.push(blanketGeo);
   }
 

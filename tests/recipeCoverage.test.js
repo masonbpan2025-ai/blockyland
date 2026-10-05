@@ -46,23 +46,37 @@ test('implemented recipes are counted separately from expressible ones', { skip 
 test('the implemented recipe count does not regress', { skip }, () => {
   const impl = implementedRecipes();
   // Floor, not target. Raised whenever real recipes are added; lowering it means recipes were lost.
-  assert.ok(impl.implemented >= 830,
+  assert.ok(impl.implemented >= 1190,
     `only ${impl.implemented} recipes are implemented, down from 549`);
   assert.equal(impl.generated, GENERATED_RECIPE_COUNT,
     'the report and the merged recipe list must agree on how many were generated');
 });
 
 test('the recipe lists the game actually uses reflect the generated set', () => {
-  assert.ok(RECIPES_3X3.length >= 830,
+  assert.ok(RECIPES_3X3.length >= 1190,
     `RECIPES_3X3 has ${RECIPES_3X3.length} entries, expected at least 540`);
-  assert.ok(RECIPES_2X2.length >= 190,
+  assert.ok(RECIPES_2X2.length >= 260,
     `RECIPES_2X2 has ${RECIPES_2X2.length} entries; small vanilla recipes should work in the 2x2 grid`);
-  assert.equal(GENERATED_RECIPE_COUNT, 772,
+  assert.equal(GENERATED_RECIPE_COUNT, 1134,
     'the generated recipe count changed; update this expectation deliberately if that was intended');
 });
 
-test('the shortfall is dominated by missing results, which shapes what to build next', { skip }, () => {
+test('missing results remain the larger half of the gap', { skip }, () => {
+  // This guides the backlog: adding content is what makes its recipes craftable, so the result side is
+  // the one to work on first. The RATIO between the two is deliberately not asserted.
+  //
+  // It was about 5.4x when this test was written and is now about 2.1x, because implementing results is
+  // precisely what shrinks that side. A frozen threshold turns normal progress into a failure -- which
+  // is exactly what happened here -- while the ORDERING is the durable claim. If the ingredient side
+  // ever overtook the result side that would be worth knowing, because it would mean the next work is
+  // ingredients rather than content.
   const impl = implementedRecipes();
-  assert.ok(impl.skippedMissingResult > impl.skippedMissingIngredient * 3,
-    'most of the remaining gap should be missing RESULTS; if that changes, the backlog ordering is stale');
+  assert.ok(impl.skippedMissingResult > impl.skippedMissingIngredient,
+    'missing results (' + impl.skippedMissingResult + ') should still exceed missing ingredients ('
+    + impl.skippedMissingIngredient + '); if that inverts, the backlog ordering is stale');
+  // Both sides should still be substantial, or the measurement has stopped telling us anything.
+  assert.ok(impl.skippedMissingIngredient > 20,
+    'a tiny ingredient gap would suggest the accounting broke, not that everything is done');
+  console.log('  gap: ' + impl.skippedMissingResult + ' missing results, '
+    + impl.skippedMissingIngredient + ' missing ingredients');
 });

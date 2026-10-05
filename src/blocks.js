@@ -1358,6 +1358,9 @@ BLOCK_DEFS[BLOCKS.POWERED_RAIL].drop = BLOCKS.POWERED_RAIL;
 BLOCK_DEFS[BLOCKS.RED_BED_FOOT] = {
   name: 'Red Bed',
   bed: true,
+  // Red is the one bed that predates the generated set. It carries the colour explicitly so every bed
+  // has the same shape of definition, which is what lets a test iterate all 16 without a special case.
+  bedColour: 'red',
   isHead: false,
   hardness: 0.2,
   sound: 'wood',
@@ -1371,6 +1374,7 @@ BLOCK_DEFS[BLOCKS.RED_BED_FOOT] = {
 BLOCK_DEFS[BLOCKS.RED_BED_HEAD] = {
   name: 'Red Bed Head',
   bed: true,
+  bedColour: 'red',
   isHead: true,
   hardness: 0.2,
   sound: 'wood',
