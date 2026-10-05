@@ -339,10 +339,10 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1538 | 1557 | 98.8% |
+| Vanilla recipes implemented | 1546 | 1557 | 99.3% |
 | Crafting recipes expressible | 1547 | 1557 | 99.4% |
 | Blocks named | 831 | 1095 | 75.9% |
-| Items named | 1130 | 1385 | 81.6% |
+| Items named | 1136 | 1385 | 82.0% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -357,6 +357,39 @@ The remaining ten recipes are blocked by results that need **engine work, not sh
 and `brush`. The geometry work is complete: this project now draws slabs, stairs, fences, gates, walls,
 doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
 rods, rails and flower pots, each with tests.
+
+### 4.1.1 The block gap is an ART gap, not a code gap
+
+The "Blocks named 75.9%" row reads like missing implementation. It is not, and the distinction decides what
+work is left.
+
+The content generator emits a block only when `textureExists()` finds a PNG in `public/assets/blocks`, so a
+block with no art cannot be added however well its shape is understood — and every shape this project needed
+already exists. Measured by `scripts/content-gap.mjs`:
+
+| | |
+|---|---|
+| vanilla blocks | 1095 |
+| present | 827 |
+| missing | 268 |
+| **missing, has its OWN texture** | **0** |
+| missing, could reuse art already present | **1** |
+| **missing, needs NEW art** | **267** |
+| textures in `public/assets/blocks` | 241 |
+| present blocks per texture | 3.4 |
+
+So of 268 missing blocks, **one** is reachable by writing code — `redstone_wall_torch`, which can reuse
+`redstone_torch.png` — and the other 267 need textures that do not exist. The same is likely true of the
+item gap, where `tests/item_icons.test.js` already requires a PNG per item.
+
+The reuse count is deliberately conservative rather than a guess. The generator really does draw a sign with
+its wood's plank texture, so a missing wall sign can reuse one; it does **not** draw a sapling that way, and
+a sapling textured as planks would be a visual bug, so those are counted as needing art. Counting them would
+have made the code-reachable figure look like 15 instead of 1, which is the kind of number that sends the
+next person down the wrong path.
+
+`tests/contentGap.test.js` pins both claims, including that no missing block acquires its own texture — the
+moment one does, it becomes a code gap and this section has to change.
 
 ### 4.2 Mob drops — there are TWO tables, and the verified one is the unused one
 
