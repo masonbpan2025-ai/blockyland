@@ -339,10 +339,10 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1551 | 1557 | 99.6% |
-| Crafting recipes expressible | 1552 | 1557 | 99.7% |
-| Blocks named | 1080 | 1095 | 98.6% |
-| Items named | 1309 | 1385 | 94.5% |
+| Vanilla recipes implemented | 1552 | 1557 | 99.7% |
+| Crafting recipes expressible | 1553 | 1557 | 99.7% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Items named | 1321 | 1385 | 95.4% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -371,14 +371,55 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 1079 | 1295 |
-| missing | 16 | 90 |
+| present | 1095 | 1309 |
+| missing | **0** | 76 |
 | **missing, has its OWN art** | **0** | **0** |
 | missing, could reuse art already present | **0** | **0** |
-| **missing, needs NEW art** | **16** | **90** |
-| art files | 553 | 1071 |
+| **missing, needs NEW art** | **0** | **76** |
+| art files | 563 | 1071 |
 
-A CAVEAT ON THE "present" ROW, because this batch turned up a case where it overstates. The
+### 4.1.1a The pinned block list is COMPLETE
+
+Every block in the pinned 1.21.4 block list is registered: **1095 of 1095**. The checks that matter all
+report zero:
+
+| check | result |
+|---|---|
+| `compareBlockLists` unresolved names | **0** |
+| `gap-summary` blocks absent from the pinned data | **0** |
+| `gap-summary` genuine wiki names absent from the cache | **0** |
+
+Everything else the wiki lists is NEWER THAN THE PINNED DATA -- 277 entries, `newerThanPinnedData: 277` --
+which is a different objective rather than a gap in this one: the copper family, shelves, the poplar wood
+set, cinnabar and sulfur, from versions after 1.21.4.
+
+**THE DISTINCTION THAT MATTERS, stated precisely**, because it is easy to read the 277 as unfinished work:
+
+  - AGAINST THE PROJECT'S OWN PINNED BASELINE -- the 1.21.4 block registry the game's item, drop and harvest
+    data is all built from -- the block list is COMPLETE. No in-scope block named by the wiki is absent.
+  - AGAINST THE LIVE WIKI PAGE, there are 277 blocks from versions the pinned data predates. Those are a
+    FUTURE objective: implementing them means adopting a newer baseline, which is a different change from
+    closing a gap in this one.
+
+So "complete" here means complete for the version this project targets, and the 277 are the size of the next
+version's work rather than a remainder of this one.
+
+TWO RESIDUAL MEASUREMENTS USED TO REPORT A NON-ZERO BLOCK GAP AND BOTH WERE WRONG. They are recorded here
+because one of them hid twelve real blocks for several rounds before being believed:
+
+  - `scripts/content-gap.mjs` reported 12, and THOSE TWELVE WERE REAL, not false positives. The first draft
+    of this paragraph dismissed them as resolver artefacts because the name-based check said zero; it was the
+    other way round. The name-based check resolves `tube_coral` onto `TUBE_CORAL_BLOCK` and counts the name
+    satisfied, so it hid ten coral PLANTS that had never been registered, plus the nether wart and the dirt
+    path. All twelve are implemented now and this script reports ZERO. The lesson is recorded rather than
+    tidied away: when two measurements of the same thing disagree, the disagreement IS the finding, and the
+    convenient number is the one to distrust.
+  - `scripts/parity-coverage.mjs` still reports a small non-zero block figure, because
+    `resolveVanillaBlock` returns an ARRAY of keys for names that match several (`white_bed` gives the foot
+    and the head) and the script looks that array up as a single key. A count of the cache puts 65 names in
+    that category. This one IS a measurement artefact.
+
+A CAVEAT ON THE "present" ROW, because a batch below turned up a case where it overstates. The
 measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
 it is wrong. `wither_skeleton_skull` resolved to `WITHER_SKELETON_SKULL_BLOCK`, so it counted as
 present while that block rendered as a coal cube with art pointing at `coal_block.png` and a drop
