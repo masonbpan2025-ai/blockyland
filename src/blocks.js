@@ -249,7 +249,27 @@ export const BLOCKS = {
   // itself was never registered, so BLOCKS.COBBLED_DEEPSLATE read undefined. The id sits above the
   // generated range: scripts/generate-content-expansion.mjs allocates max(ids)+1, so a generated block
   // never collides with it.
-  COBBLED_DEEPSLATE: 946
+  COBBLED_DEEPSLATE: 946,
+
+  // --- Ores, first block-parity batch ---------------------------------------------------------
+  //
+  // Twelve ore blocks that were absent while their harvest rows and their drops already existed in
+  // the generated tables. All are plain full cubes with an `all` texture, so they need no geometry.
+  //
+  // Ids 947+ because 222-945 is the generated range and 946 is cobbled deepslate; the collision guard
+  // at the bottom of this file turns a mistake here into a loud failure rather than a wrong block.
+  DEEPSLATE_COAL_ORE: 947,
+  DEEPSLATE_IRON_ORE: 948,
+  DEEPSLATE_GOLD_ORE: 949,
+  DEEPSLATE_DIAMOND_ORE: 950,
+  DEEPSLATE_EMERALD_ORE: 951,
+  DEEPSLATE_REDSTONE_ORE: 952,
+  DEEPSLATE_LAPIS_ORE: 953,
+  DEEPSLATE_COPPER_ORE: 954,
+  COPPER_ORE: 955,
+  LAPIS_ORE: 956,
+  NETHER_GOLD_ORE: 957,
+  NETHER_QUARTZ_ORE: 958
 };
 
 export const BLOCK_DEFS = {
@@ -463,6 +483,29 @@ export const BLOCK_DEFS = {
       all: 'emerald_ore.png'
     }
   },
+  // --- Ores, first block-parity batch ---------------------------------------------------------
+  //
+  // `dropItem` is what actually spawns on break: getBlockDrop() reads it and ignores the harvest
+  // table's `drops`, which only gates WHETHER a drop happens. So each entry has to name its drop
+  // explicitly, which is why the deepslate ores repeat what blockHarvestData.js already declares.
+  //
+  // Hardness matches the generated harvest row (deepslate ores 4.5, surface ores 3) so the two tables
+  // agree rather than the harvest row silently overriding a different number here.
+  [BLOCKS.DEEPSLATE_COAL_ORE]: { name: 'Deepslate Coal Ore', hardness: 4.5, sound: 'stone', dropItem: 'coal', textures: { all: 'deepslate_coal_ore.png' } },
+  [BLOCKS.DEEPSLATE_IRON_ORE]: { name: 'Deepslate Iron Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_iron', textures: { all: 'deepslate_iron_ore.png' } },
+  [BLOCKS.DEEPSLATE_GOLD_ORE]: { name: 'Deepslate Gold Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_gold', textures: { all: 'deepslate_gold_ore.png' } },
+  [BLOCKS.DEEPSLATE_DIAMOND_ORE]: { name: 'Deepslate Diamond Ore', hardness: 4.5, sound: 'stone', dropItem: 'diamond', textures: { all: 'deepslate_diamond_ore.png' } },
+  [BLOCKS.DEEPSLATE_EMERALD_ORE]: { name: 'Deepslate Emerald Ore', hardness: 4.5, sound: 'stone', dropItem: 'emerald', textures: { all: 'deepslate_emerald_ore.png' } },
+  // Redstone drops one item per break here, as the existing surface Redstone Ore does; vanilla's 4-5
+  // dust roll is a separate mechanic this game has not modelled for any ore.
+  [BLOCKS.DEEPSLATE_REDSTONE_ORE]: { name: 'Deepslate Redstone Ore', hardness: 4.5, sound: 'stone', dropItem: 'redstone', textures: { all: 'deepslate_redstone_ore.png' } },
+  [BLOCKS.DEEPSLATE_LAPIS_ORE]: { name: 'Deepslate Lapis Lazuli Ore', hardness: 4.5, sound: 'stone', dropItem: 'lapis_lazuli', textures: { all: 'deepslate_lapis_ore.png' } },
+  [BLOCKS.DEEPSLATE_COPPER_ORE]: { name: 'Deepslate Copper Ore', hardness: 4.5, sound: 'stone', dropItem: 'raw_copper', textures: { all: 'deepslate_copper_ore.png' } },
+  [BLOCKS.COPPER_ORE]: { name: 'Copper Ore', hardness: 3.0, sound: 'stone', dropItem: 'raw_copper', textures: { all: 'copper_ore.png' } },
+  [BLOCKS.LAPIS_ORE]: { name: 'Lapis Lazuli Ore', hardness: 3.0, sound: 'stone', dropItem: 'lapis_lazuli', textures: { all: 'lapis_ore.png' } },
+  // Nether gold ore drops nuggets, not the ore and not an ingot.
+  [BLOCKS.NETHER_GOLD_ORE]: { name: 'Nether Gold Ore', hardness: 3.0, sound: 'stone', dropItem: 'gold_nugget', textures: { all: 'nether_gold_ore.png' } },
+  [BLOCKS.NETHER_QUARTZ_ORE]: { name: 'Nether Quartz Ore', hardness: 3.0, sound: 'stone', dropItem: 'quartz', textures: { all: 'nether_quartz_ore.png' } },
   [BLOCKS.OBSIDIAN]: {
     name: 'Obsidian',
     hardness: 10.0,
@@ -1349,6 +1392,7 @@ export const ITEMS = {
   copper_golem_spawn_egg: { name: 'Copper Golem Spawn Egg', icon: '/assets/items/copper_golem_spawn_egg.png', type: 'spawn_egg', mob: 'copper_golem' },
   camel_husk_spawn_egg: { name: 'Camel Husk Spawn Egg', icon: '/assets/items/camel_husk_spawn_egg.png', type: 'spawn_egg', mob: 'camel_husk' },
   piglin_brute_spawn_egg: { name: 'Piglin Brute Spawn Egg', icon: '/assets/items/piglin_brute_spawn_egg.png', type: 'spawn_egg', mob: 'piglin_brute' },
+  giant_spawn_egg: { name: 'Giant Spawn Egg', icon: '/assets/items/giant_spawn_egg.png', type: 'spawn_egg', mob: 'giant' },
 };
 
 // --- generated item additions for vanilla parity -----------------------------
