@@ -286,7 +286,20 @@ export const BLOCKS = {
   CHERRY_SAPLING: 964,
   DARK_OAK_SAPLING: 965,
   PALE_OAK_SAPLING: 966,
-  MANGROVE_PROPAGULE: 967
+  MANGROVE_PROPAGULE: 967,
+
+  // --- Infested stone, third block-parity batch -------------------------------------------------
+  //
+  // The silverfish egg blocks. Vanilla gives them no textures of their own: each is drawn with the
+  // texture of the block it imitates, which is the whole point of the block. So the entries below
+  // reuse their base block's texture rather than naming a file that does not exist upstream.
+  INFESTED_STONE: 968,
+  INFESTED_COBBLESTONE: 969,
+  INFESTED_STONE_BRICKS: 970,
+  INFESTED_MOSSY_STONE_BRICKS: 971,
+  INFESTED_CRACKED_STONE_BRICKS: 972,
+  INFESTED_CHISELED_STONE_BRICKS: 973,
+  INFESTED_DEEPSLATE: 974
 };
 
 export const BLOCK_DEFS = {
@@ -678,6 +691,27 @@ export const BLOCK_DEFS = {
   // The propagule is the mangrove's sapling and hangs as well as stands; the upright form is what is
   // registered here, matching how vanilla itemises it.
   [BLOCKS.MANGROVE_PROPAGULE]: { name: 'Mangrove Propagule', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.MANGROVE_PROPAGULE, textures: { all: 'mangrove_propagule.png' } },
+
+  // --- Infested stone, third block-parity batch -------------------------------------------------
+  //
+  // `drop: null` because vanilla infested blocks drop NOTHING when mined, even with the right tool --
+  // the pay-off for breaking one is the silverfish, not the block. The generated harvest table agrees
+  // (an empty drops array for each), and getBlockDrop() reads `drop`, so naming null here is what
+  // makes that true on the mining path.
+  //
+  // `silverfish: true` is read by the break handler to spawn the mob. Vanilla also keeps the block
+  // intact under Silk Touch; this game models no Silk Touch drops, so that half is not simulated and
+  // breaking one always releases the silverfish.
+  //
+  // Hardness follows the harvest table (0.75, and 1.5 for deepslate) rather than the block being
+  // imitated -- an infested block is deliberately faster to break than the real one.
+  [BLOCKS.INFESTED_STONE]: { name: 'Infested Stone', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'stone.png' } },
+  [BLOCKS.INFESTED_COBBLESTONE]: { name: 'Infested Cobblestone', hardness: 1.0, sound: 'stone', drop: null, silverfish: true, textures: { all: 'cobblestone.png' } },
+  [BLOCKS.INFESTED_STONE_BRICKS]: { name: 'Infested Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'stone_bricks.png' } },
+  [BLOCKS.INFESTED_MOSSY_STONE_BRICKS]: { name: 'Infested Mossy Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'mossy_stone_bricks.png' } },
+  [BLOCKS.INFESTED_CRACKED_STONE_BRICKS]: { name: 'Infested Cracked Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'cracked_stone_bricks.png' } },
+  [BLOCKS.INFESTED_CHISELED_STONE_BRICKS]: { name: 'Infested Chiseled Stone Bricks', hardness: 0.75, sound: 'stone', drop: null, silverfish: true, textures: { all: 'chiseled_stone_bricks.png' } },
+  [BLOCKS.INFESTED_DEEPSLATE]: { name: 'Infested Deepslate', hardness: 1.5, sound: 'stone', drop: null, silverfish: true, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
   [BLOCKS.SANDSTONE]: {
     name: 'Sandstone',
     hardness: 0.8,
