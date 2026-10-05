@@ -123,6 +123,26 @@
       "contentHash": 1652008863
     },
     {
+      "id": "bastion_remnant",
+      "seed": 20250401,
+      "dimension": "nether",
+      "biome": "nether_wastes",
+      "chunkX": 465,
+      "chunkZ": 0,
+      "planHash": 2870796750,
+      "pieces": 13,
+      "box": [
+        7437,
+        57,
+        -3,
+        7457,
+        62,
+        63
+      ],
+      "blockCount": 413,
+      "contentHash": 1144357234
+    },
+    {
       "id": "ocean_ruin_cold",
       "seed": 20250401,
       "dimension": "overworld",

@@ -174,7 +174,7 @@ export const STRUCTURES = {
   },
   bastion_remnant: {
     type: 'jigsaw', dimension: NETHER, family: GeneratorFamily.JIGSAW,
-    biomes: ['nether_wastes', 'crimson_forest', 'warped_forest', 'soul_sand_valley'],
+    biomes: ['nether_wastes', 'crimson_forest', 'warped_forest', 'soul_sand_valley'], implementation: 'bastion',
     notes: 'Four variants (bridge, hoglin stable, housing units, treasure); floats over the lava sea by design (MC-179796).'
   },
   ancient_city: {
