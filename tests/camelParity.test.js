@@ -441,8 +441,11 @@ test('it walks through the real update loop without breaking it', () => {
   player.position.set(200, 1, 200);
   const camel = manager.spawnMob('camel', 0, 1, 0);
   const start = camel.mesh.position.clone();
+  // Twenty seconds rather than fifteen. A camel sits for 2-7 seconds at a time, so a 15-second window could
+  // in principle be mostly sitting -- which made the `moved > 0.1` assertion fail roughly once in eighteen
+  // runs, measured. A longer window makes the premise (it gets to walk) reliable without weakening the claim.
   assert.doesNotThrow(() => {
-    for (let i = 0; i < 900; i++) manager.update(1 / 60, player);
+    for (let i = 0; i < 1200; i++) manager.update(1 / 60, player);
   });
   assert.ok(manager.mobs.includes(camel), 'still alive');
   assert.ok(camel.mesh.position.distanceTo(start) > 0.1, 'it moved around');
