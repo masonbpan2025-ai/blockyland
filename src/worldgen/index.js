@@ -27,6 +27,7 @@ import { generateRuinedPortal, realizeRuinedPortal } from './generators/ruinedPo
 import { generateNetherFossil, realizeNetherFossil } from './generators/netherFossil.js';
 import { generateShipwreck, realizeShipwreck } from './generators/shipwreck.js';
 import { generateOceanRuin, realizeOceanRuin } from './generators/oceanRuin.js';
+import { generateDesertPyramid, realizeDesertPyramid } from './generators/desertPyramid.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -36,7 +37,8 @@ export const GENERATORS = {
   ruinedPortal: { generate: generateRuinedPortal, realize: realizeRuinedPortal },
   netherFossil: { generate: generateNetherFossil, realize: realizeNetherFossil },
   shipwreck: { generate: generateShipwreck, realize: realizeShipwreck },
-  oceanRuin: { generate: generateOceanRuin, realize: realizeOceanRuin }
+  oceanRuin: { generate: generateOceanRuin, realize: realizeOceanRuin },
+  desertPyramid: { generate: generateDesertPyramid, realize: realizeDesertPyramid }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */

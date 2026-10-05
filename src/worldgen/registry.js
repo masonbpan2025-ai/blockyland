@@ -57,7 +57,7 @@ export const STRUCTURES = {
   },
   desert_pyramid: {
     type: 'desert_pyramid', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/desert_pyramid', biomes: ['desert'],
+    biomeTag: 'has_structure/desert_pyramid', implementation: 'desertPyramid', biomes: ['desert'],
     notes: '21x21 hardcoded pyramid, four chests behind a TNT trap, 6-8 suspicious sand in the buried room.'
   },
   jungle_pyramid: {

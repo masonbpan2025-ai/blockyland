@@ -63,7 +63,7 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Nether Fossil | `nether_fossil` | template | yes | yes | yes | yes | no | none (no loot, no spawner) | yes | no | `PARTIAL` | Clean-room bone templates. The wiki does not publish the `start_height` values, so Y is uniform over 33..60; vanilla's rotation is applied and recorded as an assumption. Runs NO processors by design, which is the documented difference from the overworld fossil. |
 | End City | `end_city` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | 20 templates, tower/bridge/ship assembly rules, shulkers, the elytra item frame. |
 | Woodland Mansion | `mansion` | template | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Needs a procedural floor-plan generator over template rooms, three floors, and the room-type tables. |
-| Desert Pyramid | `desert_pyramid` | hardcoded | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | 21×21 layout, the TNT trap, four chests, 6–8 suspicious sand. |
+| Desert Pyramid | `desert_pyramid` | hardcoded | yes | yes | n/a | n/a | no | 4 chests + armed TNT trap | yes | no | `PARTIAL` | Procedural, clean-room dimensions. `beard_thin` terrain adaptation is NOT applied, so the pyramid is not bedded into the sand; the four chests carry conventional loot-table ids because the wiki publishes only the `{{LootChest}}` keys. |
 | Jungle Pyramid | `jungle_pyramid` | hardcoded | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Three floors, lever puzzle with sticky piston, two arrow dispensers. |
 | Swamp Hut | `swamp_hut` | hardcoded | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Stilt hut; the witch and black cat that spawn with it and never despawn. |
 | Village (Plains) | `village_plains` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Blocked on the jigsaw engine, template pools and `beard_thin` terrain. The villages pool (5 weighted variants) is already correct. |
@@ -77,7 +77,7 @@ spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates
 | Trail Ruins | `trail_ruins` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `bury` + three processor lists + archaeology. |
 | Trial Chambers | `trial_chambers` | jigsaw | yes | no | no | no | no | no | no | no | `INFRASTRUCTURE BLOCKED` | Jigsaw + `encapsulate` + trial spawners, vaults, dispensers and the copper/tuff room set. |
 
-Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 13 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins), 8 `NOT STARTED`
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 14 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid), 7 `NOT STARTED`
 (4 hardcoded + 5 procedural minus the implemented one), 12 `INFRASTRUCTURE BLOCKED` (2 template + 10
 jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
 
