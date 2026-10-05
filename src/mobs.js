@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
 import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
@@ -382,6 +383,7 @@ export class MobManager {
       case 'turtle': return this.spawnTurtle(x, y, z, {});
       case 'frog': return this.spawnFrog(x, y, z, {});
       case 'tadpole': return this.spawnTadpole(x, y, z, {});
+      case 'parrot': return this.spawnParrot(x, y, z, {});
       case 'pig': return this.spawnPig(x, y, z);
       case 'cow': return this.spawnCow(x, y, z);
       case 'sheep': return this.spawnSheep(x, y, z);
@@ -2353,6 +2355,8 @@ export class MobManager {
       case 'frog': return FROG_DIMENSIONS;
       // Wiki: tadpoles are 0.4 x 0.3.
       case 'tadpole': return TADPOLE_DIMENSIONS;
+      // Wiki: parrots are 0.5 x 0.9 in Java.
+      case 'parrot': return PARROT_DIMENSIONS;
       case 'skeleton': return { width: 0.6, height: 1.98 };
       case 'zombie': return { width: 0.6, height: 1.95 };
       case 'pillager': return { width: 0.6, height: 1.95 };
@@ -3857,6 +3861,74 @@ export class MobManager {
     // Wiki: a name survives the change, as it does for a bucketed tadpole.
     if (tadpole.name && tadpole.name !== 'Tadpole') frog.name = tadpole.name;
     return frog;
+  }
+
+  /**
+   * Parrot.
+   *
+   * Wiki: 6 HP, 0.5 x 0.9, tameable flying passive. Five colour variants, tamed with seed at a
+   * 1-in-10 chance, perches on the player's shoulder (left first), imitates nearby hostile mobs
+   * within 20 blocks, dances by a jukebox playing a disc, and is killed by a cookie.
+   */
+  spawnParrot(x, y, z, options = {}) {
+    const variant = options.variant ?? rollParrotVariant(options.random || Math.random);
+    const colors = parrotColors(variant);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body });
+    const wingMat = new THREE.MeshLambertMaterial({ color: colors.wing });
+    const headMat = new THREE.MeshLambertMaterial({ color: colors.head });
+    const beakMat = new THREE.MeshLambertMaterial({ color: colors.beak });
+    const { group, body, head, beakUpper, beakLower, eyes, wings, tail } = createParrotModel(bodyMat, wingMat, headMat, beakMat);
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const mob = {
+      type: 'parrot',
+      name: 'Parrot',
+      mesh: group,
+      body,
+      head,
+      beakUpper,
+      beakLower,
+      eyes,
+      wings,
+      tail,
+      bodyMat,
+      wingMat,
+      headMat,
+      beakMat,
+      isFlying: true,
+      // Wiki: 6 HP.
+      health: PARROT_HEALTH,
+      maxHealth: PARROT_HEALTH,
+      width: PARROT_DIMENSIONS.width,
+      height: PARROT_DIMENSIONS.height,
+      // Wiki: five variants with numeric ids 0-4.
+      variant,
+      variantName: parrotVariantName(variant),
+      // Wiki: parrots carry the fall_damage_immune tag, because they flap to slow their falls.
+      fallDamageImmune: true,
+      // Taming, sitting and perching.
+      isTamed: false,
+      isSitting: false,
+      perchedOn: null,
+      owner: null,
+      // Behaviour timers.
+      flightTimer: 0,
+      resting: false,
+      flyTargetY: y + 3,
+      isDancing: false,
+      imitateCooldown: 0,
+      imitating: null,
+      parrotPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    this.mobs.push(mob);
+    return mob;
   }
 
   // --- PASSIVE COW ---
@@ -6961,6 +7033,9 @@ export class MobManager {
     } else if (mob.type === 'goat') {
       // A goat never retaliates; the wiki is explicit that it cannot be provoked.
       return;
+    } else if (mob.type === 'parrot') {
+      // Wiki: taking damage is one of the states that forces a parrot off a shoulder.
+      if (mob.perchedOn) { dismountShoulder(mob, this.game?.player); mob.velocity.set(0, 1.5, 0); }
     } else if (mob.type === 'llama') {
       // Wiki: a llama retaliates when attacked by a player or another mob, and is hostile toward
       // wolves without provocation.
@@ -7213,7 +7288,9 @@ export class MobManager {
     const frogRows = isFrog(mob) ? frogDrops(mob) : [];
     // Wiki: a tadpole drops nothing at all, and awards no experience.
     const tadpoleRows = isTadpole(mob) ? tadpoleDrops(mob) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows];
+    // Wiki: a parrot drops 1-2 feathers.
+    const parrotRows = isParrot(mob) ? parrotDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows];
   }
 
   /**
@@ -7302,7 +7379,9 @@ export class MobManager {
           const hostile = ['skeleton', 'creeper', 'pillager', 'zombie', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'tadpole' ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
+          : mob.type === 'tadpole' ? 0
+          : mob.type === 'parrot' ? (mob.playerDamaged || mob.wolfKilled ? parrotXp(mob) : 0)
           : mob.type === 'tadpole' ? 0
           : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
           : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
@@ -7713,6 +7792,54 @@ export class MobManager {
       const base = mob.slimeSize / 4;
       mob.mesh.scale.set(base / stretch, base * stretch, base / stretch);
       mob.state = hopTarget === 'hopping' ? 'hopping' : 'idle';
+      return true;
+    }
+    if(mob.type==='parrot'){
+      // Wiki: 6 HP tameable flying passive. It flies idly and rests often, follows its owner and
+      // teleports at 12 blocks, perches on a shoulder, imitates nearby hostile mobs, and dances by a
+      // jukebox that is playing a disc.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.imitateCooldown = Math.max(0, (mob.imitateCooldown || 0) - dt);
+
+      // 1. Perched: drawn on the player's shoulder, and it takes no part in the world.
+      if (mob.perchedOn) {
+        updateParrotFlight(this, mob, dt, player, { move: moveFlyingMob });
+        // Wiki lists the states that force a dismount; the previous height is what the rise and drop
+        // thresholds are measured against.
+        const previous = { y: mob.lastOwnerY ?? player?.position?.y };
+        if (shouldDismountForPlayerState(player, previous)) {
+          dismountShoulder(mob, player);
+          mob.velocity.set(0, 1.5, 0);
+        }
+        mob.lastOwnerY = player?.position?.y;
+        poseParrot(mob, mob.parrotPhase || 0);
+        return true;
+      }
+
+      // 2. Dancing, when a jukebox nearby is playing.
+      mob.isDancing = canDance(this, mob);
+      if (mob.isDancing) {
+        mob.velocity.set(0, 0, 0);
+        const groundY = this.world.surfaceHeightAt?.(mob.mesh.position.x, mob.mesh.position.z);
+        if (typeof groundY === 'number' && mob.mesh.position.y > groundY + 1.5) mob.velocity.y = -1.5;
+        moveFlyingMob(this, mob, dt);
+        mob.parrotPhase = (mob.parrotPhase || 0) + dt * 6;
+        poseParrot(mob, mob.parrotPhase);
+        return true;
+      }
+
+      // 3. Imitating a nearby hostile mob. Wiki: within 20 blocks, and never on Peaceful.
+      if (mob.imitateCooldown <= 0) {
+        mob.imitateCooldown = 4 + Math.random() * 6;
+        const target = findImitateTarget(this, mob, { difficulty: this.game?.difficulty ?? 'normal' });
+        mob.imitating = target ? target.type : null;
+      }
+
+      // 4. Flight, or following the owner.
+      updateParrotFlight(this, mob, dt, player, { move: moveFlyingMob });
+
+      mob.parrotPhase = (mob.parrotPhase || 0) + dt * 8;
+      poseParrot(mob, mob.parrotPhase);
       return true;
     }
     if(mob.type==='tadpole'){

@@ -5,6 +5,7 @@ import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeigh
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
 import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming } from './parrotBehavior.js';
 import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
 import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
 import * as THREE from 'three';
@@ -142,6 +143,34 @@ export class AnimalBehaviors {
     if (!mob || !player || !inventory) return false;
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
+
+    // --- Parrots ---------------------------------------------------------------
+    // Wiki: tamed with any seed at a 1-in-10 chance, sitting toggled by interacting with a tamed
+    // one, and killed outright by a cookie because chocolate is toxic to real parrots.
+    if (mob.type === 'parrot' && mob.health > 0) {
+      if (!itemId) {
+        // An empty hand toggles sitting on a tamed parrot; on a wild one it does nothing.
+        if (mob.isTamed) { mob.isSitting = !mob.isSitting; return true; }
+        return false;
+      }
+      if (isParrotLethalFood(itemId)) {
+        // It dies, and the player who fed it gets the credit: the wiki says that affects the death
+        // message and the loot.
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        mob.health = 0;
+        mob.playerDamaged = true;
+        return true;
+      }
+      if (isParrotTamingFood(itemId)) {
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (!mob.isTamed && rollParrotTaming()) {
+          mob.isTamed = true;
+          mob.owner = player;
+        }
+        return true;
+      }
+      return false;
+    }
 
     if(mob.type==='wither_skeleton'){
       if(mob.health<=0||itemId!=='name_tag'||!activeItem.customName)return false;
