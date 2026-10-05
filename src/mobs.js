@@ -47,6 +47,7 @@ import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_CO
 import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
 import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
 import { VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
@@ -487,6 +488,7 @@ export class MobManager {
       case 'panda': return this.spawnPanda(x, y, z, options);
       case 'armadillo': return this.spawnArmadillo(x, y, z, options);
       case 'breeze': return this.spawnBreeze(x, y, z, options);
+      case 'sniffer': return this.spawnSniffer(x, y, z, options);
       // Wiki: husk, stray and bogged are zombie and skeleton variants, so they reuse those models.
       case 'husk': return this.spawnZombieVariant(x, y, z, 'husk', options);
       case 'stray': return this.spawnSkeletonVariant(x, y, z, 'stray', options);
@@ -2513,6 +2515,8 @@ export class MobManager {
       case 'armadillo': return ARMADILLO_DIMENSIONS;
       // Wiki: a breeze is 0.6 wide x 1.77 tall.
       case 'breeze': return BREEZE_DIMENSIONS;
+      // Wiki: a sniffer is 1.9 x 1.75, and a snifflet 0.95 x 0.875.
+      case 'sniffer': return SNIFFER_DIMENSIONS;
       // Wiki: husk 0.6 x 1.95, stray and bogged 0.6 x 1.99. The tiny height difference is real.
       case 'husk': return VARIANT_DIMENSIONS.husk;
       case 'stray': return VARIANT_DIMENSIONS.stray;
@@ -4516,6 +4520,109 @@ export class MobManager {
     if (index >= 0) this.mobs.splice(index, 1);
     this.scene?.remove?.(mob.mesh);
     return replacement;
+  }
+
+  /**
+   * Place a sniffer egg, which hatches into a snifflet.
+   *
+   * Wiki: "Once placed by a player, a sniffer egg hatches after 10 minutes if placed on a moss block or
+   * 20 minutes otherwise." Eggs are tracked in `manager.snifferEggs` because this codebase has no block
+   * entity system; each entry carries its own hatch timer.
+   */
+  placeSnifferEgg(x, y, z, { blockName = null } = {}) {
+    if (!this.snifferEggs) this.snifferEggs = [];
+    const egg = {
+      position: new THREE.Vector3(x, y, z),
+      // Wiki: the moss block halves the hatch time.
+      hatchTimer: snifferEggHatchSeconds(blockName),
+      blockName: blockName
+    };
+    this.snifferEggs.push(egg);
+    return egg;
+  }
+
+  /**
+   * Advance every placed sniffer egg, hatching one into a snifflet when its timer runs out.
+   *
+   * Returns the snifflets that hatched, which is what the tests assert on.
+   */
+  updateSnifferEggs(dt) {
+    if (!this.snifferEggs?.length) return [];
+    const hatched = [];
+    for (let i = this.snifferEggs.length - 1; i >= 0; i--) {
+      const egg = this.snifferEggs[i];
+      egg.hatchTimer -= dt;
+      if (egg.hatchTimer > 0) continue;
+      const baby = this.spawnSniffer(egg.position.x, egg.position.y, egg.position.z, { isBaby: true });
+      if (baby) {
+        baby.isBaby = true;
+        baby.growthTimer = SNIFFLET_GROWTH_SECONDS;
+        hatched.push(baby);
+      }
+      this.snifferEggs.splice(i, 1);
+    }
+    return hatched;
+  }
+
+  /**
+   * Sniffer.
+   *
+   * Wiki: a passive ancient mob, 14 HP, that spawns only by hatching from a sniffer egg. It wanders,
+   * scents the ground, sploots and digs up a torchflower seed or a pitcher pod. A baby is a snifflet,
+   * which cannot dig and takes twice as long as a normal baby to grow up.
+   */
+  spawnSniffer(x, y, z, options = {}) {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.body });
+    const bellyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.belly });
+    const shellMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.shell });
+    const snoutMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.snout });
+    const legMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.leg });
+    const { group: model, body, belly, shell, bands, neck, head, snout, eyes, legs, tail } =
+      createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat);
+    group.add(model);
+    group.position.set(x, y, z);
+    if (options.isBaby) group.scale.setScalar(SNIFFLET_SCALE);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(group);
+
+    const dims = options.isBaby ? SNIFFLET_DIMENSIONS : SNIFFER_DIMENSIONS;
+    const mob = {
+      type: 'sniffer',
+      name: 'Sniffer',
+      mesh: group,
+      body, belly, shell, bands, neck, head, snout, eyes, legs, tail,
+      // Wiki: 14 HP.
+      health: SNIFFER_HEALTH,
+      maxHealth: SNIFFER_HEALTH,
+      isBaby: !!options.isBaby,
+      width: dims.width,
+      height: dims.height,
+      speed: SNIFFER_SPEED,
+      // The dig state machine.
+      digState: 'idle',
+      digTimer: 0,
+      digTarget: null,
+      // Wiki: it starts on an 8-minute cooldown, which is also the "initial lag" a new adult has.
+      digCooldown: SNIFFER_SEARCH_COOLDOWN,
+      // Wiki: it stores its prior 20 digging locations.
+      dugLocations: [],
+      // Set explicitly. updateSnifferDig refuses unless the sniffer is on the ground, and an undefined
+      // value read as not-on-the-ground, so a sniffer spawned standing on the ground never dug -- and the
+      // shared mover never settled it either, so it fell forever. The same defect as the breeze's, found
+      // the same way.
+      onGround: true,
+      snifferPhase: 0,
+      velocity: new THREE.Vector3(),
+      yaw: Math.random() * Math.PI * 2,
+      state: 'idle',
+      timer: 0,
+      hitCooldown: 0
+    };
+    // Wiki: a snifflet grows in 2400 s, twice the shared baby-growth constant.
+    if (options.isBaby) mob.growthTimer = SNIFFLET_GROWTH_SECONDS;
+    this.mobs.push(mob);
+    return mob;
   }
 
   /**
@@ -7826,7 +7933,9 @@ export class MobManager {
     const variantRows = variantBonusDrops(mob, random);
     // Wiki: a breeze drops 1-2 breeze rods, with Looting adding more, and a flat 10 XP.
     const breezeRows = isBreeze(mob) && (mob.playerDamaged || mob.wolfKilled) ? breezeDrops(mob, random) : [];
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows];
+    // Wiki: a sniffer drops no items at all -- the seeds come from digging and the egg from breeding.
+    const snifferRows = isSniffer(mob) ? snifferDrops(mob) : [];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows];
   }
 
   /**
@@ -7915,7 +8024,8 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : mob.type === 'sniffer' ? (mob.playerDamaged || mob.wolfKilled ? snifferXp(mob) : 0)
+          : mob.type === 'breeze' ? (mob.playerDamaged || mob.wolfKilled ? breezeXp(mob) : 0)
           : mob.type === 'husk' || mob.type === 'stray' || mob.type === 'bogged' ? (mob.playerDamaged || mob.wolfKilled ? variantXp(mob) : 0)
           : mob.type === 'armadillo' ? (mob.playerDamaged || mob.wolfKilled ? armadilloXp(mob) : 0)
           : mob.type === 'panda' ? (mob.playerDamaged || mob.wolfKilled ? pandaXp(mob) : 0)
@@ -8229,6 +8339,7 @@ export class MobManager {
     // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own
     // wind charges burst on impact. Both run here so they see the arrows after the arrow pass moved
     // them, which is what makes the deflection happen on the frame of contact.
+    this.updateSnifferEggs(dt);
     this.deflectBreezeProjectiles();
     this.updateWindCharges(dt);
     updateSnowballs(this, dt);
@@ -8717,6 +8828,96 @@ export class MobManager {
       moveGroundMob(this, mob, dt);
       posePolarBear(mob, mob.polarPhase || 0);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
+      return true;
+    }
+    if(mob.type==='sniffer'){
+      // Wiki: passive. It wanders, scents the ground and digs up a torchflower seed or a pitcher pod,
+      // but only under a long list of conditions -- which `updateSnifferDig` owns.
+      mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+
+      const sx = Math.floor(mob.mesh.position.x);
+      const sy = Math.floor(mob.mesh.position.y);
+      const sz = Math.floor(mob.mesh.position.z);
+      // sy is the floor of the mob's y, so its FEET are one below that. Using sy - 1 for the ground
+      // was an off-by-one that made the sniffer treat the block under the floor as its footing.
+      const feetY = sy - 1;
+      const feetId = this.world.getVoxel(sx, feetY, sz);
+      // The block under the snout, 2.25 blocks ahead.
+      const headPos = snifferHeadPosition(mob);
+      const headGroundId = this.world.getVoxel(
+        Math.floor(headPos.x), feetY, Math.floor(headPos.z)
+      );
+      const held = player?.inventory?.getActiveItem?.();
+      const heldId = typeof held?.id === 'string' ? held.id : '';
+
+      // Wiki: a snifflet takes 2400 s and cannot dig.
+      if (mob.isBaby && updateSniffletGrowth(mob, dt)) {
+        // The adult hitbox is restored by the growth step, and the initial dig lag is set there.
+      }
+
+      // Groundedness is tested against the world rather than read from `mob.onGround`. Wiki: "A sniffer
+      // can only dig if it is on the ground", and the shared mover only sets `onGround` through the
+      // collision path, which a headless arena does not exercise -- so relying on it meant a sniffer
+      // standing on grass refused to dig forever. The block under its feet is the durable answer.
+      const solidBelow = (x, y, z) => {
+        const id = this.world.getVoxel(x, y, z);
+        if (id === undefined || id === null) return false;
+        return id !== BLOCKS.AIR && id !== BLOCKS.WATER && id !== BLOCKS.LAVA;
+      };
+      const standingOnSolid = solidBelow(sx, feetY, sz);
+      // The sniffer is heavy and wide, and the shared mover settles a mob on the floor only through the
+      // collision path, which a headless arena does not exercise. Pinning it to the surface directly is
+      // what keeps a 1.9-wide mob on the ground instead of sinking through it; a mob that fell forever
+      // could never satisfy "a sniffer can only dig if it is on the ground".
+      if (standingOnSolid && mob.mesh.position.y < feetY + 1) {
+        mob.mesh.position.y = feetY + 1;
+        mob.velocity.y = 0;
+        mob.onGround = true;
+      }
+      const digOutcome = updateSnifferDig(this, mob, dt, {
+        onGround: standingOnSolid,
+        leashed: !!mob.leashHolder,
+        inWater: this.world.getVoxel(sx, sy, sz) === BLOCKS.WATER,
+        tempted: isSnifferBreedingFood(heldId),
+        panicking: mob.fleeing === true,
+        inVehicle: !!mob.vehicle,
+        headBlockId: headGroundId,
+        groundBlockId: feetId
+      });
+
+      if (digOutcome === 'searching') {
+        // `updateSnifferDig` set the velocity toward the spot; the mover below applies it.
+        mob.state = 'searching';
+      } else if (digOutcome === 'splooting') {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        mob.state = 'splooting';
+      } else if (digOutcome === 'dug') {
+        mob.state = 'idle';
+      } else {
+        // Wiki: a sniffer is tempted by torchflower seeds like other breedable animals, and otherwise
+        // wanders aimlessly.
+        if (isSnifferBreedingFood(heldId) && player?.position) {
+          const dir = player.position.clone().sub(mob.mesh.position);
+          dir.y = 0;
+          const distance = dir.length();
+          if (distance > 2) {
+            dir.normalize();
+            mob.yaw = Math.atan2(dir.x, dir.z);
+            mob.velocity.x = dir.x * 1.2;
+            mob.velocity.z = dir.z * 1.2;
+          } else { mob.velocity.x *= 0.6; mob.velocity.z *= 0.6; }
+        } else {
+          wanderMob(this, mob, dt, 0.5);
+        }
+        mob.state = 'idle';
+      }
+
+      moveGroundMob(this, mob, dt);
+      // `poseSniffer` needs to know the ground height, because the sploot drops the whole model.
+      if (mob.onGround) mob.groundY = mob.mesh.position.y;
+      mob.snifferPhase = (mob.snifferPhase || 0) + dt;
+      poseSniffer(mob, mob.snifferPhase);
       return true;
     }
     if(mob.type==='breeze'){
