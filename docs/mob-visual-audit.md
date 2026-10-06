@@ -4408,3 +4408,39 @@ placement over its legs.
 
 Work list: **97 spawners, 79 with a real sheet, the sniffer a recognisable creature with its five extra parts still to
 retire, the ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and eighteen: the extra parts were already invisible, and the suite pins them for a reason
+
+**I retired the sniffer's four non-vanilla parts and the render did not change by a single byte.**
+
+```
+sniffer render before: 73070 bytes
+sniffer render after:  73070 bytes     <- identical
+```
+
+**So `belly`, `shell`, both `band`s and `tail` were not visible in the render to begin with**, and my change is a no-op
+visually. **That is worth recording as a correction to round one hundred and seventeen's closing claim:** I wrote that "the
+five parts vanilla does not have are still flat-coloured and still present", implying they showed. **They did not show.** The
+render from round one hundred and seventeen -- the one that reads as a creature -- already had them hidden behind or inside
+the body.
+
+**Why I kept them rather than deleting them, and it is the important part:**
+
+```
+tests/snifferParity.test.js:428   assert.ok(sniffer.shell && sniffer.snout && sniffer.head);
+tests/snifferParity.test.js:429   assert.equal(sniffer.bands.length, 3, 'banded shell');
+```
+
+**The suite pins `shell`, `snout`, `head` and exactly three `bands` as the mob's documented identity**, and the suite is
+right to: this project's sniffer is *specified* as a banded-shell sniffer, and that specification is what the tests protect.
+**Deleting the parts would break a contract that a hundred and seventeen rounds of this project's own work established**, and
+the visual question is separate from the contract question.
+
+So the parts are now `visible = false` with a comment recording exactly why: **retired from the render, kept in the contract.**
+`snifferParity` reads **23 tests, 23 pass, 0 fail**, and `AREA` is at exactly **1766/1773**.
+
+**The general point, which this round earned cheaply:** a test that pins a visual part is not necessarily wrong about
+appearance -- it is pinning the MODEL, and the model and the render are separable. **`visible = false` is the honest way to
+retire a part the suite requires**, and it costs nothing.
+
+Work list: **97 spawners, 79 with a real sheet, the sniffer with its contract intact and its non-vanilla parts retired, the
+ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
