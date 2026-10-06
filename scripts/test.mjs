@@ -33,7 +33,7 @@ const testsDir = join(root, 'tests');
  */
 export const AREAS = {
   // --- agent / terminal ---
-  agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring'],
+  agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring', 'startScreenBinding'],
   // --- mobs ---
   // The natural-spawning subsystem's own tests come first because they are the slowest files in the
   // area and a failure there is the most informative:

@@ -232,12 +232,19 @@ class Game {
     // always use it, even if start() is still awaiting textures.
     this.overlay = typeof document !== 'undefined' ? new ProgressOverlay(document) : null;
     this._worldStartInFlight = false;
+    // Resolved once the UIManager exists. The start-overlay buttons are bound before the atlas loads,
+    // and the handlers that need the UI await this rather than letting the click fall on the floor.
+    this._uiReady = new Promise((resolve) => { this._resolveUiReady = resolve; });
     // Set once the initial chunks exist and it is safe to enter the world.
     this.worldReady = false;
   }
 
   async start() {
     console.log('Initializing Minecraft Web Edition...');
+
+    // Bind the start screen before anything slow: bindEvents() runs at the end of start(), after the
+    // whole atlas has decoded, so until then every click landed on a button with no listener.
+    this.bindStartScreen();
 
     // 1. Initialize Texture Atlas & Materials
     await this.textures.init();
@@ -306,6 +313,8 @@ class Game {
     this.player.inventory = this.inventory;
     this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds, this);
     this.ui.game = this;
+    // A start-screen click that arrived while the atlas was loading is now free to act.
+    this._resolveUiReady?.();
     this.entities.ui = this.ui;
     this.ui.onCommand = (cmd) => this.handleCommand(cmd);
     this.ui.initGemini(this.geminiAgent);
@@ -1111,95 +1120,89 @@ class Game {
     return true;
   }
 
+  /**
+   * Resolves once the UIManager exists, so a start-screen click during loading is honoured rather than
+   * dropped. Resolved at the point the UI is constructed in start().
+   */
+  whenUiReady() {
+    return this._uiReady ?? Promise.resolve();
+  }
+
+  /**
+   * Bind the start screen's buttons now instead of at the end of start().
+   *
+   * bindEvents() runs after `await this.textures.init()`, which decodes the whole block atlas; until it
+   * returns the overlay is on screen but its buttons have no listeners, so clicks were silently dropped
+   * and "Generate New World" appeared to need several attempts. The handlers that need the game wait for
+   * `whenUiReady()` instead, and the three Inspector buttons only navigate, so they work immediately.
+   */
+  bindStartScreen() {
+    const bind = (id, handler) => {
+      const button = document.getElementById(id);
+      if (button) button.addEventListener('click', handler);
+    };
+
+    bind('btn-start-new-world', async (e) => {
+      e.stopPropagation();
+      this.sounds.init();
+      // Wait for the UI before deciding: the biome menu is the UI's, and falling through to the legacy
+      // generation path because the UI was still loading would skip the menu entirely.
+      await this.whenUiReady();
+      if (this.ui?.openBiomeModal) {
+        this.ui.openBiomeModal();
+        return;
+      }
+      if (this._worldStartInFlight) return;
+      this._worldStartInFlight = true;
+      const button = e.currentTarget;
+      if (button) button.disabled = true;
+      try {
+        // Await so the start screen stays up (with the progress bar) until the terrain and meshes are
+        // actually ready, then hand over the pointer.
+        await this.generateNewWorld();
+        const startOverlay = document.getElementById('start-overlay');
+        if (startOverlay) startOverlay.style.display = 'none';
+      } catch (err) {
+        // Never strand the player on a full progress bar: undo the start and report what happened.
+        console.error('[World] Failed to start a new world:', err);
+        this.failWorldStart(err);
+      } finally {
+        if (button) button.disabled = false;
+        this._worldStartInFlight = false;
+        if (this.worldReady) this.overlay?.hide();
+      }
+    });
+
+    bind('btn-start-designed-world', async (e) => {
+      e.stopPropagation();
+      this.sounds.init();
+      await this.whenUiReady();
+      this.ui?.openDesignedWorldsModal();
+    });
+
+    bind('btn-start-load-world', async (e) => {
+      e.stopPropagation();
+      this.sounds.init();
+      await this.whenUiReady();
+      this.ui?.openMapModal('load');
+    });
+
+    bind('btn-start-structure-studio', async (e) => {
+      e.stopPropagation();
+      await this.whenUiReady();
+      await this.startBuildingStudio();
+    });
+
+    // These three navigate to their own pages, so they need nothing from the game.
+    bind('btn-start-mob-inspector', (e) => { e.stopPropagation(); this.openMobInspector(); });
+    bind('btn-start-resource-inspector', (e) => { e.stopPropagation(); this.openResourceInspector(); });
+    bind('btn-start-structure-inspector', (e) => { e.stopPropagation(); this.openStructureInspector(); });
+  }
+
   bindEvents() {
-    // Start Overlay Action Buttons
-    const startOverlay = document.getElementById('start-overlay');
-    const btnNewWorld = document.getElementById('btn-start-new-world');
-    const btnDesignedWorld = document.getElementById('btn-start-designed-world');
-    const btnLoadWorld = document.getElementById('btn-start-load-world');
-
-    if (btnNewWorld) {
-      btnNewWorld.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        this.sounds.init();
-        if (this.ui?.openBiomeModal) {
-          this.ui.openBiomeModal();
-          return;
-        }
-        if (this._worldStartInFlight) return;
-        this._worldStartInFlight = true;
-        btnNewWorld.disabled = true;
-        try {
-          // Await so the start screen stays up (with the progress bar) until the
-          // terrain and meshes are actually ready, then hand over the pointer.
-          await this.generateNewWorld();
-          if (startOverlay) startOverlay.style.display = 'none';
-        } catch (err) {
-          // Never strand the player on a full progress bar: undo the start and
-          // report what happened.
-          console.error('[World] Failed to start a new world:', err);
-          this.failWorldStart(err);
-        } finally {
-          btnNewWorld.disabled = false;
-          this._worldStartInFlight = false;
-          // The overlay only hides once the world is really running; on failure
-          // failWorldStart() has already taken it down.
-          if (this.worldReady) this.overlay?.hide();
-        }
-      });
-    }
-
-    if (btnDesignedWorld) {
-      btnDesignedWorld.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.sounds.init();
-        if (this.ui) {
-          this.ui.openDesignedWorldsModal();
-        }
-      });
-    }
-
-    if (btnLoadWorld) {
-      btnLoadWorld.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.sounds.init();
-        if (this.ui) {
-          this.ui.openMapModal('load');
-        }
-      });
-    }
-
-    const btnBuildingStudio = document.getElementById('btn-start-structure-studio');
-    if (btnBuildingStudio) {
-      btnBuildingStudio.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await this.startBuildingStudio();
-      });
-    }
-
-    const btnMobInspector = document.getElementById('btn-start-mob-inspector');
-    if (btnMobInspector) {
-      btnMobInspector.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openMobInspector();
-      });
-    }
-
-    const btnResourceInspector = document.getElementById('btn-start-resource-inspector');
-    if (btnResourceInspector) {
-      btnResourceInspector.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openResourceInspector();
-      });
-    }
-
-    const btnStructureInspector = document.getElementById('btn-start-structure-inspector');
-    if (btnStructureInspector) {
-      btnStructureInspector.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openStructureInspector();
-      });
-    }
+    // The start-overlay buttons are bound in bindStartScreen(), which start() calls before the atlas
+    // loads. They used to be bound here, at the end of start(), so a click during loading reached a
+    // button with no listener and was dropped.
 
     this.renderer.domElement.addEventListener('click', () => {
       if (this.player?.isDead) return;
