@@ -4789,3 +4789,31 @@ already read in round one hundred and twenty-four.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
 specified, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-seven: the dragon's jaw and wings attempted, reverted, and the scale factor questioned
+
+**I added the jaw and rebuilt the wings as vanilla's two segments, and it broke: `AREA` went from 7 failures to 14, and the
+render collapsed from 82896 bytes to 25663.**
+
+**The likely cause, and I am labelling it as likely rather than established:** my wing scale factor. I derived
+`1 unit = 1.1/24 blocks` from the HEAD's proportions -- the head is 24 units tall and I had just resized it to 1.1 blocks --
+and applied it to the wings, which are also 24 units. **That gives a wing segment of 0.367 x 1.1 x 0.367 blocks, which for a
+wing 8 units wide is 0.367 blocks** -- against the 2.8-block span the project had. **A dragon whose wings are a third of a
+block across reads as a dragon with no wings**, which is consistent with the render shrinking rather than erroring.
+
+**So the resize may not be the fault; the fault may be that I applied ONE part's scale to ANOTHER part without checking that
+vanilla's model uses a single scale throughout.** The dragon's parts are 16, 24, 12 and 6 units across in different places, and
+**if the project's boxes were sized against the BODY's 1.6 blocks rather than the head's 1.1, then no single factor I pick
+will fit them all** -- which is exactly the structural mismatch round one hundred and five's rule describes.
+
+**Reverted.** `AREA` is back at exactly **1766/1773**, and the dragon retains round one hundred and twenty-six's state: body
+and head bound, textured, and resized to vanilla's proportions.
+
+**The honest position:** the dragon needs its eighteen remaining parts, and **the scale to build them at is a question I have
+not answered.** The right way to settle it is to read how the project's OTHER multi-part mobs were sized relative to their
+rectangles -- the sniffer worked with `1 unit = 0.0425 blocks` derived from its body, and the horse and pufferfish each had a
+factor -- rather than to pick one and hope, which is what this round did.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
+specified and their SCALE still to determine, and the tropical fish BLOCKED by its assets.**
