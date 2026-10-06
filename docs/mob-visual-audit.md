@@ -1222,3 +1222,40 @@ The mob contract is preserved in full -- `tail`, `finL`, `finR` and `mat` are al
 own group so the swim cycle can articulate it.
 
 Work list: **92 mob spawners, 57 with a real model, 57 with a real skin, 35 still flat-colour only.**
+## Round thirty-seven: the Inspector's view axis, measured
+
+Last round I admitted I was guessing at the camera. This round I read it, and it settles the cod.
+
+`mobDebug.js`, the default view:
+
+```js
+function fitCamera(direction){
+  ...
+  camera.position.copy(centre).addScaledVector(dir, Math.max(distance, 1.2));
+}
+function front(){
+  fitCamera(new THREE.Vector3(0, Math.min(0.35, h * 0.18), 1));   // <-- camera on +Z
+}
+```
+
+**The Inspector looks at a mob's +Z face, slightly from above.** The 3/4 view rotates that direction; the default does
+not.
+
+**So the cod is correct and always was.** Its frame carries a half-turn taking vanilla's -z nose to +z, which faces the
+camera. The "sliver" I spent two rounds trying to fix is simply what a fish looks like HEAD-ON: the cod is 2 units wide,
+4 tall and 7 long, so from the front you legitimately see a narrow 2x4 profile with the length receding away from you.
+
+My quarter-turn "fix" was the thing that was wrong -- it turned the fish BROADSIDE, which is the `3/4 view` button's job,
+not the default's, and in doing so it separated the fins from the body because they hang off the frame.
+
+**That is the third time in five rounds that a measurement beat an instinct**, and this one had been sitting in a file I
+could have read at any point: the camera's position is one line of source. The pattern is consistent enough now to state
+as a rule for the remaining work:
+
+> Before changing a model to make it LOOK right in a capture, read what the capture is doing. Camera, framing and pose
+> are all in `mobDebug.js`, and all three are cheaper to read than to infer.
+
+**No source change this round.** The cod keeps its half-turn, which is correct, and its 2.5x scale, which is a legibility
+adjustment rather than a geometry one.
+
+Work list: **92 mob spawners, 57 with a real model, 57 with a real skin, 35 still flat-colour only.**
