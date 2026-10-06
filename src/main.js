@@ -13,6 +13,8 @@ import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
+import { normaliseSettings, normaliseGameMode, DEFAULT_SETTINGS, DAY_LENGTH_SECONDS, startingTimeOfDay,
+  allowsShowcasePopulation, allowsAgentTerminal } from './sessionSettings.js';
 import { isFrame, insertEye, tryActivateAround, isEndPortal, portalDestination, portalArrival,
   isStandingInEndPortal, buildEndPlatform, buildEndPortalRoom, enderEyeThrowVelocity, bearingToPortal,
   bearingName, ENDER_EYE_LIFE } from './endPortal.js';
@@ -135,8 +137,14 @@ class Game {
     this.scene.add(this.moonLight);
 
     // Day/Night Cycle State
-    this.worldTime = 6000; // 0..24000 (6000 = midday, 18000 = midnight)
-    this.dayLengthSeconds = 600; // 10 minutes full day/night cycle
+    //
+    // Dawn, not midday: Java starts a new world at time 0. Starting at 6000 put the player in at noon with
+    // the sun already past its peak, which is a small thing on its own and a real one combined with the
+    // showcase mobs -- the first thing a new player saw was a bright afternoon with a pillager patrol in it.
+    this.worldTime = startingTimeOfDay(DEFAULT_SETTINGS); // 0 = dawn, 6000 = noon, 18000 = midnight
+    // A full Java day is 24,000 ticks at 20 ticks/second: 1,200 seconds, not 600. The old figure ran the
+    // clock at double speed, so a "day" was ten minutes and the first night arrived in five.
+    this.dayLengthSeconds = DAY_LENGTH_SECONDS;
 
     /**
      * World difficulty.
@@ -148,6 +156,14 @@ class Game {
      * the existing mob code was already branching on it.
      */
     this.difficulty = 'normal';
+
+    // What the player asked for, before any terrain exists.
+    //
+    // Nothing recorded the mode, the difficulty or whether the scripted content should run, so `Player`
+    // defaulted to Creative and `spawnVillageMobs` populated every world. The setup screen now fills this in
+    // before generation; `normaliseSettings` turns a partial or missing object into an ordinary Survival
+    // world rather than a Creative one.
+    this.settings = normaliseSettings({ difficulty: this.difficulty });
 
     // Subsystems
     this.sounds = new SoundEngine();
@@ -232,7 +248,7 @@ class Game {
     this.world.game = this;
 
     // 2. Initialize Player & Controls
-    this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds);
+    this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds, this.settings);
     this.player.game = this;
     this.scene.add(this.player.model);
     this.player.model.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -899,7 +915,36 @@ class Game {
     chunk.dirty = false;
   }
 
+  /**
+   * The one place the world's settings are applied.
+   *
+   * Called by the setup screen before generation, and by anything else that creates a world. The plan's rule
+   * is that ordinary Survival selects its settings *before* terrain generation and ticking -- not that a
+   * Creative player is built and then toggled, which is what used to happen and what left flight on.
+   */
+  applyWorldSettings(raw = {}) {
+    this.settings = normaliseSettings({ ...this.settings, ...raw });
+    this.difficulty = this.settings.difficulty;
+    this.player?.setGameMode?.(this.settings.gameMode);
+    if (this.player) this.player.difficulty = this.settings.difficulty;
+    return this.settings;
+  }
+
+  /**
+   * The scripted population: villagers, an iron golem, a pillager patrol and a meadow of animals, all at
+   * fixed coordinates around the origin.
+   *
+   * It runs **only for the showcase preset**. It used to run for every world, which is where the daytime
+   * hostiles came from: the first thing a new Survival player met was a raid captain with a banner, on a
+   * bright afternoon, a dozen blocks from spawn. Ordinary worlds populate themselves through natural
+   * spawning, structures and spawn eggs, as the plan requires.
+   */
   spawnVillageMobs() {
+    if (!allowsShowcasePopulation(this.settings)) return false;
+    return this.populateShowcaseVillage();
+  }
+
+  populateShowcaseVillage() {
     const getGround = (x, z) => {
       const ix = Math.floor(x);
       const iz = Math.floor(z);
@@ -1062,6 +1107,7 @@ class Game {
     this.mobs.spawnHorse?.(11.5, getGround(11.5, 4.5), 4.5);
     this.mobs.spawnWolf?.(5.0, getGround(5.0, -5.0), -5.0);
     this.mobs.spawnCat?.(3.0, getGround(3.0, 1.0), 1.0);
+    return true;
   }
 
   bindEvents() {
@@ -2244,17 +2290,69 @@ class Game {
     }
   }
 
+  /**
+   * Pick block.
+   *
+   * In Creative this conjures a stack of whatever you are looking at. In Survival it may only **select**
+   * something you already own -- vanilla's pick-block moves a matching stack to the active slot, and creates
+   * nothing. This used to write `count: 64` unconditionally, so middle-clicking a diamond block in Survival
+   * produced 64 diamonds out of nothing.
+   */
   handleMiddleClick() {
-    if (this.targetBlock && this.targetBlock.blockId !== BLOCKS.AIR) {
-      // Pick block into active hotbar slot
-      this.inventory.hotbar[this.inventory.activeSlot] = {
-        id: this.targetBlock.blockId,
-        isBlock: true,
-        count: 64
-      };
+    if (!this.targetBlock || this.targetBlock.blockId === BLOCKS.AIR) return false;
+    const wanted = this.targetBlock.blockId;
+
+    if (this.player.hasCreativeAbilities?.() ?? this.player.gamemode === 'creative') {
+      this.inventory.hotbar[this.inventory.activeSlot] = { id: wanted, isBlock: true, count: 64 };
       this.sounds.playClick();
       this.ui.updateHotbar();
+      return true;
     }
+
+    // Survival: find an owned stack of the same block and move it to the active slot. Nothing new is made.
+    const slots = [this.inventory.hotbar, this.inventory.storage];
+    const active = this.inventory.activeSlot;
+    for (const list of slots) {
+      for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (!item) continue;
+        if (item.id !== wanted) continue;
+        if (list === this.inventory.hotbar && i === active) return true;
+        const swap = this.inventory.hotbar[active];
+        if (list === this.inventory.hotbar) {
+          this.inventory.hotbar[active] = item;
+          this.inventory.hotbar[i] = swap;
+        } else {
+          // From storage into the hotbar: the storage slot takes whatever was in the hand.
+          this.inventory.hotbar[active] = item;
+          list[i] = swap;
+        }
+        this.sounds.playClick();
+        this.ui.updateHotbar();
+        return true;
+      }
+    }
+    // Not owned. Vanilla does nothing, and so does this.
+    return false;
+  }
+
+  /**
+   * The one place the game mode changes.
+   *
+   * Both the pause-menu button and `/gamemode` come through here, so they cannot disagree. The inventory is
+   * deliberately untouched: Minecraft preserves items across a mode change.
+   */
+  setGameMode(mode) {
+    const next = normaliseGameMode(mode);
+    const result = this.player.setGameMode?.(next) ?? { previous: this.player.gamemode, mode: next, changed: true };
+    this.settings = normaliseSettings({ ...this.settings, gameMode: next });
+    if (next === 'creative' && this.ui?.openCreativeInventory) this.ui.openCreativeInventory();
+    return result;
+  }
+
+  /** May the Agent Terminal be opened, and may the item-granting commands run? */
+  allowsAgentTerminal() {
+    return allowsAgentTerminal(this.settings);
   }
 
   dropHeldItem() {
@@ -2806,12 +2904,10 @@ class Game {
           this.ui.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
           return;
         }
-        this.player.gamemode = 'creative';
+        this.setGameMode('creative');
         this.ui.addChatMessage('Set game mode to Creative Mode', 'system');
-        this.ui.openCreativeInventory();
       } else if (mode === 'survival' || mode === 's' || mode === '0') {
-        this.player.gamemode = 'survival';
-        this.player.isFlying = false;
+        this.setGameMode('survival');
         this.ui.addChatMessage('Set game mode to Survival Mode', 'system');
       } else {
         this.ui.addChatMessage('Usage: /gamemode <creative|survival>', 'error');

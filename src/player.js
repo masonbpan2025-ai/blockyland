@@ -8,6 +8,7 @@ import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
+import { normaliseSettings, normaliseGameMode } from './sessionSettings.js';
 
 /**
  * How much of a fall the block landed on absorbs.
@@ -28,7 +29,7 @@ export const FALL_ABSORBING_BLOCKS = new Map([
 ]);
 
 export class Player {
-  constructor(camera, domElement, world, soundEngine) {
+  constructor(camera, domElement, world, soundEngine, settings = {}) {
     this.camera = camera;
     this.domElement = domElement;
     this.world = world;
@@ -47,7 +48,13 @@ export class Player {
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;
-    this.gamemode = 'creative'; // 'creative' | 'survival'
+    // Survival, not Creative.
+    //
+    // This was hard-coded `'creative'`, so every player began able to fly, break anything and mint items,
+    // and the only way into Survival was a later toggle that did not always clean up the abilities. The mode
+    // is now whatever the world was created with; `setGameMode` is the one place that changes it.
+    this.gamemode = normaliseSettings(settings).gameMode;
+    this.difficulty = normaliseSettings(settings).difficulty;
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
     // Stats
@@ -1225,6 +1232,37 @@ export class Player {
 
   clearStatusEffect(effect) {
     this.statusEffects.delete(effect);
+  }
+
+  /**
+   * The one place the game mode changes.
+   *
+   * There were three paths before this: the pause-menu button, the chat command, and the building studio.
+   * Only the command path cleared Creative flight, so toggling to Survival from the menu left the player
+   * flying with Creative abilities, and the studio set `gamemode` directly with no cleanup at all.
+   *
+   * Entering Survival disables Creative flight and the Creative-only item abilities. It does **not** touch
+   * the inventory: Minecraft preserves your items when you change mode, and the plan is explicit that only a
+   * fresh ordinary world starts empty.
+   *
+   * @returns {{previous:string, mode:string, changed:boolean}}
+   */
+  setGameMode(mode) {
+    const next = normaliseGameMode(mode);
+    const previous = this.gamemode;
+    this.gamemode = next;
+    if (next !== 'creative') {
+      // The two abilities that are Creative-only, and the ones a later toggle used to leave behind.
+      this.isFlying = false;
+      this.elytraActive = false;
+      this.elytraFlight = false;
+    }
+    return { previous, mode: next, changed: previous !== next };
+  }
+
+  /** Creative abilities: flight, instant breaking and unlimited blocks all follow this. */
+  hasCreativeAbilities() {
+    return this.gamemode === 'creative';
   }
 
   hasStatusEffect(effect) {

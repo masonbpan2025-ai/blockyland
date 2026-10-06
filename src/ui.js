@@ -304,6 +304,7 @@ export class UIManager {
     this.bindPauseEvents();
     this.bindMapModalEvents();
     this.bindBiomeModalEvents();
+    this.bindWorldModeControls();
     this.bindChatEvents();
     this.bindFloatingCursor();
 
@@ -358,9 +359,14 @@ export class UIManager {
       }
 
       // C: Open/close the AI Agent Terminal
+      //
+      // Cheats only. The terminal can hand out items, summon mobs and move the clock, so in an ordinary
+      // Survival world it is a cheat console and this key does nothing -- which is what "key C should not
+      // work in survival mode" asks for. Creative worlds have cheats on by default, so it still opens there.
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
-        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
+        const allowed = this.game?.allowsAgentTerminal?.() ?? false;
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen && allowed) {
           e.preventDefault();
           this.toggleGeminiTerminal();
         }
@@ -3314,7 +3320,9 @@ export class UIManager {
           this.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
           return;
         }
-        this.player.gamemode = (this.player.gamemode === 'survival') ? 'creative' : 'survival';
+        // Through `setGameMode`, so this and `/gamemode` cannot disagree. It used to assign
+        // `player.gamemode` directly, which left Creative flight switched on after entering Survival.
+        this.game.setGameMode(this.player.gamemode === 'survival' ? 'creative' : 'survival');
         btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
         this.addChatMessage(`Set game mode to ${this.player.gamemode} mode`, 'system');
 
@@ -3412,6 +3420,48 @@ export class UIManager {
     }
   }
 
+  /**
+   * The setup screen's mode and difficulty pickers.
+   *
+   * Survival is the default, and its difficulty is only offered when Survival is chosen: a Creative world has
+   * no use for one. The choice is recorded here and applied by the Create World handler, before generation.
+   */
+  bindWorldModeControls() {
+    const modes = ['survival', 'creative'];
+    const difficulties = ['peaceful', 'easy', 'normal', 'hard'];
+    const modeButtons = modes.map(m => document.getElementById(`world-mode-${m}`));
+    const diffButtons = difficulties.map(d => document.getElementById(`world-difficulty-${d}`));
+    const diffSection = document.getElementById('world-difficulty-section');
+    const hint = document.getElementById('world-mode-hint');
+
+    this.selectedWorldMode = this.selectedWorldMode ?? 'survival';
+    this.selectedWorldDifficulty = this.selectedWorldDifficulty ?? 'normal';
+
+    const paint = () => {
+      modeButtons.forEach((b, i) => b?.classList.toggle('active', modes[i] === this.selectedWorldMode));
+      diffButtons.forEach((b, i) => b?.classList.toggle('active', difficulties[i] === this.selectedWorldDifficulty));
+      // Creative has no difficulty to choose.
+      if (diffSection) diffSection.style.display = this.selectedWorldMode === 'creative' ? 'none' : '';
+      if (hint) {
+        hint.textContent = this.selectedWorldMode === 'creative'
+          ? 'Fly, break anything instantly, and build from the full catalogue.'
+          : 'Start with nothing: gather, craft, eat, and survive the night.';
+      }
+    };
+
+    modeButtons.forEach((btn, i) => btn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.selectedWorldMode = modes[i];
+      paint();
+    }));
+    diffButtons.forEach((btn, i) => btn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.selectedWorldDifficulty = difficulties[i];
+      paint();
+    }));
+    paint();
+  }
+
   // Biome Selection Modal Management
   bindBiomeModalEvents() {
     if (this.worldBiomeSelect) {
@@ -3464,6 +3514,21 @@ export class UIManager {
             }
             seedNum = Math.abs(h) || 1337;
           }
+
+          // Apply the chosen mode and difficulty BEFORE the world is reseeded or generated.
+          //
+          // This is the whole point of the setup screen: the plan requires settings to be selected before
+          // terrain generation and ticking, rather than a Creative player being built and then toggled.
+          const chosenMode = this.selectedWorldMode ?? 'survival';
+          const chosenDifficulty = this.selectedWorldDifficulty ?? 'normal';
+          this.game.applyWorldSettings?.({
+            gameMode: chosenMode,
+            difficulty: chosenDifficulty,
+            preset: 'ordinary',
+            biome: biomeId,
+            seed: seedNum,
+          });
+          this.game.player?.setGameMode?.(chosenMode);
 
           // Reseed world with chosen/random seed and biome
           this.game.world.reseed(seedNum, biomeId);

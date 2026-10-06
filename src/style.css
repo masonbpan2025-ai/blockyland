@@ -2027,6 +2027,33 @@ html, body {
   color: #222222;
 }
 
+/* Game mode and difficulty pickers in the world-creation modal. */
+.world-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.world-mode-btn,
+.world-diff-btn {
+  flex: 1 1 0;
+  min-width: 84px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+/* The chosen one, so the selection is visible rather than only remembered. */
+.world-mode-btn.active,
+.world-diff-btn.active {
+  background: #3c8527;
+  border-top-color: #6fbf55;
+  border-left-color: #6fbf55;
+  border-bottom-color: #1d4d13;
+  border-right-color: #1d4d13;
+  color: #ffffff;
+}
+
 .biome-select-wrapper {
   position: relative;
   width: 100%;

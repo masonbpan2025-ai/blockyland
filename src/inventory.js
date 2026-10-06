@@ -29,11 +29,38 @@ export class Inventory {
     // Item stack currently being held by mouse cursor
     this.cursorItem = null;
 
-    this.initDefaultItems();
+    // No starting items.
+    //
+    // This constructor used to call `initDefaultItems()`, filling eight hotbar slots with a diamond pickaxe,
+    // 32 oak logs, 64 cobblestone, 16 torches, 12 TNT, 10 bread, 15 emeralds and 20 wheat, plus a diamond
+    // sword in storage. Every player in every mode got that, because it was unconditional and nothing
+    // recorded what the player had asked for. An ordinary Survival world starts with nothing.
+    //
+    // The kit is still available, by name, through `giveDemoKit()` -- for the showcase preset and the
+    // designed worlds, which is where supplied gear belongs.
   }
 
-  initDefaultItems() {
-    // Starting items: hotbar[0] is null so player starts with just bare fist in hand
+  /** Empty every compartment, including the crafting grids and the cursor. */
+  clearAll() {
+    this.hotbar = new Array(9).fill(null);
+    this.storage = new Array(27).fill(null);
+    this.activeSlot = 0;
+    this.armor = { head: null, chest: null, legs: null, feet: null };
+    this.offhand = null;
+    this.craft2x2 = new Array(4).fill(null);
+    this.craft2x2Result = null;
+    this.craft3x3 = new Array(9).fill(null);
+    this.craft3x3Result = null;
+    this.cursorItem = null;
+  }
+
+  /**
+   * The showcase kit.
+   *
+   * Explicit and opt-in. It used to be `initDefaultItems`, called from the constructor, which is why every
+   * world began with it.
+   */
+  giveDemoKit() {
     this.hotbar[0] = null;
     this.hotbar[1] = { id: 'diamond_pickaxe', isBlock: false, count: 1 };
     this.hotbar[2] = { id: BLOCKS.OAK_LOG, isBlock: true, count: 32 };
@@ -43,8 +70,6 @@ export class Inventory {
     this.hotbar[6] = { id: 'bread', isBlock: false, count: 10 };
     this.hotbar[7] = { id: 'emerald', isBlock: false, count: 15 };
     this.hotbar[8] = { id: 'wheat', isBlock: false, count: 20 };
-
-    // Move sword to storage inventory so player does not start with sword in hand
     this.storage[0] = { id: 'diamond_sword', isBlock: false, count: 1 };
   }
 

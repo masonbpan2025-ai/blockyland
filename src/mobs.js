@@ -33,6 +33,9 @@ import { steerGround } from './netherMobAI.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { shulkerBulletData, steerShulkerBullet } from './shulkerBullet.js';
+import { createWildEndermanState, isProvoked, provoke, tickAnger, gazeProvokes,
+  ENDERMAN_ATTACK_DAMAGE, ENDERMAN_ATTACK_REACH, ENDERMAN_ATTACK_COOLDOWN,
+  ENDERMAN_CHASE_SPEED, pickTeleportDestination, isValidTeleportDestination } from './endermanBehavior.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
@@ -7770,11 +7773,15 @@ export class MobManager {
       isBoss: false,
       velocity: new THREE.Vector3(),
       yaw: 0,
-      state: 'combat',
-      timer: 0,
-      teleportCooldown: 4.5,
+      // Wild endermen are NEUTRAL. This was `state: 'combat'` with `teleportCooldown: 4.5`, which is the
+      // tournament arena's behaviour: it teleported toward the player within five seconds of the world
+      // loading and then chased and hit them, without ever having been provoked. See src/endermanBehavior.js.
+      ...createWildEndermanState(),
       attackCooldown: 0,
       hitCooldown: 0,
+      // Set when this enderman is the tournament challenger, so the scripted behaviour stays available where
+      // it belongs rather than applying to the species.
+      arenaChallenger: options.arenaChallenger === true,
       // Wiki: the block it is carrying drops on death. Not yet implemented; the slot
       // exists so the drop path and telemetry can report it.
       carriedBlock: options.carriedBlock ?? null
@@ -7799,36 +7806,35 @@ export class MobManager {
         newZ = (Math.random() - 0.5) * 14;
         newY = 24.5;
       } else {
-        // Normal world: teleport around mob or player to a safe, valid ground block
-        const refPos = (this.game?.player?.position && Math.random() < 0.6)
-          ? this.game.player.position
-          : mob.mesh.position;
-        let found = false;
-        for (let attempt = 0; attempt < 24; attempt++) {
-          const angle = Math.random() * Math.PI * 2;
-          const dist = 6 + Math.random() * 10;
-          const tx = Math.floor(refPos.x + Math.sin(angle) * dist);
-          const tz = Math.floor(refPos.z + Math.cos(angle) * dist);
-          const baseY = Math.floor(refPos.y);
-          for (let ty = baseY + 5; ty >= baseY - 6; ty--) {
-            if (this.isBlockSolid(tx, ty, tz) &&
-                !this.isBlockSolid(tx, ty + 1, tz) &&
-                !this.isBlockSolid(tx, ty + 2, tz) &&
-                !this.isBlockSolid(tx, ty + 3, tz)) {
-              newX = tx + 0.5;
-              newY = ty + 1.0;
-              newZ = tz + 0.5;
-              found = true;
-              break;
-            }
-          }
-          if (found) break;
+        // A validated destination, or none.
+        //
+        // This used to pick a spot 6-16 blocks from **the player 60% of the time**, which is why an enderman
+        // kept reappearing beside whoever it was following, and to fall back to
+        // `mob.position + random jitter` with no check at all when it found nowhere -- so a failed search
+        // could leave it inside rock. A wild enderman now teleports near itself, only to somewhere it fits,
+        // and stays put when there is nowhere. Teleporting is not spawning: the natural-spawn distance rules
+        // do not apply to a destination, but the destination still has to be able to hold it.
+        const origin = mob.mesh.position;
+        const destination = pickTeleportDestination({
+          origin: { x: origin.x, y: origin.y, z: origin.z },
+          random: Math.random,
+          isValid: (x, y, z) => isValidTeleportDestination(
+            this.game?.world ?? this.world,
+            x, y, z,
+            {
+              isSolid: (id) => this.isBlockSolid(Math.floor(x), Math.floor(y), Math.floor(z))
+                || (id !== 0 && id !== undefined && this.game?.world?.isSolidBlock?.(id) === true),
+              isFluid: (id) => this.game?.world?.isFluidBlock?.(id) === true,
+              width: mob.width,
+            }),
+        });
+        if (!destination) {
+          // Nowhere to go. Reported rather than moved somewhere invalid.
+          return false;
         }
-        if (!found) {
-          newX = mob.mesh.position.x + (Math.random() - 0.5) * 8;
-          newZ = mob.mesh.position.z + (Math.random() - 0.5) * 8;
-          newY = mob.mesh.position.y;
-        }
+        newX = destination.x;
+        newY = destination.y;
+        newZ = destination.z;
       }
     }
 
@@ -8950,6 +8956,8 @@ export class MobManager {
     }
     else if (mob.type === 'enderman') {
       if (this.sounds?.playEndermanHurt) this.sounds.playEndermanHurt();
+      // Being hit is the other way to anger one, and the only one that works through a pumpkin.
+      provoke(mob, 'damage');
       // 45% chance to teleport away on hit to evade combos
       if (Math.random() < 0.45 && mob.health > 0) {
         setTimeout(() => {
@@ -12480,7 +12488,14 @@ export class MobManager {
         }
       }
     } else if (mob.type === 'enderman') {
-      mob.teleportCooldown = (mob.teleportCooldown || 4.5) - dt;
+      // Neutral until provoked, or an explicit arena challenger.
+      //
+      // This branch was the arena rule applied to the species: it teleported toward the player every four to
+      // seven seconds and "aggressively pursue[d] player" from the moment it spawned. A wild enderman now
+      // ignores the player entirely, which is what neutral means, and the arena keeps the old behaviour.
+      const hostile = mob.arenaChallenger === true || isProvoked(mob);
+      tickAnger(mob, dt);
+
       mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
       mob.particleTimer = (mob.particleTimer || 0) - dt;
 
@@ -12490,41 +12505,60 @@ export class MobManager {
         this.entities?.spawnEndermanParticles(mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 2);
       }
 
-      // Periodic arena teleportation
-      if (mob.teleportCooldown <= 0) {
-        mob.teleportCooldown = 4.0 + Math.random() * 3.5;
-        this.teleportEnderman(mob);
+      // Gaze provocation. Standing near one is not enough, and neither is looking at it through a pumpkin.
+      if (!hostile && player && gazeProvokes({
+        viewDir: this.game?.camera ? this.game.camera.getWorldDirection(new THREE.Vector3()) : null,
+        playerPos: player.position,
+        mobPos: mob.mesh.position,
+        hasLineOfSight: mob.endermanHasLineOfSight !== false,
+        wearingPumpkin: player.wearingPumpkin === true
+          || player.inventory?.armor?.head?.id === 'carved_pumpkin',
+        playerGameMode: player.gamemode,
+      })) {
+        provoke(mob, 'gaze');
+        if (this.sounds?.playEndermanStare) this.sounds.playEndermanStare();
       }
 
-      // Aggressively pursue player
-      const dir = player.position.clone().sub(mob.mesh.position);
-      dir.y = 0;
-      const dist = dir.length();
-      if (dist > 1.2) {
-        dir.normalize();
-        const targetYaw = Math.atan2(dir.x, dir.z);
-        const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-        mob.yaw += turn * Math.min(1.0, 9 * dt);
-        if (!mob.avoidTime || mob.avoidTime <= 0) {
-          const endermanSpeed = 3.4;
-          mob.velocity.x = Math.sin(mob.yaw) * endermanSpeed;
-          mob.velocity.z = Math.cos(mob.yaw) * endermanSpeed;
-        }
+      if (!hostile) {
+        // Idle: wander a little, and do not think about the player at all.
+        if (updateAmbientLocomotion) updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        // No periodic teleport while neutral. The arena teleport was the reason an untouched enderman
+        // appeared next to a new player's spawn.
       } else {
-        mob.velocity.x *= 0.5;
-        mob.velocity.z *= 0.5;
-        const targetYaw = Math.atan2(dir.x, dir.z);
-        mob.yaw = targetYaw;
-      }
+        // Periodic arena teleportation, now only for an enderman that is actually hostile.
+        if (mob.teleportCooldown <= 0) {
+          mob.teleportCooldown = 4.0 + Math.random() * 3.5;
+          this.teleportEnderman(mob);
+        }
 
-      // Melee attack
-      if (dist < 1.8 && mob.attackCooldown <= 0) {
-        player.takeDamage(5, mob.mesh.position, mob.type);
-        if (this.sounds?.playZombie) this.sounds.playZombie();
-        mob.attackCooldown = 0.9;
-        if (mob.leftArm && mob.rightArm) {
-          mob.leftArm.rotation.x = -Math.PI / 2.2;
-          mob.rightArm.rotation.x = -Math.PI / 2.2;
+        const dir = player.position.clone().sub(mob.mesh.position);
+        dir.y = 0;
+        const dist = dir.length();
+        if (dist > 1.2) {
+          dir.normalize();
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
+          mob.yaw += turn * Math.min(1.0, 9 * dt);
+          if (!mob.avoidTime || mob.avoidTime <= 0) {
+            mob.velocity.x = Math.sin(mob.yaw) * ENDERMAN_CHASE_SPEED;
+            mob.velocity.z = Math.cos(mob.yaw) * ENDERMAN_CHASE_SPEED;
+          }
+        } else {
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+          const targetYaw = Math.atan2(dir.x, dir.z);
+          mob.yaw = targetYaw;
+        }
+
+        // Melee attack
+        if (dist < ENDERMAN_ATTACK_REACH && mob.attackCooldown <= 0) {
+          player.takeDamage(ENDERMAN_ATTACK_DAMAGE, mob.mesh.position, mob.type);
+          if (this.sounds?.playZombie) this.sounds.playZombie();
+          mob.attackCooldown = ENDERMAN_ATTACK_COOLDOWN;
+          if (mob.leftArm && mob.rightArm) {
+            mob.leftArm.rotation.x = -Math.PI / 2.2;
+            mob.rightArm.rotation.x = -Math.PI / 2.2;
+          }
         }
       }
     } else if (mob.isCustomMob) {
