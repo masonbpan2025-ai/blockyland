@@ -3534,3 +3534,52 @@ of the process that has never been verified.
 `AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
+## Round ninety-eight: a real pairing error found, fixed, and the camel STILL fragments
+
+**I built the tool round ninety-seven named, and it immediately found a genuine mistake of mine.**
+
+`scripts/mob-visual/pair-part-uv.mjs` pairs each named part to its `(u, v)` and box IN DECOMPILE ORDER rather than by eye.
+On the camel:
+
+```
+line   part name        (u, v)        box (w x h x d)
+  29   body            (0, 25)       15 x 12 x 27
+  34   hump            (74, 0)        9 x 5 x 11
+  42   head            (60, 24)       7 x 8 x 19     <- NOT (74, 0)
+  63   left_hind_leg   (58, 16)       5 x 21 x 5
+  68   right_hind_leg  (94, 16)       5 x 21 x 5
+  73   left_front_leg  (0, 0)         5 x 21 x 5
+  83   saddle          (74, 64)       9 x 5 x 11
+```
+
+**`(74, 0)` 9x5x11 is the HUMP, and I had been applying it to the HEAD for two rounds.** The head is `(60, 24)` 7x8x19. I
+had also never applied the hump's own rectangle at all. **That is exactly the by-eye pairing error round ninety-seven
+suspected, and the tool found it in one command.** Corrected, applied, and the state read back cleanly at 16 of 18 maps with
+the suite at 1766/1773.
+
+**AND THE CAMEL STILL FRAGMENTS.** With the body, hump and head all carrying their correct rectangles, the render is the same
+noise field. I also isolated and eliminated the last candidate I was carrying -- **`alphaTest: 0.5`** -- by removing it
+entirely, and the render was again unchanged.
+
+**So the fifth camel fault is eliminated, and the mob is unexplained:**
+
+| # | candidate | eliminated by |
+| --- | --- | --- |
+| 1 | sheet is a stub | 26 palette entries, 38% opaque, passes the content check |
+| 2 | sheet's path | resolves; 16 of 18 materials read back with a map |
+| 3 | box proportions | resized to vanilla's exact ratio -- no change |
+| 4 | rectangle anchors | 89% opaque region -- and now the ANCHORS ARE VERIFIED CORRECT |
+| 5 | `alphaTest` | removed entirely -- no change |
+
+**The durable result of this round is the tool, not the mob.** `pair-part-uv.mjs` removes the ONE step in the recipe that was
+never verified, and it found a real bug on its first use. **Every remaining mob should go through it before any binding**,
+because the anchors are now the only part of the process that has been shown to be wrong in practice.
+
+**What I have not tested, and would next:** the camel's model has **18 materials and only 16 maps**, so two parts take no
+sheet -- and `createCamelModel` builds a `belly`, `muzzle`, `neck` and `tail` that vanilla's part list does not have at all.
+**A model with parts vanilla does not have cannot be made correct by adding rectangles to the parts it does share**, and that
+is a structural mismatch rather than a numeric one.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
