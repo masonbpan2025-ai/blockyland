@@ -70,6 +70,28 @@ export const TROPICAL_FISH_PATTERNS = {
   large: ['flopper', 'stripey', 'glitter', 'blockfish', 'betty', 'clayfish']
 };
 
+/**
+ * The real sheet for a tropical fish variant.
+ *
+ * Vanilla names the sheets by SHAPE LETTER and PATTERN NUMBER: `tropical_a.png` is shape A with no pattern, and
+ * `tropical_a_pattern_3.png` is shape A with pattern 3. This project carries `shape` as `small` / `large` and `pattern` as
+ * a NAME from TROPICAL_FISH_PATTERNS, so the number is that name's ONE-BASED INDEX in the list.
+ *
+ * A variant whose pattern is not in its shape's list falls back to the base sheet, rather than to a path that does not
+ * exist -- which would load nothing and fail silently.
+ */
+const TROPICAL_FISH_SHAPE_LETTER = { small: 'a', large: 'b' };
+
+/** The sheet path for a variant. Vanilla's pattern 0 means the plain body sheet. */
+export function TROPICAL_FISH_SHEET_FOR(variant) {
+  const shape = variant?.shape === 'large' ? 'large' : 'small';
+  const letter = TROPICAL_FISH_SHAPE_LETTER[shape];
+  const names = TROPICAL_FISH_PATTERNS[shape] || [];
+  const index = names.indexOf(variant?.pattern);
+  const suffix = index >= 0 ? `_pattern_${index + 1}` : '';
+  return `/assets/entity/fish/tropical_${letter}${suffix}.png`;
+}
+
 /** Body colours for the models. */
 export const FISH_COLORS = {
   pufferfish: { body: 0xc9a227, belly: 0xf0e2b6, spine: 0x6b5410, eye: 0x101010 },

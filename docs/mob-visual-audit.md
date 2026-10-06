@@ -2874,3 +2874,44 @@ two built as plain single-line strings succeeded.
 read-back caught that**, and only because it showed `with a map: 1` where the generator had produced a map of its own.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-three: the tropical fish sheet table, and a wrong path that would have failed silently
+
+**The 14 tropical fish sheets were already extracted, and this round adds the mapping from a VARIANT to its sheet** -- the
+piece the binding needs, built and verified on its own so the next round does not have to invent the naming.
+
+**Vanilla's naming, which the files on disk already follow:**
+
+```
+tropical_a.png                  shape A ("small"), no pattern
+tropical_a_pattern_1..6.png     shape A with pattern 1..6
+tropical_b.png                  shape B ("large"), no pattern
+tropical_b_pattern_1..6.png     shape B with pattern 1..6
+```
+
+**The trap, caught by reading rather than assuming.** The variant object this project produces is:
+
+```js
+{ shape: 'small' | 'large', pattern: <NAME>, baseColor, patternColor, finColor }
+```
+
+**`pattern` IS A NAME, NOT A NUMBER** -- `'kob'`, `'sunstreak'`, `'flopper'` and so on, from `TROPICAL_FISH_PATTERNS`. My
+first version of the table interpolated it straight into the filename, which would have produced
+`tropical_a_pattern_kob.png`. **That path does not exist, and a missing texture loads nothing and fails silently** -- the
+exact class of fault that cost six rounds on the giant. The corrected version resolves the name's **one-based index in the
+same list the roll uses**, and falls back to the base sheet when the name is not in its shape's list.
+
+**Verified by checking every path against the filesystem, which is the only test that could catch this:**
+
+```
+named patterns mapped and present: 12   missing: 0
+base sheets present: true  (2)
+total verified: 14 of 14
+```
+
+**That check is worth reusing.** A texture path is a string until something confirms a file is behind it, and "the code
+built a path" is not evidence that the path resolves. `existsSync` on the produced path is one line and would have caught the
+name-versus-index error immediately.
+
+`AREA` stayed at exactly **1766/1773**; this round changes no behaviour, because the table is not yet called by the spawner.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
