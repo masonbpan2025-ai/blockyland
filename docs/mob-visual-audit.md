@@ -3626,3 +3626,44 @@ which found a real error in round ninety-eight.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the recipe now has a verified FIRST
 step: confirm an atlas key exists, and read the map count on DISTINCT materials against a known-good control.**
+## Round one hundred: the camel forms a camel once the atlas key exists
+
+**Round ninety-nine's root cause is confirmed, and the evidence is the render.**
+
+Adding one atlas entry -- `camel: this.loadTexture(CAMEL_SKIN_PATH)` beside `zombie` and `guardian` -- and binding the
+materials through the deferred hook:
+
+```
+camel   distinct materials 5   with a map: 4
+giant   distinct materials 4   with a map: 3      <- control, unchanged
+```
+
+**Four of five, matching the working giant's profile.** And the render, which had been a uniform noise field through four
+rounds, now shows a **recognisable camel**: a compound eye, a neck rising to a head, forelegs, and the hump's silhouette. The
+capture is kept as `docs/mob-visual-evidence/camel-atlas-key-fixed.png`, and it is 119303 bytes against the fragmented
+attempts' 92-95k -- a quarter more drawn detail.
+
+**So the last four rounds were not wasted, but they were aimed at the wrong layer.** Every candidate I examined -- the
+sheet's content, its format, the box proportions, the rectangle anchors, the alpha test -- was a real question about a real
+layer, and **none of them could be answered while nothing was bound to the model at all.** The atlas key is the FIRST step,
+and it was the one step never checked.
+
+**What remains on the camel is texture ALIGNMENT, not binding.** The geometry is now visible and correct in silhouette, and
+its surfaces carry the camel atlas through whatever UVs the bare `BoxGeometry` happens to have -- which is why the shape
+reads but the surface noise does not. **The next step is the rectangles**, with the anchors from `pair-part-uv.mjs`, which is
+verified and which already caught the head-versus-hump error in round ninety-eight.
+
+**The corrected procedure, in the order the last hundred rounds have earned:**
+
+1. **does an ATLAS KEY exist** for this mob? (round ninety-nine -- the camel had none)
+2. **does the sheet contain colour** and the format the consumer needs? (rounds eighty-six, ninety-one)
+3. **are the anchors right** -- paired in decompile order, not by eye? (round ninety-eight)
+4. do the box PROPORTIONS match vanilla's? (rounds ninety-five, ninety-six)
+5. bind through the deferred hook, rectangles applied UNCONDITIONALLY. (rounds fifty-four, seventy-eight)
+
+**Steps 1 and 2 are cheap and would each have saved multiple rounds.** Steps 3 to 5 are now tools rather than judgement.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the camel is now BOUND and forming,
+needing only its rectangles.**

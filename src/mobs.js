@@ -294,6 +294,8 @@ const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 /** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
 const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
 const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
+/** The real 128x128 camel sheet. */
+const CAMEL_SKIN_PATH = '/assets/entity/camel/camel.png';
 /** The guardian sheets, both 64x64. */
 const GUARDIAN_SKIN_PATH = '/assets/entity/guardian.png';
 const ELDER_GUARDIAN_SKIN_PATH = '/assets/entity/guardian_elder.png';
@@ -662,6 +664,10 @@ export class MobManager {
       iron_golem: this.loadTexture('/assets/entity/iron_golem.png'),
       pillager: this.loadTexture('/assets/entity/pillager.png'),
       zombie: this.loadTexture('/assets/entity/zombie.png'),
+      // THE CAMEL HAD NO ATLAS KEY AT ALL, which is why four rounds of binding attempts never took: `this.textures.camel`
+      // was undefined, so the material fell through to its flat-colour fallback and there was nothing bound to examine.
+      // // CAMEL_ATLAS_KEY
+      camel: this.loadTexture(CAMEL_SKIN_PATH),
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
@@ -5920,10 +5926,21 @@ export class MobManager {
    */
   spawnCamel(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const coatMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.coat });
-    const humpMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hump });
-    const bellyMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.belly });
-    const hoofMat = new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hoof });
+    // The atlas key `camel` is added above; the map only exists once the preload has decoded, so the binding is DEFERRED.
+    // A `map`-present check at construction is always false.
+    const camelSheet = this.textures?.camel ?? this.loadTexture(CAMEL_SKIN_PATH);
+    if (camelSheet) { camelSheet.magFilter = THREE.NearestFilter; camelSheet.minFilter = THREE.NearestFilter; camelSheet.needsUpdate = true; }
+    /** The sheet material, or the flat one when there is no sheet. */
+    const camelMat = (fallback) => {
+      if (!camelSheet) return fallback;
+      const m = new THREE.MeshLambertMaterial({ map: camelSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(m, camelSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return m;
+    };
+    const coatMat = camelMat(new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.coat }));
+    const humpMat = camelMat(new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hump }));
+    const bellyMat = camelMat(new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.belly }));
+    const hoofMat = camelMat(new THREE.MeshLambertMaterial({ color: CAMEL_COLORS.hoof }));
     const eyeMat = new THREE.MeshBasicMaterial({ color: CAMEL_COLORS.eye });
     const { group: model, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle } =
       createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat);
