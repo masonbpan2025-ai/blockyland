@@ -3456,3 +3456,35 @@ horse did in round sixty-one and the pufferfish in round fifty-four -- is the on
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and each of those now needs its BOXES
 resized to vanilla's ratios rather than merely bound.**
+## Round ninety-six: resizing to vanilla's ratios did NOT fix the camel, which falsifies round ninety-five's rule
+
+**I applied round ninety-five's conclusion -- resize the boxes to vanilla's proportions, then bind -- and it made no
+difference.**
+
+The camel's body went from `0.9 x 0.8 x 1.5` (0.600 : 0.533 : 1) to **`0.833 x 0.667 x 1.5`**, which is vanilla's **exact**
+ratio 0.556 : 0.444 : 1, with the longest side unchanged. The head went from `0.5 x 0.42 x 0.7` to **`0.573 x 0.318 x 0.7`**,
+vanilla's 9 : 5 : 11 exactly.
+
+State check: **18 materials, 16 with a map.** Suite: **1766/1773**. Render: **still fragmented** -- and comparing the two
+captures, the second is a near-identical noise field to the first.
+
+**So the proportions were NOT the dominant fault, and the rule I wrote last round is wrong.** I derived it from a five-row
+table where the two matching-ratio mobs worked and the two mismatching ones failed, and I stated it as
+*"a real sheet needs geometry whose PROPORTIONS match vanilla's"*. **The camel now has exactly vanilla's proportions at the
+box level and still fragments**, which means the cause is somewhere I have not looked.
+
+**What the two camel rounds DO establish:** the model's boxes are not the problem, and the ratios are not the problem. **The
+remaining candidate is the rectangle ANCHORS** -- the `(u, v)` pairs, `(0, 25)` for the body and `(74, 0)` for the head -- or my
+reading of `class_7751` itself, since the decompile shows several parts sharing anchors and uses `method_32101` calls I may be
+pairing with the wrong boxes. **That is a hypothesis and I am labelling it one**, which after rounds 73-79 and 95 is the only
+responsible way to state it.
+
+**The honest position after two failed camel rounds and six failed fish rounds:** the recipe (atlas sheet, deferred adoption,
+unconditional rectangles, resized boxes) is **necessary and demonstrably not sufficient**, and I do not currently know what
+the missing part is. **The giant, the guardians and both undead horses prove the recipe works when the anchors are right** --
+so the anchors are where the answer is, and reading them correctly is the next thing to do, not another binding attempt.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the recipe's missing step is now
+falsified down to the rectangle anchors.**
