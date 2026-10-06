@@ -1874,3 +1874,38 @@ the glow squid's emissive map is the same texture vanilla uses.
 skin retained while the sheet is undecoded, and the sheet adopted on decode -- not a test change.
 
 Work list: **97 spawners, 60 with a real sheet, 32 mobs still flat-colour only**, of which SEVEN draw their own skin.
+## Round fifty-five: the strider's sheet landed and the geometry broke, so it was reverted
+
+**The two-questions pattern from the squid WORKED on the strider** -- `striderParity` held at 37/37 through the sheet
+adoption, and the runtime confirmed the real texture is adopted once decoded. That part of the pattern is now validated on
+a second mob.
+
+**What broke was the geometry, not the skin.** The render showed a stretched red body slab, the bristles flung out as
+loose planes, and the legs detached far below. The cause is visible in the model itself:
+
+```js
+const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), striderWarmMat);
+```
+
+**This project's strider body is a plain 1x1x1 `BoxGeometry` with SIX per-face materials, each face drawing its own 16x16
+pattern.** Binding a 64x128 sheet to six faces that carry no atlas coordinates stretches the whole sheet across each one.
+The squid worked because I paired the sheet with `applyBoxUVs` on a body whose real rectangle I had decompiled; here I
+bound the sheet to a box whose UVs were never meaningful for it.
+
+**So the rule needs a third part, and the squid only demonstrated two of it:**
+
+| step | status |
+| --- | --- |
+| consult the preloaded atlas, retain the drawn skin while undecoded | **validated** (squid, strider) |
+| adopt the real sheet on decode | **validated** (squid, strider) |
+| **give the geometry ATLAS UVs for the sheet before binding it** | **this is what the strider lacked** |
+
+**Kept from the round:** `strider.png` and `strider_cold.png` are extracted and converted to RGBA (1466 and 1550 bytes),
+so the assets are ready. `src/striderModel.js` and its spawner are reverted, and the area is back at its baseline with the
+strider at 37/37.
+
+**For the next attempt:** the strider needs `StriderEntityModel` decompiled for its real body and leg rectangles, then
+`applyBoxUVs` on a body built to those dimensions -- the same order the squid used. Binding the sheet first and hoping the
+existing box UVs line up is what failed here.
+
+Work list: **97 spawners, 60 with a real sheet, 32 mobs still flat-colour only**, of which SEVEN draw their own skin.
