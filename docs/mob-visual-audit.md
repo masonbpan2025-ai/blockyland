@@ -3583,3 +3583,46 @@ is a structural mismatch rather than a numeric one.
 `AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
+## Round ninety-nine: the camel has NO ATLAS KEY, and that is the root cause the last four rounds missed
+
+**I looked for the fault in the texture, the rectangles, the proportions and the material -- and it was in the ATLAS.**
+
+Checked directly:
+
+```
+atlas key `camel` in src/mobs.js:     none
+manager.textures.camel:               UNDEFINED
+```
+
+**There is no `camel` entry in the texture atlas at all.** Every other mob this project has bound successfully gets its sheet
+from an atlas key that the preload decodes -- `zombie`, `guardian`, `elder_guardian`, `piglin`. **The camel has none, so
+`this.textures.camel` is `undefined` and the fallback path is taken.**
+
+**And the read-back that I have been quoting for four rounds was misleading me.** Measured properly, as DISTINCT materials:
+
+```
+camel:  distinct materials 5   with a map: 0
+giant:  distinct materials 4   with a map: 3     <- the working control
+```
+
+**The camel reports FIVE distinct materials and ZERO maps**, against the giant's three-of-four. So the binding never took at
+all in the state I was measuring -- the `16 of 18` figure came from counting MATERIAL INSTANCES rather than distinct
+materials, and the two are not the same number.
+
+**That is the instrument problem this project has recorded four times, and it caught me again:** I was reading a summary
+figure whose failure mode I had not established. **The correct check is distinct materials with a map, on a mob that is known
+to work as a control** -- which is one command and would have shown `0` against the giant's `3` from round ninety-five
+onward.
+
+**So the four rounds of candidates were all beside the point.** The sheet, the path, the proportions, the anchors and the
+alphaTest were each examined while the actual defect was that **the camel's sheet is never put into the atlas**, so nothing
+was ever bound to examine.
+
+**The fix, now clearly specified rather than guessed:** add a `camel: this.loadTexture(CAMEL_SKIN_PATH)` entry to the atlas
+beside `zombie` and `guardian`, then bind the materials -- with the anchors from `pair-part-uv.mjs`, which is verified and
+which found a real error in round ninety-eight.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the recipe now has a verified FIRST
+step: confirm an atlas key exists, and read the map count on DISTINCT materials against a known-good control.**
