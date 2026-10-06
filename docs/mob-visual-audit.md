@@ -1909,3 +1909,36 @@ strider at 37/37.
 existing box UVs line up is what failed here.
 
 Work list: **97 spawners, 60 with a real sheet, 32 mobs still flat-colour only**, of which SEVEN draw their own skin.
+## Round fifty-six: the strider rebuilt in the right order -- dimensions, then UVs, then the sheet
+
+**Round fifty-five bound a 64x128 sheet to a plain `BoxGeometry(1,1,1)` and broke the render. This round transcribed
+vanilla's geometry FIRST and the strider now stands correctly on its real sheet.**
+
+`StriderEntityModel` (intermediary `class_4997`), texture 64x128:
+
+| part | size | at | (u,v) |
+| --- | --- | --- | --- |
+| right_leg | 4x16x4 | (-4, 8, 0) | (0, 32) |
+| left_leg | 4x16x4 | ( 4, 8, 0) | (0, 55) |
+| body | 16x14x16 | ( 0, 1, 0) | (0, 0) |
+| bristles | 12x**0**x16 | six, children of the body | (16,33), (16,49), (16,65) |
+
+**The six bristles have ZERO depth**, so they are planes -- the sixth mob in this project where a part has no volume. The
+body and legs now carry real rectangles through `applyBoxUVs`, and the render shows a red shell with darker top blocks,
+a visible foot, and the sheet's own texture rather than a repeated 16x16 pattern.
+
+**Two conventions had to be reconciled rather than chosen.** The mob's suite asserts a `foot` child on each leg and a hip
+pivot at `y = 0.7`, while vanilla puts the hip at 8/16 and models no foot at all. The resolution keeps **vanilla's leg
+size and texture rectangle** (4x16x4 at (0,32) and (0,55)) and this project's **rig** (0.7 hip, separate foot), with the
+disagreement commented in the code so it is not mistaken for a transcription.
+
+**What is still wrong, recorded:** the bristles render as flat wing-like planes sweeping out to the sides rather than
+standing up along the shell. Vanilla's resting angle is `-1.2217305` about X, applied to a rectangle that is 12 on X and
+16 on Z -- i.e. HORIZONTAL -- whereas a `PlaneGeometry` stands in local XY. I laid the plane flat first and kept
+vanilla's angle, which improved the placement but did not settle the orientation, and I stopped rather than guess a
+third time at the same number. **The fix is a plane whose local axes match the rectangle's, which is a geometry change
+rather than an angle change.**
+
+`striderParity` is 37/37 and the full area is back at its baseline.
+
+Work list: **97 spawners, 61 with a real sheet, 31 mobs still flat-colour only**, of which SIX draw their own skin.
