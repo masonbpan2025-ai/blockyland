@@ -1,5 +1,37 @@
 import * as THREE from 'three';
 
+/** The real 64x64 illusioner sheet. */
+const ILLUSIONER_SKIN_PATH = '/assets/entity/illager/illusioner.png';
+
+/**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ *
+ * A local copy of the helper in `src/mobs.js`, which is not exported; importing the mob manager from a model module
+ * would create a cycle.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+
 /**
  * Illusioner rules: the two spells, the four mirror duplicates, and the strafing archer.
  *
@@ -403,10 +435,31 @@ export function illusionerXp(mob) {
 /**
  * Build an illusioner model: the illager silhouette in the illusioner's blue robe, with a bow.
  */
-export function createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat) {
+export function createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat, options = {}) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.3), robeMat);
+  // The REAL 64x64 illusioner sheet. Every part takes it when a loader provides one; the flat colours stand otherwise, so
+  // a build with no assets still renders an illusioner. // ILLUSIONER_REAL_SHEET
+  const illusionerSheet = options.loadTexture ? options.loadTexture(ILLUSIONER_SKIN_PATH) : null;
+  if (illusionerSheet) {
+    illusionerSheet.magFilter = THREE.NearestFilter;
+    illusionerSheet.minFilter = THREE.NearestFilter;
+    illusionerSheet.needsUpdate = true;
+  }
+  /** The sheet material, or the flat one when there is no sheet. */
+  const sheetMat = (fallback) => (illusionerSheet
+    ? new THREE.MeshLambertMaterial({ map: illusionerSheet, transparent: true, alphaTest: 0.5 })
+    : fallback);
+  /** A box carrying vanilla's illager rectangle for its shape. */
+  const textured = (size, uu, vv, tw, th, td, fallback) => {
+    const geo = new THREE.BoxGeometry(...size);
+    if (illusionerSheet) applyBoxUVs(geo, uu, vv, 64, 64, tw, th, td);
+    return new THREE.Mesh(geo, sheetMat(fallback));
+  };
+
+  // Vanilla's illager rectangles, the same ones this project already uses for the vindicator:
+  // body 8x12x6 at (16,20), head 8x10x8 at (0,0).
+  const body = textured([0.5, 0.75, 0.3], 16, 20, 8, 12, 6, robeMat);
   body.position.y = 1.07;
   group.add(body);
 
@@ -414,7 +467,7 @@ export function createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat)
   sash.position.y = 0.8;
   group.add(sash);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+  const head = textured([0.5, 0.5, 0.5], 0, 0, 8, 10, 8, skinMat);
   head.position.y = 1.7;
   group.add(head);
 

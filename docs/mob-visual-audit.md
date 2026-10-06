@@ -2269,3 +2269,32 @@ path exists is a fast way to size a mob before starting it.**
 
 Work list: **97 spawners, 65 confirmed with a real sheet, 29 mobs still without a model or skin.** Fourteen tropical-fish
 sheets are now extracted and ready for the round that takes that mob on properly.
+## Round sixty-seven: the illusioner, and a correction to my own sizing rule
+
+**The illusioner is on its real sheet.** It built five flat-coloured materials and a bespoke `createIllusionerModel`, so
+it had **no `map` at all**; the head and body now carry vanilla's illager rectangles -- head 8x10x8 at (0,0), body 8x12x6
+at (16,20), the same ones this project already uses for the vindicator -- with the sheet adopted when a loader provides
+one. Measured: **7 materials, 2 carrying a map** (the body and head), the rest deliberately flat, and the render shows the
+grey illager face with green eyes, the big nose, the blue robe and the bow.
+
+**But first, a correction to the sizing rule I recorded LAST round.** I wrote that a nested texture path signals variants
+or an equipment axis. `scripts/mob-visual/size-remaining-mobs.mjs` tested that against every remaining mob and it is
+**wrong as stated**:
+
+| mob | path | sheets |
+| --- | --- | --- |
+| pufferfish | `fish/pufferfish.png` | 1 |
+| piglin_brute | `piglin/piglin_brute.png` | 1 |
+| illusioner | `illager/illusioner.png` | 1 |
+
+**Nesting here is a CATEGORY FOLDER, not a variant axis.** The real tell is **how many sheets a mob has**: one sheet means
+a single-appearance mob wherever it sits, and several means variants or equipment. The tool now judges on the COUNT, and
+its output reordered the remaining work usefully -- it is what identified the illusioner as the cheapest next mob rather
+than my guessing at one.
+
+**That is the second time in three rounds that a rule I recorded has needed correcting by measurement**, and the pattern
+is consistent: I generalise from two or three examples, write the rule down confidently, and the next tool run falsifies
+it. The rules are still worth writing -- this one was useful enough to be worth fixing -- but they should be recorded as
+**hypotheses with their sample size**, not as findings.
+
+Work list: **97 spawners, 66 confirmed with a real sheet, 28 mobs still without a model or skin.**

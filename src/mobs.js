@@ -280,6 +280,7 @@ const PUMPKIN_TOP_PATH = '/assets/block/pumpkin_top.png';
  * Everything is in texture pixels; `units: 16` means the model's overall scale is one block per 16 texels.
  */
 const ILLAGER_SKIN_PATH = '/assets/entity/illager/vindicator.png';
+const ILLUSIONER_SKIN_PATH = '/assets/entity/illager/illusioner.png';
 const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
@@ -5672,7 +5673,7 @@ export class MobManager {
     const eyeMat = new THREE.MeshBasicMaterial({ color: ILLUSIONER_COLORS.eye });
     const bowMat = new THREE.MeshLambertMaterial({ color: ILLUSIONER_COLORS.bow });
     const { group: model, body, sash, head, nose, eyes, legs, arms, bow } =
-      createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat);
+      createIllusionerModel(robeMat, trimMat, skinMat, eyeMat, bowMat, { loadTexture: (p) => this.loadTexture(p) });
     group.add(model);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
