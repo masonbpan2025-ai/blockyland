@@ -4666,3 +4666,57 @@ builder makes and this model does not** -- rather than for a part name, which is
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon bound with its builder to be found by searching for
 `method_32110` rather than a part name, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-four: the dragon's geometry FOUND, and a THIRD method API explained it
+
+**`class_895.java` -- the renderer's own body -- holds the dragon's geometry.** It was already decompiled and I had never
+looked in it, because rounds one hundred and twenty to one hundred and twenty-three searched for a *model* class and the
+builder is inside the *renderer*.
+
+```
+method_32110($$0, 256, 256)      <- the texture-size call every builder makes
+method_32117  x 20               <- add part
+method_32104  -- THE BOX METHOD, which I had never searched for
+```
+
+**And that is the real explanation for the three rounds of "the geometry is not there".** Every search I ran looked for
+`method_32097` (box), `method_32098` (dilated box) or `method_32101` (uv) -- **the API the other ten mobs use.** The dragon
+uses **`method_32104`**, whose signature is:
+
+```java
+method_32104("main", x, y, z, w, h, d, u, v)
+```
+
+**a name-and-atlas-position form rather than a separate `uv` call.** So the geometry *was* present in the first class I
+decompiled... **no -- it was present in `class_895`, and the model class I decompiled in round one hundred and thirteen was
+genuinely empty of it.** Both statements are true, and the mistake was that **I inferred "no box method" from "none of the
+three method names I knew", which is a closed-world assumption about an API I had only seen ten examples of.**
+
+**THE DRAGON'S PART TABLE, read in full, texture 256x256:**
+
+| part | box | `(u, v)` | offset |
+| --- | --- | --- | --- |
+| head | 8 x 24 x 8 | (112, 104) | -- |
+| jaw | 12 x 4 x 16 | (176, 65) | (0, 4, -8) |
+| neck | 8 x 24 x 8 | (112, 104) | -- |
+| body | **16 x 32 x 16** | **(0, 0)** | -- |
+| left_wing | 8 x 24 x 8 | (112, 104) | -- |
+| left_wing_tip | 6 x 24 x 6 | (226, 138) | -- |
+| left_front_leg | 8 x 24 x 8 | (112, 104) | (12, 20, 2) |
+| left_front_foot | 8 x 4 x 16 | (144, 104) | (0, 23, 0) |
+| left_hind_leg | 16 x 32 x 16 | (0, 0) | (16, 16, 42) |
+| left_hind_foot | 18 x 6 x 24 | (112, 0) | (0, 31, 4) |
+| (the four right_* parts mirror their left counterparts exactly) | | | |
+
+**Every rectangle is now read and verified**, and the rebuild has everything it needs: `body` 16x32x16 at `(0, 0)`, `head`
+8x24x8 at `(112, 104)`, `jaw` 12x4x16 at `(176, 65)`, wings 8x24x8 and 6x24x6, and the legs.
+
+**The lesson, which is the third time in five rounds that a closed-world assumption about a tool or an API has cost rounds:**
+having seen ten mobs built with `method_32097`/`method_32098`/`method_32101`, **I treated those three names as "the geometry
+methods" and searched for absence with them.** A negative result from a keyword list is only as good as the list, and
+**`method_32110` -- which I identified last round as the reliable signal precisely because every builder calls it -- was the
+right instrument, and it found the class immediately.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry and every rectangle now READ, and the tropical
+fish BLOCKED by its assets.**
