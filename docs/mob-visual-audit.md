@@ -3057,3 +3057,36 @@ committed state and `AREA` is at exactly **1766/1773**. Kept: `sample-region.mjs
 > sufficient, because only the last one asked whether there was anything to draw.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-eight: narrowing the tropical fish question without guessing at it
+
+**Round eighty-seven left an open question -- are the near-empty sheets the ones vanilla draws, tinted at runtime, or a stub?
+This round narrows it and stops short of an answer it cannot support.**
+
+**Established by measurement:**
+
+| question | answer |
+| --- | --- |
+| are all 14 files present in the JAR? | **yes**, listed by name and matching the ones on disk |
+| are the names what I assumed? | **yes** -- `tropical_a.png`, `tropical_a_pattern_1..6`, `tropical_b...` |
+| does the JAR's copy differ from disk? | **no** -- `tropical_a_pattern_1.png` is 146 bytes in both |
+| does any decompiled model class name the texture path? | **no** -- grepping every decompiled class for `tropical_` or `TROPICAL` returns nothing |
+
+**So the path is built somewhere this project has NOT decompiled** -- the renderer or the entity class, neither of which is in
+the local decompile cache. That is a concrete lead rather than a guess: **the next step is to decompile the tropical fish
+ENTITY and its renderer, not its model**, because the model classes demonstrably do not contain the naming.
+
+**What I am NOT claiming.** I have not established that the sheets are tinted at runtime, and I have not established that
+they are a stub. The 2-bit palette in the original is consistent with a very simple image, and my pixel count says 991 of
+1024 are transparent with the rest white -- **but a hand-rolled palette PNG decoder is exactly the kind of instrument whose
+failure modes must be known before its output is trusted**, which is this project's own rule from rounds 48, 51 and 63. **I
+have not validated the sampler against a sheet whose contents I know independently**, and until I do, its verdict is a strong
+hypothesis rather than a fact.
+
+**That validation is cheap and is the right next move:** run `sample-region.mjs` over `cod.png` or `salmon.png`, which
+*presumably* contain colour, and see whether it reports colour. If it reports those as near-empty too, the sampler is wrong and
+round eighty-seven's conclusion was built on a broken instrument. If it reports them as coloured, the tropical sheets really
+are near-empty. **One command decides it.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
