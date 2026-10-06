@@ -119,6 +119,87 @@
       "sha256": "381bdfed52c5b82fcad3fb0090c5e8c093adf6c335cb4b0e5f68d7ac8c05ab07",
       "bytes": 1924,
       "for": "iron_golem"
+    },
+    "polar_bear_skin": {
+      "path": "entity/bear/polarbear.png",
+      "dest": "assets/entity/bear/polarbear.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/bear/polarbear.png",
+      "ref": "1.21.4",
+      "sha256": "778e8f34d36a4b2e92f0f8e59c9705c02290ffd32c04b3493f93052639d41433",
+      "bytes": 694,
+      "for": "polar_bear"
+    },
+    "panda_skin": {
+      "path": "entity/panda/panda.png",
+      "dest": "assets/entity/panda/panda.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/panda/panda.png",
+      "ref": "1.21.4",
+      "sha256": "f830d6d3480a0178f4cd2438f5efabec84124fa69f09e9e5645fcc69a972df8a",
+      "bytes": 858,
+      "for": "panda"
+    },
+    "cow_skin": {
+      "path": "entity/cow/cow.png",
+      "dest": "assets/entity/cow/cow.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/cow/cow.png",
+      "ref": "1.21.4",
+      "sha256": "47ae8e77011e8b86a64047388a60bd8cfc9bd071301d6072a554c2134065996a",
+      "bytes": 866,
+      "for": "cow"
+    },
+    "mooshroom_skin": {
+      "path": "entity/cow/red_mooshroom.png",
+      "dest": "assets/entity/cow/red_mooshroom.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/cow/red_mooshroom.png",
+      "ref": "1.21.4",
+      "sha256": "689cd82d0783b06648624bc241cb223d5bbcbb4410806ff6f97875608bec5224",
+      "bytes": 853,
+      "for": "mooshroom"
+    },
+    "shulker_skin": {
+      "path": "entity/shulker/shulker.png",
+      "dest": "assets/entity/shulker/shulker.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/shulker/shulker.png",
+      "ref": "1.21.4",
+      "sha256": "17801bf0cacc73e7f21027d222818cac87a620bf6517a5d7974e618943b6d831",
+      "bytes": 1442,
+      "for": "shulker"
+    },
+    "warden_skin": {
+      "path": "entity/warden/warden.png",
+      "dest": "assets/entity/warden/warden.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/warden/warden.png",
+      "ref": "1.21.4",
+      "sha256": "244f0c7c645afc0b480deb07cb4bf1e37494ca865008853a02e45f40705d459c",
+      "bytes": 1773,
+      "for": "warden"
+    },
+    "red_mushroom_block": {
+      "path": "block/red_mushroom_block.png",
+      "dest": "assets/block/red_mushroom_block.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/block/red_mushroom_block.png",
+      "ref": "1.21.4",
+      "sha256": "c83641051b7d3c730b74e93facf825c55db7bc776b59d326be2c1459febd0d05",
+      "bytes": 189,
+      "for": "mooshroom back"
+    },
+    "brown_mushroom_block": {
+      "path": "block/brown_mushroom_block.png",
+      "dest": "assets/block/brown_mushroom_block.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/block/brown_mushroom_block.png",
+      "ref": "1.21.4",
+      "sha256": "ad9bacb6fa0af368e6bc722035bb05f974e0f3a78f3ef99cee22694494037abf",
+      "bytes": 170,
+      "for": "mooshroom back"
+    },
+    "mushroom_block_inside": {
+      "path": "block/mushroom_block_inside.png",
+      "dest": "assets/block/mushroom_block_inside.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/block/mushroom_block_inside.png",
+      "ref": "1.21.4",
+      "sha256": "d5889ca24e6ddcfbf73cb7c3f92c76e754f1e3635ee19509763d912ab1273d93",
+      "bytes": 184,
+      "for": "mooshroom back"
     }
   }
 }

@@ -79,6 +79,7 @@ import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS,
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
+import { buildModel } from './mobVisuals/modelBuilder.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
@@ -262,6 +263,15 @@ export function adoptTexture(material, texture, fallbackColor = 0xffffff) {
  */
 const deferredSkins = [];
 
+/**
+ * Readiness callbacks waiting on a texture PATH.
+ *
+ * `loadTexture` returns a new object per call, so two callers for the same skin hold different textures. The
+ * object-local callback list is not enough on its own; this lets a later texture inherit the waiters of an earlier
+ * one for the same path.
+ */
+const pendingByPath = new Map();
+
 /** Finish any skin binding whose texture has now decoded. Called once per frame from `update`. */
 export function syncDeferredSkins() {
   if (deferredSkins.length === 0) return;
@@ -288,6 +298,48 @@ const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
 const CARVED_PUMPKIN_PATH = '/assets/block/carved_pumpkin.png';
 const PUMPKIN_SIDE_PATH = '/assets/block/pumpkin_side.png';
 const PUMPKIN_TOP_PATH = '/assets/block/pumpkin_top.png';
+
+/**
+ * The polar bear's model, measured off its 128x64 vanilla atlas.
+ *
+ * The numbers come from `scripts/mob-visual/atlas-extents.mjs` and `sample-rect.mjs`, not from guesswork. Reading
+ * the atlas that way established two things: the head's front face -- the rectangle carrying the eyes and the nose
+ * -- is the 14x14 patch at (0,0), and the body is the wide band at x=11..82, y=19..41.
+ *
+ * The head is 14 wide by 14 tall by 7 deep. Depth is what the atlas allows: with an 18-texel-wide head block, a
+ * depth beyond 9 would push the right and left faces past the block's own boundary and make them degenerate.
+ *
+ * Everything is in texture pixels; `units: 16` means the model's overall scale is one block per 16 texels.
+ */
+const POLAR_BEAR_MODEL = {
+  name: 'polar_bear',
+  texture: '/assets/entity/bear/polarbear.png',
+  textureSize: [128, 64],
+  units: 16,
+  // Every vanilla entity atlas has transparent padding INSIDE a part's own rectangle -- a 26x16 body face here is
+  // only 81% opaque. An opaque material renders those texels as pure BLACK, which is what turned this bear into a
+  // white animal with black bands across it. Alpha cut-out is required, not optional.
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    // Torso: 26 wide, 16 tall, 12 deep, sitting on legs 8 texels tall.
+    { name: 'body', box: [26, 16, 12], uv: { u: 11, v: 19, tw: 26, th: 16, td: 12 }, at: [0, 16, -1] },
+    // Head, hinged at the neck so it can turn. Its front face carries the eyes and nose.
+    {
+      name: 'head', box: [14, 14, 7], uv: { u: 0, v: 0, tw: 14, th: 14, td: 7 },
+      // The rotation origin is the bottom edge of the head, 7 texels down from its centre, so `at` is where the
+      // neck sits rather than where the head's middle does: the head's centre ends up at y = 22 + 7 = 29 texels.
+      pivot: [0, -7, 0], at: [0, 15, 7]
+    },
+    // Muzzle, pushed out in front of the face.
+    { name: 'snout', parent: 'head', box: [6, 4, 2], uv: { u: 21, v: 0, tw: 6, th: 4, td: 2 }, at: [0, -4, 5] },
+    // Four legs, 8 tall, reaching down from the body.
+    { name: 'legFrontLeft', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [-9, 8, 8] },
+    { name: 'legFrontRight', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [9, 8, 8] },
+    { name: 'legBackLeft', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [-9, 8, -10] },
+    { name: 'legBackRight', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [9, 8, -10] }
+  ]
+};
 
 function applyVariantIdentity(mob, variant, options = {}) {
   if (!mob || !variantHealth(variant)) return mob;
@@ -2874,13 +2926,30 @@ export class MobManager {
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.assetPath = path;
+    // Everything that asked for this path BEFORE the bitmap decoded is waiting on an earlier texture object, so
+    // its callback has to be transferred to this one. Without this, a caller that requested the same path twice --
+    // which happens whenever a model builder asks for a skin the manager already preloaded -- would wait forever
+    // and render with no map at all, showing a flat colour where the face should be.
+    const inherited = pendingByPath.get(path);
+    if (inherited?.length) {
+      pendingByPath.delete(path);
+      if (tex.image?.width) {
+        for (const fn of inherited) { try { fn(); } catch { /* ignore */ } }
+      } else {
+        (tex.__onReady ??= []).push(...inherited);
+      }
+    }
     return tex;
   }
 
   /**
    * Run `fn` once a texture's bitmap is available: now if it already is, otherwise as soon as it is.
    *
-   * Needed because the Mob Inspector builds its mob and then sits paused, so nothing per-frame can be relied on.
+   * Needed because the Mob Inspector builds its mob and then sits paused, so no per-frame work can be relied on.
+   *
+   * A texture that has not loaded yet is remembered BY PATH as well as on the object. `loadTexture` hands back a
+   * fresh object each call, so a second caller for the same path holds a different texture, and a callback parked
+   * only on the first one would never run for the second.
    */
   static onTextureReady(texture, fn) {
     if (!texture) return;
@@ -2889,6 +2958,11 @@ export class MobManager {
       return;
     }
     (texture.__onReady ??= []).push(fn);
+    if (texture.assetPath) {
+      const list = pendingByPath.get(texture.assetPath) ?? [];
+      list.push(fn);
+      pendingByPath.set(texture.assetPath, list);
+    }
   }
 
   /**
@@ -5846,37 +5920,30 @@ export class MobManager {
 
   spawnPolarBear(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
-    const darkMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+    // The real vanilla skin, on a model whose UVs were measured off the atlas. It used to be three flat white
+    // boxes with a dark box for a muzzle, which is why it had no eyes and no face.
+    const built = buildModel(POLAR_BEAR_MODEL, {
+      loadTexture: (p) => this.loadTexture(p),
+      // The readiness hook has to come from here: `loadTexture` supplies an explicit onLoad to three's loader,
+      // which suppresses the texture's own load event, so the builder cannot get there on its own.
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.85, 1.4), whiteMat);
-    body.position.y = 0.85;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.6), whiteMat);
-    head.position.set(0, 1.15, 0.85);
-    group.add(head);
-
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), darkMat);
-    snout.position.set(0, 1.05, 1.2);
-    group.add(snout);
-
-    const legGeo = new THREE.BoxGeometry(0.3, 0.55, 0.3);
-    const fl = new THREE.Mesh(legGeo, whiteMat); fl.position.set(-0.32, 0.28, 0.45); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, whiteMat); fr.position.set(0.32, 0.28, 0.45); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, whiteMat); bl.position.set(-0.32, 0.28, -0.45); group.add(bl);
-    const br = new THREE.Mesh(legGeo, whiteMat); br.position.set(0.32, 0.28, -0.45); group.add(br);
-
+    // The model's own origin sits at the feet, which is where the mob is placed.
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
+
+    const head = built.parts.head;
+    const legs = [built.parts.legFrontLeft, built.parts.legFrontRight, built.parts.legBackLeft, built.parts.legBackRight];
 
     const mob = {
       type: 'polar_bear',
       name: 'Polar Bear',
       mesh: group,
       head: head,
-      legs: [fl, fr, bl, br],
+      legs: legs,
       // Wiki: 30 HP.
       health: POLAR_BEAR_HEALTH,
       maxHealth: POLAR_BEAR_HEALTH,

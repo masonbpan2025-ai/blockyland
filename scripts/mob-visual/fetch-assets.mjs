@@ -64,6 +64,16 @@ export const ASSETS = [
   { id: 'pumpkin_side', path: 'block/pumpkin_side.png', dest: 'assets/block/pumpkin_side.png', for: 'snow_golem head' },
   { id: 'pumpkin_top', path: 'block/pumpkin_top.png', dest: 'assets/block/pumpkin_top.png', for: 'snow_golem head' },
 
+  // --- Reported mob families (visual parity pass 2) -------------------------------------------
+  { id: 'polar_bear_skin', path: 'entity/bear/polarbear.png', dest: 'assets/entity/bear/polarbear.png', for: 'polar_bear' },
+  { id: 'panda_skin', path: 'entity/panda/panda.png', dest: 'assets/entity/panda/panda.png', for: 'panda' },
+  { id: 'cow_skin', path: 'entity/cow/cow.png', dest: 'assets/entity/cow/cow.png', for: 'cow' },
+  { id: 'mooshroom_skin', path: 'entity/cow/red_mooshroom.png', dest: 'assets/entity/cow/red_mooshroom.png', for: 'mooshroom' },
+  { id: 'shulker_skin', path: 'entity/shulker/shulker.png', dest: 'assets/entity/shulker/shulker.png', for: 'shulker' },
+  { id: 'warden_skin', path: 'entity/warden/warden.png', dest: 'assets/entity/warden/warden.png', for: 'warden' },
+  { id: 'red_mushroom_block', path: 'block/red_mushroom_block.png', dest: 'assets/block/red_mushroom_block.png', for: 'mooshroom back' },
+  { id: 'brown_mushroom_block', path: 'block/brown_mushroom_block.png', dest: 'assets/block/brown_mushroom_block.png', for: 'mooshroom back' },
+  { id: 'mushroom_block_inside', path: 'block/mushroom_block_inside.png', dest: 'assets/block/mushroom_block_inside.png', for: 'mooshroom back' },
   // --- Reference skins for families this pass will reach next ---------------------------------
   { id: 'iron_golem_skin', path: 'entity/iron_golem/iron_golem.png', dest: 'assets/entity/iron_golem/iron_golem.png', for: 'iron_golem' }
 ];

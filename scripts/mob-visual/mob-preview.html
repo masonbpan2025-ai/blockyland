@@ -1,0 +1,106 @@
+<!doctype html><meta charset="utf-8"><title>mob preview</title>
+<body style="margin:0;background:#233044">
+<script type="module">
+  // A generic multi-view model preview for verifying mob models against their real textures.
+  //
+  // Query parameters:
+  //   three   absolute URL of three.module.js (the page needs no bundler, so it works over file://)
+  //   model   absolute URL of a module exporting build(THREE, ctx) -> { scene }
+  //   root    absolute file: URL of the repository's public/ directory, for loading textures
+  //   views   number of angles to render side by side (default 4)
+  //   size    canvas WxH (default 960x640)
+  //   dist    extra camera distance multiplier (default 1)
+  //   yaw     comma-separated explicit yaws in radians, overriding the even spread
+  //
+  // Every view is framed with the SAME scale, so related species and states can be compared by eye.
+  const q = new URLSearchParams(location.search);
+  const [W, H] = (q.get('size') ?? '960x640').split('x').map(Number);
+  const views = Number(q.get('views') ?? 4);
+  const dist = Number(q.get('dist') ?? 1);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  document.body.appendChild(canvas);
+
+  const lines = [];
+  try {
+    const THREE = await import(q.get('three'));
+
+    // Textures load from the repository's public/ directory as ordinary file:// images. `width` being non-zero is
+    // what marks a texture ready, the same signal the real material binding uses.
+    const root = q.get('root').replace(/\/$/, '');
+    const loadTexture = (urlPath) => {
+      const texture = new THREE.Texture();
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.assetPath = urlPath;
+      const img = new Image();
+      img.onload = () => { texture.image = img; texture.needsUpdate = true; };
+      img.src = root + urlPath;
+      return texture;
+    };
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(W, H, false);
+    renderer.setClearColor(0x233044, 1);
+
+    const mod = await import(q.get('model'));
+
+    // Build the model once and reuse it across views by rotating a clone per view; this keeps the geometry
+    // identical between angles, which matters when comparing where a feature sits.
+    const built = await mod.build(THREE, { loadTexture, width: W, height: H, THREE });
+    const scene = built.scene;
+
+    // Wait for every texture the model actually uses, then render. A timeout is a failure, not permission to
+    // capture a blank model.
+    const textures = new Set();
+    scene.traverse((o) => {
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for (const m of mats) if (m.map) textures.add(m.map);
+    });
+    const deadline = Date.now() + 12000;
+    while (Date.now() < deadline) {
+      if ([...textures].every((t) => t.image && t.image.width > 0)) break;
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    const unloaded = [...textures].filter((t) => !(t.image && t.image.width > 0));
+    lines.push('textures=' + textures.size + ' unloaded=' + unloaded.length
+      + (unloaded.length ? ' [' + unloaded.map((t) => t.assetPath).join(' ') + ']' : ''));
+
+    const box = new THREE.Box3().setFromObject(scene);
+    const center = box.getCenter(new THREE.Vector3());
+    const spanY = Math.max(0.4, box.max.y - box.min.y);
+    const spanX = Math.max(0.4, box.max.x - box.min.x);
+    const spanZ = Math.max(0.4, box.max.z - box.min.z);
+    lines.push('bounds y=' + box.min.y.toFixed(2) + '..' + box.max.y.toFixed(2)
+      + ' x=' + spanX.toFixed(2) + ' z=' + spanZ.toFixed(2));
+
+    let yaws;
+    if (q.get('yaw')) yaws = q.get('yaw').split(',').map(Number);
+    else yaws = Array.from({ length: views }, (_, i) => (i / views) * Math.PI * 2);
+
+    const vw = Math.floor(W / yaws.length);
+    for (let i = 0; i < yaws.length; i++) {
+      const cam = new THREE.PerspectiveCamera(32, vw / H, 0.05, 400);
+      const radius = Math.max(spanY, spanX, spanZ) * 2.05 * dist;
+      cam.position.set(Math.sin(yaws[i]) * radius, box.min.y + spanY * 0.60, Math.cos(yaws[i]) * radius);
+      cam.lookAt(center.x, box.min.y + spanY * 0.48, center.z);
+      // A little ambient plus one key light, so face detail is readable rather than flat.
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x60708a, 1.9));
+      const key = new THREE.DirectionalLight(0xffffff, 1.7);
+      key.position.set(2.5, 4, 3.5);
+      scene.add(key);
+      renderer.setViewport(i * vw, 0, vw, H);
+      renderer.setScissor(i * vw, 0, vw, H);
+      renderer.setScissorTest(true);
+      renderer.render(scene, cam);
+      // Remove the lights again so the next view adds exactly one set.
+      scene.remove(key);
+    }
+    lines.push('views=' + yaws.length, 'DONE');
+  } catch (e) {
+    lines.push('ERROR ' + String(e && e.stack ? e.stack : e).split('\n').slice(0, 3).join(' | '), 'DONE');
+  }
+  window.__lines = lines;
+</script></body>
