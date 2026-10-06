@@ -4903,3 +4903,54 @@ same-rectangle parts by position, and the offsets are already in the decompile.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
 tabulated and one ambiguity to resolve before building, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and thirty: the ambiguity is RESOLVED, and round 129's table was partly wrong
+
+**Round one hundred and twenty-nine flagged that the body and the hind leg appeared to share the rectangle `16x32x16` at
+`(0, 0)`. Reading the source lines shows the body does not.**
+
+```java
+line 203:  .method_32104("body",  -12.0F, 0.0F, -16.0F, 24, 24, 64, 0, 0)     <- the BODY
+line 237:  .method_32104("main",   -8.0F, -4.0F,  -8.0F, 16, 32, 16, 0, 0)   <- the HIND LEG
+```
+
+**Different rectangles -- `24x24x64` against `16x32x16` -- so there is no collision and no offset-only distinction to
+reconstruct.** My earlier extraction had taken the wrong line for the body, which is why they appeared identical.
+
+**And the real part table is materially different from the one I extracted twice before**, because the wings and the body use
+MULTIPLE `method_32104` calls and a MIRROR that my regex did not see:
+
+| part | rectangle | `(u, v)` | offset |
+| --- | --- | --- | --- |
+| head | 8 x 24 x 8 | (112, 104) | -- |
+| jaw | 12 x 4 x 16 | (176, 65) | (0, 4, -8) |
+| neck | 10 x 10 x 10 | (192, 104) | plus a `scale` cube |
+| **body** | **24 x 24 x 64** | **(0, 0)** | (0, 4, 8), plus THREE `scale` cubes at (220, 53) |
+| left_wing | bone 56 x 8 x 8, **skin 56 x 0 x 56** | (112, 88) and **(-56, 88)** | (12, 5, 2), mirrored |
+| left_wing_tip | bone 56 x 4 x 4, **skin 56 x 0 x 56** | (112, 136) and **(-56, 144)** | (56, 0, 0) |
+| left_front_leg | 8 x 24 x 8 | (112, 104) | (12, 20, 2) |
+| left_front_leg_tip | 6 x 24 x 6 | (226, 138) | (0, 20, -1) |
+| left_front_foot | 8 x 4 x 16 | (144, 104) | (0, 23, 0) |
+| left_hind_leg | 16 x 32 x 16 | (0, 0) | (16, 16, 42) |
+| left_hind_leg_tip | 12 x 32 x 12 | (196, 0) | (0, 32, -4) |
+| left_hind_foot | 18 x 6 x 24 | (112, 0) | (0, 31, 4) |
+
+**Three things this corrects, each of which would have produced a wrong dragon:**
+
+1. **the body is `24x24x64`, not `16x32x16`** -- so my round-one-hundred-and-twenty-six resize of the body used the WRONG
+   rectangle, and the resize itself is therefore also suspect. Vanilla's body is ratios `0.375 : 0.375 : 1`, and the project's
+   resized `1.6 x 3.2 x 1.6` is `0.5 : 1 : 0.5`. **They do not match.**
+2. **the wings are SKIN PLANES, not boxes** -- `56 x 0 x 56` and `56 x 0 x 56`, zero-thickness, with the wing BONE as a
+   separate `56 x 8 x 8` cube. **That is the eighth plane case this project has catalogued**, and it means the wings were
+   never boxes to size at all.
+3. **the wing skin uses a NEGATIVE u** -- `(-56, 88)` and `(-56, 144)` -- which vanilla mirrors into place, and which my
+   `applyVanillaBoxUVs` supports but my table had silently dropped.
+
+**So round one hundred and twenty-nine's caution was right and not cautious enough:** the table was wrong in three ways, and
+building from it would have produced exactly the kind of confident wrong result round one hundred and twenty-seven did. **The
+rectangles are now read from the source LINES rather than from a regex over them, which is the difference between reading and
+parsing.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's full 12-part table read from source with its body rectangle
+corrected, and the tropical fish BLOCKED by its assets.**
