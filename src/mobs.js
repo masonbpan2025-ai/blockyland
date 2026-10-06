@@ -263,6 +263,9 @@ const HUSK_SKIN_PATH = '/assets/entity/zombie/husk.png';
 /** The plain zombie sheet, which a GIANT shares -- vanilla has no separate giant texture. The FLAT path matches the
  *  preloaded atlas key `zombie`, so the sheet the giant needs is already decoded at startup. */
 const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
+/** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
+const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
+const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
 const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
 const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
 const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
@@ -5603,8 +5606,19 @@ export class MobManager {
     if (!isUndeadHorse(type)) return null;
     const colors = UNDEAD_HORSE_COLORS[type];
     const group = new THREE.Group();
-    const coatMat = new THREE.MeshLambertMaterial({ color: colors.coat });
-    const maneMat = new THREE.MeshLambertMaterial({ color: colors.mane });
+    // The real sheet for this type, from the PRELOADED ATLAS when a key exists -- a fresh `loadTexture(path)` returns a
+    // texture with a null bitmap, which draws nothing. Bound through the deferred hook so it lands on decode.
+    const sheetPath = type === 'zombie_horse' ? ZOMBIE_HORSE_SKIN_PATH : SKELETON_HORSE_SKIN_PATH;
+    const undeadSheet = this.textures?.[type] ?? this.loadTexture(sheetPath);
+    /** A sheet material, with the flat colour as the stand-in until the bitmap arrives. */
+    const undeadMat = (fallback) => {
+      if (!undeadSheet) return fallback;
+      const mat = new THREE.MeshLambertMaterial({ map: undeadSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(mat, undeadSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return mat;
+    };
+    const coatMat = undeadMat(new THREE.MeshLambertMaterial({ color: colors.coat }));
+    const maneMat = undeadMat(new THREE.MeshLambertMaterial({ color: colors.mane }));
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const hoofMat = new THREE.MeshLambertMaterial({ color: 0x2b2b26 });
     const { group: model, body, neck, head, eyes, mane, legs, tail, saddle } =

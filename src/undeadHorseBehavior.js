@@ -1,6 +1,31 @@
 import * as THREE from 'three';
 
 /**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+/**
  * Undead horse rules: the skeleton horse and the zombie horse.
  *
  * References: https://minecraft.wiki/w/Skeleton_Horse · https://minecraft.wiki/w/Zombie_Horse
@@ -281,18 +306,28 @@ export function undeadHorseXp(mob, random = Math.random) {
  * The horse geometry is deliberately the same shape as the living horse, because the wiki gives the same
  * hitbox -- only the materials and the missing eye glow differ.
  */
+// UNDEAD_HORSE_SHEETS
 export function createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 1.6), coatMat);
+  // Body: vanilla's horse rectangle 10x10x12 at (0, 0), on a 64x64 sheet.
+  const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 1.6);
+  applyBoxUVs(bodyGeo, 0, 0, 64, 64, 10, 10, 12);
+  const body = new THREE.Mesh(bodyGeo, coatMat);
   body.position.y = 1.0;
   group.add(body);
 
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.9, 0.5), coatMat);
+  // Neck: vanilla's horse rectangle 4x10x6 at (0, 22).
+  const neckGeo = new THREE.BoxGeometry(0.4, 0.9, 0.5);
+  applyBoxUVs(neckGeo, 0, 22, 64, 64, 4, 10, 6);
+  const neck = new THREE.Mesh(neckGeo, coatMat);
   neck.position.set(0, 1.45, 0.85);
   group.add(neck);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.85), coatMat);
+  // Head: vanilla's horse rectangle 4x6x8 at (0, 18).
+  const headGeo = new THREE.BoxGeometry(0.42, 0.4, 0.85);
+  applyBoxUVs(headGeo, 0, 18, 64, 64, 4, 6, 8);
+  const head = new THREE.Mesh(headGeo, coatMat);
   head.position.set(0, 1.85, 1.15);
   group.add(head);
 

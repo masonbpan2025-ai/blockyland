@@ -2764,3 +2764,42 @@ is the sheet the preload decodes**, so `ZOMBIE_SKIN_PATH` is now declared as the
 the nested file I had assumed.
 
 Work list: **97 spawners, 71 confirmed with a real sheet, 21 mobs still without a model or skin.**
+## Round eighty: both undead horses, and the recipe transferred in ONE round
+
+**Six rounds for the giant, one for these two.** The undead horses went from flat colours to their real sheets without a
+single revert, because the recipe was applied from the first line instead of being rediscovered:
+
+| step | source of the rule |
+| --- | --- |
+| rectangles applied **unconditionally** | the strider's failure, round fifty-six |
+| sheet from the **preloaded atlas**, else a loader | round seventy-seven |
+| bound through the **deferred adoption hook** | the squid, round fifty-four |
+| **read the state, then look at the mob** | round seventy-nine |
+
+**Three facts measured BEFORE touching anything**, which is the discipline rounds 73-79 cost six rounds to establish:
+
+1. the sheets are `horse_zombie.png` and `horse_skeleton.png` -- **not** `zombie_horse.png`, which does not exist. Two guesses
+   at the filename failed before the directory listing settled it;
+2. **both are 64x64, while the living horse's sheets are 64x32** -- so `texH` is 64 here, and reusing the horse's `texH = 32`
+   would have sampled only the top half. That is exactly the class of silent fault the warden hit in round twenty-two;
+3. **the proportions differ from the horse's rectangles**: the undead body is `0.5 : 0.5 : 1` against the rectangle's
+   `0.833 : 0.833 : 1`, and the neck and head are close but not exact. So these rectangles are APPROXIMATE, and the render
+   confirms they are close enough to read correctly -- but that is a recorded limitation, not something I am claiming is
+   exact.
+
+**Both verifications, in the order the procedure requires.** State first:
+
+```
+zombie_horse:   materials 4   with a map: 2
+skeleton_horse: materials 4   with a map: 2
+```
+
+Then the render: the skeleton horse shows the bone-white sheet with its texture detail and dark hooves, the zombie horse the
+rotted green coat, and neither shows the mangling that round seventy-three produced. `AREA` stayed at exactly **1766/1773**
+throughout.
+
+**What that contrast is worth recording for:** the giant and the undead horses are the SAME class of work -- a flat-coloured
+mob needing a sheet -- and one took six rounds while two took one. **The difference was not the mobs; it was whether I
+started by measuring the state or by proposing a mechanism.**
+
+Work list: **97 spawners, 73 confirmed with a real sheet, 19 mobs still without a model or skin.**
