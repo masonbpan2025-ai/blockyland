@@ -3013,3 +3013,47 @@ that is 90% transparent resolves and draws almost nothing. The filesystem check 
 the FORMAT the consumer needs, not merely that it exists.**
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-seven: the tropical fish sheets contain NO COLOUR, and that settles it
+
+**I measured the pixels instead of reasoning about them, and the answer is unambiguous.**
+
+`scripts/mob-visual/sample-region.mjs` decodes the PNG and reports what a UV rectangle actually samples. On
+`tropical_a_pattern_1.png`:
+
+```
+32x32  colourType 6  depth 8
+opaque pixels: 33 of 1024
+  most common:
+    transparent  x991
+    255,255,255  x12      <- pure white
+    240,240,240  x11      <- near-white
+    253,253,253  x10      <- near-white
+```
+
+**991 of 1024 pixels are TRANSPARENT, and every opaque pixel is WHITE or near-white. There is not one coloured pixel in the
+sheet.** The body region at `(0,0)` is 60 transparent pixels and 12 near-white ones.
+
+**And the JAR's own copy is the same 146 bytes**, so this is not an extraction fault -- the file vanilla ships is genuinely
+that small. **All 14 tropical sheets are 146-246 bytes with the same structure.**
+
+**So the white fish was never a code fault.** Rounds eighty-four and eighty-six each proposed a mechanism, and both were
+wrong for the same reason: I was reasoning about my own texture pipeline while the ASSET had no colour to draw. **That is
+the third consecutive round on this mob where measuring first would have ended it immediately** -- and the sampler that did
+it took one round to write.
+
+**It also means something larger, which I am recording as a QUESTION rather than a conclusion:** these are the files vanilla
+1.20.4 ships under those names, and they cannot produce a visible tropical fish. Either the modern client composes the
+tropical fish from these plus a colour tint at runtime -- which would fit the 3,072 variants and the fact that this
+project's own model uses per-variant COLOURS -- or the shipped asset set is a stub. **I do not know which, and I am not
+guessing**, because the two answers lead to opposite implementations: tint the existing sheets, or find the real ones.
+
+**The binding is reverted so the fish keeps its working flat-colour appearance**; `src/mobs.js` is byte-identical to its
+committed state and `AREA` is at exactly **1766/1773**. Kept: `sample-region.mjs`, which is the tool that answered this.
+
+**The rule, and it is the sharpest of the three in this sequence:**
+
+> Before building a pipeline around an asset, LOOK AT THE ASSET. Rounds eighty-three, eighty-six and eighty-seven each added
+> a verification step -- the path resolves, the format is right, the pixels are sampled -- and only the last one was
+> sufficient, because only the last one asked whether there was anything to draw.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
