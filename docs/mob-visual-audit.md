@@ -1038,3 +1038,30 @@ plane extents, and now this offset.
    rather than the mob.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round thirty: the silverfish offset, narrowed to one line
+
+`scripts/mob-visual/diagnose-silverfish.mjs` prints the model's world bounds for BOTH build paths, and that single
+comparison localises the fault exactly:
+
+```
+loadTexture=false  body.position=(0.00, 0.09, 0.19)  bounds y=[ 0.00, 0.21]  leg0 world y= 0.04
+loadTexture=true   body.position=(0.00,-0.75,-0.25)  bounds y=[-1.25, 0.72]  leg0 world y=-1.20
+```
+
+**The FLAT build is correct** -- its base sits exactly at y = 0. Only the TEXTURED path is 0.75 low, and it is low by
+`-bounds.min.y` read as 0.75 when the geometry's base is at 0. So the centring arithmetic is being applied to a bounds
+value that does not correspond to the geometry it is shifting.
+
+**What I tried and why it failed:** measuring after the re-parent, and zeroing the group before measuring. Both left
+`body.position.y` at -0.75 unchanged, which means `Box3().setFromObject(body)` is not returning what I expect for a
+group whose children carry their own `at` offsets. I did not resolve that, and I stopped rather than keep editing --
+four attempts at one number is the point at which guessing stops being productive.
+
+**The round-twenty-nine state is kept**, because its flat path is measured correct and its rendered body reads properly
+in the Inspector. The two stray bars remain an open, precisely-described defect: they are the textured path's legs at
+world y = -1.20 instead of ~0.04.
+
+That narrowing is the round's real product. "The silverfish is 0.75 low" is not actionable; "the flat path is exact and
+the textured path is low by a bounds value that does not match its geometry" is.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
