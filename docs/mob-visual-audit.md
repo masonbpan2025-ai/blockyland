@@ -130,3 +130,30 @@ Three faults hid behind that one difference, and all three are now fixed and tes
 The lesson is in the plan and worth repeating: **a capture from a purpose-built harness is not an Inspector
 check.** The Inspector's own spawn-and-pause behaviour is part of the fixture, and a page that ticks is a
 different fixture. Every capture in this directory was taken from the real `mob-debug.html` endpoint.
+## Second pass: what is finished, and what is not
+
+Three mobs now use real vanilla skins on measured model geometry. Everything else below is unchanged and is NOT at
+parity; the flat-colour problem is the single biggest cause and it affects about eighty spawners.
+
+| Mob | State |
+| --- | --- |
+| Snow golem | Done. Real carved-pumpkin block head, its own entity skin, wood-textured arms. |
+| Husk | Done. Its own skin, no whole-model tint. |
+| Polar bear | Done. Real 128x64 skin, eyes and nose on the measured face patch, alpha cut-out. |
+| Panda | PARTIAL. Face and eye patches are real, taken from the atlas patch at (10,10); the body and legs are still flat black and white. It cannot simply take its whole real skin because a brown panda is recoloured by writing flat colours onto two materials, and a textured material cannot take that. Finishing it needs a proper brown skin plus a dark/light split. |
+| Mooshroom | NOT DONE. Still flat red boxes with five red cubes for mushrooms. It should use `red_mooshroom.png` (fetched and locked) on the cow's UV layout, plus mushroom-block geometry. |
+| Shulker | NOT DONE. Still a box. Needs the shell texture fetched (`entity/shulker/shulker.png`, fetched and locked) and the opening/colour states. |
+| Warden | NOT DONE. Has no face and no body detail. Its 128x128 skin is fetched and locked. |
+| Everything else | Unaudited to source in this pass. Roughly eighty spawners still build plain boxes with flat colours, so they are structurally incapable of showing a face. |
+
+### Two tooling lessons worth keeping
+
+1. A MATERIAL WHOSE TEXTURE IS STILL LOADING RENDERS BLACK. Not its fallback colour. Holding a flat colour back
+   until the bitmap exists is required, and the binding must not depend on the mob ticking, because the Inspector
+   spawns paused.
+2. VANILLA ATLASES HAVE TRANSPARENT PADDING INSIDE A PART'S OWN RECTANGLE. The polar bear's body face is only 81%
+   opaque; an opaque material draws those texels as pure black, which put black bands across the animal. Alpha
+   cut-out is required for entity skins.
+
+`scripts/mob-visual/dump-rects.mjs` checks a proposed box's six faces against the real atlas and flags a face that
+is fully transparent, which is the check that catches a black silhouette before it reaches the Inspector.

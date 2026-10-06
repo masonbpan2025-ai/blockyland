@@ -77,9 +77,39 @@ const requested=new URLSearchParams(location.search).get('mob');if(DEBUG_MOBS.in
 const checklists={
   donkey:['Gray coat, long ears, flat mane, pale muzzle and tufted tail.','Taming, saddles, charged jumping and permanent 15-slot chest storage.','Golden foods breed donkeys; horse + donkey produces a sterile mule.','Foals grow in 20 minutes; food speeds growth, golden dandelions pause it.','Ridden animals float; submerged mounts dismount the rider.'],mule:['Brown coat, long ears, visible eyes and paired chests.','Tame adults to equip a saddle and a permanent 15-slot chest.','Sterile: golden foods heal but never enable breeding.','Created by horse + donkey; offspring inherit health, speed and jumping.','Shears remove saddles; death returns equipment and every stored stack.'],
   wither_skeleton:['20 HP; 2.4 blocks tall, skull face, ribs, thin limbs and stone sword.','Java melee: 5/8/12 damage; Wither I for 10 seconds.','Fire and Wither immunity; sinks without drowning.','Hunts players, golems and piglins; flees wolves; ignores villagers.','Rare skull drops, equipment pickup and command-equipped flaming bow.'],squid:['10 HP; eight pulsing tentacles, side eyes and an underside mouth.','Swims freely in 3D; passive and cannot breed, ride or be bucketed.','Ink and escape when hurt; stationary on land and suffocates after 15 seconds.','Babies grow in 20 minutes; golden dandelions lock growth.','Leads and naming work; guardians and axolotls hunt it.'],glow_squid:['10 HP; eight pulsing tentacles, side eyes and an underside mouth.','Swims freely in 3D; passive and cannot breed, ride or be bucketed.','Ink and escape when hurt; stationary on land and suffocates after 15 seconds.','Babies grow in 20 minutes; golden dandelions lock growth.','Leads and naming work; guardians and axolotls hunt it.'].concat(['Emissive aqua pixels and crystalline particles; emits no block light.','Hurt glow squid darkens for five seconds, then recovers.']),zombified_piglin:['Asymmetric exposed skull and ribs, torn ear, one tusk and jointed limbs.','Neutral undead: gold, villagers and ordinary piglins do not provoke it.','Retaliates against its attacker and recruits nearby zombified piglins.','Visible targets freeze anger; lost targets are forgiven after 20–55 seconds.','Babies stay small; retained crossbows are used only in melee.','Equipment upgrades, player-credit loot and save/load use the gameplay code.'],strider:['20 HP; a red cube with pale side bristles and two hip-pivot legs.','Lava warms and floats it; dry ground turns it purple and slows its gait.','Saddle adults; hold fungus stick to steer automatically and boost.','Warped fungus breeds and accelerates 20-minute baby growth.','Shears remove saddles; golden dandelions pause baby growth.'],horse:['Seven coats × five markings; articulated head, mane, tail and hooves.','Temper 0–100; adults must be tamed before equipment or breeding.','Golden foods breed; ordinary foods heal and accelerate 20-minute foal growth.','Saddle required for WASD steering and charged jumping; Shift dismounts.','Horse + donkey produces a sterile mule; offspring inherit stats.'],blaze:['20 HP; a golden cubical head and 12 rods in three rotating rings.','Idle: smoke and slow descent. Flames appear during attacks, not continuously.','Combat: 3-second charge, three fireballs, then a 5-second cooldown.','Water harms it; fire and lava do not. Snowballs deal 3 damage.'],magma_cube:['Eight crust segments expand during jumps around a glowing core.','Sizes 1/2/4: health 1/4/16 and armor 3/6/12.','Hops start on the ground. Even the smallest cube deals contact damage.','Kill a large cube: 2–4 half-size children. Tiny cubes do not split or drop cream.']};
-function front(){const h=session.mob?.height || session.manager.getMobDimensions(selected).height;controls.target.set(0,h*.6,0);camera.position.set(0,h*.7+1,Math.max(4,h*2.5));controls.update();}
+/**
+ * Frame whatever the mob's ACTUAL render bounds are.
+ *
+ * The old code framed off the collision height, which is a gameplay number and not a drawing one. It put the
+ * camera at `h*2.5` distance, which is far too close for a wide animal: a panda's head filled the viewport and its
+ * body ran off the bottom, so a correct model still looked wrong. Measuring the mesh instead means every mob,
+ * large or small, is framed to fit with a margin.
+ */
+function fitCamera(direction){
+  const mob=session.mob;
+  if(!mob?.mesh){front();return;}
+  mob.mesh.updateWorldMatrix(true,true);
+  const box=new THREE.Box3().setFromObject(mob.mesh);
+  const size=box.getSize(new THREE.Vector3());
+  const centre=box.getCenter(new THREE.Vector3());
+  const radius=Math.max(size.x,size.y,size.z)*0.5;
+  // Fit the largest dimension, plus a margin, against the narrower of the two field-of-view axes.
+  const vFov=camera.fov*Math.PI/180;
+  const hFov=2*Math.atan(Math.tan(vFov/2)*camera.aspect);
+  const distance=(radius*1.6)/Math.tan(Math.min(vFov,hFov)/2);
+  controls.target.copy(centre);
+  const dir=direction.clone().normalize();
+  camera.position.copy(centre).addScaledVector(dir,Math.max(distance,1.2));
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+/** The default view: straight on, from the front and slightly above. */
+function front(){
+  const h=session.mob?.height||session.manager.getMobDimensions(selected).height;
+  fitCamera(new THREE.Vector3(0,Math.min(0.35,h*0.18),1));
+}
 const angleView=document.createElement('button');angleView.textContent='3/4 view';$('front').after(angleView);
-angleView.onclick=()=>{const p=session.mob.mesh.position,h=session.manager.getMobDimensions(selected).height;controls.target.copy(p).y+=h*.6;camera.position.copy(p).add(new THREE.Vector3(3,h*.7+1,4));controls.update();};
+angleView.onclick=()=>{const h=session.mob?.height||session.manager.getMobDimensions(selected).height;fitCamera(new THREE.Vector3(1,Math.min(0.5,h*0.22),1.25));};
 function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';session.reset(selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',`?mob=${selected}`);updateReadout();}
 function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
 $('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;

@@ -14,10 +14,15 @@ const val = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? arg
 
 const [tw, th, td] = val('uv').split(',').slice(2).map(Number);
 const [u, v] = val('uv').split(',').slice(0, 2).map(Number);
-const [texW, texH] = (val('tex') ?? '128x64').split('x').map(Number);
+// Atlas size defaults to the image's own dimensions. Passing --tex explicitly overrides it, which is useful for
+// checking a region against a differently sized sheet, but defaulting to a hard-coded 128x64 silently mis-located
+// every rectangle on a 64x64 atlas.
+const image = decodePng(readFileSync(file));
+const [texW, texH] = val('tex')
+  ? val('tex').split('x').map(Number)
+  : [image.width, image.height];
 
 const rects = quadRects(u, v, tw, th, td);
-const image = decodePng(readFileSync(file));
 const NAMES = ['+X right', '-X left', '+Y top', '-Y bottom', '+Z front', '-Z back'];
 
 console.log(`box ${val('box')}  uv ${val('uv')}  atlas ${texW}x${texH}`);

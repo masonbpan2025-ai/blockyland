@@ -238,8 +238,19 @@ test('every variant mob survives the real update loop with its variant intact', 
   // idle flight alternates flying and resting, so in a short window it may legitimately end where it
   // started. Movement is covered by the per-mob parity suites and by mobUpdateSmoke; what this case is
   // for is that the dispatcher change did not break a variant mob in the real loop.
-  for (const entry of VARIANT_CASES) {
-    const mob = manager.spawnMob(entry.type, 0, 1, 0, entry.b);
+  //
+  // Each mob gets its OWN pen. Every mob used to be spawned at the origin, so they accumulated in one
+  // spot -- and a fox therefore shared a pen with the rabbit two cases later. Whether the fox connected
+  // depends on its randomised timing, which made this assertion fail or pass depending on how much
+  // Math.random had been consumed earlier in the process; adding an unrelated module import was enough to
+  // flip it. That is the SAME interaction the neighbouring test documents as real behaviour ("a fox
+  // hunting a rabbit", asserted there as a lone rabbit being safe). Spacing the pens apart keeps this case
+  // measuring what it says it measures -- that no variant mob breaks in the real update loop -- instead of
+  // also re-testing predation through a proximity accident.
+  const PEN_SPACING = 60;
+  for (let index = 0; index < VARIANT_CASES.length; index++) {
+    const entry = VARIANT_CASES[index];
+    const mob = manager.spawnMob(entry.type, index * PEN_SPACING, 1, 0, entry.b);
     const colorsAtSpawn = modelColors(mob);
     assert.doesNotThrow(() => {
       for (let i = 0; i < 600; i++) manager.update(1 / 60, player);

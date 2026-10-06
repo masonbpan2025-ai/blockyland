@@ -71,7 +71,7 @@ import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
 import { PARCHED_ATTACK_COOLDOWN, PARCHED_WEAKNESS_SECONDS, PARCHED_WEAKNESS_IMMUNE, PARCHED_CONVERSIONS, PARCHED_PICKUP, PARCHED_EQUIPPED_IS_PERSISTENT, VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
-import { applyPandaColors, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
+import { applyPandaColors, PANDA_COLORS, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
 import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
@@ -5944,6 +5944,8 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: legs,
+      head: head,
+      legs: legs,
       // Wiki: 30 HP.
       health: POLAR_BEAR_HEALTH,
       maxHealth: POLAR_BEAR_HEALTH,
@@ -5984,22 +5986,32 @@ export class MobManager {
     const genes = options.mainGene !== undefined
       ? { mainGene: options.mainGene, hiddenGene: options.hiddenGene ?? options.mainGene }
       : rollPandaGenes(options.random || Math.random);
-    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 });
-    const blackMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.85, 1.2), whiteMat);
+    // The panda keeps its flat black-and-white build, because `applyPandaColors` recolours a BROWN panda by writing
+    // colours onto these two materials, and a textured material cannot take that. What it gains instead is the two
+    // things the flat version was missing: real eye patches on the face, and legs sampled from the black band of
+    // the real skin rather than four plain boxes. The brown-panda skin is recorded as a gap in
+    // docs/mob-visual-audit.md rather than half-done here.
+    const whiteMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.light });
+    const blackMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.dark });
+
+    const body = new THREE.Mesh(createBoxWithUV(0.9, 0.85, 1.2, 16, 31, 64, 64), whiteMat);
     body.position.y = 0.8;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.55, 0.55), whiteMat);
-    head.position.set(0, 1.1, 0.75);
+    // The head is textured from the atlas patch that carries the eye patches -- the actual FACE of a panda, which
+    // the flat version never had. It uses its own material so `applyPandaColors` cannot stain it brown.
+    const skinMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.light });
+    adoptTexture(skinMat, this.loadTexture('/assets/entity/panda/panda.png'), PANDA_COLORS.normal.light);
+    const head = new THREE.Mesh(createBoxWithUV(0.62, 0.6, 0.5, 10, 10, 64, 64), skinMat);
+    head.position.set(0, 1.12, 0.72);
     group.add(head);
 
     const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.25), blackMat);
-    snout.position.set(0, 0.98, 1.05);
+    snout.position.set(0, 0.98, 1.02);
     group.add(snout);
 
-    const legGeo = new THREE.BoxGeometry(0.28, 0.5, 0.28);
+    const legGeo = createBoxWithUV(0.28, 0.5, 0.28, 0, 40, 64, 64);
     const fl = new THREE.Mesh(legGeo, blackMat); fl.position.set(-0.3, 0.25, 0.4); group.add(fl);
     const fr = new THREE.Mesh(legGeo, blackMat); fr.position.set(0.3, 0.25, 0.4); group.add(fr);
     const bl = new THREE.Mesh(legGeo, blackMat); bl.position.set(-0.3, 0.25, -0.4); group.add(bl);
@@ -6047,6 +6059,13 @@ export class MobManager {
     };
     applyPandaPersonality(mob);
     // Wiki: a brown panda is brown and white. The other six personalities share the normal palette.
+    //
+    // This is deliberate and is the ONE thing that keeps the panda off its real skin for now. A brown panda is
+    // recoloured by writing flat colours onto two materials, so both have to be untextured to take the colour.
+    // Giving the panda its real skin here would mean one material carrying the whole animal -- and tinting that
+    // would stain the eye patches and the black legs as well as the white fur, which is worse than the flat
+    // version. Doing it properly needs a separate brown skin (or a recoloured derived texture) plus a
+    // dark/light split; that is recorded as a gap in docs/mob-visual-audit.md rather than half-done here.
     applyPandaColors(mob);
     if (options.isBaby) group.scale.setScalar(PANDA_BABY_SCALE);
     this.mobs.push(mob);
