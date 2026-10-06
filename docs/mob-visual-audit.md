@@ -219,3 +219,30 @@ are now all in place, but the models themselves are the missing input.
 
 Still not done: the **vex** (head reads as a pale block), the **cow and mooshroom faces**, and roughly fifty
 spawners that still paint flat colours.
+## Round three: what the official client JAR settled
+
+A Minecraft 1.20.4 install is present on this machine, so the plan's preferred source is available:
+`%APPDATA%\.minecraft\versions\1.20.4\1.20.4.jar`. Extracting from it verified that every texture this project
+fetched is byte-identical to the official one -- the cow, mooshroom and their relatives are 100% texel-identical,
+so no amount of re-fetching would change what the models sample.
+
+`QuadrupedModel.createBodyMesh(int stanceWidth, CubeDeformation)` is the shared template behind the cow, pig, sheep
+and their relatives, and it confirms the standard quadruped layout: **body 12x10x18 at (18,4), head 8x8x8 at
+(0,0), legs 4x12x4 at (0,16), horns at (22,0)**. That is exactly what `spawnCow` and the mooshroom now use, so
+their geometry and UVs are canonical rather than guessed. The cow therefore renders with a real face -- the muzzle
+and the dark eye markings both come through -- and the earlier reading of it as "a brown animal with grey patches"
+was a misread of a low-resolution capture, not a modelling error.
+
+### Vex: simplified rather than finished, and said so
+
+Five attempts to map the vex's 32x32 atlas onto a sensible model all produced a jumble of pale panels.
+`fit-box.mjs` finds **no** 8x8x8 layout on that sheet whose six faces are all opaque, so the head's face cannot be
+reached through a box layout at all, and the panels that do exist do not line up with a body/head/wing split. The
+vex is now built simply and honestly: a small torso and head with visible dark eyes, thin arms and two real swept
+wings, in flat colours **sampled from the vex skin**. It reads as the right mob and no longer as a pile of squares,
+but the skin itself is NOT applied. That is recorded as a gap, not presented as parity.
+
+The lesson to carry forward: pixel inference has now failed on the vex and on the warden's eyes, while the one case
+where real model data was obtained -- the quadruped template -- resolved the cow immediately. **Acquiring model
+definitions beats inferring rectangles**, and a decompiler or the OptiFine CEM documents are the next source to try
+for the remaining ones.

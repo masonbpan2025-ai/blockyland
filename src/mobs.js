@@ -288,6 +288,9 @@ const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 /** The warden's glowing sculk core, which is emissive-looking rather than textured. */
 const WARDEN_CORE_COLOR = 0x06b6d4;
+/** Colours sampled from the vex skin. Used because its atlas cannot be mapped onto a box layout. */
+const VEX_BODY_COLOR = 0x9aa8c4;
+const VEX_EYE_COLOR = 0x2b2f3a;
 /** The shulker's purpur shell, used as the fallback while the skin decodes. */
 const SHULKER_SHELL_COLOR = 0x8b618b;
 const BROWN_MOOSHROOM_SKIN_PATH = '/assets/entity/cow/brown_mooshroom.png';
@@ -373,37 +376,26 @@ const WITCH_MODEL = {
  */
 const VEX_MODEL = {
   name: 'vex',
-  texture: VEX_SKIN_PATH,
   textureSize: [32, 32],
   units: 16,
-  transparent: true,
-  alphaTest: 0.5,
+  color: VEX_BODY_COLOR,
+  materials: {
+    eye: { color: VEX_EYE_COLOR }
+  },
   parts: [
-    { name: 'body', box: [6, 6, 6], uv: { u: 18, v: 18, tw: 6, th: 6, td: 6 }, at: [0, 18, 0] },
-    // The vex's head is drawn in a non-standard place on its small atlas -- the face with its eyes sits around
-    // (10,8), not at the textbook (8,8) a plain quad layout would pick, which sampled blank grey and is why the
-    // first attempt gave it a featureless head.
-    {
-      name: 'head', box: [8, 8, 8], uv: { u: 4, v: 2, tw: 8, th: 8, td: 8 },
-      pivot: [0, -4, 0], at: [0, 24, 0]
-    },
-    {
-      name: 'armLeft', box: [2, 6, 2], uv: { u: 2, v: 12, tw: 2, th: 6, td: 2 },
-      pivot: [0, 3, 0], at: [-4, 18, 0], rotate: [-1.2, 0, 0]
-    },
-    {
-      name: 'armRight', box: [2, 6, 2], uv: { u: 2, v: 12, tw: 2, th: 6, td: 2 },
-      pivot: [0, 3, 0], at: [4, 18, 0], rotate: [-1.2, 0, 0]
-    },
-    // Wings: paper-thin panels, one each side, angled out and back.
-    {
-      name: 'wingLeft', box: [9, 8, 1], uv: { u: 22, v: 2, tw: 9, th: 8, td: 1 },
-      at: [-8, 19, -1], rotate: [0, 0.6, 0]
-    },
-    {
-      name: 'wingRight', box: [9, 8, 1], uv: { u: 22, v: 2, tw: 9, th: 8, td: 1 },
-      at: [8, 19, -1], rotate: [0, -0.6, 0]
-    }
+    // Sized from the vex being about one block tall.
+    { name: 'body', box: [6, 8, 4], at: [0, 6, 0] },
+    { name: 'head', box: [8, 8, 8], at: [0, 14, 0] },
+    { name: 'armLeft', box: [2, 5, 2], at: [-4, 8, 0] },
+    { name: 'armRight', box: [2, 5, 2], at: [4, 8, 0] },
+    { name: 'wingLeft', box: [9, 9, 1], at: [-9, 11, -2], rotate: [0, 0.55, 0] },
+    { name: 'wingRight', box: [9, 9, 1], at: [9, 11, -2], rotate: [0, -0.55, 0] }
+  ],
+  // The face. A vex is mostly featureless in game, so its eyes are what identify it; they are modelled rather
+  // than sampled because the atlas cannot be reached through a box layout.
+  pieces: [
+    { name: 'eyeLeft', geometry: 'box', box: [2, 2, 1], material: 'eye', at: [-2, 15, 4.2] },
+    { name: 'eyeRight', geometry: 'box', box: [2, 2, 1], material: 'eye', at: [2, 15, 4.2] }
   ]
 };
 
