@@ -16,7 +16,7 @@
  * single number.
  */
 import * as THREE from 'three';
-import { createEntityBox, createBoxFromFaces } from './entityBox.js';
+import { createEntityBox, createBoxFromFaces, quadRects } from './entityBox.js';
 
 /** One texel in world units, given a model scale of `units` texels per block. */
 const texel = (units) => 1 / units;
@@ -89,9 +89,23 @@ export function buildModel(definition, ctx = {}) {
         texW: texSize.w, texH: texSize.h, mirror: spec.mirror
       });
     } else if (spec.uv) {
-      geometry = createEntityBox(spec.box[0] * t, spec.box[1] * t, spec.box[2] * t,
-        spec.uv.u, spec.uv.v, spec.uv.tw ?? spec.box[0], spec.uv.th ?? spec.box[1], spec.uv.td ?? spec.box[2],
-        { texW: texSize.w, texH: texSize.h, mirror: spec.mirror });
+      // `createEntityBox` refuses a box whose depth exceeds half its width, because vanilla's own layout then has no
+      // room for the side faces. Several real mobs contain exactly that shape -- the frog's body is 7x3x9, the wolf's
+      // snout 3x3x4, the turtle's abdomen 10x8x12 -- and the decompiled definitions give no alternative, so rather
+      // than have every one of them fail, the fall back is to vanilla's own rectangles (`quadRects`) instead of the
+      // packed layout. Where those overlap for an impossible box, the box was never expressible in that layout anyway.
+      const tw = spec.uv.tw ?? spec.box[0];
+      const th = spec.uv.th ?? spec.box[1];
+      const td = spec.uv.td ?? spec.box[2];
+      try {
+        geometry = createEntityBox(spec.box[0] * t, spec.box[1] * t, spec.box[2] * t,
+          spec.uv.u, spec.uv.v, tw, th, td,
+          { texW: texSize.w, texH: texSize.h, mirror: spec.mirror });
+      } catch {
+        geometry = createBoxFromFaces(spec.box[0] * t, spec.box[1] * t, spec.box[2] * t,
+          quadRects(spec.uv.u, spec.uv.v, tw, th, td),
+          { texW: texSize.w, texH: texSize.h, mirror: spec.mirror });
+      }
     } else {
       geometry = new THREE.BoxGeometry(spec.box[0] * t, spec.box[1] * t, spec.box[2] * t);
     }

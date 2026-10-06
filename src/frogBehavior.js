@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildModel } from './mobVisuals/modelBuilder.js';
 
 /**
  * Frog rules and model.
@@ -239,7 +240,74 @@ export function eatFrogPrey(manager, mob, target) {
  *
  * The tongue is a separate mesh so the flick can be drawn.
  */
-export function createFrogModel(bodyMat, bellyMat, eyeMat) {
+/** The real 48x48 frog sheet. The model lives in this module, so its texture path does too. */
+const FROG_SKIN_PATH = '/assets/entity/frog/temperate_frog.png';
+const FROG_MODEL = {
+  texture: FROG_SKIN_PATH,
+  textureSize: [48, 48],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    { name: 'root', box: [0, 0, 0], at: [0, 24, 0] },
+    // Body 7x3x9, with a flat layer above it.
+    { name: 'body', parent: 'root', box: [7, 3, 9], uv: { u: 3, v: 1, tw: 7, th: 3, td: 9 }, at: [0, -2, 4] },
+    { name: 'bodyLayer', parent: 'body', plane: [9, 7], uv: { u: 23, v: 22, tw: 7, th: 9 }, at: [0, 1.5, 0], rotate: [-Math.PI / 2, 0, 0] },
+    // Head 7x3x9, carrying the eyes.
+    { name: 'head', parent: 'body', box: [7, 3, 9], uv: { u: 0, v: 13, tw: 7, th: 3, td: 9 }, at: [0, -2, -1] },
+    { name: 'eyes', parent: 'head', box: [0, 0, 0], at: [-0.5, 0, 2] },
+    { name: 'eyeRight', parent: 'eyes', box: [3, 2, 3], uv: { u: 0, v: 0, tw: 3, th: 2, td: 3 }, at: [-1.5, -3, -6.5] },
+    { name: 'eyeLeft', parent: 'eyes', box: [3, 2, 3], uv: { u: 0, v: 5, tw: 3, th: 2, td: 3 }, at: [2.5, -3, -6.5] },
+    // The croaking throat, which inflates; it is part of the model.
+    { name: 'croak', parent: 'body', box: [7, 2, 3], uv: { u: 26, v: 5, tw: 7, th: 2, td: 3 }, at: [0, -1, -5] },
+    // The tongue is FLAT: 4 wide, 7 deep, no height.
+    { name: 'tongue', parent: 'body', plane: [7, 4], uv: { u: 17, v: 13, tw: 4, th: 7 }, at: [0, -1.01, 1], rotate: [-Math.PI / 2, 0, 0] },
+    // Arms, each with a FLAT hand.
+    { name: 'armLeft', parent: 'body', box: [2, 3, 3], uv: { u: 0, v: 32, tw: 2, th: 3, td: 3 }, at: [4, -1, -6.5] },
+    { name: 'handLeft', parent: 'armLeft', plane: [8, 8], uv: { u: 18, v: 40, tw: 8, th: 8 }, at: [0, 3, -1], rotate: [-Math.PI / 2, 0, 0] },
+    { name: 'armRight', parent: 'body', box: [2, 3, 3], uv: { u: 0, v: 38, tw: 2, th: 3, td: 3 }, at: [-4, -1, -6.5] },
+    { name: 'handRight', parent: 'armRight', plane: [8, 8], uv: { u: 2, v: 40, tw: 8, th: 8 }, at: [0, 3, 0], rotate: [-Math.PI / 2, 0, 0] },
+    // Legs, each with a FLAT foot.
+    { name: 'legLeft', parent: 'root', box: [3, 3, 4], uv: { u: 14, v: 25, tw: 3, th: 3, td: 4 }, at: [3.5, -3, 4] },
+    { name: 'footLeft', parent: 'legLeft', plane: [8, 8], uv: { u: 2, v: 32, tw: 8, th: 8 }, at: [2, 3, 0], rotate: [-Math.PI / 2, 0, 0] },
+    { name: 'legRight', parent: 'root', box: [3, 3, 4], uv: { u: 0, v: 25, tw: 3, th: 3, td: 4 }, at: [-3.5, -3, 4] },
+    { name: 'footRight', parent: 'legRight', plane: [8, 8], uv: { u: 18, v: 32, tw: 8, th: 8 }, at: [-2, 3, 0], rotate: [-Math.PI / 2, 0, 0] }
+  ]
+};
+
+export function createFrogModel(bodyMat, bellyMat, eyeMat, options = {}) {
+  // The real decompiled frog. Its tongue and all four hands and feet are FLAT, so this needs `plane` parts and a
+  // texture; without a skin the old flat build is used so the mob still renders in a build with no assets.
+  if (options.texture) {
+    const built = buildModel(FROG_MODEL, {
+      materials: { default: bodyMat, belly: bellyMat, eye: eyeMat },
+      textureContext: { texW: 48, texH: 48 },
+      texture: options.texture,
+      onTextureReady: options.onTextureReady
+    });
+    const eyes = [built.parts.eyeRight, built.parts.eyeLeft].filter(Boolean);
+    const tongue = built.parts.tongue;
+    // The tongue is only visible mid-flick.
+    if (tongue) tongue.visible = false;
+    return {
+      group: built.group,
+      body: built.parts.body,
+      belly: built.parts.bodyLayer,
+      head: built.parts.head,
+      eyes,
+      tongue,
+      // Four limbs. Vanilla calls the front pair `arms` and the back pair `legs`; the jump pose below distinguishes
+      // them with `front`, which is also how the tests describe a frog: two long hind legs and two small forelegs.
+      legs: [
+        { mesh: built.parts.legLeft },
+        { mesh: built.parts.legRight },
+        { mesh: built.parts.armLeft, front: true },
+        { mesh: built.parts.armRight, front: true }
+      ].filter((l) => l.mesh),
+      parts: built.parts
+    };
+  }
+
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.46), bodyMat);

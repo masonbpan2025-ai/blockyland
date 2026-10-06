@@ -671,3 +671,43 @@ That is the **third** time this project has produced a model that was geometrica
 as the wrong thing, and the third time only the screenshot caught it.
 
 Work list: **92 mob spawners, 53 with a real skin, 39 still flat-colour only.**
+
+## Round nineteen: the frog's geometry is real, its texture is not bound yet
+
+**Rebuilt from the decompiled `FrogEntityModel` (`class_7198`).** Last round I checked the frog's 48x48 sheet against
+the standard quadruped head block, got 52/48/13% opacity, and stopped rather than guess. The decompiled source shows
+why that was hopeless:
+
+| part | (u,v) | size | note |
+| --- | --- | --- | --- |
+| body | (3,1) | 7x3x9 | |
+| body layer | (23,22) | 7x0x9 | FLAT |
+| head | (0,13) | 7x3x9 | |
+| right / left eye | (0,0) / (0,5) | 3x2x3 | |
+| croaking body | (26,5) | 7x2x3 | dilation -0.1 |
+| tongue | (17,13) | 4x0x7 | FLAT |
+| arms | (0,32) / (0,38) | 2x3x3 | |
+| hands | (18,40) / (2,40) | 8x0x8 | FLAT |
+| legs | (14,25) / (0,25) | 3x3x4 | |
+| feet | (2,32) / (18,32) | 8x0x8 | FLAT |
+
+Texture 48x48. **The tongue and all four hands and feet have a dimension of 0** -- flat planes again, like the vex's
+wings. This is now the second mob whose model is only expressible with `plane` parts, which supports having added
+that to the builder last round.
+
+**`buildModel` now falls back to explicit faces automatically.** `createEntityBox` refuses a box deeper than half its
+width, and the frog's 7x3x9 body is exactly that shape -- as are the wolf's 3x3x4 snout and the turtle's 10x8x12
+abdomen. Rather than have every real mob fail on a layout that cannot express it, the builder catches the refusal and
+uses vanilla's own rectangles (`quadRects`) instead. That is a structural win independent of the frog.
+
+**Two behaviour contracts had to be respected, and both were about shape rather than geometry:** `poseFrog` reads
+`leg.mesh.rotation.x`, so limbs are wrapped in `{ mesh }`; and the tests describe a frog as TWO LONG HIND LEGS AND TWO
+SMALL FORELegs, marking the forelegs with `front` -- which is exactly how vanilla splits `arms` from `legs`.
+
+**HONEST STATUS: the frog renders white.** Its geometry is right -- bulky body, four limbs, the croak sac -- and all
+29 frog tests pass, but the material has no map, so the skin is NOT applied. I ran out of room to chase it this round
+and I am recording it as unfinished rather than claiming it. Passing tests and a correct silhouette are not evidence
+that a texture is bound; that is the same lesson as the turtle shell and the wolf.
+
+Work list: **92 mob spawners, 54 with a real model, 38 still flat-colour only.** The frog counts toward models, not
+skins, until its texture binds.

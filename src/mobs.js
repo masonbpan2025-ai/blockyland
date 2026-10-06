@@ -300,6 +300,14 @@ const LLAMA_SKIN_PATHS = {
 const TURTLE_SKIN_PATH = '/assets/entity/turtle/big_sea_turtle.png';
 const OCELOT_SKIN_PATH = '/assets/entity/cat/ocelot.png';
 const WOLF_SKIN_PATH = '/assets/entity/wolf/wolf.png';
+const FROG_SKIN_PATH = '/assets/entity/frog/temperate_frog.png';
+/**
+ * The frog's real model, decompiled from `FrogEntityModel` rather than inferred from its 48x48 sheet.
+ *
+ * Its tongue and all four hands and feet are FLAT (a dimension of 0), so they are planes, not boxes -- that alone
+ * is why the standard quadruped layout never fit.
+ */
+
 /**
  * The wolf's real model, decompiled from `WolfEntityModel` rather than inferred from its texture.
  *
@@ -4746,7 +4754,13 @@ export class MobManager {
     const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
     const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
-    const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat);
+    // The real 48x48 frog sheet. The model was rebuilt from the decompiled one, whose tongue and hands and feet
+        // are FLAT planes, so this is the only shape that can sample it.
+        const frogTexture = this.loadTexture(FROG_SKIN_PATH);
+        const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat, {
+          texture: frogTexture,
+          onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+        });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
