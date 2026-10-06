@@ -5398,3 +5398,42 @@ the base renders correctly. The eye boxes are the control that the pipeline was 
 
 Work list: **97 spawners, 81 with a real sheet, the tropical fish's base pass correct with its pattern pass remaining, and the
 dragon's leg positions recorded as approximations.**
+## Round one hundred and forty-three: the pattern pass attempted, and it renders the fish BLACK -- reverted
+
+**Round one hundred and forty-two named the two-pass render as the next step. I implemented it, and it failed in a specific and
+useful way.**
+
+**What was added:** a `TROPICAL_FISH_BASE_SHEET_FOR(variant)` helper returning `tropical_a.png` / `tropical_b.png` -- vanilla's
+`MODEL_A_TEXTURE`/`MODEL_B_TEXTURE` -- so the BASE pass and the PATTERN pass read different files, which the single
+`TROPICAL_FISH_SHEET_FOR` could not express. The state read back exactly as intended:
+
+```
+tropical_a.png        alphaTest 0     colour f28c28     <- base, baseColor tint
+tropical_a.png        alphaTest 0     colour ffffff     <- fins, finColor tint
+(no map)              alphaTest 0     colour 101010     <- eyes
+tropical_a_pattern_1.png  alphaTest 0.5  colour ffffff  <- the PATTERN pass
+```
+
+**Four materials, each reading the right file with the right tint and the right alpha treatment. And the render is a BLACK
+fish.**
+
+**The cause, as far as I established it:** the pattern stencil drawn over the base at white tint **covers the base rather
+than decorating it**. The pattern sheets' pixels in the regions the body's rectangles sample are **not** the sparse white the
+alpha histogram showed -- or the scaling and `polygonOffset` I used put an opaque layer in front. **I did not isolate which**,
+and I am recording both as candidates rather than one as a conclusion.
+
+**Reverted the pattern pass; KEPT the base pass**, which round one hundred and forty-two verified. The state now reads three
+materials with `alphaTest 0` on both mapped ones.
+
+**And one honest observation about the current render:** the body is solid orange as intended, while **the tail and fins
+render dark** in the capture. `createTropicalFishModel` gives the tail and fins `finMat` -- the white-tinted material -- so
+**their darkness is unexplained**, and it is possible that removing `alphaTest` from the shared material changed how those
+planar parts composite. **That is a third thing to measure, not a third thing to assume.**
+
+**So the fish stands at: base pass verified solid orange, pattern pass attempted and blacked out, and the fins' darkness
+unexplained.** `AREA` is at exactly **1766/1773** through all of it.
+
+**The session's most transferable result remains round one hundred and forty-two's**, and it is worth restating because this
+round does not weaken it: **`alphaTest` is right for a SKIN and wrong for a STENCIL, and the same attribute deletes one mob
+while being correct for the next.** That single attribute explained six rounds of this project's failures on the fish, and the
+pattern pass is a separate, additive refinement that does not undo it.

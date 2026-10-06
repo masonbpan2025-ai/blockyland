@@ -93,6 +93,18 @@ export function TROPICAL_FISH_SHEET_FOR(variant) {
   return `/assets/entity/fish/tropical_${letter}${suffix}.png`;
 }
 
+/**
+ * The BASE body sheet for a variant -- vanilla's `MODEL_A_TEXTURE` / `MODEL_B_TEXTURE`, selected by SHAPE only.
+ *
+ * Distinct from `TROPICAL_FISH_SHEET_FOR`, which returns the PATTERN sheet. Vanilla draws the fish in two passes and they
+ * read from different files: the body from `tropical_a.png` / `tropical_b.png` tinted by `baseColor`, and the pattern from
+ * one of the twelve `tropical_<letter>_pattern_<n>.png` stencils tinted by `patternColor`.
+ */
+export function TROPICAL_FISH_BASE_SHEET_FOR(variant) {
+  const letter = variant?.shape === 'large' ? 'b' : 'a';
+  return `/assets/entity/fish/tropical_${letter}.png`;
+}
+
 /** Body colours for the models. */
 export const FISH_COLORS = {
   pufferfish: { body: 0xc9a227, belly: 0xf0e2b6, spine: 0x6b5410, eye: 0x101010 },
