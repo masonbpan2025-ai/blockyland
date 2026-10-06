@@ -3347,3 +3347,65 @@ either encoding, and the tropical fish family is established as the ONLY zero-co
 
 Work list: **97 spawners, 75 confirmed with a real sheet -- and the content check now backs that count rather than merely
 assuming it -- 17 mobs still without a model or skin.**
+## Round ninety-four: the ledger is corrected, and four of its entries were stale
+
+**I checked the remaining-work list against reality instead of repeating it, and it was wrong in three separate ways.**
+
+**First, `audit-flat-skins.mjs` reports four spawners as GENUINELY FLAT that have sheets.** Read back from the built mobs:
+
+| mob | materials | with a map |
+| --- | --- | --- |
+| elder_guardian | 18 | **3** |
+| donkey | 48 | **7** |
+| mule | 48 | **7** |
+| ocelot | 12 | **11** |
+| slime | 5 | 0 -- genuinely flat |
+
+`elder_guardian` was fixed in round eighty-two, and `donkey`/`mule`/`ocelot` in earlier rounds. **The tool cannot see a
+sheet bound through an ATLAS KEY or a DELEGATED spawner, so it counts them as absent.** That is the same blindness it
+admitted for the squid and glow squid, and it is wider than its output admits.
+
+**Second, FIVE of its "genuinely flat" entries are not mobs at all** -- `DragonFireball`, `Fireball`, `LaserBeam`,
+`ParticleBurst`, `XpOrbs` -- plus `spawnMob` (a dispatcher) and three variant helpers (`SkeletonVariant`, `ZombieVariant`,
+`ZombiePigman`). **These cannot have a mob sheet and should never have been in the count.**
+
+**Third, and the most consequential: SEVERAL OF THE REMAINING MOBS DO NOT EXIST IN 1.20.4.** Probed against the client JAR:
+
+```
+armadillo          0 textures in the 1.20.4 JAR
+copper_golem       0
+creaking           0
+happy_ghast        0
+camel              1   <- present
+sniffer            1   <- present
+```
+
+**Four of the mobs on the work list were introduced AFTER the version this project extracts from.** They are not gaps in the
+work; they are mobs whose real asset cannot exist here. `camel_husk` and `zombie_pigman` are in the same situation by
+inspection of their names, and I have not verified each individually.
+
+**The corrected accounting, and I am giving the raw tool output alongside it because the two disagree:**
+
+```
+spawners total                      97
+bind a real sheet                   73      (tool's figure)
+  + 4 misreported as flat                   elder_guardian, donkey, mule, ocelot
+= 77 with a real sheet
+genuinely flat by the tool          22
+  - 5 non-mob effects                        fireballs, laser, particles, xp orbs
+  - 4 already done, misreported
+  - 1 dispatcher + 3 variant helpers
+= 9 real mobs, of which >=4 DO NOT EXIST IN 1.20.4
+```
+
+**So the honest remaining figure is roughly FIVE substantive mobs, not seventeen** -- `camel`, `sniffer`, `ender_dragon`,
+`slime`, and possibly one or two I have not individually verified.
+
+**The lesson, and it is round ninety-two's and ninety-three's again in a third form:** I have now been wrong about this
+count three rounds running -- first by carrying non-mobs, then by worrying the whole ledger was unsound, now by trusting a
+tool that cannot see through delegation. **Every time, the fix was to read the built object rather than the summary line.**
+The audit's output is a HYPOTHESIS about a file; the mob's `map` count is a FACT about the running program.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one (4+ candidates do not exist in 1.20.4).**
