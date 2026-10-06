@@ -523,3 +523,37 @@ QUESTION, and the Inspector screenshot is the ANSWER.
 real UVs before its vanilla sheet can be used, and that is a deliberate piece of work rather than a one-line swap.
 
 Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
+
+## Round fifteen: the wolf, geometry-first, and still wrong
+
+I did what last round's lesson prescribed: **geometry first, then the skin.** I derived the wolf's blocks from the
+sheet's seams using vanilla's own layout formula (for a box `tw, th, td` the sprite width is `2*td + 2*tw`):
+
+* head **6x8x6** at (4,4) -- faces measured 31-100% opaque;
+* body **12x6x6** at (21,4) -- faces 25-96%;
+* legs **4x12x4** at (11,15) -- faces 38-75%.
+
+Every one was checked with `legacy-rects.mjs` and carried art on every face. I mapped the body and head with
+`createBoxWithUV`, then bound the sheet.
+
+**IT IS STILL A PATCHWORK** -- tan, olive and a magenta patch instead of a grey wolf. The derivation is wrong
+somewhere pixel extents cannot show me, and the likeliest explanation is the same one I reached about the vex's
+atlas: **the wolf's sheet does not follow the textbook `2*td + 2*tw` seam layout my formula assumes.**
+
+**Pixel inference has now failed on this mob three times**, and on the vex before it. It succeeded exactly once -- the
+cow -- and that was because `QuadrupedModel.createBodyMesh(stanceWidth, Dilation)` gave me the real template.
+
+The wolf is reverted to its authored canvas texture, which renders a clean grey animal with dark eyes, nose and ears.
+That is better than anything I have derived, and `src/mobs.js` again ends the round with no change.
+
+**The conclusion I should have drawn two rounds ago: stop deriving, get the model definition.** The pattern across
+this goal is now unambiguous. Every mob that came out right -- cow, mooshroom, pig, sheep, spider, bee, allay, parrot,
+goat, fox, rabbit, llama, turtle, ocelot -- was solved by having a real layout or a real sheet laid out for a model
+that already matched. Every mob I have tried to reverse-engineer from pixels alone -- vex, warden's eyes, wolf -- has
+resisted.
+
+The next round should be spent making the wolf's shulker-style rebuild possible from source rather than guessing:
+options are a JVM to run the downloaded decompiler, or an authoritative published model definition. Until then the
+wolf stays as it is, and I am not going to keep spending rounds on it.
+
+Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
