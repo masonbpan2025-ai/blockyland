@@ -288,6 +288,8 @@ const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
 const PIGLIN_SKIN_PATH = '/assets/entity/piglin/piglin.png';
 const PIGLIN_BRUTE_SKIN_PATH = '/assets/entity/piglin/piglin_brute.png';
+/** The real 32x32 breeze sheet. `breeze_wind.png` is a separate 128x128 EFFECT atlas, not a variant. */
+const BREEZE_SKIN_PATH = '/assets/entity/breeze/breeze.png';
 const PHANTOM_SKIN_PATH = '/assets/entity/phantom.png';
 const ZOMBIE_VILLAGER_SKIN_PATH = '/assets/entity/zombie_villager/zombie_villager.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
@@ -6148,8 +6150,26 @@ export class MobManager {
    */
   spawnBreeze(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.body });
-    const rodMat = new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.rod });
+    // The REAL 32x32 breeze sheet. // BREEZE_REAL_SHEET
+    const breezeSheet = this.loadTexture(BREEZE_SKIN_PATH);
+    if (breezeSheet) { breezeSheet.magFilter = THREE.NearestFilter; breezeSheet.minFilter = THREE.NearestFilter; breezeSheet.needsUpdate = true; }
+    /** A box carrying vanilla's rectangle for its shape. */
+    const breezeBox = (size, uu, vv, tw, th, td) => {
+      const geo = new THREE.BoxGeometry(...size);
+      if (breezeSheet) applyBoxUVs(geo, uu, vv, 32, 32, tw, th, td);
+      return geo;
+    };
+    const breezeMat = (fallback) => (breezeSheet
+      ? new THREE.MeshLambertMaterial({ map: breezeSheet, transparent: true, alphaTest: 0.5 })
+      : fallback);
+    // The sheet material when one is loaded, else the flat colours. The wind parts keep their own basic material, because
+    // vanilla draws the swirl from a SEPARATE 128x128 atlas that this sheet is not.
+    const bodyMat = breezeSheet
+      ? new THREE.MeshLambertMaterial({ map: breezeSheet, transparent: true, alphaTest: 0.5 })
+      : new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.body });
+    const rodMat = breezeSheet
+      ? new THREE.MeshLambertMaterial({ map: breezeSheet, transparent: true, alphaTest: 0.5 })
+      : new THREE.MeshLambertMaterial({ color: BREEZE_COLORS.rod });
     const windMat = new THREE.MeshBasicMaterial({
       color: BREEZE_COLORS.wind, transparent: true, opacity: 0.45, depthWrite: false
     });

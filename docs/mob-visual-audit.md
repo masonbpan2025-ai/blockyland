@@ -2438,3 +2438,35 @@ pufferfish showed the shape of that work, and both took one round each because a
 rectangle are enough. **The expensive era of this project was correcting models that already existed**, which is over.
 
 Work list: **97 spawners, 69 confirmed with a real sheet, ~23 mobs genuinely without a model or skin.**
+## Round seventy-two: the breeze, its two atlases, and a recursive helper I wrote myself
+
+**The breeze is on its real 32x32 sheet.** `BreezeEntityModel` (intermediary `class_8973`) has **TWO texture sizes**, which
+is the tell that its two atlases serve two purposes:
+
+| atlas | size | what it carries |
+| --- | --- | --- |
+| `breeze.png` | 32x32 | the solid mob: head 8x8x8 at (0,0), rods 2x8x2 at (0,17), eyes at (7,16) |
+| `breeze_wind.png` | **128x128** | the `wind_top` / `wind_mid` / `wind_bottom` swirl |
+
+**That is the same shape as the zombie villager in round forty-five, and the opposite conclusion.** There, two sizes meant
+one sheet could carry the visible result; here they mean the wind is a SEPARATE EFFECT that the skin atlas genuinely does
+not contain, so the wind parts keep their own basic material and only the solid parts take the sheet. **Two sizes is a
+question, not an answer** -- it has to be answered by reading which parts use which atlas, which is what the decompile
+gives.
+
+**Its `body` and `rods` are HOLDERS with no geometry of their own**, so the visible parts are the head, three rods and the
+eyes -- fewer than the part list suggests, and worth knowing before writing geometry for a holder.
+
+**A self-inflicted fault worth recording, because it is a new shape of the one I keep making.** My patch replaced every
+`new THREE.BoxGeometry(...)` in the spawner with the new UV helper -- including the line INSIDE the helper's own
+definition. The result was `const geo = breezeBox([...size], 0, 0, 8, 8, 8);`, a helper that calls itself. `node --check`
+passed, because it is valid syntax; the unguarded recursion only shows up at runtime, and the recursive call happened to be
+inside an arrow body that is never reached before the outer call returns, so it produced a wrong-geometry box rather than a
+stack overflow.
+
+**The general lesson, which is round sixty-nine's sharpened:** a find-and-replace over a region must EXCLUDE code the
+replacement itself introduces. Anchoring an edit to the function that defines the helper is safe; anchoring it to a PATTERN
+that also appears in the new code is not. **Read the built object back** -- that check caught this in one command, exactly
+as it did for the trader llama's missing constant.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
