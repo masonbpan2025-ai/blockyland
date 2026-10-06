@@ -2058,3 +2058,30 @@ made the second attempt work.
 
 Work list: **97 spawners, 64 with a real sheet, 28 mobs still flat-colour only**, of which TWO draw their own skin
 (horseModel, packEquineModel).
+## Round sixty-one: the horse on its real coat
+
+**Fourth mob in a row to land in one round by following the rule.** `horseParity` is 37/37 and the full area never left its
+baseline.
+
+The model drew a 32x32 procedural `texture(color, marking)` on plain `BoxGeometry`, so every face stretched that tile --
+while the mob has **nine real 64x32 sheets** (seven coats plus mule and donkey), all extracted and converted to RGBA.
+
+**The rectangles came from vanilla's horse layout, and the coincidence that made it possible is worth recording.** The
+project's own boxes are the same SHAPES as vanilla's at a smaller scale -- torso .625 x .625 x 1.375 against vanilla's
+10x10x12, neck .25 x .7 x .38 against 4x10x6, head .31 x .31 x .43 against 4x6x8 -- so vanilla's rectangles apply
+directly to a model that was never built to receive them. **A model does not have to match vanilla's SCALE to reuse its
+atlas; it has to match its PROPORTIONS.**
+
+**Three call sites needed wiring**, not one: `mobs.js` spawns an adult, and `horseBehavior.js` rebuilds the model twice,
+for the baby and for a coat change. Missing either would have left an adult horse wearing a real coat and a foal wearing a
+drawn one -- the split the cave spider hit in round thirty-nine, where a delegated spawner kept its parent's skin.
+
+**What the render shows:** the real chestnut coat with its texture detail, visible eyes, and properly shaped legs. The
+drawn 32x32 tile is gone from the three parts that dominate the silhouette: torso, neck and head.
+
+**Still on the drawn texture:** the mane, muzzle, ears, legs, tail and saddle, which are separate small parts. They read as
+details, and moving them is the next step if it proves worthwhile -- the same position the zombified piglin's ears and
+snout are in.
+
+Work list: **97 spawners, 65 with a real sheet, 27 mobs still flat-colour only**, of which ONE draws its own skin
+(packEquineModel).

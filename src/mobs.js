@@ -7033,7 +7033,7 @@ export class MobManager {
   spawnHorse(x, y, z) {
     const r=this.random || Math.random;
     const coat=Math.floor(r()*7), marking=Math.floor(r()*5);
-    const model=createHorseModel(coat,marking,this.textures);
+    const model=createHorseModel(coat,marking,this.textures,{loadTexture:(p)=>this.loadTexture(p)});
     const stats=randomHorseStats(r);
     const mob={type:'horse',name:'Horse',...model,...stats,health:stats.maxHealth,coat,marking,
       velocity:new THREE.Vector3(),yaw:r()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};

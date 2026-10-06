@@ -1,4 +1,46 @@
 import * as THREE from 'three';
+
+/** The real 64x32 horse sheets, in `HORSE_COATS` order, plus the mule and donkey. */
+const HORSE_SKIN_PATHS = [
+  '/assets/entity/horse/horse_white.png',
+  '/assets/entity/horse/horse_creamy.png',
+  '/assets/entity/horse/horse_chestnut.png',
+  '/assets/entity/horse/horse_brown.png',
+  '/assets/entity/horse/horse_black.png',
+  '/assets/entity/horse/horse_gray.png',
+  '/assets/entity/horse/horse_darkbrown.png'
+];
+const HORSE_MULE_SKIN_PATH = '/assets/entity/horse/mule.png';
+const HORSE_DONKEY_SKIN_PATH = '/assets/entity/horse/donkey.png';
+
+/**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ *
+ * A local copy of the helper in `src/mobs.js`, which is not exported; importing the mob manager from a model module
+ * would create a cycle.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
 export const HORSE_COATS=[0xe3e0d7,0xcbb68b,0x98532d,0x70452f,0x292825,0x827e78,0x443027];
 export const HORSE_MARKINGS=['none','white','whitefield','whitedots','blackdots'];
 function texture(color,marking=0){
@@ -13,17 +55,33 @@ function texture(color,marking=0){
  const t=new THREE.DataTexture(data,32,32);t.magFilter=t.minFilter=THREE.NearestFilter;t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;return t;
 }
 // Original pixel textures and articulated cuboids; no remote assets or canvas dependency.
-export function createHorseModel(coat=3,marking=0,cache={}){
+export function createHorseModel(coat=3,marking=0,cache={},options={}){
+  // The REAL sheet for this coat, adopted when a loader provides one. // HORSE_REAL_SHEET
+  const sheetPath = HORSE_SKIN_PATHS[coat] ?? HORSE_SKIN_PATHS[3];
+  const sheet = options.loadTexture ? options.loadTexture(sheetPath) : null;
+  if (sheet) { sheet.magFilter = THREE.NearestFilter; sheet.minFilter = THREE.NearestFilter; sheet.needsUpdate = true; }
+  /** A box carrying vanilla's rectangle for its shape. Falls back to the drawn look without a sheet. */
+  const textured = (size, uu, vv, tw, th, td, material) => {
+    const geo = new THREE.BoxGeometry(...size);
+    if (sheet) applyBoxUVs(geo, uu, vv, 64, 32, tw, th, td);
+    return new THREE.Mesh(geo, sheet ? material : material);
+  };
  const mesh=new THREE.Group();
  const material=(key,color,pattern=0)=>new THREE.MeshLambertMaterial({map:cache[key] ||= texture(color,pattern)});
  const skin=material(`equine-${coat}`,HORSE_COATS[coat]),bodySkin=material(`equine-${coat}-${marking}`,HORSE_COATS[coat],marking);
  const dark=new THREE.MeshLambertMaterial({color:coat===1?0x6a5137:0x28221d}),white=new THREE.MeshLambertMaterial({color:0xe9e4db});
  const box=(parent,name,size,pos,mat)=>{const p=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);p.name=name;p.position.set(...pos);parent.add(p);return p;};
- box(mesh,'torso',[.625,.625,1.375],[0,1.03,-.06],bodySkin);
+ // The torso carries the horse body rectangle at (0, 0): 10x10x12.
+const torso=new THREE.Mesh(new THREE.BoxGeometry(.625,.625,1.375), sheet ? new THREE.MeshLambertMaterial({map:sheet, transparent:true, alphaTest:.5}) : bodySkin);
+torso.name='torso'; torso.position.set(0,1.03,-.06); mesh.add(torso);
  const head=new THREE.Group();head.name='neck-pivot';head.position.set(0,1.0,.46);mesh.add(head);
- box(head,'neck',[.25,.7,.38],[0,.24,.02],skin).rotation.x=.48;
+ // The neck carries the horse neck rectangle at (0, 22): 4x10x6.
+const neck=new THREE.Mesh(new THREE.BoxGeometry(.25,.7,.38), sheet ? new THREE.MeshLambertMaterial({map:sheet, transparent:true, alphaTest:.5}) : skin);
+neck.name='neck'; neck.position.set(0,.24,.02); neck.rotation.x=.48; head.add(neck);
  const skull=new THREE.Group();skull.position.set(0,.43,.22);skull.rotation.x=.48;head.add(skull);
- box(skull,'head',[.31,.31,.43],[0,0,.09],skin);box(skull,'muzzle',[.29,.22,.32],[0,-.025,.38],skin);box(skull,'nose',[.295,.13,.09],[0,-.06,.56],dark);
+ // The head carries the horse head rectangle at (0, 18): 4x6x8.
+const skullBox=new THREE.Mesh(new THREE.BoxGeometry(.31,.31,.43), sheet ? new THREE.MeshLambertMaterial({map:sheet, transparent:true, alphaTest:.5}) : skin);
+skullBox.name='head'; skullBox.position.set(0,0,.09); skull.add(skullBox);box(skull,'muzzle',[.29,.22,.32],[0,-.025,.38],skin);box(skull,'nose',[.295,.13,.09],[0,-.06,.56],dark);
  for(const side of [-1,1]){box(skull,'ear',[.085,.2,.085],[side*.105,.23,-.045],skin);box(skull,'eye-white',[.012,.095,.085],[side*.161,.055,.19],white);box(skull,'eye',[.014,.065,.046],[side*.17,.05,.21],dark);}
  box(head,'mane',[.08,.73,.12],[0,.23,-.18],dark).rotation.x=.48;
  if(marking===1)box(skull,'blaze',[.09,.012,.62],[0,.162,.19],white);
