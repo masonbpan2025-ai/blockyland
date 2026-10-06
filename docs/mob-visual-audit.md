@@ -2125,3 +2125,37 @@ after round sixty-one, and the pack equines were still procedural because a modu
 Work list: **97 spawners, 67 with a real sheet, 27 mobs still flat-colour only, and ZERO draw their own skin.**
 The remaining 27 are mobs with no model work at all -- flat boxes and flat colours -- rather than mobs wearing the wrong
 texture, which is a different and simpler kind of gap.
+## Round sixty-three: the flat-skin audit was over-reporting, and now says so
+
+**Two false positives found by reading, not by rendering.** The audit reads spawner bodies in `src/mobs.js` only, so it
+cannot see a sheet reached through a delegated or layered path. Both cases are real:
+
+* **`spawnSquid` is ONE LINE** -- `return spawnSquid(this,'squid',x,y,z,options)` -- and the loader lives in
+  `squidBehavior.js`. The audit called the squid flat even though round fifty-four put it on its real sheet.
+* **`spawnOcelot` delegates to `spawnCat(x,y,z,'ocelot')`**, and the cat's atlas lookup finds
+  `ocelot: this.loadTexture(OCELOT_SKIN_PATH, ...)`. The ocelot has been on a real sheet since round forty-three.
+
+The audit now separates three states rather than two:
+
+| state | meaning |
+| --- | --- |
+| binds a sheet | a real PNG or a loader appears in the spawner itself |
+| **DELEGATED** | the body is a single forwarding call -- the answer is decided elsewhere and THIS TOOL CANNOT SEE IT |
+| genuinely flat | neither, and the spawner builds its own geometry |
+
+It also accepts `loadTexture:` as well as `loadTexture(`, since **a spawner that PASSES a loader is binding a real sheet
+just as much as one that calls the loader itself.** That colon-versus-paren distinction was the source of the first false
+positives.
+
+**Current honest measurement:** 97 spawners, 63 binding a sheet in their own body, **2 delegated** (squid, glow squid),
+and 32 that neither bind nor delegate -- of which the ocelot is a KNOWN false positive, because its sheet arrives through
+`spawnCat`. **So the real flat count is 31 or fewer, and I am not going to quote a number I have not verified mob by
+mob.**
+
+**The lesson, and it is the same one as rounds 48 and 51 one level up:** I have been quoting an audit figure as if it were
+ground truth. It is a REGEX OVER SOURCE TEXT, and it has now been wrong in three ways -- missing the piglin's procedural
+texture entirely, missing `loadTexture:`, and missing delegation. **A count from a tool is a hypothesis until the tool's
+failure modes are known**, and this tool's are now documented in its own header.
+
+Work list: **97 spawners, 63 confirmed with a real sheet, 2 delegated, 31 or fewer genuinely flat.** The remaining work is
+mobs with NO model at all -- flat boxes -- which is a simpler and much larger job than anything in the last twenty rounds.
