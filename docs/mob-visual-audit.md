@@ -2915,3 +2915,42 @@ name-versus-index error immediately.
 `AREA` stayed at exactly **1766/1773**; this round changes no behaviour, because the table is not yet called by the spawner.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-four: the tropical fish sheet resolves, and binding it produced fragmented garbage
+
+**I bound the real sheet to the tropical fish and reverted it, and the failure is instructive because the PATH was right.**
+
+The state check was exactly what it should be -- the table from round eighty-three resolved every variant correctly:
+
+```
+small/kob:      materials 7  with a map: 5  /assets/entity/fish/tropical_a_pattern_1.png
+large/flopper:  materials 7  with a map: 5  /assets/entity/fish/tropical_b_pattern_1.png
+small/spotty:   materials 7  with a map: 5  /assets/entity/fish/tropical_a_pattern_6.png
+```
+
+`kob` is pattern 1 and `spotty` is pattern 6, so the name-to-index resolution is right, and the sheets are the intended
+files. **And the render showed the fish falling apart into scattered fragments.**
+
+**The reason, and it is the round-seventy-three lesson in a new place:** `createTropicalFishModel` was built for **FLAT
+COLOURS**, and its boxes do not match vanilla's small-fish layout. Vanilla's `class_612` uses a body of **2x3x6** with the
+tail and top fins as **ZERO-WIDTH PLANES at negative coordinates** `(22, -6)` and `(10, -5)` -- one of the seven plane
+cases this project has catalogued. Handing that geometry vanilla's rectangles samples the wrong regions of the atlas, and a
+wrong region of a fish texture is not a slightly wrong fish; it is scattered fragments.
+
+**So this is NOT the giant's fault repeating.** The giant's geometry already matched its rectangles (round seventy-six proved
+body 0.667:1:0.333 against 8:12:4) and only the BINDING was wrong. Here the geometry is the wrong shape, so **the geometry
+has to come from `class_612` FIRST, exactly as the phantom and the pufferfish did** -- and both of those took one round each
+because that is the order they were done in.
+
+**What is KEPT, and why the round was still worth its cost:** `TROPICAL_FISH_SHEET_FOR` and its 14 verified paths remain in
+`src/fishBehavior.js`, unused by the spawner, with a comment at the binding site recording the revert and the reason. **The
+next attempt starts from a correct path table and a measured rectangle rather than from scratch** -- the same position round
+eighty-one left the guardian in, and that one landed in a single round afterwards.
+
+**The general rule this round confirms, now seen from both sides:**
+
+> A real sheet needs BOTH a correct path and geometry with vanilla's proportions. A correct path with wrong geometry renders
+> garbage, and it renders it CONFIDENTLY -- the state check reports maps bound and the suite stays green.
+
+`AREA` is back at exactly **1766/1773**, and `src/mobs.js` is byte-identical to its committed state.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
