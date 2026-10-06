@@ -198,8 +198,9 @@ test('fox, rabbit and parrot variants still reach the model after the dispatcher
   const red = manager.spawnMob('fox', 0, 1, 0, { coat: 'red' });
   const snow = manager.spawnMob('fox', 2, 1, 0, { coat: 'snow' });
   assert.equal(snow.coat, 'snow');
-  assert.equal(snow.bodyMat.color.getHex(), FOX_COAT_COLORS.snow.base);
-  assert.notEqual(red.bodyMat.color.getHex(), snow.bodyMat.color.getHex());
+  // A coat is a SHEET now, so the two variants differ by texture rather than by tint.
+  assert.match(snow.bodyMat.map?.assetPath ?? '', /fox_snow\.png$/);
+  assert.notEqual(red.bodyMat.map?.assetPath, snow.bodyMat.map?.assetPath);
 
   const brown = manager.spawnMob('rabbit', 0, 1, 0, { coat: 'brown' });
   const gold = manager.spawnMob('rabbit', 2, 1, 0, { coat: 'gold' });

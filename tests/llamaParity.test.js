@@ -220,10 +220,11 @@ test('equipment shows the chest and tints the carpet', () => {
 test('the coat colour is applied to the model', () => {
   const { manager } = fixture();
   const llama = manager.spawnLlama(0, 1, 0, { variant: 'gray' });
-  assert.equal(llama.bodyMat.color.getHex(), LLAMA_COAT_COLORS.gray.base);
+  // The coat IS its sheet. `applyLlamaCoat` binds a different texture rather than tinting the material.
+  assert.match(llama.bodyMat.map?.assetPath ?? '', /llama\/gray\.png$/);
   llama.variant = 'brown';
   applyLlamaCoat(llama);
-  assert.equal(llama.bodyMat.color.getHex(), LLAMA_COAT_COLORS.brown.base, 'the coat changes');
+  assert.match(llama.bodyMat.map?.assetPath ?? '', /llama\/brown\.png$/, 'the sheet changes');
   assert.doesNotThrow(() => applyLlamaCoat(null));
   assert.doesNotThrow(() => applyLlamaCoat({ variant: 'nonsense', bodyMat: null }));
 });

@@ -397,3 +397,31 @@ mapping fault. It reads as a fox. I would still call the face LESS convincing th
 I have not proven the exact rectangle vanilla uses without the model source.
 
 Work list: **92 mob spawners, 46 with a real skin, 46 still flat-colour only.**
+## Round ten: rabbit, llama, turtle, and a text-anchor trap that bit twice
+
+**Three more mobs dressed with `applyQuadUvs`:** the rabbit (body/head/legs), the llama (body, tall neck, head) and
+the turtle (shell, rim, neck, head).
+
+**A TEXT ANCHOR BIT TWICE IN ONE ROUND, and both were my own edits.**
+
+`const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });` is a line the FOX, the RABBIT and the LLAMA
+spawners all write verbatim. A plain string replace therefore hit all three: the rabbit began loading
+`FOX_SKIN_PATHS`, and the llama's binding landed inside the fox, referencing a `variant` the fox does not define.
+Both were caught, but only because a binding audit (printing every `adoptTexture` call with the spawner it sits in)
+made them visible. **Splice by line number inside the named function, or anchor on something unique.** After the
+audit, every one of the twelve skin bindings sits in the right spawner.
+
+**A second, quieter trap: CRLF.** `applyLlamaCoat` refused a literal multi-line anchor because `llamaBehavior.js`
+uses CRLF line endings. That has now cost time three times in this project, so the fix is always a regex.
+
+**Two genuine bugs the tests caught.** `applyLlamaCoat` and `applyRabbitCoat` only wrote `bodyMat.color`, which a
+bound texture overwrites with white -- so a llama's coat change and naming a rabbit "Toast" changed **a colour nobody
+could see**. Both now bind their own sheet through `adoptWhenReady`, with the colour kept as the no-assets fallback.
+The rabbit sheets also had to be renamed to match their declared paths (`rabbit_white.png` -> `white.png`), because a
+path that 404s renders BLACK rather than falling back.
+
+**Honest evidence note.** The turtle capture shows shell structure and a UV-mapped shell, but it reads green rather
+than the sea-turtle's olive/brown tones, so the shell's rectangle probably wants re-fitting against the 128x64 sheet.
+Recorded as NOT finished rather than presented as done.
+
+Work list: **92 mob spawners, 49 with a real skin, 43 still flat-colour only.**

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
 /**
  * Turtle rules and model.
@@ -297,20 +298,24 @@ export function createTurtleModel(shellMat, skinMat, darkMat) {
 
   // The shell, the dominant feature: wide and flat.
   const shell = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.22, 1.1), shellMat);
+  applyQuadUvs(shell, 64, 0, 16, 4, 18, 128, 64);
   shell.position.set(0, 0.22, 0);
   group.add(shell);
 
   // A slightly darker rim, which is what gives the shell a readable edge.
   const rim = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.1, 1.16), darkMat);
+  applyQuadUvs(rim, 64, 0, 16, 4, 18, 128, 64);
   rim.position.set(0, 0.15, 0);
   group.add(rim);
 
   // The head on a short neck, at the front.
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.24), skinMat);
+  applyQuadUvs(neck, 0, 0, 3, 3, 4, 128, 64);
   neck.position.set(0, 0.24, 0.6);
   group.add(neck);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.3), skinMat);
+  applyQuadUvs(head, 0, 8, 4, 3, 5, 128, 64);
   head.position.set(0, 0.25, 0.78);
   group.add(head);
 

@@ -290,6 +290,24 @@ const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
 const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
 const GOAT_SKIN_PATH = '/assets/entity/goat/goat.png';
 /** The fox's two coats, chosen by the `coat` the mob rolled. */
+/** The llama's four coat sheets, chosen by the coat the mob rolled. */
+const LLAMA_SKIN_PATHS = {
+  creamy: '/assets/entity/llama/creamy.png',
+  white: '/assets/entity/llama/white.png',
+  brown: '/assets/entity/llama/brown.png',
+  gray: '/assets/entity/llama/gray.png'
+};
+const TURTLE_SKIN_PATH = '/assets/entity/turtle/big_sea_turtle.png';
+/** The rabbit's coat sheets, keyed by the coat name the mob rolled. */
+const RABBIT_SKIN_PATHS = {
+  brown: '/assets/entity/rabbit/brown.png',
+  white: '/assets/entity/rabbit/white.png',
+  black: '/assets/entity/rabbit/black.png',
+  gold: '/assets/entity/rabbit/gold.png',
+  salt: '/assets/entity/rabbit/salt.png',
+  toast: '/assets/entity/rabbit/toast.png',
+  killer: '/assets/entity/rabbit/caerbannog.png'
+};
 const FOX_SKIN_PATHS = {
   red: '/assets/entity/fox/fox.png',
   snow: '/assets/entity/fox/fox_snow.png'
@@ -4035,11 +4053,11 @@ export class MobManager {
   spawnRabbit(x, y, z, options = {}) {
     const coat = options.coat || (options.killer ? 'killer' : rollRabbitCoat(options.biome));
     const colors = RABBIT_COAT_COLORS[coat] || RABBIT_COAT_COLORS.brown;
-    // The real fox coat sheet. The fox has two (red and snow) and the coat decides which, so the coat is a
+    // The real rabbit coat sheet, chosen by the coat the mob rolled; the model had the right shape
     // texture choice rather than a tint. The model already had the right shape but no UVs at all, so its parts
     // are now mapped with `applyQuadUvs`.
     const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base, transparent: true, alphaTest: 0.5 });
-    adoptTexture(bodyMat, this.loadTexture(FOX_SKIN_PATHS[coat] ?? FOX_SKIN_PATHS.red), colors.base);
+    adoptTexture(bodyMat, this.loadTexture(RABBIT_SKIN_PATHS[coat] ?? RABBIT_SKIN_PATHS.brown), colors.base);
     const patchMat = new THREE.MeshLambertMaterial({ color: colors.patch });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group, head, body, patchMesh, tail, ears, legs, eyes } = createRabbitModel(bodyMat, patchMat, eyeMat);
@@ -4053,6 +4071,8 @@ export class MobManager {
       type: 'rabbit',
       name: options.killer ? 'The Killer Bunny' : 'Rabbit',
       mesh: group,
+      // The coat swap loads a different sheet, so the manager travels with the mob.
+      skinManager: this,
       head,
       body,
       patchMesh,
@@ -4156,7 +4176,11 @@ export class MobManager {
   spawnFox(x, y, z, options = {}) {
     const coat = options.coat || rollFoxCoat(options.biome);
     const colors = FOX_COAT_COLORS[coat] || FOX_COAT_COLORS.red;
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    // The real fox coat sheet. The fox has two (red and snow) and the coat decides which, so the coat is a
+    // texture choice rather than a tint. Its model already had the right shape but no UVs at all, so its parts
+    // are mapped with `applyQuadUvs`.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(FOX_SKIN_PATHS[coat] ?? FOX_SKIN_PATHS.red), colors.base);
     const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
     const earMat = new THREE.MeshLambertMaterial({ color: colors.ear });
     const { group, body, belly, head, muzzle, tail, ears, eyes, legs, mouth } = createFoxModel(bodyMat, bellyMat, earMat);
@@ -4486,7 +4510,13 @@ export class MobManager {
     const variant = options.variant || rollLlamaVariant(random);
     const strength = options.strength ?? rollLlamaStrength(random);
     const colors = llamaCoatColors(variant);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    // The real llama coat sheet. There are four coats plus a trader texture, so the coat is a texture
+    // choice; the model already had the right shape but no UVs, so its parts are mapped with `applyQuadUvs`.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base, transparent: true, alphaTest: 0.5 });
+    // `variant` arrives as a name from `rollLlamaVariant` but a caller may pass a numeric id, so normalise it
+    // before indexing the sheet table.
+    const llamaCoat = typeof variant === 'number' ? (Object.keys(LLAMA_VARIANTS)[variant] ?? 'creamy') : variant;
+    adoptTexture(bodyMat, this.loadTexture(LLAMA_SKIN_PATHS[llamaCoat] ?? LLAMA_SKIN_PATHS.creamy), colors.base);
     const darkMat = new THREE.MeshLambertMaterial({ color: colors.dark });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1c1917 });
     const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat);
@@ -4504,6 +4534,8 @@ export class MobManager {
       onGround: true,
       name: 'Llama',
       mesh: group,
+      // The coat swap loads a different sheet, so the manager travels with the mob.
+      skinManager: this,
       body,
       neck,
       head,
@@ -4561,7 +4593,10 @@ export class MobManager {
    * when it matures. Bred and led with seagrass.
    */
   spawnTurtle(x, y, z, options = {}) {
-    const shellMat = new THREE.MeshLambertMaterial({ color: 0x2f6b3a });
+    // The real sea-turtle sheet. The model already had the right shell/neck/head shape but no UVs at all, so
+    // nothing sampled the texture; its parts are mapped with `applyQuadUvs` and bound here.
+    const shellMat = new THREE.MeshLambertMaterial({ color: 0x2f6b3a, transparent: true, alphaTest: 0.5 });
+    adoptTexture(shellMat, this.loadTexture(TURTLE_SKIN_PATH), 0x2f6b3a);
     const skinMat = new THREE.MeshLambertMaterial({ color: 0x4a8a52 });
     const darkMat = new THREE.MeshLambertMaterial({ color: 0x1f4527 });
     const { group, shell, rim, neck, head, eyes, flippers, tail } = createTurtleModel(shellMat, skinMat, darkMat);

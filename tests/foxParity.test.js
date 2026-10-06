@@ -96,9 +96,14 @@ test('the two variants exist with distinct colours', () => {
   const snow = manager.spawnFox(2, 1, 0, { coat: 'snow' });
   assert.equal(red.coat, 'red');
   assert.equal(snow.coat, 'snow');
-  assert.notEqual(red.bodyMat.color.getHex(), snow.bodyMat.color.getHex());
-  assert.equal(red.bodyMat.color.getHex(), FOX_COAT_COLORS.red.base);
-  assert.equal(snow.bodyMat.color.getHex(), FOX_COAT_COLORS.snow.base);
+  // The coat IS its sheet: two vanilla textures, one per coat. Asserting a flat colour would be asserting the
+  // fallback, because a bound texture whitens the material.
+  assert.match(red.bodyMat.map?.assetPath ?? '', /fox\.png$/);
+  assert.match(snow.bodyMat.map?.assetPath ?? '', /fox_snow\.png$/);
+  // The coat is the SHEET: binding a texture whitens the material, so the colour is the fallback, not the
+  // variant. Asserting the path checks the thing that actually changes what you see.
+  assert.match(red.bodyMat.map?.assetPath ?? '', /fox\.png$/);
+  assert.match(snow.bodyMat.map?.assetPath ?? '', /fox_snow\.png$/);
 });
 
 test('the variant is chosen by biome, as the wiki describes', () => {

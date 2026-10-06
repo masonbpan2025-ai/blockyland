@@ -115,7 +115,11 @@ test('all six natural coat variants exist and are paintable', () => {
     const { manager } = fixture();
     const rabbit = manager.spawnRabbit(0, 1, 0, { coat });
     assert.equal(rabbit.coat, coat);
-    assert.equal(rabbit.bodyMat.color.getHex(), colors.base, `${coat} body tint`);
+    // The coat is the SHEET it wears where a sheet exists, and only the fallback colour otherwise. Binding a
+  // texture whitens the material, so a colour assertion would be checking the fallback.
+  const path = rabbit.bodyMat.map?.assetPath;
+  if (path) assert.match(path, /rabbit\//, `${coat} wears a rabbit sheet`);
+  else assert.equal(rabbit.bodyMat.color.getHex(), colors.base, `${coat} falls back to its tint`);
     assert.equal(rabbit.eyeMat.color.getHex(), colors.eye, `${coat} eye colour`);
   }
 });
@@ -148,7 +152,10 @@ test('naming a rabbit Toast retextures it, and Toast is not inherited', () => {
   rabbit.name = 'Toast';
   applyRabbitName(rabbit);
   assert.equal(rabbit.coat, 'toast', 'the Toast pattern is applied');
-  assert.equal(rabbit.bodyMat.color.getHex(), RABBIT_COAT_COLORS.toast.base);
+  // Toast is a sheet rather than a tint where the texture is present.
+  const toastPath = rabbit.bodyMat.map?.assetPath;
+  if (toastPath) assert.match(toastPath, /rabbit\/toast\.png$/);
+  else assert.equal(rabbit.bodyMat.color.getHex(), RABBIT_COAT_COLORS.toast.base);
   // Wiki: Toast offspring get the parents' original colouring, not Toast. The stored coat is
   // what breeding copies, so the retexture must not overwrite the inherited type.
   assert.equal(rabbit.inheritedCoat ?? null, null);

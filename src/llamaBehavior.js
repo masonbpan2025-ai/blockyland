@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
+import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
 /**
  * Llama rules and the llama spit projectile.
@@ -25,6 +27,14 @@ export const LLAMA_SPIT_DAMAGE = { peaceful: 0, easy: 1, normal: 1, hard: 1.5 };
 export const LLAMA_VARIANTS = { creamy: 0, white: 1, brown: 2, gray: 3 };
 
 /** Body colours per coat. */
+/** The vanilla sheet each llama coat wears. A coat IS its texture, so the name selects a sheet. */
+export const LLAMA_SKIN_PATHS = {
+  creamy: '/assets/entity/llama/creamy.png',
+  white: '/assets/entity/llama/white.png',
+  brown: '/assets/entity/llama/brown.png',
+  gray: '/assets/entity/llama/gray.png'
+};
+
 export const LLAMA_COAT_COLORS = {
   creamy: { base: 0xf5e6c8, dark: 0xe0cba8 },
   white: { base: 0xf8fafc, dark: 0xe2e8f0 },
@@ -284,16 +294,19 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 1.0), bodyMat);
+  applyQuadUvs(body, 16, 16, 12, 9, 18, 128, 64);
   body.position.set(0, 1.0, 0);
   group.add(body);
 
   // The neck, tall and slightly forward.
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.72, 0.32), bodyMat);
+  applyQuadUvs(neck, 0, 16, 4, 18, 6, 128, 64);
   neck.position.set(0, 1.55, 0.34);
   neck.rotation.x = 0.28;
   group.add(neck);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.44), bodyMat);
+  applyQuadUvs(head, 0, 42, 5, 5, 6, 128, 64);
   head.position.set(0, 1.95, 0.5);
   group.add(head);
 
@@ -359,8 +372,13 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
 export function applyLlamaCoat(llama) {
   if (!llama) return;
   const colors = llamaCoatColors(llama.variant);
-  llama.bodyMat?.color?.setHex(colors.base);
-  llama.darkMat?.color?.setHex(colors.dark);
+
+  // The coat IS its sheet. Setting only the colour would tint a material that the bound texture has already
+  // whitened, so a coat change would be INVISIBLE -- which is exactly what it was before this.
+  const path = LLAMA_SKIN_PATHS[llama.variant] ?? LLAMA_SKIN_PATHS.creamy;
+  const skin = llama.skinManager?.loadTexture ? llama.skinManager.loadTexture(path) : null;
+  if (skin && llama.bodyMat) adoptWhenReady(llama.bodyMat, skin, colors.base);
+  else llama.bodyMat?.color?.setHex(colors.base);  llama.darkMat?.color?.setHex(colors.dark);
 }
 
 /** Show or hide the chest and carpet according to what the llama is wearing. */

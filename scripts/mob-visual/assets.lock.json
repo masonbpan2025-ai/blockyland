@@ -371,6 +371,114 @@
       "sha256": "23e6563aa43bbeb7052f0ac71d5b75bd9d3729c7afb4fba38acaf234002bd226",
       "bytes": 484,
       "for": "fox (snow)"
+    },
+    "rabbit_skins": {
+      "path": "entity/rabbit/rabbit_brown.png",
+      "dest": "assets/entity/rabbit/brown.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_brown.png",
+      "ref": "1.21.4",
+      "sha256": "788418e8b6866675b68e6470474762624ad385d87813ee0b8f13355472ae44c7",
+      "bytes": 514,
+      "for": "rabbit (brown)"
+    },
+    "rabbit_white": {
+      "path": "entity/rabbit/rabbit_white.png",
+      "dest": "assets/entity/rabbit/white.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_white.png",
+      "ref": "1.21.4",
+      "sha256": "8ad43b99f88626ff9b52b24448f85cf6cc205f65f06b38359623db5c4eb0542c",
+      "bytes": 402,
+      "for": "rabbit (white)"
+    },
+    "rabbit_black": {
+      "path": "entity/rabbit/rabbit_black.png",
+      "dest": "assets/entity/rabbit/black.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_black.png",
+      "ref": "1.21.4",
+      "sha256": "f38b04e1fb07231ae5871b5ce583405f103eac133a85800524b8e102bc665067",
+      "bytes": 400,
+      "for": "rabbit (black)"
+    },
+    "rabbit_gold": {
+      "path": "entity/rabbit/rabbit_gold.png",
+      "dest": "assets/entity/rabbit/gold.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_gold.png",
+      "ref": "1.21.4",
+      "sha256": "f42896eec3530993ce93cdd63f76326ed30297411f7a836224dd5aecaf696f5b",
+      "bytes": 524,
+      "for": "rabbit (gold)"
+    },
+    "rabbit_salt": {
+      "path": "entity/rabbit/rabbit_salt.png",
+      "dest": "assets/entity/rabbit/salt.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_salt.png",
+      "ref": "1.21.4",
+      "sha256": "e8d14ec11863fe4a2668503d34245a34477e4918fd1f2b6875637a9b788455e5",
+      "bytes": 475,
+      "for": "rabbit (salt)"
+    },
+    "rabbit_toast": {
+      "path": "entity/rabbit/rabbit_toast.png",
+      "dest": "assets/entity/rabbit/toast.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_toast.png",
+      "ref": "1.21.4",
+      "sha256": "b2cfa8f31f3786794aa2de19b24d75b678091c3bb72e15068fa4534f8d1a14da",
+      "bytes": 503,
+      "for": "rabbit (toast)"
+    },
+    "rabbit_killer": {
+      "path": "entity/rabbit/caerbannog.png",
+      "dest": "assets/entity/rabbit/caerbannog.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/caerbannog.png",
+      "ref": "1.21.4",
+      "sha256": "8a18f35cc0d05984bab98c38357c9329f2731a39ce40255082a7764f13f3c913",
+      "bytes": 530,
+      "for": "rabbit (killer)"
+    },
+    "llama_skins": {
+      "path": "entity/llama/creamy.png",
+      "dest": "assets/entity/llama/creamy.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/llama/creamy.png",
+      "ref": "1.21.4",
+      "sha256": "3fc197a08628e657ec4021ee8d2b93b11e62fe20b17ac31fa8d5e2114adfa664",
+      "bytes": 1055,
+      "for": "llama (creamy)"
+    },
+    "llama_white": {
+      "path": "entity/llama/white.png",
+      "dest": "assets/entity/llama/white.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/llama/white.png",
+      "ref": "1.21.4",
+      "sha256": "710626e2e2d768641fd88ca910fa784722de6bca90a727c2dd433099462a2113",
+      "bytes": 1127,
+      "for": "llama (white)"
+    },
+    "llama_brown": {
+      "path": "entity/llama/brown.png",
+      "dest": "assets/entity/llama/brown.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/llama/brown.png",
+      "ref": "1.21.4",
+      "sha256": "25b1eea671fef05ffc02479ed36b2aaf27b31105144cec53c1d4bbd9ecd38f85",
+      "bytes": 1205,
+      "for": "llama (brown)"
+    },
+    "llama_gray": {
+      "path": "entity/llama/gray.png",
+      "dest": "assets/entity/llama/gray.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/llama/gray.png",
+      "ref": "1.21.4",
+      "sha256": "7f534edb25568479b85e0ede0c694cad051987abc20fe5e166ef390e2ef71e6c",
+      "bytes": 1093,
+      "for": "llama (gray)"
+    },
+    "turtle_skin": {
+      "path": "entity/turtle/big_sea_turtle.png",
+      "dest": "assets/entity/turtle/big_sea_turtle.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/turtle/big_sea_turtle.png",
+      "ref": "1.21.4",
+      "sha256": "fa434644eb95ba5ffb2780475a238e787acf2a714adb5f7b8f9df6597b07c477",
+      "bytes": 1205,
+      "for": "turtle"
     }
   }
 }
