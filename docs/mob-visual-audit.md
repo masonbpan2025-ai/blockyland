@@ -746,3 +746,39 @@ are not evidence of a bound texture.
 lying flat, so my `rotate` for those planes is wrong. The geometry is otherwise right.
 
 Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
+
+## Round twenty-one: the warden was sampling the wrong half of its sheet
+
+**I was wrong two rounds ago when I "reverted" the warden.** In round twelve the UV audit flagged the warden, I changed
+its `texW`, rendering made it worse, and I concluded the audit was producing false positives and that the warden was
+already correct. **The flag was real; my fix was wrong.**
+
+**The actual fault, now confirmed from the decompiled `WardenEntityModel` (`class_7280`):** the warden's sheet IS
+128x128, and `createBoxWithUV` divides each sprite coordinate by `texW`. I was passing **64-unit sprite coordinates with
+`texW = 128`**, so every rectangle landed at **half** its intended position -- the torso's `u = 16` became 12.5% of the
+sheet instead of 25%. Every warden part was sampling the wrong half of its own texture.
+
+Round twelve's attempt failed because I changed the DIVISOR to 64 while leaving the coordinates in 64-space; the
+coordinates needed to move into 128-space. Same bug, opposite half of the fix.
+
+**Corrected from the decompiled values, and each block verified against the sheet before use:**
+
+| part | (u,v) | size | faces measured |
+| --- | --- | --- | --- |
+| head | (0,0) | 18x21x11 | 100% opaque |
+| torso | (0,32) | 16x16x10 | 100%, 160-256 dark texels |
+| arm | (44,50) | 8x28x8 | 28 tall, not the 24 I had |
+| leg | (76,48) | 6x13x6 | 100% |
+
+The render now shows the warden's **rib and tendril detail** on the arms and legs -- pale ribbed shapes that were
+simply not being sampled before. The mob was previously a dark silhouette with a core; it now has its own texture.
+
+**Worth recording as a correction:** I wrote in round twelve that "the warden was already correct and the flag was my
+tool's false positive". That was wrong about the flag and I should have kept investigating rather than closing it. The
+lesson is not "trust the audit" -- the audit's own arithmetic modelling is still unreliable -- but "a flag from a
+measured tool deserves an explanation, not a dismissal".
+
+**Deliberately left out:** the warden's ribs and tendrils are FLAT (`0.0F` deep) planes in vanilla. They need `plane`
+parts and their own rotation, and the body proportions mattered more this round.
+
+Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**

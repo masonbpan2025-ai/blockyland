@@ -1206,7 +1206,7 @@ export class MobManager {
       group.add(torso);
 
       // Folded Arms / Little Paws resting in front (like Pikachu reference)
-      const armGeo = createBoxWithUV(0.14, 0.30, 0.14, 40, 46, 64, 64, 3, 7, 3);
+      const armGeo = createBoxWithUV(0.5, 1.75, 0.5, 44, 50, 128, 128, 8, 28, 8); // WARDEN_UV_NOTE
       leftArm = new THREE.Mesh(armGeo, mat);
       leftArm.position.set(-0.22, 0.58, 0.14);
       leftArm.rotation.set(0.65, 0.25, -0.45);
@@ -1251,7 +1251,7 @@ export class MobManager {
       }
 
       // 4 Legs
-      const legGeo = createBoxWithUV(0.24, 0.45, 0.24, 0, 22, 64, 64, 4, 8, 4);
+      const legGeo = createBoxWithUV(0.375, 0.8125, 0.375, 76, 48, 128, 128, 6, 13, 6); // WARDEN_UV_NOTE
       const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.25, 0.22, 0.35); group.add(fl);
       const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.25, 0.22, 0.35); group.add(fr);
       const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.25, 0.22, -0.35); group.add(bl);
@@ -6389,11 +6389,11 @@ export class MobManager {
     adoptTexture(sculkMat, skin, 0x0f2e3a);
     const cyanMat = new THREE.MeshLambertMaterial({ color: WARDEN_CORE_COLOR });
 
-    const torso = new THREE.Mesh(createBoxWithUV(1.2, 1.4, 0.7, 16, 16, 128, 128, 16, 20, 12), sculkMat);
+    const torso = new THREE.Mesh(createBoxWithUV(1.0, 1.0, 0.625, 0, 32, 128, 128, 16, 16, 10), sculkMat); // WARDEN_UV_NOTE
     torso.position.y = 1.9;
     group.add(torso);
 
-    const head = new THREE.Mesh(createBoxWithUV(1.2, 1.2, 1.2, 0, 0, 128, 128, 16, 16, 16), sculkMat);
+    const head = new THREE.Mesh(createBoxWithUV(1.125, 1.3125, 0.6875, 0, 0, 128, 128, 18, 21, 11), sculkMat); // WARDEN_UV_NOTE
     head.position.set(0, 3.0, 0);
     group.add(head);
     // WARDEN_MODELLED_EYES
@@ -6417,11 +6417,11 @@ export class MobManager {
     const core = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 0.12), cyanMat); core.position.set(0, 2.05, 0.4); group.add(core);
     const coreSunken = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.1), cyanMat); coreSunken.position.set(0, 1.55, 0.38); group.add(coreSunken);
 
-    const armGeo = createBoxWithUV(0.4, 1.5, 0.4, 44, 16, 128, 128, 8, 24, 8);
+    const armGeo = createBoxWithUV(0.5, 1.75, 0.5, 44, 50, 128, 128, 8, 28, 8); // WARDEN_UV_NOTE
     const leftArm = new THREE.Mesh(armGeo, sculkMat); leftArm.position.set(-0.85, 1.8, 0); group.add(leftArm);
     const rightArm = new THREE.Mesh(armGeo, sculkMat); rightArm.position.set(0.85, 1.8, 0); group.add(rightArm);
 
-    const legGeo = createBoxWithUV(0.45, 1.2, 0.45, 0, 48, 128, 128, 8, 20, 8);
+    const legGeo = createBoxWithUV(0.375, 0.8125, 0.375, 76, 48, 128, 128, 6, 13, 6); // WARDEN_UV_NOTE
     const leftLeg = new THREE.Mesh(legGeo, sculkMat); leftLeg.position.set(-0.35, 0.6, 0); group.add(leftLeg);
     const rightLeg = new THREE.Mesh(legGeo, sculkMat); rightLeg.position.set(0.35, 0.6, 0); group.add(rightLeg);
 
