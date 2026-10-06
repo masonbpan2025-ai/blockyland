@@ -2803,3 +2803,40 @@ mob needing a sheet -- and one took six rounds while two took one. **The differe
 started by measuring the state or by proposing a mechanism.**
 
 Work list: **97 spawners, 73 confirmed with a real sheet, 19 mobs still without a model or skin.**
+## Round eighty-one: the guardian, a seventh delegation defect, and a helper that landed out of scope
+
+**I found a real defect and reverted my own attempt at it, for two separate reasons.**
+
+**The defect, which is worth keeping:** `spawnElderGuardian` forwards to `spawnGuardian`, and the parent resolves its texture
+from the atlas keys `guardian` and `elder_guardian` -- which are built by `this.createAquaticTexture(...)`, **a generator,
+not a real sheet**. Both real sheets are 64x64, extracted and converted. And the body is a plain
+`BoxGeometry(0.85, 0.85, 0.85)` with **no UVs at all**, so whatever map it gets is stretched across every face.
+`GuardianEntityModel` (`class_570`) gives the rectangle: **12x12x12 at (0, 0)**, which a 0.85 cube matches at 1:1:1.
+
+**That is the SEVENTH delegation defect** -- cave spider, rabbit, piglin brute, trader llama, guardian/elder guardian, and
+two more found earlier -- and the pattern holds: the variant's identity is decided in the PARENT, so the fix belongs in the
+atlas keys rather than in `spawnElderGuardian`.
+
+**Why I reverted, and the two causes are different:**
+
+1. **My patch script wrote several changes to the same file in one run**, and the FIRST replacement shifted the text so the
+   later ones anchored against a stale in-memory copy and silently did nothing. Two of the three edits reported
+   "anchor MISSING" while I had verified the text matched -- because it had matched BEFORE the earlier write.
+2. **The helper insert landed somewhere `applyBoxUVs` was not in scope**, so the runtime threw
+   `applyBoxUVs is not defined` at the call site and the area went from 7 failures to **21**. `node --check` passed, because
+   an unresolved identifier is not a syntax error -- the same trap as round sixty-nine's missing constant, and the same
+   trap round seventy-eight's `if (map)` was.
+
+**Two lessons, and the first is a new one:**
+
+> **A patch script must re-read the file between edits, or make ALL its edits against one in-memory copy and write ONCE.**
+> Mixing the two -- reading, replacing, writing, then replacing against the ORIGINAL string again -- means every edit after
+> the first anchors to text that no longer exists.
+
+**And the second is round sixty-nine's, repeated:** `node --check` cannot catch an undefined identifier. The check that can
+is **running the module**, which I did for the material state but not for the helper's existence.
+
+**`src/` carries no change from this round**; the guardian's sheets are extracted and its rectangle is measured, so the next
+attempt starts from assets and measurements rather than from scratch.
+
+Work list: **97 spawners, 73 confirmed with a real sheet, 19 mobs still without a model or skin.**
