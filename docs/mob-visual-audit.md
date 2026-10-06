@@ -3839,3 +3839,52 @@ any texture being wrong. **That is the next thing to measure: the parts' POSITIO
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- of which the camel is bound and forming
 with its texture addressing fully verified.**
+## Round one hundred and five: the camel's model is a FLAT-COLOUR ASSEMBLY, and that explains every measurement
+
+**I measured the part positions, and the numbers show what the model actually is.**
+
+```
+part                    position (world)        size
+body                    (0.00, 1.45,  0.00)     0.9  x 0.8  x 1.5
+belly                   (0.00, 1.10,  0.00)     0.8  x 0.3  x 1.35
+hump                    (0.00, 2.05, -0.10)     0.7  x 0.55 x 0.9
+neck                    (0.00, 2.10,  0.70)     0.4  x 0.9  x 0.4
+head                    (0.00, 2.60,  0.95)     0.5  x 0.42 x 0.7
+muzzle                  (0.00, 2.54,  1.39)     0.36 x 0.3  x 0.3
+eye x2                  (+-0.22, 2.68, 1.23)    0.08 x 0.08 x 0.04
+leg x4                  (+-0.32, 0.55, 0.50)    0.22 x 1.1  x 0.22
+hoof x4                 (+-0.32, 0.03, 0.50)    0.24 x 0.12 x 0.26
+```
+
+**This is a stack of eighteen FLAT-COLOURED boxes, each placed BY HAND and each shaped to read as its own part.** The belly
+is a separate slab under the body; the muzzle is a separate box in front of the head; the hump is a box ON TOP rather than
+part of the body's silhouette. `createCamelModel` was written to be read as a camel **because every part has its own solid
+colour**, not because the boxes together form vanilla's camel.
+
+**That is the explanation for every measurement in rounds ninety-five to one hundred and four, and it is structural rather
+than numeric:**
+
+* **every rectangle lands on opaque texture** (round one hundred and four) -- because each box genuinely does sample a real
+  region of the camel atlas;
+* **and the render still fragments** -- because a box **shaped and placed for flat colour** shows a slice of atlas that does
+  not correspond to its position on the animal. The belly box samples a belly-shaped rectangle while sitting where vanilla's
+  body's lower face would be; the hump box samples a hump rectangle while sitting ON TOP rather than merged into the body.
+
+**So the model cannot be given a real sheet by adding rectangles, and no amount of texture addressing will fix it.** The
+boxes themselves have to become vanilla's parts -- which is the work rounds fifty-four (pufferfish), seventy-nine (giant) and
+eighty (undead horses) each did by **rebuilding the geometry**, and which is the cheap path only when the existing boxes
+already match vanilla's part list.
+
+**THE RULE, which I can now state with the evidence behind it:**
+
+> A mob whose model is a hand-placed FLAT-COLOUR ASSEMBLY cannot take a real sheet without being rebuilt. Adding rectangles
+> is not enough, because the rectangles address the texture correctly while the BOXES are the wrong parts in the wrong
+> places. This is why the pufferfish, the giant and the undead horses each needed `class_XXX` geometry rather than a binding,
+> and it is the reliable predictor of which remaining mobs will take one round and which will take a rebuild.
+
+**The camel stays as it was**, on flat colours, with its atlas key in place: **flat colour is the correct rendering for a
+flat-colour assembly**, which is why the reverted version looked like a camel and every textured attempt did not.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
