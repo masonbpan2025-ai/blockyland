@@ -2638,3 +2638,52 @@ complete enough to be useful: the model, the rectangles, the sheet and the tool 
 the sheet is BOUND -- the material assignment -- and nowhere else.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-seven: the giant's real blocker was the ATLAS KEY, and the head test proved it by proving nothing
+
+**The two-way test I set up did not discriminate between its two outcomes -- it produced a THIRD one, which turned out to be
+the answer.**
+
+The test bound the zombie sheet to the giant's `skinMat` only, leaving body, arms and legs flat, so a correct head would
+show the mechanism works. The result:
+
+```
+giant (head test): 81498 bytes   <- BYTE-IDENTICAL to the pre-change baseline from round 73
+```
+
+**Byte-identical across a source change means either a stale cache or a no-op** -- round forty's rule, and this time I
+checked the file had changed first, so it was a no-op. Reading the built mob said why:
+
+```
+materials: 4
+  map: NONE (colour 0x3a5a8c)      <- shirt
+  map: NONE (colour 0x4f7a3f)      <- skin
+  map: NONE (colour 0x101010)      <- eyes
+  map: NONE (colour 0x2c3e6b)      <- trousers
+```
+
+**`this.loadTexture(ZOMBIE_SKIN_PATH)` returns NULL.** Every spawner that successfully binds a sheet in this project goes
+through a PRELOADED ATLAS KEY -- `this.textures.zombie`, `this.textures.pig`, `this.textures.cat_tuxedo` -- because
+`loadTexture` is an asynchronous loader whose result is only usable once the bitmap decodes, and the atlas is what holds
+the keyed result. **My giant patch called `loadTexture` directly and bound whatever came back, which was null.**
+
+So the giant's fault was never the geometry, the rectangles, the sheet, the tool, or the material SHARING. **It was binding
+`null`.** And that also explains the round-seventy-three render without any of the mechanisms I proposed: the mangled green
+and cyan bands came from a material that had been given a null map and a geometry that had been given atlas rectangles
+meant for a different texture layout -- the boxes were re-UWed against a sheet that never arrived.
+
+**The narrow, actionable statement, which four rounds of hypothesising failed to reach:**
+
+> A spawner binds a sheet through the PRELOADED ATLAS KEY (`this.textures.<key>`), not through a fresh
+> `loadTexture(path)` call. The 15 keys built that way are listed by grepping `: this.loadTexture(` in `src/mobs.js`, and
+> `zombie` is already among them -- the giant needed `this.textures.zombie` and the sheet was sitting there the whole time.
+
+**And the process failure is now unmistakable.** Rounds 73 to 77 produced five explanations -- flat-colour models, horse-vs-
+strider proportions, a faulty tool, material sharing, and this -- and **the correct one was reachable in round 73 by the
+same single check that found it now**: read the material's `map` after building. That check appeared in round 69 and round
+72 as the cheap defence, and I did not run it on the giant until the FIFTH attempt, because I was reasoning about the
+mechanism instead of measuring the state.
+
+**The rule, which the audit has now earned four times over: RUN the state-reading check FIRST, before forming any
+hypothesis at all.** Not after one fails -- first.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
