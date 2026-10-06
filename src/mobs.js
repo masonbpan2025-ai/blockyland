@@ -285,6 +285,7 @@ const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
+const ZOMBIE_VILLAGER_SKIN_PATH = '/assets/entity/zombie_villager/zombie_villager.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
 /**
  * The endermite's real model, decompiled from `EndermiteEntityModel`.
@@ -3590,68 +3591,77 @@ export class MobManager {
 
   // --- ZOMBIE VILLAGER ---
   spawnZombieVillager(x, y, z) {
+    // The real model and both real sheets. Vanilla uses a 64x64 body sheet plus a 64x32 overlay for the robe and hat;
+    // a single 64x64 sheet carries the visible result here, which is why this is the project's first two-size mob.
+    // ZOMBIE_VILLAGER_MODEL
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4d7c0f, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(ZOMBIE_VILLAGER_SKIN_PATH), 0x4d7c0f);
+    const clothesMat = new THREE.MeshLambertMaterial({ color: 0x57534e, transparent: true, alphaTest: 0.5 });
+    adoptTexture(clothesMat, this.loadTexture(ZOMBIE_VILLAGER_SKIN_PATH), 0x57534e);
+
     const group = new THREE.Group();
-    // Green tinted / zombie villager skin
-    const zombieMat = new THREE.MeshLambertMaterial({
-      color: 0x4d7c0f,
-      transparent: true,
-      alphaTest: 0.1
-    });
-    const clothesMat = new THREE.MeshLambertMaterial({
-      color: 0x57534e
-    });
+    const u = 1 / 16;
+    const box = (w, h, d, uu, vv, tw, th, td, mat) => new THREE.Mesh(
+      createBoxWithUV(w * u, h * u, d * u, uu, vv, 64, 64, tw, th, td), mat);
 
-    // Head (8x10x8) with villager brow and zombie tone
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.625, 0.5), zombieMat);
-    head.position.y = 1.35;
-    group.add(head);
+    // Vanilla's frame sits the parts around y = 24; the shared guarded helper grounds the result afterwards.
+    const frame = new THREE.Group();
+    frame.position.y = 24 * u;
+    group.add(frame);
 
-    // Long Villager Nose (2x4x2)
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.25, 0.125), zombieMat);
-    nose.position.set(0, -0.15, 0.31);
+    const head = box(8, 8, 8, 0, 0, 8, 8, 8, bodyMat);
+    frame.add(head);
+
+    // The villager's long nose, which is what separates it from a plain zombie at a glance.
+    const nose = box(2, 4, 2, 24, 0, 2, 4, 2, bodyMat);
+    nose.position.set(0, 0, -4 * u);
     head.add(nose);
 
-    // Torso (8x12x6)
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.375), clothesMat);
-    torso.position.y = 0.75;
-    group.add(torso);
+    const body = box(8, 12, 6, 16, 20, 8, 12, 6, clothesMat);
+    frame.add(body);
 
-    // Outstretched Zombie Arms
-    const armGeo = new THREE.BoxGeometry(0.18, 0.65, 0.18);
-    const leftArm = new THREE.Mesh(armGeo, zombieMat);
-    leftArm.position.set(-0.32, 0.95, 0.3);
-    leftArm.rotation.x = Math.PI / 2; // outstretched forward
-    group.add(leftArm);
+    // The arms keep their OUTSTRETCHED pose: vanilla sets that in the animation layer, and this project has always
+    // shown a zombie villager with its arms forward.
+    const rightArm = box(4, 12, 4, 44, 22, 4, 12, 4, bodyMat);
+    rightArm.position.set(-5 * u, 2 * u, 0);
+    rightArm.rotation.x = -Math.PI / 2;
+    frame.add(rightArm);
 
-    const rightArm = new THREE.Mesh(armGeo, zombieMat);
-    rightArm.position.set(0.32, 0.95, 0.3);
-    rightArm.rotation.x = Math.PI / 2; // outstretched forward
-    group.add(rightArm);
+    const leftArm = box(4, 12, 4, 44, 22, 4, 12, 4, bodyMat);
+    leftArm.position.set(5 * u, 2 * u, 0);
+    leftArm.rotation.x = -Math.PI / 2;
+    frame.add(leftArm);
 
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.24, 0.45, 0.24);
-    const leftLeg = new THREE.Mesh(legGeo, clothesMat);
-    leftLeg.position.set(-0.13, 0.22, 0);
-    group.add(leftLeg);
+    const rightLeg = box(4, 12, 4, 0, 22, 4, 12, 4, clothesMat);
+    rightLeg.position.set(-2 * u, -12 * u, 0);
+    frame.add(rightLeg);
 
-    const rightLeg = new THREE.Mesh(legGeo, clothesMat);
-    rightLeg.position.set(0.13, 0.22, 0);
-    group.add(rightLeg);
+    const leftLeg = box(4, 12, 4, 0, 22, 4, 12, 4, clothesMat);
+    leftLeg.position.set(2 * u, -12 * u, 0);
+    frame.add(leftLeg);
+
+    // The robe overlay, matching the torso but one unit proud, which is what gives a zombie villager its silhouette.
+    const robe = box(8.2, 12.2, 6.2, 0, 38, 8, 12, 6, clothesMat);
+    robe.position.set(0, -0.1 * u, 0);
+    frame.add(robe);
+
+    // Ground it by measurement, the shared guarded helper.
+    groundModel({ group });
 
     group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    group.traverse((obj) => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
       type: 'zombie_villager',
       name: 'Zombie Villager',
       mesh: group,
-      head: head,
-      leftArm: leftArm,
-      rightArm: rightArm,
-      leftLeg: leftLeg,
-      rightLeg: rightLeg,
-      mat: zombieMat,
+      head,
+      leftArm,
+      rightArm,
+      leftLeg,
+      rightLeg,
+      mat: bodyMat,
       health: 20,
       maxHealth: 20,
       hasWeakness: false,
@@ -3667,8 +3677,6 @@ export class MobManager {
     this.mobs.push(mob);
     return mob;
   }
-
-  // --- IRON GOLEM ---
   spawnIronGolem(x, y, z) {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.iron_golem, transparent: true, alphaTest: 0.1 });

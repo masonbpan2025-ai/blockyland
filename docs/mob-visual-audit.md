@@ -1477,3 +1477,30 @@ at (0,22) mirrored, plus hat/hat_rim/robe overlay parts. The base sheet is 64x64
 first mob here with TWO texture sizes, and `zombie_villager.png` is extracted from the JAR.
 
 Work list: **97 spawners, 56 with a real sheet, 36 mobs still flat-colour only** (five non-mob spawners excluded).
+## Round forty-five: the zombie villager on its real model -- with one part still wrong
+
+**Rebuilt from `ZombieVillagerEntityModel`:** head 8x8x8 at (0,0), the villager's long nose 2x4x2 at (24,0), body 8x12x6
+at (16,20), arms 4x12x4 at (44,22) with the left mirrored, legs 4x12x4 at (0,22) mirrored, and the robe block 8x20x6
+from (0,38). Real 64x64 sheet, and the mob's whole contract is preserved -- `head`, `leftArm`, `rightArm`, `leftLeg`,
+`rightLeg` and `mat`, which the curing behaviours read. The arms keep their OUTSTRETCHED pose, because vanilla sets that
+in the animation layer and this project has always shown a zombie villager with its arms forward.
+
+**It is the first mob in this project with TWO texture sizes.** Vanilla pairs a 64x64 body sheet with a 64x32 overlay for
+the robe and hat; one 64x64 sheet carries the visible result here, and that difference is noted in the code.
+
+**The render is a clear gain and one part is still wrong.** The proportions, the outstretched arms, the legs and the
+robe all read correctly, and the ribbed robe detail is real texture. **But the HEAD renders as white and red noise**
+rather than a villager face, while the BODY from the same sheet renders correctly -- which localises the fault to the
+head's mapping rather than the sheet. The head's coordinates are vanilla's own (uv 0,0 on an 8x8x8), the sheet is 64x64
+as expected, and the nose is a child of the head with the same material and renders fine, so the cause is not the
+material or the texture size.
+
+That is a bounded, well-described fault on ONE part of one mob, and I am recording it rather than guessing at it:
+`createBoxWithUV(w, h, d, 0, 0, 64, 64, 8, 8, 8)` is the exact call to investigate next, against the depth-exceeds-half-
+width rule that `createEntityBox` enforces for its side faces. An 8x8x8 cube with `td = 8` is precisely the case where
+that rule bites, and it is the one shape in this model that differs from every other cube in it.
+
+`mobSkins.test.js` and the rest of the area stay green, and the mob is now reachable in the Inspector at all -- which
+last round's finding made possible.
+
+Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
