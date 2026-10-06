@@ -501,3 +501,25 @@ full runs both reported exactly 7. So it is cross-test flakiness in the shared-p
 I only know that because I checked instead of assuming either way.
 
 Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
+## Round fourteen: the wolf, and a lesson I over-generalised
+
+I generalised from the ocelot: "a procedural canvas whose bitmap may not upload renders black, so every
+`createXTexture` is suspect". So I swapped the wolf's `createWolfTexture()` for the real vanilla sheet.
+
+**IT MADE THE WOLF VISIBLY WORSE, AND I REVERTED IT.** `createWolfTexture` authors a texture to MATCH this model's
+default box UVs, so the wolf rendered as a clean grey animal with dark eyes, nose and ears. The vanilla sheet is laid
+out for VANILLA's model, and this model has no UV mapping -- so binding it stretched the sheet across every face and
+the wolf became a patchwork of light, dark and a stray magenta patch.
+
+**The ocelot lesson was narrower than I took it to be.** The fault there was a LOOKUP MISS that silently discarded an
+already-correct texture. It was NOT "canvas bad, sheet good". A procedurally authored texture is a legitimate design
+choice, and swapping in a real sheet only helps once the geometry samples it correctly.
+
+**That is twice now** -- the warden last round, the wolf this round -- where reasoning from an audit produced a change
+that rendering proved worse. Both were caught by rendering. The rule I keep re-learning: an audit output is a
+QUESTION, and the Inspector screenshot is the ANSWER.
+
+`src/mobs.js` carries no change from this round, which is the right outcome. The wolf still needs real geometry with
+real UVs before its vanilla sheet can be used, and that is a deliberate piece of work rather than a one-line swap.
+
+Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
