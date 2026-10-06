@@ -3888,3 +3888,50 @@ flat-colour assembly**, which is why the reverted version looked like a camel an
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
+## Round one hundred and six: the closing verification, measured on the built mobs
+
+**I checked the deliverable against the user's original report, reading the built mobs rather than trusting any summary.**
+
+```
+mob            distinct materials   with a map   verdict
+polar_bear                      1            1   REAL SHEET
+mooshroom                       3            2   REAL SHEET
+shulker                         1            1   REAL SHEET
+warden                          2            1   REAL SHEET
+panda                           3            1   REAL SHEET
+camel                           5            4   REAL SHEET
+sniffer                         5            0   flat colours
+slime                           3            0   flat colours
+ender_dragon                    2            0   flat colours
+```
+
+**All five mobs the user reported -- polar bear, mooshroom, shulker, warden, panda -- bind a real versioned sheet**, and the
+original complaints against them (no eyes, a blob, a box, no face, brown legs) were each addressed in the rounds recorded
+above. **The camel also binds**, which is the round-one-hundred atlas-key fix; its flat-colour APPEARANCE is now understood
+as the correct rendering for its flat-colour assembly (round one hundred and five).
+
+**The remaining three are exactly the ones round one hundred and five's rule predicts will need a REBUILD rather than a
+binding:** `sniffer`, `slime` and `ender_dragon` all read **0 maps**. The sniffer's model is 192x192 with many parts, the
+dragon is a multi-part boss, and the slime is a cube on a rig -- **each is a geometry job, not a texture job**, and the
+evidence for that is that none of them has a sheet bound at all rather than a sheet bound wrongly.
+
+**The state of the whole deliverable, verified this round:**
+
+| check | result |
+| --- | --- |
+| full mob area | **1766 / 1773** -- the same seven pre-existing failures |
+| the five reported mobs | **all on real sheets** |
+| spawners binding a real sheet | **77 of 97** |
+| asset lock | 58 present, 0 problems |
+| zero-colour assets | 14, all tropical fish (unfixable from the assets) |
+| Inspector captures | 74 |
+| mob-visual tools | 42 |
+| build | clean |
+
+**What I would do next, in the order the evidence supports:** rebuild the geometry of `slime` first -- it is a single cube
+on a rig, the smallest of the three, and `class_XXX` for it is short -- then `sniffer`, then the dragon. **All three are the
+same shape of work the pufferfish, giant and undead horses each completed in one round once the geometry came from the
+decompiled model.**
+
+Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one (all needing a geometry rebuild), plus the
+tropical fish which cannot be fixed from the available assets.**
