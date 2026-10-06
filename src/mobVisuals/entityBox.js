@@ -121,3 +121,37 @@ export function quadRects(u, v, tw, th, td) {
 }
 
 export { FACE };
+
+/**
+ * Re-map an EXISTING box geometry onto a vanilla layout block, in place.
+ *
+ * This is the cheap path for a mob whose silhouette is already correct and only its UVs are missing: most of this
+ * project's early models were plain `BoxGeometry` meshes wearing one flat colour, and those can be dressed without
+ * being rebuilt. Rebuilding is only needed when the parts themselves are the wrong shape.
+ *
+ * `applyQuadUvs(obj, u, v, tw, th, td, texW, texH)` accepts either a mesh or a bare geometry, because callers hold
+ * one or the other.
+ */
+export function applyQuadUvs(target, u, v, tw, th, td, texW = 64, texH = 64) {
+  const geometry = target?.isBufferGeometry ? target : target?.geometry;
+  const uvs = geometry?.attributes?.uv;
+  if (!uvs) return target;
+
+  const rects = quadRects(u, v, tw, th, td);
+  for (let face = 0; face < 6; face++) {
+    const r = rects[face];
+    // Flip V: texture space runs bottom-up while an atlas is specified top-down.
+    const u0 = r.x / texW;
+    const u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH;
+    const v0 = 1 - (r.y + r.h) / texH;
+
+    const base = face * 4;
+    uvs.setXY(base + 0, u0, v1);
+    uvs.setXY(base + 1, u1, v1);
+    uvs.setXY(base + 2, u0, v0);
+    uvs.setXY(base + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return target;
+}

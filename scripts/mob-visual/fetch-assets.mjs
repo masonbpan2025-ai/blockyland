@@ -72,6 +72,8 @@ export const ASSETS = [
   { id: 'brown_mooshroom_skin', path: 'entity/cow/brown_mooshroom.png', dest: 'assets/entity/cow/brown_mooshroom.png', for: 'mooshroom (brown)' },
   // The spider: vanilla nests this one a directory deeper than a flat mirror suggests.
   // The parrot's five variant sheets: a parrot variant IS its texture, so all five are needed.
+  { id: 'fox_skin', path: 'entity/fox/fox.png', dest: 'assets/entity/fox/fox.png', for: 'fox (red)' },
+  { id: 'fox_snow', path: 'entity/fox/fox_snow.png', dest: 'assets/entity/fox/fox_snow.png', for: 'fox (snow)' },
   { id: 'goat_skin', path: 'entity/goat/goat.png', dest: 'assets/entity/goat/goat.png', for: 'goat' },
   { id: 'parrot_skins', path: 'entity/parrot/parrot_red_blue.png', dest: 'assets/entity/parrot/parrot_red_blue.png', for: 'parrot (red)' },
   { id: 'parrot_blue', path: 'entity/parrot/parrot_blue.png', dest: 'assets/entity/parrot/parrot_blue.png', for: 'parrot (blue)' },

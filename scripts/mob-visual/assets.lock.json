@@ -353,6 +353,24 @@
       "sha256": "9ea8a5129b13f9a275975004cf8a3a392600c7f2a8232a6731c53a7ad42eb231",
       "bytes": 1044,
       "for": "goat"
+    },
+    "fox_skin": {
+      "path": "entity/fox/fox.png",
+      "dest": "assets/entity/fox/fox.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/fox/fox.png",
+      "ref": "1.21.4",
+      "sha256": "417aaa17f7dfc3457022cdb767a8bf93445319923393c0b9f8922e325c643532",
+      "bytes": 526,
+      "for": "fox (red)"
+    },
+    "fox_snow": {
+      "path": "entity/fox/fox_snow.png",
+      "dest": "assets/entity/fox/fox_snow.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/fox/fox_snow.png",
+      "ref": "1.21.4",
+      "sha256": "23e6563aa43bbeb7052f0ac71d5b75bd9d3729c7afb4fba38acaf234002bd226",
+      "bytes": 484,
+      "for": "fox (snow)"
     }
   }
 }

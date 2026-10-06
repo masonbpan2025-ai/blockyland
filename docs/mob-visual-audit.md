@@ -374,3 +374,26 @@ verified against the atlas, but at the Inspector's framing I cannot confirm the 
 I could for the warden or the spider. Treat the goat's facial detail as LIKELY rather than verified.
 
 Work list: **92 mob spawners, 45 with a real skin, 47 still flat-colour only.**
+## Round nine: fox, and the helper gets promoted
+
+**The in-place helper is now shared.** The goat was the first mob to need "re-map an existing box" rather than
+"rebuild the model", so it grew a private helper. With three more mobs wanting the same thing, that arithmetic moved
+into `entityBox.js` as `applyQuadUvs`, and the goat now calls it. One implementation instead of five copies is the
+difference between a technique and five chances to mistype a rectangle.
+
+**Fox.** It already had the right silhouette, so it took the cheap path: `applyQuadUvs` dressed its existing body,
+belly, head, muzzle and tail. Blocks were chosen with `fit-box.mjs`, which scores every candidate layout by its
+WORST face plus how much real detail the block carries -- so a pale, mostly-transparent corner cannot win on area
+alone. Head 8x8x8 at (16,10), body 6x6x12 at (0,1).
+
+**Two fox coats, so the coat is a texture.** Red and snow are separate vanilla sheets; the mob now binds the one its
+coat names, with the colour table left as the no-assets fallback. In 1.20.4 the snow sheet is `fox/snow_fox.png`
+while 26.1.2 renamed it `fox/fox_snow.png`; the newer name is used, so the path is version-sensitive and that is
+recorded in the manifest comment.
+
+**Honest evidence note.** The fox capture shows a properly furred orange body, black ears and a pale muzzle, and the
+head's front face samples the fox sheet's muzzle/mouth region -- which is what that block actually contains, not a
+mapping fault. It reads as a fox. I would still call the face LESS convincing than the warden's or the spider's, and
+I have not proven the exact rectangle vanilla uses without the model source.
+
+Work list: **92 mob spawners, 46 with a real skin, 46 still flat-colour only.**

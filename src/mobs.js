@@ -289,6 +289,11 @@ const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
 const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
 const GOAT_SKIN_PATH = '/assets/entity/goat/goat.png';
+/** The fox's two coats, chosen by the `coat` the mob rolled. */
+const FOX_SKIN_PATHS = {
+  red: '/assets/entity/fox/fox.png',
+  snow: '/assets/entity/fox/fox_snow.png'
+};
 const ALLAY_SKIN_PATH = '/assets/entity/allay/allay.png';
 /** The spider's dark hide and its red eyes, used as fallbacks while the skin decodes. */
 const SPIDER_BODY_COLOR = 0x3a2f28;
@@ -4030,7 +4035,11 @@ export class MobManager {
   spawnRabbit(x, y, z, options = {}) {
     const coat = options.coat || (options.killer ? 'killer' : rollRabbitCoat(options.biome));
     const colors = RABBIT_COAT_COLORS[coat] || RABBIT_COAT_COLORS.brown;
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
+    // The real fox coat sheet. The fox has two (red and snow) and the coat decides which, so the coat is a
+    // texture choice rather than a tint. The model already had the right shape but no UVs at all, so its parts
+    // are now mapped with `applyQuadUvs`.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(FOX_SKIN_PATHS[coat] ?? FOX_SKIN_PATHS.red), colors.base);
     const patchMat = new THREE.MeshLambertMaterial({ color: colors.patch });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group, head, body, patchMesh, tail, ears, legs, eyes } = createRabbitModel(bodyMat, patchMat, eyeMat);

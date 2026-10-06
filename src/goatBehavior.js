@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { quadRects } from './mobVisuals/entityBox.js';
+import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
 /**
  * Goat rules and model.
@@ -431,28 +431,10 @@ export function landGoatJump(mob, random = Math.random) {
  * glance. The horns are separate meshes so one can be removed when it snaps off.
  */
 /**
- * Map one vanilla layout block of the goat sheet onto an existing box's geometry.
- *
- * `quadRects` gives the six rectangles in three's face order, so a plain BoxGeometry can sample the atlas in
- * place. The goat's parts had no UVs at all before this, which is why its whole body was one flat colour.
+ * Map one vanilla layout block of the goat sheet onto an existing box, using the shared in-place helper.
  */
 function applyGoatUvs(mesh, u, v, tw, th, td) {
-  const uvs = mesh.geometry.attributes.uv;
-  const rects = quadRects(u, v, tw, th, td);
-  for (let face = 0; face < 6; face++) {
-    const r = rects[face];
-    // Flip V, because texture space runs bottom-up while the atlas is specified top-down.
-    const u0 = r.x / 64;
-    const u1 = (r.x + r.w) / 64;
-    const v1 = 1 - r.y / 64;
-    const v0 = 1 - (r.y + r.h) / 64;
-    const base = face * 4;
-    uvs.setXY(base + 0, u0, v1);
-    uvs.setXY(base + 1, u1, v1);
-    uvs.setXY(base + 2, u0, v0);
-    uvs.setXY(base + 3, u1, v0);
-  }
-  uvs.needsUpdate = true;
+  applyQuadUvs(mesh, u, v, tw, th, td, 64, 64);
 }
 
 export function createGoatModel(bodyMat, darkMat, hornMat, eyeMat) {
