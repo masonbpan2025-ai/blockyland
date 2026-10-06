@@ -515,6 +515,24 @@
       "sha256": "014dc8ef45f098e7182d15a27969e175d88816d3584fd7b61c6cd6bc09f348b6",
       "bytes": 561,
       "for": "frog (warm)"
+    },
+    "cod_skin": {
+      "path": "entity/fish/cod.png",
+      "dest": "assets/entity/fish/cod.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/fish/cod.png",
+      "ref": "1.21.4",
+      "sha256": "4ba0d2d3fc0ee46e4c310b0a9ed9891ed64a3c3263ad562a33d985be18b07345",
+      "bytes": 274,
+      "for": "cod"
+    },
+    "salmon_skin": {
+      "path": "entity/fish/salmon.png",
+      "dest": "assets/entity/fish/salmon.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/fish/salmon.png",
+      "ref": "1.21.4",
+      "sha256": "4e273b660cd2833e24dc177aa9b782324a0fe0c8250369b7e27780b3c4d7ddd0",
+      "bytes": 486,
+      "for": "salmon"
     }
   }
 }

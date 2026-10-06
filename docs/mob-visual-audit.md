@@ -1169,3 +1169,31 @@ at y = 21 means in vanilla's frame -- I checked the table twice before believing
 `slimeParity` stays at 15/15 and the full mob area at its baseline.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round thirty-five: the cod's blocker is a coordinate conversion, not the model
+
+**I stopped before rebuilding the cod, and the reason is specific rather than vague.** Its decompiled model is complete
+and banked, but the two frames do not agree:
+
+* vanilla's `CodEntityModel` puts the **head at more-negative z** (`nose` at z = -3, `tail_fin` further back);
+* this project's `spawnCod` puts the **head at POSITIVE z** (`head.position.set(0, 0.11, 0.26)`, tail at -0.21).
+
+So a straight transcription would have built the fish **backwards**, and the cod is a working mob with its own map. It is
+precisely the shape of change that cost four regressions on the silverfish, so it gets deferred rather than guessed.
+
+**What the rebuild needs, stated so it is a task rather than a mystery:**
+
+1. **A verified axis convention.** Either transcribe vanilla's z and flip the group 180 degrees about Y, or negate z per
+   part. The choice must be settled by rendering, not by argument.
+2. **A preserved mob contract.** `spawnCod` returns `tail`, `finL`, `finR` and `mat`, and `isAquatic` behaviours read
+   them, so the rebuild has to keep all four names.
+3. **The `top_fin`'s negative V.** Vanilla gives that patch `v = -6`. The helper must tolerate a negative V rather than
+   silently wrapping.
+
+**The cod's sheet is now extracted and locked** (`entity/fish/cod.png`, from the client JAR), along with the salmon's, so
+the bytes are pinned and the only remaining work is the conversion.
+
+**Worth recording as a pattern rather than a one-off:** four mobs now have models that are flat-plane dominated (vex,
+frog, bat, cod), and two have needed a coordinate conversion I got wrong first (the warden's bone lift, the slime's Z
+sign). The lesson that keeps paying is to render a single change rather than transcribe a whole model and hope.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**

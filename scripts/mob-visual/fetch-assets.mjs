@@ -83,7 +83,10 @@ export const ASSETS = [
   // standard quadruped layout, so its model needs real UV work first. Kept so the bytes are pinned and reproducible.
   { id: 'frog_skins', path: 'entity/frog/temperate_frog.png', dest: 'assets/entity/frog/temperate_frog.png', for: 'frog (temperate)' },
   { id: 'frog_cold', path: 'entity/frog/cold_frog.png', dest: 'assets/entity/frog/cold_frog.png', for: 'frog (cold)' },
-  { id: 'frog_warm', path: 'entity/frog/warm_frog.png', dest: 'assets/entity/frog/warm_frog.png', for: 'frog (warm)' },  { id: 'ocelot_skin', path: 'entity/cat/ocelot.png', dest: 'assets/entity/cat/ocelot.png', for: 'ocelot' },
+  { id: 'frog_warm', path: 'entity/frog/warm_frog.png', dest: 'assets/entity/frog/warm_frog.png', for: 'frog (warm)' },  // Fish sheets. The cod's is extracted and ready, but its model still needs a verified coordinate conversion.
+  { id: 'cod_skin', path: 'entity/fish/cod.png', dest: 'assets/entity/fish/cod.png', for: 'cod' },
+  { id: 'salmon_skin', path: 'entity/fish/salmon.png', dest: 'assets/entity/fish/salmon.png', for: 'salmon' },
+  { id: 'ocelot_skin', path: 'entity/cat/ocelot.png', dest: 'assets/entity/cat/ocelot.png', for: 'ocelot' },
   { id: 'llama_skins', path: 'entity/llama/creamy.png', dest: 'assets/entity/llama/creamy.png', for: 'llama (creamy)' },
   { id: 'llama_white', path: 'entity/llama/white.png', dest: 'assets/entity/llama/white.png', for: 'llama (white)' },
   { id: 'llama_brown', path: 'entity/llama/brown.png', dest: 'assets/entity/llama/brown.png', for: 'llama (brown)' },
