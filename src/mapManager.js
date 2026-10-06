@@ -59,35 +59,6 @@ export function decodeVoxelsRLE(rle, targetArray) {
 }
 
 /**
- * Read a Gemini-memory field that was renamed when Structure Studio became Building Studio.
- *
- * Saves written before the rename — including the checked-in `designed_worlds/*.json` — carry
- * `builtStructures` / `lastBuiltStructure`. Reading only the new names would silently drop every
- * recorded building from those files, so the legacy name is a fallback and the new one wins.
- */
-function renamedMemory(mapData, key, legacyKey) {
-  const gemini = mapData?.gemini;
-  if (!gemini) return undefined;
-  return gemini[key] !== undefined ? gemini[key] : gemini[legacyKey];
-}
-
-/**
- * Normalise an inventory stack saved before the rename, which carried `isStructure` / `structureId`.
- *
- * Without this an old hotbar's placeable building loads as an ordinary item — the same
- * silent-degradation shape as a missing variant row.
- */
-function normaliseItemStack(item) {
-  if (!item) return item;
-  const stack = { ...item };
-  if (stack.isBuilding === undefined && stack.isStructure !== undefined) stack.isBuilding = stack.isStructure;
-  if (stack.buildingId === undefined && stack.structureId !== undefined) stack.buildingId = stack.structureId;
-  delete stack.isStructure;
-  delete stack.structureId;
-  return stack;
-}
-
-/**
  * Serializes the current game state into a complete, portable map JSON object.
  */
 export function serializeWorld(game, mapName = 'World 1') {
@@ -162,7 +133,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     chunks: chunksData,
     mobs: mobsData,
     gemini: {
-      builtBuildings: (game.geminiAgent?.builtBuildings || []).map(s => ({
+      builtStructures: (game.geminiAgent?.builtStructures || []).map(s => ({
         id: s.id,
         name: s.name,
         type: s.type,
@@ -172,7 +143,7 @@ export function serializeWorld(game, mapName = 'World 1') {
         createdPrompt: s.createdPrompt,
         timestamp: s.timestamp
       })),
-      lastBuiltBuilding: game.geminiAgent?.lastBuiltBuilding || null,
+      lastBuiltStructure: game.geminiAgent?.lastBuiltStructure || null,
       conversationHistory: game.geminiAgent?.conversationHistory || []
     }
   };
@@ -194,7 +165,7 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
                        (mapData.mechanism === 'dragonball_tournament') ||
-                       (renamedMemory(mapData, 'builtBuildings', 'builtStructures')?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
+                       (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
   const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
   const targetMechanismId = mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default');
   game.worldType = targetWorldType;
@@ -285,8 +256,8 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   // 7. Restore inventory
   if (mapData.inventory) {
-    game.inventory.hotbar = mapData.inventory.hotbar.map(normaliseItemStack);
-    game.inventory.storage = mapData.inventory.storage.map(normaliseItemStack);
+    game.inventory.hotbar = mapData.inventory.hotbar.map(it => (it ? { ...it } : null));
+    game.inventory.storage = mapData.inventory.storage.map(it => (it ? { ...it } : null));
     game.inventory.activeSlot = mapData.inventory.activeSlot || 0;
     if (game.ui?.updateHotbar) game.ui.updateHotbar();
   }
@@ -334,8 +305,8 @@ export function deserializeWorld(game, mapData, options = {}) {
   }
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
-    game.geminiAgent.builtBuildings = renamedMemory(mapData, 'builtBuildings', 'builtStructures') || [];
-    game.geminiAgent.lastBuiltBuilding = renamedMemory(mapData, 'lastBuiltBuilding', 'lastBuiltStructure') || null;
+    game.geminiAgent.builtStructures = mapData.gemini.builtStructures || [];
+    game.geminiAgent.lastBuiltStructure = mapData.gemini.lastBuiltStructure || null;
     game.geminiAgent.conversationHistory = mapData.gemini.conversationHistory || [];
   }
 

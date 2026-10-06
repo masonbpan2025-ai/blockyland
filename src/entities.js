@@ -4,7 +4,6 @@ import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
 import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { isDestroyedByExplosion, TNT_EXPLOSION_POWER } from './blockHarvestData.js';
 import { addPlayerExperience } from './experience.js';
 
 export class EntityManager {
@@ -547,9 +546,7 @@ export class EntityManager {
         this.spawnExplosion(center);
         this.tntEntities.splice(i, 1);
 
-        // Explode blocks in 3.5 radius. Which of them actually break is decided by blast
-        // resistance, not by the radius alone -- see isDestroyedByExplosion. Blocks with no
-        // resistance entry (bedrock and friends) are immune.
+        // Explode blocks in 3.5 radius
         const radius = 3.5;
         const cx = Math.floor(center.x);
         const cy = Math.floor(center.y);
@@ -562,7 +559,7 @@ export class EntityManager {
               const d = Math.sqrt((x - center.x) ** 2 + (y - center.y) ** 2 + (z - center.z) ** 2);
               if (d <= radius) {
                 const voxel = this.world.getVoxel(x, y, z);
-                if (isDestroyedByExplosion(voxel, TNT_EXPLOSION_POWER)) {
+                if (voxel !== BLOCKS.AIR && voxel !== BLOCKS.BEDROCK) {
                   this.world.setVoxel(x, y, z, BLOCKS.AIR);
                   const pos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
                   if (debris++ < 24) this.spawnBlastDebris(pos, voxel, center);

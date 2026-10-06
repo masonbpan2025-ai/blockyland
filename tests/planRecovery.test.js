@@ -77,7 +77,7 @@ test('prose after an opening fence is cleaned before being kept', () => {
 });
 
 test('a JSON plan is never mistaken for prose', () => {
-  const result = parsePlanWithRecovery('{"action":"build","buildingType":"castle"}');
+  const result = parsePlanWithRecovery('{"action":"build","structureType":"castle"}');
   assert.equal(result.prose, false);
   assert.equal(result.plan.action, 'build');
 });

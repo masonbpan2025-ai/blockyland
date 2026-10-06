@@ -1,12 +1,12 @@
-// Geometry context for an open Building Studio building.
+// Geometry context for an open Structure Studio structure.
 //
-// Why this exists: the agent's system prompt only described buildings the agent
-// itself had built. In Building Studio the open building lives in the studio's
+// Why this exists: the agent's system prompt only described structures the agent
+// itself had built. In Structure Studio the open structure lives in the studio's
 // own state, so the model had no idea where it was, how big it was, or which way
 // its door faced. Asked to "add a bridge to the entrance of the castle" it built a
 // perfectly good bridge in the wrong place.
 //
-// This module turns the studio's current building into a compact, factual
+// This module turns the studio's current structure into a compact, factual
 // description: its local coordinate frame, size, and — most importantly — the
 // base-level openings that are its entrances, with the direction each one faces.
 
@@ -42,7 +42,7 @@ function findWallOpenings(voxels, bounds) {
 
   // How tall the gap has to be to count.
   const GAP_HEIGHT = 2;
-  // Never scan above the building: everything up there is air, and treating that
+  // Never scan above the structure: everything up there is air, and treating that
   // as an opening made every sealed building look like it had doorways.
   const SCAN_HEIGHT = Math.max(1, maxY - minY);
 
@@ -112,13 +112,13 @@ function findWallOpenings(voxels, bounds) {
 }
 
 /**
- * Describe the building currently open in Building Studio.
+ * Describe the structure currently open in Structure Studio.
  *
- * @param {object} studio the BuildingStudioManager instance
- * @returns {object|null} null when no building is open or it cannot be measured
+ * @param {object} studio the StructureStudioManager instance
+ * @returns {object|null} null when no structure is open or it cannot be measured
  */
-export function describeOpenBuilding(studio) {
-  if (!studio || !studio.currentBuilding || typeof studio.currentBuilding.generate !== 'function') return null;
+export function describeOpenStructure(studio) {
+  if (!studio || !studio.currentStructure || typeof studio.currentStructure.generate !== 'function') return null;
 
   const origin = studio.buildOrigin;
   if (!origin || !Number.isFinite(origin.x) || !Number.isFinite(origin.y) || !Number.isFinite(origin.z)) return null;
@@ -126,13 +126,13 @@ export function describeOpenBuilding(studio) {
   const params = studio.currentParameters || {};
   let blocks;
   try {
-    blocks = studio.currentBuilding.generate(
+    blocks = studio.currentStructure.generate(
       { x: origin.x, y: origin.y, z: origin.z },
       params,
       BLOCKS
     ) || [];
   } catch {
-    // A building whose generator throws has no trustworthy geometry.
+    // A structure whose generator throws has no trustworthy geometry.
     return null;
   }
   if (!Array.isArray(blocks) || blocks.length === 0) return null;
@@ -187,12 +187,12 @@ export function describeOpenBuilding(studio) {
   entrances.sort((a, b) => (a.local.y - minY) - (b.local.y - minY));
 
   return {
-    id: studio.currentBuilding.id,
-    name: studio.currentBuilding.name,
-    description: studio.currentBuilding.description || '',
+    id: studio.currentStructure.id,
+    name: studio.currentStructure.name,
+    description: studio.currentStructure.description || '',
     parameters: { ...params },
     origin: { x: origin.x, y: origin.y, z: origin.z },
-    // Inclusive local bounds, so outside-the-building coordinates are obvious.
+    // Inclusive local bounds, so outside-the-structure coordinates are obvious.
     bounds: { minX, maxX, minY, maxY, minZ, maxZ },
     size: { width: sizeX, height, depth: sizeZ },
     blockCount: local.length,
@@ -202,8 +202,8 @@ export function describeOpenBuilding(studio) {
 }
 
 /** Render the description as the prompt section the model reads. */
-export function formatBuildingContext(info) {
-  if (!info) return 'BUILDING STUDIO: no building is currently open.';
+export function formatStructureContext(info) {
+  if (!info) return 'STRUCTURE STUDIO: no structure is currently open.';
 
   const paramText = Object.entries(info.parameters)
     .map(([key, value]) => `${key}=${value}`)
@@ -214,16 +214,16 @@ export function formatBuildingContext(info) {
       const label = info.entrances.length > 1 ? `entrance ${index + 1}` : 'entrance';
       return `  - ${label}: centred at local (${entrance.local.x}, ${entrance.local.y}, ${entrance.local.z}) = world (${entrance.world.x.toFixed(1)}, ${entrance.world.y.toFixed(1)}, ${entrance.world.z.toFixed(1)}), about ${entrance.width} block(s) wide, faces ${entrance.faces}`;
     }).join('\n')
-    : '  - no opening was detected at ground level; the building is enclosed.';
+    : '  - no opening was detected at ground level; the structure is enclosed.';
 
-  return `BUILDING STUDIO — the building currently open for editing:
+  return `STRUCTURE STUDIO — the structure currently open for editing:
 "${info.name}" (id: studio_${info.id})
-THIS is the building to edit. For any change to it use targetBuilding "studio_${info.id}", or the exact name "${info.name}". NEVER invent a building id: an id that is not shown here does not exist and the request will fail with "Building not found".${info.description ? ` — ${info.description}` : ''}
+THIS is the structure to edit. For any change to it use targetStructure "studio_${info.id}", or the exact name "${info.name}". NEVER invent a structure id: an id that is not shown here does not exist and the request will fail with "Structure not found".${info.description ? ` — ${info.description}` : ''}
 Blocks: ${info.blockCount}. Size: ${info.size.width} wide (X) x ${info.size.height} tall (Y) x ${info.size.depth} deep (Z).
 Local coordinate frame: local (0,0,0) is world (${info.origin.x}, ${info.origin.y}, ${info.origin.z}).
-Local bounds: X ${info.bounds.minX}..${info.bounds.maxX}, Y ${info.bounds.minY}..${info.bounds.maxY}, Z ${info.bounds.minZ}..${info.bounds.maxZ}. Anything outside those bounds is beside the building.
+Local bounds: X ${info.bounds.minX}..${info.bounds.maxX}, Y ${info.bounds.minY}..${info.bounds.maxY}, Z ${info.bounds.minZ}..${info.bounds.maxZ}. Anything outside those bounds is beside the structure.
 Current parameters: ${paramText}.
 Ground-level openings (use these when the player says "the entrance", "the door" or "the gate"):
 ${entranceText}
-When the player asks to attach something to this building, place it against the relevant opening: outside the local bounds on the side that opening faces, aligned to the opening's local X/Z. Do NOT guess a side — use the coordinates above.`;
+When the player asks to attach something to this structure, place it against the relevant opening: outside the local bounds on the side that opening faces, aligned to the opening's local X/Z. Do NOT guess a side — use the coordinates above.`;
 }

@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const cozyHouseBuilding = {
+export const cozyHouseStructure = {
   id: 'cozy_house',
   name: 'Cozy House',
   icon: '/assets/blocks/oak_planks.png',
@@ -127,4 +127,4 @@ export const cozyHouseBuilding = {
   }
 };
 
-export default cozyHouseBuilding;
+export default cozyHouseStructure;

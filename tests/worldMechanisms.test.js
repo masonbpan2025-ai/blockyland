@@ -144,7 +144,7 @@ test('Serialization and Deserialization preserve mechanism and worldType for bot
     worldTime: 6000,
     weather: { isRaining: false, rainIntensity: 0 },
     mobs: { mobs: [], clearMobs: () => {}, spawnMob: () => null },
-    geminiAgent: { builtBuildings: [], lastBuiltBuilding: null, conversationHistory: [] },
+    geminiAgent: { builtStructures: [], lastBuiltStructure: null, conversationHistory: [] },
     loadChunksAroundPlayer: () => {},
     rebuildChunkMesh: () => {}
   };

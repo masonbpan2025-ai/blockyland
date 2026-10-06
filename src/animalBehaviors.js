@@ -7,7 +7,6 @@ import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_D
 import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
 import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariantName, applyParrotVariant } from './parrotBehavior.js';
 import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
-
 import { inheritFoxCoat } from './foxBehavior.js';
 // Wiki: a killer bunny can breed with any rabbit, so the offspring rule lives with the mob.
 import { inheritKillerBunny, makeKillerBunny } from './rabbitBehavior.js';
@@ -609,6 +608,8 @@ export class AnimalBehaviors {
 
       if (isEquine(mob)||mob.type==='strider') mob.ageLockCooldown = Math.max(0, (mob.ageLockCooldown || 0) - dt);
       // 2. Baby growth timer
+      // A snifflet's growth is owned by its own branch: the wiki gives it 2400 s, twice the shared
+      // constant, so the shared pass must not also tick it and halve the time.
       if (mob.isBaby && !mob.ageLocked && !['piglin', 'zombified_piglin', 'zoglin', 'sniffer'].includes(mob.type)) {
         // Wiki: 20 minutes, not the 120 seconds ordinary animals used to get.
         if (updateBabyGrowth(mob, dt)) {
@@ -681,7 +682,7 @@ export class AnimalBehaviors {
               // Melee attack
               mob.attackCooldown = (mob.attackCooldown || 0) - dt;
               if (mob.attackCooldown <= 0) {
-                this.mobManager.damageMob(mob.target, 4, mob.mesh.position, false, mob);
+                this.mobManager.damageMob(mob.target, 4, mob.mesh.position);
                 mob.attackCooldown = 1.0;
                 if (this.sounds?.playWolf) this.sounds.playWolf();
               }
@@ -1066,8 +1067,8 @@ export class AnimalBehaviors {
 
             // Spawn baby
             const babyPos = mob.mesh.position.clone().lerp(other.mesh.position, 0.5);
-    // Wiki: "Breeding two sniffers now causes a sniffer egg to drop as an item." A sniffer pair
-        // therefore produces an egg rather than a baby, which is the only way a sniffer is created.
+            // Wiki: "Breeding two sniffers now causes a sniffer egg to drop as an item." A sniffer pair
+        // therefore produces an egg rather than a baby, which is the only way a sniffer is ever created.
         if (mob.type === 'sniffer') {
           this.entities?.spawnDroppedItem?.(babyPos, SNIFFER_BREEDING.eggItem, false, 1);
           const snifferXpGain = 1 + Math.floor(Math.random() * 7);

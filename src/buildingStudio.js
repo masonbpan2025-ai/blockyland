@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
-import { BuildingLibrary } from './buildingLibrary.js';
+import { StructureLibrary } from './structureLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
 
-export class BuildingStudioManager {
+export class StructureStudioManager {
   constructor(game) {
     this.game = game;
     this.isActive = false;
-    this.currentBuilding = null;
+    this.currentStructure = null;
     this.currentParameters = {};
     this.placedVoxels = []; // Array of { x, y, z, prevId } to clear upon re-building
     this.buildOrigin = new THREE.Vector3(0, 5, 8); // in front of player spawn (0, 5, 0)
@@ -17,23 +17,23 @@ export class BuildingStudioManager {
 
     // DOM Elements
     const hasDoc = typeof document !== 'undefined';
-    this.studioPanel = hasDoc ? document.getElementById('building-parameter-panel') : null;
+    this.studioPanel = hasDoc ? document.getElementById('structure-parameter-panel') : null;
     this.controlsContainer = hasDoc ? document.getElementById('studio-parameter-controls') : null;
-    this.buildingNameBadge = hasDoc ? document.getElementById('studio-current-building-name') : null;
+    this.structureNameBadge = hasDoc ? document.getElementById('studio-current-structure-name') : null;
     this.btnSave = hasDoc ? document.getElementById('btn-studio-save') : null;
     this.btnOpen = hasDoc ? document.getElementById('btn-studio-open') : null;
 
-    this.saveModal = hasDoc ? document.getElementById('modal-save-building') : null;
-    this.saveInput = hasDoc ? document.getElementById('input-save-building-name') : null;
-    this.saveConflictMsg = hasDoc ? document.getElementById('save-building-conflict-msg') : null;
-    this.btnConfirmSave = hasDoc ? document.getElementById('btn-confirm-save-building') : null;
-    this.btnCancelSave = hasDoc ? document.getElementById('btn-cancel-save-building') : null;
+    this.saveModal = hasDoc ? document.getElementById('modal-save-structure') : null;
+    this.saveInput = hasDoc ? document.getElementById('input-save-structure-name') : null;
+    this.saveConflictMsg = hasDoc ? document.getElementById('save-structure-conflict-msg') : null;
+    this.btnConfirmSave = hasDoc ? document.getElementById('btn-confirm-save-structure') : null;
+    this.btnCancelSave = hasDoc ? document.getElementById('btn-cancel-save-structure') : null;
 
-    this.openModal = hasDoc ? document.getElementById('modal-open-building') : null;
-    this.openList = hasDoc ? document.getElementById('studio-open-building-list') : null;
-    this.openSearch = hasDoc ? document.getElementById('input-search-open-building') : null;
-    this.btnCloseOpen = hasDoc ? document.getElementById('btn-close-open-building') : null;
-    this.btnRestoreDefaults = hasDoc ? document.getElementById('btn-restore-default-buildings') : null;
+    this.openModal = hasDoc ? document.getElementById('modal-open-structure') : null;
+    this.openList = hasDoc ? document.getElementById('studio-open-structure-list') : null;
+    this.openSearch = hasDoc ? document.getElementById('input-search-open-structure') : null;
+    this.btnCloseOpen = hasDoc ? document.getElementById('btn-close-open-structure') : null;
+    this.btnRestoreDefaults = hasDoc ? document.getElementById('btn-restore-default-structures') : null;
 
     if (hasDoc) {
       this.bindEvents();
@@ -71,32 +71,32 @@ export class BuildingStudioManager {
     this.btnRestoreDefaults?.addEventListener('click', () => {
       showConfirmDialog({
         title: '⚠️ Restore Defaults',
-        message: 'Restore all default buildings to their original names and restore any deleted defaults?',
+        message: 'Restore all default structures to their original names and restore any deleted defaults?',
         confirmText: 'Yes, Restore',
         cancelText: 'Cancel',
         onConfirm: () => {
-          BuildingLibrary.restoreDefaults();
+          StructureLibrary.restoreDefaults();
           this.game?.ui?.addChatMessage?.(
-            '<span style="color:#10b981;font-weight:bold;">✦ Default buildings restored!</span>'
+            '<span style="color:#10b981;font-weight:bold;">✦ Default structures restored!</span>'
           );
-          this.renderOpenBuildingList(this.openSearch?.value || '');
+          this.renderOpenStructureList(this.openSearch?.value || '');
         }
       });
     });
 
     this.openSearch?.addEventListener('input', (e) => {
-      this.renderOpenBuildingList(e.target.value);
+      this.renderOpenStructureList(e.target.value);
     });
   }
 
-  // --- Entering Building Studio Mode ---
+  // --- Entering Structure Studio Mode ---
   enterStudio() {
     this.isActive = true;
     if (this.game.mechanisms) {
       this.game.mechanisms.setMechanism('default', this.game);
     }
     this.game.player.gamemode = 'creative';
-    this.game.worldType = 'building_studio';
+    this.game.worldType = 'structure_studio';
 
     // Position player facing build origin
     this.game.player.position.set(0, 5, 0);
@@ -121,7 +121,7 @@ export class BuildingStudioManager {
     }
 
     this.game.ui?.addChatMessage?.(
-      '<span style="color:#38bdf8;font-weight:bold;">[Building Studio]</span> Welcome to Building Studio! Enter a prompt like "build a stair with a height parameter" to begin.'
+      '<span style="color:#38bdf8;font-weight:bold;">[Structure Studio]</span> Welcome to Structure Studio! Enter a prompt like "build a stair with a height parameter" to begin.'
     );
   }
 
@@ -139,42 +139,42 @@ export class BuildingStudioManager {
   }
 
   /**
-   * Adopt a building the language model built, so it becomes editable in the
+   * Adopt a structure the language model built, so it becomes editable in the
    * parameter panel.
    *
-   * Called after the agent runs a plan while Building Studio is open. The point
-   * of the Studio is to iterate on parameters, so an AI-built building that
+   * Called after the agent runs a plan while Structure Studio is open. The point
+   * of the Studio is to iterate on parameters, so an AI-built structure that
    * never reaches the panel leaves the user with nothing to tune. Any dimension
    * the model reported is used as the starting parameter value.
    *
-   * @returns {boolean} true when a library building was adopted
+   * @returns {boolean} true when a library structure was adopted
    */
   adoptCustomBuild({ name, blocks, plan }) {
     this.isCustomVoxelBuild = true;
     this.customBuildBlocks = Array.isArray(blocks) ? [...blocks] : [];
-    this.customBuildName = name || 'Custom Building';
+    this.customBuildName = name || 'Custom Structure';
     this.placedVoxels = (blocks || []).map(b => ({ x: b.x, y: b.y, z: b.z, prevId: b.prevId }));
-    this.currentBuilding = {
-      id: `custom_${(name || 'building').toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-      name: name || 'Custom Building',
+    this.currentStructure = {
+      id: `custom_${(name || 'structure').toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      name: name || 'Custom Structure',
       isCustom: true,
       parameters: [],
       icon: '/assets/blocks/crafting_table_top.png'
     };
     this.currentParameters = {};
 
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = name || 'Custom Building';
+    if (this.structureNameBadge) {
+      this.structureNameBadge.textContent = name || 'Custom Structure';
     }
 
     if (this.controlsContainer) {
       this.controlsContainer.innerHTML = `
         <div class="studio-empty-params">
           <span class="studio-empty-icon">✦</span>
-          <p style="color:#38bdf8;font-weight:bold;font-size:14px;margin-bottom:6px;">${name || 'Custom Building'}</p>
+          <p style="color:#38bdf8;font-weight:bold;font-size:14px;margin-bottom:6px;">${name || 'Custom Structure'}</p>
           <small style="color:#94a3b8;line-height:1.4;">
             AI 3D build active (${(blocks || []).length} voxels).<br>
-            Click <strong style="color:#10b981;">💾 Save</strong> to store it in your Building Library.
+            Click <strong style="color:#10b981;">💾 Save</strong> to store it in your Structure Library.
           </small>
         </div>
       `;
@@ -244,26 +244,26 @@ function generate(origin, params, B) {
       return false;
     }
 
-    const type = String(plan.buildingType || plan.buildingId || '').toLowerCase().trim();
+    const type = String(plan.structureType || plan.structureId || '').toLowerCase().trim();
     if (!type) return false;
 
-    const all = BuildingLibrary.getAllBuildings();
+    const all = StructureLibrary.getAllStructures();
     const norm = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
-    // Exact id, then exact name. Decline unknown buildings without substring guessing.
-    let building = BuildingLibrary.getBuilding(type);
-    if (!building) building = all.find(st => norm(st.name) === norm(type));
-    if (!building) {
-      building = all.find(st => norm(st.id) === norm(type))
+    // Exact id, then exact name. Decline unknown structures without substring guessing.
+    let structure = StructureLibrary.getStructure(type);
+    if (!structure) structure = all.find(st => norm(st.name) === norm(type));
+    if (!structure) {
+      structure = all.find(st => norm(st.id) === norm(type))
         || all.find(st => norm(st.name) === norm(type));
     }
-    if (!building) return false;
+    if (!structure) return false;
 
-    // Start from the building's own defaults and fold in anything the model
+    // Start from the structure's own defaults and fold in anything the model
     // supplied under a recognisable name.
     const params = {};
     const supplied = { ...(plan.dimensions || {}), ...(plan.parameters || {}) };
-    for (const param of building.parameters || []) {
+    for (const param of structure.parameters || []) {
       const wanted = param.id.toLowerCase();
       const symbol = String(param.symbol || '').toLowerCase();
       const raw = supplied[param.id] ?? supplied[wanted] ?? (symbol ? supplied[symbol] : undefined);
@@ -273,7 +273,7 @@ function generate(origin, params, B) {
       }
     }
 
-    this.loadBuilding(building, params);
+    this.loadStructure(structure, params);
     return true;
   }
 
@@ -283,14 +283,14 @@ function generate(origin, params, B) {
     const parsed = this.parsePromptParameters(promptText);
     if (!parsed) return false;
 
-    this.loadBuilding(parsed.building, parsed.extractedParams);
+    this.loadStructure(parsed.structure, parsed.extractedParams);
     return true;
   }
 
   /**
-   * Parse a parametric prompt into a library building plus parameter values.
+   * Parse a parametric prompt into a library structure plus parameter values.
    *
-   * Returns null when the prompt is not a parametric building request, so the
+   * Returns null when the prompt is not a parametric structure request, so the
    * caller can hand it to the language model instead. This matters: the parser
    * used to fall back to `stairs` for anything it did not recognise, which meant
    * every prompt — including free-form or non-English ones — was silently
@@ -301,36 +301,36 @@ function generate(origin, params, B) {
     if (!raw) return null;
     const p = raw.toLowerCase();
 
-    // 1. Identify building by name or id.
-    let matchedBuilding = null;
-    const allBuildings = BuildingLibrary.getAllBuildings();
+    // 1. Identify structure by name or id.
+    let matchedStructure = null;
+    const allStructures = StructureLibrary.getAllStructures();
 
-    for (const st of allBuildings) {
+    for (const st of allStructures) {
       if (p.includes(st.name.toLowerCase()) || p.includes(st.id.toLowerCase())) {
-        matchedBuilding = st;
+        matchedStructure = st;
         break;
       }
     }
 
     // Keyword fallbacks. Deliberately no catch-all default.
-    if (!matchedBuilding) {
-      if (p.includes('stair') || p.includes('step')) matchedBuilding = BuildingLibrary.getBuilding('stairs');
-      else if (p.includes('aquarium') || p.includes('fish tank')) matchedBuilding = BuildingLibrary.getBuilding('aquarium');
-      else if (p.includes('skyscraper') || p.includes('highrise')) matchedBuilding = BuildingLibrary.getBuilding('skyscraper');
-      else if (p.includes('pyramid') || p.includes('temple')) matchedBuilding = BuildingLibrary.getBuilding('pyramid');
-      else if (p.includes('castle') || p.includes('fortress')) matchedBuilding = BuildingLibrary.getBuilding('castle');
-      else if (p.includes('house') || p.includes('cottage') || p.includes('cabin')) matchedBuilding = BuildingLibrary.getBuilding('cozy_house');
-      else if (p.includes('watchtower') || p.includes('tower')) matchedBuilding = BuildingLibrary.getBuilding('watchtower');
-      else if (p.includes('greenhouse') || p.includes('conservatory')) matchedBuilding = BuildingLibrary.getBuilding('greenhouse');
-      else if (p.includes('spaceship') || p.includes('ufo') || p.includes('saucer')) matchedBuilding = BuildingLibrary.getBuilding('spaceship');
+    if (!matchedStructure) {
+      if (p.includes('stair') || p.includes('step')) matchedStructure = StructureLibrary.getStructure('stairs');
+      else if (p.includes('aquarium') || p.includes('fish tank')) matchedStructure = StructureLibrary.getStructure('aquarium');
+      else if (p.includes('skyscraper') || p.includes('highrise')) matchedStructure = StructureLibrary.getStructure('skyscraper');
+      else if (p.includes('pyramid') || p.includes('temple')) matchedStructure = StructureLibrary.getStructure('pyramid');
+      else if (p.includes('castle') || p.includes('fortress')) matchedStructure = StructureLibrary.getStructure('castle');
+      else if (p.includes('house') || p.includes('cottage') || p.includes('cabin')) matchedStructure = StructureLibrary.getStructure('cozy_house');
+      else if (p.includes('watchtower') || p.includes('tower')) matchedStructure = StructureLibrary.getStructure('watchtower');
+      else if (p.includes('greenhouse') || p.includes('conservatory')) matchedStructure = StructureLibrary.getStructure('greenhouse');
+      else if (p.includes('spaceship') || p.includes('ufo') || p.includes('saucer')) matchedStructure = StructureLibrary.getStructure('spaceship');
     }
 
     // 2. Extract parameters (explicit, variable, numeric)
     const extractedParams = {};
 
-    // Initialize with default parameters of the building
-    if (Array.isArray(matchedBuilding?.parameters)) {
-      for (const param of matchedBuilding.parameters) {
+    // Initialize with default parameters of the structure
+    if (Array.isArray(matchedStructure?.parameters)) {
+      for (const param of matchedStructure.parameters) {
         extractedParams[param.id] = param.default;
       }
     }
@@ -340,7 +340,7 @@ function generate(origin, params, B) {
     let match;
     while ((match = explicitParamRegex.exec(p)) !== null) {
       const paramName = match[1].toLowerCase();
-      const targetParam = this.findParamInBuilding(matchedBuilding, paramName);
+      const targetParam = this.findParamInStructure(matchedStructure, paramName);
       if (targetParam) {
         extractedParams[targetParam.id] = targetParam.default;
       }
@@ -350,7 +350,7 @@ function generate(origin, params, B) {
     const symbolParamRegex = /(?:with\s+)?([a-zA-Z_]+)\s+([A-Z])\b/g;
     while ((match = symbolParamRegex.exec(raw)) !== null) {
       const paramName = match[1].toLowerCase();
-      const targetParam = this.findParamInBuilding(matchedBuilding, paramName);
+      const targetParam = this.findParamInStructure(matchedStructure, paramName);
       if (targetParam) {
         extractedParams[targetParam.id] = targetParam.default;
       }
@@ -361,7 +361,7 @@ function generate(origin, params, B) {
     while ((match = numericRegex.exec(p)) !== null) {
       const key = match[1].toLowerCase();
       const val = parseInt(match[2], 10);
-      const targetParam = this.findParamInBuilding(matchedBuilding, key);
+      const targetParam = this.findParamInStructure(matchedStructure, key);
       if (targetParam && Number.isFinite(val)) {
         extractedParams[targetParam.id] = Math.max(targetParam.min ?? 1, Math.min(targetParam.max ?? 64, val));
       }
@@ -369,14 +369,14 @@ function generate(origin, params, B) {
 
     // 3. Decide whether this is really a parametric request.
     //
-    // The prompt must name a building AND signal a parameter, otherwise it is
-    // left to the language model. Naming a building with a number (for example
+    // The prompt must name a structure AND signal a parameter, otherwise it is
+    // left to the language model. Naming a structure with a number (for example
     // "build an aquarium with width 14") counts as a signal even when the
-    // building itself was not recognised by name.
-    if (!matchedBuilding) return null;
+    // structure itself was not recognised by name.
+    if (!matchedStructure) return null;
 
-    const mentionedParam = Array.isArray(matchedBuilding.parameters)
-      ? matchedBuilding.parameters.some(param => this.findParamInBuilding(matchedBuilding, param.id) === param
+    const mentionedParam = Array.isArray(matchedStructure.parameters)
+      ? matchedStructure.parameters.some(param => this.findParamInStructure(matchedStructure, param.id) === param
         && new RegExp(`\\b${param.id}\\b`, 'i').test(p))
       : false;
     const parameterCue = /\bparam(?:eter|s)?\b/.test(p)
@@ -388,15 +388,15 @@ function generate(origin, params, B) {
     if (!parameterCue) return null;
 
     return {
-      building: matchedBuilding,
+      structure: matchedStructure,
       extractedParams
     };
   }
 
-  findParamInBuilding(building, name) {
-    if (!building || !Array.isArray(building.parameters)) return null;
+  findParamInStructure(structure, name) {
+    if (!structure || !Array.isArray(structure.parameters)) return null;
     const n = name.toLowerCase();
-    for (const p of building.parameters) {
+    for (const p of structure.parameters) {
       if (p.id.toLowerCase() === n || p.name.toLowerCase() === n || (p.symbol && p.symbol.toLowerCase() === n)) {
         return p;
       }
@@ -407,27 +407,27 @@ function generate(origin, params, B) {
     return null;
   }
 
-  // --- Loading Building & Parameters into Studio ---
-  loadBuilding(building, initialParams = {}) {
-    if (!building) return;
-    this.currentBuilding = building;
+  // --- Loading Structure & Parameters into Studio ---
+  loadStructure(structure, initialParams = {}) {
+    if (!structure) return;
+    this.currentStructure = structure;
     this.currentParameters = {};
     this.isCustomVoxelBuild = false;
     this.customBuildBlocks = [];
     this.customBuildName = null;
 
-    if (Array.isArray(building.parameters)) {
-      for (const p of building.parameters) {
+    if (Array.isArray(structure.parameters)) {
+      for (const p of structure.parameters) {
         this.currentParameters[p.id] = initialParams[p.id] !== undefined ? initialParams[p.id] : p.default;
       }
     }
 
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = building.name;
+    if (this.structureNameBadge) {
+      this.structureNameBadge.textContent = structure.name;
     }
 
     this.renderParameterPanel();
-    this.rebuildCurrentBuilding();
+    this.rebuildCurrentStructure();
   }
 
   // --- Render Parameter Panel ---
@@ -435,12 +435,12 @@ function generate(origin, params, B) {
     if (!this.controlsContainer) return;
     this.controlsContainer.innerHTML = '';
 
-    if (!this.currentBuilding || !Array.isArray(this.currentBuilding.parameters) || this.currentBuilding.parameters.length === 0) {
+    if (!this.currentStructure || !Array.isArray(this.currentStructure.parameters) || this.currentStructure.parameters.length === 0) {
       this.renderEmptyPanel();
       return;
     }
 
-    for (const param of this.currentBuilding.parameters) {
+    for (const param of this.currentStructure.parameters) {
       const paramRow = document.createElement('div');
       paramRow.className = 'studio-param-row';
 
@@ -486,7 +486,7 @@ function generate(origin, params, B) {
         slider.value = parsed;
         numInput.value = parsed;
         valBadge.textContent = String(parsed);
-        this.rebuildCurrentBuilding();
+        this.rebuildCurrentStructure();
       };
 
       slider.addEventListener('input', (e) => {
@@ -512,20 +512,20 @@ function generate(origin, params, B) {
       <div class="studio-empty-params">
         <span class="studio-empty-icon">✦</span>
         <p>No parameters yet.</p>
-        <small>Ask the Agent in the terminal to build something with parameters, e.g.:<br>
+        <small>Ask the Agent in the terminal to build a structure with parameters, e.g.:<br>
         <em>"build a stair with a height parameter"</em><br>
         <em>"build a stair with a height H"</em><br>
         <em>"build an aquarium with width 14 and height 8"</em></small>
       </div>
     `;
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = 'No Building';
+    if (this.structureNameBadge) {
+      this.structureNameBadge.textContent = 'No Structure';
     }
   }
 
-  // --- Live Rebuilding ---
-  rebuildCurrentBuilding() {
-    if (!this.currentBuilding || typeof this.currentBuilding.generate !== 'function') return;
+  // --- Live Re-Building Structure ---
+  rebuildCurrentStructure() {
+    if (!this.currentStructure || typeof this.currentStructure.generate !== 'function') return;
 
     // 1. Clear previous voxels
     if (this.game.world) {
@@ -539,7 +539,7 @@ function generate(origin, params, B) {
 
     // 2. Generate new voxels with current parameters
     const origin = { x: this.buildOrigin.x, y: this.buildOrigin.y, z: this.buildOrigin.z };
-    const newBlocks = this.currentBuilding.generate(origin, this.currentParameters, BLOCKS) || [];
+    const newBlocks = this.currentStructure.generate(origin, this.currentParameters, BLOCKS) || [];
 
     // 3. Place new voxels in the world
     if (this.game.world) {
@@ -559,14 +559,14 @@ function generate(origin, params, B) {
   }
 
   /**
-   * Remove the open building from the preview and reset the panel.
+   * Remove the open structure from the preview and reset the panel.
    *
-   * Used when the player asks to destroy or clear the building they are editing:
+   * Used when the player asks to destroy or clear the structure they are editing:
    * the studio edits a live library instance, so there are no recorded "before"
    * blocks to restore — reverting the blocks this session placed is the
    * equivalent operation.
    */
-  clearCurrentBuilding() {
+  clearCurrentStructure() {
     if (Array.isArray(this.placedVoxels) && this.game?.world?.setVoxel) {
       for (const v of this.placedVoxels) {
         const groundId = v.y === 0 ? BLOCKS.BEDROCK : (v.y <= 3 ? BLOCKS.DIRT : (v.y === 4 ? BLOCKS.GRASS : BLOCKS.AIR));
@@ -574,11 +574,11 @@ function generate(origin, params, B) {
       }
     }
     this.placedVoxels = [];
-    this.currentBuilding = null;
+    this.currentStructure = null;
     this.currentParameters = {};
 
     if (this.controlsContainer) this.controlsContainer.innerHTML = '';
-    if (this.buildingNameBadge) this.buildingNameBadge.textContent = 'No building open';
+    if (this.structureNameBadge) this.structureNameBadge.textContent = 'No structure open';
     this.renderEmptyPanel?.();
 
     if (typeof this.game?.refreshDirtyChunks === 'function') this.game.refreshDirtyChunks(24);
@@ -587,10 +587,10 @@ function generate(origin, params, B) {
     return true;
   }
 
-  // --- Save to Building Library Modal ---
+  // --- Save to Structure Library Modal ---
   showSaveModal() {
-    if (!this.currentBuilding && !this.isCustomVoxelBuild && (!this.placedVoxels || this.placedVoxels.length === 0)) {
-      alert('Please prompt or open a building first before saving.');
+    if (!this.currentStructure && !this.isCustomVoxelBuild && (!this.placedVoxels || this.placedVoxels.length === 0)) {
+      alert('Please prompt or open a structure first before saving.');
       return;
     }
     if (this.saveConflictMsg) {
@@ -598,7 +598,7 @@ function generate(origin, params, B) {
       this.saveConflictMsg.textContent = '';
     }
     if (this.saveInput) {
-      const defaultName = this.customBuildName || (this.currentBuilding?.isBuiltin ? `Custom ${this.currentBuilding.name}` : (this.currentBuilding?.name || ''));
+      const defaultName = this.customBuildName || (this.currentStructure?.isBuiltin ? `Custom ${this.currentStructure.name}` : (this.currentStructure?.name || ''));
       this.saveInput.value = defaultName;
     }
     if (this.saveModal) {
@@ -617,29 +617,29 @@ function generate(origin, params, B) {
     const name = this.saveInput ? this.saveInput.value.trim() : '';
     if (!name) {
       if (this.saveConflictMsg) {
-        this.saveConflictMsg.textContent = 'Please enter a name for the building.';
+        this.saveConflictMsg.textContent = 'Please enter a name for the structure.';
         this.saveConflictMsg.classList.remove('hidden');
       }
       return;
     }
 
-    // Check if building of the same name already exists
+    // Check if structure of the same name already exists
     let overwrite = false;
-    const existing = BuildingLibrary.getBuilding(name);
+    const existing = StructureLibrary.getStructure(name);
     if (existing) {
       if (existing.isBuiltin) {
         if (this.saveConflictMsg) {
-          this.saveConflictMsg.textContent = `Cannot overwrite built-in building "${name}". Please choose a different name.`;
+          this.saveConflictMsg.textContent = `Cannot overwrite built-in structure "${name}". Please choose a different name.`;
           this.saveConflictMsg.classList.remove('hidden');
         }
         return;
       }
       const wantsOverwrite = typeof confirm === 'function'
-        ? confirm(`A building named "${name}" already exists. Do you want to overwrite it?`)
+        ? confirm(`A structure named "${name}" already exists. Do you want to overwrite it?`)
         : false;
       if (!wantsOverwrite) {
         if (this.saveConflictMsg) {
-          this.saveConflictMsg.textContent = `A building named "${name}" already exists. Please choose a different name or confirm overwrite.`;
+          this.saveConflictMsg.textContent = `A structure named "${name}" already exists. Please choose a different name or confirm overwrite.`;
           this.saveConflictMsg.classList.remove('hidden');
         }
         return;
@@ -649,20 +649,20 @@ function generate(origin, params, B) {
 
     let code = '';
     let parameters = [];
-    let icon = this.currentBuilding?.icon || '/assets/blocks/crafting_table_top.png';
-    let description = `Custom ${name} building`;
+    let icon = this.currentStructure?.icon || '/assets/blocks/crafting_table_top.png';
+    let description = `Custom ${name} structure`;
 
     const isParametric = !this.isCustomVoxelBuild &&
-      this.currentBuilding &&
-      !this.currentBuilding.isCustom &&
-      typeof this.currentBuilding.code === 'string' &&
-      this.currentBuilding.code.trim().length > 0 &&
-      Array.isArray(this.currentBuilding.parameters) &&
-      this.currentBuilding.parameters.length > 0;
+      this.currentStructure &&
+      !this.currentStructure.isCustom &&
+      typeof this.currentStructure.code === 'string' &&
+      this.currentStructure.code.trim().length > 0 &&
+      Array.isArray(this.currentStructure.parameters) &&
+      this.currentStructure.parameters.length > 0;
 
     if (isParametric) {
-      code = this.currentBuilding.code;
-      parameters = (this.currentBuilding.parameters || []).map(p => ({
+      code = this.currentStructure.code;
+      parameters = (this.currentStructure.parameters || []).map(p => ({
         ...p,
         default: this.currentParameters[p.id] !== undefined ? this.currentParameters[p.id] : p.default
       }));
@@ -673,14 +673,14 @@ function generate(origin, params, B) {
         code = this.generateCodeFromVoxels(voxels, this.buildOrigin);
         parameters = [];
         description = `Custom ${name} (${voxels.length} voxels)`;
-      } else if (this.currentBuilding?.code) {
-        code = this.currentBuilding.code;
-        parameters = this.currentBuilding.parameters || [];
+      } else if (this.currentStructure?.code) {
+        code = this.currentStructure.code;
+        parameters = this.currentStructure.parameters || [];
       }
     }
 
-    // Save with BuildingLibrary
-    const result = BuildingLibrary.saveBuilding({
+    // Save with StructureLibrary
+    const result = StructureLibrary.saveStructure({
       name,
       parameters,
       code,
@@ -697,25 +697,25 @@ function generate(origin, params, B) {
     }
 
     this.hideSaveModal();
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = name;
+    if (this.structureNameBadge) {
+      this.structureNameBadge.textContent = name;
     }
-    this.currentBuilding = result.building;
+    this.currentStructure = result.structure;
     this.isCustomVoxelBuild = false;
 
     const actionText = result.overwritten ? 'overwritten in' : 'saved to';
     this.game.ui?.addChatMessage?.(
-      `<span style="color:#10b981;font-weight:bold;">✦ Building "${name}" successfully ${actionText} Building Library!</span>`
+      `<span style="color:#10b981;font-weight:bold;">✦ Structure "${name}" successfully ${actionText} Structure Library!</span>`
     );
   }
 
-  // --- Open Building Library Modal ---
+  // --- Open Structure Library Modal ---
   showOpenModal() {
     if (this.openModal) {
       this.openModal.classList.remove('hidden');
       if (this.openSearch) this.openSearch.value = '';
       this.updateRestoreButtonVisibility();
-      this.renderOpenBuildingList('');
+      this.renderOpenStructureList('');
     }
   }
 
@@ -727,7 +727,7 @@ function generate(origin, params, B) {
 
   updateRestoreButtonVisibility() {
     if (this.btnRestoreDefaults) {
-      if (BuildingLibrary.hasDeletedOrRenamedDefaults?.()) {
+      if (StructureLibrary.hasDeletedOrRenamedDefaults?.()) {
         this.btnRestoreDefaults.classList.remove('hidden');
       } else {
         this.btnRestoreDefaults.classList.add('hidden');
@@ -735,19 +735,19 @@ function generate(origin, params, B) {
     }
   }
 
-  renderOpenBuildingList(query = '') {
+  renderOpenStructureList(query = '') {
     if (!this.openList) return;
     this.openList.innerHTML = '';
     this.updateRestoreButtonVisibility();
 
     const q = query.trim().toLowerCase();
-    const allBuildings = BuildingLibrary.getAllBuildings();
+    const allStructures = StructureLibrary.getAllStructures();
     const filtered = q
-      ? allBuildings.filter(s => s.name.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q))
-      : allBuildings;
+      ? allStructures.filter(s => s.name.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q))
+      : allStructures;
 
     if (filtered.length === 0) {
-      this.openList.innerHTML = '<div class="studio-open-empty">No buildings found matching search.</div>';
+      this.openList.innerHTML = '<div class="studio-open-empty">No structures found matching search.</div>';
       return;
     }
 
@@ -794,7 +794,7 @@ function generate(origin, params, B) {
           }
           const newName = input.value.trim();
           if (!newName) {
-            if (typeof alert === 'function') alert('Please enter a building name.');
+            if (typeof alert === 'function') alert('Please enter a structure name.');
             nameEl.textContent = st.name;
             return;
           }
@@ -802,20 +802,20 @@ function generate(origin, params, B) {
             nameEl.textContent = st.name;
             return;
           }
-          const res = BuildingLibrary.renameBuilding(st.id, newName);
+          const res = StructureLibrary.renameStructure(st.id, newName);
           if (res.success) {
             st.name = newName;
             nameEl.textContent = newName;
-            if (this.currentBuilding?.id === st.id) {
-              this.currentBuilding.name = newName;
-              if (this.buildingNameBadge) this.buildingNameBadge.textContent = newName;
+            if (this.currentStructure?.id === st.id) {
+              this.currentStructure.name = newName;
+              if (this.structureNameBadge) this.structureNameBadge.textContent = newName;
             }
             this.game.ui?.addChatMessage?.(
-              `<span style="color:#10b981;font-weight:bold;">✦ Renamed building to "${newName}"!</span>`
+              `<span style="color:#10b981;font-weight:bold;">✦ Renamed structure to "${newName}"!</span>`
             );
             this.updateRestoreButtonVisibility();
           } else {
-            if (typeof alert === 'function') alert(res.message || 'Failed to rename building.');
+            if (typeof alert === 'function') alert(res.message || 'Failed to rename structure.');
             nameEl.textContent = st.name;
           }
         };
@@ -861,9 +861,9 @@ function generate(origin, params, B) {
       btnOpenThis.title = `Open "${st.name}" in studio`;
       btnOpenThis.onclick = () => {
         this.hideOpenModal();
-        this.loadBuilding(st);
+        this.loadStructure(st);
         this.game.ui?.addChatMessage?.(
-          `<span style="color:#38bdf8;font-weight:bold;">✦ Loaded building "${st.name}" into Building Studio!</span>`
+          `<span style="color:#38bdf8;font-weight:bold;">✦ Loaded structure "${st.name}" into Structure Studio!</span>`
         );
       };
 
@@ -881,20 +881,20 @@ function generate(origin, params, B) {
           confirmText: 'Yes, Delete',
           cancelText: 'Cancel',
           onConfirm: () => {
-            const removed = BuildingLibrary.deleteBuilding(st.id);
+            const removed = StructureLibrary.deleteStructure(st.id);
             if (removed) {
-              if (this.currentBuilding?.id === st.id) {
-                this.clearCurrentBuilding();
+              if (this.currentStructure?.id === st.id) {
+                this.clearCurrentStructure();
               }
               this.game?.ui?.addChatMessage?.(
-                `<span style="color:#38bdf8;font-weight:bold;">✦ Deleted "${st.name}" from the building library.</span>`
+                `<span style="color:#38bdf8;font-weight:bold;">✦ Deleted "${st.name}" from the structure library.</span>`
               );
             } else {
               this.game?.ui?.addChatMessage?.(
                 `<span style="color:#ef4444;font-weight:bold;">✦ Could not delete "${st.name}".</span>`
               );
             }
-            this.renderOpenBuildingList(query);
+            this.renderOpenStructureList(query);
           }
         });
       };
@@ -909,4 +909,4 @@ function generate(origin, params, B) {
   }
 }
 
-export default BuildingStudioManager;
+export default StructureStudioManager;

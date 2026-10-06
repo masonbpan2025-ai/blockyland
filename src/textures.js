@@ -15,7 +15,6 @@ export class TextureManager {
     this.tileSize = 16;
     this.atlasGridSize = 32; // 32x32 tiles of 16x16 = 512x512 = 1024 tiles capacity
     this.tileCoords = {}; // imageName -> { col, row, u0, v0, u1, v1 }
-    this.missingUV = null; // painted on first miss; see missingTextureUV()
     this.nextCol = 0;
     this.nextRow = 0;
 
@@ -423,58 +422,6 @@ export class TextureManager {
     }
   }
 
-  /**
-   * Coordinates of a visible "missing texture" tile, painted on first use.
-   *
-   * Returning coordinates that pointed at atlas space nothing had been drawn into is what turned
-   * an unmapped face into an invisible black quad: the canvas there is transparent, and the opaque
-   * terrain material ignores alpha, so the surface painted nothing at all. Painting a magenta and
-   * black checker into a free slot makes the same class of mistake obvious on screen instead of
-   * silently black.
-   */
-  missingTextureUV(label) {
-    if (label) this.warnMissingTexture(label);
-    if (this.missingUV) return this.missingUV;
-    const tile = this.tileSize;
-    const col = this.nextCol;
-    const row = this.nextRow;
-    if (this.ctx && row < this.atlasGridSize) {
-      this.nextCol++;
-      if (this.nextCol >= this.atlasGridSize) {
-        this.nextCol = 0;
-        this.nextRow++;
-      }
-      const x = col * tile;
-      const y = row * tile;
-      const half = tile / 2;
-      this.ctx.fillStyle = '#ff00ff';
-      this.ctx.fillRect(x, y, tile, tile);
-      this.ctx.fillStyle = '#000000';
-      this.ctx.fillRect(x, y, half, half);
-      this.ctx.fillRect(x + half, y + half, half, half);
-      if (this.atlasTexture) this.atlasTexture.needsUpdate = true;
-      this.missingUV = {
-        col, row,
-        u0: col / this.atlasGridSize,
-        u1: (col + 1) / this.atlasGridSize,
-        v1: 1 - row / this.atlasGridSize,
-        v0: 1 - (row + 1) / this.atlasGridSize,
-      };
-    } else {
-      // No canvas to paint into (headless callers and unit-test stubs): keep the coordinates
-      // inside the first tile rather than outside the atlas.
-      this.missingUV = { col: 0, row: 0, u0: 0, v0: 1 - 1 / this.atlasGridSize, u1: 1 / this.atlasGridSize, v1: 1 };
-    }
-    return this.missingUV;
-  }
-
-  warnMissingTexture(label) {
-    this.missingTextures ??= new Set();
-    if (this.missingTextures.has(label)) return;
-    this.missingTextures.add(label);
-    console.warn(`No atlas tile for texture "${label}" -- drawing the missing-texture tile instead.`);
-  }
-
   getFaceUVs(blockId, face) {
     if (typeof blockId === 'string') {
       const tex = blockId.endsWith('.png') ? blockId : `${blockId}.png`;
@@ -487,7 +434,9 @@ export class TextureManager {
     }
 
     const def = BLOCK_DEFS[blockId];
-    if (!def || !def.textures) return this.missingTextureUV(`block ${blockId}`);
+    if (!def || !def.textures) {
+      return { u0: 0, v0: 0, u1: 1 / 16, v1: 1 / 16 };
+    }
 
     let texName = def.textures.all;
     if (face === 'north' && def.textures.front) face = 'front';
@@ -501,20 +450,10 @@ export class TextureManager {
       texName = def.textures.bottom;
     }
 
-    if (texName && this.tileCoords[texName]) return this.tileCoords[texName];
-
-    // The definition did not name a tile for this face, or the tile it named was never painted.
-    // Borrow one of the block's own textures in preference to the checkerboard, since a face that
-    // simply is not mentioned (a furnace's top, say) should still look like that block.
-    for (const key of ['all', 'side', 'top', 'bottom', 'front']) {
-      const name = def.textures[key];
-      if (name && this.tileCoords[name]) return this.tileCoords[name];
+    const coords = this.tileCoords[texName];
+    if (!coords) {
+      return { u0: 0, v0: 0, u1: 1 / 16, v1: 1 / 16 };
     }
-    for (const key in def.textures) {
-      const name = def.textures[key];
-      if (name && this.tileCoords[name]) return this.tileCoords[name];
-    }
-
-    return this.missingTextureUV(texName || `${def.name || blockId} face ${face}`);
+    return coords;
   }
 }

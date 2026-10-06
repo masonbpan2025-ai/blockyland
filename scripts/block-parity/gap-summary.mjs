@@ -42,7 +42,7 @@ const FAMILIES = [
   ['Cauldron fill states', /cauldron/],
   ['Spawners, trial spawners and vaults', /spawner|vault/],
   ['Eggs', /_egg$/],
-  ['Command, structure and debug blocks', /command_block|building_block|building_void|jigsaw|barrier|end_gateway|end_portal_frame|reinforced_deepslate|^test|light$/],
+  ['Command, structure and debug blocks', /command_block|structure_block|structure_void|jigsaw|barrier|end_gateway|end_portal_frame|reinforced_deepslate|^test|light$/],
   ['Fluid and light helper states', /bubble_column|frosted_ice|soul_fire|cave_air|void_air|moving_piston|dirt_path/],
   ['Copper family additions (bars, chest, lantern, golem)', /copper_bars|copper_chain|copper_chest|copper_lantern|golem|lightning_rod|copper_grate/],
   ['Cinnabar and sulfur families (newer content)', /cinnabar|sulfur/],

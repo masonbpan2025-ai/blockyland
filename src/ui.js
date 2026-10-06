@@ -894,8 +894,8 @@ export class UIManager {
   renderCreativeTabs() {
     if (!this.creativeTabsTop || !this.creativeTabsBottom) return;
 
-    // Top Tabs: building, colored, natural, functional, redstone, building, search/all
-    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'building', 'all_items'];
+    // Top Tabs: building, colored, natural, functional, redstone, structure, search/all
+    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'structure', 'all_items'];
     // Bottom Tabs: tools_utilities, combat, food_drinks, ingredients, spawn_eggs, survival_inventory
     const bottomTabIds = ['tools_utilities', 'combat', 'food_drinks', 'ingredients', 'spawn_eggs', 'survival_inventory'];
 
@@ -995,8 +995,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: item.count,
-          isBuilding: item.isBuilding,
-          buildingId: item.buildingId,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
           icon: item.icon
         };
         if (e.shiftKey) {
@@ -1030,8 +1030,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: 1,
-          isBuilding: item.isBuilding,
-          buildingId: item.buildingId,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
           icon: item.icon
         };
         this.sounds.playClick();
@@ -1039,7 +1039,7 @@ export class UIManager {
       };
 
       slot.onmouseenter = (e) => {
-        const sub = item.isBuilding ? 'Building' : (item.isBlock || typeof item.id !== 'string' ? 'Block' : item.id.replace(/_/g, ' '));
+        const sub = item.isStructure ? 'Structure' : (item.isBlock || typeof item.id !== 'string' ? 'Block' : item.id.replace(/_/g, ' '));
         this.showTooltip(e.clientX, e.clientY, item.name, sub);
       };
       slot.onmousemove = (e) => {
@@ -3214,8 +3214,8 @@ export class UIManager {
           if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
             this.game.dungeonMode.exitDungeonMode(false);
           }
-          if (this.game.buildingStudio) {
-            this.game.buildingStudio.exitStudio();
+          if (this.game.structureStudio) {
+            this.game.structureStudio.exitStudio();
           }
           if (this.game.world) {
             this.game.world.isFlatWorld = false;

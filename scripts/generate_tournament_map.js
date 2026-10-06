@@ -708,7 +708,7 @@ const tournamentMapData = {
   chunks: chunksData,
   mobs: mobsData,
   gemini: {
-    builtBuildings: [
+    builtStructures: [
       {
         id: 'tournament_arena_1',
         name: 'World Martial Arts Tournament',
@@ -720,7 +720,7 @@ const tournamentMapData = {
         timestamp: Date.now()
       }
     ],
-    lastBuiltBuilding: 'tournament_arena_1',
+    lastBuiltStructure: 'tournament_arena_1',
     conversationHistory: []
   }
 };

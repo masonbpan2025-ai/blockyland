@@ -14,7 +14,7 @@
 // // `drops` lists item names; an empty array means the block drops itself, and an absent
 // // `drops` key means the block is not harvestable into an item.
 
-import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { BLOCKS } from './blocks.js';
 
 export const BLOCK_HARVEST = {
   acacia_button: {hardness:0.5,tool:'axe',drops:['acacia_button'],bb:'empty'},
@@ -1092,81 +1092,4 @@ export function harvestDataFor(blockId) {
 /** Every block id this table knows about, for tests and tooling. */
 export function knownHarvestBlockIds() {
   return [...BY_ID.keys()];
-}
-
-// --- blast resistance -------------------------------------------------------
-//
-// `resistance` above was generated for every entry but read nowhere, so explosions destroyed whatever
-// they reached apart from a hardcoded air/bedrock check. Vanilla's rule is:
-//
-//   destroyed  when  resistance / 5  <  power * (0.3 + 0.7 * random)
-//
-// so the comparison is against the explosion's POWER, not its radius: a TNT explosion (power 4) has a
-// distance factor between 0.3 and 1.3, giving a threshold of 4 * 0.3 = 1.2 at the rim and 4 * 1.3 =
-// 5.2 at the centre. Resistance 6 -- stone, cobblestone, every ore, iron blocks -- is above even the
-// centre threshold and therefore survives TNT, which is what "reduced to a crater of dirt and sand"
-// looks like in the real game. Obsidian, anvils and the enchanting table (600-1200) are immune to
-// everything that exists here, and bedrock has no resistance entry at all, so it is treated as
-// unbreakable rather than as breakable-with-zero-resistance.
-//
-// This models the threshold and a single destruction roll rather than a full 16-ray exposure
-// calculation, which is the part of vanilla's algorithm that needs block occlusion geometry this
-// mesher does not have. The visible consequence is the material of what survives, not the shape of
-// the crater.
-
-/** Explosion power of a primed TNT block, and therefore the base of every threshold above. */
-export const TNT_EXPLOSION_POWER = 4;
-
-/**
- * Blocks with a resistance above this survive an explosion of the given power outright.
- *
- * Derived rather than a magic number: the highest distance factor vanilla applies is 1.3, so
- * `power * 1.3` is the strongest a block can be and still be destroyed at the exact centre.
- */
-export function blastResistanceThreshold(power = TNT_EXPLOSION_POWER) {
-  return power * 1.3;
-}
-
-/**
- * Blast resistance of a block id, or null when the block cannot be destroyed by an explosion.
- *
- * Two subtleties, both of which this table's own generator creates:
- *
- *   - The generator writes `resistance` only when it DIFFERS from `hardness`, because the mining path
- *     only ever needed the resistance when the two disagreed. So an absent `resistance` means "equal to
- *     hardness" rather than "unknown", and falling back to hardness is exact rather than a guess. Dirt
- *     (both 0.5), sand (0.5) and glass (0.3) land here, and treating them as unknown would have made
- *     every soft block explosion-proof -- which is the opposite of what vanilla does.
- *
- *   - Bedrock is expressed through an absurd hardness (999999) and the End Portal through -1, in both
- *     the definition and the harvest row or its absence. Either is a sentinel for "not breakable",
- *     not a resistance value, so both are reported as null.
- */
-export function blastResistanceFor(blockId) {
-  const data = BY_ID.get(blockId);
-  const hardness = typeof data?.hardness === 'number' ? data.hardness : BLOCK_DEFS[blockId]?.hardness;
-  const resistance = typeof data?.resistance === 'number' ? data.resistance : hardness;
-  if (typeof resistance !== 'number' || !Number.isFinite(resistance)) return null;
-  // The unbreakable sentinels: bedrock's absurd hardness and the End Portal's negative one.
-  if (resistance < 0 || resistance >= 99999) return null;
-  return resistance;
-}
-
-/**
- * Should an explosion of `power` destroy this block?
- *
- * @param {number} blockId
- * @param {number} [power] explosion power; TNT and TNT minecarts are both 4
- * @param {number} [random] destruction roll in [0,1); defaults to Math.random
- */
-export function isDestroyedByExplosion(blockId, power = TNT_EXPLOSION_POWER, random = Math.random) {
-  if (blockId === BLOCKS.AIR) return false;
-  const resistance = blastResistanceFor(blockId);
-  // No usable resistance: unbreakable, not soft.
-  if (resistance === null) return false;
-  // Fully immune above the strongest threshold, at any distance from the centre.
-  if (resistance > blastResistanceThreshold(power)) return false;
-  // Otherwise the block survives the roll when resistance/5 reaches the distance-scaled power.
-  const distanceFactor = 0.3 + 0.7 * random();
-  return resistance / 5 < power * distanceFactor;
 }
