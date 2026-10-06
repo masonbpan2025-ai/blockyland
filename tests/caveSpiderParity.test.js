@@ -88,7 +88,7 @@ test('a cave spider is exactly half the size of a spider', () => {
 
   // It reuses the spider model rather than a second mesh.
   assert.equal(cave.legs.length, 8, 'eight legs');
-  assert.equal(cave.eyes.length, 4, 'four eyes');
+  assert.equal(cave.eyes.length, 8, 'wiki: eight eyes, shared with the spider model');
   assert.ok(cave.head && cave.thorax && cave.abdomen, 'same body segments');
 });
 

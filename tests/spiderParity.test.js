@@ -75,14 +75,16 @@ test('spiders have the reference 16 HP and 1.4 x 0.9 hitbox', () => {
   assert.ok(spider.width > spider.height, 'the hitbox is wider than tall, like the wiki');
 });
 
-test('the model has a head, two body segments, eight legs and four eyes', () => {
+test('the model has a head, two body segments, eight legs and eight eyes', () => {
   const { manager } = fixture();
   const spider = manager.spawnMob('spider', 0, 1, 0);
   assert.ok(spider.head, 'head');
   assert.ok(spider.thorax, 'thorax');
   assert.ok(spider.abdomen, 'abdomen');
   assert.equal(spider.legs.length, 8, 'wiki: spiders have eight legs');
-  assert.equal(spider.eyes.length, 4, 'the wiki model has four forward eyes');
+  // Wiki: a spider has EIGHT eyes in two rows, not four. The previous model had four, which is why this count
+  // changed: the face was rebuilt from the real skin and the wiki's actual eye count.
+  assert.equal(spider.eyes.length, 8, 'wiki: a spider has eight eyes');
   assert.deepEqual(SPIDER_HITBOX, { width: 1.4, height: 0.9 });
 
   // Every leg has the two segments the walk cycle animates.

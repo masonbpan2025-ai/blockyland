@@ -286,6 +286,10 @@ const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
 const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
+const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
+/** The spider's dark hide and its red eyes, used as fallbacks while the skin decodes. */
+const SPIDER_BODY_COLOR = 0x3a2f28;
+const SPIDER_EYE_COLOR = 0xdc2626;
 /** The warden's glowing sculk core, which is emissive-looking rather than textured. */
 const WARDEN_CORE_COLOR = 0x06b6d4;
 /** Colours sampled from the vex skin. Used because its atlas cannot be mapped onto a box layout. */
@@ -3845,8 +3849,11 @@ export class MobManager {
    * when they die.
    */
   spawnSpider(x, y, z, options = {}) {
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+    // The real 64x32 spider skin. The model was rebuilt with UVs so the texture actually dresses it; before this
+    // every part was a plain box with one flat colour, which is why the spider carried no texture at all.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: SPIDER_BODY_COLOR, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(SPIDER_SKIN_PATH), SPIDER_BODY_COLOR);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: SPIDER_EYE_COLOR });
     const { group, head, thorax, abdomen, legs, eyes } = createSpiderModel(bodyMat, eyeMat);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });

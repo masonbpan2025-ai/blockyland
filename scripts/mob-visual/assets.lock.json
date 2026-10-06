@@ -254,6 +254,33 @@
       "sha256": "f82e60437c2d9e3d8b11664358e848030fef70143343ac3f48da260a16242208",
       "bytes": 835,
       "for": "mooshroom (brown)"
+    },
+    "spider_skin": {
+      "path": "entity/spider/spider.png",
+      "dest": "assets/entity/spider/spider.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/spider/spider.png",
+      "ref": "1.21.4",
+      "sha256": "12771d3524ad137812b2a94d52b6943401c5e0a942baa6946e783e822c46c554",
+      "bytes": 646,
+      "for": "spider"
+    },
+    "cave_spider_skin": {
+      "path": "entity/spider/cave_spider.png",
+      "dest": "assets/entity/spider/cave_spider.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/spider/cave_spider.png",
+      "ref": "1.21.4",
+      "sha256": "02386867edcf8af7d4a205360800991ab6be475dc4c80752c9145efb2699a8ac",
+      "bytes": 648,
+      "for": "cave spider"
+    },
+    "spider_eyes": {
+      "path": "entity/spider/spider_eyes.png",
+      "dest": "assets/entity/spider/spider_eyes.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/spider/spider_eyes.png",
+      "ref": "1.21.4",
+      "sha256": "45bc67083660ea8257b65c849dc1bb457be7ec56ad8fe8951adc9cb221f52ecd",
+      "bytes": 130,
+      "for": "spider eyes"
     }
   }
 }

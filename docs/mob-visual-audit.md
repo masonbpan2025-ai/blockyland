@@ -246,3 +246,37 @@ The lesson to carry forward: pixel inference has now failed on the vex and on th
 where real model data was obtained -- the quadruped template -- resolved the cow immediately. **Acquiring model
 definitions beats inferring rectangles**, and a decompiler or the OptiFine CEM documents are the next source to try
 for the remaining ones.
+## Round four: the local client JAR as a first-class source
+
+`scripts/mob-visual/extract-from-jar.mjs` now reads the installed Minecraft client JAR directly, in Node, with no
+external tools. That matters for two reasons:
+
+1. It is the exact release's original bytes, so provenance does not depend on a third-party mirror.
+2. Vanilla **nests several mobs one directory deeper than a flat mirror suggests**, and the mirror simply lacks
+   them: the spider is `entity/spider/spider.png` (not `entity/spider.png`), the turtle is
+   `entity/turtle/big_sea_turtle.png` (not `turtle.png`), and the llama coats are `entity/llama/creamy.png` rather
+   than a `llama_cream.png`. Four textures failed to download for that reason alone.
+
+Two client JARs are present (1.20.4 and 26.1.2). 1.20.4 is used for consistency with the assets already locked;
+26.1.2 has reorganised its paths.
+
+## Spider: real skin, real geometry
+
+The spider was a flat dark box with a bespoke model that had **no UV mapping at all** -- every part was a plain
+`BoxGeometry` with one colour -- so a skin could not simply be bound to it. It is now built from the vanilla
+dimensions (head 8x8x8, thorax 6x6x6, abdomen 10x8x12, legs 16x2x2) with every part mapped to the real 64x32
+skin, plus eight red eyes in two rows.
+
+Two things this surfaced, both worth keeping:
+
+* The abdomen is 10 wide but 12 deep, so **depth exceeds half the width** and vanilla's own layout has no room for
+  its side faces. `createEntityBox` correctly rejects that; the abdomen uses explicit per-face rectangles, which is
+  the documented escape hatch.
+* The walk cycle turns `leg.hip.rotation.y` and `leg.knee.rotation.z` and reads `leg.baseYaw`, so each leg must be
+  a **two-segment** limb. Rebuilding the legs as one piece silently broke the gait, and `spiderParity.test.js`
+  caught it. The legs are two segments again.
+
+The spider's eye count was also wrong in the tests: they pinned **four** eyes, and a spider has **eight**. Both
+`spiderParity.test.js` and `caveSpiderParity.test.js` now assert eight.
+
+Work list: **92 mob spawners, 41 with a real skin, 51 still flat-colour only.**
