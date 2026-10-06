@@ -31,6 +31,7 @@ import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './min
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
+import { locateNearestStructure } from './worldStructures.js';
 import { ChunkStreamer } from './chunkStreamer.js';
 import { MobSpawnManager } from './spawning/mobSpawnManager.js';
 import { ChunkMesher } from './mesher.js';
@@ -2835,9 +2836,37 @@ class Game {
       }catch(error){this.ui.addChatMessage(error.message,'error');}
       return;
     }
+    if (root === '/locate') {
+      // `/locate structure <id>`, and a bare `/locate` lists every structure this world generates.
+      //
+      // The structures ARE generated (see src/worldStructures.js) and a player still sees none at spawn: the
+      // placement sets use vanilla spacing, so the nearest is hundreds of blocks away. This is the command that
+      // makes "far away" distinguishable from "broken", and it is vanilla's own answer to the same problem.
+      try {
+        const wanted = parts[1] === 'structure' ? parts[2] : parts[1];
+        const p = this.player.position;
+        const ids = wanted ? [wanted] : (this.world.structures?.enabledIds || []);
+        if (ids.length === 0) throw new Error('this world generates no structures');
+        for (const id of ids) {
+          try {
+            const found = locateNearestStructure(this.world, id, p.x, p.z, { maxRadiusChunks: 4096 });
+            this.ui.addChatMessage(
+              `${found.structureId}: x ${found.centre.x}, z ${found.centre.z} (y ~${found.centre.y}) in the ${found.biome} biome, ${found.distance} blocks away, chunk ${found.chunk[0]},${found.chunk[1]}`,
+              'system'
+            );
+          } catch (error) {
+            this.ui.addChatMessage(`${id}: ${error.message}`, 'error');
+          }
+        }
+      } catch (error) {
+        this.ui.addChatMessage(error.message, 'error');
+      }
+      return;
+    }
     if (root === '/help') {
       this.ui.addChatMessage('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate','help');
       this.ui.addChatMessage('/redstone game <name> - Build a playable redstone machine; /redstone list to see them','help');
+      this.ui.addChatMessage('/locate [structure] [id] - Show the nearest generated structure and how far it is','help');
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
       this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
