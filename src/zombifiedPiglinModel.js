@@ -1,5 +1,39 @@
 import * as THREE from 'three';
 
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
+
+/** The real 64x64 zombified piglin sheet -- the player model with its own skin. */
+const ZOMBIFIED_PIGLIN_SKIN_PATH = '/assets/entity/piglin/zombified_piglin.png';
+
+/**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ *
+ * A local copy of the helper in `src/mobs.js`, which is not exported; importing the mob manager from a model module
+ * would create a cycle.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+
 // Original 16px skin tiles. Bone, torn flesh and rot are deliberately asymmetric.
 function tile(kind, face = 0) {
   const data = new Uint8Array(16 * 16 * 4);
@@ -24,19 +58,44 @@ function tile(kind, face = 0) {
   t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
   return t;
 }
-export function createZombifiedPiglinModel(cache = {}) {
+export function createZombifiedPiglinModel(cache = {}, options = {}) {
+  // The REAL sheet. A texture is adopted only when a loader is available; the drawn tiles stand until it decodes,
+  // which is both what a no-assets build renders and what this mob's suite inspects. // ZP_REAL_SHEET
+  const sheet = options.loadTexture ? options.loadTexture(ZOMBIFIED_PIGLIN_SKIN_PATH) : null;
+  if (sheet) { sheet.magFilter = THREE.NearestFilter; sheet.minFilter = THREE.NearestFilter; sheet.needsUpdate = true; }
   const mesh = new THREE.Group();
   const materials = kind => Array.from({length: 6}, (_, face) => new THREE.MeshLambertMaterial({map: cache['zp-' + kind + face] ||= tile(kind, face)}));
   const flesh = materials('flesh'), skull = materials('skull'), ribs = materials('ribs'), cloth = materials('cloth');
+  /**
+   * A boxed part carrying the player rectangle vanilla gives it. Six materials so it keeps the drawn look until the
+   * sheet is ready, then all six adopt it.
+   */
+  const textured = (parent, name, size, pos, mat, uu, vv, tw, th, td) => {
+    const geo = new THREE.BoxGeometry(...size);
+    applyBoxUVs(geo, uu, vv, 64, 64, tw, th, td);
+    const part = new THREE.Mesh(geo, mat);
+    part.name = name;
+    part.position.set(...pos);
+    parent.add(part);
+    if (sheet) {
+      const materials = Array.isArray(mat) ? mat : [mat];
+      for (const material of materials) {
+        adoptWhenReady(material, sheet, 0xffffff, { onTextureReady: options.onTextureReady });
+      }
+    }
+    return part;
+  };
   const bone = new THREE.MeshLambertMaterial({color: 0xe4dbbb}), dark = new THREE.MeshLambertMaterial({color: 0x43382b});
   const box = (parent, name, size, pos, mat) => {const part = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);part.name=name;part.position.set(...pos);parent.add(part);return part;};
-  const head = box(mesh, 'head', [.625,.5,.5], [0,1.625,0], skull);
+  // The head carries the player rectangle at (0, 0): 8x8x8.
+    const head = textured(mesh, 'head', [.625,.5,.5], [0,1.625,0], skull, 0, 0, 8, 8, 8);
   box(head,'snout',[.25,.18,.19],[0,-.08,.34],flesh);
   for (const x of [-.07,.07]) box(head,'nostril',[.035,.04,.014],[x,-.07,.442],dark);
   box(head,'remaining-tusk',[.055,.11,.055],[.15,-.09,.35],bone);
   box(head,'left-ear',[.10,.28,.18],[.35,-.015,0],flesh).rotation.z=.3;
   box(head,'torn-ear',[.10,.08,.09],[-.35,.04,0],flesh).rotation.z=-.25;
-  box(mesh,'torso',[.5,.75,.25],[0,1.125,0],ribs);
+  // The torso carries the player rectangle at (16, 16): 8x12x4.
+    textured(mesh, 'torso', [.5,.75,.25], [0,1.125,0], ribs, 16, 16, 8, 12, 4);
   box(mesh,'loincloth',[.51,.22,.27],[0,.81,0],cloth);
   const limb = (name,x,y,mat) => {const pivot=new THREE.Group();pivot.name=name;pivot.position.set(x,y,0);mesh.add(pivot);box(pivot,name+'-skin',[.25,.75,.25],[0,-.375,0],mat);return pivot;};
   const leftArm=limb('left-arm',-.375,1.5,flesh),rightArm=limb('right-arm',.375,1.5,ribs);

@@ -1976,3 +1976,28 @@ the real sheet, and `striderParity` is back at 37/37.
 it is now a question with a measurement behind it rather than an angle to try.
 
 Work list: **97 spawners, 61 with a real sheet, 31 mobs still flat-colour only**, of which SIX draw their own skin.
+## Round fifty-eight: the zombified piglin on its real sheet, and the rule applied UP FRONT
+
+**Four rounds of the strider's bristles taught the three-part rule; this round applied it from the first line and the mob
+worked in one pass.** `zombifiedPiglinParity` is 51 passing / 0 failing, and the full area never moved off its baseline.
+
+The three parts, in the order they must happen:
+
+1. **dimensions** -- the geometry already exists and matches this project's own zombified piglin, which the tests
+   reference by part name;
+2. **UVs** -- every major part now carries the player rectangle vanilla gives it, through a local `applyBoxUVs`;
+3. **the sheet** -- adopted onto six materials per part, with the drawn tiles standing until it decodes.
+
+**A useful discovery about the model itself:** `decompile-model.mjs --list` shows **no `ZombifiedPiglinEntityModel`** --
+only `PiglinEntityModel`. A zombified piglin IS the player model with its own skin, so the UV layout is the standard
+64x64 player one: head 8x8x8 at (0,0), body 8x12x4 at (16,16), arms 4x12x4 at (40,16), legs 4x12x4 at (0,16). **That is
+why this mob needed no decompile** -- the rectangles are a convention, not a model.
+
+**What the render shows:** the rotted green-and-pink skin from the sheet, a readable face, the snout and single tusk the
+model already had, and the golden sword. The 16x16 procedural tiles are gone from the visible surfaces.
+
+**Still on the drawn tiles:** the ears, snout, nostrils, hands, soles, shin and loincloth are separate small parts built
+with their own materials, and they have not been given sheet rectangles. They read as details in the render, and moving
+them is the next step if it proves worthwhile.
+
+Work list: **97 spawners, 62 with a real sheet, 30 mobs still flat-colour only**, of which FIVE draw their own skin.

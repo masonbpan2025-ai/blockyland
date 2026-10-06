@@ -6728,7 +6728,7 @@ export class MobManager {
   }
 
   spawnZombifiedPiglin(x, y, z, options = {}) {
-    const model=createZombifiedPiglinModel(this.textures);
+    const model=createZombifiedPiglinModel(this.textures, { loadTexture: (p) => this.loadTexture(p) });
     const mob={type:'zombified_piglin',name:'Zombified Piglin',...model,health:20,maxHealth:20,velocity:new THREE.Vector3(),yaw:(this.random||Math.random)()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
     mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);
     initializeZombified(this,mob,options);return mob;
