@@ -3757,3 +3757,45 @@ of the layer that was actually empty, which is also how the giant's six rounds w
 
 **Work list, measured:** 97 spawners, **77 with a real sheet**, ~5 substantive mobs lacking one, of which one (the fish)
 cannot be fixed from the available assets.
+## Round one hundred and three: the cross layout is verified, so the camel's fault is the COORDINATES themselves
+
+**I read the giant's actual UVs out of its built geometry and checked them against my helper's formula.**
+
+The giant's head is an 8x8x8 cube at atlas (0, 0) on a 64x64 sheet. The first four UVs, which are the `+X` face:
+
+```
+v0: (0.2500, 0.8750)   v1: (0.3750, 0.8750)
+v2: (0.2500, 0.7500)   v3: (0.3750, 0.7500)
+```
+
+My helper's `+X` face is `x: u + td + tw`, `y: v + td`, `w: td`, `h: th` -- for this box `(0+8+8, 0+8)` = `(16, 8)` with size
+`8 x 8`, which in UV space is `x 0.25-0.375`, `y 0.75-0.875`. **That is exactly what the built geometry contains.**
+
+**So `applyVanillaBoxUVs` -- and the `applyBoxUVs` it copies -- implement vanilla's cross layout CORRECTLY, and the giant
+confirms it end to end.** The layout is not the fault, and the `(u, v)`-versus-`(u, v)` convention is not the fault.
+
+**That closes hypothesis 2 from round one hundred and one and leaves hypothesis 1 standing alone:**
+
+> Either `method_32101(u, v)` is **not the texture offset** I believe it is, or **the numbers I read from `class_7751` belong
+> to different parts than `pair-part-uv.mjs` pairs them with.**
+
+**And there is a cheap way to settle it, which is the right next step rather than another binding attempt:** the camel's parts
+have DISTINCT shapes -- body `15x12x27`, hump `9x5x11`, head `7x8x19`, legs `5x21x5`. **Vanilla's cross layout for a box of
+`w x h x d` occupies `(2d + w) x (d + h)` pixels, so each part's region must FIT INSIDE the 128x128 sheet at its stated
+origin.** Any pairing that puts a region off the edge of the sheet is provably wrong:
+
+* body `(0, 25)`: needs `27*2+15 = 69` wide, `27+12 = 39` tall -> `x 0-69`, `y 25-64` -- fits
+* head `(60, 24)`: needs `19*2+7 = 45` wide, `19+8 = 27` tall -> `x 60-105`, `y 24-51` -- fits
+* hump `(74, 0)`: needs `11*2+9 = 31`, `11+5 = 16` -> `x 74-105`, `y 0-16` -- fits
+
+**All three fit, so this test does not separate them on its own.** What WOULD: **the camel's known-drawn regions**, since a
+box's six faces must land on OPAQUE pixels. I measured the body's region at 89% opaque in round ninety-seven; **the head's
+region `(60, 24)` and the hump's `(74, 0)` should be measured the same way**, and a wrong pairing would show as a region
+that is largely empty. That is one command and it is the next thing to run.
+
+**I am stopping the round here rather than starting a fourth binding attempt**, because the last three each cost a round and
+each was spent on a layer that measurement had not yet cleared.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
