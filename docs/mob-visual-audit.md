@@ -1197,3 +1197,28 @@ frog, bat, cod), and two have needed a coordinate conversion I got wrong first (
 sign). The lesson that keeps paying is to render a single change rather than transcribe a whole model and hope.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+
+## Round thirty-six: the cod on real UVs, and an orientation I could not settle
+
+**The cod is now built from its decompiled model and samples its real sheet.** It previously had a map but no UVs -- every
+part a plain `BoxGeometry`, so each face stretched a fraction of the whole texture. That defect is gone: body 2x4x7 at
+(0,0), head 2x4x3 at (11,0), nose 2x3x1 at (0,0), and the four flat fins from (22,1), (22,4), (22,3) and (20,0).
+
+Two things the render forced, both recorded rather than hidden:
+
+1. **The real cod is 0.125 blocks wide.** Faithful, and completely invisible at Inspector range -- it drew as a hairline.
+   The fish is now scaled 2.5x through a single constant (`u = 2.5 / 16`), so the proportions are vanilla's and only the
+   size is adjusted. The sheet is untouched, so the UVs still line up.
+2. **Its orientation is NOT settled.** Vanilla faces -z and this project swims +z, so the frame carries one half-turn --
+   one transformation in one place rather than four sign flips. The Inspector still views the fish end-on and it reads as
+   a compact shape rather than a side profile, so the turn is not yet right. I tried a quarter turn instead, which
+   scattered the parts across the frame (the fins, body and tail separated), so the half turn is the better of the two
+   and the remaining question is about the INSPECTOR'S view axis, not the model.
+
+**A pleasant surprise worth noting:** the cod's own test surfaced the pufferfish assertion `an aquatic mob nearby does NOT
+make it puff`, which had been failing on the previous commit and now passes. `fishParity` is at 17/17.
+
+The mob contract is preserved in full -- `tail`, `finL`, `finR` and `mat` are all still returned, and `tail` remains its
+own group so the swim cycle can articulate it.
+
+Work list: **92 mob spawners, 57 with a real model, 57 with a real skin, 35 still flat-colour only.**
