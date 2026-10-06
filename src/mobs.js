@@ -310,6 +310,7 @@ const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
 const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
+const CAVE_SPIDER_SKIN_PATH = '/assets/entity/spider/cave_spider.png';
 const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
 const GOAT_SKIN_PATH = '/assets/entity/goat/goat.png';
 /** The fox's two coats, chosen by the `coat` the mob rolled. */
@@ -3960,8 +3961,11 @@ export class MobManager {
   spawnSpider(x, y, z, options = {}) {
     // The real 64x32 spider skin. The model was rebuilt with UVs so the texture actually dresses it; before this
     // every part was a plain box with one flat colour, which is why the spider carried no texture at all.
+    // The cave spider shares this model but wears its own blue-grey sheet, so the path is a parameter rather than a
+    // constant -- otherwise a cave spider inherits the spider's brown hide and the two stop being separable.
+    const skinPath = options.skinPath ?? SPIDER_SKIN_PATH;
     const bodyMat = new THREE.MeshLambertMaterial({ color: SPIDER_BODY_COLOR, transparent: true, alphaTest: 0.5 });
-    adoptTexture(bodyMat, this.loadTexture(SPIDER_SKIN_PATH), SPIDER_BODY_COLOR);
+    adoptTexture(bodyMat, this.loadTexture(skinPath), SPIDER_BODY_COLOR);
     const eyeMat = new THREE.MeshBasicMaterial({ color: SPIDER_EYE_COLOR });
     const { group, head, thorax, abdomen, legs, eyes } = createSpiderModel(bodyMat, eyeMat);
     group.position.set(x, y, z);
@@ -4014,7 +4018,8 @@ export class MobManager {
    * Normal and Hard difficulty.
    */
   spawnCaveSpider(x, y, z, options = {}) {
-    const mob = this.spawnSpider(x, y, z, options);
+    // Its own sheet, not the spider's.
+    const mob = this.spawnSpider(x, y, z, { ...options, skinPath: CAVE_SPIDER_SKIN_PATH });
     mob.type = 'cave_spider';
     mob.name = 'Cave Spider';
     // Wiki: 12 HP, a third less than a spider's 16.

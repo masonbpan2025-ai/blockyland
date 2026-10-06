@@ -1295,3 +1295,28 @@ Measured, not chosen. Two mobs, two successes, zero revision rounds -- against t
 I was picking the offset by hand.
 
 Work list: **92 mob spawners, 58 with a real model, 58 with a real skin, 34 still flat-colour only.**
+## Round thirty-nine: the cave spider was wearing a spider's hide
+
+**A delegation that swallowed a variant.** `spawnCaveSpider` calls `spawnSpider(x, y, z, options)`, and the spider bound
+`SPIDER_SKIN_PATH` unconditionally -- so a cave spider was a spider's brown hide at half scale. The two mobs are meant to
+be separable, and their own test suite asserts exactly that they stay separable, but nothing checked the SHEET.
+
+The spider now takes an optional `skinPath` and the cave spider passes `cave_spider.png`, which is the blue-grey hide
+with the red eyes. The render is now clearly a different animal from the spider, not a smaller copy of it.
+
+**That is the second time a shared model has carried the wrong skin**, after the rabbit inheriting the fox's path in
+round ten. Both were delegation chains where the parent hardcoded a sheet. Worth stating as a category, because the
+project has a growing number of mobs that share a model:
+
+| model | mobs that share it | how the skin is chosen |
+| --- | --- | --- |
+| quadruped | cow, mooshroom, pig, sheep | a path constant per spawner |
+| spider | spider, cave spider | **now** a `skinPath` option |
+| cat | four breeds, ocelot | a name-to-path table |
+| parrot | five variants | a `PARROT_SKIN_PATHS` table |
+| fish | cod, salmon, tropical | a path constant per spawner |
+
+The two failures were in the rows where the PARENT hardcoded the path. The rows that use a table have never broken,
+which is an argument for passing skins as data rather than closing over a constant.
+
+Work list: **92 mob spawners, 58 with a real model, 59 with a real skin, 33 still flat-colour only.**
