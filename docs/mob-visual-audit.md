@@ -1375,3 +1375,31 @@ own change unreflected after a cache clear, whereas a true refactor keeps matchi
 `endermiteParity` and `tadpoleParity` are both green, 42/42 together, and the full area is at its baseline.
 
 Work list: **92 mob spawners, 59 with a real model, 60 with a real skin, 32 still flat-colour only.**
+## Round forty-two: the chicken needed a texture, not a model
+
+**Not every flat-coloured mob has a wrong model.** The chicken's geometry was already correct: eight `createBoxWithUV`
+calls carrying the right 64x32 coordinates, and the whole part list matches `ChickenEntityModel` closely -- head 4x6x3 at
+(0,0), beak 4x2x2 at (14,0), wattle 2x2x2 at (14,4), body 6x6x8 at (0,9), wings 1x4x6 at (24,13), legs 3x5x3 at (26,0).
+
+What was wrong was the **texture source**: `this.textures?.chicken ?? this.createChickenTexture()`, i.e. a procedurally
+generated pattern rather than the asset. The fix is one material: load `chicken.png` through `adoptTexture`, keeping the
+flat white as the stand-in until it decodes.
+
+That is a genuinely different defect from the ones this project has been fixing, and worth separating in the audit:
+
+| defect | symptom | fix |
+| --- | --- | --- |
+| model has no UVs | texture stretched across each face | rebuild with `createBoxWithUV` |
+| model has no sheet | flat colour, no detail | load and adopt the asset |
+| **model is right, source is procedural** | **a plausible but wrong pattern** | **swap the source** |
+
+The third is the hardest to SPOT, because a procedural texture looks like a deliberate design rather than a bug -- and
+the chicken's generated pattern was convincing enough that I had counted this mob among the flat-colour group for
+twenty rounds.
+
+I also confirmed the decompiled chicken for completeness: its legs SHARE one cube geometry, and its body carries a
+quarter-turn about X (`method_32091(0, 16, 0, pi/2, 0, 0)`), which is why a chicken reads as long-bodied. Neither detail
+is currently reproduced, and both are recorded here rather than acted on, since the geometry already matches closely and
+the sheet was the actual fault.
+
+Work list: **92 mob spawners, 59 with a real model, 61 with a real skin, 31 still flat-colour only.**

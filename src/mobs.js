@@ -284,6 +284,7 @@ const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
+const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
 /**
  * The endermite's real model, decompiled from `EndermiteEntityModel`.
@@ -5187,8 +5188,12 @@ export class MobManager {
   // --- PASSIVE CHICKEN ---
   spawnChicken(x, y, z) {
     const group = new THREE.Group();
-    const tex = this.textures?.chicken || (this.createChickenTexture ? this.createChickenTexture() : null);
-    const mat = new THREE.MeshLambertMaterial({ map: tex });
+    // The REAL 64x32 chicken sheet. The geometry below was already correct -- these `createBoxWithUV` calls carry the
+    // right coordinates -- but the texture was a procedural `createChickenTexture()`, so the model wore a generated
+    // pattern instead of the asset. `adoptTexture` binds the sheet once it decodes and keeps the flat colour until
+    // then, so a build with no assets still renders a chicken.
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    adoptTexture(mat, this.loadTexture(CHICKEN_SKIN_PATH), 0xffffff);
 
     // Torso / Body (6w, 6h, 8d in pixels)
     const bodyGeo = createBoxWithUV(0.38, 0.38, 0.5, 0, 9, 64, 32, 6, 6, 8);
