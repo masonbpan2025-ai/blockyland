@@ -3138,3 +3138,47 @@ wrong mechanisms; one validated instrument produced the answer in one round.
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-nine: the mask fix is specified and reverted, and the CRLF trap bit a third time
+
+**I attempted round eighty-eight's fix and reverted it, because my anchor missed -- and the reason is the SAME one round
+eighty-two identified, which I then failed to apply.**
+
+The spawner edit was built as a `join(eol)`-less multi-line string, and `src/mobs.js` is CRLF, so the anchor did not match and
+the edit silently no-opped. The model edits DID apply, which left the tree half-changed: the model carrying vanilla's
+rectangles while the spawner still bound a white material. Reverted both to keep `src/` consistent.
+
+**Round eighty-two wrote the rule down; this round shows it needs to be a habit rather than a note:**
+
+> In this repository a multi-line anchor MUST be built with the file's own ending -- `join(eol)` where `eol` is read from the
+> file -- or applied with a tool that normalises line endings.
+
+**The state check did catch it, and it showed something new and useful:** with the model patched but the spawner not,
+`with a map: 1` and `tint colours: ffffff`. **The material's `color` is WHITE**, not the variant colour, which is exactly the
+fault round eighty-eight identified -- and seeing the literal `ffffff` in the read-back is the clearest confirmation yet that
+the diagnosis is right rather than merely plausible.
+
+**The one-line fix, stated so the next attempt is mechanical rather than exploratory:**
+
+```js
+const fishMat = (tint) => {
+  if (!fishSheet) return new THREE.MeshLambertMaterial({ color: tint });
+  const mat = new THREE.MeshLambertMaterial({ color: tint, map: fishSheet, transparent: true, alphaTest: 0.5 });
+  adoptWhenReady(mat, fishSheet, tint, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+  return mat;
+};
+const bodyMat = fishMat(options.baseHex ?? colors.body);
+const finMat = fishMat(options.finHex ?? colors.fin);
+```
+
+**plus** `applyVanillaBoxUVs` on the body at `(0, 0)` 2x3x6, the tail at `(22, -6)` and the dorsal at `(10, -5)`, all with
+`texW = texH = 32`. **Every constant in that list is already measured and verified**; nothing about it remains a guess.
+
+**A note on my own rhythm, which is worth recording after five rounds on one mob.** The tropical fish has now consumed
+eighty-four through eighty-nine. **Four of those rounds ended in a revert or a no-op, and every one of them was a PATCHING
+fault rather than an understanding fault** -- a wrong pattern anchor, a recursive helper, a palette format, a line ending.
+The understanding was reached in round eighty-eight and is not in doubt. **What is failing is the mechanical act of applying
+it**, and that is what the next attempt must be careful about rather than the fish.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
