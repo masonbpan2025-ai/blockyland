@@ -4678,7 +4678,7 @@ export class MobManager {
     adoptTexture(bodyMat, this.loadTexture(LLAMA_SKIN_PATHS[llamaCoat] ?? LLAMA_SKIN_PATHS.creamy), colors.base);
     const darkMat = new THREE.MeshLambertMaterial({ color: colors.dark });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1c1917 });
-    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat);
+    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat, { loadTexture: (p) => this.loadTexture(p) });
     group.position.set(x, y, z);
     if (options.isBaby) group.scale.setScalar(LLAMA_BABY_SCALE);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5994,13 +5994,17 @@ export class MobManager {
    */
   spawnTraderLlama(x, y, z, options = {}) {
     // Reuse the llama model, then mark it as a trader llama.
-    const llama = this.spawnLlama(x, y, z, options);
+    // The loader reaches the carpet material inside the llama model, so the caravan decor can be bound.
+        const llama = this.spawnLlama(x, y, z, { ...options, loadTexture: (p) => this.loadTexture(p) });
     if (!llama) return llama;
     llama.type = 'trader_llama';
     llama.name = 'Trader Llama';
     llama.isTraderLlama = true;
     // Wiki: a trader llama has the trader llama carpet, which is its only visual difference.
     llama.hasTraderCarpet = true;
+        // The flag was SET AND READ NOWHERE, so a trader llama looked exactly like a plain one. Show the carpet it is
+        // defined by, which is what makes `hasTraderCarpet` mean something.
+        if (llama.carpetMesh) llama.carpetMesh.visible = true;
     return llama;
   }
 

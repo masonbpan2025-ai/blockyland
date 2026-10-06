@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
+/** The real 128x64 trader llama caravan decor sheet. */
+const TRADER_LLAMA_CARPET_PATH = '/assets/entity/llama/decor/trader_llama.png';
+
 /**
  * Llama rules and the llama spit projectile.
  *
@@ -290,7 +293,7 @@ export function removeLlamaSpit(manager, spit) {
  *
  * The neck is separate from the body so the head can be raised and the spitting pose can be read.
  */
-export function createLlamaModel(bodyMat, darkMat, eyeMat) {
+export function createLlamaModel(bodyMat, darkMat, eyeMat, options = {}) {
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 1.0), bodyMat);
@@ -348,7 +351,17 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   group.add(chest);
 
   // A carpet, hidden until one is applied. Its colour is set by the caller.
-  const carpetMat = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
+  // The real caravan decor sheet, when a loader supplies one. The flat blue remains the stand-in, so a build with
+  // no assets still renders a carpet. // TRADER_CARPET_SHEET
+  const traderCarpetSheet = options.loadTexture ? options.loadTexture(TRADER_LLAMA_CARPET_PATH) : null;
+  if (traderCarpetSheet) {
+    traderCarpetSheet.magFilter = THREE.NearestFilter;
+    traderCarpetSheet.minFilter = THREE.NearestFilter;
+    traderCarpetSheet.needsUpdate = true;
+  }
+  const carpetMat = traderCarpetSheet
+    ? new THREE.MeshLambertMaterial({ map: traderCarpetSheet, transparent: true, alphaTest: 0.5 })
+    : new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
   const carpet = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.06, 0.8), carpetMat);
   carpet.position.set(0, 1.32, 0.05);
   carpet.visible = false;

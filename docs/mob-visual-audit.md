@@ -2333,3 +2333,39 @@ without knowing which**, because the tests pass at 1766/1773 and a wrong guess h
 every behaviour that checks its type.
 
 Work list: **97 spawners, 67 confirmed with a real sheet, 27 mobs still without a model or skin.**
+## Round sixty-nine: `hasTraderCarpet` was a dead flag
+
+**The fourth delegation defect, and this one was a flag that did nothing rather than a sheet that was wrong.**
+
+`spawnTraderLlama` delegates to `spawnLlama` and then sets `llama.hasTraderCarpet = true`. Grepping for that property:
+
+```
+mobs.js:6003  llama.hasTraderCarpet = true;      <- the only occurrence in the whole source tree
+```
+
+**Set once, read nowhere.** So a trader llama was visually identical to a plain llama, whose stated only difference IS that
+carpet. The caravan decor sheet `entity/llama/decor/trader_llama.png` is a real 128x64 vanilla texture, now extracted and
+converted to RGBA, bound to the carpet material, and the carpet is shown when the flag is set -- so the flag now means
+something.
+
+**The four instances together are the lesson, and they are one root cause with two faces:**
+
+| mob | what the delegation swallowed |
+| --- | --- |
+| cave spider | the spider's brown sheet |
+| rabbit | the fox's sheet |
+| piglin brute | the piglin's sheet |
+| **trader llama** | **a flag that gated nothing** |
+
+**A `spawnX` that calls `spawnY` can lose a VARIANT'S IDENTITY two ways: by inheriting a sheet `spawnY` hardcoded, or by
+setting a property `spawnY` never reads.** None of the four was visible in a render without already knowing what to look
+for, and all four were found by reading the delegation. That is now a standing check rather than a lucky find.
+
+**A self-inflicted fault worth recording, because it is the one I keep making.** My patch script added the reference to
+`TRADER_LLAMA_CARPET_PATH` and its guard then misfired, so it reported "carpet path already declared" and never wrote the
+constant -- the llama threw `ReferenceError` and the area went from 7 failures to **40** in one step. `node --check` does
+not catch an undefined identifier; only RUNNING does. The recovery was one line, but the episode is the fourth time a
+scripted edit has silently done nothing when its anchor or guard was wrong, and the cheap defence is the same every time:
+**read the built object back after the edit, not just the syntax.**
+
+Work list: **97 spawners, 68 confirmed with a real sheet, 26 mobs still without a model or skin.**
