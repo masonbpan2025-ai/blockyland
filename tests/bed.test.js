@@ -139,7 +139,13 @@ test('Bed sleeping: sets respawn point and checks night / daytime conditions', (
   const dayRes = bedManager.interact(0, 11, 0, fakeGame.player);
   assert.equal(dayRes.success, false);
   assert.ok(chatMessages.some(m => m.msg.includes('only at night or during thunderstorms')));
+  // The respawn point DOES still bind when you click a bed in the day -- that is vanilla. What it must not do
+  // is overwrite the WORLD spawn, which the old code did with `player.spawnPosition.copy(safeSpawn)`.
   assert.ok(chatMessages.some(m => m.msg.includes('Respawn point set')), 'Respawn point still sets on click');
+  assert.ok(fakeGame.player.bedSpawnPosition, 'the bed binding is set');
+  assert.equal(fakeGame.player.spawnPosition.x, 0, 'and the WORLD spawn is untouched');
+  assert.equal(fakeGame.player.spawnPosition.y, 20);
+  assert.equal(fakeGame.player.spawnPosition.z, 0);
 
   // 2. Thunderstorm during day allows sleep
   chatMessages.length = 0;
@@ -184,6 +190,7 @@ test('Bed in Nether: explodes on right click', () => {
   bedManager.placeBed(world, [0, 11, 0], 3);
   fakeGame.player.position.set(0.5, 11, 1.5);
   fakeGame.world.selectedBiome = 'nether_wastes';
+  fakeGame.currentDimension = 'nether';
 
   const res = bedManager.interact(0, 11, 0, fakeGame.player);
   assert.equal(res.exploded, true);
@@ -192,12 +199,60 @@ test('Bed in Nether: explodes on right click', () => {
   assert.ok(fakeGame.player.health < 20, 'Player damaged by nether bed explosion');
 });
 
-test('Full sleep cycle: advances worldTime to morning, clears weather, and restores health', () => {
+test('A bed explodes in the End too, by dimension rather than by biome name', () => {
+  // The old test was `game.isNether || selectedBiome.includes('nether')`, so the End was never covered --
+  // and a bed in a biome whose name merely contained "nether" would have detonated.
+  const { world, fakeGame, bedManager, soundCalls } = setupWorld();
+  bedManager.placeBed(world, [0, 11, 0], 3);
+  fakeGame.player.position.set(0.5, 11, 1.5);
+  fakeGame.world.selectedBiome = 'the_end';
+  fakeGame.currentDimension = 'the_end';
+
+  const res = bedManager.interact(0, 11, 0, fakeGame.player);
+  assert.equal(res.exploded, true, 'sleeping is not possible in the End');
+  assert.ok(soundCalls.includes('explosion'));
+});
+
+test('An obstructed bed is refused rather than putting the player inside a block', () => {
+  // `getSafeBedSpawn` used to fall back to `bed.position + 0.6 up`, which is inside the bed itself.
+  const { world, fakeGame, bedManager, chatMessages } = setupWorld();
+  bedManager.placeBed(world, [0, 11, 0], 3);
+  fakeGame.player.position.set(0.5, 11, 1.5);
+  fakeGame.worldTime = 18000;
+
+  // Wall the bed in on all eight sides.
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    world.setVoxel(dx, 11, dz, BLOCKS.STONE);
+    world.setVoxel(dx, 12, dz, BLOCKS.STONE);
+  }
+  const res = bedManager.interact(0, 11, 0, fakeGame.player);
+  assert.equal(res.success, false);
+  assert.ok(chatMessages.some(m => m.msg.includes('obstructed')), 'and says so');
+  // `assert.ok`, not `assert.equal(..., null)`: this file's strict assert treats `undefined` and `null` as
+  // different, and an unset field is `undefined`.
+  assert.ok(!fakeGame.player.bedSpawnPosition, 'no binding is made to a bed you cannot use');
+});
+
+test('A bed out of reach does not become your respawn point', () => {
+  // Reach used to be checked AFTER the binding, so a bed across the world still bound.
+  const { world, fakeGame, bedManager } = setupWorld();
+  bedManager.placeBed(world, [0, 11, 0], 3);
+  fakeGame.player.position.set(100.5, 11, 100.5);
+
+  const res = bedManager.interact(0, 11, 0, fakeGame.player);
+  assert.equal(res.success, false);
+  assert.equal(res.reason, 'Bed is too far away');
+  assert.ok(!fakeGame.player.bedSpawnPosition, 'and binds nothing');
+});
+
+test('Full sleep cycle: advances to the next morning and clears weather, but does NOT heal', () => {
   const { world, fakeGame, bedManager } = setupWorld();
 
   bedManager.placeBed(world, [0, 11, 0], 3);
   fakeGame.player.position.set(0.5, 11, 1.5);
   fakeGame.player.health = 8;
+  fakeGame.player.hunger = 6;
+  fakeGame.player.saturation = 0;
   fakeGame.worldTime = 18000;
   fakeGame.weather.weatherType = 'rain';
 
@@ -207,11 +262,16 @@ test('Full sleep cycle: advances worldTime to morning, clears weather, and resto
   // Advance time past sleep duration (3.5s)
   bedManager.update(4.0);
 
-  // Wakes up in the morning
+  // Wakes up at dawn of the next day. This used to be 1000, which is mid-morning and skips the sunrise.
   assert.equal(bedManager.isSleeping, false);
-  assert.equal(fakeGame.worldTime, 1000, 'Time fast forwarded to morning');
+  assert.equal(fakeGame.worldTime, 0, 'Time advanced to dawn of the next day');
   assert.equal(fakeGame.weather.weatherType, 'clear', 'Rain cleared after sleeping');
-  assert.equal(fakeGame.player.health, 20, 'Health restored');
+
+  // And this is the assertion the old test got backwards. Sleeping has never healed in Minecraft, and
+  // asserting that it did is what kept the free full restore in the game.
+  assert.equal(fakeGame.player.health, 8, 'Sleep does NOT restore health');
+  assert.equal(fakeGame.player.hunger, 6, 'and does NOT feed you');
+  assert.equal(fakeGame.player.saturation, 0);
 });
 
 test('Bed bouncing: negates fall damage and reflects velocity upwards by 66%', () => {

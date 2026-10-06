@@ -9,6 +9,7 @@ import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
 import { normaliseSettings, normaliseGameMode } from './sessionSettings.js';
+import { collectDeathDrops, xpLossFor, resolveRespawn, resetSurvivalState } from './deathAndRespawn.js';
 
 /**
  * How much of a fall the block landed on absorbs.
@@ -1138,6 +1139,13 @@ export class Player {
     }
   }
 
+  /**
+   * Die.
+   *
+   * The inventory drop is a **transaction**, and it is idempotent: `isDead` guards the whole method, and
+   * `deathDropsDone` guards the drop separately, so a second damage callback or a repeated death cannot drop
+   * the same items twice.
+   */
   die() {
     if (this.isDead) return;
     this.isDead = true;
@@ -1147,6 +1155,8 @@ export class Player {
     // Cancel ongoing actions
     this.isGatheringKi = false;
     this.isRolling = false;
+
+    this.dropInventoryOnDeath();
 
     // Exit dungeon mode to normal mode
     if (this.game?.dungeonMode?.isActive) {
@@ -1174,13 +1184,55 @@ export class Player {
     }
   }
 
+  /**
+   * Drop what the player was carrying, once.
+   *
+   * `keepInventory` is Java's gamerule and preserves the items and the experience, so it is checked here
+   * rather than at the call site.
+   *
+   * @returns {{dropped:number, xpPoints:number, kept:boolean}|null} null when already done
+   */
+  dropInventoryOnDeath() {
+    if (this.deathDropsDone) return null;
+    this.deathDropsDone = true;
+
+    // The tournament resets its own arena and never used an inventory drop.
+    if (this.game?.tournament?.isTournamentMap) return { dropped: 0, xpPoints: 0, kept: true };
+
+    const keep = this.game?.gamerules?.keepInventory === true
+      || this.game?.settings?.keepInventory === true;
+    if (keep) return { dropped: 0, xpPoints: 0, kept: true };
+
+    const inv = this.inventory;
+    const drops = collectDeathDrops(inv);
+    const origin = this.position?.clone ? this.position.clone() : this.position;
+    for (const stack of drops) {
+      this.game?.entities?.spawnDroppedItem?.(origin, stack.id, stack.isBlock, stack.count);
+    }
+
+    const loss = xpLossFor(this.xpLevel ?? this.level ?? 0);
+    this.xpLevel = 0;
+    this.level = 0;
+    this.xp = 0;
+    if (loss.points > 0) {
+      this.game?.entities?.spawnXpOrbs?.(origin, loss.points);
+    }
+
+    // The carried inventory is gone. Crafting grid and results are a workspace, not owned items.
+    inv?.clearCarried?.();
+    return { dropped: drops.length, xpPoints: loss.points, kept: false };
+  }
+
   respawn() {
-    this.isDead = false;
-    this.health = this.maxHealth || 20;
-    this.hunger = 20;
-    this.invulnerableTimer = 1.0;
-    if (this.velocity) this.velocity.set(0, 0, 0);
+    // A complete reset, first, on EVERY path.
+    //
+    // This used to restore only health and hunger, and the bed branch `return`ed before the
+    // `statusEffects.clear()` at the end -- so poison, fire, absorption and every other transient survived
+    // death for anyone who had bound a bed.
+    resetSurvivalState(this);
+    this.deathDropsDone = false;
     this.isDungeonMode = false;
+    if (this.velocity) this.velocity.set(0, 0, 0);
 
     if (typeof document !== 'undefined') {
       const defeatOverlay = document.getElementById('defeat-overlay');
@@ -1194,23 +1246,54 @@ export class Player {
       const targetPos = this.game.tournament.hostPosition || new THREE.Vector3(3.5, 24, 10.5);
       this.position.copy(targetPos);
       this.game.tournament.reset?.();
-    } else {
-      if (this.bedSpawnPosition) {
-        const bx = Math.floor(this.bedSpawnPosition.x);
-        const by = Math.floor(this.bedSpawnPosition.y);
-        const bz = Math.floor(this.bedSpawnPosition.z);
-        const v = this.world?.getVoxel(bx, by, bz);
-        if (v === BLOCKS.RED_BED_FOOT || v === BLOCKS.RED_BED_HEAD || this.game?.bedManager?.getBed(bx, by, bz)) {
-          this.position.copy(this.bedSpawnPosition);
-          return;
-        } else {
-          this.game?.ui?.addChatMessage?.('Your home bed was missing or obstructed', 'system');
-          this.bedSpawnPosition = null;
-        }
-      }
-      this.position.copy(this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5));
+      return;
     }
-    this.statusEffects.clear();
+
+    // Which anchor, revalidated now rather than trusted from when it was set: a spot that was safe before
+    // death can be blocked afterwards.
+    const decision = resolveRespawn({
+      bedPosition: this.bedSpawnPosition ?? null,
+      isBedStillThere: (bed) => this.isBedStillThere(bed),
+      isSpaceSafe: (pos) => this.isRespawnSpaceSafe(pos),
+      worldSpawn: this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5),
+    });
+
+    if (decision.lostBed) {
+      this.game?.ui?.addChatMessage?.('Your home bed was missing or obstructed', 'system');
+      this.bedSpawnPosition = null;
+    }
+    if (decision.blocked) {
+      // Reported rather than silently placing the player inside a block.
+      this.game?.ui?.addChatMessage?.('Your spawn point was obstructed', 'system');
+    }
+    this.position.copy(decision.position);
+    this.lastRespawnSource = decision.source;
+  }
+
+  /** Is the bed this binding points at still there? */
+  isBedStillThere(bed) {
+    const bx = Math.floor(bed.x);
+    const by = Math.floor(bed.y);
+    const bz = Math.floor(bed.z);
+    const v = this.world?.getVoxel(bx, by, bz);
+    if (v === BLOCKS.RED_BED_FOOT || v === BLOCKS.RED_BED_HEAD) return true;
+    return this.game?.bedManager?.getBed?.(bx, by, bz) != null;
+  }
+
+  /** Is there room to stand here? Checked at respawn, not only when the bed was bound. */
+  isRespawnSpaceSafe(pos) {
+    if (!pos || !this.world?.getVoxel) return false;
+    const bx = Math.floor(pos.x);
+    const by = Math.floor(pos.y);
+    const bz = Math.floor(pos.z);
+    const feet = this.world.getVoxel(bx, by, bz);
+    const head = this.world.getVoxel(bx, by + 1, bz);
+    const below = this.world.getVoxel(bx, by - 1, bz);
+    const solid = (id) => {
+      const def = BLOCK_DEFS[id];
+      return id !== BLOCKS.AIR && def && def.solid !== false && !def.plant;
+    };
+    return !solid(feet) && !solid(head) && solid(below);
   }
 
   applyStatusEffect(effect, duration = 30, level = 1) {

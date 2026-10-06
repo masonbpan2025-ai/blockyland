@@ -55,6 +55,26 @@ export class Inventory {
   }
 
   /**
+   * Clear what the player was carrying, on death.
+   *
+   * `clearAll` also empties the crafting grid and the cursor. This one keeps the grid, because a grid is a
+   * workspace rather than owned storage, and `collectDeathDrops` decides separately what is dropped -- but the
+   * grid is cleared here so a result cannot be crafted from items that no longer exist.
+   */
+  clearCarried() {
+    this.hotbar = new Array(9).fill(null);
+    this.storage = new Array(27).fill(null);
+    this.armor = { head: null, chest: null, legs: null, feet: null };
+    this.offhand = null;
+    this.cursorItem = null;
+    this.craft2x2 = new Array(4).fill(null);
+    this.craft2x2Result = null;
+    this.craft3x3 = new Array(9).fill(null);
+    this.craft3x3Result = null;
+    this.activeSlot = 0;
+  }
+
+  /**
    * The showcase kit.
    *
    * Explicit and opt-in. It used to be `initDefaultItems`, called from the constructor, which is why every

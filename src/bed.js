@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 // The 16 dye colours, shared with the wool and concrete families so a bed's blanket cannot drift
 // from a wool block of the same colour.
+import { timeAfterSleep, sleepingAllowedIn } from './deathAndRespawn.js';
 import { DYE_COLOURS } from './colourPalette.js';
 
 /** Hex tints for a bed blanket, keyed by colour name. */
@@ -344,8 +345,16 @@ export class BedManager {
     return false;
   }
 
+  /**
+   * Where the player stands when they get up.
+   *
+   * @returns {THREE.Vector3|null} null when there is nowhere safe. The old version fell back to
+   *   `bed.position + 0.6 up`, which is *inside* the bed block, so an obstructed bed put the player in a
+   *   solid block rather than reporting that it could not be used.
+   */
   getSafeBedSpawn(bed) {
     const world = this.game.world;
+    if (!world?.getVoxel || !bed?.footPos) return null;
     const [fx, fy, fz] = bed.footPos;
 
     // Check adjacent blocks around the bed for safe standing space (grounded and 2 AIR blocks tall)
@@ -370,8 +379,8 @@ export class BedManager {
       }
     }
 
-    // Default above bed
-    return new THREE.Vector3(fx + 0.5, fy + 0.6, fz + 0.5);
+    // Nowhere to stand. Reported, not guessed at.
+    return null;
   }
 
   interact(x, y, z, player) {
@@ -391,22 +400,20 @@ export class BedManager {
     }
 
     // 1. Dimension Check: Nether Explosion!
-    const isNether = this.game.isNether || Boolean(this.game.world?.selectedBiome && this.game.world.selectedBiome.includes('nether'));
-    if (isNether) {
+    //
+    // By dimension CAPABILITY rather than a biome-name string. The old test was
+    // `isNether || selectedBiome.includes('nether')`, which never covered the End and would have detonated a
+    // bed in any biome whose name merely contained "nether".
+    const dimension = this.game.currentDimension || this.game.world?.dimension || 'overworld';
+    if (!sleepingAllowedIn(dimension)) {
       this.explode(x, y, z);
-      return { success: false, exploded: true };
+      return { success: false, exploded: true, reason: `Sleeping is not possible in ${dimension}` };
     }
 
-    // 2. Set Respawn Point
-    const safeSpawn = this.getSafeBedSpawn(bed);
-    if (player.spawnPosition) {
-      player.spawnPosition.copy(safeSpawn);
-    }
-    player.bedSpawnPosition = safeSpawn.clone();
-    this.game.sounds?.playClick?.();
-    this.game.ui?.addChatMessage?.('Respawn point set', 'system');
-
-    // 3. Distance Check
+    // 2. Distance Check -- BEFORE binding the respawn point.
+    //
+    // Reach used to be checked AFTER `player.spawnPosition.copy(safeSpawn)`, so a bed on the far side of the
+    // world still became your respawn point as long as you managed to right-click it.
     const bedCenter = new THREE.Vector3(
       (bed.footPos[0] + bed.headPos[0]) / 2 + 0.5,
       bed.footPos[1] + 0.5,
@@ -416,6 +423,21 @@ export class BedManager {
       this.game.ui?.addChatMessage?.('Bed is too far away', 'system');
       return { success: false, reason: 'Bed is too far away' };
     }
+
+    // 3. Set the BED respawn point.
+    //
+    // `player.spawnPosition` is the WORLD spawn and must not move. The old code copied the bed position over
+    // it, so sleeping permanently relocated the world's spawn point for the rest of the session.
+    const safeSpawn = this.getSafeBedSpawn(bed);
+    if (!safeSpawn) {
+      // Reported rather than falling back to a position inside the bed, which is what the old default did.
+      this.game.ui?.addChatMessage?.('The bed is obstructed', 'system');
+      return { success: false, reason: 'The bed is obstructed' };
+    }
+    player.bedSpawnPosition = safeSpawn.clone();
+    player.bedDimension = dimension;
+    this.game.sounds?.playClick?.();
+    this.game.ui?.addChatMessage?.('Respawn point set', 'system');
 
     // 4. Time & Weather Check
     const time = this.game.worldTime ?? 6000;
@@ -494,10 +516,15 @@ export class BedManager {
     this.isSleeping = false;
     const player = this.game.player;
 
-    // 1. Advance time to morning (1000)
+    // 1. Advance to the next morning.
+    //
+    // This set the time to 1000, which is mid-morning and skipped the sunrise; Java advances to dawn of the
+    // following day. The day counter is separate from the time of day, so it is advanced too.
     if (this.game) {
-      this.game.worldTime = 1000;
-      this.game.sky?.setTime?.(1000);
+      const morning = timeAfterSleep();
+      this.game.worldTime = morning;
+      this.game.dayCount = (this.game.dayCount ?? 0) + 1;
+      this.game.sky?.setTime?.(morning);
 
       // 2. Clear weather
       if (this.game.weather?.setWeather) {
@@ -505,18 +532,17 @@ export class BedManager {
       }
     }
 
-    // 3. Heal player in survival
+    // 3. NO heal and NO meal.
+    //
+    // This is the line that made a bed a free full restore: it set health to maximum and hunger to 20. Sleep
+    // skips the night; natural regeneration may happen during the skipped time under its own rules, but
+    // waking up is not a heal and has never been one.
     if (player) {
       player.isSleeping = false;
-      if (player.health < (player.maxHealth || 20)) {
-        player.health = player.maxHealth || 20;
-      }
-      player.hunger = 20;
-
-      // Stand next to the bed
+      // Stand next to the bed.
       if (this.sleepingBed) {
         const safe = this.getSafeBedSpawn(this.sleepingBed);
-        player.position.copy(safe);
+        if (safe) player.position.copy(safe);
       }
     }
 
@@ -532,7 +558,7 @@ export class BedManager {
       }
     }
 
-    this.game.ui?.addChatMessage?.('You feel well rested.', 'system');
+    this.game.ui?.addChatMessage?.('Good morning.', 'system');
   }
 
   update(dt) {

@@ -3438,10 +3438,16 @@ export class UIManager {
     this.selectedWorldDifficulty = this.selectedWorldDifficulty ?? 'normal';
 
     const paint = () => {
-      modeButtons.forEach((b, i) => b?.classList.toggle('active', modes[i] === this.selectedWorldMode));
-      diffButtons.forEach((b, i) => b?.classList.toggle('active', difficulties[i] === this.selectedWorldDifficulty));
+      // `?.` on `classList` too, not only on the element.
+      //
+      // The first version was `b?.classList.toggle(...)`, which guards a missing element but not an element
+      // that is present without a `classList` -- and a minimal DOM stub in the tests returns exactly that, so
+      // constructing `UIManager` threw and took eight unrelated UI tests with it.
+      const setActive = (el, on) => { if (el?.classList?.toggle) el.classList.toggle('active', on); };
+      modeButtons.forEach((b, i) => setActive(b, modes[i] === this.selectedWorldMode));
+      diffButtons.forEach((b, i) => setActive(b, difficulties[i] === this.selectedWorldDifficulty));
       // Creative has no difficulty to choose.
-      if (diffSection) diffSection.style.display = this.selectedWorldMode === 'creative' ? 'none' : '';
+      if (diffSection?.style) diffSection.style.display = this.selectedWorldMode === 'creative' ? 'none' : '';
       if (hint) {
         hint.textContent = this.selectedWorldMode === 'creative'
           ? 'Fly, break anything instantly, and build from the full catalogue.'

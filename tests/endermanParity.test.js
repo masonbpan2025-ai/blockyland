@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { MobManager } from '../src/mobs.js';
 import { EntityManager } from '../src/entities.js';
 import { BLOCKS } from '../src/blocks.js';
+import { provoke } from '../src/endermanBehavior.js';
 import { createMobDebugSession } from '../src/mobDebugSession.js';
 
 function fixture() {
@@ -123,6 +124,22 @@ test('other enderman teleport and pursuit behaviour still works', () => {
     'and never snaps to the tournament arena');
 
   enderman.mesh.position.set(45, 1, 50);
+
+  // NEUTRAL first.
+  //
+  // This used to assert that an untouched enderman "pursues the player", which is the tournament arena rule
+  // applied to the species: it teleported toward the player within five seconds of the world loading and
+  // chased them unprovoked. A wild enderman ignores you until you provoke it, so the assertion is inverted
+  // rather than deleted -- and the next block is the positive control that keeps this from passing merely
+  // because all pursuit was disabled.
   manager.update(0.1, player);
-  assert.ok(enderman.velocity.x > 0, 'pursues the player');
+  assert.equal(enderman.velocity.x, 0, 'an unprovoked enderman does not pursue');
+  assert.equal(enderman.velocity.z, 0);
+  assert.equal(enderman.state, 'idle');
+
+  // POSITIVE CONTROL: provoked, it does pursue.
+  provoke(enderman, 'damage');
+  manager.update(0.1, player);
+  assert.ok(enderman.velocity.x > 0, 'a provoked enderman pursues the player');
+  assert.equal(enderman.state, 'provoked');
 });
