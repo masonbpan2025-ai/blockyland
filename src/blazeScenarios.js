@@ -27,7 +27,7 @@ export function blazeScenarios(){
   add('lava','Fire and lava immunity',2,s=>{s.world.fluid=BLOCKS.LAVA;},s=>s.mob.health===20);
   add('powder','Powder snow: freeze, then 5 HP damage',7.2,s=>{s.world.fluid=BLOCKS.POWDER_SNOW;},s=>s.mob.health===15);
   add('snowball','Thrown snowball deals exactly 3 HP',1,s=>{s.player.position.set(0,0,3);s.player.camera=new THREE.PerspectiveCamera();s.inventory.active={id:'snowball',count:1};useSnowball({player:s.player,inventory:s.inventory,mobs:s.manager});},s=>s.mob.health===17);
-  add('splash_water','Splash water bottle deals exactly 1 HP',1,s=>{s.player.position.set(0,0,2);s.player.camera=new THREE.PerspectiveCamera();s.inventory.active={id:'splash_potion',count:1};useBarterPotion({player:s.player,camera:s.player.camera,inventory:s.inventory,mobs:s.manager});},s=>s.mob.health===19);
+  add('splash_water','Splash water bottle deals exactly 1 HP',1,s=>{s.player.position.set(0,0,2);s.player.camera=new THREE.PerspectiveCamera();s.inventory.active={id:'splash_water_bottle',count:1};useBarterPotion({player:s.player,camera:s.player.camera,inventory:s.inventory,mobs:s.manager});},s=>s.mob.health===19);
   add('damage','Damage flash and knockback',.6,s=>{s.hit(1);s.flash=s.mob.hurtTime>0;},s=>s.flash && s.mob.health===19);
   add('death','Death animation and player-credit loot',2,s=>s.hit(100),s=>!s.manager.mobs.includes(s.mob)&&s.entities.xp===10&&s.entities.drops.every(d=>d.id==='blaze_rod'&&d.count<=1));
   return cases;

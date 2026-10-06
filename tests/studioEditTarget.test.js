@@ -8,8 +8,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WorldAgent } from '../src/worldAgent.js';
-import { BuildingStudioManager } from '../src/buildingStudio.js';
-import { BuildingLibrary } from '../src/buildingLibrary.js';
+import { StructureStudioManager } from '../src/structureStudio.js';
+import { StructureLibrary } from '../src/structureLibrary.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function fixture({ studioOpen = true } = {}) {
@@ -19,10 +19,10 @@ function fixture({ studioOpen = true } = {}) {
     getOrCreateChunk: () => ({ dirty: false }),
     chunks: new Map()
   };
-  const studio = new BuildingStudioManager({});
+  const studio = new StructureStudioManager({});
   studio.game = {};
   if (studioOpen) {
-    studio.loadBuilding(BuildingLibrary.getBuilding('castle'), {});
+    studio.loadStructure(StructureLibrary.getStructure('castle'), {});
     studio.isActive = true;
   }
   const game = {
@@ -32,7 +32,7 @@ function fixture({ studioOpen = true } = {}) {
     weather: { weatherType: 'clear' },
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {}, playPlace() {}, playBreak() {} },
     rebuildChunkMesh() {},
-    buildingStudio: studio
+    structureStudio: studio
   };
   studio.game = game;
   const agent = new WorldAgent(game);
@@ -85,7 +85,7 @@ test('an invented structure id is redirected to the open studio structure', asyn
   // Exactly the failing case: the model names a structure that does not exist.
   t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
     action: 'edit',
-    targetBuilding: 'custom_castle_with_bridge_muo14677',
+    targetStructure: 'custom_castle_with_bridge_muo14677',
     name: 'Castle Bridge',
     dimensions: { width: 4, height: 2, depth: 4 },
     operations: [{ type: 'fill_box', min: [0, 0, 0], max: [3, 1, 3], block: 'OAK_PLANKS' }],
@@ -105,7 +105,7 @@ test('a wrong id still fails when no studio structure is open', async t => {
   t.mock.method(console, 'error', () => {});
   t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
     action: 'edit',
-    targetBuilding: 'custom_castle_with_bridge_muo14677',
+    targetStructure: 'custom_castle_with_bridge_muo14677',
     operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }]
   })));
 
@@ -119,7 +119,7 @@ test('a destroy with a wrong id is redirected too, since it is likewise unambigu
   agent.onLog = () => {};
   t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
     action: 'destroy',
-    targetBuilding: 'made_up_id_123',
+    targetStructure: 'made_up_id_123',
     explanation: 'Removing it'
   })));
 

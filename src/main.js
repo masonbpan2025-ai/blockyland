@@ -1,13 +1,12 @@
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
-import { EXHAUSTION } from './hunger.js';
-import { FOODS } from './foodData.js';
 import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
+import { drinkPotion } from './potions.js';
 import { launchFirework } from './fireworks.js';
 import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
@@ -22,15 +21,12 @@ import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
-import { BLOCKS, BLOCK_DEFS, ITEMS, blockIdForPlacement } from './blocks.js';
-import { drinkPotion, isDrinkablePotion } from './potionUse.js';
-import { miningSpeedMultiplier } from './statusEffects.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
 import { ChunkStreamer } from './chunkStreamer.js';
-import { MobSpawnManager } from './spawning/mobSpawnManager.js';
 import { ChunkMesher } from './mesher.js';
 import { SoundEngine } from './audio.js';
 import { Player } from './player.js';
@@ -55,11 +51,7 @@ import {
 import { placePlayerOnSurface } from './worldSpawn.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
-import { catchFish, releaseFish } from './fishBuckets.js';
-import { takeFromBundle } from './bundles.js';
-import { brushSuspiciousBlock } from './archaeology.js';
-import { isGlassBottle, useGlassBottle } from './bottles.js';
-import { blockDrops } from './blockDrops.js';
+import { getBlockDrop } from './itemVisuals.js';
 import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
 import { Sky } from './sky.js';
 import {
@@ -82,8 +74,6 @@ import { ChestManager } from './chest.js';
 import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
-import { BeaconManager } from './beaconManager.js';
-import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
@@ -137,17 +127,6 @@ class Game {
     // Day/Night Cycle State
     this.worldTime = 6000; // 0..24000 (6000 = midday, 18000 = midnight)
     this.dayLengthSeconds = 600; // 10 minutes full day/night cycle
-
-    /**
-     * World difficulty.
-     *
-     * `mobs.js` and a dozen behaviour modules have read `game.difficulty` for a long time, defaulting
-     * to 'normal' when it was absent -- so the property was never actually set anywhere and the
-     * default was doing all the work. Setting it here makes it a real, changeable value, which the
-     * spawning subsystem needs: hostile natural spawning is switched off entirely on PEACEFUL, and
-     * the existing mob code was already branching on it.
-     */
-    this.difficulty = 'normal';
 
     // Subsystems
     this.sounds = new SoundEngine();
@@ -242,21 +221,6 @@ class Game {
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
     this.mobs.game = this;
 
-    // 3b. Natural mob spawning.
-    //
-    // Owns the continuous per-tick spawn cycle, the mob caps, biome spawn tables, the light-driven
-    // hostile rules and natural despawning. It replaces nothing here: before it existed the only
-    // ways to create a mob were a spawn egg, /summon, and four ad-hoc per-tick functions in
-    // mobs.js -- which is why a world contained mobs near the start point and nowhere else.
-    //
-    // Constructed in start() rather than the constructor because it needs `this.mobs`, which does
-    // not exist until textures have loaded. See src/spawning/mobSpawnManager.js.
-    this.spawnManager = new MobSpawnManager({ game: this });
-    // Structures may override the biome spawn table where they stand. The engine has a structure
-    // index (see structureManager), so the override is wired when one is present rather than
-    // assumed; with no index, `structureAt` stays null and no override applies.
-    this.spawnManager.structureAt = (x, y, z) => this.structureIdAt?.(x, y, z) ?? null;
-
     // Thorns reflects damage on to whoever struck the player. Wired here rather than inside the player,
     // because damaging a mob is the mob manager's job -- the same reason onKiInterrupted exists as a hook.
     //
@@ -296,7 +260,8 @@ class Game {
     this.geminiAgent.viewCaptureProvider = () => this.captureCurrentView();
     this.entities.onItemPickup = () => this.ui.updateHotbar();
     this.world.water.onDisplace = (x,y,z,id) => {
-      this.spawnBlockDrops(new THREE.Vector3(x+.5,y+.5,z+.5), id);
+      const drop=getBlockDrop(id);
+      if(drop) this.entities.spawnDroppedItem(new THREE.Vector3(x+.5,y+.5,z+.5),drop.id,drop.isBlock);
     };
 
     // 5. Initialize Held Item 3D Renderer
@@ -307,7 +272,8 @@ class Game {
     this.riding = null;
 
     // 5b. Initialize Tournament & Dragon Ball Skills
-    this.tournament = new TournamentManager(this);    this.dragonballSkills = new DragonballSkillsManager(this);
+    this.tournament = new TournamentManager(this);
+    this.dragonballSkills = new DragonballSkillsManager(this);
     this.skills = this.dragonballSkills;
     this.trainingSites = new TrainingSitesManager(this);
     this.dungeonMode = new DungeonModeManager(this);
@@ -319,11 +285,6 @@ class Game {
     this.doorManager = new DoorManager(this);
     this.world.doorManager = this.doorManager;
     this.farmingManager = new FarmingManager(this);
-    // Beacons and conduits: what remembers where they are and applies what they grant. Registered on
-    // placement and unregistered on break, like a crop, rather than scanned for.
-    this.beaconManager = new BeaconManager(this);
-    // Bee nests and beehives: the only source of honeycomb, and so of every waxed copper block.
-    this.hiveManager = new HiveManager(this);
     this.enchantingManager = new EnchantingManager(this);
     this.portalManager = new NetherPortalManager(this);
     this.raidManager = new RaidManager(this.mobs, this.world, this.sounds, this.ui, this.entities);
@@ -1138,22 +1099,6 @@ class Game {
       });
     }
 
-    const btnResourceInspector = document.getElementById('btn-start-resource-inspector');
-    if (btnResourceInspector) {
-      btnResourceInspector.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openResourceInspector();
-      });
-    }
-
-    const btnStructureInspector = document.getElementById('btn-start-structure-inspector');
-    if (btnStructureInspector) {
-      btnStructureInspector.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openStructureInspector();
-      });
-    }
-
     this.renderer.domElement.addEventListener('click', () => {
       if (this.player?.isDead) return;
       if (this.worldGenerated && !this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
@@ -1249,45 +1194,6 @@ class Game {
     // Carry the mob the player was last examining, when one is known.
     const mob = this.mobInspectorTarget || '';
     const url = mob ? `/mob-debug.html?mob=${encodeURIComponent(mob)}` : '/mob-debug.html';
-    if (typeof window !== 'undefined') window.location.href = url;
-    return url;
-  }
-
-  /**
-   * Open the Resource Inspector, the block and item counterpart to the Mob Inspector.
-   *
-   * Like the Mob Inspector it is a separate page with its own preview, so this navigates rather than
-   * starting a world. Carries the item the player was examining when one is known.
-   *
-   * @returns {string} the URL that was navigated to, so it can be asserted in tests
-   */
-  openResourceInspector() {
-    const resource = this.resourceInspectorTarget || '';
-    const url = resource
-      ? `/resource-debug.html?resource=${encodeURIComponent(resource)}`
-      : '/resource-debug.html';
-    if (typeof window !== 'undefined') window.location.href = url;
-    return url;
-  }
-
-  /**
-   * Open the Structure Inspector, the structure counterpart to the Mob and Resource Inspectors.
-   *
-   * Like them it is a standalone page with its own preview, so this navigates rather than starting a world: the
-   * point of the page is to plan and realize one structure at a time at any seed WITHOUT generating a world.
-   * The structure and the seed can be carried in the query string, which is what makes a particular
-   * structure-and-seed combination linkable.
-   *
-   * @param {{structure?: string, seed?: string|number}} [options]
-   * @returns {string} the URL that was navigated to, so it can be asserted in tests
-   */
-  openStructureInspector({ structure = null, seed = null } = {}) {
-    const target = structure || this.structureInspectorTarget || '';
-    const params = new URLSearchParams();
-    if (target) params.set('structure', target);
-    if (seed !== null && seed !== undefined && seed !== '') params.set('seed', String(seed));
-    const query = params.toString();
-    const url = query ? `/structure-inspector.html?${query}` : '/structure-inspector.html';
     if (typeof window !== 'undefined') window.location.href = url;
     return url;
   }
@@ -1398,28 +1304,6 @@ class Game {
     if (!interactMob) interactMob = this.targetMob;
 
     if (interactMob) {
-      // A water bucket on a fish catches it, which is how every fish bucket is obtained. The mob-side
-      // behaviours module owns breeding, taming and shearing; this is the bucket, and it is an item action.
-      const caught = catchFish(this.inventory.getActiveItem(), interactMob.type);
-      if (caught) {
-        const index = this.mobs?.mobs ? this.mobs.mobs.indexOf(interactMob) : -1;
-        if (index >= 0) this.mobs.mobs.splice(index, 1);
-        if (interactMob.mesh) this.scene.remove(interactMob.mesh);
-        const active = this.inventory.getActiveItem();
-        if (this.player.gamemode !== 'creative') {
-          if (active.count === 1) this.inventory.hotbar[this.inventory.activeSlot] = { id: caught, isBlock: false, count: 1 };
-          else {
-            this.inventory.consumeActiveItem();
-            if (!this.inventory.addItem(caught, false, 1)) {
-              this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), caught, false);
-            }
-          }
-        } else if (![...this.inventory.hotbar, ...this.inventory.storage].some((item) => item?.id === caught)) {
-          this.inventory.addItem(caught, false, 1);
-        }
-        this.sounds.playWater(); this.ui.updateHotbar();
-        return;
-      }
       if (this.mobs?.animalBehaviors?.interact(interactMob, this.player)) {
         this.ui?.updateHotbar?.();
         return;
@@ -1455,21 +1339,6 @@ class Game {
       return;
     }
 
-    // Potion drinking. `potionUse.js` owns what a potion does; this only decides that the player is
-    // using one. A splash or lingering potion is refused there rather than consumed with no effect.
-    const potionItem = this.inventory.getActiveItem();
-    if (potionItem && isDrinkablePotion(potionItem.id)) {
-      const result = drinkPotion(potionItem.id, this.player, this.inventory, { gamemode: this.player.gamemode });
-      if (result.drunk) {
-        // There is no dedicated potion sound, so the milk-drink one is the fallback; picking the first
-        // that exists rather than chaining `??` avoids calling both when the first returns undefined.
-        (this.sounds?.playPotionDrink ?? this.sounds?.playMilk)?.();
-        this.ui?.updateHotbar?.();
-        this.ui?.updateStats?.();
-        return;
-      }
-    }
-
     const bucketItem = this.inventory.getActiveItem();
     // Milk bucket drinking (clears status effects)
     if (bucketItem && bucketItem.id === 'milk_bucket') {
@@ -1488,57 +1357,6 @@ class Game {
       this.ui?.updateStats?.();
       return;
     }
-    // Using an empty map fills it. Vanilla's gesture is a right-click anywhere, with no target: the map is
-    // drawn from the world at that moment. This game's filled map is an inert item -- the cartographer already
-    // sells explorer maps as `filled_map` -- so the honest version of the gesture is the conversion itself,
-    // which is what makes the crafted map worth crafting.
-    if (bucketItem && !bucketItem.isBlock && bucketItem.id === 'map') {
-      this.inventory.consumeActiveItem?.();
-      if (!this.inventory.addItem('filled_map', false, 1)) {
-        this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 'filled_map', false);
-      }
-      this.sounds.playClick?.();
-      this.ui.updateHotbar();
-      return;
-    }
-    // A bundle in hand gives one item back, into the world: that is how a full bundle empties, and it is the
-    // only gesture vanilla gives it. The item goes where the player is looking, like any other drop.
-    const held = takeFromBundle(bucketItem);
-    if (held) {
-      const direction = this.camera.getWorldDirection(new THREE.Vector3());
-      const at = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).add(direction.multiplyScalar(0.6));
-      this.inventory.hotbar[this.inventory.activeSlot] = { ...bucketItem, contents: held.contents };
-      this.entities.spawnDroppedItem(at, held.item.id, Boolean(held.item.isBlock), held.item.count);
-      this.sounds.playClick?.(); this.ui.updateHotbar();
-      return;
-    }
-    // A fish bucket used on water releases the mob, which is the only way a caught fish gets back out. The
-    // bucket is spent into an empty one; vanilla's rule is asymmetric, which is why this is not `isBucket`.
-    const release = releaseFish(bucketItem);
-    if (release) {
-      const direction = this.camera.getWorldDirection(new THREE.Vector3());
-      const hit = traceBucket(this.world, this.camera.position, direction, true);
-      const intoWater = hit && hit.blockId === BLOCKS.WATER && this.world.getWaterLevel(hit.x, hit.y, hit.z) === 0;
-      if (intoWater && this.mobs?.spawnMob) {
-        this.mobs.spawnMob(release.mob, hit.x + 0.5, hit.y, hit.z + 0.5);
-        const active = this.inventory.getActiveItem();
-        if (this.player.gamemode !== 'creative') {
-          if (active.count === 1) this.inventory.hotbar[this.inventory.activeSlot] = { id: release.replacement, isBlock: false, count: 1 };
-          else {
-            this.inventory.consumeActiveItem();
-            if (!this.inventory.addItem(release.replacement, false, 1)) {
-              this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), release.replacement, false);
-            }
-          }
-        } else if (![...this.inventory.hotbar, ...this.inventory.storage].some((item) => item?.id === release.replacement)) {
-          this.inventory.addItem(release.replacement, false, 1);
-        }
-        this.sounds.playWater(); this.ui.updateHotbar();
-        this.refreshDirtyChunks();
-      }
-      // Nothing else a fish bucket can do: vanilla spends the click either way rather than placing a block.
-      return;
-    }
     if (isBucket(bucketItem)) {
       const direction = this.camera.getWorldDirection(new THREE.Vector3());
       const hit = traceBucket(this.world, this.camera.position, direction, bucketItem.id === 'bucket');
@@ -1546,49 +1364,6 @@ class Game {
         id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false));
       if (result) {
         this.sounds.playWater(); this.ui.updateHotbar();
-        this.refreshDirtyChunks();
-      }
-      return;
-    }
-    // A glass bottle on water. This is the only way to get a water bottle, and a water bottle is the root of
-    // every brewing recipe, so without it the brewing stand is furniture.
-    if (isGlassBottle(bucketItem)) {
-      const direction = this.camera.getWorldDirection(new THREE.Vector3());
-      // `true` for "empty": the trace stops at a water source block, which is what a bottle needs. The same
-      // trace the bucket uses, because the reach and the source-only rule are identical.
-      const hit = traceBucket(this.world, this.camera.position, direction, true);
-      const filled = useGlassBottle(this.world, this.inventory, this.player.gamemode, hit,
-        id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false));
-      if (filled) {
-        this.sounds.playWater?.();
-        this.ui.updateHotbar();
-      }
-      return;
-    }
-    // A brush on suspicious sand or gravel: vanilla's archaeology, and the only way a pottery sherd is found.
-    // The block is *emptied* rather than mined, which is why the suspicious blocks themselves yield nothing.
-    if (bucketItem && !bucketItem.isBlock && bucketItem.id === 'brush') {
-      const direction = this.camera.getWorldDirection(new THREE.Vector3());
-      const hit = traceBucket(this.world, this.camera.position, direction, true);
-      const target = hit ? BLOCK_DEFS[hit.blockId] : null;
-      const blockName = target?.name ? String(target.name).toLowerCase().replace(/[^a-z0-9]+/g, '_') : null;
-      const found = blockName ? brushSuspiciousBlock(bucketItem, blockName, Math.random) : null;
-      if (found) {
-        // Vanilla leaves plain sand or gravel behind, never the suspicious block.
-        this.world.setVoxel(hit.x, hit.y, hit.z,
-          hit.blockId === BLOCKS.SUSPICIOUS_GRAVEL ? BLOCKS.GRAVEL : BLOCKS.SAND);
-        if (!this.inventory.addItem(found.sherd, false, 1)) {
-          this.entities.spawnDroppedItem(new THREE.Vector3(hit.x + 0.5, hit.y + 1, hit.z + 0.5), found.sherd, false);
-        }
-        if (this.player.gamemode === 'survival') {
-          const wear = spendDurability(bucketItem, found.durabilityUsed);
-          if (wear?.broke) {
-            this.inventory.consumeActiveItem?.(1);
-            this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your Brush broke.</span>');
-          }
-        }
-        this.sounds.playBrush?.() ?? this.sounds.playWater?.();
-        this.ui.updateHotbar();
         this.refreshDirtyChunks();
       }
       return;
@@ -1811,31 +1586,6 @@ class Game {
       return;
     }
 
-    // A bee nest or beehive, harvested with shears or a bottle. This is the only way to get honeycomb, and
-    // honeycomb is what waxes copper, so without it seventy-seven recipes had no ingredient at all.
-    if (isHive(clickedBlock)) {
-      const outcome = this.hiveManager?.harvest(bX, bY, bZ, this.player);
-      if (outcome?.ok) {
-        this.sounds.playShears?.();
-        this.ui?.updateHotbar?.();
-        const name = ITEMS[outcome.product.id]?.name ?? outcome.product.id;
-        this.ui?.addChatMessage?.(`Collected ${outcome.product.count} ${name}`, 'system');
-      } else if (outcome?.reason) {
-        // Worth saying out loud: "not full yet" and "use shears" are different problems, and a silent
-        // refusal reads as a broken block.
-        this.ui?.addChatMessage?.(outcome.reason, 'system');
-      }
-      return;
-    }
-
-    // Smithing Table interaction. The block had a `workstation` field and no interaction at all, so the
-    // nine pieces of netherite gear had no way to exist outside the creative menu.
-    if (clickedBlock === BLOCKS.SMITHING_TABLE) {
-      this.sounds.playClick?.();
-      this.ui.openSmithing(bX, bY, bZ);
-      return;
-    }
-
     // Beacon interaction (Open Beacon GUI)
     if (clickedBlock === BLOCKS.BEACON) {
       this.sounds.playClick?.();
@@ -1957,26 +1707,8 @@ class Game {
         if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
         if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
           this.sounds.playEat();
-          // `Player.eatFood` owns this: it calls the model in `hunger.js` and keeps the player's own fields in
-          // sync with it, which is the arrangement the rest of the player already uses for exhaustion and the
-          // per-tick model. Doing the arithmetic here instead -- which this path did originally, adding hunger
-          // and two health and never touching saturation -- left the hunger system spending something eating
-          // never granted.
-          //
-          // The item's own saturation is preferred and `foodData.js` answers for the items that do not declare
-          // one; that table is generated from vanilla's data and is the same source the Inspector checks.
-          const saturation = it.saturation ?? FOODS[activeItem.id]?.saturation ?? 0;
-          this.player.eatFood?.(it.food || 4, saturation);
-          // Vanilla grants no instant health for eating: health comes back from the saturation boost, which
-          // `hunger.js` regenerates at 1.5 saturation per point, the wiki's own figure.
-          // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,
-          // and without this their Absorption, Regeneration, Resistance and Fire Resistance did nothing:
-          // an enchanted apple was a slightly worse cooked porkchop.
-          if (Array.isArray(it.effects)) {
-            for (const [effect, duration, level] of it.effects) {
-              this.player.applyStatusEffect?.(effect, duration, level ?? 1);
-            }
-          }
+          this.player.hunger = Math.min(this.player.maxHunger, this.player.hunger + (it.food || 4));
+          this.player.health = Math.min(this.player.maxHealth, this.player.health + 2);
           if (this.player.gamemode !== 'creative') {
             this.inventory.consumeActiveItem();
             this.ui.updateHotbar();
@@ -1985,6 +1717,10 @@ class Game {
         }
       }
 
+      // Potions are drunk, not eaten. `type: 'potion'` was consumed by nothing at all, so a potion the
+      // brewing stand produced could not be used -- alchemy was a chain with no end to it. `drinkPotion`
+      // reads the effect from POTION_DATA, so anything the brewing table can produce is drinkable.
+      if (drinkPotion(this, activeItem?.id)) return;
 
       // A firework rocket is launched. `spawnFireworkRocket` was already fully built -- mesh, rising trail,
       // burst and launch sound -- and was called from exactly one place, a tournament celebration, so the
@@ -2211,12 +1947,9 @@ class Game {
       );
 
       if (!collidesWithPlayer) {
-        // Name- or id-keyed, whichever this game used for the item: see lockIdForPlacement.
-        const blockIdToPlace = blockIdForPlacement(activeItem);
+        const blockIdToPlace = activeItem.isBlock ? activeItem.id : (ITEMS[activeItem.id]?.blockId || activeItem.id);
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
-        this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
-        this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
@@ -2270,26 +2003,6 @@ class Game {
 
     this.inventory.consumeActiveItem();
     this.ui.updateHotbar();
-  }
-
-  /**
-   * Spawn what a broken block yields.
-   *
-   * One call rather than one drop, because a block can give more than one thing: an oak leaf gives an
-   * apple, a stick and a sapling on separate rolls, and a grass plant gives a seed. The list comes from
-   * `blockDrops`, which owns both the always-drop and the probabilistic table.
-   *
-   * The argument order is the part worth being careful about. This used to pass the drop's `count` field
-   * as the third argument -- where `isBlock` belongs -- so it was always `undefined` and every drop
-   * defaulted to `isBlock: true`. For the 56 blocks whose drop is an item rather than a block, which is
-   * every ore and every door, breaking one by hand put an item in the inventory that claimed to be a
-   * block. The explosion path in `entities.js` passed the right field and was correct, so the same
-   * diamond was a block when mined and an item when blown up.
-   */
-  spawnBlockDrops(pos, blockId) {
-    for (const drop of blockDrops(blockId)) {
-      this.entities.spawnDroppedItem(pos, drop.id, drop.isBlock, drop.count ?? 1);
-    }
   }
 
   breakTargetBlock() {
@@ -2352,7 +2065,8 @@ class Game {
         // A block broken with the wrong tool yields nothing. This is the harvest table's
         // verdict rather than a per-block special case.
         if (!wrongTool) {
-          this.spawnBlockDrops(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), blockId);
+          const drop = getBlockDrop(blockId);
+          if (drop) this.entities.spawnDroppedItem(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), drop.id, drop.count);
         }
       }
 
@@ -2412,11 +2126,6 @@ class Game {
     if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
       if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
     }
-
-    // A broken beacon or conduit stops granting anything. Checked before the door, bed and chest branches
-    // below, because those return early and a beacon must unregister whichever branch handles the break.
-    this.beaconManager?.onBlockBroken(x, y, z);
-    this.hiveManager?.onBlockBroken(x, y, z);
 
     if (blockId === BLOCKS.CHEST) {
       if (this.chestManager) this.chestManager.onBlockBroken(x, y, z);
@@ -2592,12 +2301,7 @@ class Game {
       if (eff) efficiencyLevel = eff.level;
     }
 
-    // Haste and Mining Fatigue scale this. The Elder Guardian has been applying Mining Fatigue III to the
-    // player since it was written and nothing read it, so its curse -- the reason mining near an ocean
-    // monument is hopeless in vanilla -- did nothing at all. At level III the multiplier is 0.027, which
-    // turns a quarter-second block into ten seconds.
-    const effectMultiplier = miningSpeedMultiplier(this.player.statusEffects);
-    const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel, effectMultiplier));
+    const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel));
     this.miningTime += dt;
 
     // Digging periodic sound
@@ -3028,32 +2732,6 @@ class Game {
     // Keep optional mob inspection labels in sync with movement and damage.
     this.mobs.updateDebugLabels?.();
 
-    // 4a. Natural mob spawning.
-    //
-    // Runs AFTER the mob update so a mob spawned this frame is not also simulated for a tick it was
-    // never alive for, and so the despawn pass sees this frame's positions. The manager converts the
-    // frame delta into game ticks internally: spawning is a 20 Hz process, not a 60 Hz one, and
-    // running it per frame would triple every spawn rate.
-    //
-    // Contained in its own try/catch like the mob update: a fault in the spawner must not stop the
-    // world from rendering, and a fault in the world must not leave the spawner half-run.
-    if (this.spawnManager && this.worldGenerated) {
-      try {
-        this.spawnManager.update(dt);
-        this.mobSpawnError = null;
-      } catch (err) {
-        const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
-        if (this.mobSpawnError !== summary) {
-          this.mobSpawnError = summary;
-          console.error('Error in the mob spawning system:', err);
-          this.ui?.addChatMessage?.(
-            `⚠ The mob spawning system hit an error: ${summary}. New mobs may stop appearing until it clears. See the browser console for the full trace.`,
-            'error'
-          );
-        }
-      }
-    }
-
     // 4b. Update Mob Expansion Managers (Raids, Deep Dark Warden, Bosses)
     if (this.raidManager) {
       this.raidManager.update(dt, this.player);
@@ -3106,14 +2784,6 @@ class Game {
       this.farmingManager.update(dt, this.player.position);
     }
 
-    // 5a3b. Update beacons and conduits: re-check the structure and apply what it grants.
-    if (this.beaconManager) {
-      this.beaconManager.update(dt, this.player);
-    }
-    if (this.hiveManager) {
-      this.hiveManager.update(dt);
-    }
-
     // 5a4. Update Nether Portal & Dimensional Travel
     if (this.portalManager) {
       this.portalManager.update(dt, this.player, this);
@@ -3161,10 +2831,6 @@ class Game {
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
     this.sky.update(dt, this.camera, this.weather, this.isUnderwater);
     this.blockLighting.update(dt, this.camera.position);
-    // Propagated sky/block light, on a time budget. Spawn predicates read it, so it must be current
-    // before the next spawn pass; one or two chunks a frame is enough because a chunk is only dirty
-    // when it is generated or edited.
-    this.world.light?.update?.();
     this.textures.update(dt, this.sunLight, this.scene.background, this.scene.fog);
 
     // 7. Update UI Stats & Debug Overlay

@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const aquariumBuilding = {
+export const aquariumStructure = {
   id: 'aquarium',
   name: 'Aquarium',
   icon: '/assets/blocks/glass.png',
@@ -108,4 +108,4 @@ export const aquariumBuilding = {
   }
 };
 
-export default aquariumBuilding;
+export default aquariumStructure;

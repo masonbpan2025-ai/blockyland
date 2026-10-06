@@ -69,12 +69,8 @@ test('the name mapper resolves present content and not absent content', { skip }
     assert.equal(have(name), false, `${name} does not exist anywhere and must not resolve`);
   }
   // And a name that is absent for a STRUCTURAL reason, not because a family is merely unbuilt: this
-  // game has no spyglass because a spyglass IS its zoom, and the zoom needs camera plumbing the engine
-  // does not have. `map` used to stand here, on the argument that a map needs rendering and a
-  // world-to-map projection -- and the empty map has since been added, because this game's filled map
-  // was already an inert item the cartographer sells, so the crafted one only had to convert to it. The
-  // argument was about vanilla's map, not this game's.
-  assert.equal(have('spyglass'), false, 'the spyglass needs camera plumbing this game does not have');
+  // game has no map item and adding one needs rendering and a world-to-map projection.
+  assert.equal(have('map'), false, 'the map item needs mechanics this game does not have');
 });
 
 test('coverage breakdown identifies what to add next', { skip }, () => {
@@ -87,17 +83,19 @@ test('coverage breakdown identifies what to add next', { skip }, () => {
   const blocked = [...m.blockedBy].sort((a, b) => b[1] - a[1]);
   // NEITHER the count NOR the top magnitude is asserted any more, and the reason is the same for both.
   //
-  // The count was over 50 when this was written, then 1, and is now ZERO -- every recipe that can be
-  // expressed from names this game has, has been. Both earlier thresholds (a count floor and a magnitude
-  // floor) turned progress into a failure, which is the mistake this file has made three times.
+  // The count was over 50 when this was written and is now 1, and the top magnitude was required to be
+  // at least 2 and is now 1 -- because ingredient-side coverage is essentially complete. Both
+  // thresholds turn progress into a failure, which is the mistake this file has now made three times
+  // (an absent-name list, a blocker count, and this magnitude floor).
   //
-  // SO THE FLOOR IS GONE ENTIRELY. `blocked.length > 0` was the last of them, and it is now a claim that is
-  // FALSE and should be false: asserting it would mean the work can never be finished. What remains is the
-  // part that stays true either way -- the report is internally consistent, and every name it does list is
-  // genuinely absent -- so a broken measurement still fails while a complete one passes.
-  for (const [name, count] of blocked) {
-    assert.ok(count >= 1, `${name} is listed as a blocker but blocks ${count} recipes`);
-    assert.ok(count <= m.total, 'a single name cannot block more recipes than exist');
+  // The durable claims are that the report exists, that it is non-empty, and that its numbers are
+  // internally consistent. A broken measurement fails those; a finished one does not.
+  assert.ok(blocked.length > 0, 'the report should identify what to add next');
+  assert.ok(blocked[0][1] >= 1, 'a blocker must block at least one recipe, or it is not a blocker');
+  assert.ok(blocked[0][1] <= m.total,
+    'a single name cannot block more recipes than exist');
+  // Everything in the report must be genuinely absent, or the report is describing solved work.
+  for (const [name] of blocked) {
     assert.equal(have(name), false, name + ' is listed as a blocker but the game already has it');
   }
 

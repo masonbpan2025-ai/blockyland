@@ -9,18 +9,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BuildingStudioManager } from '../src/buildingStudio.js';
-import { BuildingLibrary } from '../src/buildingLibrary.js';
+import { StructureStudioManager } from '../src/structureStudio.js';
+import { StructureLibrary } from '../src/structureLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
-import { describeDirection, describeOpenBuilding, formatBuildingContext } from '../src/buildingContext.js';
+import { describeDirection, describeOpenStructure, formatStructureContext } from '../src/structureContext.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function studioWith(id, params = {}) {
-  const studio = new BuildingStudioManager({});
+  const studio = new StructureStudioManager({});
   studio.game = {};
-  const structure = BuildingLibrary.getBuilding(id);
+  const structure = StructureLibrary.getStructure(id);
   assert.ok(structure, `structure ${id} should exist`);
-  studio.loadBuilding(structure, params);
+  studio.loadStructure(structure, params);
   return studio;
 }
 
@@ -28,7 +28,7 @@ function studioWith(id, params = {}) {
 
 test('the castle entrance is found on the south side, matching its generator', () => {
   const studio = studioWith('castle');
-  const info = describeOpenBuilding(studio);
+  const info = describeOpenStructure(studio);
 
   assert.ok(info, 'the castle must be measurable');
   assert.equal(info.id, 'castle');
@@ -46,7 +46,7 @@ test('the castle entrance is found on the south side, matching its generator', (
 
 test('a hollow house reports one door, not its whole interior', () => {
   const studio = studioWith('cozy_house');
-  const info = describeOpenBuilding(studio);
+  const info = describeOpenStructure(studio);
   assert.ok(info.entrances.length >= 1);
   // The first attempt at this reported two 7-block-wide "entrances" — the inside
   // of the house. A doorway is small.
@@ -67,7 +67,7 @@ test('the structure description reaches the model prompt', () => {
     weather: { weatherType: 'clear' },
     sounds: {},
     rebuildChunkMesh() {},
-    buildingStudio: studio
+    structureStudio: studio
   };
   studio.game = game;
   studio.isActive = true;
@@ -110,22 +110,22 @@ test('compass directions are described from the structure centre', () => {
 
 // --- robustness -------------------------------------------------------------
 
-test('describeOpenBuilding declines cleanly when nothing is open', () => {
-  assert.equal(describeOpenBuilding(null), null);
-  assert.equal(describeOpenBuilding({}), null);
-  assert.equal(describeOpenBuilding({ currentBuilding: null }), null);
+test('describeOpenStructure declines cleanly when nothing is open', () => {
+  assert.equal(describeOpenStructure(null), null);
+  assert.equal(describeOpenStructure({}), null);
+  assert.equal(describeOpenStructure({ currentStructure: null }), null);
   // No usable origin.
-  assert.equal(describeOpenBuilding({ currentBuilding: { generate: () => [] }, buildOrigin: null }), null);
+  assert.equal(describeOpenStructure({ currentStructure: { generate: () => [] }, buildOrigin: null }), null);
   // A generator that throws must not propagate.
   const broken = {
-    currentBuilding: { id: 'x', name: 'X', generate() { throw new Error('boom'); } },
+    currentStructure: { id: 'x', name: 'X', generate() { throw new Error('boom'); } },
     buildOrigin: { x: 0, y: 5, z: 8 },
     currentParameters: {}
   };
-  assert.equal(describeOpenBuilding(broken), null);
+  assert.equal(describeOpenStructure(broken), null);
   // A generator that produces nothing is also unusable.
-  assert.equal(describeOpenBuilding({
-    currentBuilding: { id: 'x', name: 'X', generate: () => [] },
+  assert.equal(describeOpenStructure({
+    currentStructure: { id: 'x', name: 'X', generate: () => [] },
     buildOrigin: { x: 0, y: 5, z: 8 },
     currentParameters: {}
   }), null);
@@ -133,7 +133,7 @@ test('describeOpenBuilding declines cleanly when nothing is open', () => {
 
 test('a fully sealed structure is reported as enclosed, not given a fake entrance', () => {
   const sealed = {
-    currentBuilding: {
+    currentStructure: {
       id: 'sealed', name: 'Sealed Box', description: 'solid',
       generate: (origin, params, B) => {
         const blocks = [];
@@ -148,15 +148,15 @@ test('a fully sealed structure is reported as enclosed, not given a fake entranc
     buildOrigin: { x: 0, y: 5, z: 8 },
     currentParameters: {}
   };
-  const info = describeOpenBuilding(sealed);
+  const info = describeOpenStructure(sealed);
   assert.ok(info);
   assert.equal(info.entrances.length, 0);
-  assert.match(formatBuildingContext(info), /no opening was detected/);
+  assert.match(formatStructureContext(info), /no opening was detected/);
 });
 
 test('the prompt section includes size, bounds and live parameters', () => {
   const studio = studioWith('castle', { wallLength: 20, towerHeight: 6 });
-  const text = formatBuildingContext(describeOpenBuilding(studio));
+  const text = formatStructureContext(describeOpenStructure(studio));
   assert.match(text, /wallLength=20/, 'current parameter values are included');
   assert.match(text, /towerHeight=6/);
   assert.match(text, /Local bounds:/);
@@ -165,6 +165,6 @@ test('the prompt section includes size, bounds and live parameters', () => {
 
 test('structureContext is imported by the agent', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'src/worldAgent.js'), 'utf8');
-  assert.match(source, /from '\.\/buildingContext\.js'/, 'the agent must import the structure context');
+  assert.match(source, /from '\.\/structureContext\.js'/, 'the agent must import the structure context');
   assert.match(source, /studioSection/, 'and splice it into the prompt');
 });

@@ -41,34 +41,6 @@ export function describeTool(itemId) {
   return null;
 }
 
-/**
- * Tools that are not mining tools.
- *
- * `describeTool` reads a tool's class from its name and returns null for anything else, which is right: a bow
- * does not mine, and neither does a bucket. The Inspector's `tool-facts` check asked *every* item this game
- * types as `tool` or `weapon` for a mining description, so eighteen of them looked like gaps -- a bucket, a
- * clock, a compass, a name tag -- when the honest answer is that they are not mining tools at all.
- *
- * Named rather than patterned, and `tests/toolFacts.test.js` requires every typed tool to be either described
- * by `describeTool` or listed here, so a new tool cannot be silently unclassified.
- */
-export const NON_MINING_TOOLS = new Set([
-  'bow', 'crossbow', 'trident',
-  'shield', 'fishing_rod', 'flint_and_steel', 'brush',
-  'carrot_on_a_stick', 'warped_fungus_on_a_stick',
-  'bucket', 'water_bucket', 'lava_bucket',
-  // The mob buckets. This game types a bucket as a tool -- it is something you hold -- and a bucket mines
-  // nothing. Added by the fish-bucket batch, which two of these guards caught the same round it landed.
-  'cod_bucket', 'salmon_bucket', 'pufferfish_bucket', 'tropical_fish_bucket', 'axolotl_bucket', 'tadpole_bucket',
-  // And the bundles, seventeen of them: a pouch is held, not swung.
-  'bundle', 'white_bundle', 'orange_bundle', 'magenta_bundle', 'light_blue_bundle', 'yellow_bundle', 'lime_bundle', 'pink_bundle',
-  'gray_bundle', 'light_gray_bundle', 'cyan_bundle', 'purple_bundle', 'blue_bundle', 'brown_bundle',
-  'green_bundle', 'red_bundle', 'black_bundle',
-  'compass', 'clock', 'lead', 'name_tag', 'saddle',
-  // This project's own weapon: a spear thrusts, it does not mine.
-  'golden_spear',
-]);
-
 /** Is `tier` at least `required` on the tool ladder? */
 export function tierMeets(tier, required) {
   if (!required) return true;
@@ -143,10 +115,9 @@ export function miningEffect(blockId, tool = null, toolId = null) {
  * @param {object|null} tool
  * @param {string|null} toolId
  * @param {number} [efficiencyLevel] Efficiency enchantment level, adds level^2+1 to speed
- * @param {number} [effectMultiplier] from `statusEffects.miningSpeedMultiplier`: Haste and Mining Fatigue
  * @returns {number} seconds
  */
-export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiencyLevel = 0, effectMultiplier = 1) {
+export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiencyLevel = 0) {
   const effect = miningEffect(blockId, tool, toolId);
   if (!effect.known) {
     // Not in the harvest table. Blocks the game marks unbreakable (bedrock and friends carry
@@ -158,20 +129,10 @@ export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiency
   }
   // Unbreakable blocks (bedrock and friends) are marked with an absurd hardness.
   if (effect.hardness >= 99999) return Infinity;
-  // And vanilla marks its own unbreakable blocks with a *negative* hardness -- bedrock, both portals, the
-  // command, structure and jigsaw blocks carry -1 in the pinned data. The table has rows for those now, where
-  // it had none and this function fell back to the block definition; without this they read as hardness -1
-  // and became instant to break.
-  if (effect.hardness < 0) return Infinity;
   if (effect.hardness <= 0) return 0;
 
   let speed = effect.speedMultiplier;
   if (effect.toolCorrect && efficiencyLevel > 0) speed += efficiencyLevel * efficiencyLevel + 1;
-  // Haste and Mining Fatigue scale the mining speed, so they shorten or stretch the time. Applied to the
-  // speed rather than to the result, because Efficiency adds to the speed as well and the two have to
-  // combine the way Java combines them.
-  if (effectMultiplier !== 1) speed *= effectMultiplier;
-  if (!(speed > 0)) return Infinity;
 
   const divisor = effect.canHarvest ? 30 : 100;
   const damagePerTick = speed / effect.hardness / divisor;

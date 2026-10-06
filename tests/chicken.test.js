@@ -268,7 +268,7 @@ test('Chicken temptation with seed aliases and offhand holding', () => {
 
   // 1. Offhand holding seeds works
   player.inventory.activeItem = null;
-  player.inventory.getOffhandItem = () => ({ id: 'wheat_seeds', count: 1, isBlock: false });
+  player.inventory.getOffhandItem = () => ({ id: 'wheat_seed', count: 1, isBlock: false });
   manager.update(0.1, player);
   assert.ok(chicken.velocity.x > 0.5, 'Follows player holding wheat_seed in offhand');
 

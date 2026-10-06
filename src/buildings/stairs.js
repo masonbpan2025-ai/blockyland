@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const stairsBuilding = {
+export const stairsStructure = {
   id: 'stairs',
   name: 'Stairs',
   icon: '/assets/blocks/stone_bricks.png',
@@ -84,4 +84,4 @@ export const stairsBuilding = {
   }
 };
 
-export default stairsBuilding;
+export default stairsStructure;

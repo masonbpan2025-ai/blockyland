@@ -38,7 +38,6 @@ import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
-import { creeperDiscDrop } from './musicDiscs.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide, updateCubeHop, cubeSquashOnLand } from './cubeMobBehavior.js';
 import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
@@ -296,66 +295,6 @@ export class MobManager {
 
     this.animalBehaviors = new AnimalBehaviors(this, world, sounds, entities);
     this.hostileBehaviors = new HostileMobBehaviors(this, world, sounds, entities);
-  }
-
-  /**
-   * Remove one mob from the world, with no death, no loot and no XP.
-   *
-   * This is what natural despawning calls. The engine had no such method: `wanderingTraderBehavior`
-   * already called `this.removeMob?.(mob)` behind an optional-chain, so a wandering trader that timed
-   * out was never actually removed -- the optional call silently did nothing. Every other removal
-   * path in the codebase open-codes the scene teardown, which is why there were five subtly different
-   * versions of it.
-   *
-   * The teardown mirrors `clearMobs` for a single mob: owned textures, the squid's per-instance
-   * materials, the laser and leash lines, the glow outline, then the mesh and its geometries. Debug
-   * labels are dropped through `removeDebugLabel`, which keeps its own bookkeeping honest.
-   *
-   * @param {object} mob
-   * @param {string} [reason] recorded on the mob as `despawnReason`, for telemetry and tests
-   * @returns {boolean} whether the mob was present and has been removed
-   */
-  removeMob(mob, reason = 'removed') {
-    if (!mob) return false;
-    const index = this.mobs.indexOf(mob);
-    if (index === -1) return false;
-
-    for (const texture of mob.ownedTextures || []) texture.dispose?.();
-    if (isSquid(mob)) {
-      for (const mat of mob.squidMaterials || []) mat.map?.dispose();
-    }
-    for (const slot of ['laserLine', 'leashLine']) {
-      const line = mob[slot];
-      if (!line) continue;
-      line.removeFromParent();
-      line.geometry?.dispose();
-      line.material?.dispose();
-      mob[slot] = null;
-    }
-    if (mob.glowOutline) {
-      mob.glowOutline.removeFromParent();
-      mob.glowOutline.geometry?.dispose();
-      mob.glowOutline.material?.dispose();
-      mob.glowOutline = null;
-    }
-    // A rider must not be left pointing at a mob that no longer exists.
-    if (mob.rider) {
-      mob.rider.vehicle = null;
-      mob.rider = null;
-    }
-    if (mob.vehicle?.rider === mob) mob.vehicle.rider = null;
-    mob.leashHolder = null;
-
-    this.removeDebugLabel?.(mob);
-    if (mob.mesh) {
-      mob.mesh.removeFromParent();
-      mob.mesh.traverse(obj => { obj.geometry?.dispose(); });
-    }
-
-    this.mobs.splice(index, 1);
-    mob.despawned = true;
-    mob.despawnReason = reason;
-    return true;
   }
 
   clearMobs() {
@@ -2019,30 +1958,36 @@ export class MobManager {
     // Accept either a 0xRRGGBB number (as VARIANT_TINTS holds) or a CSS string.
     const css = typeof color === 'number' ? `#${color.toString(16).padStart(6, '0')}` : String(color ?? '#ffffff');
 
-    // An empty PLACEHOLDER, returned immediately so a mob can be spawned before the base has decoded. Once the
-    // base arrives the SAME object is filled in from a freshly painted image -- see `finish` and `onReady`.
-    const target = new THREE.Texture();
+    // Always return a real canvas texture, even before the base decodes.
+    //
+    // The base textures come from `textureLoader.load()`, which is ASYNCHRONOUS: immediately after construction
+    // `this.textures.zombie.image` is still `null`. The previous version did `if (!source?.width) return base`,
+    // so a variant built in the same object literal as its base silently received a texture with NO image at
+    // all -- which renders as a SOLID BLACK mob, because a `MeshLambertMaterial` with a colour but no map has
+    // nothing to multiply against. That is exactly what happened to the husk, stray and bogged; the zombie
+    // itself was fine only because `TextureLoader` fires its own `onLoad` and flags `needsUpdate`.
+    const target = new THREE.CanvasTexture(document.createElement('canvas'));
     target.magFilter = THREE.NearestFilter;
     target.minFilter = THREE.NearestFilter;
     target.colorSpace = THREE.SRGBColorSpace;
 
-    // Subscribers told when the real skin exists. The mob spawners register here and point their material at the
-    // finished texture, because the base PNG has not finished loading when the mob is constructed.
-    target.readyCallbacks = [];
-    target.onReady = (fn) => {
-      if (target.ready === true) fn(target);
-      else target.readyCallbacks.push(fn);
+    // Size the canvas from the base's attributes as soon as they are known, and create the drawing context at
+    // that size. Sizing it lazily (leaving the default 300x150 and resizing during paint) means the renderer may
+    // have already uploaded a 300x150 texture, and resizing the backing store afterwards races the continuous
+    // render loop -- the mob then samples a blank texture and renders as a SOLID BLACK silhouette. Measuring the
+    // canvas pixels cannot see this, because the 2D content is correct; only the GPU copy is stale.
+    const sizeFor = (source) => {
+      const canvas = target.image;
+      if (canvas.width === source.width && canvas.height === source.height) return;
+      canvas.width = source.width;
+      canvas.height = source.height;
     };
-
-    // A scratch canvas, used only to read the base image's pixels and tint them. It is never handed to the GPU.
-    const scratch = document.createElement('canvas');
 
     const paint = (source) => {
       if (!source?.width) return false;
       try {
-        scratch.width = source.width;
-        scratch.height = source.height;
-        const ctx = scratch.getContext('2d');
+        sizeFor(source);
+        const ctx = target.image.getContext('2d');
         ctx.globalCompositeOperation = 'source-over';
         ctx.clearRect(0, 0, source.width, source.height);
         ctx.drawImage(source, 0, 0);
@@ -2059,17 +2004,10 @@ export class MobManager {
         const targetAvg = (tint[0] + tint[1] + tint[2]) / 3 || 1;
 
         // Multiply in place, tracking the result's average as we go.
-        //
-        // Every texel is made FULLY OPAQUE. The base PNGs carry an alpha channel (zombie.png is only 1184 opaque
-        // texels of 4096 -- the rest is padding around the UV islands), but the mobs that use them are drawn with
-        // an OPAQUE material, so that padding is never sampled. A derived skin that keeps zero alpha instead
-        // renders those texels as pure black, which is exactly the solid black silhouette the husk became. The
-        // skeleton variants are the exception: skeleton.png is a genuine cut-out, so stray and bogged keep the
-        // alpha they inherit and rely on their material's `alphaTest`.
-        const keepAlpha = baseKey === 'skeleton';
         let sum = 0, count = 0;
         for (let i = 0; i < px.length; i += 4) {
-          if (!keepAlpha) px[i + 3] = 255;
+          // Fully transparent pixels carry no colour and must stay transparent.
+          if (px[i + 3] === 0) continue;
           px[i] = (px[i] * tint[0]) / 255;
           px[i + 1] = (px[i + 1] * tint[1]) / 255;
           px[i + 2] = (px[i + 2] * tint[2]) / 255;
@@ -2094,40 +2032,13 @@ export class MobManager {
             }
           }
         }
-        // Finish the skin as an ORDINARY IMAGE texture.
-        //
-        // Everything else was tried here and each failed for a different reason: a CanvasTexture whose canvas is
-        // painted or resized after the renderer uploaded it renders black; and a DataTexture built from the same
-        // pixels uploaded but sampled the wrong rows, because a DataTexture defaults to `flipY = false` while
-        // `textureLoader` produces image textures with `flipY = true` and the mob UVs are authored against that.
-        //
-        // Going through an Image keeps the mob on exactly the same texture path as every other mob in the game:
-        // the painted canvas is encoded once and decoded into an immutable bitmap, so orientation, colour space
-        // and upload all behave the way they already do for zombie.png.
-        return finish(scratch);
+        ctx.putImageData(data, 0, 0);
+        target.needsUpdate = true;
+        return true;
       } catch {
         // A tainted canvas or a stub without a real 2D context must not break spawning.
         return false;
       }
-    };
-
-    /** Encode the painted canvas and adopt the decoded bitmap as this texture's image. */
-    const finish = (canvas) => {
-      const payload = canvas.toDataURL('image/png');
-      if (typeof Image !== 'function') return false;
-      const image = new Image();
-      image.onload = () => {
-        target.image = image;
-        target.flipY = true;
-        target.needsUpdate = true;
-        target.ready = true;
-        for (const fn of target.readyCallbacks) {
-          try { fn(target); } catch { /* a bad subscriber must not break the skin */ }
-        }
-        target.readyCallbacks.length = 0;
-      };
-      image.src = payload;
-      return true;
     };
 
     if (paint(base?.image)) return target;
@@ -3286,8 +3197,6 @@ export class MobManager {
     // Wiki: a husk is a desert zombie, so it uses a tinted zombie skin rather than a new model.
     const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
     const mat = new THREE.MeshLambertMaterial({ map: baseTex });
-    // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material
-    // needs no swap: it holds the same texture object for the mob's whole life.
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64);
     const head = new THREE.Mesh(headGeo, mat);
@@ -4681,8 +4590,6 @@ export class MobManager {
       : options.variant === 'bogged' ? (this.textures.bogged ?? this.textures.skeleton)
       : this.textures.skeleton;
     const mat = new THREE.MeshLambertMaterial({ map: baseTex, transparent: true, alphaTest: 0.5 });
-    // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material needs
-    // no swap: it holds the same texture object for the mob's whole life.
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8);
     const head = new THREE.Mesh(headGeo, mat);
@@ -8736,12 +8643,6 @@ export class MobManager {
       if(attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
       if(attacker===this.game?.player){const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     }
-    // Wiki: a creeper killed by a skeleton's or stray's arrow drops a music disc, at random from the
-    // twelve a creeper can give. The flag has to be set here rather than at death because `attacker` is
-    // only known at damage time, which is the same reason `wolfKilled` and `playerDamaged` exist.
-    // `isPunch` is what separates an arrow from a melee hit, which vanilla does not count -- and an
-    // exploded creeper sets `noLoot`, so shooting one and then letting it blow up still gives nothing.
-    if(mob.type==='creeper'&&!isPunch&&(attacker?.type==='skeleton'||attacker?.type==='stray'))mob.shotBySkeleton=true;
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     // Wiki: a rolled armadillo "takes a reduced amount of damage given by (original damage-1)/2", and
@@ -9070,12 +8971,7 @@ export class MobManager {
       witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
       guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
       elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
-      drowned: [['rotten_flesh', false, 1, 2], ['copper_ingot', false, 1, 1, 0.11],
-        // Wiki: a drowned drops a nautilus shell 3% of the time, and the trident it was carrying 8.5% of
-        // the time. Neither row existed, so a nautilus shell -- which is what a conduit is made of -- and a
-        // trident had no source in the game at all. `mobLootData.js` carries the same two rows, and its
-        // generator has them written down; see `MOB_LOOT_ADDITIONS` there, because that file is regenerated.
-        ['nautilus_shell', false, 1, 1, 0.03], ['trident', false, 1, 1, 0.085]],
+      drowned: [['rotten_flesh', false, 1, 2], ['copper_ingot', false, 1, 1, 0.11]],
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
       wither: [['nether_star', false, 1, 1]],
 
@@ -9156,9 +9052,6 @@ export class MobManager {
     // Wiki: a camel husk drops 2-3 rotten flesh. This row does NOT exist in the base table yet, so unlike
     // the other mobs here the manager has to be told about it.
     const camelHuskRows = isCamelHusk(mob) ? camelHuskDrops(mob, random) : [];
-    // Wiki: a creeper drops one gunpowder from the base table, and a music disc if a skeleton or a stray
-    // killed it. `shotBySkeleton` is set in `damageMob`, where the attacker is still known.
-    const creeperRows = mob.type === 'creeper' && mob.shotBySkeleton ? creeperDiscDrop(random) : [];
     // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
     const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
     // Wiki: the giant's page gives no drop table and no experience value.
@@ -9171,7 +9064,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows];
   }
 
   /**
@@ -9591,20 +9484,10 @@ export class MobManager {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
-    // The four ad-hoc natural spawners that used to live here have been retired.
-    //
-    // `updateStriderSpawning`, `updateSquidSpawning`, `updateWitherSkeletonSpawning` and
-    // `updateDonkeySpawning` each created mobs on their own timer with a hard-coded cap and their own
-    // search pattern near the player. They are now covered by the natural spawn cycle, which reads
-    // the same biomes' real spawn tables, works against the mob caps and the category system, and
-    // applies the same placement and light rules as every other mob.
-    //
-    // They are not merely superseded, they were the bug: they only searched within 40-90 blocks of
-    // the player and only for four species, so everywhere else in the world had nothing that could
-    // create a mob at all. Leaving them running alongside the new system would also double the spawn
-    // rate for exactly those four species. Their exported functions remain (tests and inspectors
-    // still call `spawnSquid`, `spawnNaturalStrider`, `spawnWitherSkeleton` directly), but nothing
-    // drives them from the tick loop any more.
+    updateStriderSpawning(this, dt, player);
+    updateSquidSpawning(this, dt, player);
+    updateWitherSkeletonSpawning(this,dt,player);
+    updateDonkeySpawning(this,dt,player);
     updateMobWither(this,dt);
     updateArrows(this, dt, player);
     // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own

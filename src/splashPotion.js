@@ -16,7 +16,7 @@
 //
 // The effect is read from `POTION_DATA` by stripping the `splash_` prefix, so a potion and its splash form
 // cannot disagree and anything the brewing stand can produce is throwable by construction.
-import { POTION_DATA, potionCoreFor } from './brewing.js';
+import { POTION_DATA } from './brewing.js';
 
 /** Vanilla applies a splash potion within four blocks of where it lands. */
 export const SPLASH_RADIUS = 4.0;
@@ -24,10 +24,7 @@ export const SPLASH_RADIUS = 4.0;
 /** True for an item id that is a splash form of a known potion. */
 export function isSplashPotion(itemId) {
   if (typeof itemId !== 'string' || !itemId.startsWith('splash_')) return false;
-  // `potionCoreFor` rather than stripping the prefix: vanilla's generic `splash_potion` is the water potion,
-  // and its core is this game's `water_bottle`, so the prefix rule did not recognise the item at all -- a
-  // thrown splash potion fell through to block placement.
-  return Object.prototype.hasOwnProperty.call(POTION_DATA, potionCoreFor(itemId));
+  return Object.prototype.hasOwnProperty.call(POTION_DATA, itemId.slice('splash_'.length));
 }
 
 /**
@@ -41,7 +38,7 @@ export function isSplashPotion(itemId) {
  */
 export function splashPotionEffect(itemId) {
   if (!isSplashPotion(itemId)) return null;
-  const data = POTION_DATA[potionCoreFor(itemId)];
+  const data = POTION_DATA[itemId.slice('splash_'.length)];
   if (!data?.effect) return null;
   return { id: data.effect, seconds: data.duration ?? 1, level: data.level ?? 1 };
 }

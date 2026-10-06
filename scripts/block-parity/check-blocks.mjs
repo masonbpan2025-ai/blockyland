@@ -33,19 +33,8 @@ for (const key of keys) {
   note(typeof id === 'number', `id = ${id}`);
   if (typeof id !== 'number') continue;
 
-  // Two keys sharing an id is usually a bug, but it is legitimate when one is an ALIAS: the registry keeps
-  // the older non-standard key for the code that references it and adds the canonical vanilla name
-  // alongside. So the check reports the case rather than failing it, and says which keys share.
   const sharers = (ids.get(id) ?? []).filter((k) => k !== key);
-  if (sharers.length === 0) {
-    note(true, `id ${id} unique`);
-  } else {
-    // An alias is the case where the sharing keys have the SAME display name, which is what makes them
-    // aliases rather than two different blocks colliding.
-    const sameName = sharers.every((k) => BLOCK_DEFS[id]?.name === BLOCK_DEFS[BLOCKS[k]]?.name);
-    note(sameName, `id ${id} shared with ${sharers.join(', ')}`
-      + (sameName ? ' as an ALIAS (same display name)' : ' -- TWO DIFFERENT BLOCKS, which is a collision'));
-  }
+  note(sharers.length === 0, `id ${id} unique${sharers.length ? ` (also ${sharers.join(', ')})` : ''}`);
 
   const def = BLOCK_DEFS[id];
   note(Boolean(def), `definition${def ? ` "${def.name}"` : ' MISSING'}`);
@@ -53,27 +42,12 @@ for (const key of keys) {
 
   // Hardness 0 is correct for plants (flowers and saplings are instantly breakable), so the check is
   // that the value is present and sane, not that it is positive.
-  //
-  // THE VALUE -1 IS ALSO CORRECT, and this check used to reject it. -1 is how this registry marks an
-  // UNBREAKABLE block: the end portal has carried it since long before this goal, and the end gateway
-  // carries it for the same reason. Rejecting it would have forced the gateway to be breakable to satisfy a
-  // checker whose rule was simply incomplete, so the rule now accepts both and says which is which.
-  const saneHardness = typeof def.hardness === 'number' && (def.hardness >= 0 || def.hardness === -1);
-  note(saneHardness, def.hardness === -1
-    ? 'hardness -1 (unbreakable, as the end portal is)'
-    : `hardness ${def.hardness}`);
+  note(typeof def.hardness === 'number' && def.hardness >= 0, `hardness ${def.hardness}`);
   const tex = Object.values(def.textures ?? {});
   note(tex.length > 0, `textures ${JSON.stringify(tex)}`);
 
-  // A missing harvest row is NOT an error, it is a case. harvestDataFor() returns null for a block the
-  // generator did not list, and miningRules then treats it as hardness 0 with no tool gate -- which is
-  // correct for the decoration added in the later batches (a living coral fan has no row, needs no tool
-  // and yields itself). The distinction that matters is whether the block YIELDS any tool gate, so the
-  // note reports which case this is rather than failing on absence.
   const harvest = harvestDataFor(id);
-  note(true, harvest
-    ? `harvest row tool=${harvest.tool} tier=${harvest.tier ?? '-'} requiresTool=${Boolean(harvest.requiresTool)}`
-    : 'harvest row absent, so hardness 0 and no tool gate (the table lists only blocks that gate)');
+  note(Boolean(harvest), `harvest row${harvest ? ` tool=${harvest.tool} tier=${harvest.tier ?? '-'} requiresTool=${Boolean(harvest.requiresTool)}` : ' MISSING'}`);
 
   // The mining gate: right tool should harvest, bare hand should not (for requiresTool blocks).
   const withTool = harvest?.requiresTool
@@ -85,23 +59,13 @@ for (const key of keys) {
     note(!bare.canHarvest, 'NOT harvestable by hand');
   }
 
-  // The drop: getBlockDrop() is what actually spawns an item on break. `drop: null` is legitimate when
-  // the block deliberately yields nothing, so it is only a failure when the block neither drops nor is
-  // documented as yielding nothing.
-  //
-  // The generated harvest table is the authority here, not a per-definition flag: it carries an empty
-  // `drops` array for exactly the blocks vanilla makes yield nothing (short grass, ferns, infested
-  // blocks, reinforced deepslate, frosted ice, flowering azalea leaves), and a non-empty one for
-  // everything else. So a null definition drop is allowed when the harvest row agrees, and is a failure
-  // when the harvest row expects a drop the definition has dropped on the floor.
+  // The drop: getBlockDrop is what actually spawns an item on break. `drop: null` is legitimate for a
+  // block that deliberately yields nothing -- an infested block releases a silverfish instead -- so it
+  // is only a failure when the block neither drops nor has a declared alternative.
   const drop = getBlockDrop(id);
-  const acknowledged = Array.isArray(harvest?.drops) && harvest.drops.length === 0
-    ? 'the harvest table also declares no drops'
-    : null;
-  if (def.drop === null && acknowledged) {
-    note(true, `drop NONE, by design (${acknowledged})`);
-  } else if (def.drop === null && (def.plant || def.silverfish)) {
-    note(true, `drop NONE, by design (${def.silverfish ? 'releases a silverfish' : 'a plant that yields nothing'})`);
+  const yieldsSomethingElse = Boolean(def.silverfish);
+  if (def.drop === null && yieldsSomethingElse) {
+    note(true, 'drop NONE, by design (releases a silverfish)');
   } else {
     note(Boolean(drop), `drop ${drop ? `${drop.id} (isBlock=${drop.isBlock})` : 'NONE'}`);
   }

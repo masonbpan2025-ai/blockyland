@@ -21,7 +21,7 @@ export const MOB_LOOT = {
   creeper: [['gunpowder']],
   dolphin: [['cod']],
   donkey: [['leather']],
-  drowned: [['rotten_flesh'],['copper_ingot',0.11,null,'playerKill'],['nautilus_shell',0.03],['trident',0.085]],
+  drowned: [['rotten_flesh'],['copper_ingot',0.11,null,'playerKill']],
   elder_guardian: [['prismarine_shard'],['cod',0.6],['prismarine_crystals',0.4],['wet_sponge',null,null,'playerKill'],['tide_armor_trim_smithing_template']],
   enderman: [['ender_pearl']],
   evoker: [['totem_of_undying'],['emerald',null,null,'playerKill']],

@@ -1,31 +1,18 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
-import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier } from './statusEffects.js';
+import { damageTakenMultiplier, attackMultiplier, tickEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
+import { applyGlide, wantsToStartGliding, shouldStopGliding, tickElytraWear } from './elytra.js';
+import { fallDamageFor } from './fallDamage.js';
+import { isInVoid, VOID_DAMAGE } from './voidDamage.js';
+import { absorbDamage, absorptionForLevel } from './absorption.js';
+import { levitationRise } from './levitation.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
-
-/**
- * How much of a fall the block landed on absorbs.
- *
- * Vanilla has a handful of these and they are not all the same rule: hay and honey take a fifth of the
- * damage, while slime, powder snow and water take none of it. A named table rather than a chain of
- * conditionals, so the list can be read at a glance and a test can walk it.
- *
- * Deliberately absent: sweet berry bushes, which reduce the damage by one per block fallen rather than by
- * a fraction, and scaffolding and cobwebs, which this game does not have.
- */
-export const FALL_ABSORBING_BLOCKS = new Map([
-  [BLOCKS.HAY_BLOCK, 0.2],
-  [BLOCKS.HONEY_BLOCK, 0.2],
-  [BLOCKS.SLIME_BLOCK, 0],
-  [BLOCKS.POWDER_SNOW, 0],
-  [BLOCKS.WATER, 0],
-]);
 
 export class Player {
   constructor(camera, domElement, world, soundEngine) {
@@ -47,6 +34,13 @@ export class Player {
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;
+    // Elytra gliding. These were read by `parrotBehavior.js` and set nowhere at all before the glide physics
+    // existed, so they are declared here rather than left to appear on first use.
+    this.isGliding = false;
+    this.elytraActive = false;
+    this.elytraBoost = 0;
+    // Seconds of glide accumulated toward the next point of elytra wear.
+    this.elytraFlight = 0;
     this.gamemode = 'creative'; // 'creative' | 'survival'
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
 
@@ -57,9 +51,6 @@ export class Player {
     // sprinting and taking damage, and is paid out of saturation before hunger. See src/hunger.js.
     this.health = 20;
     this.maxHealth = 20;
-    // Points of Absorption shield in front of the health bar. Spent by `takeDamage` before health and
-    // refilled only by applying the effect again.
-    this.absorption = 0;
     this.hunger = 20;
     this.maxHunger = 20;
     this.saturation = 5;
@@ -427,17 +418,14 @@ export class Player {
           this.sounds?.playHurt?.();
         }
       }
-      // Regeneration heals on the same 1.25 s cadence as poison, one point per level, and never past
-      // full. Without this a Potion of Regeneration was stored, listed in the HUD and did nothing.
-      //
-      // This is deliberately the inline form rather than the shared effect table: the potion adds to
-      // the player's own natural regeneration instead of replacing it, and
-      // tests/itemPotionDrinking.test.js asserts exactly that contribution (level I adds one point,
-      // level II two). Routing it through tickEffect made the contribution zero in that window.
-      if (effect === 'regeneration' && data.tickTimer >= 1.25) {
-        data.tickTimer = 0;
-        if (this.health > 0 && this.health < this.maxHealth) {
-          this.health = Math.min(this.maxHealth, this.health + (data.level || 1));
+      // Regeneration runs through the shared table: +1 HP per 2.5 s at level I, halving per level.
+      if (effect === 'regeneration') {
+        const tick = tickEffect('regeneration', data, 0);
+        if (tick?.heal) {
+          const before = this.health;
+          this.health = Math.min(this.maxHealth ?? 20, this.health + tick.heal);
+          // Regenerating costs hunger in vanilla, the same as the natural regeneration path.
+          if (this.health > before) this.addExhaustion?.(EXHAUSTION.regen);
         }
       }
       if (data.duration <= 0) {
@@ -507,12 +495,9 @@ export class Player {
 
     if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
-    // Swiftness and Slowness were read inline here, and the effect table had a copy of the same rule that
-    // nothing called. Both now come from `speedMultiplier`, so the two cannot disagree and both scale with
-    // level. The inline slowness was a flat 0.6 where vanilla is 15% per level; this is the vanilla value,
-    // which makes Slowness IV (0.52) bite much harder than Slowness I (0.85) for the first time -- the
-    // Turtle Master and Slowness IV potions both carry level 4.
-    targetSpeed *= speedMultiplier(this.statusEffects);
+    if (this.hasStatusEffect('slowness')) {
+      targetSpeed *= 0.6;
+    }
 
     // Movement direction input
     let moveForward = 0;
@@ -574,31 +559,63 @@ export class Player {
     if (Math.abs(this.velocity.z) < 1e-4) this.velocity.z = 0;
 
     // Vertical Movement (Gravity & Jump)
+    // Elytra gliding is decided before the branches below, so the flags are current for this frame.
+    if (wantsToStartGliding(this, controlsDisabled ? {} : this.keys)) {
+      this.isGliding = true;
+      this.elytraActive = true;
+    } else if (shouldStopGliding(this)) {
+      this.isGliding = false;
+      this.elytraActive = false;
+      this.elytraBoost = 0;
+    }
+
     if (this.isFlying) {
       this.velocity.y = 0;
       if (!controlsDisabled) {
         if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
         if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
       }
+    } else if (this.hasStatusEffect('levitation')) {
+      // Levitation overrides gravity rather than reducing it, so it is a constant climb and the entity cannot
+      // sink while it lasts. It sits after creative flight, which wins, and before water and gliding, because
+      // it is a forced effect rather than a movement mode.
+      //
+      // The effect was defined in `statusEffects.js` and consumed nowhere, so applying it did nothing at all.
+      this.velocity.y = levitationRise(this.statusEffects.get('levitation')?.level ?? 1);
     } else if (this.inWater) {
       this.velocity.y -= this.gravity * 0.2 * dt;
       if (this.velocity.y < -3.0) this.velocity.y = -3.0;
       if (!controlsDisabled && this.keys['Space']) {
         this.velocity.y = 4.0; // swim upwards
       }
+    } else if (this.isGliding) {
+      // Vanilla's glide, approximated -- see src/elytra.js for what is tuned and what is asserted.
+      this.elytraBoost = Math.max(0, (this.elytraBoost || 0) - dt);
+      // One point of elytra durability per second of flight, which is vanilla's rate. The 432 figure has
+      // been in `durability.js` since that file was written and nothing ever spent any of it, so an elytra
+      // was permanent -- the same gap tools, armour and the shield each had.
+      {
+        const roll = typeof this.random === 'function' ? this.random : Math.random;
+        const wear = tickElytraWear(this, dt, roll);
+        if (wear.broke) {
+          // A broken elytra stops gliding, because `hasElytraEquipped` can no longer find it.
+          this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your elytra broke.</span>');
+        }
+      }
+      applyGlide({
+        velocity: this.velocity,
+        yaw: this.yaw,
+        pitch: this.pitch || 0,
+        dt,
+        boost: this.elytraBoost,
+      });
     } else {
       // Normal Gravity
       this.velocity.y -= this.gravity * dt;
-      // Slow Falling holds the descent as well as negating the damage, which is the half a player
-      // notices: the landing is gentle rather than merely harmless.
-      if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) {
-        this.velocity.y = -FALL_DAMAGE.slowFallingSpeed;
-      }
       if (this.velocity.y < -78) this.velocity.y = -78;
 
       if (!controlsDisabled && this.onGround && this.keys['Space']) {
-        // Jump Boost raises the jump; the fall half of the same effect is in `fallDamage`.
-        this.velocity.y = this.jumpForce * jumpVelocityMultiplier(this.statusEffects);
+        this.velocity.y = this.jumpForce;
         // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
         // sprint-jumping everywhere empties the hunger bar far faster.
         this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
@@ -632,9 +649,14 @@ export class Player {
     // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
     // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
     if (this.gamemode === 'survival' && !this.isDead) {
-      if (this.position.y < -10) {
-        this.takeDamage(10);
+      if (isInVoid(this.position)) {
+        // The type matters: `takeDamage` skips the armour formula for 'void', and excludes it from shield
+        // blocking and Thorns. This call passed no type at all, so armour was reducing void damage -- the
+        // one thing in vanilla that nothing protects you from.
+        this.takeDamage(VOID_DAMAGE, null, 'void');
         if (!this.isDead) {
+          // Deviation: the rescue point is hard-coded rather than the world spawn, so a player who falls out
+          // of the world lands at a fixed spot rather than where they started.
           this.position.set(8.5, 35, 8.5);
           this.velocity.set(0, 0, 0);
         }
@@ -782,12 +804,23 @@ export class Player {
           if (this.game?.farmingManager?.checkTrample) {
             this.game.farmingManager.checkTrample(this, belowX, belowY, belowZ, this.fallDistance);
           }
+          // Fall damage. This is what makes height dangerous at all: `fallDistance` was accumulated and
+          // read only by the trample check, so a fall from any height was harmless.
+          //
+          // Applied BEFORE the distance is cleared, and only for the landing that ends the fall. Water and
+          // gliding negate it inside `fallDamageFor`; Feather Falling, Protection and the shield exclusion
+          // are already applied by `takeDamage` to the 'fall' type.
+          const landingDamage = fallDamageFor(this.fallDistance, {
+            gliding: this.isGliding,
+            inWater: this.inWater,
+          });
           // Snap to top of block
           newPos.y = Math.ceil(newPos.y);
-          const fell = this.fallDistance;
           this.velocity.y = 0;
           this.fallDistance = 0;
-          this.applyFallDamage(fell, belowY);
+          if (landingDamage > 0) {
+            this.takeDamage(landingDamage, null, 'fall');
+          }
         }
       } else {
         // Bump head
@@ -934,34 +967,6 @@ export class Player {
     return level;
   }
 
-  /**
-   * Damage the player for a fall, taking the landing block into account.
-   *
-   * Called on landing with the distance fallen before it was reset. The effect half of the rule lives in
-   * `statusEffects.fallDamage`, next to the distance it modifies; what is here is the block the player
-   * landed on, and the armour that reduces it is already handled inside `takeDamage`.
-   *
-   * A bed bounce never reaches this, because the bounce is checked first and returns through its own
-   * branch -- which is why `tests/bed.test.js` can assert that landing on a bed negates fall damage.
-   *
-   * Returns the health actually lost rather than the amount asked for, because Feather Falling and armour
-   * both reduce it inside `takeDamage` and a caller that wants to know what a landing cost wants the
-   * truth. Creative mode, invulnerability frames and a harmless landing all report zero.
-   */
-  applyFallDamage(fallDistance, blockY) {
-    if (!(fallDistance > 0)) return 0;
-    let damage = fallDamage(fallDistance, this.statusEffects);
-    if (damage <= 0) return 0;
-    const landed = this.world?.getVoxel(Math.floor(this.position.x), blockY, Math.floor(this.position.z));
-    const factor = FALL_ABSORBING_BLOCKS.get(landed);
-    if (factor !== undefined) damage *= factor;
-    damage = Math.floor(damage);
-    if (damage <= 0) return 0;
-    const before = this.health;
-    this.takeDamage(damage, null, 'fall');
-    return before - this.health;
-  }
-
   takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
     if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
@@ -1068,13 +1073,16 @@ export class Player {
       }
     }
 
-    // Absorption is a shield, not a heal: it takes the damage first and does not come back. Vanilla
-    // spends it before the health bar, which is why a golden apple can save a player from a hit that
-    // would otherwise be fatal without putting any health back.
-    if (this.absorption > 0 && amount > 0) {
-      const absorbed = Math.min(this.absorption, amount);
-      this.absorption -= absorbed;
-      amount -= absorbed;
+    // Absorption soaks damage before health does, and does not regenerate. Vanilla's order is after armour
+    // and enchantments, which is where this sits.
+    //
+    // Absorption was defined in `statusEffects.js` from the start and implemented nowhere -- absent from the
+    // damage path and from the UI -- so applying it did literally nothing, and a golden apple's whole point
+    // was missing.
+    if ((this.absorption || 0) > 0 && amount > 0) {
+      const soak = absorbDamage(amount, this.absorption);
+      this.absorption = soak.pool;
+      amount = soak.remaining;
     }
 
     this.health = Math.max(0, this.health - amount);
@@ -1208,14 +1216,11 @@ export class Player {
 
   applyStatusEffect(effect, duration = 30, level = 1) {
     this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
-    // Absorption is a pool rather than a per-tick rule, so the shield is raised here, where the effect
-    // starts, and spent in `takeDamage`. A second application takes the larger shield instead of adding,
-    // so two golden apples back to back do not stack into sixteen points.
+    // Absorption carries a damage buffer as well as a timer, and it takes the MAXIMUM rather than summing,
+    // so a second golden apple does not stack a second buffer on top of an unspent one. `statusEffects.js`
+    // has defined this effect since that table was written and nothing implemented it.
     if (effect === 'absorption') {
-      // `|| 0` because several tests drive a Player-shaped stub that never ran the constructor, and
-      // `Math.max(undefined, 4)` is NaN -- an invisible shield of NaN absorbs nothing and poisons every
-      // later comparison.
-      this.absorption = Math.max(this.absorption || 0, absorptionShield(this.statusEffects));
+      this.absorption = absorptionForLevel(level, this.absorption || 0);
     }
     if (this.game?.ui?.addChatMessage) {
       const name = effect.replace(/_/g, ' ').toUpperCase();
@@ -1229,6 +1234,22 @@ export class Player {
 
   hasStatusEffect(effect) {
     return this.statusEffects.has(effect);
+  }
+
+  /**
+   * Keep an effect alive without announcing it.
+   *
+   * For a field that re-applies while the player stands in range -- a beacon, a conduit -- which refreshes
+   * every frame. `applyStatusEffect` posts a chat line, so using it there would flood the chat.
+   *
+   * This exists because the beacon and the conduit were writing `player.statusEffects[name] = duration`
+   * directly, treating a `Map` as a plain object. The write landed as a property on the Map rather than as an
+   * entry, so `hasStatusEffect` never saw it and **neither block granted anything at all** through seven such
+   * writes across `beaconConduit.js`.
+   */
+  refreshStatusEffect(effect, duration = 30, level = 1) {
+    if (!this.statusEffects) this.statusEffects = new Map();
+    this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
   }
 
   updateCameraAndModel(dt) {

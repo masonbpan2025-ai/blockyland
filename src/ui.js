@@ -1,5 +1,5 @@
 import { renderHorseInventory } from './horseInventory.js';
-import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
@@ -27,7 +27,6 @@ import { renderPlayerDoll } from './playerDoll.js';
 import { BrewingStand, getBrewingResult, POTION_DATA } from './brewing.js';
 import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
-import { calculateSmithingResult } from './smithing.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 
 /**
@@ -137,14 +136,6 @@ export class UIManager {
     this.anvilRightItem = null;
     this.anvilCustomName = '';
     this.currentAnvilPos = null;
-
-    // Smithing Table
-    this.smithingModal = document.getElementById('smithing-modal');
-    this.closeSmithingBtn = document.getElementById('close-smithing');
-    this.smithingTemplateItem = null;
-    this.smithingBaseItem = null;
-    this.smithingAdditionItem = null;
-    this.currentSmithingPos = null;
 
     // Grindstone
     this.grindstoneModal = document.getElementById('grindstone-modal');
@@ -456,9 +447,6 @@ export class UIManager {
     }
     if (this.grindstoneModal && !this.grindstoneModal.classList.contains('hidden')) {
       this.closeGrindstoneModal();
-    }
-    if (this.smithingModal && !this.smithingModal.classList.contains('hidden')) {
-      this.closeSmithingModal();
     }
     if (this.beaconModal && !this.beaconModal.classList.contains('hidden')) {
       this.closeBeaconModal();
@@ -906,8 +894,8 @@ export class UIManager {
   renderCreativeTabs() {
     if (!this.creativeTabsTop || !this.creativeTabsBottom) return;
 
-    // Top Tabs: building, colored, natural, functional, redstone, building, search/all
-    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'building', 'all_items'];
+    // Top Tabs: building, colored, natural, functional, redstone, structure, search/all
+    const topTabIds = ['building_blocks', 'colored_blocks', 'natural_blocks', 'functional_blocks', 'redstone_blocks', 'structure', 'all_items'];
     // Bottom Tabs: tools_utilities, combat, food_drinks, ingredients, spawn_eggs, survival_inventory
     const bottomTabIds = ['tools_utilities', 'combat', 'food_drinks', 'ingredients', 'spawn_eggs', 'survival_inventory'];
 
@@ -1007,8 +995,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: item.count,
-          isBuilding: item.isBuilding,
-          buildingId: item.buildingId,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
           icon: item.icon
         };
         if (e.shiftKey) {
@@ -1042,8 +1030,8 @@ export class UIManager {
           id: item.id,
           isBlock: item.isBlock,
           count: 1,
-          isBuilding: item.isBuilding,
-          buildingId: item.buildingId,
+          isStructure: item.isStructure,
+          structureId: item.structureId,
           icon: item.icon
         };
         this.sounds.playClick();
@@ -1051,7 +1039,7 @@ export class UIManager {
       };
 
       slot.onmouseenter = (e) => {
-        const sub = item.isBuilding ? 'Building' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
+        const sub = item.isStructure ? 'Structure' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
         this.showTooltip(e.clientX, e.clientY, item.name, sub);
       };
       slot.onmousemove = (e) => {
@@ -1260,8 +1248,7 @@ export class UIManager {
     document.getElementById('close-villager').onclick = () => this.closeAllModals();
     document.getElementById('close-brewing')?.addEventListener('click', () => this.closeAllModals());
     document.getElementById('close-anvil')?.addEventListener('click', () => this.closeAllModals());
-    document.getElementById('close-grindstone')?.addEventListener('click', () => this.closeAllModals())
-    document.getElementById('close-smithing')?.addEventListener('click', () => this.closeAllModals());
+    document.getElementById('close-grindstone')?.addEventListener('click', () => this.closeAllModals());
     document.getElementById('close-beacon')?.addEventListener('click', () => this.closeAllModals());
 
     // 2x2 Craft Result
@@ -1541,13 +1528,13 @@ export class UIManager {
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
         if (isRightClick) {
-          if (target.count < stackLimitFor(target.id)) {
+          if (target.count < 64) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           }
         } else {
-          const space = stackLimitFor(target.id) - target.count;
+          const space = 64 - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1607,14 +1594,14 @@ export class UIManager {
     const recipe = getSmeltingRecipe(item);
 
     // If item is fuel and fuel slot can take it
-    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < stackLimitFor(furnace.fuel.id)))) {
+    if (burnTime > 0 && (!furnace.fuel || (furnace.fuel.id === item.id && furnace.fuel.isBlock === item.isBlock && furnace.fuel.count < 64))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'fuel');
       this.sounds.playClick();
       return;
     }
 
     // If item is cookable and input slot can take it
-    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < stackLimitFor(furnace.input.id)))) {
+    if (recipe && (!furnace.input || (furnace.input.id === item.id && furnace.input.isBlock === item.isBlock && furnace.input.count < 64))) {
       this.transferToFurnaceSlot(list, idx, furnace, 'input');
       this.sounds.playClick();
       return;
@@ -1632,7 +1619,7 @@ export class UIManager {
       furnace[slotKey] = { ...item };
       fromList[fromIdx] = null;
     } else if (dest.id === item.id && dest.isBlock === item.isBlock) {
-      const space = stackLimitFor(dest.id) - dest.count;
+      const space = 64 - dest.count;
       const transfer = Math.min(space, item.count);
       dest.count += transfer;
       item.count -= transfer;
@@ -1844,14 +1831,14 @@ export class UIManager {
         }
       } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
         if (isRightClick) {
-          if (target.count < stackLimitFor(target.id)) {
+          if (target.count < 64) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
             this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
           }
         } else {
-          const space = stackLimitFor(target.id) - target.count;
+          const space = 64 - target.count;
           const transfer = Math.min(space, this.inv.cursorItem.count);
           target.count += transfer;
           this.inv.cursorItem.count -= transfer;
@@ -1876,8 +1863,8 @@ export class UIManager {
     // 1. Try stacking into player hotbar
     for (let i = 0; i < 9; i++) {
       const slot = this.inv.hotbar[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
-        const space = stackLimitFor(slot.id) - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -1891,8 +1878,8 @@ export class UIManager {
     // 2. Try stacking into player storage
     for (let i = 0; i < 27; i++) {
       const slot = this.inv.storage[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
-        const space = stackLimitFor(slot.id) - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -1935,8 +1922,8 @@ export class UIManager {
     // 1. Try stacking into existing matching chest slots
     for (let i = 0; i < totalSlots; i++) {
       const slot = items[i];
-      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < stackLimitFor(slot.id)) {
-        const space = stackLimitFor(slot.id) - slot.count;
+      if (slot && slot.id === item.id && slot.isBlock === item.isBlock && slot.count < 64) {
+        const space = 64 - slot.count;
         const add = Math.min(space, item.count);
         slot.count += add;
         item.count -= add;
@@ -2146,7 +2133,7 @@ export class UIManager {
             this.inv.cursorItem = null;
           }
         } else {
-          const space = stackLimitFor('lapis_lazuli') - this.enchantSlottedLapis.count;
+          const space = 64 - this.enchantSlottedLapis.count;
           if (isRightClick) {
             if (space > 0) {
               this.enchantSlottedLapis.count++;
@@ -2202,8 +2189,8 @@ export class UIManager {
         list[idx] = null;
         this.sounds.playClick?.();
         return;
-      } else if (this.enchantSlottedLapis.count < stackLimitFor('lapis_lazuli')) {
-        const space = stackLimitFor('lapis_lazuli') - this.enchantSlottedLapis.count;
+      } else if (this.enchantSlottedLapis.count < 64) {
+        const space = 64 - this.enchantSlottedLapis.count;
         const add = Math.min(space, item.count);
         this.enchantSlottedLapis.count += add;
         item.count -= add;
@@ -2748,136 +2735,6 @@ export class UIManager {
     this.inv.handleSlotClick(list, idx, false, true);
   }
 
-  // --- Smithing Table GUI ---------------------------------------------------
-  //
-  // Mirrors the grindstone: three input slots held by the modal, one output, and the inventory below.
-  openSmithing(x, y, z) {
-    if (document.exitPointerLock) document.exitPointerLock();
-    this.closeAllModals();
-    if (!this.smithingModal) return;
-
-    this.currentSmithingPos = { x, y, z };
-    this.smithingTemplateItem = null;
-    this.smithingBaseItem = null;
-    this.smithingAdditionItem = null;
-    this.smithingModal.classList.remove('hidden');
-    this.renderSmithingGUI();
-  }
-
-  closeSmithingModal() {
-    if (this.smithingModal) this.smithingModal.classList.add('hidden');
-    this.currentSmithingPos = null;
-
-    for (const slot of ['smithingTemplateItem', 'smithingBaseItem', 'smithingAdditionItem']) {
-      const item = this[slot];
-      if (item) {
-        this.inv.addItem(item.id, item.isBlock, item.count, item.enchantments);
-        this[slot] = null;
-      }
-    }
-    if (this.inv.cursorItem) {
-      this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count, this.inv.cursorItem.enchantments);
-      this.inv.cursorItem = null;
-    }
-    this.updateFloatingCursor();
-    this.updateHotbar();
-  }
-
-  renderSmithingGUI() {
-    if (!this.smithingModal || this.smithingModal.classList.contains('hidden')) return;
-
-    const templateSlot = document.getElementById('smithing-template-slot');
-    const baseSlot = document.getElementById('smithing-base-slot');
-    const additionSlot = document.getElementById('smithing-addition-slot');
-    const outputSlot = document.getElementById('smithing-output-slot');
-    const hintLabel = document.getElementById('smithing-hint-label');
-
-    const inputs = [
-      [templateSlot, 'smithingTemplateItem', 'template'],
-      [baseSlot, 'smithingBaseItem', 'base'],
-      [additionSlot, 'smithingAdditionItem', 'addition'],
-    ];
-    for (const [element, field, kind] of inputs) {
-      if (!element) continue;
-      this.renderSlotContent(element, this[field]);
-      element.onclick = () => this.handleSmithingSlotClick(kind);
-    }
-
-    const calculation = calculateSmithingResult(this.smithingTemplateItem, this.smithingBaseItem, this.smithingAdditionItem);
-
-    if (outputSlot) {
-      this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
-      outputSlot.onclick = () => {
-        if (calculation.valid) this.takeSmithingOutput(calculation);
-      };
-    }
-
-    if (hintLabel) {
-      // The reason, not just "invalid": an armour trim explains itself, and so does the wrong ingot.
-      const empty = !this.smithingTemplateItem && !this.smithingBaseItem && !this.smithingAdditionItem;
-      hintLabel.textContent = calculation.valid || empty ? '' : calculation.reason;
-      hintLabel.style.color = calculation.valid ? '#10b981' : '#94a3b8';
-    }
-
-    this.renderSlotGrid('smithing-storage-grid', this.inv.storage, (idx, right, shift) => {
-      if (shift) this.quickMoveToSmithing(this.inv.storage, idx);
-      else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
-      this.renderSmithingGUI();
-      this.updateHotbar();
-    });
-
-    this.renderSlotGrid('smithing-hotbar-grid', this.inv.hotbar, (idx, right, shift) => {
-      if (shift) this.quickMoveToSmithing(this.inv.hotbar, idx);
-      else this.inv.handleSlotClick(this.inv.hotbar, idx, right, shift);
-      this.renderSmithingGUI();
-      this.updateHotbar();
-    });
-  }
-
-  handleSmithingSlotClick(kind) {
-    const field = kind === 'template' ? 'smithingTemplateItem' : kind === 'base' ? 'smithingBaseItem' : 'smithingAdditionItem';
-    const tmp = this[field];
-    this[field] = this.inv.cursorItem;
-    this.inv.cursorItem = tmp;
-
-    this.updateFloatingCursor();
-    this.renderSmithingGUI();
-  }
-
-  takeSmithingOutput(calculation) {
-    if (!calculation.valid || !calculation.result) return;
-    // One result at a time, and only with an empty cursor, so a stack cannot be duplicated.
-    if (this.inv.cursorItem) return;
-
-    this.inv.cursorItem = calculation.result;
-    // The gear and the material are consumed. The template is not: vanilla returns it.
-    this.smithingBaseItem = null;
-    this.smithingAdditionItem = null;
-
-    this.sounds.playAnvil?.() ?? this.sounds.playClick?.();
-    this.updateFloatingCursor();
-    this.renderSmithingGUI();
-    this.updateHotbar();
-    this.updateStats();
-  }
-
-  quickMoveToSmithing(list, idx) {
-    const item = list[idx];
-    if (!item) return;
-
-    // Shift-click fills the slots in the order a player would: the template first, then the gear, then the
-    // material. Falls through to the ordinary move when all three are taken.
-    for (const field of ['smithingTemplateItem', 'smithingBaseItem', 'smithingAdditionItem']) {
-      if (!this[field]) {
-        this[field] = item;
-        list[idx] = null;
-        this.sounds.playClick?.();
-        return;
-      }
-    }
-    this.inv.handleSlotClick(list, idx, false, true);
-  }
-
   // --- Beacon GUI -----------------------------------------------------------
   openBeacon(x, y, z) {
     if (document.exitPointerLock) document.exitPointerLock();
@@ -2887,11 +2744,8 @@ export class UIManager {
     this.beaconPos = { x, y, z };
     this.beaconState = calculateBeaconPyramid(this.world, x, y, z);
     this.beaconPaymentItem = null;
-    // Show what this beacon was already given, rather than forgetting it every time the panel opens. The
-    // panel used to reset both to null, so the choice never survived being closed.
-    const stored = this.game?.beaconManager?.powerAt(x, y, z);
-    this.beaconSelectedPrimary = stored?.primary ?? null;
-    this.beaconSelectedSecondary = stored?.secondary ?? null;
+    this.beaconSelectedPrimary = null;
+    this.beaconSelectedSecondary = null;
     this.beaconModal.classList.remove('hidden');
     this.renderBeaconGUI();
   }
@@ -2936,17 +2790,6 @@ export class UIManager {
         btn.onclick = () => {
           if (isAvailable) {
             this.beaconSelectedPrimary = p;
-            // Choosing a power is what activates a beacon, and vanilla charges a payment for it. The slot
-            // has already checked the item is one of the five that work, so the payment is consumed here
-            // and the choice is handed to the manager, which is what makes the beacon grant anything.
-            if (this.beaconPaymentItem && this.beaconPos) {
-              this.beaconPaymentItem = null;
-              this.game?.beaconManager?.setPower(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z, {
-                primary: this.beaconSelectedPrimary,
-                secondary: this.beaconSelectedSecondary,
-              });
-              this.addChatMessage?.(`Beacon set to ${p.replace(/_/g, ' ')}`, 'system');
-            }
             this.renderBeaconGUI();
           }
         };
@@ -2964,14 +2807,6 @@ export class UIManager {
         btn.onclick = () => {
           if (isAvailable) {
             this.beaconSelectedSecondary = s;
-            // The secondary costs nothing extra: the beacon is already activated by its primary, and a
-            // four-tier pyramid is what makes this available at all.
-            if (this.beaconPos && this.game?.beaconManager?.isActiveBeacon(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z)) {
-              this.game.beaconManager.setPower(this.beaconPos.x, this.beaconPos.y, this.beaconPos.z, {
-                primary: this.beaconSelectedPrimary,
-                secondary: this.beaconSelectedSecondary,
-              });
-            }
             this.renderBeaconGUI();
           }
         };
@@ -3379,8 +3214,8 @@ export class UIManager {
           if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
             this.game.dungeonMode.exitDungeonMode(false);
           }
-          if (this.game.buildingStudio) {
-            this.game.buildingStudio.exitStudio();
+          if (this.game.structureStudio) {
+            this.game.structureStudio.exitStudio();
           }
           if (this.game.world) {
             this.game.world.isFlatWorld = false;

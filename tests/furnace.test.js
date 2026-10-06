@@ -39,32 +39,23 @@ function setupWorld() {
 }
 
 test('Furnace cooking recipes: supports all raw foods and smelting items', () => {
-  // Raw foods, by the names this game uses.
-  //
-  // This block previously also asserted `raw_beef`, `raw_porkchop`, `raw_chicken`, `raw_mutton`,
-  // `raw_rabbit`, `raw_cod` and `raw_salmon`. Those are vanilla's spellings and no item here is called
-  // by any of them, so the assertions passed against seven table rows that could never be reached --
-  // coverage that read as twice what it was. The rows are gone and so are the assertions; `beef`,
-  // `porkchop` and the rest below are the ones a player can actually feed a furnace.
+  // Raw foods
+  assert.equal(getSmeltingRecipe('raw_beef')?.id, 'cooked_beef');
   assert.equal(getSmeltingRecipe('beef')?.id, 'cooked_beef');
   assert.equal(getSmeltingRecipe('porkchop')?.id, 'cooked_porkchop');
+  assert.equal(getSmeltingRecipe('raw_porkchop')?.id, 'cooked_porkchop');
   assert.equal(getSmeltingRecipe('chicken')?.id, 'cooked_chicken');
+  assert.equal(getSmeltingRecipe('raw_chicken')?.id, 'cooked_chicken');
   assert.equal(getSmeltingRecipe('mutton')?.id, 'cooked_mutton');
+  assert.equal(getSmeltingRecipe('raw_mutton')?.id, 'cooked_mutton');
   assert.equal(getSmeltingRecipe('rabbit')?.id, 'cooked_rabbit');
+  assert.equal(getSmeltingRecipe('raw_rabbit')?.id, 'cooked_rabbit');
   assert.equal(getSmeltingRecipe('cod')?.id, 'cooked_cod');
+  assert.equal(getSmeltingRecipe('raw_cod')?.id, 'cooked_cod');
   assert.equal(getSmeltingRecipe('salmon')?.id, 'cooked_salmon');
+  assert.equal(getSmeltingRecipe('raw_salmon')?.id, 'cooked_salmon');
   assert.equal(getSmeltingRecipe('potato')?.id, 'baked_potato');
-  // Kelp by its block id, which is the id this game actually uses for it: kelp is placed as well as eaten,
-  // so the inventory holds `{id: BLOCKS.KELP, isBlock: true}`. Keyed by name the row was unreachable and
-  // kelp stopped smelting, which is the same failure this test's `raw_*` block was written about.
-  assert.equal(getSmeltingRecipe(BLOCKS.KELP)?.id, 'dried_kelp');
-
-  // The vanilla spellings are deliberately not entries: nothing is registered under them, so a caller
-  // that asks for one is asking for an id no item can hold. `inspect-resource.mjs faults` reports any
-  // smelting input that does not resolve, which is how the seven were found.
-  for (const vanillaName of ['raw_beef', 'raw_porkchop', 'raw_chicken', 'raw_mutton', 'raw_rabbit', 'raw_cod', 'raw_salmon']) {
-    assert.equal(getSmeltingRecipe(vanillaName), null, `${vanillaName} is not an item here`);
-  }
+  assert.equal(getSmeltingRecipe('kelp')?.id, 'dried_kelp');
 
   // Blocks & Ores
   assert.equal(getSmeltingRecipe(BLOCKS.COBBLESTONE)?.id, BLOCKS.STONE);

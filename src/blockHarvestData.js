@@ -14,7 +14,7 @@
 // // `drops` lists item names; an empty array means the block drops itself, and an absent
 // // `drops` key means the block is not harvestable into an item.
 
-import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { BLOCKS } from './blocks.js';
 
 export const BLOCK_HARVEST = {
   acacia_button: {hardness:0.5,tool:'axe',drops:['acacia_button'],bb:'empty'},
@@ -35,7 +35,6 @@ export const BLOCK_HARVEST = {
   acacia_wall_sign: {hardness:1,tool:'axe',drops:['acacia_sign'],bb:'empty'},
   acacia_wood: {hardness:2,tool:'axe',drops:['acacia_wood']},
   activator_rail: {hardness:0.7,tool:'pickaxe',drops:['activator_rail'],bb:'empty'},
-  air: {hardness:0,drops:[],bb:'empty'},
   allium: {hardness:0,drops:['allium'],bb:'empty'},
   amethyst_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['amethyst_block']},
   amethyst_cluster: {hardness:1.5,tool:'pickaxe',drops:['amethyst_shard']},
@@ -70,10 +69,8 @@ export const BLOCK_HARVEST = {
   bamboo_wall_hanging_sign: {hardness:1,tool:'axe',drops:['bamboo_hanging_sign']},
   bamboo_wall_sign: {hardness:1,tool:'axe',drops:['bamboo_sign'],bb:'empty'},
   barrel: {hardness:2.5,tool:'axe',drops:['barrel']},
-  barrier: {hardness:-1,drops:[],resistance:3600000.8},
   basalt: {hardness:1.25,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['basalt'],resistance:4.2},
   beacon: {hardness:3,drops:['beacon']},
-  bedrock: {hardness:-1,drops:[],resistance:3600000},
   bee_nest: {hardness:0.3,tool:'axe',drops:[]},
   beehive: {hardness:0.6,tool:'axe',drops:['beehive']},
   beetroots: {hardness:0,tool:'axe',drops:['beetroot_seeds'],bb:'empty'},
@@ -134,10 +131,7 @@ export const BLOCK_HARVEST = {
   blue_wool: {hardness:0.8,drops:['blue_wool']},
   bone_block: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['bone_block']},
   bookshelf: {hardness:1.5,tool:'axe',drops:['book']},
-  brain_coral: {hardness:0,drops:[],bb:'empty'},
   brain_coral_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['dead_brain_coral_block'],resistance:6},
-  brain_coral_fan: {hardness:0,drops:[],bb:'empty'},
-  brain_coral_wall_fan: {hardness:0,drops:[],bb:'empty'},
   brewing_stand: {hardness:0.5,tool:'pickaxe',drops:['brewing_stand']},
   brick_slab: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['brick_slab'],resistance:6},
   brick_stairs: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['brick_stairs'],resistance:6},
@@ -159,11 +153,7 @@ export const BLOCK_HARVEST = {
   brown_terracotta: {hardness:1.25,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['brown_terracotta'],resistance:4.2},
   brown_wall_banner: {hardness:1,tool:'axe',drops:['brown_banner'],bb:'empty'},
   brown_wool: {hardness:0.8,drops:['brown_wool']},
-  bubble_column: {hardness:0,drops:[],bb:'empty'},
-  bubble_coral: {hardness:0,drops:[],bb:'empty'},
   bubble_coral_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['dead_bubble_coral_block'],resistance:6},
-  bubble_coral_fan: {hardness:0,drops:[],bb:'empty'},
-  bubble_coral_wall_fan: {hardness:0,drops:[],bb:'empty'},
   budding_amethyst: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:[]},
   cactus: {hardness:0.4,drops:['cactus']},
   cake: {hardness:0.5,drops:[]},
@@ -176,11 +166,9 @@ export const BLOCK_HARVEST = {
   cartography_table: {hardness:2.5,tool:'axe',drops:['cartography_table']},
   carved_pumpkin: {hardness:1,tool:'axe',drops:['carved_pumpkin']},
   cauldron: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['cauldron']},
-  cave_air: {hardness:0,drops:[],bb:'empty'},
   cave_vines: {hardness:0,tool:'axe',drops:[],bb:'empty'},
   cave_vines_plant: {hardness:0,tool:'axe',drops:[],bb:'empty'},
   chain: {hardness:5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['chain'],resistance:6},
-  chain_command_block: {hardness:-1,drops:[],resistance:3600000},
   cherry_button: {hardness:0.5,tool:'axe',drops:['cherry_button'],bb:'empty'},
   cherry_door: {hardness:3,tool:'axe',drops:['cherry_door']},
   cherry_fence: {hardness:2,tool:'axe',drops:['cherry_fence'],resistance:3},
@@ -229,7 +217,6 @@ export const BLOCK_HARVEST = {
   cobblestone_wall: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['cobblestone_wall'],resistance:6},
   cobweb: {hardness:4,tool:'sword',tier:'wooden',requiresTool:true,drops:['string'],bb:'empty'},
   cocoa: {hardness:0.2,tool:'axe',drops:['cocoa_beans'],resistance:3},
-  command_block: {hardness:-1,drops:[],resistance:3600000},
   comparator: {hardness:0,drops:['comparator']},
   composter: {hardness:0.6,tool:'axe',drops:['composter']},
   conduit: {hardness:3,tool:'pickaxe',drops:['conduit']},
@@ -371,9 +358,6 @@ export const BLOCK_HARVEST = {
   emerald_block: {hardness:5,tool:'pickaxe',tier:'iron',requiresTool:true,drops:['emerald_block'],resistance:6},
   emerald_ore: {hardness:3,tool:'pickaxe',tier:'iron',requiresTool:true,drops:['emerald']},
   enchanting_table: {hardness:5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['enchanting_table'],resistance:1200},
-  end_gateway: {hardness:-1,drops:[],bb:'empty',resistance:3600000},
-  end_portal: {hardness:-1,drops:[],bb:'empty',resistance:3600000},
-  end_portal_frame: {hardness:-1,drops:[],resistance:3600000},
   end_rod: {hardness:0,drops:['end_rod']},
   end_stone: {hardness:3,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['end_stone'],resistance:9},
   end_stone_brick_slab: {hardness:3,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['end_stone_brick_slab'],resistance:9},
@@ -392,16 +376,11 @@ export const BLOCK_HARVEST = {
   exposed_cut_copper_stairs: {hardness:3,tool:'pickaxe',tier:'stone',requiresTool:true,drops:['exposed_cut_copper_stairs'],resistance:6},
   farmland: {hardness:0.6,tool:'shovel',drops:['dirt']},
   fern: {hardness:0,tool:'axe',drops:[],bb:'empty'},
-  fire: {hardness:0,drops:[],bb:'empty'},
-  fire_coral: {hardness:0,drops:[],bb:'empty'},
   fire_coral_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['dead_fire_coral_block'],resistance:6},
-  fire_coral_fan: {hardness:0,drops:[],bb:'empty'},
-  fire_coral_wall_fan: {hardness:0,drops:[],bb:'empty'},
   fletching_table: {hardness:2.5,tool:'axe',drops:['fletching_table']},
   flower_pot: {hardness:0,drops:['flower_pot']},
   flowering_azalea: {hardness:0,tool:'axe',drops:['flowering_azalea']},
   flowering_azalea_leaves: {hardness:0.2,tool:'hoe',drops:[]},
-  frogspawn: {hardness:0,drops:[],bb:'empty'},
   frosted_ice: {hardness:0.5,drops:[]},
   furnace: {hardness:3.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['furnace']},
   gilded_blackstone: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['gilded_blackstone'],resistance:6},
@@ -453,10 +432,7 @@ export const BLOCK_HARVEST = {
   honey_block: {hardness:0,drops:['honey_block']},
   honeycomb_block: {hardness:0.6,drops:['honeycomb_block']},
   hopper: {hardness:3,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['hopper'],resistance:4.8},
-  horn_coral: {hardness:0,drops:[],bb:'empty'},
   horn_coral_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['dead_horn_coral_block'],resistance:6},
-  horn_coral_fan: {hardness:0,drops:[],bb:'empty'},
-  horn_coral_wall_fan: {hardness:0,drops:[],bb:'empty'},
   ice: {hardness:0.5,tool:'pickaxe',drops:[]},
   infested_chiseled_stone_bricks: {hardness:0.75,tool:'pickaxe',drops:[]},
   infested_cobblestone: {hardness:1,tool:'pickaxe',drops:[],resistance:0.75},
@@ -471,7 +447,6 @@ export const BLOCK_HARVEST = {
   iron_ore: {hardness:3,tool:'pickaxe',tier:'stone',requiresTool:true,drops:['raw_iron']},
   iron_trapdoor: {hardness:5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['iron_trapdoor']},
   jack_o_lantern: {hardness:1,tool:'axe',drops:['jack_o_lantern']},
-  jigsaw: {hardness:-1,drops:[],resistance:3600000},
   jukebox: {hardness:2,tool:'axe',drops:['jukebox'],resistance:6},
   jungle_button: {hardness:0.5,tool:'axe',drops:['jungle_button'],bb:'empty'},
   jungle_door: {hardness:3,tool:'axe',drops:['jungle_door']},
@@ -502,7 +477,6 @@ export const BLOCK_HARVEST = {
   lava_cauldron: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['cauldron']},
   lectern: {hardness:2.5,tool:'axe',drops:['lectern']},
   lever: {hardness:0.5,drops:['lever'],bb:'empty'},
-  light: {hardness:-1,drops:[],bb:'empty',resistance:3600000.8},
   light_blue_banner: {hardness:1,tool:'axe',drops:['light_blue_banner'],bb:'empty'},
   light_blue_bed: {hardness:0.2,drops:[]},
   light_blue_candle: {hardness:0.1,drops:['light_blue_candle']},
@@ -598,7 +572,6 @@ export const BLOCK_HARVEST = {
   mossy_stone_brick_stairs: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['mossy_stone_brick_stairs'],resistance:6},
   mossy_stone_brick_wall: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['mossy_stone_brick_wall'],resistance:6},
   mossy_stone_bricks: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['mossy_stone_bricks'],resistance:6},
-  moving_piston: {hardness:-1,drops:[],bb:'empty',resistance:0},
   mud: {hardness:0.5,tool:'shovel',drops:['mud']},
   mud_brick_slab: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['mud_brick_slab'],resistance:3},
   mud_brick_stairs: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['mud_brick_stairs'],resistance:3},
@@ -613,7 +586,6 @@ export const BLOCK_HARVEST = {
   nether_brick_wall: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['nether_brick_wall'],resistance:6},
   nether_bricks: {hardness:2,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['nether_bricks'],resistance:6},
   nether_gold_ore: {hardness:3,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['gold_nugget']},
-  nether_portal: {hardness:-1,drops:[],bb:'empty',resistance:0},
   nether_quartz_ore: {hardness:3,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['quartz']},
   nether_sprouts: {hardness:0,drops:[],bb:'empty'},
   nether_wart: {hardness:0,tool:'axe',drops:['nether_wart'],bb:'empty'},
@@ -669,7 +641,6 @@ export const BLOCK_HARVEST = {
   oxidized_cut_copper_stairs: {hardness:3,tool:'pickaxe',tier:'stone',requiresTool:true,drops:['oxidized_cut_copper_stairs'],resistance:6},
   packed_ice: {hardness:0.5,tool:'pickaxe',drops:[]},
   packed_mud: {hardness:1,tool:'pickaxe',drops:['packed_mud'],resistance:3},
-  pale_hanging_moss: {hardness:0,drops:[],bb:'empty'},
   pale_moss_block: {hardness:0.1,tool:'hoe',drops:['pale_moss_block']},
   pale_moss_carpet: {hardness:0.1,tool:'hoe',drops:['pale_moss_carpet']},
   pale_oak_button: {hardness:0.5,tool:'axe',drops:['pale_oak_button'],bb:'empty'},
@@ -858,7 +829,6 @@ export const BLOCK_HARVEST = {
   redstone_wire: {hardness:0,drops:['redstone'],bb:'empty'},
   reinforced_deepslate: {hardness:55,drops:[],resistance:1200},
   repeater: {hardness:0,drops:['repeater']},
-  repeating_command_block: {hardness:-1,drops:[],resistance:3600000},
   resin_block: {hardness:0,drops:['resin_block']},
   resin_brick_slab: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['resin_brick_slab'],resistance:6},
   resin_brick_stairs: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['resin_brick_stairs'],resistance:6},
@@ -881,7 +851,6 @@ export const BLOCK_HARVEST = {
   sculk_vein: {hardness:0.2,tool:'hoe',drops:[],bb:'empty'},
   sea_lantern: {hardness:0.3,drops:['prismarine_crystals']},
   sea_pickle: {hardness:0,drops:['sea_pickle']},
-  seagrass: {hardness:0,drops:[],bb:'empty'},
   short_grass: {hardness:0,tool:'axe',drops:[],bb:'empty'},
   shroomlight: {hardness:1,tool:'hoe',drops:['shroomlight']},
   shulker_box: {hardness:2,tool:'pickaxe',drops:['shulker_box']},
@@ -908,7 +877,6 @@ export const BLOCK_HARVEST = {
   snow: {hardness:0.1,tool:'shovel',tier:'wooden',requiresTool:true,drops:[],bb:'empty'},
   snow_block: {hardness:0.2,tool:'shovel',tier:'wooden',requiresTool:true,drops:['snowball']},
   soul_campfire: {hardness:2,tool:'axe',drops:['soul_soil']},
-  soul_fire: {hardness:0,drops:[],bb:'empty'},
   soul_lantern: {hardness:3.5,tool:'pickaxe',drops:['soul_lantern']},
   soul_sand: {hardness:0.5,tool:'shovel',drops:['soul_sand']},
   soul_soil: {hardness:0.5,tool:'shovel',drops:['soul_soil']},
@@ -968,15 +936,12 @@ export const BLOCK_HARVEST = {
   stripped_spruce_wood: {hardness:2,tool:'axe',drops:['stripped_spruce_wood']},
   stripped_warped_hyphae: {hardness:2,tool:'axe',drops:['stripped_warped_hyphae']},
   stripped_warped_stem: {hardness:2,tool:'axe',drops:['stripped_warped_stem']},
-  structure_block: {hardness:-1,drops:[],resistance:3600000},
-  structure_void: {hardness:0,drops:[],bb:'empty'},
   sugar_cane: {hardness:0,tool:'axe',drops:['sugar_cane'],bb:'empty'},
   sunflower: {hardness:0,drops:['sunflower'],bb:'empty'},
   suspicious_gravel: {hardness:0.25,tool:'shovel',drops:[]},
   suspicious_sand: {hardness:0.25,tool:'shovel',drops:[]},
   sweet_berry_bush: {hardness:0,tool:'axe',drops:[],bb:'empty'},
   tall_grass: {hardness:0,tool:'axe',drops:[],bb:'empty'},
-  tall_seagrass: {hardness:0,drops:[],bb:'empty'},
   target: {hardness:0.5,tool:'hoe',drops:['target']},
   terracotta: {hardness:1.25,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['terracotta'],resistance:4.2},
   tinted_glass: {hardness:0.3,drops:['tinted_glass']},
@@ -988,10 +953,7 @@ export const BLOCK_HARVEST = {
   trial_spawner: {hardness:50,drops:[]},
   tripwire: {hardness:0,drops:['string'],bb:'empty'},
   tripwire_hook: {hardness:0,drops:['tripwire_hook'],bb:'empty'},
-  tube_coral: {hardness:0,drops:[],bb:'empty'},
   tube_coral_block: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['dead_tube_coral_block'],resistance:6},
-  tube_coral_fan: {hardness:0,drops:[],bb:'empty'},
-  tube_coral_wall_fan: {hardness:0,drops:[],bb:'empty'},
   tuff: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['tuff'],resistance:6},
   tuff_brick_slab: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['tuff_brick_slab'],resistance:6},
   tuff_brick_stairs: {hardness:1.5,tool:'pickaxe',tier:'wooden',requiresTool:true,drops:['tuff_brick_stairs'],resistance:6},
@@ -1006,7 +968,6 @@ export const BLOCK_HARVEST = {
   vault: {hardness:50,drops:[]},
   verdant_froglight: {hardness:0.3,drops:['verdant_froglight']},
   vine: {hardness:0.2,tool:'axe',drops:[],bb:'empty'},
-  void_air: {hardness:0,drops:[],bb:'empty'},
   wall_torch: {hardness:0,drops:['torch'],bb:'empty'},
   warped_button: {hardness:0.5,tool:'axe',drops:['warped_button'],bb:'empty'},
   warped_door: {hardness:3,tool:'axe',drops:['warped_door']},
@@ -1117,226 +1078,18 @@ export const BLOCK_HARVEST = {
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
 
-/**
- * Block ids by the name a harvest row uses.
- *
- * The game registers blocks through two routes -- `BLOCKS` constants and the generated content tables --
- * and this table is keyed by the vanilla name, which matches the constant for most blocks and not for the
- * rest. Looking up `BLOCKS[name.toUpperCase()]` alone therefore leaves rows unreachable, and three of them
- * were for blocks the game really has: `snow_block`, `potatoes` and `wither_skeleton_skull`. The last has
- * no `drop` in its definition, so its row was the only thing that would have made it drop anything, and
- * breaking one yielded nothing.
- *
- * Where several blocks share a name -- a crop's four growth stages are all "Potatoes" -- the lowest id
- * wins, which is the stage a harvest row is about. Checked with `scripts/inspect-resource.mjs orphans`,
- * which lists the rows still waiting on a block and the ones that are dead although the block exists.
- */
-const BY_NAME = new Map();
-/** Every block id sharing a normalised display name, for the state-variant fallback below. */
-const IDS_BY_NAME = new Map();
-for (const [id, def] of Object.entries(BLOCK_DEFS)) {
-  const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-  if (!key) continue;
-  const existing = BY_NAME.get(key);
-  if (existing === undefined || Number(id) < existing) BY_NAME.set(key, Number(id));
-  if (!IDS_BY_NAME.has(key)) IDS_BY_NAME.set(key, []);
-  IDS_BY_NAME.get(key).push(Number(id));
-}
-
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
+  const id = BLOCKS[name.toUpperCase()];
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
-/**
- * Harvest data for a block id, or null when the block has no data.
- *
- * An id with no row of its own falls back to the row of the block it is a *state* of -- an open door, a bed's
- * head, a coral fan's wall form, seven of wheat's eight growth stages. Vanilla names those once and the table
- * is generated per name, so 144 blocks read as having no hardness or tool data at all while the block they
- * are a state of had a row the whole time. The suffixes and the sibling rule are hand-written in the tail.
- */
+/** Harvest data for a block id, or null when the block has no data. */
 export function harvestDataFor(blockId) {
-  const row = BY_ID.get(blockId);
-  if (row) return row;
-  return sharedHarvestRowFor(blockId, BY_ID, IDS_BY_NAME);
+  return BY_ID.get(blockId) || null;
 }
 
 /** Every block id this table knows about, for tests and tooling. */
 export function knownHarvestBlockIds() {
   return [...BY_ID.keys()];
-}
-
-/** Every harvest row name, whether or not a block answers to it, for the orphan report. */
-export function knownHarvestNames() {
-  return Object.keys(BLOCK_HARVEST);
-}
-
-// --- blast resistance -------------------------------------------------------
-//
-// `resistance` above was generated for every entry but read nowhere, so explosions destroyed whatever
-// they reached apart from a hardcoded air/bedrock check. Vanilla's rule is:
-//
-//   destroyed  when  resistance / 5  <  power * (0.3 + 0.7 * random)
-//
-// so the comparison is against the explosion's POWER, not its radius: a TNT explosion (power 4) has a
-// distance factor between 0.3 and 1.3, giving a threshold of 4 * 0.3 = 1.2 at the rim and 4 * 1.3 =
-// 5.2 at the centre. Resistance 6 -- stone, cobblestone, every ore, iron blocks -- is above even the
-// centre threshold and therefore survives TNT, which is what "reduced to a crater of dirt and sand"
-// looks like in the real game. Obsidian, anvils and the enchanting table (600-1200) are immune to
-// everything that exists here, and bedrock has no resistance entry at all, so it is treated as
-// unbreakable rather than as breakable-with-zero-resistance.
-//
-// This models the threshold and a single destruction roll rather than a full 16-ray exposure
-// calculation, which is the part of vanilla's algorithm that needs block occlusion geometry this
-// mesher does not have. The visible consequence is the material of what survives, not the shape of
-// the crater.
-
-/** Explosion power of a primed TNT block, and therefore the base of every threshold above. */
-export const TNT_EXPLOSION_POWER = 4;
-
-/**
- * Blocks with a resistance above this survive an explosion of the given power outright.
- *
- * Derived rather than a magic number: the highest distance factor vanilla applies is 1.3, so
- * `power * 1.3` is the strongest a block can be and still be destroyed at the exact centre.
- */
-export function blastResistanceThreshold(power = TNT_EXPLOSION_POWER) {
-  return power * 1.3;
-}
-
-/**
- * Blast resistance of a block id, or null when the block cannot be destroyed by an explosion.
- *
- * Two subtleties, both of which this table's own generator creates:
- *
- *   - The generator writes `resistance` only when it DIFFERS from `hardness`, because the mining path
- *     only ever needed the resistance when the two disagreed. So an absent `resistance` means "equal to
- *     hardness" rather than "unknown", and falling back to hardness is exact rather than a guess. Dirt
- *     (both 0.5), sand (0.5) and glass (0.3) land here, and treating them as unknown would have made
- *     every soft block explosion-proof -- which is the opposite of what vanilla does.
- *
- *   - Bedrock is expressed through an absurd hardness (999999) and the End Portal through -1, in both
- *     the definition and the harvest row or its absence. Either is a sentinel for "not breakable",
- *     not a resistance value, so both are reported as null.
- */
-export function blastResistanceFor(blockId) {
-  const data = BY_ID.get(blockId);
-  const hardness = typeof data?.hardness === 'number' ? data.hardness : BLOCK_DEFS[blockId]?.hardness;
-  const resistance = typeof data?.resistance === 'number' ? data.resistance : hardness;
-  if (typeof resistance !== 'number' || !Number.isFinite(resistance)) return null;
-  // The unbreakable sentinels: bedrock's absurd hardness and the End Portal's negative one.
-  if (resistance < 0 || resistance >= 99999) return null;
-  return resistance;
-}
-
-/**
- * Should an explosion of `power` destroy this block?
- *
- * @param {number} blockId
- * @param {number} [power] explosion power; TNT and TNT minecarts are both 4
- * @param {number} [random] destruction roll in [0,1); defaults to Math.random
- */
-
-// --- state variants ---------------------------------------------------------
-//
-// The game models several *states* of a block as their own block ids where vanilla names the block once:
-// eight wheat growth stages, an open door, a bed’s head, a coral fan’s wall form. The harvest table is
-// generated per vanilla block name, so only the one id that name resolves to had a row, and 144 blocks
-// reported "no BLOCK_HARVEST row" -- every open door, every bed head, seven of wheat’s eight stages.
-//
-// A state shares its base block’s hardness, tool and sound, so it shares the row. The suffixes are listed
-// explicitly and longest-first rather than matched by pattern, and the sibling rule handles the states whose
-// name is identical to the base (a crop’s stages are all "Wheat Crops").
-
-/**
- * Suffixes a block name can carry while still being the same block as the name without it.
- *
- * Longest first: "Wall Fan" has to be tried before "Fan", or "Dead Tube Coral Wall Fan" reduces to
- * "dead_tube_coral_wall" and finds nothing.
- */
-export const STATE_VARIANT_SUFFIXES = [
-  '_wall_fan', '_wall_sign', '_wall_banner', '_wall_head', '_wall_skull',
-  '_open', '_top', '_head', '_foot', '_fan', '_plant', '_stage', '_block',
-];
-
-/**
- * Prefixes that carry the same meaning, for the two states this game names with the qualifier first.
- *
- * A lit furnace and moist farmland are vanilla's furnace and farmland with a state set, and the game put the
- * state in front of the name rather than behind it.
- */
-export const STATE_VARIANT_PREFIXES = ['lit_', 'moist_'];
-
-/** A block name in the normalised form the harvest rows use. */
-function normalisedBlockName(blockId) {
-  return String(BLOCK_DEFS[blockId]?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-}
-
-/**
- * The row a state-variant block shares with the block it is a state of, or null.
- *
- * Two routes, in order: a sibling with the *same* name that already has a row (a crop’s growth stages), then
- * the same name with a state suffix removed (an open door, a bed’s head, a wall fan). The row returned is the
- * base block’s, which is right for hardness and tool; a state whose drops differ -- an immature crop -- still
- * declares its own drops in its block definition.
- */
-export function sharedHarvestRowFor(blockId, byId, byName) {
-  const name = normalisedBlockName(blockId);
-  if (!name) return null;
-
-  /** The row of any block sharing this normalised name, the lowest id first. */
-  const rowForName = (candidate) => {
-    const ids = byName.get(candidate);
-    if (!ids) return null;
-    for (const id of [...ids].sort((a, b) => a - b)) {
-      const row = byId.get(id);
-      if (row) return row;
-    }
-    return null;
-  };
-
-  const sibling = rowForName(name);
-  if (sibling) return sibling;
-
-  // Stripping is repeated rather than tried once: a door's top half while open carries two state words --
-  // "Spruce Door Top Open" -- and one pass leaves "spruce_door_top", which is nothing. Each round removes one
-  // word from either end, so the loop is bounded by the word count rather than by a guess.
-  const words = name.split('_');
-  for (let round = 0; round < words.length; round += 1) {
-    let stripped = false;
-    for (const suffix of STATE_VARIANT_SUFFIXES) {
-      if (!name.endsWith(suffix)) continue;
-      const base = rowForName(name.slice(0, -suffix.length));
-      if (base) return base;
-      break;
-    }
-    for (const prefix of STATE_VARIANT_PREFIXES) {
-      if (!name.startsWith(prefix)) continue;
-      const base = rowForName(name.slice(prefix.length));
-      if (base) return base;
-      break;
-    }
-    // Still nothing: drop one word from the end and look again, then one from the front on the next round.
-    const shortened = words.slice(0, -1 - round).join('_');
-    if (shortened && shortened !== name) {
-      const base = rowForName(shortened);
-      if (base) return base;
-      stripped = true;
-    }
-    if (!stripped) break;
-  }
-  return null;
-}
-export function isDestroyedByExplosion(blockId, power = TNT_EXPLOSION_POWER, random = Math.random) {
-  if (blockId === BLOCKS.AIR) return false;
-  const resistance = blastResistanceFor(blockId);
-  // No usable resistance: unbreakable, not soft.
-  if (resistance === null) return false;
-  // Fully immune above the strongest threshold, at any distance from the centre.
-  if (resistance > blastResistanceThreshold(power)) return false;
-  // Otherwise the block survives the roll when resistance/5 reaches the distance-scaled power.
-  const distanceFactor = 0.3 + 0.7 * random();
-  return resistance / 5 < power * distanceFactor;
 }

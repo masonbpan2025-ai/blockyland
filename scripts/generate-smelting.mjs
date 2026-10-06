@@ -179,77 +179,6 @@ for (const d of declarations) {
   }
 }
 
-/**
- * Vanilla furnace recipes Mineclonia's item set does not cover.
- *
- * Mineclonia is the smelting reference because minecraft-data publishes none, and it is a good one for the
- * blocks and metals it shares. It has no chorus fruit, no netherite, no horse armour and no opinion about
- * recycling gear, so those rows were simply absent -- 23 recipes whose input and output this game both has.
- * `chorus_fruit -> popped_chorus_fruit` was the visible one: fifteen crafting recipes need popped chorus
- * fruit and nothing produced it.
- *
- * Every row here is vanilla's, stated as `input -> output` in this game's own names and resolved through the
- * same `resolve` the Mineclonia names go through, so a block input is keyed by its block id. Amounts are one
- * except where noted; vanilla gives exactly one nugget for a piece of iron or golden gear, which is why
- * recycling is worth doing but is not a duplication trick.
- */
-const VANILLA_SMELTING = [
-  ['chorus_fruit', 'popped_chorus_fruit'],
-  ['basalt', 'smooth_basalt'],
-  ['quartz_block', 'smooth_quartz'],
-  ['raw_iron_block', 'iron_block'],
-  ['raw_copper_block', 'copper_block'],
-  ['raw_gold_block', 'gold_block'],
-  ['sea_pickle', 'lime_dye'],
-  // Iron and chainmail gear smelts to one iron nugget.
-  ['iron_helmet', 'iron_nugget'], ['iron_chestplate', 'iron_nugget'],
-  ['iron_leggings', 'iron_nugget'], ['iron_boots', 'iron_nugget'],
-  ['iron_sword', 'iron_nugget'], ['iron_pickaxe', 'iron_nugget'], ['iron_axe', 'iron_nugget'],
-  ['iron_shovel', 'iron_nugget'], ['iron_hoe', 'iron_nugget'],
-  ['chainmail_helmet', 'iron_nugget'], ['chainmail_chestplate', 'iron_nugget'],
-  ['shears', 'iron_nugget'], ['bucket', 'iron_nugget'], ['cauldron', 'iron_nugget'],
-  // Golden gear, golden carrots and golden horse armour to one gold nugget.
-  ['golden_helmet', 'gold_nugget'], ['golden_chestplate', 'gold_nugget'],
-  ['golden_leggings', 'gold_nugget'], ['golden_boots', 'gold_nugget'],
-  ['golden_sword', 'gold_nugget'], ['golden_pickaxe', 'gold_nugget'], ['golden_axe', 'gold_nugget'],
-  ['golden_shovel', 'gold_nugget'], ['golden_hoe', 'gold_nugget'],
-  ['golden_carrot', 'gold_nugget'], ['golden_horse_armor', 'gold_nugget'],
-  // Diamond and netherite gear. Vanilla gives a diamond back for diamond horse armour and one netherite
-  // scrap for anything netherite; diamond tools and armour smelt to nothing at all, so they are not here.
-  ['diamond_horse_armor', 'diamond'],
-  ['netherite_helmet', 'netherite_scrap'], ['netherite_chestplate', 'netherite_scrap'],
-  ['netherite_leggings', 'netherite_scrap'], ['netherite_boots', 'netherite_scrap'],
-  ['netherite_sword', 'netherite_scrap'], ['netherite_pickaxe', 'netherite_scrap'],
-  ['netherite_axe', 'netherite_scrap'], ['netherite_shovel', 'netherite_scrap'],
-  ['netherite_hoe', 'netherite_scrap'],
-];
-
-const minecloniaSmeltingAdded = smelting.length;
-const vanillaAbsent = [];
-for (const [inputName, outputName] of VANILLA_SMELTING) {
-  const from = resolve(inputName);
-  const to = resolve(outputName);
-  // Loud rather than silent: a row whose items do not exist here would be dropped without a trace, and the
-  // table would look complete while missing the recipe.
-  if (!from || !to) { vanillaAbsent.push(`${inputName} -> ${outputName}`); continue; }
-  if (HAND_SMELTING.has(from.key)) continue;
-  if (smelting.some(s => s.inputKey === from.key)) continue;
-  const xp = SMELTING_XP[outputName];
-  smelting.push({
-    inputKey: from.key,
-    inputId: from.id,
-    inputIsBlock: from.isBlock,
-    output: { id: to.id, isBlock: to.isBlock, count: 1 },
-    xp: xp ?? DEFAULT_XP,
-    xpIsDefault: xp === undefined,
-    source: 'vanilla: ' + inputName,
-  });
-}
-const vanillaAdded = smelting.length - minecloniaSmeltingAdded;
-if (vanillaAbsent.length) {
-  throw new Error('vanilla smelting rows whose items are missing from this game: ' + vanillaAbsent.join(', '));
-}
-
 // The XP table covers every output the game can already smelt, not only the new entries, so existing
 // recipes gain their correct experience too.
 const xpForExisting = [];
@@ -295,10 +224,7 @@ lines.push('//');
 lines.push('// Smelting and fuel entries vanilla has that this game was missing, plus per-recipe smelting XP.');
 lines.push('//');
 lines.push('// Produced by scripts/generate-smelting.mjs from Mineclonia\'s own cooking and fuel declarations');
-lines.push('// (https://codeberg.org/mineclonia/mineclonia), fetched by scripts/fetch-mineclonia-cooking.mjs,');
-lines.push('// plus a hand-verified table of vanilla furnace recipes Mineclonia\'s item set does not cover: chorus');
-lines.push('// fruit, smooth basalt and quartz, the raw metal blocks, the horse armours, and recycling iron,');
-lines.push('// golden, chainmail and netherite gear into nuggets or scrap.');
+lines.push('// (https://codeberg.org/mineclonia/mineclonia), fetched by scripts/fetch-mineclonia-cooking.mjs.');
 lines.push('// minecraft-data publishes no smelting data, so Mineclonia is the reference for it; its fields are');
 lines.push('// declared vanilla-identical and the sampled values match.');
 lines.push('//');
@@ -336,8 +262,7 @@ lines.push('/** Default experience for a smelted item with no specific value. Va
 lines.push(`export const DEFAULT_SMELTING_XP = ${DEFAULT_XP};`);
 lines.push('');
 lines.push('export const SMELTING_STATS = ' + JSON.stringify({
-  smeltingAdded: minecloniaSmeltingAdded,
-  vanillaAdded,
+  smeltingAdded: smelting.length,
   fuelAdded: fuel.length,
   alreadyCorrect,
   xpEntries: xpForExisting.length,
@@ -349,8 +274,7 @@ lines.push('');
 writeFileSync('src/extraSmelting.js', lines.join('\n'), 'utf8');
 
 console.log('wrote src/extraSmelting.js');
-console.log('  smelting entries to add  : ' + smelting.length
-  + ' (' + minecloniaSmeltingAdded + ' from Mineclonia, ' + vanillaAdded + ' vanilla)');
+console.log('  smelting entries to add  : ' + smelting.length);
 console.log('  fuel entries to add/fix  : ' + fuel.length);
 console.log('  already correct          : ' + alreadyCorrect);
 console.log('  XP values for existing   : ' + xpForExisting.length);

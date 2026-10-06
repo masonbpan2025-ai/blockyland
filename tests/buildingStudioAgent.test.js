@@ -8,13 +8,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BuildingStudioManager } from '../src/buildingStudio.js';
-import { BuildingLibrary } from '../src/buildingLibrary.js';
+import { StructureStudioManager } from '../src/structureStudio.js';
+import { StructureLibrary } from '../src/structureLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function studio() {
-  return new BuildingStudioManager({});
+  return new StructureStudioManager({});
 }
 
 /** Records whether the studio claims a prompt or yields it to the model. */
@@ -46,8 +46,8 @@ test('an unrecognised English structure is yielded, not defaulted to stairs', ()
 });
 
 test('the old behaviour is gone: no catch-all default structure', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/buildingStudio.js'), 'utf8');
-  assert.doesNotMatch(source, /else\s+matchedStructure\s*=\s*BuildingLibrary\.getBuilding\('stairs'\)\s*;\s*\/\/\s*default/,
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/structureStudio.js'), 'utf8');
+  assert.doesNotMatch(source, /else\s+matchedStructure\s*=\s*StructureLibrary\.getStructure\('stairs'\)\s*;\s*\/\/\s*default/,
     'the unconditional stairs fallback must not come back');
 });
 
@@ -99,11 +99,11 @@ test('adoptFromPlan loads a matching library structure with the model dimensions
   });
 
   assert.equal(adopted, true);
-  assert.equal(manager.currentBuilding.id, 'aquarium');
+  assert.equal(manager.currentStructure.id, 'aquarium');
   assert.equal(manager.currentParameters.width, 14);
   assert.equal(manager.currentParameters.height, 8);
   // Every declared parameter must be present so the panel renders fully.
-  for (const param of manager.currentBuilding.parameters) {
+  for (const param of manager.currentStructure.parameters) {
     assert.ok(param.id in manager.currentParameters, `missing ${param.id}`);
   }
 });
@@ -114,8 +114,8 @@ test('adoptFromPlan tolerates aliases, unknown structures and junk input', () =>
 
   // Name rather than id, and a parameter clamped to its declared maximum.
   assert.equal(manager.adoptFromPlan({ structureType: 'Watchtower', dimensions: { height: 9999 } }), true);
-  assert.equal(manager.currentBuilding.id, 'watchtower');
-  const heightParam = manager.currentBuilding.parameters.find(p => p.id === 'height');
+  assert.equal(manager.currentStructure.id, 'watchtower');
+  const heightParam = manager.currentStructure.parameters.find(p => p.id === 'height');
   assert.equal(manager.currentParameters.height, heightParam.max, 'values are clamped to the parameter range');
 
   // A structure that is not in the library must be declined, not guessed.
@@ -129,9 +129,9 @@ test('adoptFromPlan prefers the structure the model actually named', () => {
   const manager = studio();
   manager.game = {};
   assert.equal(manager.adoptFromPlan({ structureType: 'pyramid' }), true);
-  assert.equal(manager.currentBuilding.id, 'pyramid');
+  assert.equal(manager.currentStructure.id, 'pyramid');
   assert.equal(manager.adoptFromPlan({ structureType: 'greenhouse' }), true);
-  assert.equal(manager.currentBuilding.id, 'greenhouse');
+  assert.equal(manager.currentStructure.id, 'greenhouse');
 });
 
 // --- the agent reaches the model while the studio is open -------------------
@@ -143,7 +143,7 @@ function agentFixture() {
     getOrCreateChunk: () => ({ dirty: false }),
     chunks: new Map()
   };
-  const manager = new BuildingStudioManager({});
+  const manager = new StructureStudioManager({});
   manager.isActive = true;
   manager.game = {};
 
@@ -154,7 +154,7 @@ function agentFixture() {
     weather: { weatherType: 'clear' },
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {}, playPlace() {}, playBreak() {} },
     rebuildChunkMesh() {},
-    buildingStudio: manager
+    structureStudio: manager
   };
   manager.game = game;
   const agent = new WorldAgent(game);
@@ -205,7 +205,7 @@ test('with the studio open, an AI-built library structure populates the panel', 
 
   await agent.executePrompt('build me a big fish tank');
   assert.equal(agent.lastError, null);
-  assert.equal(manager.currentBuilding?.id, 'aquarium', 'the panel should hold the built structure');
+  assert.equal(manager.currentStructure?.id, 'aquarium', 'the panel should hold the built structure');
   assert.equal(manager.currentParameters.width, 12);
   assert.equal(manager.currentParameters.height, 7);
 });
@@ -240,7 +240,7 @@ test('the quick prompt chips are gone from the agent terminal', () => {
 });
 
 test('every library structure is offered in the creative Structures tab', () => {
-  const all = BuildingLibrary.getAllBuildings();
+  const all = StructureLibrary.getAllStructures();
   assert.ok(all.length >= 9);
   for (const st of all) {
     assert.ok(st.name, `${st.id} needs a name for the hover tooltip`);
@@ -287,15 +287,15 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
   });
 
   assert.equal(manager.isCustomVoxelBuild, true);
-  assert.equal(manager.currentBuilding.name, 'castle_with_bridge');
-  assert.notEqual(manager.currentBuilding.id, 'castle');
+  assert.equal(manager.currentStructure.name, 'castle_with_bridge');
+  assert.notEqual(manager.currentStructure.id, 'castle');
 
   // 3. Confirm save generates custom voxel code rather than built-in castle code
   manager.saveInput = { value: 'castle_with_bridge' };
   manager.confirmSave();
 
-  const saved = BuildingLibrary.getBuilding('castle_with_bridge');
-  assert.ok(saved, 'castle_with_bridge should be saved in BuildingLibrary');
+  const saved = StructureLibrary.getStructure('castle_with_bridge');
+  assert.ok(saved, 'castle_with_bridge should be saved in StructureLibrary');
   assert.equal(saved.name, 'castle_with_bridge');
   assert.ok(saved.code.includes('const V ='), 'saved code should serialize the custom voxels');
   assert.ok(!saved.code.includes('createCastle'), 'saved code must NOT be the built-in castle code');
@@ -309,6 +309,6 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
   assert.equal(genBlocks[2].id, BLOCKS.BRICKS);
 
   // Clean up
-  BuildingLibrary.deleteBuilding(saved.id);
+  StructureLibrary.deleteStructure(saved.id);
 });
 

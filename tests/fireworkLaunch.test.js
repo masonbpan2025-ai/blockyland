@@ -109,11 +109,7 @@ test('the launch hook is wired into the use chain', () => {
     'main.js should import the launcher');
   const call = source.indexOf('if (launchFirework(this, activeItem?.id)) return;');
   assert.ok(call > 0, 'main.js should call launchFirework in the use chain');
-  // The drinking anchor used to be `if (drinkPotion(this, activeItem?.id)) return;`, from a second potion
-  // drinker in `src/potions.js`. That module was removed: both it and `src/potionUse.js` were imported into
-  // main.js under the name `drinkPotion`, which is a SyntaxError, so the game did not load at all.
-  // `potionUse.js` survived (it handles the instant effects) and this is its call site.
-  const drink = source.indexOf('isDrinkablePotion(potionItem.id)');
+  const drink = source.indexOf('if (drinkPotion(this, activeItem?.id)) return;');
   const place = source.indexOf("['minecart', 'chest_minecart'");
   assert.ok(drink > 0 && place > 0, 'the drinking and placing branches should both still exist');
   assert.ok(call > drink && call < place, 'launching should follow drinking and precede block placement');

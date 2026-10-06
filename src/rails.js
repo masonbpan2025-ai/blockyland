@@ -4,7 +4,7 @@
 // Minecarts: Standard, Chest, Furnace, Hopper, TNT; slope momentum, collision bouncing.
 
 import * as THREE from 'three';
-import { BLOCKS as B, BLOCK_DEFS, stackLimitFor } from './blocks.js';
+import { BLOCKS as B, BLOCK_DEFS } from './blocks.js';
 
 const DIRECTIONS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 
@@ -257,12 +257,10 @@ export class RailSystem {
   addCartItem(cart, id, isBlock = false, count = 1) {
     if (!cart.items) return false;
     let remaining = count;
-    // A chest minecart's cargo stacks like any other inventory: to the item's own limit.
-    const limit = stackLimitFor(id);
     for (let i = 0; i < cart.items.length; i++) {
       const it = cart.items[i];
-      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < limit) {
-        const can = Math.min(remaining, limit - it.count);
+      if (it && it.id === id && !!it.isBlock === !!isBlock && it.count < 64) {
+        const can = Math.min(remaining, 64 - it.count);
         it.count += can;
         remaining -= can;
         if (remaining <= 0) return true;

@@ -64,27 +64,13 @@ const ALIASES = {
 /**
  * Resolve a vanilla name to the value a craft-grid slot holds: a numeric block id, or an item string.
  * Returns null when the game has no such content.
- *
- * An item wins over a block *unless* the item is itself a block item, which the game carries by its block id.
- * The block map used to be consulted first, and `wheat` is both an item here and the name of a block constant
- * -- the crop -- so every recipe wanting wheat got `B.WHEAT`, the *crop block*. Bread survived because a
- * hand-written recipe happens to exist, but nine wheat items could not make a hay block at all: the recipe
- * asked for nine blocks a player can never hold, and the craft-grid matcher compares ids.
- *
- * The item that carries a block id is skipped here and falls through to the block map, which is the same rule
- * `alternateItemKey` and `blockIdForPlacement` apply on the other side of the fence.
  */
 function resolve(name) {
   if (!name) return null;
-  const item = ITEMS[name];
-  if (item && typeof item.blockId !== 'number') return name;
   if (nameToBlock.has(name)) return nameToBlock.get(name);
-  // An item that places a block, under a name no block constant uses: the id it is carried by.
-  if (item) return item.blockId;
+  if (itemNames.has(name)) return name;
   const alias = ALIASES[name];
   if (alias) {
-    const aliasedItem = ITEMS[alias];
-    if (aliasedItem && typeof aliasedItem.blockId !== 'number') return alias;
     if (nameToBlock.has(alias)) return nameToBlock.get(alias);
     if (itemNames.has(alias)) return alias;
   }
@@ -298,13 +284,6 @@ console.log('  emitted                     : ' + unique.length);
 console.log('    shaped                    : ' + stats.shaped);
 console.log('    shapeless                 : ' + stats.shapeless);
 console.log('  skipped, result missing     : ' + stats.skippedResult);
-// Named, not just counted. "6 skipped, result missing" is a number to go and hunt for by hand; the names are
-// the to-do list, and two of this game's batches have been spent reconstructing them from the pinned data.
-if (skippedNames.size) {
-  for (const [name, count] of [...skippedNames.entries()].sort((a, b) => b[1] - a[1])) {
-    console.log(`      ${name}${count > 1 ? ` (${count} recipes)` : ''}`);
-  }
-}
 console.log('  skipped, ingredient missing : ' + stats.skippedIngredient);
 console.log('  shapeless with no faithful  : ' + stats.shapelessUnsupported);
 console.log('    representation in a grid');

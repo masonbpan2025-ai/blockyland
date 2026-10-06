@@ -1457,7 +1457,7 @@ export const EXTRA_BLOCK_DEFS = {
   935: { name: 'Spruce Sign', hardness: 1, sound: 'wood', sign: true, transparent: true, textures: { all: 'spruce_planks.png' } },
   936: { name: 'Warped Sign', hardness: 1, sound: 'wood', sign: true, transparent: true, textures: { all: 'oak_planks.png' } },
   937: { name: 'Iron Bars', hardness: 5, sound: 'stone', pane: true, resistance: 6, transparent: true, textures: { all: 'iron_bars.svg' } },
-  938: { name: 'Flower Pot', hardness: 0, sound: 'stone', flowerPot: true, transparent: true, textures: { all: 'flower_pot.png' } },
+  938: { name: 'Flower Pot', hardness: 0, sound: 'stone', flowerPot: true, transparent: true, textures: { all: 'iron_bars.png' } },
   939: { name: 'Muddy Mangrove Roots', hardness: 0.7, sound: 'grass', cube: true, textures: { all: 'mangrove_roots.png' } },
   940: { name: 'Soul Lantern', hardness: 3.5, sound: 'grass', cube: true, light: 10, transparent: true, textures: { all: 'mangrove_roots.png' } },
   941: { name: 'End Rod', hardness: 0, sound: 'stone', rod: true, light: 14, transparent: true, textures: { all: 'iron_bars.png' } },

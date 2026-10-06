@@ -56,6 +56,7 @@ export const LLAMA_TEMPER = { start: 0, max: 30, perAttempt: 5 };
 export const LLAMA_FOOD = {
   wheat: { temper: 3, heal: 2 },
   hay_block: { temper: 6, heal: 10 },
+  hay_bale: { temper: 6, heal: 10 }
 };
 
 /** Wiki: a baby takes about 20 minutes to mature, sped up 10% per feeding. */

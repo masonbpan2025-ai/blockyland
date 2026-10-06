@@ -1,5 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { BuildingLibrary } from './buildingLibrary.js';
+import { StructureLibrary } from './structureLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export const CREATIVE_TABS = [
@@ -13,7 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
-  { id: 'building', name: 'Buildings', icon: '/assets/blocks/crafting_table_top.png' },
+  { id: 'structure', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -69,28 +69,7 @@ export function buildCreativeCatalog() {
   // 2. Colored Blocks
   const coloredBlocksList = [
     BLOCKS.WHITE_WOOL, BLOCKS.RED_WOOL, BLOCKS.BLUE_WOOL,
-    BLOCKS.YELLOW_WOOL, BLOCKS.GREEN_WOOL, BLOCKS.BLACK_WOOL,
-    // Glazed terracotta, all sixteen. These belong in the colour tab rather than with the building
-    // blocks because the colour is the point of the block; the pattern is decoration on top of it.
-    BLOCKS.WHITE_GLAZED_TERRACOTTA, BLOCKS.ORANGE_GLAZED_TERRACOTTA, BLOCKS.MAGENTA_GLAZED_TERRACOTTA,
-    BLOCKS.LIGHT_BLUE_GLAZED_TERRACOTTA, BLOCKS.YELLOW_GLAZED_TERRACOTTA, BLOCKS.LIME_GLAZED_TERRACOTTA,
-    BLOCKS.PINK_GLAZED_TERRACOTTA, BLOCKS.GRAY_GLAZED_TERRACOTTA, BLOCKS.LIGHT_GRAY_GLAZED_TERRACOTTA,
-    BLOCKS.CYAN_GLAZED_TERRACOTTA, BLOCKS.PURPLE_GLAZED_TERRACOTTA, BLOCKS.BLUE_GLAZED_TERRACOTTA,
-    BLOCKS.BROWN_GLAZED_TERRACOTTA, BLOCKS.GREEN_GLAZED_TERRACOTTA, BLOCKS.RED_GLAZED_TERRACOTTA,
-    BLOCKS.BLACK_GLAZED_TERRACOTTA,
-    // Shulker boxes, all seventeen. They sit in the colour tab because a dyed box is chosen for its
-    // colour, and it is the only tab where the family reads as a set next to the wool and terracotta.
-    //
-    // Listed here despite being storage blocks in vanilla BECAUSE they are not storage blocks here: this
-    // game has no block-inventory layer, so a shulker box is a solid decorative cube that drops itself.
-    // Putting it in the functional tab beside the chest would imply an inventory it does not have.
-    BLOCKS.SHULKER_BOX,
-    BLOCKS.WHITE_SHULKER_BOX, BLOCKS.ORANGE_SHULKER_BOX, BLOCKS.MAGENTA_SHULKER_BOX,
-    BLOCKS.LIGHT_BLUE_SHULKER_BOX, BLOCKS.YELLOW_SHULKER_BOX, BLOCKS.LIME_SHULKER_BOX,
-    BLOCKS.PINK_SHULKER_BOX, BLOCKS.GRAY_SHULKER_BOX, BLOCKS.LIGHT_GRAY_SHULKER_BOX,
-    BLOCKS.CYAN_SHULKER_BOX, BLOCKS.PURPLE_SHULKER_BOX, BLOCKS.BLUE_SHULKER_BOX,
-    BLOCKS.BROWN_SHULKER_BOX, BLOCKS.GREEN_SHULKER_BOX, BLOCKS.RED_SHULKER_BOX,
-    BLOCKS.BLACK_SHULKER_BOX
+    BLOCKS.YELLOW_WOOL, BLOCKS.GREEN_WOOL, BLOCKS.BLACK_WOOL
   ];
   for (const b of coloredBlocksList) {
     const entry = blockItem(b, 'colored_blocks');
@@ -123,74 +102,6 @@ export function buildCreativeCatalog() {
     // Resin. The clump is a plant-like growth; the block and the two brick forms are building blocks.
     // Their slab, stair and wall variants already existed.
     BLOCKS.RESIN_CLUMP, BLOCKS.RESIN_BLOCK, BLOCKS.RESIN_BRICKS, BLOCKS.CHISELED_RESIN_BRICKS,
-    // Ground cover. Dead bush and cobweb are listed alongside the two plants because they are the same
-    // cross-quad shape, even though cobweb is harvested with a sword and drops string.
-    BLOCKS.SHORT_GRASS, BLOCKS.FERN, BLOCKS.DEAD_BUSH, BLOCKS.COBWEB,
-    // Eyeblossoms. Both daylight states are listed because neither opens or closes on its own here.
-    BLOCKS.OPEN_EYEBLOSSOM, BLOCKS.CLOSED_EYEBLOSSOM,
-    // Nether and deepslate cubes, plus the two azalea bushes. Shroomlight is here rather than with the
-    // light sources because it is a natural block, even though it emits at 15.
-    BLOCKS.SHROOMLIGHT, BLOCKS.CRACKED_NETHER_BRICKS, BLOCKS.ANCIENT_DEBRIS,
-    BLOCKS.REINFORCED_DEEPSLATE, BLOCKS.CREAKING_HEART, BLOCKS.FROSTED_ICE,
-    BLOCKS.FLOWERING_AZALEA_LEAVES, BLOCKS.AZALEA, BLOCKS.FLOWERING_AZALEA,
-    // Coral blocks, alive and dead. Both are listed because a living block drops its dead form, so the
-    // dead ones are obtainable in survival and belong in the menu beside their living counterparts.
-    BLOCKS.TUBE_CORAL_BLOCK, BLOCKS.BRAIN_CORAL_BLOCK, BLOCKS.BUBBLE_CORAL_BLOCK,
-    BLOCKS.FIRE_CORAL_BLOCK, BLOCKS.HORN_CORAL_BLOCK,
-    BLOCKS.DEAD_TUBE_CORAL_BLOCK, BLOCKS.DEAD_BRAIN_CORAL_BLOCK, BLOCKS.DEAD_BUBBLE_CORAL_BLOCK,
-    BLOCKS.DEAD_FIRE_CORAL_BLOCK, BLOCKS.DEAD_HORN_CORAL_BLOCK,
-    // Coral fans, which complete the coral family, and the hanging vines. All of these are cross-quad
-    // decoration, and the three vines are ceiling-anchored like hanging roots.
-    BLOCKS.TUBE_CORAL_FAN, BLOCKS.BRAIN_CORAL_FAN, BLOCKS.BUBBLE_CORAL_FAN,
-    BLOCKS.FIRE_CORAL_FAN, BLOCKS.HORN_CORAL_FAN,
-    BLOCKS.DEAD_TUBE_CORAL_FAN, BLOCKS.DEAD_BRAIN_CORAL_FAN, BLOCKS.DEAD_BUBBLE_CORAL_FAN,
-    BLOCKS.DEAD_FIRE_CORAL_FAN, BLOCKS.DEAD_HORN_CORAL_FAN,
-    // The wall-mounted coral fans. Listed beside the upright ones because they are the same plant in its
-    // other placement, and each drops itself so both are obtainable in survival.
-    BLOCKS.TUBE_CORAL_WALL_FAN, BLOCKS.BRAIN_CORAL_WALL_FAN, BLOCKS.BUBBLE_CORAL_WALL_FAN,
-    BLOCKS.FIRE_CORAL_WALL_FAN, BLOCKS.HORN_CORAL_WALL_FAN,
-    BLOCKS.DEAD_TUBE_CORAL_WALL_FAN, BLOCKS.DEAD_BRAIN_CORAL_WALL_FAN,
-    BLOCKS.DEAD_BUBBLE_CORAL_WALL_FAN, BLOCKS.DEAD_FIRE_CORAL_WALL_FAN,
-    BLOCKS.DEAD_HORN_CORAL_WALL_FAN,
-    BLOCKS.WEEPING_VINES, BLOCKS.TWISTING_VINES, BLOCKS.CAVE_VINES,
-    // The vine body segments. Listed even though a player rarely places them, because they are real
-    // blocks with their own textures and a builder placing a long vine wants both parts.
-    BLOCKS.WEEPING_VINES_PLANT, BLOCKS.TWISTING_VINES_PLANT, BLOCKS.CAVE_VINES_PLANT,
-    // Crop stems and water plants. The stems are listed beside the pumpkin and melon they belong to in
-    // spirit, but they sit in the natural tab with the other plants because that is what they are.
-    BLOCKS.PUMPKIN_STEM, BLOCKS.ATTACHED_PUMPKIN_STEM, BLOCKS.MELON_STEM, BLOCKS.ATTACHED_MELON_STEM,
-    BLOCKS.SEAGRASS, BLOCKS.TALL_SEAGRASS, BLOCKS.KELP, BLOCKS.KELP_PLANT, BLOCKS.SEA_PICKLE,
-    // Dripleaf and sculk. The stem is listed beside its leaf because a player builds the two-high plant by
-    // hand here rather than growing it, so both halves need to be reachable.
-    BLOCKS.BIG_DRIPLEAF, BLOCKS.BIG_DRIPLEAF_STEM, BLOCKS.SMALL_DRIPLEAF,
-    BLOCKS.SCULK_VEIN, BLOCKS.PALE_HANGING_MOSS,
-    // Potted plants. All thirty-seven are listed so the family reads as a set, and each drops itself, so
-    // every one is obtainable in survival rather than only placeable from the menu.
-    BLOCKS.POTTED_ACACIA_SAPLING, BLOCKS.POTTED_ALLIUM, BLOCKS.POTTED_AZALEA_BUSH,
-    BLOCKS.POTTED_AZURE_BLUET, BLOCKS.POTTED_BAMBOO, BLOCKS.POTTED_BIRCH_SAPLING,
-    BLOCKS.POTTED_BLUE_ORCHID, BLOCKS.POTTED_BROWN_MUSHROOM, BLOCKS.POTTED_CACTUS,
-    BLOCKS.POTTED_CHERRY_SAPLING, BLOCKS.POTTED_CLOSED_EYEBLOSSOM, BLOCKS.POTTED_CORNFLOWER,
-    BLOCKS.POTTED_CRIMSON_FUNGUS, BLOCKS.POTTED_CRIMSON_ROOTS, BLOCKS.POTTED_DANDELION,
-    BLOCKS.POTTED_DARK_OAK_SAPLING, BLOCKS.POTTED_DEAD_BUSH, BLOCKS.POTTED_FERN,
-    BLOCKS.POTTED_FLOWERING_AZALEA_BUSH, BLOCKS.POTTED_JUNGLE_SAPLING,
-    BLOCKS.POTTED_LILY_OF_THE_VALLEY, BLOCKS.POTTED_MANGROVE_PROPAGULE, BLOCKS.POTTED_OAK_SAPLING,
-    BLOCKS.POTTED_OPEN_EYEBLOSSOM, BLOCKS.POTTED_ORANGE_TULIP, BLOCKS.POTTED_OXEYE_DAISY,
-    BLOCKS.POTTED_PALE_OAK_SAPLING, BLOCKS.POTTED_PINK_TULIP, BLOCKS.POTTED_POPPY,
-    BLOCKS.POTTED_RED_MUSHROOM, BLOCKS.POTTED_RED_TULIP, BLOCKS.POTTED_SPRUCE_SAPLING,
-    BLOCKS.POTTED_TORCHFLOWER, BLOCKS.POTTED_WARPED_FUNGUS, BLOCKS.POTTED_WARPED_ROOTS,
-    BLOCKS.POTTED_WHITE_TULIP, BLOCKS.POTTED_WITHER_ROSE,
-    // Crops at their mature stage, soul fire, the suspicious blocks and scaffolding. Grouped as the
-    // twenty-second batch's leftovers rather than by theme, because that is what they are: eight blocks
-    // whose art only turned up when the sweep stopped probing bare names.
-    BLOCKS.BEETROOTS, BLOCKS.COCOA, BLOCKS.PITCHER_CROP, BLOCKS.TORCHFLOWER_CROP,
-    BLOCKS.SOUL_FIRE, BLOCKS.SUSPICIOUS_SAND, BLOCKS.SUSPICIOUS_GRAVEL, BLOCKS.SCAFFOLDING,
-    // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
-    // rather than a catalogue one, so it sits here with the rest of the ground cover.
-    BLOCKS.TALL_GRASS, BLOCKS.LARGE_FERN, BLOCKS.SPORE_BLOSSOM, BLOCKS.HANGING_ROOTS,
-    // Amethyst. Listed as a family: the budding block, the cluster and the three bud stages, so a
-    // player can place any stage even though only a budding block would grow them in vanilla.
-    BLOCKS.BUDDING_AMETHYST, BLOCKS.AMETHYST_CLUSTER,
-    BLOCKS.LARGE_AMETHYST_BUD, BLOCKS.MEDIUM_AMETHYST_BUD, BLOCKS.SMALL_AMETHYST_BUD,
     BLOCKS.SPONGE, BLOCKS.WET_SPONGE,
     BLOCKS.WATER, BLOCKS.LAVA
   ];
@@ -202,110 +113,7 @@ export function buildCreativeCatalog() {
   // 4. Functional Blocks
   const functionalBlocksList = [
     BLOCKS.CHEST, BLOCKS.SOUL_TORCH, BLOCKS.LIT_FURNACE, BLOCKS.TORCH, BLOCKS.CRAFTING_TABLE, BLOCKS.FURNACE, BLOCKS.RED_BED_FOOT, BLOCKS.LADDER,
-    // The chest variants, next to the chest they derive from.
-    BLOCKS.ENDER_CHEST, BLOCKS.TRAPPED_CHEST,
-    // The wall torches, beside the standing ones. They drop their standing form, so both are obtainable.
-    BLOCKS.WALL_TORCH, BLOCKS.SOUL_WALL_TORCH, BLOCKS.REDSTONE_WALL_TORCH,
-    BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL,
-    // The cauldron family. NONE of these was in the catalogue before, including the empty cauldron that
-    // has existed for a long time -- it was a leatherworker workstation a player could not place. All four
-    // are listed together so the family is complete.
-    BLOCKS.CAULDRON, BLOCKS.WATER_CAULDRON, BLOCKS.LAVA_CAULDRON, BLOCKS.POWDER_SNOW_CAULDRON,
-    // Mob heads, standing and wall-mounted. Their art is extracted from entity skin sheets, so the four
-    // here are the ones whose skins follow the standard layout; the creeper and dragon are absent and the
-    // extraction script says why.
-    BLOCKS.SKELETON_SKULL, BLOCKS.ZOMBIE_HEAD, BLOCKS.PLAYER_HEAD, BLOCKS.PIGLIN_HEAD,
-    BLOCKS.SKELETON_WALL_SKULL, BLOCKS.ZOMBIE_WALL_HEAD, BLOCKS.PLAYER_WALL_HEAD, BLOCKS.PIGLIN_WALL_HEAD,
-    // The creeper head, which WAS wrongly excluded for several rounds on a false reading of its skin, and
-    // the bamboo sapling and bubble column, which finish the pinned list.
-    BLOCKS.CREEPER_HEAD, BLOCKS.CREEPER_WALL_HEAD, BLOCKS.BUBBLE_COLUMN, BLOCKS.BAMBOO_SAPLING,
-    // The coral PLANTS, which were genuinely absent while the coral blocks and fans existed: the
-    // name-based gap check hid it by resolving `tube_coral` onto `TUBE_CORAL_BLOCK`.
-    BLOCKS.TUBE_CORAL, BLOCKS.BRAIN_CORAL, BLOCKS.BUBBLE_CORAL, BLOCKS.FIRE_CORAL, BLOCKS.HORN_CORAL,
-    BLOCKS.DEAD_TUBE_CORAL, BLOCKS.DEAD_BRAIN_CORAL, BLOCKS.DEAD_BUBBLE_CORAL, BLOCKS.DEAD_FIRE_CORAL, BLOCKS.DEAD_HORN_CORAL,
-    // And the nether wart and dirt path, the last two the coverage measurement caught.
-    BLOCKS.NETHER_WART, BLOCKS.DIRT_PATH,
-    // The wither skeleton, which the first head batch missed: its standing block existed under a
-    // non-standard key and rendered as a coal cube, so only its wall form was ever flagged. Both are here.
-    BLOCKS.WITHER_SKELETON_SKULL, BLOCKS.WITHER_SKELETON_WALL_SKULL,
-    // The ender dragon head, whose art needed a different extraction from every other head: its sheet is a
-    // 256x256 model texture with no face layout, so the extractor finds the face by colour.
-    BLOCKS.DRAGON_HEAD, BLOCKS.DRAGON_WALL_HEAD,
-    // The technical blocks. They are in the functional tab because that is what they ARE in vanilla --
-    // machinery -- even though in this engine every one of them is inert decoration. Putting them
-    // anywhere else would imply they are building material, which is further from the truth.
-    BLOCKS.COMMAND_BLOCK, BLOCKS.REPEATING_COMMAND_BLOCK, BLOCKS.CHAIN_COMMAND_BLOCK,
-    BLOCKS.STRUCTURE_BLOCK, BLOCKS.JIGSAW, BLOCKS.SPAWNER, BLOCKS.TRIAL_SPAWNER, BLOCKS.VAULT,
-    // The invisible technical blocks, beside the other creative-only machinery. A vanilla barrier is an
-    // invisible wall a creative-mode player places to stop others; here it shows its own item icon, which
-    // the batch that added it records as an approximation.
-    BLOCKS.BARRIER, BLOCKS.LIGHT, BLOCKS.STRUCTURE_VOID,
-    BLOCKS.END_PORTAL_FRAME, BLOCKS.TURTLE_EGG, BLOCKS.FROGSPAWN,
-    // The sniffer egg, beside the turtle egg it borrows its shape from, and the end gateway beside the end
-    // portal frame. Both had their art DERIVED rather than drawn; the composer says where from.
-    BLOCKS.SNIFFER_EGG, BLOCKS.END_GATEWAY,
-    // Cake and candle cakes. In the functional tab beside the other candles because a candle cake is a
-    // candle on a cake, and the plain cake is there so the family reads together -- even though a cake
-    // cannot be eaten here, which is recorded in the source.
-    BLOCKS.CAKE, BLOCKS.CANDLE_CAKE,
-    BLOCKS.WHITE_CANDLE_CAKE, BLOCKS.ORANGE_CANDLE_CAKE, BLOCKS.MAGENTA_CANDLE_CAKE,
-    BLOCKS.LIGHT_BLUE_CANDLE_CAKE, BLOCKS.YELLOW_CANDLE_CAKE, BLOCKS.LIME_CANDLE_CAKE,
-    BLOCKS.PINK_CANDLE_CAKE, BLOCKS.GRAY_CANDLE_CAKE, BLOCKS.LIGHT_GRAY_CANDLE_CAKE,
-    BLOCKS.CYAN_CANDLE_CAKE, BLOCKS.PURPLE_CANDLE_CAKE, BLOCKS.BLUE_CANDLE_CAKE,
-    BLOCKS.BROWN_CANDLE_CAKE, BLOCKS.GREEN_CANDLE_CAKE, BLOCKS.RED_CANDLE_CAKE,
-    BLOCKS.BLACK_CANDLE_CAKE,
-
-    // The sign family: standing, wall, hanging and wall-hanging, for every wood. None of these was in the
-    // catalogue before, including the standing signs that already existed -- they were craftable but not
-    // placeable from the menu.
-    BLOCKS.OAK_SIGN,
-    BLOCKS.SPRUCE_SIGN,
-    BLOCKS.BIRCH_SIGN,
-    BLOCKS.ACACIA_SIGN,
-    BLOCKS.CHERRY_SIGN,
-    BLOCKS.JUNGLE_SIGN,
-    BLOCKS.DARK_OAK_SIGN,
-    BLOCKS.PALE_OAK_SIGN,
-    BLOCKS.MANGROVE_SIGN,
-    BLOCKS.BAMBOO_SIGN,
-    BLOCKS.CRIMSON_SIGN,
-    BLOCKS.WARPED_SIGN,
-    BLOCKS.OAK_WALL_SIGN,
-    BLOCKS.SPRUCE_WALL_SIGN,
-    BLOCKS.BIRCH_WALL_SIGN,
-    BLOCKS.ACACIA_WALL_SIGN,
-    BLOCKS.CHERRY_WALL_SIGN,
-    BLOCKS.JUNGLE_WALL_SIGN,
-    BLOCKS.DARK_OAK_WALL_SIGN,
-    BLOCKS.PALE_OAK_WALL_SIGN,
-    BLOCKS.MANGROVE_WALL_SIGN,
-    BLOCKS.BAMBOO_WALL_SIGN,
-    BLOCKS.CRIMSON_WALL_SIGN,
-    BLOCKS.WARPED_WALL_SIGN,
-    BLOCKS.OAK_HANGING_SIGN,
-    BLOCKS.SPRUCE_HANGING_SIGN,
-    BLOCKS.BIRCH_HANGING_SIGN,
-    BLOCKS.ACACIA_HANGING_SIGN,
-    BLOCKS.CHERRY_HANGING_SIGN,
-    BLOCKS.JUNGLE_HANGING_SIGN,
-    BLOCKS.DARK_OAK_HANGING_SIGN,
-    BLOCKS.PALE_OAK_HANGING_SIGN,
-    BLOCKS.MANGROVE_HANGING_SIGN,
-    BLOCKS.BAMBOO_HANGING_SIGN,
-    BLOCKS.CRIMSON_HANGING_SIGN,
-    BLOCKS.WARPED_HANGING_SIGN,
-    BLOCKS.OAK_WALL_HANGING_SIGN,
-    BLOCKS.SPRUCE_WALL_HANGING_SIGN,
-    BLOCKS.BIRCH_WALL_HANGING_SIGN,
-    BLOCKS.ACACIA_WALL_HANGING_SIGN,
-    BLOCKS.CHERRY_WALL_HANGING_SIGN,
-    BLOCKS.JUNGLE_WALL_HANGING_SIGN,
-    BLOCKS.DARK_OAK_WALL_HANGING_SIGN,
-    BLOCKS.PALE_OAK_WALL_HANGING_SIGN,
-    BLOCKS.MANGROVE_WALL_HANGING_SIGN,
-    BLOCKS.BAMBOO_WALL_HANGING_SIGN,
-    BLOCKS.CRIMSON_WALL_HANGING_SIGN,
-    BLOCKS.WARPED_WALL_HANGING_SIGN,
+    BLOCKS.GLOWSTONE, BLOCKS.SEA_LANTERN, BLOCKS.ENCHANTING_TABLE, BLOCKS.ANVIL
   ];
   for (const b of functionalBlocksList) {
     const entry = blockItem(b, 'functional_blocks');
@@ -429,16 +237,7 @@ export function buildCreativeCatalog() {
     // dispatcher and the Inspector, but the creative spawn-egg category reads THIS list and it stopped at the
     // older mobs, so they never appeared in the creative menu.
     'allay_spawn_egg', 'sniffer_spawn_egg', 'breeze_spawn_egg', 'armadillo_spawn_egg',
-    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg', 'skeleton_horse_spawn_egg', 'zombie_horse_spawn_egg', 'pufferfish_spawn_egg', 'tropical_fish_spawn_egg', 'giant_spawn_egg', 'piglin_brute_spawn_egg', 'camel_husk_spawn_egg', 'copper_golem_spawn_egg', 'happy_ghast_spawn_egg',
-    // Six eggs that were registered as items and reachable in the world but absent from this list, so a
-    // player could not find them in the menu at all. Found by comparing this list against the registry in
-    // both directions; tests/spawnEggCatalogue.test.js now asserts both halves, which is how the rename
-    // commit's removal of the next line was caught.
-    'zombie_villager_spawn_egg', 'husk_spawn_egg', 'stray_spawn_egg', 'bogged_spawn_egg', 'panda_spawn_egg', 'polar_bear_spawn_egg',
-    // The nine mobs that had no egg until the spawn-egg batch added one. `pufferfish_spawn_egg` and
-    // `tropical_fish_spawn_egg` were already named above, as entries this list could not resolve --
-    // `itemEntry` returns null for a missing item and the row was dropped without a word.
-    'enderman_spawn_egg', 'mooshroom_spawn_egg', 'ocelot_spawn_egg', 'shulker_spawn_egg', 'trader_llama_spawn_egg', 'vex_spawn_egg', 'zoglin_spawn_egg'
+    'camel_spawn_egg', 'parched_spawn_egg', 'wandering_trader_spawn_egg', 'creaking_spawn_egg', 'killer_bunny_spawn_egg', 'snow_golem_spawn_egg', 'illusioner_spawn_egg', 'skeleton_horse_spawn_egg', 'zombie_horse_spawn_egg', 'pufferfish_spawn_egg', 'tropical_fish_spawn_egg', 'giant_spawn_egg', 'piglin_brute_spawn_egg', 'camel_husk_spawn_egg', 'copper_golem_spawn_egg', 'happy_ghast_spawn_egg'
   ];
   for (const it of spawnEggsList) {
     const entry = itemEntry(it, 'spawn_eggs');
@@ -472,20 +271,20 @@ export function buildCreativeCatalog() {
     }
   }
 
-  // 11. Buildings (the player-placeable Building Library templates, built in Building Studio)
-  if (typeof BuildingLibrary !== 'undefined') {
-    for (const st of BuildingLibrary.getAllBuildings()) {
+  // 11. Structures
+  if (typeof StructureLibrary !== 'undefined') {
+    for (const st of StructureLibrary.getAllStructures()) {
       catalog.push({
-        id: `building_${st.id}`,
+        id: `structure_${st.id}`,
         name: st.name,
         icon: st.icon || '/assets/blocks/crafting_table_top.png',
         isBlock: false,
-        isBuilding: true,
-        buildingId: st.id,
-        tab: 'building',
-        category: 'building',
+        isStructure: true,
+        structureId: st.id,
+        tab: 'structure',
+        category: 'structure',
         count: 1,
-        searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
+        searchTerms: `${st.name.toLowerCase()} structure build ${st.id}`
       });
     }
   }
@@ -500,8 +299,8 @@ export function refreshCreativeCatalog() {
   return ALL_CREATIVE_ITEMS;
 }
 
-if (typeof BuildingLibrary !== 'undefined' && typeof BuildingLibrary.subscribe === 'function') {
-  BuildingLibrary.subscribe(() => {
+if (typeof StructureLibrary !== 'undefined' && typeof StructureLibrary.subscribe === 'function') {
+  StructureLibrary.subscribe(() => {
     refreshCreativeCatalog();
   });
 }

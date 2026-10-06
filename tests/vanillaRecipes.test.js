@@ -107,13 +107,7 @@ test('a hand-written recipe always wins over a generated one with the same patte
   let shared = 0;
   for (const r of RECIPES_3X3) {
     if (generated.has(r)) continue;
-    // A shapeless recipe has no `pattern`, and `JSON.stringify(undefined)` is the string "undefined", so
-    // every shapeless recipe looked like a clash with every other one -- and the loop below then read
-    // `r.pattern.length` of a recipe that has no pattern. Shapeless precedence is a different question
-    // (two shapeless recipes with the same multiset, where the order in the list is what decides) and it
-    // is covered in tests/shapelessRecipes.test.js.
-    if (!r.pattern) continue;
-    const clash = EXTRA_RECIPES.find(g => g.pattern && JSON.stringify(g.pattern) === JSON.stringify(r.pattern));
+    const clash = EXTRA_RECIPES.find(g => JSON.stringify(g.pattern) === JSON.stringify(r.pattern));
     if (!clash) continue;
     shared++;
     const placements = [];
