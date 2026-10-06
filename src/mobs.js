@@ -6164,11 +6164,22 @@ export class MobManager {
    */
   spawnSniffer(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.body });
-    const bellyMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.belly });
-    const shellMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.shell });
-    const snoutMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.snout });
-    const legMat = new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.leg });
+    // The REAL 192x192 sniffer sheet, from the PRELOADED ATLAS, bound through the DEFERRED hook. Checked for existence
+    // before binding -- the round-ninety-nine lesson, which the camel cost four rounds to learn. // SNIFFER_SHEET
+    const snifferSheet = this.textures?.sniffer ?? this.loadTexture(SNIFFER_SKIN_PATH);
+    if (snifferSheet) { snifferSheet.magFilter = THREE.NearestFilter; snifferSheet.minFilter = THREE.NearestFilter; snifferSheet.needsUpdate = true; }
+    /** The sheet material, or the flat one when there is no sheet. */
+    const snifferMat = (fallback) => {
+      if (!snifferSheet) return fallback;
+      const m = new THREE.MeshLambertMaterial({ map: snifferSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(m, snifferSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return m;
+    };
+    const bodyMat = snifferMat(new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.body }));
+    const bellyMat = snifferMat(new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.belly }));
+    const shellMat = snifferMat(new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.shell }));
+    const snoutMat = snifferMat(new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.snout }));
+    const legMat = snifferMat(new THREE.MeshLambertMaterial({ color: SNIFFER_COLORS.leg }));
     const { group: model, body, belly, shell, bands, neck, head, snout, eyes, legs, tail } =
       createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat);
     group.add(model);

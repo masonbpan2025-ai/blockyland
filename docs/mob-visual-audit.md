@@ -4334,3 +4334,44 @@ the rectangles already read** -- `left_ear` `(2, 0)` 1x19x7, `right_ear` `(48, 0
 
 Work list: **97 spawners, 78 with a real sheet, the sniffer mid-rebuild with all five prerequisite steps PASS, the ender
 dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and sixteen: the sniffer is BOUND, and the rebuild is visibly under way
+
+**The material binding is in, and the coverage is the best of any mob so far:**
+
+```
+sniffer   distinct materials 5   with a map: 5      <- ALL of them
+giant     distinct materials 4   with a map: 3      <- the control
+```
+
+**Every one of the sniffer's five materials carries the real sheet.** The render shows a **red-brown body with the texture's
+own mottling and green banding across the head region** -- where the mob was flat-coloured before. The capture is kept as
+`docs/mob-visual-evidence/sniffer-rebuild-in-progress.png`.
+
+**And the render also shows the rebuild is NOT finished**, which is the honest part:
+
+* **the body reads as a tall slab rather than a sniffer's barrel.** I resized it to vanilla's exact ratios (1.063 x 1.232 x
+  1.7 from 0.625 : 0.725 : 1), so the proportions are right and the SILHOUETTE is not -- because vanilla's sniffer is not a
+  single barrel, it is a body with **six legs, two ears, a nose and a lower beak** that this model does not have at all.
+* **the five parts vanilla lacks are still flat-coloured** -- `belly`, `shell`, both `band`s and `tail` -- so they show
+  colour where vanilla shows fur.
+
+**So the mob is in the state round one hundred and twelve predicted a rebuild would reach partway through: it is bound,
+it is textured, it is recognisably using the sniffer's own sheet, and it is not yet a sniffer.**
+
+**The remaining work is now entirely additive and fully specified**, which is a different kind of task from everything from
+round ninety-five to one hundred and eleven:
+
+| part to ADD | rectangle | size |
+| --- | --- | --- |
+| left_ear | `(2, 0)` | 1 x 19 x 7 |
+| right_ear | `(48, 0)` | 1 x 19 x 7 |
+| nose | `(10, 45)` | 13 x 2 x 9 |
+| lower_beak | `(10, 57)` | 13 x 12 x 9 |
+| six legs | `(0, 87)`, `(0, 105)`, `(0, 123)` and the `x=32` column | 7 x 10 x 8 |
+
+**And five parts to REMOVE or leave flat**, because vanilla has no `belly`, `shell`, `band` or `tail` on this mob.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 79 with a real sheet, the sniffer bound and mid-rebuild with its remaining parts fully specified, the
+ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
