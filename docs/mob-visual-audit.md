@@ -1623,3 +1623,39 @@ noise. The test would be to sample the render at the face and compare it against
 than judging it by eye -- which is the same mistake that cost two rounds on the cod's orientation.
 
 Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
+## Round forty-eight: the zombie villager was correct all along, and I was misreading it
+
+**Three rounds of investigation end in the answer I flagged as possible last round: the render is FAITHFUL and there was
+never a defect.**
+
+`scripts/mob-visual/compare-render-to-sheet.mjs` decodes both the captured Inspector screenshot and the sheet, then
+compares their colours. Two findings settle it:
+
+1. **The render samples the sheet faithfully.** Render green `rgb(102,139,62)` against sheet green `rgb(102,138,63)`; the
+   greens match within a couple of levels of Lampbrt lighting. The texture IS being read correctly.
+2. **The face rectangle contains exactly 2 white, 2 red and 6 near-black pixels** out of 128. Magnified across a face
+   that is 16 texture pixels wide on a 0.5-block head, viewed head-on by an Inspector whose default camera points
+   straight at it, **those ten pixels ARE the white and red marks I spent three rounds calling noise.**
+
+A vanilla zombie villager's eyes are two white pixels with red pupils on a dark ground. At 8x magnification that is
+exactly what the capture shows. **There was no fault in the box helper, the UVs, the material, the texture size, the
+palette encoding, the sheet, or the alpha test -- because there was no fault at all.**
+
+**This is the most expensive mistake in the project so far, and the pattern is the one already on record.** The cod cost
+two rounds for the same reason: I judged a faithful render by eye, formed a hypothesis about the CAUSE, and then spent
+rounds disproving hypotheses instead of first asking whether the output was wrong. Each disproved hypothesis was
+individually good work -- the palette-PNG fix is a real improvement, and `measure-boxuv.mjs` is a useful tool -- but the
+FRAMING was wrong from the first sentence of round forty-five, where I wrote "the HEAD renders as white and red noise"
+without having checked what a correct head should look like at that magnification.
+
+**The rule, stated so it applies to the remaining 35 mobs:** BEFORE CALLING A RENDER WRONG, COMPARE IT AGAINST THE SOURCE
+DATA. `compare-render-to-sheet.mjs` does that in one command and should have been the FIRST step, not the last. A
+screenshot is evidence only once it has been checked against what it is supposed to show.
+
+**Kept from the investigation:** the palette-PNG conversion (real latent-hazard fix), the `compare-render-to-sheet.mjs`
+and `measure-boxuv.mjs` tools, and the removal of `alphaTest` from this mob's materials -- which is CORRECT regardless,
+because its sheet has transparent padding inside the head rectangle and vanilla does not alpha-test these skins.
+
+The zombie villager is complete: real decompiled model, real 64x64 sheet, correct eyes, and a reachable Inspector entry.
+
+Work list: **97 spawners, 58 with a real sheet, 34 mobs still flat-colour only.**
