@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildModel } from './mobVisuals/modelBuilder.js';
 
 /**
  * Tadpole rules and model.
@@ -155,7 +156,67 @@ export function accelerateTadpoleGrowth(mob, fraction = TADPOLE_FEED_ACCELERATIO
  *
  * The tail is a separate mesh so it can wave, which is the whole motion of the mob.
  */
-export function createTadpoleModel(bodyMat, bellyMat, eyeMat) {
+/** The real 16x16 tadpole sheet. The model lives in this module, so its path does too. */
+const TADPOLE_SKIN_PATH = '/assets/entity/tadpole/tadpole.png';
+/**
+ * The tadpole's real model, decompiled from `TadpoleEntityModel`. Texture 16x16.
+ *
+ * Its tail has no width (0x2x7), so it is a flat plane -- the fifth mob in this project where that is the case.
+ */
+const TADPOLE_MODEL = {
+  texture: TADPOLE_SKIN_PATH,
+  textureSize: [16, 16],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    { name: 'body', box: [3, 2, 3], uv: { u: 0, v: 0, tw: 3, th: 2, td: 3 }, at: [0, 22, -3] },
+    // Vanilla gives the tail a ZERO width, i.e. a plane. A zero-extent part makes the bounding box degenerate, and the
+    // MEASURED grounding then produces NaN and the whole mob disappears -- the failure the slime's face hit too. So the
+    // tail is a THIN BOX instead of a plane: visually the same flat fin, but with a real extent to measure.
+    { name: 'tail', parent: 'body', box: [0.1, 2, 7], uv: { u: 0, v: 0, tw: 2, th: 2, td: 7 }, at: [0, 0, 3] }
+  ]
+};
+
+export function createTadpoleModel(bodyMat, bellyMat, eyeMat, options = {}) {
+  if (options.loadTexture) {
+    const built = buildModel(TADPOLE_MODEL, {
+      materials: { belly: bellyMat, eye: eyeMat },
+      textureContext: { texW: 16, texH: 16 },
+      loadTexture: options.loadTexture,
+      onTextureReady: options.onTextureReady
+    });
+
+    // GROUND BY MEASUREMENT. Vanilla's frame sits 22 units up; this project's origin is the mob's feet, so a
+    // direct transcription would float. The pattern is now used on three mobs without a guessed offset.
+    const inner = new THREE.Group();
+    while (built.group.children.length) inner.add(built.group.children[0]);
+    inner.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(inner);
+    inner.position.set(0, -bounds.min.y, 0);
+    built.group.add(inner);
+
+    // Eyes are modelled marks; the real model paints them onto the 3x2x3 body patch.
+    const headMesh = built.parts.body;
+    const eyeGeo = new THREE.BoxGeometry(0.04, 0.04, 0.03);
+    const eyes = [-1, 1].map((side) => {
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(side * 0.06, 0.02, 0.1);
+      if (headMesh) headMesh.add(eye);
+      return eye;
+    });
+
+    return {
+      group: built.group,
+      body: built.parts.body,
+      belly: built.parts.body,
+      head: built.parts.body,
+      eyes,
+      tail: built.parts.tail,
+      parts: built.parts
+    };
+  }
+
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.24), bodyMat);

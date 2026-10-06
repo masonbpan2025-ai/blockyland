@@ -4911,7 +4911,10 @@ export class MobManager {
     const bodyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.body });
     const bellyMat = new THREE.MeshLambertMaterial({ color: TADPOLE_COLORS.belly });
     const eyeMat = new THREE.MeshBasicMaterial({ color: TADPOLE_COLORS.eye });
-    const { group, body, belly, head, eyes, tail } = createTadpoleModel(bodyMat, bellyMat, eyeMat);
+    const { group, body, belly, head, eyes, tail } = createTadpoleModel(bodyMat, bellyMat, eyeMat, {
+          loadTexture: (p) => this.loadTexture(p),
+          onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+        });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);

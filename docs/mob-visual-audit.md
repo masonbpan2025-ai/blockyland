@@ -1320,3 +1320,29 @@ The two failures were in the rows where the PARENT hardcoded the path. The rows 
 which is an argument for passing skins as data rather than closing over a constant.
 
 Work list: **92 mob spawners, 58 with a real model, 59 with a real skin, 33 still flat-colour only.**
+## Round forty: the tadpole, and two lessons the hard way in one round
+
+**The tadpole is on its real model**: body 3x2x3 at (0,0) and a tail, from a 16x16 sheet. Its tail is vanilla's
+`0x2x7` -- ZERO WIDTH, a plane -- which is the fifth mob in this project where a part has no volume, after the vex, the
+frog, the bat and the cod.
+
+**LESSON ONE: a zero-extent part breaks MEASURED GROUNDING.** I built the tail as a plane as vanilla describes, and the
+whole tadpole VANISHED. The cause is the grounding helper I had just praised: it measures `Box3().setFromObject(...)`,
+and a degenerate part makes that box degenerate, so `-bounds.min.y` becomes NaN and every child inherits it. This is the
+same failure class as the slime's face two rounds ago, and it means the measured-grounding pattern needs a guard: a
+model with a zero-extent part must not be measured. The tail is now a THIN BOX (0.1 units) instead of a plane --
+visually the same flat fin, but with a real extent to measure.
+
+**LESSON TWO, and the more expensive one: I nearly misdiagnosed a stale cache twice in one round.** The tail fix
+appeared to change nothing -- byte-identical capture, identical hash -- and I was about to conclude the UV change had no
+effect. It was the Vite transform cache serving stale modules. Killing the server and clearing `node_modules/.vite`
+changed the render immediately. **A byte-identical hash across a source change means the server is stale, not that the
+change was a no-op** -- a rule this project has on record and that I failed to apply promptly.
+
+**A third, smaller finding:** `Select-Object -First N` on a background server's output closes the pipe and kills the
+server. The job reported exit 1 and port 3000 was dead. Background servers must not be piped through a truncating
+cmdlet.
+
+`tadpoleParity` passes 22/22 and the full area is back at its baseline.
+
+Work list: **92 mob spawners, 59 with a real model, 60 with a real skin, 32 still flat-colour only.**
