@@ -5555,3 +5555,45 @@ is white (this round) -- **so the fault is in the depth/layering arrangement, wh
 pattern is a refinement on top of a working mob**, not a blocker.
 
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+## Round one hundred and forty-seven: the pattern pass WORKS -- polygonOffset and the 1.002 scale were the blackout
+
+**Round one hundred and forty-six predicted the fault was in the compositing and named three one-line variations. Applied all
+three, and the fish renders correctly WITH the pattern pass active.**
+
+Round one hundred and forty-three's version added three things; this one removes all of them:
+
+| round 143 | round 147 |
+| --- | --- |
+| `polygonOffset: true` + factor/units | **removed** |
+| `scale *= 1.002` | **removed -- identical transform** |
+| default depth behaviour | **`depthWrite: false`** + `renderOrder = 1` |
+
+```
+fish with no pattern:      46425 bytes
+fish with the new pattern: 46413 bytes     <- 12 bytes apart, and a correct render
+AREA: 1766 / 1773, unchanged
+```
+
+**The render is right: orange body, white fins, dark eyes, and no blackout.** The capture is kept as
+`docs/mob-visual-evidence/tropical-fish-pattern-pass.png`.
+
+**So the cause was `polygonOffset` combined with the `1.002` scale.** A mesh scaled slightly larger AND depth-biased in front
+of the base wins the depth test across the whole surface, so the opaque parts of the stencil -- and the biased depth writes --
+painted over the base. **Removing the bias and the scale, and letting the layer not write depth, is exactly what vanilla's
+`RenderLayer` does: a sibling mesh at the IDENTICAL transform, drawn after, writing colour and not depth.**
+
+**That is the third and last of the fish's structural faults, and all three were of the same kind** -- an attribute or a
+transform that is correct in one context and destructive in another:
+
+1. **`alphaTest` on a stencil** deleted six rounds of work (round one hundred and forty-two);
+2. **a map on a zero-width plane** rendered the fins as nothing (round one hundred and forty-four);
+3. **`polygonOffset` + scale on a layer** painted the base out (this round).
+
+**Each one was invisible in the code, correct by the conventions of the other ten mobs, and wrong only for a mob whose
+textures are STENCILS and whose parts are PLANES.** That is the honest summary of why the tropical fish took twenty rounds
+where the slime took one.
+
+`AREA` is at exactly **1766/1773** through every one of them.
+
+Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins, eyes AND pattern pass all correct, and the
+dragon's leg positions recorded as approximations.**

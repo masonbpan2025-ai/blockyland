@@ -9282,6 +9282,32 @@ export class MobManager {
     const { group: model, body, tail, fins, dorsal, eyes } =
       createTropicalFishModel(bodyMat, finMat, eyeMat);
 
+    // THE PATTERN PASS, attempt three. Round one hundred and forty-three's version rendered the fish black; rounds one
+    // hundred and forty-five and one hundred and forty-six eliminated the sheet (sparse white) and the tint (white, because
+    // `colors.pattern` does not exist) as causes, leaving the compositing. So this attempt removes ALL THREE things that
+    // version added: no polygonOffset, no 1.002 scale, and `depthWrite: false` so the stencil cannot paint the base out.
+    // // TROPICAL_FISH_PATTERN
+    const patternSheet = this.loadTexture(TROPICAL_FISH_SHEET_FOR(variant));
+    if (patternSheet) {
+      patternSheet.magFilter = THREE.NearestFilter;
+      patternSheet.minFilter = THREE.NearestFilter;
+      patternSheet.needsUpdate = true;
+      const patternMat = new THREE.MeshLambertMaterial({
+        color: 0xffffff,
+        map: patternSheet,
+        transparent: true,
+        alphaTest: 0.5,
+        depthWrite: false,
+      });
+      adoptWhenReady(patternMat, patternSheet, 0xffffff,
+        { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      const patternBody = new THREE.Mesh(body.geometry, patternMat);
+      patternBody.position.copy(body.position);
+      patternBody.rotation.copy(body.rotation);
+      patternBody.renderOrder = 1;
+      body.parent.add(patternBody);
+    }
+
     // THE PATTERN PASS IS NOT IMPLEMENTED. Round one hundred and forty-three attempted it and the whole fish rendered
     // OPAQUE BLACK: the pattern stencil drawn over the base at white tint covers it, because the pattern sheets' pixels in
     // those regions are not the sparse white the alpha histogram suggested when sampled at the BODY's rectangle. The BASE
