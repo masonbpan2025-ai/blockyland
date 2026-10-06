@@ -4016,7 +4016,11 @@ export class MobManager {
   spawnSilverfish(x, y, z, options = {}) {
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
-    const { group, head, body, mid, tail, legs, eyes } = createSilverfishModel(bodyMat, eyeMat);
+    const { group, head, body, mid, tail, legs, eyes } = createSilverfishModel(bodyMat, eyeMat, {
+          // The builder loads its own sheet through this hook; a pre-loaded texture binds nothing.
+          loadTexture: (p) => this.loadTexture(p),
+          onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+        });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);

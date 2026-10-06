@@ -989,3 +989,29 @@ recorded well enough to do it properly. That is the first time this project has 
 net-negative rather than for being wrong on appearance.
 
 Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**
+## Round twenty-eight: the silverfish, and why the revert was the right call
+
+**Round twenty-seven reverted this mob because wiring it cost four regressions. Both causes are now identified from the
+code, and the wiring passes 19/19 with the full area back at its baseline.**
+
+**Cause 1: legs must be WRAPPED.** `poseSilverfishLegs` writes `leg.mesh.position.x` and alternates neighbouring legs.
+The reverted attempt pushed bare meshes, so the animation silently did nothing and the leg test failed on
+`model.legs.map(l => l.mesh.position.x)`.
+
+**Cause 2: legs must hang from the BODY, not the group.** They were added to the group, which left them at the origin.
+
+The AI itself turned out to be innocent: `updateSilverfishHunt` works entirely from `mob.mesh.position` and `mob.yaw`,
+so the model has no say in whether the mob closes on the player. What actually broke the chase was the legs resolving
+to `undefined`, which threw inside the update and left the mob frozen -- which is also why three CROSS-CUTTING suites
+(update-without-fault, no-mob-left-broken, save-and-reload) failed alongside it. **A thrown update is exactly what
+those three exist to catch, and they caught it.**
+
+**The silverfish is now built from its real data:** seven interlocking segments from the two static tables, plus the
+three overlay plates, sampling the real 64x32 sheet. Texture 64x32.
+
+**Known remaining fault, recorded not hidden:** the body renders ahead of and above its ground marker, because the
+segments run from z = -3.5 (head) to z = +11.5 (tail) while the group origin is the mob's feet. My first attempt to
+shift it introduced a `body` reference that did not exist and broke the mob, so it was reverted immediately and the
+centring is left as a small, clearly-scoped piece of work rather than guessed at.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
