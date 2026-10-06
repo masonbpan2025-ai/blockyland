@@ -2954,3 +2954,27 @@ eighty-one left the guardian in, and that one landed in a single round afterward
 `AREA` is back at exactly **1766/1773**, and `src/mobs.js` is byte-identical to its committed state.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-five: a reusable helper for the situation most remaining mobs are in
+
+**Round eighty-four's finding was that the tropical fish's model is a flat-colour APPROXIMATION of vanilla's box** -- 0.16 x
+0.3 x 0.4 against 2 x 3 x 6 -- so the ratios differ (0.53 : 1 : 1.33 against 0.67 : 1 : 2) and vanilla's rectangles sampled
+the wrong atlas regions.
+
+**But the ATLAS LAYOUT is a function of VANILLA's dimensions, not of the model's world size.** So
+`applyVanillaBoxUVs(geo, u, v, texW, texH, tw, th, td)` in `src/mobVisuals/modelBuilder.js` computes each face's rectangle
+from vanilla's sizes and applies it to whatever geometry it is given. The UVs land in the same relative place on every face,
+at any scale.
+
+**That matters because it is the situation MOST of the remaining mobs are in.** Every flat-coloured mob in this project has
+an approximate box, and rebuilding each to vanilla's exact scale is the expensive path the horse showed in round sixty-one.
+**This helper takes the cheap path**: keep the model's proportions and its place in the world, and give it the right atlas
+regions. It is the general form of what rounds eighty and eighty-two each did by hand.
+
+**Verified rather than assumed:** the six face rectangles are in the order `BoxGeometry` actually emits -- `+X, -X, +Y, -Y,
++Z, -Z` at vertex offsets 0, 6, 12, 18, 24 and 30 -- which I confirmed against the live three.js object and against the
+project's own proven `applyBoxUVs`, whose ordering this copies exactly. **Negative `u` and `v` are supported**, because
+vanilla puts the small fish's tail and dorsal planes at `(22, -6)` and `(10, -5)`.
+
+`AREA` is at exactly **1766/1773**; the helper is not yet called by any model.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**

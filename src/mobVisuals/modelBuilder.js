@@ -304,3 +304,36 @@ export function adoptWhenReady(material, texture, fallbackColor = 0xffffff, ctx 
   pendingSkinBindings.push({ material, texture, adopt });
   return material;
 }
+
+/**
+ * Apply vanilla's box UV layout to an EXISTING geometry, using vanilla's own box dimensions for the layout.
+ *
+ * The face rectangles come from the vanilla sizes, so the UVs sample the correct atlas regions. They are then applied to
+ * the geometry as-is, so a model built at a different scale still receives them -- the layout depends on vanilla's
+ * DIMENSIONS, while the mapping covers the whole face whatever its world size.
+ *
+ * `u` and `v` are the atlas anchor in PIXELS from the top-left, and `tw`/`th`/`td` are vanilla's width, height and depth.
+ * Negative `u` or `v` are allowed, because vanilla puts the small fish's tail and dorsal planes at (22, -6) and (10, -5).
+ */
+export function applyVanillaBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  // Vanilla's six cross-layout rectangles, in the order +X, -X, +Y, -Y, +Z, -Z, which is BoxGeometry's face order.
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
