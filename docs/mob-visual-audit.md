@@ -1093,3 +1093,35 @@ close it -- deliberately deferred rather than guessed at.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only**, of which the
 slime and magma cube are textureless BY DESIGN.
+## Round thirty-two: two attempts, two reverts, and one more mob's data banked
+
+**Two changes were tried and both reverted. `src/` carries no change this round.**
+
+**1. The slime's face.** Vanilla models `right_eye` 2x2x2 at (-3.25,18,-3.5), `left_eye` 2x2x2 at (1.25,18,-3.5) and
+`mouth` 1x1x1 at (0,21,-3.5), all inside the cube's own frame. Adding them as three small boxes hanging off the outer
+cube made the SLIME VANISH from the Inspector entirely -- the capture dropped from 55 KB to 41 KB with no slime in
+frame. I verified the regression by stashing only `src/mobs.js` and re-rendering, which restored the slime, so the
+cause is the added code and not a stale server or camera. Reverted.
+
+**2. That is a real, if unusual, finding:** a mob can disappear because three tiny meshes were attached to a
+TRANSPARENT parent. The outer cube is `transparent: true, opacity: 0.65`, and three.js sorts and renders transparent
+children through their parent's material state. Rather than guess further at it, the revert keeps a working slime and
+the finding is recorded -- the fix is likely to attach the face to the GROUP rather than to the translucent cube, which
+is a one-line change for next time.
+
+**Banked data, ready to use: the cod.**
+
+| part | (u,v) | size | at |
+| --- | --- | --- | --- |
+| body | (0,0) | 2x4x7 | (0, 22, 0) |
+| head | (11,0) | 2x4x3 | (0, 22, 0) |
+| nose | (0,0) | 2x3x1 | (0, 22, -3) |
+| right_fin | (22,1) | 2x**0**x2 | flat |
+| left_fin | (22,4) | 2x**0**x2 | flat |
+| tail_fin | (22,3) | **0**x4x4 | flat |
+| top_fin | (20,-6) | **0**x1x6 | flat |
+
+Texture 32x32. FOUR of its seven parts are flat planes -- the fourth mob where that dominates, after the vex, the frog
+and the bat. The cod is currently drawn with a procedural `createAquaticTexture`, which is why it has no real skin.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
