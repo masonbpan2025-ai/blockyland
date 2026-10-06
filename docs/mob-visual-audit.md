@@ -1259,3 +1259,39 @@ as a rule for the remaining work:
 adjustment rather than a geometry one.
 
 Work list: **92 mob spawners, 57 with a real model, 57 with a real skin, 35 still flat-colour only.**
+## Round thirty-eight: the endermite, and a grounding rule that now has two uses
+
+**The endermite is on its real model.** `EndermiteEntityModel` is DATA-DRIVEN like the silverfish's, from four segments
+and two static tables:
+
+| segment | (w, h, d) | (u, v) |
+| --- | --- | --- |
+| 0 | 4, 3, 1 | 0, 0 |
+| 1 | 5, 3, 2 | 0, 5 |
+| 2 | 4, 3, 4 | 0, 14 |
+| 3 | 3, 3, 4 | 0, 18 |
+
+Each at `y = 24 - height`, with Z advancing by `(thisDepth + nextDepth) / 2` from -3.5 -- the same interlocking rule the
+silverfish uses, so that rule is now confirmed on two mobs. Texture 64x32. The whole animal is 3 units tall.
+
+**Its own spec added three parts vanilla does not have**, and I honoured the spec rather than the decompile: one
+emissive eye, two antennae 0.16 deep, and six legs. The legs are `{ mesh }` WRAPPERS from the start -- the shape the
+silverfish taught the hard way -- so the two-group leg animation works first time.
+
+**A GROUNDING RULE WORTH KEEPING.** Vanilla's entity frames put a mob's parts far above the origin (21 units here,
+22 for the silverfish), because vanilla also places the entity there. This project's group origin is the mob's feet, so
+a direct transcription always floats. The fix that has now worked twice, without a single guess:
+
+```js
+const mine = new THREE.Group();
+while (group.children.length) mine.add(group.children[0]);
+mine.updateMatrixWorld(true);
+const bounds = new THREE.Box3().setFromObject(mine);
+mine.position.y = -bounds.min.y;
+group.add(mine);
+```
+
+Measured, not chosen. Two mobs, two successes, zero revision rounds -- against the silverfish's four failed attempts when
+I was picking the offset by hand.
+
+Work list: **92 mob spawners, 58 with a real model, 58 with a real skin, 34 still flat-colour only.**

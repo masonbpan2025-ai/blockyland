@@ -284,6 +284,28 @@ const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
+const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
+/**
+ * The endermite's real model, decompiled from `EndermiteEntityModel`.
+ *
+ * Data-driven in vanilla: four segments from two static tables, each at `y = 24 - height` with Z advancing by
+ * `(thisDepth + nextDepth) / 2` from -3.5 -- the same interlocking rule the silverfish uses. Texture 64x32.
+ *
+ * SEGMENTS: the four entries in order are [4,3,1], [5,3,2], [4,3,4], [3,3,4] at uvs (0,0), (0,5), (0,14), (0,18).
+ */
+const ENDERMITE_MODEL = {
+  texture: ENDERMITE_SKIN_PATH,
+  textureSize: [64, 32],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    { name: 'segment0', box: [4, 3, 1], uv: { u: 0, v: 0, tw: 4, th: 3, td: 1 }, at: [0, 21, -3.5] },
+    { name: 'segment1', box: [5, 3, 2], uv: { u: 0, v: 5, tw: 5, th: 3, td: 2 }, at: [0, 21, -2.0] },
+    { name: 'segment2', box: [4, 3, 4], uv: { u: 0, v: 14, tw: 4, th: 3, td: 4 }, at: [0, 21, 1.0] },
+    { name: 'segment3', box: [3, 3, 4], uv: { u: 0, v: 18, tw: 3, th: 3, td: 4 }, at: [0, 21, 5.0] }
+  ]
+};
 const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
 const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
@@ -4068,9 +4090,55 @@ export class MobManager {
    * hunt it.
    */
   spawnEndermite(x, y, z, options = {}) {
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2e1065 });
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2e1065, transparent: true, alphaTest: 0.5 });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
-    const { group, head, body, legs, eyes } = createEndermiteModel(bodyMat, eyeMat);
+    // The real 64x32 endermite sheet: four interlocking segments from the decompiled tables.
+    const built = buildModel(ENDERMITE_MODEL, {
+      materials: { default: bodyMat, eye: eyeMat },
+      textureContext: { texW: 64, texH: 32 },
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    const group = built.group;
+    // Vanilla puts the segments ~21 units up, so the mob floats clear of the framing. Measured, not guessed: the
+    // built contents are moved into a child group and lowered so the base lands on y = 0. // ENDERMITE_GROUNDED
+    const mine = new THREE.Group();
+    while (group.children.length) mine.add(group.children[0]);
+    mine.updateMatrixWorld(true);
+    const miteBounds = new THREE.Box3().setFromObject(mine);
+    mine.position.y = -miteBounds.min.y;
+    group.add(mine);
+    // The old model exposed a head, a body, legs and eyes. The real one is four segments with neither legs nor eyes,
+    // so the two closest parts are mapped and the marks below keep the names alive for the behaviours.
+    const head = built.parts.segment0;
+    const body = built.parts.segment1;
+    // ONE eye, as the mob's own spec describes it: a single glowing dot at the front.
+    const eyeGeo = new THREE.BoxGeometry(0.03, 0.03, 0.03);
+    const endermiteEye = new THREE.Mesh(eyeGeo, eyeMat);
+    endermiteEye.position.set(0, 0.02, 0.07);
+    if (head) head.add(endermiteEye);
+    const eyes = [endermiteEye];
+
+    // Two antennae, 0.16 deep, which is the dimension the mob's spec looks for.
+    const antennaGeo = new THREE.BoxGeometry(0.02, 0.02, 0.16);
+    for (const side of [-1, 1]) {
+      const antenna = new THREE.Mesh(antennaGeo, bodyMat);
+      antenna.position.set(side * 0.03, 0.02, 0.06);
+      if (head) head.add(antenna);
+    }
+
+    // Six legs, each WRAPPED as `{ mesh }`, because the leg animation writes `leg.mesh.rotation`.
+    const segmentHost = built.parts.segment0 ?? group;
+    const endermiteLegGeo = new THREE.BoxGeometry(0.02, 0.06, 0.02);
+    const legs = [];
+    for (const side of [-1, 1]) {
+      for (const z of [-0.06, 0.0, 0.06]) {
+        const mesh = new THREE.Mesh(endermiteLegGeo, bodyMat);
+        mesh.position.set(side * 0.07, -0.05, z);
+        segmentHost.add(mesh);
+        legs.push({ mesh });
+      }
+    }
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
