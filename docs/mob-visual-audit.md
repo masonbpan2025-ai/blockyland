@@ -3667,3 +3667,44 @@ verified and which already caught the head-versus-hump error in round ninety-eig
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the camel is now BOUND and forming,
 needing only its rectangles.**
+## Round one hundred and one: the camel's rectangles make it WORSE, measured by hash
+
+**I applied round 98's verified anchors and the render degraded -- and the evidence is a byte-identical hash.**
+
+```
+camel, atlas key only (no rectangles)     119303 bytes   <- recognisable camel
+camel, atlas key + rectangles              89675 bytes   <- sha256 79caf546... 
+camel, atlas key + rectangles, no alphaTest 89015 bytes   <- sha256 e3a7df8c...
+```
+
+**`79caf546...` is the SAME hash as round ninety-eight's rectangled attempt, and `e3a7df8c...` is the same hash as its
+no-alphaTest variant.** The renders are deterministic, so this is not a flaky comparison: **applying vanilla's rectangles
+reproduces exactly the fragmented state that four earlier rounds were trying to explain, and removing them restores the
+recognisable camel.**
+
+**So the rectangles are not merely misaligned -- they are HARMFUL as currently derived.** That inverts the assumption every
+round since eighty-four has made, that the rectangles are the goal and the binding is the obstacle. **Here the binding works
+without them and the rectangles break it.**
+
+**What this rules out, precisely:** round ninety-eight's `pair-part-uv.mjs` pairing is verified (it found a real head-vs-hump
+error), and the numbers it produces are the ones I applied. **So either `method_32101`'s `(u, v)` is not the texture offset I
+believe it is, or vanilla's `EntityModelPartNames` boxes are indexed from a different origin than the six-face cross layout
+`applyVanillaBoxUVs` implements.** Those are the two remaining possibilities, and **they are checkable**: the giant's working
+rectangles came from the SAME helper and the SAME cross layout, so the layout is right for a player-model mob; the camel is
+the first non-player-shaped mob I have bound with it.
+
+**What I am keeping and what I am reverting, on a rule rather than a mood:**
+
+* **KEPT: the atlas key.** It is a genuine fix for a genuine defect (round ninety-nine), it is what makes the camel form at
+  all, and the edit is in the correct place regardless of what the rectangles should be.
+* **REVERTED: the rectangles.** Measured worse than not having them.
+
+**That pairing is the honest position: one verified improvement, one measured regression, and a much narrower question than
+the one I started the round with.** The atlas key cost six rounds to find because I never checked it; the rectangles took one
+round to disprove because I could compare hashes.
+
+`AREA` is at exactly **1766/1773**, and the camel reads **5 distinct materials, 4 with a map** against the giant control's 3
+of 4.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the camel is bound, forming, with its
+rectangles proven wrong rather than merely unverified.**
