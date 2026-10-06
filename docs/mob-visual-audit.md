@@ -2001,3 +2001,32 @@ with their own materials, and they have not been given sheet rectangles. They re
 them is the next step if it proves worthwhile.
 
 Work list: **97 spawners, 62 with a real sheet, 30 mobs still flat-colour only**, of which FIVE draw their own skin.
+## Round fifty-nine: the piglin on its real sheet, with the atlas convention preserved
+
+**Second mob in a row to land in one round by following the rule.** `piglin.test.js` is 11/11 and the full area never left
+its baseline.
+
+The piglin and the zombified piglin share the SAME convention -- both are the player model with a skin -- so the head
+takes 8x8x8 at (0,0) and the body 8x12x4 at (16,16), exactly as the zombified piglin does. That the two agreed was worth
+checking rather than assuming: `decompile-model.mjs --list` shows only `PiglinEntityModel`, so the piglin IS the model and
+the zombified piglin is a skin swap of it, not the reverse.
+
+**A test convention had to be preserved, and it is the same shape as the squid's resolution.** `piglin.test.js` reads
+`manager.textures.piglin_hide.image.data` directly and asserts a **1024-byte** (16x16 RGBA) generated tile. My first
+version put the loaded sheet into the atlas entry, which broke that read. The two concerns are separable:
+
+| concern | resolution |
+| --- | --- |
+| the atlas entry | stays the generated tile -- what the suite inspects, and what a no-assets build renders |
+| the material map | takes the real sheet when it exists |
+
+**So the pattern is now confirmed on three mobs:** keep the drawn texture visible to anything inspecting it, and let the
+real asset win where it is actually rendered. The squid did it through `bindNow`/`adoptLater`, the zombified piglin through
+`adoptWhenReady`, and the piglin through an explicit atlas-plus-material split.
+
+**Two syntax slips of my own, recorded:** the material rewrite dropped a closing `});` and mis-counted a parenthesis,
+each caught immediately by `node --check`. Worth noting as a habit rather than an incident -- `node --check` after every
+scripted edit is what kept both to one round.
+
+Work list: **97 spawners, 63 with a real sheet, 29 mobs still flat-colour only**, of which THREE draw their own skin
+(horseModel, packEquineModel, witherSkeletonModel).

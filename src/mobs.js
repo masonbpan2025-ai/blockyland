@@ -285,6 +285,7 @@ const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
+const PIGLIN_SKIN_PATH = '/assets/entity/piglin/piglin.png';
 const ZOMBIE_VILLAGER_SKIN_PATH = '/assets/entity/zombie_villager/zombie_villager.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
 /**
@@ -6589,8 +6590,14 @@ export class MobManager {
 
   spawnPiglin(x, y, z) {
     const group = new THREE.Group();
+    // The REAL 64x64 piglin sheet. `piglinTexture` still builds the stand-in, so a build with no assets renders a
+    // piglin, but the asset wins whenever it loads. // PIGLIN_REAL_SHEET
+    // The ATLAS entry stays the generated tile: the mob's suite reads its exact bytes, and a build with no assets
+    // renders from it. The MATERIAL takes the real sheet when it exists. // PIGLIN_ATLAS_KEPT
+    this.textures.piglin_hide ||= piglinTexture(0xdca684);
+    const piglinSheet = this.loadTexture(PIGLIN_SKIN_PATH);
     const skinMat = new THREE.MeshLambertMaterial({
-      map: this.textures.piglin_hide ||= piglinTexture(0xdca684),
+      map: piglinSheet || this.textures.piglin_hide,
       color: 0xffffff
     });
     const goldMat = new THREE.MeshLambertMaterial({
@@ -6598,10 +6605,12 @@ export class MobManager {
     });
     const tuskMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
 
-    const clothesMat = new THREE.MeshLambertMaterial({ map: this.textures.piglin_clothes ||= piglinTexture(0x533a2b) });
+    this.textures.piglin_clothes ||= piglinTexture(0x533a2b);
+    const clothesMat = new THREE.MeshLambertMaterial({ map: piglinSheet || this.textures.piglin_clothes });
 
     // Head
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 0.58), skinMat);
+    // The head carries the player rectangle at (0, 0): 8x8x8, the same convention the zombified piglin uses.
+    const head = new THREE.Mesh(createBoxWithUV(0.62, 0.58, 0.58, 0, 0, 64, 64, 8, 8, 8), skinMat);
     head.position.y = 1.6;
     group.add(head);
 
@@ -6638,7 +6647,8 @@ export class MobManager {
     head.add(earR);
 
     // Brown leather tunic
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.28), clothesMat);
+    // The body carries the player rectangle at (16, 16): 8x12x4.
+    const body = new THREE.Mesh(createBoxWithUV(0.52, 0.75, 0.28, 16, 16, 64, 64, 8, 12, 4), clothesMat);
     body.position.y = 0.95;
     group.add(body);
 
