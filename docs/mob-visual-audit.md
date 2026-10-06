@@ -445,3 +445,32 @@ each declared rectangle. Any part sitting at ~0% is silently untextured. The too
 (`fit-box.mjs`, `quadRects`, and the new test's helpers); it has not yet been run across all forty-nine.
 
 Work list: **92 mob spawners, 50 with a real skin, 42 still flat-colour only.**
+## Round twelve: I built the sweep, and it lied to me once
+
+**The sweep exists: `scripts/mob-visual/audit-uv-coverage.mjs`.** It walks the source for UV call sites, resolves the
+asset each one belongs to, and reports the opacity of the rectangles vanilla's layout derives from the arguments. A
+part near 0% is sampling empty sheet.
+
+**Getting its ATTRIBUTION right took three attempts**, and the wrong versions were worse than useless because they
+were confident:
+* a per-file ambient texture attributed all ninety rows in `mobs.js` to `husk.png` -- a report that cannot tell a cow
+  from a husk;
+* switching to explicit-only produced **zero** rows, because the behaviour modules call `applyQuadUvs` without ever
+  naming the skin constant (it lives in `mobs.js`);
+* the working version attributes per ENCLOSING FUNCTION for `mobs.js`, and per file for the single-mob behaviour
+  modules.
+
+**THEN IT LIED.** It flagged the warden's arm and torso as broken, the arithmetic was persuasive, and I halved the
+warden's `texW` on that evidence. **Rendering proved the change made the warden visibly WORSE** -- its parts sampled
+bright non-sculk texture -- so it is reverted and `src/mobs.js` is byte-identical to the previous commit. The warden
+was already correct; the flag was this tool's false positive, because the legacy `createBoxWithUV` helper's scaling is
+not what my model assumes.
+
+The script now opens by saying exactly that: **treat a flag as a QUESTION to verify in the Inspector, never as a
+defect.** I would rather ship a labelled tool than a confidently wrong one, and I would rather write down that I nearly
+"fixed" a correct mob than quietly drop it.
+
+**What the sweep DID earn:** it is what found the turtle shell fault, and the reasoning behind it is what made the
+turtle's empty rectangle visible as a category rather than a one-off.
+
+Work list: **92 mob spawners, 50 with a real skin, 42 still flat-colour only.**
