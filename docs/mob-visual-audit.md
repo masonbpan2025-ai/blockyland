@@ -2397,3 +2397,44 @@ checklist item, and the checklist item stands on its own:
 wearing the carpet that round sixty-nine finally made visible.
 
 Work list: **97 spawners, 69 confirmed with a real sheet, 25 mobs still without a model or skin.**
+## Round seventy-one: reconciling the ledger, because I had been quoting it loosely
+
+**I checked my own count instead of continuing to repeat it, and it was slightly wrong in my favour.**
+
+```
+spawners:                          97
+confirmed with a real sheet:       69
+unconfirmed:                       28   (69 + 28 = 97, so the audit reconciles)
+  of which non-mob effect spawners: 5   (DragonFireball, Fireball, LaserBeam, ParticleBurst, XpOrbs)
+genuine mobs still lacking a model/skin: 23
+```
+
+**I had been writing 25 for several rounds.** The arithmetic says 23, and the two extra were the non-mob effect spawners
+being carried as if they were work. Same class of error as round sixty-three's, one level down: **a figure repeated from my
+own prose rather than recomputed from the source.**
+
+**Only 2 of the 28 are genuinely unknown.** The audit's `DELEGATED` bucket holds the **squid and glow squid**, both of which
+have been on real sheets since round fifty-four -- the tool simply cannot see through their one-line forwarding spawners.
+So the honest split is: 69 confirmed, 2 confirmed-but-uncountable-by-this-tool, 3 more that are delegated or layered (the
+ocelot reaches its sheet through `spawnCat`), and **~23 genuinely without a model**.
+
+**Verified state at the end of this round:**
+
+| check | result |
+| --- | --- |
+| full mob area | **1766 / 1773**, the same seven pre-existing failures every round since round 21 |
+| asset lock | 58 present, 0 downloaded, 0 problems |
+| build | clean |
+| Inspector captures kept | 66 |
+| audit and model tools | 38 |
+
+**Seven failures have been constant through fifty rounds** and are unrelated to this work: shulker movement, the Inspector
+UI button, enderman teleport, two showcase cases, and two "every advertised mob" sweeps. **They are the project's baseline,
+not a regression from anything here**, and every round has confirmed that by reading the failure list rather than the
+count alone.
+
+**What remains is a different job from what has been done.** Twenty-three mobs need models BUILT -- the phantom and
+pufferfish showed the shape of that work, and both took one round each because a decompiled model and a detected atlas
+rectangle are enough. **The expensive era of this project was correcting models that already existed**, which is over.
+
+Work list: **97 spawners, 69 confirmed with a real sheet, ~23 mobs genuinely without a model or skin.**
