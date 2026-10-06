@@ -39,7 +39,9 @@ import { SpecialSpawnerRegistry } from './specialSpawners.js';
 import { SpawnTelemetry } from './spawnTelemetry.js';
 import { SpawnClock, skyDarkenForDimension, isNight as isNightAt } from './spawnClock.js';
 import { Difficulty, difficultyRank } from './spawnValidation.js';
-import { biomeSpawnsFor } from './biomeSpawnResolver.js';
+import { biomeSpawnsFor, STRUCTURE_SPAWN_OVERRIDES } from './biomeSpawnResolver.js';
+import { BIOME_SPAWN_TABLES } from './vanillaBiomeSpawns.js';
+import { BIOMES } from '../biomes.js';
 import { blockOpacity, MAX_LIGHT } from './lightEngine.js';
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
 
@@ -376,17 +378,56 @@ export class MobSpawnManager {
   }
 
   /**
-   * May a mob of this type spawn in the current dimension?
+   * May a mob of this type spawn naturally in the current dimension?
    *
-   * The engine's dimensions are not vanilla's, so this is a coarse gate: the Nether and the End each
-   * have their own mob sets, expressed here as "a mob the biome table places there may spawn there".
-   * The real gate is the biome table, which already contains only Nether mobs for Nether biomes.
+   * Derived from DATA rather than from a hand-maintained allowlist. The previous version used
+   * `NETHER_MOB_TYPES` / `END_MOB_TYPES` sets, and they were wrong in both directions:
+   *
+   *  - **Endermen were banned from the Nether**, although `nether_wastes`, `soul_sand_valley` and
+   *    `warped_forest` all list `enderman` in their `monster` tables. Mojang describes natural
+   *    Enderman spawning in all three dimensions, and the plan calls this out explicitly.
+   *  - **Ordinary skeletons were banned from the Nether**, although the fortress override lists them.
+   *
+   * The rule now is: a mob may spawn naturally in a dimension if, and only if, some spawn list
+   * reachable in that dimension names it. Those lists are the generated biome tables for the
+   * dimension's own biomes, plus the structure overrides that can apply there (the fortress's
+   * skeletons and blazes, the monument's guardians, and so on).
+   *
+   * This is deliberately permissive at the dimension level and strict where it matters: the biome
+   * table and the per-position structure override decide WHICH mob, and this only answers whether the
+   * dimension could have it at all. A mob that appears in no list for the dimension is refused, which
+   * is the case a hand-written allowlist was trying to cover.
+   *
+   * A type with no placement registration is NOT rejected here -- `spawnPlacementFor` reports that
+   * separately, and the telemetry records the unregistered mob rather than hiding it behind a
+   * dimension refusal.
    */
   canSpawnInDimension(type) {
     const dimension = this.world?.dimension || 'overworld';
-    if (dimension === 'nether') return NETHER_MOB_TYPES.has(type);
-    if (dimension === 'the_end') return END_MOB_TYPES.has(type);
-    return !NETHER_MOB_TYPES.has(type) || OVERWORLD_ALSO_HAS.has(type);
+    const key = `${dimension}:${type}`;
+    if (this._dimensionCache === undefined) this._dimensionCache = new Map();
+    const cached = this._dimensionCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const allowed = dimensionAllowsType(dimension, type);
+    this._dimensionCache.set(key, allowed);
+    return allowed;
+  }
+
+  /** The biome at a position, used by tests and by the plan's 3D-lookup note. */
+  biomeAt3D(x, y, z) {
+    const world = this.world;
+    if (!world) return 'plains';
+    if (typeof world.getBiomeAt === 'function') return world.getBiomeAt(x, y, z);
+    if (!world.getBiome) return 'plains';
+    // Explicit capability reporting: this engine's biome lookup is 2-column, and the caller can see
+    // that from `biomeLookupIs3D` rather than having to know.
+    return world.getBiome(Math.floor(x), Math.floor(z));
+  }
+
+  /** Whether the engine can answer a genuine 3D biome query. Reported, not assumed. */
+  get biomeLookupIs3D() {
+    return typeof this.world?.getBiomeAt === 'function';
   }
 
   /** A snapshot of everything the debug overlay shows. */
@@ -396,21 +437,100 @@ export class MobSpawnManager {
 }
 
 /**
- * Mob types that belong to the Nether.
- *
- * Used only as a coarse dimension gate; the biome table is the authority for which of them appears
- * where.
+ * Nether mob types, retained only for documentation and for the special spawners that need to know
+ * which dimension a mechanism belongs to. **Not** used as a natural-spawn gate any more -- see
+ * `MobSpawnManager.canSpawnInDimension`.
  */
 export const NETHER_MOB_TYPES = new Set([
   'blaze', 'ghast', 'magma_cube', 'wither_skeleton', 'piglin', 'piglin_brute',
   'zombified_piglin', 'zombie_pigman', 'hoglin', 'zoglin', 'strider',
 ]);
 
-/** Mob types that belong to the End. */
+/** End mob types, likewise for documentation only. */
 export const END_MOB_TYPES = new Set(['enderman', 'shulker', 'ender_dragon']);
 
-/** Nether types that also appear in the Overworld (endermen are the notable one). */
+/** Nether types that also appear in the Overworld. Endermen are the notable one. */
 export const OVERWORLD_ALSO_HAS = new Set(['enderman']);
+
+/**
+ * The dimensions this engine has.
+ *
+ * The engine's dimension ids are `overworld`, `nether` and `the_end`; the biome registry also uses
+ * `end` as a `dimension` value on End biomes, which is mapped here.
+ */
+const DIMENSION_ALIASES = {
+  overworld: 'overworld',
+  nether: 'nether',
+  the_end: 'the_end',
+  end: 'the_end',
+};
+
+/**
+ * Does any spawn list reachable in `dimension` name this mob type?
+ *
+ * Built once per (dimension, type) and cached by the caller. The answer comes from the generated
+ * tables plus the structure overrides, so adding a biome or an override to the data automatically
+ * updates it -- which is the whole point of not keeping a hand-written allowlist.
+ *
+ * @param {string} dimension
+ * @param {string} type
+ * @returns {boolean}
+ */
+export function dimensionAllowsType(dimension, type) {
+  const dim = DIMENSION_ALIASES[dimension] || 'overworld';
+
+  // Structure overrides are dimension-specific in practice because the structures themselves are:
+  // a fortress only exists in the Nether. The dimension comes from the generated structure data, so a
+  // Nether override cannot authorise an Overworld spawn.
+  for (const override of Object.values(STRUCTURE_SPAWN_OVERRIDES)) {
+    if (override.dimension !== dim) continue;
+    for (const spec of Object.values(override.categories)) {
+      if (spec.entries.some(e => e.type === type)) return true;
+    }
+  }
+
+  // The dimension's own biomes, from the generated spawn tables.
+  for (const biomeId of BIOMES_FOR_DIMENSION[dim] || []) {
+    const table = BIOME_SPAWN_TABLES[biomeId];
+    if (!table) continue;
+    for (const entries of Object.values(table)) {
+      if (entries.some(e => e.type === type)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Which dimension each structure override belongs to.
+ *
+ * Superseded by the `dimension` field the generator emits per structure; retained only as the list of
+ * structures this engine knows about, which the coverage test uses.
+ */
+const KNOWN_STRUCTURE_IDS = [
+  'nether_fortress', 'bastion_remnant', 'ocean_monument', 'pillager_outpost',
+  'swamp_hut', 'trial_chambers', 'ancient_city', 'end_city',
+];
+
+/**
+ * The biome ids this engine generates in each dimension.
+ *
+ * Taken from `src/biomes.js`'s own `dimension` field at module load, so a biome added there is
+ * classified without this list being edited. `BIOMES` marks End biomes with `dimension: 'end'` and
+ * Nether biomes with `'nether'`, plus the special `nether` biome id.
+ */
+const BIOMES_FOR_DIMENSION = (() => {
+  const out = { overworld: [], nether: [], the_end: [] };
+  for (const [id, def] of Object.entries(BIOMES)) {
+    if (id === 'all') continue;
+    const raw = String(def.dimension || 'overworld').toLowerCase();
+    const dim = DIMENSION_ALIASES[raw] || 'overworld';
+    out[dim].push(id);
+  }
+  // The engine's `nether` biome id is the Nether's default and is not in the registry under
+  // `dimension: nether` in every build, so it is added explicitly.
+  if (BIOME_SPAWN_TABLES.nether && !out.nether.includes('nether')) out.nether.push('nether');
+  return out;
+})();
 
 /** `performance.now()` where available, so this module works in Node tests too. */
 function now() {

@@ -1,0 +1,191 @@
+// Structures in the live world: the bridge between `src/worldgen/` and chunk generation.
+//
+// WHY THIS MODULE EXISTS, and why it is the most important file in this subsystem. The structure engine is
+// complete and tested -- 30 structures, placement sets, jigsaw, terrain adaptation, loot -- and until this file
+// it was called by NOTHING except the Structure Inspector page. A generated world therefore contained exactly
+// one structure, a hand-written starting village in the spawn chunk, and none of the engine's structures ever
+// appeared in game. Every test passed and the feature was still absent from the game, because nothing tested
+// the path from "a chunk is generated" to "a structure is in it".
+//
+// THE DESIGN IS PER-CHUNK CLIPPED REALIZATION, which is what makes this safe in a lazily generated world:
+//
+//   * For the chunk being generated, find every enabled start whose box OVERLAPS it, and realize each one
+//     CLIPPED to that chunk. The engine already supports the clip (`realize(..., { chunkX, chunkZ })`).
+//   * Each chunk therefore writes only its own voxels. There are no cross-chunk writes, so generating a chunk
+//     can never force a neighbour to generate, and a structure is complete regardless of the ORDER chunks
+//     arrive in -- which was one of the engine's stated requirements.
+//   * Planning is a pure function of (seed, chunk, registry, biome, surface), and both world queries here are
+//     noise-based, so planning never needs a generated chunk either. That is why this cannot recurse.
+//
+// WHAT IS DELIBERATELY NOT SUPPORTED YET, recorded rather than quietly ignored:
+//
+//   * The world is 64 blocks tall (`CHUNK_HEIGHT`), while the engine targets a 384-block world. Structures
+//     whose Y band falls outside 0..63 are trimmed by the writer and COUNTED in `stats.outOfWorld`, so
+//     enabling `ancient_city` (Y -63..-31) or `trial_chambers` would write nothing and say so. Those need
+//     either a taller world or a world-specific Y remap, and neither is guessed at here.
+//   * Chest loot has nowhere to go: this world has no block-entity container store, so loot tables are
+//     collected in `loot` for a caller (or a test) to use and are NOT yet attached to the placed chests.
+
+import { createStructureEngine, getSetForStructure } from './worldgen/index.js';
+import { BLOCKS } from './blocks.js';
+
+/**
+ * The structures enabled in generated worlds.
+ *
+ * Three surface structures on purpose, as the first end-to-end landing: each is small, sits at or near the
+ * surface, is gated to a common biome (plains, snowy, desert), and fits inside the world's 64-block height.
+ * The rest of the registry is one list entry away, but a structure that lands outside this world's Y range
+ * would write nothing while looking enabled, so the list is grown deliberately rather than all at once.
+ */
+export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid'];
+
+/**
+ * How far away a structure's START may be and still overlap this chunk.
+ *
+ * Four chunks is 64 blocks, comfortably more than the horizontal extent of every structure enabled above (the
+ * largest, a plains village, spans about 50). It is also the only thing that costs work per chunk, so it is a
+ * constant rather than a scan of the world.
+ */
+export const STRUCTURE_SEARCH_RADIUS_CHUNKS = 4;
+
+/** A stable identity for one start, used to write it into a chunk at most once. */
+function startKey(start) {
+  const box = start.box;
+  return `${start.structureId}@${box.minX},${box.minY},${box.minZ}`;
+}
+
+/**
+ * @param {object} options
+ * @param {number} options.seed      the world seed; the same seed must give the same structures
+ * @param {object} options.world     the world, for `getBiome` and `surfaceHeightAt`
+ * @param {object} options.sizes     `{ x, height, z }` chunk dimensions, INJECTED because importing them from
+ *                                   `world.js` would make the two modules circular
+ */
+export function createWorldStructures({
+  seed,
+  world,
+  sizes,
+  enabledIds = WORLD_STRUCTURE_IDS,
+  blockIds = BLOCKS,
+  radiusChunks = STRUCTURE_SEARCH_RADIUS_CHUNKS,
+  foundationBlock = BLOCKS.DIRT,
+  adapt = true
+} = {}) {
+  if (!world || typeof world.getBiome !== 'function' || typeof world.surfaceHeightAt !== 'function') {
+    throw new Error('createWorldStructures needs a world exposing getBiome and surfaceHeightAt');
+  }
+  if (!sizes || !sizes.x || !sizes.height || !sizes.z) {
+    throw new Error('createWorldStructures needs the chunk sizes');
+  }
+
+  const enabled = new Set(enabledIds);
+  // Which SETS matter, so a chunk with no relevant set is skipped without planning anything.
+  //
+  // `getSetForStructure` returns the set OBJECT while `candidatesForChunk` returns set NAMES, so the name has
+  // to be taken from the object: comparing the object against a name never matches, and the whole integration
+  // then plans nothing at all while looking correctly wired.
+  const enabledSets = new Set();
+  for (const id of enabled) {
+    const set = getSetForStructure(id);
+    if (set && set.name) enabledSets.add(set.name);
+  }
+
+  const engine = createStructureEngine({
+    seed,
+    blockIds,
+    biomeAt: (x, z) => world.getBiome(x, z),
+    surfaceY: (x, z) => world.surfaceHeightAt(x, z)
+  });
+
+  // One entry per chunk ever considered: a start, or null for "nothing here". Memoised because the scan
+  // reaches the same neighbour chunk from many directions and planning is the expensive half.
+  const plans = new Map();
+  // Which start has already been realized into which chunk. A chunk can be asked to generate more than once
+  // (the world registers a chunk before generating it, and callers re-enter), so this keeps writes idempotent.
+  const applied = new Set();
+  const loot = [];
+  const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0 };
+
+  /** The start whose origin is this chunk, if it is one this world places. */
+  function planAt(chunkX, chunkZ) {
+    const key = `${chunkX},${chunkZ}`;
+    if (plans.has(key)) return plans.get(key);
+    let start = null;
+    const candidates = engine.candidatesForChunk(chunkX, chunkZ);
+    if (candidates.some((set) => enabledSets.has(set))) {
+      const plan = engine.planChunk(chunkX, chunkZ);
+      // The engine chooses which structure applies to a chunk; this world only places the enabled ones, so a
+      // disabled pick is dropped rather than written.
+      if (plan && plan.start && enabled.has(plan.structureId)) {
+        start = plan.start;
+        stats.planned++;
+      }
+    }
+    plans.set(key, start);
+    return start;
+  }
+
+  /**
+   * Write every structure that overlaps this chunk, clipped to it.
+   *
+   * @returns {object} the running stats, for tests and for a caller that wants to report them
+   */
+  function applyToChunk(chunk) {
+    if (!chunk) return stats;
+    stats.chunks++;
+    const baseX = chunk.cx * sizes.x;
+    const baseZ = chunk.cz * sizes.z;
+    const maxX = baseX + sizes.x - 1;
+    const maxZ = baseZ + sizes.z - 1;
+
+    for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
+      for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
+        const start = planAt(chunk.cx + dx, chunk.cz + dz);
+        if (!start) continue;
+        const box = start.box;
+        // Overlap in the horizontal plane only: a structure's Y band can lie entirely outside this world's
+        // height, and that is a separate case reported through `outOfWorld` rather than by skipping it here.
+        if (box.maxX < baseX || box.minX > maxX || box.maxZ < baseZ || box.minZ > maxZ) continue;
+
+        const key = `${chunk.cx},${chunk.cz}|${startKey(start)}`;
+        if (applied.has(key)) continue;
+        applied.add(key);
+
+        const written = engine.realize(start, (x, y, z, id, meta) => {
+          const lx = x - baseX;
+          const lz = z - baseZ;
+          // The engine clips to the chunk column; this re-checks the WORLD's own height, because the engine's
+          // target world is 384 tall and this one is 64. A block above the ceiling is dropped and counted,
+          // which is what turns a silently empty structure into a reported one.
+          if (lx < 0 || lx >= sizes.x || lz < 0 || lz >= sizes.z || y < 0 || y >= sizes.height) {
+            stats.outOfWorld++;
+            return false;
+          }
+          chunk.setVoxel(lx, y, lz, id);
+          if (meta && meta.lootTable) loot.push({ x, y, z, lootTable: meta.lootTable });
+          return true;
+        }, {
+          chunkX: chunk.cx,
+          chunkZ: chunk.cz,
+          surfaceY: (x, z) => world.surfaceHeightAt(x, z),
+          foundationBlock,
+          adapt
+        });
+
+        stats.structures++;
+        stats.blocks += typeof written === 'number' ? written : 0;
+      }
+    }
+    return stats;
+  }
+
+  return {
+    applyToChunk,
+    planAt,
+    stats,
+    loot,
+    engine,
+    enabledIds: [...enabled],
+    enabledSets: [...enabledSets]
+  };
+}

@@ -61,6 +61,29 @@ import {
 } from './spawnValidation.js';
 import { CHUNK_HEIGHT, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './lightEngine.js';
 import { TICKS_PER_SECOND } from './spawnClock.js';
+// SIDE-EFFECT IMPORT, and it is load-bearing.
+//
+// `mobSpawnPredicates.js` calls `registerDefaultSpawnPlacements()` at module scope, which is what puts
+// each mob's placement type, heightmap and predicate into the registry. That module was imported by
+// NOTHING under `src/`, so in the running game the registry stayed empty and `spawnPlacementFor`
+// returned its unregistered default for every mob:
+//
+//    { placement: ON_GROUND, heightmap: MOTION_BLOCKING_NO_LEAVES, predicate: null }
+//
+// The consequences were severe and matched the reported symptoms exactly:
+//
+//   * every aquatic mob was placed as a GROUND mob, so `validateSpawnValidation`'s ON_GROUND branch
+//     applied and its floor test accepted ICE as a valid floor -- fish were constructed standing on
+//     ice, which is the bug that prompted this repair;
+//   * every per-mob rule disappeared: glow squid's light rule, the drowned's light rule, the bat's
+//     `bats_spawnable_on` floor, the passive light-9 rule, the slime rules, the Nether wart rule;
+//   * `predicate: null` meant the spawner's `if (placement.predicate)` branch was never taken.
+//
+// The existing tests did not catch it because they imported `mobSpawnPredicates.js` directly to test
+// its predicates, which populated the registry as a side effect of the test rather than of the game.
+// `tests/spawnPlacementRegression.test.js` now asserts the registry is populated after importing ONLY
+// the spawner, which is the shape the game uses.
+import './mobSpawnPredicates.js';
 
 /**
  * How many GROUP attempts are made per (chunk, category, tick).
@@ -438,6 +461,11 @@ export class NaturalSpawner {
         structureId: chosenResolved.structureId,
         cx: entry.cx,
         cz: entry.cz,
+        // The pack species and the list it was drawn from, so `spawnMobAt` can re-check membership at
+        // THIS member's position.
+        packSpecies: chosen.type,
+        packEntries: chosenResolved.entries,
+        packSource: chosenResolved.source,
       });
       if (!mob) continue;
       spawned.push(mob);
@@ -495,13 +523,52 @@ export class NaturalSpawner {
    * @returns {object|null} the created mob, or null when the position was refused
    */
   spawnMobAt(type, category, x, y, z, context = {}) {
-    const { state, playerIndex, biomeId, source, structureId, cx, cz } = context;
+    const { state, playerIndex, biomeId, source, cx, cz } = context;
+    // Reassigned below when a pack member has walked into a different structure than its origin.
+    let { structureId } = context;
     const world = this.world;
     const random = this.manager.random;
 
     const placement = spawnPlacementFor(type);
     const dims = this.manager.dimensionsFor(type);
     const yInt = Math.floor(y);
+
+    // Per-member eligibility, checked BEFORE anything else because it is a rejection of the species
+    // rather than of the position.
+    //
+    // Vanilla chooses the pack species once, at the position of the first successful attempt, and then
+    // re-validates THAT SPECIES at each member's own position: "For later mob spawn attempts in the
+    // pack, if the selected species cannot spawn at the location (e.g. due to being in a different
+    // biome or structure) then that attempt fails." The member is not re-rolled and the species is not
+    // clamped back into the origin biome.
+    //
+    // Without this, a pack that walked across a biome or structure boundary kept spawning its origin
+    // species at the destination -- an ocean pack of cod marching onto land, or a swamp-hut witch
+    // pack leaving the hut and continuing into the surrounding swamp.
+    if (context.packSpecies && context.packSource !== 'structure_suppressed') {
+      const atMember = resolveSpawnList({
+        biomeId,
+        category,
+        x,
+        y: yInt,
+        z,
+        structureAt: this.manager.structureAt || null,
+      });
+      const stillListed = atMember.entries.some(e => e.type === context.packSpecies);
+      if (!stillListed) {
+        this.recordAttempt({
+          category, rejected: SpawnRejection.WRONG_BIOME, type, x, y: yInt, z, biomeId, cx, cz,
+          detail: atMember.source === 'structure_suppressed'
+            ? `pack species ${context.packSpecies} is suppressed by a structure at this position`
+            : `pack species ${context.packSpecies} is not in the ${category} list at this position `
+              + `(source ${atMember.source})`,
+        });
+        return null;
+      }
+      // The member may have walked into a different structure; its provenance must follow it.
+      structureId = atMember.structureId;
+      void source;
+    }
 
     const generic = validateGenericSpawn({
       world,

@@ -14,9 +14,67 @@ rather than adopting it.
 
 The authoritative working notes, with a source URL per numeric claim, are in
 [research/mob-spawning-1.21.4.md](research/mob-spawning-1.21.4.md). The full extracted behavioural
-specification is [mob-spawning-spec-1.21.4.md](mob-spawning-spec-1.21.4.md).
+specification is [mob-spawning-spec-1.21.4.md](mob-spawning-spec-1.21.4.md). The repair plan that
+produced the fixes recorded below is
+[mob-spawning-implementation-plan.md](mob-spawning-implementation-plan.md).
 Architecture is in [MOB_SPAWNING_ARCHITECTURE.md](MOB_SPAWNING_ARCHITECTURE.md); references and
 licences in [MOB_SPAWNING_REFERENCES.md](MOB_SPAWNING_REFERENCES.md).
+
+## Repair log: what was wrong and why the reported symptoms happened
+
+A player reported *"as I explore the world I found many inconsistency in terms of mob spawn logic,
+for example fish are spawn on the ice"*. The cause turned out to be a single upstream defect that had
+gone unnoticed because the tests imported the predicate module directly and so registered everything
+as a side effect **of the test**.
+
+**The placement registry was empty in the running game.** `mobSpawnPredicates.js` calls
+`registerDefaultSpawnPlacements()` at module scope, and **nothing under `src/` imported that module**.
+`spawnPlacementFor(type)` therefore returned its unregistered default for every mob:
+
+```js
+{ placement: ON_GROUND, heightmap: MOTION_BLOCKING_NO_LEAVES, predicate: null }
+```
+
+The consequences:
+
+| Effect | Symptom |
+| --- | --- |
+| Every aquatic mob was placed as a **ground** mob, so the ON_GROUND floor test ran instead of the fluid test, and **ice counts as a valid floor** | **fish standing on ice** — the reported bug |
+| Every per-mob predicate vanished (`predicate: null`) | no glow-squid light rule, no drowned light rule, no `bats_spawnable_on`, no passive light-9 rule, no slime rules, no nether-wart refusal |
+| Every mob used `MOTION_BLOCKING_NO_LEAVES` instead of its own heightmap | aquatic mobs bounded against the terrain surface rather than the sea bed |
+
+The regression test that now pins this is
+`tests/spawnPlacementRegression.test.js` → *"importing the spawner is enough to register every mob
+placement"*, which imports **only the spawner**, which is the shape the game uses.
+
+The rest of this section records the other repairs made in the same pass, each with the test that
+holds it.
+
+| Area | Was | Now | Test |
+| --- | --- | --- | --- |
+| `IN_WATER` / `IN_LAVA` / `NO_RESTRICTIONS` placement | skipped the bounding-box test entirely | every placement family checks the box; only the fluid and floor rules differ | *"a fish whose box penetrates an adjacent ice wall is refused"* + positive control |
+| `WORLD_SURFACE` heightmap | skipped non-motion-blocking blocks, so a flower was invisible and the candidate-Y bound was a block low | counts the highest **non-air** block; the three heightmaps are implemented separately | *"WORLD_SURFACE counts non-air blocks that do not block motion"* |
+| Pack member eligibility | species chosen once and never re-checked, so a pack spawned its origin species across a biome or structure boundary | each member re-resolves the list at **its own** position and is rejected if the species is absent; the species is never re-rolled | `spawnConstructionIntegration` → *"refuses a member whose species is not listed at its destination"* |
+| Dimension eligibility | hand-written allowlists banned **Endermen from the Nether** and **ordinary skeletons from fortresses** | derived from the generated biome tables plus structure overrides, each structure carrying its own dimension | `spawnEligibilityRegression` → *"endermen may spawn naturally in all three dimensions"* |
+| `fishPredicate` | tested the water column **and** the elevation band before the lush-cave exemption, which therefore never fired | water geometry and elevation are separate; the tropical-fish exemption is evaluated first | *"tropical fish may spawn deep in lush caves"* + a cod control |
+| `squidPredicate` / `dolphinPredicate` | inherited the fish rule, including "water above", which the wiki states only for fish | the stated rule is "the spawning block must be water" | *"squid does not require water above it, unlike a fish"* |
+| `glowSquidPredicate` | inherited the ocean sea-level band, the opposite of its habitat | its own rule: light 0 and a depth below the band | *"glow squid can spawn in deep, dark, underground water"* |
+| `ghastPredicate` | `nextInt(20) !== 0` accepted **19 of 20** — a 95 % success rate, the exact inverse — and applied the generic hostile darkness test | `nextInt(20) === 0`, and the light test is not applied (ghasts spawn regardless of light) | *"ghast refuses exactly 19 of every 20 RNG outcomes"* (all 20 enumerated) |
+| `drownedPredicate` | ran no light test at all, so a drowned could spawn in a sunlit puddle at noon | the monster darkness rule applies, in addition to the water column and the rarity rolls | *"drowned requires darkness as well as water"* |
+| Chunk-generation placement | ran only the species predicate, and treated a **missing** predicate as success, so a generated animal could intersect solid blocks | shares `validateSpawnSpace` with the runtime cycle | *"chunk generation refuses a candidate that intersects solid blocks"* + positive control |
+| Structure overrides | hand-written, and the `bastion_remnant` entry was **invented** — the data pack gives bastions `spawn_overrides: {}` — while the monument's and swamp hut's suppression categories were **missing** | **generated** by `scripts/generate-mob-spawn-data.mjs` into `src/spawning/vanillaStructureSpawns.js`, preserving no-override / replacement / empty-suppression as three distinct cases | *"the bastion has NO spawn override"*, *"the monument and swamp hut suppress the categories the data pack empties"* |
+
+Three test-setup errors found while writing those tests are worth recording, because each produced a
+confident wrong answer first:
+
+1. `frozenWaterFixture` puts ice at `seaLevel + 1` — a horizontal **sheet** above the top water block,
+   so a mob in the top water block does not intersect it. Proving penetration needs an ice **wall**
+   (`frozenWaterWallFixture`).
+2. The small grass fixture spans x = -16..31, so a "distant" player at x = 60 sat in an **unloaded**
+   chunk and candidates were refused for the wrong reason. `wideGrassFieldFixture` exists for this.
+3. `warm_ocean` does **not** list cod — it lists pufferfish and tropical fish. A test asserting "a cod
+   at its origin is accepted" in a warm ocean was asserting the opposite of the data, and the
+   implementation was right to refuse it.
 
 ## Status vocabulary
 
@@ -45,20 +103,23 @@ revision-pinned wiki revision.
 | Biome spawn tables | VERIFIED |
 | Weighted mob selection | VERIFIED |
 | Pack / group spawning | NEAR PARITY |
+| Per-member pack eligibility | VERIFIED |
 | Candidate position selection | VERIFIED |
-| Generic spawn placement | NEAR PARITY |
+| Generic spawn placement | VERIFIED — every placement family checks the bounding box |
+| Spawn placement registry wired at runtime | VERIFIED |
 | Lighting | NEAR PARITY |
 | Mob-specific predicates | FUNCTIONAL |
 | Player-distance rules | VERIFIED |
-| Dimension-specific rules | FUNCTIONAL |
+| Dimension-specific rules | VERIFIED — derived from the generated tables, not an allowlist |
 | Despawning | NEAR PARITY |
 | Entity persistence | FUNCTIONAL |
 | Chunk unload / reload | FUNCTIONAL |
-| Chunk-generation spawning | FUNCTIONAL |
-| Structure spawn overrides | NEAR PARITY |
+| Chunk-generation spawning | FUNCTIONAL — now shares spatial validation |
+| Structure spawn overrides | VERIFIED — generated from the pinned 1.21.4 data; **dormant in-game because no structures are placed** |
 | Special spawners | PARTIAL |
 | Difficulty | VERIFIED |
 | Spawn costs (warped forest, soul sand valley) | NOT STARTED |
+| Structures placed in the world at all | NOT STARTED — blocks every override above |
 | Debug overlay | FUNCTIONAL |
 | Telemetry | FUNCTIONAL |
 | Differential / golden tests | FUNCTIONAL |
@@ -344,7 +405,7 @@ WORLD_SURFACE heightmap is the highest non-air block, including fluids".
 
 ---
 
-## PLACEMENT PARITY — NEAR PARITY
+## PLACEMENT PARITY — VERIFIED
 
 `src/spawning/spawnPlacements.js` is a registry, not a single `canSpawn()`. Each mob registers a
 **placement type** (`ON_GROUND`, `IN_WATER`, `IN_LAVA`, `NO_RESTRICTIONS`), a **heightmap**
@@ -356,6 +417,17 @@ Generic checks, in the order they run (cheapest and most fundamental first):
 
 difficulty → world bounds → dimension → chunk loaded → player distance → fluid/floor per placement →
 bounding box.
+
+**The bounding box is checked for EVERY placement family**, including `IN_WATER`, `IN_LAVA` and
+`NO_RESTRICTIONS`. It previously was not, and that omission — combined with the registry never being
+populated at runtime, so that aquatic mobs were treated as ground mobs — is what produced the reported
+"fish spawn on the ice". A test now asserts both halves: that an aquatic box penetrating an ice wall is
+refused, and that a clear-water fish in the same world is still accepted.
+
+The spatial rules live in `validateSpawnSpace`, which `validateGenericSpawn` (the runtime policy
+wrapper) and the chunk-generation spawner both call. That is what keeps the two paths from drifting:
+they differ only in the policy around the call — player distance, caps, difficulty — not in collision,
+fluid or floor handling.
 
 Every refusal produces a **machine-readable code**: `NO_WORLD`, `CHUNK_NOT_LOADED`,
 `OUT_OF_WORLD_BOUNDS`, `TOO_CLOSE_TO_PLAYER`, `TOO_FAR_FROM_PLAYER`, `CAP_FULL`, `LOCAL_CAP_FULL`,
@@ -378,7 +450,10 @@ Every refusal produces a **machine-readable code**: `NO_WORLD`, `CHUNK_NOT_LOADE
 Tests: "a position inside 24 blocks of a player is refused", "a position outside the player sphere is
 refused", "an unloaded chunk is refused before the expensive checks", "PEACEFUL blocks every hostile
 placement…", "a ground spawn with no floor underneath is refused", "a water placement refuses dry land
-and vice versa".
+and vice versa", "a fish whose box penetrates an adjacent ice wall is refused" (with a clear-water
+positive control), "a lava mob whose box penetrates a ceiling is refused", "NO_RESTRICTIONS still
+checks that the box fits solid blocks", "the box test reaches into neighbour chunks when the mob
+straddles a border", and the registry-wiring test.
 
 ---
 
@@ -656,38 +731,78 @@ heightmap; the mob's own predicate.
 
 ---
 
-## STRUCTURE-SPECIFIC SPAWNING — NEAR PARITY
+## STRUCTURE-SPECIFIC SPAWNING — VERIFIED
 
-`STRUCTURE_SPAWN_OVERRIDES` in `src/spawning/biomeSpawnResolver.js`, from the 1.21.4 structure data.
+**Generated, not hand-written.** `scripts/generate-mob-spawn-data.mjs` fetches each structure's
+`spawn_overrides` block from the same pinned `1.21.4-data` branch as the biome tables and emits
+`src/spawning/vanillaStructureSpawns.js`. `src/spawning/biomeSpawnResolver.js` consumes it through a
+small alias map and keeps only the engine-specific knowledge (which engine structure id maps to which
+generated id) plus one documented special case.
+
 An override **replaces** the biome list for the categories it names (**no merge**); other categories
 fall through to the biome.
 
-Implemented from the data pack: nether fortress (`monster`, `piece`), ocean monument (`monster`,
-`full`), pillager outpost (`monster`, `full`), swamp hut (`monster` and `creature`, `piece`), bastion
-remnant, and the **suppression** overrides for trial chambers and ancient city.
+Three cases are preserved as data, and the resolver must tell them apart:
+
+| Case | Meaning | Example in 1.21.4 |
+| --- | --- | --- |
+| category key **absent** | the biome's list applies | the fortress says nothing about `creature`, so striders come from the biome |
+| key present with **entries** | that list replaces the biome's | the fortress's `monster` list |
+| key present and **empty** | natural spawning is **suppressed** for that category | the ocean monument's `axolotls` and `underground_water_creature`; all eight categories in `trial_chambers` and `ancient_city` |
+
+Implemented from the data pack: nether fortress (`monster`, `piece`), ocean monument (`monster` plus
+two suppression categories, `full`), pillager outpost (`monster`, `full`), swamp hut (`monster` and
+`creature`, `piece`), and the full-suppression overrides for trial chambers and ancient city.
+`bastion_remnant` and `end_city` are present with **no** categories, recording that they were checked
+and have `spawn_overrides: {}` upstream.
+
+`STRUCTURE_FULLY_SUPPRESSING` is **derived** from the data (every category present and empty) rather
+than annotated by hand, so a structure that gains suppression categories upstream is picked up by
+re-running the generator.
+
+Each structure carries its **dimension**, which is what stops a Nether override from authorising an
+Overworld spawn — see the dimension section.
 
 The engine asks one question — `resolveSpawnList({ biomeId, category, x, y, z, structureAt })` — which
-returns the entries, their source (`biome` / `structure` / `structure_suppressed` / `none`) and the
-structure id, so the debug overlay can report `STRUCTURE_OVERRIDE` rather than leaving the player to
-guess why a blaze appeared in a soul sand valley.
+returns the entries, their source (`biome` / `structure` / `structure_suppressed` / `none`), the
+structure id and the bounding box, so the debug overlay can report `STRUCTURE_OVERRIDE` rather than
+leaving the player to guess why a blaze appeared in a soul sand valley.
 
 **Deviations.**
 
-1. `structureAt` is a caller-supplied predicate. This engine has a structure system but no single
-   position→structure index, so the override applies only when the game wires one in; with no index,
-   no override applies. That is honest silence rather than a wrong answer.
-2. Vanilla's nether fortress path is special: it uses a hard-coded `FORTRESS_ENEMIES` list and
-   additionally requires nether bricks below the position, and it is consulted only for `MONSTER`. This
-   implementation uses the fortress's JSON override without the nether-bricks condition, so a fortress
-   structure will also override outside its brick corridors.
-3. `boundingBox` (`piece` vs `full`) is recorded as data but not enforced, because the engine's
-   structure records do not expose per-piece bounds to the spawner.
-4. Bastion remnant's override is from the data pack's values but this engine's bastion generation is
-   not verified against them.
+1. **The override machinery is dormant in the running game, because the game places no structures.**
+   This is the most important limitation in this section and it is a *precondition*, not a detail.
+   `structureAt` is a caller-supplied predicate, and `main.js` wires it as
+   `(x, y, z) => this.structureIdAt?.(x, y, z) ?? null`. **`structureIdAt` is never defined anywhere in
+   `src/`**, so `structureAt` is permanently `null` and no override can ever apply.
+
+   The reason there is no index to wire is upstream: `src/worldgen/` contains a real structure
+   planner (`createStructureEngine`, with `planChunk` / `planArea` / `realize`), but the **only** caller
+   is the Structure Inspector (`src/structureInspectorSession.js`). Nothing in the world-generation or
+   tick path plans, realises or records a structure, and `world.netherFortresses` — the one store
+   `witherSkeleton.js` consults — is never assigned by anything either. So the running game contains no
+   fortresses, monuments, outposts, huts or trial chambers to stand inside.
+
+   The override resolution itself is fully implemented and tested (it is what the structure tests
+   exercise); what is missing is a world that contains structures. Wiring `structureIdAt` to
+   `planChunk` would be roughly 0.1 ms per chunk in isolation, but it would produce a *structure id*
+   without generating the structure's blocks, so mobs would be overridden in empty terrain. The honest
+   fix is to generate structures first, which is a separate work package and is **not** claimed here.
+2. **The nether fortress is not special-cased.** Vanilla short-circuits to a hard-coded
+   `FORTRESS_ENEMIES` list and additionally requires nether bricks below the position. This
+   implementation uses the fortress's JSON override without the nether-bricks condition, so the
+   override also applies outside the brick corridors. `STRUCTURE_SPECIAL_CASES` names the case.
+3. `boundingBox` (`piece` vs `full`) is **recorded per category and asserted by a test, but not
+   enforced**, because the engine's structure records do not expose per-piece bounds to the spawner.
+   Vanilla scopes a `piece` override to the individual structure pieces, so a fortress override does
+   not reach the terrain between its corridors; this implementation would apply it to the whole area.
 
 Tests: "a structure override replaces the biome list for the categories it names", "a category the
 structure does not name falls through to the biome", "the fortress override matches the 1.21.4 data
-pack", "a structure with an empty override list suppresses spawning rather than falling through".
+pack", "the bastion has NO spawn override, so it must not invent one", "the monument and swamp hut
+suppress the categories the data pack empties", "a structure with an empty override list suppresses
+spawning rather than falling through", "a Nether structure override cannot authorise an Overworld
+spawn", "the biome and structure mob-type sets are separate, and both are covered".
 
 ---
 
@@ -744,7 +859,7 @@ shulkers".
 
 ---
 
-## DIMENSION-SPECIFIC RULES — FUNCTIONAL
+## DIMENSION-SPECIFIC RULES — VERIFIED
 
 - The light engine is **one instance per dimension**. The three dimensions reuse the same chunk keys
   (`0,0` names a chunk in each), so a single engine would answer with the Overworld's light while the
@@ -754,14 +869,34 @@ shulkers".
 - `monsterSpawnBlockLightLimit` is 15 for the Nether (clause disabled) and 0 for the Overworld and the
   End.
 - `sampleMonsterSpawnLightLevel` is the constant 7 for the Nether and `nextInt(8)` elsewhere.
-- `canSpawnInDimension` is a coarse per-dimension mob-set gate; the biome table is the real authority.
 - Nether biomes carry the Nether mobs and no bat category, from the generated data.
+
+**Eligibility is derived from data, not from an allowlist.** `dimensionAllowsType(dimension, type)`
+answers "may this mob spawn naturally in this dimension at all" by asking whether any spawn list
+reachable in that dimension names it: the generated biome tables for the dimension's own biomes, plus
+the generated structure overrides whose recorded `dimension` matches.
+
+The previous implementation used hand-written `NETHER_MOB_TYPES` / `END_MOB_TYPES` sets, and they were
+wrong in both directions:
+
+- **Endermen were banned from the Nether**, although `nether_wastes`, `soul_sand_valley` and
+  `warped_forest` all list `enderman`. Mojang describes natural Enderman spawning in all three
+  dimensions.
+- **Ordinary skeletons were banned from the Nether**, although the pinned fortress override lists them
+  at weight 2.
+
+The allowlists are retained in `mobSpawnManager.js` as documentation and for the special spawners, but
+they no longer gate natural spawning. A test asserts that every mob named by any Nether biome's tables
+is eligible in the Nether, so the gate cannot silently become a second, narrower filter.
 
 **Deviation.** `has_ceiling`, `min_y` and the Nether's `fixed_time` from the dimension-type data are
 not used; this engine's dimensions are its own construction with `CHUNK_HEIGHT` 64 and `minY` 0.
 
 Tests: "a dimension with no sky light has no sky darken", "the Nether samples a constant light bound of
-7 and the Overworld a uniform 0..7", "the Nether biomes carry the Nether mobs and no bat".
+7 and the Overworld a uniform 0..7", "the Nether biomes carry the Nether mobs and no bat", "endermen
+may spawn naturally in all three dimensions", "ordinary skeletons may spawn in the Nether, because the
+fortress lists them", "mobs with no list in a dimension are refused there", "a Nether structure override
+cannot authorise an Overworld spawn", "the dimension gate does not silently drop mobs the data lists".
 
 ---
 
@@ -869,8 +1004,19 @@ and a metric that has to be enabled is a metric that is not there when the bug h
 
 ## DETERMINISTIC TESTING — FUNCTIONAL
 
-`tests/mobSpawningParity.test.js` — **89 tests, all passing**. They assert against external numbers,
-not against the implementation:
+**141 spawning tests, all passing**, across five files:
+
+| File | Tests | Subject |
+| --- | --- | --- |
+| `mobSpawningParity.test.js` | 91 | caps, the light rule, generated tables, structures, despawning, difficulty, dimensions |
+| `spawnPlacementRegression.test.js` | 28 | collision, fluids, heightmaps, aquatic species rules, RNG enumeration, distance boundaries, and the registry-wiring regression |
+| `spawnEligibilityRegression.test.js` | 10 | per-member biome membership, structure provenance, dimension eligibility |
+| `spawnConstructionIntegration.test.js` | 7 | the real spawner and constructor path, pack walks, chunk-generation validation |
+| `mobSpawningTravel.test.js` | 5 | the travel regression |
+
+All five are registered in the `mob` area of `scripts/test.mjs`, so `npm run test:mob` includes them.
+
+They assert against external numbers, not against the implementation:
 
 - the JDK's own `java.util.Random` output for seed 42;
 - the caps, despawn distances and `isPersistent` flags of the 1.21.4 category table;
@@ -881,14 +1027,25 @@ not against the implementation:
 - the `nextInt(32)` / `nextInt(8)` draw order;
 - `skyDarken` 0/3/5/11;
 - the uniform-over-the-column Y draw;
-- the triangular pack offset distribution;
+- the triangular pack offset distribution, against its exact probabilities (24/36 within ±2, 2/36 at ±5);
 - the raw weight ratios of the plains table (sheep 12, pig 10, chicken 10, cow 8, horse 5 2–6,
   donkey 1 1–3) against `misode/mcmeta@1.21.4-data`;
-- the structure override lists from the same data;
+- the structure overrides and their bounding boxes from the same data, including the empty-suppression
+  categories and the fact that bastions have none;
+- the ghast's 95 % failure rate **enumerated over all 20 RNG outcomes** rather than sampled, because a
+  sampled test does not reliably catch an inverted comparison;
 - every spawn rejection code having an explanation;
 - every mob named by a biome table having a placement **and** being constructible by the engine (the
   latter parsed out of `spawnMobs`'s own dispatch switch, so it cannot drift);
-- the light engine's constants agreeing with `world.js`'s.
+- the light engine's constants agreeing with `world.js`'s;
+- **that importing only the spawner populates the placement registry** — the shape the game uses, and
+  the regression that pins the fish-on-ice defect;
+- that a refused position produces **zero** constructor calls, rather than a spawn that is created and
+  deleted afterwards.
+
+The fixture worlds are hand-authored (`tests/helpers/spawnFixture.js`) rather than generated, because
+a test that has to *find* suitable water in random terrain can pass by never finding any. The previous
+water test did exactly that: it returned early when the seed produced no sea, asserting nothing.
 
 Golden scenarios are covered by the end-to-end tests (plains day, plains night, PEACEFUL, night
 without animals, monochrome and multi-biome worlds) and by `scripts/spawn-smoke.mjs`, which prints a
@@ -956,6 +1113,24 @@ Recorded deliberately rather than implied by a green test suite.
     axolotls and tropical fish, which vanilla would not do.
 12. **The spawn budget** can lower the effective spawn rate on a slow machine.
 13. **Golden test worlds as data fixtures** do not exist; scenarios are seed-driven.
+14. **`bounding_box` (`piece` vs `full`) is recorded but not enforced.** The generated structure data
+    carries vanilla's value per category, and the parity test asserts it, but the engine's structure
+    records do not expose per-piece bounds to the spawner, so an override applies to the whole
+    structure area. This means a fortress override also applies outside its brick corridors.
+15. **The Nether fortress is not special-cased.** Vanilla short-circuits to a hard-coded
+    `FORTRESS_ENEMIES` list and additionally requires nether bricks below the candidate; this
+    implementation uses the structure JSON override without the block requirement.
+    `STRUCTURE_SPECIAL_CASES` in `src/spawning/biomeSpawnResolver.js` names the case.
+16. **The drowned's exact light rule is INFERRED, not verified.** The wiki's hostile bullet lists
+    "guardians, drowned and phantoms" as exempt from the solid-floor and block-light restrictions,
+    which is about the FLOOR, so the full `Monster.isDarkEnoughToSpawn` rule is applied. Whether
+    1.21.4's `Drowned.checkDrownedSpawnRules` uses the full three-part rule or a reduced form was not
+    confirmed against source. Treating drowned as light-independent would be the larger claim, so the
+    conservative reading is implemented and flagged here.
+17. **The axolotl's clay rule uses "directly below"** rather than vanilla's distance-to-clay form. The
+    plan flags the distance form as worth verifying; the immediate form is what the wiki's wording
+    states, and the difference is unverified rather than guessed.
+18. **Slime chunks and moon phase** (items 7 and 8) remain flat substitutes, as above.
 
 ## Confirmed-absent vs. approximated
 
@@ -964,3 +1139,28 @@ entity-vs-entity collision at spawn time, `bounding_box` enforcement, per-block 
 shape-aware directional light opacity, world border, void cull, moon phase, per-chunk slime flags,
 block tags (`prevent_mob_spawning_inside`, `bats_spawnable_on`), trial spawner line of sight, and
 zombie→drowned conversion.
+
+## Rules that WERE wrong and are now fixed
+
+Listed separately from the "not done" section above, because these are corrections rather than missing
+features. Each has a test.
+
+| Rule | The error |
+| --- | --- |
+| Placement registry wiring | nothing imported the module that registers placements, so every mob used the unregistered default — this is what produced fish on ice |
+| Bounding box for fluid placements | `IN_WATER` / `IN_LAVA` / `NO_RESTRICTIONS` skipped the box test |
+| `WORLD_SURFACE` heightmap | skipped non-motion-blocking blocks, so a flower did not count and the candidate-Y bound was a block low |
+| Per-member pack eligibility | a pack kept its origin species across a biome or structure boundary |
+| Nether / End dimension gate | banned Endermen from the Nether and ordinary skeletons from fortresses |
+| Tropical-fish lush-cave exemption | unreachable: the elevation band was tested first |
+| Squid and dolphin | given the fish's "water above" requirement, which the wiki states only for fish |
+| Glow squid | given the ocean sea-level band rather than its own depth rule |
+| Ghast spawn chance | inverted: accepted 19 of 20 instead of 1 of 20 |
+| Drowned light rule | no light test at all |
+| Chunk-generation placement | no spatial validation; a missing predicate meant "allowed" |
+| Bastion structure override | invented; the data pack gives bastions no override |
+| Structure override data | hand-written rather than generated, and missing the monument's and swamp hut's suppression categories |
+
+
+
+

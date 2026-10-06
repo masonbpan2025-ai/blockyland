@@ -233,7 +233,26 @@ export function strayPredicate(context) {
   return huskPredicate(context);
 }
 
-/** Drowned: "Spawning block and block below must be water." Plus the river/ocean rarity rolls. */
+/**
+ * Drowned.
+ *
+ * Wiki aquatic/hostile rules: "spawning block and block below must be water", and the per-biome
+ * rarity: 1/15 in rivers, 1/40 in oceans, and in oceans the position must be at least 5 blocks below
+ * sea level.
+ *
+ * The light rule: the wiki's hostile bullet list of mobs that are EXEMPT from the solid-floor and
+ * block-light restrictions is "guardians, drowned, and phantoms", which is about the FLOOR, not about
+ * light. Drowned are still monsters, so `Monster.isDarkEnoughToSpawn` applies. The previous version
+ * ran no light test at all, which let a drowned spawn in a sunlit shallow puddle at noon.
+ *
+ * The floor rule is deliberately NOT applied: drowned spawn in open water with no block beneath
+ * within reach, which is why they are on that exemption list.
+ *
+ * UNVERIFIED: whether 1.21.4's `Drowned.checkDrownedSpawnRules` uses the full three-part
+ * `isDarkEnoughToSpawn` or a reduced form. The full monster rule is implemented because it is the
+ * documented behaviour ("drowned do not spawn in bright water") and because treating them as
+ * light-independent would be a much larger claim. Recorded in docs/MOB_SPAWNING_PARITY.md.
+ */
 export function drownedPredicate(context) {
   const { world, x, y, z, biomeId, dimension, random } = context;
   if (dimension !== 'overworld') return false;
@@ -241,8 +260,13 @@ export function drownedPredicate(context) {
   const bz = Math.floor(z);
   if (world.getVoxel(bx, y, bz) !== BLOCKS.WATER) return false;
   if (world.getVoxel(bx, y - 1, bz) !== BLOCKS.WATER) return false;
+
+  // Darkness first: the cheap, universal monster gate.
+  if (!monsterIsDarkEnoughToSpawn(context)) return false;
+
+  // Then the per-biome rarity. The rolls are skipped on Peaceful in vanilla, where drowned have a
+  // spawn egg only; the caller already refuses hostiles there, so this is belt and braces.
   if (!isPeaceful(context.difficulty)) {
-    // The wiki's per-biome rarity: 1/15 in rivers, 1/40 in oceans.
     const biome = String(biomeId || '');
     if (biome.includes('river')) {
       if (random.nextInt(15) !== 0) return false;
@@ -267,9 +291,22 @@ export function guardianPredicate(context) {
   return true;
 }
 
-/** Ghast: "95% chance of spawn failure", i.e. a 1 in 20 pass. */
+/**
+ * Ghast.
+ *
+ * Wiki: "95% chance of spawn failure" -- so the roll ACCEPTS when it draws 0, not when it draws
+ * anything else. The previous implementation wrote `nextInt(20) !== 0`, which accepted 19 of every
+ * 20 attempts: a 95% success rate, the exact inverse. Enumerated in the tests for all 20 outcomes.
+ *
+ * Ghasts are also light-independent: the wiki's per-mob table marks them "Ghasts, magma cubes and
+ * hoglins spawn regardless of light level", and their biome (nether wastes and soul sand valley) is
+ * lit only by lava. So the generic hostile darkness test is deliberately NOT applied. The floor rule
+ * IS applied, because the wiki's hostile bullet requires a solid complete top surface for
+ * "all hostiles other than guardians, drowned and phantoms", and ghasts are not in that exclusion.
+ */
 export function ghastPredicate(context) {
-  return commonHostileRules(context) && context.random.nextInt(20) !== 0;
+  if (!isSolidTopSurface(context.blockBelow)) return false;
+  return context.random.nextInt(20) === 0;
 }
 
 /** Magma cube: "Cannot spawn on liquid." */
@@ -427,49 +464,142 @@ export const ocelotPredicate = passiveOn(new Set([...DIRT_LIKE, ...blockSet(['oa
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The shared water-column rule for fish, squid and dolphins.
+ * The shared WATER GEOMETRY test.
  *
- * Wiki: "the block directly below the spawning block must be water; the block directly above the
- * spawning block must be water and cannot be waterlogged; the spawning block must be between level
- * 50 and 63, inclusive." The Y window is vanilla's sea-level band; this engine's sea level is
- * compressed (22 by default), so the window is expressed relative to the biome's own sea level --
- * recorded as a deviation.
+ * This is deliberately only the geometry: the block at the mob's feet is water, and so is the block
+ * below. It does NOT test the block above, because that is a per-species rule and not a water rule --
+ * and it does not test elevation at all.
+ *
+ * The previous version bundled `above is water` and the 50..63 elevation band into one function used
+ * by fish, squid, dolphin AND glow squid. That had three consequences, all bugs:
+ *
+ *  1. squid and dolphin were given a rule the wiki does not state for them ("the spawning block must
+ *     be water" is the whole aquatic requirement; only the fish row adds blocks above and below);
+ *  2. glow squid inherited an ocean sea-level band, which is the opposite of its habitat;
+ *  3. the tropical-fish lush-cave exemption was tested AFTER the band, so it could never fire.
  */
-function waterColumnRule(context) {
+function isInWaterColumn(context) {
   const { world, x, y, z } = context;
   const bx = Math.floor(x);
   const bz = Math.floor(z);
   if (world.getVoxel(bx, y, bz) !== BLOCKS.WATER) return false;
-  if (world.getVoxel(bx, y + 1, bz) !== BLOCKS.WATER) return false;
-  if (world.getVoxel(bx, y - 1, bz) !== BLOCKS.WATER) return false;
-  const sea = world.seaLevel ?? 63;
-  // The Java band is 50..63; preserved as a 13-block window ending at this engine's sea level.
+  // Waterlogged blocks count as water for the floor: this engine models waterlogging separately.
+  const below = world.getVoxel(bx, y - 1, bz);
+  if (below === BLOCKS.WATER) return true;
+  return !!world.isWaterlogged?.(bx, y - 1, bz);
+}
+
+/** Does the position have water directly above it, and is it not merely waterlogged there? */
+function hasWaterAbove(context) {
+  const { world, x, y, z } = context;
+  const bx = Math.floor(x);
+  const bz = Math.floor(z);
+  return world.getVoxel(bx, y + 1, bz) === BLOCKS.WATER;
+}
+
+/**
+ * The elevation band the FISH rows are held to.
+ *
+ * Wiki: "the spawning block must be between level 50 and 63, inclusive. This does not apply to
+ * tropical fish spawning in lush caves." Vanilla's band is absolute; this engine's sea level is
+ * compressed (22 by default), so the band is expressed as a 13-block window ending at the biome's own
+ * sea level. That is the `browser_adapted_1_21_4` substitution and it is recorded in
+ * docs/MOB_SPAWNING_PARITY.md.
+ */
+function withinSeaLevelBand(context) {
+  const sea = context.world.seaLevel ?? 63;
+  const y = context.y;
   return y <= sea && y >= sea - 13;
 }
 
-/** Cod, salmon, pufferfish, tropical fish. */
+/**
+ * The reduced-water-ambient biomes.
+ *
+ * From the 1.21.4 data pack: `lush_caves` and `mangrove_swamp` list only `tropical_fish` under
+ * `water_ambient`, and the vanilla tag `reduced_water_ambient_spawns` makes the spawner refuse 98% of
+ * attempts there. That tag is what makes a lush cave's tropical fish rare rather than absent.
+ */
+const REDUCED_WATER_AMBIENT_BIOMES = new Set(['lush_caves', 'mangrove_swamp']);
+
+function isReducedWaterAmbientBiome(biomeId) {
+  return REDUCED_WATER_AMBIENT_BIOMES.has(String(biomeId || '').toLowerCase());
+}
+
+/**
+ * The fish predicate family: cod, salmon, pufferfish, tropical fish.
+ *
+ * Wiki, the aquatic table's fish row: "the block directly below the spawning block must be water; the
+ * block directly above the spawning block must be water and cannot be waterlogged; the spawning block
+ * must be between level 50 and 63, inclusive. This does not apply to tropical fish spawning in lush
+ * caves."
+ *
+ * The exemption is evaluated BEFORE the band, which is the whole point: a lush cave's water sits far
+ * below sea level, so a band-first implementation refuses every one of its tropical fish.
+ */
 export function fishPredicate(context) {
-  const ok = waterColumnRule(context);
-  if (!ok) return false;
-  // Lush caves are the documented exception to the Y window for tropical fish.
-  if (context.type === 'tropical_fish' && String(context.biomeId || '').includes('lush_caves')) return true;
-  return true;
+  if (!isInWaterColumn(context)) return false;
+  if (!hasWaterAbove(context)) return false;
+
+  const biome = String(context.biomeId || '').toLowerCase();
+  if (context.type === 'tropical_fish' && isReducedWaterAmbientBiome(biome)) {
+    // The documented exemption: no elevation band inside these biomes.
+    return true;
+  }
+  return withinSeaLevelBand(context);
 }
 
-/** Squid: the common water column rule. */
-export const squidPredicate = fishPredicate;
+/**
+ * Squid.
+ *
+ * Wiki aquatic table: "The spawning block must be water." No block-above requirement and no
+ * elevation band are stated for squid, so none is applied. (The band is listed only under the fish
+ * rows.)
+ */
+export function squidPredicate(context) {
+  return isInWaterColumn(context);
+}
 
-/** Dolphin: the water column rule; frozen oceans are excluded by the biome table. */
-export const dolphinPredicate = fishPredicate;
+/**
+ * Dolphin.
+ *
+ * Same stated requirement as squid. Frozen oceans are excluded by the biome table rather than by a
+ * predicate, which is how vanilla expresses it too.
+ */
+export function dolphinPredicate(context) {
+  return isInWaterColumn(context);
+}
 
-/** Glow squid: "the light level must be 0. the spawning block must be level 30 or lower." */
+/**
+ * Glow squid.
+ *
+ * A different category from squid (UNDERGROUND_WATER_CREATURE rather than WATER_CREATURE) with its own
+ * rules, and emphatically not the ocean band:
+ *
+ * Wiki: "the light level must be 0. the spawning block must be level 30 or lower."
+ *
+ * `level 30 or lower` is an absolute Java Y. This engine's world is 64 tall with the surface around
+ * y=30 and sea level 22, so the vanilla value would admit almost the entire world including open
+ * ocean. The `browser_adapted_1_21_4` substitution is "below this engine's sea level minus 13", i.e.
+ * deeper than a fish may be, which preserves the RULE (glow squid live deeper than fish) rather than
+ * the number. Recorded as a deviation.
+ */
 export function glowSquidPredicate(context) {
-  if (!waterColumnRule(context)) return false;
+  if (!isInWaterColumn(context)) return false;
   if (context.lightLevel !== 0) return false;
-  return context.y < 30;
+  const sea = context.world.seaLevel ?? 63;
+  return context.y <= sea - 13;
 }
 
-/** Axolotl: "the block directly above the spawning block must not be a solid block; below must be clay." */
+/**
+ * Axolotl.
+ *
+ * Wiki: "the block directly above the spawning block must not be a solid block; the block directly
+ * below the spawning block must be clay."
+ *
+ * Vanilla checks a distance to clay rather than the block immediately below; the wiki's wording is
+ * "the block directly below", and the plan flags the distance form as worth verifying. The immediate
+ * form is implemented here and the difference is recorded as unverified rather than guessed at.
+ */
 export function axolotlPredicate(context) {
   const { world, x, y, z } = context;
   const bx = Math.floor(x);

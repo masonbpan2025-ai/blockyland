@@ -652,16 +652,54 @@ test('a category the structure does not name falls through to the biome', () => 
 });
 
 test('the fortress override matches the 1.21.4 data pack', () => {
-  // From misode/mcmeta structures/fortress.json.
-  const entries = STRUCTURE_SPAWN_OVERRIDES.nether_fortress.categories[MobCategory.MONSTER];
-  const byType = Object.fromEntries(entries.map(e => [e.type, e]));
+  // From misode/mcmeta 1.21.4-data structures/fortress.json.
+  const spec = STRUCTURE_SPAWN_OVERRIDES.nether_fortress.categories[MobCategory.MONSTER];
+  const byType = Object.fromEntries(spec.entries.map(e => [e.type, e]));
   assert.deepEqual(byType.blaze, { type: 'blaze', weight: 10, minCount: 2, maxCount: 3 });
   assert.deepEqual(byType.wither_skeleton, { type: 'wither_skeleton', weight: 8, minCount: 5, maxCount: 5 });
   assert.equal(byType.skeleton.weight, 2);
-  assert.equal(STRUCTURE_SPAWN_OVERRIDES.nether_fortress.boundingBox, 'piece');
+  // The bounding box is per category in the generated data, because that is how the data pack states it.
+  assert.equal(spec.boundingBox, 'piece');
   // The monument and outpost use a full bounding box.
-  assert.equal(STRUCTURE_SPAWN_OVERRIDES.ocean_monument.boundingBox, 'piece');
-  assert.equal(STRUCTURE_SPAWN_OVERRIDES.pillager_outpost.boundingBox, 'piece');
+  assert.equal(STRUCTURE_SPAWN_OVERRIDES.ocean_monument.categories[MobCategory.MONSTER].boundingBox, 'full');
+  assert.equal(STRUCTURE_SPAWN_OVERRIDES.pillager_outpost.categories[MobCategory.MONSTER].boundingBox, 'full');
+  // Each structure records the dimension it generates in, so an override cannot authorise a spawn in
+  // the wrong dimension.
+  assert.equal(STRUCTURE_SPAWN_OVERRIDES.nether_fortress.dimension, 'nether');
+  assert.equal(STRUCTURE_SPAWN_OVERRIDES.ocean_monument.dimension, 'overworld');
+});
+
+test('the bastion has NO spawn override, so it must not invent one', () => {
+  // The data pack gives bastion_remnant `spawn_overrides: {}`. A previous hand-written table invented
+  // a bastion override containing naturally recurring piglin brutes. Natural biome inhabitants may
+  // still spawn there; that is not the same as an override.
+  assert.deepEqual(Object.keys(STRUCTURE_SPAWN_OVERRIDES.bastion_remnant.categories), [],
+    'bastion_remnant must have no category overrides');
+  // Positive control: a monster lookup inside a bastion falls through to the biome, not to nothing.
+  const resolved = resolveSpawnList({
+    biomeId: 'nether_wastes', category: MobCategory.MONSTER, x: 0, y: 30, z: 0,
+    structureAt: () => 'bastion_remnant',
+  });
+  assert.equal(resolved.source, 'biome');
+  assert.ok(resolved.entries.length > 0, 'the biome list must still apply inside a bastion');
+  assert.equal(resolved.entries.some(e => e.type === 'piglin_brute'), false,
+    'piglin_brute must not be injected by a bastion override');
+});
+
+test('the monument and swamp hut suppress the categories the data pack empties', () => {
+  // Both list empty arrays for some categories, which means SUPPRESS, not "fall through".
+  const monumentAxolotls = resolveSpawnList({
+    biomeId: 'ocean', category: MobCategory.AXOLOTLS, x: 0, y: 24, z: 0,
+    structureAt: () => 'monument',
+  });
+  assert.equal(monumentAxolotls.source, 'structure_suppressed',
+    'the monument suppresses axolotls even though the surrounding ocean may allow them');
+  const hutCreature = resolveSpawnList({
+    biomeId: 'swamp', category: MobCategory.CREATURE, x: 0, y: 30, z: 0,
+    structureAt: () => 'swamp_hut',
+  });
+  assert.equal(hutCreature.source, 'structure');
+  assert.deepEqual(hutCreature.entries.map(e => e.type), ['cat']);
 });
 
 test('a structure with an empty override list suppresses spawning rather than falling through', () => {

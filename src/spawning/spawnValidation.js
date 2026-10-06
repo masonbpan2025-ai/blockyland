@@ -16,9 +16,10 @@
 // Reference: Minecraft Wiki "Spawn"; PaperMC/Paper `NaturalSpawner.java`,
 // `SpawnPlacements.java`, `Heightmap.java`. Behaviour reimplemented; no Mojang source copied.
 
-import { BLOCKS } from '../blocks.js';
+import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
 import { CHUNK_HEIGHT, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './lightEngine.js';
 import {
+  HeightmapType,
   SpawnPlacementType,
   blocksMotion,
   isLava,
@@ -124,25 +125,62 @@ export function nearestPlayer(players, x, y, z) {
 }
 
 /**
- * The motion-blocking height at a column, ignoring leaves.
+ * The height of a column under one of vanilla's heightmaps.
  *
- * This is vanilla's `MOTION_BLOCKING_NO_LEAVES`: the Y of the highest block that would stop a
- * walking mob. Leaves are excluded so a mob can spawn on the ground under a canopy, which is why
- * forests are not mob-free.
+ * The three heightmaps answer genuinely different questions, and conflating them shifts the candidate
+ * Y range for every spawn:
  *
- * `heightmap` selects a different scan; OCEAN_FLOOR ignores fluids and WORLD_SURFACE counts them.
+ *  - `WORLD_SURFACE` is "the highest NON-AIR block". A flower, a torch or a rail counts. This is the
+ *    heightmap `getRandomPosWithin` uses to bound the candidate Y, so a flower on a plain must raise
+ *    that bound.
+ *  - `MOTION_BLOCKING` / `MOTION_BLOCKING_NO_LEAVES` are the highest block that stops a walking mob.
+ *    They skip plants (and, for the NO_LEAVES variant, leaves), which is what lets a mob spawn on the
+ *    ground under a canopy.
+ *  - `OCEAN_FLOOR` skips fluids, so an aquatic mob's floor is the sea bed rather than the surface.
+ *
+ * The previous version folded all of these into one scan: it skipped any non-fluid block for which
+ * `blocksMotion` was false, so a flower was invisible to `WORLD_SURFACE` and the pack-centre Y bound
+ * was one block too low on any column with vegetation.
+ *
+ * @returns {number} the Y of the highest block matching the map, or 0 for an empty column
  */
 export function heightAt(world, wx, wz, heightmap) {
-  const useFluid = heightmap === 'world_surface' || heightmap === 'world_surface_wg';
+  const fluidCounts = heightmap === HeightmapType.WORLD_SURFACE
+    || heightmap === HeightmapType.WORLD_SURFACE_WG;
+  const fluidBlocks = heightmap === HeightmapType.MOTION_BLOCKING
+    || heightmap === HeightmapType.MOTION_BLOCKING_NO_LEAVES;
+  const skipLeaves = heightmap === HeightmapType.MOTION_BLOCKING_NO_LEAVES;
+
   for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
     const id = world.getVoxel(wx, y, wz);
     if (id === BLOCKS.AIR) continue;
+
     const fluid = isWater(id) || isLava(id);
-    if (fluid && !useFluid) continue;
-    if (!fluid && !blocksMotion(id)) continue;
-    return y;
+    if (fluid) {
+      // Fluids count only for the surface maps, and only for the surface maps that include them.
+      if (fluidCounts) return y;
+      // MOTION_BLOCKING treats a fluid as motion-blocking; OCEAN_FLOOR skips it entirely.
+      if (fluidBlocks) return y;
+      continue;
+    }
+
+    // A non-air, non-fluid block.
+    if (heightmap === HeightmapType.WORLD_SURFACE || heightmap === HeightmapType.WORLD_SURFACE_WG) {
+      return y;
+    }
+    if (skipLeaves && isLeaves(id)) continue;
+    if (blocksMotion(id)) return y;
+    // OCEAN_FLOOR and MOTION_BLOCKING both skip a block that does not stop motion.
   }
   return 0;
+}
+
+/** Is this block a leaves variant, by registry name? Used by MOTION_BLOCKING_NO_LEAVES. */
+function isLeaves(blockId) {
+  const def = BLOCK_DEFS[blockId];
+  if (!def) return false;
+  const name = String(def.name || '').toLowerCase();
+  return name.includes('leaves');
 }
 
 /**
@@ -170,6 +208,96 @@ export function boxFits(world, x, y, z, width, height, isSolidAt) {
     }
   }
   return true;
+}
+
+/**
+ * Validate a candidate position WITHOUT applying natural-spawn policy.
+ *
+ * This is the spatial half of `validateGenericSpawn`: world bounds, the chunk being loaded, the box
+ * fitting, and (per placement family) the fluid and floor rules. It deliberately does NOT test player
+ * distance, difficulty, or mob caps.
+ *
+ * Why the split exists: chunk-generation population places animals as terrain is made, before any
+ * player is nearby and ignoring the caps, but it still must not put a cow inside a hillside. The
+ * previous implementation ran only the species predicate there and treated a missing predicate as
+ * success, so a generated animal could intersect solid blocks. Reusing one spatial validator for both
+ * callers is what stops the two drifting apart.
+ *
+ * @returns {{ok: boolean, reason: string|null, detail: object}}
+ */
+export function validateSpawnSpace({
+  world,
+  x, y, z,
+  placement = SpawnPlacementType.ON_GROUND,
+  width = 0.6,
+  height = 1.95,
+  requireFloor = null,
+  isSolidAt = null,
+} = {}) {
+  const detail = {};
+  if (!world) return { ok: false, reason: SpawnRejection.NO_WORLD, detail };
+
+  if (y < 0 || y >= CHUNK_HEIGHT) {
+    return { ok: false, reason: SpawnRejection.OUT_OF_WORLD_BOUNDS, detail: { y, max: CHUNK_HEIGHT - 1 } };
+  }
+
+  const cx = Math.floor(x / CHUNK_SIZE_X);
+  const cz = Math.floor(z / CHUNK_SIZE_Z);
+  const chunk = typeof world.getChunk === 'function' ? world.getChunk(cx, cz) : null;
+  if (!chunk) return { ok: false, reason: SpawnRejection.CHUNK_NOT_LOADED, detail: { cx, cz } };
+
+  const solid = typeof isSolidAt === 'function'
+    ? isSolidAt
+    : (bx, by, bz) => {
+      const id = world.getVoxel(bx, by, bz);
+      if (id === BLOCKS.AIR) return false;
+      return blocksMotion(id);
+    };
+  const solidForBox = (bx, by, bz) => {
+    const id = world.getVoxel(bx, by, bz);
+    if (isWater(id) || isLava(id)) return false;
+    return solid(bx, by, bz);
+  };
+
+  const blockAt = world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
+  detail.blockAt = blockAt;
+  detail.blockBelow = world.getVoxel(Math.floor(x), Math.floor(y) - 1, Math.floor(z));
+
+  switch (placement) {
+    case SpawnPlacementType.IN_WATER:
+      if (!isWater(blockAt)) {
+        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'water' } };
+      }
+      break;
+    case SpawnPlacementType.IN_LAVA:
+      if (!isLava(blockAt)) {
+        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'lava' } };
+      }
+      break;
+    case SpawnPlacementType.NO_RESTRICTIONS:
+      break;
+    case SpawnPlacementType.ON_GROUND:
+    default:
+      if (isWater(blockAt) || isLava(blockAt)) {
+        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'air' } };
+      }
+      if (blocksMotion(blockAt)) {
+        return { ok: false, reason: SpawnRejection.COLLISION, detail: { ...detail, blockedBy: blockAt } };
+      }
+      // A caller may opt out of the floor rule (the chunk-generation spawner snaps Y to the column
+      // top and validates the box instead) or opt in explicitly.
+      if (requireFloor !== false && !hasFloor(world, x, y, z, width, solid)) {
+        return { ok: false, reason: SpawnRejection.INVALID_FLOOR, detail };
+      }
+      break;
+  }
+
+  // The box, for every placement family. See `validateGenericSpawn` for why this is not optional.
+  if (!boxFits(world, x, y, z, width, height, solidForBox)) {
+    return { ok: false, reason: SpawnRejection.COLLISION, detail };
+  }
+
+  return { ok: true, reason: null, detail };
 }
 
 /**
@@ -280,63 +408,14 @@ export function validateGenericSpawn(ctx) {
     }
   }
 
-  const solid = typeof isSolidAt === 'function'
-    ? isSolidAt
-    : (bx, by, bz) => {
-      const id = world.getVoxel(bx, by, bz);
-      if (id === BLOCKS.AIR) return false;
-      return blocksMotion(id);
-    };
-  // A fluid is not "solid" for the box test even where `blocksMotion` says otherwise.
-  const solidForBox = (bx, by, bz) => {
-    const id = world.getVoxel(bx, by, bz);
-    if (isWater(id) || isLava(id)) return false;
-    return solid(bx, by, bz);
-  };
-
-  const blockAt = world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
-  detail.blockAt = blockAt;
-  detail.blockBelow = world.getVoxel(Math.floor(x), Math.floor(y) - 1, Math.floor(z));
-
-  // 5. Fluid and floor, per placement family.
-  switch (placement) {
-    case SpawnPlacementType.IN_WATER:
-      if (!isWater(blockAt)) {
-        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'water' } };
-      }
-      break;
-    case SpawnPlacementType.IN_LAVA:
-      if (!isLava(blockAt)) {
-        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'lava' } };
-      }
-      break;
-    case SpawnPlacementType.NO_RESTRICTIONS:
-      // The mob places itself; only the box is checked.
-      break;
-    case SpawnPlacementType.ON_GROUND:
-    default:
-      // The spot itself must be passable. A mob cannot spawn inside a block, and it must not spawn
-      // inside a fluid either -- that is what makes a water column above a cave floor ineligible
-      // rather than spawning a drowned in it.
-      if (isWater(blockAt) || isLava(blockAt)) {
-        return { ok: false, reason: SpawnRejection.WRONG_FLUID, detail: { ...detail, expected: 'air' } };
-      }
-      if (blocksMotion(blockAt)) {
-        return { ok: false, reason: SpawnRejection.COLLISION, detail: { ...detail, blockedBy: blockAt } };
-      }
-      if (!hasFloor(world, x, y, z, width, solid)) {
-        return { ok: false, reason: SpawnRejection.INVALID_FLOOR, detail };
-      }
-      break;
-  }
-
-  // 6. The box. For a ground mob this is nearly implied by the floor check, but not quite: a mob two
-  //    blocks tall needs two clear cells, and the head cell is not covered by the floor test.
-  if (placement !== SpawnPlacementType.IN_WATER && placement !== SpawnPlacementType.IN_LAVA) {
-    if (!boxFits(world, x, y, z, width, height, solidForBox)) {
-      return { ok: false, reason: SpawnRejection.COLLISION, detail };
-    }
-  }
+  // 5. The spatial rules. Delegated to `validateSpawnSpace` so the chunk-generation spawner and the
+  //    runtime cycle cannot drift apart on collision, fluid or floor handling -- they differ only in
+  //    the policy wrapped around this call (distance, caps, difficulty), not in the spatial rules.
+  const spatial = validateSpawnSpace({
+    world, x, y, z, placement, width, height, isSolidAt,
+  });
+  Object.assign(detail, spatial.detail);
+  if (!spatial.ok) return { ok: false, reason: spatial.reason, detail };
 
   return { ok: true, reason: null, detail };
 }

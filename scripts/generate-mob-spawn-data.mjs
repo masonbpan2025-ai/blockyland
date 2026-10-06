@@ -24,7 +24,9 @@ import { join } from 'node:path';
 
 const BRANCH = '1.21.4-data';
 const RAW = `https://raw.githubusercontent.com/misode/mcmeta/${BRANCH}/data/minecraft/worldgen/biome`;
+const STRUCTURE_RAW = `https://raw.githubusercontent.com/misode/mcmeta/${BRANCH}/data/minecraft/worldgen/structure`;
 const CACHE = join(process.cwd(), '.cache', 'mc-data', 'biomes');
+const STRUCTURE_CACHE = join(process.cwd(), '.cache', 'mc-data', 'structures');
 const offline = process.argv.includes('--offline');
 
 /**
@@ -106,6 +108,19 @@ function toEngineType(vanillaId) {
   return TYPE_ALIASES[id] || id;
 }
 
+/** Load and cache one structure JSON from the same pinned branch as the biome files. */
+async function loadStructure(name) {
+  const cached = join(STRUCTURE_CACHE, `${name}.json`);
+  if (existsSync(cached)) return JSON.parse(readFileSync(cached, 'utf8'));
+  if (offline) throw new Error(`${name}: not cached and --offline was passed`);
+  const res = await fetch(`${STRUCTURE_RAW}/${name}.json`);
+  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+  const text = await res.text();
+  mkdirSync(STRUCTURE_CACHE, { recursive: true });
+  writeFileSync(cached, text, 'utf8');
+  return JSON.parse(text);
+}
+
 /**
  * The 66 biome ids of Java Edition 1.21.4, in registry order.
  *
@@ -167,7 +182,18 @@ const vanillaBiomes = registry.map(id => id.replace(/^minecraft:/, ''));
 console.log(`  ${vanillaBiomes.length} biomes in the ${BRANCH} registry`);
 
 const tables = {};
+/**
+ * Mob types named by a BIOME's spawners block.
+ *
+ * Kept separate from `structureMobTypesUsed` because `BIOME_SPAWN_MOB_TYPES` is documented as "every
+ * mob type that appears in any biome's spawn table", and the parity test uses it to assert that
+ * everything a biome can spawn is a mob this engine can construct. Folding the structure-only types
+ * into it would make the constant's name false and silently widen that test's expectation -- blaze,
+ * guardian, wither_skeleton and pillager appear in NO biome table, only in structure overrides.
+ */
 const mobTypesUsed = new Set();
+/** Mob types named by a STRUCTURE's spawn_overrides block. Disjoint concern; see above. */
+const structureMobTypesUsed = new Set();
 for (const biome of vanillaBiomes) {
   const data = await loadBiome(biome);
   const spawners = data.spawners || {};
@@ -192,6 +218,85 @@ for (const biome of vanillaBiomes) {
 for (const [engineId, vanillaId] of Object.entries(ENGINE_ONLY_BIOMES)) {
   if (tables[vanillaId]) tables[engineId] = tables[vanillaId];
 }
+
+// --- structure spawn overrides ---------------------------------------------------------------
+//
+// Generated for the same reason as the biome tables: a hand-written override list drifts from the
+// version it claims. The hand-written version this replaces had an INVENTED `bastion_remnant`
+// override (the data pack gives bastions `spawn_overrides: {}`, i.e. no override at all) and was
+// missing the empty suppression categories on the ocean monument and swamp hut.
+//
+// Three distinct cases are preserved, because the resolver must treat them differently:
+//   - the structure has no override for a category  -> the key is ABSENT
+//   - it overrides with a list                      -> the key maps to entries
+//   - it overrides with an EMPTY list               -> the key maps to []
+// The third is how trial chambers and ancient cities SUPPRESS natural spawning inside themselves, and
+// collapsing it into "absent" is a behavioural bug.
+const STRUCTURES = [
+  // Structures the engine generates and whose overrides matter.
+  'fortress', 'monument', 'pillager_outpost', 'swamp_hut', 'trial_chambers', 'ancient_city',
+  // Structures with EMPTY overrides, recorded so a future reader can see they were checked rather
+  // than overlooked: bastion_remnant and end_city both have `spawn_overrides: {}` in 1.21.4.
+  'bastion_remnant', 'end_city',
+];
+
+/** Which dimension each structure generates in. A structure only authorises spawns in its own. */
+const STRUCTURE_DIMENSION = {
+  fortress: 'nether',
+  bastion_remnant: 'nether',
+  monument: 'overworld',
+  pillager_outpost: 'overworld',
+  swamp_hut: 'overworld',
+  trial_chambers: 'overworld',
+  ancient_city: 'overworld',
+  end_city: 'the_end',
+};
+
+/** Structure file name -> the engine's structure id. */
+const STRUCTURE_ENGINE_ID = {
+  fortress: 'nether_fortress',
+  monument: 'ocean_monument',
+  pillager_outpost: 'pillager_outpost',
+  swamp_hut: 'swamp_hut',
+  trial_chambers: 'trial_chambers',
+  ancient_city: 'ancient_city',
+  bastion_remnant: 'bastion_remnant',
+  end_city: 'end_city',
+};
+
+console.log('Fetching vanilla structure spawn overrides...');
+const structureRows = {};
+for (const structure of STRUCTURES) {
+  const data = await loadStructure(structure);
+  const overrides = data.spawn_overrides || {};
+  const categories = {};
+  for (const [category, spec] of Object.entries(overrides)) {
+    if (!CATEGORIES.includes(category)) continue;
+    const spawns = Array.isArray(spec.spawns) ? spec.spawns : [];
+    categories[category] = {
+      boundingBox: spec.bounding_box,
+      // An empty array is meaningful: it suppresses natural spawning for that category.
+      entries: spawns.map(entry => {
+        const type = toEngineType(entry.type);
+        structureMobTypesUsed.add(type);
+        return {
+          type,
+          weight: entry.weight,
+          minCount: entry.minCount,
+          maxCount: entry.maxCount,
+        };
+      }),
+    };
+  }
+  structureRows[STRUCTURE_ENGINE_ID[structure]] = {
+    sourceId: `minecraft:${structure}`,
+    dimension: STRUCTURE_DIMENSION[structure] || 'overworld',
+    // Sorted so the generated file is stable across runs.
+    categories: Object.fromEntries(Object.entries(categories).sort((a, b) => a[0].localeCompare(b[0]))),
+  };
+}
+console.log(`  ${Object.keys(structureRows).length} structures, `
+  + `${Object.values(structureRows).filter(s => Object.keys(s.categories).length === 0).length} with no override`);
 
 const header = `// GENERATED FILE - do not edit by hand.
 //
@@ -265,3 +370,86 @@ export const BIOME_SPAWN_MOB_TYPES = Object.freeze(${JSON.stringify([...mobTypes
 writeFileSync('src/spawning/vanillaBiomeSpawns.js', out, 'utf8');
 console.log(`  src/spawning/vanillaBiomeSpawns.js: ${Object.keys(tables).length} biomes, ${mobTypesUsed.size} mob types`);
 console.log(`  mob types: ${[...mobTypesUsed].sort().join(', ')}`);
+
+// --- emit the structure overrides ------------------------------------------------------------
+const structureHeader = `// GENERATED FILE - do not edit by hand.
+//
+// Vanilla structure spawn overrides for Minecraft Java Edition ${BRANCH.replace('-data', '')}.
+//
+// Produced by scripts/generate-mob-spawn-data.mjs from misode/mcmeta branch \`${BRANCH}\`, which
+// mirrors the vanilla data pack. Each structure's \`spawn_overrides\` block is reproduced verbatim,
+// with entity ids mapped to this engine's mob-type ids and category keys preserved.
+//
+// THREE CASES, and the resolver depends on telling them apart:
+//
+//   1. a structure has NO \`categories\` entry for a category  -> the biome's list applies
+//   2. it has an entry with a non-empty \`entries\` array      -> that list REPLACES the biome's
+//   3. it has an entry with an EMPTY \`entries\` array          -> natural spawning for that category
+//                                                                is SUPPRESSED
+//
+// Case 3 is not the same as case 1. Trial chambers and ancient cities give all eight categories an
+// empty list precisely to stop natural spawning inside themselves, so folding them together
+// populates them with the surrounding biome's monsters.
+//
+// \`boundingBox\` is vanilla's \`bounding_box\` value ('piece' or 'full'), recorded because it changes
+// the scope of the override. It is currently advisory: see docs/MOB_SPAWNING_PARITY.md.
+//
+// Regenerate with:
+//   node scripts/generate-mob-spawn-data.mjs
+`;
+
+const structureBody = Object.entries(structureRows)
+  .sort((a, b) => a[0].localeCompare(b[0]))
+  .map(([id, row]) => {
+    const cats = Object.entries(row.categories).map(([category, spec]) => {
+      const rows = spec.entries.length
+        ? spec.entries
+          .map(e => `        { type: '${e.type}', weight: ${e.weight}, minCount: ${e.minCount}, maxCount: ${e.maxCount} },`)
+          .join('\n')
+        : '';
+      return `      ${category}: {\n        boundingBox: '${spec.boundingBox}',\n        entries: [\n${rows}${rows ? '\n' : ''}        ],\n      },`;
+    }).join('\n');
+    return `  ${id}: {\n    sourceId: '${row.sourceId}',\n    dimension: '${row.dimension}',\n    categories: {\n${cats}${cats ? '\n' : ''}    },\n  },`;
+  })
+  .join('\n');
+
+const structureOut = `${structureHeader}
+/**
+ * Per-structure spawn overrides, keyed by this engine's structure id.
+ *
+ * A structure absent from this map has no override at all. A structure present with an empty
+ * \`categories\` object was checked and has \`spawn_overrides: {}\` upstream -- it does not suppress
+ * anything, it simply has nothing to say.
+ */
+export const STRUCTURE_SPAWN_OVERRIDES = {
+${structureBody}
+};
+
+/**
+ * Structures that suppress EVERY category with empty lists.
+ *
+ * Derived from the data rather than annotated by hand: a structure whose every category entry has an
+ * empty \`entries\` array is a structure that wants no natural spawning inside it.
+ */
+export const STRUCTURE_FULLY_SUPPRESSING = Object.freeze(
+  Object.entries(STRUCTURE_SPAWN_OVERRIDES)
+    .filter(([, row]) => {
+      const cats = Object.entries(row.categories);
+      return cats.length > 0 && cats.every(([, spec]) => spec.entries.length === 0);
+    })
+    .map(([id]) => id)
+    .sort()
+);
+
+/** Every mob type that appears in any structure override, for the coverage test. */
+export const STRUCTURE_SPAWN_MOB_TYPES = Object.freeze(${JSON.stringify([...structureMobTypesUsed].sort())});
+`;
+
+writeFileSync('src/spawning/vanillaStructureSpawns.js', structureOut, 'utf8');
+console.log(`  src/spawning/vanillaStructureSpawns.js: ${Object.keys(structureRows).length} structures`);
+console.log(`  fully suppressing: ${Object.entries(structureRows)
+  .filter(([, row]) => {
+    const cats = Object.entries(row.categories);
+    return cats.length > 0 && cats.every(([, spec]) => spec.entries.length === 0);
+  })
+  .map(([id]) => id).join(', ') || '(none)'}`);
