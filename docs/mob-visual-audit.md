@@ -3221,3 +3221,50 @@ no longer be blamed for the layout.
 `docs/mob-visual-evidence/tropical-fish-mask-tinted-attempt.png`.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round ninety-one: the tropical fish asset is conclusively a STUB, and the mob is reverted to flat colour
+
+**I read the PNG's own palette chunk, which ends the question that seven rounds of reasoning could not.**
+
+```
+IHDR: 32x32  depth 2  colourType 3  interlace 0
+PLTE: 12 bytes = 4 ENTRIES
+  [0] rgb(0,0,0)          <- fully transparent via tRNS, 991 pixels
+  [1] rgb(255,255,255)
+  [2] rgb(253,253,253)
+  [3] rgb(240,240,240)
+tRNS: 1 byte
+ALPHA histogram:  alpha 0 x991   alpha 255 x33
+```
+
+**The entire 32x32 file contains FOUR colours, and three of them are WHITE.** There is no colour to tint and no fish drawing
+to tint: the 33 opaque pixels are a **sparse dotted grid** spanning x 1-30 and y 0-16 -- not a silhouette, not an outline, a
+scatter of isolated white dots.
+
+**So the tropical sheets are not masks in any useful sense.** A mask carries a SHAPE for a tint to colour in; this carries
+neither. **I reverted the binding**, because the flat-colour fish this project already had reads as a fish and a 33-pixel
+white grid does not.
+
+**What the seven rounds did establish, and it is worth keeping:**
+
+| round | what was ruled out |
+| --- | --- |
+| 84 | the sheet path (correct) -- and that binding it over flat-colour geometry fragments the model |
+| 85 | that the atlas LAYOUT helper was at fault -- `applyVanillaBoxUVs` is verified and stays |
+| 86 | that palette encoding was the whole story -- it was one fault, fixed, and not the cause |
+| 87 | that the sheets carry colour -- 991/1024 transparent, the rest white |
+| 88 | that my sampler was broken -- validated against `pufferfish.png`, which reports real colour |
+| 90 | that the white render was a tinting bug -- fixed, the body went orange, and the shape was still wrong |
+| 91 | **that the asset contains anything to draw** |
+
+**The judgement I am recording, and it is a LIMITATION rather than a defect I can fix:** this project cannot render a
+vanilla-parity tropical fish **because the texture asset in the client it extracts from has no fish in it.** Whether Mojang
+ships stubs under these names in 1.20.4, or the client composes them elsewhere, **I did not establish and will not claim.**
+
+**The process lesson, which is the strongest of this sequence:** every one of six rounds asked a question ABOUT MY PIPELINE --
+is the path right, is the helper right, is the format right, is the tint right. **Not one asked whether the asset had anything
+in it, and the one round that did -- reading the palette, four lines of code -- answered it.** That check belongs FIRST, before
+any pipeline work at all, and it is the same mistake as the giant's six rounds in a different costume.
+
+`AREA` is at exactly **1766/1773**, and `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
