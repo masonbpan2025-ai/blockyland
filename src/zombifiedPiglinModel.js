@@ -53,15 +53,18 @@ export function syncZombifiedWeapon(mob) {
   if(mob.weaponMesh?.userData.itemId===id)return;
   if(mob.weaponMesh){mob.weaponMesh.removeFromParent();mob.weaponMesh.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}
   mob.weaponMesh=null;if(!id)return;
+  // The weapon can be a picked-up BLOCK, whose id is a number and has no string methods. Shape and
+  // colour are chosen from the NAME form; a block matches none of them and takes the plain default.
+  const weaponId=typeof id==='string'?id:'';
   const group=new THREE.Group();group.userData.itemId=id;mob.rightArm.add(group);mob.weaponMesh=group;
-  group.position.set(0,-.65,.1);group.rotation.x=id.includes('spear')?-.3:1.2;
-  const gold=new THREE.MeshLambertMaterial({color:id.startsWith('golden_')?0xe9bd3a:id.startsWith('diamond_')?0x58d9db:0xc5c7cc});
+  group.position.set(0,-.65,.1);group.rotation.x=weaponId.includes('spear')?-.3:1.2;
+  const gold=new THREE.MeshLambertMaterial({color:weaponId.startsWith('golden_')?0xe9bd3a:weaponId.startsWith('diamond_')?0x58d9db:0xc5c7cc});
   const wood=new THREE.MeshLambertMaterial({color:0x69452c});
   const part=(size,pos,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);m.position.set(...pos);group.add(m);};
-  if(id.includes('spear')){part([.045,1.4,.045],[0,.4,0],wood);part([.09,.3,.07],[0,1.2,0],gold);group.rotation.x=-.3;}
-  else if(id==='crossbow'){part([.55,.07,.09],[0,.05,.15],wood);part([.06,.15,.36],[0,0,0],wood);}
-  else if(id.includes('axe')){part([.06,.55,.06],[0,.2,0],wood);part([.28,.25,.08],[.09,.55,0],gold);}
-  else if(id.includes('sword')){
+  if(weaponId.includes('spear')){part([.045,1.4,.045],[0,.4,0],wood);part([.09,.3,.07],[0,1.2,0],gold);group.rotation.x=-.3;}
+  else if(weaponId==='crossbow'){part([.55,.07,.09],[0,.05,.15],wood);part([.06,.15,.36],[0,0,0],wood);}
+  else if(weaponId.includes('axe')){part([.06,.55,.06],[0,.2,0],wood);part([.28,.25,.08],[.09,.55,0],gold);}
+  else if(weaponId.includes('sword')){
     part([.065,.24,.065],[0,.05,0],wood);part([.24,.06,.09],[0,.2,0],gold);
     const edge=new THREE.MeshLambertMaterial({color:0x685229});
     part([.15,.5,.07],[0,.48,0],edge);part([.10,.5,.075],[0,.48,.002],gold);part([.075,.075,.07],[0,.76,0],gold);

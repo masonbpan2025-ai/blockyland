@@ -75,12 +75,16 @@ export function syncWitherEquipment(mob) {
     if (visuals[slot]) { visuals[slot].removeFromParent(); visuals[slot].geometry.dispose(); visuals[slot].material.dispose(); }
     const specs = { head: [.66,.66,.66,2.1], chest: [.64,.72,.36,1.45], legs: [.63,.42,.33,.9], feet: [.55,.18,.31,.09], offhand: [.43,.65,.09,-.6] };
     const spec = specs[slot]; if (!spec) continue;
-    const color = /pumpkin|lantern/.test(item.id) ? 0xbd6b26 : item.id.startsWith('diamond') ? 0x59baba : item.id.startsWith('golden') ? 0xcaa43b : item.id.startsWith('netherite') ? 0x443e43 : 0x94949b;
+    // A held block carries a NUMERIC id and has no `startsWith`; the colour test reads the name form.
+    const equipmentId = typeof item.id === 'string' ? item.id : '';
+    const color = /pumpkin|lantern/.test(equipmentId) ? 0xbd6b26 : equipmentId.startsWith('diamond') ? 0x59baba : equipmentId.startsWith('golden') ? 0xcaa43b : equipmentId.startsWith('netherite') ? 0x443e43 : 0x94949b;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...spec.slice(0,3)), new THREE.MeshLambertMaterial({color}));
     mesh.userData.id = item.id; mesh.position.y = spec[3];
     (slot === 'offhand' ? mob.leftHanded ? mob.rightArm : mob.leftArm : mob.mesh).add(mesh); visuals[slot] = mesh;
   }
-  mob.bladeMat.color.setHex(mob.weapon?.startsWith('diamond') ? 0x59baba : mob.weapon?.startsWith('netherite') ? 0x443e43 : 0x969696);
+  // A picked-up BLOCK has a numeric id and no string methods, so the blade tint reads the name form.
+  const weaponId = typeof mob.weapon === 'string' ? mob.weapon : '';
+  mob.bladeMat.color.setHex(weaponId.startsWith('diamond') ? 0x59baba : weaponId.startsWith('netherite') ? 0x443e43 : 0x969696);
 }
 
 export function updateWitherSkeleton(manager, mob, dt, player) {

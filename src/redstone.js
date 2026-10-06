@@ -412,7 +412,7 @@ export class Redstone {
         this.world.setVoxel(...frontPos,B.FIRE);
         return;
       }
-    } else if(s.id===B.DISPENSER&&(item.id.endsWith('_helmet')||item.id.endsWith('_chestplate')||item.id.endsWith('_leggings')||item.id.endsWith('_boots'))){
+    } else if(s.id===B.DISPENSER&&typeof item.id==='string'&&(item.id.endsWith('_helmet')||item.id.endsWith('_chestplate')||item.id.endsWith('_leggings')||item.id.endsWith('_boots'))){
       const slot=item.id.endsWith('_helmet')?'head':(item.id.endsWith('_chestplate')?'chest':(item.id.endsWith('_leggings')?'legs':'feet'));
       if(g.player&&Math.abs(g.player.position.x-p[0])<1.8&&Math.abs(g.player.position.z-p[2])<1.8){
         if(g.inventory&&!g.inventory.armor[slot]){

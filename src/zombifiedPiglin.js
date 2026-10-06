@@ -89,7 +89,9 @@ export function syncZombifiedEquipment(m){
   for(const [slot,item] of Object.entries(m.equipment||{})){
     if(slot==='weapon'||visuals[slot]?.id===item.id)continue;
     if(visuals[slot])for(const o of visuals[slot].meshes){o.removeFromParent();o.geometry.dispose();o.material.dispose();}
-    const mat=new THREE.MeshLambertMaterial({color:item.id.startsWith('golden_')?0xe7b82f:item.id.startsWith('diamond_')?0x58d9db:0xbac1c9}),meshes=[];
+    // A held block carries a NUMERIC id and has no `startsWith`; the colour test reads the name form.
+    const equipmentId=typeof item.id==='string'?item.id:'';
+    const mat=new THREE.MeshLambertMaterial({color:equipmentId.startsWith('golden_')?0xe7b82f:equipmentId.startsWith('diamond_')?0x58d9db:0xbac1c9}),meshes=[];
     const box=(parent,size,y)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);o.position.y=y;parent.add(o);meshes.push(o);};
     if(slot==='offhand')box(m.leftArm,[.35,.5,.07],-.63);
     if(slot==='head')box(m.head,[.65,.2,.53],.19);
@@ -126,7 +128,8 @@ export function updateZombified(manager,m,dt){
     if(visible&&m.alarmTimer<=0){alertZombified(manager,m,target);m.alarmTimer=4+random(manager)()*2;}
     if(breakZombifiedDoor(manager,m,p,dt))return;
     const speed=(m.isBaby?5.07:3.38)*(m.hasStatusEffect?.('slowness')?.85:1);
-    if(m.weapon?.includes('spear')){
+    // A picked-up BLOCK has a numeric id and no string methods. The spear check is a name test.
+    if (typeof m.weapon === 'string' && m.weapon.includes('spear')) {
       m.spearTime=(m.spearTime||0)+dt;
       if(!m.spearPhase)m.spearPhase='charge';
       if(m.spearPhase==='charge'){
@@ -145,7 +148,7 @@ export function updateZombified(manager,m,dt){
   }else{m.state='idle';wanderMob(manager,m,dt,m.isBaby?3.42:2.28);}
   m.head.rotation.z=m.nauseaTime>0?Math.sin(m.nauseaTime*5)*.08:0;
   m.rightArm.rotation.x=-1.2-Math.sin(m.attackAnimation/.3*Math.PI)*.4;
-  if(m.weaponMesh)m.weaponMesh.rotation.x=m.weapon?.includes('spear')?-.3:1.2;
+  if(m.weaponMesh)m.weaponMesh.rotation.x=(typeof m.weapon === 'string' && m.weapon.includes('spear'))?-.3:1.2;
   m.leftArm.rotation.x=-1.2+Math.sin(m.walkCycle||0)*.1;
   if(m.jockeyMount?.health>0){m.jockeyMount.velocity.x=m.velocity.x;m.jockeyMount.velocity.z=m.velocity.z;m.jockeyMount.yaw=m.yaw;}
 }
