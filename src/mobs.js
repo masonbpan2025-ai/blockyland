@@ -7166,6 +7166,21 @@ export class MobManager {
     inner.position.y = 0.28;
     group.add(inner);
 
+    // The face: two 2x2x2 eyes and a 1x1x1 mouth. These hang off the GROUP, NOT off `outer`: attaching them to a
+    // `transparent: true` parent made the whole slime vanish from the Inspector, so they deliberately sit beside the
+    // translucent cube rather than inside it. Offsets are in the cube's frame, whose centre is world y = 0.25.
+    const faceMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+    const unit = 0.0625;
+    const faceY = 0.25;
+    for (const x of [-3.25, 1.25]) {
+      const slimeEye = new THREE.Mesh(new THREE.BoxGeometry(2 * unit, 2 * unit, 2 * unit), faceMat);
+      slimeEye.position.set(x * unit, faceY + (18 - 20) * unit, -3.5 * unit);
+      group.add(slimeEye);
+    }
+    const slimeMouth = new THREE.Mesh(new THREE.BoxGeometry(unit, unit, unit), faceMat);
+    slimeMouth.position.set(0, faceY + (21 - 20) * unit, -3.5 * unit);
+    group.add(slimeMouth);
+
     const s = size / 4;
     group.scale.set(s, s, s);
     group.position.set(x, y, z);

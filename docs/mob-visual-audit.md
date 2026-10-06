@@ -1125,3 +1125,28 @@ Texture 32x32. FOUR of its seven parts are flat planes -- the fourth mob where t
 and the bat. The cod is currently drawn with a procedural `createAquaticTexture`, which is why it has no real skin.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round thirty-three: the transparent-parent diagnosis confirmed
+
+Round thirty-two found that adding three small meshes to the slime's translucent outer cube made the whole mob vanish,
+and recorded a likely one-line fix. **That fix works.**
+
+The eyes and mouth now attach to the GROUP rather than to `outer` (`transparent: true, opacity: 0.65`), and the slime
+renders again at its normal size in the capture. `slimeParity` stays at 15/15 and the full mob area stays at its
+baseline.
+
+**So the finding is confirmed rather than merely suspected: three tiny meshes parented to a TRANSPARENT material took
+the whole mob out of the render.** That is worth remembering for every mob that has a translucent part -- the slime, the
+magma cube, the vex's wings, the allay's wings, the ghast -- because the failure mode is total and silent: no warning,
+no error, just an empty frame. It joins the list of "correct build, invisible output" faults this project keeps hitting,
+and it is the first one whose cause is MATERIAL STATE rather than geometry.
+
+**Two honest caveats on this round's result:**
+
+1. **The face is not yet facing the camera.** One dark bar is visible through the translucent cube, so the eyes and
+   mouth are present but their Z sign places them on the far side from the Inspector's default view. The cod's own
+   decompiled data has `more negative z = more forward`, so the convention is reverse of what I assumed. That is a
+   sign flip to settle, not a geometry rebuild.
+2. The face renders THROUGH the translucent cube rather than crisply on it, which is a consequence of putting it on the
+   group. Attaching it to a non-transparent sibling would fix both, and that is the next step.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
