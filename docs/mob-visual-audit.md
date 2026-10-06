@@ -5263,3 +5263,57 @@ which round ninety-one measured as 991 pixels at alpha 0 and 33 at alpha 255, wi
 the answer was one class away, in a file I never fetched.**
 
 **The goal is therefore NOT blocked on this mob.** It needs the base sheet, which has not been extracted, and a layer pass.
+## Round one hundred and forty: BOTH the base and the pattern sheets are white stencils, and the whole mob is tinted
+
+**Round one hundred and thirty-nine said the body draws from "a base texture I never looked at". I looked at it, and it is a
+stencil too.**
+
+`TropicalFishRenderer` (1.20.1, `fro` / `class_959`) holds exactly two textures:
+
+```
+MODEL_A_TEXTURE   A_TEXTURE   f_262282_    <- tropical_a.png, the SMALL model
+MODEL_B_TEXTURE   B_TEXTURE   f_262236_    <- tropical_b.png, the LARGE model
+private final ColorableHierarchicalModel<TropicalFish> modelA / modelB
+```
+
+**So `tropical_a.png` and `tropical_b.png` ARE the base sheets** -- the filenames are confirmed by the mapping. **And both are
+stencils:**
+
+```
+tropical_a.png   32x32 depth 8 type 6   195b   86 opaque, 0 COLOURED
+tropical_b.png   32x32 depth 8 type 6   246b   ... 0 COLOURED
+```
+
+**EVERY tropical fish texture -- both base sheets and all twelve pattern layers -- is a white stencil with zero coloured
+pixels.** And the entity is rendered through a **`ColorableHierarchicalModel`**, with the renderer exposing both
+`getTextureLocation` and `getTexture`.
+
+**So the complete and correct picture of this mob is:**
+
+* **the body** is drawn from `tropical_a.png` or `tropical_b.png`, **tinted by the variant's BASE colour**;
+* **the pattern** is drawn on top from one of the twelve `*_TEXTURE` sheets, **tinted by the variant's PATTERN colour**;
+* **the fins** take the variant's FIN colour;
+* **and every pixel of every sheet is white**, because white is what a tint multiplies to produce the requested colour.
+
+**That is why this project's FLAT-COLOUR tropical fish has always looked correct.** The mob's real appearance is *entirely*
+`baseColor`, `patternColor` and `finColor` applied to stencils -- which is exactly what `FISH_COLORS.tropical_fish` and the
+variant's three colours already carry. **The flat colours were not a fallback waiting to be replaced by textures; they were the
+closest available approximation of a mob that vanilla itself renders by tinting.**
+
+**And it corrects round one hundred and thirty-nine's own correction.** That round said the sheets are a pattern LAYER and the
+base texture was unexamined; the truth is that BOTH are stencils, and the distinction between "base" and "pattern" is which
+colour tint is applied -- not which sheet contains drawing. **Both contain none.**
+
+**The implementation, now fully specified and needing no new asset:**
+
+1. bind `tropical_a.png` / `tropical_b.png` by shape, **with `baseColor` as the material colour**;
+2. draw the twelve `*_TEXTURE` pattern sheets as a **second pass**, with `patternColor` as their tint;
+3. keep `alphaTest`, because the stencils are binary (991 pixels at alpha 0, 33 at 255, nothing between).
+
+**The lesson, now earned twice in two rounds:** I have twice described this mob from ONE file's content. **Round ninety-one
+called it a stub because the file had no colour; round one hundred and thirty-nine called it a layer because a DIFFERENT file
+had no colour.** The property "no colour" belongs to **the rendering technique**, which is tinting -- and it holds for every
+file in the family, which is why each individual measurement kept looking like a discovery and kept being a partial one.
+
+Goal is NOT blocked on this mob, and never was: **the assets are sufficient and always were -- what was missing was the
+knowledge that they are stencils.** `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
