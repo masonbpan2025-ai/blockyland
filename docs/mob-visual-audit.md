@@ -4534,3 +4534,44 @@ finding it absent rather than assuming I had read the wrong thing.**
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon bound with its part names read and its rectangles still to
 locate, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-one: the dragon's geometry is LOCATED, and a new tool found it
+
+**Round one hundred and twenty ended with "find the class that constructs the dragon's `class_630`". It is found.**
+
+The existing tools could not do it: `decompile-model.mjs --list` covers entity models only, and `--grep` searches inside
+already-decompiled model classes -- neither can find a class whose *name* is unknown. So
+**`scripts/mob-visual/find-class-with-string.mjs`** was written to read the JAR's class entries **as raw bytes** and report
+which contain a given string. **A constant-pool string literal is present in the class file before any decompilation, so this
+needs no name in advance** -- which is exactly the gap.
+
+It scans all **7787 class files** and reports:
+
+```
+CONTAINS "left_wing_tip": 6
+  ewc.class   fmy.class   fky.class   fjb.class   fyi.class   fyi$a.class
+```
+
+**`fyi.class` and `fyi$a.class` are the informative pair.** A nested class (`fyi$a`) alongside its outer class is exactly the
+shape round one hundred and twenty identified -- the renderer is `class_895$class_625`, an inner class of the renderer -- so
+**`fyi` is the renderer and `fyi$a` is the model that constructs the geometry.** The other four are almost certainly other
+classes that *reference* the dragon by name (the entity, the phase manager, a spawn egg, a renderer registry).
+
+**And a real limitation surfaced that is worth recording:** `decompile-model.mjs` resolves names through the Yarn mapping and
+answers `no mapping for fyi$a`. **The client JAR on this machine is OBFUSCATED (`fyi`), while the decompile workflow works in
+INTERMEDIARY (`class_895`)**, so the new tool finds classes by content and the decompiler finds them by mapping, **and nothing
+yet connects the two.** That connection is the next small piece of work: look the obfuscated name up in the mappings to get
+its intermediary id, then decompile that.
+
+**So the dragon's rebuild now has a located source rather than a search:**
+
+| | |
+| --- | --- |
+| renderer | `fyi` / `class_895` (hierarchy read) |
+| **model with the geometry** | **`fyi$a`** -- to be mapped to an intermediary id and decompiled |
+| part names | 20, read |
+| sheet | real, 256x256, extracted, bound |
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry located at `fyi$a` and its rectangles still to
+read, and the tropical fish BLOCKED by its assets.**
