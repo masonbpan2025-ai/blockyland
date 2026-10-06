@@ -6390,11 +6390,11 @@ export class MobManager {
     const cyanMat = new THREE.MeshLambertMaterial({ color: WARDEN_CORE_COLOR });
 
     const torso = new THREE.Mesh(createBoxWithUV(1.125, 1.3125, 0.6875, 0, 0, 128, 128, 18, 21, 11), sculkMat); // WARDEN_SWAP_FIXED
-    torso.position.y = 1.9;
+    torso.position.y = 1.69; // WARDEN_PLACED
     group.add(torso);
 
     const head = new THREE.Mesh(createBoxWithUV(1.0, 1.0, 0.625, 0, 32, 128, 128, 16, 16, 10), sculkMat); // WARDEN_SWAP_FIXED
-    head.position.set(0, 2.4, 0); // WARDEN_SWAP_FIXED
+    head.position.set(0, 2.85, 0); // WARDEN_PLACED
     group.add(head);
     // WARDEN_MODELLED_EYES
     // The warden's face is almost entirely black sculk, so its eyes are not "dark marks on light hide" the way a
@@ -6405,16 +6405,16 @@ export class MobManager {
     const wardenEyeGeo = new THREE.BoxGeometry(0.22, 0.1, 0.06);
     for (const side of [-1, 1]) {
       const eye = new THREE.Mesh(wardenEyeGeo, cyanMat);
-      eye.position.set(side * 0.26, 3.06, 0.61);
+      eye.position.set(side * 0.26, 3.27, 0.61); // WARDEN_PLACED
       group.add(eye);
     }
 
     // Horns.
-    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.7, 0); group.add(hornL);
-    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.7, 0); group.add(hornR);
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.92, 0) // WARDEN_PLACED; group.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.92, 0); // WARDEN_PLACED group.add(hornR);
 
     // Glowing chest core, the warden's brightest feature.
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 0.12), cyanMat); core.position.set(0, 2.05, 0.4); group.add(core);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 0.12), cyanMat); core.position.set(0, 1.84, 0.4) // WARDEN_PLACED; group.add(core);
     const coreSunken = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.1), cyanMat); coreSunken.position.set(0, 1.55, 0.38); group.add(coreSunken);
 
     const armGeo = createBoxWithUV(0.5, 1.75, 0.5, 44, 50, 128, 128, 8, 28, 8); // WARDEN_UV_NOTE

@@ -813,3 +813,31 @@ Their zero depth is why they can never be boxes -- the same shape as the vex's w
 hands. They need `plane` parts, which the builder now has, plus the rotation work.
 
 Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
+
+## Round twenty-three: the warden's parts were placed for a different scale
+
+**Placement, not geometry, was the last fault.** `class_7280` builds every part inside a `bone` at **(0, 24, 0)**, with
+the body at (0,-21,0) relative to it and the head a further (0,-13,0). Because that bone sits 24 units (1.5 blocks)
+above the origin, a part's real height is `24 + boneOffset + partOffset` units.
+
+I had been using the raw offsets as if the bone were at the origin, which put the head at 2.4 -- above the horns -- and
+left the eyes floating clear of the face. The decompiled arithmetic gives the torso a centre around **1.69** and the
+head around **2.85**, and the warden now assembles as one creature: dark sculk body, cyan eyes set in a textured head,
+the cyan core on the torso, and the pale rib texture running down the arms and legs.
+
+**The warden has now taken three rounds to get right, and each round found a DIFFERENT fault:**
+
+| round | fault found |
+| --- | --- |
+| 21 | coordinates in 64-space divided by `texW = 128`, so every part sampled half-off |
+| 22 | body and head blocks SWAPPED -- both valid and opaque, so no check caught it |
+| 23 | part positions used raw offsets with the `bone`'s 24-unit lift omitted |
+
+That is a good argument for the approach that finally worked: **decompile, then read every value rather than
+translating any of them by intuition.** Each of the three faults was invisible in isolation and only the render plus
+the source together exposed them.
+
+**Still deliberately deferred:** the flat parts. Vanilla's warden has a ribcage 9x21x0 at (90,11) and tendrils 16x16x0
+at (52,32) and (58,0). Zero depth means planes, and they need their own rotation work.
+
+Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
