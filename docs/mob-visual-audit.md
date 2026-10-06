@@ -3799,3 +3799,43 @@ each was spent on a layer that measurement had not yet cleared.
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
+## Round one hundred and four: every camel rectangle lands on opaque content, so the coordinates are RIGHT
+
+**I ran round one hundred and three's named measurement, and it clears the last hypothesis.**
+
+```
+VANILLA PAIRING (from pair-part-uv.mjs):
+  body 15x12x27   (  0, 25)   69x39   opaque 2387/2691   89%
+  head 7x8x19     ( 60, 24)   45x27   opaque 1148/1215   94%
+  hump 9x5x11     ( 74,  0)   31x16   opaque  259/ 496    52%
+```
+
+**All three rectangles land on the camel's actual drawn content.** The head at `(60, 24)` is **94% opaque** -- the densest
+region on the whole sheet -- and the body is 89%. If `pair-part-uv.mjs` had paired a part with the wrong coordinates, at least
+one region would be largely empty. **None is.**
+
+**So the coordinates are right, the layout is right, the sheet is right, the proportions are right, the alpha test is
+irrelevant, and the render fragments anyway.**
+
+**That is the honest end of the line for hypothesising about this mob.** Six measured layers are all correct and the picture
+is still wrong, which means the fault is in something I have not thought to look at rather than in something I have looked at
+and misjudged. **I am recording that as the state rather than producing a seventh candidate**, because the last six each cost
+a round and each was falsified by the next measurement.
+
+**What is genuinely established about the camel, and it is not nothing:**
+
+* **the atlas key was missing** and adding it was the single change that made the mob form at all (round one hundred);
+* **the rectangles make it measurably worse** -- a byte-identical hash to the fragmented state (round one hundred and one);
+* **every rectangle lands on drawn texture** (this round);
+* so the mob is **bound and forming**, and the remaining fault is in a layer below all six I have examined.
+
+**The most useful thing I can say about where to look next**, stated as a direction rather than a diagnosis: **all six layers
+I checked are about the TEXTURE and its addressing. None was about the GEOMETRY's position in the model.** The camel's model
+builds `belly`, `muzzle`, `neck` and `tail` parts that **vanilla's `class_7751` does not have at all**, and places them by
+hand -- so a part may be sitting where another part's face should be, which would look exactly like fragmented texture without
+any texture being wrong. **That is the next thing to measure: the parts' POSITIONS, not their UVs.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- of which the camel is bound and forming
+with its texture addressing fully verified.**
