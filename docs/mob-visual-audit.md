@@ -4057,3 +4057,40 @@ passed all four preconditions, so what is left is applying the rectangles and lo
 `AREA` is at exactly **1766/1773**.
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon).**
+## Round one hundred and ten: a grep hit is not a definition, and the slime's rectangles need an import first
+
+**I applied the slime's rectangles and the area went from 7 failures to 47. The cause was one missing import.**
+
+```
+ReferenceError: applyVanillaBoxUVs is not defined
+```
+
+**I had CONFIRMED the helper was available with a grep that matched a REFERENCE rather than a declaration.** My check was:
+
+```
+applyVanillaBoxUVs available in mobs.js: true
+```
+
+which was true -- `mobs.js` already *calls* it, for the guardian, through a local helper. **But `applyVanillaBoxUVs` is
+exported from `src/mobVisuals/modelBuilder.js` and is NOT imported into `mobs.js`**, so the guardian's call resolves to a
+locally-defined function of the same shape while the slime's call resolves to nothing.
+
+**That is the round-eighty-one and round-eighty-two lesson in a third form, and it is the sharpest statement of it yet:**
+
+> `node --check` passes on an undefined identifier, and **a grep for a name cannot distinguish a definition from a
+> reference.** The only check that settles it is RUNNING the module, which I did -- and which is how I caught this in one
+> round rather than shipping it.
+
+**Reverted, and the round's work is kept:** the slime remains **bound**, reading `distinct materials 3, with a map: 2`, and
+`AREA` is back at exactly **1766/1773**. The atlas key and the sheet binding from round one hundred and nine are intact.
+
+**What the slime needs, stated so the next attempt is mechanical:** import `applyVanillaBoxUVs` from
+`./mobVisuals/modelBuilder.js` into `src/mobs.js` (or use the local helper the guardian already calls), then apply
+`(0, 0)` 8x8x8 to the outer cube and `(0, 16)` 6x6x6 to the inner one, both on the 64x32 sheet. **Both constants are already
+verified**; only the import is new.
+
+**The score for this round, honestly:** one fault reverted, one general lesson recorded, and a one-line fix identified. Given
+how many rounds this project has spent on patching faults, **the round where I caught the undefined identifier BEFORE
+committing is the round this procedure was written for.**
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon).**
