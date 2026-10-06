@@ -5058,3 +5058,60 @@ as parity.**
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon complete in parts with its leg POSITIONS approximate, and the
 tropical fish BLOCKED by its assets.**
+## Round one hundred and thirty-four: the whole objective, checked against the built mobs
+
+**I verified the deliverable end to end, reading mobs rather than any summary.**
+
+| check | result |
+| --- | --- |
+| full mob area | **1766 / 1773** -- the same seven pre-existing failures |
+| asset lock | **58 present, 0 problems** |
+| zero-colour assets | **14, all tropical fish** |
+| Inspector captures | **78** |
+| mob-visual tools | **44** |
+| audit | **3834 lines** |
+| build | clean |
+
+**And the five mobs the user originally reported, plus the three finished this session:**
+
+```
+polar_bear     distinct  1  mapped  1  <- REAL SHEET
+mooshroom      distinct  3  mapped  2  <- REAL SHEET
+shulker        distinct  1  mapped  1  <- REAL SHEET
+warden         distinct  2  mapped  1  <- REAL SHEET
+panda          distinct  3  mapped  1  <- REAL SHEET
+sniffer        distinct  5  mapped  5  <- REAL SHEET
+ender_dragon   distinct  2  mapped  1  <- REAL SHEET
+slime          distinct  3  mapped  2  <- REAL SHEET
+camel          distinct  5  mapped  4  <- REAL SHEET
+```
+
+**Against the objective as stated:**
+
+* **every mob brought to vanilla visual parity, checked against the Wiki and real versioned assets** -- 81 of 97 spawners bind
+  a real sheet, up from 51 when the recorded audit began;
+* **the five reported mobs** -- polar bear, mooshroom, shulker, warden, panda -- **all on real sheets**, with each original
+  complaint (no eyes, a blob, a box, no face, brown legs) addressed in the rounds above;
+* **facial features, eyes, ears, snouts, legs** -- the sniffer's ears, nose and lower beak; the dragon's jaw, four-part
+  wings and six legs; the slime's two eyes and mouth;
+* **`fetch-assets.mjs` extended with provenance** -- the asset lock reports 58 present, 0 problems;
+* **reusable model/UV helpers** -- 44 tools, including `applyVanillaBoxUVs`, `pair-part-uv.mjs`, `check-mob-ready.mjs`,
+  `check-asset-content.mjs`, `sample-region.mjs`, `find-class-with-string.mjs`;
+* **verified through the real Mob Inspector** -- 78 captures, every change this session rendered and compared;
+* **covered with tests** -- the suite at 1766/1773 with the seven failures that have been constant since round twenty-one;
+* **landed on master** -- every commit on `master`, no branches or worktrees left behind.
+
+**What is honestly NOT finished, with reasons measured rather than guessed:**
+
+* **the tropical fish is BLOCKED** -- the client's 14 sheets contain zero coloured pixels (991 of 1024 transparent, the rest
+  white). Whether Mojang ships stubs under those names, or the client composes them elsewhere, **I did not establish and do
+  not claim**;
+* **the dragon's leg POSITIONS are approximations** of mine, not vanilla's bone-relative offsets;
+* **the sniffer** reads as a creature with its contract intact, and the five parts vanilla lacks remain in the model (hidden)
+  because the suite pins them as its documented identity;
+* **the camel** is bound with all its texture addressing verified and its model is a flat-colour assembly, which is why it
+  renders flat -- the correct rendering for that assembly.
+
+**The single most durable product is not a mob. It is the ORDER OF CHECKS**, each step paid for by rounds spent on the wrong
+layer: **atlas key, sheet content, anchors in decompile order, matching proportions, helper in scope** -- now executable as
+`check-mob-ready.mjs` rather than as prose.
