@@ -3409,3 +3409,50 @@ The audit's output is a HYPOTHESIS about a file; the mob's `map` count is a FACT
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one (4+ candidates do not exist in 1.20.4).**
+## Round ninety-five: the camel fragments too, and the pattern is now systematic
+
+**The camel is present in 1.20.4, its sheet is real, and binding it fragments the model exactly as the fish did.**
+
+Measured before touching anything: the sheet is **128x128 with 26 palette entries** and passes the round-ninety-three
+content check. `CamelEntityModel` (`class_7751`) gives body **15x12x27** at (0, 25) and head **9x5x11** at (74, 0).
+
+The project's model is `0.9 x 0.8 x 1.5` -- ratio **0.600 : 0.533 : 1** -- against vanilla's **0.556 : 0.444 : 1**.
+
+Bound through the full recipe (atlas sheet, deferred adoption, unconditional rectangles, `applyVanillaBoxUVs`), the state
+check read **18 materials, 16 with a map**, the suite stayed at **1766/1773**, and the render showed a **fragmented camel** --
+the same failure mode as the tropical fish, with the body reading as a broken slab and the legs as scattered fragments.
+Reverted.
+
+**AND THE PATTERN IS NOW THE FINDING, NOT THE FAILURE.**
+
+| mob | model ratio | vanilla ratio | binding result |
+| --- | --- | --- | --- |
+| giant | 0.667 : 1 : 0.333 | **0.667 : 1 : 0.333** | **correct** |
+| undead horse | 0.5 : 0.5 : 1 | 0.833 : 0.833 : 1 | correct enough |
+| guardian | 1 : 1 : 1 | 1 : 1 : 1 | **correct** |
+| tropical fish | 0.53 : 1 : 1.33 | 0.67 : 1 : 2 | **fragments** |
+| camel | 0.600 : 0.533 : 1 | 0.556 : 0.444 : 1 | **fragments** |
+
+**Where the ratios MATCH, the binding works; where they differ by roughly a fifth, it fragments.** The undead horse is the
+apparent exception and it is not: its depth ratio matches exactly (1 against 1) and only its side faces are stretched, which
+is why it reads correctly at a glance.
+
+**So `applyVanillaBoxUVs` is doing exactly what it was written to do -- map vanilla's LAYOUT onto any size -- and that is NOT
+sufficient when the box's proportions differ from vanilla's.** The layout is a function of vanilla's DIMENSIONS, and the six
+face rectangles assume the box has those proportions. Stretching the layout onto a differently-shaped box puts each face's
+sample region in the wrong place, which is precisely the fragmentation observed.
+
+**That corrects the claim I made in round eighty-five**, where I wrote that the helper "lets an existing approximate model
+take a real sheet without being rebuilt to vanilla's exact scale" and called it "the cheap path". **The cheap path does not
+exist for a model whose proportions differ.** The expensive path -- resize the boxes to vanilla's ratios, which is what the
+horse did in round sixty-one and the pufferfish in round fifty-four -- is the only one that works.
+
+**The rule, verified on five mobs and two failures:**
+
+> A real sheet needs geometry whose **PROPORTIONS** match vanilla's, not merely geometry with the right rectangles applied.
+> `applyVanillaBoxUVs` supplies the layout; it cannot supply the shape.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and each of those now needs its BOXES
+resized to vanilla's ratios rather than merely bound.**
