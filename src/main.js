@@ -1142,55 +1142,71 @@ class Game {
       if (button) button.addEventListener('click', handler);
     };
 
-    bind('btn-start-new-world', async (e) => {
+    /**
+     * Run an action that needs the game, showing that the click was taken while the game is still loading.
+     * A click with no visible answer reads as a dead button, which is what invited the second and third one.
+     */
+    const afterUi = async (button, action) => {
+      const waiting = !this.ui;
+      if (waiting && button) {
+        button.disabled = true;
+        button.classList.add('is-waiting');
+      }
+      await this.whenUiReady();
+      if (waiting && button) {
+        button.disabled = false;
+        button.classList.remove('is-waiting');
+      }
+      return action();
+    };
+
+    bind('btn-start-new-world', (e) => {
       e.stopPropagation();
       this.sounds.init();
-      // Wait for the UI before deciding: the biome menu is the UI's, and falling through to the legacy
-      // generation path because the UI was still loading would skip the menu entirely.
-      await this.whenUiReady();
-      if (this.ui?.openBiomeModal) {
-        this.ui.openBiomeModal();
-        return;
-      }
-      if (this._worldStartInFlight) return;
-      this._worldStartInFlight = true;
       const button = e.currentTarget;
-      if (button) button.disabled = true;
-      try {
-        // Await so the start screen stays up (with the progress bar) until the terrain and meshes are
-        // actually ready, then hand over the pointer.
-        await this.generateNewWorld();
-        const startOverlay = document.getElementById('start-overlay');
-        if (startOverlay) startOverlay.style.display = 'none';
-      } catch (err) {
-        // Never strand the player on a full progress bar: undo the start and report what happened.
-        console.error('[World] Failed to start a new world:', err);
-        this.failWorldStart(err);
-      } finally {
-        if (button) button.disabled = false;
-        this._worldStartInFlight = false;
-        if (this.worldReady) this.overlay?.hide();
-      }
+      afterUi(button, async () => {
+        // The biome menu belongs to the UI, so wait for it before choosing a path: falling through to the
+        // legacy generation path while the UI was still loading would skip the menu entirely.
+        if (this.ui?.openBiomeModal) {
+          this.ui.openBiomeModal();
+          return;
+        }
+        if (this._worldStartInFlight) return;
+        this._worldStartInFlight = true;
+        if (button) button.disabled = true;
+        try {
+          // Await so the start screen stays up (with the progress bar) until the terrain and meshes are
+          // actually ready, then hand over the pointer.
+          await this.generateNewWorld();
+          const startOverlay = document.getElementById('start-overlay');
+          if (startOverlay) startOverlay.style.display = 'none';
+        } catch (err) {
+          // Never strand the player on a full progress bar: undo the start and report what happened.
+          console.error('[World] Failed to start a new world:', err);
+          this.failWorldStart(err);
+        } finally {
+          if (button) button.disabled = false;
+          this._worldStartInFlight = false;
+          if (this.worldReady) this.overlay?.hide();
+        }
+      });
     });
 
-    bind('btn-start-designed-world', async (e) => {
+    bind('btn-start-designed-world', (e) => {
       e.stopPropagation();
       this.sounds.init();
-      await this.whenUiReady();
-      this.ui?.openDesignedWorldsModal();
+      afterUi(e.currentTarget, () => this.ui?.openDesignedWorldsModal());
     });
 
-    bind('btn-start-load-world', async (e) => {
+    bind('btn-start-load-world', (e) => {
       e.stopPropagation();
       this.sounds.init();
-      await this.whenUiReady();
-      this.ui?.openMapModal('load');
+      afterUi(e.currentTarget, () => this.ui?.openMapModal('load'));
     });
 
-    bind('btn-start-structure-studio', async (e) => {
+    bind('btn-start-structure-studio', (e) => {
       e.stopPropagation();
-      await this.whenUiReady();
-      await this.startBuildingStudio();
+      afterUi(e.currentTarget, () => this.startBuildingStudio());
     });
 
     // These three navigate to their own pages, so they need nothing from the game.

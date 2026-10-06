@@ -58,3 +58,11 @@ test('a click during loading waits for the UI rather than being dropped', () => 
   assert.match(main, /_resolveUiReady\?\.\(\)/, 'the readiness promise is resolved when the UI is built');
   assert.match(main, /this\._uiReady = new Promise/, 'and created before start() runs');
 });
+
+test('a click that has to wait says so, instead of looking like a dead button', () => {
+  const body = bindStartScreenBody();
+  assert.match(body, /classList\.add\('is-waiting'\)/, 'the button marks itself as waiting');
+  assert.match(body, /classList\.remove\('is-waiting'\)/, 'and clears the mark when the action runs');
+  const css = fs.readFileSync(path.join(process.cwd(), 'src/style.css'), 'utf8');
+  assert.match(css, /\.mc-btn\.is-waiting\s*\{/, 'the waiting style exists');
+});
