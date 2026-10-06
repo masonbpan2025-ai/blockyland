@@ -5481,3 +5481,43 @@ attempt had a black tail and fins.
 
 Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins and eyes correct with its pattern pass
 outstanding, and the dragon's leg positions recorded as approximations.**
+## Round one hundred and forty-five: the pattern sheet measured, and it does NOT explain the blackout
+
+**Round one hundred and forty-three guessed that the pattern sheet's pixels "in those regions are not the sparse white the
+alpha histogram showed". Measured, and that is wrong.**
+
+`tropical_a_pattern_1.png`, read from its palette and pixel indices:
+
+```
+32x32  type 3  depth 2  palette 4 entries
+  [0] rgb(0,0,0)      alpha 0     <- the transparent entry, and the one MOST pixels use
+  [1] rgb(255,255,255)
+  [2] rgb(253,253,253)
+  [3] rgb(240,240,240)
+
+body region (0,0)-(8,9), sampled row by row:
+  ..  ..  ..  ..  ..  ..  ..  ..        <- all transparent
+  ..  ..  ..  ..  ..  ..  ..  ..        <- all transparent
+  [2] ..  [3] [3] ..  ..  ..  ..
+  ..  ..  ..  ..  ..  ..  ..  ..
+```
+
+**The body's cross-layout region is almost entirely the TRANSPARENT palette entry, with three near-white pixels in it.** So
+the sheet IS the sparse white stencil the histogram described, **and the blackout of round one hundred and forty-three has
+some other cause** -- most likely my own layering: a duplicate mesh at `scale * 1.002` with `polygonOffset` sits directly on
+the base, and if the pattern material's `color` resolved to something dark rather than the white I intended, it would paint
+the whole body dark. **I did not isolate that**, and I am recording it as the remaining candidate rather than a conclusion.
+
+**What this round settles:** the sheet is not the fault, so the pattern pass' failure is in MY two-mesh construction, not in
+the asset. **That is a materially better place to be than "the assets are broken", which is where this mob sat for six
+rounds.**
+
+**And it is worth noting what the palette itself proves about this mob's design:** the transparent entry is `rgb(0,0,0)` with
+`alpha 0`, and the three visible entries are all near-WHITE. **A vanilla stencil is therefore literally "black = do not draw,
+white = multiply by the tint"** -- which is a precise and checkable statement about how the whole family works, and it fits
+every measurement from rounds eighty-seven to one hundred and forty-five.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins and eyes correct with its pattern pass' failure
+now attributable to my own layering rather than the asset, and the dragon's leg positions recorded as approximations.**
