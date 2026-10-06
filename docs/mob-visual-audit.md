@@ -1741,3 +1741,34 @@ DIFFERENT SUB-FRAME (the blaze's rod ring, an arm pivot, a bone). That is a more
 conclusion and it is what the remaining mobs should be checked for.
 
 Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**
+## Round fifty-two: a wither skeleton attempt, reverted, with the lesson recorded
+
+**I rebuilt the wither skeleton on its real sheet and reverted it within the round, because it regressed its own suite.**
+
+The mob was a genuine find: `createWitherSkeletonModel` draws a bespoke silhouette (skull, spine, pelvis, ribcage, limb
+pivots, scythe) with an **8x8 procedural `boneTexture()` on plain `BoxGeometry`**, so every face stretched the whole
+pattern -- while the mob has a real 64x32 vanilla sheet. That is the chicken's defect class again, and the audit's
+`create*Texture()` check missed it because the generator is called from the MODEL module rather than the spawner.
+
+**What the attempt produced that is kept:** `wither_skeleton.png` was another palette PNG (colour type 3), now converted
+to RGBA at 700 bytes, and `to-rgba.mjs` handles it. A local `applyBoxUVs` helper was also written and validated against
+vanilla's layout for head 8x8x8, body 8x12x4 and limbs 2x12x2.
+
+**Why it was reverted:** the suite pins the skull's front face to the DRAWN texture, reading
+`m.head.material[4].map.image` and asserting exact socket pixels `[12,12,12]` at three positions and `notDeepEqual`
+against the other five faces. My version replaced that with a single sheet-mapped material, so the array no longer
+existed and the pixels were `[52,52,52]`. Restoring the six-material skull fixed most of it, but one assertion still
+failed, and tracing it properly needs a per-face UV pass on the skull rather than an adjustment in the same round.
+
+**A second, self-inflicted fault worth recording:** I converted `skeleton.png` at the same time as "the same class of
+fix", which BROKE THE ASSET LOCK -- the file is hashed in `assets.lock.json` and the hash check failed, taking the area
+from 7 failures to 11. Reverted; the lock is back to 58 present / 0 problems. **A palette PNG is only a fault when the
+consumer needs an alpha channel**, and the plain skeleton's has rendered correctly for fifty rounds through the browser's
+own palette handling. Converting a file that is already `assets.lock.json`-verified is a change to a VERIFIED ASSET, not
+a cleanup, and it has to go through the lock.
+
+**For the next attempt:** the wither skeleton needs the sheet bound with PER-FACE UVs that preserve the drawn skull, or
+the suite's skull assertions updated deliberately rather than incidentally. The geometry, the part names and the local
+`applyBoxUVs` helper are all validated and ready.
+
+Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**
