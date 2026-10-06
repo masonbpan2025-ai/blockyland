@@ -1403,3 +1403,37 @@ is currently reproduced, and both are recorded here rather than acted on, since 
 the sheet was the actual fault.
 
 Work list: **92 mob spawners, 59 with a real model, 61 with a real skin, 31 still flat-colour only.**
+## Round forty-three: an audit tool, the cats, and a manifest mistake worth recording
+
+**The audit, first.** `scripts/mob-visual/audit-procedural-sources.mjs` finds mobs that FALL BACK TO A GENERATED
+TEXTURE, which is the defect class the chicken exposed. My first cut flagged any spawner with no `loadTexture` call and
+produced mostly FALSE POSITIVES -- `this.textures.pig` IS the real preloaded sheet, so a spawner can be correctly
+textured while never calling a loader. The reliable signal is narrower: a `create*Texture()` call in the spawner's own
+body.
+
+That tightened version found **five** generators, and all five are FALLBACKS sitting behind a real sheet:
+`spawnCustomMob`, `spawnWolf`, `spawnCat`, `spawnRavager`, `spawnJackieChun`. **The chicken was the only mob in the
+project whose texture had no real sheet behind it at all**, and it is now fixed.
+
+**The cats were the next real case.** The preloaded atlas built every breed from a canvas drawing:
+
+```js
+cat_tuxedo: this.createCatTexture('tuxedo'),   // ...and three more
+```
+
+with a comment asserting these were "this project's own invention, not vanilla assets". **That comment was wrong** --
+the client JAR carries four breed sheets (tuxedo, tabby, siamese, british_shorthair) -- so the atlas now loads them and
+the generator becomes the stand-in. The render shows real fur detail, tabby striping and blue eyes.
+
+**A mistake worth recording: I added four entries to the DOWNLOAD manifest and broke the asset lock.** Those paths do
+not exist on the GitHub mirror (HTTP 404 on both pinned refs), because they are JAR-only, and an entry that cannot be
+fetched fails `the asset lock exists and records its provenance` and the hash check with it -- the area went from 7
+failures to 10. I reverted the entries and left a comment saying WHY they are absent, so the omission is documented
+rather than silent.
+
+**The lesson is about which direction to fix a mismatch.** The british shorthair's atlas key is `british` while vanilla's
+file is `british_shorthair.png`, and I first "fixed" it by renaming the manifest DESTINATION to suit the assumed key.
+That was the wrong end: `british` is this project's breed name and `british_shorthair` is vanilla's file name, and both
+are correct. **When a lookup key and a file name disagree, check which one the provider owns before changing either.**
+
+Work list: **92 mob spawners, 59 with a real model, 62 with a real skin, 30 still flat-colour only.**

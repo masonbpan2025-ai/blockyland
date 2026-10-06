@@ -638,13 +638,16 @@ export class MobManager {
       enderman: this.createEndermanTexture(),
       jackie_chun: this.createJackieChunTexture(),
       site_manager: this.createTrainerTexture(),
-      cat_tuxedo: this.createCatTexture('tuxedo'),
-      cat_tabby: this.createCatTexture('tabby'),
-      cat_siamese: this.createCatTexture('siamese'),
-      cat_british: this.createCatTexture('british'),
+      // The four cat breeds now load REAL vanilla sheets, with the procedurally drawn cat kept as the fallback. The
+      // comment below used to say these were this project's own invention rather than vanilla assets; there are in fact
+      // four breed sheets in the client JAR (tuxedo, tabby, siamese, british_shorthair), so they can be the real thing
+      // and the generator becomes the stand-in instead of the source. // CAT_BREED_SHEETS
+      cat_tuxedo: this.loadTexture('/assets/entity/cat/tuxedo.png', () => this.createCatTexture('tuxedo')),
+      cat_tabby: this.loadTexture('/assets/entity/cat/tabby.png', () => this.createCatTexture('tabby')),
+      cat_siamese: this.loadTexture('/assets/entity/cat/siamese.png', () => this.createCatTexture('siamese')),
+      cat_british: this.loadTexture('/assets/entity/cat/british_shorthair.png', () => this.createCatTexture('british')),
       // The real vanilla ocelot sheet, rather than a procedural canvas: a canvas texture whose bitmap has not
-    // uploaded renders BLACK, which is the trap the husk hit. The cat BREEDS keep their procedural textures --
-    // those are this project's own invention, not vanilla assets.
+    // uploaded renders BLACK, which is the trap the husk hit.
     ocelot: this.loadTexture(OCELOT_SKIN_PATH, () => this.createCatTexture('ocelot')),
       wolf: this.createWolfTexture(),
       spider: this.createSpiderTexture(),

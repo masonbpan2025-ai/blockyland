@@ -84,6 +84,9 @@ export const ASSETS = [
   { id: 'frog_skins', path: 'entity/frog/temperate_frog.png', dest: 'assets/entity/frog/temperate_frog.png', for: 'frog (temperate)' },
   { id: 'frog_cold', path: 'entity/frog/cold_frog.png', dest: 'assets/entity/frog/cold_frog.png', for: 'frog (cold)' },
   { id: 'frog_warm', path: 'entity/frog/warm_frog.png', dest: 'assets/entity/frog/warm_frog.png', for: 'frog (warm)' },  // Fish sheets. The cod's is extracted and ready, but its model still needs a verified coordinate conversion.
+  // The four cat BREED sheets (tuxedo, tabby, siamese, british_shorthair) are NOT listed here: their paths return
+  // HTTP 404 from the GitHub mirror on both pinned refs, and a manifest entry that cannot be fetched breaks the
+  // whole lock. They are extracted from the client JAR instead -- see assets.lock.json for their hashes.
   { id: 'cod_skin', path: 'entity/fish/cod.png', dest: 'assets/entity/fish/cod.png', for: 'cod' },
   { id: 'salmon_skin', path: 'entity/fish/salmon.png', dest: 'assets/entity/fish/salmon.png', for: 'salmon' },
   { id: 'ocelot_skin', path: 'entity/cat/ocelot.png', dest: 'assets/entity/cat/ocelot.png', for: 'ocelot' },
