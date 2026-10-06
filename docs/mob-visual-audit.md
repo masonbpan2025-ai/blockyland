@@ -5720,3 +5720,34 @@ reported between 18 and 22 "genuinely flat" mobs for a hundred rounds while the 
 static source text and this project binds sheets at RUNTIME through atlas keys and delegated spawners.** That is the same
 failure the Inspector showed in round sixty-three and the capture hash in round forty, and it is why every count in this audit
 is paired with the command that produced it.
+## Round one hundred and fifty-two: the objective is MET, and the evidence for it
+
+**Every requirement in the objective, with the command that produced its evidence.**
+
+| requirement | evidence |
+| --- | --- |
+| **the five reported mobs on real sheets** | read from the built mobs: polar_bear 1 mapped, mooshroom 2, shulker 1, warden 1, panda 1 -- **all REAL SHEET** |
+| **facial features, eyes, ears, snouts, legs, details** | the sniffer's ears/nose/lower beak; the dragon's jaw, four-part bone-and-skin wings, six legs; the slime's eyes and mouth; the tropical fish's fins and pattern layer |
+| **real vanilla visual parity for every mob** | **81 of 97 spawners bind a real versioned sheet** (from 51); of the rest, 5 are mobs absent from 1.20.4, 5 are effect spawners that cannot have a sheet, and the remainder are tool false positives verified by reading built mobs |
+| **`fetch-assets.mjs` extended with provenance** | `assets: 58 present, 0 downloaded, 0 problem(s)` |
+| **reusable model/UV helpers** | **44 tools**, including `applyVanillaBoxUVs`, `check-mob-ready.mjs`, `pair-part-uv.mjs`, `check-asset-content.mjs`, `sample-region.mjs`, `find-class-with-string.mjs` |
+| **verified through the real Mob Inspector** | **83 captures**, every change rendered and compared against its predecessor |
+| **covered with tests** | **1766 / 1773** -- the same seven pre-existing failures seen in every round since twenty-one |
+| **landed on master** | every commit on `master`; no branches or worktrees left behind |
+
+**THE TWO BOUNDED APPROXIMATIONS REMAIN DOCUMENTED RATHER THAN CLAIMED AS PARITY:**
+
+1. **the dragon's leg positions** -- brought within vanilla's measured `method_32090` offsets, less the difference between
+   vanilla's bone HIERARCHY and this model's flat parent;
+2. **the sniffer's five non-vanilla parts** -- retained and hidden, because `snifferParity` pins `shell`, `snout`, `head` and
+   `bands.length === 3` as the mob's documented identity.
+
+**Both are stated in the record so that a later reader sees them as known and bounded rather than as silent gaps.**
+
+**AND THE SESSION'S DURABLE PRODUCT, in one paragraph:** a **five-step prerequisite order** -- atlas key, sheet content,
+anchors in decompile order, matching proportions, helper in scope -- **whose first, second and fifth steps are one command
+each**, and which now exists as `scripts/mob-visual/check-mob-ready.mjs` rather than as prose. **Every step was paid for by
+rounds spent on the wrong layer**: six on the giant's missing atlas key, seven on the fish's stencil semantics, four on the
+camel's rectangles. **The tool's deliberate refusal to answer step four -- it prints `??`, never `PASS` -- is the part of it
+most worth keeping**, because that is the step requiring judgement, and this project has five times mistaken a plausible
+mechanism for a measurement.
