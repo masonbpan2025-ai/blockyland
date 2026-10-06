@@ -7358,7 +7358,7 @@ export class MobManager {
   // --- WITHER SKELETON ---
   // --- WITHER SKELETON ---
   spawnWitherSkeleton(x, y, z, options = {}) {
-    const mob = { ...createWitherSkeletonModel(), type: 'wither_skeleton', name: 'Wither Skeleton',
+    const mob = { ...createWitherSkeletonModel({ loadTexture: (p) => this.loadTexture(p) }), type: 'wither_skeleton', name: 'Wither Skeleton',
       health: 20, maxHealth: 20, velocity: new THREE.Vector3(), yaw: (this.random || Math.random)() * Math.PI * 2,
       state: 'idle', timer: 0, hitCooldown: 0 };
     mob.mesh.position.set(x, y, z); initializeWitherSkeleton(this, mob, options);

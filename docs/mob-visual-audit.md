@@ -2030,3 +2030,31 @@ scripted edit is what kept both to one round.
 
 Work list: **97 spawners, 63 with a real sheet, 29 mobs still flat-colour only**, of which THREE draw their own skin
 (horseModel, packEquineModel, witherSkeletonModel).
+## Round sixty: the wither skeleton, landed on the second attempt
+
+**Round fifty-two attempted this mob and reverted. The difference this time was knowing WHICH part is the contract.**
+
+That round replaced `head.material` -- a six-element ARRAY the suite reads as `m.head.material[4].map.image` for exact
+socket pixels `[12,12,12]` -- with a single sheet-mapped material. The skull has LOST its array, so the read failed and the
+pixels came back `[52,52,52]`. **The drawn skull face IS the contract**, and the fix is to leave it alone and put the sheet
+on everything else:
+
+| part | texture |
+| --- | --- |
+| skull | the DRAWN face, six materials, untouched -- the suite pins its pixels |
+| nose 2x4x2 at (24,0), body 8x12x6 at (16,20), arms 4x12x4 at (44,22), legs 4x12x4 at (0,22) | the REAL sheet |
+
+`witherSkeletonParity` is **41/41** and the full area never left its baseline. The render shows a proper skull face with
+its dark sockets, the ribcage, and the stone sword.
+
+**The generalisable point is about which side of a mismatch to change.** In round fifty-two I treated the suite's pixel
+assertions as the obstacle and replaced the thing they measured. The right move was to treat them as the specification and
+change the OTHER parts -- and both were available, so no test had to be touched.
+
+**Third mob in a row to land in one round by following the three-part rule**, after the zombified piglin and the piglin.
+The wither skeleton is the first where the rule had to be applied to a mob that shares its name with a failed earlier
+attempt, which is its own small lesson: a reverted mob is not a blocked one, and the record of WHY it was reverted is what
+made the second attempt work.
+
+Work list: **97 spawners, 64 with a real sheet, 28 mobs still flat-colour only**, of which TWO draw their own skin
+(horseModel, packEquineModel).
