@@ -12,6 +12,9 @@ const blocks = [
   'oak_leaves.png', 'glass.png', 'crafting_table_top.png', 'crafting_table_side.png', 'crafting_table_front.png',
   'furnace_front.png', 'furnace_front_on.png', 'furnace_side.png', 'furnace_top.png',
   'tnt_top.png', 'tnt_side.png', 'tnt_bottom.png', 'torch.png', 'water_still.png', 'lava_still.png',
+  // The redstone torch sprite, which the standing redstone torch and its wall form both draw and which had
+  // never been listed. `soul_torch` is an SVG already in the repo, so it is not fetched here.
+  'redstone_torch.png',
   'coal_ore.png', 'iron_ore.png', 'gold_ore.png', 'diamond_ore.png', 'emerald_ore.png', 'redstone_ore.png',
   // The rest of the ore family, added for block parity. All are plain full cubes, so the texture is the
   // whole implementation; the deepslate variants are their own textures upstream rather than the stone
@@ -38,6 +41,138 @@ const blocks1214 = [
   // `resin_brick.png`, which does not exist upstream -- the real file is plural -- so they rendered the
   // placeholder tile until this landed.
   'resin_clump.png', 'resin_block.png', 'resin_bricks.png', 'chiseled_resin_bricks.png',
+  // Ground cover, the fifth block-parity batch. All four are cross-quad plants drawn from a single
+  // 16x16 texture, and all four are 1.21.4 names (short_grass replaced the old `grass` in 1.20.3).
+  'short_grass.png', 'fern.png', 'dead_bush.png', 'cobweb.png',
+  // Eyeblossoms, the sixth batch. The open and closed forms are each other's daylight state, so both
+  // textures are needed even though only one is visible at a time in vanilla.
+  'open_eyeblossom.png', 'closed_eyeblossom.png',
+  // Nether and deepslate cubes, the seventh batch. Three of these were previously believed missing from
+  // the mirror; the bare block name 404s but the oriented name is there, which is why the list names
+  // ancient_debris_side rather than ancient_debris.
+  'shroomlight.png', 'cracked_nether_bricks.png',
+  'ancient_debris_side.png', 'ancient_debris_top.png',
+  'reinforced_deepslate_side.png', 'reinforced_deepslate_top.png', 'reinforced_deepslate_bottom.png',
+  'creaking_heart.png', 'frosted_ice_0.png', 'flowering_azalea_leaves.png',
+  'azalea_side.png', 'azalea_top.png', 'flowering_azalea_side.png', 'flowering_azalea_top.png',
+  // Coral blocks, the eighth batch: ten textures for five colours, alive and dead. The coral fans and
+  // plants in the same family are a separate batch and are deliberately not listed here.
+  'tube_coral_block.png', 'brain_coral_block.png', 'bubble_coral_block.png',
+  'fire_coral_block.png', 'horn_coral_block.png',
+  'dead_tube_coral_block.png', 'dead_brain_coral_block.png', 'dead_bubble_coral_block.png',
+  'dead_fire_coral_block.png', 'dead_horn_coral_block.png',
+  // Tall and ceiling plants, the ninth batch. Two notes for a future reader: tall grass and large fern
+  // are two blocks tall upstream and their TOP texture is the one used here, and `_top` is precisely
+  // the suffix that made a bare-name probe report these as missing art.
+  'tall_grass_top.png', 'large_fern_top.png', 'spore_blossom.png', 'hanging_roots.png',
+  // Amethyst, the tenth batch: the budding block, the cluster and the three bud stages. Each stage has
+  // its own texture rather than one texture scaled, so all four are needed.
+  'budding_amethyst.png', 'amethyst_cluster.png',
+  'large_amethyst_bud.png', 'medium_amethyst_bud.png', 'small_amethyst_bud.png',
+  // Glazed terracotta, the eleventh batch: one texture per colour, sixteen in all. Vanilla rotates the
+  // pattern per face at placement time, which this game does not model, so each texture is drawn in a
+  // single fixed orientation.
+  'white_glazed_terracotta.png', 'orange_glazed_terracotta.png', 'magenta_glazed_terracotta.png',
+  'light_blue_glazed_terracotta.png', 'yellow_glazed_terracotta.png', 'lime_glazed_terracotta.png',
+  'pink_glazed_terracotta.png', 'gray_glazed_terracotta.png', 'light_gray_glazed_terracotta.png',
+  'cyan_glazed_terracotta.png', 'purple_glazed_terracotta.png', 'blue_glazed_terracotta.png',
+  'brown_glazed_terracotta.png', 'green_glazed_terracotta.png', 'red_glazed_terracotta.png',
+  'black_glazed_terracotta.png',
+  // Coral fans and hanging vines, the twelfth batch. The fans complete the coral family; the vines are
+  // tips only, since the `_plant` body segments are deliberately not registered as separate blocks.
+  'tube_coral_fan.png', 'brain_coral_fan.png', 'bubble_coral_fan.png',
+  'fire_coral_fan.png', 'horn_coral_fan.png',
+  'dead_tube_coral_fan.png', 'dead_brain_coral_fan.png', 'dead_bubble_coral_fan.png',
+  'dead_fire_coral_fan.png', 'dead_horn_coral_fan.png',
+  // The wall fans share the upright fans' sprites, so this batch adds NO new textures. The comment is here
+  // so a future reader does not go looking for `*_coral_wall_fan.png`, which does not exist upstream and
+  // which no definition references.
+  'weeping_vines.png', 'twisting_vines.png', 'cave_vines.png',
+  // The vine body segments have DIFFERENT textures from the tips upstream, which is why they are separate
+  // blocks rather than duplicates; tests/contentGap.test.js is what caught them being left out.
+  'weeping_vines_plant.png', 'twisting_vines_plant.png', 'cave_vines_plant.png',
+  // Crop stems and water plants, the thirteenth batch. `tall_seagrass` uses the `_top` texture, the same
+  // part-suffix case that made earlier rounds mis-report plants as art-blocked.
+  'pumpkin_stem.png', 'attached_pumpkin_stem.png', 'melon_stem.png', 'attached_melon_stem.png',
+  'seagrass.png', 'tall_seagrass_top.png', 'kelp.png', 'kelp_plant.png', 'sea_pickle.png',
+  // Shulker boxes, the fourteenth batch: seventeen textures, the plain box and sixteen dyed. There is no
+  // separate item texture upstream -- the block texture is the icon, which is how this game derives every
+  // other block item's icon too.
+  'shulker_box.png',
+  'white_shulker_box.png', 'orange_shulker_box.png', 'magenta_shulker_box.png',
+  'light_blue_shulker_box.png', 'yellow_shulker_box.png', 'lime_shulker_box.png',
+  'pink_shulker_box.png', 'gray_shulker_box.png', 'light_gray_shulker_box.png',
+  'cyan_shulker_box.png', 'purple_shulker_box.png', 'blue_shulker_box.png',
+  'brown_shulker_box.png', 'green_shulker_box.png', 'red_shulker_box.png',
+  'black_shulker_box.png',
+  // Dripleaf and sculk, the fifteenth batch. `soul_fire` is deliberately NOT here: its upstream texture is
+  // a 16x512 animation strip rather than a tile, and the game has no machinery to slice it, so registering
+  // the block would draw the whole strip across one quad. That block needs an SVG or a frame slicer first.
+  //
+  // RESOLVED in the twenty-second batch: `scripts/slice-texture-frames.py` takes frame 0 of the strip and
+  // the block is registered. The comment is kept because it is the reason the slicer exists.
+  'big_dripleaf_top.png', 'big_dripleaf_stem.png', 'small_dripleaf_top.png',
+  'sculk_vein.png', 'pale_hanging_moss.png',
+  'soul_fire_0.png',
+  // The twenty-second batch: crop stage textures, the suspicious blocks' numbered frames, and scaffolding's
+  // three faces. Every one of these was previously reported as art-blocked because a bare-name probe finds
+  // none of them -- see scripts/block-parity/art-sweep.mjs, which tries the suffixes.
+  'beetroots_stage3.png', 'cocoa_stage2.png', 'torchflower_crop_stage0.png', 'pitcher_crop_top.png',
+  'suspicious_sand_0.png', 'suspicious_gravel_0.png',
+  'scaffolding_top.png', 'scaffolding_side.png', 'scaffolding_bottom.png',
+  // Cauldrons, the twenty-third batch. The pot's three faces and the fluid tiles; the combined
+  // `*_cauldron_top` textures are composed by scripts/compose-filled-cauldrons.py, which also slices the
+  // water and lava strips first. `cauldron.png` does not exist upstream, which is why the pot needs three
+  // faces rather than one.
+  'cauldron_top.png', 'cauldron_side.png', 'cauldron_bottom.png',
+  'water_still.png', 'lava_still.png', 'powder_snow.png',
+  // Piston tiles, the twenty-ninth batch. `piston_side` and `piston_inner` are the two the MOVING PISTON
+  // block uses, and neither was referenced by anything in this codebase before it. The other three are
+  // fetched alongside them because they belong to the same machine and a future piston-facing pass will
+  // want them; they are real tiles rather than SVG stand-ins.
+  'piston_side.png', 'piston_inner.png', 'piston_top.png', 'piston_top_sticky.png', 'piston_bottom.png',
+  // Mob heads, the twenty-fourth batch. These are ENTITY skin sheets, not block textures -- a different
+  // mirror directory -- and the head faces are extracted from them by
+  // scripts/extract-mob-head-textures.py. Listing them here is what makes the extraction reproducible.
+  'entity/skeleton/skeleton.png', 'entity/zombie/zombie.png', 'entity/piglin/piglin.png',
+  'entity/player/wide/steve.png',
+  // Technical blocks, the sixteenth batch. The three command blocks each need four textures -- front,
+  // side, back and the conditional top/bottom -- which is why this list is longer than the block count.
+  // The trial spawner and vault use their INACTIVE / OFF variants, since they are never active here.
+  'command_block_front.png', 'command_block_side.png', 'command_block_back.png', 'command_block_conditional.png',
+  'repeating_command_block_front.png', 'repeating_command_block_side.png', 'repeating_command_block_back.png', 'repeating_command_block_conditional.png',
+  'chain_command_block_front.png', 'chain_command_block_side.png', 'chain_command_block_back.png', 'chain_command_block_conditional.png',
+  'structure_block.png', 'jigsaw_top.png', 'jigsaw_side.png', 'jigsaw_bottom.png', 'spawner.png',
+  'trial_spawner_top_inactive.png', 'trial_spawner_side_inactive.png', 'trial_spawner_bottom.png',
+  'vault_top.png', 'vault_front_off.png', 'vault_side_off.png', 'vault_bottom.png',
+  'end_portal_frame_top.png', 'end_portal_frame_side.png', 'turtle_egg.png', 'frogspawn.png',
+  // Cake and candle cakes, the seventeenth batch. Only the cake and the CANDLE sprites are listed here,
+  // because the candle-cake textures are NOT downloadable -- vanilla composes them from a model rather
+  // than shipping a tile. Run `python scripts/compose-candle-cakes.py` after this list to build them from
+  // what is fetched here; that script is the reason these blocks can exist at all.
+  'cake_top.png', 'cake_side.png', 'cake_bottom.png', 'candle.png',
+  'white_candle.png', 'orange_candle.png', 'magenta_candle.png', 'light_blue_candle.png',
+  'yellow_candle.png', 'lime_candle.png', 'pink_candle.png', 'gray_candle.png',
+  'light_gray_candle.png', 'cyan_candle.png', 'purple_candle.png', 'blue_candle.png',
+  'brown_candle.png', 'green_candle.png', 'red_candle.png', 'black_candle.png',
+  // Potted plants, the eighteenth batch. Same arrangement as the candle cakes: the POT and every PLANT it
+  // can hold are downloadable, but the combined `potted_*` tiles are not, because vanilla draws a potted
+  // plant as a model rather than as a single texture. Run `python scripts/compose-potted-plants.py` after
+  // this list. The flower pot sprite is also a FIX, not an addition: the generator had been falling back
+  // to iron_bars.png for it because this file was missing.
+  'flower_pot.png',
+  'acacia_sapling.png', 'allium.png', 'azure_bluet.png', 'bamboo_stage0.png', 'birch_sapling.png',
+  // The coral PLANTS, thirty-fifth batch. Real downloadable block tiles, unlike the coral BLOCKS
+  // which needed the atlas; nothing referenced these until the plants were registered.
+  'tube_coral.png', 'dead_tube_coral.png', 'brain_coral.png', 'dead_brain_coral.png', 'bubble_coral.png', 'dead_bubble_coral.png', 'fire_coral.png', 'dead_fire_coral.png', 'horn_coral.png', 'dead_horn_coral.png',
+  'blue_orchid.png', 'brown_mushroom.png', 'cactus_side.png', 'cherry_sapling.png',
+  'closed_eyeblossom.png', 'cornflower.png', 'crimson_fungus.png', 'crimson_roots.png',
+  'dandelion.png', 'dark_oak_sapling.png', 'dead_bush.png', 'fern.png', 'jungle_sapling.png',
+  'lily_of_the_valley.png', 'mangrove_propagule.png', 'oak_sapling.png', 'open_eyeblossom.png',
+  'orange_tulip.png', 'oxeye_daisy.png', 'pale_oak_sapling.png', 'pink_tulip.png', 'poppy.png',
+  'red_mushroom.png', 'red_tulip.png', 'spruce_sapling.png', 'torchflower.png',
+  'warped_fungus.png', 'warped_roots.png', 'white_tulip.png', 'wither_rose.png',
+  'azalea_side.png', 'flowering_azalea_side.png',
 ];
 
 const items = [
@@ -47,6 +182,26 @@ const items = [
   'stick.png', 'coal.png', 'iron_ingot.png', 'gold_ingot.png', 'diamond.png', 'emerald.png',
   'bread.png', 'apple.png', 'cooked_beef.png', 'beef.png', 'wheat.png', 'bow.png', 'arrow.png', 'crossbow.png',
   'totem_of_undying.png'
+];
+
+// Items whose art is an ITEM sprite rather than a block tile, fetched by explicit URL. They are NOT
+// `blocks1214` entries: that list is bare block filenames and its loop builds `blocks/${b}`, so an
+// `{url, out}` object in it would be stringified into `blocks/[object Object]` and write a junk file while
+// quietly never fetching the real one. The invisible technical blocks need these because vanilla draws no
+// block texture for them at all -- the item sprite IS the art, and the block tile is copied from it.
+const itemSprites = [
+  { url: `${BASE_1214}/items/barrier.png`, out: 'public/assets/items/barrier.png' },
+  { url: `${BASE_1214}/items/light.png`, out: 'public/assets/items/light.png' },
+  { url: `${BASE_1214}/items/structure_void.png`, out: 'public/assets/items/structure_void.png' },
+  // Nether wart: the last block whose art is an ITEM sprite rather than a block tile. The restore step
+  // fetches this and copies it to `blocks/nether_wart.png`; the test asserts the copies are identical.
+  { url: `${BASE_1214}/items/nether_wart.png`, out: 'public/assets/items/nether_wart.png' },
+  // The bubble column's input. It is a PARTICLE sprite rather than an item or a block tile, which is why it
+  // is here: vanilla ships no `bubble_column` block texture at all, and scripts/compose-bubble-column.py
+  // overlays this onto the water tile to make one. `alsoBlockTile: false` matters -- the loop that copies
+  // each of these into the block atlas exists for the three invisible blocks, whose ONLY art is the sprite,
+  // and copying a particle into the atlas would put a stray bubble.png there that nothing references.
+  { url: `${BASE_1214}/particle/bubble.png`, out: 'public/assets/particle/bubble.png', alsoBlockTile: false }
 ];
 
 const guis = [
@@ -110,6 +265,18 @@ async function run() {
   console.log('Downloading GUIs...');
   for (const g of guis) {
     await downloadFile(g.url, g.out);
+  }
+  console.log('Downloading item sprites that stand in for block textures...');
+  for (const s of itemSprites) {
+    await downloadFile(s.url, s.out);
+    // A copy lands in the BLOCK atlas too, because a vanilla barrier is an invisible cube and there is no
+    // block tile upstream. Writing it here rather than by hand is what keeps a clean checkout working: the
+    // two copies must stay byte-identical, and the test asserts that they are.
+    //
+    // Entries with `alsoBlockTile: false` are INPUTS to a composer rather than stand-ins for a block tile,
+    // so they are fetched on their own and nothing is copied into the atlas for them.
+    if (s.alsoBlockTile === false) continue;
+    await downloadFile(s.url, `public/assets/blocks/${s.out.split('/').pop()}`);
   }
   console.log('Downloading Entities...');
   for (const e of entities) {

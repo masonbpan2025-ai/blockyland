@@ -194,9 +194,9 @@ export const PROFESSION_TRADES = {
     { level: 3, cost: { id: 'string', isBlock: false, count: 13, name: '13 String', icon: '/assets/items/string.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 10 },
     { level: 3, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'fishing_rod', isBlock: false, count: 1, name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png' }, xp: 10 },
     // Expert
-    { level: 4, cost: { id: 'emerald', isBlock: false, count: 6, name: '6 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'enchanted_fishing_rod', isBlock: false, count: 1, name: 'Enchanted Fishing Rod', icon: '/assets/items/fishing_rod.png' }, xp: 20 },
+    { level: 4, cost: { id: 'emerald', isBlock: false, count: 6, name: '6 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'fishing_rod', isBlock: false, count: 1, name: 'Fishing Rod', icon: '/assets/items/fishing_rod.png' }, xp: 20 },
     // Master
-    { level: 5, cost: { id: 'boat', isBlock: false, count: 1, name: '1 Boat', icon: '/assets/items/boat.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 30 }
+    { level: 5, cost: { id: 'oak_boat', isBlock: false, count: 1, name: '1 Boat', icon: '/assets/items/boat.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 30 }
   ],
   cartographer: [
     // Novice
@@ -205,11 +205,15 @@ export const PROFESSION_TRADES = {
     // Apprentice
     { level: 2, cost: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 5 },
     // Journeyman
-    { level: 3, cost: { id: 'emerald', isBlock: false, count: 12, name: '12 Emeralds', icon: '/assets/items/emerald.png' }, cost2: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'ocean_map', isBlock: false, count: 1, name: 'Ocean Explorer Map', icon: '/assets/items/map.png' }, xp: 10 },
+    { level: 3, cost: { id: 'emerald', isBlock: false, count: 12, name: '12 Emeralds', icon: '/assets/items/emerald.png' }, cost2: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'filled_map', isBlock: false, count: 1, name: 'Ocean Explorer Map', icon: '/assets/items/map.png' }, xp: 10 },
     // Expert
-    { level: 4, cost: { id: 'emerald', isBlock: false, count: 14, name: '14 Emeralds', icon: '/assets/items/emerald.png' }, cost2: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'woodland_map', isBlock: false, count: 1, name: 'Woodland Explorer Map', icon: '/assets/items/map.png' }, xp: 20 },
+    { level: 4, cost: { id: 'emerald', isBlock: false, count: 14, name: '14 Emeralds', icon: '/assets/items/emerald.png' }, cost2: { id: 'compass', isBlock: false, count: 1, name: '1 Compass', icon: '/assets/items/compass.png' }, reward: { id: 'filled_map', isBlock: false, count: 1, name: 'Woodland Explorer Map', icon: '/assets/items/map.png' }, xp: 20 },
     // Master
-    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'item_frame', isBlock: false, count: 1, name: 'Item Frame', icon: '/assets/items/item_frame.png' }, xp: 30 }
+    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'item_frame', isBlock: false, count: 1, name: 'Item Frame', icon: '/assets/items/item_frame.png' }, xp: 30 },
+    // A second master offer, which is how vanilla lists a level: eight emeralds for the globe banner pattern.
+    // This is the item's only source in the game, so `codeDropSources.js` names it, and it is what makes
+    // `globe_banner_pattern` obtainable rather than merely registered.
+    { level: 5, cost: { id: 'emerald', isBlock: false, count: 8, name: '8 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'globe_banner_pattern', isBlock: false, count: 1, name: 'Globe Banner Pattern', icon: '/assets/items/globe_banner_pattern.png' }, xp: 30 }
   ],
   mason: [
     // Novice
@@ -226,12 +230,12 @@ export const PROFESSION_TRADES = {
   ],
   shepherd: [
     // Novice
-    { level: 1, cost: { id: 'wool', isBlock: true, count: 18, name: '18 White Wool', icon: '/assets/items/white_wool.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 2 },
+    { level: 1, cost: { id: 'white_wool', isBlock: true, count: 18, name: '18 White Wool', icon: '/assets/items/white_wool.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 2 },
     { level: 1, cost: { id: 'emerald', isBlock: false, count: 2, name: '2 Emeralds', icon: '/assets/items/emerald.png' }, reward: { id: 'shears', isBlock: false, count: 1, name: 'Shears', icon: '/assets/items/shears.png' }, xp: 2 },
     // Apprentice
-    { level: 2, cost: { id: 'dye', isBlock: false, count: 12, name: '12 Dyes', icon: '/assets/items/dye.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 5 },
+    { level: 2, cost: { id: 'white_dye', isBlock: false, count: 12, name: '12 Dyes', icon: '/assets/items/dye.png' }, reward: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, xp: 5 },
     // Journeyman
-    { level: 3, cost: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, reward: { id: 'carpet', isBlock: true, count: 4, name: '4 Carpets', icon: '/assets/items/white_wool.png' }, xp: 10 },
+    { level: 3, cost: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, reward: { id: 'white_carpet', isBlock: true, count: 4, name: '4 White Carpets', icon: '/assets/items/white_wool.png' }, xp: 10 },
     // Expert
     { level: 4, cost: { id: 'emerald', isBlock: false, count: 1, name: '1 Emerald', icon: '/assets/items/emerald.png' }, reward: { id: 'bed', isBlock: true, count: 1, name: 'Bed', icon: '/assets/items/red_bed.png' }, xp: 20 },
     // Master

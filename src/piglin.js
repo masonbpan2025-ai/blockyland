@@ -1,7 +1,7 @@
 import {setZombifiedBaby,syncZombifiedEquipment} from './zombifiedPiglin.js';
 import * as THREE from 'three';
 import { isPiglinBrute, piglinBruteRetreats, piglinBruteDistractedByGold, piglinBrutePursues } from './piglinBruteBehavior.js';
-import { BLOCKS, ITEMS } from './blocks.js';
+import { BLOCKS, ITEMS, stackLimitFor } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
 import { steerGround, flee } from './netherMobAI.js';
 
@@ -254,7 +254,7 @@ function storePiglinItem(mob, item) {
     (mob.equipment ||= {}).weapon = { ...item, count: 1, pickedUp: true };
   } else {
     const slots = mob.piglinInventory ||= [];
-    const stack = slots.find(i => i.id === item.id && !i.enchantments && !item.enchantments && i.count < 64);
+    const stack = slots.find(i => i.id === item.id && !i.enchantments && !item.enchantments && i.count < stackLimitFor(item.id));
     if (stack) stack.count++; else if (slots.length < 8) slots.push({ ...item, count: 1 });
   }
 }

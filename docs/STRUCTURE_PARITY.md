@@ -1,0 +1,161 @@
+# Structure parity matrix
+
+Target: **Minecraft Java Edition 1.21.4** (see [STRUCTURE_REFERENCES.md](STRUCTURE_REFERENCES.md) for
+why, and for the wiki revision ids every number came from).
+
+Statuses are used strictly:
+
+| Status | Means |
+| --- | --- |
+| `NOT STARTED` | Nothing specific to this structure exists. Its **placement** may still work, because placement is shared infrastructure — see the columns. |
+| `INFRASTRUCTURE BLOCKED` | Work has begun but cannot finish until a named subsystem exists (templates, jigsaw, …). |
+| `PARTIAL` | Some of the structure exists; the missing parts are named in *Known differences*. |
+| `FUNCTIONAL` | It generates, is deterministic and its layout is the intended one, but nothing has been compared against vanilla. |
+| `NEAR PARITY` | Compared against reference data with a quantified, small difference. |
+| `VERIFIED` | Compared against vanilla/reference output block-for-block for the listed cases. |
+
+**Nothing here is `VERIFIED`** — no differential test against a vanilla oracle has been built yet, and
+visual similarity is explicitly not accepted as evidence.
+
+## The nine dimensions, tracked separately
+
+A single "implemented" column would hide exactly the differences that matter, so each structure's status
+is the weakest of these:
+
+| Dimension | Shared infrastructure today |
+| --- | --- |
+| **Placement** | **Implemented.** Random-spread and concentric-rings placement, spacing/separation/salt/spread/frequency, all four frequency reducers, exclusion zones, weighted set selection with vanilla's without-replacement retry, `/locate`. 118/118 wiki biome gates resolve in `src/biomes.js`. |
+| **Layout** | Partial. Only `buried_treasure` has a layout generator. |
+| **Templates** | **Implemented**: `StructureTemplate`/`StructureTemplateManager` (palette, blocks with block-entity NBT, entities, jigsaw connectors, `structure_block` DATA markers), a dependency-free NBT reader, and block-state rotation. No template *data* ships with the repository — see *Templates are a data problem* in STRUCTURE_REFERENCES.md. |
+| **Randomness** | Implemented for placement (deterministic, unit-tested). Piece-level and template-selection randomness are not written. |
+| **Processors** | **Implemented**: all 11 vanilla `processor_type` values (`nop`, `block_ignore`, `block_rot`, `protected_blocks`, `jigsaw_replacement`, `rule` with all 5 rule tests and all 3 position tests and all 4 block-entity modifiers, `capped`, `block_age`, `blackstone_replace`, `lava_submerged_block`, `gravity`), plus the template placement pipeline. Three are documented approximations (below). No structure uses them yet. |
+| **Terrain** | **Implemented and WIRED** into the engine's realize path: the engine applies a structure's registry `terrain_adaptation` over each piece box, passing the structure's own written blocks as the "do not overwrite" set, and reports the counts. Applying it needs the caller to supply `surfaceY` and a foundation block, so a caller that supplies neither gets the previous behaviour exactly. `adaptToTerrain` covers all five vanilla adaptations (`none`, `beard_thin`, `beard_box`, `bury`, `encapsulate`) as a world-free function over a `surfaceY` callback and an `isStructureBlock` predicate, and `terrain_adaptation` inflation (12 blocks unless `none`) was already correct. The engine's realize path does not CALL it yet, so no structure is bedded into the ground at runtime and the `Terr` column stays "no" everywhere. |
+| **Content** | Only `buried_treasure`'s chest with its loot-table reference. No loot-table system, no structure entity spawning, no spawner/vault/trial-spawner block entities. |
+| **Chunk safety** | Implemented for planning: a plan is a pure function of (seed, chunk, registry) and realization is clipped per chunk, proven by tests that ask chunks in forward and reverse order. No chunk-status pyramid, no structure references stored in saves yet. |
+| **Determinism** | Implemented and tested end-to-end for `buried_treasure` (same seed → identical plan hash, any ask order). |
+
+## Matrix — the 34 Java structure ids of 1.21.4
+
+29 Overworld, 4 Nether, 1 End. `Placement` = the shared placement engine places this id correctly (set,
+spacing, salt, biome gate). `Gen` = a layout generator exists. `Tpl` = templates. `Proc` = processors.
+`Terr` = terrain adaptation beyond bounding-box inflation. `Content` = loot/entities/spawners.
+
+| Structure | Vanilla id | Family | Placement | Gen | Tpl | Proc | Terr | Content | Det. tested | Vanilla compared | Status | Known differences |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Buried Treasure | `buried_treasure` | hardcoded | yes | yes | n/a | n/a | n/a | chest + loot ref | yes | no | `FUNCTIONAL` | Waterlogging when the chest replaces water is not implemented; only the `ocean_floor` heightmap is used, with a flat preview surface. |
+| Mineshaft | `mineshaft` | procedural | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Needs the procedural piece framework (corridors, crossings, stairs, abandoned passages) and the `mineshaft_type` mesa variant. |
+| Mineshaft (Badlands) | `mineshaft_mesa` | procedural | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Same, plus dark oak materials and near-surface placement. |
+| Stronghold | `stronghold` | procedural | yes (rings) | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Ring positions are computed but **not biome-snapped** (needs a 112-block horizontal biome search), so positions differ from vanilla; `bury` terrain shaping missing; recursive piece graph missing. |
+| Ocean Monument | `monument` | procedural | yes (triangular) | yes | n/a | n/a | no | 8 gold blocks, sea lanterns, sponge rooms, 3 elder guardians | yes | no | `PARTIAL` | A 3x3 grid of rooms over three levels: a ROOM GRAPH whose rooms connect through doorways, dark prismarine on the upper level, sponge rooms below, and a central room holding the documented EIGHT gold blocks. SCALE IS REDUCED: vanilla's monument is 58x58 and this is 23x23, which keeps the suite fast; the composition, placement and content are faithful while the size is not. Elder guardians are entity markers, because vanilla populates a monument by its own spawning. |
+| Nether Fortress | `fortress` | procedural | yes | no | n/a | n/a | no | no | no | no | `NOT STARTED` | Piece graph, blaze spawners, nether wart farms missing. |
+| Ruined Portal | `ruined_portal` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Blocked on the template loader + `block_age` processor + the `setups[]` placement logic (air-pocket probability, mossiness, `replace_with_blackstone`). |
+| Ruined Portal (Desert) | `ruined_portal_desert` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Partly buried, mossiness 0. |
+| Ruined Portal (Jungle) | `ruined_portal_jungle` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Surface, mossiness 0.8. |
+| Ruined Portal (Mountain) | `ruined_portal_mountain` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Half inside a mountain, mossiness 0.2. |
+| Ruined Portal (Ocean) | `ruined_portal_ocean` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Ocean floor, mossiness 0.8. |
+| Ruined Portal (Swamp) | `ruined_portal_swamp` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | Surface, mossiness 0.5. |
+| Ruined Portal (Nether) | `ruined_portal_nether` | template | yes | yes | yes | yes | no | chest state | yes | no | `PARTIAL` | The only set member in another dimension; blackstone materials and `blackstone_replace`. The dimension-split set builder already handles it. |
+| Igloo | `igloo` | template | yes | yes | yes | yes | no | villager + zombie villager, chest state | yes | no | `PARTIAL` | Geometry is a clean-room approximation of the wiki's description, because this repository ships no vanilla assets; the chest carries a state but not loot-table contents; the basement's iron-bar cell is approximate; the surface is a flat preview height rather than the real heightmap. |
+| Shipwreck | `shipwreck` | template | yes | yes | yes | yes | no | chests with loot tables | yes | no | `PARTIAL` | Blocked on templates (20 files across three orientations); chest placement depends on intact sections. |
+| Shipwreck (Beached) | `shipwreck_beached` | template | yes | yes | yes | yes | no | chests with loot tables | yes | no | `PARTIAL` | Same templates with `is_beached`. |
+| Ocean Ruins (Cold) | `ocean_ruin_cold` | template | yes | yes | yes | yes | no | suspicious blocks with loot tables | yes | no | `PARTIAL` | Templates + structure integrity (0.9/0.8/0.7/0.5) + the 30%-large / 4–8-cluster rule + suspicious gravel. |
+| Ocean Ruins (Warm) | `ocean_ruin_warm` | template | yes | yes | yes | yes | no | suspicious blocks with loot tables | yes | no | `PARTIAL` | As cold, plus suspicious sand (the sniffer-egg source). |
+| Nether Fossil | `nether_fossil` | template | yes | yes | yes | yes | no | none (no loot, no spawner) | yes | no | `PARTIAL` | Clean-room bone templates. The wiki does not publish the `start_height` values, so Y is uniform over 33..60; vanilla's rotation is applied and recorded as an assumption. Runs NO processors by design, which is the documented difference from the overworld fossil. |
+| End City | `end_city` | template | yes | yes | yes | yes | no | treasure chest (elytra table), 3 separate pieces | yes | no | `PARTIAL` | Clean-room tower, bridge and ship; room count and proportions are approximations. Implements the two PUBLISHED probabilities: a 50% bridge chance and a 12.5% ship chance, with the ship capped at one and asserted per chunk. The tower, bridge and ship are SEPARATE pieces with their own boxes, so each keeps its own chunk footprint. |
+| Woodland Mansion | `mansion` | template | yes | yes | yes | yes | no | mansion loot chests, named rooms | yes | no | `PARTIAL` | A 2x2-room grid over three floors, generated procedurally: 11x6x11 rooms with doorways between neighbours, named rooms (dining, library, bedroom, storage, prison, map room) and exactly ONE secret room on the top floor holding the diamond block. Room sizes and the grid extent are clean-room; inhabitants are a marker pair, because vanilla populates a mansion by spawn override. Rewritten after a first attempt was reverted (deviation 0f), and the undiagnosed failure from that attempt was a real bug: the secret room's walls were offset by its floor but its diamond and chest were not, so the prize sat on the ground floor. |
+| Desert Pyramid | `desert_pyramid` | hardcoded | yes | yes | n/a | n/a | yes | 4 chests + armed TNT trap | yes | no | `PARTIAL` | Procedural, clean-room dimensions. Terrain adaptation `beard_thin` is now APPLIED through the engine. The four chests carry conventional loot-table ids because the wiki publishes only the `{{LootChest}}` keys. |
+| Jungle Pyramid | `jungle_pyramid` | hardcoded | yes | yes | n/a | n/a | no | three chests + a complete arrow trap | yes | no | `PARTIAL` | Three mossy floors stepping inward over a hidden treasure room. The TRAP is asserted as a WIRE rather than as a set of blocks: two dispensers facing each other, a tripwire hook at each end of the tripwire line, and a lever with a sticky piston, with the dispenser carrying its own loot table. Clean-room floor sizes and treasure depth. |
+| Swamp Hut | `swamp_hut` | hardcoded | yes | yes | n/a | n/a | yes | witch + black cat as structure mobs | yes | no | `PARTIAL` | Clean-room dimensions. Terrain adaptation `beard_thin` is now APPLIED. Interior furnishings are NOT implemented, because the wiki does not enumerate them verifiably. |
+| Village (Plains) | `village_plains` | jigsaw | yes | yes | yes | yes | yes | houses with per-biome loot chests | yes | no | `PARTIAL` | One generator serves all five ids; the materials, pool graph, MULTI-DEPTH street chaining and `beard_thin` adaptation are real, while every part is a clean-room approximation of the described village. Multi-depth growth was blocked for four rounds by deviation 0e and is now verified to depth 6. Villagers are ambient population, so only the town centre is marked. |
+| Village (Desert) | `village_desert` | jigsaw | yes | yes | yes | yes | yes | houses with per-biome loot chests | yes | no | `PARTIAL` | One generator serves all five ids; the materials, pool graph, MULTI-DEPTH street chaining and `beard_thin` adaptation are real, while every part is a clean-room approximation of the described village. Multi-depth growth was blocked for four rounds by deviation 0e and is now verified to depth 6. Villagers are ambient population, so only the town centre is marked. |
+| Village (Savanna) | `village_savanna` | jigsaw | yes | yes | yes | yes | yes | houses with per-biome loot chests | yes | no | `PARTIAL` | One generator serves all five ids; the materials, pool graph, MULTI-DEPTH street chaining and `beard_thin` adaptation are real, while every part is a clean-room approximation of the described village. Multi-depth growth was blocked for four rounds by deviation 0e and is now verified to depth 6. Villagers are ambient population, so only the town centre is marked. |
+| Village (Snowy) | `village_snowy` | jigsaw | yes | yes | yes | yes | yes | houses with per-biome loot chests | yes | no | `PARTIAL` | One generator serves all five ids; the materials, pool graph, MULTI-DEPTH street chaining and `beard_thin` adaptation are real, while every part is a clean-room approximation of the described village. Multi-depth growth was blocked for four rounds by deviation 0e and is now verified to depth 6. Villagers are ambient population, so only the town centre is marked. |
+| Village (Taiga) | `village_taiga` | jigsaw | yes | yes | yes | yes | yes | houses with per-biome loot chests | yes | no | `PARTIAL` | One generator serves all five ids; the materials, pool graph, MULTI-DEPTH street chaining and `beard_thin` adaptation are real, while every part is a clean-room approximation of the described village. Multi-depth growth was blocked for four rounds by deviation 0e and is now verified to depth 6. Villagers are ambient population, so only the town centre is marked. |
+| Pillager Outpost | `pillager_outpost` | jigsaw | yes | yes | yes | yes | yes | watchtower pillager + caged iron golem | yes | no | `PARTIAL` | The first structure on the jigsaw engine: its pool graph, connector joining and `beard_thin` adaptation are the engine's real behaviour, while every part is a clean-room approximation. The base plate is 15x15 so that 3x3 and 5x5 features fit around the 5x5 tower; a narrower plate silently narrowed the weighted feature pool to the smallest element. Vanilla's area pillager spawning is not reproduced. |
+| Bastion Remnant | `bastion_remnant` | jigsaw | yes | yes | yes | yes | n/a (floats) | gold + gilded blackstone, treasure chest | yes | no | `PARTIAL` | Clean-room parts. Floats over the lava sea BY DESIGN (MC-179796), so it carries NO terrain adaptation and the test asserts that rather than "fixing" it. The height band is an approximation: the wiki does not publish it. Multi-level chaining through the walkway pool, which deviation 0e blocked until the connector-instance fix. |
+| Ancient City | `ancient_city` | jigsaw | yes | yes | yes | yes | yes (beard_box) | sculk sensors + shriekers, two chest loot tables | yes | no | `PARTIAL` | Clean-room rooms. The FLOOR IS AT THE PUBLISHED Y = -51 rather than a band, and every piece is asserted to sit on that plane. Carries blocks with BEHAVIOUR (sculk sensors, shriekers) reported by realization rather than passed as decoration, and two distinct chest loot tables including the ice box. No warden is placed: vanilla reaches it through deep dark spawn overrides, not structure blocks. |
+| Trail Ruins | `trail_ruins` | jigsaw | yes | yes | yes | yes | yes (bury) | suspicious gravel and sand with archaeology, rare chest | yes | no | `PARTIAL` | A BURIED CHAIN rather than a building: path pieces chain end to end with ruins alongside, which is its defining property, and the registry's `bury` adaptation covers it over again. Clean-room part sizes and depth below the surface; archaeology loot ids are conventional. Closes the last `INFRASTRUCTURE BLOCKED` row. |
+| Trial Chambers | `trial_chambers` | jigsaw | yes | yes | yes | yes | yes (encapsulate) | trial spawners + vaults with loot | yes | no | `PARTIAL` | Clean-room rooms; the depth band and room sizes are approximations the wiki does not publish. Chains HORIZONTALLY and VERTICALLY: the staircase is the first part in the repository whose connector faces up, so the graph grows upward as well as outward. Carries block entities (trial spawners, vaults) whose data the realization reports rather than passing as anonymous blocks. |
+
+Counts over the 34 ids: **1 `FUNCTIONAL` (buried treasure), 29 `PARTIAL` (+ shipwreck, shipwreck_beached, 2 ocean ruins, desert pyramid, swamp hut), 4 `NOT STARTED`
+
+0g. **Mineshaft: WRITTEN, DIAGNOSED, AND REVERTED.** A wandering-corridor mineshaft for both ids was written this round on the jigsaw engine, with corridors offering their slot at BOTH ends, a turn that changes direction, a four-way crossing, a chamber holding the loot and a cave-spider spawner, and variant wood for the badlands id. 5 of its 6 tests passed; it was REVERTED rather than committed, so the tree stays green at 260 tests -- the same policy applied to the village (round 22) and the mansion (round 32).
+
+THE DIAGNOSIS IS THE DELIVERABLE, and the first item is a genuine engine-level property worth knowing before anyone writes another maze:
+
+  1. **THE BRANCHING FACTOR EXPLODES.** A four-way crossing offers FOUR corridor slots, so a depth-6 maze branches about five ways per level. With 13-block-long corridor pieces that is hundreds of thousands of blocks to plan, and the generator did not merely run slowly -- it HUNG, past a 300-second command timeout and a further four minutes in a background job. Any future maze part must bound BOTH its branching (how many same-slot connectors it offers) and the depth, and the first draft of a maze should be run at depth 2 or 3 with a tight distance cap before any depth is raised.
+  2. **A chamber was not reliably reachable.** The test asserting loot failed: with heavy branching, every room candidate was rejected as a collision, so the maze had no chest. A mineshaft whose maze cannot reach a chamber is a tunnel network, and the pool weights and the room slot's position both need to be chosen so at least one chamber survives -- which is a property to ASSERT, not to hope for.
+  3. One edit of mine did not apply and I did not verify it before re-running (the depth cap stayed at 6 while I believed it was 3), which is why the first "fix" changed nothing. Checking the changed line after editing is the habit that has caught this four times now and was skipped here.
+
+0f. **Woodland mansion: WRITTEN, DIAGNOSED, AND REVERTED.** The mansion is the largest single structure here: a 33x19x33 procedural floor plan of a 3x3x3 room grid over three floors, with named rooms (dining, library, bedroom, storage, prison, map room), doorways between adjacent rooms, and a unique secret room on the top floor holding the documented diamond block. It was written this round and 3 of its 7 tests passed. It was REVERTED rather than committed, so no branch carries a structure whose tests fail, and the tree stays green at 239 tests.
+
+Two causes were identified, and one is a REAL bug worth keeping in mind for the rewrite:
+
+  1. **A real logic bug, found and fixed before the revert.** Room types were drawn from a list that INCLUDED 'secret' and then the last entry was overwritten with 'secret' to guarantee a top-floor secret room. That could leave TWO secret rooms, because the entry it overwrote may not have been the only one drawn. The fix is to exclude 'secret' from the draw and append it exactly once, at the end -- a uniqueness property that a test caught.
+  2. **A test-coordinate bug of mine.** The "every grid cell is built" assertion computed room cells from ABSOLUTE block coordinates divided by the room size; those coordinates carry the chunk offset, so the count exceeded the nine cells of a floor. The rewrite must subtract the piece origin before dividing.
+  3. **One failure was NOT diagnosed** before the budget ran out: "the diamond must be on the top floor" failed while the generator places it at `(floors - 1) * roomHeight + 1`. That is recorded as unexplained rather than guessed at, and it is the first thing to check in the rewrite: either the secret room's floor index is not what the assertion assumed, or the diamond is being written by a different code path.
+
+Why this is recorded rather than quietly retried: the mansion is one of the last two ids, its floor plan is the biggest authoring job in the matrix, and a rewrite that does not know about (1) and (2) will rediscover them at the same cost.
+
+0e. **RESOLVED - multi-connector jigsaw pieces.** A piece may now expose two connectors of the SAME name and still be joined correctly, and a chain grows link by link to its depth limit. Two ENGINE changes were needed: `addPieces` aligns a child using the matched connector INSTANCE rather than a name-keyed map (which kept only the last of two same-named connectors), and a joined connector is marked CONSUMED so a chain cannot grow back through its own join. Two further bugs turned out to be in my TEST FIXTURE and not the engine at all, and they are the reason this took three rounds: the fixture encoded orientations as `<top>_<front>` where vanilla uses `<front>_<top>` (so `up_north`, which fronts north, was read as fronting UP and every candidate was rejected before the collision check ever ran -- visible only as `exhaustedPools` with ZERO rejections, which means nothing was TRIED), and it did not rotate a connector's orientation with its piece, so the engine expanded through a connector still claiming its pre-rotation facing and the chain stopped after one join. `tests/structureJigsawChains.test.js` covers all of it, and `exhaustedPools > 0` with `rejectedByCollision === 0` is now a signature I recognise rather than a puzzle.
+
+   This is an ENGINE limitation, not a data error, and the engine's own tests never covered it because every synthetic fixture had a single connector per piece. The outpost did not hit it because its children each have exactly one connector. Villages (5 ids), and later bastions, ancient cities and trial chambers, all have multi-connector pieces, so this must be fixed before any of them can work: candidate connectors need to be addressable per INSTANCE, not per name, with the name used only to decide which slot a candidate may fill.
+
+   PARTIALLY FIXED. ddPieces now aligns to the matched connector INSTANCE rather than to a name-keyed map, and marks a joined connector as consumed so a chain cannot grow back through its own join. Both are verified: the existing jigsaw and outpost suites still pass, a piece with two same-named connectors no longer loses one, and consumption is asserted. A chain nevertheless still stops after ONE join instead of continuing, so the multi-link case is NOT verified, the assertion for it was removed rather than left failing, and this deviation REMAINS OPEN. The cause of the FIRST failure was found and fixed in the TEST HARNESS rather than the engine: vanilla encodes a jigsaw orientation as `<front>_<top>`, and the fixture emitted `<top>_<front>`, so `up_north` -- which FRONTS NORTH -- was read by the engine as fronting UP. Every candidate then looked un-joinable and the join loop never reached the collision check, which is why the signature was `exhaustedPools` with ZERO rejections. With the encoding corrected, one join succeeds. A SECOND still does not, and its rejection is neither the collision check nor the distance or depth caps (the second street's box would touch the first without overlapping), so 0e remains open with that trace recorded in tests/structureJigsawChains.test.js.
+
+The village implementation was written, tested, found to fail this way, and REVERTED rather than committed, so no branch carries a structure whose tests fail. `tests/` and the registry are back to their previous state and 201 tests pass. This note is the deliverable of that attempt: a precise cause, and the reason it is invisible to the engine's existing tests.
+
+0d. **RESOLVED - not a defect.** I reported that the ruined-portals set placed only 3-7% as often as its spacing implied. Measured with the region size taken into account, a random-spread set yields EXACTLY one candidate per region (10 regions -> 10 candidates -> 10 plans, 1.00 per region), and every candidate produces a plan. My figure was an arithmetic error: a placement region is `spacing` x `spacing` (40x40 here), so scanning three chunkZ rows samples 3/40 of ONE region row, and I compared that against an expectation assuming full coverage. `tests/structurePlacementDensity.test.js` now asserts the region-NORMALISED density and that the sampling fraction fully explains a thin scan, so this class of false finding fails a test instead of being written down.
+
+**Golden seeds now exist**: `tests/golden/structureSeeds.json` records, for each implemented structure, the chunk it is first found at plus a hash of its plan and of every block realization writes, guarded by `tests/structureGoldenSeeds.test.js` and regenerated only by an explicit script. A CORRECTION worth keeping: the first version of this harness scanned a single chunkZ row and reported `ruined_portal_jungle` as not locatable, which I flagged as a possible unreachable structure. It is NOT unreachable -- it appears in every seed once rows beyond row 0 are scanned (seed 20250401 places it at chunk 2164,1). The finding was a sampling artefact of a thin scan, not a defect, and the harness now scans several rows and requires an EMPTY unfound list, so a genuinely unreachable structure fails hard instead of being noted in passing. REMAINING QUESTION: with `biomeAt` fixed to one biome, only 3-7% of the ruined-portals set's candidate chunks produce a plan, which is far below what spacing 40 and separation 15 imply. That is recorded as deviation 0d rather than explained away. These goldens pin THIS ENGINE's behaviour and cannot establish parity, which is why the matrix still records nothing as `VERIFIED`.
+(4 hardcoded + 5 procedural minus the implemented one), 6 `INFRASTRUCTURE BLOCKED` (0 template + 4
+jigsaw), 0 `NEAR PARITY`, 0 `VERIFIED`.**
+
+## Structure-like features
+
+These generate like ores rather than through structure sets, and cannot be located with `/locate`.
+
+| Feature | Vanilla id | Status | Notes |
+| --- | --- | --- | --- |
+| Monster Room | `monster_room` | `NOT STARTED` | 14 attempts per chunk, 7×9×6 room, 1–5 wall openings, 50/25/25 spawner, 75% mossy floor, up to 2 chests. Needs a spawner block, which the registry lists only as break-time data (`blockHarvestData.js`) — **the block itself does not exist**. |
+| Desert Well | `desert_well_feature` | `NOT STARTED` | 1/1000 per chunk, sand on solid ground in a 5×5 area, two suspicious sand. |
+| Bonus Chest | `bonus_chest` | `NOT STARTED` | One per world at spawn, four torches, a `bonus` loot table. |
+| Fossil | `fossil_coal` / `fossil_diamonds` | `NOT STARTED` | 1/64 twice, bone + coal/diamond overlay, two processor lists. |
+| Amethyst Geode | `amethyst_geode` | `NOT STARTED` | 1/24 per chunk, Y −58..30, three shell layers, 8.3% budding, 95% cracked. |
+| End Spike | `end_spike` | `NOT STARTED` | 10 spikes, fixed centres, a 73-iron-bar cage on two of them, an End Crystal each. |
+| Exit Portal (End podium) | `end_podium_active` / `_inactive` | `NOT STARTED` | At 0,0, Y from the highest block there. |
+| End Gateway | `end_gateway_delayed` / `_return` | `NOT STARTED` | 20 central gateways at Y 75, radius 96; the outer-island search algorithm. |
+| End Platform | `end_platform` | `NOT STARTED` | 5×5 obsidian at (100, 48, 0), regenerated on entity entry. |
+| Void Start Platform | `void_start_platform` | `NOT STARTED` | 33×33 stone with a cobblestone centre at Y −61. |
+| Pile, Coral Reef, Forest Rock, Disk, Ice Spike, Ice Patch, Iceberg | (see the wiki's structure-like list) | `NOT STARTED` | Present on the 1.21.4 page's list; their configs are documented but none is implemented. |
+
+## Known differences that apply to everything
+
+0. **Three processors are documented approximations**, each reported at runtime through its `notes` field:
+   `block_age` (the 0.5 roll and obsidian 0.15 are published; which of the four candidates is chosen and how
+   `mossiness` biases it are not), `blackstone_replace` (the wiki never prints the full replacement table, so
+   the documented core is implemented and unmapped variants are left alone), and `capped` (vanilla's
+   finalize pre-pass is not reproduced; the cap is applied greedily in placement order).
+0b. **RESOLVED - plan-local piece indices.** `StructurePiece` now accepts an explicit plan-local `index`, every generator supplies one, and `tests/structurePieceIndex.test.js` asserts that the igloo, the multi-piece ocean-ruin cluster, the jigsaw engine and the engine's plan hash are BIT-IDENTICAL before and after a crowd of unrelated pieces is created. The module-level counter is retained only as a fallback for callers that derive nothing from the index. This mattered because `StructurePiece.index` previously depended on how many pieces had been created earlier in the same process, and the igloo and ocean ruins derive per-piece randomness from it, which would have made any golden-seed test compare two processes that could not agree.
+0c. **RESOLVED - the jigsaw feature pool's weighted variety.** The pillager outpost's feature mix never varied across 60 chunks. The cause was NOT the engine: my base plate was 9x9, so the 5x5 watchtower left two blocks of margin, every cage and tent candidate was rejected as a collision, and only the 1x1 log could fit -- which looks exactly like an inert weighted draw. The engine's try-and-reject-and-retry is the correct vanilla behaviour. The plate is now 15x15, the mix varies across seeds, and the test asserts BOTH the variety and that no candidate needs a collision rejection, so a plate too small for its features fails loudly instead of quietly narrowing the pool.
+1. **Placement parity is not bit-exact.** The mixing is implemented from documented behaviour and
+   cross-checked against one MIT implementation, but no structural diff against a vanilla oracle exists,
+   so "placement parity" currently means "same rules", not "same chunks".
+2. **Xoroshiro seeding is unverified.** `src/worldgen/random.js` implements the generator but not
+   vanilla's seed-upgrade path; nothing placement-critical uses it yet.
+3. **Biome tags are expanded to explicit lists** for the tag-gated structures (`mineshaft`,
+   `trial_chambers`, `fortress`), so a modded biome would not be picked up.
+4. **No processor or loot-table data exists**, because the wiki does not publish it (see
+   STRUCTURE_REFERENCES.md). Content parity is therefore capped until another data source is used.
+5. **Stronghold ring biome snapping is missing**, which changes stronghold positions relative to vanilla.
+
+## Next milestones, in dependency order
+
+1. Template loader + block-state rotation + processors → unlocks igloo, shipwreck, ruined portal, ocean
+   ruins, nether fossil, end city, woodland mansion (7 ids, 11 with variants).
+2. Template pools + jigsaw engine → unlocks villages (5), pillager outpost, bastion, ancient city,
+   trail ruins, trial chambers (11 ids).
+3. Procedural piece framework → mineshaft (2), fortress, stronghold, monument (5).
+4. Hardcoded layouts → desert pyramid, jungle pyramid, swamp hut (3).
+5. Terrain adaptation (beard/bury/encapsulate) and loot/block-entity systems, then the golden-seed and
+   differential tests that would let anything be marked `NEAR PARITY` or `VERIFIED`.

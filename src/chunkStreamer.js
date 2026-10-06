@@ -223,6 +223,9 @@ export class ChunkStreamer {
       chunk[slot] = null;
     }
     this.game.blockLighting?.setChunk?.(chunk.cx, chunk.cz, []);
+    // The chunk's propagated light goes with it, and the neighbours are marked for relighting
+    // because their light was computed against terrain that is now gone.
+    this.game.world.light?.removeChunk?.(chunk.cx, chunk.cz);
     this.game.world.chunks.delete(this.key(chunk.cx, chunk.cz));
     this.game.world.invalidateChunkCache();
     this.loaded.delete(this.key(chunk.cx, chunk.cz));

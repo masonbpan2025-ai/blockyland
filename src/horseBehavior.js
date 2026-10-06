@@ -5,10 +5,10 @@ import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isChestItem, chestSlots, updatePackEquine } from './packEquine.js';
 import { BABY_GROWTH_SECONDS, startBabyGrowth } from './babyGrowth.js';
 export const isEquine=m=>['horse','donkey','mule'].includes(typeof m==='string'?m:m.type);
-export const HORSE_FOODS={sugar:[1,30,3],wheat:[2,20,3],apple:[3,60,3],carrot:[3,60,3],golden_carrot:[4,60,5],golden_apple:[10,240,10],enchanted_golden_apple:[10,240,10],hay_bale:[20,180,0]};
+export const HORSE_FOODS={sugar:[1,30,3],wheat:[2,20,3],apple:[3,60,3],carrot:[3,60,3],golden_carrot:[4,60,5],golden_apple:[10,240,10],enchanted_golden_apple:[10,240,10],hay_block:[20,180,0]};
 export const HORSE_ARMOR={leather_horse_armor:3,iron_horse_armor:5,golden_horse_armor:7,diamond_horse_armor:11};
 export const goldenFood=id=>['golden_carrot','golden_apple','enchanted_golden_apple'].includes(id);
-export const horseFood=id=>HORSE_FOODS[id!==undefined&&id===BLOCKS.HAY_BALE?'hay_bale':id];
+export const horseFood=id=>HORSE_FOODS[id!==undefined&&id===BLOCKS.HAY_BLOCK?'hay_block':id];
 export function canFeedHorse(m,id){const f=horseFood(id);return !!f&&(m.health<m.maxHealth||(m.isBaby&&!m.ageLocked)||(!m.isTamed&&(m.temper||0)<100&&f[2]>0)||(m.type!=='mule'&&!m.isBaby&&m.isTamed&&goldenFood(id)&&m.health===m.maxHealth&&!(m.breedingCooldown>0)&&!(m.inLove>0)));}
 export function canInteractHorse(m,id){
  if(m.health<=0)return false;

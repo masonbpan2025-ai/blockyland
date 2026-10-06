@@ -11,15 +11,15 @@ export function soulSpeedMultiplier(world, player) {
 
 export function useBarterPotion(game) {
   const item = game.inventory.getActiveItem();
-  if (!['potion_of_fire_resistance', 'splash_potion_of_fire_resistance', 'splash_water_bottle'].includes(item?.id)) return false;
+  if (!['potion_of_fire_resistance', 'splash_potion_of_fire_resistance', 'splash_potion'].includes(item?.id)) return false;
   if (item.id === 'potion_of_fire_resistance') {
     game.player.applyStatusEffect('fire_resistance', 180, 1);
   } else {
     const direction = game.camera.getWorldDirection(new THREE.Vector3());
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshLambertMaterial({ color: item.id === 'splash_water_bottle' ? 0x508cdd : 0xf59435 }));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshLambertMaterial({ color: item.id === 'splash_potion' ? 0x508cdd : 0xf59435 }));
     mesh.position.copy(game.player.position).y += game.player.eyeHeight || 1.62;
     game.mobs.scene.add(mesh);
-    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5, water:item.id==='splash_water_bottle' });
+    (game.mobs.splashPotions ||= []).push({ mesh, velocity: direction.multiplyScalar(9).add(new THREE.Vector3(0, 1, 0)), life: 5, water:item.id==='splash_potion' });
   }
   if (game.player.gamemode !== 'creative') {
     game.inventory.consumeActiveItem();

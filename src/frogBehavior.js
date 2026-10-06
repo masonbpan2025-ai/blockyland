@@ -52,7 +52,7 @@ export const FROG_FROGLIGHT_BY_VARIANT = {
 export const FROG_XP = 3;
 
 /** Wiki: feeding a slimeball breeds them, and the pregnant frog lays frogspawn. */
-export const FROG_BREEDING_FOOD = 'slimeball';
+export const FROG_BREEDING_FOOD = 'slime_ball';
 
 /** Wiki: the three variants and the biomes that produce them. */
 export const FROG_VARIANTS = ['temperate', 'warm', 'cold'];
@@ -127,7 +127,7 @@ export function frogCanEat(frog, candidate) {
  */
 export function frogEatingDrops(frog, prey) {
   if (!isFrog(frog) || !prey) return [];
-  if (prey.type === 'slime') return [['slimeball', false, 1, 1]];
+  if (prey.type === 'slime') return [['slime_ball', false, 1, 1]];
   if (prey.type === 'magma_cube') return [[froglightForVariant(frog.variant), true, 1, 1]];
   return [];
 }

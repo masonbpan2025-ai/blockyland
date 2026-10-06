@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { StructureLibrary } from '../src/structureLibrary.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
+import { BuildingLibrary } from '../src/buildingLibrary.js';
+import { BuildingStudioManager } from '../src/buildingStudio.js';
 import { CREATIVE_TABS, buildCreativeCatalog } from '../src/creativeCatalog.js';
 import { BLOCKS } from '../src/blocks.js';
 import { World } from '../src/world.js';
@@ -17,9 +17,9 @@ describe('Structure Studio and Structure Library System', () => {
     }
   });
 
-  describe('StructureLibrary Presets and Generator Code', () => {
+  describe('BuildingLibrary Presets and Generator Code', () => {
     it('has all required built-in structures including Aquarium', () => {
-      const all = StructureLibrary.getAllStructures();
+      const all = BuildingLibrary.getAllBuildings();
       assert.ok(all.length >= 9, 'Expected at least 9 built-in structures');
 
       const expectedIds = [
@@ -35,7 +35,7 @@ describe('Structure Studio and Structure Library System', () => {
       ];
 
       for (const id of expectedIds) {
-        const found = StructureLibrary.getStructure(id);
+        const found = BuildingLibrary.getBuilding(id);
         assert.ok(found, `Expected structure ${id} to exist`);
         assert.ok(found.name, `Structure ${id} should have a name`);
         assert.ok(Array.isArray(found.parameters), `Structure ${id} should have parameters`);
@@ -44,7 +44,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
 
     it('generates stairs with parameterized height and width', () => {
-      const stairs = StructureLibrary.getStructure('stairs');
+      const stairs = BuildingLibrary.getBuilding('stairs');
       const blocksHeight5 = stairs.generate({ height: 5, width: 3 });
       assert.ok(Array.isArray(blocksHeight5));
       assert.ok(blocksHeight5.length > 0);
@@ -62,7 +62,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
 
     it('generates aquarium with water and glass walls', () => {
-      const aquarium = StructureLibrary.getStructure('aquarium');
+      const aquarium = BuildingLibrary.getBuilding('aquarium');
       const blocks = aquarium.generate({ width: 6, height: 4, depth: 6 });
       assert.ok(blocks.some(b => b.id === BLOCKS.GLASS), 'Aquarium should contain glass');
       assert.ok(blocks.some(b => b.id === BLOCKS.WATER), 'Aquarium should contain water');
@@ -70,16 +70,16 @@ describe('Structure Studio and Structure Library System', () => {
     });
 
     it('enforces global namespace and detects conflicts', () => {
-      assert.strictEqual(StructureLibrary.hasStructure('Aquarium'), true);
-      assert.strictEqual(StructureLibrary.hasStructure('aquarium'), true);
-      assert.strictEqual(StructureLibrary.hasStructure('STAIRS'), true);
-      assert.strictEqual(StructureLibrary.hasStructure('NonexistentUniqueName123'), false);
+      assert.strictEqual(BuildingLibrary.hasBuilding('Aquarium'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('aquarium'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('STAIRS'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('NonexistentUniqueName123'), false);
     });
 
     it('saves a custom structure and warns on duplicate name', () => {
       // Trying to save an existing name fails
       assert.throws(() => {
-        StructureLibrary.saveCustomStructure({
+        BuildingLibrary.saveCustomBuilding({
           name: 'Stairs',
           parameters: [],
           generatorCode: 'function generate() { return []; }'
@@ -87,7 +87,7 @@ describe('Structure Studio and Structure Library System', () => {
       }, /already exists/i);
 
       // Unique name succeeds
-      const saved = StructureLibrary.saveCustomStructure({
+      const saved = BuildingLibrary.saveCustomBuilding({
         name: 'My Custom Tower',
         parameters: [{ id: 'height', name: 'Height', default: 12, min: 2, max: 40 }],
         generatorCode: `function generate(params) {
@@ -101,12 +101,12 @@ describe('Structure Studio and Structure Library System', () => {
 
       assert.ok(saved);
       assert.strictEqual(saved.name, 'My Custom Tower');
-      assert.strictEqual(StructureLibrary.hasStructure('My Custom Tower'), true);
-      assert.strictEqual(StructureLibrary.hasStructure('my custom tower'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('My Custom Tower'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('my custom tower'), true);
 
       // Now attempting to save with that name again throws
       assert.throws(() => {
-        StructureLibrary.saveCustomStructure({
+        BuildingLibrary.saveCustomBuilding({
           name: 'my custom tower',
           parameters: [],
           generatorCode: 'function generate() { return []; }'
@@ -117,7 +117,7 @@ describe('Structure Studio and Structure Library System', () => {
 
   describe('Prompt Parsing in Structure Studio', () => {
     it('parses explicit parameter prompts: "build a stair with a height parameter"', () => {
-      const manager = new StructureStudioManager({});
+      const manager = new BuildingStudioManager({});
       const parsed = manager.parsePromptParameters('build a stair with a height parameter');
       assert.ok(parsed, 'Expected prompt to be parsed');
       assert.strictEqual(parsed.structure.id, 'stairs');
@@ -126,7 +126,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
 
     it('parses symbol / implied parameter prompts: "build a stair with a height H"', () => {
-      const manager = new StructureStudioManager({});
+      const manager = new BuildingStudioManager({});
       const parsed = manager.parsePromptParameters('build a stair with a height H');
       assert.ok(parsed);
       assert.strictEqual(parsed.structure.id, 'stairs');
@@ -134,7 +134,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
 
     it('parses numeric parameters: "build an aquarium with width 14 and height 8"', () => {
-      const manager = new StructureStudioManager({});
+      const manager = new BuildingStudioManager({});
       const parsed = manager.parsePromptParameters('build an aquarium with width 14 and height 8');
       assert.ok(parsed);
       assert.strictEqual(parsed.structure.id, 'aquarium');
@@ -144,21 +144,21 @@ describe('Structure Studio and Structure Library System', () => {
   });
 
   describe('Creative Inventory Structure Tab', () => {
-    it('includes "structure" category in CREATIVE_TABS', () => {
-      const structTab = CREATIVE_TABS.find(t => t.id === 'structure');
-      assert.ok(structTab, 'Expected "structure" tab in CREATIVE_TABS');
+    it('includes "building" category in CREATIVE_TABS', () => {
+      const structTab = CREATIVE_TABS.find(t => t.id === 'building');
+      assert.ok(structTab, 'Expected "building" tab in CREATIVE_TABS');
       assert.strictEqual(structTab.name, 'Structures');
       assert.ok(structTab.icon.startsWith('/assets/'), 'Icon should have asset path');
     });
 
     it('lists all structures with icons and names in creative catalog', () => {
       const catalog = buildCreativeCatalog();
-      const structureItems = catalog.filter(it => it.category === 'structure');
-      assert.ok(structureItems.length >= 9, 'Should have all built-in structures in catalog');
+      const buildingItems = catalog.filter(it => it.category === 'structure');
+      assert.ok(buildingItems.length >= 9, 'Should have all built-in structures in catalog');
 
-      for (const item of structureItems) {
-        assert.ok(item.isStructure, `Item ${item.name} should have isStructure: true`);
-        assert.ok(item.structureId, `Item ${item.name} should have structureId`);
+      for (const item of buildingItems) {
+        assert.ok(item.isBuilding, `Item ${item.name} should have isStructure: true`);
+        assert.ok(item.buildingId, `Item ${item.name} should have structureId`);
         assert.ok(item.name, 'Item must have a name for hover tooltip');
         assert.ok(item.icon.startsWith('/assets/'), 'Item must have an icon path');
       }
@@ -202,8 +202,8 @@ describe('Structure Studio and Structure Library System', () => {
       world.isFlatWorld = true;
       world.getOrCreateChunk(0, 0);
 
-      const stairs = StructureLibrary.getStructure('stairs');
-      StructureLibrary.executeStructureBuild(stairs, { x: 0, y: 5, z: 0 }, { height: 4, width: 2 }, world);
+      const stairs = BuildingLibrary.getBuilding('stairs');
+      BuildingLibrary.executeBuildingBuild(stairs, { x: 0, y: 5, z: 0 }, { height: 4, width: 2 }, world);
 
       // Verify blocks placed in world
       assert.strictEqual(world.getVoxel(0, 5, 0), BLOCKS.STONE_BRICKS);
@@ -215,7 +215,7 @@ describe('Structure Studio and Structure Library System', () => {
 
   describe('Overwrite, Rename, and Delete in Structure Studio', () => {
     it('prompts and overwrites custom structure when overwrite is true, rejects without overwrite', () => {
-      const initial = StructureLibrary.saveStructure({
+      const initial = BuildingLibrary.saveBuilding({
         name: 'Fortress',
         parameters: [{ id: 'size', name: 'Size', default: 10 }],
         code: 'function generate(origin, params, BLOCKS) { return [{ x: 0, y: 0, z: 0, id: 1 }]; }'
@@ -224,7 +224,7 @@ describe('Structure Studio and Structure Library System', () => {
       const originalId = initial.structure.id;
 
       // Duplicate save without overwrite fails
-      const duplicate = StructureLibrary.saveStructure({
+      const duplicate = BuildingLibrary.saveBuilding({
         name: 'Fortress',
         parameters: [{ id: 'size', name: 'Size', default: 20 }],
         code: 'function generate(origin, params, BLOCKS) { return []; }'
@@ -233,7 +233,7 @@ describe('Structure Studio and Structure Library System', () => {
       assert.strictEqual(duplicate.error, 'NAME_CONFLICT');
 
       // Duplicate save with overwrite=true succeeds and updates in-place
-      const overwritten = StructureLibrary.saveStructure({
+      const overwritten = BuildingLibrary.saveBuilding({
         name: 'Fortress',
         parameters: [{ id: 'size', name: 'Size', default: 25 }],
         code: 'function generate(origin, params, BLOCKS) { return [{ x: 1, y: 1, z: 1, id: 2 }]; }',
@@ -246,7 +246,7 @@ describe('Structure Studio and Structure Library System', () => {
       assert.strictEqual(overwritten.structure.description, 'Updated Fortress');
 
       // Built-in structure cannot be overwritten even with overwrite=true
-      const builtinTry = StructureLibrary.saveStructure({
+      const builtinTry = BuildingLibrary.saveBuilding({
         name: 'Aquarium',
         parameters: []
       }, true);
@@ -254,47 +254,47 @@ describe('Structure Studio and Structure Library System', () => {
       assert.strictEqual(builtinTry.error, 'BUILTIN_CONFLICT');
 
       // Clean up
-      StructureLibrary.deleteStructure(originalId);
+      BuildingLibrary.deleteBuilding(originalId);
     });
 
     it('renames custom structure successfully, preventing collisions and empty names', () => {
-      const s1 = StructureLibrary.saveStructure({ name: 'Alpha Tower' });
-      const s2 = StructureLibrary.saveStructure({ name: 'Beta Castle' });
+      const s1 = BuildingLibrary.saveBuilding({ name: 'Alpha Tower' });
+      const s2 = BuildingLibrary.saveBuilding({ name: 'Beta Castle' });
       assert.strictEqual(s1.success, true);
       assert.strictEqual(s2.success, true);
 
       // Rejects empty name
-      const emptyRes = StructureLibrary.renameStructure(s1.structure.id, '   ');
+      const emptyRes = BuildingLibrary.renameBuilding(s1.structure.id, '   ');
       assert.strictEqual(emptyRes.success, false);
       assert.strictEqual(emptyRes.error, 'EMPTY_NAME');
 
       // Rejects collision with another structure
-      const conflictRes = StructureLibrary.renameStructure(s1.structure.id, 'Beta Castle');
+      const conflictRes = BuildingLibrary.renameBuilding(s1.structure.id, 'Beta Castle');
       assert.strictEqual(conflictRes.success, false);
       assert.strictEqual(conflictRes.error, 'NAME_CONFLICT');
 
       // Renaming built-in structures now succeeds and can be restored
-      const builtinRes = StructureLibrary.renameStructure('stairs', 'Grand Stairs');
+      const builtinRes = BuildingLibrary.renameBuilding('stairs', 'Grand Stairs');
       assert.strictEqual(builtinRes.success, true);
-      assert.strictEqual(StructureLibrary.hasStructure('Grand Stairs'), true);
-      assert.strictEqual(StructureLibrary.hasDeletedOrRenamedDefaults(), true);
-      StructureLibrary.restoreDefaults();
-      assert.strictEqual(StructureLibrary.hasStructure('Stairs'), true);
-      assert.strictEqual(StructureLibrary.hasDeletedOrRenamedDefaults(), false);
+      assert.strictEqual(BuildingLibrary.hasBuilding('Grand Stairs'), true);
+      assert.strictEqual(BuildingLibrary.hasDeletedOrRenamedDefaults(), true);
+      BuildingLibrary.restoreDefaults();
+      assert.strictEqual(BuildingLibrary.hasBuilding('Stairs'), true);
+      assert.strictEqual(BuildingLibrary.hasDeletedOrRenamedDefaults(), false);
 
       // Successful rename of custom structure
-      const renameRes = StructureLibrary.renameStructure(s1.structure.id, 'Omega Tower');
+      const renameRes = BuildingLibrary.renameBuilding(s1.structure.id, 'Omega Tower');
       assert.strictEqual(renameRes.success, true);
       assert.strictEqual(renameRes.structure.name, 'Omega Tower');
-      assert.strictEqual(StructureLibrary.hasStructure('Omega Tower'), true);
-      assert.strictEqual(StructureLibrary.hasStructure('Alpha Tower'), false);
+      assert.strictEqual(BuildingLibrary.hasBuilding('Omega Tower'), true);
+      assert.strictEqual(BuildingLibrary.hasBuilding('Alpha Tower'), false);
 
       // Clean up
-      StructureLibrary.deleteStructure(s1.structure.id);
-      StructureLibrary.deleteStructure(s2.structure.id);
+      BuildingLibrary.deleteBuilding(s1.structure.id);
+      BuildingLibrary.deleteBuilding(s2.structure.id);
     });
 
-    it('StructureStudioManager handles overwrite confirmation and renders delete button & inline rename', () => {
+    it('BuildingStudioManager handles overwrite confirmation and renders delete button & inline rename', () => {
       // Mock DOM environment
       function createMockNode(tag = 'div') {
         const node = {
@@ -352,21 +352,21 @@ describe('Structure Studio and Structure Library System', () => {
           ui: { addChatMessage: () => {} }
         };
 
-        const studio = new StructureStudioManager(fakeGame);
+        const studio = new BuildingStudioManager(fakeGame);
         studio.saveInput = createMockNode('input');
         studio.saveConflictMsg = createMockNode('div');
         studio.saveModal = createMockNode('div');
-        studio.structureNameBadge = createMockNode('span');
+        studio.buildingNameBadge = createMockNode('span');
         studio.openList = createMockNode('div');
 
         // Create a custom structure
-        const saved = StructureLibrary.saveStructure({
+        const saved = BuildingLibrary.saveBuilding({
           name: 'Bridge',
           parameters: [],
           code: 'function generate() { return []; }'
         });
 
-        studio.currentStructure = {
+        studio.currentBuilding = {
           name: 'Bridge',
           parameters: [],
           code: 'function generate() { return []; }'
@@ -384,7 +384,7 @@ describe('Structure Studio and Structure Library System', () => {
         assert.ok(studio.saveModal.classList.contains('hidden'));
 
         // 3. Render open structure list and check buttons
-        studio.renderOpenStructureList('');
+        studio.renderOpenBuildingList('');
         assert.ok(studio.openList.children.length > 0);
 
         // Find the card for Bridge and the card for Aquarium (built-in)
@@ -407,7 +407,7 @@ describe('Structure Studio and Structure Library System', () => {
         // Cancel deletion test
         globalThis.confirm = () => false;
         bridgeDeleteBtn.onclick({ stopPropagation: () => {} });
-        assert.strictEqual(StructureLibrary.hasStructure('Bridge'), true, 'Cancelling confirmation leaves structure intact');
+        assert.strictEqual(BuildingLibrary.hasBuilding('Bridge'), true, 'Cancelling confirmation leaves structure intact');
         globalThis.confirm = () => true;
 
         const aquariumCard = studio.openList.children.find(c => {
@@ -432,16 +432,16 @@ describe('Structure Studio and Structure Library System', () => {
         aquariumRenameInput.value = 'Mega Aquarium';
         aquariumRenameInput.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {}, stopPropagation: () => {} });
         assert.strictEqual(aquariumNameEl.textContent, 'Mega Aquarium');
-        assert.strictEqual(StructureLibrary.hasStructure('Mega Aquarium'), true);
+        assert.strictEqual(BuildingLibrary.hasBuilding('Mega Aquarium'), true);
 
         // 5. Test delete button on built-in structure
         aquariumDeleteBtn.onclick({ stopPropagation: () => {} });
-        assert.strictEqual(StructureLibrary.hasStructure('Mega Aquarium'), false);
-        assert.strictEqual(StructureLibrary.hasStructure('Aquarium'), false);
+        assert.strictEqual(BuildingLibrary.hasBuilding('Mega Aquarium'), false);
+        assert.strictEqual(BuildingLibrary.hasBuilding('Aquarium'), false);
 
         // Restore defaults
-        StructureLibrary.restoreDefaults();
-        assert.strictEqual(StructureLibrary.hasStructure('Aquarium'), true);
+        BuildingLibrary.restoreDefaults();
+        assert.strictEqual(BuildingLibrary.hasBuilding('Aquarium'), true);
 
         // 6. Test double-click to rename Bridge (custom structure)
         const bridgeInfo = bridgeCard.children.find(ch => ch.className === 'studio-open-card-info');
@@ -458,10 +458,10 @@ describe('Structure Studio and Structure Library System', () => {
         renameInput.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {}, stopPropagation: () => {} });
 
         assert.strictEqual(bridgeNameEl.textContent, 'Arch Bridge');
-        assert.strictEqual(StructureLibrary.hasStructure('Arch Bridge'), true);
+        assert.strictEqual(BuildingLibrary.hasBuilding('Arch Bridge'), true);
 
         // Clean up
-        StructureLibrary.deleteStructure(saved.structure.id);
+        BuildingLibrary.deleteBuilding(saved.structure.id);
       } finally {
         globalThis.document = prevDoc;
         globalThis.confirm = prevConfirm;

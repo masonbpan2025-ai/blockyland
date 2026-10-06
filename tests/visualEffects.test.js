@@ -55,10 +55,23 @@ test('sun shadow camera follows the player without changing the light direction'
 });
 
 test('block drop resolution preserves logs, converts grass to dirt, and excludes undroppable blocks', () => {
-  assert.deepEqual(getBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.SEA_LANTERN), { id: BLOCKS.SEA_LANTERN, isBlock: true });
-  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false });
+  // `count` is part of the rule now: a clay block gives four clay balls and a redstone ore four or five dust.
+  // The sea lantern line changed too -- it used to drop itself, and vanilla gives two or three prismarine
+  // crystals -- which is one of the nine wrong drops `block-drop-parity` found.
+  assert.deepEqual(getBlockDrop(BLOCKS.OAK_LOG), { id: BLOCKS.OAK_LOG, isBlock: true, count: 1 });
+  assert.deepEqual(getBlockDrop(BLOCKS.GRASS), { id: BLOCKS.DIRT, isBlock: true, count: 1 });
+
+  // THE SEA LANTERN IS A RANGE, NOT A NUMBER, and this line used to assert exactly 2. The drop is rolled at
+  // 2 or 3, so the assertion failed roughly half the time depending on the draw -- a FLAKY test rather than
+  // a broken rule, and one that could be misattributed to any unrelated change that happened to run it. The
+  // rule is now asserted as the range it actually is.
+  const lantern = getBlockDrop(BLOCKS.SEA_LANTERN);
+  assert.equal(lantern.id, 'prismarine_crystals', 'a sea lantern drops crystals, not itself');
+  assert.equal(lantern.isBlock, false, 'and they are an item');
+  assert.ok(lantern.count === 2 || lantern.count === 3,
+    `a sea lantern drops two or three crystals, got ${lantern.count}`);
+
+  assert.deepEqual(getBlockDrop(BLOCKS.DIAMOND_ORE), { id: 'diamond', isBlock: false, count: 1 });
   assert.equal(getBlockDrop(BLOCKS.GLASS), null); assert.equal(getBlockDrop(BLOCKS.WATER), null);
 });
 

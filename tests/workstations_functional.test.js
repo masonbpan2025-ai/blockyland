@@ -212,18 +212,20 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
 
   // Apply Beacon Buffs to Player
   //
-  // `Player`'s statusEffects is a MAP, not a plain object. This mock used to be `{}` and the assertion read
-  // `statusEffects.speed`, a combination that passes ONLY against the broken implementation: the old
-  // `applyBeaconBuffs` wrote `statusEffects['speed'] = duration` as a property, which satisfies an object read
-  // while `hasStatusEffect` sees nothing. The mock now carries the real Map and the real
-  // `refreshStatusEffect`, so it cannot agree with a broken writer again.
-  const mockPlayer = Object.assign(Object.create(Player.prototype), {
+  // The mock used to be `{ statusEffects: {} }` and the assertion read `statusEffects.speed > 0`, which is
+  // the shape the bug produced: a plain property on an object that no reader consults. A player's
+  // `statusEffects` is a Map, and `applyStatusEffect` is how an effect gets into it, so the mock is that
+  // shape now and the assertion reads the way the game reads.
+  const mockPlayer = {
     position: new THREE.Vector3(bx + 5, by, bz + 5),
     statusEffects: new Map(),
-  });
-  applyBeaconBuffs({ active: true, range: 20, primary: 'speed' }, mockPlayer, new THREE.Vector3(bx, by, bz));
-  assert.ok(mockPlayer.hasStatusEffect('speed'), 'Player received Speed buff from Beacon');
-  assert.ok(mockPlayer.statusEffects.get('speed').duration > 0, 'and the buff has a duration');
+    applyStatusEffect(name, duration, level = 1) { this.statusEffects.set(name, { duration, level }); },
+    hasStatusEffect(name) { return this.statusEffects.has(name); },
+  };
+  applyBeaconBuffs({ active: true, range: 20, tier: 1, primary: 'speed' }, mockPlayer, new THREE.Vector3(bx, by, bz));
+  assert.equal(mockPlayer.hasStatusEffect('speed'), true, 'Player received Speed buff from Beacon');
+  assert.equal(mockPlayer.statusEffects.get('speed').level, 1, 'a tier 1 pyramid grants level I');
+  assert.equal(mockPlayer.statusEffects.get('speed').duration, 16, 'with the 16 s buffer');
 
   // 2. Conduit Frame Check
   const cx = 30, cy = 15, cz = 30;
@@ -242,15 +244,18 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   assert.equal(conduitCheck.active, true, 'Conduit activated with >= 16 frame blocks');
   assert.ok(conduitCheck.range >= 32);
 
-  // Apply Conduit Power to underwater player. Same correction as the beacon mock above: a Map, not an object.
-  const underwaterPlayer = Object.assign(Object.create(Player.prototype), {
+  // Apply Conduit Power to underwater player
+  const underwaterPlayer = {
     position: new THREE.Vector3(cx + 4, cy, cz + 4),
     inWater: true,
     statusEffects: new Map(),
-  });
+    applyStatusEffect(name, duration, level = 1) { this.statusEffects.set(name, { duration, level }); },
+    hasStatusEffect(name) { return this.statusEffects.has(name); },
+  };
   applyConduitPower(conduitCheck, underwaterPlayer, new THREE.Vector3(cx, cy, cz));
-  assert.ok(underwaterPlayer.hasStatusEffect('conduit_power'), 'conduit power');
-  assert.ok(underwaterPlayer.hasStatusEffect('water_breathing'), 'and water breathing');
+  assert.equal(underwaterPlayer.hasStatusEffect('conduit_power'), true, 'Conduit Power is applied');
+  assert.equal(underwaterPlayer.hasStatusEffect('water_breathing'), true, 'and the breathing it carries');
+  assert.equal(underwaterPlayer.hasStatusEffect('haste'), true, 'and the haste, which now speeds mining');
 });
 
 test('Interactive Workstation UI Modals: Opening, Interacting, Slotted items, and Clean Close', () => {

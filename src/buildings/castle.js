@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const castleStructure = {
+export const castleBuilding = {
   id: 'castle',
   name: 'Castle',
   icon: '/assets/blocks/cobblestone.png',
@@ -149,4 +149,4 @@ export const castleStructure = {
   }
 };
 
-export default castleStructure;
+export default castleBuilding;

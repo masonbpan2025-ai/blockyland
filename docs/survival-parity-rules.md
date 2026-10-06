@@ -339,10 +339,13 @@ going unnoticed.
 
 | | have | vanilla | coverage |
 |---|---|---|---|
-| Vanilla recipes implemented | 1546 | 1557 | 99.3% |
-| Crafting recipes expressible | 1547 | 1557 | 99.4% |
-| Blocks named | 852 | 1095 | 77.8% |
-| Items named | 1159 | 1385 | 83.7% |
+| Vanilla recipes implemented | 1552 | 1557 | 99.7% |
+| Crafting recipes expressible | 1554 | 1557 | 99.8% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Vanilla recipes implemented | 1553 | 1557 | 99.7% |
+| Crafting recipes expressible | 1554 | 1557 | 99.8% |
+| Blocks named | 1095 | 1095 | 100.0% |
+| Items named | 1367 | 1385 | 98.7% |
 
 "Implemented" counts recipes generated from vanilla's own recipe data, so it cannot exceed the total.
 Hand-written recipes are reported separately and deliberately **not** added to the percentage: only some
@@ -358,9 +361,9 @@ and `brush`. The geometry work is complete: this project now draws slabs, stairs
 doors, trapdoors, signs, hanging signs, beds, panes, carpets, candles, chains, buttons, pressure plates,
 rods, rails and flower pots, each with tests.
 
-### 4.1.1 The remaining gap is ART, not code — for blocks and for items
+### 4.1.1 Most of the remaining gap is ART, not code — for blocks and for items
 
-The "Blocks named 75.9%" and "Items named 82%" rows read like missing implementation. They are not, and the
+The "Blocks named 81.9%" and "Items named 87.8%" rows read like missing implementation. Mostly they are not, and the
 distinction decides what work is left.
 
 The content generator emits a block only when `textureExists()` finds a PNG in `public/assets/blocks`, and
@@ -371,16 +374,140 @@ project needed already exists. Measured by `scripts/content-gap.mjs`:
 | | blocks | items |
 |---|---|---|
 | vanilla | 1095 | 1385 |
-| present | 827 | 1130 |
-| missing | 268 | 255 |
+| present | 1095 | 1309 |
+| missing | **0** | 76 |
 | **missing, has its OWN art** | **0** | **0** |
-| missing, could reuse art already present | **1** | **9** |
-| **missing, needs NEW art** | **267** | **246** |
-| art files | 241 | 974 |
+| missing, could reuse art already present | **0** | **0** |
+| **missing, needs NEW art** | **0** | **76** |
+| art files | 563 | 1071 |
 
-Both gaps are the same shape. Of 268 missing blocks, **one** is reachable by writing code —
-`redstone_wall_torch`, reusing `redstone_torch.png`. Of 255 missing items, **nine** are — all spawn eggs
-drawing the shared `spawn_egg.png`. Everything else needs art that does not exist.
+### 4.1.1a The pinned block list is COMPLETE
+
+Every block in the pinned 1.21.4 block list is registered: **1095 of 1095**. The checks that matter all
+report zero:
+
+| check | result |
+|---|---|
+| `compareBlockLists` unresolved names | **0** |
+| `gap-summary` blocks absent from the pinned data | **0** |
+| `gap-summary` genuine wiki names absent from the cache | **0** |
+
+Everything else the wiki lists is NEWER THAN THE PINNED DATA -- 277 entries, `newerThanPinnedData: 277` --
+which is a different objective rather than a gap in this one: the copper family, shelves, the poplar wood
+set, cinnabar and sulfur, from versions after 1.21.4.
+
+**THE DISTINCTION THAT MATTERS, stated precisely**, because it is easy to read the 277 as unfinished work:
+
+  - AGAINST THE PROJECT'S OWN PINNED BASELINE -- the 1.21.4 block registry the game's item, drop and harvest
+    data is all built from -- the block list is COMPLETE. No in-scope block named by the wiki is absent.
+  - AGAINST THE LIVE WIKI PAGE, there are 277 blocks from versions the pinned data predates. Those are a
+    FUTURE objective: implementing them means adopting a newer baseline, which is a different change from
+    closing a gap in this one.
+
+So "complete" here means complete for the version this project targets, and the 277 are the size of the next
+version's work rather than a remainder of this one.
+
+TWO RESIDUAL MEASUREMENTS USED TO REPORT A NON-ZERO BLOCK GAP AND BOTH WERE WRONG. They are recorded here
+because one of them hid twelve real blocks for several rounds before being believed:
+
+  - `scripts/content-gap.mjs` reported 12, and THOSE TWELVE WERE REAL, not false positives. The first draft
+    of this paragraph dismissed them as resolver artefacts because the name-based check said zero; it was the
+    other way round. The name-based check resolves `tube_coral` onto `TUBE_CORAL_BLOCK` and counts the name
+    satisfied, so it hid ten coral PLANTS that had never been registered, plus the nether wart and the dirt
+    path. All twelve are implemented now and this script reports ZERO. The lesson is recorded rather than
+    tidied away: when two measurements of the same thing disagree, the disagreement IS the finding, and the
+    convenient number is the one to distrust.
+  - `scripts/parity-coverage.mjs` still reports a small non-zero block figure, because
+    `resolveVanillaBlock` returns an ARRAY of keys for names that match several (`white_bed` gives the foot
+    and the head) and the script looks that array up as a single key. A count of the cache puts 65 names in
+    that category. This one IS a measurement artefact.
+
+A CAVEAT ON THE "present" ROW, because a batch below turned up a case where it overstates. The
+measurement resolves a vanilla NAME onto a registry key, and a key can exist while the block behind
+it is wrong. `wither_skeleton_skull` resolved to `WITHER_SKELETON_SKULL_BLOCK`, so it counted as
+present while that block rendered as a coal cube with art pointing at `coal_block.png` and a drop
+item name that resolved to nothing. It was only noticed because its WALL variant, which had no key at
+all, showed up as missing.
+
+So a name resolving is evidence that a block was attempted, not that it works. The `present` figure
+is a ceiling on parity rather than a measurement of it, and the batches in this document are the
+reason to say that: several of them were repairs rather than additions.
+
+BOTH reachability columns are empty, and the caveat that used to follow them was WRONG. The previous
+version of this section said "there is no longer any block reachable by writing code alone" and named
+the eight blocks since added -- beetroots, cocoa, the two crops, soul fire, suspicious sand and gravel,
+and scaffolding -- as needing art that does not exist.
+
+They did not need new art. Their art was there all along, under a name a bare-name probe does not find:
+a stage suffix, a numbered frame, top/side/bottom, or in soul fire's case a 32-frame animation strip
+that had to be SLICED. `scripts/block-parity/art-sweep.mjs` finds them by trying every suffix against two
+version directories.
+
+So the honest statement is narrower than the one it replaces: **no remaining block has art that can be
+used as-is**, but "needs NEW art" is a claim this table cannot actually make, because it only tests the
+bare name and a few suffixes. FIVE rounds have now been unblocked without drawing anything:
+
+| blocks | how the art was obtained |
+|---|---|
+| 18 candle cakes | composed from the cake and candle tiles |
+| 37 potted plants | composed from the flower pot and plant sprites |
+| soul fire | sliced from a 32-frame animation strip |
+| 3 filled cauldrons | composed from the pot and the fluids, which also had to be sliced |
+| 8 mob heads | EXTRACTED from `entity/` skin sheets, a different mirror directory entirely |
+| the wither skull | the same extraction, applied to a block that already "existed" as a coal cube |
+| 2 chest variants | composed from the chest, which the mirror has no variant of |
+| the sniffer egg, the end gateway | the egg is the TURTLE EGG's shape on the SNIFFER'S palette; the gateway is the end portal's art darkened |
+| the moving piston | `piston_side`/`piston_inner` were on the mirror and referenced by NOTHING |
+| barrier, light, structure void | their ITEM sprites, because vanilla draws no block art for any of them |
+
+AND ONE FAMILY WHERE THE COLUMN IS SIMPLY RIGHT: **cave air and void air needed no art because air is
+invisible.** That is not an exception being granted to a hard case; it is the correct state, and the
+texture test carries a narrow word-boundary exemption for names ending in "Air" so the two can be
+registered honestly rather than given a stand-in tile that must never be seen. Barrier and light, by
+contrast, DID get stand-in art, because a barrier that cannot be seen is a barrier nobody can use.
+
+The distinction is worth keeping: an invisible block that must stay invisible is finished when it is
+registered, while an invisible block that has to be usable is not.
+
+That last one is the widest reach yet, and it is why the column cannot be trusted: the art was not in
+`blocks/` at all. `scripts/extract-mob-head-textures.py` crops the head faces out of the standard 32x16
+head region of each mob's skin. Two of the six mob heads still fail that way and the script records why
+-- the creeper's sheet is not in the standard layout, and the dragon has no sheet in the mirror -- so
+four arrived and two did not, rather than all six arriving half-done.
+
+`scripts/compose-candle-cakes.py`, `scripts/compose-potted-plants.py`, `scripts/slice-texture-frames.py`,
+`scripts/compose-filled-cauldrons.py` and `scripts/extract-mob-head-textures.py` are those five tools, all
+committed and all asserted by tests so that clearing `public/assets` and re-running only the downloader
+cannot silently lose their output. `scripts/restore-block-assets.mjs` runs them in the one order that
+works, with the slicer before the composers because two of the cauldron fluids are strips.
+
+Of the 37 remaining blocks, the six mob heads are the next candidate on the same basis: their art exists,
+as `entity/` skin sheets rather than block tiles, so they need a UV mapping rather than a drawing.
+
+### 4.1.2 The shulker boxes are the clearest block-versus-behaviour gap
+
+The seventeen shulker boxes are registered — the plain box and sixteen dyed — and each is a full
+cube with the right hardness, tool and drop. What they are NOT is containers.
+
+In vanilla a shulker box holds 27 slots, opens when used, and keeps its contents when broken. That
+needs a tile-entity layer this game does not have, so they are solid decorative cubes: placeable,
+breakable, correct in every property a block has, and inert in every property an entity has. A
+test asserts the definitions carry no container/inventory/openable marker, so the gap is recorded
+in code rather than only in prose; if a container layer lands, that test should be deleted rather
+than quietly updated. Two related gaps: the item stacks normally here, where vanilla limits it to
+one, and the box does not open.
+
+Worth stating plainly, because this heading used to read "the remaining gap is ART, not code" and that
+was wrong: the gap is *currently* art-gated, but it is not intrinsically so. Adding art is one way to
+close it and writing definitions against art that already exists is another, and the second is how the
+ores, saplings, infested stone, coral, amethyst and the other block-parity batches were closed. What
+the table measures is which missing blocks *already have* a texture file to point at, not whether a
+missing block is implementable in principle. `ancient_debris` was counted as art-blocked until its
+`_side`/`_top` textures were found under part-suffixed names, and three rounds of batches were chosen
+badly because a bare-name probe does not look for those suffixes —
+`scripts/block-parity/art-available.mjs` now does the sweep in one pass and found 66 implementable
+blocks where the family-by-family guesswork had been finding a handful.
+
 
 The item row counts 1130 present where `scripts/parity-coverage.mjs` reports 1138. The difference is the
 name-derivation rule, not the conclusion: this measurement asks "is there an icon file", and eight items

@@ -31,8 +31,12 @@ for (const [id, def] of Object.entries(BLOCK_DEFS)) {
 for (const key of Object.keys(ITEMS)) gameNames.add(key);
 
 // Spelling differences between vanilla and this game, each one verified against a real recipe.
+//
+// `cobbled_deepslate` used to be aliased to `cobblestone`, which was a workaround for the block not
+// existing. It is a real registered block now, so the alias is gone: leaving it would report the block
+// as covered even if it were removed again, and it hid the fact that deepslate smelted into cobblestone
+// in furnace.js because BLOCKS.COBBLED_DEEPSLATE was undefined.
 const ALIASES = {
-  cobbled_deepslate: 'cobblestone',
   charcoal: 'coal',
   planks: 'oak_planks',
   wooden_slab: 'oak_slab',

@@ -302,7 +302,7 @@ export class ChunkMesher {
           // they are routed through createBlockGeometry. An unrecognised shape falls through to the
           // fast path and is drawn full size, which for any of these looks like a rendering bug
           // rather than a missing feature.
-          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.sign || def?.rod || def?.rail || def?.flowerPot) {
+          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.wallSign || def?.wallFan || def?.head || def?.wallHead || def?.sign || def?.rod || def?.rail || def?.flowerPot) {
             const state = world.redstone?.state([wx, wy, wz]) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);
@@ -390,11 +390,21 @@ export class ChunkMesher {
           // Cross-quad rendering for flowers (Poppy, Dandelion)
           if (isPlant) {
             const uv = this.tm.getFaceUVs(blockId, 'all');
+            // A plant anchored to a ceiling draws downward from the block's top face, so its texture has
+            // to be flipped: the artwork's top edge belongs at the ceiling, not at the floor. The quad's
+            // vertex POSITIONS are unchanged -- the cell is the cell -- so this is a V swap, and the
+            // winding is left alone because the quad is double-sided in effect through the second
+            // crossing quad.
+            const hanging = Boolean(def.hang);
             const addCrossQuad = (p1, p2, p3, p4) => {
               const baseIdx = trVertCount;
               trPos.push(...p1, ...p2, ...p3, ...p4);
               trNorm.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
-              trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              if (hanging) {
+                trUv.push(uv.u0, uv.v1, uv.u1, uv.v1, uv.u1, uv.v0, uv.u0, uv.v0);
+              } else {
+                trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              }
               trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
               trWind.push(0,0,1,1);
               trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
@@ -447,7 +457,12 @@ export class ChunkMesher {
               if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) continue;
             }
 
-            const uv = this.tm.getFaceUVs(blockId, face);
+            // The texture manager keys faces by NAME ('top', 'side', 'bottom', ...), not by the
+            // numeric slot this loop uses. Passing the number made every face of a block whose
+            // definition has no `all` texture -- grass, every log, furnaces, sandstone and the
+            // rest of the 40-odd multi-texture blocks -- miss every branch and fall through to
+            // the manager's missing-texture fallback, which is why their surfaces rendered black.
+            const uv = this.tm.getFaceUVs(blockId, FACE_NAMES[face]);
             const corners = FACE_CORNERS[face];
             const normal = FACE_NORMAL[face];
 

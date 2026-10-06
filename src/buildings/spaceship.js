@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const spaceshipStructure = {
+export const spaceshipBuilding = {
   id: 'spaceship',
   name: 'Spaceship',
   icon: '/assets/blocks/sea_lantern.png',
@@ -125,4 +125,4 @@ export const spaceshipStructure = {
   }
 };
 
-export default spaceshipStructure;
+export default spaceshipBuilding;

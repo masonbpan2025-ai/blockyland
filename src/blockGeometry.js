@@ -3,7 +3,7 @@ import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBedGeometry } from './bed.js';
-import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createHangingSignGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
+import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createWallFanGeometry, createHeadGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
@@ -69,6 +69,34 @@ export function createBlockGeometry(id, textures, state = {}) {
     // through and applied as a tint -- only the cloth takes it, not the pole.
     const colour = def?.bannerColour || 'white';
     return ensureFlameAttributes(createBannerGeometry(def, textures, colour));
+  }
+  if (def?.wallHead) {
+    // A head fixed to a wall. Checked before the standing head below, since the two share the box and
+    // differ only in where it sits.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createHeadGeometry(def, textures, true, dir));
+  }
+  if (def?.head) {
+    // A mob head: an 8/16 cube. Without this it would be drawn as a full block, which is exactly what the
+    // vanilla model exists to avoid.
+    return ensureFlameAttributes(createHeadGeometry(def, textures, false));
+  }
+  if (def?.wallFan) {
+    // Checked BEFORE the plant fallback, because a wall fan is also `plant: true` (so the upright fan's
+    // cross-quad path is available to the shared code) and would otherwise render as a cross. A wall fan
+    // is a flat growth on a wall face, not a plant standing on the floor.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createWallFanGeometry(def, textures, dir));
+  }
+  if (def?.wallSign) {
+    // Checked BEFORE sign, for the same reason the hanging sign below is: a wall sign's key also ends in
+    // `_sign`, so a shared branch would give it the standing sign's post-and-board shape.
+    //
+    // The default direction is north, which is the same fallback the hanging signs use. Nothing in this
+    // engine drives sign facing from placement -- no block-state layer owns signs -- so a wall sign is
+    // drawn facing north whichever wall it is put on. See the definition comments for that limitation.
+    const dir = state?.dir !== undefined ? state.dir : 3;
+    return ensureFlameAttributes(createWallSignGeometry(def, textures, dir));
   }
   if (def?.hangingSign) {
     // Checked BEFORE sign, because a hanging sign's name also ends in _sign and a shared
@@ -179,8 +207,15 @@ export function createBlockGeometry(id, textures, state = {}) {
     return geo;
   }
   const torch = def?.shape === 'torch';
+  // A wall torch shares the standing torch's box and UV cropping exactly; only its POSITION differs. It is
+  // the same 2/16 x 10/16 x 2/16 post, pushed back against the `z` wall and raised to the height vanilla
+  // mounts it. Handling it here rather than in a separate branch keeps the two forms provably identical in
+  // shape, which matters because the standing torch's cropped UVs are what make the sprite's central two
+  // pixels read as a stick with a burning head and a wooden base.
+  const wallTorch = Boolean(def?.wallTorch);
   const geo = new THREE.BoxGeometry(torch ? 2 / 16 : 1, torch ? 10 / 16 : 1, torch ? 2 / 16 : 1);
-  geo.translate(0.5, torch ? 5 / 16 : 0.5, 0.5);
+  if (wallTorch) geo.translate(0.5, 13 / 16, 13 / 16);
+  else geo.translate(0.5, torch ? 5 / 16 : 0.5, 0.5);
   const uv = geo.attributes.uv;
   const faces = ['east', 'west', 'top', 'bottom', 'north', 'south'];
   const emission = new Float32Array(24);

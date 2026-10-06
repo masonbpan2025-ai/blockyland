@@ -8,6 +8,7 @@
 // Run: node scripts/content-gap.mjs
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
+import { VANILLA_ID_ALIASES } from '../src/resourceRegistry.js';
 
 const BLOCKS_CACHE = '.cache/mc-data/blocks.json';
 const ITEMS_CACHE = '.cache/mc-data/items.json';
@@ -98,6 +99,15 @@ export function measureItemGap() {
   for (const [, d] of Object.entries(BLOCK_DEFS)) {
     if (!d?.name) continue;
     present.add(String(d.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
+  }
+  // A vanilla name this game holds under another id is present, not missing. This measurement and the
+  // Inspector's `missingVanillaItems` are two implementations of the same question, and they count different
+  // things on purpose -- this one counts every vanilla item name, the Inspector's counts what its registry
+  // resolves -- so the two totals are not meant to be equal. They must not disagree about a single *name*, and
+  // they did about two: `splash_potion` and `lingering_potion`, which are this game's splash and lingering
+  // water bottles. Reconciling both through the same alias table is what keeps them comparable.
+  for (const [gameId, vanillaId] of Object.entries(VANILLA_ID_ALIASES)) {
+    if (ITEMS[gameId] !== undefined) present.add(vanillaId);
   }
 
   const missing = items.map(i => i.name).filter(n => !present.has(n));

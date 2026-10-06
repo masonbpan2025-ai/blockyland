@@ -1,4 +1,4 @@
-import { BLOCKS as B, BLOCK_DEFS } from './blocks.js';
+import { BLOCKS as B, BLOCK_DEFS, stackLimitFor } from './blocks.js';
 import * as THREE from 'three';
 
 export const DIRECTIONS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
@@ -55,7 +55,7 @@ export class Redstone {
       return s.manualOpen?'Door opened':'Door closed';
     }
     else if([B.DISPENSER,B.DROPPER,B.HOPPER].includes(s.id)){
-      if(held&&held.count>0){const slot=s.inventory.find(i=>i.id===held.id&&i.isBlock===held.isBlock&&i.count<64);if(slot)slot.count++;else if(s.inventory.length<(s.id===B.HOPPER?5:9))s.inventory.push({...held,count:1});else return 'Container full';if(this.game?.player?.gamemode!=='creative')held.count--;}
+      if(held&&held.count>0){const slot=s.inventory.find(i=>i.id===held.id&&i.isBlock===held.isBlock&&i.count<stackLimitFor(held.id));if(slot)slot.count++;else if(s.inventory.length<(s.id===B.HOPPER?5:9))s.inventory.push({...held,count:1});else return 'Container full';if(this.game?.player?.gamemode!=='creative')held.count--;}
       else {const slot=s.inventory[0];if(slot&&this.game?.inventory.addItem(slot.id,slot.isBlock,slot.count))s.inventory.shift();}
       return 'Stored items: '+s.inventory.reduce((n,i)=>n+i.count,0);
     } else if(s.id===B.NOTE_BLOCK){s.note=((s.note||0)+1)%25;this.playNote(s);return 'Note: '+s.note;}
@@ -207,15 +207,15 @@ export class Redstone {
     }
     for(const [s,on] of pistons)if(this.state(s.p)===s){if(on&&!s.extended)this.extend(s,actors);else if(!on&&s.extended)this.retract(s,actors);}
   }
-  transferOne(from,to){const item=from.inventory[0];if(!item)return false;let target=to.inventory.find(i=>i.id===item.id&&i.isBlock===item.isBlock&&i.count<64);if(!target){if(to.inventory.length>=(to.id===B.HOPPER?5:9))return false;target={...item,count:0};to.inventory.push(target);}target.count++;if(--item.count===0)from.inventory.shift();return true;}
+  transferOne(from,to){const item=from.inventory[0];if(!item)return false;let target=to.inventory.find(i=>i.id===item.id&&i.isBlock===item.isBlock&&i.count<stackLimitFor(item.id));if(!target){if(to.inventory.length>=(to.id===B.HOPPER?5:9))return false;target={...item,count:0};to.inventory.push(target);}target.count++;if(--item.count===0)from.inventory.shift();return true;}
   hopperHasSpace(s,id=null,isBlock=false){
     if(s.inventory.length<5)return true;
-    if(id!==null)return s.inventory.some(i=>i.id===id&&!!i.isBlock===!!isBlock&&i.count<64);
-    return s.inventory.some(i=>i.count<64);
+    if(id!==null)return s.inventory.some(i=>i.id===id&&!!i.isBlock===!!isBlock&&i.count<stackLimitFor(id));
+    return s.inventory.some(i=>i.count<stackLimitFor(i.id));
   }
   addHopperItem(s,id,isBlock,count=1){
-    let slot=s.inventory.find(i=>i.id===id&&!!i.isBlock===!!isBlock&&i.count<64);
-    if(slot){const can=Math.min(count,64-slot.count);slot.count+=can;return can>0;}
+    let slot=s.inventory.find(i=>i.id===id&&!!i.isBlock===!!isBlock&&i.count<stackLimitFor(id));
+    if(slot){const can=Math.min(count,stackLimitFor(id)-slot.count);slot.count+=can;return can>0;}
     if(s.inventory.length<5){s.inventory.push({id,isBlock,count});return true;}
     return false;
   }

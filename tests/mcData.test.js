@@ -215,8 +215,12 @@ test('count ranges are rolled, not fixed', () => {
 // --- foods -------------------------------------------------------------------
 
 test('food values match the real game', () => {
-  assert.deepEqual(foodFor('cooked_beef'), { hunger: 8, saturation: 6.4 });
-  assert.deepEqual(foodFor('bread'), { hunger: 5, saturation: 3 });
+  // The wiki's [Food] page, "Food saturation values": cooked porkchop and steak 12.8, bread 6. These read 6.4
+  // and 3 for a long time, because the generator halved minecraft-data's figure on the theory that it was in
+  // doubled internal units. It is not -- it is the wiki's own column -- and `hunger.js` spending 1.5 saturation
+  // per health point healed is the wiki's own figure too, which a doubled system would put at 3.
+  assert.deepEqual(foodFor('cooked_beef'), { hunger: 8, saturation: 12.8 });
+  assert.deepEqual(foodFor('bread'), { hunger: 5, saturation: 6 });
   assert.equal(foodFor('stone'), null, 'stone is not edible');
   assert.ok(Object.keys(FOODS).length > 30);
 });
@@ -228,10 +232,14 @@ test('every food has a positive hunger value', () => {
   }
 });
 
-test('saturation is reported in player-visible units, not the doubled internal ones', () => {
-  // cooked_beef is 204.8 internally and 6.4 in the player's terms (204.8 / 8 / 4).
-  for (const f of Object.values(FOODS)) {
-    assert.ok(f.saturation <= f.hunger * 2 + 1e-6,
-      `saturation ${f.saturation} looks un-halved against hunger ${f.hunger}`);
-  }
+test('saturation is in the units the wiki reports', () => {
+  // This asserted that no food's saturation exceeded twice its hunger, on the theory that the table held
+  // vanilla's saturation *modifier* -- since saturation points are `hunger * modifier * 2`, a modifier would
+  // always be at most 2. A golden carrot disproves it: 6 hunger and 14.4 saturation, more than twice. The
+  // full table is checked against the wiki in tests/foodSaturation.test.js; this keeps the units from quietly
+  // drifting back.
+  assert.equal(FOODS.cooked_porkchop.saturation, 12.8);
+  assert.equal(FOODS.golden_carrot.saturation, 14.4);
+  assert.ok(FOODS.golden_carrot.saturation > FOODS.golden_carrot.hunger * 2,
+    'the golden carrot is the case that disproves the modifier theory');
 });

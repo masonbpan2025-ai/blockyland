@@ -186,7 +186,7 @@ test('eating a slime yields one slimeball, and a magma cube a froglight', () => 
   const magma = smallCube(manager, 'magma_cube');
   for (const variant of FROG_VARIANTS) {
     const frog = manager.spawnFrog(0, 1, 0, { variant });
-    assert.deepEqual(frogEatingDrops(frog, slime), [['slimeball', false, 1, 1]],
+    assert.deepEqual(frogEatingDrops(frog, slime), [['slime_ball', false, 1, 1]],
       `${variant}: a slime always gives exactly one slimeball`);
     assert.deepEqual(frogEatingDrops(frog, magma), [[froglightForVariant(variant), true, 1, 1]],
       `${variant}: a magma cube gives that frog's froglight`);
@@ -208,7 +208,7 @@ test('eating a mob despawns it without a death animation', () => {
   assert.equal(slime.mesh.parent, null, 'and out of the scene');
   assert.equal(slime.eatenByFrog, true, 'marked as eaten');
   assert.equal(slime.health, 1, 'its health was never reduced, so no death path ran');
-  const drops = entities.droppedItems.filter(d => d.itemType === 'slimeball');
+  const drops = entities.droppedItems.filter(d => d.itemType === 'slime_ball');
   assert.equal(drops.length, 1, 'and the frog-specific loot dropped');
   assert.equal(frog.tongueCooldown, FROG_TONGUE.cooldown, 'with a cooldown before the next flick');
 });
@@ -304,9 +304,9 @@ test('drops and XP match the wiki', () => {
 
 test('slimeballs are the breeding food and the follow trigger', () => {
   const { manager } = fixture();
-  assert.equal(FROG_BREEDING_FOOD, 'slimeball');
-  assert.ok(ITEMS.slimeball, 'the slimeball exists, since frogs eat and breed with it');
-  assert.equal(manager.animalBehaviors?.isBreedingFood?.('frog', 'slimeball'), true);
+  assert.equal(FROG_BREEDING_FOOD, 'slime_ball');
+  assert.ok(ITEMS.slime_ball, 'the slimeball exists, since frogs eat and breed with it');
+  assert.equal(manager.animalBehaviors?.isBreedingFood?.('frog', 'slime_ball'), true);
   assert.equal(FROG_FOLLOW_RANGE, 6, 'wiki: within 6 blocks');
 });
 
@@ -382,7 +382,7 @@ test('a frog really eats a size-1 slime through the real update loop', () => {
     if (slime.eatenByFrog) { eaten = true; break; }
   }
   assert.equal(eaten, true, 'the slime is eaten');
-  assert.ok(entities.droppedItems.some(d => d.itemType === 'slimeball'), 'leaving a slimeball');
+  assert.ok(entities.droppedItems.some(d => d.itemType === 'slime_ball'), 'leaving a slimeball');
 });
 
 test('a frog ignores a size-4 slime', () => {
@@ -425,7 +425,7 @@ test('the spawn egg and slimeball are registered', () => {
   assert.ok(ITEMS.frog_spawn_egg, 'the frog has a spawn egg');
   assert.equal(ITEMS.frog_spawn_egg.mob, 'frog');
   assert.equal(ITEMS.frog_spawn_egg.type, 'spawn_egg');
-  assert.ok(ITEMS.slimeball, 'and the slimeball it eats and breeds with');
+  assert.ok(ITEMS.slime_ball, 'and the slimeball it eats and breeds with');
 });
 
 test('the helpers are safe on non-frogs and malformed input', () => {

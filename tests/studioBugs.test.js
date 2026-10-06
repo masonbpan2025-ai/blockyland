@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WorldAgent } from '../src/worldAgent.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
+import { BuildingStudioManager } from '../src/buildingStudio.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function fixture() {
@@ -14,7 +14,7 @@ function fixture() {
     getOrCreateChunk: () => ({ dirty: false }),
     chunks: new Map()
   };
-  const manager = new StructureStudioManager({});
+  const manager = new BuildingStudioManager({});
   manager.isActive = true;
   const game = {
     world,
@@ -23,7 +23,7 @@ function fixture() {
     weather: { weatherType: 'clear' },
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {}, playPlace() {}, playBreak() {} },
     rebuildChunkMesh() {},
-    structureStudio: manager
+    buildingStudio: manager
   };
   manager.game = game;
   const agent = new WorldAgent(game);

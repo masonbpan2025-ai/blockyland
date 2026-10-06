@@ -94,12 +94,18 @@ function materialTool(material) {
   return m ? m[1] : null;
 }
 
-// Only blocks the game can actually place are useful; skip fluid/technical entries with no
-// hardness concept. Keep them out so the table stays focused and diffable.
+// Every block vanilla publishes, including the ones that cannot be mined and the ones that drop nothing by
+// hand. Two filters used to drop them -- `diggable === false` and a "material default, hardness 0, empty
+// bounding box, no drops" rule -- to keep the table focused. That read well and cost 27 blocks the game
+// implements: bedrock, fire, soul fire, both portals, the end portal frame, the command, structure and jigsaw
+// blocks, frogspawn, seagrass and its tall form, and all ten live coral fans. The Inspector asked each of them
+// for hardness and tool data, which is a question the table can answer -- "unbreakable", "hardness 0, no tool"
+// -- and refusing to answer it looked exactly like a gap in the game.
+//
+// A row for these is also the honest reference for `block-drop`: vanilla's own data says none of them drops
+// anything by hand, and coral fans and seagrass need shears or Silk Touch, which this table does not model.
 const harvestRows = [];
 for (const b of blocks) {
-  if (b.diggable === false) continue;
-  if (b.material === 'default' && b.hardness === 0 && b.boundingBox === 'empty' && !b.drops?.length) continue;
   const harvest = describeHarvestTools(b.harvestTools);
   const row = {
     name: b.name,
@@ -127,10 +133,30 @@ const harvestBody = harvestRows.map(r => {
   return `  ${r.name}: {${parts.join(',')}},`;
 }).join('\n');
 
+/**
+ * The part of `blockHarvestData.js` that is written by hand and carried forward.
+ *
+ * The blast-resistance rules were added directly to the generated file and the generator never learned
+ * about them, so every regeneration silently deleted them. Nothing that reads the file could tell: the
+ * exports simply stopped existing.
+ *
+ * Everything from the marker to the end of the file is copied verbatim into the new output. Adding to that
+ * section by hand is therefore safe, and moving it into this script is still the better fix.
+ */
+const HARVEST_TAIL_MARKER = '// --- blast resistance';
+const previousHarvest = existsSync('src/blockHarvestData.js')
+  ? readFileSync('src/blockHarvestData.js', 'utf8')
+  : '';
+const harvestTailAt = previousHarvest.indexOf(HARVEST_TAIL_MARKER);
+const harvestTail = harvestTailAt >= 0 ? '\n' + previousHarvest.slice(harvestTailAt) : '';
+if (!harvestTail) {
+  console.warn('  blockHarvestData.js: no hand-written tail found; the blast-resistance rules would be lost');
+}
+
 writeFileSync('src/blockHarvestData.js', header(
   'Canonical per-block mining data: hardness, the tool class and minimum tier needed to',
   'harvest it, and what it drops.\n//\n// Used by the mining path to gate harvesting and to compute break times the way the real\n// game does, instead of the flat hardness/speed divide it used before.\n//\n// `drops` lists item names; an empty array means the block drops itself, and an absent\n// `drops` key means the block is not harvestable into an item.'
-) + `import { BLOCKS } from './blocks.js';
+) + `import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 
 export const BLOCK_HARVEST = {
 ${harvestBody}
@@ -139,32 +165,97 @@ ${harvestBody}
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
 
+/**
+ * Block ids by the name a harvest row uses.
+ *
+ * The game registers blocks through two routes -- \`BLOCKS\` constants and the generated content tables --
+ * and this table is keyed by the vanilla name, which matches the constant for most blocks and not for the
+ * rest. Looking up \`BLOCKS[name.toUpperCase()]\` alone therefore leaves rows unreachable, and three of them
+ * were for blocks the game really has: \`snow_block\`, \`potatoes\` and \`wither_skeleton_skull\`. The last has
+ * no \`drop\` in its definition, so its row was the only thing that would have made it drop anything, and
+ * breaking one yielded nothing.
+ *
+ * Where several blocks share a name -- a crop's four growth stages are all "Potatoes" -- the lowest id
+ * wins, which is the stage a harvest row is about. Checked with \`scripts/inspect-resource.mjs orphans\`,
+ * which lists the rows still waiting on a block and the ones that are dead although the block exists.
+ */
+const BY_NAME = new Map();
+/** Every block id sharing a normalised display name, for the state-variant fallback below. */
+const IDS_BY_NAME = new Map();
+for (const [id, def] of Object.entries(BLOCK_DEFS)) {
+  const key = String(def?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (!key) continue;
+  const existing = BY_NAME.get(key);
+  if (existing === undefined || Number(id) < existing) BY_NAME.set(key, Number(id));
+  if (!IDS_BY_NAME.has(key)) IDS_BY_NAME.set(key, []);
+  IDS_BY_NAME.get(key).push(Number(id));
+}
+
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()];
+  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
-/** Harvest data for a block id, or null when the block has no data. */
+/**
+ * Harvest data for a block id, or null when the block has no data.
+ *
+ * An id with no row of its own falls back to the row of the block it is a *state* of -- an open door, a bed's
+ * head, a coral fan's wall form, seven of wheat's eight growth stages. Vanilla names those once and the table
+ * is generated per name, so 144 blocks read as having no hardness or tool data at all while the block they
+ * are a state of had a row the whole time. The suffixes and the sibling rule are hand-written in the tail.
+ */
 export function harvestDataFor(blockId) {
-  return BY_ID.get(blockId) || null;
+  const row = BY_ID.get(blockId);
+  if (row) return row;
+  return sharedHarvestRowFor(blockId, BY_ID, IDS_BY_NAME);
 }
 
 /** Every block id this table knows about, for tests and tooling. */
 export function knownHarvestBlockIds() {
   return [...BY_ID.keys()];
 }
-`, 'utf8');
+
+/** Every harvest row name, whether or not a block answers to it, for the orphan report. */
+export function knownHarvestNames() {
+  return Object.keys(BLOCK_HARVEST);
+}
+` + harvestTail, 'utf8');
 console.log(`  blockHarvestData.js: ${harvestRows.length} blocks`);
 
 // --- 2. mob loot ------------------------------------------------------------
+
+/**
+ * Drops vanilla has that minecraft-data does not publish.
+ *
+ * The published `drowned` entry is `[['rotten_flesh'], ['copper_ingot', 0.11, null, 'playerKill']]` and
+ * stops there, while Java also gives a drowned a **3%** nautilus shell and an **8.5%** chance of the
+ * trident it was carrying. Without both rows nothing in this game produced a nautilus shell -- which is
+ * what a conduit is made of -- or a trident at all, and the Resource Inspector reported each as an item
+ * with no source of any kind.
+ *
+ * Kept here rather than hand-edited into the output, because the output is regenerated: an edit there
+ * would survive until the next run and then vanish silently, which is how the music discs were lost once
+ * already.
+ *
+ * Same shape as a published drop: `{ item, dropChance, stackSizeRange, playerKill }`.
+ */
+const MOB_LOOT_ADDITIONS = {
+  drowned: [
+    { item: 'nautilus_shell', dropChance: 0.03 },
+    // Java gives this only to a drowned that spawned holding a trident. This game's drowned all throw
+    // one, so the condition is satisfied by the model rather than checked here.
+    { item: 'trident', dropChance: 0.085 },
+  ],
+};
+
 const lootRows = entityLoot
   .filter(e => Array.isArray(e.drops) && e.drops.length)
   .map(e => [e.entity, e.drops])
   .sort((a, b) => a[0].localeCompare(b[0]));
 
 const lootBody = lootRows.map(([entity, drops]) => {
-  const parts = drops.map(d => {
+  const parts = [...drops, ...(MOB_LOOT_ADDITIONS[entity] ?? [])].map(d => {
     const range = Array.isArray(d.stackSizeRange) ? d.stackSizeRange : [1, 1];
     // Fixed arity: [item, chance, count, flags]. The flags must always occupy the same slot,
     // or a consumer reading position 3 picks up a count instead. Trailing nulls are trimmed
@@ -224,13 +315,19 @@ console.log(`  mobLootData.js: ${lootRows.length} mobs`);
 // --- 3. foods ---------------------------------------------------------------
 const foodRows = foods.slice().sort((a, b) => a.name.localeCompare(b.name));
 const foodBody = foodRows.map(f => {
-  const sat = f.saturation !== undefined ? +(f.saturation / 2).toFixed(2) : null;
+  // Saturation is taken as-is. It was halved here, on the theory that minecraft-data reports saturation in
+  // doubled internal units, and that was wrong: minecraft-data's `saturation` is exactly the wiki's
+  // "Saturation restored" column -- 12.8 for cooked porkchop, 14.4 for a golden carrot, 9.6 for cooked
+  // mutton -- so the game restored half of what vanilla does, across all 41 foods. The decisive check is
+  // hunger.js, which spends 1.5 saturation per health point healed: the wiki gives that same 1.5, and a
+  // doubled unit system would need 3.
+  const sat = f.saturation !== undefined ? +f.saturation.toFixed(2) : null;
   return `  ${f.name}: {hunger:${f.foodPoints}${sat !== null ? `,saturation:${sat}` : ''}},`;
 }).join('\n');
 
 writeFileSync('src/foodData.js', header(
   'Canonical food values: hunger restored and saturation.',
-  'minecraft-data reports saturation in the doubled internal units the client uses; the values\n// here are halved back to the saturation points players see.'
+  'Saturation is the number of saturation points restored, which is what minecraft-data and the wiki\n// both report: cooked porkchop 12.8, golden carrot 14.4, cooked mutton 9.6. `hunger.js` spends 1.5 of\n// them per health point healed, which is also the wiki\'s figure.'
 ) + `export const FOODS = {
 ${foodBody}
 };

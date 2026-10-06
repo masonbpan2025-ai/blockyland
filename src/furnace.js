@@ -1,29 +1,32 @@
 import * as THREE from 'three';
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { EXTRA_SMELTING, EXTRA_FUEL, SMELTING_XP, DEFAULT_SMELTING_XP } from './extraSmelting.js';
 
 // Cook time per item in seconds (Minecraft default is 10s)
 export const COOK_DURATION = 10.0;
 
 // Smelting Recipes mapping input ID (item string or block ID) to output object
+//
+// The raw foods are keyed by this game's own item ids (`beef`, `porkchop`, `cod`), not by vanilla's
+// (`raw_beef`, `raw_porkchop`, `raw_cod`). Both sets were present, so the vanilla names were seven
+// entries that could never be reached: nothing in the registry is called `raw_beef`. They are gone
+// rather than kept as aliases, because an input that no item can hold is a table row that reads as
+// coverage and is not.
 export const SMELTING_RECIPES = {
   // --- Raw Foods ---
   beef: { id: 'cooked_beef', isBlock: false, count: 1 },
-  raw_beef: { id: 'cooked_beef', isBlock: false, count: 1 },
   porkchop: { id: 'cooked_porkchop', isBlock: false, count: 1 },
-  raw_porkchop: { id: 'cooked_porkchop', isBlock: false, count: 1 },
   chicken: { id: 'cooked_chicken', isBlock: false, count: 1 },
-  raw_chicken: { id: 'cooked_chicken', isBlock: false, count: 1 },
   mutton: { id: 'cooked_mutton', isBlock: false, count: 1 },
-  raw_mutton: { id: 'cooked_mutton', isBlock: false, count: 1 },
   rabbit: { id: 'cooked_rabbit', isBlock: false, count: 1 },
-  raw_rabbit: { id: 'cooked_rabbit', isBlock: false, count: 1 },
   salmon: { id: 'cooked_salmon', isBlock: false, count: 1 },
-  raw_salmon: { id: 'cooked_salmon', isBlock: false, count: 1 },
   cod: { id: 'cooked_cod', isBlock: false, count: 1 },
-  raw_cod: { id: 'cooked_cod', isBlock: false, count: 1 },
   potato: { id: 'baked_potato', isBlock: false, count: 1 },
-  kelp: { id: 'dried_kelp', isBlock: false, count: 1 },
+  // Keyed by the block id, because that is how the game carries kelp: it is placed as well as eaten, so the
+  // inventory holds `{id: 1051, isBlock: true}`. A name key here meant nothing could look it up -- kelp
+  // stopped being smeltable the round it gained a block form, and nothing noticed because kelp is also a mob
+  // drop. Every other block input in this file is keyed the same way.
+  [BLOCKS.KELP]: { id: 'dried_kelp', isBlock: false, count: 1 },
 
   // --- Raw Metals & Ores ---
   raw_iron: { id: 'iron_ingot', isBlock: false, count: 1 },
@@ -33,12 +36,7 @@ export const SMELTING_RECIPES = {
 
   // Block Ores & Natural Blocks
   [BLOCKS.IRON_ORE]: { id: 'iron_ingot', isBlock: false, count: 1 },
-  [BLOCKS.DEEPSLATE_IRON_ORE]: { id: 'iron_ingot', isBlock: false, count: 1 },
   [BLOCKS.GOLD_ORE]: { id: 'gold_ingot', isBlock: false, count: 1 },
-  [BLOCKS.DEEPSLATE_GOLD_ORE]: { id: 'gold_ingot', isBlock: false, count: 1 },
-  [BLOCKS.NETHER_GOLD_ORE]: { id: 'gold_ingot', isBlock: false, count: 1 },
-  [BLOCKS.COPPER_ORE]: { id: 'copper_ingot', isBlock: false, count: 1 },
-  [BLOCKS.DEEPSLATE_COPPER_ORE]: { id: 'copper_ingot', isBlock: false, count: 1 },
 
   [BLOCKS.COBBLESTONE]: { id: BLOCKS.STONE, isBlock: true, count: 1 },
   [BLOCKS.COBBLED_DEEPSLATE]: { id: BLOCKS.DEEPSLATE, isBlock: true, count: 1 },
@@ -132,7 +130,6 @@ export const FUEL_BURN_TIMES = {
   [BLOCKS.CRAFTING_TABLE]: 15.0,
   [BLOCKS.BOOKSHELF]: 15.0,
   [BLOCKS.LADDER]: 15.0,
-  [BLOCKS.OAK_SAPLING]: 5.0,
 
   // Wooden Tools
   wooden_pickaxe: 10.0,
@@ -152,6 +149,38 @@ export const FUEL_BURN_TIMES = {
 for (const [key, value] of Object.entries(EXTRA_FUEL)) {
   const k = /^[0-9]+$/.test(key) ? Number(key) : key;
   if (FUEL_BURN_TIMES[k] === undefined) FUEL_BURN_TIMES[k] = value;
+}
+
+// Smelting and fuel for blocks that are not registered yet.
+//
+// These cannot be written as `[BLOCKS.DEEPSLATE_IRON_ORE]: {...}` in the tables above. Where the
+// constant is undefined that idiom does not create a dead entry -- it creates an entry keyed
+// "undefined", so five unregistered ores and one unregistered sapling produced two phantom rows, and
+// the last ore won: `getSmeltingRecipe('undefined')` returned a copper ingot.
+//
+// Listed by name instead, so the entry appears by itself once the block exists and nothing is written
+// under a name no item can hold. `node scripts/inspect-resource.mjs faults` reports the idiom anywhere
+// in `src/`, which is how these six were found.
+const PENDING_ORE_SMELTING = [
+  ['DEEPSLATE_IRON_ORE', 'iron_ingot'],
+  ['DEEPSLATE_GOLD_ORE', 'gold_ingot'],
+  ['NETHER_GOLD_ORE', 'gold_ingot'],
+  ['COPPER_ORE', 'copper_ingot'],
+  ['DEEPSLATE_COPPER_ORE', 'copper_ingot'],
+  // Ancient debris is the first link of the netherite chain and the only source of netherite scrap in
+  // vanilla, and nothing smelted it. Four scrap and four gold make the ingot, so with this missing the
+  // whole chain was dead: the ingot was uncraftable, and the smithing table had nothing to consume.
+  ['ANCIENT_DEBRIS', 'netherite_scrap'],
+];
+for (const [blockName, output] of PENDING_ORE_SMELTING) {
+  const blockId = BLOCKS[blockName];
+  if (typeof blockId === 'number' && SMELTING_RECIPES[blockId] === undefined) {
+    SMELTING_RECIPES[blockId] = { id: output, isBlock: false, count: 1 };
+  }
+}
+{
+  const sapling = BLOCKS.OAK_SAPLING;
+  if (typeof sapling === 'number' && FUEL_BURN_TIMES[sapling] === undefined) FUEL_BURN_TIMES[sapling] = 5.0;
 }
 
 export function getSmeltingRecipe(item) {
@@ -223,26 +252,29 @@ export class FurnaceManager {
   addItem(x, y, z, id, isBlock = false, count = 1, slotType = 'input') {
     const furnace = this.getOrCreateFurnace(x, y, z);
     if (!furnace) return false;
+    // A furnace slot holds a stack of the item, so the limit is the item's own: 64 for coal, one for a
+    // lava bucket. A literal 64 let a slot hold sixty-four of something unstackable.
+    const limit = stackLimitFor(id);
 
     if (slotType === 'fuel') {
       if (getFuelBurnTime(id) <= 0 && (!furnace.fuel || furnace.fuel.id !== id)) {
         return false;
       }
       if (!furnace.fuel) {
-        furnace.fuel = { id, isBlock, count: Math.min(count, 64) };
+        furnace.fuel = { id, isBlock, count: Math.min(count, limit) };
         return true;
-      } else if (furnace.fuel.id === id && !!furnace.fuel.isBlock === !!isBlock && furnace.fuel.count < 64) {
-        const canAdd = Math.min(count, 64 - furnace.fuel.count);
+      } else if (furnace.fuel.id === id && !!furnace.fuel.isBlock === !!isBlock && furnace.fuel.count < limit) {
+        const canAdd = Math.min(count, limit - furnace.fuel.count);
         furnace.fuel.count += canAdd;
         return true;
       }
       return false;
     } else {
       if (!furnace.input) {
-        furnace.input = { id, isBlock, count: Math.min(count, 64) };
+        furnace.input = { id, isBlock, count: Math.min(count, limit) };
         return true;
-      } else if (furnace.input.id === id && !!furnace.input.isBlock === !!isBlock && furnace.input.count < 64) {
-        const canAdd = Math.min(count, 64 - furnace.input.count);
+      } else if (furnace.input.id === id && !!furnace.input.isBlock === !!isBlock && furnace.input.count < limit) {
+        const canAdd = Math.min(count, limit - furnace.input.count);
         furnace.input.count += canAdd;
         return true;
       }

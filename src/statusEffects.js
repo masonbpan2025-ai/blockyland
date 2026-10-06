@@ -48,21 +48,47 @@ export const EFFECTS = {
   // --- movement --------------------------------------------------------------
   speed: { name: 'Speed', category: 'beneficial', speedPerLevel: 1.2 },
   slowness: { name: 'Slowness', category: 'harmful', speedPerLevel: 0.85 },
-  jump_boost: { name: 'Jump Boost', category: 'beneficial' },
+  // Jump Boost raises the jump AND shortens the fall; the fall half is in `fallDamage` below.
+  jump_boost: { name: 'Jump Boost', category: 'beneficial', jumpPerLevel: true },
   levitation: { name: 'Levitation', category: 'harmful' },
+
+  // --- mining speed ----------------------------------------------------------
+  // Java's two rules are not the same shape and cannot share a field. Haste is additive on the
+  // multiplier -- `1 + 0.2 * level` -- while Mining Fatigue is exponential and floors at level 4:
+  // 0.3, 0.09, 0.0027, then 0.00081 for level 4 and above. That last one is why an Elder Guardian's
+  // curse famously stops a player mining at all.
+  haste: { name: 'Haste', category: 'beneficial', miningAddPerLevel: 0.2 },
+  mining_fatigue: { name: 'Mining Fatigue', category: 'harmful', miningBasePerLevel: 0.3, miningMaxLevel: 4 },
 
   // --- protection and utility ------------------------------------------------
   fire_resistance: { name: 'Fire Resistance', category: 'beneficial' },
   water_breathing: { name: 'Water Breathing', category: 'beneficial' },
+  // A conduit grants Conduit Power, which is its own status in vanilla and carries water breathing, night
+  // vision and haste. Named here so the effect a conduit applies is a real one.
+  conduit_power: { name: 'Conduit Power', category: 'beneficial' },
   dolphins_grace: { name: 'Dolphin\'s Grace', category: 'beneficial' },
+  // Slow Falling was named by a potion and absent from this table, so it had no name, no category and no
+  // rule. Its rule is in `fallDamage` below, next to the distance it modifies.
+  slow_falling: { name: 'Slow Falling', category: 'beneficial' },
   night_vision: { name: 'Night Vision', category: 'beneficial' },
   invisibility: { name: 'Invisibility', category: 'beneficial' },
-  absorption: { name: 'Absorption', category: 'beneficial' },
+  // Absorption is a shield rather than a heal: a pool that takes damage before the health bar and does
+  // not come back. Four points per level, two hearts.
+  absorption: { name: 'Absorption', category: 'beneficial', absorptionPerLevel: 4 },
   hunger: { name: 'Hunger', category: 'harmful' },
-  mining_fatigue: { name: 'Mining Fatigue', category: 'harmful' },
-  haste: { name: 'Haste', category: 'beneficial' },
   blindness: { name: 'Blindness', category: 'harmful' },
   glowing: { name: 'Glowing', category: 'neutral' },
+
+  // --- one potion, two effects -----------------------------------------------
+  // Vanilla's Potion of the Turtle Master is a single brew that applies Slowness IV and Resistance III at
+  // once. One `level` cannot express two different levels, and the potion carries only one, so the pair is
+  // declared here and `compoundEffects` returns it. Vanilla has no "Turtle Master" effect in the HUD --
+  // the player sees Slowness and Resistance -- which is why this entry is a rule rather than a status the
+  // player holds.
+  turtle_master: {
+    name: 'Turtle Master', category: 'beneficial',
+    compound: [['slowness', 4], ['resistance', 3]],
+  },
 };
 
 /** Does this game know about an effect by this name? */
@@ -98,6 +124,24 @@ export function effectFor(name) {
 }
 
 /**
+ * The level of an active effect, as a positive integer.
+ *
+ * `player.applyStatusEffect` stores `level`, 1-based. This file read `amplifier` instead, which nothing
+ * in the game sets -- so `data?.amplifier || 0` was always 0 and every effect applied at level 1. A
+ * Strength II potion was indistinguishable from Strength I, and Resistance IV reduced incoming damage by
+ * 20% where vanilla reduces it by 59%. The three multipliers below were the only readers of a field that
+ * did not exist; `player.js`, `witherEffect.js` and `striderBehavior.js` all read `level` or handle both.
+ *
+ * `amplifier` is still accepted, 0-based, because that is vanilla's name for the field and
+ * `striderBehavior.js` already builds that shape. An explicit `amplifier` wins over `level`.
+ */
+function levelOf(data) {
+  if (Number.isFinite(data?.amplifier)) return Math.max(1, Math.floor(data.amplifier) + 1);
+  if (Number.isFinite(data?.level)) return Math.max(1, Math.floor(data.level));
+  return 1;
+}
+
+/**
  * The combined multiplier a set of active effects applies to damage DEALT.
  *
  * Effects multiply together, so strength and weakness at once cancel to 1.04 rather than to 1.0, which
@@ -110,7 +154,7 @@ export function attackMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.attackPerLevel) continue;
-    m *= Math.pow(def.attackPerLevel, 1 + Math.max(0, data?.amplifier || 0));
+    m *= Math.pow(def.attackPerLevel, levelOf(data));
   }
   return m;
 }
@@ -126,7 +170,7 @@ export function damageTakenMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.takenPerLevel) continue;
-    const level = Math.min(4, 1 + Math.max(0, data?.amplifier || 0));
+    const level = Math.min(4, levelOf(data));
     m *= Math.pow(def.takenPerLevel, level);
   }
   return m;
@@ -143,9 +187,141 @@ export function speedMultiplier(effects) {
   for (const [name, data] of entriesOf(effects)) {
     const def = EFFECTS[name];
     if (!def?.speedPerLevel) continue;
-    m *= Math.pow(def.speedPerLevel, 1 + Math.max(0, data?.amplifier || 0));
+    m *= Math.pow(def.speedPerLevel, levelOf(data));
   }
   return Math.min(5, Math.max(0.05, m));
+}
+
+/**
+ * The combined multiplier a set of active effects applies to MINING speed.
+ *
+ * Haste and Mining Fatigue are the one pair here that are not the same shape, so they cannot share a
+ * field or a `Math.pow`. Haste adds 20% of the base per level. Mining Fatigue is `0.3^min(level, 4)`,
+ * which the wiki tabulates as 30%, 9%, 2.7% and 0.81% for levels I to IV and 0.81% beyond -- mining
+ * durations of 3.3x, 11.1x, 37x and 123x. Level III is the Elder Guardian's curse, which is why mining
+ * near an ocean monument is hopeless.
+ *
+ * Both can be active at once and they multiply, as in Java.
+ */
+export function miningSpeedMultiplier(effects) {
+  let m = 1;
+  for (const [name, data] of entriesOf(effects)) {
+    const def = EFFECTS[name];
+    if (!def) continue;
+    const level = levelOf(data);
+    if (def.miningAddPerLevel) m *= 1 + def.miningAddPerLevel * level;
+    if (def.miningBasePerLevel) {
+      m *= Math.pow(def.miningBasePerLevel, Math.min(def.miningMaxLevel ?? level, level));
+    }
+  }
+  return m;
+}
+
+/**
+ * The shield Absorption puts in front of the health bar.
+ *
+ * Vanilla grants four points per level and the pool does not refill: it is spent before health and then it
+ * is gone. A stronger application while one is already running takes the larger of the two rather than
+ * adding, which is what keeps two golden apples from stacking into sixteen points.
+ *
+ * @returns {number} points of shield the effect should leave the bearer with
+ */
+export function absorptionShield(effects) {
+  let shield = 0;
+  for (const [name, data] of entriesOf(effects)) {
+    const def = EFFECTS[name];
+    if (!def?.absorptionPerLevel) continue;
+    shield = Math.max(shield, def.absorptionPerLevel * levelOf(data));
+  }
+  return shield;
+}
+
+/**
+ * Vanilla's jump velocity rule, so Jump Boost can be expressed as the game it copies.
+ *
+ * A player jumps at 0.42 blocks per tick, and Jump Boost adds 0.1 per level. Scaling the local
+ * `jumpForce` by the same ratio is what makes level I clear about 1.9 blocks against the base 1.25, which
+ * is vanilla's figure -- adding a flat 0.1 to a velocity of 8.6 would have been a rounding error.
+ */
+export const VANILLA_JUMP = { velocity: 0.42, boostPerLevel: 0.1 };
+
+/**
+ * The multiplier Jump Boost applies to the jump velocity.
+ *
+ * Returns 1 with no effect, so the caller can multiply unconditionally.
+ */
+export function jumpVelocityMultiplier(effects) {
+  let level = 0;
+  for (const [name, data] of entriesOf(effects)) {
+    if (name === 'jump_boost') level = Math.max(level, levelOf(data));
+  }
+  if (level <= 0) return 1;
+  return (VANILLA_JUMP.velocity + VANILLA_JUMP.boostPerLevel * level) / VANILLA_JUMP.velocity;
+}
+
+/**
+ * The effects a compound effect stands for, at the levels it declares.
+ *
+ * Vanilla has exactly one of these: the Potion of the Turtle Master applies Slowness IV and Resistance III
+ * from a single brew. Returns `[[name, level], ...]`, or an empty list for an ordinary effect.
+ */
+export function compoundEffects(name) {
+  const compound = EFFECTS[name]?.compound;
+  return Array.isArray(compound) ? compound.map(([effect, level]) => [effect, level]) : [];
+}
+
+/**
+ * Fall damage rules.
+ *
+ * Vanilla takes nothing for the first three blocks and then one point per block beyond that. The game
+ * tracked `fallDistance` and then reset it on landing without ever applying damage, so a fall from any
+ * height was free -- and two items that exist only to reduce fall damage, Feather Falling and the Potion
+ * of Slow Falling, could not do anything because there was nothing to reduce.
+ */
+export const FALL_DAMAGE = {
+  /** Blocks fallen before any damage is taken. */
+  freeBlocks: 3,
+  /** Descent speed Slow Falling holds the player to, in blocks per second. */
+  slowFallingSpeed: 3.0,
+};
+
+/**
+ * Damage from landing after a fall, after the effects that modify the distance.
+ *
+ * Slow Falling negates the damage outright rather than scaling it. Jump Boost subtracts its level from
+ * the distance before the free blocks come off, which is order-dependent and is why this is one function
+ * rather than two adjustments at the call site.
+ *
+ * Feather Falling is deliberately not here: it reduces the damage after armour has been accounted for,
+ * which `player.takeDamage` already does when it is handed a `'fall'` damage type.
+ *
+ * @param {number} fallDistance blocks fallen
+ * @param {Iterable<[string, {level?:number, amplifier?:number}]>} effects as player.statusEffects yields
+ * @returns {number} HP of damage, zero when the fall is harmless
+ */
+export function fallDamage(fallDistance, effects) {
+  if (!(fallDistance > 0)) return 0;
+  let jumpBoost = 0;
+  let slowFalling = false;
+  for (const [name, data] of entriesOf(effects)) {
+    if (name === 'slow_falling') slowFalling = true;
+    else if (name === 'jump_boost') jumpBoost = Math.max(jumpBoost, levelOf(data));
+  }
+  if (slowFalling) return 0;
+  const distance = fallDistance - jumpBoost;
+  if (!(distance > FALL_DAMAGE.freeBlocks)) return 0;
+  return Math.floor(distance - FALL_DAMAGE.freeBlocks);
+}
+
+/**
+ * True when Slow Falling is holding the player's descent.
+ *
+ * Separate from `fallDamage` because it applies while falling rather than on landing, and vanilla has
+ * both: the potion makes the fall slow AND makes it harmless.
+ */
+export function hasSlowFalling(effects) {
+  for (const [name] of entriesOf(effects)) if (name === 'slow_falling') return true;
+  return false;
 }
 
 /**

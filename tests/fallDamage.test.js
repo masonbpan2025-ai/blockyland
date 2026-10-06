@@ -1,92 +1,199 @@
-// Fall damage.
+// Item parity batch 7: falling never hurt, and no effect ever scaled with its level.
 //
-// There was none. `player.fallDistance` accumulated on every downward step and was read in exactly one
-// place, `farmingManager.checkTrample`, so falling from any height was completely harmless -- which removes
-// one of the most basic pressures of survival mode. Cliffs, ravines and a bad jump cost nothing.
+// Two defects that had the same shape -- a rule that existed and was never reached.
+//
+// 1. `player.fallDistance` was accumulated while falling and then reset on landing without anything
+//    applying damage. So a fall from any height was free, and two items whose entire purpose is fall
+//    damage could not work: the Feather Falling branch inside `takeDamage` was unreachable, and the
+//    Potion of Slow Falling had no reader. The shield code even lists `'fall'` among the damage types it
+//    does not block, so the intended design clearly included it.
+//
+// 2. `player.applyStatusEffect` stores `level` (1-based). `statusEffects.js` read `amplifier` (0-based)
+//    instead, which nothing in the game sets -- so every effect applied at level 1. Strength II was
+//    indistinguishable from Strength I, and Resistance IV reduced damage by 20% where vanilla reduces it
+//    by 59%. Both sides passed their own tests: `tests/statusEffects.test.js` builds `{amplifier}` by
+//    hand, and the game builds `{level}`. The test at the bottom of this file is the one that would have
+//    caught it, by requiring the two conventions to agree.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fallDamageFor, FALL_DAMAGE_THRESHOLD } from '../src/fallDamage.js';
+import * as THREE from 'three';
+import { BLOCKS } from '../src/blocks.js';
+import { Inventory } from '../src/inventory.js';
+import { Player, FALL_ABSORBING_BLOCKS } from '../src/player.js';
+import {
+  EFFECTS, fallDamage, hasSlowFalling, FALL_DAMAGE,
+  attackMultiplier, damageTakenMultiplier, speedMultiplier,
+} from '../src/statusEffects.js';
 
-test('a fall under three blocks is free', () => {
-  assert.equal(FALL_DAMAGE_THRESHOLD, 3);
-  for (const d of [0, 0.5, 1, 2, 3, 3.5, 3.999]) {
-    assert.equal(fallDamageFor(d), 0, 'a fall of ' + d + ' should cost nothing');
+const near = (actual, expected, message) => {
+  assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: expected ${expected}, got ${actual}`);
+};
+
+/** Effects as `player.statusEffects` really holds them: `level`, 1-based. */
+const atLevel = (...pairs) => new Map(pairs.map(([n, level = 1]) => [n, { duration: 30, level }]));
+
+/** Effects in the 0-based shape the original table expected. */
+const atAmplifier = (...pairs) => new Map(pairs.map(([n, amplifier = 0]) => [n, { amplifier }]));
+
+// --- 1. the level convention -------------------------------------------------
+
+test('the effects table reads the level the game actually stores', () => {
+  // `applyStatusEffect(effect, duration, level)` -- this is that shape.
+  near(attackMultiplier(atLevel(['strength'])), 1.3, 'strength I');
+  near(attackMultiplier(atLevel(['strength', 2])), 1.69, 'strength II');
+  near(damageTakenMultiplier(atLevel(['resistance', 4])), 0.4096, 'resistance IV');
+  near(speedMultiplier(atLevel(['slowness', 4])), 0.85 ** 4, 'slowness IV');
+});
+
+test('an explicit amplifier is still honoured, because that is vanilla\'s field name', () => {
+  near(attackMultiplier(atAmplifier(['strength'])), 1.3, 'amplifier 0 is level I');
+  near(attackMultiplier(atAmplifier(['strength', 1])), 1.69, 'amplifier 1 is level II');
+});
+
+test('the two conventions cannot drift apart again', () => {
+  // The defect in one assertion: every multiplier must agree whether a level is expressed as the 1-based
+  // `level` this game stores or the 0-based `amplifier` vanilla names. If a future change reads one field
+  // while a caller writes the other, these comparisons fail -- where the game itself would silently apply
+  // everything at level 1.
+  const cases = [['strength', attackMultiplier], ['resistance', damageTakenMultiplier], ['speed', speedMultiplier]];
+  for (const [effect, fn] of cases) {
+    for (let level = 1; level <= 4; level++) {
+      near(fn(atLevel([effect, level])), fn(atAmplifier([effect, level - 1])), `${effect} at level ${level}`);
+    }
+  }
+  // And a level really does change the answer, so the loop above cannot pass by both sides being broken.
+  assert.notEqual(attackMultiplier(atLevel(['strength', 2])), attackMultiplier(atLevel(['strength', 1])));
+});
+
+test('a level of zero or a missing field still means level I, not level 0', () => {
+  near(attackMultiplier(new Map([['strength', { duration: 5 }]])), 1.3, 'no level field');
+  near(attackMultiplier(new Map([['strength', { duration: 5, level: 0 }]])), 1.3, 'level 0 floors at I');
+  near(attackMultiplier(new Map([['strength', { duration: 5, level: -2 }]])), 1.3, 'a negative level floors at I');
+});
+
+// --- 2. the fall damage rule, on its own ------------------------------------
+
+test('nothing hurts for the first three blocks, then one point each', () => {
+  const none = new Map();
+  for (const [distance, expected] of [[0, 0], [1, 0], [2.9, 0], [3, 0], [3.9, 0], [4, 1], [10, 7], [23.5, 20]]) {
+    assert.equal(fallDamage(distance, none), expected, `${distance} blocks`);
   }
 });
 
-test('past three blocks it costs one point per block', () => {
-  // Vanilla's formula, in half-hearts: a four-block fall costs half a heart.
-  assert.equal(fallDamageFor(4), 1);
-  assert.equal(fallDamageFor(5), 2);
-  assert.equal(fallDamageFor(6), 3);
-  assert.equal(fallDamageFor(10), 7);
-  // The floor is what makes 4.9 cost the same as 4 rather than rounding up.
-  assert.equal(fallDamageFor(4.9), 1);
-  assert.equal(fallDamageFor(5.1), 2);
+test('Slow Falling negates the damage and Jump Boost only shortens the fall', () => {
+  assert.equal(fallDamage(23.5, atLevel(['slow_falling'])), 0);
+  assert.equal(fallDamage(23.5, atLevel(['jump_boost', 2])), 20 - 2, 'two levels subtract two blocks');
+  assert.equal(fallDamage(4, atLevel(['jump_boost', 4])), 0, 'enough jump boost makes a short fall safe');
+  assert.equal(fallDamage(10, atLevel(['jump_boost', 1], ['slow_falling', 1])), 0, 'slow falling wins outright');
+  assert.equal(hasSlowFalling(atLevel(['slow_falling', 1])), true);
+  assert.equal(hasSlowFalling(atLevel(['speed', 2])), false);
 });
 
-test('twenty-three blocks kills an unarmoured player, which is the check on the formula', () => {
-  // Vanilla's best-known fall figure: 20 health is a full bar, so this is exactly lethal. If the threshold or
-  // the floor were wrong, this is the assertion that would move.
-  assert.equal(fallDamageFor(23), 20, 'a 23-block fall should deal exactly a full health bar');
-  assert.ok(fallDamageFor(22) < 20, 'and 22 should not be lethal');
-  assert.ok(fallDamageFor(24) > 20, 'and 24 should overshoot it');
+// --- 3. the rule as the player actually experiences it ----------------------
+
+/** A player standing in a world whose only solid block is at `floorY`. */
+function playerOn(block, { gamemode = 'survival' } = {}) {
+  const camera = new THREE.PerspectiveCamera();
+  const domElement = { requestPointerLock: () => {} };
+  const sounds = { playHurt: () => {}, playStep: () => {}, playShieldBlock: () => {} };
+  const world = {
+    getVoxel: (x, y, z) => (y === 4 ? block : BLOCKS.AIR),
+    setVoxel: () => {},
+    redstone: { interact: () => null },
+  };
+  const player = new Player(camera, domElement, world, sounds);
+  player.inventory = new Inventory(sounds);
+  player.gamemode = gamemode;
+  player.health = 20;
+  player.position.set(0.5, 5, 0.5);
+  player.invulnerableTimer = 0;
+  return player;
+}
+
+test('landing after a ten block fall costs seven health', () => {
+  const player = playerOn(BLOCKS.AIR);
+  const dealt = player.applyFallDamage(10, 4);
+  assert.equal(dealt, 7);
+  assert.equal(player.health, 13, 'the damage reaches the health bar, not just the return value');
 });
 
-test('water and gliding negate it entirely', () => {
-  // Handled inside the calculation rather than at the call site, because a caller that forgot one would
-  // silently restore the bug. An elytra's whole point is that it saves you from the fall.
-  for (const d of [10, 23, 100, 1000]) {
-    assert.equal(fallDamageFor(d, { gliding: true }), 0, 'gliding from ' + d + ' should be free');
-    assert.equal(fallDamageFor(d, { inWater: true }), 0, 'landing in water from ' + d + ' should be free');
+test('the block landed on decides how much of it is taken', () => {
+  const cases = [
+    [BLOCKS.HAY_BLOCK, 1], [BLOCKS.HONEY_BLOCK, 1],
+    [BLOCKS.SLIME_BLOCK, 0], [BLOCKS.POWDER_SNOW, 0], [BLOCKS.WATER, 0],
+    [BLOCKS.STONE, 7], [BLOCKS.AIR, 7],
+  ];
+  for (const [block, expected] of cases) {
+    const player = playerOn(block);
+    assert.equal(player.applyFallDamage(10, 4), expected, `landing on block id ${block}`);
+    assert.equal(player.health, 20 - expected);
   }
-  // Not gliding and not in water is the ordinary case and must still hurt.
-  assert.equal(fallDamageFor(23, { gliding: false, inWater: false }), 20);
-  assert.equal(fallDamageFor(23, {}), 20, 'an absent state should not accidentally negate the damage');
-});
-
-test('a nonsense distance deals nothing rather than NaN', () => {
-  // The damage flows into `takeDamage`, where a NaN would poison the health bar.
-  for (const d of [NaN, undefined, null, Infinity, -Infinity, 'ten']) {
-    const damage = fallDamageFor(d);
-    assert.ok(Number.isFinite(damage), 'fallDamageFor(' + String(d) + ') should be finite, got ' + damage);
-    assert.ok(damage >= 0, 'and never negative, got ' + damage);
-  }
-  // A negative distance is a rise, not a fall.
-  assert.equal(fallDamageFor(-50), 0);
-});
-
-test('the damage is never negative, whatever the input', () => {
-  for (let d = -5; d < 200; d += 0.5) {
-    const damage = fallDamageFor(d);
-    assert.ok(damage >= 0, 'a fall of ' + d + ' produced ' + damage);
-    assert.ok(Number.isInteger(damage), 'damage should be whole points, got ' + damage);
+  // Every entry in the table is a real block, so a typo cannot silently make a block safe.
+  for (const id of FALL_ABSORBING_BLOCKS.keys()) {
+    assert.equal(typeof id, 'number', 'a fall-absorbing key is not a block id');
   }
 });
 
-test('the landing path applies it, before clearing the distance', () => {
-  // Checked at the source because driving `moveWithCollision` to a landing needs a world. This proves the
-  // call exists, that it reads `fallDistance` before it is zeroed, and that it passes the 'fall' type so
-  // Feather Falling and Protection apply and a shield does not.
-  const source = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(source, /import \{ fallDamageFor \} from '\.\/fallDamage\.js'/, 'the helper should be imported');
-  const compute = source.indexOf('const landingDamage = fallDamageFor(this.fallDistance');
-  const clear = source.indexOf('this.fallDistance = 0;', compute);
-  const apply = source.indexOf("this.takeDamage(landingDamage, null, 'fall')", compute);
-  assert.ok(compute > 0, 'the landing path should compute fall damage');
-  assert.ok(clear > compute && apply > clear,
-    'the damage must be computed before the distance is cleared and applied after it');
-  // And the type must be 'fall', or armour, Feather Falling and the shield exclusion all misbehave.
-  assert.match(source, /takeDamage\(landingDamage, null, 'fall'\)/);
+test('Slow Falling makes the landing free, which is the whole point of the potion', () => {
+  const player = playerOn(BLOCKS.STONE);
+  player.applyStatusEffect('slow_falling', 30, 1);
+  assert.equal(player.applyFallDamage(40, 4), 0);
+  assert.equal(player.health, 20);
 });
 
-test('the type is one takeDamage already knows how to handle', () => {
-  // Fall is excluded from shield blocking, reduced by Feather Falling, and skipped by Thorns. All three were
-  // already written against a damage type that nothing ever produced.
-  const source = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(source, /\['fall',\s*'starvation',\s*'void',\s*'wither'\]\.includes\(damageType\)/,
-    'fall should already be excluded from shield blocking');
-  assert.match(source, /damageType === 'fall' && this\.inventory\?\.armor\?\.feet/,
-    'and Feather Falling should already apply to it');
+test('Feather Falling now reduces something, because there is now something to reduce', () => {
+  // This branch existed in `takeDamage` and could never run: nothing in the game ever passed a `'fall'`
+  // damage type. It is reachable from this batch onward, so its value starts to matter.
+  const withBoots = (enchantments) => {
+    const player = playerOn(BLOCKS.STONE);
+    player.inventory.armor.feet = { id: 'diamond_boots', enchantments };
+    return player;
+  };
+  const bare = withBoots([]);
+  const level3 = withBoots([{ id: 'feather_falling', level: 3 }]);
+  assert.equal(bare.applyFallDamage(20, 4), 17);
+  assert.ok(level3.applyFallDamage(20, 4) < 17, 'Feather Falling III should reduce the damage');
+  assert.ok(level3.health > bare.health, 'and leave more health behind');
+});
+
+test('creative mode does not take fall damage', () => {
+  const player = playerOn(BLOCKS.STONE, { gamemode: 'creative' });
+  assert.equal(player.applyFallDamage(40, 4), 0);
+  assert.equal(player.health, 20);
+});
+
+test('a harmless landing does not touch the player at all', () => {
+  // Above the threshold the landing is silent: no hurt sound, no invulnerability window, no exhaustion.
+  const player = playerOn(BLOCKS.STONE);
+  let hurt = 0;
+  player.sounds.playHurt = () => { hurt++; };
+  assert.equal(player.applyFallDamage(3, 4), 0);
+  assert.equal(player.invulnerableTimer, 0, 'a safe landing should not grant invulnerability frames');
+  assert.equal(hurt, 0);
+  assert.equal(player.health, 20);
+});
+
+// --- 4. the descent, not just the landing -----------------------------------
+
+test('Slow Falling holds the descent as well as the landing', () => {
+  const fall = (withEffect) => {
+    const player = playerOn(BLOCKS.AIR);
+    if (withEffect) player.applyStatusEffect('slow_falling', 30, 1);
+    player.position.set(0.5, 200, 0.5);
+    player.onGround = false;
+    for (let i = 0; i < 60; i++) player.update(1 / 20);
+    return player.velocity.y;
+  };
+  const normal = fall(false);
+  const slow = fall(true);
+  assert.ok(normal < -FALL_DAMAGE.slowFallingSpeed, `expected a normal fall to exceed the cap, got ${normal}`);
+  assert.ok(slow >= -FALL_DAMAGE.slowFallingSpeed - 1e-6, `expected the capped descent, got ${slow}`);
+});
+
+test('the cap is a cap and not a floor: rising is untouched', () => {
+  const player = playerOn(BLOCKS.AIR);
+  player.applyStatusEffect('slow_falling', 30, 1);
+  player.velocity.y = 5;
+  player.update(1 / 20);
+  assert.ok(player.velocity.y > 0, 'a jumping player should still rise under Slow Falling');
 });

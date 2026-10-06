@@ -75,6 +75,9 @@ function clamp(v, lo, hi) {
  * Mineclonia clamps it to the threshold, which under-drains after one large event; this does not
  * copy that, and the difference is described in docs/survival-parity-rules.md.
  */
+/** Saturation spent per health point healed. Vanilla's figure, and the one the wiki gives. */
+export const SATURATION_PER_HEALTH = 1.5;
+
 export function addExhaustion(state, amount) {
   if (!(amount > 0)) return state;
   state.exhaustion += amount;
@@ -83,7 +86,10 @@ export function addExhaustion(state, amount) {
   while (state.exhaustion >= EXHAUSTION_THRESHOLD) {
     state.exhaustion -= EXHAUSTION_THRESHOLD;
     if (state.saturation > 0) {
-      state.saturation = Math.max(0, state.saturation - 1.5);
+      // The wiki's figure, and the one that settles what units the food table is in: "saturation boost heals
+      // 1HP by consuming 1.5 saturation". A doubled unit system would need 3 here, so the halving that
+      // `foodData.js` used to do could not have been a unit convention.
+      state.saturation = Math.max(0, state.saturation - SATURATION_PER_HEALTH);
     } else if (state.hunger > 0) {
       state.hunger = Math.max(0, state.hunger - 1);
     } else {

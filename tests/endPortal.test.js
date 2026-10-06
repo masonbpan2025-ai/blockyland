@@ -48,13 +48,54 @@ test('the frame is a real block in both states, and an item', () => {
   }
 });
 
-test('the frame reuses art that already exists, which is why it needed no textures', () => {
-  // The measurement in section 4.1.1 separates "needs code" from "needs art". This block was the code case:
-  // `end_stone.png` is already on disk.
-  const texture = BLOCK_DEFS[BLOCKS.END_PORTAL_FRAME].textures.all;
-  assert.equal(texture, 'end_stone.png');
-  const fs = readFileSync(new URL(`../public/assets/blocks/${texture}`, import.meta.url));
-  assert.ok(fs.length > 0, 'and the file it names must be non-empty');
+test('the filled frame reuses the empty frame\'s art', () => {
+  // This began as "the frame reuses `end_stone.png`, so it needed no new art" -- true of my version, and
+  // false by the time it merged: master had gained the frame as a parity block WITH dedicated generated art.
+  // Asserting the specific filename made the test fail against the better art, so it asserts the invariant
+  // that is actually mine: the filled state is the same block, so it names the same textures.
+  const frame = BLOCK_DEFS[BLOCKS.END_PORTAL_FRAME];
+  const filled = BLOCK_DEFS[BLOCKS.END_PORTAL_FRAME_FILLED];
+  const frameTextures = Object.values(frame.textures ?? {}).filter(t => typeof t === 'string');
+  assert.ok(frameTextures.length > 0, 'the frame should name at least one texture');
+  assert.deepEqual(Object.values(filled.textures).sort(), [...frameTextures].sort(),
+    'the filled state should reuse the empty frame\'s art');
+  // An eye in a frame is therefore not visually distinct. The state is functional -- the portal counts it --
+  // and a distinct texture is art work rather than a code change.
+  //
+  // Deliberately NOT asserted: that those files exist. Master's `end_portal_frame_top.png` and
+  // `end_portal_frame_side.png` are generated but **untracked**, so they exist in the worktree that made
+  // them and in a fresh checkout they do not. That is a gap in master's in-flight art, not in this route,
+  // and it is recorded in the merge notes rather than turned into a failing test here.
+});
+
+test('the frames keep a distinct id, and neither collides with any other block', () => {
+  const ids = [BLOCKS.END_PORTAL_FRAME, BLOCKS.END_PORTAL_FRAME_FILLED, BLOCKS.END_PORTAL];
+  assert.equal(new Set(ids).size, 3, 'all three are different blocks');
+  assert.ok(BLOCKS.END_PORTAL_FRAME_FILLED > BLOCKS.END_PORTAL_FRAME);
+
+  // Checked against EVERY block, which is the guard that would have caught the bug this shipped with.
+  //
+  // `END_PORTAL_FRAME_FILLED` was first given id 1203 -- free when the branch was written, because the
+  // highest id then was 1202. Master meanwhile gained the coral family, and `TUBE_CORAL` took 1203. Two names
+  // for one number, so `BLOCK_DEFS[BLOCKS.TUBE_CORAL] = {...}` overwrote the frame's definition and the
+  // filled frame became a tube coral at runtime. The id looked unique when it was chosen and was not by the
+  // time it merged.
+  //
+  // The registry keeps deliberate aliases (GRASS/GRASS_BLOCK, RED_BED/RED_BED_FOOT, WHEAT/WHEAT_STAGE_7,
+  // CARROTS/CARROTS_STAGE_3, WITHER_SKELETON_SKULL/_BLOCK), so a blanket uniqueness rule would be wrong.
+  // This asserts what matters for a NEW id: that nothing else answers to it.
+  for (const [name, id] of [['END_PORTAL_FRAME', BLOCKS.END_PORTAL_FRAME],
+    ['END_PORTAL_FRAME_FILLED', BLOCKS.END_PORTAL_FRAME_FILLED]]) {
+    const owners = Object.entries(BLOCKS).filter(([k, v]) => v === id && k !== name).map(([k]) => k);
+    assert.deepEqual(owners, [], `${name} (${id}) is also ${owners.join(', ')}`);
+  }
+
+  // And the definition must be the frame's at runtime, not something that overwrote it afterwards. That
+  // overwrite is the symptom the collision produced.
+  const def = BLOCK_DEFS[BLOCKS.END_PORTAL_FRAME_FILLED];
+  assert.equal(def.filled, true, 'the filled definition must survive to runtime');
+  assert.equal(def.name, 'End Portal Frame', `the filled definition is ${def.name}`);
+  assert.notDeepEqual(def.textures, { all: 'tube_coral.png' });
 });
 
 test('the eye of ender is craftable from its vanilla ingredients', () => {

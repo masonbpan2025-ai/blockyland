@@ -17,6 +17,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from 
 import { deflateSync } from 'node:zlib';
 import { ITEMS } from '../src/blocks.js';
 import { EXTRA_ITEMS } from '../src/extraItems.js';
+import { POTION_DATA } from '../src/brewing.js';
 
 const OUT = 'public/assets/items';
 const SIZE = 16;
@@ -94,7 +95,32 @@ const COLOUR_OVERRIDES = {
   leather: '#a06a3a', paper: '#f2f2f2', brick: '#9a5a44', gunpowder: '#5a5a5a',
   suspicious_stew: '#9a7b3a', rabbit_stew: '#a9773f', beetroot_soup: '#8e2b3a',
   mushroom_stew: '#b08a5a', pumpkin_pie: '#e3a13c',
+  // Hand-written items the sweep below now covers too.
+  rotten_flesh: '#8a5a44', tropical_fish: '#f28c28', chorus_fruit: '#8a5aa8',
+  seagrass: '#4a7a2a', tipped_arrow: '#8a8a9a', ominous_bottle: '#4a5a4a',
 };
+
+/**
+ * The colour words sixteen dye families use, in the order longest-first.
+ *
+ * A `white_shulker_box` and a `light_blue_bundle` are the same object in different colours, and the player
+ * picks one out of a hotbar by that colour -- the same argument this file already makes for potions. Hashing
+ * the name instead gave the seventeen shulker boxes seventeen arbitrary hues, so `white_` was not white.
+ */
+const DYE_WORDS = [
+  'light_blue', 'light_gray', 'white', 'orange', 'magenta', 'yellow', 'lime', 'pink', 'gray', 'cyan',
+  'purple', 'blue', 'brown', 'green', 'red', 'black',
+];
+
+/** The dye colour a name is tinted with, when it starts with a colour word and nothing overrides it. */
+function dyeTintedColour(name, overrides) {
+  if (overrides[name]) return null;
+  for (const word of DYE_WORDS) {
+    if (!name.startsWith(`${word}_`)) continue;
+    return overrides[`${word}_dye`] ?? null;
+  }
+  return null;
+}
 
 /** Which pixel shape to draw, from the item name. Keeps icons distinguishable at 16x16. */
 function shapeFor(name) {
@@ -110,11 +136,33 @@ function shapeFor(name) {
   if (/(_stick|_rod)$/.test(name)) return 'rod';
   if (/(_seeds|_pod)$/.test(name)) return 'seeds';
   if (/(_template|_pattern|_banner)/.test(name)) return 'sheet';
+  // A pottery sherd is a shard of a sheet, so it shares the sheet shape; the twenty-three of them are told
+  // apart by colour, which the hash gives them.
+  if (/_pottery_sherd$/.test(name)) return 'sheet';
   if (/_bucket$/.test(name)) return 'bucket';
+  // A bundle is a pouch: the dyed ones are told apart by colour, not by shape. Checked before the
+  // generic suffixes so undle does not fall through to the nugget square.
+  if (/(^|_)bundle$/.test(name)) return 'bundle';
   if (/(honeycomb|flint|charcoal)/.test(name)) return 'shard';
   if (/_dust$/.test(name)) return 'pile';
   if (/mushroom/.test(name)) return 'mushroom';
+  // Checked last so `honey_bottle` and `glass_bottle` keep their own shapes; only the potion family
+  // has no hand-authored art.
+  if (/(potion|_bottle)$/.test(name)) return 'potion';
   return 'nugget';
+}
+
+/**
+ * A potion's colour, taken from POTION_DATA rather than hashed from its name.
+ *
+ * Potions are the one family whose colour is already game data and carries meaning: the player picks
+ * a healing potion out of a hotbar by its colour. Hashing the name would give every potion an
+ * arbitrary hue and make a row of them unreadable. A splash or lingering item shares its core
+ * potion's icon, so the prefix is stripped before the lookup.
+ */
+function potionColour(name) {
+  const data = POTION_DATA[name] ?? POTION_DATA[name.replace(/^(splash|lingering)_/, '')];
+  return data?.color ?? null;
 }
 
 // Each shape is a list of [x, y] cells in a 16x16 grid, plus an optional darker outline pass.
@@ -167,10 +215,26 @@ function cells(shape) {
     case 'bucket':
       for (let y = 4; y <= 11; y++) for (let x = 5; x <= 10; x++) add(x, y);
       break;
+    // A pouch: a rounded body, a cinched neck and a tie, so a bundle reads as a bag rather than as another
+    // rounded square. Its sixteen colours are the dye colours, which is what tells them apart.
+    case 'bundle':
+      for (let y = 6; y <= 12; y++) for (let x = 4; x <= 11; x++) add(x, y);
+      for (let y = 4; y <= 5; y++) for (let x = 6; x <= 9; x++) add(x, y);
+      for (let x = 5; x <= 10; x++) add(x, 6);
+      add(5, 5); add(10, 5);
+      break;
     case 'mushroom':
       for (let x = 4; x <= 11; x++) add(x, 6);
       for (let x = 5; x <= 10; x++) add(x, 7);
       for (let y = 8; y <= 11; y++) { add(7, y); add(8, y); }
+      break;
+    case 'potion':
+      // A bottle: narrow neck, shoulders, then a wide body. The colour is the potion's own, so the
+      // silhouette only has to read as a bottle.
+      for (let y = 3; y <= 4; y++) { add(7, y); add(8, y); }
+      for (let x = 6; x <= 9; x++) add(x, 5);
+      for (let y = 6; y <= 11; y++) for (let x = 5; x <= 10; x++) add(x, y);
+      for (let x = 5; x <= 10; x++) add(x, 12);
       break;
     default:
       for (let y = 5; y <= 10; y++) for (let x = 5; x <= 10; x++) add(x, y);
@@ -184,15 +248,28 @@ const existing = new Set(readdirSync(OUT).map(f => f.replace(/\.(png|svg)$/, '')
 
 let written = 0;
 let skipped = 0;
-const names = Object.keys(EXTRA_ITEMS);
+// Every registered item, not only the generated batch. A hand-written item added to `src/blocks.js`
+// needs an icon just as much, and `tests/item_icons.test.js` requires one for all of `ITEMS` -- so
+// leaving hand-written items out of this sweep meant the test could only be satisfied by hand-drawing
+// a PNG. Existing assets are kept, so this adds files rather than replacing art.
+//
+// The file written is the path the item DECLARES, not `<key>.png` in this directory. Seventeen items
+// point at a shared or block asset (`anvil` at `/assets/blocks/anvil.png`, every potion variant at
+// `/assets/items/potion.png`); naming the output after the key invented 34 unreferenced duplicates
+// that no code path could ever load, and the "every ITEMS entry has an icon" check could not see them
+// because it follows the declared path.
+const names = [...new Set([...Object.keys(EXTRA_ITEMS), ...Object.keys(ITEMS)])];
+const ITEM_ASSET = '/assets/items/';
 for (const name of names) {
-  const file = `${OUT}/${name}.png`;
+  const declared = ITEMS[name]?.icon ?? EXTRA_ITEMS[name]?.icon ?? null;
+  if (!declared || !declared.startsWith(ITEM_ASSET)) { skipped++; continue; }
+  const file = `public${declared}`;
   // Never overwrite a hand-authored asset, and do not rewrite identical output.
   if (existing.has(name)) { skipped++; continue; }
   if (existsSync(file)) { skipped++; continue; }
 
   const h = hash(name);
-  const override = COLOUR_OVERRIDES[name];
+  const override = potionColour(name) ?? COLOUR_OVERRIDES[name] ?? dyeTintedColour(name, COLOUR_OVERRIDES);
   const [r, g, b] = override
     ? [parseInt(override.slice(1, 3), 16), parseInt(override.slice(3, 5), 16), parseInt(override.slice(5, 7), 16)]
     : hslToRgb(h % 360, 45 + (h % 20), 48 + (h % 12));

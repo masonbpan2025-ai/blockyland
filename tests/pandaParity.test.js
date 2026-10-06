@@ -343,7 +343,7 @@ test('a baby sneezes, and adults nearby jump', () => {
   assert.equal(outcome, 'sneezed');
   assert.equal(adult.velocity.y, 4, 'the adult jumps');
   assert.equal(adult.onGround, false);
-  assert.equal(entities.droppedItems.filter(d => d.itemType === 'slimeball').length, 1,
+  assert.equal(entities.droppedItems.filter(d => d.itemType === 'slime_ball').length, 1,
     'and the rare slimeball dropped');
   // An adult never sneezes.
   assert.equal(updatePandaSneeze(manager, adult, 1, () => 0), null);

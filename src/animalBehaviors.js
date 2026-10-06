@@ -30,7 +30,7 @@ export const BREEDING_FOODS = {
   // Wiki: turtles breed when fed seagrass, and follow a player holding it within ten blocks.
   turtle: ['seagrass'],
   // Wiki: frogs are tempted and bred with slimeballs, and follow a slimeball-holding player.
-  frog: ['slimeball'],
+  frog: ['slime_ball'],
   // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
   // id here, so it is listed as the block constant rather than a string.
   rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],
@@ -48,15 +48,15 @@ export const BREEDING_FOODS = {
   camel: ['cactus'],
   pig: ['carrot', 'potato', 'beetroot'],
   chicken: [
-    'wheat_seeds', 'wheat_seed', 'seeds', 'seed',
-    'pumpkin_seeds', 'pumpkin_seed',
-    'melon_seeds', 'melon_seed',
-    'beetroot_seeds', 'beetroot_seed',
-    'torchflower_seeds', 'torchflower_seed',
+    'wheat_seeds',
+    'pumpkin_seeds',
+    'melon_seeds',
+    'beetroot_seeds',
+    'torchflower_seeds',
     'pitcher_pod'
   ],
   wolf: ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit'],
-  cat: ['salmon', 'cod', 'cooked_salmon', 'cooked_cod', 'raw_fish'],
+  cat: ['salmon', 'cod', 'cooked_salmon', 'cooked_cod'],
   horse: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple'],
   donkey: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple']
 };
@@ -129,7 +129,7 @@ export class AnimalBehaviors {
 
     // Cat taming or sitting
     if (mob.type === 'cat' || mob.type === 'ocelot') {
-      if (!mob.isTamed && (itemId === 'salmon' || itemId === 'cod' || itemId === 'raw_fish')) return true;
+      if (!mob.isTamed && (itemId === 'salmon' || itemId === 'cod')) return true;
       if (mob.isTamed && mob.owner === player) return true;
     }
 
@@ -354,7 +354,7 @@ export class AnimalBehaviors {
 
     // 5. Cat / Ocelot: Taming with raw fish & sitting toggle
     if (mob.type === 'cat' || mob.type === 'ocelot') {
-      if (!mob.isTamed && (itemId === 'salmon' || itemId === 'cod' || itemId === 'raw_fish')) {
+      if (!mob.isTamed && (itemId === 'salmon' || itemId === 'cod')) {
         if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
         if (Math.random() < 0.4) {
           mob.isTamed = true;
