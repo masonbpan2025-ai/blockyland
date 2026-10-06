@@ -4817,3 +4817,48 @@ factor -- rather than to pick one and hope, which is what this round did.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
 specified and their SCALE still to determine, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-eight: there is no single scale factor, and round 127's diagnosis was wrong
+
+**I checked round 127's "likely cause" arithmetically, and it does not hold.**
+
+Round 127 concluded that I had "applied the HEAD's scale to the WINGS". **That implies the project's parts share one consistent
+blocks-per-unit factor, and they do not:**
+
+```
+body ORIGINAL 1.6 x 1.2 x 3.2 against vanilla 16 x 32 x 16:
+  16u -> 1.6  =  0.1000 blocks/unit
+  32u -> 1.2  =  0.0375 blocks/unit
+  16u -> 3.2  =  0.2000 blocks/unit      <- three DIFFERENT factors for one box
+
+head ORIGINAL 0.9 x 0.8 x 1.1 against vanilla 8 x 24 x 8:
+  8u  -> 0.9  =  0.1125
+  24u -> 0.8  =  0.0333
+  8u  -> 1.1  =  0.1375                  <- three more
+```
+
+**Six dimensions, six different implied factors.** So there is no "the" scale to apply or misapply, and **the wing fault cannot
+have been a scale factor in the sense I described.** What there IS:
+
+* **vanilla's body ratio is 0.5 : 1 : 0.5 and the project's ORIGINAL body was 0.5 : 0.375 : 1** -- not a scale error but a
+  **shape** error, which is why round one hundred and twenty-six's resize to `1.6 x 3.2 x 1.6` was correct and matched vanilla
+  exactly;
+* **and the original head was 0.818 : 0.727 : 1 against vanilla's 0.333 : 1 : 0.333** -- again a shape error, again corrected.
+
+**So round 127's revert put back a body whose SHAPE is wrong**, and its stated reason was not the real reason. The two
+statements I can support are: **the jaw and wings as I wrote them broke the mob**, and **my explanation for why was not
+established** -- I labelled it "likely" and it has now been falsified, which is what the label was for.
+
+**What this leaves as the actual open question on the dragon:** its remaining parts must be built at sizes **derived
+per-part from vanilla's own rectangles**, since there is no global factor to inherit -- and rounds one hundred and twenty-five
+and one hundred and twenty-six already established that applying a rectangle whose proportions do not match the box produces a
+correct sample on a wrong shape.
+
+**The honest state:** the dragon's body and head are bound, textured and resized to vanilla's proportions (round one hundred
+and twenty-six, restored). **Its eighteen remaining parts need sizes computed part by part**, and the first step is to pick a
+single reference -- most defensibly the BODY, at `1.6 blocks / 16 units = 0.1 blocks per unit` on its width, because the body
+is the part that was resized to vanilla's true ratios and is therefore the only dimension whose factor is unambiguous.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts'
+sizes to be derived per-part, and the tropical fish BLOCKED by its assets.**
