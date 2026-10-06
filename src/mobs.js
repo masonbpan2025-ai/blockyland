@@ -9267,7 +9267,7 @@ export class MobManager {
     // default white is exactly why the fish rendered white with a correct sheet bound.
     const fishMat = (tint) => {
       if (!fishSheet) return new THREE.MeshLambertMaterial({ color: tint });
-      const m = new THREE.MeshLambertMaterial({ color: tint, map: fishSheet, transparent: true, alphaTest: 0.5 });
+      const m = new THREE.MeshLambertMaterial({ color: tint, map: fishSheet });
       adoptWhenReady(m, fishSheet, tint, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
       return m;
     };

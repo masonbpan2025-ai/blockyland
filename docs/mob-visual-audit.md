@@ -5357,3 +5357,44 @@ specific:** draw the body twice -- once with `baseColor` and no alpha test, once
 test -- and the eye boxes, which already render correctly, are the control that says the pipeline itself is fine.
 
 `AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+## Round one hundred and forty-two: the fish's base pass CONFIRMED -- one attribute was the whole fault
+
+**Round one hundred and forty-one said the fish needs its base drawn at full opacity without an alpha test. The test of that
+cost ONE attribute change, and it worked.**
+
+```diff
+- new THREE.MeshLambertMaterial({ color: tint, map: fishSheet, transparent: true, alphaTest: 0.5 })
++ new THREE.MeshLambertMaterial({ color: tint, map: fishSheet })
+```
+
+**And the render changed from scattered fragments to a SOLID BODY:**
+
+* **an orange body** -- the variant's `baseColor` multiplying the white stencil, which is exactly how vanilla produces the
+  colour;
+* **white fins** -- the `finColor` on the same stencil;
+* **the dark eye boxes**, which had been the only correct element all along;
+* and **no fragments anywhere.**
+
+**So the entire six-round fault was a single attribute.** `alphaTest: 0.5` discards every fragment below 50% alpha, and a
+**stencil is 91% transparent by construction** -- so the alpha test was deleting the fish and leaving only the pattern's few
+opaque pixels, which is precisely the scattered appearance every round since eighty-four reported.
+
+**And the earlier rounds were not wrong about the rectangles.** The rectangles, the tint, the atlas key and the proportions
+were all correct and all necessary; **`alphaTest` was the one attribute that turned a correct pipeline into a wrong picture**,
+and it was inherited from the convention every other mob in this project uses -- where a sheet is a SKIN and its transparency
+is meaningful, rather than a STENCIL whose transparency is the background.
+
+**That is the generalisable statement, and it is why this took so long:**
+
+> `alphaTest` is correct for a mob whose texture is a **skin** -- an opaque drawing with transparent margins -- and WRONG for
+> a mob whose texture is a **stencil** -- a sparse pattern meant to be composited. **The same attribute is right in one case
+> and deletes the mob in the other**, and nothing about the code distinguishes them.
+
+**What remains for the fish is the second pass** -- the pattern layer carrying `patternColor` -- which is additive now that
+the base renders correctly. The eye boxes are the control that the pipeline was always fine.
+
+`AREA` is at exactly **1766/1773**, and the capture is kept as
+`docs/mob-visual-evidence/tropical-fish-base-pass.png`.
+
+Work list: **97 spawners, 81 with a real sheet, the tropical fish's base pass correct with its pattern pass remaining, and the
+dragon's leg positions recorded as approximations.**
