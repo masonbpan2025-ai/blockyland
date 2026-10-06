@@ -4626,3 +4626,43 @@ whichever resolves to an entity model. **A class absent from the mappings as a t
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry narrowed to `ewc` or `fmy`, and the tropical fish
 BLOCKED by its assets.**
+## Round one hundred and twenty-three: the geometry is in a THIRD class, and my narrowing hypothesis was falsified
+
+**I mapped the two candidates round one hundred and twenty-two narrowed to, and neither is the geometry.**
+
+```
+ewc  ->  net/minecraft/client/render/entity/animation/BatAnimations
+fmy  ->  net/minecraft/client/render/entity/model/EntityModelPartNames
+```
+
+**`fmy` is `EntityModelPartNames` -- the CONSTANTS class that holds every part-name string in the game.** That is why it
+contains the full `left_wing_tip` literal, and it is a perfectly good explanation that has nothing to do with the dragon.
+`ewc` is `BatAnimations`, unrelated.
+
+**So my substring-asymmetry hypothesis was WRONG**, and it was wrong for an instructive reason: I reasoned that "a class naming
+only the complete part DEFINES it" **without first asking what class would name parts and nothing else** -- and a constants
+table is exactly that. **A shared string table will match any such test, for every mob, and I did not consider it.** That is
+round seventy-four's lesson (a cheap measurement is only conclusive once its failure modes are known) applied to a search
+rather than a render.
+
+**And a second, stronger check settles where the geometry is NOT.** `EnderDragonEntityRenderer$DragonEntityModel` is the
+**only** dragon model in the entire mapping table -- of twelve `EnderDragon`-named classes, `fyi$a` is the sole model -- and a
+full scan of its 187 lines for every model-builder method returns **20 matches, all of them `method_32086` lookups**:
+
+```
+method_32110 (texture size)   ABSENT
+method_32117 (add part)       ABSENT
+method_32097 (box)            ABSENT
+method_32098 (dilated box)    ABSENT
+method_32101 (uv)             ABSENT
+method_32086 (get child)      20 occurrences
+```
+
+**So the dragon's geometry is built in a THIRD class that constructs the `class_630` handed to this model, and that class is
+not among the twelve dragon-named mappings.** The next search is therefore for **`method_32110` -- the texture-size call every
+builder makes and this model does not** -- rather than for a part name, which is what produced two false leads.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon bound with its builder to be found by searching for
+`method_32110` rather than a part name, and the tropical fish BLOCKED by its assets.**
