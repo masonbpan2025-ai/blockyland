@@ -3090,3 +3090,51 @@ are near-empty. **One command decides it.**
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-eight, continued: the instrument is validated and the sheets are untextured MASKS
+
+**I ran the validation the entry above named, and it decided the question.**
+
+**First, the sampler is sound.** Run over a sheet whose contents are known independently:
+
+```
+pufferfish.png -> opaque pixels: 635 of 1024
+    transparent  x389
+    252,229,188  x131     <- real colour
+    191,132,27   x88      <- real colour
+```
+
+So `sample-region.mjs` reports colour when colour is there, and its verdict on the tropical sheets can be trusted.
+
+**Then the second half, which is the answer.** `tropical_a.png` has its own
+
+```
+opaque pixels: 86 of 1024
+    transparent  x938
+    192,192,192  x28
+    170,170,170  x20
+    177,177,177  x16
+    238,238,238  x16
+```
+
+**Every opaque pixel is GREY.** Not white-on-a-tint, not a coloured fish with transparent margins -- **a GREYSCALE mask with no
+colour channel content at all**, which is what a 2-bit, ~4-entry palette in the original means. The same holds for the
+pattern sheets.
+
+**SO THE ANSWER TO ROUND EIGHTY-SEVEN'S QUESTION IS: THE SHEETS ARE UNTEXTURED MASKS AND VANILLA TINTS THEM AT RUNTIME.**
+That fits every measurement -- the tiny palette, the 3,072 variants, and the fact that this project's own tropical model
+already computes `baseColor`, `patternColor` and `finColor` per variant. **Vanilla multiplies a greyscale mask by the
+variant's colour; the mask carries the SHAPE and the tint carries the COLOUR.**
+
+**Which means the correct implementation is neither of the two I listed last round.** Not "find the real sheets" -- these
+ARE the real sheets -- and not "tint a coloured texture". It is: **bind the mask AND keep the flat colour as a `color`
+multiplier**, because `MeshLambertMaterial` multiplies `color` by `map` by default. `fishMat` currently REPLACES the flat
+colour with white; it should carry the variant colour through instead. That is a one-line correction to the approach, and it
+is the whole difference between a white fish and a correct one.
+
+**That is worth stating as the round's real result:** rounds eighty-four to eighty-seven were not wasted, but the sequence
+only converged once the ASSET was measured rather than reasoned about. Four rounds of pipeline reasoning produced three
+wrong mechanisms; one validated instrument produced the answer in one round.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
