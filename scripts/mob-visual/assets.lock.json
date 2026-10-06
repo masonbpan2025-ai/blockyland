@@ -488,6 +488,33 @@
       "sha256": "96e8f5fbe5b482a4bdf9aa50a63572b4c2fb73a2d5249e1ff4947266acc2d4e9",
       "bytes": 565,
       "for": "ocelot"
+    },
+    "frog_skins": {
+      "path": "entity/frog/temperate_frog.png",
+      "dest": "assets/entity/frog/temperate_frog.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/frog/temperate_frog.png",
+      "ref": "1.21.4",
+      "sha256": "1ebb7f0ae0fd377cea85506def3e472f3c960af78f45592c655232a56f022f38",
+      "bytes": 557,
+      "for": "frog (temperate)"
+    },
+    "frog_cold": {
+      "path": "entity/frog/cold_frog.png",
+      "dest": "assets/entity/frog/cold_frog.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/frog/cold_frog.png",
+      "ref": "1.21.4",
+      "sha256": "597402d47a78ca21afc158b0d13a495c69d16f9f7f6775d783e463e14b4b92be",
+      "bytes": 571,
+      "for": "frog (cold)"
+    },
+    "frog_warm": {
+      "path": "entity/frog/warm_frog.png",
+      "dest": "assets/entity/frog/warm_frog.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/frog/warm_frog.png",
+      "ref": "1.21.4",
+      "sha256": "014dc8ef45f098e7182d15a27969e175d88816d3584fd7b61c6cd6bc09f348b6",
+      "bytes": 561,
+      "for": "frog (warm)"
     }
   }
 }

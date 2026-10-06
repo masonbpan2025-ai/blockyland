@@ -557,3 +557,37 @@ options are a JVM to run the downloaded decompiler, or an authoritative publishe
 wolf stays as it is, and I am not going to keep spending rounds on it.
 
 Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
+
+## Round sixteen: trying to get real model data, and being honest about where it stands
+
+**The plan was right; the execution is not finished.** Last round I concluded "stop deriving, get the model
+definition". This round I went after it and did not get there.
+
+**What I checked first:** there is **no `java.exe` anywhere on this system** (searched Program Files, Program Files
+(x86), LOCALAPPDATA, APPDATA and the user profile to depth 5). `winget` IS available, so
+`winget install EclipseAdoptium.Temurin.21.JRE` plus the Vineflower jar already downloaded at
+`%TEMP%\decompiler\vineflower.jar` is the obvious route. I did not take it this round and should have.
+
+**What I built instead:** `scripts/mob-visual/read-model-classes.mjs`, a class-file reader meant to pull
+`ModelPartBuilder.uv(u, v)` arguments out of the compiled models without a JVM. Its **ZIP layer is verified** -- it
+lists and inflates all 23,109 entries of the Fabric intermediary jar -- and it confirmed the model classes are present
+under intermediary names. Its **class reader does not work**: it reports a constant pool of 51,712 entries against a
+real count far smaller and finds zero invoked method names, so it never reaches a `Code` attribute and always reports
+nothing. It is committed as WORK IN PROGRESS with that failure written into its own header, and it now prints its
+limitation rather than an empty success.
+
+**One useful thing it established:** entity models are named by INTERMEDIARY id (`class_602`), so `--grep wolf` can
+never match. That is worth knowing before anyone else tries the same search.
+
+**A bounded attempt at a mob, which also failed.** None of the 26 flat-colour spawners has a sheet on disk, so none
+takes the easy path. I extracted the frog's sheet (`entity/frog/temperate_frog.png`, 48x48) and checked it against the
+standard quadruped head block: 52/48/13% opaque across its faces, and **zero fully-opaque 8x8 cells on the whole
+sheet**. The frog is not a quadruped and its sheet does not follow that layout. I stopped rather than guess, because
+guessing is now 0-for-4.
+
+**Where that leaves the goal, stated plainly.** The remaining 41 mobs need real model data. Pixel inference has
+failed on the vex, the warden's eyes and the wolf, and this round it also failed on the frog. The successful mobs all
+had a real layout or a panel model. **The next round should install a JVM and run the decompiler** rather than write
+more analysis tooling, because that is the only approach on this project with a demonstrated success.
+
+Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**

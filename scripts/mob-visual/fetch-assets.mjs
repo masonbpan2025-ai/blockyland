@@ -79,7 +79,11 @@ export const ASSETS = [
   { id: 'rabbit_salt', path: 'entity/rabbit/rabbit_salt.png', dest: 'assets/entity/rabbit/salt.png', for: 'rabbit (salt)' },
   { id: 'rabbit_toast', path: 'entity/rabbit/rabbit_toast.png', dest: 'assets/entity/rabbit/toast.png', for: 'rabbit (toast)' },
   { id: 'rabbit_killer', path: 'entity/rabbit/caerbannog.png', dest: 'assets/entity/rabbit/caerbannog.png', for: 'rabbit (killer)' },
-  { id: 'ocelot_skin', path: 'entity/cat/ocelot.png', dest: 'assets/entity/cat/ocelot.png', for: 'ocelot' },
+  // The frog's three biome sheets. Extracted, but NOT yet bound: the frog's sheet is 48x48 and does not follow the
+  // standard quadruped layout, so its model needs real UV work first. Kept so the bytes are pinned and reproducible.
+  { id: 'frog_skins', path: 'entity/frog/temperate_frog.png', dest: 'assets/entity/frog/temperate_frog.png', for: 'frog (temperate)' },
+  { id: 'frog_cold', path: 'entity/frog/cold_frog.png', dest: 'assets/entity/frog/cold_frog.png', for: 'frog (cold)' },
+  { id: 'frog_warm', path: 'entity/frog/warm_frog.png', dest: 'assets/entity/frog/warm_frog.png', for: 'frog (warm)' },  { id: 'ocelot_skin', path: 'entity/cat/ocelot.png', dest: 'assets/entity/cat/ocelot.png', for: 'ocelot' },
   { id: 'llama_skins', path: 'entity/llama/creamy.png', dest: 'assets/entity/llama/creamy.png', for: 'llama (creamy)' },
   { id: 'llama_white', path: 'entity/llama/white.png', dest: 'assets/entity/llama/white.png', for: 'llama (white)' },
   { id: 'llama_brown', path: 'entity/llama/brown.png', dest: 'assets/entity/llama/brown.png', for: 'llama (brown)' },
