@@ -4375,3 +4375,36 @@ round ninety-five to one hundred and eleven:
 
 Work list: **97 spawners, 79 with a real sheet, the sniffer bound and mid-rebuild with its remaining parts fully specified, the
 ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and seventeen: the sniffer's missing parts are built, and it reads as a creature
+
+**The additive work round one hundred and sixteen specified is done, and the difference in the render is the difference
+between a slab and an animal.**
+
+Added, every one from a rectangle read out of `class_8185` and scaled by the body's own ratio (1 unit = 1.7/40 = **0.0425
+blocks**):
+
+| part | rectangle | box at this scale |
+| --- | --- | --- |
+| left_ear / right_ear | `(2, 0)` and `(48, 0)` | 0.042 x 0.807 x 0.297 |
+| nose | `(10, 45)` 13x2x9 | 0.552 x 0.085 x 0.382 |
+| lower_beak | `(10, 57)` 13x12x9 | 0.552 x 0.510 x 0.382 |
+| six legs | `(0, 87)` 7x10x8 | 0.297 x 0.425 x 0.340 |
+
+**And the render changes accordingly:** the sniffer now shows a **yellow snout block with a distinct nose across it and a
+lower beak below**, ears at the sides of the head, visible legs, and the sheet's green banding across the top. **Round one
+hundred and sixteen's render was a red slab with a green stripe; this one is recognisably an animal.**
+
+**The scale factor is worth recording because it is reusable:** vanilla's sniffer body is 40 units long and this project's is
+1.7 blocks, so **1 unit = 0.0425 blocks** converts every one of `class_8185`'s rectangles into this model's space without
+touching the model's size. **That is the conversion the round-one-hundred-and-twelve verdict said a rebuild would need, and it
+is one number rather than a rewrite.**
+
+`AREA` stayed at exactly **1766/1773** through all of it.
+
+**What is left on the sniffer, honestly:** the five parts vanilla does not have -- `belly`, `shell`, both `band`s and `tail` --
+are still flat-coloured and still present, and the body is still taller than vanilla's barrel because vanilla's six legs
+carry it. **The mob is no longer a slab, and it is not yet parity**; the remaining gap is those five parts and the body's
+placement over its legs.
+
+Work list: **97 spawners, 79 with a real sheet, the sniffer a recognisable creature with its five extra parts still to
+retire, the ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**

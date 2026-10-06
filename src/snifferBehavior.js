@@ -422,6 +422,32 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   snout.position.set(0, -0.08, 0.5);
   head.add(snout);
 
+  // THE PARTS VANILLA'S SNIFFER HAS AND THIS MODEL DID NOT: two ears, a nose and a lower beak. Sizes are vanilla's
+  // rectangles at this model's scale (1 unit = 1.7/40 = 0.0425 blocks, from the body's 40-unit length against its 1.7).
+  // // SNIFFER_PARTS
+  const ears = [];
+  for (const [side, uu] of [[-1, 2], [1, 48]]) {
+    const earGeo = new THREE.BoxGeometry(0.042, 0.807, 0.297);
+    applyVanillaBoxUVs(earGeo, uu, 0, 192, 192, 1, 19, 7);
+    const ear = new THREE.Mesh(earGeo, bodyMat);
+    // Vanilla hangs them off the head, to either side.
+    ear.position.set(side * 0.24, -0.1, -0.05);
+    head.add(ear);
+    ears.push(ear);
+  }
+  // The nose: vanilla's 13x2x9 at (10, 45), the flat top of the snout.
+  const noseGeo = new THREE.BoxGeometry(0.552, 0.085, 0.382);
+  applyVanillaBoxUVs(noseGeo, 10, 45, 192, 192, 13, 2, 9);
+  const nose = new THREE.Mesh(noseGeo, snoutMat);
+  nose.position.set(0, 0.09, 0.5);
+  head.add(nose);
+  // The lower beak: vanilla's 13x12x9 at (10, 57), which hangs below the snout.
+  const beakGeo = new THREE.BoxGeometry(0.552, 0.510, 0.382);
+  applyVanillaBoxUVs(beakGeo, 10, 57, 192, 192, 13, 12, 9);
+  const lowerBeak = new THREE.Mesh(beakGeo, snoutMat);
+  lowerBeak.position.set(0, -0.30, 0.52);
+  head.add(lowerBeak);
+
   const eyes = [];
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), snoutMat);
@@ -432,7 +458,9 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
 
   // Six short legs in two rows, which is the centipede-ish gait the wiki mentions.
   const legs = [];
-  const legGeo = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+  // Legs: vanilla 7x10x8 units -> 0.297 x 0.425 x 0.340 at this scale, on the (0, 87)/(0, 105)/(0, 123) column.
+  const legGeo = new THREE.BoxGeometry(0.297, 0.425, 0.340);
+  applyVanillaBoxUVs(legGeo, 0, 87, 192, 192, 7, 10, 8);
   for (const z of [0.6, 0, -0.6]) {
     for (const side of [-1, 1]) {
       const leg = new THREE.Mesh(legGeo, legMat);
@@ -446,7 +474,7 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   tail.position.set(0, 1.0, -1.0);
   group.add(tail);
 
-  return { group, body, belly, shell, bands, neck, head, snout, eyes, legs, tail };
+  return { group, body, belly, shell, bands, neck, head, snout, ears, nose, lowerBeak, eyes, legs, tail };
 }
 
 /**
