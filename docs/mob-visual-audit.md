@@ -3935,3 +3935,49 @@ decompiled model.**
 
 Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one (all needing a geometry rebuild), plus the
 tropical fish which cannot be fixed from the available assets.**
+## Round one hundred and seven: the slime is fully specified, sheet and geometry both verified
+
+**I did the prep for the slime rather than starting a partial edit, and every number it needs is now measured.**
+
+**The sheet is real and it is not a stub** -- the check that rounds eighty-six to ninety-three cost seven rounds to learn:
+
+```
+slime.png   64x32   colourType 3 (palette)   depth 4   12 entries
+  [1] rgb(104,115,10)   [2] rgb(123,206,106)   [3] rgb(123,202,98)
+  [5] rgb(98,182,74)    [6] rgb(90,170,67)     [9] rgb(81,160,62)
+  [10] rgb(22,40,16)
+coloured entries: 10 of 12
+```
+
+**Ten of twelve palette entries are coloured greens.** `check-asset-content.mjs` reports **zero** zero-colour assets under
+`entity/slime/`, so this is a genuine texture and not the tropical fish's situation. `magmacube.png` is also present (772
+bytes) for the magma cube variant.
+
+**And the geometry is small enough to do properly** -- `SlimeEntityModel` (`class_609`), texture **64x32**, five parts:
+
+```
+line   part name     (u, v)     box
+  13   cube          (0, 0)     8 x 8 x 8     outer body
+  20   cube          (0, 16)    6 x 6 x 6     inner cube
+  21   right_eye     (32, 0)    2 x 2 x 2
+  22   left_eye      (32, 4)    2 x 2 x 2
+  23   mouth         (32, 8)    1 x 1 x 1
+```
+
+**Every part sits at a valid atlas origin on a 64x32 sheet:** the outer cube's cross-layout region is `(2*8+8) x (8+8)` =
+`16x16` at `(0,0)`, the inner `(2*6+6) x (6+6)` = `18x18` at `(0,16)`, and the eyes and mouth are `6x6` and `3x3` blocks at
+`x 32`. **A 64-wide sheet holds `0-16` and `0-18` and `32-38`, so all five fit with room to spare** -- which is the check
+that the camel's regions also passed, and the reason that check alone does not prove a binding will look right.
+
+**What the slime still needs, and it is the geometry question round one hundred and five isolated:** whether the project's
+`createSlimeModel` builds the SAME five parts in the SAME arrangement, or a flat-colour assembly of its own. **If it matches
+vanilla's five parts, this is a one-round binding; if it is an assembly, it needs a rebuild** -- and the five-part list above
+is exactly what to compare it against.
+
+**The slime is the right mob to do next regardless of which**: it is five boxes against the sniffer's many and the dragon's
+boss rig, and it is the only one of the three remaining where a single `(u, v)` table covers the whole model.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one -- the slime now fully specified, with the
+sniffer and the dragon behind it.**
