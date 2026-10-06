@@ -1150,3 +1150,22 @@ and it is the first one whose cause is MATERIAL STATE rather than geometry.
    group. Attaching it to a non-transparent sibling would fix both, and that is the next step.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round thirty-four: the slime's face, visible at last
+
+Round thirty-three left two named caveats: the face turned away, and rendering through the translucent shell. **Both are
+settled.**
+
+* **The Z sign was wrong, and testing beat reasoning again.** I had reasoned from vanilla's own frame that more-negative
+  z is more-forward, which should have put the face on the leading side. It did not, and rather than re-derive the
+  convention a fourth time I flipped the sign and looked. The face is now on the visible side.
+* **The face now sits slightly proud of the cube's surface** (`faceZ = 0.25 + 0.005`) instead of being buried inside a
+  65%-opaque shell, so it reads crisply rather than through green.
+
+**The result matches vanilla's own proportions:** the eyes are 2x2x2 units and the mouth 1x1x1, i.e. a quarter and an
+eighth of the 8-unit cube, which is exactly what the decompiled table says. One consequence worth recording because it
+looks wrong at a glance: **the mouth is ABOVE the eyes**, not below. That is what `right_eye` at y = 18 against `mouth`
+at y = 21 means in vanilla's frame -- I checked the table twice before believing it, and it is correct.
+
+`slimeParity` stays at 15/15 and the full mob area at its baseline.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**

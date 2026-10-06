@@ -7172,13 +7172,15 @@ export class MobManager {
     const faceMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
     const unit = 0.0625;
     const faceY = 0.25;
+    // Slightly proud of the 0.5-block cube, so the face is not buried inside the translucent shell.
+    const faceZ = 0.25 + 0.005;
     for (const x of [-3.25, 1.25]) {
       const slimeEye = new THREE.Mesh(new THREE.BoxGeometry(2 * unit, 2 * unit, 2 * unit), faceMat);
-      slimeEye.position.set(x * unit, faceY + (18 - 20) * unit, -3.5 * unit);
+      slimeEye.position.set(x * unit, faceY + (18 - 20) * unit, faceZ); // SLIME_FACE_SIGN_FLIPPED
       group.add(slimeEye);
     }
     const slimeMouth = new THREE.Mesh(new THREE.BoxGeometry(unit, unit, unit), faceMat);
-    slimeMouth.position.set(0, faceY + (21 - 20) * unit, -3.5 * unit);
+    slimeMouth.position.set(0, faceY + (21 - 20) * unit, 3.5 * unit); // SLIME_FACE_SIGN_FLIPPED
     group.add(slimeMouth);
 
     const s = size / 4;
