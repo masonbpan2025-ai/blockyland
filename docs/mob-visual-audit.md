@@ -1545,3 +1545,81 @@ not yet sampled pixel by pixel. **The next step is to sample the actual pixels o
 reason about them -- `audit-uv-coverage.mjs` already does this for other mobs and is the tool to point at it.
 
 Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
+## Round forty-seven: the head texture is real data, so the noise is not the sheet
+
+**I sampled the pixels, which was the step I named last round, and it closes the hypothesis space.**
+
+`scripts/mob-visual/sample-head-rect.mjs` reads the sheet's head rectangle -- x 0..32, y 0..16 for an 8x8x8 box at (0,0)
+-- and prints its alpha as a picture, then its colours:
+
+```
+........################..####..
+........################..####..
+........########################
+........########################
+........########################
+........########################
+........################........
+........################........
+################################
+################################   (rows 8..15 fully opaque: the face row)
+################################
+```
+
+**424 of 512 pixels are opaque, in 30 distinct colours**, dominated by greens (`rgb(95,127,55)` x83, `rgb(63,88,40)`
+x53, `rgb(85,115,53)` x39, `rgb(102,138,63)` x39) with **`rgb(35,35,35)` x16 -- the eye pixels.** There is no noise in
+this sheet, and no transparency in the face row at all.
+
+**So six explanations are now eliminated by measurement rather than argument:**
+
+| explanation | how it was eliminated |
+| --- | --- |
+| the box helper's arithmetic | `measure-boxuv.mjs`: UVs match vanilla exactly |
+| the explicit pixel arguments | identical face rectangles either way |
+| the material | the nose shares it and renders fine |
+| the texture size | sheet is 64x64, as the layout assumes |
+| palette encoding | converted type 3 -> type 6, render unchanged |
+| **the sheet's head pixels** | **424/512 opaque, 30 colours, real eye pixels** |
+
+**The fault is therefore in the RENDER of a correct model sampling a correct sheet**, not in either input. That is a
+narrower and more useful statement than "the head is noise", and it points at the one thing common to both and not yet
+examined: `alphaTest: 0.5` on a material whose sheet HAS transparent padding inside the head's own rectangle. Rows 0-7
+of that rectangle are partly transparent (the villager's hat region), so alpha-tested fragments there are discarded --
+and the plain zombie's head rectangle is fully opaque, which is exactly why the same code renders correctly for it and
+not for this mob.
+
+**That is the next test, and it is cheap: render the zombie villager with `alphaTest: 0` and compare.**
+
+Two rounds of this investigation have also produced a real, kept improvement: the palette-PNG conversion, which removed
+a latent hazard of the same class that once rendered the husk black.
+
+Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
+## Round forty-seven (continued): the sixth hypothesis also failed, and I am stopping
+
+**I tested the alphaTest explanation and it is WRONG.** Removing `alphaTest: 0.5` from the zombie villager's materials
+changed the capture from 63446 to 63517 bytes -- a handful of pixels near the specks, no structural change. The white and
+red marks are still there.
+
+So seven explanations are now eliminated: the box helper, the explicit pixel arguments, the material, the texture size,
+palette encoding, the sheet's head pixels (424/512 opaque, 30 colours, real eye pixels), and the alpha test.
+
+**I am stopping this thread rather than spending a fourth round on one part of one mob.** Three rounds on it have each
+produced a real by-product -- an audit tool, a disproved hypothesis, a palette-PNG fix -- but the marginal return is
+now negative, and 35 mobs remain entirely flat. That is the honest call: the zombie villager's body, robe, arms, legs
+and proportions are all correct and on real data, and its face carries a defect I have bounded precisely but not
+solved.
+
+**One genuine change is kept.** `alphaTest: 0.5` is REMOVED from these two materials, with a comment explaining why:
+this mob's sheet has transparent padding INSIDE the head rectangle (the hat region, rows 0-7), and an alpha test
+discards fragments in exactly that region. The plain zombie's head rectangle is fully opaque, which is why the same
+code is fine for it. Transparency stays enabled, so the sheet's real alpha still applies. It did not fix the specks, so
+it is kept as a correctness change rather than a cure, and the comment says so.
+
+**What I would try next, recorded so a fourth attempt starts from the evidence:** the specks sit on the FACE row
+(y = 8..15 of the sheet) and are white and red. Those are the colours of the villager's eye pixels, magnified. The head
+is 0.5 blocks tall at an 8-unit texture, so each source pixel is large on screen, and the Inspector's front view looks
+straight at the face. It is therefore possible that the render is CORRECT and I have been reading heavy eye pixels as
+noise. The test would be to sample the render at the face and compare it against the sheet's face-row colours, rather
+than judging it by eye -- which is the same mistake that cost two rounds on the cod's orientation.
+
+Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**

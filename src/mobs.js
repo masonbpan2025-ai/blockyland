@@ -3594,9 +3594,14 @@ export class MobManager {
     // The real model and both real sheets. Vanilla uses a 64x64 body sheet plus a 64x32 overlay for the robe and hat;
     // a single 64x64 sheet carries the visible result here, which is why this is the project's first two-size mob.
     // ZOMBIE_VILLAGER_MODEL
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4d7c0f, transparent: true, alphaTest: 0.5 });
+    // NO alphaTest here, unlike every other skin in this project. This mob's sheet has transparent PADDING inside the
+    // head rectangle (the vanilla hat region on rows 0-7), so an alpha test DISCARDED the very face fragments it was
+    // meant to keep and the head rendered as noise -- while the plain zombie, whose head rectangle is fully opaque,
+    // renders correctly from the same code. Six other explanations were eliminated by measurement first; see the
+    // audit. Transparency is still enabled, so the real alpha channel applies. // ZV_NO_ALPHATEST
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4d7c0f, transparent: true });
     adoptTexture(bodyMat, this.loadTexture(ZOMBIE_VILLAGER_SKIN_PATH), 0x4d7c0f);
-    const clothesMat = new THREE.MeshLambertMaterial({ color: 0x57534e, transparent: true, alphaTest: 0.5 });
+    const clothesMat = new THREE.MeshLambertMaterial({ color: 0x57534e, transparent: true });
     adoptTexture(clothesMat, this.loadTexture(ZOMBIE_VILLAGER_SKIN_PATH), 0x57534e);
 
     const group = new THREE.Group();
