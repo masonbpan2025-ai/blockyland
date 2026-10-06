@@ -3488,3 +3488,49 @@ so the anchors are where the answer is, and reading them correctly is the next t
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the recipe's missing step is now
 falsified down to the rectangle anchors.**
+## Round ninety-seven: the anchors are RIGHT, and the camel's fault is unexplained
+
+**I tested round ninety-six's hypothesis -- that the rectangle anchors were wrong -- and falsified it in one measurement.**
+
+The camel sheet's opacity, measured per region:
+
+```
+whole sheet   (0,0)    128x128   opaque 6284/16384   (38%)
+body cross    (0,25)    69x39    opaque 2387/2691    (89%)   <- where the body UVs sample
+head cross    (74,0)    31x16    opaque  259/496     (52%)
+```
+
+**The body's cross-layout region is 89% OPAQUE.** If the anchors were wrong, that region would be largely empty and the
+fragmentation would be explained by sampling transparency -- exactly what I claimed last round. **It is not empty, so the
+anchors are placing the UVs on the camel's actual drawn texture.**
+
+**So the four faults I have now eliminated on the camel, each by measurement rather than argument:**
+
+| candidate | how it was eliminated |
+| --- | --- |
+| the sheet is a stub | 26 palette entries, passes the content check, 38% opaque overall |
+| the sheet's path | resolves, and the mob reads back 16 of 18 materials with a map |
+| the model's box proportions | resized to vanilla's exact ratio -- render unchanged |
+| the rectangle anchors | the body's cross region is **89% opaque** where the UVs land |
+
+**And the render fragments anyway.** I do not know why, and after three falsified mechanisms on this mob I am stating that
+plainly rather than producing a fourth.
+
+**What is left, listed as CANDIDATES and not conclusions**, because that is the honest state:
+
+1. **`alphaTest: 0.5` on a 38%-opaque sheet.** The region samples 89% opaque, but the remaining 11% is discarded, which could
+   produce holes at this scale -- though it would not explain scattered fragments across the whole body.
+2. **the model has 18 materials and 16 maps**, so two parts take no sheet. I have not established which, and if a shared
+   material serves parts with different rectangles, one of them must be wrong.
+3. **my pairing of `method_32101` calls to boxes in `class_7751`.** The decompile shows several parts sharing anchors and the
+   call order does not obviously match part order, so the numbers may belong to different parts than I assumed -- **even
+   though the region they point at is opaque**, because the wrong part's region can also be opaque.
+
+**Candidate 3 is the one I would test first, and the test is cheap**: print each part's name beside its `(u, v)` as the
+decompiler emits them in order, rather than pairing them by eye. **The giant, the guardians and both undead horses prove the
+recipe is sound when the anchors are right** -- so the answer is in reading them correctly, and my by-eye pairing is the part
+of the process that has never been verified.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
+
+Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one.**
