@@ -3309,3 +3309,41 @@ basis is weaker than its confidence**, and running the content check across thos
 
 Work list: **97 spawners, 75 confirmed with a real sheet (basis: a resolving path, now known to be insufficient), 17 mobs still
 without a model or skin.**
+## Round ninety-three: the blind spot is closed, and the ledger's basis survives the check
+
+**I closed the hole round ninety-two found, then used the fixed tool to test the concern that round raised.**
+
+**The fix.** `check-asset-content.mjs` now DECODES the image instead of reading only its palette, so it counts coloured
+pixels for both encodings this project uses -- palette (type 3, depths 1/2/4/8) and 8-bit RGBA (type 6). The decoder is the
+one validated in round eighty-eight against `pufferfish.png`, so its verdict on a stub is trustworthy.
+
+**Before, it caught 1 of 14 tropical sheets; now it catches all 14**, including the thirteen that had been converted to
+type 6 and were sailing through. `cod.png`, `salmon.png` and `pufferfish.png` are correctly NOT flagged.
+
+**Then the test that mattered.** Round ninety-two wrote that the ledger's basis was weaker than its confidence, because 75
+mobs counted as "confirmed with a real sheet" on the strength of a PATH RESOLVING. Run across every asset:
+
+```
+scanning 127 PNG(s) under public/assets/entity
+ZERO-COLOUR assets (14):
+  fish/tropical_a.png               86 opaque, 0 coloured
+  fish/tropical_a_pattern_1..6      ...
+  fish/tropical_b.png              138 opaque, 0 coloured
+  fish/tropical_b_pattern_1..6      ...
+```
+
+**Fourteen of 127, and every one of them is a tropical fish sheet. Nothing else in the tree is a stub.**
+
+**So the concern was disproportionate to the fact, and I am recording that plainly.** I had written that the ledger's basis
+was "weaker than its confidence" on the strength of ONE measured stub and an inference about the rest. **The measurement says
+the other 75 are fine**, and the mobility of that worry -- from one file to a whole ledger, in one round, without evidence --
+is worth noting next to the tool's own bug. **Both errors were the same shape: treating a plausible generalisation as
+established.**
+
+**What stands, and it is the useful part:** the check now runs in one command over the whole asset tree, it catches stubs in
+either encoding, and the tropical fish family is established as the ONLY zero-colour assets in this project.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 75 confirmed with a real sheet -- and the content check now backs that count rather than merely
+assuming it -- 17 mobs still without a model or skin.**
