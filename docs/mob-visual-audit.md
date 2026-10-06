@@ -4094,3 +4094,39 @@ how many rounds this project has spent on patching faults, **the round where I c
 committing is the round this procedure was written for.**
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon).**
+## Round one hundred and eleven: the slime is finished -- real sheet, real rectangles, real face
+
+**The import came first, then the rectangles, and both took.**
+
+```
+slime   distinct materials 3   with a map: 2
+AREA    1766 / 1773            -- unchanged, no new failures
+```
+
+**The render is a proper GREEN CUBE with the sheet's mottled texture across its faces, a dark eye, and an inset mouth** --
+where four rounds ago the same mob was a flat `0x22c55e` box with a flat `0x15803d` inner cube. The capture replaces the one
+from round one hundred and nine, which showed the unrectangled stretched mottling.
+
+**The rectangle fix is visible in the difference between the two captures:** at 56841 bytes the cubes sampled the sheet as a
+whole and the green read as diagonal streaks; at 57088 bytes each face draws its own region and the surfaces are flat green
+with a subtle grain. **That is what applying `(0, 0)` 8x8x8 and `(0, 16)` 6x6x6 to a 64x32 sheet looks like when it works.**
+
+**And this closes the falsifiable test properly.** Round one hundred and eight set out to check round one hundred and five's
+rule -- *a flat-colour assembly cannot take a real sheet, but a model matching vanilla's part list can* -- on a mob the rule
+was never derived from. **The slime matches vanilla unit for unit, and it took the sheet.** The rule holds, and the camel
+remains its counter-example in the other direction.
+
+**The slime is the eighty-first spawner to bind a real sheet, and the first of the three remaining mobs to be finished.**
+
+**What is left of the original work list:** `sniffer` and `ender_dragon`, both needing geometry rebuilds rather than
+bindings, and the `tropical fish`, which cannot be fixed because the client's sheets contain no colour at all.
+
+**A note on the cost of this one mob, honestly:** the slime took rounds one hundred and seven to one hundred and eleven --
+five rounds for a three-cube mob whose geometry was already correct. **Four of those five were spent on the two missing
+prerequisites (an atlas key and an import) rather than on the mob**, which is the same pattern the camel and the giant each
+showed. **The procedure from round one hundred is what would have compressed it to one round**, and it now exists.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon), plus the
+tropical fish which is blocked by its assets.**

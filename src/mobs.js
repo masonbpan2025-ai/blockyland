@@ -79,7 +79,7 @@ import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS,
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
-import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding } from './mobVisuals/modelBuilder.js';
+import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding, applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -7381,11 +7381,18 @@ export class MobManager {
 
     // The real model: an 8-unit outer cube and a 6-unit inner one, with the inner sitting one unit HIGHER. The outer is
     // therefore 0.5 blocks and the inner 0.375 -- not the near-equal pair this used to draw. // SLIME_PROPORTIONS
-    const outer = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), outerMat);
+    // Vanilla's rectangles from `SlimeEntityModel` (`class_609`), texture 64x32: outer cube 8x8x8 at (0, 0), inner 6x6x6 at
+    // (0, 16). Applied UNCONDITIONALLY -- they describe the GEOMETRY, and a `map` check would be false at construction.
+    const outerGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    applyVanillaBoxUVs(outerGeo, 0, 0, 64, 32, 8, 8, 8);
+    const outer = new THREE.Mesh(outerGeo, outerMat);
     outer.position.y = 0.25;
     group.add(outer);
 
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.375, 0.375, 0.375), innerMat);
+    // The inner cube: vanilla's rectangle 6x6x6 at (0, 16).
+    const innerGeo = new THREE.BoxGeometry(0.375, 0.375, 0.375);
+    applyVanillaBoxUVs(innerGeo, 0, 16, 64, 32, 6, 6, 6);
+    const inner = new THREE.Mesh(innerGeo, innerMat);
     inner.position.y = 0.28;
     group.add(inner);
 
