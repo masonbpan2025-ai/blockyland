@@ -79,7 +79,7 @@ import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS,
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
-import { buildModel, adoptWhenReady, flushPendingSkinBindings, skinBinding } from './mobVisuals/modelBuilder.js';
+import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding } from './mobVisuals/modelBuilder.js';
 import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
@@ -4105,14 +4105,10 @@ export class MobManager {
       onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
     });
     const group = built.group;
-    // Vanilla puts the segments ~21 units up, so the mob floats clear of the framing. Measured, not guessed: the
-    // built contents are moved into a child group and lowered so the base lands on y = 0. // ENDERMITE_GROUNDED
-    const mine = new THREE.Group();
-    while (group.children.length) mine.add(group.children[0]);
-    mine.updateMatrixWorld(true);
-    const miteBounds = new THREE.Box3().setFromObject(mine);
-    mine.position.y = -miteBounds.min.y;
-    group.add(mine);
+    // Vanilla puts the segments ~21 units up, so the mob would float clear of the framing. The shared helper measures
+    // and grounds it, and refuses to move anything if a zero-extent part has made the box degenerate.
+    // ENDERMITE_GROUNDED
+    groundModel({ group });
     // The old model exposed a head, a body, legs and eyes. The real one is four segments with neither legs nor eyes,
     // so the two closest parts are mapped and the marks below keep the names alive for the behaviours.
     const head = built.parts.segment0;

@@ -201,6 +201,46 @@ function resolveMaterials(definition, ctx) {
 }
 
 /**
+ * Shift a built model so its base sits on y = 0, measuring rather than guessing the offset.
+ *
+ * WHY THIS IS SHARED AND GUARDED. Vanilla places a mob entity at its own origin, so a transcribed model floats far
+ * above this project's group origin (which is the mob's feet). Measuring the bounding box and shifting by
+ * `-bounds.min.y` has fixed that on three mobs without a single revision round, against four failed attempts when the
+ * offset was chosen by hand.
+ *
+ * It also has one sharp edge worth guarding: a part with a ZERO EXTENT makes the box degenerate and reports Infinity,
+ * so the shift becomes NaN and the whole mob disappears -- exactly what the tadpole's zero-width tail did. A non-finite
+ * shift is always a bug, so this refuses to move anything and says so instead.
+ *
+ * Returns the applied shift, or null when the model could not be measured.
+ */
+export function groundModel(built, { axis = 'y' } = {}) {
+  const group = built?.group;
+  if (!group) return null;
+
+  // Move the contents into a child so the shift never touches the caller's own transform, then measure.
+  const inner = new THREE.Group();
+  while (group.children.length) inner.add(group.children[0]);
+  inner.position.set(0, 0, 0);
+  inner.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(inner);
+  const shift = -bounds.min[axis];
+  if (!Number.isFinite(shift)) {
+    console.warn(
+      '[modelBuilder] groundModel: refusing a non-finite ' + axis + ' shift (' + shift + '). A part with a zero extent '
+      + 'makes the bounding box degenerate; give it a thin extent instead of an exact zero.'
+    );
+    group.add(inner);
+    return null;
+  }
+
+  inner.position[axis] = shift;
+  group.add(inner);
+  return shift;
+}
+
+/**
  * The readiness hook a host can install so every deferred skin binding in the project finishes reliably.
  *
  * `src/mobs.js` sets this from `MobManager.onTextureReady`. It lives here, as a module with no dependencies, so

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildModel } from './mobVisuals/modelBuilder.js';
+import { buildModel, groundModel } from './mobVisuals/modelBuilder.js';
 
 /**
  * Tadpole rules and model.
@@ -187,14 +187,10 @@ export function createTadpoleModel(bodyMat, bellyMat, eyeMat, options = {}) {
       onTextureReady: options.onTextureReady
     });
 
-    // GROUND BY MEASUREMENT. Vanilla's frame sits 22 units up; this project's origin is the mob's feet, so a
-    // direct transcription would float. The pattern is now used on three mobs without a guessed offset.
-    const inner = new THREE.Group();
-    while (built.group.children.length) inner.add(built.group.children[0]);
-    inner.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(inner);
-    inner.position.set(0, -bounds.min.y, 0);
-    built.group.add(inner);
+    // GROUND BY MEASUREMENT. Vanilla's frame sits 22 units up; this project's origin is the mob's feet, so a direct
+    // transcription would float. The shared helper measures and shifts, and REFUSES to move anything when a
+    // zero-extent part has made the box degenerate -- the failure that made this mob vanish once already.
+    groundModel(built);
 
     // Eyes are modelled marks; the real model paints them onto the 3x2x3 body patch.
     const headMesh = built.parts.body;

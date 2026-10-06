@@ -1346,3 +1346,32 @@ cmdlet.
 `tadpoleParity` passes 22/22 and the full area is back at its baseline.
 
 Work list: **92 mob spawners, 59 with a real model, 60 with a real skin, 32 still flat-colour only.**
+## Round forty-one: the grounding pattern becomes a shared, guarded helper
+
+The measure-and-ground pattern had three uses and one known hazard, so it is now `groundModel(built, { axis })` in
+`src/mobVisuals/modelBuilder.js` instead of three copies of the same six lines.
+
+**The guard is the whole point of sharing it.** A part with a zero extent makes `Box3()` degenerate, `bounds.min.y`
+reports `Infinity`, and the shift becomes NaN -- which is exactly how the tadpole vanished last round. The helper now
+refuses to move anything when the shift is not finite, and says why in a warning that names the cause. That converts a
+silent, total, unexplainable disappearance into a console line that explains itself.
+
+It lives in `modelBuilder.js` because that module has no dependencies, so behaviour modules can use it without importing
+the mob manager and creating an import cycle -- the same reasoning that put `skinBinding` there.
+
+**The refactor is PROVABLY behaviour-preserving, which is worth more than the tidiness.** Both refactored mobs render
+byte-identical to their pre-refactor captures:
+
+| mob | before | after |
+| --- | --- | --- |
+| tadpole | 49028 bytes | 49028 bytes |
+| endermite | 47611 bytes | 47611 bytes |
+
+That is a much stronger check than "the tests still pass", and this project should use byte-identical captures whenever
+a change is meant to be a refactor rather than a fix. Note the contrast with round forty, where a byte-identical capture
+meant the opposite thing -- a STALE SERVER. **The two cases are distinguishable**: a stale server also leaves the file's
+own change unreflected after a cache clear, whereas a true refactor keeps matching across one.
+
+`endermiteParity` and `tadpoleParity` are both green, 42/42 together, and the full area is at its baseline.
+
+Work list: **92 mob spawners, 59 with a real model, 60 with a real skin, 32 still flat-colour only.**
