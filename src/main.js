@@ -476,7 +476,7 @@ class Game {
     if (this._worldStartInFlight) return;
     this._worldStartInFlight = true;
     this.sounds.init();
-    const btnStudio = document.getElementById('btn-start-building-studio');
+    const btnStudio = document.getElementById('btn-start-structure-studio');
     if (btnStudio) btnStudio.disabled = true;
 
     try {
@@ -1168,7 +1168,7 @@ class Game {
       });
     }
 
-    const btnBuildingStudio = document.getElementById('btn-start-building-studio');
+    const btnBuildingStudio = document.getElementById('btn-start-structure-studio');
     if (btnBuildingStudio) {
       btnBuildingStudio.addEventListener('click', async (e) => {
         e.stopPropagation();
