@@ -157,3 +157,20 @@ parity; the flat-colour problem is the single biggest cause and it affects about
 
 `scripts/mob-visual/dump-rects.mjs` checks a proposed box's six faces against the real atlas and flags a face that
 is fully transparent, which is the check that catches a black silhouette before it reaches the Inspector.
+## Illagers and the witch
+
+| Mob | State |
+| --- | --- |
+| Vindicator | Done. Real skin: face, grey coat, arms held crossed as in vanilla, plus the iron axe. |
+| Evoker | Done. The same measured model with the evoker skin -- his robe and face come from the texture. |
+| Witch | Done. Real skin including her hat, which was a separate cylinder before and is now part of the model. Her face and long nose come from the texture. |
+| Vex | PARTIAL. It now wears its real 32x32 skin instead of being a translucent blue box, but its head still reads as a pale blocky shape rather than a clear face, because its atlas does not follow the standard quad layout and the face patch had to be located by hand. Its proportions also want a pass. |
+
+The illagers share one model -- head 8x10x8 at (0,0), body 8x12x4 at (16,20), arms and legs 4x12x4 -- and differ
+only by skin, so `illagerModel(texture)` builds all of them. The face is the 8x10 front face that layout produces
+at (8,8), which `sample-rect.mjs` confirms carries the narrow eyes and the long nose. All three used to be flat
+boxes with a light-grey cube for a head, so none of them had a face at all.
+
+Still not done, in the same condition as before: the **mooshroom** (flat red boxes and five red cubes for
+mushrooms) and the **shulker** (still a box), plus the roughly eighty spawners that still paint flat colours. The
+**warden** also still has no face or body detail. Their textures are already fetched and locked.

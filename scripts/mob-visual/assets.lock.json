@@ -200,6 +200,51 @@
       "sha256": "d5889ca24e6ddcfbf73cb7c3f92c76e754f1e3635ee19509763d912ab1273d93",
       "bytes": 184,
       "for": "mooshroom back"
+    },
+    "vindicator_skin": {
+      "path": "entity/illager/vindicator.png",
+      "dest": "assets/entity/illager/vindicator.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/illager/vindicator.png",
+      "ref": "1.21.4",
+      "sha256": "a82d0f7012c464b9421708bd9b4fc1d742c8149512c3be47a315bc67466d0618",
+      "bytes": 865,
+      "for": "vindicator"
+    },
+    "evoker_skin": {
+      "path": "entity/illager/evoker.png",
+      "dest": "assets/entity/illager/evoker.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/illager/evoker.png",
+      "ref": "1.21.4",
+      "sha256": "baad89a4314f42e237b5e217739f77679e25db09cbe9b3b71df93c3e207f5404",
+      "bytes": 828,
+      "for": "evoker"
+    },
+    "vex_skin": {
+      "path": "entity/illager/vex.png",
+      "dest": "assets/entity/illager/vex.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/illager/vex.png",
+      "ref": "1.21.4",
+      "sha256": "db0d832a644c4c6f06cc24bc751ed3e6b1db3284ea7ccbedea648d483cc486b6",
+      "bytes": 382,
+      "for": "vex"
+    },
+    "vex_charging_skin": {
+      "path": "entity/illager/vex_charging.png",
+      "dest": "assets/entity/illager/vex_charging.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/illager/vex_charging.png",
+      "ref": "1.21.4",
+      "sha256": "3f9b436f3146c2c53b4ac47468c8d4465d632bd8cd455f0f6da1f967853dc8bd",
+      "bytes": 421,
+      "for": "vex charging state"
+    },
+    "witch_skin": {
+      "path": "entity/witch.png",
+      "dest": "assets/entity/witch.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/witch.png",
+      "ref": "1.21.4",
+      "sha256": "d42d8dd0f1dbafcce3535304180b0f6d22c6277cb551cf190aaa54e18ef5282a",
+      "bytes": 1092,
+      "for": "witch"
     }
   }
 }

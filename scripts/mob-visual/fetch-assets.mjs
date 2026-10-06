@@ -74,6 +74,12 @@ export const ASSETS = [
   { id: 'red_mushroom_block', path: 'block/red_mushroom_block.png', dest: 'assets/block/red_mushroom_block.png', for: 'mooshroom back' },
   { id: 'brown_mushroom_block', path: 'block/brown_mushroom_block.png', dest: 'assets/block/brown_mushroom_block.png', for: 'mooshroom back' },
   { id: 'mushroom_block_inside', path: 'block/mushroom_block_inside.png', dest: 'assets/block/mushroom_block_inside.png', for: 'mooshroom back' },
+  // --- Illagers and the witch ---------------------------------------------------------------
+  { id: 'vindicator_skin', path: 'entity/illager/vindicator.png', dest: 'assets/entity/illager/vindicator.png', for: 'vindicator' },
+  { id: 'evoker_skin', path: 'entity/illager/evoker.png', dest: 'assets/entity/illager/evoker.png', for: 'evoker' },
+  { id: 'vex_skin', path: 'entity/illager/vex.png', dest: 'assets/entity/illager/vex.png', for: 'vex' },
+  { id: 'vex_charging_skin', path: 'entity/illager/vex_charging.png', dest: 'assets/entity/illager/vex_charging.png', for: 'vex charging state' },
+  { id: 'witch_skin', path: 'entity/witch.png', dest: 'assets/entity/witch.png', for: 'witch' },
   // --- Reference skins for families this pass will reach next ---------------------------------
   { id: 'iron_golem_skin', path: 'entity/iron_golem/iron_golem.png', dest: 'assets/entity/iron_golem/iron_golem.png', for: 'iron_golem' }
 ];

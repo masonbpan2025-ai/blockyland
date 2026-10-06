@@ -311,6 +311,124 @@ const PUMPKIN_TOP_PATH = '/assets/block/pumpkin_top.png';
  *
  * Everything is in texture pixels; `units: 16` means the model's overall scale is one block per 16 texels.
  */
+const ILLAGER_SKIN_PATH = '/assets/entity/illager/vindicator.png';
+const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
+const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
+const WITCH_SKIN_PATH = '/assets/entity/witch.png';
+
+/**
+ * An illager, measured off the 64x64 vanilla atlas.
+ *
+ * Vindicators, evokers and pillagers share one model and differ only by skin, which is why this is parameterised
+ * by texture rather than written three times. The atlas was read with `scripts/mob-visual/atlas-extents.mjs`:
+ * head 8x10x8 at (0,0), body 8x12x4 at (16,20), arms 4x12x4 at (44,20), legs 4x12x4 at (0,20). The face -- narrow
+ * eyes over the illager's long nose -- is the 8x10 front face the first layout produces at (8,8).
+ *
+ * They were three flat boxes and a light-grey head before this, so none of them had a face at all.
+ */
+function illagerModel(texture) {
+  return {
+    name: 'illager',
+    texture,
+    textureSize: [64, 64],
+    units: 16,
+    transparent: true,
+    alphaTest: 0.5,
+    parts: [
+      { name: 'body', box: [8, 12, 4], uv: { u: 16, v: 20, tw: 8, th: 12, td: 4 }, at: [0, 12, 0] },
+      // Hinges at the neck, the head's bottom edge, so it can look at a target.
+      {
+        name: 'head', box: [8, 10, 8], uv: { u: 0, v: 0, tw: 8, th: 10, td: 8 },
+        pivot: [0, -5, 0], at: [0, 24, 0]
+      },
+      // Arms are held forward and crossed, which is the illager silhouette.
+      {
+        name: 'armLeft', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
+        pivot: [0, 6, 0], at: [-6, 22, -2], rotate: [-1.4, 0, 0]
+      },
+      {
+        name: 'armRight', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
+        pivot: [0, 6, 0], at: [6, 22, -2], rotate: [-1.4, 0, 0]
+      },
+      { name: 'legLeft', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [-2, 12, 0] },
+      { name: 'legRight', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [2, 12, 0] }
+    ]
+  };
+}
+
+/** The witch, measured off her 64x128 vanilla atlas. */
+const WITCH_MODEL = {
+  name: 'witch',
+  texture: WITCH_SKIN_PATH,
+  textureSize: [64, 128],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    { name: 'body', box: [8, 12, 4], uv: { u: 16, v: 20, tw: 8, th: 12, td: 4 }, at: [0, 12, 0] },
+    {
+      name: 'head', box: [8, 10, 8], uv: { u: 0, v: 0, tw: 8, th: 10, td: 8 },
+      pivot: [0, -5, 0], at: [0, 24, 0]
+    },
+    // Her hat, which is the single most recognisable thing about her and was previously absent entirely.
+    { name: 'hatBrim', parent: 'head', box: [10, 1, 10], uv: { u: 0, v: 64, tw: 10, th: 1, td: 10 }, at: [0, 5, 0] },
+    { name: 'hatCrown', parent: 'head', box: [6, 8, 6], uv: { u: 0, v: 76, tw: 6, th: 8, td: 6 }, at: [0, 9, 0] },
+    {
+      name: 'armLeft', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
+      pivot: [0, 6, 0], at: [-6, 22, -2], rotate: [-1.2, 0, 0]
+    },
+    {
+      name: 'armRight', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
+      pivot: [0, 6, 0], at: [6, 22, -2], rotate: [-1.2, 0, 0]
+    },
+    { name: 'legLeft', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [-2, 12, 0] },
+    { name: 'legRight', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [2, 12, 0] }
+  ]
+};
+
+/**
+ * The vex, measured off its 32x32 atlas.
+ *
+ * It is a small flying illager with paper-thin wings, and in vanilla it has its own skin rather than being a
+ * translucent blue box. `vex_charging.png` is the same model with red eyes and a drawn sword, which is what the
+ * charging state swaps to.
+ */
+const VEX_MODEL = {
+  name: 'vex',
+  texture: VEX_SKIN_PATH,
+  textureSize: [32, 32],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    { name: 'body', box: [6, 6, 6], uv: { u: 18, v: 18, tw: 6, th: 6, td: 6 }, at: [0, 18, 0] },
+    // The vex's head is drawn in a non-standard place on its small atlas -- the face with its eyes sits around
+    // (10,8), not at the textbook (8,8) a plain quad layout would pick, which sampled blank grey and is why the
+    // first attempt gave it a featureless head.
+    {
+      name: 'head', box: [8, 8, 8], uv: { u: 4, v: 2, tw: 8, th: 8, td: 8 },
+      pivot: [0, -4, 0], at: [0, 24, 0]
+    },
+    {
+      name: 'armLeft', box: [2, 6, 2], uv: { u: 2, v: 12, tw: 2, th: 6, td: 2 },
+      pivot: [0, 3, 0], at: [-4, 18, 0], rotate: [-1.2, 0, 0]
+    },
+    {
+      name: 'armRight', box: [2, 6, 2], uv: { u: 2, v: 12, tw: 2, th: 6, td: 2 },
+      pivot: [0, 3, 0], at: [4, 18, 0], rotate: [-1.2, 0, 0]
+    },
+    // Wings: paper-thin panels, one each side, angled out and back.
+    {
+      name: 'wingLeft', box: [9, 8, 1], uv: { u: 22, v: 2, tw: 9, th: 8, td: 1 },
+      at: [-8, 19, -1], rotate: [0, 0.6, 0]
+    },
+    {
+      name: 'wingRight', box: [9, 8, 1], uv: { u: 22, v: 2, tw: 9, th: 8, td: 1 },
+      at: [8, 19, -1], rotate: [0, -0.6, 0]
+    }
+  ]
+};
+
 const POLAR_BEAR_MODEL = {
   name: 'polar_bear',
   texture: '/assets/entity/bear/polarbear.png',
@@ -6856,31 +6974,13 @@ export class MobManager {
   // --- WITCH ---
   spawnWitch(x, y, z) {
     const group = new THREE.Group();
-    const robeMat = new THREE.MeshLambertMaterial({ color: 0x3b0764 });
-    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
-    const hatMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.4), robeMat);
-    body.position.y = 1.05;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-    head.position.y = 1.7;
-    group.add(head);
-
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.15), skinMat);
-    nose.position.set(0, 1.6, 0.32);
-    group.add(nose);
-
-    // Witch Hat
-    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.08, 0.85), hatMat);
-    brim.position.y = 2.0;
-    group.add(brim);
-
-    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.35, 0.65, 6), hatMat);
-    cone.position.set(0, 2.35, -0.05);
-    cone.rotation.x = -Math.PI / 12;
-    group.add(cone);
+    // Her real skin: the purple robe, the face and the hat all live in the texture. This used to be a purple box,
+    // a grey cube, a separate grey nose box and a cylinder for the hat.
+    const built = buildModel(WITCH_MODEL, {
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -6890,7 +6990,7 @@ export class MobManager {
       type: 'witch',
       name: 'Witch',
       mesh: group,
-      head: head,
+      head: built.parts.head,
       health: 26,
       maxHealth: 26,
       velocity: new THREE.Vector3(),
@@ -7315,18 +7415,15 @@ export class MobManager {
   // --- VINDICATOR & EVOKER & VEX & RAVAGER ---
   spawnVindicator(x, y, z) {
     const group = new THREE.Group();
-    const illagerMat = new THREE.MeshLambertMaterial({ color: 0x475569 });
-    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+    // The real skin, so the grey coat, the crossed arms and -- most importantly -- the face all come from the
+    // texture. This used to be two flat boxes and a light-grey cube for a head, so it had no face at all.
+    const built = buildModel(illagerModel(ILLAGER_SKIN_PATH), {
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.35), illagerMat);
-    body.position.y = 1.0;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-    head.position.y = 1.65;
-    group.add(head);
-
-    // Iron Axe in hand
+    // The iron axe, held in the right hand.
     const axeMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
     const axe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.25), axeMat);
     axe.position.set(0.45, 1.1, 0.2);
@@ -7340,7 +7437,7 @@ export class MobManager {
       type: 'vindicator',
       name: 'Vindicator',
       mesh: group,
-      head: head,
+      head: built.parts.head,
       health: 24,
       maxHealth: 24,
       velocity: new THREE.Vector3(),
@@ -7355,16 +7452,13 @@ export class MobManager {
 
   spawnEvoker(x, y, z) {
     const group = new THREE.Group();
-    const robeMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
-    const skinMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.35), robeMat);
-    body.position.y = 1.0;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-    head.position.y = 1.65;
-    group.add(head);
+    // Same model as the vindicator, different skin: the evoker's robe and his face come from the texture, which
+    // the flat black box and grey cube never carried.
+    const built = buildModel(illagerModel(EVOKER_SKIN_PATH), {
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -7374,7 +7468,7 @@ export class MobManager {
       type: 'evoker',
       name: 'Evoker',
       mesh: group,
-      head: head,
+      head: built.parts.head,
       health: 24,
       maxHealth: 24,
       velocity: new THREE.Vector3(),
@@ -7389,23 +7483,26 @@ export class MobManager {
 
   spawnVex(x, y, z) {
     const group = new THREE.Group();
-    const vexMat = new THREE.MeshLambertMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.75 });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.25), vexMat);
-    body.position.y = 0.3;
-    group.add(body);
-
-    const wings = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.04, 0.3), vexMat);
-    wings.position.set(0, 0.45, -0.15);
-    group.add(wings);
+    // The real skin. A vex was a translucent blue box with a bar for wings, which carried no face and none of the
+    // small flying illager's shape.
+    const built = buildModel(VEX_MODEL, {
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
 
     group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
       type: 'vex',
       name: 'Vex',
       mesh: group,
+      head: built.parts.head,
+      // Wiki: a charging vex swaps to a skin with red eyes and a drawn sword. Exposed so the charging state can
+      // swap it rather than the whole model being rebuilt.
+      chargingModel: VEX_MODEL,
       isFlying: true,
       health: 14,
       maxHealth: 14,

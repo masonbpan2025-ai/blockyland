@@ -87,6 +87,9 @@ export function buildModel(definition, ctx = {}) {
       holder.add(mesh);
     }
     if (spec.at) holder.position.set(spec.at[0] * t, spec.at[1] * t, spec.at[2] * t);
+    // A resting rotation, in radians. Vanilla holds an illager's arms crossed in front of it rather than hanging
+    // at its sides, so the pose is part of the model rather than something an animation has to set up.
+    if (spec.rotate) holder.rotation.set(spec.rotate[0], spec.rotate[1], spec.rotate[2]);
     if (spec.scale) holder.scale.setScalar(spec.scale);
     if (spec.visible === false) holder.visible = false;
 
