@@ -452,26 +452,29 @@ const WITCH_MODEL = {
  */
 const VEX_MODEL = {
   name: 'vex',
+  texture: VEX_SKIN_PATH,
   textureSize: [32, 32],
   units: 16,
-  color: VEX_BODY_COLOR,
-  materials: {
-    eye: { color: VEX_EYE_COLOR }
-  },
+  transparent: true,
+  alphaTest: 0.5,
   parts: [
-    // Sized from the vex being about one block tall.
-    { name: 'body', box: [6, 8, 4], at: [0, 6, 0] },
-    { name: 'head', box: [8, 8, 8], at: [0, 14, 0] },
-    { name: 'armLeft', box: [2, 5, 2], at: [-4, 8, 0] },
-    { name: 'armRight', box: [2, 5, 2], at: [4, 8, 0] },
-    { name: 'wingLeft', box: [9, 9, 1], at: [-9, 11, -2], rotate: [0, 0.55, 0] },
-    { name: 'wingRight', box: [9, 9, 1], at: [9, 11, -2], rotate: [0, -0.55, 0] }
-  ],
-  // The face. A vex is mostly featureless in game, so its eyes are what identify it; they are modelled rather
-  // than sampled because the atlas cannot be reached through a box layout.
-  pieces: [
-    { name: 'eyeLeft', geometry: 'box', box: [2, 2, 1], material: 'eye', at: [-2, 15, 4.2] },
-    { name: 'eyeRight', geometry: 'box', box: [2, 2, 1], material: 'eye', at: [2, 15, 4.2] }
+    // Vanilla's root sits at y = -2.5, so every child offset is expressed inside it exactly as the game does.
+    // The root is a bare pivot carrying vanilla's -2.5 offset. It must stay VISIBLE: three propagates a hidden
+    // parent to every child, so hiding it hid the whole mob.
+    { name: 'root', box: [0, 0, 0], at: [0, -2.5, 0] },
+    // Head: 5x5x5 at (0,0), which is where the vex face is drawn.
+    { name: 'head', parent: 'root', box: [5, 5, 5], uv: { u: 0, v: 0, tw: 5, th: 5, td: 5 }, at: [0, 20, 0] },
+    // Body: two LAYERS of the same 3-wide, 2-deep box. The inner one is dilated -0.2 and uses its own patch,
+    // which is how vanilla gives the vex a robe over its body.
+    { name: 'body', parent: 'root', box: [3, 4, 2], uv: { u: 0, v: 10, tw: 3, th: 4, td: 2 }, at: [0, 20, 0] },
+    { name: 'bodyRobe', parent: 'body', box: [3, 5, 2], uv: { u: 0, v: 16, tw: 3, th: 5, td: 2 }, at: [0, 1, 0], offset: [-0.2, -0.2, -0.2] },
+    // Arms: 2x4x2, dilate -0.1, at vanilla offsets.
+    { name: 'armRight', parent: 'body', box: [2, 4, 2], uv: { u: 23, v: 0, tw: 2, th: 4, td: 2 }, at: [-1.75, 0.25, 0] },
+    { name: 'armLeft', parent: 'body', box: [2, 4, 2], uv: { u: 23, v: 6, tw: 2, th: 4, td: 2 }, at: [1.75, 0.25, 0] },
+    // THE WINGS ARE FLAT: vanilla gives them width 0 and mirrors one onto the other from the SAME 5x8 patch.
+    // A zero-width box has no volume, so it is built as a plane; `mirror` flips the left wing as the game does.
+    { name: 'wingRight', parent: 'body', plane: [8, 5], uv: { u: 16, v: 14, tw: 5, th: 8 }, at: [-0.5, 1, 1], rotate: [0, -0.35, 0] },
+    { name: 'wingLeft', parent: 'body', plane: [8, 5], uv: { u: 16, v: 14, tw: 5, th: 8 }, at: [0.5, 1, 1], rotate: [0, 0.35, 0], mirror: true }
   ]
 };
 

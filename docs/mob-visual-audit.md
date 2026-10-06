@@ -632,3 +632,42 @@ intermediary ids to readable names (`class_624` -> `WolfEntityModel`), which is 
 identified. That is worth keeping in the toolchain notes.
 
 Work list: **92 mob spawners, 52 with a real skin, 40 still flat-colour only.**
+
+## Round eighteen: the vex, resolved after fifteen rounds
+
+**The vex has been the oldest open item in this goal** -- unresolved since round three, through five failed attempts
+at inferring a layout from its 32x32 sheet. Round seventeen's decompiler settled it in one read.
+
+**Why every inference failed, from the decompiled `VexEntityModel` (`class_617`):**
+
+| part | (u,v) | size | note |
+| --- | --- | --- | --- |
+| head | (0,0) | 5x5x5 | at local (0,20,0) inside a root at (0,-2.5,0) |
+| body | (0,10) | 3x4x2 | layer 0 |
+| body robe | (0,16) | 3x5x2 | layer 1, dilation -0.2 |
+| right arm | (23,0) | 2x4x2 | dilation -0.1 |
+| left arm | (23,6) | 2x4x2 | dilation -0.1 |
+| left wing | (16,14) | **0x5x8** | ZERO WIDTH, mirrored |
+| right wing | (16,14) | **0x5x8** | ZERO WIDTH |
+
+**THE WINGS HAVE ZERO WIDTH.** Vanilla models them as flat planes -- `.method_32096()` sets the width to 0 -- and the
+left wing reuses the RIGHT wing's 5x8 patch with a mirror. So `fit-box.mjs` could never find a box that matched,
+because **there is no box**: I spent five rounds searching for a three-dimensional part that does not exist. The
+texture is 32x32 (`method_32110($$0, 32, 32)`).
+
+**`buildModel` now supports flat parts.** A part can declare `plane: [depth, height]` and a single `uv` patch, which
+also gives the illager family a way to express ear and cape plates later. The vex is rebuilt as a nested tree --
+root, head, body with its robe layer, two arms, two mirrored wings -- and samples its real skin rather than flat
+colours sampled from it.
+
+**Two faults the render caught, both mine, both "correct build, invisible output":**
+
+1. I marked the zero-size `root` part `visible: false`. Three propagates a hidden parent to EVERY child, so that hid
+   the whole mob.
+2. I wrote the wing plane as `[5, 8]` reading it as (width, height) when the box is `0 x 5 x 8` -- zero WIDTH, 5 tall,
+   8 DEEP. Swapping them built 5-deep, 8-tall stubs instead of wings sweeping back from the shoulders.
+
+That is the **third** time this project has produced a model that was geometrically right and rendered as nothing or
+as the wrong thing, and the third time only the screenshot caught it.
+
+Work list: **92 mob spawners, 53 with a real skin, 39 still flat-colour only.**

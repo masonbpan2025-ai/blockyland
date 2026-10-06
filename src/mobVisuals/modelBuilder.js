@@ -62,7 +62,29 @@ export function buildModel(definition, ctx = {}) {
     const material = typeof spec.material === 'string' ? materials[spec.material] : (spec.material ?? materials.default);
 
     let geometry;
-    if (spec.uv?.faces) {
+    if (spec.plane) {
+      // A FLAT part, for the mobs vanilla models as zero-thickness planes -- the vex's wings are 0x5x8, and a box
+      // cannot represent them at all, which is why they resisted every attempt to infer a layout. The plane's own
+      // quad is mapped to the one texture patch given.
+      const [pw, ph] = spec.plane;
+      geometry = new THREE.PlaneGeometry(pw * t, ph * t);
+      const u0 = spec.uv.u / texSize.w;
+      const u1 = (spec.uv.u + spec.uv.tw) / texSize.w;
+      const v1 = 1 - spec.uv.v / texSize.h;
+      const v0 = 1 - (spec.uv.v + spec.uv.th) / texSize.h;
+      const uvs = geometry.attributes.uv;
+      if (spec.mirror) {
+        // Mirrored horizontally, as vanilla flips one wing onto the other from a single patch.
+        uvs.setXY(0, u1, v1); uvs.setXY(1, u0, v1);
+        uvs.setXY(2, u1, v0); uvs.setXY(3, u0, v0);
+      } else {
+        uvs.setXY(0, u0, v1); uvs.setXY(1, u1, v1);
+        uvs.setXY(2, u0, v0); uvs.setXY(3, u1, v0);
+      }
+      uvs.needsUpdate = true;
+      // The plane faces +Z; a wing runs along the body, so it is turned a quarter turn.
+      geometry.rotateY(Math.PI / 2);
+    } else if (spec.uv?.faces) {
       geometry = createBoxFromFaces(spec.box[0] * t, spec.box[1] * t, spec.box[2] * t, spec.uv.faces, {
         texW: texSize.w, texH: texSize.h, mirror: spec.mirror
       });
