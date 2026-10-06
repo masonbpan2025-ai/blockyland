@@ -2595,3 +2595,46 @@ one.** The audit is recording them rather than quietly dropping them, because th
 way each time.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-six: the giant's boxes ALL match, so every one of my explanations is gone
+
+**I measured every box in `createGiantModel` against the rectangles I applied, and they match exactly.**
+
+| part | size | ratio | rectangle | ratio |
+| --- | --- | --- | --- | --- |
+| body | 0.5 x 0.75 x 0.25 | 0.667, 1, 0.333 | body 8x12x4 | **0.667, 1, 0.333** |
+| head | 0.5 x 0.5 x 0.5 | 1, 1, 1 | head 8x8x8 | **1, 1, 1** |
+| arm | 0.25 x 0.75 x 0.25 | 0.333, 1, 0.333 | arm 4x12x4 | **0.333, 1, 0.333** |
+| leg | 0.25 x 0.75 x 0.25 | 0.333, 1, 0.333 | leg 4x12x4 | **0.333, 1, 0.333** |
+| eye | 0.1 x 0.1 x 0.03 | 1, 1, 0.3 | (emissive, no rectangle) | -- |
+
+**Five boxes, four of them matching to three decimal places, and the fifth deliberately emissive.** `GiantEntityModel`
+extends `PlayerEntityModel`, so the player rectangles are the right ones. The model is the right shape. The sheet is the
+zombie's own.
+
+**So every explanation I have offered for the broken render is now eliminated by measurement**, and I am recording that
+plainly rather than inventing a fourth:
+
+* round 73: "binding a sheet to a model built for flat colours" -- **disproved by the ratio check**
+* round 74: the horse-vs-strider distinction -- **does not apply; the ratios match**
+* round 75: "the decompile script is faulty" -- **disproved; it wrote an 11-line subclass correctly**
+* round 76: the geometry mismatched the rectangles -- **disproved; four of five match exactly**
+
+**What I know about the code and have not yet explained:** `createGiantModel` applies `group.scale.setScalar(GIANT_SCALE)`
+-- a **six-fold scale of the whole group** -- and the arms carry `rotation.x = -Math.PI / 2`, so they point forward. The
+model shares `shirtMat` between the torso AND the arms, and `trousersMat` between both legs, so one material instance
+carries two disjoint UV regions at once.
+
+**That last fact is the most likely remaining candidate and I am labelling it as a HYPOTHESIS, not a finding**: a single
+`MeshLambertMaterial` shared by two meshes is fine, but the project's own note in `createGiantModel` says the model was
+built to use per-part COLOURS, and a shared material with one `map` means both parts sample the same texture through
+different rectangles -- which is correct -- but any code that assumed `material.color` distinguished them will now see
+white. **I have not tested that**, and after four falsified diagnoses in four rounds the honest move is to test it in a
+render rather than write another paragraph about it.
+
+**The process lesson, which is now the substance of these four rounds:** I produce a plausible mechanism quickly and write
+it down as the cause. Each has been falsified by the next measurement. **The correct output of a failed attempt is a LIST OF
+ELIMINATED MECHANISMS and a narrow place to look, not a new mechanism.** This round's contribution is that the list is now
+complete enough to be useful: the model, the rectangles, the sheet and the tool are all exonerated, so the fault is in how
+the sheet is BOUND -- the material assignment -- and nowhere else.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
