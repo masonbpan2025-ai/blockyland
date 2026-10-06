@@ -26,7 +26,7 @@ import { CHUNK_HEIGHT, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './lightEngine.js';
 import { MobCategory } from './mobCategories.js';
 import { packSizeFor, selectWeightedEntry, biomeSpawnsFor } from './biomeSpawnResolver.js';
 import { HeightmapType, SpawnPlacementType, spawnPlacementFor } from './spawnPlacements.js';
-import { heightAt, isPeaceful } from './spawnValidation.js';
+import { heightAt, isPeaceful, validateSpawnSpace } from './spawnValidation.js';
 
 /**
  * Per-biome probability that a chunk-generation pass places any creatures at all.
@@ -78,9 +78,13 @@ export class ChunkGenerationSpawner {
       chunksPopulated: 0,
       packs: 0,
       mobs: 0,
+      /** Candidate positions refused by the shared spatial validator or the species predicate. */
+      rejected: 0,
       lastMs: 0,
       skipped: 0,
     };
+    /** The most recent generation rejection stage, for telemetry. */
+    this.lastRejection = null;
   }
 
   get world() {
@@ -217,7 +221,33 @@ export class ChunkGenerationSpawner {
       const top = heightAt(world, bx, bz, heightmap);
       const y = Math.min(CHUNK_HEIGHT - 2, top + 1);
 
-      if (!this.generationPredicateAllows(type, placement, bx, y, bz, biomeId)) continue;
+      // Spatial validation, shared with the runtime cycle. Previously ONLY the species predicate ran
+      // here, and a mob with no predicate was treated as valid, so a generated animal could be placed
+      // intersecting solid blocks -- a cow inside a hillside, or an animal in a roofed pocket.
+      //
+      // `requireFloor: false` because this path already snaps the candidate to the top of the column
+      // via the mob's own heightmap, so the floor is implied and a second floor test would add nothing
+      // but would refuse positions where the surface block is not motion-blocking (a snow layer, say).
+      const spatial = validateSpawnSpace({
+        world,
+        x: bx + 0.5, y, z: bz + 0.5,
+        placement: placement.placement,
+        width: dims.width,
+        height: dims.height,
+        requireFloor: false,
+        isSolidAt: this.manager.boundIsSolidAt || this.manager.isSolidAt || null,
+      });
+      if (!spatial.ok) {
+        this.stats.rejected++;
+        this.lastRejection = spatial.reason;
+        continue;
+      }
+
+      if (!this.generationPredicateAllows(type, placement, bx, y, bz, biomeId)) {
+        this.stats.rejected++;
+        this.lastRejection = 'MOB_PREDICATE_FAILED';
+        continue;
+      }
 
       const mob = this.manager.createMob(type, bx + 0.5, y, bz + 0.5, {
         natural: false,

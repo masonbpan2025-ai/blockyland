@@ -20,112 +20,65 @@ import {
   ENGINE_ONLY_BIOME_ALIASES,
   ENGINE_ONLY_BIOME_RUNTIME_ALIASES,
 } from './vanillaBiomeSpawns.js';
+import {
+  STRUCTURE_SPAWN_OVERRIDES,
+  STRUCTURE_FULLY_SUPPRESSING,
+} from './vanillaStructureSpawns.js';
 import { ALL_MOB_CATEGORIES, MobCategory } from './mobCategories.js';
 
+export { STRUCTURE_SPAWN_OVERRIDES, STRUCTURE_FULLY_SUPPRESSING };
+
 /**
- * Structure spawn overrides for Java Edition 1.21.4.
+ * Engine structure id -> the structures whose override applies.
  *
- * Each entry says: inside this structure, the named category uses THIS list instead of the biome's.
- * A category not named keeps the biome's list. This is exactly the shape of a vanilla
- * `spawn_overrides` block -- `{ category: { bounding_box: 'piece'|'rigid', spawns: [...] } }` -- with
- * `boundingBox` retained because it changes behaviour: `PIECE` means only the structure's own pieces
- * (so an ocean monument's Drowned override does not extend into the water around it), while `RIGID`
- * means the whole structure's bounding box.
- *
- * Only structures the engine actually generates are listed; the rest are recorded in
- * docs/MOB_SPAWNING_PARITY.md as not-yet-present rather than silently absent.
- *
- * Weights and group sizes are the data pack's, not invented.
+ * The generated table is authoritative; this map only translates between the many names an engine
+ * structure may be registered under and the single generated id. Keeping it as an alias map rather
+ * than a second data table is deliberate: a missing alias makes an override silently not apply, which
+ * is visible in the tests, whereas a duplicated table drifts invisibly.
  */
-export const STRUCTURE_SPAWN_OVERRIDES = Object.freeze({
-  /** Nether fortress: the only source of wither skeletons, and blazes. */
+const ENGINE_STRUCTURE_ALIASES = {
+  fortress: 'nether_fortress',
+  nether_fortress: 'nether_fortress',
+  monument: 'ocean_monument',
+  ocean_monument: 'ocean_monument',
+  outpost: 'pillager_outpost',
+  pillager_outpost: 'pillager_outpost',
+  swamp_hut: 'swamp_hut',
+  witch_hut: 'swamp_hut',
+  trial_chambers: 'trial_chambers',
+  ancient_city: 'ancient_city',
+  bastion: 'bastion_remnant',
+  bastion_remnant: 'bastion_remnant',
+  end_city: 'end_city',
+};
+
+/** Lower-case and underscore a raw structure id so engine spellings all match. */
+function normaliseStructureId(raw) {
+  return String(raw).toLowerCase().replace(/^minecraft:/, '').replace(/[\s-]+/g, '_');
+}
+
+/** Resolve any structure id spelling to a generated override, or null. */
+function generatedOverrideFor(raw) {
+  const clean = normaliseStructureId(raw);
+  const key = ENGINE_STRUCTURE_ALIASES[clean] || clean;
+  return STRUCTURE_SPAWN_OVERRIDES[key] ? { id: key, ...STRUCTURE_SPAWN_OVERRIDES[key] } : null;
+}
+
+/**
+ * Structures whose spawn list is hard-coded rather than data-driven.
+ *
+ * The Nether fortress is the one case in 1.21.4: vanilla short-circuits to
+ * `NetherFortressStructure.FORTRESS_ENEMIES` and additionally requires nether bricks below the
+ * position, rather than going through the biome/override path. Reproducing that needs a check the data
+ * pack cannot express, so it is recorded here as a named special case with its condition, and the
+ * parity document lists it as a deviation -- the JSON override is used instead of the hard-coded list.
+ */
+export const STRUCTURE_SPECIAL_CASES = Object.freeze({
   nether_fortress: {
-    // The engine's structure id for a fortress; matched by name so a generator rename is visible.
-    aliases: ['fortress', 'nether_fortress'],
-    boundingBox: 'piece',
-    categories: {
-      [MobCategory.MONSTER]: [
-        { type: 'blaze', weight: 10, minCount: 2, maxCount: 3 },
-        { type: 'zombified_piglin', weight: 5, minCount: 4, maxCount: 4 },
-        { type: 'wither_skeleton', weight: 8, minCount: 5, maxCount: 5 },
-        { type: 'skeleton', weight: 2, minCount: 5, maxCount: 5 },
-        { type: 'magma_cube', weight: 3, minCount: 4, maxCount: 4 },
-      ],
-    },
-  },
-
-  /** Ocean monument: guardians inside, in place of the biome's list. */
-  ocean_monument: {
-    aliases: ['monument', 'ocean_monument'],
-    boundingBox: 'piece',
-    categories: {
-      [MobCategory.MONSTER]: [
-        { type: 'guardian', weight: 1, minCount: 2, maxCount: 4 },
-      ],
-    },
-  },
-
-  /** Pillager outpost: illagers, and only illagers. */
-  pillager_outpost: {
-    aliases: ['outpost', 'pillager_outpost'],
-    boundingBox: 'piece',
-    categories: {
-      [MobCategory.MONSTER]: [
-        { type: 'pillager', weight: 1, minCount: 1, maxCount: 1 },
-      ],
-    },
-  },
-
-  /** Swamp hut: the witch inside, and the cat that is not a natural spawn. */
-  swamp_hut: {
-    aliases: ['swamp_hut', 'witch_hut'],
-    boundingBox: 'piece',
-    categories: {
-      [MobCategory.MONSTER]: [
-        { type: 'witch', weight: 1, minCount: 1, maxCount: 1 },
-      ],
-    },
-  },
-
-  /** Bastion remnant: piglins and hoglins, at higher weights than the biome gives them. */
-  bastion_remnant: {
-    aliases: ['bastion', 'bastion_remnant'],
-    boundingBox: 'piece',
-    categories: {
-      [MobCategory.MONSTER]: [
-        { type: 'piglin', weight: 10, minCount: 1, maxCount: 2 },
-        { type: 'piglin_brute', weight: 5, minCount: 1, maxCount: 1 },
-        { type: 'hoglin', weight: 2, minCount: 3, maxCount: 4 },
-        { type: 'zombified_piglin', weight: 1, minCount: 2, maxCount: 4 },
-      ],
-    },
-  },
-
-  /**
-   * Trial chambers.
-   *
-   * NOT an override that places mobs. The 1.21.4 data pack gives trial chambers (and ancient cities)
-   * an override for ALL EIGHT categories with EMPTY lists, which is how a structure SUPPRESSES
-   * natural spawning inside itself. Treating an empty list as "absent" and falling through to the
-   * biome is a real behavioural bug: it would populate a trial chamber with the surrounding biome's
-   * monsters, which is exactly what the empty lists exist to prevent.
-   *
-   * The chamber's own inhabitants come from TRIAL SPAWNER blocks, which is a separate mechanism (see
-   * specialSpawners.js), not from the biome spawner.
-   */
-  trial_chambers: {
-    aliases: ['trial_chambers'],
-    boundingBox: 'piece',
-    suppressesAll: true,
-    categories: {},
-  },
-
-  /** Ancient city: the same full suppression, for the same reason. */
-  ancient_city: {
-    aliases: ['ancient_city'],
-    boundingBox: 'full',
-    suppressesAll: true,
-    categories: {},
+    /** Vanilla requires nether bricks directly below the candidate. */
+    requiresBlockBelow: 'nether_bricks',
+    note: 'vanilla uses a hard-coded FORTRESS_ENEMIES list plus a nether-bricks-below test; this '
+      + 'implementation uses the structure JSON override without the block requirement.',
   },
 });
 
@@ -176,21 +129,22 @@ export function findStructureOverride(structureAt, x, y, z) {
     return null;
   }
   if (!id) return null;
-  const clean = String(id).toLowerCase().trim().replace(/[\s-]+/g, '_');
-  if (STRUCTURE_SPAWN_OVERRIDES[clean]) return { id: clean, ...STRUCTURE_SPAWN_OVERRIDES[clean] };
-  for (const [key, override] of Object.entries(STRUCTURE_SPAWN_OVERRIDES)) {
-    if (override.aliases?.includes(clean)) return { id: key, ...override };
-  }
-  return null;
+  return generatedOverrideFor(id);
 }
 
 /**
  * The spawn list that actually applies at a position.
  *
- * The structure's list wins for the categories it names; every other category falls through to the
- * biome. This is the single question the spawner asks, and the answer records WHERE it came from so
- * the debug overlay can show `STRUCTURE_OVERRIDE` rather than leaving the player to guess why a
- * blaze appeared in a soul sand valley.
+ * Three cases, and the resolver must tell them apart -- this is the trap the plan names:
+ *
+ *   1. the structure names no entry for this category  -> the BIOME's list applies
+ *   2. it names entries                                -> that list REPLACES the biome's
+ *   3. it names an EMPTY list                          -> natural spawning is SUPPRESSED
+ *
+ * Case 3 is not case 1. Trial chambers and ancient cities give all eight categories an empty list
+ * precisely to stop natural spawning inside themselves, so falling through to the biome there would
+ * fill them with the surrounding biome's monsters. `STRUCTURE_FULLY_SUPPRESSING` is derived from the
+ * generated data rather than annotated by hand.
  *
  * @param {object} context
  * @param {string} context.biomeId
@@ -199,25 +153,33 @@ export function findStructureOverride(structureAt, x, y, z) {
  * @param {number} context.y
  * @param {number} context.z
  * @param {(x:number,y:number,z:number)=>string|null} [context.structureAt]
- * @returns {{entries: Array<object>, source: 'structure'|'biome'|'none', structureId: string|null}}
+ * @returns {{entries: Array<object>, source: 'structure'|'structure_suppressed'|'biome'|'none',
+ *            structureId: string|null, boundingBox: string|null}}
  */
 export function resolveSpawnList({ biomeId, category, x, y, z, structureAt = null }) {
   const structure = findStructureOverride(structureAt, x, y, z);
   if (structure) {
-    // A structure that overrides a category with an empty list SUPPRESSES natural spawning for it.
-    // This is not the same as "no override": vanilla's `getMobsAt` reads the override map, and an
-    // entry present with an empty list is an entry that returns nothing. Falling through to the biome
-    // here would populate trial chambers and ancient cities, which those empty lists exist to stop.
-    if (structure.suppressesAll || Object.prototype.hasOwnProperty.call(structure.categories, category)) {
-      const entries = structure.categories[category] || [];
-      return { entries, source: entries.length ? 'structure' : 'structure_suppressed', structureId: structure.id };
+    const spec = structure.categories[category];
+    if (spec) {
+      // Case 2 or 3: the structure has something to say about this category.
+      return {
+        entries: spec.entries,
+        source: spec.entries.length ? 'structure' : 'structure_suppressed',
+        structureId: structure.id,
+        boundingBox: spec.boundingBox ?? null,
+      };
     }
-    // The structure exists but does not override this category: fall through to the biome, which is
-    // what `getMobsAt` does.
+    // Case 1: the structure exists here but is silent about this category.
   }
   const entries = biomeSpawnsFor(biomeId, category);
-  if (entries.length) return { entries, source: 'biome', structureId: structure?.id || null };
-  return { entries: [], source: 'none', structureId: structure?.id || null };
+  if (entries.length) {
+    return {
+      entries, source: 'biome', structureId: structure?.id || null, boundingBox: null,
+    };
+  }
+  return {
+    entries: [], source: 'none', structureId: structure?.id || null, boundingBox: null,
+  };
 }
 
 /**

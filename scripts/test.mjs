@@ -1,4 +1,4 @@
-﻿// Test runner: run only the area you changed.
+// Test runner: run only the area you changed.
 //
 // `npm test` runs everything, which is the right thing before a release and the
 // wrong thing while iterating on one feature. This maps named areas to the test
@@ -35,10 +35,14 @@ export const AREAS = {
   // --- agent / terminal ---
   agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring'],
   // --- mobs ---
-  // `mobSpawningParity` and `mobSpawningTravel` cover the natural-spawning subsystem: the category
-  // caps, the three-part light rule, the generated biome tables, pack spawning, despawning, and the
-  // travel regression that pins the "mobs only near spawn" bug.
-  mob: ['heldBlockInteraction', 'mobSpawningParity', 'mobSpawningTravel', 'mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'packEquineParity', 'striderParity', 'squidParity', 'witherSkeletonParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity', 'sheepParity', 'mooshroomParity', 'salmonParity', 'dolphinParity', 'endermanParity', 'slimeParity', 'wolfParity', 'spiderParity', 'caveSpiderParity', 'silverfishParity', 'endermiteParity', 'rabbitParity', 'batParity', 'musicDiscs', 'drownedDrops', 'foxParity', 'beeParity', 'babyGrowthParity', 'spawnEggCoverage', 'mobUpdateSmoke', 'ambientLocomotion', 'cubeHopParity', 'goatParity', 'llamaParity', 'turtleParity', 'frogParity', 'tadpoleParity', 'parrotParity', 'phantomParity', 'polarBearParity', 'pandaParity', 'breedingInheritance', 'spawnVariantOptions', 'armadilloParity', 'undeadVariantsParity', 'windChargeBreeze', 'snifferParity', 'allayParity', 'groundednessSpawn', 'wanderingTraderParity', 'camelParity', 'parchedParity', 'creakingParity', 'killerBunnyParity', 'snowGolemParity', 'illusionerParity', 'undeadHorseParity'],
+  // The natural-spawning subsystem's own tests come first because they are the slowest files in the
+  // area and a failure there is the most informative:
+  //   mobSpawningParity            caps, the three-part light rule, generated tables, despawning
+  //   mobSpawningTravel            the regression that pins the "mobs only near spawn" bug
+  //   spawnPlacementRegression     collision, fluid and heightmap rules (incl. fish-on-ice)
+  //   spawnEligibilityRegression   biome-boundary membership, structures, dimension eligibility
+  //   spawnConstructionIntegration the real spawner + constructor wiring, pack walks, generation
+  mob: ['mobSpawningParity', 'mobSpawningTravel', 'spawnPlacementRegression', 'spawnEligibilityRegression', 'spawnConstructionIntegration', 'heldBlockInteraction', 'mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'packEquineParity', 'striderParity', 'squidParity', 'witherSkeletonParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity', 'sheepParity', 'mooshroomParity', 'salmonParity', 'dolphinParity', 'endermanParity', 'slimeParity', 'wolfParity', 'spiderParity', 'caveSpiderParity', 'silverfishParity', 'endermiteParity', 'rabbitParity', 'batParity', 'musicDiscs', 'drownedDrops', 'foxParity', 'beeParity', 'babyGrowthParity', 'spawnEggCoverage', 'mobUpdateSmoke', 'ambientLocomotion', 'cubeHopParity', 'goatParity', 'llamaParity', 'turtleParity', 'frogParity', 'tadpoleParity', 'parrotParity', 'phantomParity', 'polarBearParity', 'pandaParity', 'breedingInheritance', 'spawnVariantOptions', 'armadilloParity', 'undeadVariantsParity', 'windChargeBreeze', 'snifferParity', 'allayParity', 'groundednessSpawn', 'wanderingTraderParity', 'camelParity', 'parchedParity', 'creakingParity', 'killerBunnyParity', 'snowGolemParity', 'illusionerParity', 'undeadHorseParity'],
   // --- redstone and machines ---
   redstone: ['redstone', 'advanced_redstone', 'numericBlockIdSafety', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
