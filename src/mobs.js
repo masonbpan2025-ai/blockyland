@@ -294,6 +294,8 @@ const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 /** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
 const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
 const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
+/** The real 64x32 slime sheet (12 palette entries, 10 coloured greens). */
+const SLIME_SKIN_PATH = '/assets/entity/slime/slime.png';
 /** The real 128x128 camel sheet. */
 const CAMEL_SKIN_PATH = '/assets/entity/camel/camel.png';
 /** The guardian sheets, both 64x64. */
@@ -668,6 +670,8 @@ export class MobManager {
       // was undefined, so the material fell through to its flat-colour fallback and there was nothing bound to examine.
       // // CAMEL_ATLAS_KEY
       camel: this.loadTexture(CAMEL_SKIN_PATH),
+      // The slime's own sheet, checked for existence this time BEFORE binding -- the round-ninety-nine lesson.
+      slime: this.loadTexture(SLIME_SKIN_PATH),
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
@@ -7360,8 +7364,20 @@ export class MobManager {
   // --- SLIME ---
   spawnSlime(x, y, z, size = 4) {
     const group = new THREE.Group();
-    const outerMat = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.65 });
-    const innerMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
+    // The slime's real 64x32 sheet, from the PRELOADED ATLAS. It is the only one of the three remaining mobs whose geometry
+    // already matches vanilla's part list unit for unit (8 : 6 : 2 : 2 : 1), so this is a BINDING rather than a rebuild --
+    // and therefore a direct test of round one hundred and five's rule, which predicts it will work. // SLIME_SHEET
+    const slimeSheet = this.textures?.slime ?? this.loadTexture(SLIME_SKIN_PATH);
+    if (slimeSheet) { slimeSheet.magFilter = THREE.NearestFilter; slimeSheet.minFilter = THREE.NearestFilter; slimeSheet.needsUpdate = true; }
+    /** A sheet material, tinting the greyscale-free sheet with the slime's own green. */
+    const slimeMat = (fallback) => {
+      if (!slimeSheet) return fallback;
+      const m = new THREE.MeshLambertMaterial({ map: slimeSheet, transparent: true, opacity: 0.85 });
+      adoptWhenReady(m, slimeSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return m;
+    };
+    const outerMat = slimeMat(new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.65 }));
+    const innerMat = slimeMat(new THREE.MeshLambertMaterial({ color: 0x15803d }));
 
     // The real model: an 8-unit outer cube and a 6-unit inner one, with the inner sitting one unit HIGHER. The outer is
     // therefore 0.5 blocks and the inner 0.375 -- not the near-equal pair this used to draw. // SLIME_PROPORTIONS

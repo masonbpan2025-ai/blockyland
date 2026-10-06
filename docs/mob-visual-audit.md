@@ -4020,3 +4020,40 @@ falsifiable test of the rule, not just another mob.
 
 Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one -- the slime is a BINDING and is fully
 specified.**
+## Round one hundred and nine: the slime binds and is green from its own sheet
+
+**Round one hundred and five's rule predicted the slime COULD take a real sheet, because its model is vanilla's part list
+rather than a flat-colour assembly. The binding took.**
+
+I added the missing `slime` atlas key, declared `SLIME_SKIN_PATH`, and bound the outer and inner cube materials through the
+deferred hook. Measured on the built mob, against the giant control:
+
+```
+slime   distinct materials 3   with a map: 2
+giant   distinct materials 4   with a map: 3
+```
+
+**And the render shows a GREEN, MOTTLED slime** -- the texture's own greens from the palette, not the flat `0x22c55e` the
+material used to carry. The capture is kept as `docs/mob-visual-evidence/slime-inspector-real-sheet.png`. **The inner cube is
+plainly visible as a darker green square inset in the outer one**, which is vanilla's two-cube structure showing through.
+
+**That is the rule confirmed on a mob it was never derived from**, which is the whole reason the slime was worth doing: it
+was a falsifiable prediction rather than another attempt.
+
+**TWO faults remain, and both are specific:**
+
+1. **the cubes have not been given their rectangles yet.** The outer cube needs vanilla's `(0, 0)` 8x8x8 and the inner
+   `(0, 16)` 6x6x6, and without them each box samples the sheet as a whole -- which is why the green reads as stretched
+   mottling rather than as a cube's six distinct faces.
+2. **the face renders oversized.** The two eyes and the mouth use a separate `MeshBasicMaterial({ color: 0x0f172a })` that
+   takes no sheet, and the render shows them as large dark blocks rather than 2-unit and 1-unit details. **Their boxes are the
+   right SIZE** (0.125 and 0.0625 blocks, confirmed in round one hundred and eight), so the fault is their PLACEMENT or the
+   material -- and the source comment says they deliberately sit proud of the translucent shell, which is worth re-reading
+   before changing.
+
+**Neither is a mystery and neither needs a hypothesis**, which is the difference between this mob and the camel: the slime
+passed all four preconditions, so what is left is applying the rectangles and looking at the face.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon).**
