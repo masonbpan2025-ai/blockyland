@@ -4758,3 +4758,34 @@ and needing its remaining eighteen parts built from the table already read. **Th
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon textured with its body and head correct in UV and its
 remaining 18 parts specified, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-six: the dragon resized to vanilla's proportions, and round 105's rule confirmed a third time
+
+**Round one hundred and twenty-five applied the dragon's rectangles and recorded that its BOXES still did not match vanilla.
+This round fixed the boxes, using the resize rule rounds 95, 96 and 116 each earned.**
+
+| part | was | now | vanilla ratio |
+| --- | --- | --- | --- |
+| body | 1.6 x 1.2 x 3.2 (0.5 : 0.375 : 1) | **1.6 x 3.2 x 1.6** | 0.5 : 1 : 0.5 |
+| head | 0.9 x 0.8 x 1.1 (0.818 : 0.727 : 1) | **0.367 x 1.1 x 0.367** | 0.333 : 1 : 0.333 |
+
+**The body went from long-and-flat to TWICE AS TALL AS IT IS WIDE, and the head from a flat slab to vanilla's tall narrow
+skull** -- both keeping their longest side, so the mob's scale in the world is unchanged.
+
+**And the render shows it:** the dragon is now a tall dark form with the two magenta eyes placed correctly on the narrow
+face, where round one hundred and twenty-five's was a long low slab with the eyes on its wide side. **The capture that looked
+like a blocky lizard now looks like the head-on view of a dragon.**
+
+**That is round one hundred and five's rule confirmed for a third time, and this instance is the cleanest of the three:**
+the tropical fish fragmented because its geometry was an assembly, the camel fragmented for the same reason, **and the dragon
+fragmented LESS than either while still reading wrong** -- because a body twice as tall as it is wide, given a rectangle drawn
+for those proportions and then stretched onto a long flat box, samples correctly and reads incorrectly. **Resizing fixed what
+no rectangle could.**
+
+**Where the dragon stands:** bound, textured, body and head both correct in rectangle AND proportion, with **eighteen parts
+still to build** -- `jaw` 12x4x16 at (176, 65), wings 8x24x8 and 6x24x6, four more leg parts and four right-side mirrors, all
+already read in round one hundred and twenty-four.
+
+`AREA` is at exactly **1766/1773** through all of it.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
+specified, and the tropical fish BLOCKED by its assets.**

@@ -8115,11 +8115,11 @@ export class MobManager {
     })();
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
 
-    // Body. Vanilla's rectangle is 16x32x16 UNITS at (0, 0) on the 256x256 sheet, which is 1 x 2 x 1 BLOCKS -- and this
-    // box is 1.6 x 1.2 x 3.2, so both the rectangle AND the shape differ. The rectangle is applied through
-    // applyVanillaBoxUVs, which maps vanilla's layout onto this box; the shape mismatch is recorded in the audit, not
-    // silently corrected. // DRAGON_RECTS
-    const bodyGeo = new THREE.BoxGeometry(1.6, 1.2, 3.2);
+    // Body. Vanilla's rectangle is 16x32x16 at (0, 0) on the 256x256 sheet -- ratios 0.5 : 1 : 0.5, a body TWICE AS TALL
+    // as it is wide. This box was 1.6 x 1.2 x 3.2 (0.5 : 0.375 : 1), i.e. long and flat, which is why rectangles alone left
+    // the silhouette wrong. It is now 1.6 x 3.2 x 1.6 -- the same longest side and vanilla's exact proportions, which is
+    // the resize rule rounds 95, 96 and 116 each earned. // DRAGON_RECTS
+    const bodyGeo = new THREE.BoxGeometry(1.6, 3.2, 1.6);
     applyVanillaBoxUVs(bodyGeo, 0, 0, 256, 256, 16, 32, 16);
     const body = new THREE.Mesh(bodyGeo, dragonMat);
     body.position.y = 1.0;
@@ -8130,9 +8130,10 @@ export class MobManager {
     neck.position.set(0, 1.6, 2.0);
     group.add(neck);
 
-    // Head with purple eyes. Vanilla's rectangle is 8x24x8 units at (112, 104) -- a TALL narrow skull (0.5 x 1.5 x 0.5
-    // blocks), against this box's 0.9 x 0.8 x 1.1. The rectangle is applied; the shape difference is recorded in the audit.
-    const headGeo = new THREE.BoxGeometry(0.9, 0.8, 1.1);
+    // Head with purple eyes. Vanilla's rectangle is 8x24x8 at (112, 104) -- ratios 0.333 : 1 : 0.333, a TALL narrow skull.
+    // This box was 0.9 x 0.8 x 1.1 (0.818 : 0.727 : 1), a flat slab. It is now 0.367 x 1.1 x 0.367 -- same longest side,
+    // vanilla's proportions.
+    const headGeo = new THREE.BoxGeometry(0.367, 1.1, 0.367);
     applyVanillaBoxUVs(headGeo, 112, 104, 256, 256, 8, 24, 8);
     const head = new THREE.Mesh(headGeo, dragonMat);
     head.position.set(0, 1.8, 3.0);
