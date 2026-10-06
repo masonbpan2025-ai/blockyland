@@ -34,6 +34,7 @@ import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
 import { locateNearestStructure } from './worldStructures.js';
 import { ChunkStreamer } from './chunkStreamer.js';
+import { installHotkeys } from './hotkeys.js';
 import { MobSpawnManager } from './spawning/mobSpawnManager.js';
 import { ChunkMesher } from './mesher.js';
 import { SoundEngine } from './audio.js';
@@ -1229,7 +1230,297 @@ class Game {
     bind('btn-start-structure-inspector', (e) => { e.stopPropagation(); this.openStructureInspector(); });
   }
 
+  // ------------------------------------------------------------------------------------------------
+  // Java Edition hotkeys. src/hotkeys.js is only a table of key -> method name; the behaviour lives here
+  // with the system it affects, and each action reports what it did in chat, because a debug key that
+  // silently toggles a renderer is indistinguishable from a key that does nothing.
+  // ------------------------------------------------------------------------------------------------
+
+  /** F1: hide the HUD, as vanilla's `key.toggleGui` does. Chat stays, so you can still see what happened. */
+  toggleHud() {
+    const hidden = document.body.classList.toggle('hud-hidden');
+    this.ui?.addChatMessage(`HUD ${hidden ? 'hidden' : 'shown'} (F1)`, 'system');
+    return hidden;
+  }
+
+  /** F2: write the current frame to a PNG download, the browser's equivalent of the screenshots folder. */
+  captureScreenshot() {
+    try {
+      // Draw and read in the same task: the canvas is created without preserveDrawingBuffer, so the buffer
+      // is only guaranteed to hold the frame until the browser composites it.
+      this.renderer.render(this.scene, this.camera);
+      const url = this.renderer.domElement.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `minecraft-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      this.ui?.addChatMessage('Saved screenshot (F2)', 'system');
+      return url;
+    } catch (err) {
+      console.error('[Hotkeys] Screenshot failed:', err);
+      this.ui?.addChatMessage('Could not save the screenshot', 'error');
+      return null;
+    }
+  }
+
+  /** F11: fullscreen via the Fullscreen API, which is the browser's `key.fullscreen`. */
+  async toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      return Boolean(document.fullscreenElement);
+    } catch (err) {
+      // Browsers only grant this from a user gesture, and some refuse outright.
+      console.warn('[Hotkeys] Fullscreen refused:', err);
+      this.ui?.addChatMessage('Fullscreen was refused by the browser', 'error');
+      return false;
+    }
+  }
+
+  /** Control+B: the narrator. Chat is spoken through the Web Speech API, the browser's text to speech. */
+  toggleNarrator() {
+    const enabled = this.ui?.toggleNarrator?.() ?? false;
+    this.ui?.addChatMessage(`Narrator ${enabled ? 'enabled' : 'disabled'} (Control+B)`, 'system');
+    return enabled;
+  }
+
+  /** F3+A: throw every loaded chunk mesh away and build it again. */
+  reloadChunks() {
+    let rebuilt = 0;
+    const chunks = this.world?.chunks;
+    if (chunks && typeof chunks.values === 'function') {
+      for (const chunk of chunks.values()) {
+        this.rebuildChunkMesh(chunk);
+        rebuilt++;
+      }
+    }
+    this.world?.invalidateChunkCache?.();
+    this.ui?.addChatMessage(`Reloaded ${rebuilt} chunk${rebuilt === 1 ? '' : 's'} (F3+A)`, 'system');
+    return rebuilt;
+  }
+
+  /** F3+T: reload the texture atlas, then rebuild the world with it. */
+  async reloadResources() {
+    this.ui?.addChatMessage('Reloading resources… (F3+T)', 'system');
+    try {
+      await this.textures.init();
+      this.reloadChunks();
+      this.ui?.updateHotbar?.();
+      this.ui?.addChatMessage('Resources reloaded', 'system');
+      return true;
+    } catch (err) {
+      console.error('[Hotkeys] Resource reload failed:', err);
+      this.ui?.addChatMessage('Could not reload the resources', 'error');
+      return false;
+    }
+  }
+
+  /** F3+D: clear the chat, history included. */
+  clearChat() {
+    this.ui?.clearChat?.();
+    return true;
+  }
+
+  /** F3+H: advanced tooltips, which name the item id and its exact durability. */
+  toggleAdvancedTooltips() {
+    const on = this.ui?.toggleAdvancedTooltips?.() ?? false;
+    this.ui?.addChatMessage(`Advanced tooltips ${on ? 'shown' : 'hidden'} (F3+H)`, 'system');
+    return on;
+  }
+
+  /** F3+N: the game mode switcher. This build has Survival and Creative, so it alternates between them. */
+  cycleGameMode() {
+    if (this.tournament?.isTournamentMap) {
+      this.ui?.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
+      return null;
+    }
+    const next = this.player?.gamemode === 'creative' ? 'survival' : 'creative';
+    this.setGameMode(next);
+    this.ui?.addChatMessage(`Set game mode to ${next === 'creative' ? 'Creative' : 'Survival'} Mode (F3+N)`, 'system');
+    return next;
+  }
+
+  /** F3+P: pause on lost focus. Nothing pauses the game when the window loses focus unless this is on. */
+  toggleFocusPause() {
+    this.pauseOnLostFocus = !this.pauseOnLostFocus;
+    this.ui?.addChatMessage(`Pause on lost focus: ${this.pauseOnLostFocus ? 'enabled' : 'disabled'} (F3+P)`, 'system');
+    return this.pauseOnLostFocus;
+  }
+
+  /** F3+C: copy the player's position as a teleport command, as vanilla does. */
+  copyLocation() {
+    const p = this.player?.position;
+    if (!p) return null;
+    const toDegrees = (radians) => ((radians ?? 0) * 180) / Math.PI;
+    const text = `/execute in minecraft:overworld run tp @s ${p.x.toFixed(2)} ${p.y.toFixed(2)} ${p.z.toFixed(2)} `
+      + `${toDegrees(this.player.yaw).toFixed(2)} ${toDegrees(this.player.pitch).toFixed(2)}`;
+    this.writeClipboard(text, 'Copied location (F3+C)');
+    return text;
+  }
+
+  /** F3+I: copy the targeted block as a /setblock command that this game's command handler accepts. */
+  copyBlockData() {
+    const target = this.targetBlock;
+    if (!target) {
+      this.ui?.addChatMessage('No block targeted (F3+I)', 'error');
+      return null;
+    }
+    const name = Object.keys(BLOCKS).find((key) => BLOCKS[key] === target.blockId) || String(target.blockId);
+    const text = `/setblock ${target.x} ${target.y} ${target.z} ${name}`;
+    this.writeClipboard(text, `Copied ${text} (F3+I)`);
+    return text;
+  }
+
+  /** F3+V: the version information the browser build can honestly report. */
+  dumpVersionInfo() {
+    const gl = this.renderer?.getContext?.();
+    const info = [
+      'id = 1.20.2-browser',
+      'name = Minecraft Web Edition (three.js voxel build)',
+      `renderer = ${gl ? gl.getParameter(gl.RENDERER) : 'unknown'}`,
+      `webgl = ${gl ? gl.getParameter(gl.VERSION) : 'unknown'}`,
+    ];
+    for (const line of info) this.ui?.addChatMessage(line, 'system');
+    return info;
+  }
+
+  /** Put text on the clipboard, with a fallback for browsers that refuse the async API. */
+  writeClipboard(text, message) {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => this.writeClipboardFallback(text));
+      } else {
+        this.writeClipboardFallback(text);
+      }
+      if (message) this.ui?.addChatMessage(message, 'system');
+      return true;
+    } catch (err) {
+      console.warn('[Hotkeys] Clipboard write failed:', err);
+      if (message) this.ui?.addChatMessage('Could not reach the clipboard', 'error');
+      return false;
+    }
+  }
+
+  writeClipboardFallback(text) {
+    try {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    } catch (err) {
+      console.warn('[Hotkeys] Clipboard fallback failed:', err);
+    }
+  }
+
+  /** F3+B: entity hitboxes. */
+  toggleHitboxes() {
+    this.showHitboxes = !this.showHitboxes;
+    if (!this.showHitboxes && this.hitboxGroup) this.hitboxGroup.visible = false;
+    this.ui?.addChatMessage(`Hitboxes ${this.showHitboxes ? 'shown' : 'hidden'} (F3+B)`, 'system');
+    return this.showHitboxes;
+  }
+
+  /** F3+G: chunk borders. */
+  toggleChunkBorders() {
+    this.showChunkBorders = !this.showChunkBorders;
+    if (this.showChunkBorders) this.updateDebugOverlays();
+    else if (this.chunkBorderLines) this.chunkBorderLines.visible = false;
+    this.ui?.addChatMessage(`Chunk borders ${this.showChunkBorders ? 'shown' : 'hidden'} (F3+G)`, 'system');
+    return this.showChunkBorders;
+  }
+
+  /** Called from the frame loop; both debug renderers are off until switched on, so this costs nothing. */
+  updateDebugOverlays() {
+    if (this.showHitboxes) this.updateHitboxLines();
+    if (this.showChunkBorders) this.updateChunkBorderLines();
+  }
+
+  /** One wireframe box per mob, sized from that mob's own width and height. */
+  updateHitboxLines() {
+    if (!this.hitboxGroup) {
+      this.hitboxGroup = new THREE.Group();
+      this.hitboxGroup.name = 'debug-hitboxes';
+      this.scene.add(this.hitboxGroup);
+      this.hitboxGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+      this.hitboxMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+    }
+    this.hitboxGroup.visible = true;
+
+    const mobs = this.mobs?.mobs ?? [];
+    while (this.hitboxGroup.children.length < mobs.length) {
+      this.hitboxGroup.add(new THREE.LineSegments(this.hitboxGeometry, this.hitboxMaterial));
+    }
+    for (let i = 0; i < this.hitboxGroup.children.length; i++) {
+      const lines = this.hitboxGroup.children[i];
+      const mob = mobs[i];
+      if (!mob?.position) {
+        lines.visible = false;
+        continue;
+      }
+      const meshScale = mob.mesh?.scale;
+      const width = (mob.width || 0.6) * (meshScale?.x ?? 1);
+      const height = (mob.height || 1.8) * (meshScale?.y ?? 1);
+      lines.visible = true;
+      lines.scale.set(width, height, width);
+      // A mob's position is at its feet, so the box sits half its height above that.
+      lines.position.set(mob.position.x, mob.position.y + height / 2, mob.position.z);
+    }
+  }
+
+  /** The vertical grid at chunk boundaries, over every loaded chunk. */
+  updateChunkBorderLines() {
+    const loaded = this.world?.chunks?.size ?? 0;
+    if (!this.chunkBorderLines || this.chunkBorderChunks !== loaded) this.rebuildChunkBorderLines();
+    if (this.chunkBorderLines) this.chunkBorderLines.visible = true;
+  }
+
+  rebuildChunkBorderLines() {
+    const CHUNK_SIZE = 16;
+    const TOP = 96;
+    this.chunkBorderChunks = this.world?.chunks?.size ?? 0;
+    if (this.chunkBorderLines) {
+      this.scene.remove(this.chunkBorderLines);
+      this.chunkBorderLines.geometry?.dispose?.();
+      this.chunkBorderLines = null;
+    }
+    const points = [];
+    const chunks = this.world?.chunks;
+    if (chunks && typeof chunks.entries === 'function') {
+      for (const [key, chunk] of chunks.entries()) {
+        let cx = chunk?.cx ?? chunk?.x;
+        let cz = chunk?.cz ?? chunk?.z;
+        if (!Number.isFinite(cx) || !Number.isFinite(cz)) {
+          const [fromKeyX, fromKeyZ] = String(key).split(',').map(Number);
+          cx = fromKeyX;
+          cz = fromKeyZ;
+        }
+        if (!Number.isFinite(cx) || !Number.isFinite(cz)) continue;
+        const x0 = cx * CHUNK_SIZE;
+        const z0 = cz * CHUNK_SIZE;
+        for (const [x, z] of [[x0, z0], [x0 + CHUNK_SIZE, z0], [x0 + CHUNK_SIZE, z0 + CHUNK_SIZE], [x0, z0 + CHUNK_SIZE]]) {
+          points.push(x, 0, z, x, TOP, z);
+        }
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    this.chunkBorderLines = new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color: 0x101010, transparent: true, opacity: 0.65 })
+    );
+    this.chunkBorderLines.name = 'debug-chunk-borders';
+    this.scene.add(this.chunkBorderLines);
+  }
+
   bindEvents() {
+    // Java Edition interface hotkeys: F1, F2, F11, Control+B and the F3 debug combinations.
+    installHotkeys(this);
     // The start-overlay buttons are bound in bindStartScreen(), which start() calls before the atlas
     // loads. They used to be bound here, at the end of start(), so a click during loading reached a
     // button with no listener and was dropped.
@@ -1281,6 +1572,12 @@ class Game {
     window.addEventListener('blur', () => {
       this.bow?.cancel();
       this.player.isBlocking = false;
+      // F3+P: vanilla pauses singleplayer when the window loses focus. This build never did, so the world
+      // kept running while the tab was in the background; it only does it once the toggle is on.
+      if (this.pauseOnLostFocus && this.worldReady && this.player && !this.player.isDead
+        && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen && !this.ui?.isGeminiOpen?.()) {
+        this.ui?.togglePauseMenu?.();
+      }
     });
     document.addEventListener('pointerlockchange', () => {
       if (document.pointerLockElement !== this.renderer.domElement) {
@@ -3080,6 +3377,19 @@ class Game {
       }
     } else if (root === '/clear') {
       document.getElementById('chat-messages').innerHTML = '';
+    } else if (root === '/setblock') {
+      // The counterpart to F3+I, which copies a command in exactly this shape.
+      const [sx, sy, sz] = [parts[1], parts[2], parts[3]].map((v) => parseInt(v, 10));
+      const blockName = parts[4] ? parts[4].toUpperCase() : '';
+      if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(sz) || !Object.prototype.hasOwnProperty.call(BLOCKS, blockName)) {
+        this.ui.addChatMessage('Usage: /setblock <x> <y> <z> <block>', 'error');
+      } else {
+        this.world.setVoxel(sx, sy, sz, BLOCKS[blockName]);
+        const chunk = this.world.getOrCreateChunk(Math.floor(sx / 16), Math.floor(sz / 16));
+        if (chunk) this.rebuildChunkMesh(chunk);
+        this.world.invalidateChunkCache?.();
+        this.ui.addChatMessage(`Changed the block at ${sx}, ${sy}, ${sz} to ${blockName.toLowerCase()}`, 'system');
+      }
     } else {
       this.ui.addChatMessage(`Unknown command: ${cmd}. Type /help for help.`, 'error');
     }
@@ -3334,6 +3644,8 @@ class Game {
     // 7. Update UI Stats & Debug Overlay
     this.ui.updateStats();
     this.ui.updateDebug(fps, this.renderer.info);
+    // The debug renderers (F3+B hitboxes, F3+G chunk borders) draw nothing until they are switched on.
+    this.updateDebugOverlays();
 
     // 8. Render Main World Scene (held items and DOM UI remain sharp).
     this.shader.render(dt);

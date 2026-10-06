@@ -317,6 +317,33 @@ html, body {
   text-shadow: 1px 1px 0 #3f3f3f, 2px 2px 0 #000;
 }
 
+/* Vanilla's durability bar: a dark trough across the bottom of a worn tool, filled green, then yellow and
+   red as the tool empties. A pristine tool has no element at all. */
+.durability-bar {
+  position: absolute;
+  left: 7%;
+  bottom: 3px;
+  width: 86%;
+  height: 3px;
+  background: #1b1b1b;
+  border: 1px solid #000000;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.durability-fill {
+  height: 100%;
+  background: #4caf50;
+}
+
+.durability-mid .durability-fill {
+  background: #ffc107;
+}
+
+.durability-low .durability-fill {
+  background: #f44336;
+}
+
 /* Debug Screen (F3) */
 #debug-screen {
   position: absolute;
@@ -4086,3 +4113,13 @@ html, body {
 
 
 
+
+/* F1 hides the HUD, as vanilla's `key.toggleGui` does. !important because the F3 toggle writes an inline
+   display on the debug screens, and F1 has to be able to hide them anyway. Chat stays visible. */
+body.hud-hidden #crosshair,
+body.hud-hidden #hud,
+body.hud-hidden #debug-screen,
+body.hud-hidden #debug-screen-right,
+body.hud-hidden #offhand-hud-slot {
+  display: none !important;
+}
