@@ -7356,7 +7356,7 @@ export class MobManager {
   }
   // --- STRIDER ---
   spawnStrider(x, y, z, options = {}) {
-    const mob = { ...createStriderModel(), type: 'strider', name: 'Strider',
+    const mob = { ...createStriderModel({ loadTexture: (p) => this.loadTexture(p) }), type: 'strider', name: 'Strider',
       health: 20, maxHealth: 20, fireImmune: true, movementSpeed: .175,
       velocity: new THREE.Vector3(), yaw: (this.random || Math.random)() * Math.PI * 2,
       state: 'idle', timer: 0, hitCooldown: 0, isBaby: !!options.isBaby,
