@@ -3708,3 +3708,52 @@ of 4.
 
 Work list: **97 spawners, 77 with a real sheet, ~5 substantive mobs lacking one -- and the camel is bound, forming, with its
 rectangles proven wrong rather than merely unverified.**
+## Round one hundred and two: the verified end state, and what is honestly unfinished
+
+**I stopped adding to the mob work and verified the whole deliverable instead.**
+
+| check | result |
+| --- | --- |
+| full mob area | **1766 / 1773** -- the same seven pre-existing failures, unchanged for eighty-one rounds |
+| asset lock | **58 present, 0 downloaded, 0 problems** |
+| zero-colour assets | **14, all tropical fish** -- established in rounds ninety-one to ninety-three |
+| Inspector captures | **74** in `docs/mob-visual-evidence/` |
+| mob-visual tools | **42** in `scripts/mob-visual/` |
+| this audit | **2809 lines** |
+| build | clean |
+| `src/` working tree | **committed** -- the only modified `src/` files are the concurrent agent's |
+
+**What was ACHIEVED across this work, stated without inflation:**
+
+* **Seventy-seven of 97 spawners bind a real versioned sheet**, up from 51 at the start of the recorded audit.
+* **The five mobs the user reported are all on real sheets** -- polar bear, mooshroom, shulker, warden, panda.
+* **A reusable pipeline exists**: `applyVanillaBoxUVs`, `applyBoxUVs`, `pair-part-uv.mjs`, `sample-region.mjs`,
+  `check-asset-content.mjs`, `check-proportional-fit.mjs`, `size-remaining-mobs.mjs`, plus the deferred-adoption hook.
+* **The delegation defect class is closed** -- seven instances found (cave spider, rabbit, piglin brute, trader llama,
+  guardians, and two more), every one by reading the spawner rather than the render.
+* **The asset-stub class is closed** -- the tropical fish family is proven to contain no colour at all.
+
+**What is honestly UNFINISHED, with the reasons measured rather than guessed:**
+
+* **the camel** -- bound and forming, with its rectangles proven HARMFUL (round one hundred and one, by hash). Either
+  `method_32101`'s `(u, v)` is not the texture offset it appears to be, or the cross-layout origin differs for non-player
+  models. **The giant's rectangles work through the same helper, so the layout is right for player-shaped mobs and this is
+  the first non-player mob it has been tried on.**
+* **the tropical fish** -- the client's sheets have zero coloured pixels; not fixable from these assets.
+* **`camel`, `sniffer`, `ender_dragon`, `slime`** -- the substantive mobs still lacking sheets.
+
+**The single most valuable thing this work produced is not a mob. It is the ORDER of checks**, each step earned by multiple
+rounds spent on the wrong layer:
+
+1. does an **atlas key** exist? (six rounds on the giant, one on the camel)
+2. does the **sheet contain colour**, in the format the consumer needs? (seven rounds on the fish)
+3. are the **anchors** paired in decompile order, not by eye? (one tool, found a real error)
+4. do the **box proportions** match vanilla's?
+5. bind through the **deferred** hook, rectangles applied **unconditionally**.
+
+**Steps 1 and 2 are a command each, and each would have saved more rounds than every other technique combined.** The failure
+they represent is not carelessness -- it is the consistent habit of examining the layer I was already thinking about instead
+of the layer that was actually empty, which is also how the giant's six rounds were spent.
+
+**Work list, measured:** 97 spawners, **77 with a real sheet**, ~5 substantive mobs lacking one, of which one (the fish)
+cannot be fixed from the available assets.
