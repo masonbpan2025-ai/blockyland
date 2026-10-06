@@ -4862,3 +4862,44 @@ is the part that was resized to vanilla's true ratios and is therefore the only 
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts'
 sizes to be derived per-part, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-nine: the dragon's state confirmed, and the remaining parts tabulated
+
+**Verified rather than assumed: the dragon is at round one hundred and twenty-six's committed state**, which is the one whose
+render is a tall dark form with the magenta eyes on a narrow face.
+
+```
+body resized to vanilla (1.6 x 3.2 x 1.6):   TRUE
+applyVanillaBoxUVs called for the dragon:    TRUE
+jaw present:                                 FALSE      <- round 127's addition, correctly absent
+```
+
+**So the revert took only the broken parts and the good resize survived**, which is the outcome I wanted and had not confirmed
+until now.
+
+**And the remaining eighteen parts are now tabulated at the ONE reference round one hundred and twenty-eight identified as
+unambiguous -- the body's width, `1.6 blocks / 16 units = 0.1 blocks per unit`:**
+
+| part | box at 0.1/unit | rectangle |
+| --- | --- | --- |
+| jaw | 1.20 x 0.40 x 1.60 | (176, 65) 12x4x16 |
+| left_wing | 0.80 x 2.40 x 0.80 | (112, 104) 8x24x8 |
+| left_wing_tip | 0.60 x 2.40 x 0.60 | (226, 138) 6x24x6 |
+| left_front_leg | 0.80 x 2.40 x 0.80 | (112, 104) 8x24x8 |
+| left_front_foot | 0.80 x 0.40 x 1.60 | (144, 104) 8x4x16 |
+| left_hind_leg | 1.60 x 3.20 x 1.60 | (0, 0) 16x32x16 |
+| left_hind_foot | 1.80 x 0.60 x 2.40 | (112, 0) 18x6x24 |
+
+**And the table carries its own falsification, which is the useful part.** A hind leg of `1.60 x 3.20 x 1.60` is **identical to
+the body's size**, because vanilla gives it the identical rectangle `16x32x16` at `(0, 0)`. **That is either exactly right --
+vanilla's dragon hind legs ARE as thick as its body -- or it means the body's `16x32x16` and the leg's `16x32x16` are being
+distinguished by an OFFSET rather than by the rectangle, and my table loses that distinction.**
+
+**So the factor is defensible and the table is NOT yet safe to build from**, and this round stops rather than repeating round
+one hundred and twenty-seven's mistake of building from a table whose one remaining ambiguity had not been checked. **The
+check is cheap:** read the `method_32090` offsets in `class_895.java` beside each rectangle, because vanilla separates
+same-rectangle parts by position, and the offsets are already in the decompile.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at parity with its remaining 18 parts
+tabulated and one ambiguity to resolve before building, and the tropical fish BLOCKED by its assets.**
