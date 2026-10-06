@@ -1504,3 +1504,44 @@ that rule bites, and it is the one shape in this model that differs from every o
 last round's finding made possible.
 
 Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
+## Round forty-six: my hypothesis was wrong, and the sheet was a palette PNG
+
+**I named a specific hypothesis last round and it is now DISPROVED, by measurement.**
+
+The claim was that `createBoxWithUV(..., 8, 8, 8)` -- passing explicit pixel dimensions -- caused the zombie villager's
+head noise, because `createEntityBox` enforces a depth-exceeds-half-width rule for side faces.
+`scripts/mob-visual/measure-boxuv.mjs` evaluates the function's own face arithmetic with `tw = th = td = 8` and prints
+every face rectangle. The result:
+
+| face | u range | vanilla |
+| --- | --- | --- |
+| Right (+X) | 0.250..0.375 | 0.250..0.375 |
+| Front (+Z) | 0.125..0.250 | 0.125..0.250 |
+| Left (-X) | 0.000..0.125 | 0.000..0.125 |
+| Back (-Z) | 0.375..0.500 | 0.375..0.500 |
+
+**They match vanilla exactly, and they are identical whether the pixels are passed explicitly or derived.** The plain
+zombie -- which renders a correct head -- uses the implicit path and produces the same rectangles. So the box helper is
+innocent and the pixel arguments are irrelevant.
+
+**What the measurements did find: the sheet is a PALETTE PNG.** `zombie_villager.png` ships as PNG colour type 3 in the
+client JAR, while every other entity sheet in this project is type 6 (RGBA). Colour type was checked across four sheets:
+zombie 6, chicken 6-ish, endermite 6, zombie_villager **3**. A palette PNG carries transparency as an INDEX rather than
+an alpha channel, and this project has been bitten by exactly this before -- the husk rendered black from a bitmap that
+did not upload correctly.
+
+`scripts/mob-visual/to-rgba.mjs` now converts it: it reads the chunks, inflates the IDAT, unfilters the scanlines,
+expands the 61-entry palette to RGBA and rewrites the PNG. The sheet went from 1076 bytes / type 3 to 1343 bytes /
+type 6, and the asset lock is healthy at 58 present, 0 problems.
+
+**The conversion did NOT change the render -- byte-identical -- and that is a real result rather than a stale cache.**
+I checked the file on disk first: length and colour type both changed, so the server did reload it. So the palette was a
+genuine latent hazard that is now removed, but it is NOT the cause of the head noise.
+
+**Where that leaves the head fault.** Ruled out by measurement: the box helper, the pixel arguments (identical UVs), the
+material (the nose shares it and renders fine), the texture size (64x64 as assumed), and palette encoding (converted,
+no change). What remains is the head region of the sheet itself, on the one part of the model whose UV rectangle I have
+not yet sampled pixel by pixel. **The next step is to sample the actual pixels of the head's rectangle** rather than
+reason about them -- `audit-uv-coverage.mjs` already does this for other mobs and is the tool to point at it.
+
+Work list: **97 spawners, 57 with a real sheet, 35 mobs still flat-colour only.**
