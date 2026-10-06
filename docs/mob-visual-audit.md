@@ -4256,3 +4256,42 @@ needed for a mob whose geometry was already correct.
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs needing geometry rebuilds (both now specified), plus the
 tropical fish which is blocked by its assets.**
+## Round one hundred and fourteen: the procedure is now a TOOL, validated on three mobs
+
+**A hundred rounds produced a five-step prerequisite procedure. It has been living in this document as prose. It is now
+`scripts/mob-visual/check-mob-ready.mjs`, and it produces a verdict rather than a paragraph.**
+
+The steps are ordered by what each ROUND COST, not by what reads naturally:
+
+| # | step | learned by |
+| --- | --- | --- |
+| 1 | atlas key exists | the camel -- none existed, so four rounds of binding silently did nothing |
+| 2 | sheet contains colour | the fish -- the whole family has zero coloured pixels |
+| 3 | anchors readable, in decompile order | the camel's head-vs-hump error |
+| 4 | proportions / part structure | the camel, the sniffer, the fish -- assemblies cannot take sheets |
+| 5 | UV helper in scope | the slime -- a grep cannot tell a call from a definition |
+
+**Validated on three mobs, and it agrees with the measurements:**
+
+```
+slime (finished)      PASS key, PASS colour (10 COLOURED), PASS import, PASS anchors
+                      VERDICT: prerequisites met
+tropical fish         FAIL key, FAIL colour (0 COLOURED <- STUB)
+                      VERDICT: BLOCKED -- the sheet has nothing to draw
+```
+
+**Two properties worth stating, because they are what make it useful rather than decorative:**
+
+* **Step 5 is checked BEFORE steps 3 and 4**, out of numeric order, because it is mechanical and cheap and because it is the
+  one that throws rather than degrades. **A tool that reports a misleading order is worse than no tool.**
+* **Step 4 is deliberately `??` and not `PASS`.** Whether a model is a flat-colour assembly is a judgement about the
+  project's code, and **the tool refuses to claim it has checked something it has not** -- which is the failure mode this
+  project has recorded five times, most expensively in round sixty-three's audit false positives.
+
+**That refusal is the honest part of the design.** A checker that guessed at the one step requiring judgement would be trusted
+for it, and this project's whole history in these rounds is what happens when a summary figure is trusted past its basis.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs needing geometry rebuilds (sniffer, ender dragon -- both
+fully specified), plus the tropical fish which is BLOCKED by its assets.**
