@@ -8141,10 +8141,49 @@ export class MobManager {
     const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeL.position.set(-0.48, 1.9, 3.2); group.add(eyeL);
     const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeR.position.set(0.48, 1.9, 3.2); group.add(eyeR);
 
-    // Wings
-    const wingGeo = new THREE.BoxGeometry(2.8, 0.08, 1.6);
-    const wingL = new THREE.Mesh(wingGeo, dragonMat); wingL.position.set(-2.0, 1.5, 0.5); group.add(wingL);
-    const wingR = new THREE.Mesh(wingGeo, dragonMat); wingR.position.set(2.0, 1.5, 0.5); group.add(wingR);
+    // Wings: vanilla builds each as a BONE box plus a SKIN PLANE, and the plane is mirrored (`.method_32096()`), which is
+    // why its u is NEGATIVE. From `class_895.java`:
+    //
+    //   left_wing      bone 56 x 8 x 8  at (112, 88)    skin 56 x 0 x 56 at (-56, 88)     offset (12, 5, 2)
+    //   left_wing_tip  bone 56 x 4 x 4  at (112, 136)   skin 56 x 0 x 56 at (-56, 144)    offset (56, 0, 0)
+    //
+    // At the body's factor (0.0667 blocks/unit) the bone is 3.73 x 0.53 x 0.53 and the skin 3.73 x 0 x 3.73 -- the eighth
+    // zero-thickness PLANE case in this project. The skin is given a hair of thickness so it renders double-sided without
+    // z-fighting, which is the convention the frog and phantom wings already use. // DRAGON_WINGS
+    const U = 1.6 / 24;
+    const wings = [];
+    for (const side of [-1, 1]) {
+      const boneGeo = new THREE.BoxGeometry(56 * U, 8 * U, 8 * U);
+      applyVanillaBoxUVs(boneGeo, 112, 88, 256, 256, 56, 8, 8);
+      const bone = new THREE.Mesh(boneGeo, dragonMat);
+      bone.position.set(side * 12 * U, 5 * U, 2 * U);
+      // Vanilla mirrors the right wing; the negative x position is that mirror in world terms.
+      bone.position.x = side * 12 * U;
+      group.add(bone);
+      wings.push(bone);
+
+      // The membrane. The rectangle is at a NEGATIVE u because vanilla mirrors it into place.
+      const skinGeo = new THREE.BoxGeometry(56 * U, 0.02, 56 * U);
+      applyVanillaBoxUVs(skinGeo, -56, 88, 256, 256, 56, 0, 56);
+      const skin = new THREE.Mesh(skinGeo, dragonMat);
+      skin.position.set(side * 28 * U, 0, 2 * U);
+      bone.add(skin);
+      wings.push(skin);
+
+      const tipGeo = new THREE.BoxGeometry(56 * U, 4 * U, 4 * U);
+      applyVanillaBoxUVs(tipGeo, 112, 136, 256, 256, 56, 4, 4);
+      const tip = new THREE.Mesh(tipGeo, dragonMat);
+      tip.position.set(side * 56 * U, 0, 0);
+      bone.add(tip);
+      wings.push(tip);
+
+      const tipSkinGeo = new THREE.BoxGeometry(56 * U, 0.02, 56 * U);
+      applyVanillaBoxUVs(tipSkinGeo, -56, 144, 256, 256, 56, 0, 56);
+      const tipSkin = new THREE.Mesh(tipSkinGeo, dragonMat);
+      tipSkin.position.set(side * 28 * U, 0, 2 * U);
+      tip.add(tipSkin);
+      wings.push(tipSkin);
+    }
 
     // Segmented Tail
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.5), dragonMat);
@@ -8160,8 +8199,10 @@ export class MobManager {
       name: 'Ender Dragon',
       mesh: group,
       head: head,
-      wingL: wingL,
-      wingR: wingR,
+      // The wings are now four meshes each (bone, skin, tip, tip skin), so the contract keeps the BONES under the two names
+      // the mob code and the suite expect. // DRAGON_WING_CONTRACT
+      wingL: wings[0],
+      wingR: wings[4],
       isFlying: true,
       isBoss: true,
       health: 200,

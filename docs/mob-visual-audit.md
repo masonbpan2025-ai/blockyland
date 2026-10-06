@@ -4987,3 +4987,39 @@ project has seen since round twenty-one**, and it is why every round reads the f
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at corrected sizes with the factor now
 coherent and its remaining 10 parts tabulated, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and thirty-two: the dragon has WINGS, and my own contract break cost one round
+
+**The wings are built as vanilla builds them -- a BONE box plus a mirrored SKIN PLANE per segment -- and the render shows
+dark membranes spanning out from the body with visible bone structure. The capture is
+`docs/mob-visual-evidence/ender-dragon-wings.png`, at 95895 bytes against 84517 for the wingless version.**
+
+**But the first attempt failed with the SAME signature as round one hundred and twenty-seven:** `AREA` 7 -> 14 and the render
+collapsing to 25663 bytes. **And this time I measured instead of reverting**, which found it in one command:
+
+```
+ReferenceError: wingL is not defined
+    at MobManager.spawnEnderDragon (src/mobs.js:8202)
+```
+
+**I had replaced the two wing meshes with a `wings` array and left the mob's return object still naming `wingL` and
+`wingR`.** The contract was `wingL: wingL, wingR: wingR` -- **and I broke it while changing the geometry those names referred
+to.**
+
+**That is a genuine and repeatedly-earned lesson, stated plainly: replacing a MESH is not the same as replacing a NAME.** The
+suite pins `wingL` and `wingR` as mesh-valued properties, the mob code poses them, and **an array of four wing parts per side
+does not satisfy a contract that asks for two.** The fix keeps the contract -- `wingL: wings[0]`, `wingR: wings[4]`, the two
+BONES -- and the four-part-per-side structure lives in the group.
+
+**And the measurement is what made the difference.** Round one hundred and twenty-seven hit an identical 14-failure,
+25663-byte signature and **reverted without diagnosing**; this round ran the mob and got a one-line answer. **The signature
+being identical was a coincidence of both faults being a `ReferenceError` during construction** -- the render collapses to the
+same size because the mob fails to build at all, not because the faults are related.
+
+`AREA` is back at exactly **1766/1773**.
+
+**The dragon now has, per side: a 3.73-block bone, a 3.73 x 3.73 mirrored skin membrane, a 3.73-block tip bone and its own
+skin** -- vanilla's four-part wing, at the coherent factor. **Its remaining parts are the ten leg pieces**, whose rectangles
+are already read.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon winged with its legs remaining, and the tropical fish
+BLOCKED by its assets.**
