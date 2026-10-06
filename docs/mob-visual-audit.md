@@ -911,3 +911,31 @@ The bat reads as a bat -- body, head, ears, and two-segment wings -- but its win
 body the way the model describes.
 
 Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**
+## Round twenty-six: measuring the plane orientation instead of arguing about it
+
+Last round I called the plane rotations "chosen by eye" and said the fix was to derive orientation from the zero axis.
+**I measured it instead, and the builder was already right.**
+
+`scripts/mob-visual/measure-plane.mjs` builds a plane and prints its world bounding box, which says unambiguously which
+axes it spans:
+
+| part | declared | measured span (blocks) | vanilla says |
+| --- | --- | --- | --- |
+| bat wing | `[7, 2]` | x 0.000, y 0.125, z 0.438 | 0 x 5 x 8 -> 0 tall? no: 2 tall, 7 deep |
+| bat ear | `[5, 3]` | x 0.000, y 0.188, z 0.313 | 3 x 5 x 0 -> 5 deep, 3 tall |
+| frog body layer | `[9, 7]` + quarter turn | x 0.000, y 0.563, z 0.438 | 7 x 0 x 9 -> 7 wide, 9 deep, flat |
+| frog tongue | `[7, 4]` + quarter turn | x 0.000, y 0.438, z 0.250 | 4 x 0 x 7 -> 4 wide, 7 deep, flat |
+
+**Every one matches vanilla's convention.** A zero-depth box spans its two non-zero extents, and the builder's
+`plane: [depth, height]` already places them on Z and Y respectively. So the vex, the bat and the frog all get the
+geometry they describe, and my premise last round was wrong.
+
+**That reframes the frog's remaining oddity.** Its body layer is a 7x9 patch at (23,22) on the sheet, and a render still
+shows a thin upright strip. With the geometry now measured as flat, the strip is more likely that patch's TRANSPARENT
+padding culling down to one visible edge than a rotation fault. I have not proven that, so it is recorded as open rather
+than fixed.
+
+**This is the second time in three rounds that the right move was to measure a specific figure rather than reason from
+a plausible-sounding principle.** The first was the warden's coordinate space.
+
+Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**
