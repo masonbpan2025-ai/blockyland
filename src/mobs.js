@@ -4755,11 +4755,11 @@ export class MobManager {
     const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     // The real 48x48 frog sheet. The model was rebuilt from the decompiled one, whose tongue and hands and feet
-        // are FLAT planes, so this is the only shape that can sample it.
-        const frogTexture = this.loadTexture(FROG_SKIN_PATH);
-        const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat, {
-          texture: frogTexture,
-          onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    // are FLAT planes, so this is the only shape that can sample it.
+    const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat, {
+      // The builder loads its own sheet through this hook; handing it a pre-loaded texture binds nothing.
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
         });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });

@@ -711,3 +711,38 @@ that a texture is bound; that is the same lesson as the turtle shell and the wol
 
 Work list: **92 mob spawners, 54 with a real model, 38 still flat-colour only.** The frog counts toward models, not
 skins, until its texture binds.
+
+## Round twenty: the frog's texture found, and the rule behind it
+
+**The frog is textured.** The cause was two lines of the builder's own contract that I had bypassed:
+
+1. `resolveMaterials` obtains its sheet through **`ctx.loadTexture(url)`**. It does NOT accept a pre-loaded texture.
+   I had passed `texture: this.loadTexture(FROG_SKIN_PATH)`, so `skin` stayed `null` and no map was ever bound.
+2. The default material only receives the sheet on this line:
+
+   ```js
+   if (skin && !definition.color) adoptWhenReady(material, skin, 0xffffff, ctx);
+   ```
+
+   ...and that path is **skipped entirely when a `default` material is supplied**. I was handing in
+   `materials: { default: bodyMat, ... }`, so the one place the frog's sheet could have been bound was never reached.
+
+So the frog needed a `loadTexture` hook and to NOT supply a `default` material. Both fixed; the frog now renders in the
+frog's own ochre and tan with darker legs and feet.
+
+**This is the THIRD distinct way "the mob renders, so the texture is bound" has been false in this project:**
+
+| # | cause | symptom |
+| --- | --- | --- |
+| 1 | rectangle on empty sheet (turtle shell) | fallback colour |
+| 2 | bitmap never uploaded (husk, ocelot canvas) | black |
+| 3 | builder contract bypassed (frog) | white |
+
+All three look like a deliberate art choice, and all three were invisible to every test. That is why the audit keeps
+the count as MODELS and SKINS separately, and why it is worth stating that a passing suite and a plausible silhouette
+are not evidence of a bound texture.
+
+**Known remaining fault, recorded not hidden:** one of the frog's flat layers renders standing upright rather than
+lying flat, so my `rotate` for those planes is wrong. The geometry is otherwise right.
+
+Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
