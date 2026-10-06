@@ -154,7 +154,7 @@
       "ref": "1.21.4",
       "sha256": "689cd82d0783b06648624bc241cb223d5bbcbb4410806ff6f97875608bec5224",
       "bytes": 853,
-      "for": "mooshroom"
+      "for": "mooshroom (red)"
     },
     "shulker_skin": {
       "path": "entity/shulker/shulker.png",
@@ -245,6 +245,15 @@
       "sha256": "d42d8dd0f1dbafcce3535304180b0f6d22c6277cb551cf190aaa54e18ef5282a",
       "bytes": 1092,
       "for": "witch"
+    },
+    "brown_mooshroom_skin": {
+      "path": "entity/cow/brown_mooshroom.png",
+      "dest": "assets/entity/cow/brown_mooshroom.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/cow/brown_mooshroom.png",
+      "ref": "1.21.4",
+      "sha256": "f82e60437c2d9e3d8b11664358e848030fef70143343ac3f48da260a16242208",
+      "bytes": 835,
+      "for": "mooshroom (brown)"
     }
   }
 }

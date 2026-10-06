@@ -99,8 +99,14 @@ test('the brown variant recolours the body and drops brown mushrooms', () => {
   const brown = manager.spawnMooshroom(0, 1, 0, { variant: 'brown' });
   assert.equal(brown.variant, 'brown');
   assert.equal(brown.mushroomType, 'brown');
-  assert.equal(brown.mesh.children[0].material.color.getHex(), MOOSHROOM_COLORS.brown,
-    'the body mesh takes the brown colour');
+  // The variant shows through the SKIN, not a tint. A red and a brown mooshroom are the same cow-shaped model
+  // wearing two different vanilla textures; tinting one textured model would stain the hide, the face and the
+  // mushrooms the same shade, which is worse than the flat version it replaced. So the assertion is which sheet
+  // the body is bound to, and that the mushrooms took the brown block texture.
+  const bodySkin = brown.mesh.children.find((c) => c.material?.map)?.material.map?.assetPath ?? '';
+  assert.match(bodySkin, /brown_mooshroom/, `the body wears the brown sheet, got "${bodySkin}"`);
+  const mushroomSkin = brown.mushroomMeshes?.[0]?.material?.map?.assetPath ?? '';
+  assert.match(mushroomSkin, /brown_mushroom_block/, 'and the mushrooms the brown block');
   assert.equal(MOOSHROOM_MUSHROOM_BLOCK.brown, 'BROWN_MUSHROOM');
   assert.equal(MOOSHROOM_MUSHROOM_BLOCK.red, 'RED_MUSHROOM');
 });
@@ -233,7 +239,9 @@ test('lightning switches the variant without damaging the mooshroom', () => {
   assert.equal(converted.length, 1, 'only the mooshroom within 4 blocks converts');
   assert.equal(near.variant, 'brown', 'red becomes brown');
   assert.equal(near.health, 10, 'wiki: mooshrooms take no damage from the transformation');
-  assert.equal(near.mesh.children[0].material.color.getHex(), MOOSHROOM_COLORS.brown, 'and looks brown');
+  // "And looks brown" is now expressed by the sheet it is wearing rather than a colour written over the model.
+  const struckSkin = near.mesh.children.find((c) => c.material?.map)?.material.map?.assetPath ?? '';
+  assert.match(struckSkin, /brown_mooshroom/, 'and now wears the brown sheet');
   assert.equal(far.variant, 'red', 'the distant mooshroom is untouched');
 
   // It is a toggle, not a one-way change.

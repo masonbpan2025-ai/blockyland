@@ -79,7 +79,8 @@ import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS,
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
-import { buildModel } from './mobVisuals/modelBuilder.js';
+import { buildModel, adoptWhenReady, flushPendingSkinBindings, skinBinding } from './mobVisuals/modelBuilder.js';
+import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
@@ -221,47 +222,13 @@ function isLlamaLike(mob) {
  * black.
  */
 export function adoptTexture(material, texture, fallbackColor = 0xffffff) {
-  // Any real texture will do. An earlier guard required `assetPath`, which is only set by `loadTexture`, so a
-  // generated or hand-built texture was silently ignored and its material left without a map.
-  if (!material || texture?.isTexture !== true || material.map === texture) return material;
-  const adopt = () => {
-    if (material.map === texture) return;
-    material.map = texture;
-    material.color.setHex(0xffffff);
-    material.needsUpdate = true;
-  };
-  // Is there a live `<img>` that is merely still decoding?
-  //
-  // Only that case needs the flat colour and a deferred binding: binding now would draw BLACK. Everything else --
-  // a texture that already has its bitmap, and a texture with no image at all (a headless build, where there is
-  // no renderer to draw black either) -- can be bound straight away. Treating "no image" as "waiting" was wrong
-  // and left mobs looking unskinned in any non-browser build.
-  const imageInFlight = Boolean(texture.image)
-    && typeof texture.image.addEventListener === 'function'
-    && !texture.image.width;
-  if (!imageInFlight) {
-    adopt();
-    return material;
-  }
-  // Keep the flat colour until the bitmap is really there.
-  material.color.setHex(fallbackColor);
-  // Bind as soon as the bitmap exists, by as many routes as are available, because none of them may be relied on
-  // alone: the loader's readiness hook (what actually fires in the browser), the image's own event, and a
-  // per-frame poll from `update` for a browser that fires neither.
-  MobManager.onTextureReady(texture, adopt);
-  try { texture.image?.addEventListener?.('load', adopt); } catch { /* not an event target */ }
-  deferredSkins.push({ material, texture, adopt });
-  return material;
+  // Delegated to the visuals module so a behaviour file -- the mooshroom's variant swap -- can bind a skin through
+  // exactly the same logic without importing this module and creating an import cycle. `skinBinding` carries the
+  // readiness hook that makes the deferred case finish in the Inspector, which spawns its mob and then sits paused.
+  return adoptWhenReady(material, texture, fallbackColor);
 }
 
-/**
- * Bindings waiting for their bitmap.
- *
- * The image listener above is the primary mechanism, because it works even when the mob never ticks. This list is
- * the safety net for a browser that fires neither event, and it empties itself as soon as everything has decoded,
- * so the steady-state cost is one `length` check per frame.
- */
-const deferredSkins = [];
+
 
 /**
  * Readiness callbacks waiting on a texture PATH.
@@ -272,18 +239,19 @@ const deferredSkins = [];
  */
 const pendingByPath = new Map();
 
-/** Finish any skin binding whose texture has now decoded. Called once per frame from `update`. */
+/**
+ * Finish any skin binding whose texture has now decoded. Called once per frame from `update`.
+ *
+ * The registry itself lives in the visuals module so every binder in the project shares one implementation, whether
+ * it is a spawner in this file or a behaviour file that cannot import this one.
+ */
 export function syncDeferredSkins() {
-  if (deferredSkins.length === 0) return;
-  for (let i = deferredSkins.length - 1; i >= 0; i--) {
-    const binding = deferredSkins[i];
-    // Readiness is a non-zero width, not the presence of an image object: three's loader creates the `<img>`
-    // immediately, so an object that merely exists is still undecoded.
-    if (!binding.texture.image?.width) continue;
-    binding.adopt();
-    deferredSkins.splice(i, 1);
-  }
+  flushPendingSkinBindings();
 }
+
+// Install the readiness hook for every module that binds a skin, including ones that cannot import this file: the
+// mooshroom's variant swap, for instance, lives in mooshroomBehavior.js, which importing this module would cycle.
+skinBinding.onTextureReady = (texture, fn) => MobManager.onTextureReady(texture, fn);
 
 /**
  * Where each variant's ORIGINAL vanilla skin is served from, if it has one.
@@ -315,6 +283,10 @@ const ILLAGER_SKIN_PATH = '/assets/entity/illager/vindicator.png';
 const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
+const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
+const BROWN_MOOSHROOM_SKIN_PATH = '/assets/entity/cow/brown_mooshroom.png';
+const RED_MUSHROOM_BLOCK_PATH = '/assets/block/red_mushroom_block.png';
+const BROWN_MUSHROOM_BLOCK_PATH = '/assets/block/brown_mushroom_block.png';
 
 /**
  * An illager, measured off the 64x64 vanilla atlas.
@@ -3009,7 +2981,14 @@ export class MobManager {
    * asset is genuinely unavailable, detected by the loader's error event.
    */
   loadTexture(path, fallback = null) {
-    if (typeof document === 'undefined') return fallback ? fallback() : new THREE.Texture();
+    if (typeof document === 'undefined') {
+      // No DOM means no renderer and no loader, so this is a headless/test build. The texture still records WHERE
+      // it came from: without that, two mobs wearing genuinely different skins look identical to anything
+      // inspecting their materials, and a test cannot tell a variant swap from a no-op.
+      const bare = fallback ? fallback() : new THREE.Texture();
+      if (!bare.assetPath) bare.assetPath = path;
+      return bare;
+    }
     const tex = this.textureLoader.load(path, () => {
       // The bitmap is really here. Anything waiting on this texture -- a material that had to keep its flat
       // colour in the meantime -- can now bind for real.
@@ -3094,6 +3073,37 @@ export class MobManager {
    * block textures are requested with `loadTexture` and arrive asynchronously, so assigning the map up front
    * would leave a material whose map has no image yet -- which three renders as BLACK, not as the fallback.
    */
+  /**
+   * A copy of `sheet` with the patch at (u, v, w, h) moved to the atlas origin, so a head using the ordinary box
+   * layout samples the face that is actually drawn somewhere else on the sheet.
+   *
+   * Vanilla cows are the case that needs it: their eyes do not sit at the offset the textbook head layout reaches,
+   * so the face is copied to where the layout looks. Returning a NEW texture rather than nudging UVs per face keeps
+   * the head's six faces on one ordinary layout, and the copy is small.
+   */
+  faceSheetTexture(sheet, u, v, w = 8, h = 8) {
+    if (typeof document === 'undefined' || !sheet?.image?.width) return sheet;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = sheet.image.width;
+      canvas.height = sheet.image.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(sheet.image, 0, 0);
+      const patch = ctx.getImageData(u, v, w, h);
+      ctx.putImageData(patch, 0, 0);
+      const made = new THREE.CanvasTexture(canvas);
+      made.magFilter = THREE.NearestFilter;
+      made.minFilter = THREE.NearestFilter;
+      made.colorSpace = THREE.SRGBColorSpace;
+      made.flipY = true;
+      made.assetPath = `${sheet.assetPath ?? 'sheet'}#face`;
+      return made;
+    } catch {
+      // A canvas problem must not cost the mob its body, so fall back to the sheet itself.
+      return sheet;
+    }
+  }
+
   createPumpkinMaterials() {
     // One set per manager, shared by every golem. Building fresh materials per spawn would both leak and, worse,
     // freeze the flat colour in place: the block textures decode asynchronously, so a material built before they
@@ -5164,27 +5174,65 @@ export class MobManager {
   // --- BIOME MOBS ---
   spawnMooshroom(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshLambertMaterial({ color: MOOSHROOM_COLORS.red });
-    const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const isBrown = options.variant === 'brown';
+    // The real skin. A red and a brown mooshroom are the same cow-shaped model and differ only by which of the two
+    // vanilla skins they wear, so the variant picks the texture rather than tinting one.
+    //
+    // Both atlases use the cow's layout, which is why the UV rectangles here match `spawnCow`: head 8x8x8 at (0,0),
+    // body at (18,4) with the cow's proportions, legs 4x12x4 at (0,16). It was previously a flat red box with a
+    // flat red head, so it had no face and no hide.
+    // One sheet object, loaded once. Loading it a second time would hand `faceSheetTexture` a DIFFERENT texture
+    // whose bitmap has not decoded, so the copy would silently fall back to the whole sheet -- which is exactly
+    // how the head ended up wearing the body's texture.
+    const skinPath = isBrown ? BROWN_MOOSHROOM_SKIN_PATH : MOOSHROOM_SKIN_PATH;
+    const sheet = this.loadTexture(skinPath);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, sheet, 0xffffff);
 
-    const body = new THREE.Mesh(createBoxWithUV(0.8, 0.7, 1.1, 28, 8, 64, 32), bodyMat);
-    body.position.y = 0.75;
-    group.add(body);
-
-    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), bodyMat);
+    // Head. The cow's face -- the dark markings that read as eyes -- is drawn at (2,8) on the sheet, which is not
+    // where the textbook head layout looks. The face is copied to the layout's own origin so the head can be an
+    // ordinary 8x8x8 box with its other five sides in the normal places. The copy is retried once the sheet
+    // finishes decoding, because at spawn it is usually still in flight.
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    const bindFace = () => {
+      const face = this.faceSheetTexture(sheet, 2, 8, 8, 8);
+      // Only bind the copy once it really is a copy; binding the raw sheet would put the body's hide on the face.
+      if (face !== sheet || sheet.image?.width) adoptTexture(headMat, face, 0xffffff);
+    };
+    bindFace();
+    MobManager.onTextureReady(sheet, bindFace);
+    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8), headMat);
     head.position.set(0, 1.05, 0.65);
     group.add(head);
 
-    // Mushrooms on the back: five of them, as the wiki's "5 corresponding mushrooms"
-    // implies. They are held so the variant can recolour them and the growth path can
-    // hide them on babies.
-    const shroomGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+    // Body: 12 long, 10 tall, 18 deep -- the standard quadruped barrel. Its depth is more than half its width, so
+    // vanilla's own left-face slot would land outside the part's block; explicit rectangles measured off the atlas
+    // (every one of the six is fully opaque there) keep it honest.
+    const body = new THREE.Mesh(createBoxFromFaces(0.75, 0.65, 1.1, [
+      { x: 18, y: 4, w: 18, h: 10 },   // +X right
+      { x: 42, y: 4, w: 18, h: 10 },   // -X left
+      { x: 18, y: 0, w: 12, h: 18 },   // +Y top
+      { x: 30, y: 0, w: 12, h: 18 },   // -Y bottom
+      { x: 18, y: 4, w: 12, h: 10 },   // +Z front
+      { x: 30, y: 4, w: 12, h: 10 }    // -Z back
+    ], { texW: 64, texH: 32 }), bodyMat);
+    body.position.y = 0.75;
+    group.add(body);
+
+    // Wiki: five mushrooms grow on its back. They are real mushroom blocks now rather than coloured cubes, so the
+    // caps and the stems read as mushrooms; red mooshrooms carry red ones and brown mooshrooms brown.
+    const shroomSkin = this.loadTexture(isBrown ? BROWN_MUSHROOM_BLOCK_PATH : RED_MUSHROOM_BLOCK_PATH);
+    const shroomMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    adoptTexture(shroomMat, shroomSkin, isBrown ? MOOSHROOM_COLORS.brown : MOOSHROOM_COLORS.red);
+    const shroomGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     const mushroomMeshes = [
-      [0.15, 1.25, 0.1], [-0.15, 1.25, -0.2], [0.2, 1.25, -0.35],
-      [-0.2, 1.25, 0.35], [0.0, 1.25, 0.5]
+      [0.15, 1.22, 0.1], [-0.15, 1.22, -0.2], [0.2, 1.22, -0.35],
+      [-0.2, 1.22, 0.35], [0.0, 1.22, 0.5]
     ].map(([mx, my, mz]) => {
-      const mesh = new THREE.Mesh(shroomGeo, bodyMat);
+      const mesh = new THREE.Mesh(shroomGeo, shroomMat);
       mesh.position.set(mx, my, mz);
+      // Each cap is turned a little so the five do not read as one slab.
+      mesh.rotation.y = mx * 2;
       group.add(mesh);
       return mesh;
     });
@@ -5207,6 +5255,15 @@ export class MobManager {
       legs: [fl, fr, bl, br],
       variantMeshes: [body, head, ...mushroomMeshes, fl, fr, bl, br],
       mushroomMeshes,
+      // The behaviour file swaps these two materials to change variant, so the handles and the paths both travel
+      // with the mob. `variantMeshes` is kept for anything still reading it.
+      skinMaterial: bodyMat,
+      mushroomMaterial: shroomMat,
+      redSkinPath: MOOSHROOM_SKIN_PATH,
+      brownSkinPath: BROWN_MOOSHROOM_SKIN_PATH,
+      redMushroomPath: RED_MUSHROOM_BLOCK_PATH,
+      brownMushroomPath: BROWN_MUSHROOM_BLOCK_PATH,
+      skinManager: this,
       // 'red' spawns naturally; 'brown' only ever comes from lightning or breeding.
       variant: options.variant === 'brown' ? 'brown' : 'red',
       // Retained across a shear so the dropped mushrooms match the variant, mirroring

@@ -165,11 +165,42 @@ function resolveMaterials(definition, ctx) {
 }
 
 /**
- * Point a material at a texture that may not have decoded yet, keeping a flat colour in the meantime.
+ * The readiness hook a host can install so every deferred skin binding in the project finishes reliably.
  *
- * A mapped material whose bitmap is missing renders BLACK in three, so the colour must be held back until the
- * image exists. This mirrors `adoptTexture` in src/mobs.js deliberately: the Mob Inspector spawns its mob and then
- * sits paused, so nothing per-frame may be relied on, and the adoption is driven by the image's own load event.
+ * `src/mobs.js` sets this from `MobManager.onTextureReady`. It lives here, as a module with no dependencies, so
+ * behaviour modules such as `mooshroomBehavior.js` can bind a skin without importing the whole mob manager and
+ * creating an import cycle.
+ */
+export const skinBinding = {
+  onTextureReady: null
+};
+
+/**
+ * Bindings waiting for their bitmap, polled once per frame by the host.
+ *
+ * The readiness hook is the primary mechanism; this is the safety net for a browser that fires no event at all.
+ * It empties itself as soon as everything has decoded, so the steady-state cost is one length check per frame.
+ */
+export const pendingSkinBindings = [];
+
+/** Attach every binding whose bitmap has now arrived. */
+export function flushPendingSkinBindings() {
+  if (pendingSkinBindings.length === 0) return;
+  for (let i = pendingSkinBindings.length - 1; i >= 0; i--) {
+    const binding = pendingSkinBindings[i];
+    // Readiness is a non-zero width, not the presence of an image object: three's loader creates the `<img>`
+    // immediately, so an object that merely exists is still undecoded.
+    if (!binding.texture.image?.width) continue;
+    binding.adopt();
+    pendingSkinBindings.splice(i, 1);
+  }
+}
+
+/** Point a material at a texture that may not have decoded yet, keeping a flat colour in the meantime.
+ *
+ * This is the one place the project decides when a skin may be attached. It matters because a mapped material
+ * whose bitmap is missing renders BLACK in three, so the colour has to be held back until the image exists.
+ * The Mob Inspector spawns its mob and then sits paused, so nothing per-frame may be relied on.
  */
 export function adoptWhenReady(material, texture, fallbackColor = 0xffffff, ctx = {}) {
   if (!material || !texture) return material;
@@ -181,8 +212,7 @@ export function adoptWhenReady(material, texture, fallbackColor = 0xffffff, ctx 
   };
   // Defer ONLY when there is a live `<img>` still decoding, which is the one case where binding now would draw
   // black. A texture with no image at all -- a headless build -- has no renderer to draw black either, and
-  // deferring there just left the mob looking unskinned to anything inspecting its material. This mirrors
-  // `adoptTexture` in src/mobs.js deliberately; the two must agree.
+  // deferring there just left the mob looking unskinned to anything inspecting its material.
   const imageInFlight = Boolean(texture.image)
     && typeof texture.image.addEventListener === 'function'
     && !texture.image.width;
@@ -192,8 +222,9 @@ export function adoptWhenReady(material, texture, fallbackColor = 0xffffff, ctx 
   }
   material.color.setHex(fallbackColor);
   // The host's readiness hook is the route that actually fires: three's loader is given an explicit onLoad by
-  // src/mobs.js, which SUPPRESSES its default listener, so the texture's own 'load' event never arrives.
-  ctx.onTextureReady?.(texture, adopt);
+  // src/mobs.js, which SUPPRESSES its own default listener, so the texture's own 'load' event never arrives.
+  (ctx.onTextureReady ?? skinBinding.onTextureReady)?.(texture, adopt);
   try { texture.image?.addEventListener?.('load', adopt); } catch { /* not an event target */ }
+  pendingSkinBindings.push({ material, texture, adopt });
   return material;
 }

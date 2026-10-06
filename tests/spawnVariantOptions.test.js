@@ -45,6 +45,24 @@ function modelColors(mob) {
 }
 
 /**
+ * Everything that makes a mob look different: its materials' colours AND the skins they are bound to.
+ *
+ * A variant can express itself either way. The mooshroom switches between two vanilla textures instead of tinting
+ * its model, so a colour-only comparison reports two genuinely different mobs as identical.
+ */
+function modelAppearance(mob) {
+  const parts = [];
+  mob.mesh?.traverse?.((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    for (const material of (Array.isArray(obj.material) ? obj.material : [obj.material])) {
+      if (!material) continue;
+      parts.push((material.color?.getHexString?.() ?? '-') + '@' + (material.map?.assetPath ?? 'nomap'));
+    }
+  });
+  return [...new Set(parts)].sort().join(',');
+}
+
+/**
  * Each mob that carries a variant, with two option sets that must render differently.
  *
  * A mob is only included if its variant is *visible*, so a colour-differing pair is the assertion.
@@ -69,7 +87,9 @@ test('spawnMob forwards options, so a variant reaches the model', () => {
     const second = manager.spawnMob(entry.type, 2, 1, 0, entry.b);
     assert.ok(first, `${entry.type} a spawned`);
     assert.ok(second, `${entry.type} b spawned`);
-    assert.notEqual(modelColors(first), modelColors(second),
+    // A variant may differ by COLOUR or by SKIN. Both are legitimate: the mooshroom switches between two vanilla
+    // textures rather than tinting the model, so comparing colours alone would call a real difference invisible.
+    assert.notEqual(modelAppearance(first), modelAppearance(second),
       `${entry.type}: ${entry.key} must change the rendered model`);
   }
 });
@@ -200,7 +220,13 @@ test('a sheep and a mooshroom still honour their colour option', () => {
   const red = manager.spawnMob('mooshroom', 0, 1, 0, { variant: 'red' });
   const brown = manager.spawnMob('mooshroom', 2, 1, 0, { variant: 'brown' });
   assert.equal(brown.variant, 'brown');
-  assert.notEqual(modelColors(red), modelColors(brown));
+  // The mooshroom shows its variant through its SKIN, not through a tint: a red and a brown mooshroom are the same
+  // cow-shaped model wearing two different vanilla textures. So the difference to assert is which skin each is
+  // bound to, and that neither was flattened to one colour to express it.
+  assert.notEqual(modelAppearance(red), modelAppearance(brown),
+    'red and brown mooshrooms must not render identically');
+  assert.match(modelAppearance(brown), /brown_mooshroom/, 'the brown variant wears the brown skin');
+  assert.match(modelAppearance(red), /red_mooshroom/, 'and the red variant the red one');
 });
 
 test('the extra options argument does not leak into the mob state', () => {

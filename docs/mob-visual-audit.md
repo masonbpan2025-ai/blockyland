@@ -174,3 +174,27 @@ boxes with a light-grey cube for a head, so none of them had a face at all.
 Still not done, in the same condition as before: the **mooshroom** (flat red boxes and five red cubes for
 mushrooms) and the **shulker** (still a box), plus the roughly eighty spawners that still paint flat colours. The
 **warden** also still has no face or body detail. Their textures are already fetched and locked.
+## Mooshroom: real skin, wrong face
+
+The mooshroom now wears its real vanilla hide instead of being a flat red box, and its five back mushrooms are real
+mushroom-block geometry that changes with the variant. Red and brown are the two vanilla sheets, so the variant
+swaps the skin rather than tinting the model -- which is what made the brown variant impossible to do properly
+before, because one flat colour over a textured model stains the hide, the face and the mushrooms alike.
+
+**Its face is still wrong.** The whole animal reads as a red mooshroom, but the head does not show a cow face: the
+head samples the body's hide instead. The cause is established -- the cow's eyes are not at the offset its textbook
+head layout reaches, so the face is copied from (2,8) to the layout's own origin and the head then samples that --
+but the copy is not arriving before the head binds. `scripts/mob-visual/legacy-rects.mjs` prints what a
+`createBoxWithUV` call actually samples face by face, which is the tool that identified it.
+
+The **cow** has the same underlying problem and worse: its head now samples body hide too, so it reads as a brown
+animal with grey patches. Both need the face patch resolved before either is finished.
+
+Two behaviour tests changed shape with this, and were updated rather than deleted: `mooshroomParity.test.js` and
+`spawnVariantOptions.test.js` asserted a material COLOUR difference between red and brown. The variant is a skin
+swap now, so they assert which sheet each is bound to. `modelAppearance` was added alongside `modelColors` for
+that reason: a variant can express itself by colour OR by skin, and a colour-only comparison reports two genuinely
+different mobs as identical.
+
+Still not done: the **shulker** (a box), the **warden** (no face or body detail), the **vex** (head still reads as a
+pale block), and roughly fifty spawners that still paint flat colours. All their textures are fetched and locked.
