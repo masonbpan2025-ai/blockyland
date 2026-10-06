@@ -280,3 +280,33 @@ The spider's eye count was also wrong in the tests: they pinned **four** eyes, a
 `spiderParity.test.js` and `caveSpiderParity.test.js` now assert eight.
 
 Work list: **92 mob spawners, 41 with a real skin, 51 still flat-colour only.**
+## Round five: bee, and a contract two mobs share
+
+**Bee.** It was flat-coloured boxes with two loose stripe slabs balanced on the body -- the banding was separate
+meshes rather than part of the texture, so it could never look right from the side or from above. The vanilla skin
+already carries the banding: its front face at (17,9) is a patch with alternating dark bands and two eye marks. The
+bee is now built from the vanilla dimensions (body 9x7x9, plus head, wings, six legs and a stinger) with every part
+mapped to the real 64x64 skin.
+
+**The wings contract is shared, and a test guards it.**
+`moveFlyingMob` writes `mob.wings.left.rotation.z` and `mob.wings.right.rotation.z` to flap them, so `wings` must be
+an OBJECT with named sides -- not an array. My first rebuild returned an array, which silently froze the model's
+wings and broke three bee tests. `beeParity.test.js` pins the shape explicitly and even records why: "the bat
+shipped a frozen model by getting this wrong". Worth knowing for every flying mob still to be done: the bat, the
+phantom, the allay and the parrot all pass through the same function.
+
+**Nested texture paths, resolved.** `extract-from-jar.mjs` now pulls the files a flat mirror lacks: the turtle is
+`entity/turtle/big_sea_turtle.png`, the llama coats are `entity/llama/creamy.png`, the rabbit coats are
+`entity/rabbit/brown.png`, and the ocelot is `entity/cat/ocelot.png`.
+
+Work list: **92 mob spawners, 42 with a real skin, 50 still flat-colour only.**
+
+### What the last two rounds establish as the repeatable pattern
+
+1. Get the texture from the client JAR (`extract-from-jar.mjs`), not a mirror.
+2. Measure the atlas (`atlas-extents.mjs`, `legacy-rects.mjs`, `sample-rect.mjs`) rather than assuming a layout.
+3. Rebuild the geometry with `createEntityBox`, falling back to `createBoxFromFaces` when a box is deeper than half
+   its width.
+4. Check the parts the animation code reads -- `leg.hip`/`leg.knee`, `wings.left`/`wings.right` -- because a model
+   that ignores them renders but does not move.
+5. Verify in the real Inspector, then run the mob parity suites.

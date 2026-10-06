@@ -281,6 +281,15 @@
       "sha256": "45bc67083660ea8257b65c849dc1bb457be7ec56ad8fe8951adc9cb221f52ecd",
       "bytes": 130,
       "for": "spider eyes"
+    },
+    "bee_skin": {
+      "path": "entity/bee/bee.png",
+      "dest": "assets/entity/bee/bee.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/bee/bee.png",
+      "ref": "1.21.4",
+      "sha256": "254ee6e34f909e84dd3591b690dc9457841c2ca0b7121a87d23e66edcae87250",
+      "bytes": 422,
+      "for": "bee"
     }
   }
 }

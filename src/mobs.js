@@ -287,6 +287,7 @@ const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
 const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
+const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
 /** The spider's dark hide and its red eyes, used as fallbacks while the skin decodes. */
 const SPIDER_BODY_COLOR = 0x3a2f28;
 const SPIDER_EYE_COLOR = 0xdc2626;
@@ -4249,7 +4250,10 @@ export class MobManager {
    * later. It pollinates flowers, carries nectar to a hive, and answers anger as a colony.
    */
   spawnBee(x, y, z, options = {}) {
-    const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body });
+    // The real 64x64 bee skin. The model was rebuilt with UVs so the texture actually dresses it: before this the
+        // banding was two loose stripe boxes balanced on the body and the skin was never sampled at all.
+        const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body, transparent: true, alphaTest: 0.5 });
+        adoptTexture(bodyMat, this.loadTexture(BEE_SKIN_PATH), BEE_COLORS.body);
     const stripeMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.stripe });
     const wingMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.wing, transparent: true, opacity: 0.75 });
     const eyeMat = new THREE.MeshBasicMaterial({ color: BEE_COLORS.eye });
