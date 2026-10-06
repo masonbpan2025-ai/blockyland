@@ -4444,3 +4444,45 @@ retire a part the suite requires**, and it costs nothing.
 
 Work list: **97 spawners, 79 with a real sheet, the sniffer with its contract intact and its non-vanilla parts retired, the
 ender dragon still to rebuild, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and nineteen: the ender dragon is bound, and its sheet is a special case
+
+**Added `ENDER_DRAGON_SKIN_PATH` and the `ender_dragon` atlas key, bound through the deferred hook:**
+
+```
+ender_dragon  distinct materials 2   with a map: 1
+giant         distinct materials 4   with a map: 3      <- the control
+```
+
+**And the readiness tool flagged something about this sheet that no other mob has shown:**
+
+```
+[PASS] 2. sheet contains colour   256x256 type 3, 39-entry palette, 3 COLOURED
+```
+
+**Three coloured entries out of thirty-nine.** The ender dragon's texture is almost entirely GREYSCALE by design -- which is
+why the mob reads as near-black in vanilla -- and it passes the content check only because those three entries are the
+**magenta eyes**. That is the check being correctly permissive: it asks whether there is *any* colour to draw, and the dragon
+has exactly enough for its eyes.
+
+**The render shows the dark sheet's texture with the magenta eye pixels visible**, and it fragments, which is the expected
+state before rectangles are applied. The capture is kept as `docs/mob-visual-evidence/ender-dragon-rebuild-in-progress.png`.
+
+**Where the dragon stands, against round one hundred and thirteen's verdict:** the sheet is bound and the prerequisites PASS.
+**What remains is the full rebuild** -- `class_895$class_625` has **twenty parts in a real hierarchy** (head->jaw, neck, body,
+two wings each with a tip, six legs each in three segments) against the project's **eight meshes with wings as flat 0.08
+planes**. **A binding cannot bridge that**, exactly as round one hundred and five's rule says, and this round deliberately did
+NOT attempt the twenty-part rebuild -- it established the prerequisites so the rebuild starts from a mob that already draws
+its own texture.
+
+**So three mobs are now in a consistent state, and none is a mystery:**
+
+| mob | state |
+| --- | --- |
+| sniffer | rebuilt and reading as a creature; contract intact |
+| ender dragon | bound, prerequisites PASS, needs the 20-part rebuild |
+| tropical fish | **BLOCKED** -- its sheets have zero coloured pixels |
+
+`AREA` stayed at exactly **1766/1773**.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon bound and awaiting its 20-part rebuild, and the tropical
+fish BLOCKED by its assets.**

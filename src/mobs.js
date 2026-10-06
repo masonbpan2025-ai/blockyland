@@ -294,6 +294,8 @@ const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 /** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
 const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
 const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
+/** The real 256x256 ender dragon sheet (39 palette entries). */
+const ENDER_DRAGON_SKIN_PATH = '/assets/entity/enderdragon/dragon.png';
 /** The real 192x192 sniffer sheet. */
 const SNIFFER_SKIN_PATH = '/assets/entity/sniffer/sniffer.png';
 /** The real 64x32 slime sheet (12 palette entries, 10 coloured greens). */
@@ -675,6 +677,7 @@ export class MobManager {
       // The slime's own sheet, checked for existence this time BEFORE binding -- the round-ninety-nine lesson.
       slime: this.loadTexture(SLIME_SKIN_PATH),
       sniffer: this.loadTexture(SNIFFER_SKIN_PATH),
+      ender_dragon: this.loadTexture(ENDER_DRAGON_SKIN_PATH),
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
@@ -8100,7 +8103,16 @@ export class MobManager {
   // --- ENDER DRAGON BOSS ---
   spawnEnderDragon(x, y, z) {
     const group = new THREE.Group();
-    const dragonMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+    // The REAL 256x256 ender dragon sheet, from the PRELOADED ATLAS, bound through the DEFERRED hook. // DRAGON_SHEET
+    const dragonSheet = this.textures?.ender_dragon ?? this.loadTexture(ENDER_DRAGON_SKIN_PATH);
+    if (dragonSheet) { dragonSheet.magFilter = THREE.NearestFilter; dragonSheet.minFilter = THREE.NearestFilter; dragonSheet.needsUpdate = true; }
+    /** The sheet material, or the flat one when there is no sheet. */
+    const dragonMat = (() => {
+      if (!dragonSheet) return new THREE.MeshLambertMaterial({ color: 0x111827 });
+      const m = new THREE.MeshLambertMaterial({ map: dragonSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(m, dragonSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return m;
+    })();
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
 
     // Body
