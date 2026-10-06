@@ -696,11 +696,25 @@ export class Player {
     this.exhaustion = state.exhaustion;
   }
 
+  /**
+   * The authoritative difficulty.
+   *
+   * `game.difficulty` is what every mob behaviour, the spawner and the boot path read, so the player reads it
+   * too rather than keeping a second copy that silently goes stale the moment the difficulty changes.
+   * `this.difficulty` is the fallback for the Player-shaped stubs the tests drive, which have no game -- and
+   * for a Player built before it is attached to one.
+   */
+  get difficultyLevel() {
+    // `trim` as well as `toLowerCase`: the value indexes the starvation-floor and mob-damage tables by key,
+    // and a stray space would silently miss every one of them and fall through to the default.
+    return String(this.game?.difficulty ?? this.difficulty ?? 'normal').trim().toLowerCase();
+  }
+
   /** One tick of regeneration, starvation and the difficulty floor. */
   updateHungerModel(dt) {
     const state = this.ensureHungerState();
     const result = tickHunger(state, dt, {
-      peaceful: String(this.difficulty ?? 'normal').toLowerCase() === 'peaceful',
+      peaceful: this.difficultyLevel === 'peaceful',
       health: this.health,
       maxHealth: this.maxHealth,
     });
@@ -713,7 +727,7 @@ export class Player {
     }
     if (result.starve > 0 && this.health > 0) {
       // Starvation is floored by difficulty, so it cannot kill on easy or normal.
-      const floor = starvationFloor(this.difficulty ?? 'normal');
+      const floor = starvationFloor(this.difficultyLevel);
       if (this.health - result.starve > floor) {
         this.health = Math.max(floor, this.health - result.starve);
       }
