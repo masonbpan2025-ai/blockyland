@@ -5521,3 +5521,37 @@ every measurement from rounds eighty-seven to one hundred and forty-five.
 
 Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins and eyes correct with its pattern pass' failure
 now attributable to my own layering rather than the asset, and the dragon's leg positions recorded as approximations.**
+## Round one hundred and forty-six: one candidate eliminated, and the fish's remaining question stated exactly
+
+**Round one hundred and forty-five named "the pattern material's colour resolved to something dark" as the likely cause of round
+one hundred and forty-three's blackout. Checked, and it does not hold:**
+
+```
+FISH_COLORS.tropical_fish = { body: 0xf28c28, belly: 0xffe1b3, fin: 0xffffff, eye: 0x101010 }
+```
+
+**There is no `pattern` key.** So the chain `options.patternHex ?? colors.pattern ?? 0xffffff` **resolved to `0xffffff`** --
+white, not dark. **And a white-tinted stencil over an orange base produces orange, not black.**
+
+**So the blackout is not the pattern's colour either**, and the candidates are down to the LAYERING itself:
+
+* the pattern mesh reused the body's geometry at `scale * 1.002` with `polygonOffset` set, so **it sits directly on the base**;
+* and `polygonOffset` biases the DEPTH TEST, so a mesh offset the wrong way can win the depth test across a whole surface and
+  **paint the base out** -- which, with `transparent: true` and a stencil almost entirely alpha 0, would show whatever the
+  body's own transparent margin renders as.
+
+**That is a hypothesis and I am labelling it one.** What this round establishes is narrower and still useful: **two of the three
+candidate causes are eliminated by measurement** -- the sheet is sparse white (round one hundred and forty-five) and the tint
+is white (this round) -- **so the fault is in the depth/layering arrangement, which is my code and not the asset.**
+
+**THE FISH'S REMAINING QUESTION, stated so it can be picked up without re-reading any of this:**
+
+> Vanilla draws the fish twice -- base at `baseColor`, stencil at `patternColor`. This project's BASE pass works and is
+> verified. The PATTERN pass renders black. **The sheet is sparse-white and the tint is white, so the fault is in how the
+> second mesh is composited: try it WITHOUT `polygonOffset`, WITHOUT the `1.002` scale, and with `depthWrite: false`** -- three
+> one-line variations, each testable in a single render.
+
+**And the fish's verified state stands regardless:** base orange, fins white, eyes dark, all three measured and correct. **The
+pattern is a refinement on top of a working mob**, not a blocker.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
