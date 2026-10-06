@@ -8115,8 +8115,13 @@ export class MobManager {
     })();
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
 
-    // Body
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 3.2), dragonMat);
+    // Body. Vanilla's rectangle is 16x32x16 UNITS at (0, 0) on the 256x256 sheet, which is 1 x 2 x 1 BLOCKS -- and this
+    // box is 1.6 x 1.2 x 3.2, so both the rectangle AND the shape differ. The rectangle is applied through
+    // applyVanillaBoxUVs, which maps vanilla's layout onto this box; the shape mismatch is recorded in the audit, not
+    // silently corrected. // DRAGON_RECTS
+    const bodyGeo = new THREE.BoxGeometry(1.6, 1.2, 3.2);
+    applyVanillaBoxUVs(bodyGeo, 0, 0, 256, 256, 16, 32, 16);
+    const body = new THREE.Mesh(bodyGeo, dragonMat);
     body.position.y = 1.0;
     group.add(body);
 
@@ -8125,8 +8130,11 @@ export class MobManager {
     neck.position.set(0, 1.6, 2.0);
     group.add(neck);
 
-    // Head with purple eyes
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 1.1), dragonMat);
+    // Head with purple eyes. Vanilla's rectangle is 8x24x8 units at (112, 104) -- a TALL narrow skull (0.5 x 1.5 x 0.5
+    // blocks), against this box's 0.9 x 0.8 x 1.1. The rectangle is applied; the shape difference is recorded in the audit.
+    const headGeo = new THREE.BoxGeometry(0.9, 0.8, 1.1);
+    applyVanillaBoxUVs(headGeo, 112, 104, 256, 256, 8, 24, 8);
+    const head = new THREE.Mesh(headGeo, dragonMat);
     head.position.set(0, 1.8, 3.0);
     group.add(head);
 

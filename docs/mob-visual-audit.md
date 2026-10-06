@@ -4720,3 +4720,41 @@ right instrument, and it found the class immediately.**
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry and every rectangle now READ, and the tropical
 fish BLOCKED by its assets.**
+## Round one hundred and twenty-five: the dragon's rectangles applied, and it stops fragmenting
+
+**With the part table read in round one hundred and twenty-four, the two largest parts took their rectangles:**
+
+```
+body   (0, 0)     16x32x16 on the 256x256 sheet
+head   (112, 104)  8x24x8
+```
+
+```
+dragon render before: 91133 bytes   -- fragmented dark texture
+dragon render after:  83519 bytes   -- a solid body with magenta eyes
+AREA: 1766 / 1773, unchanged
+```
+
+**The render is now a solid, recognisably-textured dark body with the two magenta eyes clearly placed**, where the previous
+one was a scattered noise field. **That is the same transition the slime made in round one hundred and eleven and the sniffer
+in round one hundred and seventeen**, and it is what applying the correct rectangles does.
+
+**And an honest limitation, recorded rather than hidden:** the dragon's boxes do **not** have vanilla's shapes.
+
+| part | vanilla rectangle | vanilla blocks | this project's box |
+| --- | --- | --- | --- |
+| body | 16 x 32 x 16 | 1 x 2 x 1 | 1.6 x 1.2 x 3.2 |
+| head | 8 x 24 x 8 | 0.5 x 1.5 x 0.5 | 0.9 x 0.8 x 1.1 |
+
+**The body is 3.2 blocks long against vanilla's 1, and the head is a flat slab against vanilla's tall narrow skull.**
+`applyVanillaBoxUVs` maps the layout on regardless -- which is why the texture reads and the SILHOUETTE does not match. **That
+is round one hundred and five's rule again: a model whose boxes differ from vanilla's cannot be made correct by rectangles.**
+
+**So the dragon is in the same position the sniffer was two rounds before it finished**: bound, textured, correct rectangles,
+and needing its remaining eighteen parts built from the table already read. **The table has all of them** -- `jaw` 12x4x16 at
+(176, 65), wings 8x24x8 and 6x24x6, four more leg parts, and the four right-side mirrors.
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon textured with its body and head correct in UV and its
+remaining 18 parts specified, and the tropical fish BLOCKED by its assets.**
