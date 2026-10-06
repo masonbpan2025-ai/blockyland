@@ -113,7 +113,11 @@ export const VARIANT_ATTACK_EFFECT = {
 
 /** Body colours: husks are sand-dry, strays pale blue, bogged moss-covered, parched sun-bleached. */
 export const VARIANT_TINTS = {
-  husk: 0xc2a878,
+  // Wiki: a husk is a desert zombie with dry, sand-coloured skin. The tint is applied MULTIPLICATIVELY to the
+  // zombie's green skin, so a merely khaki tone left the mob looking like an ordinary zombie -- the green
+  // survives the multiply. This is the value that lands the result on sand: it has to be warmer and lighter than
+  // the target colour, because the base it multiplies is dark and green.
+  husk: 0xdcc79a,
   stray: 0xa8c4d4,
   bogged: 0x7c8f5a,
   parched: 0xd6c9a8

@@ -1,5 +1,5 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export const CREATIVE_TABS = [
@@ -13,7 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
-  { id: 'structure', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
+  { id: 'building', name: 'Buildings', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -271,20 +271,20 @@ export function buildCreativeCatalog() {
     }
   }
 
-  // 11. Structures
-  if (typeof StructureLibrary !== 'undefined') {
-    for (const st of StructureLibrary.getAllStructures()) {
+  // 11. Buildings (the player-placeable Building Library templates, built in Building Studio)
+  if (typeof BuildingLibrary !== 'undefined') {
+    for (const st of BuildingLibrary.getAllBuildings()) {
       catalog.push({
-        id: `structure_${st.id}`,
+        id: `building_${st.id}`,
         name: st.name,
         icon: st.icon || '/assets/blocks/crafting_table_top.png',
         isBlock: false,
-        isStructure: true,
-        structureId: st.id,
-        tab: 'structure',
-        category: 'structure',
+        isBuilding: true,
+        buildingId: st.id,
+        tab: 'building',
+        category: 'building',
         count: 1,
-        searchTerms: `${st.name.toLowerCase()} structure build ${st.id}`
+        searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
       });
     }
   }
@@ -299,8 +299,8 @@ export function refreshCreativeCatalog() {
   return ALL_CREATIVE_ITEMS;
 }
 
-if (typeof StructureLibrary !== 'undefined' && typeof StructureLibrary.subscribe === 'function') {
-  StructureLibrary.subscribe(() => {
+if (typeof BuildingLibrary !== 'undefined' && typeof BuildingLibrary.subscribe === 'function') {
+  BuildingLibrary.subscribe(() => {
     refreshCreativeCatalog();
   });
 }

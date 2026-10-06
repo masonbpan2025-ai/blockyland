@@ -18,7 +18,7 @@ export const CAPABILITIES = {
     summary: 'Anything you have built I can change in place: add to it, trim it, swap the blocks, or bolt on stairs and ladders.',
     alternatives: [
       'name the build you mean, or just say "the one I just made"',
-      'open it in Structure Studio and drag the sliders to reshape it'
+      'open it in Building Studio and drag the sliders to reshape it'
     ]
   },
   fluids: {
@@ -155,7 +155,7 @@ const IMPOSSIBLE_PATTERNS = [
     summary: 'I cannot run code or install mods — I only work through the game\u2019s own building blocks.',
     alternatives: [
       'tell me the end result you want and I will build it directly',
-      'or name an existing structure and I will place it',
+      'or name an existing building and I will place it',
       'and ask me anything about the world — questions always work'
     ]
   },
@@ -184,11 +184,11 @@ const IMPOSSIBLE_PATTERNS = [
     ]
   },
   {
-    match: /structure not found/i,
+    match: /building not found/i,
     summary: 'I have lost track of that build — it is not one I made this session, so I cannot safely change it.',
     alternatives: [
-      'name a structure I built while we have been playing',
-      'open it in Structure Studio, where I can see and edit it properly',
+      'name a building I built while we have been playing',
+      'open it in Building Studio, where I can see and edit it properly',
       'or build it again and I will take it from there'
     ]
   },
@@ -197,7 +197,7 @@ const IMPOSSIBLE_PATTERNS = [
     summary: 'There was nothing of mine to change in that spot, so I left it alone rather than guessing.',
     alternatives: [
       'check the coordinates actually land inside the build',
-      'or name the structure you want changed'
+      'or name the building you want changed'
     ]
   },
   {

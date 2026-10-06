@@ -14,7 +14,7 @@ Press **C** to open the AI World Agent terminal. Open **⚙️ Settings**, pick 
 
 Each vendor keeps its own key, model, and reasoning effort. Switching vendors never clears another vendor's settings. Reasoning effort (`minimal`…`max`) is sent to DeepSeek and ChatGPT and hidden for Gemini. A pre-existing `gemini_api_key` from the older Gemini-only build is adopted automatically. Set `VITE_DEEPSEEK_MODEL`, `VITE_OPENAI_MODEL`, or `VITE_GEMINI_MODEL` in `.env.local` to override a default model, then restart Vite.
 
-Every prompt is sent with the recent conversation turns, stable structure IDs, names, positions, attachments, **the local terrain around the player, and a live screenshot of the player's current first-person view**. That means spatial requests work:
+Every prompt is sent with the recent conversation turns, stable building IDs, names, positions, attachments, **the local terrain around the player, and a live screenshot of the player's current first-person view**. That means spatial requests work:
 
 - “Build a lighthouse overlooking the water.”
 - “Replace its stone walls with brick, keeping the windows.”
@@ -34,7 +34,9 @@ Output budgets allow for reasoning: DeepSeek gets 64K tokens in thinking mode (i
 
 The planner supports custom voxel builds, edits in place, removal, stairs, water, mobs, weather, time, inventory, and compound requests. It can answer or ask for clarification when a request cannot be represented by the available game actions. It does not execute model-generated JavaScript.
 
-Structures track the blocks they change, including foundations and attachments. Removal restores the original blocks while preserving later player changes whose block values differ. Memory lasts for the current world session; reloading resets both the world and agent memory. Large structure snapshots are explicitly marked when truncated.
+Buildings track the blocks they change, including foundations and attachments. Removal restores the original blocks while preserving later player changes whose block values differ. Memory lasts for the current world session; reloading resets both the world and agent memory. Large building snapshots are explicitly marked when truncated.
+
+**Naming.** The player-facing build system is the **Building Studio** and its **Building Library**: the 3D editor, the parametric build templates (`src/buildings/`), and the AI's build records (`builtBuildings`). The word *structure* is reserved for wiki **generated structures** (villages, mineshafts, ancient cities), which are not implemented — see `docs/structure-parity-gap-review.md`.
 
 Without a key, the status shows **NO KEY**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a key for the selected vendor. API errors remain visible and never silently execute an offline substitute.
 

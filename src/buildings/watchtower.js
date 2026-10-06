@@ -1,6 +1,6 @@
 import { BLOCKS } from '../blocks.js';
 
-export const watchtowerStructure = {
+export const watchtowerBuilding = {
   id: 'watchtower',
   name: 'Watchtower',
   icon: '/assets/blocks/mossy_cobblestone.png',
@@ -137,4 +137,4 @@ export const watchtowerStructure = {
   }
 };
 
-export default watchtowerStructure;
+export default watchtowerBuilding;

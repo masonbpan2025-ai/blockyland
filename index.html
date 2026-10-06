@@ -945,24 +945,24 @@
   </div>
 
 
-  <!-- AI World Agent Terminal Modal (C) & Structure Studio Parameter Panel -->
+  <!-- AI World Agent Terminal Modal (C) & Building Studio Parameter Panel -->
   <div id="gemini-modal" class="game-modal hidden">
     <div class="studio-workspace-wrapper">
-      <!-- Structure Studio Parameter Panel (Left Side) -->
-      <div id="structure-parameter-panel" class="structure-parameter-panel hidden">
+      <!-- Building Studio Parameter Panel (Left Side) -->
+      <div id="building-parameter-panel" class="building-parameter-panel hidden">
         <div class="studio-panel-header">
           <div class="studio-panel-title-group">
             <span class="studio-panel-icon">📐</span>
-            <span class="studio-panel-title">Structure Studio</span>
+            <span class="studio-panel-title">Building Studio</span>
           </div>
-          <span class="studio-structure-badge" id="studio-current-structure-name">No Structure</span>
+          <span class="studio-building-badge" id="studio-current-building-name">No Building</span>
         </div>
 
         <div class="studio-panel-body" id="studio-parameter-controls">
           <div class="studio-empty-params" id="studio-empty-params">
             <span class="studio-empty-icon">✦</span>
             <p>No parameters yet.</p>
-            <small>Ask the Agent on the right to build a structure with parameters, e.g.:<br>
+            <small>Ask the Agent on the right to build something with parameters, e.g.:<br>
               <em>"build a stair with a height parameter"</em><br>
               <em>"build a stair with a height H"</em><br>
               <em>"build an aquarium with width 14 and height 8"</em>
@@ -1050,7 +1050,7 @@
 
         <!-- Console / Terminal Feed -->
         <div class="gemini-terminal-body" id="gemini-log-feed">
-          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
+          <div class="gemini-log-entry system">✦ Build, edit, and remove buildings. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
           <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
           <div class="gemini-log-entry hint">📷 The agent receives your world state and a screenshot of your current view, so "build a bridge over that water" works. You can also paste (Ctrl+V) or upload a reference image.</div>
         </div>
@@ -1092,36 +1092,36 @@
     </div>
   </div>
 
-  <!-- Save Structure Modal -->
-  <div id="modal-save-structure" class="game-modal hidden">
+  <!-- Save Building Modal -->
+  <div id="modal-save-building" class="game-modal hidden">
     <div class="mc-dialog-card">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">💾 Save to Structure Library</span>
-        <button class="gemini-close-btn" id="btn-cancel-save-structure">✕</button>
+        <span class="mc-dialog-title">💾 Save to Building Library</span>
+        <button class="gemini-close-btn" id="btn-cancel-save-building">✕</button>
       </div>
       <div class="mc-dialog-body">
-        <label class="mc-dialog-label" for="input-save-structure-name">Structure Name:</label>
-        <input type="text" id="input-save-structure-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
-        <div id="save-structure-conflict-msg" class="mc-dialog-error hidden"></div>
+        <label class="mc-dialog-label" for="input-save-building-name">Building Name:</label>
+        <input type="text" id="input-save-building-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
+        <div id="save-building-conflict-msg" class="mc-dialog-error hidden"></div>
       </div>
       <div class="mc-dialog-footer">
-        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-structure">Save Structure</button>
+        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-building">Save Building</button>
       </div>
     </div>
   </div>
 
-  <!-- Open Structure Modal -->
-  <div id="modal-open-structure" class="game-modal hidden">
+  <!-- Open Building Modal -->
+  <div id="modal-open-building" class="game-modal hidden">
     <div class="mc-dialog-card mc-dialog-large">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">📂 Structure Library</span>
-        <button class="gemini-close-btn" id="btn-close-open-structure">✕</button>
+        <span class="mc-dialog-title">📂 Building Library</span>
+        <button class="gemini-close-btn" id="btn-close-open-building">✕</button>
       </div>
       <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="input-search-open-structure" class="mc-input-text" placeholder="Search structures..." autocomplete="off" style="flex: 1;">
-        <button id="btn-restore-default-structures" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in structures">Reset Defaults</button>
+        <input type="text" id="input-search-open-building" class="mc-input-text" placeholder="Search buildings..." autocomplete="off" style="flex: 1;">
+        <button id="btn-restore-default-buildings" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in buildings">Reset Defaults</button>
       </div>
-      <div class="studio-open-list" id="studio-open-structure-list"></div>
+      <div class="studio-open-list" id="studio-open-building-list"></div>
     </div>
   </div>
 
@@ -1173,7 +1173,7 @@
       <button class="mc-btn mc-btn-large" id="btn-start-new-world">Generate New World</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
-      <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
+      <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-building-studio">Building Studio</button>
       <button class="mc-btn mc-btn-large mc-btn-mob-inspector" id="btn-start-mob-inspector">Mob Inspector</button>
     </div>
   <!-- Sleeping Overlay (Minecraft authentic bed sleep screen) -->

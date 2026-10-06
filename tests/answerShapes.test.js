@@ -98,7 +98,7 @@ test('a reply with a real action is left completely alone', () => {
     assert.equal(plan.action, action, `${action} must not be rewritten`);
   }
   // Even a plan that also carries an "explanation".
-  const build = normalizePlanShape({ action: 'build', structureType: 'castle', explanation: 'x' });
+  const build = normalizePlanShape({ action: 'build', buildingType: 'castle', explanation: 'x' });
   assert.equal(build.action, 'build');
 });
 

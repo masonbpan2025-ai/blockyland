@@ -1958,36 +1958,30 @@ export class MobManager {
     // Accept either a 0xRRGGBB number (as VARIANT_TINTS holds) or a CSS string.
     const css = typeof color === 'number' ? `#${color.toString(16).padStart(6, '0')}` : String(color ?? '#ffffff');
 
-    // Always return a real canvas texture, even before the base decodes.
-    //
-    // The base textures come from `textureLoader.load()`, which is ASYNCHRONOUS: immediately after construction
-    // `this.textures.zombie.image` is still `null`. The previous version did `if (!source?.width) return base`,
-    // so a variant built in the same object literal as its base silently received a texture with NO image at
-    // all -- which renders as a SOLID BLACK mob, because a `MeshLambertMaterial` with a colour but no map has
-    // nothing to multiply against. That is exactly what happened to the husk, stray and bogged; the zombie
-    // itself was fine only because `TextureLoader` fires its own `onLoad` and flags `needsUpdate`.
-    const target = new THREE.CanvasTexture(document.createElement('canvas'));
+    // An empty PLACEHOLDER, returned immediately so a mob can be spawned before the base has decoded. Once the
+    // base arrives the SAME object is filled in from a freshly painted image -- see `finish` and `onReady`.
+    const target = new THREE.Texture();
     target.magFilter = THREE.NearestFilter;
     target.minFilter = THREE.NearestFilter;
     target.colorSpace = THREE.SRGBColorSpace;
 
-    // Size the canvas from the base's attributes as soon as they are known, and create the drawing context at
-    // that size. Sizing it lazily (leaving the default 300x150 and resizing during paint) means the renderer may
-    // have already uploaded a 300x150 texture, and resizing the backing store afterwards races the continuous
-    // render loop -- the mob then samples a blank texture and renders as a SOLID BLACK silhouette. Measuring the
-    // canvas pixels cannot see this, because the 2D content is correct; only the GPU copy is stale.
-    const sizeFor = (source) => {
-      const canvas = target.image;
-      if (canvas.width === source.width && canvas.height === source.height) return;
-      canvas.width = source.width;
-      canvas.height = source.height;
+    // Subscribers told when the real skin exists. The mob spawners register here and point their material at the
+    // finished texture, because the base PNG has not finished loading when the mob is constructed.
+    target.readyCallbacks = [];
+    target.onReady = (fn) => {
+      if (target.ready === true) fn(target);
+      else target.readyCallbacks.push(fn);
     };
+
+    // A scratch canvas, used only to read the base image's pixels and tint them. It is never handed to the GPU.
+    const scratch = document.createElement('canvas');
 
     const paint = (source) => {
       if (!source?.width) return false;
       try {
-        sizeFor(source);
-        const ctx = target.image.getContext('2d');
+        scratch.width = source.width;
+        scratch.height = source.height;
+        const ctx = scratch.getContext('2d');
         ctx.globalCompositeOperation = 'source-over';
         ctx.clearRect(0, 0, source.width, source.height);
         ctx.drawImage(source, 0, 0);
@@ -2004,10 +1998,17 @@ export class MobManager {
         const targetAvg = (tint[0] + tint[1] + tint[2]) / 3 || 1;
 
         // Multiply in place, tracking the result's average as we go.
+        //
+        // Every texel is made FULLY OPAQUE. The base PNGs carry an alpha channel (zombie.png is only 1184 opaque
+        // texels of 4096 -- the rest is padding around the UV islands), but the mobs that use them are drawn with
+        // an OPAQUE material, so that padding is never sampled. A derived skin that keeps zero alpha instead
+        // renders those texels as pure black, which is exactly the solid black silhouette the husk became. The
+        // skeleton variants are the exception: skeleton.png is a genuine cut-out, so stray and bogged keep the
+        // alpha they inherit and rely on their material's `alphaTest`.
+        const keepAlpha = baseKey === 'skeleton';
         let sum = 0, count = 0;
         for (let i = 0; i < px.length; i += 4) {
-          // Fully transparent pixels carry no colour and must stay transparent.
-          if (px[i + 3] === 0) continue;
+          if (!keepAlpha) px[i + 3] = 255;
           px[i] = (px[i] * tint[0]) / 255;
           px[i + 1] = (px[i + 1] * tint[1]) / 255;
           px[i + 2] = (px[i + 2] * tint[2]) / 255;
@@ -2032,13 +2033,40 @@ export class MobManager {
             }
           }
         }
-        ctx.putImageData(data, 0, 0);
-        target.needsUpdate = true;
-        return true;
+        // Finish the skin as an ORDINARY IMAGE texture.
+        //
+        // Everything else was tried here and each failed for a different reason: a CanvasTexture whose canvas is
+        // painted or resized after the renderer uploaded it renders black; and a DataTexture built from the same
+        // pixels uploaded but sampled the wrong rows, because a DataTexture defaults to `flipY = false` while
+        // `textureLoader` produces image textures with `flipY = true` and the mob UVs are authored against that.
+        //
+        // Going through an Image keeps the mob on exactly the same texture path as every other mob in the game:
+        // the painted canvas is encoded once and decoded into an immutable bitmap, so orientation, colour space
+        // and upload all behave the way they already do for zombie.png.
+        return finish(scratch);
       } catch {
         // A tainted canvas or a stub without a real 2D context must not break spawning.
         return false;
       }
+    };
+
+    /** Encode the painted canvas and adopt the decoded bitmap as this texture's image. */
+    const finish = (canvas) => {
+      const payload = canvas.toDataURL('image/png');
+      if (typeof Image !== 'function') return false;
+      const image = new Image();
+      image.onload = () => {
+        target.image = image;
+        target.flipY = true;
+        target.needsUpdate = true;
+        target.ready = true;
+        for (const fn of target.readyCallbacks) {
+          try { fn(target); } catch { /* a bad subscriber must not break the skin */ }
+        }
+        target.readyCallbacks.length = 0;
+      };
+      image.src = payload;
+      return true;
     };
 
     if (paint(base?.image)) return target;
@@ -3197,6 +3225,8 @@ export class MobManager {
     // Wiki: a husk is a desert zombie, so it uses a tinted zombie skin rather than a new model.
     const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
     const mat = new THREE.MeshLambertMaterial({ map: baseTex });
+    // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material
+    // needs no swap: it holds the same texture object for the mob's whole life.
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64);
     const head = new THREE.Mesh(headGeo, mat);
@@ -4590,6 +4620,8 @@ export class MobManager {
       : options.variant === 'bogged' ? (this.textures.bogged ?? this.textures.skeleton)
       : this.textures.skeleton;
     const mat = new THREE.MeshLambertMaterial({ map: baseTex, transparent: true, alphaTest: 0.5 });
+    // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material needs
+    // no swap: it holds the same texture object for the mob's whole life.
 
     const headGeo = createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8);
     const head = new THREE.Mesh(headGeo, mat);

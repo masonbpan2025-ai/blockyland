@@ -1,7 +1,7 @@
 // A request that cannot be carried out must tell the player what to do instead.
 //
 // Regression guard: failures used to print the raw reason the code objected to —
-// "Unsupported action: execute_javascript", "Structure not found: made_up_id" —
+// "Unsupported action: execute_javascript", "Building not found: made_up_id" —
 // which says nothing about how to reach the goal.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,8 +27,8 @@ test('every failure explanation offers at least one way forward', () => {
     'No JSON plan was returned by DeepSeek: finish reason: stop',
     'The reply from DeepSeek was not a usable plan',
     'Unsupported action: execute_javascript',
-    'Structure not found: custom_thing_123',
-    'No tracked blocks exist for this structure.',
+    'Building not found: custom_thing_123',
+    'No tracked blocks exist for this building.',
     'The requested operations did not select any blocks.',
     'Requested region exceeds world height (1-63).',
     'something nobody anticipated'
@@ -58,7 +58,7 @@ test('the player-facing wording avoids jargon a new player would not know', () =
   const reasons = [
     'API HTTP 401', 'API HTTP 402', 'API HTTP 429', 'API HTTP 400',
     'idle timeout', 'no json plan was returned', 'was malformed',
-    'Unsupported action: execute_javascript', 'Structure not found: x',
+    'Unsupported action: execute_javascript', 'Building not found: x',
     'no tracked blocks', 'exceeds world height', 'something odd'
   ];
   for (const reason of reasons) {
@@ -78,7 +78,7 @@ test('an external failure is distinguishable from the player asking the impossib
   assert.equal(isExternalFailure(new Error('The reply was malformed')), true);
   // A limit of the game is not a malfunction.
   assert.equal(isExternalFailure(new Error('Unsupported action: execute_javascript')), false);
-  assert.equal(isExternalFailure(new Error('Structure not found: x')), false);
+  assert.equal(isExternalFailure(new Error('Building not found: x')), false);
 });
 
 test('a request naming something the engine lacks is explained, not just refused', () => {
@@ -174,7 +174,7 @@ test('a failure the model reported as an unknown action reaches the player as gu
   // The shape that produced "Unsupported action: execute_javascript".
   t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
     action: 'multi',
-    steps: [{ action: 'build', structureType: 'custom', operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }] },
+    steps: [{ action: 'build', buildingType: 'custom', operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }] },
       { action: 'execute_javascript', code: 'while(true){}' }]
   })));
 

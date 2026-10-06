@@ -79,7 +79,7 @@ function fixture(storage = memoryStorage()) {
 const BUILD_PLAN = {
   action: 'build',
   name: 'Harbor Marker',
-  structureType: 'custom',
+  buildingType: 'custom',
   dimensions: { width: 2, height: 2, depth: 2 },
   operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'SNOW' }]
 };
@@ -412,7 +412,7 @@ test('a reasoning-truncated reply is retried once with thinking mode off', async
   assert.equal(fetchCalls[1].body.reasoning_effort, undefined);
   // The retry replays the same conversation and world context.
   assert.match(fetchCalls[1].body.messages[0].content, /LOCAL TERRAIN/);
-  assert.ok(agent.builtStructures.length === 1);
+  assert.ok(agent.builtBuildings.length === 1);
 });
 
 test('a retry that is also empty reports the truncation clearly', async t => {
@@ -546,7 +546,7 @@ test('the agent streams reasoning through onThought and still parses the plan', 
   assert.match(trace.message, /Sand terrain, so a stone base/);
   assert.match(trace.message, /Reasoning \(30 reasoning tokens\) after/);
   assert.ok(logs.some(entry => /Token usage: 42 output/.test(entry.message)));
-  assert.equal(agent.builtStructures.length, 1);
+  assert.equal(agent.builtBuildings.length, 1);
 });
 
 test('a silent vendor is reported as an idle stall, not a hang', async t => {

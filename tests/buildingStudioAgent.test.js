@@ -1,5 +1,5 @@
-// Structure Studio must not swallow prompts that belong to the language model,
-// and must hand AI-built structures to its parameter panel.
+// Building Studio must not swallow prompts that belong to the language model,
+// and must hand AI-built buildings to its parameter panel.
 //
 // Regression guard: the prompt parser used to fall back to `stairs` for anything
 // it did not recognise, so every prompt — including Chinese and other free-form
@@ -8,13 +8,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { StructureStudioManager } from '../src/structureStudio.js';
-import { StructureLibrary } from '../src/structureLibrary.js';
+import { BuildingStudioManager } from '../src/buildingStudio.js';
+import { BuildingLibrary } from '../src/buildingLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function studio() {
-  return new StructureStudioManager({});
+  return new BuildingStudioManager({});
 }
 
 /** Records whether the studio claims a prompt or yields it to the model. */
@@ -31,7 +31,7 @@ test('a free-form Chinese prompt is yielded to the model, not answered with stai
   assert.equal(parsed, null);
 });
 
-test('an unrecognised English structure is yielded, not defaulted to stairs', () => {
+test('an unrecognised English building is yielded, not defaulted to stairs', () => {
   const manager = studio();
   for (const prompt of [
     'build a yellow crane tower',
@@ -45,9 +45,9 @@ test('an unrecognised English structure is yielded, not defaulted to stairs', ()
   }
 });
 
-test('the old behaviour is gone: no catch-all default structure', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/structureStudio.js'), 'utf8');
-  assert.doesNotMatch(source, /else\s+matchedStructure\s*=\s*StructureLibrary\.getStructure\('stairs'\)\s*;\s*\/\/\s*default/,
+test('the old behaviour is gone: no catch-all default building', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/buildingStudio.js'), 'utf8');
+  assert.doesNotMatch(source, /else\s+matchedBuilding\s*=\s*BuildingLibrary\.getBuilding\('stairs'\)\s*;\s*\/\/\s*default/,
     'the unconditional stairs fallback must not come back');
 });
 
@@ -58,22 +58,22 @@ test('explicit and implied parameter prompts are still claimed by the studio', (
 
   const explicit = verdict(manager, 'build a stair with a height parameter');
   assert.equal(explicit.claimed, true);
-  assert.equal(explicit.parsed.structure.id, 'stairs');
+  assert.equal(explicit.parsed.building.id, 'stairs');
   assert.equal(explicit.parsed.extractedParams.height, 8);
 
   const implied = verdict(manager, 'build a stair with a height H');
   assert.equal(implied.claimed, true);
-  assert.equal(implied.parsed.structure.id, 'stairs');
+  assert.equal(implied.parsed.building.id, 'stairs');
 
   const numeric = verdict(manager, 'build an aquarium with width 14 and height 8');
   assert.equal(numeric.claimed, true);
-  assert.equal(numeric.parsed.structure.id, 'aquarium');
+  assert.equal(numeric.parsed.building.id, 'aquarium');
   assert.equal(numeric.parsed.extractedParams.width, 14);
   assert.equal(numeric.parsed.extractedParams.height, 8);
 });
 
-test('a named structure without any parameter cue is yielded to the model', () => {
-  // Naming a structure is not the same as asking to configure its parameters.
+test('a named building without any parameter cue is yielded to the model', () => {
+  // Naming a building is not the same as asking to configure its parameters.
   const { claimed } = verdict(studio(), 'build a castle');
   assert.equal(claimed, false);
 });
@@ -88,50 +88,50 @@ test('blank or non-string input is handled without claiming', () => {
 
 // --- AI result reaches the parameter panel ----------------------------------
 
-test('adoptFromPlan loads a matching library structure with the model dimensions', () => {
+test('adoptFromPlan loads a matching library building with the model dimensions', () => {
   const manager = studio();
   manager.game = {};
 
   const adopted = manager.adoptFromPlan({
     action: 'build',
-    structureType: 'aquarium',
+    buildingType: 'aquarium',
     dimensions: { width: 14, height: 8, depth: 9 }
   });
 
   assert.equal(adopted, true);
-  assert.equal(manager.currentStructure.id, 'aquarium');
+  assert.equal(manager.currentBuilding.id, 'aquarium');
   assert.equal(manager.currentParameters.width, 14);
   assert.equal(manager.currentParameters.height, 8);
   // Every declared parameter must be present so the panel renders fully.
-  for (const param of manager.currentStructure.parameters) {
+  for (const param of manager.currentBuilding.parameters) {
     assert.ok(param.id in manager.currentParameters, `missing ${param.id}`);
   }
 });
 
-test('adoptFromPlan tolerates aliases, unknown structures and junk input', () => {
+test('adoptFromPlan tolerates aliases, unknown buildings and junk input', () => {
   const manager = studio();
   manager.game = {};
 
   // Name rather than id, and a parameter clamped to its declared maximum.
-  assert.equal(manager.adoptFromPlan({ structureType: 'Watchtower', dimensions: { height: 9999 } }), true);
-  assert.equal(manager.currentStructure.id, 'watchtower');
-  const heightParam = manager.currentStructure.parameters.find(p => p.id === 'height');
+  assert.equal(manager.adoptFromPlan({ buildingType: 'Watchtower', dimensions: { height: 9999 } }), true);
+  assert.equal(manager.currentBuilding.id, 'watchtower');
+  const heightParam = manager.currentBuilding.parameters.find(p => p.id === 'height');
   assert.equal(manager.currentParameters.height, heightParam.max, 'values are clamped to the parameter range');
 
-  // A structure that is not in the library must be declined, not guessed.
-  assert.equal(manager.adoptFromPlan({ structureType: 'yellow_crane_tower' }), false);
+  // A building that is not in the library must be declined, not guessed.
+  assert.equal(manager.adoptFromPlan({ buildingType: 'yellow_crane_tower' }), false);
   assert.equal(manager.adoptFromPlan({ action: 'message' }), false);
   assert.equal(manager.adoptFromPlan(null), false);
   assert.equal(manager.adoptFromPlan('nonsense'), false);
 });
 
-test('adoptFromPlan prefers the structure the model actually named', () => {
+test('adoptFromPlan prefers the building the model actually named', () => {
   const manager = studio();
   manager.game = {};
-  assert.equal(manager.adoptFromPlan({ structureType: 'pyramid' }), true);
-  assert.equal(manager.currentStructure.id, 'pyramid');
-  assert.equal(manager.adoptFromPlan({ structureType: 'greenhouse' }), true);
-  assert.equal(manager.currentStructure.id, 'greenhouse');
+  assert.equal(manager.adoptFromPlan({ buildingType: 'pyramid' }), true);
+  assert.equal(manager.currentBuilding.id, 'pyramid');
+  assert.equal(manager.adoptFromPlan({ buildingType: 'greenhouse' }), true);
+  assert.equal(manager.currentBuilding.id, 'greenhouse');
 });
 
 // --- the agent reaches the model while the studio is open -------------------
@@ -143,7 +143,7 @@ function agentFixture() {
     getOrCreateChunk: () => ({ dirty: false }),
     chunks: new Map()
   };
-  const manager = new StructureStudioManager({});
+  const manager = new BuildingStudioManager({});
   manager.isActive = true;
   manager.game = {};
 
@@ -154,7 +154,7 @@ function agentFixture() {
     weather: { weatherType: 'clear' },
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {}, playPlace() {}, playBreak() {} },
     rebuildChunkMesh() {},
-    structureStudio: manager
+    buildingStudio: manager
   };
   manager.game = game;
   const agent = new WorldAgent(game);
@@ -182,7 +182,7 @@ test('with the studio open, a free-form prompt is sent to the model', async t =>
   assert.match(calls[0].url, /deepseek/);
 });
 
-test('with the studio open, an AI-built library structure populates the panel', async t => {
+test('with the studio open, an AI-built library building populates the panel', async t => {
   const { agent, manager } = agentFixture();
   t.mock.method(globalThis, 'fetch', async () => ({
     ok: true,
@@ -193,7 +193,7 @@ test('with the studio open, an AI-built library structure populates the panel', 
         message: {
           content: JSON.stringify({
             action: 'build',
-            structureType: 'aquarium',
+            buildingType: 'aquarium',
             name: 'Reef Tank',
             dimensions: { width: 12, height: 7, depth: 8 }
           })
@@ -205,7 +205,7 @@ test('with the studio open, an AI-built library structure populates the panel', 
 
   await agent.executePrompt('build me a big fish tank');
   assert.equal(agent.lastError, null);
-  assert.equal(manager.currentStructure?.id, 'aquarium', 'the panel should hold the built structure');
+  assert.equal(manager.currentBuilding?.id, 'aquarium', 'the panel should hold the built building');
   assert.equal(manager.currentParameters.width, 12);
   assert.equal(manager.currentParameters.height, 7);
 });
@@ -239,8 +239,8 @@ test('the quick prompt chips are gone from the agent terminal', () => {
   assert.doesNotMatch(ui, /querySelectorAll\('\.gemini-chip'\)/, 'the dead chip handler should be removed');
 });
 
-test('every library structure is offered in the creative Structures tab', () => {
-  const all = StructureLibrary.getAllStructures();
+test('every library building is offered in the creative Buildings tab', () => {
+  const all = BuildingLibrary.getAllBuildings();
   assert.ok(all.length >= 9);
   for (const st of all) {
     assert.ok(st.name, `${st.id} needs a name for the hover tooltip`);
@@ -248,7 +248,7 @@ test('every library structure is offered in the creative Structures tab', () => 
   }
 });
 
-test('custom on-the-fly builds with operations are not hijacked by built-in structures and save custom voxels', () => {
+test('custom on-the-fly builds with operations are not hijacked by built-in buildings and save custom voxels', () => {
   const manager = studio();
   const worldBlocks = new Map();
   manager.game = {
@@ -261,7 +261,7 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
   // 1. plan with operations should NOT be adopted by adoptFromPlan as a built-in template
   const plan = {
     action: 'build',
-    structureType: 'castle_with_bridge',
+    buildingType: 'castle_with_bridge',
     name: 'Bodiam Moat Castle with Bridge',
     operations: [
       { type: 'fill_box', min: [0, 0, 0], max: [10, 5, 10], block: 'stone' }
@@ -287,20 +287,20 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
   });
 
   assert.equal(manager.isCustomVoxelBuild, true);
-  assert.equal(manager.currentStructure.name, 'castle_with_bridge');
-  assert.notEqual(manager.currentStructure.id, 'castle');
+  assert.equal(manager.currentBuilding.name, 'castle_with_bridge');
+  assert.notEqual(manager.currentBuilding.id, 'castle');
 
   // 3. Confirm save generates custom voxel code rather than built-in castle code
   manager.saveInput = { value: 'castle_with_bridge' };
   manager.confirmSave();
 
-  const saved = StructureLibrary.getStructure('castle_with_bridge');
-  assert.ok(saved, 'castle_with_bridge should be saved in StructureLibrary');
+  const saved = BuildingLibrary.getBuilding('castle_with_bridge');
+  assert.ok(saved, 'castle_with_bridge should be saved in BuildingLibrary');
   assert.equal(saved.name, 'castle_with_bridge');
   assert.ok(saved.code.includes('const V ='), 'saved code should serialize the custom voxels');
   assert.ok(!saved.code.includes('createCastle'), 'saved code must NOT be the built-in castle code');
 
-  // 4. Test generating the saved structure
+  // 4. Test generating the saved building
   const genBlocks = saved.generate({ x: 10, y: 10, z: 10 }, {}, BLOCKS);
   assert.equal(genBlocks.length, customBlocks.length);
   assert.equal(genBlocks[0].x, 10);
@@ -309,6 +309,6 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
   assert.equal(genBlocks[2].id, BLOCKS.BRICKS);
 
   // Clean up
-  StructureLibrary.deleteStructure(saved.id);
+  BuildingLibrary.deleteBuilding(saved.id);
 });
 

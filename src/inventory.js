@@ -1,6 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
-import { StructureLibrary } from './structureLibrary.js';
+import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
 export class Inventory {
@@ -49,16 +49,16 @@ export class Inventory {
 
   getItemMeta(item) {
     if (!item) return null;
-    if (item.isStructure || (typeof item.id === 'string' && item.id.startsWith('structure_'))) {
-      const structId = item.structureId || item.id.replace('structure_', '');
-      const st = StructureLibrary?.getStructure(structId);
+    if (item.isBuilding || (typeof item.id === 'string' && item.id.startsWith('building_'))) {
+      const structId = item.buildingId || item.id.replace('building_', '');
+      const st = BuildingLibrary?.getBuilding(structId);
       return {
         id: item.id,
-        name: st ? st.name : (item.name || 'Structure'),
+        name: st ? st.name : (item.name || 'Building'),
         icon: st?.icon || item.icon || '/assets/blocks/crafting_table_top.png',
         isBlock: false,
-        isStructure: true,
-        structureId: st?.id || structId,
+        isBuilding: true,
+        buildingId: st?.id || structId,
         count: item.count || 1
       };
     }

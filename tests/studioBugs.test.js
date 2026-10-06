@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WorldAgent } from '../src/worldAgent.js';
-import { StructureStudioManager } from '../src/structureStudio.js';
+import { BuildingStudioManager } from '../src/buildingStudio.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function fixture() {
@@ -14,7 +14,7 @@ function fixture() {
     getOrCreateChunk: () => ({ dirty: false }),
     chunks: new Map()
   };
-  const manager = new StructureStudioManager({});
+  const manager = new BuildingStudioManager({});
   manager.isActive = true;
   const game = {
     world,
@@ -23,7 +23,7 @@ function fixture() {
     weather: { weatherType: 'clear' },
     sounds: { playMagic() {}, playLevelUp() {}, playClick() {}, playPlace() {}, playBreak() {} },
     rebuildChunkMesh() {},
-    structureStudio: manager
+    buildingStudio: manager
   };
   manager.game = game;
   const agent = new WorldAgent(game);
@@ -57,7 +57,7 @@ function sse(payload) {
 test('bug 1: a truncated model reply no longer surfaces as a raw JSON SyntaxError', async t => {
   const { agent } = fixture();
   // Exactly the shape from the screenshot: a plan cut off mid-array.
-  const truncated = '{"action":"build","name":"Castle with bridge","structureType":"custom","dimensions":{"width":6,"height":3,"depth":6},"operations":[{"type":"fill_box","min":[0,0,0],"max":[5,1,5],"block":"OAK_PLANKS"';
+  const truncated = '{"action":"build","name":"Castle with bridge","buildingType":"custom","dimensions":{"width":6,"height":3,"depth":6},"operations":[{"type":"fill_box","min":[0,0,0],"max":[5,1,5],"block":"OAK_PLANKS"';
   t.mock.method(globalThis, 'fetch', async () => sse({
     choices: [{ delta: { content: truncated } }],
     usage: { completion_tokens: 4073, total_tokens: 17542, completion_tokens_details: { reasoning_tokens: 3369 } }

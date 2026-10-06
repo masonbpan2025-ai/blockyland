@@ -3483,7 +3483,7 @@ html, body {
 }
 
 /* ==========================================================================
-   Structure Studio (Parametric CAD Studio)
+   Building Studio (Parametric CAD Studio)
    ========================================================================== */
 .mc-btn-studio {
   background: linear-gradient(180deg, #0284c7, #0369a1);
@@ -3508,13 +3508,13 @@ html, body {
   max-height: 90vh;
 }
 
-/* Hide Quick Prompts & Ideas in Structure Studio Mode */
+/* Hide Quick Prompts & Ideas in Building Studio Mode */
 .studio-mode .gemini-chips-container {
   display: none !important;
 }
 
-/* Structure Studio Parameter Panel */
-.structure-parameter-panel {
+/* Building Studio Parameter Panel */
+.building-parameter-panel {
   width: 320px;
   background: rgba(12, 16, 28, 0.94);
   backdrop-filter: blur(18px);
@@ -3531,7 +3531,7 @@ html, body {
   animation: geminiFadeIn 0.22s ease-out;
 }
 
-.structure-parameter-panel.hidden {
+.building-parameter-panel.hidden {
   display: none !important;
 }
 
@@ -3560,7 +3560,7 @@ html, body {
   letter-spacing: 0.5px;
 }
 
-.studio-structure-badge {
+.studio-building-badge {
   background: #0369a1;
   color: #e0f2fe;
   padding: 3px 8px;
