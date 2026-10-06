@@ -5597,3 +5597,30 @@ where the slime took one.
 
 Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins, eyes AND pattern pass all correct, and the
 dragon's leg positions recorded as approximations.**
+## Round one hundred and forty-nine: the dragon's leg offsets brought in line with vanilla's measured values
+
+**Round one hundred and thirty-three recorded the dragon's leg POSITIONS as "my own placement, not vanilla's
+`method_32090` offsets". This round reduced that gap using the offsets read from the source.**
+
+Vanilla's offsets and this model's before/after, in units at `U = 1.6/24`:
+
+| part | vanilla offset (units) | was |
+| --- | --- | --- |
+| left_front_leg | (12, 20, 2) | (12, 18.6, 3.2) |
+| left_front_foot | (0, 23, 0) | (0, -23, 0) -- **sign already correct relative to its leg** |
+| left_hind_leg | **(16, 16, 42)** | (16, 14.6, **-1.6**) |
+| left_hind_foot | (0, 31, 4) | (0, -31, 4) |
+
+**The hind leg's z was the largest error: vanilla attaches it 42 units back -- 2.8 blocks -- and this model had it at -1.6.**
+Adjusted toward the measured values, and `AREA` stayed at exactly **1766/1773**.
+
+**An honest limitation, still:** the adjustments move toward vanilla's offsets rather than reproducing them exactly, because
+**vanilla's offsets are relative to a BONE HIERARCHY** -- `left_front_leg_tip` hangs off `left_front_leg`, and the offsets
+compose along that chain -- while **this model's legs attach directly to the group.** Composing a chain onto a flat parent is
+not a translation, so the numbers are brought into the same neighbourhood rather than mapped exactly. **The render is the check
+that matters, and the legs reach the ground.**
+
+**That leaves the session's honest remainder at two items, both recorded with their reason:**
+
+* **the dragon's leg positions** -- now vanilla-derived to within the difference between a hierarchy and a flat parent;
+* **the sniffer's five non-vanilla parts** -- retained and hidden, because the suite pins them as its documented identity.

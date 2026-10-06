@@ -8199,7 +8199,7 @@ export class MobManager {
       const frontLegGeo = new THREE.BoxGeometry(8 * U, 24 * U, 8 * U);
       applyVanillaBoxUVs(frontLegGeo, 112, 104, 256, 256, 8, 24, 8);
       const frontLeg = new THREE.Mesh(frontLegGeo, dragonMat);
-      frontLeg.position.set(side * 12 * U, 20 * U - 1.4, 2 * U + 1.2);
+      frontLeg.position.set(side * 12 * U, 20 * U - 1.4 + 0.3, 2 * U + 1.2 - 1.2 + 0.133);
       group.add(frontLeg);
       legs.push(frontLeg);
 
@@ -8213,7 +8213,7 @@ export class MobManager {
       const hindLegGeo = new THREE.BoxGeometry(16 * U, 32 * U, 16 * U);
       applyVanillaBoxUVs(hindLegGeo, 0, 0, 256, 256, 16, 32, 16);
       const hindLeg = new THREE.Mesh(hindLegGeo, dragonMat);
-      hindLeg.position.set(side * 16 * U, 16 * U - 1.4, 42 * U - 1.6);
+      hindLeg.position.set(side * 16 * U, 16 * U - 1.4 + 0.1, 42 * U - 1.6 + 1.2 - 2.8);
       group.add(hindLeg);
       legs.push(hindLeg);
 
