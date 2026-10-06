@@ -841,3 +841,45 @@ the source together exposed them.
 at (52,32) and (58,0). Zero depth means planes, and they need their own rotation work.
 
 Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
+
+## Round twenty-four: the decompile chain is now one command
+
+**`scripts/mob-visual/decompile-model.mjs`** turns the whole method that has been working into a single invocation:
+
+```
+node scripts/mob-visual/decompile-model.mjs --list                    # 91 entity model classes
+node scripts/mob-visual/decompile-model.mjs BatEntityModel            # decompile + report its cubes
+node scripts/mob-visual/decompile-model.mjs --grep Frog               # find one by name
+```
+
+It finds a Java runtime (PATH, an unpacked Temurin under `%TEMP%\jdk`, or a system install), caches the Yarn mappings,
+translates `WolfEntityModel` to `class_624`, extracts **just that class** from the Fabric jar, runs Vineflower on the
+file, and prints each part's `uv` / `cube` / `dilated cube` / `texture size` calls paired with the part name.
+
+**An API shortcut worth knowing: name the mob, not its intermediary id.** `--list` prints all 91 models with their ids,
+so `BatEntityModel` finds `class_553` without the mappings arithmetic that took several rounds to work out by hand.
+
+**Four faults had to be fixed to make it run, and every one was a silent-wrong-answer bug:**
+
+1. `-e=` did not filter. Vineflower ignored the name and decompiled all 23,000 entries. Extracting the single class and
+   passing a FILE fixed it.
+2. With the path-qualified class name it wrote to `.../net/minecraft/net/minecraft/class_553.java`, so a lookup of the
+   expected path found nothing.
+3. The mappings give the FULL path (`net/minecraft/class_553`), and prepending the package produced
+   `net/minecraft/net/minecraft/...`.
+4. The mappings file has **CRLF** line endings, so a bare `split('\n')` left a trailing `\r` on each field.
+
+**First mob through the new tool: the bat.** Its whole model is FLAT except the body and head:
+
+| part | (u,v) | size |
+| --- | --- | --- |
+| body | (0,0) | 3x5x2 |
+| head | (0,7) | 4x3x2 |
+| right/left ear | (1,15) / (8,15) | 3x5x**0** |
+| right/left wing | (12,0) / (12,7) | 2x7x**0** |
+| wing tips | (16,0) / (16,8) | 6x8x**0** |
+| feet | (16,16) | 3x2x**0** |
+
+Texture 32x32. Six of its nine parts are planes -- the third mob where that is the case, after the vex and the frog.
+
+Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
