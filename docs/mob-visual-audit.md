@@ -1789,3 +1789,50 @@ re-deleting; if they were not, the reset saved them. I could not tell which, and
 **The rule, which this project already had on record:** never `git add -A` here. The index carries a second agent's work,
 and paths must be named explicitly every time -- including inside helper scripts, which is exactly where this leak
 happened.
+## Round fifty-three: the audit gap closed, and a pattern worth naming
+
+**The tool that would have caught the wither skeleton now exists.**
+`scripts/mob-visual/audit-generated-skins.mjs` walks EVERY module under `src/` rather than only `src/mobs.js`, reports
+which ones define a texture generator, and says whether each also loads a real sheet. The earlier audit read only the
+spawners, which is exactly why it missed `witherSkeletonModel.js`.
+
+Its result is short and useful: **only two modules define a generator, and the wither skeleton is the only one that never
+loads a real sheet** -- so that is the last mob in the "generated skin" class, not the first of many.
+
+**A SECOND, LARGER LIST came from the same idea applied to inline textures:** eight modules build a `DataTexture` and never
+call `loadTexture`:
+
+```
+horseModel.js  packEquineModel.js  piglin.js  squidModel.js
+striderModel.js  witherSkeletonModel.js  zombifiedPiglinModel.js
+```
+
+Every one of those mobs HAS a real sheet in the client JAR, and I verified each: horse_white, horse_brown, squid,
+glow_squid, strider, piglin, zombified_piglin and ravager all extract cleanly. **So the remaining flat-colour work is
+largely this: eight model modules drawing their own skins.**
+
+**The squid was attempted and reverted, and the blocker is now clearly a PATTERN rather than a per-mob puzzle.**
+`squidModel.js` draws a 12x16 skin per face with the eyes painted at a known offset, and its suite reads those pixels
+directly:
+
+```js
+const {data,width,height} = m.mantle.material[face].map.image;
+return [...data.slice(((height-1-y)*width+x)*4, ...)];
+```
+
+A loaded `THREE.Texture` has an `HTMLImageElement`, not `data`. **That is the third time in four rounds that a real sheet
+has been blocked by a suite asserting the procedural pixel data** -- the blaze's twelve-rod count, the wither skeleton's
+`material[4]` socket pixels, and now the squid's `map.image.data`. The charts are different; the cause is one thing:
+
+> Several mobs draw their texture with a pixel-art generator, and their suites ASSERT THE GENERATED PIXELS. Moving to a
+> real sheet therefore breaks those assertions by construction.
+
+**So the work is not "load the sheet" -- it is "load the sheet AND decide deliberately what those assertions should
+check instead."** That decision needs to be made ONCE and applied to all eight models, rather than rediscovered per mob
+as it has been for three rounds. The options are to have the tests assert the BOUNDS and the material's presence rather
+than pixels, or to keep a fixture that supplies `data` for pixel checks while the runtime uses the sheet.
+
+Kept from this round: the audit tool, and the verified finding that all eight mobs have real sheets available.
+
+Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only**, of which EIGHT are model modules that
+draw their own skin.
