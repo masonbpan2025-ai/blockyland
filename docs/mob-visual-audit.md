@@ -2369,3 +2369,31 @@ scripted edit has silently done nothing when its anchor or guard was wrong, and 
 **read the built object back after the edit, not just the syntax.**
 
 Work list: **97 spawners, 68 confirmed with a real sheet, 26 mobs still without a model or skin.**
+## Round seventy: the wandering trader, and a delegation sweep that cleared the rest
+
+**The wandering trader is on its real sheet**, by the same route as the illusioner: it built four flat-coloured materials
+and a bespoke model, so it had no `map`; the body and head now take vanilla's **villager** rectangles -- body 8x12x6 at
+(16,16), head 8x10x8 at (0,0) -- and the sheet is adopted when a loader provides one. Verified by running rather than by
+syntax, which is the correction round sixty-nine recorded:
+
+```
+materials: 5   with a map: 2
+```
+
+**I also swept EVERY delegating spawner for post-call assignments, to find out whether the four known delegation defects
+had siblings.** The sweep is a rough tool -- its regex bleeds across spawner boundaries, so most rows are noise -- but the
+useful result is that **trader llama was the only one setting a property that gated nothing**, and the other delegations
+either set values their parent reads (`spawnMooshroom` sets `variant`, `position`, `width`) or a sheet the parent does not
+hardcode. **So the four instances found are all of them for now**, which is worth knowing rather than continuing to look.
+
+The sweep tool itself is NOT kept, because a tool whose output is mostly noise gets ignored and I have already recorded one
+instance of trusting an audit figure too far. A check that needs re-reading every time is worse than a documented
+checklist item, and the checklist item stands on its own:
+
+> A `spawnX` that calls `spawnY` can lose a variant's identity two ways -- a sheet `spawnY` hardcodes, or a property
+> `spawnY` never reads. Read the delegation.
+
+**The render happens to show both rounds at once**: the trader's real face, hat and robe, with two trader llamas beside it
+wearing the carpet that round sixty-nine finally made visible.
+
+Work list: **97 spawners, 69 confirmed with a real sheet, 25 mobs still without a model or skin.**

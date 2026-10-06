@@ -1,5 +1,36 @@
 import * as THREE from 'three';
 
+/** The real 64x64 wandering trader sheet -- the villager model with its own clothes. */
+const WANDERING_TRADER_SKIN_PATH = '/assets/entity/wandering_trader.png';
+
+/**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ *
+ * A local copy of the helper in `src/mobs.js`, which is not exported; importing the mob manager from a model module
+ * would create a cycle.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
 /**
  * Wandering trader rules: the randomized trade table, despawning, potion drinking and hazard avoidance.
  *
@@ -388,10 +419,28 @@ export function traderLlamaRetaliates(llama, attacker, difficulty) {
 /**
  * Build a wandering trader model: a blue-robed humanoid with a wide-brimmed hat.
  */
-export function createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat) {
+export function createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat, options = {}) {
+  // The REAL 64x64 sheet. // WANDERING_TRADER_SHEET
+  const traderSheet = options.loadTexture ? options.loadTexture(WANDERING_TRADER_SKIN_PATH) : null;
+  if (traderSheet) {
+    traderSheet.magFilter = THREE.NearestFilter;
+    traderSheet.minFilter = THREE.NearestFilter;
+    traderSheet.needsUpdate = true;
+  }
+  /** The sheet material, or the flat one when there is no sheet. */
+  const sheetMat = (fallback) => (traderSheet
+    ? new THREE.MeshLambertMaterial({ map: traderSheet, transparent: true, alphaTest: 0.5 })
+    : fallback);
+  /** A box carrying vanilla's villager rectangle for its shape. */
+  const textured = (size, uu, vv, tw, th, td, fallback) => {
+    const geo = new THREE.BoxGeometry(...size);
+    if (traderSheet) applyBoxUVs(geo, uu, vv, 64, 64, tw, th, td);
+    return new THREE.Mesh(geo, sheetMat(fallback));
+  };
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.3), robeMat);
+  // Body 8x12x6 at (16, 16), vanilla's villager rectangle.
+  const body = textured([0.5, 0.75, 0.3], 16, 16, 8, 12, 6, robeMat);
   body.position.y = 1.07;
   group.add(body);
 
@@ -399,7 +448,8 @@ export function createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat) {
   sash.position.y = 0.78;
   group.add(sash);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+  // Head 8x10x8 at (0, 0), vanilla's villager rectangle.
+  const head = textured([0.5, 0.5, 0.5], 0, 0, 8, 10, 8, skinMat);
   head.position.y = 1.7;
   group.add(head);
 

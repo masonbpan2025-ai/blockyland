@@ -5938,7 +5938,7 @@ export class MobManager {
     const skinMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.skin });
     const hatMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.hat });
     const { group: model, body, sash, head, brim, crown, eyes, legs, arms, pack } =
-      createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat);
+      createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat, { loadTexture: (p) => this.loadTexture(p) });
     group.add(model);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
