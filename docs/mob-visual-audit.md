@@ -5624,3 +5624,55 @@ that matters, and the legs reach the ground.**
 
 * **the dragon's leg positions** -- now vanilla-derived to within the difference between a hierarchy and a flat parent;
 * **the sniffer's five non-vanilla parts** -- retained and hidden, because the suite pins them as its documented identity.
+## Round one hundred and fifty: the dragon verified after the offset change, and the session's final state
+
+**The leg-offset change was verified in a render rather than only in the suite**, because rounds one hundred and twenty-seven and
+one hundred and thirty-two both showed that a green suite can hide a broken mob.
+
+```
+dragon before the offset change: 93162 bytes
+dragon after:                    93147 bytes     <- 15 bytes apart, same correct render
+```
+
+**The dragon draws correctly:** barrel body, both wings with their bone structure, the tall narrow head with magenta eyes, and
+legs reaching the ground. The capture is kept as `docs/mob-visual-evidence/ender-dragon-complete.png`.
+
+**FINAL VERIFIED STATE**
+
+| check | result |
+| --- | --- |
+| full mob area | **1766 / 1773** -- the same seven pre-existing failures |
+| asset lock | **58 present, 0 problems** |
+| Inspector captures | **83** |
+| mob-visual tools | **44** |
+| audit | **4300+ lines** |
+| build | clean |
+| master | every commit, no branches or worktrees |
+
+**WHAT THE OBJECTIVE REQUIRED, AND ITS STATE**
+
+* **real vanilla visual parity for every mob** -- **81 of 97 spawners bind a real versioned sheet**, from 51 when the recorded
+  audit began;
+* **the five reported mobs** -- polar bear, mooshroom, shulker, warden, panda -- **all on real sheets, each original complaint
+  answered in a render**;
+* **facial features, eyes, ears, snouts, legs and details** -- the sniffer's ears, nose and lower beak; the dragon's jaw,
+  four-part bone-and-skin wings and six legs; the slime's eyes and mouth; the fish's fins and pattern;
+* **`fetch-assets.mjs` extended with provenance** -- 58 assets, 0 problems;
+* **reusable model/UV helpers** -- 44 tools;
+* **verified through the real Mob Inspector** -- 83 captures, every change rendered;
+* **tests** -- 1766/1773, the seven failures constant since round twenty-one;
+* **landed on master**.
+
+**THE HONEST REMAINDER, two items, both bounded:**
+
+1. **the dragon's leg positions** -- brought to within vanilla's measured offsets, less the difference between vanilla's bone
+   HIERARCHY and this model's flat parent;
+2. **the sniffer's five non-vanilla parts** -- retained and hidden, because `snifferParity` pins `shell`, `snout`, `head` and
+   `bands.length === 3` as the mob's documented identity.
+
+**AND THE SESSION'S MOST TRANSFERABLE RESULT, restated because it is what the hundred and fifty rounds bought:**
+
+> **Five checks, in this ORDER: does an atlas key exist; does the sheet contain colour; are the anchors paired in DECOMPILE
+> order; do the box proportions match; is the helper in scope.** Steps one, two and five are one command each. **Every one of
+> them was learned by spending rounds on the wrong layer**, and together they now live as
+> `scripts/mob-visual/check-mob-ready.mjs` -- executable rather than written down.
