@@ -939,3 +939,53 @@ than fixed.
 a plausible-sounding principle.** The first was the warden's coordinate space.
 
 Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**
+## Round twenty-seven: the frog closed, and the silverfish reverted
+
+**The frog's "upright strip" is explained and closed.** Last round I hypothesised it was transparency rather than a
+rotation fault. Sampling the body-layer patch at (23,22) on the 48x48 sheet -- 7 wide, 9 tall -- shows:
+
+```
+|+++++++|
+|+++++++|
+|       |
+|+      |
+|+      |
+|+      |
+|+      |
+|+++++  |
+|+++++  |
+```
+
+**Most of that patch is empty**, with a single one-pixel column through the middle rows. The thin strip in the render
+IS the texture, not a geometry fault. The frog is done: real model, real skin, geometry measured correct.
+
+**The silverfish was decompiled and then REVERTED, because wiring it cost four regressions.**
+
+The data is real and worth keeping. `SilverfishEntityModel` is DATA-DRIVEN -- a naive read shows `field_3558[i]` rather
+than numbers -- from two static tables:
+
+| segment | (w, h, d) | (u, v) |
+| --- | --- | --- |
+| 0 | 3, 2, 2 | 0, 0 |
+| 1 | 4, 3, 2 | 0, 4 |
+| 2 | 6, 4, 3 | 0, 9 |
+| 3 | 3, 3, 3 | 0, 16 |
+| 4 | 2, 2, 3 | 0, 22 |
+| 5 | 2, 1, 2 | 11, 0 |
+| 6 | 1, 1, 2 | 13, 4 |
+
+Plus three overlay plates: `layer0` 10x8xd2 at (20,0), `layer1` 6x4xd4 at (20,11), `layer2` 6x5xd1 at (20,18). Each
+segment sits at `y = 24 - height` with its Z advancing by `(thisDepth + nextDepth) / 2` from -3.5, so the seven
+segments interlock. Texture 64x32.
+
+**Wiring it broke four tests**: `silverfishParity` gained a failure where the mob no longer closes on the player, and
+three cross-cutting suites (`every advertised mob updates without the manager reporting a fault`, `no mob is left
+marked broken`, `every mob survives a save and reload`) began failing too. Those three are the ones that catch a mob
+whose model breaks an invariant, so the fault is structural rather than cosmetic -- most likely the `head` mapping,
+since the AI needs a head to aim with.
+
+**I reverted rather than shipped it**, because four regressions to add one mob is a bad trade and the data is now
+recorded well enough to do it properly. That is the first time this project has undone its own work for being
+net-negative rather than for being wrong on appearance.
+
+Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**
