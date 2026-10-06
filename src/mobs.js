@@ -9273,8 +9273,11 @@ export class MobManager {
       return m;
     };
     const bodyMat = fishMat(options.baseHex ?? colors.body);
-    // The fins take the mask too: vanilla draws them from the same grey atlas.
-    const finMat = fishMat(options.finHex ?? colors.fin);
+    // The fins, tail and dorsal are PLANES with no rectangle of their own in vanilla's small-fish layout, so they carry NO
+    // map: a plane whose UVs land in the stencil's transparent margin renders as nothing at all, which is why they went
+    // dark. They take the variant's fin colour directly -- which is what vanilla's fin tint produces on a white stencil
+    // anyway. // TROPICAL_FISH_FINS
+    const finMat = new THREE.MeshLambertMaterial({ color: options.finHex ?? colors.fin });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group: model, body, tail, fins, dorsal, eyes } =
       createTropicalFishModel(bodyMat, finMat, eyeMat);

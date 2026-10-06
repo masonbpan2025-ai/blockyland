@@ -5437,3 +5437,47 @@ unexplained.** `AREA` is at exactly **1766/1773** through all of it.
 round does not weaken it: **`alphaTest` is right for a SKIN and wrong for a STENCIL, and the same attribute deletes one mob
 while being correct for the next.** That single attribute explained six rounds of this project's failures on the fish, and the
 pattern pass is a separate, additive refinement that does not undo it.
+## Round one hundred and forty-four: the fins' darkness MEASURED and fixed -- the third item was a real fault
+
+**Round one hundred and forty-three listed the fins' darkness as "a third thing to measure". Measured, and it was a real
+fault with a one-line cause.**
+
+**The mechanism:** the tail and dorsal are PLANES built by `applyVanillaBoxUVs(geo, ..., 0, 3, 6)` -- **vanilla's small-fish
+layout gives them a ZERO-WIDTH rectangle** at `(22, -6)` and `(10, -5)`. A plane whose UVs land on a zero-width region lands
+in the stencil's transparent margin, **so it renders as nothing** -- and a part that renders as nothing is what "dark" looked
+like against a light background.
+
+**The fix:** the fins, tail and dorsal now carry **no map at all** and take the variant's `finColor` directly:
+
+```js
+const finMat = new THREE.MeshLambertMaterial({ color: options.finHex ?? colors.fin });
+```
+
+**And that is faithful rather than a shortcut:** vanilla's fin tint on a white stencil produces exactly the flat fin colour,
+so a plane with no map and the fin colour is the same result by a shorter route.
+
+**The render now reads as a fish:** **orange body**, **white fins, dorsal and tail**, **dark eyes** -- where the previous
+attempt had a black tail and fins.
+
+**So the fish stands at a verified, coherent state:**
+
+| pass | state |
+| --- | --- |
+| **base** | **correct** -- `tropical_a/b.png` tinted by `baseColor`, no `alphaTest` (round one hundred and forty-two) |
+| **fins** | **correct** -- no map, `finColor` (this round) |
+| **eyes** | correct from the start |
+| **pattern** | **not implemented** -- attempted in round one hundred and forty-three and it blacked the fish out |
+
+**And the two lessons this mob produced are both general:**
+
+1. **`alphaTest` is right for a SKIN and wrong for a STENCIL** -- the same attribute deletes one mob and is correct for the
+   next. Six rounds of failures came from this one attribute.
+2. **A zero-width rectangle means a part has no texture region**, and a mapped plane sampling one renders as nothing. **This
+   project has catalogued eight zero-thickness PLANE cases; this is the first where the plane also needed NO MAP**, and the
+   two facts are related -- a plane in vanilla often has no rectangle because it borrows the neighbouring face's.
+
+`AREA` is at exactly **1766/1773**, and the capture is kept as
+`docs/mob-visual-evidence/tropical-fish-base-pass.png`.
+
+Work list: **97 spawners, 81 with a real sheet, the tropical fish's base, fins and eyes correct with its pattern pass
+outstanding, and the dragon's leg positions recorded as approximations.**
