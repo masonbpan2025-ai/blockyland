@@ -299,6 +299,51 @@ const LLAMA_SKIN_PATHS = {
 };
 const TURTLE_SKIN_PATH = '/assets/entity/turtle/big_sea_turtle.png';
 const OCELOT_SKIN_PATH = '/assets/entity/cat/ocelot.png';
+const WOLF_SKIN_PATH = '/assets/entity/wolf/wolf.png';
+/**
+ * The wolf's real model, decompiled from `WolfEntityModel` rather than inferred from its texture.
+ *
+ * Pixel inference got this mob wrong three times; the real rectangles differ from every guess, so this is kept as
+ * data with its provenance rather than as loose numbers in the spawner.
+ */
+const WOLF_MODEL = {
+  texture: WOLF_SKIN_PATH,
+  textureSize: [64, 32],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    // Head 6x6x4 at (0,0), carrying the face and the ears and snout as children, exactly as vanilla nests them.
+    { name: 'head', box: [6, 6, 4], uv: { u: 0, v: 0, tw: 6, th: 6, td: 4 }, at: [0, 4, 7] },
+    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { u: 16, v: 14, tw: 2, th: 2, td: 1 }, at: [-2, -5, 0] },
+    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { u: 16, v: 14, tw: 2, th: 2, td: 1 }, at: [2, -5, 0] },
+    // The snout is 3 wide but 4 deep, so vanilla's own layout has no room for its side faces (the same shape
+    // `createEntityBox` refuses). Explicit rectangles keep every face on the snout.
+    {
+      name: 'snout', parent: 'head', box: [3, 3, 4], at: [-0.5, 0, 5],
+      faces: [
+        { x: 4, y: 14, w: 3, h: 3 },   // +X right
+        { x: 8, y: 14, w: 3, h: 3 },   // -X left
+        { x: 4, y: 10, w: 3, h: 4 },   // +Y top
+        { x: 7, y: 10, w: 3, h: 4 },   // -Y bottom
+        { x: 4, y: 14, w: 3, h: 3 },   // +Z front
+        { x: 7, y: 14, w: 3, h: 3 }    // -Z back
+      ]
+    },
+    // Body 6x9x6 at (18,14).
+    { name: 'body', box: [6, 9, 6], uv: { u: 18, v: 14, tw: 6, th: 9, td: 6 }, at: [0, 6, 2] },
+    // Upper body 8x6x7 at (21,0) -- the chest and neck, which a wolf holds lower than its body.
+    { name: 'upperBody', box: [8, 6, 7], uv: { u: 21, v: 0, tw: 8, th: 6, td: 7 }, at: [-1, 6, -3] },
+    // Four legs, 2x8x2 at (0,18), at vanilla's own offsets.
+    { name: 'legRightHind', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [-2.5, 8, 7] },
+    { name: 'legLeftHind', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [0.5, 8, 7] },
+    { name: 'legRightFront', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [-2.5, 8, -4] },
+    { name: 'legLeftFront', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [0.5, 8, -4] },
+    // The tail, and the `real_tail` child vanilla swings independently (2x8x2 at (9,18)).
+    { name: 'tail', box: [2, 8, 2], uv: { u: 9, v: 18, tw: 2, th: 8, td: 2 }, at: [-1, 4, 8] },
+    { name: 'tailTip', parent: 'tail', box: [2, 8, 2], uv: { u: 9, v: 18, tw: 2, th: 8, td: 2 }, at: [0, 0, -1] }
+  ]
+};
 /** The rabbit's coat sheets, keyed by the coat name the mob rolled. */
 const RABBIT_SKIN_PATHS = {
   brown: '/assets/entity/rabbit/brown.png',
@@ -6873,81 +6918,72 @@ export class MobManager {
 
   // --- WOLF ---
   spawnWolf(x, y, z, options = {}) {
-    const group = new THREE.Group();
     const wolfTex = this.textures?.wolf || this.createWolfTexture();
     const wolfMat = new THREE.MeshLambertMaterial({ map: wolfTex });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.8), wolfMat);
-    body.position.y = 0.55;
-    group.add(body);
+    // The wolf's real geometry, built from the decompiled model definition. Its texture blocks are the ones
+    // vanilla uses, so the sheet finally lines up.
+    const WOLF_TEXTURE_CONTEXT = { texW: 64, texH: 32 };
+    const built = buildModel(WOLF_MODEL, {
+      materials: { default: wolfMat },
+      textureContext: WOLF_TEXTURE_CONTEXT,
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    const group = built.group;
+    const body = built.parts.body;
+    const head = built.parts.head;
+    const muzzle = built.parts.snout;
+    const lEar = built.parts.earLeft;
+    const rEar = built.parts.earRight;
+    const legs = [
+      built.parts.legRightHind, built.parts.legLeftHind,
+      built.parts.legRightFront, built.parts.legLeftFront
+    ];
+    const [fl, fr, bl, br] = legs;
+    const tail = built.parts.tail;
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), wolfMat);
-    head.position.set(0, 0.75, 0.5);
-    group.add(head);
-
-    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.25), wolfMat);
-    muzzle.position.set(0, 0.68, 0.75);
-    group.add(muzzle);
-
-    // Wolf triangular ears
-    const earMat = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
-    const earGeo = new THREE.BoxGeometry(0.1, 0.15, 0.08);
-    const lEar = new THREE.Mesh(earGeo, earMat);
-    lEar.position.set(-0.15, 0.25, -0.05);
-    head.add(lEar);
-
-    const rEar = new THREE.Mesh(earGeo, earMat);
-    rEar.position.set(0.15, 0.25, -0.05);
-    head.add(rEar);
-
-    // Wolf black nose on muzzle
+    // The nose and eyes stay separate marks: vanilla draws them on the snout texture, but this model renders the
+    // snout as its own box and small dark marks read more clearly at this scale.
     const noseMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
     const nose = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), noseMat);
     nose.position.set(0, 0.04, 0.13);
     muzzle.add(nose);
 
-    // Wolf expressive eyes
     const eyeMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
     const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.02);
     const lEye = new THREE.Mesh(eyeGeo, eyeMat);
-    lEye.position.set(-0.12, 0.05, 0.21);
+    lEye.position.set(-0.11, 0.05, 0.21);
     head.add(lEye);
-
     const rEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rEye.position.set(0.12, 0.05, 0.21);
+    rEye.position.set(0.11, 0.05, 0.21);
     head.add(rEye);
+    const eyes = [lEye, rEye];
+    const ears = [lEar, rEar];
 
-    // Collar mesh (hidden until tamed). Wiki: the default collar colour is red, but a caller can ask
-    // for another one; this used to be hardcoded, so `options.collarColor` was ignored at spawn even
-    // though dying a collar later worked.
+    // The collar, which changes colour when the wolf is tamed. `collarColor` is a dye NAME ('red', 'lime'), so it
+    // resolves through the shared palette rather than being used as a number.
     const requestedCollar = options.collarColor ?? WOLF_DEFAULT_COLLAR;
     const collarMat = new THREE.MeshLambertMaterial({
-      color: SHEEP_COLOR_HEX[requestedCollar] ?? SHEEP_COLOR_HEX[WOLF_DEFAULT_COLLAR]
+      color: SHEEP_COLOR_HEX[requestedCollar] ?? SHEEP_COLOR_HEX[WOLF_DEFAULT_COLLAR],
+      transparent: true,
+      opacity: 0.9
     });
     const collar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.42), collarMat);
-    collar.position.set(0, 0.65, 0.45);
+    collar.position.set(0, 12.5 / 16, 0);
+    // Hidden until the wolf is tamed; the taming path reveals it.
     collar.visible = false;
     group.add(collar);
 
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.16, 0.4, 0.16);
-    const fl = new THREE.Mesh(legGeo, wolfMat); fl.position.set(-0.18, 0.2, 0.28); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, wolfMat); fr.position.set(0.18, 0.2, 0.28); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, wolfMat); bl.position.set(-0.18, 0.2, -0.28); group.add(bl);
-    const br = new THREE.Mesh(legGeo, wolfMat); br.position.set(0.18, 0.2, -0.28); group.add(br);
-
-    // Tail
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.12), wolfMat);
-    tail.position.set(0, 0.6, -0.45);
-    tail.rotation.x = -Math.PI / 4;
-    group.add(tail);
-
-    group.position.set(x, y, z);
+    // The hitbox, which differs between an adult and a baby, and the baby's half scale.
+    const wolfDims = options.isBaby ? WOLF_DIMENSIONS.baby : WOLF_DIMENSIONS.adult;
     if (options.isBaby) group.scale.setScalar(0.5);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+
+    // Place the wolf and put it in the world. These three lines were lost when the geometry was replaced, which left
+    // the model built but never added to the scene -- it rendered as nothing at all.
+    group.position.set(x, y, z);
+    group.traverse((obj) => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
-    const wolfDims = options.isBaby ? WOLF_DIMENSIONS.baby : WOLF_DIMENSIONS.adult;
     const mob = {
       type: 'wolf',
       name: 'Wolf',

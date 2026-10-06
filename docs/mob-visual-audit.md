@@ -591,3 +591,44 @@ had a real layout or a panel model. **The next round should install a JVM and ru
 more analysis tooling, because that is the only approach on this project with a demonstrated success.
 
 Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**
+
+## Round seventeen: installed a JVM, decompiled the real models, and the wolf finally works
+
+**The approach I said I would take, and it paid off immediately.** Last round I concluded "stop deriving, get the model
+definition". This round: no `java.exe` on the machine and `winget install` needs elevation (exit 1602, and approvals
+are off), so instead I downloaded a **portable Temurin 21 JRE** (49 MB zip), extracted it, and ran **Vineflower** --
+already downloaded two rounds earlier and unused until now -- against the Fabric intermediary jar.
+
+**Decompiling gave exact numbers, and they were different from every guess:**
+
+| part | real (u,v) | real size | what pixel inference produced |
+| --- | --- | --- | --- |
+| head | (0,0) | 6x6x4 | 6x8x6 |
+| snout | (0,10) | 3x3x4 | -- |
+| ear | (16,14) | 2x2x1 | -- |
+| body | (18,14) | 6x9x6 | 12x6x6 |
+| upper body | (21,0) | 8x6x7 | -- |
+| leg | (0,18) | 2x8x2 | 4x12x4 |
+| tail | (9,18) | 2x8x2 | -- |
+
+Texture 64x32, confirmed by `method_32110($$0, 64, 32)`. **Three rounds of pixel archaeology produced a model that
+was wrong in almost every dimension**; one decompile produced the right one.
+
+**The wolf is rebuilt from `WOLF_MODEL`**, holding the decompiled rectangles as data with their provenance, including
+vanilla's two-segment tail (`tail` plus a `real_tail` child) and its nested `real_head` structure. Its authored canvas
+texture is replaced by the real vanilla sheet, because now the geometry actually samples it.
+
+**Also decompiled and available, in `%TEMP%\decompiled`, for the next rounds:** `class_617` (vex), `class_7198`
+(frog, sheet 48x48), `class_7280` (warden), `class_560` (cow). The vex in particular has been unresolved since round
+three and its real model is now sitting on disk.
+
+**Three placement faults the render caught, all mine:** the parts sat at vanilla's y≈14 units so the model floated out
+of frame; the splice had also dropped `group.position.set`, the shadow traverse and `this.scene.add(group)`, so the
+model was built but never added; and the collar needed `visible = false` until taming. A build can be perfectly
+correct and render as literally nothing.
+
+**The `.tiny` mappings are the interpreter for the output.** `mappings/mappings.tiny` from `yarn-1.20.4+build.3` maps
+intermediary ids to readable names (`class_624` -> `WolfEntityModel`), which is how the decompiled files are
+identified. That is worth keeping in the toolchain notes.
+
+Work list: **92 mob spawners, 52 with a real skin, 40 still flat-colour only.**
