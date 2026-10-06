@@ -1015,3 +1015,26 @@ shift it introduced a `body` reference that did not exist and broke the mob, so 
 centring is left as a small, clearly-scoped piece of work rather than guessed at.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round twenty-nine: measuring the model instead of guessing its offset
+
+**The silverfish body is now correctly centred and grounded.** Round twenty-eight left it rendering ahead of and above
+its ground marker, and my attempt to shift it by hand broke the mob because it referenced a `body` group that did not
+exist yet.
+
+This round the shift is DERIVED rather than chosen: build the model, measure `Box3().setFromObject(built.group)`, then
+translate so the model's own centre sits on the origin and its base at y = 0. The built parts move into a child group so
+the shift never touches the mob's own transform, which is what keeps `updateSilverfishHunt`'s position and yaw maths
+correct.
+
+That is now four rounds in a row where MEASURING beat REASONING: the warden's coordinate space, the frog's patch, the
+plane extents, and now this offset.
+
+**Recorded, not hidden -- two things still wrong:**
+
+1. **Two loose leg bars render far below the model.** They are not a simple height error: moving the legs from local
+   y = -1.0 to -0.45 left them in the same place, so their offset is not coming from where I think. I have not
+   diagnosed it, and after several attempts I am leaving it recorded rather than continuing to guess.
+2. The body's own legs are inside the silhouette and read correctly, so the visible defect is the two stray bars
+   rather than the mob.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
