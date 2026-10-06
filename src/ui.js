@@ -438,22 +438,28 @@ export class UIManager {
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         const allowed = this.game?.allowsAgentTerminal?.() ?? false;
-        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen && allowed) {
-          e.preventDefault();
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
           if (this.game?.player?.gamemode === 'creative') {
+            // Vanilla's save-toolbar activator, which works in Creative whether or not cheats are on. The
+            // terminal, when it is available, waits for the key release instead.
+            e.preventDefault();
             this.toolbarActivator = 'save';
             this.toolbarActivatorAt = performance.now();
-            this.pendingTerminalToggle = true;
-          } else {
+            this.pendingTerminalToggle = allowed;
+          } else if (allowed) {
+            e.preventDefault();
             this.toggleGeminiTerminal();
           }
         }
       }
 
       // X: vanilla's load-toolbar activator, which has no other meaning in this build.
-      if (e.code === 'KeyX' && this.game?.player?.gamemode === 'creative') {
-        this.toolbarActivator = 'load';
-        this.toolbarActivatorAt = performance.now();
+      if (e.code === 'KeyX' && this.game?.player?.gamemode === 'creative' && !this.isChatOpen) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          this.toolbarActivator = 'load';
+          this.toolbarActivatorAt = performance.now();
+        }
       }
 
       // T or /: Open chat
