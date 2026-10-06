@@ -2199,3 +2199,42 @@ remaining" position the zombified piglin and horse are in.
 Work list: **97 spawners, 64 confirmed with a real sheet, 30 mobs still without a model or skin.** The phantom is the
 first of that class and it took one round, because a shared material and a decompiled model are enough when the mob has no
 texture to replace.
+## Round sixty-five: the pufferfish, rebuilt from spheres to its real box model
+
+**Second mob of the "no model" class, and it needed a REBUILD rather than a re-texture.** The project's version used two
+`SphereGeometry` bodies and sphere eyes with flat colours; vanilla's is a **box with ten fins**. So this round transcribed
+the model AND bound its sheet.
+
+`MediumPufferfishEntityModel` (intermediary `class_595`), texture 32x32:
+
+| part | size | (u,v) |
+| --- | --- | --- |
+| body | 5x5x5 | (12, 22) |
+| right_blue_fin / left_blue_fin | 2x**0**x2 -- planes | (24,0) / (24,3) |
+| top_front_fin / top_back_fin | 5x1x1 | (15,16) / (10,16) |
+| right_front_fin / right_back_fin | 1x5x1 | (8,16) |
+| left_front_fin / left_back_fin | 1x5x1 | (0,16) / (4,16) |
+| bottom_front_fin | 5x1x1 | (17,21) |
+| bottom_back_fin | 1x1x1 | (8,22) |
+
+**A discovery that made this easy: there is no `PufferfishEntityModel`.** Vanilla has THREE --
+`LargePufferfishEntityModel`, `MediumPufferfishEntityModel` and `SmallPufferfishEntityModel` -- and all three share ONE
+32x32 sheet, which is why only `pufferfish.png` exists in the client. **A mob can have more than one model class, and the
+client's textures folder is the tell.** One sheet, three sizes; this project models one size, so the medium model's
+rectangles were the right choice and the sheet was already the only one there is.
+
+**The contract is preserved in full.** `spawnPufferfish` destructures `{ group, body, belly, eyes, tail, spines }` and the
+puff behaviour scales `spines`, so all six names are returned: `spines` holds the ten fins plus the tail (11), `belly` the
+bladder overlay that makes the puff read as INFLATION rather than just spreading fins, and `eyes` is **empty when the
+sheet is present**, because the pufferfish's eyes are painted on it. Verified by reading the built mob back:
+
+```
+distinct materials: 2
+  map: /assets/entity/fish/pufferfish.png
+  map: NONE (colour 0xf0e2b6)      <- the belly overlay, deliberately the drawn colour
+spines: 11   eyes: 0
+```
+
+**What the render shows:** the real yellow-and-tan sheet with its darker face and mouth detail, and ten fins.
+
+Work list: **97 spawners, 65 confirmed with a real sheet, 29 mobs still without a model or skin.**

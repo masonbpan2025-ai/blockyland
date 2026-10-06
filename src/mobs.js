@@ -8943,7 +8943,7 @@ export class MobManager {
     const spineMat = new THREE.MeshLambertMaterial({ color: colors.spine });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group: model, body, belly, eyes, tail, spines } =
-      createPufferfishModel(bodyMat, bellyMat, spineMat, eyeMat);
+      createPufferfishModel(bodyMat, bellyMat, spineMat, eyeMat, { loadTexture: (p) => this.loadTexture(p) });
     group.add(model);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });

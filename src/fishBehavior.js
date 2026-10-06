@@ -269,47 +269,120 @@ export function fishXp(mob, random = Math.random) {
 /**
  * Build a pufferfish model: a round body with a tail, and spines that extend with the puff.
  */
-export function createPufferfishModel(bodyMat, bellyMat, spineMat, eyeMat) {
-  const group = new THREE.Group();
-
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), bodyMat);
-  group.add(body);
-
-  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), bellyMat);
-  belly.position.set(0, -0.06, 0.05);
-  group.add(belly);
-
-  const eyes = [];
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), eyeMat);
-    eye.position.set(side * 0.16, 0.06, 0.16);
-    group.add(eye);
-    eyes.push(eye);
-  }
-
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.14), bellyMat);
-  tail.position.set(0, 0, -0.24);
-  group.add(tail);
-
-  // The spines, which is what the puff is FOR. They scale out with the stage.
-  const spines = [];
-  for (const [sx, sy, sz] of [[0.2, 0.1, 0], [-0.2, 0.1, 0], [0, 0.22, 0], [0, -0.1, 0.1], [0, 0.05, -0.18]]) {
-    const spine = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), spineMat);
-    spine.position.set(sx, sy, sz);
-    spine.rotation.z = sx !== 0 ? (sx > 0 ? -Math.PI / 2 : Math.PI / 2) : 0;
-    spine.rotation.x = sz !== 0 ? (sz > 0 ? Math.PI / 2 : -Math.PI / 2) : 0;
-    group.add(spine);
-    spines.push(spine);
-  }
-
-  return { group, body, belly, eyes, tail, spines };
-}
+/** The real 32x32 pufferfish sheet. */
+const PUFFERFISH_SKIN_PATH = '/assets/entity/fish/pufferfish.png';
 
 /**
- * Pose the pufferfish: inflate the body and extend the spines by stage.
- *
- * Wiki: three sizes, 0.35 to 0.7, so the visual scale and the hitbox move together.
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
  */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+/** A flat plane sampling one atlas rectangle, for a part vanilla gives a zero dimension. */
+function applyPlaneUVs(geo, u, v, texW, texH, tw, th) {
+  const uvs = geo.attributes.uv;
+  const u0 = u / texW, u1 = (u + tw) / texW;
+  const v1 = 1 - v / texH, v0 = 1 - (v + th) / texH;
+  uvs.setXY(0, u0, v1); uvs.setXY(1, u1, v1);
+  uvs.setXY(2, u0, v0); uvs.setXY(3, u1, v0);
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+export function createPufferfishModel(bodyMat, bellyMat, spineMat, eyeMat, options = {}) {
+  // The REAL sheet on the body. The drawn materials remain the stand-in, so a build with no assets still renders a
+  // pufferfish. // PUFFERFISH_REBUILT
+  const sheet = options.loadTexture ? options.loadTexture(PUFFERFISH_SKIN_PATH) : null;
+  if (sheet) { sheet.magFilter = THREE.NearestFilter; sheet.minFilter = THREE.NearestFilter; sheet.needsUpdate = true; }
+
+  const group = new THREE.Group();
+  const u = 1 / 16;
+  const skinMat = sheet ? new THREE.MeshLambertMaterial({ map: sheet, transparent: true, alphaTest: 0.5 }) : bodyMat;
+  const finMat = sheet ? skinMat : spineMat;
+
+  // The body: 5x5x5 units, carrying the sheet rectangle at (12, 22).
+  const bodyGeo = new THREE.BoxGeometry(5 * u, 5 * u, 5 * u);
+  if (sheet) applyBoxUVs(bodyGeo, 12, 22, 32, 32, 5, 5, 5);
+  const body = new THREE.Mesh(bodyGeo, skinMat);
+  body.name = 'body';
+  group.add(body);
+
+  // The bladder overlay. Vanilla has no separate belly on the medium model, so this stays the project's own, scaled
+  // with the puff -- which is what makes a pufferfish inflate rather than just grow fins.
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), bellyMat);
+  body.add(belly);
+
+  // Eyes are painted on the sheet, so without one they stay modelled marks.
+  const eyes = [];
+  if (!sheet) {
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), eyeMat);
+      eye.position.set(side * 0.11, 0.03, 0.12);
+      body.add(eye);
+      eyes.push(eye);
+    }
+  }
+
+  // The ten fins, each carrying its own rectangle. Two of them have ZERO height, so they are planes.
+  const spines = [];
+  const finBox = (name, size, uu, vv, tw, th, td, pos) => {
+    const geo = new THREE.BoxGeometry(size[0] * u, size[1] * u, size[2] * u);
+    if (sheet) applyBoxUVs(geo, uu, vv, 32, 32, tw, th, td);
+    const fin = new THREE.Mesh(geo, finMat);
+    fin.name = name;
+    fin.position.set(pos[0] * u, pos[1] * u, pos[2] * u);
+    body.add(fin);
+    spines.push(fin);
+    return fin;
+  };
+  const finPlane = (name, w, h, uu, vv, tw, th, pos) => {
+    const geo = new THREE.PlaneGeometry(w * u, h * u);
+    if (sheet) applyPlaneUVs(geo, uu, vv, 32, 32, tw, th);
+    const fin = new THREE.Mesh(geo, finMat);
+    fin.name = name;
+    fin.position.set(pos[0] * u, pos[1] * u, pos[2] * u);
+    body.add(fin);
+    spines.push(fin);
+    return fin;
+  };
+
+  // Vanilla offsets these from a frame at y = 22; the body already sits at the group origin here, so the offsets are
+  // relative to the body and the frame shift is dropped.
+  finPlane('right_blue_fin', 2, 2, 24, 0, 2, 2, [-2.5, -5, -1.5]);
+  finPlane('left_blue_fin', 2, 2, 24, 3, 2, 2, [2.5, -5, -1.5]);
+  finBox('top_front_fin', [5, 1, 1], 15, 16, 5, 1, 1, [0, 2.5, -2.5]);
+  finBox('top_back_fin', [5, 1, 1], 10, 16, 5, 1, 1, [0, 2.5, 0]);
+  finBox('right_front_fin', [1, 5, 1], 8, 16, 1, 5, 1, [-2.5, 0, 1]);
+  finBox('right_back_fin', [1, 5, 1], 8, 16, 1, 5, 1, [-2.5, 0, -1]);
+  finBox('left_front_fin', [1, 5, 1], 0, 16, 1, 5, 1, [2.5, 0, 1]);
+  finBox('left_back_fin', [1, 5, 1], 4, 16, 1, 5, 1, [2.5, 0, -1]);
+  finBox('bottom_front_fin', [5, 1, 1], 17, 21, 5, 1, 1, [0, -2.5, 1]);
+  finBox('bottom_back_fin', [1, 1, 1], 8, 22, 1, 1, 1, [0, -2.5, -1]);
+
+  const tail = finBox('tail', [1, 1, 1], 8, 22, 1, 1, 1, [0, 0, -3]);
+
+  group.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  return { group, body, belly, eyes, tail, spines };
+}
 export function posePufferfish(mob, phase = 0) {
   if (!isPufferfish(mob) || !mob.mesh) return;
   const stage = pufferfishStage(mob);
