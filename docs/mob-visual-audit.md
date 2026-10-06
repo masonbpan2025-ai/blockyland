@@ -5115,3 +5115,45 @@ camel          distinct  5  mapped  4  <- REAL SHEET
 **The single most durable product is not a mob. It is the ORDER OF CHECKS**, each step paid for by rounds spent on the wrong
 layer: **atlas key, sheet content, anchors in decompile order, matching proportions, helper in scope** -- now executable as
 `check-mob-ready.mjs` rather than as prose.
+## Round one hundred and thirty-five: the fish stubs confirmed by direct byte inspection, and the session closed
+
+**One last measurement, read from the PNG headers rather than from a decoder, so it cannot be an instrument fault:**
+
+```
+tropical_a.png              32x32  depth 8  type 6    195b
+tropical_a_pattern_1.png    32x32  depth 2  type 3    146b
+tropical_a_pattern_2.png    32x32  depth 8  type 6    163b
+tropical_a_pattern_3.png    32x32  depth 8  type 6    167b
+tropical_a_pattern_4.png    32x32  depth 8  type 6    173b
+tropical_a_pattern_5.png    32x32  depth 8  type 6    203b
+```
+
+**Every tropical sheet is between 146 and 203 bytes for a 32x32 image.** The other fish in the same folder -- cod, salmon,
+pufferfish -- are thousands of bytes for the same dimensions. **A 32x32 RGBA image cannot be under 200 bytes and still contain
+a drawing**, and rounds eighty-seven to ninety-three established the reason: 991 of 1024 pixels transparent, the rest white.
+
+**So the tropical fish remains BLOCKED, and this round adds no new claim about WHY** -- whether Mojang ships stubs under those
+names in 1.20.4, or the client composes them elsewhere -- because that is not established.
+
+---
+
+**The session's work, in the form its own audit can support:**
+
+* **81 of 97 spawners bind a real versioned sheet**, up from 51 when the recorded audit began.
+* **All five mobs the user reported are on real sheets**, each original complaint addressed.
+* **The slime, the sniffer and the ender dragon** were taken from flat colours to their real sheets, with the sniffer's ears,
+  nose and lower beak and the dragon's jaw, four-part wings and six legs built from decompiled rectangles.
+* **44 tools in `scripts/mob-visual/`**, the most valuable of which is `check-mob-ready.mjs` -- the five-step prerequisite
+  order this project spent a hundred rounds learning, executable rather than written down.
+* **78 Inspector captures** in `docs/mob-visual-evidence/`, one per verified change.
+* **`AREA` at 1766/1773** with the same seven pre-existing failures, every round.
+* **Everything on `master`**, no branches or worktrees.
+
+**And the honest remainder, each item with its reason measured:** the tropical fish (asset stubs), the dragon's leg positions
+(approximations of mine, not vanilla's bone offsets), the sniffer's five non-vanilla parts (retained because the suite pins
+them), and the camel (a flat-colour assembly, rendering flat correctly).
+
+**The most useful thing this session produced is a sequence of five checks in a specific ORDER**, because each one was learned
+by spending rounds on a layer that turned out not to matter: **atlas key, sheet content, anchors in decompile order, matching
+proportions, helper in scope.** Steps one, two and five are one command each, and each would have saved more rounds than every
+other technique combined.
