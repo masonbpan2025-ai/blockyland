@@ -138,6 +138,16 @@ export function createBlazeModel(textures = {}, options = {}) {
   const rodHeight = rodBounds.max.y - rodBounds.min.y;
   if (Number.isFinite(rodHeight)) rodFrame.position.y = -rodHeight / 2 - rodBounds.min.y;
 
+  // Seat the head at the CENTRE of the rod cage. The head is authored at the model frame origin while the rods sit on
+  // their own rings, so a straight reading puts it outside them -- which is what the render showed. Measured from the
+  // cage rather than guessed. // BLAZE_HEAD_CENTRED
+  rodFrame.updateMatrixWorld(true);
+  const cage = new THREE.Box3().setFromObject(rodFrame);
+  const cageCentre = cage.getCenter(new THREE.Vector3());
+  if (Number.isFinite(cageCentre.y)) {
+    head.position.y = cageCentre.y / 16;
+  }
+
   // Smoke and flame are billboards rather than parts of the sheet, so they stay procedural.
   textures.blazeSmoke ||= texture(8, 8, (x, y) => {
     const d = Math.hypot(x - 3.5, y - 3.5);

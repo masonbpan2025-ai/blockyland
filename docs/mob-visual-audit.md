@@ -1708,3 +1708,36 @@ land relative to a settled origin, and only then write the geometry -- because e
 vanilla's frame and this project's origin is different.
 
 Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**
+## Round fifty-one: the blaze was right, and the INSPECTOR was framing it wrongly
+
+**The head was never outside the cage.** Round fifty recorded that fault and I was wrong. Measuring the built model:
+
+```
+head y:        0.000
+rod cage y:    -0.335 .. 0.384      centre 0.024
+mesh bounds y: -0.335 .. 2.012
+```
+
+The head sits at the cage's centre to within 0.024 blocks. **What reached y = 2.012 was the ten SMOKE SPRITES**, which
+are children of the same group and therefore part of `Box3().setFromObject(mob.mesh)`.
+
+**And that mattered, because the Inspector frames a mob by that box.** `fitCamera` measured the whole group including the
+sprites, so a blaze whose body is 0.7 blocks tall was framed against a 2.3-block box and rendered small, high in the
+viewport, with a great deal of empty space -- which reads exactly like a misplaced model. The camera then pulls back and
+the solid parts look scattered.
+
+`fitCamera` now measures only MESHES, skipping sprites, with a fallback to the whole group for a mob made only of
+sprites. Capture went 75654 to 73774 bytes and the blaze now fills the frame with its rods around the head.
+
+**This is the SECOND time in four rounds that the Inspector's own framing produced a fault I attributed to the model** --
+the cod's "sliver" was the camera looking down the fish's length, and this was the camera measuring the smoke. The rule
+from round thirty-seven was "read what the capture is doing before changing the model"; it now has a second instance, and
+the specific check is: **does the Inspector's bounding box include anything that is not solid geometry?**
+
+**A correction to the frame-convention check, which also came from measurement.** `check-frame-convention.mjs` shows
+vanilla's entity origin IS the feet, so the vertical assembly shift is automatic -- which is why `groundModel` has worked
+first time on three mobs. The recurring fault has never been the vertical offset; it has been a part authored in a
+DIFFERENT SUB-FRAME (the blaze's rod ring, an arm pivot, a bone). That is a more precise statement of round fifty's
+conclusion and it is what the remaining mobs should be checked for.
+
+Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**

@@ -89,7 +89,15 @@ function fitCamera(direction){
   const mob=session.mob;
   if(!mob?.mesh){front();return;}
   mob.mesh.updateWorldMatrix(true,true);
-  const box=new THREE.Box3().setFromObject(mob.mesh);
+  // Measure only the SOLID geometry. Sprites are effects -- a blaze's ten smoke puffs reach twice as high as its whole
+  // body -- and including them framed the mob with most of the viewport empty, which then read as the model being
+  // misplaced. The head and rods are correct; the smoke was inflating the box.
+  const box=new THREE.Box3();
+  mob.mesh.traverse(o=>{
+    if(!o.isMesh)return;                       // skips Sprite, which has no geometry to measure
+    box.expandByObject(o);
+  });
+  if(box.isEmpty())box.setFromObject(mob.mesh); // a mob made only of sprites still frames
   const size=box.getSize(new THREE.Vector3());
   const centre=box.getCenter(new THREE.Vector3());
   const radius=Math.max(size.x,size.y,size.z)*0.5;
