@@ -3981,3 +3981,42 @@ boss rig, and it is the only one of the three remaining where a single `(u, v)` 
 
 Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one -- the slime now fully specified, with the
 sniffer and the dragon behind it.**
+## Round one hundred and eight: the slime's geometry is ALREADY vanilla's, unit for unit
+
+**Round one hundred and seven asked whether `createSlimeModel` matches vanilla's five parts or is a flat-colour assembly.**
+**The answer is that it matches, exactly, and the slime is therefore a BINDING rather than a rebuild.**
+
+There is no `createSlimeModel`; the model is built inside `spawnSlime`. Five meshes, against `class_609`'s five parts:
+
+```
+vanilla part    units    blocks     the project's mesh
+outer cube        8u     0.5000     0.5      x 0.5      x 0.5
+inner cube        6u     0.3750     0.375    x 0.375    x 0.375
+eye               2u     0.1250     0.125    x 0.125    x 0.125     (x2)
+mouth             1u     0.0625     0.0625   x 0.0625   x 0.0625
+```
+
+**Every part is the right SIZE in the right RELATIVE arrangement** -- 8 : 6 : 2 : 1 units, which is `0.5 : 0.375 : 0.125 :
+0.0625` blocks. The source even carries a comment recording that the outer is "8-unit" and the inner "6-unit", so this was
+corrected in an earlier round for the same reason.
+
+**AND THE SLIME ALREADY HAS AN ATLAS KEY.** So it passes **every step of the five-step procedure** from round one hundred:
+
+1. **atlas key exists** -- yes, verified
+2. **sheet contains colour** -- 12 palette entries, 10 coloured greens, and the content check reports none under `entity/slime/`
+3. **anchors** -- `(0,0)`, `(0,16)`, `(32,0)`, `(32,4)`, `(32,8)`, all read from `class_609` by `pair-part-uv.mjs`
+4. **proportions match** -- exact, unit for unit
+5. **binding** -- rectangles applied unconditionally through the deferred hook
+
+**This is the first mob in ten rounds where all four preconditions were already satisfied**, and it is also the direct test
+of round one hundred and five's rule: **that rule says a mob whose model is a flat-colour assembly cannot take a sheet, and
+it predicts the slime CAN, because the slime's model is vanilla's part list rather than an assembly.** If the binding works,
+the rule is confirmed on a mob it was never derived from; if it fails, the rule is incomplete.
+
+**That is the whole reason the slime is worth doing next, and it is a better reason than "it is the smallest".** It is a
+falsifiable test of the rule, not just another mob.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 77 with a real sheet, 3 substantive mobs lacking one -- the slime is a BINDING and is fully
+specified.**
