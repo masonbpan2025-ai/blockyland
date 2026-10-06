@@ -4486,3 +4486,51 @@ its own texture.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon bound and awaiting its 20-part rebuild, and the tropical
 fish BLOCKED by its assets.**
+## Round one hundred and twenty: `class_895$class_625` is the RENDERER, not the model builder
+
+**I went to read the dragon's rectangles and found there are none in the class I had been treating as its model.**
+
+Grepping `class_895$class_625` for the geometry methods returns **nothing**:
+
+```
+method_32101  (uv)
+method_32097  (box)
+method_32098  (dilated box)
+method_32117  (add part)
+```
+
+**Zero hits.** What the class actually contains is the part *lookup* -- twenty `method_32086("name")` calls building the
+hierarchy -- followed by pose and render methods (`method_2828`, `method_23620`, `method_23621`). **It is
+`EnderDragonEntityRenderer$DragonEntityModel`, which the mappings name honestly: a RENDERER's view of a model, which finds
+parts in a `class_630` passed to its constructor but does not build them.**
+
+**So round one hundred and thirteen's "twenty named parts with a hierarchy" is correct, and my conclusion that the class
+supplies "the skeleton to build against" was half right:** it supplies the part NAMES and the hierarchy, **and not their
+geometry.** The rectangles are in whichever class constructs the `class_630` that this renderer is handed.
+
+**That is a correction to what round one hundred and thirteen implied, and it matters for the rebuild**: the twenty-part
+hierarchy can be built against, but **the boxes and their `(u, v)` anchors have to come from somewhere else**, and that
+somewhere has not been decompiled yet.
+
+**What is established for the dragon, and what is not:**
+
+| | |
+| --- | --- |
+| sheet | real, 256x256, extracted, bound (round one hundred and nineteen) |
+| atlas key and path | added, prerequisites PASS |
+| 20 part NAMES and hierarchy | **read and recorded** |
+| part rectangles `(u, v)` and box sizes | **NOT YET READ** -- they are in another class |
+| the render | dark sheet texture with magenta eyes, fragmented, as expected without rectangles |
+
+**The next step is specific and one command:** find the class that constructs the dragon's `class_630` -- most likely another
+nested class of `class_895`, since the renderer names its own model class explicitly -- and decompile that. **The part names
+already read are what to search it for.**
+
+**This is the same shape of discovery as round seventy-five's** (the giant's model was an 11-line subclass and the geometry
+was in `PlayerEntityModel`), **and it was found the same way: by looking for a method that should have been there and
+finding it absent rather than assuming I had read the wrong thing.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon bound with its part names read and its rectangles still to
+locate, and the tropical fish BLOCKED by its assets.**
