@@ -1437,3 +1437,43 @@ That was the wrong end: `british` is this project's breed name and `british_shor
 are correct. **When a lookup key and a file name disagree, check which one the provider owns before changing either.**
 
 Work list: **92 mob spawners, 59 with a real model, 62 with a real skin, 30 still flat-colour only.**
+## Round forty-four: the Inspector was silently showing blazes
+
+**Two new audit tools, and a fault in the verification loop itself.**
+
+`scripts/mob-visual/audit-flat-skins.mjs` measures the TRUE flat-colour set from the source: a spawner binds no real
+sheet if it has no `this.textures.<key>` read, no `loadTexture`, no `adoptTexture`, no `adoptWhenReady`, no `skinPath`
+and no `SKIN_PATH`. That gives **41 spawners**, of which five are projectile/effect spawners rather than mobs
+(DragonFireball, Fireball, LaserBeam, ParticleBurst, XpOrbs), so the honest figure is **36 mobs still on flat colour**.
+The running tally said 30; the measured figure is what I will quote from now on.
+
+**The second tool found something worse.** `audit-inspector-coverage.mjs` cross-checks that set against the Inspector's
+`DEBUG_MOBS` list, and the Inspector has this behaviour:
+
+```js
+const requested = new URLSearchParams(location.search).get('mob');
+if (DEBUG_MOBS.includes(requested)) ...
+```
+
+**When the requested key is not in `DEBUG_MOBS` it falls back to `blaze`, and says nothing.** I hit this directly: I
+captured `?mob=zombie_villager` to assess that mob and the screenshot was A BLAZE. It was 80 KB, it looked like a
+successful capture, and it told me nothing. Any verification built on such a capture is worthless, and worse than no
+capture because it looks like evidence.
+
+`zombie_villager` was genuinely absent from the 90-entry list, so it is now added (91 entries) and the same URL resolves
+to the real mob, which renders flat green -- correctly, because it has no sheet yet. **That is the round's concrete
+deliverable: the mob can now be verified at all.**
+
+The other apparent misses in the audit were my own artifacts and are now excluded rather than reported as gaps:
+`SkeletonVariant`, `ZombieVariant`, `ZombiePigman`, `PackEquine` and `Mob` are delegating spawners whose real types are
+already listed, and the five effect spawners are not mobs.
+
+**Worth stating plainly: this project has been claiming "verified through the Inspector" for forty rounds, and for
+mobs outside `DEBUG_MOBS` that claim was hollow without anyone noticing.**
+
+Banked, not yet used: the zombie villager's full decompiled model -- head 8x8x8 dilated at (0,0), nose 2x4x2 at (24,0),
+body 8x12x6 at (16,20) with a 0.05-dilated outer at (0,38), arms 4x12x4 at (44,22) with the left mirrored, legs 4x12x4
+at (0,22) mirrored, plus hat/hat_rim/robe overlay parts. The base sheet is 64x64 and the overlay is 64x32, so it is the
+first mob here with TWO texture sizes, and `zombie_villager.png` is extracted from the JAR.
+
+Work list: **97 spawners, 56 with a real sheet, 36 mobs still flat-colour only** (five non-mob spawners excluded).
