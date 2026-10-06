@@ -4130,3 +4130,62 @@ showed. **The procedure from round one hundred is what would have compressed it 
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one (the sniffer and the ender dragon), plus the
 tropical fish which is blocked by its assets.**
+## Round one hundred and twelve: the sniffer is a flat-colour assembly and needs a REBUILD, measured not guessed
+
+**I applied round one hundred's procedure -- prerequisites first -- and it produced a verdict in three commands rather than
+five rounds.**
+
+**Prerequisites, both settled:**
+
+```
+sheet on disk                        yes, public/assets/entity/sniffer/sniffer.png
+content check                        ZERO-COLOUR assets (0) -- real colours, not a stub
+atlas key `sniffer`                  ABSENT
+SNIFFER_SKIN_PATH                    NOT DECLARED
+```
+
+So the sniffer has the same missing-atlas-key defect the camel and the slime each had. **But that is not what decides whether
+it is a binding or a rebuild**, and the measurement that does decide it is the part structure:
+
+```
+vanilla `class_8185`, 192x192, 12 shaped parts:
+  body          25 x 29 x 40        one body
+  right/left front/mid/hind leg   7 x 10 x 8    six legs
+  head          13 x 18 x 11
+  left/right ear 1 x 19 x 7
+  nose          13 x 2 x 9
+  lower_beak    13 x 12 x 9
+
+the project: 18 meshes
+  body          1 x 0.7 x 1.7
+  THREE separate belly slabs   (0.9 x 0.3 x 1.5, 1.08 x 0.3 x 1.5, and three 1.12 x 0.32 x 0.08 strips)
+  head, muzzle, ears, eyes, legs...
+```
+
+**Vanilla's sniffer is ONE body with six legs hanging off it. The project's is eighteen hand-placed boxes with a body and
+three separate belly slabs.** That is precisely the flat-colour assembly of round one hundred and five, and the rule says such
+a model cannot take a real sheet.
+
+**And the proportions confirm it independently:**
+
+```
+vanilla body ratio   0.625 : 0.725 : 1.000
+project body ratio   0.588 : 0.412 : 1.000     <- the height is 43% too flat
+```
+
+**So the verdict is: REBUILD the sniffer's geometry from `class_8185` rather than bind a sheet to it.** That is the same work
+the phantom, the pufferfish, the giant and the undead horses each did, and the same work the camel and the fish needed and did
+not get.
+
+**The cost of reaching this verdict was three commands**, because the procedure checks prerequisites and part structure
+BEFORE attempting a binding. **The camel took four rounds of binding attempts to learn the same thing about itself.** That is
+the procedure paying for itself, and it is the first time in this project that a mob has been correctly ruled a rebuild
+WITHOUT a round spent discovering it by failure.
+
+**Recorded for whoever rebuilds it:** the twelve rectangles above are read, verified and in decompile order; the sheet is
+real; and the atlas key and path constant still need adding.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one -- both now known to need geometry rebuilds
+(the sniffer and the ender dragon), plus the tropical fish which is blocked by its assets.**
