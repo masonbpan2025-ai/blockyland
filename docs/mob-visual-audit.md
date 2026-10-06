@@ -1686,3 +1686,25 @@ that frame -- the same class of fault the silverfish and endermite needed `groun
 count is correct, and the placements are transcribed; the frame is not.
 
 Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**
+## Round fifty: the blaze's frame, moved and still not right
+
+**I applied the frame fix and it improved the placement without solving it.** The rods are now assembled in a child group
+and that group is CENTRED on the origin by measurement -- the right transform for a flying mob, whose head sits among its
+rods rather than on top of them -- and all 35 blaze tests still pass.
+
+**But the render shows the head OUTSIDE the rod cage, sitting above and in front of it.** So the frame is no longer the
+only problem: the head's own offset is wrong relative to the rods. In vanilla the head is among them; here it is ahead of
+them, and the model reads as a box with rods floating around it rather than a blaze.
+
+**That makes four rounds on this mob**, and I am stopping rather than spending a fifth. The gains are real and kept --
+vanilla's eight-rod count replacing a cone of twelve, the real sheet bound on the rods and coat, and the palette-PNG
+conversion extended to bit-packed depths 1/2/4. The remaining fault is the head's offset within the rod frame, which is a
+single number, and it is recorded here precisely.
+
+**The honest pattern across the last three mobs:** the silverfish, the blaze and the zombie villager all ended with ONE
+placement number unconverted, and in each case the frame conversion was the last thing attempted rather than the first.
+For the remaining 33 mobs, the frame should be settled BEFORE the parts are transcribed -- measure where vanilla's parts
+land relative to a settled origin, and only then write the geometry -- because every one of these models is authored in
+vanilla's frame and this project's origin is different.
+
+Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**

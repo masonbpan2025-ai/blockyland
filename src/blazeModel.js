@@ -101,6 +101,12 @@ export function createBlazeModel(textures = {}, options = {}) {
 
   // The rods, grouped into three tiers purely so `animateBlaze` keeps its three-tier loop. The PLACEMENTS are
   // vanilla's; only the grouping into three is this project's.
+  //
+  // The rods are assembled in a child group so the whole blaze can then be CENTRED on its origin. A flying mob is
+  // centred rather than grounded: vanilla renders it as a cage of rods with the head among them, and groundModel's
+  // base-at-zero would plant the head on the floor instead. // BLAZE_CENTRED
+  const rodFrame = new THREE.Group();
+  mesh.add(rodFrame);
   const rodMaterial = new THREE.MeshLambertMaterial({
     color: 0xffdf76, emissive: 0xc57a11, emissiveIntensity: 0.22, transparent: true, alphaTest: 0.5
   });
@@ -121,9 +127,16 @@ export function createBlazeModel(textures = {}, options = {}) {
       rod.position.set(p.x / 16, p.y / 16, p.z / 16);
       tier.add(rod);
     }
-    mesh.add(tier);
+    rodFrame.add(tier);
     tiers.push(tier);
   }
+
+  // Centre the rod frame vertically on the origin. Measured, not guessed -- the same discipline that fixed the
+  // silverfish after four failed hand-picked offsets.
+  rodFrame.updateMatrixWorld(true);
+  const rodBounds = new THREE.Box3().setFromObject(rodFrame);
+  const rodHeight = rodBounds.max.y - rodBounds.min.y;
+  if (Number.isFinite(rodHeight)) rodFrame.position.y = -rodHeight / 2 - rodBounds.min.y;
 
   // Smoke and flame are billboards rather than parts of the sheet, so they stay procedural.
   textures.blazeSmoke ||= texture(8, 8, (x, y) => {
