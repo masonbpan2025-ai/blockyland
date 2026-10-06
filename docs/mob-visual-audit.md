@@ -2159,3 +2159,43 @@ failure modes are known**, and this tool's are now documented in its own header.
 
 Work list: **97 spawners, 63 confirmed with a real sheet, 2 delegated, 31 or fewer genuinely flat.** The remaining work is
 mobs with NO model at all -- flat boxes -- which is a simpler and much larger job than anything in the last twenty rounds.
+## Round sixty-four: the phantom, the first mob of the "no model at all" class
+
+**The remaining 31 are a different kind of gap from everything in the last twenty rounds, and this is the first one.**
+Every mob before this had a model and the wrong texture; the phantom had **flat colours and no `map` at all** -- a single
+`phantomMat` at `0x1e1b4b`. So the work is to give it a model AND a skin, not to correct one.
+
+`PhantomEntityModel` (intermediary `class_588`), texture 64x64:
+
+| part | size | at | (u,v) |
+| --- | --- | --- | --- |
+| head | 7x3x5 | (0, 0) | (0, 0) |
+| body | 5x3x9 | (0, 8) | (0, 8), rotated -0.1 about X |
+| tail_base | 3x2x6 | (3, 20) | (3, 20) |
+| tail_tip | 1x1x6 | (4, 29) | (4, 29) |
+| left_wing_base | 6x2x9 | (23, 12) | (23, 12) |
+| left_wing_tip | 13x1x9 | (16, 24) | (16, 24) |
+| right_wing_base / right_wing_tip | the same, **MIRRORED** |
+
+**The single shared material is what made this cheap.** `spawnPhantom` builds the body, the head and -- through
+`createPhantomWings(phantomMat, group)` -- the wings, all from ONE material. Binding the sheet there reaches every part at
+once, so giving the body and head their rectangles was enough to dress the whole mob. Verified by reading the built
+materials back:
+
+```
+distinct materials: 2
+  map: /assets/entity/phantom.png        <- body, head AND wings
+  map: NONE (flat colour 0x84cc16)       <- the eyes, deliberately emissive
+```
+
+**What the render shows:** the real sheet's green eyes and purple-blue body, with the wings textured from the same map.
+The mob reads small in the frame because a phantom IS a thin wing-plate shape viewed from above, but the skin is real and
+verifiable rather than judged by eye.
+
+**Still on flat colour or the drawn shape:** the tail and the wing pivots are the project's own construction rather than
+vanilla's rectangles, and the eyes are intentionally a separate emissive material. Those are the same "small parts
+remaining" position the zombified piglin and horse are in.
+
+Work list: **97 spawners, 64 confirmed with a real sheet, 30 mobs still without a model or skin.** The phantom is the
+first of that class and it took one round, because a shared material and a decompiled model are enough when the mob has no
+texture to replace.

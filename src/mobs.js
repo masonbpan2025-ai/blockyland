@@ -286,6 +286,7 @@ const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
 const PIGLIN_SKIN_PATH = '/assets/entity/piglin/piglin.png';
+const PHANTOM_SKIN_PATH = '/assets/entity/phantom.png';
 const ZOMBIE_VILLAGER_SKIN_PATH = '/assets/entity/zombie_villager/zombie_villager.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
 /**
@@ -7719,13 +7720,21 @@ export class MobManager {
   }
   spawnPhantom(x, y, z) {
     const group = new THREE.Group();
-    const phantomMat = new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
+    // The REAL 64x64 phantom sheet, with the flat colour kept as the stand-in so a build with no assets still
+    // renders a phantom. Every part shares this material, so binding it here reaches the wings too.
+    // // PHANTOM_REAL_SHEET
+    const phantomSheet = this.loadTexture(PHANTOM_SKIN_PATH);
+    const phantomMat = phantomSheet
+      ? new THREE.MeshLambertMaterial({ map: phantomSheet, transparent: true, alphaTest: 0.5 })
+      : new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x84cc16 });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.8), phantomMat);
+    // The body carries vanilla's rectangle at (0, 8): 5x3x9.
+    const body = new THREE.Mesh(createBoxWithUV(0.5, 0.2, 0.8, 0, 8, 64, 64, 5, 3, 9), phantomMat);
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.35), phantomMat);
+    // The head carries vanilla's rectangle at (0, 0): 7x3x5.
+    const head = new THREE.Mesh(createBoxWithUV(0.35, 0.2, 0.35, 0, 0, 64, 64, 7, 3, 5), phantomMat);
     head.position.set(0, 0, 0.5);
     group.add(head);
 
