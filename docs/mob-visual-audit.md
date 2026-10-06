@@ -1065,3 +1065,31 @@ That narrowing is the round's real product. "The silverfish is 0.75 low" is not 
 the textured path is low by a bounds value that does not match its geometry" is.
 
 Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only.**
+## Round thirty-one: the slime's proportions, and a category I had missed
+
+**After four attempts at two stray silverfish bars I moved on**, deliberately: 36 mobs still lack real data and that
+matters more than one cosmetic artefact. The silverfish defect stays precisely recorded and open.
+
+**The slime is one of the few mobs with a TEXTURELESS model**, so there is nothing to bind and the whole fix is
+geometry. `SlimeEntityModel` (`class_609`) gives:
+
+| part | size | at |
+| --- | --- | --- |
+| cube | 8x8x8 | (0, 16, 0) |
+| inside_cube | 6x6x6 | (0, 17, 0) |
+
+The inner is **three-quarters** the outer's size and sits one unit higher. Mine drew a 1.2 outer against a 0.65 inner --
+four-fifths, and 0.65 is not a clean fraction of 1.2 -- so the slime read as two near-equal cubes rather than a core
+inside a shell. Now 0.5 and 0.375, with the inner offset up as vanilla has it. `slimeParity` and `magmaCubeParity` stay
+at 15/15.
+
+**A CATEGORY WORTH NAMING: mobs vanilla does not texture at all.** The slime and the magma cube carry only flat colours
+in the real game, so they can never be "skinned" and the work list's skin count will never reach the model count. That
+is not a gap in this project, it is the mob. Worth stating so the final tally is read correctly.
+
+**Still missing on the slime, recorded:** vanilla gives it `right_eye` (32,0), `left_eye` (32,4) and `mouth` (32,8) as
+small 2x2x2 and 1x1x1 parts. This project models eyebrows and mouths for several mobs, so adding three small cubes would
+close it -- deliberately deferred rather than guessed at.
+
+Work list: **92 mob spawners, 56 with a real model, 56 with a real skin, 36 still flat-colour only**, of which the
+slime and magma cube are textureless BY DESIGN.

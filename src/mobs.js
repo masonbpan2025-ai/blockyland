@@ -7156,12 +7156,14 @@ export class MobManager {
     const outerMat = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.65 });
     const innerMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
 
-    const outer = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), outerMat);
-    outer.position.y = 0.6;
+    // The real model: an 8-unit outer cube and a 6-unit inner one, with the inner sitting one unit HIGHER. The outer is
+    // therefore 0.5 blocks and the inner 0.375 -- not the near-equal pair this used to draw. // SLIME_PROPORTIONS
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), outerMat);
+    outer.position.y = 0.25;
     group.add(outer);
 
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), innerMat);
-    inner.position.y = 0.6;
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.375, 0.375, 0.375), innerMat);
+    inner.position.y = 0.28;
     group.add(inner);
 
     const s = size / 4;
