@@ -350,3 +350,27 @@ the polar bear head, the spider abdomen and the allay wing. It is easily the mos
 `entityBox.js`: the failure it prevents is silent, mapping a strip of whatever art happens to sit next to the part.
 
 Work list: **92 mob spawners, 44 with a real skin, 48 still flat-colour only.**
+## Round eight: goat, and a correction to the batch premise
+
+**Goat.** Unlike the spider and allay it did NOT need rebuilding: it already had the right shape -- body, head, long
+muzzle, beard, swept horns, tail, four legs. What it lacked was any UV mapping, so every part was a plain
+`BoxGeometry` in one flat colour and the skin could not be applied. `quadRects` (exported from `entityBox.js`) gives
+the six rectangles of vanilla's layout in three's face order, so those boxes were re-mapped **in place** rather than
+rebuilt. The head block is 12x10x16 at (0,0), the body 12x10x16 at (38,0), the legs at (0,17); the mapped rects
+measure 84-99% opaque art, so the rectangles are right.
+
+That in-place technique is worth remembering: `quadRects` is the cheap path for a mob whose silhouette is already
+correct, and rebuilding is only needed when the parts themselves are wrong.
+
+**A correction to my own batch premise.** I wrote `check-quadruped.mjs` to classify every atlas against the standard
+quadruped layout (body 12x10x18 at (18,4)). It reported "no" for the cow -- a mob that demonstrably works -- and the
+reason is that **the premise was wrong**: that layout needs 36 wide by 28 tall, which does not fit a 64x32 sheet at
+all. The working quadrupeds use the legacy `createBoxWithUV` with explicit pixel dimensions per part. The tool is
+kept because measuring is still better than guessing, but its verdict column should not be trusted for a 64x32 sheet,
+and that is now recorded here rather than left as a misleading green tick.
+
+**Honest evidence note.** The goat capture shows texture colour rather than a flat fill, and its UV rectangles are
+verified against the atlas, but at the Inspector's framing I cannot confirm the face reads as a goat's face the way
+I could for the warden or the spider. Treat the goat's facial detail as LIKELY rather than verified.
+
+Work list: **92 mob spawners, 45 with a real skin, 47 still flat-colour only.**

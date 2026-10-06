@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { quadRects } from './mobVisuals/entityBox.js';
 
 /**
  * Goat rules and model.
@@ -429,14 +430,43 @@ export function landGoatJump(mob, random = Math.random) {
  * Distinct from the sheep in silhouette: taller, with a longer face and the horns reading at a
  * glance. The horns are separate meshes so one can be removed when it snaps off.
  */
+/**
+ * Map one vanilla layout block of the goat sheet onto an existing box's geometry.
+ *
+ * `quadRects` gives the six rectangles in three's face order, so a plain BoxGeometry can sample the atlas in
+ * place. The goat's parts had no UVs at all before this, which is why its whole body was one flat colour.
+ */
+function applyGoatUvs(mesh, u, v, tw, th, td) {
+  const uvs = mesh.geometry.attributes.uv;
+  const rects = quadRects(u, v, tw, th, td);
+  for (let face = 0; face < 6; face++) {
+    const r = rects[face];
+    // Flip V, because texture space runs bottom-up while the atlas is specified top-down.
+    const u0 = r.x / 64;
+    const u1 = (r.x + r.w) / 64;
+    const v1 = 1 - r.y / 64;
+    const v0 = 1 - (r.y + r.h) / 64;
+    const base = face * 4;
+    uvs.setXY(base + 0, u0, v1);
+    uvs.setXY(base + 1, u1, v1);
+    uvs.setXY(base + 2, u0, v0);
+    uvs.setXY(base + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+}
+
 export function createGoatModel(bodyMat, darkMat, hornMat, eyeMat) {
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 1.0), bodyMat);
+  // Sampled from the goat sheet instead of being painted one colour.
+  applyGoatUvs(body, 38, 0, 12, 10, 16);
   body.position.set(0, 0.75, 0);
   group.add(body);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.44), bodyMat);
+  // The head block carries the goat's face, so its eyes and brow come from the texture.
+  applyGoatUvs(head, 0, 0, 12, 10, 16);
   head.position.set(0, 1.0, 0.6);
   group.add(head);
 
@@ -484,6 +514,7 @@ export function createGoatModel(bodyMat, darkMat, hornMat, eyeMat) {
   for (const side of [-1, 1]) {
     for (const z of [0.32, -0.32]) {
       const leg = new THREE.Mesh(legGeo, bodyMat);
+      applyGoatUvs(leg, 0, 17, 4, 12, 4);
       leg.position.set(side * 0.22, 0.25, z);
       group.add(leg);
       legs.push({ mesh: leg, side, front: z > 0 });

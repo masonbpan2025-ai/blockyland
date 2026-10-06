@@ -288,6 +288,7 @@ const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
 const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
+const GOAT_SKIN_PATH = '/assets/entity/goat/goat.png';
 const ALLAY_SKIN_PATH = '/assets/entity/allay/allay.png';
 /** The spider's dark hide and its red eyes, used as fallbacks while the skin decodes. */
 const SPIDER_BODY_COLOR = 0x3a2f28;
@@ -4329,7 +4330,10 @@ export class MobManager {
    * block, and is milkable. A screaming goat rams every 5-15 seconds.
    */
   spawnGoat(x, y, z, options = {}) {
-    const bodyMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.body });
+    // The real 64x64 goat skin. The model already had the right shape but no UVs at all, so the sheet was never
+    // sampled; its parts are now mapped with quadRects and the texture is bound here.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.body, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(GOAT_SKIN_PATH), GOAT_COLORS.body);
     const darkMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.dark });
     const hornMat = new THREE.MeshLambertMaterial({ color: GOAT_COLORS.horn });
     const eyeMat = new THREE.MeshBasicMaterial({ color: GOAT_COLORS.eye });
