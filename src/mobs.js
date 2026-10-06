@@ -284,6 +284,12 @@ const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const MOOSHROOM_SKIN_PATH = '/assets/entity/cow/red_mooshroom.png';
+const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
+const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
+/** The warden's glowing sculk core, which is emissive-looking rather than textured. */
+const WARDEN_CORE_COLOR = 0x06b6d4;
+/** The shulker's purpur shell, used as the fallback while the skin decodes. */
+const SHULKER_SHELL_COLOR = 0x8b618b;
 const BROWN_MOOSHROOM_SKIN_PATH = '/assets/entity/cow/brown_mooshroom.png';
 const RED_MUSHROOM_BLOCK_PATH = '/assets/block/red_mushroom_block.png';
 const BROWN_MUSHROOM_BLOCK_PATH = '/assets/block/brown_mushroom_block.png';
@@ -6249,29 +6255,48 @@ export class MobManager {
 
   spawnWarden(x, y, z) {
     const group = new THREE.Group();
-    const sculkMat = new THREE.MeshLambertMaterial({ color: 0x0f2e3a });
-    const cyanMat = new THREE.MeshLambertMaterial({ color: 0x06b6d4 });
+    // The real 128x128 skin. The warden's dark sculk plating, its narrow glowing eyes and the tendrils across its
+    // chest are all painted in the texture; the flat near-black colour it used before carried none of them, which is
+    // why it had no face at all. The head takes the sheet's head block, and the teal chest core is a separate piece
+    // cut from the glowing region so it can be the one emissive-looking part.
+    const skin = this.loadTexture(WARDEN_SKIN_PATH);
+    const sculkMat = new THREE.MeshLambertMaterial({ color: 0x0f2e3a, transparent: true, alphaTest: 0.5 });
+    adoptTexture(sculkMat, skin, 0x0f2e3a);
+    const cyanMat = new THREE.MeshLambertMaterial({ color: WARDEN_CORE_COLOR });
 
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.7), sculkMat);
+    const torso = new THREE.Mesh(createBoxWithUV(1.2, 1.4, 0.7, 16, 16, 128, 128, 16, 20, 12), sculkMat);
     torso.position.y = 1.9;
     group.add(torso);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 0.7), sculkMat);
-    head.position.set(0, 2.9, 0);
+    const head = new THREE.Mesh(createBoxWithUV(1.2, 1.2, 1.2, 0, 0, 128, 128, 16, 16, 16), sculkMat);
+    head.position.set(0, 3.0, 0);
     group.add(head);
+    // WARDEN_MODELLED_EYES
+    // The warden's face is almost entirely black sculk, so its eyes are not "dark marks on light hide" the way a
+    // cow's are -- they are the few texels that GLOW. find-bright.mjs located them on the sheet, but the warden
+    // atlas does not place its head on the textbook box layout, so they cannot be reached by sampling that
+    // layout's front face. They are modelled directly instead, which is also how the game treats them: a pair of
+    // small emissive slots set low and wide on the face.
+    const wardenEyeGeo = new THREE.BoxGeometry(0.22, 0.1, 0.06);
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(wardenEyeGeo, cyanMat);
+      eye.position.set(side * 0.26, 3.06, 0.61);
+      group.add(eye);
+    }
 
-    // Horns
-    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.4, 0); group.add(hornL);
-    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.4, 0); group.add(hornR);
+    // Horns.
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.7, 0); group.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.7, 0); group.add(hornR);
 
-    // Glowing core
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.1), cyanMat); core.position.set(0, 2.0, 0.36); group.add(core);
+    // Glowing chest core, the warden's brightest feature.
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 0.12), cyanMat); core.position.set(0, 2.05, 0.4); group.add(core);
+    const coreSunken = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.1), cyanMat); coreSunken.position.set(0, 1.55, 0.38); group.add(coreSunken);
 
-    const armGeo = new THREE.BoxGeometry(0.4, 1.5, 0.4);
+    const armGeo = createBoxWithUV(0.4, 1.5, 0.4, 44, 16, 128, 128, 8, 24, 8);
     const leftArm = new THREE.Mesh(armGeo, sculkMat); leftArm.position.set(-0.85, 1.8, 0); group.add(leftArm);
     const rightArm = new THREE.Mesh(armGeo, sculkMat); rightArm.position.set(0.85, 1.8, 0); group.add(rightArm);
 
-    const legGeo = new THREE.BoxGeometry(0.45, 1.2, 0.45);
+    const legGeo = createBoxWithUV(0.45, 1.2, 0.45, 0, 48, 128, 128, 8, 20, 8);
     const leftLeg = new THREE.Mesh(legGeo, sculkMat); leftLeg.position.set(-0.35, 0.6, 0); group.add(leftLeg);
     const rightLeg = new THREE.Mesh(legGeo, sculkMat); rightLeg.position.set(0.35, 0.6, 0); group.add(rightLeg);
 
@@ -6716,17 +6741,27 @@ export class MobManager {
     return data;
   }
 
-  spawnShulker(x, y, z) {    const group = new THREE.Group();
-    const purpurMat = new THREE.MeshLambertMaterial({ color: 0x9333ea });
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+  spawnShulker(x, y, z) {
+    const group = new THREE.Group();
+    // Its real skin. A shulker is a purple shell with a hinged lid, and the skin carries the ridged panels and the
+    // pale inside that shows when it opens; the flat purple cube had neither. The body's texture block is the clean
+    // 48x32 region at (16,16), which is shared by the shell and the lid.
+    const skin = this.loadTexture(SHULKER_SKIN_PATH);
+    const shellMat = new THREE.MeshLambertMaterial({ color: SHULKER_SHELL_COLOR, transparent: true, alphaTest: 0.5 });
+    adoptTexture(shellMat, skin, SHULKER_SHELL_COLOR);
 
-    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), purpurMat);
-    shell.position.y = 0.35;
-    group.add(shell);
+    // Body: 16x16x16 texels.
+    const body = new THREE.Mesh(createBoxWithUV(1, 1, 1, 16, 16, 64, 64, 16, 16, 16), shellMat);
+    body.position.y = 0.5;
+    group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), headMat);
-    head.position.y = 0.45;
-    group.add(head);
+    // Lid: 16x8x16 texels, hinged at its BACK edge so it can lift open.
+    const lidPivot = new THREE.Group();
+    lidPivot.position.set(0, 1, -0.25);
+    group.add(lidPivot);
+    const lid = new THREE.Mesh(createBoxWithUV(1, 0.5, 1, 16, 16, 64, 64, 16, 8, 16), shellMat);
+    lid.position.set(0, 0.25, 0.25);
+    lidPivot.add(lid);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -6736,6 +6771,10 @@ export class MobManager {
       type: 'shulker',
       name: 'Shulker',
       mesh: group,
+      // The lid is the part that moves, so it is what the opening animation turns.
+      head: lidPivot,
+      shellMesh: body,
+      lidMesh: lid,
       health: 30,
       maxHealth: 30,
       velocity: new THREE.Vector3(),

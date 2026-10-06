@@ -198,3 +198,24 @@ different mobs as identical.
 
 Still not done: the **shulker** (a box), the **warden** (no face or body detail), the **vex** (head still reads as a
 pale block), and roughly fifty spawners that still paint flat colours. All their textures are fetched and locked.
+## Shulker and warden
+
+| Mob | State |
+| --- | --- |
+| Shulker | Done. It was a flat purple cube with a yellow box for a head. It is now a 1x1x1 shell from its real 64x64 skin, with a separate 1x0.5x1 lid hinged at its back edge so the opening animation has something to turn. The shell's ridged panels and the dark lip read correctly. |
+| Warden | Mostly done. It has its real 128x128 sculk skin on the torso and head, its horns, the glowing chest core, and the glowing EYES, which the flat near-black box never had. The eyes are modelled rather than sampled, because the warden's atlas does not put its head on the textbook box layout and the glow could not be reached through it. |
+
+### The warden's eyes, and what that says about the atlas layout
+
+A cow's eyes are dark marks on light hide, so they can be found by looking for dark clusters. The warden's face is
+almost entirely black sculk, so its eyes are the few texels that GLOW instead. `scripts/mob-visual/find-bright.mjs`
+locates those by brightness and blue-green saturation, and it found them -- but at (56,8) and (60,40), which the
+textbook 16x16x16 head layout cannot reach, because the warden's atlas does not use that layout.
+
+So the eyes are modelled geometry. That is honest and it looks right, but it is a workaround, and the same
+non-standard-layout problem is what leaves the **cow and mooshroom faces** unfinished. Resolving it properly means
+obtaining the real model definitions rather than continuing to infer rectangles from pixels; the tools to measure
+are now all in place, but the models themselves are the missing input.
+
+Still not done: the **vex** (head reads as a pale block), the **cow and mooshroom faces**, and roughly fifty
+spawners that still paint flat colours.
