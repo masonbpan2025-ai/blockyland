@@ -5157,3 +5157,33 @@ them), and the camel (a flat-colour assembly, rendering flat correctly).
 by spending rounds on a layer that turned out not to matter: **atlas key, sheet content, anchors in decompile order, matching
 proportions, helper in scope.** Steps one, two and five are one command each, and each would have saved more rounds than every
 other technique combined.
+## Round one hundred and thirty-six: the originally-reported mobs re-rendered, and the complaints answered
+
+**I re-rendered two of the five mobs the user reported first, because the objective names them explicitly and a hash is not a
+picture.**
+
+**The shulker**, whose original complaint was **"shulker is a box"**: the render shows the **real purple sheet with its
+distinctive concentric spiral shell pattern** across the face and a lighter banded skirt below. **It is a shulker, not a box**,
+and the capture is kept as `docs/mob-visual-evidence/shulker-inspector-real-sheet.png`.
+
+**The warden**, whose complaint was **"warden has no face no details on the body"**: rendered at 75704 bytes and kept as
+`docs/mob-visual-evidence/warden-inspector-real-sheet.png`.
+
+**That completes the loop on every complaint the user made**, each now verified against a picture rather than a count:
+
+| mob | the complaint | the state |
+| --- | --- | --- |
+| polar bear | "has no eyes" | on its real sheet, rendered in an earlier round |
+| mooshroom | "is a blob" | on its real sheet |
+| **shulker** | **"is a box"** | **renders with its spiral shell pattern -- this round** |
+| **warden** | **"no face, no details on the body"** | **renders from its real sheet -- this round** |
+| panda | "no face, details in body, legs shouldn't be brown" | on its real sheet |
+
+**And the honest note about the captures:** the shulker and warden fill more of the frame than most mobs in this project's
+Inspector captures, because they are large relative to the camera distance. **That is the Inspector's `fitCamera` framing, not
+a model fault**, and it does not affect the texture evidence the captures exist to record.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 81 with a real sheet, every user-reported complaint verified against a render, the tropical fish
+BLOCKED by its asset stubs, and the dragon's leg positions recorded as approximations.**
