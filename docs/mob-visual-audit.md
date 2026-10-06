@@ -4575,3 +4575,54 @@ its intermediary id, then decompile that.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry located at `fyi$a` and its rectangles still to
 read, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and twenty-two: the dragon's geometry narrowed to two classes, by a substring asymmetry
+
+**I closed the mapping chain and then used a difference between the candidate classes to cut the list in half.**
+
+**The mapping chain, which round one hundred and twenty-one said was missing, is in the cached Yarn table** at
+`%TEMP%/mob-decompile/yarn-1.20.4.tiny`:
+
+```
+c  fyi     net/minecraft/class_895          .../EnderDragonEntityRenderer
+c  fyi$a   net/minecraft/class_895$class_625 .../EnderDragonEntityRenderer$DragonEntityModel
+```
+
+**So I HAD decompiled the right class in round one hundred and thirteen**, and `DragonEntityModel` really is the model's
+name. **What it is not is the model's BUILDER**, and this round proved that rather than concluding it:
+
+```
+class_895$class_625, every part-related string literal:
+  line 31:  method_32086("head")
+  line 33:  method_32086("neck")
+  line 34:  method_32086("body")
+  line 35:  method_32086("left_wing")
+  line 36:  method_32086("left_wing_tip")
+  line 37:  method_32086("left_front_leg")
+```
+
+**Six literals, all `method_32086` -- all LOOKUPS in a `class_630` handed to the constructor.** There is no `method_32117`
+(add part), no `method_32097` (box) and no `method_32101` (uv) anywhere in the class. **It is a model's INTERFACE, not its
+construction.**
+
+**Then the narrowing, which is the useful technique here.** Searching for the two related literals separately:
+
+```
+CONTAINS "left_wing_tip":  ewc  fmy  fky  fjb  fyi  fyi$a     -- 6 classes
+CONTAINS "wing_tip":       fky  fjb  fyi  fyi$a               -- 4 classes
+```
+
+**`ewc` and `fmy` contain the FULL literal but NOT the bare one, while `fky`, `fjb`, `fyi` and `fyi$a` contain both.** A class
+that only ever names the complete part is one that DEFINES it; a class that handles the shorter interned string is doing
+lookups or prefix matching. **So the dragon's geometry builder is `ewc` or `fmy`**, and the other four are consumers.
+
+**That is a narrowing to two candidates from six using nothing but the search tool**, and it needs no decompiler, no mappings
+and no names in advance -- which is exactly what a mob whose class has never been identified requires.
+
+**The next step is one command each:** map `ewc` and `fmy` through the Yarn table the way `fyi` was just mapped, then decompile
+whichever resolves to an entity model. **A class absent from the mappings as a top-level entry is a nested class, so look for
+`ewc$a`-shaped entries beside it.**
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's geometry narrowed to `ewc` or `fmy`, and the tropical fish
+BLOCKED by its assets.**
