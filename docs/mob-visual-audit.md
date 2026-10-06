@@ -4295,3 +4295,42 @@ for it, and this project's whole history in these rounds is what happens when a 
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs needing geometry rebuilds (sniffer, ender dragon -- both
 fully specified), plus the tropical fish which is BLOCKED by its assets.**
+## Round one hundred and fifteen: the sniffer's rebuild begun -- all prerequisites now PASS
+
+**Round one hundred and twelve ruled the sniffer a REBUILD. This round started it, and the readiness tool now reports every
+prerequisite as PASS where three were failing:**
+
+```
+[PASS] 1. atlas key exists          atlas entry found
+[PASS] 2. sheet contains colour     192x192 type 6: 13942 opaque, 13942 COLOURED
+[PASS] 5. UV helper in scope        (was NOT IMPORTED -- round 110's fault, avoided this time)
+[PASS] 3. anchors readable          12 part(s) with (u,v), texture 192x192
+[ ?? ] 4. proportions / part structure
+VERDICT: prerequisites met
+```
+
+**The sheet is exceptionally rich:** all **13942 opaque pixels are COLOURED** -- not one grey pixel in the whole 192x192 image.
+That is the opposite of the tropical fish's 0-of-86 and confirms the content check is discriminating properly.
+
+**What the rebuild did, applying the resize rule rounds 95 and 96 earned:**
+
+| part | was | now | vanilla ratio |
+| --- | --- | --- | --- |
+| body | 1.0 x 0.7 x 1.7 | **1.063 x 1.232 x 1.7** | 0.625 : 0.725 : 1 |
+| head | 0.6 x 0.5 x 0.6 | **0.433 x 0.600 x 0.367** | 0.722 : 1 : 0.611 |
+
+Both keep their longest side and take vanilla's exact proportions, with the rectangles `(62, 68)` 25x29x40 and `(8, 15)`
+13x18x11 applied **unconditionally** -- the shape of every successful binding in this project.
+
+**Added: `SNIFFER_SKIN_PATH` and the `sniffer` atlas key**, both of which were absent and both of which are step 1 of the
+procedure. `AREA` stayed at exactly **1766/1773** through the whole change.
+
+**What the rebuild still needs, and it is now specific:** the body and head carry rectangles, but **the four added parts
+vanilla does not have -- `belly`, `shell`, `band`, the second `band`, and `tail` -- still take flat colours and must either be
+removed (vanilla has none) or left as the assembly they are.** Vanilla's sniffer has **six legs, head, two ears, nose and
+lower_beak**; the project's has **none of the ears, nose or beak**. **The honest next step is to build those five parts from
+the rectangles already read** -- `left_ear` `(2, 0)` 1x19x7, `right_ear` `(48, 0)` 1x19x7, `nose` `(10, 45)` 13x2x9,
+`lower_beak` `(10, 57)` 13x12x9 -- and to bind the six legs at `(0/32, 87/105/123)`.
+
+Work list: **97 spawners, 78 with a real sheet, the sniffer mid-rebuild with all five prerequisite steps PASS, the ender
+dragon still to rebuild, and the tropical fish BLOCKED by its assets.**

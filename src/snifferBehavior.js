@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 
 /**
  * Sniffer rules: wandering, scenting, the dig state machine, and the seed results.
@@ -380,7 +381,13 @@ export const SNIFFER_COLORS = { body: 0x8fa86b, belly: 0xe8e0c8, shell: 0x6f8a4f
 export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 1.7), bodyMat);
+  // THE BODY IS RESIZED TO VANILLA'S PROPORTIONS (rounds 95, 96, 101). `SnifferEntityModel` (`class_8185`), texture
+  // 192x192: body 25x29x40 at (62, 68) -- ratios 0.625 : 0.725 : 1. The project's body was 1.0 x 0.7 x 1.7
+  // (0.588 : 0.412 : 1), which is 43% too flat in height; it is now 1.063 x 1.232 x 1.7, the same longest side and
+  // vanilla's ratios. Applied UNCONDITIONALLY: a rectangle describes the GEOMETRY.
+  const bodyGeo = new THREE.BoxGeometry(1.063, 1.232, 1.7);
+  applyVanillaBoxUVs(bodyGeo, 62, 68, 192, 192, 25, 29, 40);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.95;
   group.add(body);
 
@@ -404,7 +411,11 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), bodyMat);
   neck.position.set(0, 1.1, 0.9);
   group.add(neck);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.6), bodyMat);
+  // Head: vanilla's rectangle 13x18x11 at (8, 15), ratios 0.722 : 1 : 0.611. Resized from 0.6 x 0.5 x 0.6 to
+  // 0.433 x 0.600 x 0.367 -- same longest side, vanilla's proportions.
+  const headGeo = new THREE.BoxGeometry(0.433, 0.600, 0.367);
+  applyVanillaBoxUVs(headGeo, 8, 15, 192, 192, 13, 18, 11);
+  const head = new THREE.Mesh(headGeo, bodyMat);
   head.position.set(0, 1.18, 1.25);
   group.add(head);
   const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.28, 0.5), snoutMat);

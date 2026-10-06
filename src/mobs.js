@@ -294,6 +294,8 @@ const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 /** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
 const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
 const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
+/** The real 192x192 sniffer sheet. */
+const SNIFFER_SKIN_PATH = '/assets/entity/sniffer/sniffer.png';
 /** The real 64x32 slime sheet (12 palette entries, 10 coloured greens). */
 const SLIME_SKIN_PATH = '/assets/entity/slime/slime.png';
 /** The real 128x128 camel sheet. */
@@ -672,6 +674,7 @@ export class MobManager {
       camel: this.loadTexture(CAMEL_SKIN_PATH),
       // The slime's own sheet, checked for existence this time BEFORE binding -- the round-ninety-nine lesson.
       slime: this.loadTexture(SLIME_SKIN_PATH),
+      sniffer: this.loadTexture(SNIFFER_SKIN_PATH),
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
