@@ -474,3 +474,30 @@ defect.** I would rather ship a labelled tool than a confidently wrong one, and 
 turtle's empty rectangle visible as a category rather than a one-off.
 
 Work list: **92 mob spawners, 50 with a real skin, 42 still flat-colour only.**
+## Round thirteen: the ocelot was falling back to a canvas with no bitmap
+
+**A real bug, found by following the delegation.** `spawnOcelot` delegates to `spawnCat(x, y, z, 'ocelot')`, and the cat
+spawner looked up `this.textures['cat_ocelot']`. There is no such key -- the preloaded table stores the ocelot as
+`ocelot` -- so the lookup MISSED and fell through to `createCatTexture('ocelot')`.
+
+`createCatTexture` returns a 64x32 **canvas** texture, and in a paused Inspector a canvas whose bitmap has not
+uploaded is a material with a map and no image, which renders BLACK. That is the third member of the same family as
+the husk's missing bitmap and the turtle's empty rectangle: **a texture that cannot be sampled silently becomes a
+flat colour, or black, and looks like a design choice.**
+
+Two fixes:
+* the lookup now tries `cat_<breed>`, then the bare `<breed>`, then the procedural canvas;
+* the ocelot preloads the **real vanilla sheet** (`entity/cat/ocelot.png`, extracted from the client JAR) instead of a
+  canvas, with the procedural texture kept as the loader's fallback. The cat BREEDS keep their procedural textures --
+  those are this project's own invention rather than vanilla assets, and replacing them is a separate question.
+
+The ocelot now renders in the real ochre/tan ocelot palette with its green eyes and white face patches, matching the
+sheet rather than a generated approximation.
+
+**Also worth recording: a false alarm I chased down properly.** The mob area reported 8 failures against a baseline of
+7. Stashing only `src/mobs.js` restored 7, which looked like my fault. It was not: the extra line came from
+`tests/mobUpdateIsolation.test.js`, which passes 10/10 in isolation BOTH with and without my change, and two further
+full runs both reported exactly 7. So it is cross-test flakiness in the shared-process runner, not a regression -- but
+I only know that because I checked instead of assuming either way.
+
+Work list: **92 mob spawners, 51 with a real skin, 41 still flat-colour only.**

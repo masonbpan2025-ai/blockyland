@@ -479,6 +479,15 @@
       "sha256": "fa434644eb95ba5ffb2780475a238e787acf2a714adb5f7b8f9df6597b07c477",
       "bytes": 1205,
       "for": "turtle"
+    },
+    "ocelot_skin": {
+      "path": "entity/cat/ocelot.png",
+      "dest": "assets/entity/cat/ocelot.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/cat/ocelot.png",
+      "ref": "1.21.4",
+      "sha256": "96e8f5fbe5b482a4bdf9aa50a63572b4c2fb73a2d5249e1ff4947266acc2d4e9",
+      "bytes": 565,
+      "for": "ocelot"
     }
   }
 }

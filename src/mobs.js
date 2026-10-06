@@ -298,6 +298,7 @@ const LLAMA_SKIN_PATHS = {
   gray: '/assets/entity/llama/gray.png'
 };
 const TURTLE_SKIN_PATH = '/assets/entity/turtle/big_sea_turtle.png';
+const OCELOT_SKIN_PATH = '/assets/entity/cat/ocelot.png';
 /** The rabbit's coat sheets, keyed by the coat name the mob rolled. */
 const RABBIT_SKIN_PATHS = {
   brown: '/assets/entity/rabbit/brown.png',
@@ -560,7 +561,10 @@ export class MobManager {
       cat_tabby: this.createCatTexture('tabby'),
       cat_siamese: this.createCatTexture('siamese'),
       cat_british: this.createCatTexture('british'),
-      ocelot: this.createCatTexture('ocelot'),
+      // The real vanilla ocelot sheet, rather than a procedural canvas: a canvas texture whose bitmap has not
+    // uploaded renders BLACK, which is the trap the husk hit. The cat BREEDS keep their procedural textures --
+    // those are this project's own invention, not vanilla assets.
+    ocelot: this.loadTexture(OCELOT_SKIN_PATH, () => this.createCatTexture('ocelot')),
       wolf: this.createWolfTexture(),
       spider: this.createSpiderTexture(),
       ghast_plain: this.createNetherTexture('ghast_plain'),
@@ -6978,7 +6982,11 @@ export class MobManager {
     const group = new THREE.Group();
     const breeds = ['tuxedo', 'tabby', 'siamese', 'british'];
     const chosenBreed = breed || breeds[Math.floor(Math.random() * breeds.length)];
-    const catTex = this.textures?.[`cat_${chosenBreed}`] || this.createCatTexture(chosenBreed);
+    // `cat_<breed>` covers the four cat breeds; the bare name covers the ocelot, which the preloaded table
+    // stores as `ocelot`. Missing that key silently fell through to a canvas texture that never loads.
+    const catTex = this.textures?.[`cat_${chosenBreed}`]
+      || this.textures?.[chosenBreed]
+      || this.createCatTexture(chosenBreed);
     const catMat = new THREE.MeshLambertMaterial({ map: catTex });
 
     // Body (0.30 x 0.26 x 0.55) - sleek cat body
