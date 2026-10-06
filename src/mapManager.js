@@ -61,6 +61,11 @@ export function decodeVoxelsRLE(rle, targetArray) {
 /**
  * Serializes the current game state into a complete, portable map JSON object.
  */
+import {
+  SAVE_VERSION, LEGACY_DEFAULTS, captureSessionState, capturePlayerState, captureInventoryState,
+  applyPlayerState, applyInventoryState, applySessionState, migrateSave,
+} from './saveSchema.js';
+
 export function serializeWorld(game, mapName = 'World 1') {
   const chunksData = [];
   for (const chunk of game.world.chunks.values()) {
@@ -94,7 +99,8 @@ export function serializeWorld(game, mapName = 'World 1') {
   const mapData = {
     redstone: game.world.redstone?.serialize() || [],
     format: 'minecraft-web-map',
-    version: 1,
+    // Bumped to the schema these captures come from. `migrateSave` brings older files forward on load.
+    version: SAVE_VERSION,
     name: mapName.trim() || 'World 1',
     worldType: game.worldType || (game.mechanisms?.currentMechanismId !== 'default' ? 'designed' : 'generated'),
     mechanism: game.mechanisms?.currentMechanismId || 'default',
@@ -106,6 +112,8 @@ export function serializeWorld(game, mapName = 'World 1') {
       isRaining: Boolean(game.weather?.isRaining),
       rainIntensity: Number((game.weather?.rainIntensity || 0).toFixed(2))
     },
+    // Everything Survival keeps that v1 did not write down.
+    session: captureSessionState(game),
     player: {
       position: {
         x: Number(game.player.position.x.toFixed(3)),
@@ -119,17 +127,15 @@ export function serializeWorld(game, mapName = 'World 1') {
       },
       yaw: Number(game.player.yaw.toFixed(3)),
       pitch: Number(game.player.pitch.toFixed(3)),
-      gamemode: game.player.gamemode || 'creative',
+      gamemode: game.player.gamemode || 'survival',
       health: game.player.health,
       hunger: game.player.hunger,
       exp: game.player.exp,
-      level: game.player.level
+      level: game.player.level,
+      // saturation, exhaustion, absorption, breath, effects, the bed binding and the dead/drop state.
+      ...capturePlayerState(game.player),
     },
-    inventory: {
-      hotbar: game.inventory.hotbar.map(it => (it ? { ...it } : null)),
-      storage: game.inventory.storage.map(it => (it ? { ...it } : null)),
-      activeSlot: game.inventory.activeSlot || 0
-    },
+    inventory: captureInventoryState(game.inventory),
     chunks: chunksData,
     mobs: mobsData,
     gemini: {
@@ -158,6 +164,9 @@ export function deserializeWorld(game, mapData, options = {}) {
   if (!mapData || !mapData.chunks) {
     throw new Error('Invalid map file format: missing chunks data');
   }
+  // Bring an older file up to the current shape before anything reads it. v1 simply lacks the Survival and
+  // inventory fields, so the migration is a version bump; the field defaults live in `saveSchema`.
+  migrateSave(mapData);
   // Optional progress hook. Kept synchronous on purpose: callers and tests rely
   // on the world being fully restored when this returns.
   const progress = typeof options.progress === 'function' ? options.progress : null;
@@ -230,15 +239,25 @@ export function deserializeWorld(game, mapData, options = {}) {
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
     if (isTournament || targetMechanismId === 'dragonball_tournament') {
-      game.player.gamemode = 'survival';
+      game.player.setGameMode?.('survival');
       game.player.isFlying = false;
     } else {
-      game.player.gamemode = p.gamemode || 'survival';
+      // Through `setGameMode`, so the abilities follow the restored mode instead of whatever flags the
+      // running session happened to have.
+      const restoredMode = p.gamemode || LEGACY_DEFAULTS.gamemode;
+      if (game.player.setGameMode) game.player.setGameMode(restoredMode);
+      else game.player.gamemode = restoredMode;
     }
-    game.player.health = p.health ?? 20;
-    game.player.hunger = p.hunger ?? 20;
-    game.player.exp = p.exp ?? 0;
-    game.player.level = p.level ?? 0;
+    game.player.health = p.health ?? LEGACY_DEFAULTS.health;
+    game.player.hunger = p.hunger ?? LEGACY_DEFAULTS.hunger;
+    game.player.exp = p.exp ?? LEGACY_DEFAULTS.exp;
+    game.player.level = p.level ?? LEGACY_DEFAULTS.level;
+    // saturation, exhaustion, absorption, breath, effects, the bed binding and the dead/drop state. A
+    // missing hunger or saturation takes the DOCUMENTED default, not a full bar -- v1 simply did not save
+    // them, and defaulting them to 20 arrived well fed.
+    applyPlayerState(game.player, p, {
+      makeVector: (x, y, z) => new THREE.Vector3(x, y, z),
+    });
 
     // Apply rotation to camera
     if (game.camera) {
@@ -255,12 +274,15 @@ export function deserializeWorld(game, mapData, options = {}) {
   }
 
   // 7. Restore inventory
-  if (mapData.inventory) {
-    game.inventory.hotbar = mapData.inventory.hotbar.map(it => (it ? { ...it } : null));
-    game.inventory.storage = mapData.inventory.storage.map(it => (it ? { ...it } : null));
-    game.inventory.activeSlot = mapData.inventory.activeSlot || 0;
-    if (game.ui?.updateHotbar) game.ui.updateHotbar();
-  }
+  //
+  // Unconditional, and it REPLACES rather than merges. The old `if (mapData.inventory)` guard skipped the
+  // block for a save with no inventory, which left whatever the running session already had in the hotbar --
+  // so loading a legacy save kept the previous world's gear. A save with no inventory now means empty.
+  applyInventoryState(game.inventory, mapData.inventory);
+  if (game.ui?.updateHotbar) game.ui.updateHotbar();
+
+  // 7b. Session settings: difficulty, dimension, day count, gamerules and the mode.
+  applySessionState(game, mapData.session);
 
   // 8. Restore time and weather
   if (mapData.worldTime !== undefined) {

@@ -8,7 +8,7 @@ import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
-import { normaliseSettings, normaliseGameMode } from './sessionSettings.js';
+import { normaliseSettings, normaliseGameMode, gameruleFor } from './sessionSettings.js';
 import { collectDeathDrops, xpLossFor, resolveRespawn, resetSurvivalState } from './deathAndRespawn.js';
 
 /**
@@ -715,6 +715,7 @@ export class Player {
     const state = this.ensureHungerState();
     const result = tickHunger(state, dt, {
       peaceful: this.difficultyLevel === 'peaceful',
+      naturalRegeneration: gameruleFor(this.game, 'naturalRegeneration'),
       health: this.health,
       maxHealth: this.maxHealth,
     });

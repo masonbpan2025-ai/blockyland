@@ -13,6 +13,7 @@ import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
+import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, clampDelta } from './worldLifecycle.js';
 import { normaliseSettings, normaliseGameMode, DEFAULT_SETTINGS, DAY_LENGTH_SECONDS, startingTimeOfDay,
   allowsShowcasePopulation, allowsAgentTerminal } from './sessionSettings.js';
 import { isFrame, insertEye, tryActivateAround, isEndPortal, portalDestination, portalArrival,
@@ -235,8 +236,11 @@ class Game {
     // Resolved once the UIManager exists. The start-overlay buttons are bound before the atlas loads,
     // and the handlers that need the UI await this rather than letting the click fall on the floor.
     this._uiReady = new Promise((resolve) => { this._resolveUiReady = resolve; });
-    // Set once the initial chunks exist and it is safe to enter the world.
+    // Set once the initial chunks exist and it is safe to enter the world. Kept because several callers and
+    // tests read it; `lifecycle` is the authority the animation loop gates on.
     this.worldReady = false;
+    // `idle` -> `loading` -> `ready` (or `failed`). Only `ready` runs the simulation.
+    this.lifecycle = createLifecycle();
   }
 
   async start() {
@@ -380,7 +384,11 @@ class Game {
   }
 
   async generateNewWorld() {
-    if (this.worldGenerated) return;
+    // The lifecycle replaces the old `worldGenerated` boolean, which was set on the FIRST line of this method
+    // and then gated the whole simulation -- physics, hazards, mob AI, spawning and the clock -- for the
+    // entire several seconds of terrain loading. `beginLoading` refuses a second call while one is in flight
+    // or once the world is ready, so a double-clicked "Create World" cannot run this twice.
+    if (!beginLoading(this.lifecycle)) return;
     this.worldGenerated = true;
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
@@ -479,6 +487,10 @@ class Game {
     // Only now is it safe to leave the start screen. Pointer lock is requested on
     // the player's next canvas click, because user activation does not survive the
     // awaits above and a pointer-lock request here would be rejected.
+    //
+    // `markReady` is what actually starts the simulation. Until this line the phase has been `loading`, and
+    // `animate()` has been rendering only: no physics, no hazards, no mob AI, no spawning and no clock.
+    markReady(this.lifecycle);
     this.worldReady = true;
   }
 
@@ -547,6 +559,8 @@ class Game {
   failWorldStart(err) {
     const message = err && err.message ? err.message : String(err);
     this.worldReady = false;
+    // A failure is its own phase rather than a return to `idle`, so it is visible and a retry is deliberate.
+    markFailed(this.lifecycle, err);
     if (this.overlay) this.overlay.hide();
     else if (typeof document !== 'undefined') document.getElementById('world-progress-overlay')?.classList.add('hidden');
 
@@ -3116,14 +3130,20 @@ class Game {
   animate() {
     requestAnimationFrame(() => this.animate());
 
-    if (!this.worldGenerated) {
+    // Rendering and the progress UI continue while loading; the SIMULATION does not.
+    //
+    // This gate was `!this.worldGenerated`, a flag set on the first line of `generateNewWorld` -- so the whole
+    // simulation ran for the entire terrain load. `allowsSimulation` is true only in the `ready` phase.
+    if (!allowsSimulationForPhase(this.lifecycle?.phase ?? (this.worldReady ? 'ready' : 'idle'))) {
       this.clock.getDelta();
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
       return;
     }
 
-    const dt = this.clock.getDelta();
+    // Bounded, because a hidden tab or a slow frame hands back a delta of seconds. Passing that straight into
+    // physics and the spawner is how a player returns to a tab already dead.
+    const dt = clampDelta(this.clock.getDelta());
     const fps = 1.0 / Math.max(0.0001, dt);
 
     // 1. Update Player Physics & Camera
