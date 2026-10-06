@@ -2238,3 +2238,34 @@ spines: 11   eyes: 0
 **What the render shows:** the real yellow-and-tan sheet with its darker face and mouth detail, and ten fins.
 
 Work list: **97 spawners, 65 confirmed with a real sheet, 29 mobs still without a model or skin.**
+## Round sixty-six: reconnaissance on two mobs, and why one was deferred
+
+**No source change this round. Two mobs were surveyed and both were deferred for a stated reason rather than attempted.**
+
+**The tropical fish: 3,072 variants is a different problem from every mob so far.** Vanilla has TWO shape classes
+(`SmallTropicalFishEntityModel`, `LargeTropicalFishEntityModel`) and **fourteen sheets** -- `tropical_a`, `tropical_b` and
+the twelve `*_pattern_N` files -- and the mob's own spawner already models the variant axis deliberately:
+
+```js
+const variant = options.variant ?? rollTropicalFishVariant(options.random || Math.random);
+```
+
+**So its variety IS the feature**, and binding one sheet would trade a working 3,072-variant mob for a single fixed
+appearance. The right work is a variant-to-sheet table plus the small shape's rectangles -- body 2x3x6, tail and top fins
+as ZERO-WIDTH planes at negative coordinates `(22,-6)` and `(10,-5)` -- which is a round of its own rather than something
+to bolt onto this one. All fourteen sheets are extracted to `public/assets/entity/fish/` so that round starts with its
+assets ready.
+
+**The camel was deferred on cost, measured rather than assumed.** `CamelEntityModel` is a **128x128** model carrying legs,
+body, humps, head, tail AND a saddle, bridle and reins apparatus; its sheet is at the nested path
+`entity/camel/camel.png` rather than the flat one I tried first. **A mob whose texture is 4x the area of every other
+mob's, with tack modelled on top, is a two-round job**, and attempting it in the round's remaining budget would have
+produced the half-transcribed state that cost rounds 55-57 on the strider.
+
+**A small but useful pattern, recorded:** the nested texture path is the tell that a mob has VARIANTS or an equipment
+axis. The camel's is `camel/camel.png`, the horse's `horse/horse_white.png`, the cat's `cat/tuxedo.png`, the piglin's
+`piglin/piglin.png`. Every mob with a flat `entity/<name>.png` has been a single-appearance mob. **Checking which shape of
+path exists is a fast way to size a mob before starting it.**
+
+Work list: **97 spawners, 65 confirmed with a real sheet, 29 mobs still without a model or skin.** Fourteen tropical-fish
+sheets are now extracted and ready for the round that takes that mob on properly.
