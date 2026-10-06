@@ -1,11 +1,11 @@
 import { renderHorseInventory } from './horseInventory.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
-import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
+import { normaliseGamerules, gameruleFor } from './sessionSettings.js';
 import {
   getDefaultPathInfo,
   fetchSavedMaps,
@@ -85,29 +85,6 @@ export function targetedBlockLabel(target) {
   const def = BLOCK_DEFS[target.blockId];
   const name = def?.name || `block ${target.blockId}`;
   return `Targeted: ${name} (${target.x} ${target.y} ${target.z})`;
-}
-
-/**
- * How a worn tool's remaining life should look, or null when there is nothing to draw.
- *
- * Vanilla hides the bar while a tool is pristine, so a new pickaxe looks like any other item until it has
- * taken damage, and the colour runs green -> yellow -> red as it empties. `durabilityFraction` already
- * answers "how much is left", for stacks that record `maxDurability` as well as for a bare item id.
- */
-export function durabilityBarSpec(stack) {
-  const fraction = durabilityFraction(stack);
-  if (fraction === null || fraction >= 1) return null;
-  if (fraction > 0.5) return { fraction, tier: 'high' };
-  if (fraction > 0.25) return { fraction, tier: 'mid' };
-  return { fraction, tier: 'low' };
-}
-
-/** The tooltip line for a worn tool ("Durability 41 / 59"), or null when it never wears or is untouched. */
-export function durabilityLabel(stack) {
-  if (!durabilityBarSpec(stack)) return null;
-  const max = typeof stack.maxDurability === 'number' ? stack.maxDurability : maxDurabilityFor(stack.id);
-  const left = typeof stack.durability === 'number' ? stack.durability : max;
-  return `Durability ${left} / ${max}`;
 }
 
 export class UIManager {
@@ -343,6 +320,7 @@ export class UIManager {
     this.bindMapModalEvents();
     this.bindBiomeModalEvents();
     this.bindWorldModeControls();
+    this.bindTerminalWorldSettings();
     this.bindChatEvents();
     this.bindFloatingCursor();
 
@@ -576,9 +554,6 @@ export class UIManager {
             count.textContent = meta.count;
             slot.appendChild(count);
           }
-
-          // The hotbar is where a tool is actually watched while mining, so it gets the bar too.
-          this.addDurabilityBar(slot, item);
         }
       }
     }
@@ -605,8 +580,6 @@ export class UIManager {
             count.textContent = meta.count;
             offhandSlot.appendChild(count);
           }
-
-          this.addDurabilityBar(offhandSlot, offhandItem);
         }
       } else {
         offhandSlot.style.display = 'none';
@@ -1195,10 +1168,7 @@ export class UIManager {
         };
         if (item) {
           const meta = this.inv.getItemMeta(item);
-          slot.onmouseenter = (e) => {
-            const wear = durabilityLabel(item);
-            this.showTooltip(e.clientX, e.clientY, meta.name, wear ? `Count: ${item.count} · ${wear}` : `Count: ${item.count}`);
-          };
+          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
           slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
           slot.onmouseleave = () => this.hideTooltip();
         }
@@ -1243,9 +1213,7 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          const wear = durabilityLabel(item);
-          const count = item.count > 1 ? `Count: ${item.count}` : '';
-          this.showTooltip(e.clientX, e.clientY, meta.name, [count, wear].filter(Boolean).join(' · '));
+          this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3106,9 +3074,7 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          const count = item.count > 1 ? `Count: ${item.count}` : '';
-          const wear = durabilityLabel(item);
-          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, [count, wear].filter(Boolean).join(' · '), item.enchantments || []);
+          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, item.count > 1 ? `Count: ${item.count}` : '', item.enchantments || []);
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3124,31 +3090,6 @@ export class UIManager {
 
       el.appendChild(slot);
     });
-  }
-
-  /**
-   * Draw the vanilla durability bar along the bottom of a slot.
-   *
-   * Every place that draws an item icon calls this, because tools have worn out silently since
-   * src/durability.js landed: mining spends the point, unbreaking saves some, and nothing showed it. A
-   * tool whose remaining life is invisible is one the player cannot plan around.
-   *
-   * @param {HTMLElement} slot
-   * @param {{id?:string, durability?:number, maxDurability?:number}} stack
-   */
-  addDurabilityBar(slot, stack) {
-    const spec = durabilityBarSpec(stack);
-    if (!spec || !slot) return null;
-    const bar = document.createElement('div');
-    bar.className = `durability-bar durability-${spec.tier}`;
-    const fill = document.createElement('div');
-    fill.className = 'durability-fill';
-    fill.style.width = `${Math.round(spec.fraction * 100)}%`;
-    bar.appendChild(fill);
-    const label = durabilityLabel(stack);
-    if (label) bar.title = label;
-    slot.appendChild(bar);
-    return bar;
   }
 
   renderSlotContent(slotEl, item) {
@@ -3174,8 +3115,6 @@ export class UIManager {
       count.textContent = meta.count;
       slotEl.appendChild(count);
     }
-
-    this.addDurabilityBar(slotEl, item);
   }
 
   bindFloatingCursor() {
@@ -3547,6 +3486,66 @@ export class UIManager {
       this.selectedWorldDifficulty = difficulties[i];
       paint();
     }));
+    paint();
+  }
+
+  /**
+   * The world settings inside the Agent Terminal.
+   *
+   * Difficulty, the game mode and the rule switches live here rather than in the pause menu. The terminal IS
+   * the cheats surface -- it opens only when cheats are on -- so an ordinary Survival player cannot reach
+   * these and Creative can, which is the plan's rule that mode and rule changes follow the cheats policy.
+   */
+  bindTerminalWorldSettings() {
+    const difficulties = ['peaceful', 'easy', 'normal', 'hard'];
+    const modes = ['survival', 'creative'];
+    const diffButtons = difficulties.map(d => document.getElementById(`terminal-difficulty-${d}`));
+    const modeButtons = modes.map(m => document.getElementById(`terminal-mode-${m}`));
+    const ruleButtons = ['doMobSpawning', 'doDaylightCycle', 'naturalRegeneration', 'keepInventory']
+      .map(r => document.getElementById(`terminal-rule-${r}`));
+    const hint = document.getElementById('terminal-settings-hint');
+
+    const setActive = (el, on) => { if (el?.classList?.toggle) el.classList.toggle('active', on); };
+
+    const paint = () => {
+      const game = this.game;
+      if (!game) return;
+      const difficulty = game.player?.difficultyLevel ?? game.difficulty ?? 'normal';
+      difficulties.forEach((d, i) => setActive(diffButtons[i], d === difficulty));
+      const mode = game.player?.gamemode ?? 'survival';
+      modes.forEach((m, i) => setActive(modeButtons[i], m === mode));
+      for (const btn of ruleButtons) setActive(btn, gameruleFor(game, btn?.dataset?.rule) === true);
+      if (hint) {
+        hint.textContent = `Difficulty ${difficulty} · ${mode} mode.`
+          + ' These are cheat controls, so they are only reachable with cheats on.';
+      }
+    };
+
+    difficulties.forEach((d, i) => diffButtons[i]?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Through `applyWorldSettings`, so the game and the player cannot disagree -- the single-authority rule.
+      this.game?.applyWorldSettings?.({ difficulty: d });
+      paint();
+    }));
+    modes.forEach((m, i) => modeButtons[i]?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.game?.applyWorldSettings?.({ gameMode: m });
+      paint();
+    }));
+    for (const btn of ruleButtons) {
+      btn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const game = this.game;
+        if (!game) return;
+        const name = btn.dataset.rule;
+        const next = !(gameruleFor(game, name) === true);
+        game.gamerules = { ...normaliseGamerules(game.gamerules), [name]: next };
+        paint();
+      });
+    }
+
+    // Refreshed whenever the terminal opens, so it reflects the world it is looking at.
+    this.refreshTerminalWorldSettings = paint;
     paint();
   }
 
@@ -4254,6 +4253,9 @@ export class UIManager {
     }
     if (this.geminiModal) {
       this.geminiModal.classList.remove('hidden');
+      // Repaint the world settings, so the panel shows the world it is looking at rather than whatever it
+      // showed last time.
+      this.refreshTerminalWorldSettings?.();
       if (options.showSettings && this.geminiKeyDrawer) {
         this.geminiKeyDrawer.classList.remove('hidden');
       }

@@ -317,33 +317,6 @@ html, body {
   text-shadow: 1px 1px 0 #3f3f3f, 2px 2px 0 #000;
 }
 
-/* Vanilla's durability bar: a dark trough across the bottom of a worn tool, filled green, then yellow and
-   red as the tool empties. Hidden entirely while the tool is pristine (the element is not created). */
-.durability-bar {
-  position: absolute;
-  left: 7%;
-  bottom: 3px;
-  width: 86%;
-  height: 3px;
-  background: #1b1b1b;
-  border: 1px solid #000000;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-
-.durability-fill {
-  height: 100%;
-  background: #4caf50;
-}
-
-.durability-mid .durability-fill {
-  background: #ffc107;
-}
-
-.durability-low .durability-fill {
-  background: #f44336;
-}
-
 /* Debug Screen (F3) */
 #debug-screen {
   position: absolute;
@@ -2086,6 +2059,49 @@ html, body {
   border-left-color: #6fbf55;
   border-bottom-color: #1d4d13;
   border-right-color: #1d4d13;
+  color: #ffffff;
+}
+
+/* World settings inside the Agent Terminal's drawer. */
+.gemini-world-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 8px;
+}
+
+.gemini-world-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gemini-world-label {
+  min-width: 84px;
+  font-size: 12px;
+  font-weight: bold;
+  opacity: 0.85;
+}
+
+.gemini-rule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gemini-rule-btn {
+  padding: 5px 9px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+/* A rule that is ON reads as on. */
+.gemini-rule-btn.active {
+  opacity: 1;
+  background: #3c8527;
   color: #ffffff;
 }
 

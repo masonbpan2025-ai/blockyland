@@ -1108,6 +1108,40 @@
             </label>
             <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
           </div>
+
+          <!-- World settings.
+               Difficulty, the game mode and the rule switches live here rather than in the pause menu, because
+               the terminal IS the cheats surface: it opens only when cheats are on, so an ordinary Survival
+               player cannot reach these and Creative can. -->
+          <div class="gemini-world-settings" id="gemini-world-settings">
+            <div class="gemini-field-label" style="margin-bottom: 4px;">World Settings</div>
+            <div class="gemini-world-row">
+              <span class="gemini-world-label">Difficulty</span>
+              <div class="world-mode-row" id="terminal-difficulty-row">
+                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-peaceful" data-difficulty="peaceful">Peaceful</button>
+                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-easy" data-difficulty="easy">Easy</button>
+                <button type="button" class="mc-btn world-diff-btn active" id="terminal-difficulty-normal" data-difficulty="normal">Normal</button>
+                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-hard" data-difficulty="hard">Hard</button>
+              </div>
+            </div>
+            <div class="gemini-world-row">
+              <span class="gemini-world-label">Game Mode</span>
+              <div class="world-mode-row" id="terminal-mode-row">
+                <button type="button" class="mc-btn world-mode-btn active" id="terminal-mode-survival" data-mode="survival">⚔️ Survival</button>
+                <button type="button" class="mc-btn world-mode-btn" id="terminal-mode-creative" data-mode="creative">🧱 Creative</button>
+              </div>
+            </div>
+            <div class="gemini-world-row">
+              <span class="gemini-world-label">Rules</span>
+              <div class="gemini-rule-row" id="terminal-rule-row">
+                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-doMobSpawning" data-rule="doMobSpawning">Mob spawning</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-doDaylightCycle" data-rule="doDaylightCycle">Daylight cycle</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-naturalRegeneration" data-rule="naturalRegeneration">Natural regen</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-keepInventory" data-rule="keepInventory">Keep inventory</button>
+              </div>
+            </div>
+            <span class="gemini-vendor-hint" id="terminal-settings-hint"></span>
+          </div>
         </div>
 
         <!-- Console / Terminal Feed -->
