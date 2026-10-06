@@ -5217,3 +5217,49 @@ dragon's leg positions (my approximations rather than vanilla's bone offsets), t
 because the suite pins them as its documented identity), and the camel (a flat-colour assembly rendering flat correctly).
 
 `src/` carries no change from this round.
+## Round one hundred and thirty-nine: the tropical fish is NOT a stub -- it is a LAYER, and I was measuring the wrong texture
+
+**I searched rather than concluding, and the answer was in a class the local decompile never had:
+`TropicalFishPatternLayer`.**
+
+```
+public class TropicalFishPatternLayer
+    extends RenderLayer<TropicalFish, ColorableHierarchicalModel<TropicalFish>>
+  KOB_TEXTURE  SUNSTREAK_TEXTURE  SNOOPER_TEXTURE  DASHER_TEXTURE
+  BRINELY_TEXTURE  SPOTTY_TEXTURE  FLOPPER_TEXTURE  STRIPEY_TEXTURE
+  GLITTER_TEXTURE  BLOCKFISH_TEXTURE  BETTY_TEXTURE  CLAYFISH_TEXTURE
+  private final TropicalFishModelA modelA / TropicalFishModelB modelB
+```
+
+**Twelve texture constants, and their names are EXACTLY the twelve pattern names this project already uses** -- `kob`,
+`sunstreak`, `snooper`, `dasher`, `brinely`, `spotty`, `flopper`, `stripey`, `glitter`, `blockfish`, `betty`, `clayfish`.
+
+**And it is a `RenderLayer` over a `ColorableHierarchicalModel`.** That is the whole explanation:
+
+* **the fish's BODY is drawn from its own base texture, tinted by the variant's BASE colour** -- the sheet I never looked at;
+* **the PATTERN is drawn from these twelve sheets as a LAYER on top, tinted by the PATTERN colour** -- and that is why they
+  are 91% transparent with the rest white: **a white stencil has no colour because the colour is applied at runtime.**
+
+**So rounds eighty-six to ninety-three were measuring a PATTERN OVERLAY and concluding the mob had no texture.** Every
+measurement in them is correct and the conclusion drawn from it was wrong:
+
+| round | what it said | what is true |
+| --- | --- | --- |
+| 87 | "the sheets contain NO COLOUR" | correct -- **and a white stencil should not** |
+| 91 | "the asset is a stub" | **WRONG -- it is a pattern layer** |
+| 93 | 14 zero-colour assets, all tropical fish | correct count, **wrong interpretation** |
+
+**And the earlier failures are explained too.** Binding a pattern layer as if it were the whole fish produced white garbage
+because **the layer is a stencil meant to be COMPOSITED, not a skin meant to be applied** -- and its white pixels tinted with
+the variant colour are exactly what a pattern should look like.
+
+**The correct implementation, now specifiable:** the base sheet for the body, plus the pattern sheet as a LAYER (a second mesh
+copy or a second material pass) with the pattern colour as its tint, and `alphaTest` retained because the stencil IS binary --
+which round ninety-one measured as 991 pixels at alpha 0 and 33 at alpha 255, with nothing between.
+
+**The lesson, and it is the sharpest of the session because it invalidates a CONCLUSION rather than a technique:** I treated
+"this file has no colour" as a property of the MOB. **It was a property of one file's ROLE.** A 191-byte white stencil and a
+191-byte empty file are the same bytes and opposite meanings, and **nothing in the local decompile could tell them apart --
+the answer was one class away, in a file I never fetched.**
+
+**The goal is therefore NOT blocked on this mob.** It needs the base sheet, which has not been extracted, and a layer pass.
