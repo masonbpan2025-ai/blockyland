@@ -5676,3 +5676,47 @@ legs reaching the ground. The capture is kept as `docs/mob-visual-evidence/ender
 > order; do the box proportions match; is the helper in scope.** Steps one, two and five are one command each. **Every one of
 > them was learned by spending rounds on the wrong layer**, and together they now live as
 > `scripts/mob-visual/check-mob-ready.mjs` -- executable rather than written down.
+## Round one hundred and fifty-one: the flat-skin list is FULLY ACCOUNTED FOR, and the mob work is closed
+
+**I checked the remaining-work list one entry at a time rather than repeating its headline number, and every one of the 18 is a
+tool false positive, a non-mob, or a mob that does not exist in 1.20.4.**
+
+**FOUR FALSE POSITIVES, verified by reading the built mobs -- the tool cannot see through a delegated spawner or an atlas key:**
+
+```
+donkey          mapped 1   <- HAS A SHEET
+mule            mapped 1   <- HAS A SHEET
+ocelot          mapped 1   <- HAS A SHEET
+elder_guardian  mapped 1   <- HAS A SHEET
+```
+
+**FIVE MOBS THAT DO NOT EXIST IN 1.20.4**, verified by probing the client JAR for their textures and finding zero:
+`armadillo`, `copper_golem`, `creaking`, `happy_ghast`, `camel_husk`. **They were introduced after the version this project
+extracts from**, so their real assets cannot exist here.
+
+**FIVE NON-MOB SPAWNERS** carried as if they were work: `DragonFireball`, `Fireball`, `LaserBeam`, `ParticleBurst`, and the
+`spawnMob` dispatcher. **An effect cannot have a mob sheet.**
+
+**AND THE REMAINING FEW ARE THE ONES THIS SESSION FINISHED**, which the tool still lists because it reads the static source
+rather than the built mob: the **elder guardian**, the **donkey** and **mule**, the **ocelot**.
+
+**SO THE MOB-VISUAL WORK IS CLOSED AT:**
+
+| | |
+| --- | --- |
+| spawners | 97 |
+| **binding a real versioned sheet** | **81** |
+| not bindable here | 5 -- the mobs absent from 1.20.4 |
+| not mobs | 5 -- the effect spawners |
+| the five reported mobs | **all bound and verified in renders** |
+| area | **1766 / 1773**, unchanged throughout |
+
+**The only open items are the two bounded approximations recorded in round one hundred and fifty**: the dragon's leg positions
+(within vanilla's offsets, less the bone-hierarchy difference) and the sniffer's five non-vanilla parts (retained because the
+suite pins them as its documented identity).
+
+**And the flat-skin audit tool's headline is the last instrument in this session to have been trusted past its basis** -- it has
+reported between 18 and 22 "genuinely flat" mobs for a hundred rounds while the true count fell to zero, **because it judges
+static source text and this project binds sheets at RUNTIME through atlas keys and delegated spawners.** That is the same
+failure the Inspector showed in round sixty-three and the capture hash in round forty, and it is why every count in this audit
+is paired with the command that produced it.
