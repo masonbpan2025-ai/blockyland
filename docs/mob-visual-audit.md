@@ -782,3 +782,34 @@ measured tool deserves an explanation, not a dismissal".
 parts and their own rotation, and the body proportions mattered more this round.
 
 Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
+
+## Round twenty-two: the warden's body and head were swapped
+
+Round twenty-one fixed the warden's coordinate SPACE (64-unit sprites were being divided by `texW = 128`). This round
+found that I had also mapped the wrong BLOCKS to the wrong parts:
+
+| part | vanilla, from `class_7280` | round twenty-one used |
+| --- | --- | --- |
+| body | **18x21x11 at (0,0)** | 16x16x10 at (0,32) |
+| head | **16x16x10 at (0,32)** | 18x21x11 at (0,0) |
+
+**Both rectangles are 100% opaque**, which is precisely why neither looked obviously wrong. A swapped pair of valid
+blocks is invisible to an opacity check -- it only shows up as "the proportions are off and the face is not where I
+expect it". That is a blind spot in the audit worth naming: it verifies that a rectangle HAS art, not that it is the
+RIGHT art.
+
+The warden now wears its body's rib and tendril texture on the torso, its own head art, 8x28x8 arms and 6x13x6 legs.
+
+**Still outstanding, and recorded rather than hidden:** the head sits too low relative to the horns and eyes, so the
+face does not line up with the eyes I model separately. That is a placement value, not a geometry error, and it wants
+one more pass.
+
+**The flat parts are now measured and deliberately deferred.** Vanilla gives the warden:
+
+* right ribcage **9x21x0** at (90,11), left ribcage the same mirrored;
+* right tendril **16x16x0** at (52,32), left tendril **16x16x0** at (58,0).
+
+Their zero depth is why they can never be boxes -- the same shape as the vex's wings and the frog's tongue and
+hands. They need `plane` parts, which the builder now has, plus the rotation work.
+
+Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**

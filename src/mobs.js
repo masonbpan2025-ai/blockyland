@@ -6389,12 +6389,12 @@ export class MobManager {
     adoptTexture(sculkMat, skin, 0x0f2e3a);
     const cyanMat = new THREE.MeshLambertMaterial({ color: WARDEN_CORE_COLOR });
 
-    const torso = new THREE.Mesh(createBoxWithUV(1.0, 1.0, 0.625, 0, 32, 128, 128, 16, 16, 10), sculkMat); // WARDEN_UV_NOTE
+    const torso = new THREE.Mesh(createBoxWithUV(1.125, 1.3125, 0.6875, 0, 0, 128, 128, 18, 21, 11), sculkMat); // WARDEN_SWAP_FIXED
     torso.position.y = 1.9;
     group.add(torso);
 
-    const head = new THREE.Mesh(createBoxWithUV(1.125, 1.3125, 0.6875, 0, 0, 128, 128, 18, 21, 11), sculkMat); // WARDEN_UV_NOTE
-    head.position.set(0, 3.0, 0);
+    const head = new THREE.Mesh(createBoxWithUV(1.0, 1.0, 0.625, 0, 32, 128, 128, 16, 16, 10), sculkMat); // WARDEN_SWAP_FIXED
+    head.position.set(0, 2.4, 0); // WARDEN_SWAP_FIXED
     group.add(head);
     // WARDEN_MODELLED_EYES
     // The warden's face is almost entirely black sculk, so its eyes are not "dark marks on light hide" the way a
