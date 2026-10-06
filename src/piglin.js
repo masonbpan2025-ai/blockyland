@@ -312,7 +312,10 @@ export function syncPiglinEquipment(mob) {
   for (const [slot, item] of Object.entries(mob.equipment || {})) {
     if (slot === 'weapon' || visuals[slot]?.id === item.id) continue;
     if (visuals[slot]) for (const mesh of visuals[slot].meshes) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
-    const material = new THREE.MeshLambertMaterial({ color: item.id.startsWith('golden_') ? 0xe7b82f : 0xb9c5cc });
+    // A held block carries a NUMERIC id and has no `startsWith`, so the colour test reads the name
+    // form. A block is not golden either way, which is what the fallback already meant.
+    const equipmentId = typeof item.id === 'string' ? item.id : '';
+    const material = new THREE.MeshLambertMaterial({ color: equipmentId.startsWith('golden_') ? 0xe7b82f : 0xb9c5cc });
     const meshes = [];
     const part = (parent, size, y) => { if (!parent) return; const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material); mesh.position.y = y; mesh.castShadow = mesh.receiveShadow = true; parent.add(mesh); meshes.push(mesh); };
     if (slot === 'head') part(mob.head, [0.66, 0.2, 0.62], 0.23);

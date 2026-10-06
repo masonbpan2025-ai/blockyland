@@ -1051,7 +1051,7 @@ export class UIManager {
       };
 
       slot.onmouseenter = (e) => {
-        const sub = item.isBuilding ? 'Building' : (item.isBlock ? 'Block' : (item.id.replace(/_/g, ' ')));
+        const sub = item.isBuilding ? 'Building' : (item.isBlock || typeof item.id !== 'string' ? 'Block' : item.id.replace(/_/g, ' '));
         this.showTooltip(e.clientX, e.clientY, item.name, sub);
       };
       slot.onmousemove = (e) => {
@@ -2401,7 +2401,7 @@ export class UIManager {
       }
     }
 
-    if (item.id === 'glass_bottle' || item.id === 'water_bottle' || item.id.includes('potion')) {
+    if (item.id === 'glass_bottle' || item.id === 'water_bottle' || (typeof item.id === 'string' && item.id.includes('potion'))) {
       for (let i = 0; i < 3; i++) {
         if (!this.brewingStand.bottles[i]) {
           this.brewingStand.bottles[i] = item;
