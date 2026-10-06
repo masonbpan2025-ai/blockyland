@@ -79,6 +79,13 @@ export class AnimalBehaviors {
     if (!mob || !player || !inventory) return false;
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
+    // Item ids are item NAMES, except for blocks, which carry their numeric id. Only a name can go
+    // through a string operation, and `itemId.endsWith('_dye')` on a number threw: handleRightClick
+    // asks this for every mob in the world before it reaches block placement, so with a sheep, wolf
+    // or horse anywhere on the map, holding any block and right-clicking aborted the whole click and
+    // no block could be placed. Every string test below reads `itemName`; the numeric id is passed on
+    // unchanged so the comparisons that already mix the two forms keep behaving exactly as they did.
+    const itemName = typeof itemId === 'string' ? itemId : '';
 
     if(mob.type==='wither_skeleton')return mob.health>0&&itemId==='name_tag'&&!!activeItem.customName;
 
@@ -108,13 +115,13 @@ export class AnimalBehaviors {
 
     // Dyeing sheep. Wiki: a sheared sheep cannot be dyed until its wool regrows by
     // grazing, so holding dye must not advertise a usable interaction.
-    if (mob.type === 'sheep' && itemId.endsWith('_dye')) return !mob.isSheared;
+    if (mob.type === 'sheep' && itemName.endsWith('_dye')) return !mob.isSheared;
 
     // Wolf taming or healing or sitting
     if (mob.type === 'wolf') {
       if (!mob.isTamed && itemId === 'bone') return true;
       if (mob.isTamed && mob.owner === player) {
-        if (itemId.endsWith('_dye')) return true;
+        if (itemName.endsWith('_dye')) return true;
         if (this.isBreedingFood('wolf', itemId) && mob.health < mob.maxHealth) return true;
         return true;
       }
@@ -129,7 +136,7 @@ export class AnimalBehaviors {
     // Horse / donkey
     if (mob.type === 'horse' || mob.type === 'donkey') {
       if (mob.type === 'donkey' && mob.isTamed && itemId === 'chest' && !mob.hasChest) return true;
-      if (mob.type === 'horse' && mob.isTamed && itemId.endsWith('_horse_armor') && !mob.horseArmor) return true;
+      if (mob.type === 'horse' && mob.isTamed && itemName.endsWith('_horse_armor') && !mob.horseArmor) return true;
       if (mob.isTamed && itemId === 'saddle' && !mob.isSaddled) return true;
       return true;
     }
@@ -157,6 +164,9 @@ export class AnimalBehaviors {
     if (!mob || !player || !inventory) return false;
     const activeItem = inventory.getActiveItem();
     const itemId = activeItem?.id;
+    // Same split as `canInteract`: string tests read the name form, which is empty for a held block,
+    // so right-clicking a sheep or a wolf while holding one no longer throws before it is handled.
+    const itemName = typeof itemId === 'string' ? itemId : '';
 
     // --- Parrots ---------------------------------------------------------------
     // Wiki: tamed with any seed at a 1-in-10 chance, sitting toggled by interacting with a tamed
@@ -281,9 +291,9 @@ export class AnimalBehaviors {
 
     // 3. Dyeing a Sheep. Wiki: a sheared sheep cannot be dyed until the wool grows
     // back by grazing, so this comes after the shearing branch that sets isSheared.
-    if (mob.type === 'sheep' && itemId && itemId.endsWith('_dye')) {
+    if (mob.type === 'sheep' && itemName.endsWith('_dye')) {
       if (mob.isSheared) return false;
-      const dyeColor = itemId.replace('_dye', '');
+      const dyeColor = itemName.replace('_dye', '');
       if (SHEEP_COLOR_HEX[dyeColor]) {
         mob.woolColor = dyeColor;
         sheepApplyWool(mob);
@@ -317,8 +327,8 @@ export class AnimalBehaviors {
 
       if (mob.isTamed && mob.owner === player) {
         // Dye collar
-        if (itemId && itemId.endsWith('_dye')) {
-          const dyeColor = itemId.replace('_dye', '');
+        if (itemName.endsWith('_dye')) {
+          const dyeColor = itemName.replace('_dye', '');
           if (SHEEP_COLOR_HEX[dyeColor]) {
             mob.collarColor = dyeColor;
             if (mob.collarMesh?.material) {
