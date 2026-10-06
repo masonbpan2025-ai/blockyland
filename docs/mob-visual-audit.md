@@ -2550,3 +2550,48 @@ read. That is why the checker's vanilla side could not run, and it is a fault in
 checker.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-five: the decompile script was never broken, and two of my diagnoses fall together
+
+**I set out to fix `decompile-model.mjs` and found nothing to fix. The 219-byte file I called a fault WAS the answer.**
+
+```java
+public class class_3969 extends class_3968<class_1570> { ... }
+```
+
+`GiantEntityModel` is an **11-line subclass**. Its geometry is INHERITED from `class_3968`, which the mappings resolve to
+**`PlayerEntityModel`** (`class_591`). So:
+
+* the decompile script wrote exactly the right file, and I misread a SHORT answer as a FAILED one;
+* **`GiantEntityModel` extends `PlayerEntityModel`**, which means the giant uses the player rectangles after all -- the
+  ones I applied in round seventy-three.
+
+**That settles round seventy-three's open question by eliminating both of my explanations.**
+
+| claim I made | status |
+| --- | --- |
+| "binding a sheet to a model built for flat colours" was the fault (the horse-vs-strider distinction) | **wrong** -- round 74's ratio check disproved it |
+| `decompile-model.mjs` fails to write the giant's file | **also wrong** -- it wrote an 11-line subclass, correctly |
+
+**And the giant's correct rectangles are confirmed twice over**: by the ratios (body 0.667 : 1 : 0.333 = 8 : 12 : 4) and now
+by inheritance (it IS a `PlayerEntityModel`). So the model takes the player rectangles exactly as I applied them, and
+**whatever broke the render is in my BINDING CODE, not in the model or the rectangles.** That is a much narrower place to
+look, and it is where the next attempt should start: the `giantMat` helper and how it interacts with `createGiantModel`'s
+own material handling.
+
+**Two lessons, and the second is new:**
+
+1. **A SHORT ANSWER IS NOT A MISSING ONE.** I checked whether the file existed, found 219 bytes, and concluded the script
+   had failed -- without reading it. One `read` would have shown an 11-line subclass and pointed straight at inheritance.
+   That is round 48's lesson (compare against the source before calling something wrong) applied to a FILE rather than a
+   render, and I made it again.
+2. **Inheritance is a third place a model's rectangles can live**, after the vanilla rectangles and the project's own
+   proportions. `decompile-model.mjs --list` names the CLASS; the class's `extends` clause says whether the geometry is
+   there at all. **A decompiled model that looks empty is a prompt to read its parent, not a prompt to fix the tool.**
+
+**A pattern across rounds 73, 74 and 75 worth naming, because it is now four diagnoses in three rounds:** I wrote down the
+horse-vs-strider explanation as fact, then the ratio check falsified it, then I wrote down a tool fault as fact and the tool
+was innocent. **Both errors were the same move -- concluding from the FIRST plausible signal instead of reading the next
+one.** The audit is recording them rather than quietly dropping them, because the reasoning was wrong in an instructive
+way each time.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
