@@ -60,7 +60,7 @@ export const AREAS = {
   // --- survival parity: how much of vanilla's content the game can express ---
   survival: ['survivalStart', 'playerDeathRespawn', 'endermanBehavior', 'survivalParity', 'mcData', 'voxelIdRange', 'vanillaRecipes', 'recipeIngredients', 'recipeCoverage', 'recipeFreshness', 'contentGap', 'shapelessRecipes', 'smeltingData', 'smeltingVanilla', 'hungerModel', 'difficultyWiring', 'statusEffects', 'statusEffectsStubs', 'fallDamage', 'effectReaders', 'miningEffects', 'enchantmentEffects', 'thornsReflect', 'waterMovement', 'brewingParity', 'tippedArrows', 'fireworkLaunch', 'durability', 'armourDurability', 'shieldDurability', 'materialExclusions', 'mobLootParity', 'mobDropLive', 'lootingChance', 'docsParityFigures', 'slabGeometry', 'paneCarpetGeometry', 'bedColors', 'blockItems', 'itemForms', 'placeableItems', 'stairGeometry', 'candleChainGeometry', 'fenceGeometry', 'wallGeometry', 'mechanismGeometry', 'bannerGeometry', 'doorWoodTypes', 'signGeometry', 'smallShapes', 'blockNameMatch', 'blockRegistryIntegrity', 'harvestLookup', 'harvestVariants', 'duplicateIds', 'blockDrops', 'blockDropParity', 'interactionSources', 'archaeology', 'addedItems', 'itemGapDoc', 'nameParity', 'foodSaturation', 'hungerWiring', 'globeBannerPattern', 'mapItem', 'vanillaAliases', 'fishBuckets', 'bundles', 'toolFacts', 'bottles', 'hives', 'hangingPlantGeometry', 'resourceInspector', 'resourceInspectorEntry', 'itemDefinitions', 'itemPotions', 'itemPotionDrinking', 'itemFurnaceTables', 'itemStackSizes'],
   // --- save/load ---
-  persist: ['mapManager', 'mobStatePersistence']
+  persist: ['mapManager', 'survivalSaveLoad', 'mobStatePersistence']
 };
 
 function allTestFiles() {

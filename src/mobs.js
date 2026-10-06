@@ -82,8 +82,7 @@ import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
-function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
-  const geo = new THREE.BoxGeometry(w, h, d);
+function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  const geo = new THREE.BoxGeometry(w, h, d);
   const uvs = geo.attributes.uv;
 
   // Use texture pixel dimensions if specified, else scale from world units
@@ -118,6 +117,44 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {
   }
   uvs.needsUpdate = true;
   return geo;
+}
+
+/**
+ * A box that shows DIFFERENT parts of one sheet on different faces.
+ *
+ * `faces` is three.js's own face order -- +X, -X, +Y, -Y, +Z, -Z -- and each entry is either a material or
+ * `[material, { u, v, w, h }]` giving the atlas rectangle to sample, in texture pixels.
+ *
+ * This exists because a single material cannot put a picture on one specific face of a cube, and a box that
+ * samples a whole 16x16 block tile on every face shows the same picture six times. Both mistakes were live:
+ * the snow golem's pumpkin was a plain orange box with an unrelated dark rectangle stuck on the front, so it had
+ * no carved face at all.
+ */
+export function createTexturedBox(w, h, d, faces, texW = 64, texH = 64) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const uvs = geo.attributes.uv;
+  const materials = [];
+  for (let face = 0; face < 6; face++) {
+    const spec = faces[face];
+    const material = Array.isArray(spec) ? spec[0] : spec;
+    // With no explicit rectangle a face still has to be mapped somewhere sane; the whole sheet would smear the
+    // atlas across it, so an unmapped face falls back to the full 0..1 range of its own material, which is what
+    // an ordinary single-material box does.
+    const rect = Array.isArray(spec) && spec[1] ? spec[1] : null;
+    materials.push(material);
+    if (!rect) continue;
+    const u0 = rect.u / texW;
+    const u1 = (rect.u + rect.w) / texW;
+    const v1 = 1 - rect.v / texH;
+    const v0 = 1 - (rect.v + rect.h) / texH;
+    const base = face * 4;
+    uvs.setXY(base + 0, u0, v1);
+    uvs.setXY(base + 1, u1, v1);
+    uvs.setXY(base + 2, u0, v0);
+    uvs.setXY(base + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return { geometry: geo, materials };
 }
 
 /**
@@ -165,6 +202,66 @@ function isLlamaLike(mob) {
   return mob?.type === 'llama' || mob?.type === 'trader_llama';
 }
 
+/**
+ * Point a material at a texture that may not have decoded yet.
+ *
+ * Every skin in this file is fetched with `loadTexture`, which is asynchronous, so a material built during page
+ * load is built before its image exists. Assigning `map` up front is not enough: three renders a mapped material
+ * whose image is still missing as BLACK, which looks exactly like a broken model. So the flat `fallbackColor` is
+ * kept until the bitmap actually arrives, and the map is adopted at that moment.
+ */
+function adoptTexture(material, texture, fallbackColor = 0xffffff) {
+  if (!material || !texture?.assetPath || material.map === texture) return material;
+  if (texture.image) {
+    material.map = texture;
+    material.color.setHex(0xffffff);
+    material.needsUpdate = true;
+  } else {
+    // Keep the flat colour until the bitmap is really there, and record the binding so `syncDeferredSkins` can
+    // finish the job on a later frame.
+    material.color.setHex(fallbackColor);
+    deferredSkins.push({ material, texture });
+  }
+  return material;
+}
+
+/**
+ * Bindings waiting for their bitmap.
+ *
+ * The texture's `load` event was not reliable here -- a material created during page load kept its flat colour
+ * for the life of the page even though the image arrived moments later, which is why the golem's pumpkin stayed
+ * a black box. Polling from the manager's update is boring and always works, and the list empties itself as soon
+ * as everything has decoded, so the steady-state cost is one `length` check per frame.
+ */
+const deferredSkins = [];
+
+/** Finish any skin bindings whose texture has now decoded. Called once per frame from `update`. */
+function syncDeferredSkins() {
+  if (deferredSkins.length === 0) return;
+  for (let i = deferredSkins.length - 1; i >= 0; i--) {
+    const binding = deferredSkins[i];
+    if (!binding.texture.image) continue;
+    binding.material.map = binding.texture;
+    binding.material.color.setHex(0xffffff);
+    binding.material.needsUpdate = true;
+    deferredSkins.splice(i, 1);
+  }
+}
+
+/**
+ * Where each variant's ORIGINAL vanilla skin is served from, if it has one.
+ * These paths are the contract between `scripts/mob-visual/fetch-assets.mjs` and the spawners: the fetch script
+ * writes them and the spawner compares against them to decide whether a skin is the real one (leave the model
+ * alone) or a generated stand-in (apply the tint). Keeping the string in one place stops the two drifting.
+ */
+const HUSK_SKIN_PATH = '/assets/entity/zombie/husk.png';
+const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
+const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
+const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
+const CARVED_PUMPKIN_PATH = '/assets/block/carved_pumpkin.png';
+const PUMPKIN_SIDE_PATH = '/assets/block/pumpkin_side.png';
+const PUMPKIN_TOP_PATH = '/assets/block/pumpkin_top.png';
+
 function applyVariantIdentity(mob, variant, options = {}) {
   if (!mob || !variantHealth(variant)) return mob;
   mob.type = variant;
@@ -198,8 +295,14 @@ function applyVariantIdentity(mob, variant, options = {}) {
   mob.huskSubmergedSeconds = 0;
   mob.isSheared = false;
   // Tint every material so the variant is visually distinct from its base mob.
+  //
+  // This is only correct when the variant has NO original skin and is instead a generated tint of its relative.
+  // When the real vanilla skin is present the recolour must be SKIPPED: setting one colour on every material
+  // flattens the entire model -- clothing, boots and any equipped item -- into a single hue, which is exactly
+  // what made the husk read as "a browner zombie" instead of a husk. Its skin already carries the husk's
+  // desiccated detail and torn clothing.
   const tint = variantTint(variant);
-  if (tint !== null) {
+  if (tint !== null && !mob.hasOriginalSkin) {
     mob.mesh?.traverse?.((obj) => {
       if (!obj.isMesh || !obj.material) return;
       const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -290,12 +393,25 @@ export class MobManager {
     // and ends up with a texture that has no image -- which renders as a SOLID BLACK mob. The husk, stray and
     // bogged were all built that way and were all black in the Inspector.
     //
-    // Wiki: a husk is a desert zombie, a stray is a snow skeleton and a bogged is a mushroom-covered one, so
-    // each is its base's skin tinted. Safe to derive before the images decode, because `createVariantTexture`
-    // paints asynchronously when the base arrives.
-    this.textures.husk = this.createVariantTexture('zombie', VARIANT_TINTS.husk);
-    this.textures.stray = this.createVariantTexture('skeleton', VARIANT_TINTS.stray);
-    this.textures.bogged = this.createVariantTexture('skeleton', VARIANT_TINTS.bogged);
+    // Wiki: a husk is a desert zombie, a stray is a snow skeleton and a bogged is a mushroom-covered one.
+    //
+    // Where an ORIGINAL vanilla skin exists it is used instead of tinting a relative. A husk has its own skin
+    // texture with its own desiccated detail and torn clothing; recolouring a zombie made the whole model --
+    // clothing and equipment included -- one flat hue, which is exactly what was wrong with it. The tint stays
+    // only as the fallback for a checkout with no downloaded assets.
+    this.textures.husk = this.loadTexture(HUSK_SKIN_PATH,
+      () => this.createVariantTexture('zombie', VARIANT_TINTS.husk));
+    this.textures.stray = this.loadTexture(STRAY_SKIN_PATH,
+      () => this.createVariantTexture('skeleton', VARIANT_TINTS.stray));
+    this.textures.bogged = this.loadTexture(BOGGED_SKIN_PATH,
+      () => this.createVariantTexture('skeleton', VARIANT_TINTS.bogged));
+
+    // The snow golem's own skin, and the carved-pumpkin block faces for its head. Loaded after the literal for
+    // the same reason as the variants above.
+    this.textures.snow_golem = this.loadTexture(SNOW_GOLEM_SKIN_PATH);
+    this.textures.carved_pumpkin = this.loadTexture(CARVED_PUMPKIN_PATH);
+    this.textures.pumpkin_side = this.loadTexture(PUMPKIN_SIDE_PATH);
+    this.textures.pumpkin_top = this.loadTexture(PUMPKIN_TOP_PATH);
 
     this.animalBehaviors = new AnimalBehaviors(this, world, sounds, entities);
     this.hostileBehaviors = new HostileMobBehaviors(this, world, sounds, entities);
@@ -2687,13 +2803,59 @@ export class MobManager {
     return tex;
   }
 
-  loadTexture(path) {
-    if (typeof document === 'undefined') return new THREE.Texture();
-    const tex = this.textureLoader.load(path);
+  /**
+   * Load a skin from disk, falling back to a generated texture if the asset is not present.
+   *
+   * The originals under `public/assets/` are downloaded by `scripts/mob-visual/fetch-assets.mjs` and are NOT
+   * committed as part of the source tree's build inputs everywhere, so a checkout without them must still run.
+   * `fallback` is a thunk rather than a value so the (sometimes expensive) generation only happens when the real
+   * asset is genuinely unavailable, detected by the loader's error event.
+   */
+  loadTexture(path, fallback = null) {
+    if (typeof document === 'undefined') return fallback ? fallback() : new THREE.Texture();
+    const tex = this.textureLoader.load(path, undefined, undefined, () => {
+      // The asset is missing. Swap in the generated stand-in on the same texture object, so anything already
+      // holding a reference (a mob's material) picks it up without a re-assignment.
+      if (!fallback) return;
+      try {
+        const substitute = fallback();
+        if (substitute?.image) {
+          tex.image = substitute.image;
+          tex.needsUpdate = true;
+        }
+      } catch { /* a failed fallback must not break spawning */ }
+    });
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.assetPath = path;
     return tex;
+  }
+
+  /**
+   * The three materials that make a pumpkin look like a pumpkin.
+   *
+   * A pumpkin block is a cube with a DIFFERENT texture per face: the carved grin on the front, plain rind on the
+   * sides and back, and the stem end on top. One flat colour can never show a face, which is why the snow golem
+   * had none.
+   *
+   * Each material starts on the flat colour and picks up its texture once that texture has actually decoded. The
+   * block textures are requested with `loadTexture` and arrive asynchronously, so assigning the map up front
+   * would leave a material whose map has no image yet -- which three renders as BLACK, not as the fallback.
+   */
+  createPumpkinMaterials() {
+    // One set per manager, shared by every golem. Building fresh materials per spawn would both leak and, worse,
+    // freeze the flat colour in place: the block textures decode asynchronously, so a material built before they
+    // arrive has no image and three renders it BLACK rather than falling back.
+    this._pumpkinMaterials ??= {
+      pumpkinFace: new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin }),
+      pumpkinSide: new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin }),
+      pumpkinTop: new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin })
+    };
+    adoptTexture(this._pumpkinMaterials.pumpkinFace, this.textures.carved_pumpkin, SNOW_GOLEM_COLORS.pumpkin);
+    adoptTexture(this._pumpkinMaterials.pumpkinSide, this.textures.pumpkin_side, SNOW_GOLEM_COLORS.pumpkin);
+    adoptTexture(this._pumpkinMaterials.pumpkinTop, this.textures.pumpkin_top, SNOW_GOLEM_COLORS.pumpkin);
+    return this._pumpkinMaterials;
   }
 
   isBlockSolid(x, y, z, mobType = null) {
@@ -3286,7 +3448,15 @@ export class MobManager {
   // --- ZOMBIE ---
   spawnZombie(x, y, z, options = {}) {
     const group = new THREE.Group();
-    // Wiki: a husk is a desert zombie, so it uses a tinted zombie skin rather than a new model.
+    // Wiki: a husk is a desert zombie, so it shares the zombie model.
+    //
+    // It does NOT share the zombie's skin. A husk has its own vanilla skin, and when that is the texture in use
+    // the model is left untinted so the skin's desiccated detail and torn clothing survive; `hasOriginalSkin`
+    // records which case applies, and `applyVariantIdentity` reads it before flattening the model to one colour.
+    //
+    // The test is on the TEXTURE'S SOURCE PATH, not on whether the bitmap has decoded yet: the asset is requested
+    // at construction and arrives asynchronously, so an image-presence check would be a race.
+    const hasOriginalSkin = options.variant === 'husk' && this.textures.husk?.assetPath === HUSK_SKIN_PATH;
     const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
     const mat = new THREE.MeshLambertMaterial({ map: baseTex });
     // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material
@@ -3335,6 +3505,9 @@ export class MobManager {
       leftLeg: leftLeg,
       rightLeg: rightLeg,
       mat: mat,
+      // True when the variant is wearing its own vanilla skin rather than a generated tint, so
+      // `applyVariantIdentity` knows not to flatten the model to a single colour.
+      hasOriginalSkin,
       health: 20,
       maxHealth: 20,
       velocity: new THREE.Vector3(),
@@ -5012,12 +5185,22 @@ export class MobManager {
    */
   spawnSnowGolem(x, y, z, options = {}) {
     const group = new THREE.Group();
+    // The golem's own skin is the real vanilla snow-golem texture, which already carries the carved eyes and the
+    // little smile. The flat colours are the fallback for a build without the downloaded asset.
+    const hasSkin = this.textures.snow_golem?.assetPath === SNOW_GOLEM_SKIN_PATH;
     const snowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow });
+    if (hasSkin) {
+      snowMat.transparent = true;
+      snowMat.alphaTest = 0.5;
+      adoptTexture(snowMat, this.textures.snow_golem, SNOW_GOLEM_COLORS.snow);
+    }
+    const snowFaceMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow });
     const shadowMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.shadow });
-    const pumpkinMat = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin });
     const faceMat = new THREE.MeshBasicMaterial({ color: SNOW_GOLEM_COLORS.face });
+    // The pumpkin is a real carved-pumpkin block: the grin on the front, rind on the sides, stem end on top.
+    const pumpkinMat = this.createPumpkinMaterials();
     const { group: model, lower, middle, head, face, pumpkin, arms } =
-      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat);
+      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, { snowFace: snowFaceMat }, { createTexturedBox });
     group.add(model);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -9598,6 +9781,9 @@ export class MobManager {
   update(dt, player) {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
+    // Finish any skin whose texture finished downloading after its mob was built. Cheap once everything has
+    // decoded, because the pending list empties itself.
+    syncDeferredSkins();
     for (const mob of this.mobs) if (mob.mesh) mob.contactStart = mob.mesh.position.clone();
     // The four ad-hoc natural spawners that used to live here have been retired.
     //
