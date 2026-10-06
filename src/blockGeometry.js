@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fireFragment } from './fireVisuals.js';
 import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
@@ -86,10 +87,11 @@ export function enableBlockEmission(material) {
   material.onBeforeCompile = shader => {
     shader.uniforms.blockTime = material.userData.animationTime;
     shader.uniforms.windStrength = material.userData.windStrength;
-    shader.vertexShader = 'attribute float wind; uniform float windStrength; attribute float emission; attribute float flame; uniform float blockTime; varying float vBlockEmission;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission; transformed.x += wind * windStrength * (sin(blockTime*1.5+position.x*.65+position.z*.4)*.075); transformed.z += wind * windStrength * sin(blockTime*1.1+position.x*.4)*.04; transformed.x += flame * sin(blockTime*8.0 + position.y*5.0 + position.z*3.0) * 0.045 * (0.3 + 0.7 * abs(normal.y));');
-    shader.fragmentShader = 'varying float vBlockEmission;\n' + shader.fragmentShader;
+    shader.vertexShader = 'attribute float wind; uniform float windStrength; attribute float emission; attribute float flame; uniform float blockTime; varying float vBlockEmission; varying float vFlame; varying vec2 vFlameUV; varying float vFlamePhase;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockEmission = emission; vFlame = flame; vFlameUV = fract(uv * 32.0); vFlamePhase = dot(floor(position.xz), vec2(1.7, 2.3)); transformed.x += wind * windStrength * (sin(blockTime*1.5+position.x*.65+position.z*.4)*.075); transformed.z += wind * windStrength * sin(blockTime*1.1+position.x*.4)*.04; transformed.x += flame * sin(blockTime*8.0 + position.y*5.0 + position.z*3.0) * 0.045 * (0.3 + 0.7 * abs(normal.y));');
+    shader.fragmentShader = 'uniform float blockTime; varying float vBlockEmission; varying float vFlame; varying vec2 vFlameUV; varying float vFlamePhase;\n' + fireFragment + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\nif(vFlame > 0.5) diffuseColor = animatedFlame(vFlameUV, blockTime + vFlamePhase);');
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight = max(outgoingLight, diffuseColor.rgb * vBlockEmission);\n#include <opaque_fragment>');
   };
-  material.customProgramCacheKey = () => 'voxel-emission-wind-v3';
+  material.customProgramCacheKey = () => 'voxel-emission-fire-v4';
 }

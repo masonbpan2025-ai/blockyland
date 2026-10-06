@@ -740,7 +740,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.FIRE]: {
     name: 'Fire', hardness: 0, sound: 'wool', light: 15,
     lightColor: 0xff8833, shape: 'cross', transparent: true, solid: false, plant: true,
-    drop: null, textures: { all: 'fire.png' }
+    drop: null, textures: { all: 'fire.svg' }
   },
   [BLOCKS.ANVIL]: {
     name: 'Anvil',
