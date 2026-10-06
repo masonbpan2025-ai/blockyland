@@ -270,122 +270,50 @@ export function snowGolemXp() {
 }
 
 /**
- * The golem's entity skin, as atlas rectangles in texture pixels.
- *
- * Read off the real 64x64 vanilla skin. The head's carved face sits in the band at v=8..16 with packed snow on
- * either side of it, so the snowballs reuse that white patch rather than the mostly-transparent gaps lower down
- * the sheet. The stick arms are the brown patch at the top-right.
- *
- * These are the numbers that make the face land on the FRONT of the head instead of being smeared across all six
- * sides, which is what a default box does.
- */
-export const SNOW_GOLEM_UV = {
-  headFace: { u: 8, v: 8, w: 8, h: 8 },
-  // Packed white snow, shared by the head's other faces and all three snowballs.
-  snow: { u: 0, v: 8, w: 8, h: 8 },
-  // The brown stick-wood patch at the top-right of the sheet.
-  armWood: { u: 56, v: 0, w: 8, h: 8 }
-};
-
-/**
  * Build a snow golem model: three stacked snowballs, stick arms, and a carved pumpkin helmet.
  *
- * Wiki: it "wears its carved pumpkin like a helmet. Its actual head is hidden beneath the pumpkin", so both are
- * built and the snow face is hidden until sheared.
- *
- * The pumpkin is a real carved-pumpkin BLOCK, not an orange box: a pumpkin is a cube with a different texture per
- * face -- the carved grin on the front, plain rind on the sides and back, the stem end on top. Assembling it from
- * six materials with explicit atlas rectangles is the whole fix; one flat material can never show a face.
+ * Wiki: it "wears its carved pumpkin like a helmet. Its actual head is hidden beneath the pumpkin", so both
+ * are built and the face is hidden until sheared.
  */
-export function createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, extra = {}, helpers = {}) {
-  // A materials OBJECT is told apart by the presence of the keys this model reads, not by a three.js flag. An
-  // earlier version tested `pumpkinMat.isMaterial === false`, which is fragile -- it silently took the legacy
-  // branch for the real materials object and gave the pumpkin the golem's dark face colour instead of rind.
-  //
-  // When a set IS supplied it is MERGED OVER the positional arguments rather than replacing them. The caller's
-  // set only names the pumpkin faces; `snow`, `shadow` and `face` still arrive positionally. Replacing wholesale
-  // left the body materials undefined, which made the whole golem -- snowballs and stick arms included -- an
-  // invisible mob with a floating pumpkin where its head should be.
-  const isMaterialSet = !!pumpkinMat && typeof pumpkinMat === 'object'
-    && (pumpkinMat.pumpkinFace || pumpkinMat.pumpkinSide || pumpkinMat.snow);
-  const materials = {
-    snow: snowMat,
-    shadow: shadowMat,
-    pumpkinSide: pumpkinMat,
-    pumpkinTop: pumpkinMat,
-    pumpkinFace: faceMat,
-    face: faceMat,
-    ...extra,
-    ...(isMaterialSet ? pumpkinMat : {})
-  };
-  const { createTexturedBox } = helpers;
-
+export function createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat) {
   const group = new THREE.Group();
 
-  // Every part samples its own patch of the golem's 64x64 skin. A plain box would smear the whole atlas across
-  // each face, which is why the unpacked model looked like loose white tiles rather than snowballs.
-  const box = (w, h, d, faceSpec, texW = 64, texH = 64) => {
-    if (!createTexturedBox) return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), faceSpec[4] ?? faceSpec[0]);
-    const built = createTexturedBox(w, h, d, faceSpec, texW, texH);
-    return new THREE.Mesh(built.geometry, built.materials);
-  };
-  const snowAll = (rect) => [
-    [materials.snow, rect], [materials.snow, rect], [materials.snow, rect],
-    [materials.snow, rect], [materials.snow, rect], [materials.snow, rect]
-  ];
-
-  const lower = box(0.7, 0.55, 0.7, snowAll(SNOW_GOLEM_UV.snow));
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.7), snowMat);
   lower.position.y = 0.28;
   group.add(lower);
-  const middle = box(0.55, 0.5, 0.55, snowAll(SNOW_GOLEM_UV.snow));
+  const middle = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.55), snowMat);
   middle.position.y = 0.8;
   group.add(middle);
-
-  // The golem's own head: its carved snow face on the FRONT, plain packed snow everywhere else.
-  const head = box(0.5, 0.5, 0.5, [
-    [materials.snow, SNOW_GOLEM_UV.snow], [materials.snow, SNOW_GOLEM_UV.snow],
-    [materials.snow, SNOW_GOLEM_UV.snow], [materials.snow, SNOW_GOLEM_UV.snow],
-    [materials.snowFace ?? materials.snow, SNOW_GOLEM_UV.headFace],
-    [materials.snow, SNOW_GOLEM_UV.snow]
-  ]);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), snowMat);
   head.position.y = 1.3;
   group.add(head);
 
-  // The derpy face, hidden and disabled when the painted skin already carries it.
+  // The derpy face, hidden under the pumpkin until sheared.
   const face = new THREE.Group();
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.03), materials.face);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.03), faceMat);
     eye.position.set(side * 0.11, 0.06, 0.26);
     face.add(eye);
   }
-  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.03), materials.face);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.03), faceMat);
   mouth.position.set(0, -0.1, 0.26);
   face.add(mouth);
   face.visible = false;
   head.add(face);
 
-  // The pumpkin helmet: a real carved pumpkin block, one material per face.
+  // The pumpkin helmet, which is what is actually visible.
   const pumpkin = new THREE.Group();
-  const pumpkinFaces = [
-    materials.pumpkinSide, materials.pumpkinSide,
-    materials.pumpkinTop, materials.pumpkinTop,
-    materials.pumpkinFace, materials.pumpkinSide
-  ];
-  let shell;
-  if (createTexturedBox) {
-    const built = createTexturedBox(0.56, 0.5, 0.56, pumpkinFaces, 16, 16);
-    shell = new THREE.Mesh(built.geometry, built.materials);
-  } else {
-    shell = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.5, 0.56), materials.pumpkinFace);
-  }
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.5, 0.56), pumpkinMat);
   pumpkin.add(shell);
+  const carved = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.04), faceMat);
+  carved.position.set(0, 0.02, 0.28);
+  pumpkin.add(carved);
   head.add(pumpkin);
 
-  // Stick arms, taken from the brown strip at the top-right of the golem's own skin.
+  // Stick arms.
   const arms = [];
   for (const side of [-1, 1]) {
-    const arm = box(0.08, 0.08, 0.62, snowAll(SNOW_GOLEM_UV.armWood));
-    if (!createTexturedBox) arm.material = materials.shadow;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.62), shadowMat);
     arm.position.set(side * 0.4, 0.95, 0);
     group.add(arm);
     arms.push(arm);

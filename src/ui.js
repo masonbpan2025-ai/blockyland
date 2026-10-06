@@ -1,5 +1,6 @@
 import { renderHorseInventory } from './horseInventory.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
@@ -84,6 +85,29 @@ export function targetedBlockLabel(target) {
   const def = BLOCK_DEFS[target.blockId];
   const name = def?.name || `block ${target.blockId}`;
   return `Targeted: ${name} (${target.x} ${target.y} ${target.z})`;
+}
+
+/**
+ * How a worn tool's remaining life should look, or null when there is nothing to draw.
+ *
+ * Vanilla hides the bar while a tool is pristine, so a new pickaxe looks like any other item until it has
+ * taken damage, and the colour runs green -> yellow -> red as it empties. `durabilityFraction` already
+ * answers "how much is left", for stacks that record `maxDurability` as well as for a bare item id.
+ */
+export function durabilityBarSpec(stack) {
+  const fraction = durabilityFraction(stack);
+  if (fraction === null || fraction >= 1) return null;
+  if (fraction > 0.5) return { fraction, tier: 'high' };
+  if (fraction > 0.25) return { fraction, tier: 'mid' };
+  return { fraction, tier: 'low' };
+}
+
+/** The tooltip line for a worn tool ("Durability 41 / 59"), or null when it never wears or is untouched. */
+export function durabilityLabel(stack) {
+  if (!durabilityBarSpec(stack)) return null;
+  const max = typeof stack.maxDurability === 'number' ? stack.maxDurability : maxDurabilityFor(stack.id);
+  const left = typeof stack.durability === 'number' ? stack.durability : max;
+  return `Durability ${left} / ${max}`;
 }
 
 export class UIManager {
@@ -552,6 +576,9 @@ export class UIManager {
             count.textContent = meta.count;
             slot.appendChild(count);
           }
+
+          // The hotbar is where a tool is actually watched while mining, so it gets the bar too.
+          this.addDurabilityBar(slot, item);
         }
       }
     }
@@ -578,6 +605,8 @@ export class UIManager {
             count.textContent = meta.count;
             offhandSlot.appendChild(count);
           }
+
+          this.addDurabilityBar(offhandSlot, offhandItem);
         }
       } else {
         offhandSlot.style.display = 'none';
@@ -1166,7 +1195,10 @@ export class UIManager {
         };
         if (item) {
           const meta = this.inv.getItemMeta(item);
-          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          slot.onmouseenter = (e) => {
+            const wear = durabilityLabel(item);
+            this.showTooltip(e.clientX, e.clientY, meta.name, wear ? `Count: ${item.count} · ${wear}` : `Count: ${item.count}`);
+          };
           slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
           slot.onmouseleave = () => this.hideTooltip();
         }
@@ -1211,7 +1243,9 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          const wear = durabilityLabel(item);
+          const count = item.count > 1 ? `Count: ${item.count}` : '';
+          this.showTooltip(e.clientX, e.clientY, meta.name, [count, wear].filter(Boolean).join(' · '));
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3072,7 +3106,9 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, item.count > 1 ? `Count: ${item.count}` : '', item.enchantments || []);
+          const count = item.count > 1 ? `Count: ${item.count}` : '';
+          const wear = durabilityLabel(item);
+          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, [count, wear].filter(Boolean).join(' · '), item.enchantments || []);
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3088,6 +3124,31 @@ export class UIManager {
 
       el.appendChild(slot);
     });
+  }
+
+  /**
+   * Draw the vanilla durability bar along the bottom of a slot.
+   *
+   * Every place that draws an item icon calls this, because tools have worn out silently since
+   * src/durability.js landed: mining spends the point, unbreaking saves some, and nothing showed it. A
+   * tool whose remaining life is invisible is one the player cannot plan around.
+   *
+   * @param {HTMLElement} slot
+   * @param {{id?:string, durability?:number, maxDurability?:number}} stack
+   */
+  addDurabilityBar(slot, stack) {
+    const spec = durabilityBarSpec(stack);
+    if (!spec || !slot) return null;
+    const bar = document.createElement('div');
+    bar.className = `durability-bar durability-${spec.tier}`;
+    const fill = document.createElement('div');
+    fill.className = 'durability-fill';
+    fill.style.width = `${Math.round(spec.fraction * 100)}%`;
+    bar.appendChild(fill);
+    const label = durabilityLabel(stack);
+    if (label) bar.title = label;
+    slot.appendChild(bar);
+    return bar;
   }
 
   renderSlotContent(slotEl, item) {
@@ -3113,6 +3174,8 @@ export class UIManager {
       count.textContent = meta.count;
       slotEl.appendChild(count);
     }
+
+    this.addDurabilityBar(slotEl, item);
   }
 
   bindFloatingCursor() {

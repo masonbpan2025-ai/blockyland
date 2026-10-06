@@ -131,17 +131,13 @@ export function eat(state, hungerPoints, saturationPoints = 0) {
  *   because the player already does and duplicating it would create two sources of truth.
  */
 export function tickHunger(state, dt, options = {}) {
-  const { peaceful = false, health = MAX_HUNGER, maxHealth = MAX_HUNGER,
-    naturalRegeneration = true } = options;
+  const { peaceful = false, health = MAX_HUNGER, maxHealth = MAX_HUNGER } = options;
   let heal = 0;
   let starve = 0;
 
   if (peaceful) {
     // Peaceful heals steadily and refills hunger, so a player cannot die of starvation on it. Vanilla
     // heals 1 HP per second and restores one hunger point every half second.
-    //
-    // Deliberately NOT gated on `naturalRegeneration`: Peaceful's heal is a difficulty property rather than
-    // the gamerule, and Java keeps it.
     if (health < maxHealth) heal = dt * 1.0;
     state.hunger = clamp(state.hunger + dt * 2, 0, MAX_HUNGER);
     return { heal, starve, exhausted: false };
@@ -149,25 +145,18 @@ export function tickHunger(state, dt, options = {}) {
 
   if (state.hunger >= MAX_HUNGER && state.saturation > 0 && health < maxHealth) {
     // Fast regeneration: only at full hunger and with saturation left to spend.
-    if (naturalRegeneration) {
-      const before = state.saturation;
-      heal = dt * REGEN.fastPerSecond;
-      addExhaustion(state, EXHAUSTION.regen * dt);
-      // Stop regenerating once saturation runs out mid-tick, so the rate cannot be outrun by a large dt.
-      if (state.saturation === 0 && before > 0) heal = Math.min(heal, 1);
-    }
+    const before = state.saturation;
+    heal = dt * REGEN.fastPerSecond;
+    addExhaustion(state, EXHAUSTION.regen * dt);
+    // Stop regenerating once saturation runs out mid-tick, so the rate cannot be outrun by a large dt.
+    if (state.saturation === 0 && before > 0) heal = Math.min(heal, 1);
   } else if (state.hunger >= REGEN.slowFoodLevel && health < maxHealth) {
     // Slow regeneration from food 18 up.
-    if (naturalRegeneration) {
-      heal = dt * REGEN.slowPerSecond;
-      addExhaustion(state, EXHAUSTION.regen * dt);
-    }
+    heal = dt * REGEN.slowPerSecond;
+    addExhaustion(state, EXHAUSTION.regen * dt);
   } else if (state.hunger <= 0) {
     // Starvation. Vanilla floors this by difficulty; the caller applies the floor, because only it
     // knows the difficulty.
-    //
-    // Still runs with `naturalRegeneration` off. The gamerule switches off natural regeneration, not hunger
-    // itself: a player who never eats must still starve.
     starve = dt * REGEN.starvePerSecond;
   }
 
