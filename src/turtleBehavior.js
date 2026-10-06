@@ -293,18 +293,20 @@ export function applyTurtlePregnancy(mob) {
  * Authored at the wiki's 1.2 x 0.4 adult hitbox, which is much wider than it is tall. The head is
  * separate so it can extend while swimming.
  */
+// The shell block is 16x4x18 at (11,30) on the 128x64 sheet. An earlier attempt used (64,0), which is empty
+// sheet: transparent samples are culled by alphaTest, so the shell silently rendered in its fallback colour.
 export function createTurtleModel(shellMat, skinMat, darkMat) {
   const group = new THREE.Group();
 
   // The shell, the dominant feature: wide and flat.
   const shell = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.22, 1.1), shellMat);
-  applyQuadUvs(shell, 64, 0, 16, 4, 18, 128, 64);
+  applyQuadUvs(shell, 11, 30, 16, 4, 18, 128, 64);
   shell.position.set(0, 0.22, 0);
   group.add(shell);
 
   // A slightly darker rim, which is what gives the shell a readable edge.
   const rim = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.1, 1.16), darkMat);
-  applyQuadUvs(rim, 64, 0, 16, 4, 18, 128, 64);
+  applyQuadUvs(rim, 11, 30, 16, 4, 18, 128, 64);
   rim.position.set(0, 0.15, 0);
   group.add(rim);
 

@@ -425,3 +425,23 @@ than the sea-turtle's olive/brown tones, so the shell's rectangle probably wants
 Recorded as NOT finished rather than presented as done.
 
 Work list: **92 mob spawners, 49 with a real skin, 43 still flat-colour only.**
+## Round eleven: the turtle shell, and a failure mode worth naming
+
+**The turtle's shell was mapped to an empty rectangle.** I had declared it 16x4x18 at (64,0) on the 128x64 sheet, and
+that rectangle measures **0% opaque** -- entirely empty sheet. Transparent samples are culled by `alphaTest`, so the
+shell was rendering in its **FALLBACK COLOUR**, and the green in the previous round's capture was never a texture at
+all. `fit-box.mjs` finds the real block at **(11,30)**, 16x4x18 with 25% detail, which is the most detailed flat box
+on the sheet; its faces now measure 67-100% opaque with 105 dark texels on the top face.
+
+**THE FAILURE MODE, NAMED.** A texture that is never bound, a bitmap that is missing, and a rectangle that is empty
+sheet ALL look the same: the mob renders, in its fallback colour, and looks plausible. "The mob renders" was never
+the same claim as "the texture is bound", and I had been treating a screenshot showing colour as evidence of a
+texture. Two of those three causes have already bitten this project (a missing bitmap renders BLACK; an empty
+rectangle renders the fallback), which is why `tests/mobUvCoverage.test.js` now measures the opacity of the turtle's
+declared shell rectangle and pins the fact that the OLD block is empty -- so a tidy-up cannot reintroduce it.
+
+**The general check to run on the rest of the roster:** for every mob whose parts are mapped, measure the opacity of
+each declared rectangle. Any part sitting at ~0% is silently untextured. The tooling for this now exists
+(`fit-box.mjs`, `quadRects`, and the new test's helpers); it has not yet been run across all forty-nine.
+
+Work list: **92 mob spawners, 50 with a real skin, 42 still flat-colour only.**
