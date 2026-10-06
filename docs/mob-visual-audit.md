@@ -2687,3 +2687,51 @@ mechanism instead of measuring the state.
 hypothesis at all.** Not after one fails -- first.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-eight: the timing fact that blocked both giant attempts, measured at last
+
+**I ran the state check first, as round seventy-seven's rule required, and it produced the answer in two commands:**
+
+```
+at spawn time, manager.textures.zombie.image === null:  true
+manager.textures.zombie.assetPath:                       /assets/entity/zombie.png
+/assets/entity/zombie.png exists on disk:                true
+```
+
+**Three facts, all measured rather than assumed:**
+
+1. **The atlas key `zombie` is the right one and its path is correct.** I had suspected a path bug because the key is
+   `/assets/entity/zombie.png` while the file I knew about was `/assets/entity/zombie/zombie.png` -- **both exist**, and the
+   flat convention is what the atlas uses. So the audit's credit was right and there is no path defect.
+2. **`this.textures.zombie` is the sheet, not a fresh `loadTexture` call** -- round seventy-seven's finding, confirmed.
+3. **AND ITS BITMAP IS NULL AT SPAWN TIME.** That is the fact both of my attempts died on, and neither attempt checked for
+   it.
+
+**Why that broke the fix I tried:** I wrote the rectangles behind a map check --
+
+```js
+if (skinMat.map) applyBoxUVs(headGeo, 0, 0, 64, 64, 8, 8, 8);
+```
+
+-- and at construction there IS no map, because the bitmap has not decoded. So the condition was false, no geometry got
+rectangles, and the area went from 7 failures to **13**. Reverted.
+
+**The correct shape, which the SQUID already demonstrated in round fifty-four:** apply the rectangles
+UNCONDITIONALLY -- they describe the geometry and do not depend on the texture -- and bind the sheet through the DEFERRED
+adoption hook, which lands it whenever the bitmap arrives. **A `map`-present check at construction time is always false in
+this project**, so gating geometry on it can only ever disable the geometry.
+
+**That is the same mistake as the squid's first attempt, four rounds after I recorded the lesson from it.** In round
+fifty-four the conclusion was explicitly "bind now vs adopt later are two separate questions"; this round I collapsed them
+into one `if` again. **The lesson was written down and not applied**, which is the honest finding, and it is the sixth
+diagnosis-or-mistake in six rounds of the giant.
+
+**Where the giant stands, stated as a plan rather than a hypothesis:**
+
+1. rectangles applied unconditionally to head 8x8x8 at (0,0), body 8x12x4 at (16,16), arms and legs 4x12x4;
+2. `this.textures.zombie` passed through the deferred adoption hook;
+3. the state read back AFTER adoption, not at construction.
+
+**All three steps are already proven individually** -- on the horse, the squid and the pack equines -- and none of them is
+new work. The giant has consumed six rounds for want of assembling three things this project already had.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
