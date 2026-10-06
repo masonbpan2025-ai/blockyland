@@ -1942,3 +1942,37 @@ rather than an angle change.**
 `striderParity` is 37/37 and the full area is back at its baseline.
 
 Work list: **97 spawners, 61 with a real sheet, 31 mobs still flat-colour only**, of which SIX draw their own skin.
+## Round fifty-seven: the bristle fault was the plane's SHAPE, and a tool that settled it
+
+**Three rounds of angle edits were aimed at the wrong quantity, and one measurement ended the guessing.**
+`scripts/mob-visual/measure-bristle-rotation.mjs` builds the bristle plane under six candidate rotations and prints the
+resulting world extents. The result:
+
+```
+rotation                                 x       y       z
+  flat, unrotated                         1.000   0.750   0.000
+  quarter turn flat       (-PI/2)         1.000   0.000   0.750
+  vanilla angle alone     (-1.2217)       1.000   0.257   0.705
+  flat then vanilla       (-PI/2 + a)     1.000   0.705   0.257
+  upright then vanilla    (PI/2 + a)      1.000   0.705   0.257
+  upright, no vanilla     (PI/2)          1.000   0.000   0.750
+```
+
+**Every candidate gives x = 1.000 blocks.** But vanilla's bristle rectangle is **12 units on X** -- **0.75** blocks -- and
+16 on Z, so no rotation of a 16x12 plane can ever present 0.75 on X. **The fault was the plane's EXTENTS, not its
+rotation**, and three rounds of angle edits could not have fixed it. Corrected to `PlaneGeometry(12u, 16u)` and measured
+again: **x = 0.750**, vanilla's own figure.
+
+**That is the generalisable lesson, and it is sharper than "measure instead of guess":** when an orientation will not
+settle after two attempts, MEASURE THE RESULTING EXTENTS. An angle edit changes where a shape points; it cannot change
+what the shape IS. Every one of my three attempts varied a rotation while the dimensions were wrong.
+
+**The render is still not right, and I reverted rather than ship it.** With the extents corrected, re-anchoring the
+bristles to the shell top (y = 7 instead of vanilla's 4) made them a wide collar that hides the body -- visibly worse than
+before. So `src/striderModel.js` is reverted to the commit from round fifty-six, which has the correct body and legs on
+the real sheet, and `striderParity` is back at 37/37.
+
+**What is kept:** the measurement tool, and the finding that the extents were wrong. The bristle anchor is still open, and
+it is now a question with a measurement behind it rather than an angle to try.
+
+Work list: **97 spawners, 61 with a real sheet, 31 mobs still flat-colour only**, of which SIX draw their own skin.
