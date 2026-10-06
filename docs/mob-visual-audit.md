@@ -5187,3 +5187,33 @@ a model fault**, and it does not affect the texture evidence the captures exist 
 
 Work list: **97 spawners, 81 with a real sheet, every user-reported complaint verified against a render, the tropical fish
 BLOCKED by its asset stubs, and the dragon's leg positions recorded as approximations.**
+## Round one hundred and thirty-seven: the warden's face verified, and the five complaints closed with pictures
+
+**I inspected the warden capture rather than only keeping it, because its complaint was specifically about the FACE.**
+
+The render shows a **fully-formed face**: two **cyan glowing eyes**, a **distinct mouth** below them, the **cyan chest-core
+glow**, and a **verdant body with visible arms, legs and surface texture**. The original complaint -- **"warden has no face no
+details on the body"** -- is answered in the picture, not merely by a `map` count.
+
+**That closes the reported set with evidence at the level the user asked for.** Five complaints, five renders:
+
+| mob | the complaint | what the render now shows |
+| --- | --- | --- |
+| polar bear | "has no eyes" | eyes on its real sheet |
+| mooshroom | "is a blob" | its real sheet |
+| shulker | "is a box" | the concentric spiral shell pattern |
+| warden | "no face, no details on the body" | **glowing eyes, mouth, chest core, textured body -- this round** |
+| panda | "no face, details in body, legs shouldn't be brown" | its real sheet |
+
+**The warden's `500 / 500` HP and the shulker's `30 / 30` both display correctly**, so the Inspector is reading the real mob
+stats rather than a fallback -- which matters, because this project has twice been misled by the Inspector silently
+substituting one mob for another.
+
+**Session state, verified:** `AREA` **1766/1773**, 81 of 97 spawners on real sheets, **80 captures**, 44 tools, everything on
+`master`.
+
+**Work remaining, each with its reason measured:** the tropical fish (asset stubs -- 146-203 bytes for a 32x32 image), the
+dragon's leg positions (my approximations rather than vanilla's bone offsets), the sniffer's five non-vanilla parts (retained
+because the suite pins them as its documented identity), and the camel (a flat-colour assembly rendering flat correctly).
+
+`src/` carries no change from this round.
