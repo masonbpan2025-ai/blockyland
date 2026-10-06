@@ -5,6 +5,7 @@ import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
+import { createWorldStructures } from './worldStructures.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -472,6 +473,22 @@ export class World {
     this.biomeNoise = new FastNoise(seed + 202);
     this.detailNoise = new FastNoise(seed + 303);
     this.featureNoise = new FastNoise(seed + 404);
+    /**
+     * Structure generation for this seed.
+     *
+     * Built here rather than in the constructor because a RESEED must forget every plan: structures are a
+     * pure function of the seed, so keeping the old engine would place the previous seed's structures in the
+     * new world. The chunk sizes are passed in rather than imported by that module, which would make the two
+     * files circular.
+     *
+     * Before this existed, a generated world contained exactly one structure -- the starting village in the
+     * spawn chunk -- and none of the thirty structures in `src/worldgen/` ever appeared in game.
+     */
+    this.structures = createWorldStructures({
+      seed,
+      world: this,
+      sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z }
+    });
     this.chunks.clear();
     // The Map is now empty, so any cached slot would answer for a chunk that no longer exists.
     this.invalidateChunkCache();
@@ -1049,6 +1066,12 @@ export class World {
     if (cx === 0 && cz === 0 && allowsVillage) {
       this.generateVillage(chunk);
     }
+
+    // --- 7. STRUCTURES ---
+    // Every enabled structure whose box OVERLAPS this chunk, realized CLIPPED to it. Each chunk writes only
+    // its own voxels, so a structure is complete whichever order chunks are generated in and generating a
+    // chunk never has to generate a neighbour. See src/worldStructures.js.
+    this.structures?.applyToChunk(chunk);
   }
 
   /**
