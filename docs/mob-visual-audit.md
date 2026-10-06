@@ -1772,3 +1772,20 @@ the suite's skull assertions updated deliberately rather than incidentally. The 
 `applyBoxUVs` helper are all validated and ready.
 
 Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**
+### A commit-hygiene incident in this round, recorded because it touched shared work
+
+**I committed a concurrent agent's files.** My `git add` of two explicit paths was correct, but `git add -A` had been run
+earlier in the round by a scripted helper, which left THEIR modifications staged alongside mine. My commit therefore
+swept in `scripts/test.mjs`, `src/hotkeys.js`, `src/main.js`, `src/player.js`, `src/ui.js`, `src/style.css` and two test
+files -- **907 deletions of their work**, on an active feature branch they were mid-way through.
+
+I caught it from the commit stat, undid it with `git reset --soft HEAD~1`, unstaged everything, and re-staged only my two
+files. Their files are back in the working tree.
+
+**One real cost, recorded rather than hidden:** the `git reset` also unstaged THEIR staged deletions, so `src/hotkeys.js`
+and two test files came back from HEAD rather than staying deleted. If those deletions were deliberate, they will need
+re-deleting; if they were not, the reset saved them. I could not tell which, and I said so rather than guessing.
+
+**The rule, which this project already had on record:** never `git add -A` here. The index carries a second agent's work,
+and paths must be named explicitly every time -- including inside helper scripts, which is exactly where this leak
+happened.
