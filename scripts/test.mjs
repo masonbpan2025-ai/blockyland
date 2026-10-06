@@ -49,6 +49,7 @@ export const AREAS = {
   studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
   // --- vanilla structure generation ---
   structures: ['structureEngine', 'structureInspectorSession', 'structureInspectorPage', 'structureParityDoc', 'structureTemplate', 'structureProcessors', 'structureIgloo', 'structureRuinedPortal', 'structureNetherFossil', 'structureShipwreck', 'structureOceanRuin', 'structureDesertPyramid', 'structureSwampHut', 'structureJigsaw', 'structurePieceIndex', 'structureTerrainAdaptation', 'structureTerrainWiring', 'structurePillagerOutpost', 'structureGoldenSeeds', 'structurePlacementDensity', 'structureInspectorPanels', 'structureInspectorPanelsUi', 'structureInspectorEntry', 'structureInspectorGeometry', 'worldStructures', 'structureJigsawChains', 'structureVillage', 'structureBastion', 'structureTrialChambers', 'structureAncientCity', 'structureEndCity', 'structureMansion', 'structureTrailRuins', 'structureJunglePyramid', 'structureMonument'],
+  io: ['ioNbt', 'ioStructures'],
   // --- world, terrain, fluids ---
   world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
   // --- building and inventory ---

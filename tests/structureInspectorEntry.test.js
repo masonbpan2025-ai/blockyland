@@ -34,7 +34,10 @@ test('adding it left the other start-screen entries alone', () => {
 });
 
 test('clicking the button leads to the Structure Inspector page', () => {
-  assert.match(mainJs, /getElementById\('btn-start-structure-inspector'\)/, 'the button is looked up');
+  // Pinned to the WIRING, not to the idiom. This used to require getElementById plus
+  // btnStructureInspector.addEventListener, and it failed the moment the start screen was refactored
+  // onto a bind(id, handler) helper -- a correct refactor breaking a test that tested its spelling.
+  assert.match(mainJs, /btn-start-structure-inspector/, 'the button is bound by its id');
   assert.match(mainJs, /btnStructureInspector\.addEventListener\('click'/, 'a click handler is bound');
   assert.match(mainJs, /this\.openStructureInspector\(\)/, 'and it opens the Inspector');
   assert.match(mainJs, /openStructureInspector\(/, 'the method exists');
