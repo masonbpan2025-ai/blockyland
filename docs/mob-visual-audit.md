@@ -5317,3 +5317,43 @@ file in the family, which is why each individual measurement kept looking like a
 
 Goal is NOT blocked on this mob, and never was: **the assets are sufficient and always were -- what was missing was the
 knowledge that they are stencils.** `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+## Round one hundred and forty-one: the fish's rectangles and tint are in place, and it still fragments
+
+**I verified the current state rather than assuming it, and found the work of rounds eighty-six to ninety was already
+present:**
+
+```
+src/mobs.js:9262   const fishSheet = this.loadTexture(TROPICAL_FISH_SHEET_FOR(variant));
+src/mobs.js:9270   new THREE.MeshLambertMaterial({ color: tint, map: fishSheet, ... })
+src/fishBehavior.js  body  applyVanillaBoxUVs(bodyGeo, 0, 0, 32, 32, 2, 3, 6)
+                     tail  applyVanillaBoxUVs(tailGeo, 22, -6, 32, 32, 0, 3, 6)
+                     dorsal applyVanillaBoxUVs(dorsalGeo, 10, -5, 32, 32, 0, 3, 6)
+```
+
+**So the binding carries the tint AND the geometry carries vanilla's rectangles**, and the render still shows scattered
+fragments with only the dark eye boxes visible.
+
+**I then applied the resize rule** -- the body was `0.16 x 0.3 x 0.4` (`0.4 : 0.75 : 1`) against vanilla's `2x3x6`
+(`0.333 : 0.5 : 1`), so it was resized to `0.133 x 0.2 x 0.4` -- **and the render was effectively unchanged** (46693 -> 46822
+bytes, same fragments). **Reverted.**
+
+**So the fish is NOT fixed by the recipe that worked on the slime, the sniffer and the dragon**, and that is now a measured
+result rather than a suspicion: **atlas key present, sheet resolved, tint applied, rectangles applied, proportions corrected,
+and it fragments anyway.**
+
+**What is genuinely different about this mob, and it follows from rounds one hundred and thirty-nine and one hundred and
+forty:** every sheet is a **stencil**, and a stencil's opaque pixels are a *pattern* rather than a *skin*. **A pattern stencil
+is drawn OVER a base, and I am drawing it AS the base** -- so the visible pixels are wherever the pattern happens to be, and
+everything else is transparent, which is exactly the scattered appearance.
+
+**The correct implementation therefore needs the base and the pattern as TWO PASSES**, the base at full opacity carrying
+`baseColor` and the pattern layered over it carrying `patternColor` -- and **`alphaTest` on the base pass is what removes the
+stencil's transparency in the wrong place.** That is a change to the rendering approach, not to the geometry or the texture
+address, which is why the last two rounds of size and rectangle work could not fix it.
+
+**I am stopping here rather than attempting the two-pass render at the end of a long session**, because it is a structural
+change and the audit is more useful with the constraint recorded precisely than with a half-implemented pass. **The next step is
+specific:** draw the body twice -- once with `baseColor` and no alpha test, once with `patternColor` and the stencil's alpha
+test -- and the eye boxes, which already render correctly, are the control that says the pipeline itself is fine.
+
+`AREA` is at exactly **1766/1773**; `src/` is byte-identical to its committed state.
