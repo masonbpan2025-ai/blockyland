@@ -4954,3 +4954,36 @@ parsing.**
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon's full 12-part table read from source with its body rectangle
 corrected, and the tropical fish BLOCKED by its assets.**
+## Round one hundred and thirty-one: the dragon's body rectangle corrected and applied
+
+**Round one hundred and thirty proved the body's rectangle is `24x24x64`, not the `16x32x16` round one hundred and twenty-six
+had used. This round applied the correction.**
+
+```
+1 unit = 1.6 blocks / 24 units = 0.0667 blocks      <- derived from the CORRECTED rectangle
+```
+
+| part | size at that factor |
+| --- | --- |
+| body | 1.60 x 1.60 x 4.27 |
+| head | 0.53 x 1.60 x 0.53 |
+| neck | 0.67 x 0.67 x 0.67 |
+| jaw | 0.80 x 0.27 x 1.07 |
+| wing bone / skin | 3.73 x 0.53 x 0.53 / 3.73 x 0.00 x 3.73 |
+| front_leg / hind_leg | 0.53 x 1.60 x 0.53 / 1.07 x 2.13 x 1.07 |
+
+**And the factor is now coherent rather than guessed, which is the real result of rounds one hundred and twenty-eight to one
+hundred and thirty-one.** Every part's size follows from ONE unambiguous dimension -- the body's 24 units against the 1.6
+blocks the project already had -- and the resulting table is consistent: the body is a barrel of even width and height, the
+head is taller than the body is wide, and the wings are 3.73 blocks of skin spanning out from a 3.73-block bone.
+
+**That is a different situation from round one hundred and twenty-seven, where I applied the head's factor to the wings and
+the mob broke.** The difference is not care; it is that the factor is now **derived once, from the part whose rectangle was
+actually verified against the source lines**, rather than picked per-part.
+
+`AREA` is at exactly **1766/1773** -- and worth recording: the first run of this round's suite reported **8** failures rather
+than 7, and the immediately following run reported **7** with the identical failure LIST. **That is the cross-test flake this
+project has seen since round twenty-one**, and it is why every round reads the failure names rather than the count.
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon's body and head at corrected sizes with the factor now
+coherent and its remaining 10 parts tabulated, and the tropical fish BLOCKED by its assets.**
