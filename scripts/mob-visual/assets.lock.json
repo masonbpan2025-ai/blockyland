@@ -290,6 +290,15 @@
       "sha256": "254ee6e34f909e84dd3591b690dc9457841c2ca0b7121a87d23e66edcae87250",
       "bytes": 422,
       "for": "bee"
+    },
+    "allay_skin": {
+      "path": "entity/allay/allay.png",
+      "dest": "assets/entity/allay/allay.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/allay/allay.png",
+      "ref": "1.21.4",
+      "sha256": "0cf5bbd580b1cf1817452450b88c8cf63a665b9430b65f48659873743c7a09bf",
+      "bytes": 409,
+      "for": "allay"
     }
   }
 }

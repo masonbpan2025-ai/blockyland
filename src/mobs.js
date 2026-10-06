@@ -288,6 +288,7 @@ const SHULKER_SKIN_PATH = '/assets/entity/shulker/shulker.png';
 const WARDEN_SKIN_PATH = '/assets/entity/warden/warden.png';
 const SPIDER_SKIN_PATH = '/assets/entity/spider/spider.png';
 const BEE_SKIN_PATH = '/assets/entity/bee/bee.png';
+const ALLAY_SKIN_PATH = '/assets/entity/allay/allay.png';
 /** The spider's dark hide and its red eyes, used as fallbacks while the skin decodes. */
 const SPIDER_BODY_COLOR = 0x3a2f28;
 const SPIDER_EYE_COLOR = 0xdc2626;
@@ -5788,7 +5789,10 @@ export class MobManager {
    */
   spawnAllay(x, y, z, options = {}) {
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshLambertMaterial({ color: ALLAY_COLORS.body });
+    // The real 32x32 allay skin. The model was rebuilt with UVs so the sheet is actually read; before this every
+        // part was a flat colour and the texture was never sampled.
+        const bodyMat = new THREE.MeshLambertMaterial({ color: ALLAY_COLORS.body, transparent: true, alphaTest: 0.5 });
+        adoptTexture(bodyMat, this.loadTexture(ALLAY_SKIN_PATH), ALLAY_COLORS.body);
     const wingMat = new THREE.MeshLambertMaterial({
       color: ALLAY_COLORS.wing, transparent: true, opacity: 0.85
     });

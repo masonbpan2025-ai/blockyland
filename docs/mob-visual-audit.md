@@ -310,3 +310,25 @@ Work list: **92 mob spawners, 42 with a real skin, 50 still flat-colour only.**
 4. Check the parts the animation code reads -- `leg.hip`/`leg.knee`, `wings.left`/`wings.right` -- because a model
    that ignores them renders but does not move.
 5. Verify in the real Inspector, then run the mob parity suites.
+## Round six: allay, and two contracts that disagreed
+
+**Allay.** It was five flat-coloured boxes -- a blue-white body, a head and two wing panels -- none of which sampled
+the skin at all. It now samples its real 32x32 sheet (body 8x8x8, head, wings, trim, arms), so its pale blue-white
+body and darker inner wing come from the texture.
+
+**Two structural faults this surfaced, both worth recording:**
+
+1. **A guard caught a bad box.** The wing is 2 wide but 7 deep, so depth exceeds half its width and vanilla's own
+   layout has no room for its side faces. `createEntityBox` refused it with an explicit message rather than silently
+   mapping a strip of neighbouring art -- which is exactly what that guard is for. Explicit per-face rectangles fix
+   it.
+2. **`poseAllay` and the tests disagreed about the shape of `wings`, and had for a while.** The pose function
+   iterated `mob.wings` as an array of `{ pivot, side }` wrappers; `allayParity.test.js` and `moveFlyingMob` both
+   address `mob.wings.left.rotation.z` directly. Whichever shape the model produced, one of the two broke -- my
+   rebuild produced a third and the pose threw "object is not iterable". Both now use the shape the shared flight
+   helper assumes: an object with `left`/`right`, each a Group with its own `rotation`, plus `length === 2`.
+
+The general lesson, alongside the wings trap from round five: **before rebuilding a mob's model, read what the
+animation and pose code reads.** A model can be geometrically correct and still be wrong.
+
+Work list: **92 mob spawners, 43 with a real skin, 49 still flat-colour only.**

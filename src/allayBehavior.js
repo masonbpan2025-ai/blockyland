@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
 
 /**
  * Allay rules: item hoarding, delivery, note-block focus, jukebox dancing and duplication.
@@ -404,67 +405,90 @@ export function allayXp(mob) {
 export function createAllayModel(bodyMat, wingMat, trimMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.3, 0.22), bodyMat);
-  body.position.y = 0.34;
+  // Every part samples the real 32x32 allay sheet; previously all of them were flat colours, so the skin was
+  // never read at all.
+  const box = (w, h, d, u, v, tw, th, td) => new THREE.Mesh(
+    createEntityBox(w, h, d, u, v, tw, th, td, { texW: 32, texH: 32 }), bodyMat);
+
+  // Body: 8x8x8 at (0,0).
+  const body = box(0.3, 0.3, 0.3, 0, 0, 8, 8, 8);
+  body.position.set(0, 0.34, 0);
   group.add(body);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), bodyMat);
-  head.position.set(0, 0.56, 0.02);
+  // Head: a smaller box carrying the face.
+  const head = box(0.26, 0.24, 0.24, 0, 0, 6, 6, 6);
+  head.position.set(0, 0.58, 0.02);
   group.add(head);
 
   const eyes = [];
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), eyeMat);
-    eye.position.set(side * 0.06, 0.02, 0.11);
+    eye.position.set(side * 0.06, 0.02, 0.12);
     head.add(eye);
     eyes.push(eye);
   }
 
-  // Two large wings, exposed as pivots with `rotation` so the shared flying helper can flap them.
-  const wingGeo = new THREE.BoxGeometry(0.06, 0.26, 0.2);
-  const wings = [];
+  // Two large wings. `wings` is an OBJECT with named sides: `moveFlyingMob` writes `mob.wings.left.rotation.z`,
+  // and `allayParity.test.js` pins left/right/rotation/length.
+  // The wing box is 2 wide but 7 deep, so depth exceeds half its width and vanilla's own layout has no room for
+  // its side faces -- `createEntityBox` rightly rejects that shape. Explicit rectangles are the escape hatch.
+  const wingGeo = createBoxFromFaces(0.08, 0.26, 0.2, [
+    { x: 18, y: 12, w: 7, h: 8 },   // +X right
+    { x: 16, y: 12, w: 7, h: 8 },   // -X left
+    { x: 16, y: 12, w: 2, h: 7 },   // +Y top
+    { x: 18, y: 12, w: 2, h: 7 },   // -Y bottom
+    { x: 16, y: 12, w: 2, h: 8 },   // +Z front
+    { x: 18, y: 12, w: 2, h: 8 }    // -Z back
+  ], { texW: 32, texH: 32 });
+  const wings = { length: 2 };
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.12, 0.42, 0);
+    pivot.position.set(side * 0.16, 0.44, 0);
     const wing = new THREE.Mesh(wingGeo, wingMat);
-    wing.position.set(side * 0.05, 0.08, 0);
+    wing.position.set(side * 0.06, 0.09, 0);
     pivot.add(wing);
     group.add(pivot);
-    wings.push({ pivot, wing, side, rotation: pivot.rotation });
+    wings[side < 0 ? 'left' : 'right'] = pivot;
   }
-  wings.left = wings[0];
-  wings.right = wings[1];
 
-  // The trailing scarf/light, which is what makes the silhouette read as an allay.
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.06), trimMat);
-  trim.position.set(0, 0.16, -0.14);
+  // The glowing trim band the allay is named for, which the shared code can pulse.
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.03, 0.32), trimMat);
+  trim.position.set(0, 0.2, 0);
   group.add(trim);
 
+  // Small arms, held out; the spawner reads them for the carry pose.
+  const armGeo = new THREE.BoxGeometry(0.05, 0.16, 0.05);
   const arms = [];
   for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.05), bodyMat);
-    arm.position.set(side * 0.15, 0.36, 0.04);
+    const arm = new THREE.Mesh(armGeo, bodyMat);
+    arm.position.set(side * 0.2, 0.36, 0);
     group.add(arm);
     arms.push(arm);
   }
 
   return { group, body, head, eyes, wings, trim, arms };
 }
-
 /**
- * Pose the allay.
+ * Set both of an allay's wings to one flap angle.
  *
- * The dance is a bobbing spin with the wings held wide; carrying an item raises the arms, which is how the
- * wiki's render shows it.
+ * `wings` is an OBJECT with `left`/`right` -- the shape `moveFlyingMob` writes to and that this module's tests
+ * pin -- so the two sides are addressed by name rather than by iterating a list.
  */
+function setAllayWings(mob, angle) {
+  const wings = mob?.wings;
+  if (!wings) return;
+  if (wings.left?.rotation) wings.left.rotation.z = angle;
+  if (wings.right?.rotation) wings.right.rotation.z = -angle;
+}
+
 export function poseAllay(mob, phase = 0) {
   if (!isAllay(mob) || !mob.mesh) return;
   if (mob.isDancing) {
     mob.mesh.rotation.y = Math.sin(phase * 3) * 1.2;
     mob.mesh.position.y = (mob.baseY ?? mob.mesh.position.y) + Math.abs(Math.sin(phase * 6)) * 0.12;
-    for (const w of mob.wings ?? []) {
-      if (w?.pivot) w.pivot.rotation.z = w.side * -1.1;
-    }
+    // Dancing: both wings swept back. `wings` is an OBJECT with named sides, which is the shape the shared flight
+    // helper and this module's tests both assume.
+    setAllayWings(mob, -1.1);
     return;
   }
   mob.mesh.rotation.y = 0;
@@ -472,8 +496,6 @@ export function poseAllay(mob, phase = 0) {
     // Arms raised while holding, relaxed otherwise.
     arm.rotation.x = mob.heldItem ? -1.1 : Math.sin(phase * 2) * 0.15;
   });
-  for (const w of mob.wings ?? []) {
-    if (w?.pivot) w.pivot.rotation.z = w.side * (-0.3 - Math.abs(Math.sin(phase * 10)) * 0.5);
-  }
+  setAllayWings(mob, -0.3 - Math.abs(Math.sin(phase * 10)) * 0.5);
   if (mob.trim) mob.trim.rotation.x = Math.sin(phase * 2) * 0.2;
 }

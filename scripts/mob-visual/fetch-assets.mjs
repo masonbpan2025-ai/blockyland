@@ -71,6 +71,7 @@ export const ASSETS = [
   { id: 'mooshroom_skin', path: 'entity/cow/red_mooshroom.png', dest: 'assets/entity/cow/red_mooshroom.png', for: 'mooshroom (red)' },
   { id: 'brown_mooshroom_skin', path: 'entity/cow/brown_mooshroom.png', dest: 'assets/entity/cow/brown_mooshroom.png', for: 'mooshroom (brown)' },
   // The spider: vanilla nests this one a directory deeper than a flat mirror suggests.
+  { id: 'allay_skin', path: 'entity/allay/allay.png', dest: 'assets/entity/allay/allay.png', for: 'allay' },
   { id: 'bee_skin', path: 'entity/bee/bee.png', dest: 'assets/entity/bee/bee.png', for: 'bee' },
   { id: 'spider_skin', path: 'entity/spider/spider.png', dest: 'assets/entity/spider/spider.png', for: 'spider' },
   { id: 'cave_spider_skin', path: 'entity/spider/cave_spider.png', dest: 'assets/entity/spider/cave_spider.png', for: 'cave spider' },
