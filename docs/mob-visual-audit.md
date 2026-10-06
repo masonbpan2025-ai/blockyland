@@ -111,3 +111,22 @@ relative and writes one colour over the model, which has the same flattening def
 `docs/mob-visual-evidence/` holds rendered captures. Each names the mob, the view, and what it demonstrates.
 They were produced by rendering the real `MobManager` in a real browser — not from Node mocks, which cannot see
 texture upload at all.
+
+## What verifying against the live Inspector caught
+
+The first pass was checked in a page that advanced the manager every frame, and both pilots looked right there.
+The real `mob-debug.html` **spawns its mob and then sits paused**, so nothing per-frame runs at all. Anything that
+finished a job "on the next update" therefore never finished it in the Inspector — the snow golem shipped as a
+flat orange box while its own unit tests and a self-written harness both passed.
+
+Three faults hid behind that one difference, and all three are now fixed and tested:
+
+1. Deferred skin binding was driven from `manager.update`, which a paused session never calls.
+2. `loadTexture` passed no `onLoad`, and supplying one *suppresses* three's default listener — so the texture's
+   own `load` event never fired either, and both routes to completion were dead.
+3. The readiness test asked whether an image object **existed** rather than whether it had decoded. Three's loader
+   creates the `<img>` immediately, so that check was true from the start.
+
+The lesson is in the plan and worth repeating: **a capture from a purpose-built harness is not an Inspector
+check.** The Inspector's own spawn-and-pause behaviour is part of the fixture, and a page that ticks is a
+different fixture. Every capture in this directory was taken from the real `mob-debug.html` endpoint.
