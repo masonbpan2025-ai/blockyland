@@ -9103,7 +9103,16 @@ export class MobManager {
     // `createTropicalFishModel` was built for FLAT COLOURS, and its boxes do not match vanilla's small-fish layout
     // (body 2x3x6 with tail and fin PLANES at negative coordinates). Handing it vanilla's rectangles samples the wrong
     // regions and the fish falls apart. The geometry has to come from `class_612` FIRST; see the audit, round eighty-four.
-    const bodyMat = new THREE.MeshLambertMaterial({ color: options.baseHex ?? colors.body });
+    // The REAL sheet for this variant, with the geometry carrying vanilla's layout from applyVanillaBoxUVs.
+    const fishSheet = this.loadTexture(TROPICAL_FISH_SHEET_FOR(variant));
+    if (fishSheet) { fishSheet.magFilter = THREE.NearestFilter; fishSheet.minFilter = THREE.NearestFilter; fishSheet.needsUpdate = true; }
+    const fishMat = (fallback) => {
+      if (!fishSheet) return fallback;
+      const m = new THREE.MeshLambertMaterial({ map: fishSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(m, fishSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return m;
+    };
+    const bodyMat = fishMat(new THREE.MeshLambertMaterial({ color: options.baseHex ?? colors.body }));
     const finMat = new THREE.MeshLambertMaterial({ color: options.finHex ?? colors.fin });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group: model, body, tail, fins, dorsal, eyes } =

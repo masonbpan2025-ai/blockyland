@@ -2978,3 +2978,38 @@ vanilla puts the small fish's tail and dorsal planes at `(22, -6)` and `(10, -5)
 `AREA` is at exactly **1766/1773**; the helper is not yet called by any model.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round eighty-six: the fish sheet was an unconverted PALETTE file, and a second fault behind it
+
+**Applying the layout helper still rendered a white fish, and the state check said the map was bound. So I measured the
+asset instead of the code -- and found the sheet had never been converted.**
+
+```
+tropical_a_pattern_1.png   146 bytes   IHDR 32x32  depth 2  colourType 3
+cod.png                    (converted)              depth 4  colourType 3
+```
+
+**Colour type 3 is a PALETTE PNG, and this project converts those to RGBA (type 6) before they are used as textures --
+`scripts/mob-visual/to-rgba.mjs` exists for exactly that and is documented as required.** The 14 tropical sheets had been
+extracted in an earlier round **and never converted**, so every one of them was still palette. Converted now; all 14 report
+colour type 6.
+
+**AND THE RENDER IS STILL WHITE, which means there is a SECOND fault behind the first.** I am recording that plainly rather
+than claiming the conversion fixed it: the body and fins render white and only the eyes (a different, flat material) read
+dark. The remaining candidates, in the order I would test them:
+
+1. **the sheet is genuinely sparse** -- 146-206 bytes at 2-bit depth means about four palette entries, so the body region at
+   `(0,0)-(8,9)` may simply BE white, and my rectangle may be sampling the wrong part of a mostly-empty atlas;
+2. **the alpha test** -- `alphaTest: 0.5` discards fragments below that alpha, and if the converted sheet's body region is
+   mostly transparent the survivors are the few opaque pixels, which is what the earlier fragmented render looked like;
+3. **the layout anchor** -- vanilla's small fish may not be at `(0, 0)` for the BODY the way I read it, since the decompile
+   showed several parts sharing that anchor.
+
+**Two reusable pieces are in place and neither is in doubt:** `TROPICAL_FISH_SHEET_FOR` (14/14 paths verified) and
+`applyVanillaBoxUVs` (face order verified against live three.js). `AREA` is at exactly **1766/1773**.
+
+**The lesson, and it is the round-eighty-three one one level deeper.** I verified the PATH resolves and stopped there.
+**Resolving is not the same as being usable** -- a palette PNG resolves, loads, and draws the wrong colours, and a texture
+that is 90% transparent resolves and draws almost nothing. The filesystem check needs a companion: **confirm the asset is
+the FORMAT the consumer needs, not merely that it exists.**
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**

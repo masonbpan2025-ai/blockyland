@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 
 /**
  * Pufferfish and tropical fish rules.
@@ -425,10 +426,18 @@ export function posePufferfish(mob, phase = 0) {
 export function createTropicalFishModel(bodyMat, finMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.3, 0.4), bodyMat);
+  // Vanilla's body rectangle: 2x3x6 at (0, 0) on the 32x32 sheet. The box KEEPS its own 0.16 x 0.3 x 0.4 -- the helper
+  // maps the layout onto whatever size it is given. // TROPICAL_FISH_BOUND
+  const bodyGeo = new THREE.BoxGeometry(0.16, 0.3, 0.4);
+  applyVanillaBoxUVs(bodyGeo, 0, 0, 32, 32, 2, 3, 6);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   group.add(body);
 
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.16), finMat);
+  // Vanilla's tail plane: 0x3x6 at (22, -6) -- a PLANE with no width, placed at a NEGATIVE v, which
+  // applyVanillaBoxUVs supports.
+  const tailGeo = new THREE.BoxGeometry(0.04, 0.22, 0.16);
+  applyVanillaBoxUVs(tailGeo, 22, -6, 32, 32, 0, 3, 6);
+  const tail = new THREE.Mesh(tailGeo, finMat);
   tail.position.set(0, 0, -0.26);
   group.add(tail);
 
@@ -440,7 +449,10 @@ export function createTropicalFishModel(bodyMat, finMat, eyeMat) {
     fins.push(fin);
   }
   // The dorsal fin, which is what the "large" shapes exaggerate.
-  const dorsal = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.24), finMat);
+  // Vanilla's dorsal plane: 0x3x6 at (10, -5), also at a negative v.
+  const dorsalGeo = new THREE.BoxGeometry(0.04, 0.14, 0.24);
+  applyVanillaBoxUVs(dorsalGeo, 10, -5, 32, 32, 0, 3, 6);
+  const dorsal = new THREE.Mesh(dorsalGeo, finMat);
   dorsal.position.set(0, 0.2, 0);
   group.add(dorsal);
   fins.push(dorsal);
