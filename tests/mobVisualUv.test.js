@@ -11,7 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { MobManager, createTexturedBox } from '../src/mobs.js';
+import { MobManager, createTexturedBox, adoptTexture, syncDeferredSkins } from '../src/mobs.js';
 import { createSnowGolemModel, SNOW_GOLEM_UV, SNOW_GOLEM_COLORS } from '../src/snowGolemBehavior.js';
 
 /** A manager with a permissive texture table; page-load asset timing is a separate suite's concern. */
@@ -208,4 +208,79 @@ test('the pumpkin material is not the golem face colour', () => {
   assert.ok(r > 150 && r > b, `the pumpkin rind is a warm orange, got ${r},${g},${b}`);
   const faceColour = SNOW_GOLEM_COLORS.face;
   assert.ok(((faceColour >> 16) & 255) < 60, 'the modelled face colour is dark');
+});
+
+test('a skin that arrives late still binds, even though the mob never ticks', () => {
+  // The Inspector builds its mob and then sits PAUSED, so nothing per-frame can be relied on. This is the case
+  // that shipped broken twice: the pumpkin stayed a flat orange box in the Inspector while looking correct
+  // anywhere that happened to tick. `adoptTexture` must therefore finish via the loader's readiness hook.
+  //
+  // `loadTexture` bails out when there is no `document`, so stand up the minimum to reach the real code path.
+  const hadDocument = 'document' in globalThis;
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({ getContext: () => null, toDataURL: () => '' }),
+    createElementNS: () => ({ style: {} })
+  };
+
+  try {
+    const mgr = managerFixture();
+    const pending = [];
+    // Model three's loader: it hands back a texture whose image is an `<img>` that has not decoded yet (`width` 0).
+    mgr.textureLoader = {
+      load: (_path, onLoad) => {
+        pending.push(onLoad);
+        const tex = new THREE.Texture();
+        tex.image = { addEventListener() {}, width: 0 };
+        return tex;
+      }
+    };
+    const texture = mgr.loadTexture('/assets/block/carved_pumpkin.png');
+    assert.equal(texture.assetPath, '/assets/block/carved_pumpkin.png');
+    assert.ok(!texture.image.width, 'the texture starts with an image that has not decoded, as on page load');
+
+    const material = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.pumpkin });
+    adoptTexture(material, texture, SNOW_GOLEM_COLORS.pumpkin);
+    assert.ok(!material.map, 'and the material keeps its flat colour rather than rendering black');
+    assert.equal(material.color.getHex(), SNOW_GOLEM_COLORS.pumpkin, 'the fallback colour is the rind');
+
+    // The image arrives. Nothing has ticked in between.
+    assert.ok(pending.length > 0, 'the loader was given a readiness callback');
+    texture.image = { addEventListener() {}, width: 16, height: 16 };
+    for (const onLoad of pending) if (onLoad) onLoad();
+
+    assert.equal(material.map, texture, 'the material picks up the real texture');
+    assert.equal(material.color.getHex(), 0xffffff, 'and stops tinting it');
+  } finally {
+    if (hadDocument) globalThis.document = previousDocument;
+    else delete globalThis.document;
+  }
+});
+
+test('the per-frame poll is a working fallback when the readiness hook is not called', () => {
+  // Belt and braces: some browser or loader path might not invoke the readiness callback, so `syncDeferredSkins`
+  // must be able to finish the binding on its own. The texture's image is an `<img>` that has not decoded.
+  const texture = new THREE.Texture();
+  texture.assetPath = '/assets/entity/snow_golem.png';
+  texture.image = { addEventListener() {}, width: 0 };
+  const material = new THREE.MeshLambertMaterial({ color: SNOW_GOLEM_COLORS.snow });
+  adoptTexture(material, texture, SNOW_GOLEM_COLORS.snow);
+  assert.ok(!material.map, 'nothing is bound while the bitmap is still missing');
+
+  syncDeferredSkins();
+  assert.ok(!material.map, 'and the poll does nothing while it is still missing');
+
+  texture.image = { addEventListener() {}, width: 64, height: 64 };
+  syncDeferredSkins();
+  assert.equal(material.map, texture, 'the poll finishes the job once the bitmap exists');
+});
+
+test('a material already bound to its texture is left alone', () => {
+  // Re-binding on every spawn must be idempotent, or the flat fallback would overwrite a working skin.
+  const texture = new THREE.Texture();
+  texture.assetPath = '/assets/entity/snow_golem.png';
+  texture.image = { width: 64, height: 64 };
+  const material = new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff });
+  adoptTexture(material, texture, 0x123456);
+  assert.equal(material.color.getHex(), 0xffffff, 'the working texture keeps its material white');
 });

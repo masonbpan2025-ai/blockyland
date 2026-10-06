@@ -209,41 +209,68 @@ function isLlamaLike(mob) {
  * load is built before its image exists. Assigning `map` up front is not enough: three renders a mapped material
  * whose image is still missing as BLACK, which looks exactly like a broken model. So the flat `fallbackColor` is
  * kept until the bitmap actually arrives, and the map is adopted at that moment.
+ *
+ * The adoption must NOT depend on the mob ticking. The Mob Inspector spawns its mob and then sits PAUSED, so a
+ * "finish this on the next update" approach never runs there -- which is exactly how the snow golem stayed a flat
+ * orange box in the Inspector while looking right in a page that did tick.
+ *
+ * The rule is simply "is there a real bitmap behind this texture". A loaded texture has an image with a
+ * non-zero width; one that is still in flight has no image, or an `<img>` that has not decoded yet. Only the
+ * second case needs the flat colour and a deferred binding, and it is the only case where binding now would draw
+ * black.
  */
-function adoptTexture(material, texture, fallbackColor = 0xffffff) {
-  if (!material || !texture?.assetPath || material.map === texture) return material;
-  if (texture.image) {
+export function adoptTexture(material, texture, fallbackColor = 0xffffff) {
+  // Any real texture will do. An earlier guard required `assetPath`, which is only set by `loadTexture`, so a
+  // generated or hand-built texture was silently ignored and its material left without a map.
+  if (!material || texture?.isTexture !== true || material.map === texture) return material;
+  const adopt = () => {
+    if (material.map === texture) return;
     material.map = texture;
     material.color.setHex(0xffffff);
     material.needsUpdate = true;
-  } else {
-    // Keep the flat colour until the bitmap is really there, and record the binding so `syncDeferredSkins` can
-    // finish the job on a later frame.
-    material.color.setHex(fallbackColor);
-    deferredSkins.push({ material, texture });
+  };
+  // Is there a live `<img>` that is merely still decoding?
+  //
+  // Only that case needs the flat colour and a deferred binding: binding now would draw BLACK. Everything else --
+  // a texture that already has its bitmap, and a texture with no image at all (a headless build, where there is
+  // no renderer to draw black either) -- can be bound straight away. Treating "no image" as "waiting" was wrong
+  // and left mobs looking unskinned in any non-browser build.
+  const imageInFlight = Boolean(texture.image)
+    && typeof texture.image.addEventListener === 'function'
+    && !texture.image.width;
+  if (!imageInFlight) {
+    adopt();
+    return material;
   }
+  // Keep the flat colour until the bitmap is really there.
+  material.color.setHex(fallbackColor);
+  // Bind as soon as the bitmap exists, by as many routes as are available, because none of them may be relied on
+  // alone: the loader's readiness hook (what actually fires in the browser), the image's own event, and a
+  // per-frame poll from `update` for a browser that fires neither.
+  MobManager.onTextureReady(texture, adopt);
+  try { texture.image?.addEventListener?.('load', adopt); } catch { /* not an event target */ }
+  deferredSkins.push({ material, texture, adopt });
   return material;
 }
 
 /**
  * Bindings waiting for their bitmap.
  *
- * The texture's `load` event was not reliable here -- a material created during page load kept its flat colour
- * for the life of the page even though the image arrived moments later, which is why the golem's pumpkin stayed
- * a black box. Polling from the manager's update is boring and always works, and the list empties itself as soon
- * as everything has decoded, so the steady-state cost is one `length` check per frame.
+ * The image listener above is the primary mechanism, because it works even when the mob never ticks. This list is
+ * the safety net for a browser that fires neither event, and it empties itself as soon as everything has decoded,
+ * so the steady-state cost is one `length` check per frame.
  */
 const deferredSkins = [];
 
-/** Finish any skin bindings whose texture has now decoded. Called once per frame from `update`. */
-function syncDeferredSkins() {
+/** Finish any skin binding whose texture has now decoded. Called once per frame from `update`. */
+export function syncDeferredSkins() {
   if (deferredSkins.length === 0) return;
   for (let i = deferredSkins.length - 1; i >= 0; i--) {
     const binding = deferredSkins[i];
-    if (!binding.texture.image) continue;
-    binding.material.map = binding.texture;
-    binding.material.color.setHex(0xffffff);
-    binding.material.needsUpdate = true;
+    // Readiness is a non-zero width, not the presence of an image object: three's loader creates the `<img>`
+    // immediately, so an object that merely exists is still undecoded.
+    if (!binding.texture.image?.width) continue;
+    binding.adopt();
     deferredSkins.splice(i, 1);
   }
 }
@@ -2813,7 +2840,19 @@ export class MobManager {
    */
   loadTexture(path, fallback = null) {
     if (typeof document === 'undefined') return fallback ? fallback() : new THREE.Texture();
-    const tex = this.textureLoader.load(path, undefined, undefined, () => {
+    const tex = this.textureLoader.load(path, () => {
+      // The bitmap is really here. Anything waiting on this texture -- a material that had to keep its flat
+      // colour in the meantime -- can now bind for real.
+      //
+      // This callback is the reliable hook, and it is why `loadTexture` passes one at all: supplying an explicit
+      // onLoad SUPPRESSES three's default listener, so relying on the texture's own 'load' event never fires.
+      // That is what left the Inspector's snow golem as a flat orange box.
+      const waiting = tex.__onReady ?? [];
+      tex.__onReady = [];
+      for (const fn of waiting) {
+        try { fn(); } catch { /* one failed listener must not stop the others */ }
+      }
+    }, undefined, () => {
       // The asset is missing. Swap in the generated stand-in on the same texture object, so anything already
       // holding a reference (a mob's material) picks it up without a re-assignment.
       if (!fallback) return;
@@ -2824,12 +2863,32 @@ export class MobManager {
           tex.needsUpdate = true;
         }
       } catch { /* a failed fallback must not break spawning */ }
+      // A generated substitute is just as much "ready" as a downloaded file.
+      const waiting = tex.__onReady ?? [];
+      tex.__onReady = [];
+      for (const fn of waiting) {
+        try { fn(); } catch { /* ignore */ }
+      }
     });
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.assetPath = path;
     return tex;
+  }
+
+  /**
+   * Run `fn` once a texture's bitmap is available: now if it already is, otherwise as soon as it is.
+   *
+   * Needed because the Mob Inspector builds its mob and then sits paused, so nothing per-frame can be relied on.
+   */
+  static onTextureReady(texture, fn) {
+    if (!texture) return;
+    if (texture.image?.width) {
+      fn();
+      return;
+    }
+    (texture.__onReady ??= []).push(fn);
   }
 
   /**
@@ -3458,7 +3517,12 @@ export class MobManager {
     // at construction and arrives asynchronously, so an image-presence check would be a race.
     const hasOriginalSkin = options.variant === 'husk' && this.textures.husk?.assetPath === HUSK_SKIN_PATH;
     const baseTex = options.variant === 'husk' ? (this.textures.husk ?? this.textures.zombie) : this.textures.zombie;
-    const mat = new THREE.MeshLambertMaterial({ map: baseTex });
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    // Bind through `adoptTexture` rather than handing the texture to the constructor. A mapped material whose
+    // bitmap has not decoded yet renders as BLACK, and the Inspector builds its mob while paused -- so a session
+    // that spawns a husk was one slow request away from a black figure, the exact symptom reported. This keeps the
+    // zombie's own white until the husk's skin is really there, and works whether or not the mob ever ticks.
+    adoptTexture(mat, baseTex, 0xffffff);
     // A derived skin is a PLACEHOLDER object that fills ITSELF in when the base PNG decodes, so the material
     // needs no swap: it holds the same texture object for the mob's whole life.
 
