@@ -2511,3 +2511,42 @@ real body and limb rectangles, and check whether `createGiantModel`'s boxes matc
 is the check the horse passed and the strider failed.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-four: a proportional-fit checker, and it overturns my own diagnosis
+
+**I built the check I named last round, and it immediately contradicted the conclusion I drew from it.**
+
+`scripts/mob-visual/check-proportional-fit.mjs` reads a model module's `BoxGeometry` calls, normalises each box to its own
+largest side, and reports the ratios -- so a model can be compared against vanilla's before a sheet is bound to it. The rule
+it encodes came from round sixty-one by accident: **the horse worked because its boxes are the same SHAPES as vanilla's at a
+smaller scale; the strider failed because its body was a 1x1x1 box against 16x14x16.** Compare the RATIOS, not the sizes.
+
+Run against the giant:
+
+```
+[0.5,  0.75, 0.25]  ->  [0.667, 1, 0.333]   <- the body
+[0.5,  0.5,  0.5 ]  ->  [1, 1, 1]           <- the head
+[0.1,  0.1,  0.03]  ->  [1, 1, 0.3]
+[0.25, 0.75, 0.25]  ->  [0.333, 1, 0.333]   <- the legs, twice
+```
+
+**The body's ratio is 0.667 : 1 : 0.333, which is EXACTLY the player rectangle's 8 : 12 : 4, and the head is a perfect
+cube.** So the giant's proportions match the rectangles I applied -- and **my round-seventy-three diagnosis was wrong.**
+I wrote that "binding a sheet to a model built for flat colours" was the fault, citing the horse-versus-strider
+distinction. That distinction does not apply here: the boxes are the right shapes.
+
+**What actually broke is therefore something else**, and the honest statement is that I do not yet know what. The candidates,
+in the order I would test them: the `giantMat` helper receiving a material whose `.map` I then overwrote; a `skull`-style
+part that shares one material across six faces where the model expects per-face colours; or the `eyes`/`arms`/`legs` arrays
+being reused after the boxes changed.
+
+**The value of this round is that a cheap measurement stopped me from repeating a wrong reason.** I had already written the
+horse-versus-strider explanation into the audit as though it were established. **A diagnosis that has not been tested
+against a measurement is a hypothesis, and this is the third time in ten rounds that mine has been wrong in exactly that
+way** -- rounds 63, 67 and now 74, each time a confident generalisation falsified by the next tool run.
+
+**A second, smaller finding:** `decompile-model.mjs GiantEntityModel` reports `classes: GiantEntityModel (class_3969.class)`
+and scans the class, but **no `class_3969.java` appears in the decompiled directory**, so the model text is not available to
+read. That is why the checker's vanilla side could not run, and it is a fault in the decompile script rather than in the
+checker.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
