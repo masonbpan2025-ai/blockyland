@@ -3268,3 +3268,44 @@ any pipeline work at all, and it is the same mistake as the giant's six rounds i
 `AREA` is at exactly **1766/1773**, and `src/` is byte-identical to its committed state.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round ninety-two: all 14 tropical sheets are stubs, and the asset check is now a tool
+
+**I made round ninety-one's lesson mechanical, and then it found more than expected.**
+
+`scripts/mob-visual/check-asset-content.mjs` reads PNG chunks directly -- so it works on a palette file **without converting
+it first**, which is the whole point, since converting is what hid this for two rounds. Over the whole asset tree:
+
+```
+scanning 127 PNG(s) under public/assets/entity
+SUSPECT assets (1):
+  fish/tropical_a_pattern_1.png   4-entry palette with ZERO coloured entries (all grey/white)
+```
+
+**Then I ran the same question across all 14 tropical sheets, and the answer is total:**
+
+```
+tropical_a.png               86 opaque, 0 coloured   <-- STUB
+tropical_a_pattern_1..6      41-51 opaque, 0 coloured  <-- STUB
+tropical_b.png              138 opaque, 0 coloured   <-- STUB
+tropical_b_pattern_1..6      53-85 opaque, 0 coloured  <-- STUB
+=> 14 stub(s), 0 with real colour
+```
+
+**NOT ONE tropical sheet in this client contains a single coloured pixel.** So the limitation recorded in round ninety-one is
+now established across the whole family rather than inferred from one file, and it is **not** a per-file accident.
+
+**And the tool has a blind spot I found by using it, which is worth recording rather than hiding:** it flagged only ONE of
+the 14, because the other 13 had already been converted to RGBA (colour type 6) in round eighty-six, and the check keys on the
+palette. **A converted stub reads as a normal file.** That is exactly the trap the tool exists to prevent, one level down --
+so the honest description is that it catches *unconverted* stubs and passed 13 *converted* ones. **Fixing it means counting
+COLOURED PIXELS for type-6 files too, which the ad-hoc scan above does** and the tool does not yet.
+
+**The wider consequence, which matters for the remaining work:** 75 mobs are recorded as "confirmed with a real sheet" on the
+strength of a **path resolving**, and rounds 83-91 showed that resolving is not the same as containing anything. **I am not
+claiming any of those 75 are wrong** -- the ones checked in this project's renders have all drawn correctly. **But the ledger's
+basis is weaker than its confidence**, and running the content check across those 75 is the obvious next verification.
+
+`AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
+
+Work list: **97 spawners, 75 confirmed with a real sheet (basis: a resolving path, now known to be insufficient), 17 mobs still
+without a model or skin.**
