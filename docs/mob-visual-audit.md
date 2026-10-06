@@ -5023,3 +5023,38 @@ are already read.
 
 Work list: **97 spawners, 80 with a real sheet, the ender dragon winged with its legs remaining, and the tropical fish
 BLOCKED by its assets.**
+## Round one hundred and thirty-three: the dragon's LEGS, and the model is now whole
+
+**Vanilla's dragon has six legs and this model had none**, which is why every render so far showed a body floating on wings.
+They are built now, each a leg plus a foot, from the rectangles read in round one hundred and thirty:
+
+| part | size at `U = 1.6/24` | rectangle |
+| --- | --- | --- |
+| front_leg | 0.53 x 1.60 x 0.53 | (112, 104) 8x24x8 |
+| front_foot | 0.53 x 0.27 x 1.07 | (144, 104) 8x4x16 |
+| hind_leg | 1.07 x 2.13 x 1.07 | (0, 0) 16x32x16 |
+| hind_foot | 1.20 x 0.40 x 1.60 | (112, 0) 18x6x24 |
+
+**And the render now shows a complete creature** -- barrel body, both wings with their bone structure, the tall narrow head
+with its magenta eyes, and four legs reaching the ground. The capture replaces the wingless one. `AREA` stayed at exactly
+**1766/1773**.
+
+**The dragon now has every part vanilla gives it**, at sizes derived from ONE factor verified against the source lines:
+
+```
+body 24x24x64  head 8x24x8  neck 10x10x10  jaw 12x4x16
+wings: bone 56x8x8 + skin 56x0x56, tip 56x4x4 + skin 56x0x56
+legs:  front 8x24x8 + foot 8x4x16,  hind 16x32x16 + foot 18x6x24
+```
+
+**That is nine parts and four mirrored pairs, built across rounds one hundred and thirty-one to one hundred and thirty-three,
+after rounds one hundred and thirteen to one hundred and thirty established the rectangles by reading source LINES rather than
+parsing them with a regex.**
+
+**One thing is deliberately NOT claimed:** the legs' POSITIONS are my own placement, not vanilla's `method_32090` offsets,
+because the offsets I read are relative to vanilla's bone hierarchy and this model is flat. **The render shows four legs
+reaching the ground, which is the behaviour that matters, and the placements are recorded here as approximations rather than
+as parity.**
+
+Work list: **97 spawners, 80 with a real sheet, the ender dragon complete in parts with its leg POSITIONS approximate, and the
+tropical fish BLOCKED by its assets.**

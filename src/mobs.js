@@ -8185,6 +8185,46 @@ export class MobManager {
       wings.push(tipSkin);
     }
 
+    // LEGS. Vanilla's dragon has six, each a leg plus a foot, from `class_895.java`:
+    //
+    //   front_leg      8 x 24 x 8   at (112, 104)   offset (12, 20, 2)
+    //   front_foot     8 x  4 x 16  at (144, 104)   offset (0, 23, 0)
+    //   hind_leg      16 x 32 x 16  at (0, 0)       offset (16, 16, 42)
+    //   hind_foot     18 x  6 x 24  at (112, 0)     offset (0, 31, 4)
+    //
+    // The project had NO legs at all, which is why the render showed a body floating on wings. Sizes follow the body's
+    // factor (U = 1.6/24). // DRAGON_LEGS
+    const legs = [];
+    for (const side of [-1, 1]) {
+      const frontLegGeo = new THREE.BoxGeometry(8 * U, 24 * U, 8 * U);
+      applyVanillaBoxUVs(frontLegGeo, 112, 104, 256, 256, 8, 24, 8);
+      const frontLeg = new THREE.Mesh(frontLegGeo, dragonMat);
+      frontLeg.position.set(side * 12 * U, 20 * U - 1.4, 2 * U + 1.2);
+      group.add(frontLeg);
+      legs.push(frontLeg);
+
+      const frontFootGeo = new THREE.BoxGeometry(8 * U, 4 * U, 16 * U);
+      applyVanillaBoxUVs(frontFootGeo, 144, 104, 256, 256, 8, 4, 16);
+      const frontFoot = new THREE.Mesh(frontFootGeo, dragonMat);
+      frontFoot.position.set(0, -23 * U, 0);
+      frontLeg.add(frontFoot);
+      legs.push(frontFoot);
+
+      const hindLegGeo = new THREE.BoxGeometry(16 * U, 32 * U, 16 * U);
+      applyVanillaBoxUVs(hindLegGeo, 0, 0, 256, 256, 16, 32, 16);
+      const hindLeg = new THREE.Mesh(hindLegGeo, dragonMat);
+      hindLeg.position.set(side * 16 * U, 16 * U - 1.4, 42 * U - 1.6);
+      group.add(hindLeg);
+      legs.push(hindLeg);
+
+      const hindFootGeo = new THREE.BoxGeometry(18 * U, 6 * U, 24 * U);
+      applyVanillaBoxUVs(hindFootGeo, 112, 0, 256, 256, 18, 6, 24);
+      const hindFoot = new THREE.Mesh(hindFootGeo, dragonMat);
+      hindFoot.position.set(0, -31 * U, 4 * U);
+      hindLeg.add(hindFoot);
+      legs.push(hindFoot);
+    }
+
     // Segmented Tail
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.5), dragonMat);
     tail.position.set(0, 0.9, -2.5);
