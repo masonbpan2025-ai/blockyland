@@ -9106,14 +9106,19 @@ export class MobManager {
     // The REAL sheet for this variant, with the geometry carrying vanilla's layout from applyVanillaBoxUVs.
     const fishSheet = this.loadTexture(TROPICAL_FISH_SHEET_FOR(variant));
     if (fishSheet) { fishSheet.magFilter = THREE.NearestFilter; fishSheet.minFilter = THREE.NearestFilter; fishSheet.needsUpdate = true; }
-    const fishMat = (fallback) => {
-      if (!fishSheet) return fallback;
-      const m = new THREE.MeshLambertMaterial({ map: fishSheet, transparent: true, alphaTest: 0.5 });
-      adoptWhenReady(m, fishSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+    // The sheet is a GREYSCALE MASK with no colour in it -- measured in round eighty-eight, where every opaque pixel came
+    // back 170-238 grey. Vanilla tints it with the variant colour at runtime, and `MeshLambertMaterial` multiplies
+    // `color` by `map`, so the variant colour must be KEPT ON the material. Setting `map` and leaving `color` at its
+    // default white is exactly why the fish rendered white with a correct sheet bound.
+    const fishMat = (tint) => {
+      if (!fishSheet) return new THREE.MeshLambertMaterial({ color: tint });
+      const m = new THREE.MeshLambertMaterial({ color: tint, map: fishSheet, transparent: true, alphaTest: 0.5 });
+      adoptWhenReady(m, fishSheet, tint, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
       return m;
     };
-    const bodyMat = fishMat(new THREE.MeshLambertMaterial({ color: options.baseHex ?? colors.body }));
-    const finMat = new THREE.MeshLambertMaterial({ color: options.finHex ?? colors.fin });
+    const bodyMat = fishMat(options.baseHex ?? colors.body);
+    // The fins take the mask too: vanilla draws them from the same grey atlas.
+    const finMat = fishMat(options.finHex ?? colors.fin);
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group: model, body, tail, fins, dorsal, eyes } =
       createTropicalFishModel(bodyMat, finMat, eyeMat);

@@ -3182,3 +3182,42 @@ it**, and that is what the next attempt must be careful about rather than the fi
 `AREA` is at exactly **1766/1773**; `src/` carries no change from this round.
 
 Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
+## Round ninety: the mask is bound and tinted, and two new faults are visible
+
+**The one-line fix from round eighty-eight worked as specified, and the result is measurably different from every previous
+attempt.**
+
+State read-back:
+
+```
+materials 7   with a map: 5   tint colours: f28c28, ffffff
+tints are not white: true
+```
+
+**The body and fins now carry `f28c28` -- the variant's own colour -- where the previous attempt read back `ffffff`.** That is
+the specific fault round eighty-eight named, and it is fixed: `map` is bound AND `color` carries the variant tint rather than
+white.
+
+**And the render shows two NEW faults, which is progress rather than success.** The body is now a large ORANGE slab, the
+correct colour and the wrong shape; the fins are scattered fragments around it; the eyes read correctly.
+
+**Fault one: the rectangles are wrong for this geometry.** `createTropicalFishModel`'s body is `0.16 x 0.3 x 0.4`, and
+`applyVanillaBoxUVs` was given vanilla's `2 x 3 x 6`. **My round-eighty-five helper applies the LAYOUT correctly but maps it
+onto the whole face whatever the size -- that part is right -- so the oversized appearance must come from the RECTANGLE
+anchors rather than the sizes.** The body reads as a flat orange slab rather than a fish body, which is what sampling one
+uniform region of a mostly-transparent mask looks like.
+
+**Fault two: `alphaTest: 0.5` against a mask that is 91% transparent.** The mask has 938 transparent pixels of 1024, so the
+alpha test discards almost everything and the surviving fragments are the sparse opaque pixels -- exactly the scattered
+appearance. **For a tinted mask the alpha test should not be doing this**, and the fish probably wants no `alphaTest` at all,
+or a much lower one.
+
+**Both are now specific and testable rather than vague**, which is the state the last five rounds were trying to reach. The
+authoritative next step is the one round eighty-eight identified and eighty-nine repeated: **read the anchors out of
+`class_612` again and check them against what `applyVanillaBoxUVs` receives**, because the helper is verified and the model can
+no longer be blamed for the layout.
+
+`AREA` stayed at exactly **1766/1773**, and the capture is kept as
+`docs/mob-visual-evidence/tropical-fish-mask-tinted-attempt.png`.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
