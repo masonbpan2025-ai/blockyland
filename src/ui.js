@@ -718,7 +718,10 @@ export class UIManager {
     document.getElementById('dbg-pos').textContent = `XYZ: ${pos.x.toFixed(2)} / ${pos.y.toFixed(2)} / ${pos.z.toFixed(2)}`;
     document.getElementById('dbg-block').textContent = `Block: ${Math.floor(pos.x)} ${Math.floor(pos.y)} ${Math.floor(pos.z)}`;
     // The block the crosshair is on, by name, which is what the mouse is hovering while locked.
-    document.getElementById('dbg-target').textContent = targetedBlockLabel(this.game?.targetBlock);
+    // Optional-chained on purpose: a tab still holding an older index.html has no #dbg-target, and a
+    // missing line must not take the rest of the debug screen down with it.
+    const targetLine = document.getElementById('dbg-target');
+    if (targetLine) targetLine.textContent = targetedBlockLabel(this.game?.targetBlock);
 
     const cx = Math.floor(pos.x / 16);
     const cz = Math.floor(pos.z / 16);

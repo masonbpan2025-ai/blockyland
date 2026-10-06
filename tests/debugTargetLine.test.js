@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { targetedBlockLabel } from '../src/ui.js';
 import { BLOCKS, BLOCK_DEFS } from '../src/blocks.js';
 
@@ -28,4 +30,14 @@ test('an unknown id still reports something usable rather than undefined', () =>
 test('nothing targeted reads as a dash, not as a crash', () => {
   assert.equal(targetedBlockLabel(null), 'Targeted: -');
   assert.equal(targetedBlockLabel(undefined), 'Targeted: -');
+});
+
+test('the line cannot take the debug screen down when the markup is older than the code', () => {
+  // A tab still running an index.html from before this line existed has no #dbg-target. Writing to it
+  // unguarded threw inside updateDebug every frame, which cost the whole debug screen (fps, XYZ, block
+  // and all), so the write is guarded and stays that way.
+  const ui = fs.readFileSync(path.join(process.cwd(), 'src/ui.js'), 'utf8');
+  assert.match(ui, /const targetLine = document\.getElementById\('dbg-target'\);/, 'the element is looked up once');
+  assert.match(ui, /if \(targetLine\) targetLine\.textContent/, 'and written only when it exists');
+  assert.ok(!/document\.getElementById\('dbg-target'\)\.textContent/.test(ui), 'never written unguarded');
 });
