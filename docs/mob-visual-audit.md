@@ -4189,3 +4189,70 @@ real; and the atlas key and path constant still need adding.
 
 Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs lacking one -- both now known to need geometry rebuilds
 (the sniffer and the ender dragon), plus the tropical fish which is blocked by its assets.**
+## Round one hundred and thirteen: the ender dragon, ruled a REBUILD in one round
+
+**Same procedure as the sniffer, same three-command verdict, and two new facts found on the way.**
+
+**Prerequisites:**
+
+```
+dragon.png on disk                   NO -- it had never been extracted at all
+atlas key                            absent
+DRAGON_SKIN_PATH                     not declared
+in DEBUG_MOBS                        yes, so Inspector captures of it are trustworthy
+```
+
+**The sheet is now extracted and it is real:** `256x256`, **39 palette entries**, and the content check reports zero
+zero-colour assets under `entity/enderdragon/`. `dragon_eyes.png` (180 bytes) is also present for the glowing-eye layer.
+
+**The model is `EnderDragonEntityRenderer$DragonEntityModel`** (intermediary `class_895$class_625`) -- a **nested renderer
+class**, which is why it took a direct decompile rather than the usual name. It has **TWENTY named parts in a real hierarchy**,
+not a flat list:
+
+```
+head -> jaw
+neck
+body
+left_wing -> left_wing_tip          right_wing -> right_wing_tip
+left_front_leg -> left_front_leg_tip -> left_front_foot     (and the right)
+left_hind_leg  -> left_hind_leg_tip  -> left_hind_foot      (and the right)
+```
+
+**And the project's model is EIGHT meshes:**
+
+```
+1.6 x 1.2 x 3.2    body
+0.7 x 0.7 x 1.4    neck
+0.9 x 0.8 x 1.1    head
+0.15 x 0.15 x 0.15  eye (x2)
+2.8 x 0.08 x 1.6   wing (x2)   <- PLANES, 0.08 thick
+0.6 x 0.6 x 2.5    tail
+```
+
+**So the dragon is a flat-colour assembly as well, and the mismatch is structural rather than numeric:** vanilla's wings are
+two SEGMENTS each with a distinct rectangle and articulation, while the project's are two flat planes; vanilla has six
+articulated legs in three segments each, and the project has none visible in the first twelve meshes; vanilla's head carries
+a separate jaw and the project's does not.
+
+**VERDICT: REBUILD from `class_895$class_625`.** The twenty part names and their hierarchy above are the skeleton to build
+against, and the sheet is real and extracted.
+
+**Both remaining substantive mobs are now correctly classified WITHOUT a failed binding round:**
+`sniffer` (round one hundred and twelve) and `ender_dragon` (this round). **The procedure from round one hundred has now paid
+for itself twice in two rounds**, against the four rounds the camel needed to learn the same thing and the five the slime
+needed for a mob whose geometry was already correct.
+
+**What remains for the whole objective, stated plainly:**
+
+| item | state |
+| --- | --- |
+| 5 user-reported mobs | **all on real sheets, verified** |
+| 78 of 97 spawners | **bind a real sheet** |
+| sniffer | needs a geometry rebuild; sheet real; 12 rectangles read |
+| ender dragon | needs a geometry rebuild; sheet real and extracted; 20 part names read |
+| tropical fish | **blocked** -- the client's sheets contain no colour at all |
+
+`AREA` is at exactly **1766/1773**.
+
+Work list: **97 spawners, 78 with a real sheet, 2 substantive mobs needing geometry rebuilds (both now specified), plus the
+tropical fish which is blocked by its assets.**
