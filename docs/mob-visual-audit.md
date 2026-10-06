@@ -2470,3 +2470,44 @@ that also appears in the new code is not. **Read the built object back** -- that
 as it did for the trader llama's missing constant.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-three: the giant, and a render comparison that caught what the tests could not
+
+**I attempted the giant and reverted it, and the reason is worth recording in full because the checks I normally trust all
+passed.**
+
+The premise was sound: **a giant IS a scaled zombie**, vanilla has no separate giant texture, and this project already loads
+`entity/zombie/zombie.png` for `spawnZombie`. So the giant should need only the zombie's sheet and the standard player
+rectangles the zombie villager and piglin already proved.
+
+What I did: declared `ZOMBIE_SKIN_PATH`, bound the zombie sheet onto the giant's skin, shirt and trousers materials, and
+added a rectangle helper. The measured result looked like a SUCCESS:
+
+```
+materials: 4   with a map: 3
+AREA: 1766 / 1773  -- unchanged, no new failures
+```
+
+**And the mob was visibly broken.** The render showed green and cyan bands repeating vertically down the figure, with the
+legs reduced to slivers -- nothing like a giant. **Comparing against a capture of the SAME MOB BEFORE the change settled
+it**: the original is a clean flat-coloured figure with a green head, blue shirt and dark trousers, and mine was mangled.
+Reverted.
+
+**Three lessons, and the first is the one that matters:**
+
+1. **A material report and a green test suite are BOTH compatible with a broken mob.** `materials: 4, with a map: 3` was
+   accurate and told me nothing about whether the geometry still read as a giant; the tests never inspect the giant's
+   appearance at all. **The only check that could catch this was comparing the render against its own previous state** --
+   which is why keeping `docs/mob-visual-evidence/` has been worth the disk.
+2. **I have been using "read the built object back" as a proxy for "the mob is right", and it is not one.** It catches a
+   missing map, a dead flag, a recursion; it cannot catch a WRONG SHAPE. Round sixty-nine and round seventy-two both
+   concluded with that check as the cheap defence, and this round shows its boundary.
+3. **The giant's model is `createGiantModel` in a behaviour module, not the player model**, so its part sizes and pivots
+   differ from the rectangles I applied. Binding a sheet to a model built for FLAT COLOURS is not the same as binding it to
+   one built to receive a sheet -- the same distinction that made the horse work in round sixty-one (its boxes matched
+   vanilla's proportions) and the strider fail in round fifty-five (its box did not).
+
+**What the giant needs**, recorded so the next attempt is not a repeat: decompile `GiantEntityModel` (`class_3969`) for its
+real body and limb rectangles, and check whether `createGiantModel`'s boxes match them proportionally BEFORE binding, which
+is the check the horse passed and the strider failed.
+
+Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
