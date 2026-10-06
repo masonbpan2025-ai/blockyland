@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
+import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
 
 /**
  * Parrot rules and model.
@@ -21,6 +23,20 @@ export const PARROT_VARIANTS = { red_blue: 0, blue: 1, green: 2, yellow_blue: 3,
 
 /** The short names used for display and telemetry, in id order. */
 export const PARROT_VARIANT_NAMES = ['red', 'blue', 'green', 'cyan', 'gray'];
+
+/**
+ * The vanilla sheet each parrot variant wears.
+ *
+ * A parrot variant IS its texture: there are five 32x32 sheets and the mob picks one. Binding the sheet is what
+ * makes the variant visible, and the `PARROT_COLORS` table is only the fallback for a build with no assets.
+ */
+export const PARROT_SKIN_PATHS = [
+  '/assets/entity/parrot/parrot_red_blue.png',
+  '/assets/entity/parrot/parrot_blue.png',
+  '/assets/entity/parrot/parrot_green.png',
+  '/assets/entity/parrot/parrot_yellow_blue.png',
+  '/assets/entity/parrot/parrot_grey.png'
+];
 
 /** Body colours per variant, matching each real macaw the wiki names. */
 export const PARROT_COLORS = {
@@ -331,36 +347,54 @@ export function updateParrotFlight(manager, mob, dt, player, { random = Math.ran
 export function createParrotModel(bodyMat, wingMat, headMat, beakMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 0.24), bodyMat);
+  // Every part samples the real 32x32 parrot sheet, so the variant is a TEXTURE choice rather than a set of flat
+  // colours. Previously none of these boxes read the skin at all.
+  const box = (w, h, d, u, v, tw, th, td) => new THREE.Mesh(
+    createEntityBox(w, h, d, u, v, tw, th, td, { texW: 32, texH: 32 }), bodyMat);
+
+  // Body: 6x8x6 at (2,8).
+  const body = box(0.3, 0.4, 0.3, 2, 8, 6, 8, 6);
   body.position.set(0, 0.5, 0);
   group.add(body);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.22), headMat);
-  head.position.set(0, 0.72, 0.06);
+  // Head: 4x4x4 at (0,0), which is where the face is drawn.
+  const head = new THREE.Mesh(createEntityBox(0.26, 0.26, 0.26, 0, 0, 4, 4, 4, { texW: 32, texH: 32 }), headMat);
+  head.position.set(0, 0.76, 0.04);
   group.add(head);
 
-  // A large hooked beak, which is the parrot's most recognisable feature.
-  const beakUpper = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.12), beakMat);
-  beakUpper.position.set(0, 0.02, 0.16);
+  // The hooked beak is the parrot's most recognisable feature, and it is geometry rather than texture because it
+  // protrudes from the face.
+  const beakUpper = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.1, 0.1), beakMat);
+  beakUpper.position.set(0, 0.03, 0.17);
   head.add(beakUpper);
-  const beakLower = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.08), beakMat);
-  beakLower.position.set(0, -0.06, 0.13);
+  const beakLower = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.07), beakMat);
+  beakLower.position.set(0, -0.05, 0.14);
   head.add(beakLower);
 
   const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.03);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, beakMat);
-    eye.position.set(side * 0.09, 0.04, 0.11);
+    eye.position.set(side * 0.1, 0.03, 0.12);
     head.add(eye);
     return eye;
   });
 
-  // Two wings, exposed as an array plus left/right so the shared flying helper can flap them.
-  const wingGeo = new THREE.BoxGeometry(0.08, 0.26, 0.32);
+  // Wings: panels hinged at the shoulder. `wings` carries BOTH `length` and named `left`/`right`, because
+  // `moveFlyingMob` writes `mob.wings.left.rotation.z` and parrotBehavior.test.js pins the array length too.
+  // The wing is 1 wide but 6 deep, so depth exceeds half its width and vanilla's own layout has no room for its
+  // side faces; `createEntityBox` refuses that shape. Explicit rectangles are the escape hatch.
+  const wingGeo = createBoxFromFaces(0.07, 0.28, 0.3, [
+    { x: 1, y: 16, w: 6, h: 8 },   // +X right
+    { x: 0, y: 16, w: 6, h: 8 },   // -X left
+    { x: 0, y: 16, w: 1, h: 6 },   // +Y top
+    { x: 1, y: 16, w: 1, h: 6 },   // -Y bottom
+    { x: 0, y: 16, w: 1, h: 8 },   // +Z front
+    { x: 1, y: 16, w: 1, h: 8 }    // -Z back
+  ], { texW: 32, texH: 32 });
   const wings = [];
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.14, 0.56, 0);
+    pivot.position.set(side * 0.15, 0.56, 0);
     const wing = new THREE.Mesh(wingGeo, wingMat);
     wing.position.set(side * 0.04, 0, 0);
     pivot.add(wing);
@@ -371,7 +405,9 @@ export function createParrotModel(bodyMat, wingMat, headMat, beakMat) {
   wings.right = wings[1];
 
   // The long tail, which reads at a glance from behind.
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.44), wingMat);
+  // The tail is 2 wide but 8 deep, so like the wings it cannot use the standard layout: depth exceeds half its
+  // width. Its length runs along Z, the same direction as its texture strip, so a plain box samples it correctly.
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.4), wingMat);
   tail.position.set(0, 0.42, -0.3);
   tail.rotation.x = 0.2;
   group.add(tail);
@@ -386,14 +422,22 @@ export function createParrotModel(bodyMat, wingMat, headMat, beakMat) {
 
   return { group, body, head, beakUpper, beakLower, eyes, wings, tail };
 }
-
-/** Apply the variant colours. */
 export function applyParrotVariant(parrot) {
   if (!isParrot(parrot)) return;
   const colors = parrotColors(parrot.variant);
-  parrot.bodyMat?.color?.setHex(colors.body);
-  parrot.wingMat?.color?.setHex(colors.wing);
-  parrot.headMat?.color?.setHex(colors.head);
+  const path = PARROT_SKIN_PATHS[parrot.variant] ?? PARROT_SKIN_PATHS[0];
+
+  // The variant is its SHEET. Binding it is what makes the colour change; tinting the materials instead would
+  // fight `adoptTexture`, which whitens a material once its map lands.
+  const skin = parrot.skinManager?.loadTexture ? parrot.skinManager.loadTexture(path) : null;
+  if (skin && parrot.bodyMat) adoptWhenReady(parrot.bodyMat, skin, colors.body);
+  else parrot.bodyMat?.color?.setHex?.(colors.body);
+
+  // The head and wings share the body sheet, so a fallback colour is all they need when there is no asset.
+  if (!skin) {
+    parrot.wingMat?.color?.setHex(colors.wing);
+    parrot.headMat?.color?.setHex(colors.head);
+  }
   parrot.beakMat?.color?.setHex(colors.beak);
 }
 

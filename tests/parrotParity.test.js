@@ -11,6 +11,7 @@ import { EntityManager } from '../src/entities.js';
 import { BLOCKS, ITEMS } from '../src/blocks.js';
 import {
   PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_VARIANT_NAMES, PARROT_COLORS,
+  PARROT_SKIN_PATHS,
   PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_COOKIE_KILLS, PARROT_FOLLOW_RANGE,
   PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT,
   PARROT_FLY_HEIGHT, PARROT_FEATHER_DROP,
@@ -103,7 +104,11 @@ test('a spawned parrot gets a real variant and its colours', () => {
     const parrot = manager.spawnParrot(0, 1, 0);
     assert.ok(parrot.variant >= 0 && parrot.variant <= 4, `variant ${parrot.variant}`);
     assert.ok(PARROT_VARIANT_NAMES.includes(parrot.variantName));
-    assert.equal(parrot.bodyMat.color.getHex(), parrotColors(parrot.variant).body);
+    // A parrot variant IS its texture: there are five vanilla sheets and the mob wears one. The assertion is which
+    // sheet, not which flat colour -- writing a colour onto a textured material would fight the map and whichever
+    // ran last would win.
+    assert.equal(parrot.bodyMat.map?.assetPath, PARROT_SKIN_PATHS[parrot.variant],
+      `variant ${parrot.variant} wears its own sheet`);
     seen.add(parrot.variant);
   }
   assert.equal(seen.size, 5, `every variant should come up, saw ${[...seen].sort().join(',')}`);
@@ -418,10 +423,11 @@ test('the model has a hooked beak, a long tail and wings the shared helper can f
 test('the variant colour is applied to the model', () => {
   const { manager } = fixture();
   const parrot = manager.spawnParrot(0, 1, 0, { variant: 0 });
-  assert.equal(parrot.bodyMat.color.getHex(), PARROT_COLORS.red.body);
+  // A variant IS its sheet: five vanilla textures, one per variant.
+  assert.equal(parrot.bodyMat.map?.assetPath, PARROT_SKIN_PATHS[0]);
   parrot.variant = 1;
   applyParrotVariant(parrot);
-  assert.equal(parrot.bodyMat.color.getHex(), PARROT_COLORS.blue.body, 'the colour changes');
+  assert.equal(parrot.bodyMat.map?.assetPath, PARROT_SKIN_PATHS[1], 'the sheet changes');
   assert.doesNotThrow(() => applyParrotVariant(null));
   assert.doesNotThrow(() => applyParrotVariant({ type: 'cow' }));
 });

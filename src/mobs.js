@@ -74,7 +74,7 @@ import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMA
 import { applyPandaColors, PANDA_COLORS, PANDA_HEALTH, PANDA_DIMENSIONS, PANDA_BABY_DIMENSIONS, PANDA_BABY_SCALE, PANDA_DAMAGE, PANDA_SPEED, PANDA_GENES, PANDA_DOMINANT_GENES, PANDA_RECESSIVE_GENES, PANDA_PERSONALITY_CHANCE, PANDA_MUTATION_WEIGHTS, PANDA_MUTATION_CHANCE, PANDA_SNEEZE_SLIMEBALL_CHANCE, PANDA_BREEDING_BAMBOO, isPanda, pandaPersonality, rollMutatedGene, rollPandaGenes, breedPandaGenes, applyPandaPersonality, pandaDamageFor, pandaDimensions, pandaStance, aggressivePandaKeepsHunting, alertAggressivePandas, updatePandaSneeze, pandaCanBreed, pandaDrops, pandaXp, pandaFollowsBamboo, pandaColors, posePanda } from './pandaBehavior.js';
 import { POLAR_BEAR_HEALTH, POLAR_BEAR_DIMENSIONS, POLAR_BEAR_BABY_DIMENSIONS, POLAR_BEAR_BABY_SCALE, POLAR_BEAR_DAMAGE, POLAR_BEAR_KNOCKBACK_RESISTANCE, POLAR_BEAR_SPEED, POLAR_BEAR_GROWTH_SECONDS, POLAR_BEAR_PREY, isPolarBear, polarBearDamageFor, polarBearDimensions, polarBearStance, cubsNear, defendCub, provokeNearbyAdults, onPolarBearHurt, findPolarBearTarget, updatePolarBearGrowth, polarBearDrops, polarBearXp, canBreedPolarBear, posePolarBear, startPolarBearMaul, updatePolarBearMaul } from './polarBearBehavior.js';
 import { PHANTOM_HEALTH, PHANTOM_DIMENSIONS, PHANTOM_DAMAGE, PHANTOM_SWOOP, PHANTOM_CAT_AVOID_RANGE, PHANTOM_TARGET_RANGE, isPhantom, phantomDamageFor, rollPhantomSwoopDelay, phantomAnchorFor, phantomCirclePosition, phantomBurnsInSunlight, findPhantomTarget, isSwooping, startPhantomSwoop, updatePhantomFlight, onPhantomHurt, phantomDrops, phantomXp, createPhantomWings, posePhantom } from './phantomBehavior.js';
-import { PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
+import { PARROT_SKIN_PATHS, PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, PARROT_COLORS, PARROT_TAMING_FOODS, PARROT_TAME_CHANCE, PARROT_FOLLOW_RANGE, PARROT_IMITATE_RANGE, PARROT_DANCE_RANGE, PARROT_IMITATED_MOBS, PARROT_FLIGHT, PARROT_FLY_HEIGHT, isParrot, rollParrotVariant, parrotVariantName, parrotColors, isParrotTamingFood, isParrotLethalFood, rollParrotTaming, isPerched, perchOnShoulder, dismountShoulder, shouldDismountForPlayerState, findImitateTarget, canDance, parrotDrops, parrotXp, updateParrotFlight, createParrotModel, applyParrotVariant, poseParrot } from './parrotBehavior.js';
 import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
@@ -4815,7 +4815,9 @@ export class MobManager {
   spawnParrot(x, y, z, options = {}) {
     const variant = options.variant ?? rollParrotVariant(options.random || Math.random);
     const colors = parrotColors(variant);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body });
+    // The variant IS its sheet, so the initial skin is bound here and pplyParrotVariant swaps it later.
+        const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body, transparent: true, alphaTest: 0.5 });
+        adoptTexture(bodyMat, this.loadTexture(PARROT_SKIN_PATHS[variant] ?? PARROT_SKIN_PATHS[0]), colors.body);
     const wingMat = new THREE.MeshLambertMaterial({ color: colors.wing });
     const headMat = new THREE.MeshLambertMaterial({ color: colors.head });
     const beakMat = new THREE.MeshLambertMaterial({ color: colors.beak });
@@ -4839,6 +4841,8 @@ export class MobManager {
       wingMat,
       headMat,
       beakMat,
+      // The variant swap needs to load a different sheet, so the manager travels with the mob.
+      skinManager: this,
       isFlying: true,
       // Wiki: 6 HP.
       health: PARROT_HEALTH,

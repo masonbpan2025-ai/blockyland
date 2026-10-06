@@ -299,6 +299,51 @@
       "sha256": "0cf5bbd580b1cf1817452450b88c8cf63a665b9430b65f48659873743c7a09bf",
       "bytes": 409,
       "for": "allay"
+    },
+    "parrot_skins": {
+      "path": "entity/parrot/parrot_red_blue.png",
+      "dest": "assets/entity/parrot/parrot_red_blue.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/parrot/parrot_red_blue.png",
+      "ref": "1.21.4",
+      "sha256": "ec1855098de64da0f65ca65ee5d546ac17ed05adeb607ce4e4a32e4dacfe48b7",
+      "bytes": 630,
+      "for": "parrot (red)"
+    },
+    "parrot_blue": {
+      "path": "entity/parrot/parrot_blue.png",
+      "dest": "assets/entity/parrot/parrot_blue.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/parrot/parrot_blue.png",
+      "ref": "1.21.4",
+      "sha256": "ab702146af40f5069244b39c41b3f7942830f5aac6845330a041542c3df6663c",
+      "bytes": 549,
+      "for": "parrot (blue)"
+    },
+    "parrot_green": {
+      "path": "entity/parrot/parrot_green.png",
+      "dest": "assets/entity/parrot/parrot_green.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/parrot/parrot_green.png",
+      "ref": "1.21.4",
+      "sha256": "b485723f6fc8c98eaab5e0f0da56321d762693f270941ece44253a00f16d4c8c",
+      "bytes": 491,
+      "for": "parrot (green)"
+    },
+    "parrot_yellow_blue": {
+      "path": "entity/parrot/parrot_yellow_blue.png",
+      "dest": "assets/entity/parrot/parrot_yellow_blue.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/parrot/parrot_yellow_blue.png",
+      "ref": "1.21.4",
+      "sha256": "ee0dbf02eab57aebaeaab5143d5efc47ff9ff1b613c9050cef54969005818c2f",
+      "bytes": 606,
+      "for": "parrot (cyan)"
+    },
+    "parrot_grey": {
+      "path": "entity/parrot/parrot_grey.png",
+      "dest": "assets/entity/parrot/parrot_grey.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/parrot/parrot_grey.png",
+      "ref": "1.21.4",
+      "sha256": "cd08ca42d82acbf71f080699ecc1e4a0c03d45503fd76c99710ea39f94f57a71",
+      "bytes": 355,
+      "for": "parrot (grey)"
     }
   }
 }

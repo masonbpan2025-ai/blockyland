@@ -332,3 +332,21 @@ The general lesson, alongside the wings trap from round five: **before rebuildin
 animation and pose code reads.** A model can be geometrically correct and still be wrong.
 
 Work list: **92 mob spawners, 43 with a real skin, 49 still flat-colour only.**
+## Round seven: parrot, and the fourth appearance of one guard
+
+**Parrot.** It was flat-coloured boxes -- body, head, two beak boxes, eyes, wings and tail -- none of which sampled
+the skin. It now samples its real 32x32 sheet, with the measured layout head 4x4x4 at (0,0), body 6x8x6 at (2,8).
+
+**A parrot variant IS its texture.** There are five vanilla sheets (red_blue, blue, green, yellow_blue, grey) and
+the mob wears one. `applyParrotVariant` used to write flat colours onto the materials, which is incompatible with a
+textured model: `adoptTexture` whitens a material once its map lands, so the two fought and whichever ran last won.
+The variant now binds its sheet, and the colour table stays only as the fallback for a build with no assets. The two
+tests that pinned the old contract were changed to assert the sheet.
+
+**The same guard caught the same class of mistake twice more in one round.** `createEntityBox` refused the parrot's
+wing (1 wide by 6 deep) and then its tail (2 wide by 8 deep), because depth exceeded half the width and vanilla's
+own layout has no room for the side faces. That is now the FOURTH and FIFTH time this guard has caught it -- after
+the polar bear head, the spider abdomen and the allay wing. It is easily the most valuable thing in
+`entityBox.js`: the failure it prevents is silent, mapping a strip of whatever art happens to sit next to the part.
+
+Work list: **92 mob spawners, 44 with a real skin, 48 still flat-colour only.**
