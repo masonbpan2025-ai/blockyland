@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { World, CHUNK_SIZE_X, CHUNK_HEIGHT, CHUNK_SIZE_Z } from '../src/world.js';
-import { createWorldStructures, WORLD_STRUCTURE_IDS, STRUCTURE_SEARCH_RADIUS_CHUNKS } from '../src/worldStructures.js';
+import { createWorldStructures, locateNearestStructure, WORLD_STRUCTURE_IDS, STRUCTURE_SEARCH_RADIUS_CHUNKS } from '../src/worldStructures.js';
 import { createStructureEngine } from '../src/worldgen/index.js';
 import { BLOCKS, BLOCK_DEFS } from '../src/blocks.js';
 
@@ -234,4 +234,44 @@ test('every enabled structure actually appears in a world of its biome', () => {
     assert.ok(added > 0, `${id} placed nothing in its own start chunk (${found.chunk.join(',')})`);
     assert.equal(world.structures.stats.outOfWorld, 0, `${id} must fit inside this world's height`);
   }
+});
+
+// --- /locate structure -------------------------------------------------------
+
+test('locate reports where the nearest structure is, and how far', () => {
+  // The command that separates "far away" from "broken". The player has to WALK to the answer, so the centre of
+  // the box is reported rather than a corner a village's 50-block width would make useless.
+  const world = new World(4242, 'snowy_plains');
+  const found = locateNearestStructure(world, 'igloo', 0, 0, { maxRadiusChunks: 1024 });
+  assert.equal(found.structureId, 'igloo');
+  assert.equal(found.chunk.length, 2);
+  assert.ok(found.centre.x > found.box[0] && found.centre.x < found.box[3], 'the centre must be inside the box');
+  assert.ok(found.distance > 0, 'a distance in blocks from where the player asked');
+  assert.equal(found.biome, 'snowy_plains', 'and the biome, which is why it is there at all');
+});
+
+test('locate refuses a structure this world does not generate, and names the ones it does', () => {
+  // An error that lists the alternatives is the difference between a dead end and an answer.
+  const world = new World(4242, 'desert');
+  assert.throws(() => locateNearestStructure(world, 'ancient_city', 0, 0), /not generated in this world; try: .*desert_pyramid/);
+  assert.throws(() => createWorldStructures({ seed: 1, world, sizes: { x: 16, height: 64, z: 16 }, enabledIds: [] })
+    && locateNearestStructure({ structures: { enabledIds: [], engine: null } }, '', 0, 0), /no structures are enabled/);
+});
+
+test('locate with no id uses the first enabled structure, so a bare command still answers', () => {
+  const world = new World(4242, 'plains');
+  const found = locateNearestStructure(world, '', 0, 0, { maxRadiusChunks: 2048 });
+  assert.ok(world.structures.enabledIds.includes(found.structureId));
+});
+
+test('the default world has NO structure near spawn, which is why the command is needed', () => {
+  // This is the reported complaint written down as a fact: the game creates `new World()` -- seed 4289, all
+  // biomes -- and the nearest structure to spawn is hundreds of blocks away, so a player who generates a world
+  // and looks around sees nothing at all. The structures are generated; they are sparse, as vanilla spacing
+  // makes them. If placement ever becomes dense enough to see from spawn, this test should be updated rather
+  // than deleted, because the number is the explanation.
+  const world = new World(); // exactly what the game builds
+  const found = locateNearestStructure(world, 'igloo', 0, 0, { maxRadiusChunks: 2048 });
+  assert.ok(found.distance > 128, 'the nearest igloo is ' + found.distance + ' blocks from spawn');
+  assert.equal(world.structures.stats.structures, 0, 'and nothing has been placed before any chunk is generated');
 });

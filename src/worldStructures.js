@@ -189,3 +189,45 @@ export function createWorldStructures({
     enabledSets: [...enabledSets]
   };
 }
+
+/**
+ * `/locate structure <id>`: the nearest instance of a structure this world generates.
+ *
+ * WHY THIS EXISTS: the structures were being generated and still looked absent, because the placement sets use
+ * vanilla spacing (16 to 34 chunks), so the nearest one to spawn in the default world is roughly 340 blocks
+ * away and NOTHING lies within 128 blocks of spawn. A player who generates a world and looks around sees none
+ * of them -- which is what vanilla is like, and why vanilla has this command. Without it there is no way to
+ * tell "the structures are far away" from "the structures are broken".
+ *
+ * Kept here rather than in the command handler so it can be tested without a browser.
+ *
+ * @returns {object} `{ structureId, chunk, centre, box, distance, biome }`
+ * @throws when the world generates no structures, the id is not enabled, or nothing is within the radius
+ */
+export function locateNearestStructure(world, structureId, blockX, blockZ, { maxRadiusChunks = 4096 } = {}) {
+  const integration = world && world.structures;
+  if (!integration) throw new Error('this world does not generate structures');
+  const id = String(structureId || integration.enabledIds[0] || '').toLowerCase();
+  if (!id) throw new Error('no structures are enabled in this world');
+  if (!integration.enabledIds.includes(id)) {
+    // Naming what IS enabled turns a dead end into a usable answer.
+    throw new Error(`${id} is not generated in this world; try: ${integration.enabledIds.join(', ')}`);
+  }
+  const found = integration.engine.locate(id, Math.floor(blockX), Math.floor(blockZ), { maxRadiusChunks });
+  if (!found) throw new Error(`no ${id} within ${maxRadiusChunks} chunks`);
+  const box = found.start.box;
+  const centre = {
+    x: Math.round((box.minX + box.maxX) / 2),
+    y: Math.round((box.minY + box.maxY) / 2),
+    z: Math.round((box.minZ + box.maxZ) / 2)
+  };
+  return {
+    structureId: id,
+    chunk: found.chunk,
+    // The player has to WALK here, so the centre is more useful than the corner: a village spans 50 blocks.
+    centre,
+    box: [box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ],
+    distance: Math.round(found.distance),
+    biome: typeof world.getBiome === 'function' ? world.getBiome(centre.x, centre.z) : null
+  };
+}

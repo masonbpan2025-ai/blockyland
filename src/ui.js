@@ -72,6 +72,20 @@ export function placeholderItemIcon(name = '') {
   return url;
 }
 
+/**
+ * The debug screen's "Targeted" line: the block under the crosshair, by name.
+ *
+ * While the pointer is locked the crosshair sits wherever the mouse is, so the raycast target the game
+ * already tracks (`Game.targetBlock`) is the block being hovered. The line is written from updateDebug,
+ * which returns early unless F3 has turned the debug screen on, so it only appears in debug mode.
+ */
+export function targetedBlockLabel(target) {
+  if (!target) return 'Targeted: -';
+  const def = BLOCK_DEFS[target.blockId];
+  const name = def?.name || `block ${target.blockId}`;
+  return `Targeted: ${name} (${target.x} ${target.y} ${target.z})`;
+}
+
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
@@ -703,6 +717,8 @@ export class UIManager {
     document.getElementById('dbg-fps').textContent = `${Math.round(fps)} fps`;
     document.getElementById('dbg-pos').textContent = `XYZ: ${pos.x.toFixed(2)} / ${pos.y.toFixed(2)} / ${pos.z.toFixed(2)}`;
     document.getElementById('dbg-block').textContent = `Block: ${Math.floor(pos.x)} ${Math.floor(pos.y)} ${Math.floor(pos.z)}`;
+    // The block the crosshair is on, by name, which is what the mouse is hovering while locked.
+    document.getElementById('dbg-target').textContent = targetedBlockLabel(this.game?.targetBlock);
 
     const cx = Math.floor(pos.x / 16);
     const cz = Math.floor(pos.z / 16);

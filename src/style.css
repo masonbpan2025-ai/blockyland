@@ -421,6 +421,14 @@ html, body {
   transform: translateY(1px);
 }
 
+/* A start-screen click taken before the game finished loading: the button says so instead of looking
+   dead, which is what made players click it again. Cleared when the action runs. */
+.mc-btn.is-waiting {
+  opacity: 0.6;
+  cursor: progress;
+  color: #ffffa0;
+}
+
 /* Inventory & Crafting GUI */
 .container-gui {
   background: #c6c6c6;
