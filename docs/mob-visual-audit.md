@@ -2298,3 +2298,38 @@ it. The rules are still worth writing -- this one was useful enough to be worth 
 **hypotheses with their sample size**, not as findings.
 
 Work list: **97 spawners, 66 confirmed with a real sheet, 28 mobs still without a model or skin.**
+## Round sixty-eight: the piglin brute was wearing the piglin's hide
+
+**The delegation defect again -- third instance, and the rule from round thirty-nine caught it.**
+
+`spawnPiglinBrute` delegates:
+
+```js
+const mob = this.spawnPiglin(x, y, z);
+makePiglinBrute(mob);
+```
+
+and `spawnPiglin` bound `PIGLIN_SKIN_PATH` **unconditionally**, so a brute inherited the plain piglin's hide. Exactly what
+the cave spider did in round thirty-nine and the rabbit in round ten. `piglin_brute.png` is a real 64x64 sheet, extracted
+and converted to RGBA, and the fix is the same shape as the cave spider's: **make the skin a PARAMETER of the parent and
+let the variant pass its own.**
+
+Verified by reading the built mob back rather than by eye:
+
+```
+brute material sheet paths: /assets/entity/piglin/piglin_brute.png
+```
+
+**The three instances now form a clear pattern worth stating as a checklist item:** a `spawnX` that calls `spawnY` needs
+checking for a hardcoded sheet in `spawnY`. Cave spider -> spider, rabbit -> fox, brute -> piglin. All three were found by
+READING THE DELEGATION, and none by looking at a render -- which is why the round-61 habit of checking delegations before
+rendering keeps paying.
+
+**A detail the readout exposed and I am recording rather than fixing blind:** the Inspector shows `type: piglin` for the
+piglin brute, while its `name` is `Piglin Brute` and its health, weapon and equipment are all brute values. So
+`makePiglinBrute` sets the display properties but the `type` still reads `piglin`. That MAY be deliberate -- a brute is a
+piglin subtype, and other code may key on `type === 'piglin'` -- or it may be a small identity bug. **I am not changing it
+without knowing which**, because the tests pass at 1766/1773 and a wrong guess here would silently reclassify the mob for
+every behaviour that checks its type.
+
+Work list: **97 spawners, 67 confirmed with a real sheet, 27 mobs still without a model or skin.**

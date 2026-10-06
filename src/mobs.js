@@ -287,6 +287,7 @@ const WITCH_SKIN_PATH = '/assets/entity/witch.png';
 const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
 const PIGLIN_SKIN_PATH = '/assets/entity/piglin/piglin.png';
+const PIGLIN_BRUTE_SKIN_PATH = '/assets/entity/piglin/piglin_brute.png';
 const PHANTOM_SKIN_PATH = '/assets/entity/phantom.png';
 const ZOMBIE_VILLAGER_SKIN_PATH = '/assets/entity/zombie_villager/zombie_villager.png';
 const ENDERMITE_SKIN_PATH = '/assets/entity/endermite.png';
@@ -6590,14 +6591,16 @@ export class MobManager {
     return mob;
   }
 
-  spawnPiglin(x, y, z) {
+  spawnPiglin(x, y, z, options = {}) {
+    // A brute shares this model but wears its own hide, so the path is a parameter rather than a constant -- otherwise
+    // a brute inherits the plain piglin's sheet and the two stop being separable. // PIGLIN_BRUTE_SKIN_PATH
     const group = new THREE.Group();
     // The REAL 64x64 piglin sheet. `piglinTexture` still builds the stand-in, so a build with no assets renders a
     // piglin, but the asset wins whenever it loads. // PIGLIN_REAL_SHEET
     // The ATLAS entry stays the generated tile: the mob's suite reads its exact bytes, and a build with no assets
     // renders from it. The MATERIAL takes the real sheet when it exists. // PIGLIN_ATLAS_KEPT
     this.textures.piglin_hide ||= piglinTexture(0xdca684);
-    const piglinSheet = this.loadTexture(PIGLIN_SKIN_PATH);
+    const piglinSheet = this.loadTexture(options.skinPath ?? PIGLIN_SKIN_PATH);
     const skinMat = new THREE.MeshLambertMaterial({
       map: piglinSheet || this.textures.piglin_hide,
       color: 0xffffff
@@ -6724,7 +6727,8 @@ export class MobManager {
    * are gated inside the piglin AI, so this builds a piglin and then applies the brute identity.
    */
   spawnPiglinBrute(x, y, z, options = {}) {
-    const mob = this.spawnPiglin(x, y, z);
+    // Its own hide, not the plain piglin's.
+    const mob = this.spawnPiglin(x, y, z, { skinPath: PIGLIN_BRUTE_SKIN_PATH });
     if (!mob) return mob;
     makePiglinBrute(mob);
     // Wiki: a brute always wields its axe, unlike a piglin which sometimes spawns unarmed.
