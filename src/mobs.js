@@ -122,6 +122,34 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  con
 }
 
 /**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ *
+ * `createBoxWithUV` above does the same job for a box built from world sizes; this one takes an EXISTING geometry,
+ * which is what a model that already has its boxes needs.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+/**
  * A box that shows DIFFERENT parts of one sheet on different faces.
  *
  * `faces` is three.js's own face order -- +X, -X, +Y, -Y, +Z, -Z -- and each entry is either a material or
@@ -266,6 +294,9 @@ const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 /** The undead horse sheets. Both are 64x64, unlike the living horse's 64x32. */
 const ZOMBIE_HORSE_SKIN_PATH = '/assets/entity/horse/horse_zombie.png';
 const SKELETON_HORSE_SKIN_PATH = '/assets/entity/horse/horse_skeleton.png';
+/** The guardian sheets, both 64x64. */
+const GUARDIAN_SKIN_PATH = '/assets/entity/guardian.png';
+const ELDER_GUARDIAN_SKIN_PATH = '/assets/entity/guardian_elder.png';
 const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
 const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
 const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
@@ -642,8 +673,11 @@ export class MobManager {
       octopus: this.createAquaticTexture('octopus'),
       squid: this.createAquaticTexture('octopus'),
       axolotl: this.createAquaticTexture('axolotl'),
-      guardian: this.createAquaticTexture('guardian'),
-      elder_guardian: this.createAquaticTexture('elder_guardian'),
+      // REAL 64x64 sheets, with the generator kept as the fallback. `spawnElderGuardian` forwards to `spawnGuardian`,
+      // which resolves its texture from THESE keys -- so both variants need the real asset here rather than in either
+      // spawner. // GUARDIAN_REAL_SHEET
+      guardian: this.loadTexture(GUARDIAN_SKIN_PATH, () => this.createAquaticTexture('guardian')),
+      elder_guardian: this.loadTexture(ELDER_GUARDIAN_SKIN_PATH, () => this.createAquaticTexture('elder_guardian')),
       glow_squid: this.createAquaticTexture('glow_squid'),
       drowned: this.createAquaticTexture('drowned'),
       cod: this.createAquaticTexture('cod'),
@@ -7435,7 +7469,11 @@ export class MobManager {
     const spikeMat = new THREE.MeshLambertMaterial({ color: spikeColor });
 
     // Main Prismarine Body Box (0.85 x 0.85 x 0.85)
+    // Vanilla's rectangle is 12x12x12 at (0, 0) on the 64x64 sheet, and a 0.85 cube has the same 1:1:1 ratio -- so the
+    // rectangle applies directly. UNCONDITIONAL: a rectangle describes the GEOMETRY, and a `map` check would be false at
+    // construction because the atlas bitmap has not decoded.
     const bodyGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+    applyBoxUVs(bodyGeo, 0, 0, 64, 64, 12, 12, 12);
     const body = new THREE.Mesh(bodyGeo, mat);
     body.position.y = 0.5;
     group.add(body);

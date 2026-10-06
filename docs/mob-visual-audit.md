@@ -2840,3 +2840,37 @@ is **running the module**, which I did for the material state but not for the he
 attempt starts from assets and measurements rather than from scratch.
 
 Work list: **97 spawners, 73 confirmed with a real sheet, 19 mobs still without a model or skin.**
+## Round eighty-two: the guardians, and the anchor fault that was a LINE ENDING
+
+**Both guardians now render from their real 64x64 sheets with atlas rectangles.** The elder guardian shows the prismarine
+body with its texture detail, the white eye base and the red pupil; the plain guardian the same in its own palette. `AREA`
+stayed at exactly **1766/1773**.
+
+**The fix, and the seventh delegation defect it belongs to:** `spawnElderGuardian` forwards to `spawnGuardian`, which
+resolves its texture from the atlas keys `guardian` / `elder_guardian`. Those were built by
+`this.createAquaticTexture(...)` -- **a generator, not a real sheet** -- and the body was a plain
+`BoxGeometry(0.85, 0.85, 0.85)` with **no UVs at all**. Both keys now take the real sheet with the generator as the
+fallback, and the body takes vanilla's rectangle 12x12x12 at (0, 0), which a 0.85 cube matches at 1:1:1.
+
+**THE ANCHOR FAULT, WHICH IS THE PART WORTH KEEPING.** My patch script reported `atlas anchor MISSING` and
+`body anchor MISSING` while I had just confirmed both strings were present and correct. **The reason is that the file is
+CRLF and my multi-line anchors were joined with LF (`\n`).** The script even computed an `eol` variable correctly and then
+did not use it for those two joins.
+
+**That is the real explanation for a fault that has now recurred across several rounds**, and it changes the diagnosis I
+recorded in round eighty-one. I had written that the cause was "writing to the same file several times in one run", and
+while that is a genuine hazard, **the actual failing mechanism in both rounds was line endings.** The evidence: this round
+used a SINGLE write and one of the three multi-line anchors STILL missed -- the two built with `join('\n')` -- while the
+two built as plain single-line strings succeeded.
+
+**The practical rule, stated so it can be applied rather than admired:**
+
+> In this repository, a multi-line anchor MUST be built with the file's own ending. Use `join(eol)` where `eol` is read
+> from the file, or use an editing tool that normalises line endings. A single-line anchor is unaffected.
+
+**And a second rule this round earned:** the run check and the state check are BOTH needed and they catch different faults.
+`node --check` passed on the broken round-eighty-one version because an undefined identifier is not a syntax error;
+**running the module** caught it. This round the module ran fine but the anchors had silently no-opped -- **only the state
+read-back caught that**, and only because it showed `with a map: 1` where the generator had produced a map of its own.
+
+Work list: **97 spawners, 75 confirmed with a real sheet, 17 mobs still without a model or skin.**
