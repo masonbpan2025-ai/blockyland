@@ -2735,3 +2735,32 @@ diagnosis-or-mistake in six rounds of the giant.
 new work. The giant has consumed six rounds for want of assembling three things this project already had.
 
 Work list: **97 spawners, 70 confirmed with a real sheet, 22 mobs still without a model or skin.**
+## Round seventy-nine: the giant is fixed, by assembling three things that already existed
+
+**The giant now renders from the zombie's sheet, with flat correct geometry.** The head shows a real textured face, the body
+and arms are textured from the same sheet, and nothing is mangled. `AREA` is back at exactly **1766/1773**.
+
+**The plan from round seventy-eight, executed as written:**
+
+| step | what it was |
+| --- | --- |
+| 1 | rectangles applied **UNCONDITIONALLY** -- head 8x8x8 at (0,0), body 8x12x4 at (16,16), arms and legs 4x12x4 |
+| 2 | the sheet taken from the **preloaded atlas** (`this.textures.zombie`), not a fresh `loadTexture(path)` |
+| 3 | bound through the **deferred adoption hook**, so it lands whenever the bitmap decodes |
+
+**None of those three was new work.** Unconditional rectangles came from the strider's failure in round fifty-six; the atlas
+key came from round seventy-seven; the deferred bind came from the squid in round fifty-four. **The giant took six rounds
+because I proposed five mechanisms instead of assembling three known parts**, and the audit is recording that as the cost
+rather than as a difficulty of the mob.
+
+**Two verifications, both required, and they caught different things.** The suite said 1766/1773 -- unchanged, which proves
+nothing on its own, because a green suite hid the broken giant in round seventy-three. **The render is what shows the fix**,
+and the capture is kept as `docs/mob-visual-evidence/giant-inspector-real-sheet.png`. That pair of checks is now the
+standing procedure for a sheet binding: read the material state, then look at the mob.
+
+**A note on the path, because it was one of my five wrong candidates:** the atlas key `zombie` loads
+`/assets/entity/zombie.png` -- a FLAT path -- and both it and `/assets/entity/zombie/zombie.png` exist on disk. **The flat one
+is the sheet the preload decodes**, so `ZOMBIE_SKIN_PATH` is now declared as the flat path, matching the atlas rather than
+the nested file I had assumed.
+
+Work list: **97 spawners, 71 confirmed with a real sheet, 21 mobs still without a model or skin.**

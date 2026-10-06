@@ -260,6 +260,9 @@ skinBinding.onTextureReady = (texture, fn) => MobManager.onTextureReady(texture,
  * alone) or a generated stand-in (apply the tint). Keeping the string in one place stops the two drifting.
  */
 const HUSK_SKIN_PATH = '/assets/entity/zombie/husk.png';
+/** The plain zombie sheet, which a GIANT shares -- vanilla has no separate giant texture. The FLAT path matches the
+ *  preloaded atlas key `zombie`, so the sheet the giant needs is already decoded at startup. */
+const ZOMBIE_SKIN_PATH = '/assets/entity/zombie.png';
 const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
 const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
 const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
@@ -8910,9 +8913,20 @@ export class MobManager {
   spawnGiant(x, y, z, options = {}) {
     const group = new THREE.Group();
     const colors = GIANT_COLORS;
-    const skinMat = new THREE.MeshLambertMaterial({ color: colors.skin });
-    const shirtMat = new THREE.MeshLambertMaterial({ color: colors.shirt });
-    const trousersMat = new THREE.MeshLambertMaterial({ color: colors.trousers });
+    // The PRELOADED ATLAS texture, which the zombie preload already decoded. A fresh `loadTexture(path)` returns a
+    // texture whose bitmap is null here, and binding that draws nothing -- the fault that cost six rounds.
+    const giantSheet = this.textures?.zombie ?? this.loadTexture(ZOMBIE_SKIN_PATH);
+    /** A sheet material, with the flat colour as the stand-in until the bitmap arrives. */
+    const giantMat = (fallback) => {
+      if (!giantSheet) return fallback;
+      const mat = new THREE.MeshLambertMaterial({ map: giantSheet, transparent: true, alphaTest: 0.5 });
+      // Bind on decode. Until then the drawn colour stands, which is also what a no-assets build renders.
+      adoptWhenReady(mat, giantSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
+      return mat;
+    };
+    const skinMat = giantMat(new THREE.MeshLambertMaterial({ color: colors.skin }));
+    const shirtMat = giantMat(new THREE.MeshLambertMaterial({ color: colors.shirt }));
+    const trousersMat = giantMat(new THREE.MeshLambertMaterial({ color: colors.trousers }));
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
     const { group: model, body, head, eyes, arms, legs } =
       createGiantModel(skinMat, shirtMat, trousersMat, eyeMat);

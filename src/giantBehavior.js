@@ -1,6 +1,31 @@
 import * as THREE from 'three';
 
 /**
+ * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
+ */
+function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
+    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
+/**
  * Giant rules.
  *
  * Reference: https://minecraft.wiki/w/Giant
@@ -198,14 +223,22 @@ export function giantAttack(mob, target, { ridden = false, difficulty = 'normal'
  * Wiki: "they use a six-times-enlarged zombie model". So this is deliberately the zombie's parts, not a new
  * design -- if the zombie model changes shape, this should follow.
  */
+// GIANT_PLAN
 export function createGiantModel(skinMat, shirtMat, trousersMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), shirtMat);
+  // Body: the player rectangle 8x12x4 at (16, 16).
+  const bodyGeo = new THREE.BoxGeometry(0.5, 0.75, 0.25);
+  applyBoxUVs(bodyGeo, 16, 16, 64, 64, 8, 12, 4);
+  const body = new THREE.Mesh(bodyGeo, shirtMat);
   body.position.y = 1.19;
   group.add(body);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+  // Head: the player rectangle 8x8x8 at (0, 0). Applied UNCONDITIONALLY, because a rectangle describes the
+  // geometry; the sheet arrives later and the UVs must already be in place for it.
+  const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  applyBoxUVs(headGeo, 0, 0, 64, 64, 8, 8, 8);
+  const head = new THREE.Mesh(headGeo, skinMat);
   head.position.y = 1.81;
   group.add(head);
 
@@ -220,7 +253,10 @@ export function createGiantModel(skinMat, shirtMat, trousersMat, eyeMat) {
   // The zombie's outstretched arms, which are what make the silhouette read as a zombie at any scale.
   const arms = [];
   for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), shirtMat);
+    // Arms: the player rectangle 4x12x4 at (40, 16).
+  const armGeo = new THREE.BoxGeometry(0.25, 0.75, 0.25);
+  applyBoxUVs(armGeo, 40, 16, 64, 64, 4, 12, 4);
+  const arm = new THREE.Mesh(armGeo, shirtMat);
     arm.position.set(side * 0.38, 1.19, 0.22);
     arm.rotation.x = -Math.PI / 2;
     group.add(arm);
@@ -229,7 +265,10 @@ export function createGiantModel(skinMat, shirtMat, trousersMat, eyeMat) {
 
   const legs = [];
   for (const side of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), trousersMat);
+    // Legs: the player rectangle 4x12x4 at (0, 16).
+  const legGeo = new THREE.BoxGeometry(0.25, 0.75, 0.25);
+  applyBoxUVs(legGeo, 0, 16, 64, 64, 4, 12, 4);
+  const leg = new THREE.Mesh(legGeo, trousersMat);
     leg.position.set(side * 0.13, 0.44, 0);
     group.add(leg);
     legs.push(leg);
