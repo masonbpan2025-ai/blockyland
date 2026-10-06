@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEBUG_COMBOS, debugActionFor, isTypingTarget, installHotkeys } from '../src/hotkeys.js';
+import { UIManager } from '../src/ui.js';
 
 test('the debug combinations are the Java Edition set', () => {
   const expected = {
@@ -85,3 +86,47 @@ test('F3 arms the combinations, releasing it disarms them, and typing is left al
   assert.equal(typeof remove, 'function', 'and the listeners can be removed again');
   remove();
 });
+
+test('Control+Q throws the whole stack, plain Q throws one', () => {
+  const main = fs.readFileSync(path.join(process.cwd(), 'src/main.js'), 'utf8');
+  assert.match(main, /dropHeldItem\(wholeStack = false\)/, 'the drop takes a whole-stack flag');
+  assert.match(main, /this\.dropHeldItem\(e\.ctrlKey \|\| e\.metaKey\)/, 'and Control+Q passes it');
+  assert.match(main, /const requested = wholeStack \? Math\.max\(1, active\.count \?\? 1\) : 1;/, 'one entity, whole count');
+  assert.match(main, /for \(let i = 0; i < requested; i\+\+\) this\.inventory\.consumeActiveItem\(\);/, 'and the slot is emptied');
+});
+
+test('double-tapping the forward key sprints, and hunger gates it', () => {
+  const player = fs.readFileSync(path.join(process.cwd(), 'src/player.js'), 'utf8');
+  assert.match(player, /if \(now - this\.lastForwardPress < 280\) this\.sprintKeyToggled = true;/, 'W twice starts it');
+  assert.match(player, /if \(e\.code === 'KeyW'\) this\.sprintKeyToggled = false;/, 'releasing W ends it');
+  assert.match(player, /const wantsSprint = !!this\.keys\['ControlLeft'\] \|\| this\.sprintKeyToggled;/, 'either binding sprints');
+  assert.match(player, /this\.hunger > 6/, 'and vanilla refuses a sprint when hunger is low');
+});
+
+test('a Creative toolbar row can be saved and loaded again', () => {
+  // The methods only need the inventory, the chat and a re-render, so no DOM is required.
+  const ui = Object.create(UIManager.prototype);
+  const messages = [];
+  let renders = 0;
+  ui.inv = { hotbar: [{ id: 'stone', count: 4 }, null, { id: 'iron_pickaxe', count: 1, durability: 3, maxDurability: 250 }] };
+  ui.addChatMessage = (message) => messages.push(message);
+  ui.updateHotbar = () => { renders++; };
+
+  const saved = ui.saveCreativeToolbar(2);
+  assert.equal(saved[0].id, 'stone', 'the row holds what the hotbar held');
+  assert.equal(ui.savedToolbars[2][2].durability, 3);
+
+  ui.inv.hotbar[0] = null;
+  ui.inv.hotbar[2] = null;
+  assert.equal(ui.loadCreativeToolbar(2)[0].id, 'stone', 'loading puts it back');
+  assert.equal(ui.inv.hotbar[2].id, 'iron_pickaxe');
+  assert.equal(renders, 1, 'the hotbar is redrawn');
+
+  // A saved row is a copy: editing the hotbar afterwards must not rewrite it.
+  ui.inv.hotbar[0].count = 64;
+  assert.equal(ui.savedToolbars[2][0].count, 4, 'the saved row is a copy');
+
+  assert.equal(ui.loadCreativeToolbar(5), null, 'an empty slot reports rather than throws');
+  assert.match(messages.join(' | '), /No saved toolbar 6/);
+});
+

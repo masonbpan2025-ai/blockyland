@@ -1597,10 +1597,10 @@ class Game {
       }
     });
 
-    // Drop item key (Q)
+    // Drop item key (Q, or Control+Q for the whole stack)
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyQ' && !this.ui.isModalOpen() && !this.ui.isChatOpen) {
-        this.dropHeldItem();
+        this.dropHeldItem(e.ctrlKey || e.metaKey);
       }
     });
 
@@ -2686,19 +2686,29 @@ class Game {
     return allowsAgentTerminal(this.settings);
   }
 
-  dropHeldItem() {
+  /**
+   * Throw the held item out in front of the player.
+   *
+   * `wholeStack` is Control+Q, which throws the stack as one drop, exactly as vanilla does; plain Q throws a
+   * single item and leaves the rest.
+   *
+   * @returns {number} how many items were dropped
+   */
+  dropHeldItem(wholeStack = false) {
     const active = this.inventory.getActiveItem();
-    if (!active) return;
+    if (!active) return 0;
+    const requested = wholeStack ? Math.max(1, active.count ?? 1) : 1;
 
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
     const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(dir, 0.8);
 
-    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, 1);
+    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, requested);
     this.sounds.playClick();
 
-    this.inventory.consumeActiveItem();
+    for (let i = 0; i < requested; i++) this.inventory.consumeActiveItem();
     this.ui.updateHotbar();
+    return requested;
   }
 
   /**

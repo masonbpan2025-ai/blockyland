@@ -393,12 +393,23 @@ export class UIManager {
         this.debugScreenRight.style.display = this.showDebug ? 'block' : 'none';
       }
 
-      // Hotbar selection 1-9
+      // Hotbar selection 1-9, or the second half of a Creative toolbar activator (C + 1-9 saves the row,
+      // X + 1-9 restores one).
       if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
-          this.inv.activeSlot = parseInt(e.code.replace('Digit', '')) - 1;
-          this.updateHotbar();
+          const index = parseInt(e.code.replace('Digit', '')) - 1;
+          const armed = this.toolbarActivator && performance.now() - (this.toolbarActivatorAt ?? 0) < 1000;
+          if (armed) {
+            const action = this.toolbarActivator;
+            this.toolbarActivator = null;
+            this.toolbarActivatorConsumed = true;
+            if (action === 'save') this.saveCreativeToolbar(index);
+            else this.loadCreativeToolbar(index);
+          } else {
+            this.inv.activeSlot = index;
+            this.updateHotbar();
+          }
         }
       }
 
@@ -420,13 +431,29 @@ export class UIManager {
       // Cheats only. The terminal can hand out items, summon mobs and move the clock, so in an ordinary
       // Survival world it is a cheat console and this key does nothing -- which is what "key C should not
       // work in survival mode" asks for. Creative worlds have cheats on by default, so it still opens there.
+      //
+      // In Creative, C is also vanilla's save-toolbar activator. Both cannot act on the key press, so the
+      // terminal waits for the release: press a digit first and the row is saved, otherwise the release
+      // opens the terminal, which is where the player was heading anyway.
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         const allowed = this.game?.allowsAgentTerminal?.() ?? false;
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen && allowed) {
           e.preventDefault();
-          this.toggleGeminiTerminal();
+          if (this.game?.player?.gamemode === 'creative') {
+            this.toolbarActivator = 'save';
+            this.toolbarActivatorAt = performance.now();
+            this.pendingTerminalToggle = true;
+          } else {
+            this.toggleGeminiTerminal();
+          }
         }
+      }
+
+      // X: vanilla's load-toolbar activator, which has no other meaning in this build.
+      if (e.code === 'KeyX' && this.game?.player?.gamemode === 'creative') {
+        this.toolbarActivator = 'load';
+        this.toolbarActivatorAt = performance.now();
       }
 
       // T or /: Open chat
@@ -455,6 +482,21 @@ export class UIManager {
       }
     });
 
+    // The Creative toolbar activator keys finish on release: a consumed activator has already done its
+    // work, while an unconsumed C still owes the player the Agent Terminal.
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyC') {
+        const consumed = this.toolbarActivatorConsumed;
+        this.toolbarActivator = null;
+        this.toolbarActivatorConsumed = false;
+        if (!consumed && this.pendingTerminalToggle) this.toggleGeminiTerminal();
+        this.pendingTerminalToggle = false;
+      } else if (e.code === 'KeyX') {
+        this.toolbarActivator = null;
+        this.toolbarActivatorConsumed = false;
+      }
+    });
+
     // Mouse scroll wheel cycles hotbar slots
     window.addEventListener('wheel', (e) => {
       if (this.isModalOpen() || this.isChatOpen || this.isGeminiOpen()) return;
@@ -465,6 +507,32 @@ export class UIManager {
       }
       this.updateHotbar();
     });
+  }
+
+  /**
+   * Creative mode, C + 1-9: remember the current hotbar row under that number.
+   *
+   * The rows are kept in memory for the session, which is the part of vanilla's saved toolbars that matters
+   * while building. Items are copied, so later edits to the hotbar do not rewrite the saved row.
+   */
+  saveCreativeToolbar(index) {
+    this.savedToolbars ??= {};
+    this.savedToolbars[index] = this.inv.hotbar.map((item) => (item ? { ...item } : null));
+    this.addChatMessage(`Saved toolbar ${index + 1}`, 'system');
+    return this.savedToolbars[index];
+  }
+
+  /** Creative mode, X + 1-9: put a row saved with C + the same number back on the hotbar. */
+  loadCreativeToolbar(index) {
+    const saved = this.savedToolbars?.[index];
+    if (!saved) {
+      this.addChatMessage(`No saved toolbar ${index + 1}`, 'error');
+      return null;
+    }
+    for (let i = 0; i < 9; i++) this.inv.hotbar[i] = saved[i] ? { ...saved[i] } : null;
+    this.updateHotbar();
+    this.addChatMessage(`Loaded toolbar ${index + 1}`, 'system');
+    return saved;
   }
 
   isModalOpen() {
