@@ -883,3 +883,31 @@ so `BatEntityModel` finds `class_553` without the mappings arithmetic that took 
 Texture 32x32. Six of its nine parts are planes -- the third mob where that is the case, after the vex and the frog.
 
 Work list: **92 mob spawners, 54 with a real model, 55 with a real skin, 38 still flat-colour only.**
+## Round twenty-five: the bat rebuilt, and the plane-rotation debt comes due
+
+**The bat is now built from its decompiled model.** It was guessed before -- a box body, a box head, thin box ears and
+box wing panels. The real model has a 3x5x2 body, a 4x3x2 head, and then SIX FLAT PLANES: two 3x5 ears, two 2x7 wings,
+two 6x8 wing tips and a 3x2 feet plate. The wing tip is a separate CHILD of the wing, so the wing is a two-segment
+limb -- which is what lets a flap articulate at the joint rather than the whole panel swinging rigidly.
+
+Its own test also surfaced something worth noting: `batParity` expects `eyes` to be two addressable meshes, and the
+real model has no eye parts at all because vanilla paints them onto the head patch. Eyes are therefore modelled marks,
+as they already are for the spider and the warden.
+
+**THE PLANE-ROTATION DEBT IS NOW THE MAIN OBSTACLE, and it is the same problem three times over.**
+
+| mob | planes | state |
+| --- | --- | --- |
+| vex | 2 wings | correct after fixing the (depth, height) order |
+| frog | tongue, 2 hands, 2 feet, body layer | one layer still stands upright |
+| bat | 2 ears, 2 wings, 2 tips, feet | wings read vertically rather than sweeping out |
+
+Every plane needs an explicit rotation to lie in the plane vanilla intends, and I have been choosing those by eye. The
+decompiled source gives the POSITIONS exactly (`method_32090`) but the orientation of a zero-depth box is implied by
+which axis has the zero -- and I have not been reading it that way. **That is the next thing to fix properly: derive
+the plane's orientation from the zero axis rather than guessing a rotation.**
+
+The bat reads as a bat -- body, head, ears, and two-segment wings -- but its wings are not yet sweeping out from the
+body the way the model describes.
+
+Work list: **92 mob spawners, 55 with a real model, 55 with a real skin, 37 still flat-colour only.**

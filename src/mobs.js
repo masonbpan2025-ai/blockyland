@@ -4180,7 +4180,11 @@ export class MobManager {
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4b3a2f });
     const wingMat = new THREE.MeshLambertMaterial({ color: 0x3a2c24 });
     const earMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
-    const { group, body, head, ears, eyes, wings } = createBatModel(bodyMat, wingMat, earMat);
+    const { group, body, head, ears, eyes, wings } = createBatModel(bodyMat, wingMat, earMat, {
+          // The builder loads its own sheet through this hook.
+          loadTexture: (p) => this.loadTexture(p),
+          onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+        });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
