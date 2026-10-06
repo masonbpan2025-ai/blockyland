@@ -2085,3 +2085,43 @@ snout are in.
 
 Work list: **97 spawners, 65 with a real sheet, 27 mobs still flat-colour only**, of which ONE draws its own skin
 (packEquineModel).
+## Round sixty-two: the last self-skinned model, and the class is CLOSED
+
+**`packEquineModel` was the final module drawing its own texture without a real sheet behind it. The audit now reports
+zero.**
+
+```
+2 module(s) define a generator; 0 never load a real sheet.
+  src/blazeModel.js          [blazeSkin]     loads a real sheet too (fallback)
+  src/witherSkeletonModel.js [boneTexture]   loads a real sheet too (fallback)
+```
+
+**Every remaining generator in this project is now a documented FALLBACK rather than a source.** That closes the defect
+class round forty-three opened and round fifty-two first found a member of.
+
+**The fix here was subtractive, which is worth noting after so many additive ones.** `createPackEquineModel` builds a horse
+and then ran:
+
+```js
+rig.traverse(o => { if (o.material?.map) { oldSkin.add(o.material); o.material = skin; } });
+```
+
+That blanket overwrite was correct while the horse drew its own texture, and became the exact thing that would DISCARD the
+real sheet the horse now loads. So the change was to STOP doing something when a real sheet is present, not to add another
+binding:
+
+| condition | behaviour |
+| --- | --- |
+| a real sheet is available | keep the horse's UV'd materials, which already carry the right rectangle |
+| no sheet | fall back to the pack coat, as before |
+
+`packEquineParity` is **106/106** and the full area never left its baseline. The donkey render shows real grey-brown coat
+detail, long ears, a pale muzzle and dark hooves.
+
+**A composition lesson:** two mobs sharing a model can each be "done" while their COMBINATION is not. The horse was correct
+after round sixty-one, and the pack equines were still procedural because a module layered on top of it replaced the result.
+**When a mob is built from another mob's model, check the layers ABOVE it, not only the model itself.**
+
+Work list: **97 spawners, 67 with a real sheet, 27 mobs still flat-colour only, and ZERO draw their own skin.**
+The remaining 27 are mobs with no model work at all -- flat boxes and flat colours -- rather than mobs wearing the wrong
+texture, which is a different and simpler kind of gap.

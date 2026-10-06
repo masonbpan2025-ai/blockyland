@@ -7044,7 +7044,7 @@ export class MobManager {
   spawnDonkey(x,y,z) { return this.spawnPackEquine('donkey',x,y,z); }
   spawnPackEquine(type,x,y,z) {
     const r=this.random || Math.random, stats=packEquineStats(r);
-    const mob={type,name:type==='mule'?'Mule':'Donkey',...createPackEquineModel(type,this.textures),...stats,
+    const mob={type,name:type==='mule'?'Mule':'Donkey',...createPackEquineModel(type,this.textures,{loadTexture:(p)=>this.loadTexture(p)}),...stats,
       health:stats.maxHealth,isTamed:false,isSaddled:false,horseArmor:null,hasChest:false,chestInventory:[],
       velocity:new THREE.Vector3(),yaw:r()*Math.PI*2,state:'idle',timer:0,hitCooldown:0};
     mob.mesh.position.set(x,y,z);this.scene.add(mob.mesh);this.mobs.push(mob);return mob;

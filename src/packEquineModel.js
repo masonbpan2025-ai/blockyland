@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { createHorseModel } from './horseModel.js';
 
+/** The real 64x32 pack-equine sheets. */
+const PACK_MULE_SKIN_PATH = '/assets/entity/horse/mule.png';
+const PACK_DONKEY_SKIN_PATH = '/assets/entity/horse/donkey.png';
+
 export const isPackEquine = mob => ['donkey', 'mule'].includes(typeof mob === 'string' ? mob : mob?.type);
 
 function coatTexture(color) {
@@ -19,8 +23,14 @@ function coatTexture(color) {
 
 // Reuse the horse's articulated rig, with species-specific coat, ears, muzzle,
 // ankles, flat mane, tufted tail and chest geometry. Textures are original pixels.
-export function createPackEquineModel(type, cache = {}) {
-  const model = createHorseModel(3, 0, cache), rig = model.mesh;
+export function createPackEquineModel(type, cache = {}, options = {}) {
+  // The REAL mule or donkey sheet, chosen by type. The horse model already knows the rectangles; this module only
+  // has to stop overwriting them. // PACK_REAL_SHEET
+  const sheetPath = type === 'mule' ? PACK_MULE_SKIN_PATH : PACK_DONKEY_SKIN_PATH;
+  const packSheet = options.loadTexture ? options.loadTexture(sheetPath) : null;
+  if (packSheet) { packSheet.magFilter = THREE.NearestFilter; packSheet.minFilter = THREE.NearestFilter; packSheet.needsUpdate = true; }
+  const horseOptions = packSheet ? { ...options, loadTexture: () => packSheet } : options;
+  const model = createHorseModel(3, 0, cache, horseOptions), rig = model.mesh;
   const skin = new THREE.MeshLambertMaterial({map: cache[`pack-${type}`] ||= coatTexture(type === 'mule' ? 0x67452f : 0x817565)});
   const dark = new THREE.MeshLambertMaterial({color: 0x302921});
   const pale = new THREE.MeshLambertMaterial({color: type === 'mule' ? 0xb6a288 : 0xc1b8a1});
@@ -45,7 +55,7 @@ export function createPackEquineModel(type, cache = {}) {
   const skull = rig.getObjectByName('muzzle').parent;
   for (const side of [-1, 1]) box(skull, 'nostril', [.04, .035, .014], [side * .085, -.055, .611], dark);
   for (const leg of model.legs) box(leg, 'dark-ankle', [.195, .2, .195], [0, -.63, 0], dark);
-  const tail = resize('tail', [.055, .35, .055]); tail.position.set(0, -.15, -.025); tail.material = skin;
+  const tail = resize('tail', [.055, .35, .055]); tail.position.set(0, -.15, -.025); if (!packSheet) tail.material = skin;
   box(model.tail, 'tail-tuft', [.13, .16, .12], [0, -.38, -.025], dark);
   model.armorMesh.removeFromParent(); model.headArmorMesh.removeFromParent();
   model.armorMesh.geometry.dispose(); model.headArmorMesh.geometry.dispose(); model.armorMesh.material.dispose();
