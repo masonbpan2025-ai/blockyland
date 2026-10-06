@@ -1836,3 +1836,41 @@ Kept from this round: the audit tool, and the verified finding that all eight mo
 
 Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only**, of which EIGHT are model modules that
 draw their own skin.
+## Round fifty-four: the squid on its real sheet, and the discriminator the whole class needed
+
+**The squid now renders from `entity/squid/squid.png`, and its 57 tests still pass unchanged.** This is the mob that was
+reverted three times, and the rule that unblocked it applies to the whole class of eight self-skinned models.
+
+**The measured discriminator, stated properly.** Round fifty-three framed the problem as "the suite asserts generated
+pixels, so a real sheet breaks it by construction". That framing was too coarse, and it is why three attempts failed.
+There are TWO independent questions, and conflating them caused every breakage:
+
+| question | answer |
+| --- | --- |
+| **May I bind this now?** | only when the texture HAS a bitmap -- a readable stub, or a decoded PNG |
+| **May I adopt this later?** | whenever a real loader produced it, even while undecoded |
+
+* Binding an **undecoded** texture (`image === null`) replaces the drawn skin with nothing, so `map.image` becomes null
+  and every pixel assertion dies with `Cannot destructure property 'data'`.
+* Refusing to adopt a **loader** texture at all means the real sheet never lands, and the mob stays procedural forever.
+
+The model now keeps the two apart: `bindNow` (bitmap present) and `adoptLater` (loader result, undecoded), with
+`adoptWhenReady` covering the second. Measured both ways:
+
+```
+fixture stub (bitmap, no loader)  -> drawn skin bound, suite reads its pixels     57/57
+runtime atlas (null image) + loader -> drawn skin now, REAL SHEET after decode
+```
+
+**Verified by pixel count, not by eye** -- the lesson from rounds 48 and 51. The drawn skin contains only **6 distinct
+colours**; the Inspector render shows far more blue-grey shades, which can only come from the sheet. `rgb(126,72,68)` and
+`rgb(197,179,142)`, two of the sheet's colours, are absent from the drawn skin entirely.
+
+**Both sheets are on disk as RGBA** (`squid.png`, `glow_squid.png`), converted from palette PNGs in round fifty-three, so
+the glow squid's emissive map is the same texture vanilla uses.
+
+**This is the rule for the remaining seven self-skinned models**: `horseModel`, `packEquineModel`, `piglin`,
+`striderModel`, `witherSkeletonModel`, `zombifiedPiglinModel`. Each needs the preloaded atlas consulted first, the drawn
+skin retained while the sheet is undecoded, and the sheet adopted on decode -- not a test change.
+
+Work list: **97 spawners, 60 with a real sheet, 32 mobs still flat-colour only**, of which SEVEN draw their own skin.
