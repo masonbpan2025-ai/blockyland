@@ -6554,7 +6554,12 @@ export class MobManager {
   }
 
   spawnBlaze(x, y, z) {
-    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures);
+    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures, {
+      // The real 64x32 blaze sheet. Without this hook the model can only use its palette, which is why the blaze had no
+      // skin: `loadTexture` is what binds the asset.
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });

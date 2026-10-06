@@ -1659,3 +1659,30 @@ because its sheet has transparent padding inside the head rectangle and vanilla 
 The zombie villager is complete: real decompiled model, real 64x64 sheet, correct eyes, and a reachable Inspector entry.
 
 Work list: **97 spawners, 58 with a real sheet, 34 mobs still flat-colour only.**
+## Round forty-nine: the blaze had three rods too many, and a palette sheet
+
+**The blaze's rod count was wrong.** `BlazeEntityModel` places its rods in TWO RINGS OF FOUR -- radius 9 at one height,
+radius 7 at another -- so a blaze has EIGHT rods. This project drew **three tiers of four, twelve rods in a cone**, which
+is three more than the mob has and in a shape it does not use. The geometry now carries vanilla's own placements,
+transcribed from the decompiled loops, and the Inspector readout confirms `rods: 8`.
+
+The twelve-rod version was asserted by the mob's own scenario, which is why it survived: `blazeScenarios.js` checked
+`flatMap(...).length === 12`. **A test can pin a wrong value as firmly as a right one**, and this one did for as long as
+the mob has existed. The scenario is corrected to 8 with a comment explaining the arithmetic.
+
+**Its sheet was another palette PNG**, colour type 3 at depth 4 -- bit-packed, two pixels per byte. `to-rgba.mjs` now
+handles depths 1, 2, 4 and 8: it unfilters the PACKED bytes first (the filter arithmetic is byte-level) and unpacks the
+indices afterwards. Blaze went 368 bytes / type 3 to 486 bytes / type 6, and the zombie villager's conversion still
+works, so the change is additive rather than a replacement.
+
+**What is kept from the old model, and why:** the head keeps SIX materials, one per face, because the mob's suite pins
+the front face's exact pixels; and the rods keep this project's 0.125 x 0.5 size, which the suite also asserts. Those are
+deliberate, and both are now commented as conventions rather than transcriptions. **The real sheet is bound on the rods
+and the coat**, which is the actual skin gain.
+
+**What is still wrong, recorded:** the rods render splayed around and below the head rather than orbiting it. Vanilla's
+rod offsets are relative to a frame whose origin differs from this project's group origin, and I have not yet converted
+that frame -- the same class of fault the silverfish and endermite needed `groundModel` for. The readout is correct, the
+count is correct, and the placements are transcribed; the frame is not.
+
+Work list: **97 spawners, 59 with a real sheet, 33 mobs still flat-colour only.**

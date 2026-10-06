@@ -8,7 +8,9 @@ export function blazeScenarios(){
   const add=(id,label,duration,setup,check,update)=>cases.push({id,label,duration,setup,check,update});
   const combat=s=>{s.player.gamemode='survival';s.player.position.set(0,0,8);};
   const wall=(s,id)=>{for(let x=-3;x<=3;x++)for(let y=0;y<7;y++)s.world.setVoxel(x,y,3,id);};
-  add('appearance','Model: head, face, 12 textured rods, smoke',2,()=>{},s=>s.mob.head.geometry.parameters.width===.5 && s.mob.tiers.flatMap(t=>t.children).length===12 && s.mob.tiers.every(t=>t.children.every(r=>r.material.map)) && s.mob.smoke.children.every(p=>p.isSprite));
+  // EIGHT rods, not twelve: `BlazeEntityModel` places its rods in two rings of four (radii 9 and 7). The old count of
+  // twelve was this project's cone of three tiers of four, which is three rods more than a blaze has.
+  add('appearance','Model: head, face, 8 textured rods, smoke',2,()=>{},s=>s.mob.head.geometry.parameters.width===.5 && s.mob.tiers.flatMap(t=>t.children).length===8 && s.mob.tiers.every(t=>t.children.every(r=>r.material.map)) && s.mob.smoke.children.every(p=>p.isSprite));
   add('movement','Idle orbiting rods and slow falling',3,s=>{s.mob.mesh.position.y=4;s.initialRod=s.mob.tiers[0].rotation.y;},s=>s.mob.mesh.position.y<4 && s.mob.velocity.y>=-1.2 && s.mob.tiers[0].rotation.y!==s.initialRod);
   add('hover','Approach and hover above the target',3,combat,s=>s.mob.mesh.position.y>=.5 && s.mob.mesh.position.y<=3.5 && s.mob.mesh.position.z>0);
   add('attack','3-second charge, 3 shots and 5-second cooldown',8,combat,s=>s.mob.shotsFired===3 && s.player.damageEvents>=3 && !s.mob.charging);
