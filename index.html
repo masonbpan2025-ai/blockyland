@@ -1141,6 +1141,43 @@
               </div>
             </div>
             <span class="gemini-vendor-hint" id="terminal-settings-hint"></span>
+
+            <!--
+              Data packs. The world settings above are cheat switches; this is content, and it lives here for
+              the same reason -- the terminal is the configuration surface, and it is only reachable with
+              cheats on, so an ordinary Survival world does not get a content editor in its pause menu.
+            -->
+            <div class="gemini-world-settings" id="gemini-datapack-section">
+              <div class="gemini-world-row">
+                <span class="gemini-world-label">Data Packs</span>
+              </div>
+              <div id="datapack-list" class="datapack-list"></div>
+              <div class="gemini-rule-row">
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-add-bundled">Add Vanilla Pack</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-open">Paste JSON…</button>
+                <label class="mc-btn gemini-rule-btn datapack-upload" for="datapack-file-input">Upload…</label>
+                <input type="file" id="datapack-file-input" accept=".json,.mcmeta" multiple hidden>
+              </div>
+              <div class="gemini-rule-row">
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-apply">Apply to World</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-revert">Remove from World</button>
+              </div>
+              <div id="datapack-paste-area" class="datapack-paste hidden">
+                <div class="gemini-rule-row">
+                  <select id="datapack-paste-type" class="datapack-select"></select>
+                  <input type="text" id="datapack-paste-id" class="datapack-input" placeholder="id, e.g. my_plains">
+                </div>
+                <textarea id="datapack-paste-text" class="datapack-textarea" rows="5"
+                  placeholder="Paste a generator's JSON here — one file, or a whole data pack as a map of path to JSON."></textarea>
+                <div class="gemini-rule-row">
+                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-load">Load</button>
+                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-cancel">Cancel</button>
+                </div>
+                <span class="gemini-vendor-hint datapack-error" id="datapack-paste-error"></span>
+              </div>
+              <span class="gemini-vendor-hint datapack-warning hidden" id="datapack-warning"></span>
+              <span class="gemini-vendor-hint" id="datapack-status"></span>
+            </div>
           </div>
         </div>
 

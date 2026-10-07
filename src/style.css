@@ -317,33 +317,6 @@ html, body {
   text-shadow: 1px 1px 0 #3f3f3f, 2px 2px 0 #000;
 }
 
-/* Vanilla's durability bar: a dark trough across the bottom of a worn tool, filled green, then yellow and
-   red as the tool empties. A pristine tool has no element at all. */
-.durability-bar {
-  position: absolute;
-  left: 7%;
-  bottom: 3px;
-  width: 86%;
-  height: 3px;
-  background: #1b1b1b;
-  border: 1px solid #000000;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-
-.durability-fill {
-  height: 100%;
-  background: #4caf50;
-}
-
-.durability-mid .durability-fill {
-  background: #ffc107;
-}
-
-.durability-low .durability-fill {
-  background: #f44336;
-}
-
 /* Debug Screen (F3) */
 #debug-screen {
   position: absolute;
@@ -2130,6 +2103,116 @@ html, body {
   opacity: 1;
   background: #3c8527;
   color: #ffffff;
+}
+
+/* Data packs: a list where each row is "is it on, what is it, get rid of it". */
+.datapack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 132px;
+  overflow-y: auto;
+  margin: 2px 0;
+}
+
+.datapack-empty {
+  font-size: 11px;
+  opacity: 0.6;
+  padding: 3px 0;
+}
+
+.datapack-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
+  background: rgba(0, 0, 0, 0.28);
+  border-left: 2px solid transparent;
+}
+
+/* An enabled pack is the one affecting the world, so it is the one worth marking. */
+.datapack-row.enabled {
+  border-left-color: #3c8527;
+}
+
+.datapack-toggle {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.datapack-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.datapack-name {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datapack-meta {
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.datapack-remove {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #6b2020;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.datapack-remove:hover {
+  background: #8a2b2b;
+}
+
+.datapack-upload {
+  cursor: pointer;
+}
+
+.datapack-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.datapack-select,
+.datapack-input,
+.datapack-textarea {
+  font-family: inherit;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.4);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 3px 5px;
+}
+
+.datapack-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.datapack-textarea {
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.datapack-error {
+  color: #ff8080;
+}
+
+/* A pack that will not survive a save is worth saying out loud, not whispering. */
+.datapack-warning {
+  color: #ffcc66;
 }
 
 .biome-select-wrapper {
@@ -4113,13 +4196,3 @@ html, body {
 
 
 
-
-/* F1 hides the HUD, as vanilla's `key.toggleGui` does. !important because the F3 toggle writes an inline
-   display on the debug screens, and F1 has to be able to hide them anyway. Chat stays visible. */
-body.hud-hidden #crosshair,
-body.hud-hidden #hud,
-body.hud-hidden #debug-screen,
-body.hud-hidden #debug-screen-right,
-body.hud-hidden #offhand-hud-slot {
-  display: none !important;
-}
