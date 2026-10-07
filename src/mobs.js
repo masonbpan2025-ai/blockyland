@@ -13663,7 +13663,18 @@ export class MobManager {
 
       if (!hostile) {
         // Idle: wander a little, and do not think about the player at all.
-        if (updateAmbientLocomotion) updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        //
+        // Wiki: an enderman is neutral and wanders its surroundings until it is provoked. The pace is passed
+        // in rather than declared in ambientLocomotion's table: the enderman has its own branch, and a table
+        // entry would make the generic fallback further down MobManager.update run for it as well and
+        // overwrite the chase this branch sets once it is hostile. `range: 0` keeps the wander from ever
+        // aiming at the player, which the branch above has already decided about.
+        if (updateAmbientLocomotion) {
+          updateAmbientLocomotion(this, mob, dt, player, {
+            wander: wanderMob,
+            spec: { role: 'passive', speed: 1.0, range: 0, damage: 0, attackReach: 0 }
+          });
+        }
         // No periodic teleport while neutral. The arena teleport was the reason an untouched enderman
         // appeared next to a new player's spawn.
       } else {

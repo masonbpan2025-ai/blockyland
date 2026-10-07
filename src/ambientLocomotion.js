@@ -114,10 +114,15 @@ function aimAt(mob, player) {
  * `wander` is the shared goal-picking wanderer, injected so this module does not import the motion
  * helpers back and create a cycle. `random` is injectable for the same reason `wanderMob`'s is.
  *
+ * `spec` overrides the table lookup for a caller that owns its own locomotion and only wants the wander for
+ * one state. A mob in neither table returns null here, which is deliberate: the tables exist for mobs with no
+ * branch of their own, and adding one that has a branch makes the generic fallback in MobManager.update run
+ * alongside it and overwrite whatever the branch decided.
+ *
  * @returns {'chasing'|'wandering'|'stationary'|null} what the mob did, or null when not covered
  */
-export function updateAmbientLocomotion(manager, mob, dt, player, { wander = null, random = Math.random, fire = null } = {}) {
-  const spec = locomotionFor(mob?.type);
+export function updateAmbientLocomotion(manager, mob, dt, player, { wander = null, random = Math.random, fire = null, spec: specOverride = null } = {}) {
+  const spec = specOverride ?? locomotionFor(mob?.type);
   if (!spec) return null;
   if (!mob.velocity) return null;
 
