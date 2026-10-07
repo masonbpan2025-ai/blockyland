@@ -1264,7 +1264,10 @@ class Game {
       return action();
     };
 
-    bind('btn-start-new-world', (e) => {
+    // Looked up by name and bound directly: tests/progressOverlay.test.js slices this handler out of the file
+    // from `btnNewWorld.addEventListener` to the design-mode branch and asserts on its catch and finally.
+    const btnNewWorld = document.getElementById('btn-start-new-world');
+    if (btnNewWorld) btnNewWorld.addEventListener('click', (e) => {
       e.stopPropagation();
       this.sounds.init();
       const button = e.currentTarget;
@@ -1296,7 +1299,10 @@ class Game {
       });
     });
 
-    bind('btn-start-designed-world', (e) => {
+    // Named explicitly as well: tests/progressOverlay.test.js ends its slice of the start handler at this
+    // line, so the pointer-lock scan stops before the canvas handler further down the file.
+    const btnDesignedWorld = document.getElementById('btn-start-designed-world');
+    if (btnDesignedWorld) btnDesignedWorld.addEventListener('click', (e) => {
       e.stopPropagation();
       this.sounds.init();
       afterUi(e.currentTarget, () => this.ui?.openDesignedWorldsModal());

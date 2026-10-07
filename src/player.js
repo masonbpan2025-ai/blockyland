@@ -1127,7 +1127,9 @@ export class Player {
       this.velocity.addScaledVector(push, 3);
       this.velocity.y = Math.max(this.velocity.y, 2.5);
     }
-    this.sounds.playHurt();
+    // Guarded like the other hurt-sound call above: a caller may supply a partial sounds object (the
+    // terminal-controls test does), and a missing beep must not break the damage itself.
+    this.sounds?.playHurt?.();
 
     // Armour wears for the damage that got through. In vanilla every worn piece is charged, so this runs
     // after the reductions rather than on the raw amount.

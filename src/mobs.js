@@ -4325,6 +4325,7 @@ export class MobManager {
       mesh: group,
       // The coat swap loads a different sheet, so the manager travels with the mob.
       skinManager: this,
+      skinPaths: RABBIT_SKIN_PATHS,
       head,
       body,
       patchMesh,

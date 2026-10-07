@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 
 /**
  * Rabbit rules and model.
@@ -125,10 +126,16 @@ export function applyRabbitCoat(mob) {
   mob.bodyMat?.color?.setHex(colors.base);
   mob.patchMat?.color?.setHex(colors.patch);
   mob.eyeMat?.color?.setHex(colors.eye);
-  // Emissive eyes only for the coats the wiki gives a glowing or hollow look.
-  if (mob.eyeMat) mob.eyeMat.color.setHex(colors.eye);
+  // Toast is a sheet rather than a tint. Naming a rabbit "Toast" changes its coat, and the spawn records the
+  // manager and the coat paths on the mob so the new coat can bind its own texture here -- without this the
+  // rabbit kept the brown sheet and only its colours changed.
+  const skinPath = mob.skinPaths?.[mob.coat];
+  if (skinPath && mob.bodyMat && typeof mob.skinManager?.loadTexture === 'function') {
+    mob.bodyMat.color?.setHex(0xffffff);
+    adoptWhenReady(mob.bodyMat, mob.skinManager.loadTexture(skinPath), colors.base);
+  }
+  // Solid coats hide the patch so the silhouette matches the wiki's single-colour rabbits.
   if (mob.patchMesh) {
-    // Solid coats hide the patch so the silhouette matches the wiki's single-colour rabbits.
     mob.patchMesh.visible = ['white_splotched', 'salt', 'toast'].includes(mob.coat);
   }
 }
