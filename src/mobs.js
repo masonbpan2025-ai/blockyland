@@ -580,27 +580,58 @@ const POLAR_BEAR_MODEL = {
     // as a second head, and a 26-wide box sampling a 14-wide region is the hole. `mouth` and both `ear` parts were missing
     // entirely. The project's boxes are `[w, h, d]` against vanilla's `(w, h, d)`; `at` is `[x, y, z]` against vanilla's
     // `method_32090(x, y, z)`. // POLAR_BEAR_VANILLA
-    { name: 'body', box: [14, 14, 11], uv: { u: 0, v: 19, tw: 14, th: 14, td: 11 }, at: [0, 14, 0] },
-    // Head: 7x7x7 at (0, 0). The body's box spans y 1..15 in world texels, so the head's CENTRE sits at 18.5 to rest on
-    // that top -- the earlier `24` left it visibly floating above the body.
+    //
+    // ROUND ONE HUNDRED AND FIFTY-FIVE -- RE-TRANSCRIBED FROM `PolarBearModel.createBodyLayer()` WITH THE AXES CONVERTED.
+    // The round-153 values still rendered a bear with a hole in its body and a head floating off one end, for three reasons:
+    //   1. vanilla's `body` part holds TWO cubes -- the 14x14x11 rump at (0,19) AND a 12x12x10 shoulder hump at (39,0) --
+    //      and the hump was missing, which left the front half of the bear empty;
+    //   2. the body part is posed with xRot = PI/2, so its 11-deep box stands 11 TALL and runs 14 LONG. Unrotated, it was
+    //      a 14-tall, 11-long block that neither reached the head nor matched the texture's orientation;
+    //   3. vanilla's model faces -Z, this project's models face +Z (see WOLF_MODEL), so every z had to be negated -- the
+    //      head was sitting on the bear's rump.
+    // Conversion used throughout: project (x, y, z) = vanilla (x, 24 - y, -z), in texels. That map is a proper rotation
+    // (180 degrees about X), so a vanilla xRot carries across unchanged. Face rectangles are given explicitly via
+    // `polarBearFaces` because the generic `createEntityBox` layout puts the side strips in the wrong place.
+    //
+    // Rump: local box (-5,-13,-7) 14x14x11, part offset (-2, 9, 12), xRot PI/2 -> centre (0, 10.5, 6) vanilla.
+    { name: 'body', box: [14, 14, 11], uv: { faces: polarBearFaces(0, 19, 14, 14, 11) }, at: [0, 13.5, -6], rotate: [Math.PI / 2, 0, 0] },
+    // Shoulder hump: local box (-4,-25,-7) 12x12x10 in the same part -> centre (0, 11, -7) vanilla.
+    { name: 'bodyFront', box: [12, 12, 10], uv: { faces: polarBearFaces(39, 0, 12, 12, 10) }, at: [0, 13, 7], rotate: [Math.PI / 2, 0, 0] },
+    // Head: 7x7x7 at (0,0), box (-3.5,-3,-3), hinged at the part offset (0, 10, -16) -> hinge (0, 14, 16) here, and the
+    // cube's centre sits half a texel lower and further back. Children are positioned relative to the HINGE.
     {
-      name: 'head', box: [7, 7, 7], uv: { u: 0, v: 0, tw: 7, th: 7, td: 7 },
-      pivot: [0, -3.5, 0], at: [0, 18.5, -16]
+      name: 'head', box: [7, 7, 7], uv: { faces: polarBearFaces(0, 0, 7, 7, 7) },
+      pivot: [0, 0.5, 0.5], at: [0, 14, 16]
     },
-    // Muzzle: 5x3x3 at (0, 44), a sub-part of the head.
-    { name: 'snout', parent: 'head', box: [5, 3, 3], uv: { u: 0, v: 44, tw: 5, th: 3, td: 3 }, at: [0, 1, -5] },
-    // Ears: 2x2x1 at (26, 0). Vanilla's raw y offset is -4 from the head's ORIGIN, and this project's `at` is
-    // centre-relative, so the y is raised by half the head's height: -4 + 3.5 = -0.5.
-    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { u: 26, v: 0, tw: 2, th: 2, td: 1 }, at: [-2.5, -0.5, -1] },
-    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { u: 26, v: 0, tw: 2, th: 2, td: 1 }, at: [2.5, -0.5, -1] },
-    // HIND legs: 4x10x8 at (50, 22), at z = +6.
-    { name: 'legBackLeft', box: [4, 10, 8], uv: { u: 50, v: 22, tw: 4, th: 10, td: 8 }, at: [-4.5, 10, 6] },
-    { name: 'legBackRight', box: [4, 10, 8], uv: { u: 50, v: 22, tw: 4, th: 10, td: 8 }, at: [4.5, 10, 6] },
-    // FRONT legs: 4x10x6 at (50, 40), at z = -8.
-    { name: 'legFrontLeft', box: [4, 10, 6], uv: { u: 50, v: 40, tw: 4, th: 10, td: 6 }, at: [-3.5, 10, -8] },
-    { name: 'legFrontRight', box: [4, 10, 6], uv: { u: 50, v: 40, tw: 4, th: 10, td: 6 }, at: [3.5, 10, -8] }
+    // Mouth: 5x3x3 at (0,44), box (-2.5, 1, -6) in head space.
+    { name: 'snout', parent: 'head', box: [5, 3, 3], uv: { faces: polarBearFaces(0, 44, 5, 3, 3) }, at: [0, -2.5, 4.5] },
+    // Ears: 2x2x1 at (26,0), boxes (-4.5,-4,-1) and (2.5,-4,-1) in head space. Vanilla's right is -X here too.
+    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { faces: polarBearFaces(26, 0, 2, 2, 1) }, at: [-3.5, 3, 0.5] },
+    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { faces: polarBearFaces(26, 0, 2, 2, 1) }, at: [3.5, 3, 0.5], mirror: true },
+    // HIND legs: 4x10x8 at (50,22), box (-2,0,-2), hinged at (+-4.5, 14, 6) -> hip (+-4.5, 10, -6), cube centre 2 behind.
+    { name: 'legBackRight', box: [4, 10, 8], uv: { faces: polarBearFaces(50, 22, 4, 10, 8) }, pivot: [0, 5, 2], at: [-4.5, 10, -6] },
+    { name: 'legBackLeft', box: [4, 10, 8], uv: { faces: polarBearFaces(50, 22, 4, 10, 8) }, pivot: [0, 5, 2], at: [4.5, 10, -6] },
+    // FRONT legs: 4x10x6 at (50,40), box (-2,0,-2), hinged at (+-3.5, 14, -8) -> shoulder (+-3.5, 10, 8), centre 1 behind.
+    { name: 'legFrontRight', box: [4, 10, 6], uv: { faces: polarBearFaces(50, 40, 4, 10, 6) }, pivot: [0, 5, 1], at: [-3.5, 10, 8] },
+    { name: 'legFrontLeft', box: [4, 10, 6], uv: { faces: polarBearFaces(50, 40, 4, 10, 6) }, pivot: [0, 5, 1], at: [3.5, 10, 8] }
   ]
 };
+
+/**
+ * Vanilla's cube UV layout for a box of (w, h, d) at atlas (u, v), in three's face order (+X, -X, +Y, -Y, +Z, -Z) for a
+ * model facing +Z. Row two of vanilla's block is [-X side][front][+X side][back], so the strip directly right of the
+ * front belongs on +X and the strip at `u` on -X.
+ */
+function polarBearFaces(u, v, w, h, d) {
+  return [
+    { x: u + d + w, y: v + d, w: d, h },     // +X
+    { x: u, y: v + d, w: d, h },             // -X
+    { x: u + d, y: v, w, h: d },             // +Y top
+    { x: u + d + w, y: v, w, h: d },         // -Y bottom
+    { x: u + d, y: v + d, w, h },            // +Z front
+    { x: u + d + d + w, y: v + d, w, h }     // -Z back
+  ];
+}
 
 function applyVariantIdentity(mob, variant, options = {}) {
   if (!mob || !variantHealth(variant)) return mob;
@@ -6478,8 +6509,6 @@ export class MobManager {
       mesh: group,
       head: head,
       legs: legs,
-      head: head,
-      legs: legs,
       // Wiki: 30 HP.
       health: POLAR_BEAR_HEALTH,
       maxHealth: POLAR_BEAR_HEALTH,
@@ -6680,12 +6709,7 @@ export class MobManager {
   }
 
   spawnBlaze(x, y, z) {
-    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures, {
-      // The real 64x32 blaze sheet. Without this hook the model can only use its palette, which is why the blaze had no
-      // skin: `loadTexture` is what binds the asset.
-      loadTexture: (p) => this.loadTexture(p),
-      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
-    });
+    const { mesh: group, head, tiers, smoke, flames } = createBlazeModel(this.textures);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
