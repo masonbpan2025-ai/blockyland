@@ -44,10 +44,15 @@ export function createSpiderModel(bodyMat, eyeMat) {
 
   // Eyes: the wiki's red eyes are the mob's most recognisable feature and stay visible in
   // the dark, so they are a separate emissive material rather than part of the body map.
+  //
+  // Eight of them, as a spider has: two rows of four, the front row larger and lower on the face. Cave
+  // spiders share this model and its eye count, which is what tests/caveSpiderParity.test.js checks.
   const eyeGeo = new THREE.BoxGeometry(0.12, 0.1, 0.06);
   const eyeOffsets = [
     [-0.15, 0.04, 0.26], [0.15, 0.04, 0.26],
-    [-0.06, 0.02, 0.27], [0.06, 0.02, 0.27]
+    [-0.06, 0.02, 0.27], [0.06, 0.02, 0.27],
+    [-0.19, 0.11, 0.22], [0.19, 0.11, 0.22],
+    [-0.08, 0.13, 0.25], [0.08, 0.13, 0.25],
   ];
   const eyes = eyeOffsets.map(([x, y, z]) => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);

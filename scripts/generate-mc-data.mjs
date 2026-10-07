@@ -24,6 +24,11 @@ const SOURCES = {
   items: `${RAW}/pc/1.21.4/items.json`,
   entityLoot: `${RAW}/pc/1.20/entityLoot.json`,
   foods: `${RAW}/pc/1.21.1/foods.json`,
+  // Recipes are not turned into a module here: scripts/generate-recipes.mjs and generate-items.mjs read the
+  // cached copy, and so do the parity tests (blockDropParity, itemGapDoc, recipeFreshness). They used to
+  // fail with ENOENT on a fresh checkout because nothing ever fetched it, even though those scripts tell you
+  // to run this one first.
+  recipes: `${RAW}/pc/1.21.4/recipes.json`,
 };
 
 async function load(key) {
@@ -59,6 +64,9 @@ const blocks = await load('blocks');
 const items = await load('items');
 const entityLoot = await load('entityLoot');
 const foods = await load('foods');
+const recipes = await load('recipes');
+const recipeCount = Array.isArray(recipes) ? recipes.length : Object.keys(recipes).length;
+console.log(`  recipes: ${recipeCount} entries cached for scripts/generate-recipes.mjs`);
 
 const itemNameById = new Map(items.map(i => [i.id, i.name]));
 
