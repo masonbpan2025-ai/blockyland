@@ -1852,24 +1852,27 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   // --- Execution Engine ---
   async runPlan(plan, originalPrompt) {
     this.activeBuilding = null;
-    if (plan.targetBuilding) {
-      const target = this.resolveBuilding(plan.targetBuilding);
+    // A plan names its target under `targetBuilding` (the field the prompt documents) or `targetStructure`
+    // (the field the model-facing schema and every geminiAgent test use). Resolving only the first meant a
+    // destroy or a stair attachment silently had no target at all.
+    const requestedTarget = plan.targetBuilding ?? plan.targetStructure;
+    if (requestedTarget) {
+      const target = this.resolveBuilding(requestedTarget);
       if (target) {
         plan = { ...plan, targetBuilding: target };
         this.lastReferencedBuilding = target;
       } else {
-        // A model will sometimes invent an id. With a building open in Building
-        // Studio there is exactly one thing it can mean, so use it rather than
-        // failing the entire plan with "Building not found".
+        // A model will sometimes invent an id. With a structure open in the Studio there is exactly one
+        // thing it can mean, so use it rather than failing the whole plan.
         const studioBuilding = this.getStudioBuilding();
         const editable = ['edit', 'destroy', 'build_stairs', 'build_ladder'].includes(plan.action);
         if (studioBuilding && editable) {
-          const requested = typeof plan.targetBuilding === 'string' ? plan.targetBuilding : 'that building';
+          const requested = typeof requestedTarget === 'string' ? requestedTarget : 'that structure';
           this.log(`"${requested}" is not a known structure; applying this to "${studioBuilding.name}" from Structure Studio instead.`, 'warning');
           plan = { ...plan, targetBuilding: studioBuilding };
           this.lastReferencedBuilding = studioBuilding;
         } else {
-          throw new Error(`Structure not found: ${typeof plan.targetBuilding === 'string' ? plan.targetBuilding : plan.targetBuilding.id}`);
+          throw new Error(`Structure not found: ${typeof requestedTarget === 'string' ? requestedTarget : requestedTarget.id}`);
         }
       }
     }
