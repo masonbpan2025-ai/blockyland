@@ -15,6 +15,7 @@ import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
 import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, clampDelta } from './worldLifecycle.js';
 import { createPackStore } from './dataPackStore.js';
+import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { applyStore, revertAll } from './dataPackApply.js';
 import { revertDataPack } from './dataPackRuntime.js';
 import { normaliseSettings, normaliseGameMode, DEFAULT_SETTINGS, DAY_LENGTH_SECONDS, startingTimeOfDay,
@@ -250,8 +251,28 @@ class Game {
     this.dataPackApplication = null;
   }
 
+  /**
+   * Install the bundled vanilla pack as the default content source.
+   *
+   * The bundle is about a megabyte, so this is kicked off rather than awaited: the game can decode its atlas
+   * while the pack downloads. `applyDataPacks` awaits the same promise, so nothing reads the registries
+   * before the default has landed.
+   *
+   * A missing bundle is NOT an error. It means the player gets the game's own built-in content, which is
+   * exactly what happened before any of this existed -- and in Node, where `/datapacks/...` is not a URL
+   * anything can fetch, that is always what happens, which is why every existing test is unaffected.
+   */
+  installDefaultDataPack() {
+    if (!this.dataPacks) return Promise.resolve({ ok: false, reason: 'no pack store' });
+    return installBundledPack(this.dataPacks, { name: BUNDLED_PACK_NAME })
+      .catch(() => ({ ok: false, reason: 'the bundled pack could not be read' }));
+  }
+
   async start() {
     console.log('Initializing Minecraft Web Edition...');
+
+    // The default pack starts downloading now and is awaited before anything reads a biome or a recipe.
+    this.dataPackReady = this.installDefaultDataPack();
 
     // Bind the start screen before anything slow: bindEvents() runs at the end of start(), after the
     // whole atlas has decoded, so until then every click landed on a button with no listener.
@@ -396,6 +417,9 @@ class Game {
     // entire several seconds of terrain loading. `beginLoading` refuses a second call while one is in flight
     // or once the world is ready, so a double-clicked "Create World" cannot run this twice.
     if (!beginLoading(this.lifecycle)) return;
+    // Apply the data packs BEFORE any terrain is built. Biomes and recipes are read while the world loads, so
+    // applying afterwards would generate terrain from one content set and then claim another was in effect.
+    await this.applyDataPacks();
     this.worldGenerated = true;
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
@@ -766,8 +790,14 @@ class Game {
    * recipe registries are read while loading, so applying mid-generation would give a world built from a
    * mixture of two content sets.
    */
-  applyDataPacks() {
+  async applyDataPacks() {
     if (!this.dataPacks) return null;
+    // Wait for the bundled default to land. Without this the first apply would race the download and the
+    // world would be built from the built-in content while the store said the vanilla pack was enabled.
+    if (this.dataPackReady) {
+      try { await this.dataPackReady; } catch { /* a missing bundle is not fatal */ }
+      this.dataPackReady = null;
+    }
     this.revertDataPacks();
     const result = applyStore(this.dataPacks);
     this.dataPackApplication = result;
