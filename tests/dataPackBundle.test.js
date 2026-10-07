@@ -292,7 +292,53 @@ test('describeStore names each pack with what matters to a player', (t) => {
   assert.deepEqual(describeStore(null), []);
 });
 
-// --- the whole thing, through the real bundle ---------------------------------------------------------
+// --- the default: the bundled pack is what the game starts with ---------------------------------------
+
+test('the game installs the bundled pack as the default and applies it before building terrain', () => {
+  // "A bundled vanilla pack is the default" has to mean the game installs it, not that a player may.
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /this\.dataPackReady = this\.installDefaultDataPack\(\)/,
+    'the download starts at startup rather than on a click');
+  assert.match(main, /installDefaultDataPack\(\) \{/, 'and there is a method for it');
+  assert.match(main, /installBundledPack\(this\.dataPacks, \{ name: BUNDLED_PACK_NAME \}\)/);
+  assert.match(main, /import \{ installBundledPack, BUNDLED_PACK_NAME \} from '\.\/dataPackBundle\.js'/);
+
+  // Applied BEFORE terrain, because biomes and recipes are read while the world loads. Applying afterwards
+  // would build terrain from one content set and then claim another was in effect.
+  const generate = main.slice(main.indexOf('async generateNewWorld()'));
+  const begin = generate.indexOf('beginLoading(this.lifecycle)');
+  const apply = generate.indexOf('await this.applyDataPacks()');
+  const biome = generate.search(/selectedBiome|BIOMES/);
+  assert.ok(begin >= 0 && apply > begin, 'the apply happens after the lifecycle starts loading');
+  assert.ok(biome < 0 || apply < biome, 'and before anything reads a biome');
+});
+
+test('the default install cannot reject, so a missing bundle cannot stop the game', async () => {
+  // In Node `/datapacks/...` is not a URL anything can fetch, so this is the path every existing test takes:
+  // the install fails, the store stays empty, and nothing about the world changes.
+  resetBundledPackCache();
+  const store = createPackStore();
+  const result = await installBundledPack(store, { name: BUNDLED_PACK_NAME }).catch(() => ({ ok: false }));
+  assert.equal(result.ok, false);
+  assert.equal(allPacks(store).length, 0, 'nothing half-installed');
+});
+
+test('applyDataPacks waits for the default before applying anything', () => {
+  // Without the wait, the first apply races the download and the world is built from the built-in content
+  // while the store says the vanilla pack is on.
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const method = main.slice(main.indexOf('async applyDataPacks()'));
+  assert.match(method.slice(0, 700), /await this\.dataPackReady/);
+  assert.match(method.slice(0, 700), /this\.dataPackReady = null/, 'and it waits only once');
+});
+
+test('a bundled pack is the default and the pasted ones are the player\'s', () => {
+  // The two provenances the objective names.
+  assert.equal(PACK_SOURCES.BUNDLED, 'bundled');
+  assert.equal(PACK_SOURCES.PASTED, 'pasted');
+  assert.equal(PACK_SOURCES.UPLOADED, 'uploaded');
+});
+
 
 test('the real bundled pack applies, reaches the matcher, and reverts exactly', async (t) => {
   // The end-to-end case: the shipped megabyte, through the store, into the game, and back out.
