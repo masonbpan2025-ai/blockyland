@@ -310,6 +310,12 @@ export class ChunkMesher {
             for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
             geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
             lightGeometries.push(geometry);
+            // A shaped emitter reaches this branch and used to `continue` straight past the emissive branch
+            // below, so its light was never registered: the light manager had no source for an end rod, and
+            // the emitting-block sweep had nothing to read. Candles and lanterns come through here too.
+            if (def.light) {
+              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: def.light, color: def.lightColor || 0xffc477 });
+            }
             continue;
           }
           if (def?.door) {
