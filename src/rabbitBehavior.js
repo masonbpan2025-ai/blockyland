@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 
 /**
  * Rabbit rules and model.
@@ -48,17 +47,6 @@ export const RABBIT_COATS = ['brown', 'white', 'black', 'white_splotched', 'gold
 export const KILLER_BUNNY_TYPE = 99;
 
 /** Body colour per coat, with the two-tone coats expressed as a base and a patch. */
-/** The vanilla sheet each rabbit coat wears, where one exists on disk. A coat IS its texture. */
-export const RABBIT_SKIN_PATHS = {
-  brown: '/assets/entity/rabbit/brown.png',
-  white: '/assets/entity/rabbit/white.png',
-  black: '/assets/entity/rabbit/black.png',
-  gold: '/assets/entity/rabbit/gold.png',
-  salt: '/assets/entity/rabbit/salt.png',
-  toast: '/assets/entity/rabbit/toast.png',
-  killer: '/assets/entity/rabbit/caerbannog.png'
-};
-
 export const RABBIT_COAT_COLORS = {
   brown: { base: 0x8b5a2b, patch: 0xd6bfa3, eye: 0x1f2937 },
   white: { base: 0xf3f4f6, patch: 0xf3f4f6, eye: 0xdc2626 },
@@ -134,12 +122,7 @@ export function applyRabbitName(mob) {
 export function applyRabbitCoat(mob) {
   if (!isRabbit(mob)) return;
   const colors = RABBIT_COAT_COLORS[mob.coat] ?? RABBIT_COAT_COLORS.brown;
-  // The coat IS its sheet where one exists: naming a rabbit "Toast" re-textures it, so a colour change would be
-  // invisible against the bound map. The colour stays as the fallback for coats with no sheet yet.
-  const coatPath = RABBIT_SKIN_PATHS[mob.coat];
-  const coatSkin = coatPath && mob.skinManager?.loadTexture ? mob.skinManager.loadTexture(coatPath) : null;
-  if (coatSkin && mob.bodyMat) adoptWhenReady(mob.bodyMat, coatSkin, colors.base);
-  else mob.bodyMat?.color?.setHex(colors.base);
+  mob.bodyMat?.color?.setHex(colors.base);
   mob.patchMat?.color?.setHex(colors.patch);
   mob.eyeMat?.color?.setHex(colors.eye);
   // Emissive eyes only for the coats the wiki gives a glowing or hollow look.

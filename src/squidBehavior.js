@@ -14,12 +14,7 @@ export function squidInWater(manager,m) {
   return voxel(manager.world,p,h*.5)===BLOCKS.WATER || !!manager.world.isWaterlogged?.(Math.floor(p.x),Math.floor(p.y+h*.5),Math.floor(p.z));
 }
 export function spawnSquid(manager,type,x,y,z,options={}) {
-  const r=random(manager),model=createSquidModel(type==='glow_squid', {
-      // The PRELOADED ATLAS first, then a loader. A test harness supplies a readable per-face stub through the atlas,
-      // and the suite asserts those pixels; the runtime atlas carries the real sheet.
-      texture: manager.textures?.[type] ?? manager.textures?.['squid'],
-      loadTexture: (p) => manager.loadTexture(p)
-    });
+  const r=random(manager),model=createSquidModel(type==='glow_squid');
   const isBaby=options.isBaby??(options.natural===true&&r()<.05);
   const m={...model,type,name:type==='glow_squid'?'Glow Squid':'Squid',health:10,maxHealth:10,isAquatic:true,isGlowSquid:type==='glow_squid',isBaby,naturalSpawn:options.natural===true,
     velocity:new THREE.Vector3(),yaw:r()*Math.PI*2,pitch:0,swimCycle:0,timer:0,hitCooldown:0,darkSeconds:0,drySeconds:0,babyGrowthTimer:isBaby?1200:undefined,ageLocked:false};

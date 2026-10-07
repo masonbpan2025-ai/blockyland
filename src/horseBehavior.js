@@ -48,7 +48,7 @@ export function inheritHorse(baby,a,b,manager){
  if(baby.type==='horse'){
   const c=Math.floor(r()*9),m=Math.floor(r()*5);baby.coat=c<4?a.coat:c<8?b.coat:Math.floor(r()*7);baby.marking=m<2?a.marking:m<4?b.marking:Math.floor(r()*5);
   const position=baby.mesh.position.clone(),materials=new Set();baby.mesh.removeFromParent();baby.mesh.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material);});materials.forEach(m=>m.dispose());
-  Object.assign(baby,createHorseModel(baby.coat,baby.marking,manager.textures,{loadTexture:(p)=>manager.loadTexture(p)}));baby.mesh.position.copy(position);manager.scene.add(baby.mesh);
+  Object.assign(baby,createHorseModel(baby.coat,baby.marking,manager.textures));baby.mesh.position.copy(position);manager.scene.add(baby.mesh);
  }
 }
 // Fit for the current wiki's jump endpoints, translated to this engine's gravity.
@@ -78,7 +78,7 @@ export function restoreHorse(m,data,manager){
  if(m.type==='horse'){
   m.coat=Math.max(0,Math.min(6,m.coat|0));m.marking=Math.max(0,Math.min(4,m.marking|0));
   const pos=m.mesh.position.clone();m.mesh.removeFromParent();const mats=new Set();m.mesh.traverse(o=>{o.geometry?.dispose();if(o.material)mats.add(o.material);});mats.forEach(m=>m.dispose());
-  Object.assign(m,createHorseModel(m.coat,m.marking,manager.textures,{loadTexture:(p)=>manager.loadTexture(p)}));m.mesh.position.copy(pos);manager.scene.add(m.mesh);
+  Object.assign(m,createHorseModel(m.coat,m.marking,manager.textures));m.mesh.position.copy(pos);manager.scene.add(m.mesh);
  }
  m.health=Math.min(oldHealth,m.maxHealth);m.mesh.scale.setScalar(m.isBaby?.7:1);m.saddleMesh.visible=!!m.isSaddled;
  if(m.armorMesh){m.armorMesh.visible=!!HORSE_ARMOR[m.horseArmor];m.armor=HORSE_ARMOR[m.horseArmor]||0;m.armorMesh.material.color.setHex({leather_horse_armor:0x8b5737,iron_horse_armor:0xc3ccd0,golden_horse_armor:0xecc34f,diamond_horse_armor:0x59d7db}[m.horseArmor]||0xc3ccd0);}

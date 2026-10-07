@@ -9,7 +9,6 @@
  * Reference: https://minecraft.wiki/w/Mooshroom
  */
 import { babyGrowthSecondsFor } from './babyGrowth.js';
-import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 
 /** The two variants. Only red spawns naturally; brown comes from lightning. */
 export const MOOSHROOM_VARIANTS = ['red', 'brown'];
@@ -85,32 +84,13 @@ export function isMooshroom(mob) {
  * Wiki: "Baby mooshrooms do not have mushrooms on their backs; they appear once the baby
  * grows to an adult." The shared baby-growth path clears `isBaby`, so this is re-applied
  * from the growth handler as well as at spawn.
- *
- * This SWAPS THE SKIN rather than tinting the model. A red and a brown mooshroom are the same cow-shaped model
- * wearing two different vanilla skins, and writing one flat colour over every mesh -- which is what this used to do
- * -- is incompatible with a textured model: it would stain the hide, the face and the mushrooms the same shade.
- * The mushrooms are handled separately because they are block textures, not the mob's own skin.
  */
 export function applyMooshroomVariant(mob) {
   if (!isMooshroom(mob)) return;
-  const variant = mob.variant === 'brown' ? 'brown' : 'red';
-
-  // One material is shared by the body, head and legs, so binding its skin once dresses the whole animal.
-  if (mob.skinMaterial) {
-    const path = variant === 'brown' ? mob.brownSkinPath : mob.redSkinPath;
-    const texture = mob.skinManager?.loadTexture ? mob.skinManager.loadTexture(path) : mob.skinTexture;
-    adoptWhenReady(mob.skinMaterial, texture, 0xffffff, mob.textureContext ?? {});
+  const body = MOOSHROOM_COLORS[mob.variant] ?? MOOSHROOM_COLORS.red;
+  for (const mesh of mob.variantMeshes || []) {
+    mesh?.material?.color?.setHex(body);
   }
-
-  // The mushrooms are their own material, so a brown mooshroom gets brown caps.
-  if (mob.mushroomMaterial) {
-    const path = variant === 'brown' ? mob.brownMushroomPath : mob.redMushroomPath;
-    const fallback = MOOSHROOM_COLORS[variant] ?? MOOSHROOM_COLORS.red;
-    const texture = mob.skinManager?.loadTexture ? mob.skinManager.loadTexture(path) : null;
-    if (texture) adoptWhenReady(mob.mushroomMaterial, texture, fallback, mob.textureContext ?? {});
-    else mob.mushroomMaterial.color?.setHex?.(fallback);
-  }
-
   const showMushrooms = !mob.isBaby;
   for (const mesh of mob.mushroomMeshes || []) {
     if (mesh) mesh.visible = showMushrooms;

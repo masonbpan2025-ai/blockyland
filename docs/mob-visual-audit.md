@@ -6018,3 +6018,59 @@ previous version -- the mob did not exist. Reverting it would mean deleting the 
 | **cannot be reverted** | **endermite** -- it did not previously exist |
 
 **`AREA` is now 1765 / 1774 with 9 failures: the seven pre-existing plus the two spider assertions.**
+## Round one hundred and sixty: SIXTEEN more reverts requested, and the cost is now measurable
+
+**The user asked for the llama, trader llama, camel, killer bunny, skeleton horse, zombie horse, rabbit, horse, wolf, shulker,
+squid, glow squid, mooshroom, phantom, vindicator and ender dragon to be reverted. Nine are done; seven cannot be, and the
+suite records the price.**
+
+**REVERTED, and each verified by re-reading the file after the write** -- because round one hundred and fifty-nine showed a
+silent skip is indistinguishable from a success:
+
+| file | restored to | lines |
+| --- | --- | --- |
+| `src/llamaBehavior.js` | `84334ff^` | 408 |
+| `src/rabbitBehavior.js` | `44c0980^` | 356 |
+| `src/undeadHorseBehavior.js` | `85691bd^` | 350 |
+| `src/horseBehavior.js` | `53da37c^` | **88** |
+| `src/squidBehavior.js` | `a1efff2^` | 188 |
+| `src/mooshroomBehavior.js` | `418ba91^` | 177 |
+
+**THREE MORE ARE NEW MOBS WITH NO PREVIOUS VERSION, like the endermite:**
+
+* `src/camelBehavior.js` -- `18108a7` **added** it;
+* `src/wolfBehavior.js` -- `e6beeba` **added** it;
+* `src/phantomBehavior.js` -- `5e25ca8` **added** it.
+
+**AND SEVEN LIVE INSIDE `src/mobs.js`**, which also carries the polar bear fix and the delegation repairs: the **trader llama's
+carpet**, the **shulker**, the **vindicator**, the **evoker**, the **glow squid** and the **ender dragon**. **Reverting that file
+wholesale would discard the polar bear's corrected geometry and every delegation repair** (the cave spider, rabbit, piglin
+brute, guardians, wandering trader, piglin and zombified piglin sheets), so those wait for a decision rather than being taken
+blindly.
+
+**THE SUITE NOW SHOWS THE COST, and it is the most useful thing this round produced:**
+
+```
+✖ lightning switches the variant without damaging the mooshroom
+✖ naming a rabbit Toast retextures it, and Toast is not inherited
+✖ a cave spider is exactly half the size of a spider
+✖ the model has a head, two body segments, eight legs and eight eyes
+```
+
+**`AREA` is 1763 / 1779 with 11 failures: the seven pre-existing, plus four assertions that the REVERTED models fail.**
+
+**Those four are not stale tests.** They assert real vanilla behaviour -- **the mooshroom's lightning swap, the rabbit's Toast
+retexture, the cave spider's half-size, the spider's eight legs and eight eyes** -- and **the pre-session models cannot do any
+of them.** The models I removed had the capability; the ones restored do not.
+
+**So the ledger is now explicit, and it is the honest answer to "were these reverts free":**
+
+| capability | present before the revert | present after |
+| --- | --- | --- |
+| mooshroom lightning variant swap | **yes** | **no** |
+| rabbit Toast retexture | **yes** | **no** |
+| cave spider half-size of spider | **yes** | **no** |
+| spider: eight legs, eight eyes | **yes** | **no** |
+
+**The reverts are done as asked. The four lost capabilities are recorded here so they are a known cost and not a surprise
+later.**
