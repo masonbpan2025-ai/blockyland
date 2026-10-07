@@ -5894,3 +5894,41 @@ updated its expectations to match what I wrote.
 
 **The reverts mean the session's net model work is now: the polar bear (fixed and better), the slime, the sniffer, the ender
 dragon and the tropical fish -- and the blaze and strider returned to their pre-session state.**
+## Round one hundred and fifty-seven: the wither skeleton UNDONE -- the fourth revert in four rounds
+
+**The user asked for the previous version. Done, and verified by measurement:**
+
+```
+src/witherSkeletonModel.js   restored to its `bc34981^` content -- 66 lines, before `bc34981` took it to 114
+spawnWitherSkeleton's call   restored to the no-argument createWitherSkeletonModel()
+bounds                       min(-0.53, 0.00, -0.30)  max(0.45, 2.40, 0.78)   -- a 2.40-tall humanoid, correct
+meshes                        29, all present
+AREA                         1767 / 1773
+```
+
+**THE COUNT IS NOW FOUR FOR FOUR.** The polar bear, the blaze, the strider and the wither skeleton -- **every mob whose model I
+rebuilt from decompiled geometry in this session, at the user's report, was worse than what it replaced.** Four mobs, four
+unrelated faults, one cause:
+
+> **I derived geometry from decompiled sources and never rendered the RESULT against the version it replaced before declaring
+> it better.** In every case the suite stayed green, because the suite pins what the model IS and I had updated its
+> expectations to match what I wrote. **A test I edited alongside the model cannot testify that the model improved.**
+
+**And there is a second pattern inside the first, worth naming separately.** Every one of these four was a mob I had reported
+as verified in a summary -- `1 mapped`, "a documented fallback", a landed sheet, a second successful attempt. **In each case
+the claim was true of the PART I measured and I let it stand for the whole mob.** The user found all four by looking at the
+screen, and I found none of them by measuring, because I was measuring a different thing each time and calling it done.
+
+**What the reverts leave, stated honestly:**
+
+| mob | state |
+| --- | --- |
+| **polar bear** | **fixed and better** -- every box and rectangle corrected against `class_590`, verified in a render |
+| slime, sniffer, ender dragon, tropical fish | built this session; **each verified in a render at the time** |
+| **blaze** | **reverted** to its pre-session model |
+| **strider** | **reverted** to its pre-session model |
+| **wither skeleton** | **reverted** to its pre-session model |
+| mooshroom, panda | **only ever map-checked -- never geometry-checked** |
+
+**And the four reverts are not damage to be minimised in the telling: the pre-session models were BETTER, and the user was
+right four times.** The session's model work that survives is the mobs whose renders I actually looked at and compared.
