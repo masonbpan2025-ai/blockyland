@@ -342,7 +342,10 @@ test('Player starts with fist in hand (no sword in hand) in both new world and t
   assert.equal(inv.activeSlot, 0, 'Initial activeSlot must be 0');
   assert.equal(inv.getActiveItem(), null, 'Active item at start of new world must be null (fist)');
   assert.equal(inv.hotbar[0], null, 'Hotbar slot 0 must be empty so player starts with just fist');
-  assert.ok(inv.storage.some(it => it && it.id === 'diamond_sword'), 'Sword is safely stored in inventory storage, not in hand');
+  // A fresh inventory carries nothing at all, which is what the constructor documents and what
+  // survivalStart's 'a fresh inventory is completely empty' asserts. The Tournament sword is not a property
+  // of Inventory; it is part of the map, and the next section reads it from the map's own save file.
+  assert.equal(inv.storage.filter(Boolean).length, 0, 'and no storage slots are prefilled');
 
   // 2. Tournament Map
   const savePath = path.resolve(__dirname, '..', 'designed_worlds', 'World_Martial_Arts_Tournament.json');
