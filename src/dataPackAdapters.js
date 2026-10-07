@@ -315,13 +315,20 @@ function poolRolls(pool) {
  *
  * `minecraft:alternatives` is honoured by taking its first entry, which is what it means: the first branch
  * whose conditions pass, and the first is unconditional in every vanilla table that uses it.
+ *
+ * A table with NO `pools` is not a failure: it is how vanilla writes a block that drops nothing, and it
+ * adapts to an empty result that the runtime turns into "this block gives nothing". Only something that is
+ * not an object at all is rejected.
  */
 export function adaptLootTable(json) {
-  if (!json || !Array.isArray(json.pools)) return null;
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return null;
   const guaranteed = [];
   const pooled = [];
   const conditional = [];
   const unresolved = [];
+  // `pools` present but not an array is malformed rather than empty.
+  if (json.pools !== undefined && !Array.isArray(json.pools)) return null;
+  if (!Array.isArray(json.pools)) return { guaranteed, pooled, conditional, unresolved, empty: true };
 
   for (const pool of json.pools) {
     const rolls = poolRolls(pool);

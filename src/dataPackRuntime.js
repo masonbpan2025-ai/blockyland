@@ -306,7 +306,16 @@ function applyLootToBlock(blockId, adapted, packName) {
   };
 
   const first = adapted.guaranteed[0] ?? adapted.pooled[0] ?? null;
-  if (first && def) {
+  if (def && !first) {
+    // A loot table with no drops at all. `baseBlockDrop` reads `def.drop === null` as "deliberately gives
+    // nothing", which is exactly what the file says -- budding amethyst, cake, fire and frogspawn are the
+    // vanilla cases. Without this the block kept its old drop and the table meant nothing.
+    delete DROP_ITEM_OVERRIDES[key];
+    delete BASE_DROP_COUNTS[key];
+    delete def.dropItem;
+    def.drop = null;
+    record.dropsNothing = true;
+  } else if (first && def) {
     // A block whose drop is an ITEM names it in `dropItem`; a block that drops itself is already right.
     if (first.id !== blockId || first.isBlock === false) {
       if (first.isBlock) {

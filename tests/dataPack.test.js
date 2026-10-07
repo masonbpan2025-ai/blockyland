@@ -387,11 +387,20 @@ test('a count range and a chance condition survive the trip', () => {
   assert.equal(out.conditional[0].max, 3);
 });
 
-test('a malformed loot table is rejected', () => {
-  assert.equal(adaptLootTable({}), null, 'no pools');
+test('a loot table with no pools is EMPTY, not malformed', () => {
+  // This is how vanilla writes a block that drops nothing -- budding amethyst, cake, fire, frogspawn. The
+  // first version required `pools` and rejected all 14 of them, so the game could not learn they give
+  // nothing. `pools` present but not an array is a different thing and is still rejected.
+  assert.deepEqual(adaptLootTable({}), { guaranteed: [], pooled: [], conditional: [], unresolved: [], empty: true });
+  assert.deepEqual(adaptLootTable({ type: 'minecraft:block' }),
+    { guaranteed: [], pooled: [], conditional: [], unresolved: [], empty: true });
+  assert.equal(adaptLootTable({ pools: 'nope' }), null, 'present but not an array is malformed');
   assert.equal(adaptLootTable(null), null);
-  assert.equal(adaptLootTable({ pools: 'nope' }), null);
-  // A pool with no rolls drops nothing and contributes nothing.
+  assert.equal(adaptLootTable('nope'), null);
+  assert.equal(adaptLootTable([]), null);
+});
+
+test('a pool with no rolls contributes nothing', () => {
   assert.deepEqual(adaptLootTable({ pools: [{ rolls: 0, entries: [{ type: 'minecraft:item', name: 'minecraft:stick' }] }] }),
     { guaranteed: [], pooled: [], conditional: [], unresolved: [] });
 });

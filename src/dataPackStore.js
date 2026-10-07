@@ -58,23 +58,45 @@ export function addPack(store, input = {}) {
   if (!store?.packs) return { ok: false, reason: 'not a pack store' };
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : null;
   if (!name) return { ok: false, reason: 'a pack needs a name' };
-  if (!input.files || typeof input.files !== 'object') return { ok: false, reason: 'a pack needs files' };
-
   const source = Object.values(PACK_SOURCES).includes(input.source) ? input.source : PACK_SOURCES.PASTED;
-  const bytes = packByteSize(input.files);
+  const hasFiles = input.files && typeof input.files === 'object';
+  // A bundled pack restored from a save arrives WITHOUT its files: they are on disk already, and copying a
+  // megabyte of vanilla JSON into every save would be absurd. It is re-attached from the bundle instead.
+  const awaitingBundle = !hasFiles && input.bundled === true;
+  if (!hasFiles && !awaitingBundle) return { ok: false, reason: 'a pack needs files' };
+
+  const bytes = hasFiles ? packByteSize(input.files) : 0;
   const pack = {
     name,
-    files: input.files,
+    files: hasFiles ? input.files : null,
     source,
     format: Number.isFinite(input.format) ? input.format : null,
     enabled: input.enabled !== false,
     bytes,
-    // A pack too big for a save still works this session; it just will not survive a reload, and says so.
-    persisted: bytes <= MAX_PERSISTED_PACK_BYTES,
+    awaitingBundle,
+    // A bundled pack is never copied into a save, and neither is one too big for a save. A pack too large
+    // still works this session; it just will not survive a reload, and says so.
+    persisted: !awaitingBundle && source !== PACK_SOURCES.BUNDLED && bytes <= MAX_PERSISTED_PACK_BYTES,
   };
   if (!store.packs.has(name)) store.order.push(name);
   store.packs.set(name, pack);
   return { ok: true, pack };
+}
+
+/**
+ * Give a restored bundled pack its files back.
+ *
+ * Called after `restorePacks` with the pack the game fetched from its own bundle, so a reload does not need
+ * the megabyte to have been in the save.
+ */
+export function attachBundledFiles(store, name, files) {
+  const pack = store?.packs?.get(name);
+  if (!pack) return false;
+  if (!files || typeof files !== 'object') return false;
+  pack.files = files;
+  pack.bytes = packByteSize(files);
+  pack.awaitingBundle = false;
+  return true;
 }
 
 /** Drop a pack. Applying is the caller's problem -- remove it from the game first if it is on. */
@@ -114,10 +136,15 @@ export function storeByteSize(store) {
 /** The packs a save can actually restore, and the ones it cannot. */
 export function persistenceReport(store) {
   const packs = allPacks(store);
+  // A bundled pack is not "too large to save" -- it is not saved at all, and it comes back from the bundle,
+  // so nothing is lost. Listing it as too large would be a lie the UI would then repeat to the player.
+  const bundled = packs.filter(p => p.source === PACK_SOURCES.BUNDLED);
+  const others = packs.filter(p => p.source !== PACK_SOURCES.BUNDLED);
   return {
     total: packs.length,
     persisted: packs.filter(p => p.persisted).map(p => p.name),
-    tooLarge: packs.filter(p => !p.persisted).map(p => p.name),
+    tooLarge: others.filter(p => !p.persisted).map(p => p.name),
+    bundled: bundled.map(p => p.name),
     bytes: storeByteSize(store),
     overSaveCap: storeByteSize(store) > MAX_SAVE_PACK_BYTES,
   };
@@ -125,6 +152,10 @@ export function persistenceReport(store) {
 
 /**
  * The store as a save record.
+ *
+ * A BUNDLED pack is written as a reference -- name, source, format, enabled -- with no files at all. It ships
+ * with the game, so copying a megabyte of vanilla JSON into every save would be waste, and `restorePacks`
+ * re-attaches it from the bundle.
  *
  * Packs that are too large are NOT written, but they ARE named, so a reload can say which ones are missing
  * rather than quietly starting with less content than the player left.
@@ -134,6 +165,11 @@ export function capturePacks(store) {
   const omitted = [];
   let bytes = 0;
   for (const pack of allPacks(store)) {
+    if (pack.source === PACK_SOURCES.BUNDLED) {
+      // Referenced, not carried. `pack.files` may be null if it is still awaiting the bundle.
+      packs.push({ name: pack.name, source: pack.source, format: pack.format, enabled: pack.enabled, bundled: true });
+      continue;
+    }
     if (!pack.persisted) { omitted.push({ name: pack.name, reason: 'too large to save', bytes: pack.bytes }); continue; }
     if (bytes + pack.bytes > MAX_SAVE_PACK_BYTES) {
       omitted.push({ name: pack.name, reason: 'over the save pack budget', bytes: pack.bytes });
@@ -160,24 +196,31 @@ export function capturePacks(store) {
 export function restorePacks(record) {
   const store = createPackStore();
   const errors = [];
-  if (!record || typeof record !== 'object') return { store, errors, omitted: [] };
+  if (!record || typeof record !== 'object') return { store, errors, omitted: [], awaitingBundle: [] };
   const list = Array.isArray(record.packs) ? record.packs : [];
+  const awaitingBundle = [];
   for (const entry of list) {
     if (!entry || typeof entry !== 'object') { errors.push('a pack entry is not an object'); continue; }
+    const bundled = entry.source === PACK_SOURCES.BUNDLED;
     const result = addPack(store, {
       name: entry.name,
       files: entry.files,
       source: entry.source,
       format: entry.format,
       enabled: entry.enabled,
+      // A bundled entry carries no files by design.
+      bundled,
     });
-    if (!result.ok) errors.push(`${entry.name ?? '(unnamed)'}: ${result.reason}`);
+    if (!result.ok) { errors.push(`${entry.name ?? '(unnamed)'}: ${result.reason}`); continue; }
+    if (result.pack.awaitingBundle) awaitingBundle.push(result.pack.name);
   }
   return {
     store,
     errors,
     // Named so the UI can tell the player what a save could not carry.
     omitted: Array.isArray(record.omitted) ? record.omitted : [],
+    // Bundled packs the caller should re-attach from the shipped bundle before applying.
+    awaitingBundle,
   };
 }
 

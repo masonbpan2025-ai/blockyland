@@ -148,7 +148,10 @@ const REQUIRED_FIELDS = Object.freeze({
   biome: [],
   dimensionType: [],
   recipe: ['type'],
-  lootTable: ['pools'],
+  // A loot table with NO `pools` is a real vanilla file, not a broken one: it is how a block that drops
+  // nothing is written. Budding amethyst, cake, fire and frogspawn are all exactly that. Requiring `pools`
+  // rejected all 14 of them, so the game could not learn that those blocks give nothing.
+  lootTable: [],
   tag: ['values'],
   placedFeature: ['feature', 'placement'],
   configuredFeature: ['type'],

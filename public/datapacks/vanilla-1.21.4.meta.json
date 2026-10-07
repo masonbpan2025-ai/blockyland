@@ -1,0 +1,20 @@
+{
+  "name": "Vanilla 1.21.4",
+  "ref": "1.21.4-data",
+  "source": "https://github.com/misode/mcmeta",
+  "generator": "https://misode.github.io/",
+  "files": 3085,
+  "bytes": 1123346,
+  "sha256": "b8782953a082a807386160cb070862d15678985a4e17863d34a2addef5e506f5",
+  "types": [
+    "worldgen/biome/",
+    "dimension_type/",
+    "tags/item/",
+    "tags/block/",
+    "recipe/",
+    "loot_table/blocks/",
+    "worldgen/placed_feature/",
+    "worldgen/structure/"
+  ],
+  "builtBy": "scripts/build-vanilla-pack.mjs"
+}
