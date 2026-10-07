@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { createEntityBox } from './mobVisuals/entityBox.js';
 import { BLOCKS } from './blocks.js';
 
 /**
@@ -335,69 +334,67 @@ export function canPollinate(blockName, verticalOffset) {
 export function createBeeModel(bodyMat, stripeMat, wingMat, eyeMat) {
   const group = new THREE.Group();
 
-  // Every part samples the real 64x64 bee skin, so the banding comes from the texture rather than from separate
-  // stripe boxes resting on the body. `createEntityBox` lays each box out in vanilla's own format.
-  const box = (w, h, d, u, v, tw, th, td) => new THREE.Mesh(
-    createEntityBox(w, h, d, u, v, tw, th, td, { texW: 64, texH: 64 }), bodyMat);
-
-  // Body: 9x7x9 at (8,0). Its front face is the patch carrying the bee's bands and eye marks.
-  const body = box(0.7, 0.6, 0.7, 8, 0, 9, 7, 9);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.4), bodyMat);
   body.position.set(0, 0.28, 0);
   group.add(body);
 
-  // Head: a smaller box at (0,0), which is where the bee head sits on the sheet.
-  const head = box(0.45, 0.42, 0.42, 0, 0, 6, 6, 6);
-  head.position.set(0, 0.3, 0.5);
+  // Two dark stripes, which is what makes a bee read as a bee at a glance.
+  for (const z of [0.06, -0.08]) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.27, 0.07), stripeMat);
+    stripe.position.set(0, 0.28, z);
+    group.add(stripe);
+  }
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), bodyMat);
+  head.position.set(0, 0.3, 0.28);
   group.add(head);
 
-  // Eyes: kept as separate emissive marks, because they are the clearest read on a bee at any distance.
-  const eyeGeo = new THREE.BoxGeometry(0.08, 0.09, 0.03);
+  const eyeGeo = new THREE.BoxGeometry(0.05, 0.06, 0.03);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.12, 0.02, 0.22);
+    eye.position.set(side * 0.07, 0.02, 0.1);
     head.add(eye);
     return eye;
   });
 
   // Antennae.
-  const antennaGeo = new THREE.BoxGeometry(0.03, 0.03, 0.22);
+  const antennaGeo = new THREE.BoxGeometry(0.02, 0.02, 0.16);
   for (const side of [-1, 1]) {
     const antenna = new THREE.Mesh(antennaGeo, stripeMat);
-    antenna.position.set(side * 0.1, 0.13, 0.1);
+    antenna.position.set(side * 0.05, 0.11, 0.06);
+    antenna.rotation.x = -0.5;
+    antenna.rotation.y = side * 0.4;
     head.add(antenna);
   }
 
-  // Wings: thin pale panels, one each side, angled out as a bee holds them.
-  //
-  // The shape is an OBJECT with `left`/`right`, not an array: `moveFlyingMob` writes `mob.wings.left.rotation.z`
-  // and `mob.wings.right.rotation.z` to flap them, and the bat once shipped a frozen model by getting this wrong.
-  const wingGeo = createEntityBox(0.5, 0.02, 0.32, 26, 0, 10, 1, 6, { texW: 64, texH: 64 });
-  const wings = { length: 2 };
-  for (const side of [-1, 1]) {
-    const wing = new THREE.Mesh(wingGeo, wingMat);
-    wing.position.set(side * 0.34, 0.46, -0.04);
-    wing.rotation.z = side * 0.35;
-    group.add(wing);
-    wings[side < 0 ? 'left' : 'right'] = wing;
-  }
-
-  // Stinger: the small dark point at the rear, which the spawner reads to hide it on a baby.
-  const stinger = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.14), stripeMat);
-  stinger.position.set(0, 0.24, -0.42);
+  // The stinger, hidden once the bee has stung.
+  const stinger = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.12), stripeMat);
+  stinger.position.set(0, 0.26, -0.24);
   group.add(stinger);
 
-  // Six small legs, which a bee uses to hang from blocks.
-  const legGeo = new THREE.BoxGeometry(0.05, 0.16, 0.05);
+  // Two wings per side. The wrapper carries `rotation` pointing at the pivot, which is the
+  // contract `moveFlyingMob` writes to.
+  const wingGeo = new THREE.BoxGeometry(0.22, 0.02, 0.12);
+  const wings = [];
   for (const side of [-1, 1]) {
-    for (const z of [0.18, 0.0, -0.18]) {
-      const leg = new THREE.Mesh(legGeo, bodyMat);
-      leg.position.set(side * 0.16, 0.1, z);
-      group.add(leg);
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.14, 0.42, 0);
+    for (const z of [0.06, -0.06]) {
+      const wing = new THREE.Mesh(wingGeo, wingMat);
+      wing.position.set(side * 0.11, 0, z);
+      wing.rotation.z = side * 0.15;
+      pivot.add(wing);
     }
+    group.add(pivot);
+    wings.push({ pivot, side, rotation: pivot.rotation, wing: pivot.children[0] });
   }
+  wings.left = wings[0];
+  wings.right = wings[1];
 
   return { group, body, head, eyes, stinger, wings };
 }
+
+/** Hide the stinger once the bee has used it, and tint an angry bee's eyes red. */
 export function poseBee(bee) {
   if (!bee) return;
   if (bee.stinger) bee.stinger.visible = !bee.hasStung;

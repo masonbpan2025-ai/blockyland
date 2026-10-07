@@ -392,24 +392,17 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   group.add(body);
 
   const belly = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 1.5), bellyMat);
-  // RETIRED FROM THE RENDER: vanilla's `class_8185` sniffer has no belly, shell, band or tail -- its parts are the body,
-  // six legs, head, two ears, nose and lower_beak. These four are the flat-colour assembly's extras. They are kept IN THE
-  // RETURN CONTRACT because `sniffer.shell`, `snout`, `head` and `bands.length === 3` are pinned by the suite and are the
-  // mob's documented identity, but they are not drawn, so the mob reads as vanilla's shape. // SNIFFER_RETIRED_PARTS
-  belly.visible = false;
   belly.position.y = 0.62;
   group.add(belly);
 
-  // A banded shell over the back -- RETIRED FROM THE RENDER, kept in the contract. See the belly note above.
+  // A banded shell over the back.
   const shell = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.3, 1.5), shellMat);
-  shell.visible = false;
   shell.position.y = 1.29;
   group.add(shell);
   const bands = [];
   for (const z of [-0.45, 0, 0.45]) {
     const band = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.32, 0.08), bellyMat);
     band.position.set(0, 1.29, z);
-    band.visible = false;   // retired from the render; `bands.length === 3` is pinned by the suite
     group.add(band);
     bands.push(band);
   }
@@ -478,7 +471,6 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   }
 
   const tail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.4), shellMat);
-  tail.visible = false;   // retired from the render -- vanilla's sniffer has no separate tail part
   tail.position.set(0, 1.0, -1.0);
   group.add(tail);
 

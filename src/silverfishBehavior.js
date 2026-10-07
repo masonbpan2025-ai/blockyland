@@ -184,19 +184,6 @@ export function createSilverfishModel(bodyMat, eyeMat, options = {}) {
       onTextureReady: options.onTextureReady
     });
 
-    // Vanilla builds the silverfish around its own origin; here the group origin is the mob's FEET, so the body
-    // would otherwise render ahead of and above its ground marker. Rather than guess an offset, the model is
-    // MEASURED and shifted so its own centre is on the origin and its base sits at y = 0.
-    const bounds = new THREE.Box3().setFromObject(built.group);
-    const centre = bounds.getCenter(new THREE.Vector3());
-    const bodySize = bounds.getSize(new THREE.Vector3());
-    const body = new THREE.Group();
-    // Move the built parts into a body group, so the shift never touches the mob's own transform.
-    while (built.group.children.length) body.add(built.group.children[0]);
-    body.position.set(-centre.x, -bounds.min.y, -centre.z);
-    built.group.add(body);
-    // SILVERFISH_MEASURED_CENTRE
-
     // Eyes and antennae are modelled marks; the decompiled model has no parts for them.
     const headMesh = built.parts.segment0;
     const eyeGeo = new THREE.BoxGeometry(0.035, 0.035, 0.03);
@@ -216,16 +203,13 @@ export function createSilverfishModel(bodyMat, eyeMat, options = {}) {
 
     // Six legs, each WRAPPED as `{ mesh }` because `poseSilverfishLegs` writes `leg.mesh.position.x` and
     // alternates neighbouring legs. Bare meshes silently produce no animation.
-    const legHost = body;
+    const legHost = built.group;
     const legGeo = new THREE.BoxGeometry(0.03, 0.1, 0.03);
     const legs = [];
     for (const side of [-1, 1]) {
       for (const z of [-0.08, 0.02, 0.12]) {
         const mesh = new THREE.Mesh(legGeo, bodyMat);
-        // The body group is LIFTED by the measured centring, so a leg's local y has to cancel that lift to reach the
-        // ground. A bare small y here put the legs a unit below the body, which is what the render showed.
-                // Local y measured from the body's own underside: the group's lift minus the body height, less half a leg.
-        mesh.position.set(side * 0.11, -0.45, z);
+        mesh.position.set(side * 0.11, 0.03, z);
         legHost.add(mesh);
         legs.push({ mesh });
       }

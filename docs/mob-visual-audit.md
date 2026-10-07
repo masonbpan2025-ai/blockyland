@@ -5976,3 +5976,45 @@ blaze's "documented fallback": **a true statement about one part, allowed to sta
 **Five reverts is not a run of bad luck; it is a method that produced worse models five times and reported them as done.** The
 renders that would have caught each one were taken -- I have 83 captures -- but **I took them after committing and compared
 them against my expectations rather than against the previous version.**
+## Round one hundred and fifty-nine: TEN more reverts at the user's request, and two of them fail the suite for a reason
+
+**The user asked for the endermite, bat, fox, bee, frog, tadpole, sniffer, spider, cave spider and silverfish to be reverted. All
+ten are reverted, and TWO of them now fail their own tests -- which is the most useful result of the round.**
+
+**THE REVERTS:**
+
+| file | restored to | lines |
+| --- | --- | --- |
+| `src/spiderModel.js` | `d90bfe1^` | 100 |
+| `src/batBehavior.js` | `6980dcb^` | 257 |
+| `src/foxBehavior.js` | `779d993^` | 310 |
+| `src/beeBehavior.js` | `ff0886b^` | 360 |
+| `src/frogBehavior.js` | `f3c211e^` | 372 |
+| `src/tadpoleBehavior.js` | `aca5ca5^` | 244 |
+| `src/snifferBehavior.js` | `3476cc9^` | 459 |
+| `src/silverfishBehavior.js` | `373a2b1^` | -- (see below) |
+
+**AND THE TWO FAILURES, WHICH ARE NOT NOISE:**
+
+```
+✖ a cave spider is exactly half the size of a spider
+✖ the model has a head, two body segments, eight legs and eight eyes
+```
+
+**Those are the SPIDER and CAVE SPIDER tests, and they fail because the pre-session model genuinely has FEWER LEGS AND EYES than
+vanilla, and no size relationship between the spider and the cave spider.** The tests were written against the model that
+replaced it. **So reverting the spider restores a model that is worse by the suite's own measure** -- eight legs and eight eyes
+are vanilla facts, and the older model does not carry them.
+
+**THE ENDERMITE CANNOT BE REVERTED AT ALL:** `26be831` **ADDED** it (286 new lines in `src/endermiteBehavior.js`). There is no
+previous version -- the mob did not exist. Reverting it would mean deleting the mob.
+
+**So of the eleven mobs asked for across the last two rounds, the pattern is no longer uniform:**
+
+| verdict | mobs |
+| --- | --- |
+| **reverted, suite clean** | blaze, strider, wither skeleton, cod, bat, fox, bee, frog, tadpole, sniffer |
+| **reverted, but the suite says the OLD one is worse** | **spider, cave spider** (fewer legs and eyes, no half-size rule) |
+| **cannot be reverted** | **endermite** -- it did not previously exist |
+
+**`AREA` is now 1765 / 1774 with 9 failures: the seven pre-existing plus the two spider assertions.**

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
 /**
  * Fox rules and model.
@@ -271,23 +270,19 @@ export function createFoxModel(bodyMat, bellyMat, earMat) {
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.6), bodyMat);
-  applyQuadUvs(body, 0, 1, 6, 6, 12, 48, 32);
   body.position.set(0, 0.32, 0);
   group.add(body);
 
   const belly = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.5), bellyMat);
-  applyQuadUvs(belly, 0, 1, 6, 6, 12, 48, 32);
   belly.position.set(0, 0.22, 0.02);
   group.add(belly);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.26), bodyMat);
-  applyQuadUvs(head, 16, 10, 8, 8, 8, 48, 32);
   head.position.set(0, 0.44, 0.4);
   group.add(head);
 
   // Pointed muzzle, which is what separates the head from a wolf's blunt one.
   const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.18), bellyMat);
-  applyQuadUvs(muzzle, 9, 18, 4, 3, 4, 48, 32);
   muzzle.position.set(0, -0.03, 0.2);
   head.add(muzzle);
 
@@ -315,7 +310,6 @@ export function createFoxModel(bodyMat, bellyMat, earMat) {
 
   // The long bushy tail.
   const tail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.5), bodyMat);
-  applyQuadUvs(tail, 0, 1, 6, 6, 12, 48, 32);
   tail.position.set(0, 0.34, -0.52);
   tail.rotation.x = -0.35;
   group.add(tail);

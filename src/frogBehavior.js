@@ -278,16 +278,11 @@ const FROG_MODEL = {
 export function createFrogModel(bodyMat, bellyMat, eyeMat, options = {}) {
   // The real decompiled frog. Its tongue and all four hands and feet are FLAT, so this needs `plane` parts and a
   // texture; without a skin the old flat build is used so the mob still renders in a build with no assets.
-  if (options.loadTexture) {
+  if (options.texture) {
     const built = buildModel(FROG_MODEL, {
-      // NOTE: `default` is deliberately NOT supplied. The builder binds the sheet onto its own default material
-      // (`if (skin && !definition.color) adoptWhenReady(...)`), and passing one here skips that line entirely -- which
-      // is why the frog rendered white. Only the extra materials are handed in.
-      materials: { belly: bellyMat, eye: eyeMat },
+      materials: { default: bodyMat, belly: bellyMat, eye: eyeMat },
       textureContext: { texW: 48, texH: 48 },
-      // `resolveMaterials` gets its sheet through THIS hook. Passing a pre-loaded texture binds nothing, which is
-      // why the frog rendered white.
-      loadTexture: options.loadTexture,
+      texture: options.texture,
       onTextureReady: options.onTextureReady
     });
     const eyes = [built.parts.eyeRight, built.parts.eyeLeft].filter(Boolean);

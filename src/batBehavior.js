@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { buildModel } from './mobVisuals/modelBuilder.js';
 
 /**
  * Bat rules and model.
@@ -209,77 +208,7 @@ export function updateBatDespawn(manager, mob, player) {
  * The wings are separate meshes so they can flap, and the whole model is authored to the wiki's
  * 0.5 x 0.9 hitbox.
  */
-/**
- * The bat's real model, decompiled from `BatEntityModel` rather than guessed.
- *
- * Six of its nine parts are FLAT: the ears, both wings and both wing tips have a depth of 0, so they are planes and
- * cannot be boxes at all. The wing tips are separate children, which is what lets the flap articulate.
- */
-const BAT_MODEL = {
-  texture: '/assets/entity/bat.png',
-  textureSize: [32, 32],
-  units: 16,
-  transparent: true,
-  alphaTest: 0.5,
-  parts: [
-    { name: 'body', box: [3, 5, 2], uv: { u: 0, v: 0, tw: 3, th: 5, td: 2 }, at: [0, 17, 0] },
-    { name: 'head', box: [4, 3, 2], uv: { u: 0, v: 7, tw: 4, th: 3, td: 2 }, at: [0, 17, 0] },
-    // Ears: flat, and the bat silhouette is mostly these.
-    { name: 'earRight', parent: 'head', plane: [5, 3], uv: { u: 1, v: 15, tw: 3, th: 5 }, at: [-1.5, -2, 0] },
-    { name: 'earLeft', parent: 'head', plane: [5, 3], uv: { u: 8, v: 15, tw: 3, th: 5 }, at: [1.1, -3, 0] },
-    // Wings: a flat panel plus a flat tip child, so the flap can bend at the joint.
-    { name: 'wingRight', parent: 'body', plane: [7, 2], uv: { u: 12, v: 0, tw: 2, th: 7 }, at: [-1.5, 0, 0] },
-    { name: 'tipRight', parent: 'wingRight', plane: [8, 6], uv: { u: 16, v: 0, tw: 6, th: 8 }, at: [-2, 0, 0] },
-    { name: 'wingLeft', parent: 'body', plane: [7, 2], uv: { u: 12, v: 7, tw: 2, th: 7 }, at: [1.5, 0, 0] },
-    { name: 'tipLeft', parent: 'wingLeft', plane: [8, 6], uv: { u: 16, v: 8, tw: 6, th: 8 }, at: [2, 0, 0] },
-    { name: 'feet', parent: 'body', plane: [2, 3], uv: { u: 16, v: 16, tw: 3, th: 2 }, at: [0, 5, 0] }
-  ]
-};
-
-/**
- * Build the bat from the decompiled model, keeping the names the spawner and behaviours use.
- *
- * Without a texture the old flat build is used, so a build with no assets still renders a bat.
- */
-export function createBatModel(bodyMat, wingMat, earMat, options = {}) {
-  if (options.loadTexture) {
-    const built = buildModel(BAT_MODEL, {
-      materials: { ear: earMat },
-      textureContext: { texW: 32, texH: 32 },
-      loadTexture: options.loadTexture,
-      onTextureReady: options.onTextureReady
-    });
-    const wingRight = built.parts.wingRight;
-    const wingLeft = built.parts.wingLeft;
-    // `moveFlyingMob` addresses `wings.left`/`wings.right` and expects each to carry a `rotation`, so the entries
-    // expose their own pivot rotation as well as the mesh.
-    const wings = [
-      { pivot: wingRight, wing: wingRight, side: -1, rotation: wingRight?.rotation },
-      { pivot: wingLeft, wing: wingLeft, side: 1, rotation: wingLeft?.rotation }
-    ];
-    wings.left = wings[0];
-    wings.right = wings[1];
-    // Eyes are modelled marks rather than sampled: vanilla paints them on the head patch, and at this scale two
-    // small dark shapes read more clearly than the texture does.
-    const batEyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.02);
-    const eyes = [-1, 1].map((side) => {
-      const batEye = new THREE.Mesh(batEyeGeo, earMat);
-      batEye.position.set(side * 0.09, 0.02, 0.1);
-      built.parts.head.add(batEye);
-      return batEye;
-    });
-
-    return {
-      group: built.group,
-      body: built.parts.body,
-      head: built.parts.head,
-      ears: [built.parts.earRight, built.parts.earLeft].filter(Boolean),
-      eyes,
-      wings,
-      parts: built.parts
-    };
-  }
-
+export function createBatModel(bodyMat, wingMat, earMat) {
   const group = new THREE.Group();
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.3), bodyMat);
