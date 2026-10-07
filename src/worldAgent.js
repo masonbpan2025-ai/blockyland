@@ -1958,23 +1958,26 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
       case 'build': {
         const pLow = (originalPrompt || '').toLowerCase();
+        // The structure's name comes from the model as `structureType` and from older callers as
+        // `buildingType`; reading only the latter passed undefined into executeBuild, which uppercased it.
+        const requestedType = plan.structureType || plan.buildingType;
         const isStairReq = (
-          plan.buildingType === 'stairs' || plan.buildingType === 'staircase' || plan.buildingType === 'stair' ||
-          plan.buildingType === 'ladder'
+          requestedType === 'stairs' || requestedType === 'staircase' || requestedType === 'stair' ||
+          requestedType === 'ladder'
         );
         const ref = plan.targetBuilding || this.findReferencedBuilding(originalPrompt) || this.lastBuiltBuilding;
 
         if (isStairReq && ref) {
           this.activeBuilding = ref;
-          if (plan.buildingType === 'ladder' || pLow.includes('ladder')) {
+          if (requestedType === 'ladder' || pLow.includes('ladder')) {
             await this.executeBuildLadder(ref, plan);
           } else {
             await this.executeBuildStairs(ref, plan);
           }
         } else if (plan.operations && plan.operations.length > 0) {
-          await this.executeOperations(plan.operations, plan.dimensions, plan.name || plan.buildingType || 'Custom Creation', null, plan);
+          await this.executeOperations(plan.operations, plan.dimensions, plan.name || requestedType || 'Custom Creation', null, plan);
         } else {
-          await this.executeBuild(plan.buildingType, plan);
+          await this.executeBuild(requestedType, plan);
         }
         break;
       }
