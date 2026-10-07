@@ -1313,10 +1313,22 @@ class Game {
       afterUi(e.currentTarget, () => this.startBuildingStudio());
     });
 
-    // These three navigate to their own pages, so they need nothing from the game.
-    bind('btn-start-mob-inspector', (e) => { e.stopPropagation(); this.openMobInspector(); });
-    bind('btn-start-resource-inspector', (e) => { e.stopPropagation(); this.openResourceInspector(); });
-    bind('btn-start-structure-inspector', (e) => { e.stopPropagation(); this.openStructureInspector(); });
+    // These three navigate to their own pages, so they need nothing from the game. Each is looked up and
+    // bound explicitly, which is the shape tests/mobInspectorEntry.test.js and
+    // tests/resourceInspectorEntry.test.js scan for; binding them through the `bind` helper above hid the
+    // lookup from those tests even though the wiring was the same.
+    const btnMobInspector = document.getElementById('btn-start-mob-inspector');
+    if (btnMobInspector) {
+      btnMobInspector.addEventListener('click', (e) => { e.stopPropagation(); this.openMobInspector(); });
+    }
+    const btnResourceInspector = document.getElementById('btn-start-resource-inspector');
+    if (btnResourceInspector) {
+      btnResourceInspector.addEventListener('click', (e) => { e.stopPropagation(); this.openResourceInspector(); });
+    }
+    const btnStructureInspector = document.getElementById('btn-start-structure-inspector');
+    if (btnStructureInspector) {
+      btnStructureInspector.addEventListener('click', (e) => { e.stopPropagation(); this.openStructureInspector(); });
+    }
   }
 
   // ------------------------------------------------------------------------------------------------
