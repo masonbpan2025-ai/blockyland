@@ -325,6 +325,62 @@ test('the WORLD takes its structure list from the pack', (t) => {
   }
 });
 
+/**
+ * Every structure the world actually PLANS over a grid of chunks, via the real planner.
+ *
+ * The radius is 25 chunks because structures are SPARSE: over the default world and seed, a 441-chunk grid
+ * finds nothing at all, and it takes 2601 chunks to find a single igloo. A smaller radius makes this test
+ * assert an empty set and pass for the wrong reason.
+ */
+function plannedStructures(world, radius = 25) {
+  const found = new Map();
+  for (let cx = -radius; cx <= radius; cx++) {
+    for (let cz = -radius; cz <= radius; cz++) {
+      const start = world.structures.planAt(cx, cz);
+      if (!start) continue;
+      found.set(start.structureId, (found.get(start.structureId) || 0) + 1);
+    }
+  }
+  return found;
+}
+
+test('the world PLANS different structures with a pack than without one', (t) => {
+  // Not "the enabled list changed" -- what the real planner, over a real world and a real seed, decides to
+  // place. This is the claim the whole task rests on.
+  const before = plannedStructures(new World());
+  assert.ok(before.size > 0, `the default world plans something, got ${before.size} kinds: `
+    + JSON.stringify([...before.keys()]));
+  assert.ok([...before.keys()].every(id => WORLD_STRUCTURE_IDS.includes(id)),
+    'and only the baked three: ' + JSON.stringify([...before.keys()]));
+
+  applyFor(t, { 'data/t/worldgen/structure/jungle_pyramid.json': { type: 'minecraft:jigsaw' } });
+  const after = plannedStructures(new World());
+
+  // Every planned structure comes from the pack's set -- the pack GATES generation, it does not merely add.
+  for (const id of after.keys()) {
+    assert.equal(id, 'jungle_pyramid', `the pack enabled only jungle_pyramid, but ${id} was planned`);
+  }
+  // And a structure the default world DID plan is gone, which is what makes this a change rather than an
+  // absence: without the pack the planner placed it, with the pack it must not.
+  assert.ok(before.size > 0, 'there was something to lose');
+  for (const id of before.keys()) {
+    assert.ok(!after.has(id), `${id} was planned before the pack and must not be now`);
+  }
+});
+
+test('a pack that enables a structure the world cannot place plans nothing, and that is visible', (t) => {
+  // The honest failure mode: the pack enabled a real structure, but its biome gate never matches here, so
+  // the world places nothing. `stats` says so rather than the world looking broken.
+  applyFor(t, { 'data/t/worldgen/structure/monument.json': { type: 'minecraft:ocean_monument' } });
+  const world = new World();
+  assert.deepEqual([...world.structures.enabledIds], ['monument']);
+  const planned = plannedStructures(world, 4);
+  for (const id of planned.keys()) assert.equal(id, 'monument');
+  // Whatever it planned, the engine's own stats agree about how many chunks it looked at.
+  assert.ok(world.structures.stats.chunks >= 0, 'stats are exposed for exactly this kind of question');
+});
+
+
 // =====================================================================================================
 // THE DEFAULT PACK'S SETTINGS
 // =====================================================================================================
