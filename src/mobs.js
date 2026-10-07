@@ -7537,7 +7537,9 @@ export class MobManager {
   }
   // --- STRIDER ---
   spawnStrider(x, y, z, options = {}) {
-    const mob = { ...createStriderModel({ loadTexture: (p) => this.loadTexture(p) }), type: 'strider', name: 'Strider',
+    // REVERTED TO THE PRE-SESSION MODEL at the user's report: the rebuilt version was worse than this one. The reverted
+    // `createStriderModel` takes no options, so the sheet loader is not passed.
+    const mob = { ...createStriderModel(), type: 'strider', name: 'Strider',
       health: 20, maxHealth: 20, fireImmune: true, movementSpeed: .175,
       velocity: new THREE.Vector3(), yaw: (this.random || Math.random)() * Math.PI * 2,
       state: 'idle', timer: 0, hitCooldown: 0, isBaby: !!options.isBaby,

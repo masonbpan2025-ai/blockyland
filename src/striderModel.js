@@ -1,51 +1,5 @@
 import * as THREE from 'three';
 
-import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
-
-/** The real 64x128 strider sheets: warm, and the cold variant. */
-const STRIDER_SKIN_PATH = '/assets/entity/strider/strider.png';
-const STRIDER_COLD_SKIN_PATH = '/assets/entity/strider/strider_cold.png';
-
-/**
- * Apply vanilla's box UV layout to a BoxGeometry's six faces, in ATLAS PIXELS from the top-left.
- *
- * A local copy of the helper in `src/mobs.js`, which is not exported; importing the mob manager from a model module
- * would create a cycle.
- */
-function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
-  const faces = [
-    { x: u + td + tw, y: v + td, w: td, h: th },
-    { x: u, y: v + td, w: td, h: th },
-    { x: u + td, y: v, w: tw, h: td },
-    { x: u + td + tw, y: v, w: tw, h: td },
-    { x: u + td, y: v + td, w: tw, h: th },
-    { x: u + td + tw + td, y: v + td, w: tw, h: th }
-  ];
-  const uvs = geo.attributes.uv;
-  for (let f = 0; f < 6; f++) {
-    const r = faces[f];
-    const u0 = r.x / texW, u1 = (r.x + r.w) / texW;
-    const v1 = 1 - r.y / texH, v0 = 1 - (r.y + r.h) / texH;
-    const b = f * 4;
-    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
-    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
-  }
-  uvs.needsUpdate = true;
-  return geo;
-}
-
-/** A flat plane sampling one atlas rectangle, for parts vanilla gives a zero dimension. */
-function applyPlaneUVs(geo, u, v, texW, texH, tw, th) {
-  const uvs = geo.attributes.uv;
-  const u0 = u / texW, u1 = (u + tw) / texW;
-  const v1 = 1 - v / texH, v0 = 1 - (v + th) / texH;
-  uvs.setXY(0, u0, v1); uvs.setXY(1, u1, v1);
-  uvs.setXY(2, u0, v0); uvs.setXY(3, u1, v0);
-  uvs.needsUpdate = true;
-  return geo;
-}
-
-
 // Original pixel artwork: six separate faces avoid repeating eyes on the back.
 function skin(cold, front) {
   const pixels=new Uint8Array(16*16*4);
@@ -62,115 +16,29 @@ function skin(cold, front) {
   }
   const map=new THREE.DataTexture(pixels,16,16);map.magFilter=map.minFilter=THREE.NearestFilter;map.colorSpace=THREE.SRGBColorSpace;map.needsUpdate=true;return map;
 }
-export function createStriderModel(options = {}) {
-  // The REAL 64x128 sheets. A texture is adopted only when one is available; the drawn skin stands until then, which
-  // is both what a no-assets build renders and what this mob's suite inspects. // STRIDER_REBUILT
-  const warmTex = options.loadTexture ? options.loadTexture(STRIDER_SKIN_PATH) : null;
-  const coldTex = options.loadTexture ? options.loadTexture(STRIDER_COLD_SKIN_PATH) : null;
-  for (const t of [warmTex, coldTex]) {
-    if (t) { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true; }
+export function createStriderModel(){
+  const mesh=new THREE.Group(),head=new THREE.Group();head.position.y=1.2;mesh.add(head);
+  const materials=cold=>Array.from({length:6},(_,i)=>new THREE.MeshLambertMaterial({map:skin(cold,i===4)}));
+  const striderWarmMat=materials(false),striderColdMat=materials(true);
+  const bodyMesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),striderWarmMat);bodyMesh.name='strider-body';head.add(bodyMesh);
+  const bristles=[];
+  const hairMat=new THREE.MeshLambertMaterial({color:0xd4c0b6,side:THREE.DoubleSide});
+  for(const side of [-1,1])for(let i=0;i<3;i++){
+    const root=new THREE.Group();root.position.set(side*.5,.4,.3-i*.3);root.rotation.z=side*(.25+i*.12);
+    const strand=new THREE.Mesh(new THREE.PlaneGeometry(.045,.7),hairMat);strand.position.y=-.35;root.add(strand);head.add(root);bristles.push(root);
   }
-
-  const mesh = new THREE.Group();
-
-  // Six materials per coat so the body can carry its own rectangle; the drawn skin is the stand-in.
-  const coat = (cold, sheet) => Array.from({ length: 6 }, (_, i) => {
-    const material = new THREE.MeshLambertMaterial({ map: skin(cold, i === 4), transparent: true, alphaTest: 0.5 });
-    if (sheet) adoptWhenReady(material, sheet, 0xffffff, { onTextureReady: options.onTextureReady });
-    return material;
-  });
-  const striderWarmMat = coat(false, warmTex);
-  const striderColdMat = coat(true, coldTex);
-
-  const u = 1 / 16;
-  /** A boxed part carrying the sheet rectangle vanilla gives it. */
-  const boxed = (w, h, d, uu, vv, tw, th, td, material) => {
-    const geo = new THREE.BoxGeometry(w * u, h * u, d * u);
-    applyBoxUVs(geo, uu, vv, 64, 128, tw, th, td);
-    return new THREE.Mesh(geo, material);
-  };
-
-  // The body, 16x14x16 at (0, 1, 0), carrying the sheet rectangle at (0, 0).
-  const bodyMesh = boxed(16, 14, 16, 0, 0, 16, 14, 16, striderWarmMat);
-  bodyMesh.name = 'strider-body';
-  bodyMesh.position.set(0, 1 * u, 0);
-  mesh.add(bodyMesh);
-
-  const head = new THREE.Group();
-  head.position.y = 1.2;
-  mesh.add(head);
-
-  // The six bristles: vanilla gives them a ZERO depth, so they are planes, and each carries a resting rotation.
-  const hairMat = new THREE.MeshLambertMaterial({ color: 0xd4c0b6, side: THREE.DoubleSide });
-  const bristles = [];
-  const bristleSpecs = [
-    ['right_bottom_bristle', 16, 65, -8, 4, -8, 0, 0, -1.2217305, true],
-    ['right_middle_bristle', 16, 49, -8, 4, -8, 0, 0, -1.2217305, true],
-    ['right_top_bristle',    16, 33, -8, 4, -8, 0, 0, -1.2217305, true],
-    ['left_top_bristle',     16, 33,  8, 4, -8, 0, 0, -1.2217305, false],
-    ['left_middle_bristle',  16, 49,  8, 4, -8, 0, 0, -1.2217305, false],
-    ['left_bottom_bristle',  16, 65,  8, 4, -8, 0, 0, -1.2217305, false]
-  ];
-  for (const [name, uu, vv, x, y, z, rx, ry, rz, mirrored] of bristleSpecs) {
-    // A 12x0x16 plane: 12 wide, 16 deep, no thickness at all.
-    const geo = new THREE.PlaneGeometry(12 * u, 16 * u);
-    applyPlaneUVs(geo, uu, vv, 64, 128, 12, 16);
-    const bristle = new THREE.Mesh(geo, hairMat);
-    bristle.name = name;
-    bristle.position.set(x * u, y * u, z * u);
-    // A PlaneGeometry stands in local XY; vanilla's bristle rectangle is 12 on X by 16 on Z, i.e. HORIZONTAL. So the
-    // plane is laid flat first (a quarter turn about X), and vanilla's resting angle goes on top of that.
-    // // STRIDER_BRISTLE_UPRIGHT
-    bristle.rotation.set(rx - Math.PI / 2, ry, rz);
-    if (mirrored) bristle.scale.x = -1;
-    bodyMesh.add(bristle);
-    bristles.push(bristle);
-  }
-
-  // Hip pivots at 0.7 blocks with a foot at the bottom, which is this project's convention and what the mob's suite
-  // asserts. Vanilla puts the hip at 8/16 and models no separate foot, so the LEG SIZE AND RECTANGLE stay vanilla's
-  // while the rig follows this project. // STRIDER_FOOT
-  const footMat = new THREE.MeshLambertMaterial({ color: 0x49434b });
-  const legs = [];
-  for (const [name, x, uu, vv] of [['right_leg', -4, 0, 32], ['left_leg', 4, 0, 55]]) {
-    const pivot = new THREE.Group();
-    pivot.name = name;
-    pivot.position.set(x * u, 0.7, 0);
-    const leg = boxed(4, 16, 4, uu, vv, 4, 16, 4, striderWarmMat);
-    leg.position.y = -8 * u;
-    pivot.add(leg);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(4 * u, 2 * u, 4 * u), footMat);
-    foot.name = 'foot';
-    foot.position.set(0, -1.05, 0);
-    pivot.add(foot);
-    mesh.add(pivot);
-    legs.push(pivot);
-  }
-
-  // The saddle is this project's own, shown only when ridden.
-  const saddleMesh = new THREE.Group();
-  saddleMesh.name = 'saddle';
-  saddleMesh.visible = false;
-  mesh.add(saddleMesh);
-  const leather = new THREE.MeshLambertMaterial({ color: 0x724a32 });
-  const trim = new THREE.MeshLambertMaterial({ color: 0x3f2416 });
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(1.02, .08, .94), leather);
-  pad.position.y = 1.1;
-  saddleMesh.add(pad);
-  for (const x of [-.515, .515]) {
-    const strap = new THREE.Mesh(new THREE.BoxGeometry(.025, .48, .12), trim);
-    strap.position.set(x, .86, 0);
-    saddleMesh.add(strap);
-  }
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(.65, .07, .7), trim);
-  seat.position.y = 1.16;
-  saddleMesh.add(seat);
-
-  mesh.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
-  return {
-    mesh, head, bodyMesh, striderWarmMat, striderColdMat, bristles, legs,
-    leftLeg: legs[0], rightLeg: legs[1], saddle: saddleMesh, saddleMesh
-  };
+  const legMat=new THREE.MeshLambertMaterial({color:0x49434b}),footMat=new THREE.MeshLambertMaterial({color:0x37343c});
+  const legs=[];
+  for(const x of [-.25,.25]){const pivot=new THREE.Group();pivot.position.set(x,.7,0);mesh.add(pivot);
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(.25,.7,.25),legMat);leg.position.y=-.35;pivot.add(leg);
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(.26,.09,.27),footMat);foot.position.set(0,-.655,.03);foot.name='foot';pivot.add(foot);legs.push(pivot);}
+  const saddleMesh=new THREE.Group();saddleMesh.name='saddle';saddleMesh.visible=false;head.add(saddleMesh);
+  const leather=new THREE.MeshLambertMaterial({color:0x724a32}),trim=new THREE.MeshLambertMaterial({color:0xb88c59});
+  const pad=new THREE.Mesh(new THREE.BoxGeometry(1.02,.08,.94),leather);pad.position.y=.52;saddleMesh.add(pad);
+  for(const x of [-.515,.515]){const strap=new THREE.Mesh(new THREE.BoxGeometry(.025,.48,.12),trim);strap.position.set(x,.26,0);saddleMesh.add(strap);}
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(.65,.07,.7),trim);seat.position.y=.59;saddleMesh.add(seat);
+  mesh.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});
+  return {mesh,head,bodyMesh,striderWarmMat,striderColdMat,bristles,legs,leftLeg:legs[0],rightLeg:legs[1],saddleMesh};
 }
 export function poseStrider(m,dt){
   m.striderClock=(m.striderClock||0)+dt;

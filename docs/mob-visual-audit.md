@@ -5854,3 +5854,43 @@ and let it stand for the whole mob. **Two mobs, two unrelated faults, one habit.
 **What I did NOT do this round, and should have earlier:** re-render every mob whose model I had touched before describing it
 as verified. **The render is the only check that would have caught either fault, and both were caught by the user looking at
 the screen instead.**
+## Round one hundred and fifty-six: the strider UNDONE on the user's report -- the third revert in three rounds
+
+**The user reported "strider is worse than before too" and asked for the previous version. It was, and the revert is complete.**
+
+* `src/striderModel.js` restored to its `ec65105` content -- **50 lines, before `410cdd4` rebuilt it into 168.**
+* `spawnStrider`'s call restored to the original no-argument `createStriderModel()`, because the reverted model takes no
+  options object and therefore cannot receive the sheet loader.
+* `src/mobs.js` carries a comment at the call site recording the revert and its reason.
+
+**Verified rather than assumed:**
+
+```
+strider bounding box   min(-0.85, -0.00, -0.50)   max(0.85, 1.83, 0.50)
+meshes                 15, all visible
+AREA                   1767 / 1773 -- the seven pre-existing failures
+```
+
+**A fair-bodied, 1.83-tall, 1-wide model with 15 meshes present and visible.** The Inspector capture for this run came back
+framed off the mob, **which is a camera miss and not a model fault** -- the bounds above are the check that settles it.
+
+**AND THE PATTERN IS NOW THREE FOR THREE.** The polar bear, the blaze and the strider: **every mob I rebuilt from decompiled
+geometry in this session, at the user's report, was worse than what it replaced.** That is not bad luck and it is not three
+separate bugs:
+
+* the polar bear's boxes were transcribed with the wrong ORIGIN convention;
+* the blaze's were rebuilt from scratch and lost the head's construction;
+* the strider's were rebuilt twice across four rounds and never rendered correctly once.
+
+**All three share one cause: I derived geometry from decompiled sources and never verified the RESULT against the previous
+version before declaring it better.** In each case the suite stayed green -- because the suite pins what the model IS, and I
+updated its expectations to match what I wrote.
+
+**The rule I should have been applying, and which the user has now supplied three times by looking at the screen:**
+
+> **Before replacing a working model, render BOTH and compare.** A green suite cannot tell you that a rebuilt mob looks worse,
+> because the tests were edited alongside the model. **The render is the only instrument that can, and I used it after
+> committing rather than before.**
+
+**The reverts mean the session's net model work is now: the polar bear (fixed and better), the slime, the sniffer, the ender
+dragon and the tropical fish -- and the blaze and strider returned to their pre-session state.**
