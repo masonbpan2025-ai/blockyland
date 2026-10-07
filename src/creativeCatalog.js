@@ -13,7 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
-  { id: 'building', name: 'Buildings', icon: '/assets/blocks/crafting_table_top.png' },
+  { id: 'building', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -483,7 +483,9 @@ export function buildCreativeCatalog() {
         isBuilding: true,
         buildingId: st.id,
         tab: 'building',
-        category: 'building',
+        // `structure`, which is the category the studio and the tests look for; the tab id stays `building`
+        // because creativeInventory.test.js and getCreativeItemsByTab() both address it by that id.
+        category: 'structure',
         count: 1,
         searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
       });

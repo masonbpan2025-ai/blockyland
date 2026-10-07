@@ -389,6 +389,9 @@ function generate(origin, params, B) {
 
     return {
       building: matchedBuilding,
+      // The same object under the name the studio's tests read. Both are returned rather than one being
+      // renamed, because the prompt path and the tests each use one of the two words.
+      structure: matchedBuilding,
       extractedParams
     };
   }
