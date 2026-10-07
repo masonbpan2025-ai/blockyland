@@ -50,7 +50,7 @@ export const AREAS = {
   // --- vanilla structure generation ---
   structures: ['structureEngine', 'structureInspectorSession', 'structureInspectorPage', 'structureParityDoc', 'structureTemplate', 'structureProcessors', 'structureIgloo', 'structureRuinedPortal', 'structureNetherFossil', 'structureShipwreck', 'structureOceanRuin', 'structureDesertPyramid', 'structureSwampHut', 'structureJigsaw', 'structurePieceIndex', 'structureTerrainAdaptation', 'structureTerrainWiring', 'structurePillagerOutpost', 'structureGoldenSeeds', 'structurePlacementDensity', 'structureInspectorPanels', 'structureInspectorPanelsUi', 'structureInspectorEntry', 'structureInspectorGeometry', 'worldStructures', 'structureJigsawChains', 'structureVillage', 'structureBastion', 'structureTrialChambers', 'structureAncientCity', 'structureEndCity', 'structureMansion', 'structureTrailRuins', 'structureJunglePyramid', 'structureMonument'],
   // --- world, terrain, fluids ---
-  world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'fire'],
+  world: ['worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'lavaPlacement', 'fire'],
   // --- building and inventory ---
   build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'spawnEggCatalogue', 'workstations_functional', 'beaconManager', 'smithing', 'bed'],
   // --- combat, skills, progression ---
