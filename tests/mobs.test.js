@@ -7,6 +7,7 @@ import { Inventory } from '../src/inventory.js';
 import { BLOCKS } from '../src/blocks.js';
 import { moveGroundMob } from '../src/mobMotion.js';
 import { MobLibrary } from '../src/mobLibrary.js';
+import { provoke } from '../src/endermanBehavior.js';
 
 function fixture(terrain = (x,y,z) => y < 1 ? BLOCKS.STONE : BLOCKS.AIR) {
   const world = { getVoxel: terrain }, scene = new THREE.Scene();
@@ -120,7 +121,13 @@ test('enderman teleports locally in normal world and pursues without jittering i
   assert.ok(distFromSpawn < 30, `Enderman should teleport locally, actual pos: ${JSON.stringify(enderman.mesh.position)}`);
   assert.ok(distFromArenaCenter > 20, 'Enderman should not snap to tournament arena (0, 24.5, 0)');
 
-  // Test pursuit without 60Hz jitter
+  // Test pursuit without 60Hz jitter.
+  //
+  // Wiki: an enderman is neutral and "attacks only when provoked", by being attacked or by the player
+  // looking at it. A wild enderman therefore ignores the player entirely (src/mobs.js says so where it
+  // decides `hostile`), so pursuit is asserted on one that has been provoked -- which is the state the
+  // jitter guard is about anyway.
+  provoke(enderman, 'attack');
   enderman.mesh.position.set(45, 1, 50);
   manager.update(0.1, player);
   assert.ok(enderman.velocity.x > 0, 'Enderman pursues towards player');
