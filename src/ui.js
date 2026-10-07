@@ -1,5 +1,6 @@
 import { renderHorseInventory } from './horseInventory.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
 import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
@@ -88,6 +89,46 @@ export function targetedBlockLabel(target) {
   const def = BLOCK_DEFS[target.blockId];
   const name = def?.name || `block ${target.blockId}`;
   return `Targeted: ${name} (${target.x} ${target.y} ${target.z})`;
+}
+
+/**
+ * How a worn tool's remaining life should look, or null when there is nothing to draw.
+ *
+ * Vanilla hides the bar while a tool is pristine, so a new pickaxe looks like any other item until it has
+ * taken damage, and the colour runs green -> yellow -> red as it empties. `durabilityFraction` already
+ * answers "how much is left", for stacks that record `maxDurability` as well as for a bare item id.
+ */
+export function durabilityBarSpec(stack) {
+  const fraction = durabilityFraction(stack);
+  if (fraction === null || fraction >= 1) return null;
+  if (fraction > 0.5) return { fraction, tier: 'high' };
+  if (fraction > 0.25) return { fraction, tier: 'mid' };
+  return { fraction, tier: 'low' };
+}
+
+/** The tooltip line for a worn tool ("Durability 41 / 59"), or null when it never wears or is untouched. */
+export function durabilityLabel(stack) {
+  if (!durabilityBarSpec(stack)) return null;
+  const max = typeof stack.maxDurability === 'number' ? stack.maxDurability : maxDurabilityFor(stack.id);
+  const left = typeof stack.durability === 'number' ? stack.durability : max;
+  return `Durability ${left} / ${max}`;
+}
+
+/**
+ * F3+H: the tooltip lines vanilla adds once advanced tooltips are on, which name the item and give its exact
+ * durability. A stack of 64 dirt gets nothing, because there is nothing extra to say about it.
+ */
+export function advancedTooltipLines(item) {
+  if (!item) return [];
+  const lines = [];
+  if (typeof item.id === 'string') {
+    lines.push(`minecraft:${item.id}`);
+  } else if (item.id !== undefined && BLOCK_DEFS[item.id]) {
+    lines.push(`minecraft:${String(BLOCK_DEFS[item.id].name || item.id).toLowerCase().replace(/\s+/g, '_')}`);
+  }
+  const max = typeof item.maxDurability === 'number' ? item.maxDurability : maxDurabilityFor(item.id);
+  if (max) lines.push(`Durability ${typeof item.durability === 'number' ? item.durability : max} / ${max}`);
+  return lines;
 }
 
 export class UIManager {
@@ -356,12 +397,23 @@ export class UIManager {
         this.debugScreenRight.style.display = this.showDebug ? 'block' : 'none';
       }
 
-      // Hotbar selection 1-9
+      // Hotbar selection 1-9, or the second half of a Creative toolbar activator (C + 1-9 saves the row,
+      // X + 1-9 restores one).
       if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
-          this.inv.activeSlot = parseInt(e.code.replace('Digit', '')) - 1;
-          this.updateHotbar();
+          const index = parseInt(e.code.replace('Digit', '')) - 1;
+          const armed = this.toolbarActivator && performance.now() - (this.toolbarActivatorAt ?? 0) < 1000;
+          if (armed) {
+            const action = this.toolbarActivator;
+            this.toolbarActivator = null;
+            this.toolbarActivatorConsumed = true;
+            if (action === 'save') this.saveCreativeToolbar(index);
+            else this.loadCreativeToolbar(index);
+          } else {
+            this.inv.activeSlot = index;
+            this.updateHotbar();
+          }
         }
       }
 
@@ -383,12 +435,34 @@ export class UIManager {
       // Cheats only. The terminal can hand out items, summon mobs and move the clock, so in an ordinary
       // Survival world it is a cheat console and this key does nothing -- which is what "key C should not
       // work in survival mode" asks for. Creative worlds have cheats on by default, so it still opens there.
+      //
+      // In Creative, C is also vanilla's save-toolbar activator. Both cannot act on the key press, so the
+      // terminal waits for the release: press a digit first and the row is saved, otherwise the release
+      // opens the terminal, which is where the player was heading anyway.
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         const allowed = this.game?.allowsAgentTerminal?.() ?? false;
-        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen && allowed) {
-          e.preventDefault();
-          this.toggleGeminiTerminal();
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
+          if (this.game?.player?.gamemode === 'creative') {
+            // Vanilla's save-toolbar activator, which works in Creative whether or not cheats are on. The
+            // terminal, when it is available, waits for the key release instead.
+            e.preventDefault();
+            this.toolbarActivator = 'save';
+            this.toolbarActivatorAt = performance.now();
+            this.pendingTerminalToggle = allowed;
+          } else if (allowed) {
+            e.preventDefault();
+            this.toggleGeminiTerminal();
+          }
+        }
+      }
+
+      // X: vanilla's load-toolbar activator, which has no other meaning in this build.
+      if (e.code === 'KeyX' && this.game?.player?.gamemode === 'creative' && !this.isChatOpen) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          this.toolbarActivator = 'load';
+          this.toolbarActivatorAt = performance.now();
         }
       }
 
@@ -418,6 +492,21 @@ export class UIManager {
       }
     });
 
+    // The Creative toolbar activator keys finish on release: a consumed activator has already done its
+    // work, while an unconsumed C still owes the player the Agent Terminal.
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyC') {
+        const consumed = this.toolbarActivatorConsumed;
+        this.toolbarActivator = null;
+        this.toolbarActivatorConsumed = false;
+        if (!consumed && this.pendingTerminalToggle) this.toggleGeminiTerminal();
+        this.pendingTerminalToggle = false;
+      } else if (e.code === 'KeyX') {
+        this.toolbarActivator = null;
+        this.toolbarActivatorConsumed = false;
+      }
+    });
+
     // Mouse scroll wheel cycles hotbar slots
     window.addEventListener('wheel', (e) => {
       if (this.isModalOpen() || this.isChatOpen || this.isGeminiOpen()) return;
@@ -428,6 +517,32 @@ export class UIManager {
       }
       this.updateHotbar();
     });
+  }
+
+  /**
+   * Creative mode, C + 1-9: remember the current hotbar row under that number.
+   *
+   * The rows are kept in memory for the session, which is the part of vanilla's saved toolbars that matters
+   * while building. Items are copied, so later edits to the hotbar do not rewrite the saved row.
+   */
+  saveCreativeToolbar(index) {
+    this.savedToolbars ??= {};
+    this.savedToolbars[index] = this.inv.hotbar.map((item) => (item ? { ...item } : null));
+    this.addChatMessage(`Saved toolbar ${index + 1}`, 'system');
+    return this.savedToolbars[index];
+  }
+
+  /** Creative mode, X + 1-9: put a row saved with C + the same number back on the hotbar. */
+  loadCreativeToolbar(index) {
+    const saved = this.savedToolbars?.[index];
+    if (!saved) {
+      this.addChatMessage(`No saved toolbar ${index + 1}`, 'error');
+      return null;
+    }
+    for (let i = 0; i < 9; i++) this.inv.hotbar[i] = saved[i] ? { ...saved[i] } : null;
+    this.updateHotbar();
+    this.addChatMessage(`Loaded toolbar ${index + 1}`, 'system');
+    return saved;
   }
 
   isModalOpen() {
@@ -558,6 +673,9 @@ export class UIManager {
             count.textContent = meta.count;
             slot.appendChild(count);
           }
+
+          // The hotbar is where a tool is watched while mining, so it gets the bar too.
+          this.addDurabilityBar(slot, item);
         }
       }
     }
@@ -584,6 +702,8 @@ export class UIManager {
             count.textContent = meta.count;
             offhandSlot.appendChild(count);
           }
+
+          this.addDurabilityBar(offhandSlot, offhandItem);
         }
       } else {
         offhandSlot.style.display = 'none';
@@ -1172,7 +1292,12 @@ export class UIManager {
         };
         if (item) {
           const meta = this.inv.getItemMeta(item);
-          slot.onmouseenter = (e) => this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          slot.onmouseenter = (e) => {
+            const wear = durabilityLabel(item);
+            const advanced = this.advancedTooltipSuffix(item);
+            const parts = [`Count: ${item.count}`, wear, advanced].filter(Boolean);
+            this.showTooltip(e.clientX, e.clientY, meta.name, parts.join(' · '));
+          };
           slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
           slot.onmouseleave = () => this.hideTooltip();
         }
@@ -1217,7 +1342,9 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          this.showTooltip(e.clientX, e.clientY, meta.name, `Count: ${item.count}`);
+          const count = item.count > 1 ? `Count: ${item.count}` : '';
+          const lines = [count, durabilityLabel(item), this.advancedTooltipSuffix(item)].filter(Boolean);
+          this.showTooltip(e.clientX, e.clientY, meta.name, lines.join(' · '));
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3078,7 +3205,9 @@ export class UIManager {
       if (item) {
         const meta = this.inv.getItemMeta(item);
         slot.onmouseenter = (e) => {
-          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, item.count > 1 ? `Count: ${item.count}` : '', item.enchantments || []);
+          const count = item.count > 1 ? `Count: ${item.count}` : '';
+          const lines = [count, durabilityLabel(item), this.advancedTooltipSuffix(item)].filter(Boolean);
+          this.showTooltip(e.clientX, e.clientY, meta?.name || item.id, lines.join(' · '), item.enchantments || []);
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
         slot.onmouseleave = () => this.hideTooltip();
@@ -3094,6 +3223,31 @@ export class UIManager {
 
       el.appendChild(slot);
     });
+  }
+
+  /**
+   * Draw the vanilla durability bar along the bottom of a slot.
+   *
+   * Every place that draws an item icon calls this, because tools wear out silently otherwise: mining
+   * spends the point, unbreaking saves some, and nothing showed it. A tool whose remaining life is
+   * invisible is one the player cannot plan around.
+   *
+   * @param {HTMLElement} slot
+   * @param {{id?:string, durability?:number, maxDurability?:number}} stack
+   */
+  addDurabilityBar(slot, stack) {
+    const spec = durabilityBarSpec(stack);
+    if (!spec || !slot) return null;
+    const bar = document.createElement('div');
+    bar.className = `durability-bar durability-${spec.tier}`;
+    const fill = document.createElement('div');
+    fill.className = 'durability-fill';
+    fill.style.width = `${Math.round(spec.fraction * 100)}%`;
+    bar.appendChild(fill);
+    const label = durabilityLabel(stack);
+    if (label) bar.title = label;
+    slot.appendChild(bar);
+    return bar;
   }
 
   renderSlotContent(slotEl, item) {
@@ -3119,6 +3273,9 @@ export class UIManager {
       count.textContent = meta.count;
       slotEl.appendChild(count);
     }
+
+    // This renderer backs the inventory, crafting, furnace, anvil, enchanting, brewing and chest grids.
+    this.addDurabilityBar(slotEl, item);
   }
 
   bindFloatingCursor() {
@@ -4249,6 +4406,46 @@ export class UIManager {
     }
   }
 
+  /** Control+B: the narrator. Chat is read aloud through the Web Speech API when it is on. */
+  toggleNarrator() {
+    this.narratorEnabled = !this.narratorEnabled;
+    try {
+      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+    } catch { /* no speech synthesis in this browser */ }
+    return this.narratorEnabled;
+  }
+
+  /** Speak a chat line, if the narrator is on. Tags are stripped so "<Player>" is not read as markup. */
+  speak(text) {
+    if (!this.narratorEnabled || !text || typeof speechSynthesis === 'undefined') return false;
+    try {
+      const utterance = new SpeechSynthesisUtterance(String(text).replace(/<[^>]*>/g, ''));
+      speechSynthesis.speak(utterance);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** F3+D: clear the chat. There is no separate history buffer, so the transcript is the whole record. */
+  clearChat() {
+    if (this.chatMessages) this.chatMessages.innerHTML = '';
+    this.speaking = false;
+    return true;
+  }
+
+  /** F3+H: advanced tooltips, which name the item id and its exact durability. */
+  toggleAdvancedTooltips() {
+    this.advancedTooltips = !this.advancedTooltips;
+    return this.advancedTooltips;
+  }
+
+  /** The F3+H lines for a slot, empty unless advanced tooltips are on. */
+  advancedTooltipSuffix(item) {
+    if (!this.advancedTooltips) return '';
+    return advancedTooltipLines(item).join(' · ');
+  }
+
   addChatMessage(msg, type = 'normal') {
     const el = document.createElement('div');
     el.className = `chat-msg ${type}`;
@@ -4259,6 +4456,8 @@ export class UIManager {
     }
     this.chatMessages.appendChild(el);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    // Control+B: read the line aloud when the narrator is on.
+    if (this.narratorEnabled) this.speak(msg);
 
     // Fade out old messages
     setTimeout(() => {
