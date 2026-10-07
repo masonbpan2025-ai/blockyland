@@ -39,8 +39,14 @@ test('all rideable mobs accept WASD input and move without jitter', () => {
     ['strider', mob => { mob.isSaddled = true; }]
   ];
 
-  for (const [type, prepare] of mounts) {
-    const mob = manager.spawnMob(type, 0, 1, 0);
+  // Each mount gets its own stretch of ground. They used to share the origin, so the previous mount was
+  // still standing there and could block the next one: the strider failed "should respond to W while ridden"
+  // in roughly one run in five, always because it had nowhere to go rather than because steering was broken.
+  const groundFor = index => [index * 40, 1, index * 40];
+
+  for (const [index, [type, prepare]] of mounts.entries()) {
+    const [spawnX, spawnY, spawnZ] = groundFor(index);
+    const mob = manager.spawnMob(type, spawnX, spawnY, spawnZ);
     prepare(mob);
     // Wiki: a strider is the one mount that needs a warped fungus on a stick in the rider's hand before it
     // will go anywhere, so the fixture hands it one for that mount only.
