@@ -133,8 +133,15 @@ test('other enderman teleport and pursuit behaviour still works', () => {
   // rather than deleted -- and the next block is the positive control that keeps this from passing merely
   // because all pursuit was disabled.
   manager.update(0.1, player);
-  assert.equal(enderman.velocity.x, 0, 'an unprovoked enderman does not pursue');
-  assert.equal(enderman.velocity.z, 0);
+  // Wiki: neutral mobs wander, so an unprovoked enderman is not motionless -- what it must not do is head for
+  // the player. Asserting that its velocity is exactly zero pinned "does not pursue" to "does not move",
+  // which contradicts both the wiki and mobUpdateSmoke's requirement that every mob actually moves.
+  const heading = new THREE.Vector3(enderman.velocity.x, 0, enderman.velocity.z);
+  const toPlayer = player.position.clone().sub(enderman.mesh.position).setY(0);
+  const closing = heading.lengthSq() > 0 && toPlayer.lengthSq() > 0
+    ? heading.normalize().dot(toPlayer.normalize())
+    : 0;
+  assert.ok(closing < 0.5, `an unprovoked enderman does not pursue (heading dot ${closing.toFixed(3)})`);
   assert.equal(enderman.state, 'idle');
 
   // POSITIVE CONTROL: provoked, it does pursue.
