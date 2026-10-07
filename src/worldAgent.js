@@ -1241,7 +1241,10 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
     const blocks = Array.from(voxelMap.values());
     if (blocks.length > 0) {
-      this.activeBuilding = targetBuilding || this.recordBuiltBuilding(plan.buildingType || 'custom', startX, baseY, startZ, W, H, D, { name: plan.name || title });
+      // The recorded type comes from `structureType` on modern plans and `buildingType` on older ones; reading
+      // only the latter filed every structure as "custom", which is what the multi-step reference test caught.
+      const recordedType = plan.structureType || plan.buildingType || 'custom';
+      this.activeBuilding = targetBuilding || this.recordBuiltBuilding(recordedType, startX, baseY, startZ, W, H, D, { name: plan.name || title });
       this.lastReferencedBuilding = this.activeBuilding;
       await this.applyVoxelChanges(blocks, `Building ${title}`);
       this.game.sounds.playLevelUp();
@@ -3215,6 +3218,12 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     this.log(`âœ“ Removed ${target.name}; restored ${blocks.length} blocks.`, 'success');
   }
 
+  /** The same reference scan under the structure name the tests use. */
+  findReferencedStructure(text) {
+    return this.findReferencedBuilding(text);
+  }
+
+  /** The same reference scan the prompt path has always used. */
   findReferencedBuilding(text) {
     if (!this.builtBuildings || this.builtBuildings.length === 0) {
       return null;
