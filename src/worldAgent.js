@@ -1862,11 +1862,11 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         const editable = ['edit', 'destroy', 'build_stairs', 'build_ladder'].includes(plan.action);
         if (studioBuilding && editable) {
           const requested = typeof plan.targetBuilding === 'string' ? plan.targetBuilding : 'that building';
-          this.log(`"${requested}" is not a known building; applying this to "${studioBuilding.name}" from Building Studio instead.`, 'warning');
+          this.log(`"${requested}" is not a known structure; applying this to "${studioBuilding.name}" from Structure Studio instead.`, 'warning');
           plan = { ...plan, targetBuilding: studioBuilding };
           this.lastReferencedBuilding = studioBuilding;
         } else {
-          throw new Error(`Building not found: ${typeof plan.targetBuilding === 'string' ? plan.targetBuilding : plan.targetBuilding.id}`);
+          throw new Error(`Structure not found: ${typeof plan.targetBuilding === 'string' ? plan.targetBuilding : plan.targetBuilding.id}`);
         }
       }
     }
@@ -3075,7 +3075,10 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       id: `studio_${studio.currentBuilding.id}`,
       name: studio.currentBuilding.name,
       type: studio.currentBuilding.id,
+      // Both spellings: the studio has been called a building and a structure in different rounds, and the
+      // tests and prompt text each use one of them.
       isStudioBuilding: true,
+      isStudioStructure: true,
       startX: origin.x + (info?.bounds?.minX ?? 0),
       baseY: origin.y + (info?.bounds?.minY ?? 0),
       startZ: origin.z + (info?.bounds?.minZ ?? 0),
@@ -3087,18 +3090,28 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     };
   }
 
+  /**
+   * The same resolution under its other name. The tests and the newer prompt text call a building a
+   * structure, and `resolveStructure` is the spelling they use, so both exist rather than one being renamed
+   * out from under callers.
+   */
+  resolveStructure(reference) {
+    return this.resolveBuilding(reference);
+  }
+
   resolveBuilding(reference) {
     const studioBuilding = this.getStudioBuilding();
 
     if (reference && typeof reference === 'object') {
-      if (reference.isStudioBuilding) return studioBuilding;
+      if (reference.isStudioBuilding || reference.isStudioStructure) return studioBuilding;
       return this.builtBuildings.find(s => s.id === reference.id) || null;
     }
     const text = String(reference || '').toLowerCase().trim().replace(/^(the|a|an)\s+/, '');
 
-    // In Building Studio the open building is the thing being worked on, so the
-    // usual pronouns and "the open building" resolve to it first.
-    if (studioBuilding && /^(it|that|this|that one|this one|previous one|last one|building|building|the open building|open building|current building)$/.test(text)) {
+    // In the Studio the open structure is the thing being worked on, so the usual pronouns and "the open
+    // structure" resolve to it first. Both words are listed because the feature has been called a building
+    // and a structure in different rounds, and "the structure" is what a player says.
+    if (studioBuilding && /^(it|that|this|that one|this one|previous one|last one|building|structure|the open building|open building|current building|the open structure|open structure|current structure|the structure)$/.test(text)) {
       return studioBuilding;
     }
     if (studioBuilding && [studioBuilding.id.toLowerCase(), studioBuilding.name.toLowerCase(), studioBuilding.type].includes(text)) {
@@ -3106,7 +3119,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     }
 
     if (text === 'last') return this.lastBuiltBuilding;
-    if (/^(it|that|this|that one|this one|previous one|last one|building|building)$/.test(text)) return this.lastReferencedBuilding || this.lastBuiltBuilding;
+    if (/^(it|that|this|that one|this one|previous one|last one|building|structure)$/.test(text)) return this.lastReferencedBuilding || this.lastBuiltBuilding;
     const exact = this.builtBuildings.filter(s => [s.id.toLowerCase(), s.name.toLowerCase(), s.type].includes(text));
     if (exact.length) return exact.at(-1);
     return null;

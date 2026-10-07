@@ -218,7 +218,7 @@ export function formatBuildingContext(info) {
 
   return `BUILDING STUDIO — the building currently open for editing:
 "${info.name}" (id: studio_${info.id})
-THIS is the building to edit. For any change to it use targetBuilding "studio_${info.id}", or the exact name "${info.name}". NEVER invent a building id: an id that is not shown here does not exist and the request will fail with "Building not found".${info.description ? ` — ${info.description}` : ''}
+THIS is the building to edit. For any change to it use targetBuilding "studio_${info.id}", or the exact name "${info.name}". NEVER invent a structure id (also called a building id): an id that is not shown here does not exist and the request will fail with "Structure not found".${info.description ? ` — ${info.description}` : ''}
 Blocks: ${info.blockCount}. Size: ${info.size.width} wide (X) x ${info.size.height} tall (Y) x ${info.size.depth} deep (Z).
 Local coordinate frame: local (0,0,0) is world (${info.origin.x}, ${info.origin.y}, ${info.origin.z}).
 Local bounds: X ${info.bounds.minX}..${info.bounds.maxX}, Y ${info.bounds.minY}..${info.bounds.maxY}, Z ${info.bounds.minZ}..${info.bounds.maxZ}. Anything outside those bounds is beside the building.
