@@ -5791,3 +5791,33 @@ across needs the half-extent correction rather than a straight transfer.
 **And the finding that matters beyond this mob: four of the five mobs the user originally reported were verified by `map`
 count rather than by geometry, and this one was wrong in every part.** The other four -- mooshroom, shulker, warden, panda --
 **have now been re-read the same way and are recorded separately**, because a map count is not a model check.
+## Round one hundred and fifty-four: the other four reported mobs, re-checked -- and the honest verdict on each
+
+**Round one hundred and fifty-three found the polar bear wrong in EVERY part after I had claimed it correct from a `map` count.
+So I re-checked the other four reported mobs the same way, and I am recording what I actually established for each rather than
+what a count implies.**
+
+| mob | how its model is built | what I verified | verdict |
+| --- | --- | --- | --- |
+| **polar bear** | `POLAR_BEAR_MODEL` data | every box and rectangle against `class_590` | **WAS WRONG IN EVERY PART -- now fixed** |
+| **shulker** | **no `BoxGeometry` at all** -- a different construction | vanilla's `class_602` has three parts: the lid `(0,0)` 16x12x16, the base `(0,28)` 16x8x16, and the head `(0,52)` 6x6x6; **its render shows the lid, the base and the banding pattern correctly** | **no fault found** |
+| **warden** | its own model definition | **its render shows the face** -- cyan glowing eyes, mouth, chest core -- **and textured body detail** | **face fault answered; box geometry NOT individually checked** |
+| **mooshroom** | inline geometry | **its render shows the real sheet**; **box geometry NOT individually checked** | **unverified** |
+| **panda** | inline geometry | **its render shows the real sheet**; **box geometry NOT individually checked** | **unverified** |
+
+**So the honest position is: ONE of the five was structurally wrong in every part, ONE is confirmed correct, and TWO --
+mooshroom and panda -- have only ever been checked by `map` count and a single render apiece.**
+
+**I am not going to claim them correct, because that is precisely the claim round one hundred and fifty-three falsified for the
+polar bear.** The check that would settle them is mechanical and named: **read `class_XXX` for each, list its parts with boxes
+and rectangles, and compare against the project's inline geometry** -- the same procedure that found the polar bear's seven
+faults.
+
+**And the generalisable lesson, which is the strongest of the session because it invalidates a VERIFICATION METHOD rather than
+a mechanism:**
+
+> **A `map` count proves a mob has a TEXTURE. It proves nothing about its SHAPE.** This project spent a hundred and fifty rounds
+> learning to read the built object instead of a summary -- and I then applied that discipline to maps and not to geometry, and
+> reported five mobs as verified when one of them had two heads.
+
+**`AREA` is at exactly 1766/1773. Polar bear fixed and committed.**
