@@ -104,9 +104,17 @@ export function allowsShowcasePopulation(settings) {
   return normaliseSettings(settings).preset === 'showcase';
 }
 
-/** May the Agent Terminal be opened, and may cheat commands run? */
+/**
+ * May the Agent Terminal be opened, and may cheat commands run?
+ *
+ * Creative counts, not only an explicit cheats flag. `cheats` defaults from the mode when a world is made,
+ * but a Survival world switched to Creative keeps `cheats: false` — and that left the terminal unusable in
+ * exactly the mode this build gives it for: ask the terminal to switch you to Creative and `C` then does
+ * nothing. Survival still needs cheats on, which is what keeps `C` from opening it there.
+ */
 export function allowsAgentTerminal(settings) {
-  return normaliseSettings(settings).cheats === true;
+  const normalised = normaliseSettings(settings);
+  return normalised.cheats === true || normalised.gameMode === 'creative';
 }
 
 /**

@@ -442,15 +442,15 @@ export class UIManager {
       if (e.code === 'KeyC') {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         const allowed = this.game?.allowsAgentTerminal?.() ?? false;
-        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
+        if (allowed && activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !this.isChatOpen) {
           if (this.game?.player?.gamemode === 'creative') {
-            // Vanilla's save-toolbar activator, which works in Creative whether or not cheats are on. The
-            // terminal, when it is available, waits for the key release instead.
+            // Vanilla's save-toolbar activator shares this key, so the terminal waits for the release: a
+            // digit pressed while C is held saves a row, otherwise the release opens the terminal.
             e.preventDefault();
             this.toolbarActivator = 'save';
             this.toolbarActivatorAt = performance.now();
-            this.pendingTerminalToggle = allowed;
-          } else if (allowed) {
+            this.pendingTerminalToggle = true;
+          } else {
             e.preventDefault();
             this.toggleGeminiTerminal();
           }

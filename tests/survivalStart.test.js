@@ -94,9 +94,12 @@ test('Creative turns cheats on and Survival leaves them off', () => {
   // This is what makes `C` open the Agent Terminal in Creative and do nothing in Survival.
   assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'survival' })), false);
   assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'creative' })), true);
-  // An explicit value wins either way.
+  // An explicit value wins for Survival...
   assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'survival', cheats: true })), true);
-  assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'creative', cheats: false })), false);
+  assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'survival', cheats: false })), false);
+  // ...but not for Creative: a Survival world switched to Creative keeps `cheats: false`, and switching the
+  // mode is exactly how a player asks for the terminal, so it has to be there.
+  assert.equal(allowsAgentTerminal(normaliseSettings({ gameMode: 'creative', cheats: false })), true);
 });
 
 test('the mode and difficulty helpers agree with the settings', () => {
@@ -215,7 +218,9 @@ test('middle-click creates nothing in Survival and a stack in Creative', () => {
   // called from the event binding far earlier in the file, so searching for it gave an empty slice and the
   // assertion failed against correct code.
   const start = source.indexOf('\n  handleMiddleClick() {');
-  const end = source.indexOf('\n  dropHeldItem() {');
+  // Anchored on the name alone: `dropHeldItem` gained a whole-stack flag for Control+Q, and pinning the
+  // anchor to the old empty parameter list made this fail against correct code.
+  const end = source.indexOf('\n  dropHeldItem(');
   assert.ok(start > 0 && end > start, 'the method must be found between its neighbours');
   const fn = source.slice(start, end);
   assert.match(fn, /hasCreativeAbilities/, 'it branches on the mode');
@@ -265,5 +270,5 @@ test('key C is gated on cheats, so it does nothing in ordinary Survival', () => 
   assert.match(block, /this\.game\?\.allowsAgentTerminal\?\.\(\)/, 'the terminal is cheats-gated');
   assert.match(block, /allowed/, 'and the gate is part of the condition');
   // The gate must be in the same `if` as the open call, not merely computed nearby.
-  assert.match(block, /!this\.isChatOpen && allowed/, 'the key only opens it when allowed');
+  assert.match(block, /if \(allowed && /, 'the key only opens it when allowed');
 });
