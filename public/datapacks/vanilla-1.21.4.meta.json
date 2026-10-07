@@ -1,11 +1,17 @@
 {
   "name": "Vanilla 1.21.4",
+  "pack": {
+    "description": "The default data for Minecraft",
+    "pack_format": 61
+  },
+  "format": 61,
+  "packMetaFromTag": true,
   "ref": "1.21.4-data",
   "source": "https://github.com/misode/mcmeta",
   "generator": "https://misode.github.io/",
-  "files": 3085,
-  "bytes": 1123346,
-  "sha256": "b8782953a082a807386160cb070862d15678985a4e17863d34a2addef5e506f5",
+  "files": 3086,
+  "bytes": 1123435,
+  "sha256": "9d8816a13ce13d027381af69f7b9a7b3fb8e87e5de7fd5a2725de85558b8ec6d",
   "types": [
     "worldgen/biome/",
     "dimension_type/",

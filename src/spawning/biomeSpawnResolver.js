@@ -15,6 +15,7 @@
 // Reference: Minecraft Wiki "Spawn" and "Structure"; misode/mcmeta 1.21.4-data for the biome tables
 // and the structure `spawn_overrides` blocks. Behaviour reimplemented; no Mojang source copied.
 
+import { packBiomeSpawnsFor } from './packBiomeSpawns.js';
 import {
   BIOME_SPAWN_TABLES,
   ENGINE_ONLY_BIOME_ALIASES,
@@ -83,7 +84,12 @@ export const STRUCTURE_SPECIAL_CASES = Object.freeze({
 });
 
 /**
- * Resolve an engine biome id to the vanilla table it uses, following the alias maps.
+ * Resolve an engine biome id to the spawn table it uses, following the alias maps.
+ *
+ * A DATA PACK'S TABLE WINS over the baked one, and wins entirely -- the baked table is not merged in. A pack
+ * that writes a biome's `spawners` writes the whole block, and unioning would make it impossible to REMOVE a
+ * spawn by omitting it. This check is the line that makes a pack change what actually spawns; without it a
+ * pack could override every biome's spawners and the game would go on spawning exactly what it did before.
  *
  * Returns null when the biome has no spawns at all (the void, or an id this engine does not know),
  * which callers must treat as "nothing may spawn here" rather than "use plains".
@@ -91,9 +97,17 @@ export const STRUCTURE_SPECIAL_CASES = Object.freeze({
 export function resolveBiomeTable(biomeId) {
   if (!biomeId) return null;
   const clean = String(biomeId).toLowerCase().trim().replace(/[\s-]+/g, '_');
+  const packed = packBiomeSpawnsFor(clean);
+  if (packed) return packed;
   if (BIOME_SPAWN_TABLES[clean]) return BIOME_SPAWN_TABLES[clean];
   const runtimeAlias = ENGINE_ONLY_BIOME_RUNTIME_ALIASES[clean];
-  if (runtimeAlias && BIOME_SPAWN_TABLES[runtimeAlias]) return BIOME_SPAWN_TABLES[runtimeAlias];
+  if (runtimeAlias) {
+    // The alias is followed on the PACK side too, so a pack that overrides the vanilla name of an
+    // engine-only biome still reaches it.
+    const aliased = packBiomeSpawnsFor(runtimeAlias);
+    if (aliased) return aliased;
+    if (BIOME_SPAWN_TABLES[runtimeAlias]) return BIOME_SPAWN_TABLES[runtimeAlias];
+  }
   // The generation-time aliases already have their own table copied in, so reaching here means the
   // alias map and the tables disagree -- which is a bug, not a data gap.
   if (ENGINE_ONLY_BIOME_ALIASES[clean]) return BIOME_SPAWN_TABLES[clean] || null;

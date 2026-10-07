@@ -9,6 +9,7 @@
 // game keys blocks by an upper-snake registry name with a numeric id and items by a lower-snake string.
 import { BLOCKS, ITEMS, BLOCK_DEFS } from './blocks.js';
 import { buildGameBlockIndex, resolveVanillaBlock, normaliseBlockName } from './blockNameMatch.js';
+import { spawnerTable } from './spawning/packBiomeSpawns.js';
 
 /** The index is expensive to build, so it is built once per process. */
 let blockIndexCache = null;
@@ -456,8 +457,12 @@ export function adaptBiome(json, fallback = null) {
     temperature: Number.isFinite(json.temperature) ? json.temperature : base.temperature,
     downfall: Number.isFinite(json.downfall) ? json.downfall : base.downfall,
     hasPrecipitation: json.has_precipitation !== false,
-    // Spawners become the mob list. Vanilla weights them; this game's list is unweighted, so a mob that
-    // appears in any category appears once.
+    // The WEIGHTED spawn table, which is what natural spawning actually reads. An earlier version stopped at
+    // `mobs` below, a flat list of names -- and a flat list cannot express a weight, so using it would have
+    // made a zombie villager as common as a zombie and quietly changed the spawn rate of every pack.
+    spawners: spawnerTable(json.spawners),
+    // Kept as well: an unweighted list of the mobs that appear here, which is what a menu or a
+    // "what lives in this biome" line wants.
     mobs: spawnerMobList(json.spawners) ?? base.mobs,
     // `dimension` is not in the file -- a biome is not bound to one -- so it is inherited and corrected by
     // the caller that knows which dimension it is loading for.

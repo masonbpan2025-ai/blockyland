@@ -18,6 +18,9 @@ import {
   adaptPlacedFeature, adaptStructure, createTagExpander, resetAdapterCaches,
 } from './dataPackAdapters.js';
 import { normaliseId } from './dataPack.js';
+import {
+  setPackBiomeSpawns, clearPackBiomeSpawns, packBiomeSpawnsFor, resetPackBiomeSpawns,
+} from './spawning/packBiomeSpawns.js';
 
 /**
  * Tags a pack has loaded, by kind.
@@ -77,6 +80,7 @@ export function applyDataPack(resolved, options = {}) {
     skipped: false,
     reason: null,
     biomes: { added: [], overwritten: [] },
+    spawns: [],
     recipes: [],
     smelting: { added: [], overwritten: [] },
     loot: { overrides: [], counts: [] },
@@ -140,9 +144,22 @@ export function applyDataPack(resolved, options = {}) {
     if (!adapted.dimension) adapted.dimension = fallback?.dimension ?? 'overworld';
     adapted.fromDataPack = true;
     adapted.packName = name;
-    if (existed) applied.biomes.overwritten.push({ key: path, previous: BIOMES[path] });
-    else applied.biomes.added.push(path);
+    // `installed` is recorded alongside `previous` so the revert can tell whether this pack's value is
+    // STILL the one in place. Without it, reverting two packs out of order resurrects what the first
+    // revert removed: pack B records A's biome as "previous", so reverting B after A re-adds A's value.
+    if (existed) applied.biomes.overwritten.push({ key: path, previous: BIOMES[path], installed: adapted });
+    else applied.biomes.added.push({ key: path, installed: adapted });
     BIOMES[path] = adapted;
+
+    // The spawn table, which is what natural spawning reads. `BIOMES[x].mobs` is a flat list of names and
+    // carries no weights, so it cannot drive spawning; the resolver reads this registry instead. Recorded so
+    // a revert puts the baked vanilla table back.
+    if (adapted.spawners) {
+      const previous = packBiomeSpawnsFor(path);
+      const installed = adapted.spawners;
+      setPackBiomeSpawns(path, installed);
+      applied.spawns.push({ biomeId: path, previous, installed });
+    }
   }
 
   // --- recipes ------------------------------------------------------------------------------------
@@ -234,8 +251,28 @@ export function applyDataPack(resolved, options = {}) {
 export function revertDataPack(applied) {
   if (!applied || applied.skipped) return false;
 
-  for (const { key, previous } of applied.biomes.overwritten) BIOMES[key] = previous;
-  for (const key of applied.biomes.added) delete BIOMES[key];
+  // ORDER-SAFE, and idempotent. Each entry is restored only when this pack's own value is still the one in
+  // place; otherwise something else owns the key now and restoring would resurrect a value this pack
+  // replaced.
+  //
+  // The bug this closes: with two packs stacked, pack B records A's biome as its `previous`. Reverting A and
+  // then B -- which is what `t.after` hooks do, in registration order rather than reverse -- re-added A's
+  // biome through B's revert, leaving a biome in the registry that no pack claims and no revert removes. The
+  // next test to walk `BIOMES` saw a biome with no spawn table.
+  for (const record of applied.biomes.overwritten) {
+    if (BIOMES[record.key] === record.installed) BIOMES[record.key] = record.previous;
+  }
+  for (const record of applied.biomes.added) {
+    if (BIOMES[record.key] === record.installed) delete BIOMES[record.key];
+  }
+
+  // Spawn tables come off after the biomes they came from, so a failure part-way leaves the registry
+  // consistent with what the biome objects say rather than the other way round. Guarded the same way.
+  for (const { biomeId, previous, installed } of applied.spawns) {
+    if (packBiomeSpawnsFor(biomeId) !== installed) continue;
+    if (previous) setPackBiomeSpawns(biomeId, previous);
+    else clearPackBiomeSpawns(biomeId);
+  }
 
   // Truncate from the end, deepest index first, so earlier indices stay valid.
   for (const record of [...applied.recipes].sort((a, b) => b.fromIndex - a.fromIndex)) {
@@ -276,6 +313,7 @@ export function resetTagRegistry() {
   PACK_FEATURES.clear();
   PACK_STRUCTURES.clear();
   APPLIED_PACK_ORDER.length = 0;
+  resetPackBiomeSpawns();
   resetAdapterCaches();
 }
 

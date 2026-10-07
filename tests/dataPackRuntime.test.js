@@ -168,7 +168,9 @@ test('a biome id the game does not have is ADDED rather than replacing one', (t)
   const applied = applyFor(t, {
     'data/t/worldgen/biome/mushroom_island.json': { effects: { sky_color: 111111 }, temperature: 0.9 },
   });
-  assert.deepEqual(applied.biomes.added, ['mushroom_island']);
+  // `added` holds records, not bare keys: each carries the value the pack installed, so a revert can tell
+  // whether its own value is still in place before restoring or deleting.
+  assert.deepEqual(applied.biomes.added.map(b => b.key), ['mushroom_island']);
   assert.equal(BIOMES.mushroom_island.skyColor, 111111);
   assert.equal(BIOMES.mushroom_island.id, 'mushroom_island');
   assert.equal(BIOMES.mushroom_island.name, 'Mushroom Island', 'a display name is derived from the id');

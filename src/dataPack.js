@@ -38,11 +38,17 @@ export const PACK_TYPES = Object.freeze({
 /**
  * The pack format this build writes and prefers.
  *
- * 48 is 1.21.4's, which is the version the spawn data already targets. A pack that declares a different
- * format still loads -- refusing it would make the loader useless for the version picker in the generators --
- * but the mismatch is recorded so the UI can say so.
+ * **61 is 1.21.4's data pack format**, which is what this game's data targets. It was 48, which is 1.21 and
+ * 1.21.1 -- so every pack that declared its own version correctly was reported as a format mismatch, and the
+ * number was simply wrong for the version the rest of this project pins.
+ *
+ * Read off the artefact rather than remembered: `misode/mcmeta` tag `1.21.4-data`'s own `pack.mcmeta`
+ * declares `pack_format: 61`, and that file is the vanilla data pack's own declaration.
+ *
+ * A pack that declares a different format still loads -- refusing it would make the loader useless for the
+ * version picker in the generators -- but the mismatch is recorded so the UI can say so.
  */
-export const PREFERRED_PACK_FORMAT = 48;
+export const PREFERRED_PACK_FORMAT = 61;
 
 /** A directory to its type, built once. */
 const DIR_TO_TYPE = (() => {

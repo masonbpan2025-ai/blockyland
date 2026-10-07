@@ -5,7 +5,7 @@ import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
-import { createWorldStructures } from './worldStructures.js';
+import { createWorldStructures, enabledStructureIds } from './worldStructures.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -487,7 +487,11 @@ export class World {
     this.structures = createWorldStructures({
       seed,
       world: this,
-      sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z }
+      sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z },
+      // Which structures to place follows the loaded data packs. This runs per new world, AFTER
+      // `generateNewWorld` has applied them, so a pack's structures are in place by the time the engine
+      // captures its enabled set.
+      enabledIds: enabledStructureIds(),
     });
     this.chunks.clear();
     // The Map is now empty, so any cached slot would answer for a chunk that no longer exists.

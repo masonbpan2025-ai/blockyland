@@ -17,6 +17,34 @@ export const VANILLA_PACK_REF = '1.21.4-data';
 export const VANILLA_PACK_FILE = 'public/datapacks/vanilla-1.21.4.json';
 export const VANILLA_PACK_META = 'public/datapacks/vanilla-1.21.4.meta.json';
 
+/**
+ * What a vanilla data pack declares about itself, copied verbatim from the vanilla `pack.mcmeta`.
+ *
+ * Fetched from the pinned tag rather than invented, so the bundled default carries the SAME settings a
+ * typical Minecraft data pack does -- the same description string and the same `pack_format`. A pack without
+ * a `pack.mcmeta` is not what Minecraft ships, and a reader that trusts the declared format would have
+ * nothing to read.
+ *
+ * If the fetch fails this falls back to the values read off that file on 2025-01-01, so a build is not
+ * blocked by GitHub being briefly unavailable.
+ */
+export const VANILLA_PACK_MCMETA_FALLBACK = Object.freeze({
+  pack: Object.freeze({ description: 'The default data for Minecraft', pack_format: 61 }),
+});
+
+/** The vanilla data pack's own `pack.mcmeta`, or the fallback when it cannot be read. */
+async function fetchVanillaPackMeta() {
+  try {
+    const res = await fetch(`https://raw.githubusercontent.com/misode/mcmeta/${VANILLA_PACK_REF}/pack.mcmeta`);
+    if (!res.ok) return { meta: VANILLA_PACK_MCMETA_FALLBACK, fetched: false };
+    const json = JSON.parse(await res.text());
+    if (!json?.pack || typeof json.pack !== 'object') return { meta: VANILLA_PACK_MCMETA_FALLBACK, fetched: false };
+    return { meta: json, fetched: true };
+  } catch {
+    return { meta: VANILLA_PACK_MCMETA_FALLBACK, fetched: false };
+  }
+}
+
 /** The types this loader has adapters for and the game can consume. */
 export const VANILLA_PACK_PREFIXES = [
   'worldgen/biome/',
@@ -109,6 +137,13 @@ async function main() {
     process.exit(1);
   }
 
+  // The pack's own `pack.mcmeta`, copied from vanilla. A data pack without one is not what Minecraft ships,
+  // and a reader that trusts the declared format would have nothing to read.
+  const { meta: vanillaMeta, fetched: metaFetched } = await fetchVanillaPackMeta();
+  files['pack.mcmeta'] = vanillaMeta;
+  console.log(`  pack.mcmeta: ${metaFetched ? 'read from the tag' : 'FALLBACK (could not fetch)'}`
+    + ` -- format ${vanillaMeta.pack.pack_format}`);
+
   // Sorted keys, so the file is stable and a rebuild produces the same bytes when the data has not changed.
   const ordered = {};
   for (const key of Object.keys(files).sort()) ordered[key] = files[key];
@@ -119,7 +154,12 @@ async function main() {
   mkdirSync('public/datapacks', { recursive: true });
   writeFileSync(VANILLA_PACK_FILE, text, 'utf8');
   const meta = {
+    // The same settings a typical Minecraft data pack declares, so the bundled default can be compared
+    // against one rather than taken on trust.
     name: 'Vanilla 1.21.4',
+    pack: vanillaMeta.pack,
+    format: vanillaMeta.pack.pack_format,
+    packMetaFromTag: metaFetched,
     ref: VANILLA_PACK_REF,
     source: 'https://github.com/misode/mcmeta',
     generator: 'https://misode.github.io/',

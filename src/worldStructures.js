@@ -26,8 +26,9 @@
 //   * Chest loot has nowhere to go: this world has no block-entity container store, so loot tables are
 //     collected in `loot` for a caller (or a test) to use and are NOT yet attached to the placed chests.
 
-import { createStructureEngine, getSetForStructure } from './worldgen/index.js';
+import { createStructureEngine, getSetForStructure, generatorCoverage } from './worldgen/index.js';
 import { BLOCKS } from './blocks.js';
+import { PACK_STRUCTURES } from './dataPackRuntime.js';
 
 /**
  * The structures enabled in generated worlds.
@@ -38,6 +39,58 @@ import { BLOCKS } from './blocks.js';
  * would write nothing while looking enabled, so the list is grown deliberately rather than all at once.
  */
 export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid'];
+
+/**
+ * Every structure id the engine can actually generate.
+ *
+ * `generatorCoverage` splits the registry into the structures with a generator and the four without one
+ * (mineshaft, mineshaft_mesa, stronghold, fortress). A pack that names a structure this engine cannot build
+ * must not enable it: it would plan nothing while the world reported it as on.
+ */
+export function generatableStructureIds() {
+  return generatorCoverage().implemented;
+}
+
+/**
+ * The structure ids a generated world should place.
+ *
+ * A DATA PACK WINS. When a pack carries `worldgen/structure/*.json` files, the set of structures a world
+ * places is exactly the pack's structures that this engine can generate -- intersected, because the engine
+ * cannot build a structure it has no generator for, and a name that plans nothing while looking enabled is
+ * worse than not accepting it at all.
+ *
+ * With no pack structures, the baked `WORLD_STRUCTURE_IDS` applies, so a world with no packs generates
+ * exactly what it did before this existed.
+ *
+ * The Y-range caveat in `WORLD_STRUCTURE_IDS` still stands and is NOT solved here: this world is 64 blocks
+ * tall while the engine targets 384, so a structure the pack enables may land outside the world and write
+ * nothing. That is a pre-existing limit of the engine, and enabling a taller structure is the pack author's
+ * choice rather than something this function can decide for them.
+ *
+ * @param {Iterable<string>} [packIds] defaults to the structures the applied packs carry
+ * @returns {string[]}
+ */
+export function enabledStructureIds(packIds = packStructureIds()) {
+  const generatable = new Set(generatableStructureIds());
+  const fromPack = [];
+  for (const id of packIds ?? []) {
+    const clean = String(id).includes(':') ? String(id).slice(String(id).indexOf(':') + 1) : String(id);
+    // Deduplicated and order-stable: two packs naming the same structure enable it once.
+    if (generatable.has(clean) && !fromPack.includes(clean)) fromPack.push(clean);
+  }
+  return fromPack.length ? fromPack : [...WORLD_STRUCTURE_IDS];
+}
+
+/** The structure ids the currently applied packs carry, namespaced ids stripped. */
+export function packStructureIds(registry = PACK_STRUCTURES) {
+  if (!registry || typeof registry.keys !== 'function') return [];
+  const out = [];
+  for (const id of registry.keys()) {
+    const clean = String(id).includes(':') ? String(id).slice(String(id).indexOf(':') + 1) : String(id);
+    if (!out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
 
 /**
  * How far away a structure's START may be and still overlap this chunk.

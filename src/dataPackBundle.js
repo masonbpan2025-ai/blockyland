@@ -8,6 +8,7 @@
 // bundle and it is not fetched until something asks for it.
 
 import { PACK_SOURCES, addPack } from './dataPackStore.js';
+import { PREFERRED_PACK_FORMAT } from './dataPack.js';
 
 /** Where the built pack lives. `public/` is served at the root, so this is a URL and a repo path at once. */
 export const BUNDLED_PACK_URL = '/datapacks/vanilla-1.21.4.json';
@@ -79,7 +80,7 @@ export async function installBundledPack(store, options = {}) {
     name: options.name ?? BUNDLED_PACK_NAME,
     files: bundle.files,
     source: PACK_SOURCES.BUNDLED,
-    format: bundle.meta?.format ?? 48,
+    format: bundle.meta?.format ?? PREFERRED_PACK_FORMAT,
     enabled: options.enabled !== false,
   });
   if (result.ok) result.pack.meta = bundle.meta ?? null;

@@ -72,15 +72,19 @@ test('the shipped bundle exists and matches its own manifest', () => {
 });
 
 test('every file in the shipped bundle is one the loader recognises', async () => {
-  // Curated to the types that have an adapter. A file the loader would skip is dead weight in a megabyte.
+  // Curated to the types that have an adapter. A file the loader would skip is dead weight in a megabyte --
+  // except `pack.mcmeta`, which is the pack's own declaration and is consumed by `readPackMeta` rather than
+  // by `parsePackPath`.
   const files = JSON.parse(readFileSync(REAL_PACK, 'utf8'));
-  const { parsePackPath } = await import('../src/dataPack.js');
+  const { parsePackPath, isPackMeta } = await import('../src/dataPack.js');
   const unknown = [];
   for (const path of Object.keys(files)) {
+    if (isPackMeta(path)) continue;
     if (!parsePackPath(path)) unknown.push(path);
   }
   assert.deepEqual(unknown.slice(0, 5), [], `${unknown.length} file(s) the loader does not handle`);
   assert.ok(Object.keys(files).length > 3000, 'and there are a lot of them');
+  assert.ok(files['pack.mcmeta'], 'and the pack declares itself, as a Minecraft data pack does');
 });
 
 test('the shipped bundle applies through the loader without a single skip', async () => {
@@ -88,7 +92,8 @@ test('the shipped bundle applies through the loader without a single skip', asyn
   const files = JSON.parse(readFileSync(REAL_PACK, 'utf8'));
   const pack = createDataPack({ name: 'Real', files });
   assert.equal(pack.skipped.length, 0, 'nothing is skipped: ' + JSON.stringify(pack.skipped.slice(0, 3)));
-  assert.equal(pack.entries.length, Object.keys(files).length, 'and nothing is lost');
+  // `pack.mcmeta` is metadata, not an entry, so the entry count is one less than the file count.
+  assert.equal(pack.entries.length, Object.keys(files).length - 1, 'and nothing loadable is lost');
 });
 
 // --- fetching it -------------------------------------------------------------------------------------
