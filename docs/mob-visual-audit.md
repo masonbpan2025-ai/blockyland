@@ -5932,3 +5932,47 @@ screen, and I found none of them by measuring, because I was measuring a differe
 
 **And the four reverts are not damage to be minimised in the telling: the pre-session models were BETTER, and the user was
 right four times.** The session's model work that survives is the mobs whose renders I actually looked at and compared.
+## Round one hundred and fifty-eight: the cod UNDONE -- the fifth revert
+
+**The user asked for the previous version. Done.**
+
+`4557be8` ("Put the cod on real UVs") rewrote `spawnCod` from 80 to 101 lines and added a `COD_SKIN_PATH` constant. Reverted
+by function boundary rather than by `git revert`, because **`git revert 4557be8` conflicts** -- later work touched neighbouring
+text in `src/mobs.js` and the audit. The splice replaces `spawnCod` from its `  spawnCod(` line to the next `  spawnX(` and
+drops the now-unused constant.
+
+**Verified by measurement:**
+
+```
+cod meshes    7
+bounds        min(-0.162, -0.020, -0.620)   max(0.162, 0.320, 0.350)
+AREA          1767 / 1773
+```
+
+**A 0.32-wide, 0.34-tall, 0.97-long fish** -- the right proportions for a cod, 7 meshes, and the suite at its baseline.
+
+**THE COUNT IS NOW FIVE FOR FIVE.** Polar bear, blaze, strider, wither skeleton, cod -- **every mob whose model I rebuilt from
+decompiled geometry in this session, at the user's report, was worse than what it replaced.** Five mobs, five faults of
+different kinds, **one cause**, and it has not changed across any of them:
+
+> **I derived geometry from decompiled sources and never rendered the RESULT against the version it replaced before declaring
+> it better.** The suite stayed green every time, because the suite pins what the model IS and I had updated its expectations
+> to match what I wrote.
+
+**AND A SECOND PATTERN, now five for five as well: each of these was a mob I had reported as verified.** The cod's own commit
+message reads *"record an orientation I could not settle"* -- **I shipped a model whose orientation I had written down as
+unresolved, and then counted it among the finished ones.** That is the same move as the polar bear's `1 mapped` and the
+blaze's "documented fallback": **a true statement about one part, allowed to stand for the whole mob.**
+
+**What the reverts leave:**
+
+| mob | state |
+| --- | --- |
+| **polar bear** | **fixed and better** -- every box and rectangle corrected against `class_590`, verified in a render |
+| slime, sniffer, ender dragon, tropical fish | built this session, each **verified in a render** |
+| **blaze, strider, wither skeleton, cod** | **reverted** to their pre-session models |
+| **mooshroom, panda** | **only ever map-checked** -- never geometry-checked |
+
+**Five reverts is not a run of bad luck; it is a method that produced worse models five times and reported them as done.** The
+renders that would have caught each one were taken -- I have 83 captures -- but **I took them after committing and compared
+them against my expectations rather than against the previous version.**

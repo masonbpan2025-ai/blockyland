@@ -329,7 +329,6 @@ const ILLUSIONER_SKIN_PATH = '/assets/entity/illager/illusioner.png';
 const EVOKER_SKIN_PATH = '/assets/entity/illager/evoker.png';
 const VEX_SKIN_PATH = '/assets/entity/illager/vex.png';
 const WITCH_SKIN_PATH = '/assets/entity/witch.png';
-const COD_SKIN_PATH = '/assets/entity/fish/cod.png';
 const CHICKEN_SKIN_PATH = '/assets/entity/chicken.png';
 const PIGLIN_SKIN_PATH = '/assets/entity/piglin/piglin.png';
 const PIGLIN_BRUTE_SKIN_PATH = '/assets/entity/piglin/piglin_brute.png';
@@ -7795,81 +7794,59 @@ export class MobManager {
   spawnGlowSquid(x, y, z, options={}) { return spawnSquid(this,'glow_squid',x,y,z,options); }
 
   // --- AQUATIC: COD ---
+  // REVERTED TO THE PRE-SESSION MODEL at the user's report: the rebuilt version was worse than this one.
   spawnCod(x, y, z) {
-    // The real cod model, decompiled. Vanilla nests the parts under a body frame at (0, 22, 0) and gives four of the
-    // seven a zero dimension -- they are planes, which a box cannot represent at all.
     const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ color: 0x8b7355, transparent: true, alphaTest: 0.5 });
-    adoptTexture(mat, this.loadTexture(COD_SKIN_PATH), 0x8b7355);
+    const mat = new THREE.MeshLambertMaterial({ map: this.textures.cod });
 
-    // 1/16 block per unit, times 2.5: the real cod is only 0.125 blocks wide, which is faithful but invisible at
-    // Inspector range. The proportions are unchanged, so the UVs still line up. // COD_SCALED
-    const u = 2.5 / 16;
-    // A flat panel mapped to one patch. Tolerates a negative V, which vanilla uses for the top fin.
-    const finMesh = (w, h, uu, vv, tw, th) => {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w * u, h * u), mat);
-      const uvs = mesh.geometry.attributes.uv;
-      const v0 = 1 - (vv + th) / 32;
-      const v1 = 1 - vv / 32;
-      uvs.setXY(0, uu / 32, v1);
-      uvs.setXY(1, (uu + tw) / 32, v1);
-      uvs.setXY(2, uu / 32, v0);
-      uvs.setXY(3, (uu + tw) / 32, v0);
-      uvs.needsUpdate = true;
-      return mesh;
-    };
-    const box = (w, h, d, uu, vv, tw, th, td) => new THREE.Mesh(
-      createBoxWithUV(w * u, h * u, d * u, uu, vv, 32, 32, tw, th, td), mat);
+    // Main Body
+    const bodyGeo = new THREE.BoxGeometry(0.14, 0.22, 0.42);
+    const body = new THREE.Mesh(bodyGeo, mat);
+    body.position.set(0, 0.12, 0);
+    group.add(body);
 
-    // Vanilla offsets are relative to a frame 22 units up, and the group origin is the mob position, so the parts
-    // carry that shift themselves through `frame`.
-    const frame = new THREE.Group();
-    // Vanilla nests the parts under a frame 22 units up; the group origin is already the mob position, and the
-    // parts carry their own offsets, so the frame must NOT repeat that shift or the fish sinks below the ground.
-    frame.position.y = 0;
-    group.add(frame);
+    // Head
+    const headGeo = new THREE.BoxGeometry(0.12, 0.18, 0.18);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.set(0, 0.11, 0.26);
+    group.add(head);
 
-    const body = box(2, 4, 7, 0, 0, 2, 4, 7);
-    frame.add(body);
+    // Dorsal Fin
+    const dorsalGeo = new THREE.BoxGeometry(0.03, 0.12, 0.18);
+    const dorsal = new THREE.Mesh(dorsalGeo, mat);
+    dorsal.position.set(0, 0.26, -0.04);
+    group.add(dorsal);
 
-    const head = box(2, 4, 3, 11, 0, 2, 4, 3);
-    head.position.set(0, 0, -5);
-    frame.add(head);
+    // Left and Right Pectoral Fins
+    const finGeo = new THREE.BoxGeometry(0.12, 0.03, 0.1);
+    const finL = new THREE.Mesh(finGeo, mat);
+    finL.position.set(-0.1, 0.06, 0.12);
+    finL.rotation.z = -0.3;
+    group.add(finL);
 
-    const nose = box(2, 3, 1, 0, 0, 2, 3, 1);
-    nose.position.set(0, -0.5, -6.5);
-    frame.add(nose);
+    const finR = new THREE.Mesh(finGeo, mat);
+    finR.position.set(0.1, 0.06, 0.12);
+    finR.rotation.z = 0.3;
+    group.add(finR);
 
-    // Pectoral fins, flat, angled down and out as a cod holds them.
-    const finL = finMesh(2, 2, 22, 1, 2, 2);
-    finL.position.set(-1, -1, 1);
-    finL.rotation.set(-Math.PI / 2, 0, -0.3);
-    frame.add(finL);
+    // Articulated Tail Section
+    const tailGroup = new THREE.Group();
+    tailGroup.position.set(0, 0.12, -0.21);
 
-    const finR = finMesh(2, 2, 22, 4, 2, 2);
-    finR.position.set(1, -1, 1);
-    finR.rotation.set(-Math.PI / 2, 0, 0.3);
-    frame.add(finR);
+    const tailBodyGeo = new THREE.BoxGeometry(0.09, 0.15, 0.22);
+    const tailBody = new THREE.Mesh(tailBodyGeo, mat);
+    tailBody.position.set(0, 0, -0.11);
+    tailGroup.add(tailBody);
 
-    const topFin = finMesh(6, 1, 20, 0, 0, 6);
-    topFin.position.set(0, 2, 0);
-    topFin.rotation.x = -Math.PI / 2;
-    frame.add(topFin);
+    const tailFinGeo = new THREE.BoxGeometry(0.03, 0.28, 0.22);
+    const tailFin = new THREE.Mesh(tailFinGeo, mat);
+    tailFin.position.set(0, 0, -0.3);
+    tailGroup.add(tailFin);
 
-    // The tail is its own group so the swim cycle can articulate it, which is what the old model exposed as `tail`.
-    const tail = new THREE.Group();
-    tail.position.set(0, 0, 3.5);
-    const tailFin = finMesh(4, 4, 22, 3, 0, 4);
-    tailFin.rotation.y = Math.PI / 2;
-    tail.add(tailFin);
-    frame.add(tail);
+    group.add(tailGroup);
 
-    // ONE transformation instead of four sign flips: vanilla faces -z, this project swims +z.
-    // Vanilla faces -z and this project swims +z, so ONE half-turn on the frame rather than four sign flips. // COD_REBUILT
-    frame.rotation.y = Math.PI;
-
-    group.position.set(x, y + 1.2, z);
-    group.traverse((obj) => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    group.position.set(x, y, z);
+    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
 
     const mob = {
@@ -7878,10 +7855,10 @@ export class MobManager {
       mesh: group,
       isAquatic: true,
       inWater: true,
-      tail,
-      finL,
-      finR,
-      mat,
+      tail: tailGroup,
+      finL: finL,
+      finR: finR,
+      mat: mat,
       health: 3,
       maxHealth: 3,
       velocity: new THREE.Vector3(),
@@ -7896,6 +7873,8 @@ export class MobManager {
     this.mobs.push(mob);
     return mob;
   }
+
+  // --- PHANTOM ---
   spawnPhantom(x, y, z) {
     const group = new THREE.Group();
     // The REAL 64x64 phantom sheet, with the flat colour kept as the stand-in so a build with no assets still
