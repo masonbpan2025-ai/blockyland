@@ -574,22 +574,31 @@ const POLAR_BEAR_MODEL = {
   transparent: true,
   alphaTest: 0.5,
   parts: [
-    // Torso: 26 wide, 16 tall, 12 deep, sitting on legs 8 texels tall.
-    { name: 'body', box: [26, 16, 12], uv: { u: 11, v: 19, tw: 26, th: 16, td: 12 }, at: [0, 16, -1] },
-    // Head, hinged at the neck so it can turn. Its front face carries the eyes and nose.
+    // ALL BOXES AND RECTANGLES RE-READ FROM `PolarBearEntityModel` (`class_590`) IN ROUND ONE HUNDRED AND FIFTY-THREE.
+    // The previous values were wrong in EVERY part: head 14x14x7 where vanilla is 7x7x7, body 26x16x12 at (11,19) where
+    // vanilla is 14x14x11 at (0,19), legs 4x8x4 where vanilla is 4x10x8 (hind) and 4x10x6 (front). The oversized head read
+    // as a second head, and a 26-wide box sampling a 14-wide region is the hole. `mouth` and both `ear` parts were missing
+    // entirely. The project's boxes are `[w, h, d]` against vanilla's `(w, h, d)`; `at` is `[x, y, z]` against vanilla's
+    // `method_32090(x, y, z)`. // POLAR_BEAR_VANILLA
+    { name: 'body', box: [14, 14, 11], uv: { u: 0, v: 19, tw: 14, th: 14, td: 11 }, at: [0, 14, 0] },
+    // Head: 7x7x7 at (0, 0). The body's box spans y 1..15 in world texels, so the head's CENTRE sits at 18.5 to rest on
+    // that top -- the earlier `24` left it visibly floating above the body.
     {
-      name: 'head', box: [14, 14, 7], uv: { u: 0, v: 0, tw: 14, th: 14, td: 7 },
-      // The rotation origin is the bottom edge of the head, 7 texels down from its centre, so `at` is where the
-      // neck sits rather than where the head's middle does: the head's centre ends up at y = 22 + 7 = 29 texels.
-      pivot: [0, -7, 0], at: [0, 15, 7]
+      name: 'head', box: [7, 7, 7], uv: { u: 0, v: 0, tw: 7, th: 7, td: 7 },
+      pivot: [0, -3.5, 0], at: [0, 18.5, -16]
     },
-    // Muzzle, pushed out in front of the face.
-    { name: 'snout', parent: 'head', box: [6, 4, 2], uv: { u: 21, v: 0, tw: 6, th: 4, td: 2 }, at: [0, -4, 5] },
-    // Four legs, 8 tall, reaching down from the body.
-    { name: 'legFrontLeft', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [-9, 8, 8] },
-    { name: 'legFrontRight', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [9, 8, 8] },
-    { name: 'legBackLeft', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [-9, 8, -10] },
-    { name: 'legBackRight', box: [4, 8, 4], uv: { u: 56, v: 40, tw: 4, th: 8, td: 4 }, at: [9, 8, -10] }
+    // Muzzle: 5x3x3 at (0, 44), a sub-part of the head.
+    { name: 'snout', parent: 'head', box: [5, 3, 3], uv: { u: 0, v: 44, tw: 5, th: 3, td: 3 }, at: [0, 1, -5] },
+    // Ears: 2x2x1 at (26, 0). Vanilla's raw y offset is -4 from the head's ORIGIN, and this project's `at` is
+    // centre-relative, so the y is raised by half the head's height: -4 + 3.5 = -0.5.
+    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { u: 26, v: 0, tw: 2, th: 2, td: 1 }, at: [-2.5, -0.5, -1] },
+    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { u: 26, v: 0, tw: 2, th: 2, td: 1 }, at: [2.5, -0.5, -1] },
+    // HIND legs: 4x10x8 at (50, 22), at z = +6.
+    { name: 'legBackLeft', box: [4, 10, 8], uv: { u: 50, v: 22, tw: 4, th: 10, td: 8 }, at: [-4.5, 10, 6] },
+    { name: 'legBackRight', box: [4, 10, 8], uv: { u: 50, v: 22, tw: 4, th: 10, td: 8 }, at: [4.5, 10, 6] },
+    // FRONT legs: 4x10x6 at (50, 40), at z = -8.
+    { name: 'legFrontLeft', box: [4, 10, 6], uv: { u: 50, v: 40, tw: 4, th: 10, td: 6 }, at: [-3.5, 10, -8] },
+    { name: 'legFrontRight', box: [4, 10, 6], uv: { u: 50, v: 40, tw: 4, th: 10, td: 6 }, at: [3.5, 10, -8] }
   ]
 };
 

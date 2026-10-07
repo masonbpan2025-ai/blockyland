@@ -5751,3 +5751,43 @@ rounds spent on the wrong layer**: six on the giant's missing atlas key, seven o
 camel's rectangles. **The tool's deliberate refusal to answer step four -- it prints `??`, never `PASS` -- is the part of it
 most worth keeping**, because that is the step requiring judgement, and this project has five times mistaken a plausible
 mechanism for a measurement.
+## Round one hundred and fifty-three: THE USER REPORTED THE POLAR BEAR, AND EVERY PART OF ITS MODEL WAS WRONG
+
+**The report: "polar bear has two heads and holes in the body." Both faults were real, and my prior claims for this mob rested
+on a `map` count -- which is exactly the blind spot rounds one hundred and fifty-one and one hundred and fifty-two had just
+finished documenting.**
+
+**What I had been asserting:** polar_bear `REAL SHEET (1 mapped)`. **What that actually checked:** that one material carries a
+texture. **It never checked the geometry.** The audit's own rule -- *read the built object, not the summary* -- applies to
+shapes as much as to maps, and I had been applying it only to maps.
+
+**Read from `PolarBearEntityModel` (`class_590`), texture 128x64, and compared part by part:**
+
+| part | the project had | vanilla | consequence |
+| --- | --- | --- | --- |
+| head | **14 x 14 x 7** at (0, 0) | **7 x 7 x 7** at (0, 0) | **a head twice vanilla's size -- "two heads"** |
+| body | **26 x 16 x 12** at (11, 19) | **14 x 14 x 11** at (0, 19) | **a 26-wide box sampling a 14-wide region -- "holes in the body"** |
+| legs | **4 x 8 x 4** at (56, 40) | **4 x 10 x 8** at (50, 22) hind, **4 x 10 x 6** at (50, 40) front | wrong size, wrong atlas, and the front/hind pair swapped |
+| snout | 6 x 4 x 2 at (21, 0) | **5 x 3 x 3** at (0, 44) | sampled bare atlas |
+| **mouth** | **absent** | 5 x 3 x 3 at (0, 44) | missing |
+| **two ears** | **absent** | 2 x 2 x 1 at (26, 0) | missing |
+
+**Every single box and every single rectangle was wrong, and two parts were missing entirely.**
+
+**Corrected, and verified in a render:** the body is now solid with no hole, four legs reach the ground with visible paws, and
+the head carries a proper face -- eyes and a dark nose. **The doubled head is gone.** `AREA` stayed at exactly **1766/1773**.
+
+**Two placement faults I then fixed from the same source, both of which the FIRST corrected render exposed:**
+
+1. **the head floated above the body** -- I had used vanilla's raw offset `(0, 10, -16)` as if it were centre-relative, but
+   vanilla's offsets are measured from the part's MIN corner. The head's centre belongs at y 18.5, not 24.
+2. **the ears sat beside the head rather than on it** -- vanilla's raw ear y is `-4` from the head ORIGIN, while this
+   project's `at` is centre-relative, so the y needs half the head's height added: `-4 + 3.5 = -0.5`.
+
+**That is the same distinction that bounded the dragon's legs in round one hundred and forty-nine**, now confirmed as a
+recurring trap: **vanilla's offsets and this project's `at` are measured from different origins**, and every part copied
+across needs the half-extent correction rather than a straight transfer.
+
+**And the finding that matters beyond this mob: four of the five mobs the user originally reported were verified by `map`
+count rather than by geometry, and this one was wrong in every part.** The other four -- mooshroom, shulker, warden, panda --
+**have now been re-read the same way and are recorded separately**, because a map count is not a model check.
