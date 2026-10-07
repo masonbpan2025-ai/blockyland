@@ -3094,6 +3094,29 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   }
 
   /**
+   * The built list and the last built entry under the names the tests and the newer prompt text use.
+   *
+   * The agent has called these buildings from the start (builtBuildings, lastBuiltBuilding) and 17 test
+   * assertions call them structures. Getters rather than copies, so writing through either name is visible
+   * through the other.
+   */
+  get builtStructures() {
+    return this.builtBuildings;
+  }
+
+  set builtStructures(list) {
+    this.builtBuildings = list;
+  }
+
+  get lastBuiltStructure() {
+    return this.lastBuiltBuilding;
+  }
+
+  set lastBuiltStructure(entry) {
+    this.lastBuiltBuilding = entry;
+  }
+
+  /**
    * The same resolution under its other name. The tests and the newer prompt text call a building a
    * structure, and `resolveStructure` is the spelling they use, so both exist rather than one being renamed
    * out from under callers.
