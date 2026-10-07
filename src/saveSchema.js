@@ -15,8 +15,15 @@
 //
 // This module owns the schema, the migration and the normalisation, so `mapManager` only has to call it.
 
-/** Bumped when the shape changes. v1 is the format above; v2 is everything this module captures. */
-export const SAVE_VERSION = 2;
+import { capturePacks, restorePacks, createPackStore } from './dataPackStore.js';
+
+/**
+ * Bumped when the shape changes.
+ *
+ * v1 is the format above. v2 is everything this module captures. v3 adds `session.dataPacks`, the loaded data
+ * packs, because content has to be restored before the world is rebuilt from it.
+ */
+export const SAVE_VERSION = 3;
 
 /** Exactly these many slots, as Java has. */
 export const HOTBAR_SLOTS = 9;
@@ -204,6 +211,10 @@ export function captureSessionState(game) {
     dimension: game.currentDimension || game.world?.dimension || 'overworld',
     biomes: game.world?.selectedBiome,
     dayCount: game.dayCount ?? 0,
+    // The loaded data packs. Captured here rather than beside the world, because a pack changes the CONTENT
+    // -- biomes, recipes, drops -- and content has to be back in place before the world is regenerated from
+    // it. A save that restored the terrain but not the packs would rebuild the world with different rules.
+    dataPacks: capturePacks(game.dataPacks),
     settings: game.settings
       ? { gameMode: game.settings.gameMode, difficulty: game.settings.difficulty,
         cheats: game.settings.cheats, preset: game.settings.preset }
@@ -228,6 +239,17 @@ export function applySessionState(game, saved) {
   if (typeof s.dimension === 'string' && s.dimension) game.currentDimension = s.dimension;
   if (Number.isFinite(s.dayCount)) game.dayCount = s.dayCount;
   if (s.gamerules && typeof s.gamerules === 'object') game.gamerules = { ...s.gamerules };
+  // Data packs are restored into the game's store, NOT applied here. Applying needs `dataPackRuntime`, and a
+  // `mapManager` that applied content while deserialising would be doing world generation's job. The caller
+  // applies them once the store is back, which is also where a pack that failed to restore can be reported.
+  const restored = restorePacks(s.dataPacks);
+  game.dataPacks = restored.store;
+  game.dataPackRestoreReport = {
+    errors: restored.errors,
+    // Named so the UI can say which packs a save could not carry, rather than starting with less content
+    // than the player left and no explanation.
+    omitted: restored.omitted,
+  };
   if (s.settings && typeof s.settings === 'object') {
     game.settings = { ...(game.settings ?? {}), ...s.settings };
     if (game.player?.setGameMode && typeof s.settings.gameMode === 'string') {
