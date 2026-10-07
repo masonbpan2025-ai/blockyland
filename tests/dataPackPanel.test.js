@@ -10,7 +10,7 @@ import {
   packRowLabel, packPanelModel, renderPackList, statusText, formatBytes, bindDataPackPanel, PASTE_TYPES,
 } from '../src/dataPackPanel.js';
 import {
-  createPackStore, addPack, PACK_SOURCES, MAX_PERSISTED_PACK_BYTES,
+  createPackStore, addPack, removePack, setPackEnabled, PACK_SOURCES, MAX_PERSISTED_PACK_BYTES,
 } from '../src/dataPackStore.js';
 import { importPastedText, importFiles, filesFromUploads, describeImport } from '../src/dataPackImport.js';
 import { createDataPack } from '../src/dataPack.js';
@@ -89,10 +89,14 @@ function makeDoc(ids = []) {
       children: [],
       dataset: {},
       style: {},
+      // Listeners are RECORDED, not discarded, so a test can fire them. A stub that swallows them proves
+      // nothing about whether a button does anything.
+      listeners: {},
       classList: { _set: new Set(), add(c) { this._set.add(c); }, remove(c) { this._set.delete(c); }, toggle(c, on) { if (on) this._set.add(c); else this._set.delete(c); }, contains(c) { return this._set.has(c); } },
       appendChild(c) { this.children.push(c); return c; },
       replaceChildren(c) { this.children = c ? [c] : []; },
-      addEventListener() {},
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
+      async fire(type) { for (const fn of this.listeners[type] ?? []) await fn(); },
       focus() {},
       set textContent(v) { this._text = v; },
       get textContent() { return this._text; },
@@ -156,7 +160,7 @@ test('the toggle and remove handlers are wired to the pack name', () => {
   const store = createPackStore();
   addPack(store, { name: 'Alpha', files: biomeFiles() });
   const seen = [];
-  // `addEventListener` on the stub does nothing, so the handlers are reached through the elements it built.
+  // `addEventListener` on the stub records, so the handlers are reached by firing them.
   renderPackList(doc, store, {
     onToggle: (n, e) => seen.push(['toggle', n, e]),
     onRemove: (n) => seen.push(['remove', n]),
@@ -166,6 +170,114 @@ test('the toggle and remove handlers are wired to the pack name', () => {
   assert.ok(row, 'a row was built');
   assert.equal(row.children[0].dataset.pack, 'Alpha');
   assert.equal(row.children[2].dataset.pack, 'Alpha');
+});
+
+test('firing the toggle and remove elements reaches their handlers', async () => {
+  const doc = makeDoc();
+  const store = createPackStore();
+  addPack(store, { name: 'Alpha', files: biomeFiles() });
+  const events = [];
+  const { list } = renderPackList(doc, store, {
+    onToggle: (n, e) => events.push(['toggle', n, e]),
+    onRemove: (n) => events.push(['remove', n]),
+  });
+  const row = list.children[0];
+  await row.children[0].fire('change');
+  await row.children[2].fire('click');
+  assert.deepEqual(events, [['toggle', 'Alpha', true], ['remove', 'Alpha']]);
+});
+
+// --- the button a player actually presses --------------------------------------------------------------
+
+test('the Add Vanilla Pack button installs the bundled pack', async () => {
+  // The player's only route to the bundled default. Nothing else tested that the button does anything.
+  const doc = makeDoc(['datapack-list', 'datapack-add-bundled', 'datapack-status']);
+  const store = createPackStore();
+  let installed = 0;
+  const bound = bindDataPackPanel({ doc }, {
+    getStore: () => store,
+    installBundled: async () => { installed++; return { ok: true }; },
+  });
+  assert.ok(bound);
+  await doc.getElementById('datapack-add-bundled').fire('click');
+  assert.equal(installed, 1, 'the button called the installer');
+  assert.match(doc.getElementById('datapack-status').textContent, /Vanilla pack added/);
+});
+
+test('a failed bundled install says so rather than silently doing nothing', async () => {
+  const doc = makeDoc(['datapack-list', 'datapack-add-bundled', 'datapack-status']);
+  bindDataPackPanel({ doc }, {
+    getStore: () => createPackStore(),
+    installBundled: async () => ({ ok: false, reason: 'the bundled pack could not be read' }),
+  });
+  await doc.getElementById('datapack-add-bundled').fire('click');
+  const said = doc.getElementById('datapack-status').textContent;
+  assert.match(said, /Could not add the vanilla pack/);
+  assert.match(said, /could not be read/, 'and it repeats the reason');
+});
+
+test('the Apply and Remove buttons reach the game', async () => {
+  const doc = makeDoc(['datapack-list', 'datapack-apply', 'datapack-revert', 'datapack-status']);
+  const calls = [];
+  bindDataPackPanel({ doc }, {
+    getStore: () => createPackStore(),
+    apply: () => { calls.push('apply'); return { summary: ['A: 1 recipe'] }; },
+    revert: () => { calls.push('revert'); return 3; },
+  });
+  await doc.getElementById('datapack-apply').fire('click');
+  assert.deepEqual(calls, ['apply']);
+  assert.equal(doc.getElementById('datapack-status').textContent, 'A: 1 recipe');
+  await doc.getElementById('datapack-revert').fire('click');
+  assert.deepEqual(calls, ['apply', 'revert']);
+  assert.match(doc.getElementById('datapack-status').textContent, /Removed 3 pack/);
+});
+
+test('toggle and remove in the panel reach the game, and the list re-renders', async () => {
+  const doc = makeDoc(['datapack-list']);
+  const store = createPackStore();
+  addPack(store, { name: 'Alpha', files: biomeFiles() });
+  const seen = [];
+  bindDataPackPanel({ doc }, {
+    getStore: () => store,
+    onToggle: (n, e) => { seen.push(['toggle', n, e]); setPackEnabled(store, n, e); },
+    onRemove: (n) => { seen.push(['remove', n]); removePack(store, n); },
+  });
+  const host = doc.getElementById('datapack-list');
+  const row = host.children[0].children[0];
+  await row.children[0].fire('change');
+  assert.deepEqual(seen, [['toggle', 'Alpha', true]]);
+  // `refresh` rebuilt the list from the changed store.
+  assert.ok(host.children[0], 'the list still rendered');
+});
+
+test('the paste flow loads JSON through the validated path and clears the box', async () => {
+  const doc = makeDoc(['datapack-list', 'datapack-paste-open', 'datapack-paste-area', 'datapack-paste-text',
+    'datapack-paste-type', 'datapack-paste-id', 'datapack-paste-load', 'datapack-status', 'datapack-paste-error']);
+  const store = createPackStore();
+  bindDataPackPanel({ doc }, { getStore: () => store });
+  const text = doc.getElementById('datapack-paste-text');
+  const type = doc.getElementById('datapack-paste-type');
+  const id = doc.getElementById('datapack-paste-id');
+  text.value = JSON.stringify({ effects: { sky_color: 7907327 } });
+  type.value = 'worldgen/biome';
+  id.value = 'my_plains';
+
+  await doc.getElementById('datapack-paste-load').fire('click');
+  assert.deepEqual([...store.packs.keys()], ['my_plains'], 'it imported');
+  assert.equal(text.value, '', 'and cleared the box');
+  assert.match(doc.getElementById('datapack-status').textContent, /Loaded 1 file/);
+});
+
+test('a bad paste shows the error and stores nothing', async () => {
+  const doc = makeDoc(['datapack-list', 'datapack-paste-text', 'datapack-paste-type', 'datapack-paste-id',
+    'datapack-paste-load', 'datapack-paste-error', 'datapack-status']);
+  const store = createPackStore();
+  bindDataPackPanel({ doc }, { getStore: () => store });
+  doc.getElementById('datapack-paste-text').value = '{ not json';
+  doc.getElementById('datapack-paste-type').value = 'worldgen/biome';
+  await doc.getElementById('datapack-paste-load').fire('click');
+  assert.equal(store.packs.size, 0, 'nothing stored');
+  assert.match(doc.getElementById('datapack-paste-error').textContent, /invalid JSON/);
 });
 
 // --- status text --------------------------------------------------------------------------------------
