@@ -528,10 +528,14 @@ export function createTagExpander(resolved, kind = 'item_tag') {
     if (depth > 8) return [];
     const entry = tags.get(id);
     if (!entry) return [];
-    const adapted = adaptTag(entry.json);
+    // An entry may be a raw `{json}` from a resolved pack, or an ALREADY ADAPTED tag from the live
+    // `TAG_REGISTRY`. Reading `entry.json` unconditionally meant the runtime's own registry produced nothing
+    // -- `adaptTag(undefined)` is null -- so every tag-based recipe came out with zero variants even though
+    // the tag had loaded.
+    const adapted = Array.isArray(entry.values) ? entry : adaptTag(entry.json);
     if (!adapted) return [];
     const out = [];
-    for (const value of [...adapted.values, ...adapted.required]) {
+    for (const value of [...adapted.values, ...(adapted.required ?? [])]) {
       if (typeof value !== 'string') continue;
       if (value.startsWith('#')) {
         // A nested tag reference. Vanilla forbids a direct cycle but a pack can still contain one.
