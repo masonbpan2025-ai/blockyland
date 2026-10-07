@@ -7130,7 +7130,11 @@ export class MobManager {
     mesh.position.y += 0.5;
     this.scene.add(mesh);
     if (!this.customProjectiles) this.customProjectiles = [];
-    this.customProjectiles.push({ mesh, ...data, isShulkerBullet: true });
+    // `position` as well as the mesh: updateCustomProjectiles steps `p.position` and then copies it onto the
+    // mesh, and every other projectile (the witch's potion, the ghast's fireball) carries both. The bullet
+    // data has only a velocity, so the missing position threw inside the projectile update and every shulker
+    // scenario that fires one -- movement, attack, damage -- died with it.
+    this.customProjectiles.push({ mesh, position: mesh.position.clone(), ...data, isShulkerBullet: true });
     this.sounds?.playShulkerShoot?.();
     return data;
   }
