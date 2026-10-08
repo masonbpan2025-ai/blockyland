@@ -28,7 +28,7 @@
 
 import { createStructureEngine, getSetForStructure, generatorCoverage } from './worldgen/index.js';
 import { BLOCKS } from './blocks.js';
-import { PACK_STRUCTURES } from './dataPackRuntime.js';
+import { PACK_STRUCTURES, packSuppressesStructures } from './dataPackRuntime.js';
 
 /**
  * The structures enabled in generated worlds.
@@ -78,7 +78,12 @@ export function enabledStructureIds(packIds = packStructureIds()) {
     // Deduplicated and order-stable: two packs naming the same structure enable it once.
     if (generatable.has(clean) && !fromPack.includes(clean)) fromPack.push(clean);
   }
-  return fromPack.length ? fromPack : [...WORLD_STRUCTURE_IDS];
+  if (fromPack.length) return fromPack;
+  // An EMPTY result is ambiguous: it means either "the pack said nothing about structures" or "the pack wants
+  // none". A pack says the latter by loading a structure set with an empty `structures` list, and that has to
+  // win over the fallback -- otherwise a preset advertising a structureless world quietly generated villages.
+  if (packSuppressesStructures()) return [];
+  return [...WORLD_STRUCTURE_IDS];
 }
 
 /** The structure ids the currently applied packs carry, namespaced ids stripped. */

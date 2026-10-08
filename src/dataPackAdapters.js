@@ -448,6 +448,8 @@ export function adaptBiome(json, fallback = null) {
   const colour = (value) => (Number.isFinite(value) ? value : undefined);
   return {
     ...base,
+    // Terrain, from the engine extension. Spread AFTER `base` so a pack's terrain beats the inherited kind.
+    ...adaptEngineTerrain(json, base),
     skyColor: colour(effects.sky_color) ?? base.skyColor,
     fogColor: colour(effects.fog_color) ?? base.fogColor,
     waterColor: colour(effects.water_color) ?? base.waterColor,
@@ -468,6 +470,72 @@ export function adaptBiome(json, fallback = null) {
     // the caller that knows which dimension it is loading for.
     fromDataPack: true,
   };
+}
+
+/**
+ * `BIOMES` names its fields in camelCase because they are read by `world.js`; a pack writes snake_case
+ * because it is JSON. This is the mapping, and it is the whole contract of the extension.
+ */
+const ENGINE_TERRAIN_FIELDS = Object.freeze({
+  surface_block: 'surfaceBlock',
+  subsurface_block: 'subsurfaceBlock',
+  deep_block: 'deepBlock',
+  water_block: 'waterBlock',
+  sea_level: 'seaLevel',
+  base_height: 'baseHeight',
+  height_scale: 'heightScale',
+  tree_type: 'treeType',
+  tree_density: 'treeDensity',
+  flora_type: 'floraType',
+  flora_density: 'floraDensity',
+});
+
+/** The block-valued fields, whose values are vanilla block names and have to be resolved to ids. */
+const ENGINE_TERRAIN_BLOCKS = new Set(['surfaceBlock', 'subsurfaceBlock', 'deepBlock', 'waterBlock']);
+
+/**
+ * Terrain from a pack, via the engine extension.
+ *
+ * **Vanilla biome JSON cannot express terrain.** Its `worldgen/biome` carries climate, effects and spawners,
+ * and nothing else: surface blocks, base height, height scale and tree density live in `noise_settings`, the
+ * surface rules and the placed-feature list -- three registries this engine does not implement. So a vanilla
+ * biome file, however valid, produces a biome whose terrain is whatever the engine already had.
+ *
+ * That made "a world-generation data pack" impossible to write, because the one thing a generation pack
+ * exists to change is the generation. So a pack MAY carry an extension block:
+ *
+ *     "engine_terrain": { "surface_block": "minecraft:red_sand", "base_height": 30, "tree_density": 0.4 }
+ *
+ * It is a deliberate, documented extension and not vanilla: a pack using it loads in this engine and vanilla
+ * would ignore the key. It is kept under one name so it is obvious which fields are not Minecraft's, and
+ * every field is optional -- a pack that names none gets exactly the vanilla behaviour of inheriting.
+ *
+ * @param {object} json the biome file
+ * @param {object} base the inherited biome, for fields the extension does not name
+ * @returns {object} only the fields the extension actually set
+ */
+export function adaptEngineTerrain(json, base = {}) {
+  const ext = json?.engine_terrain;
+  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return {};
+  const out = {};
+  for (const [key, field] of Object.entries(ENGINE_TERRAIN_FIELDS)) {
+    const raw = ext[key];
+    if (raw === undefined || raw === null) continue;
+    if (ENGINE_TERRAIN_BLOCKS.has(field)) {
+      // A block-valued field is a vanilla block NAME, resolved the same way every other block reference in
+      // this loader is. An unresolvable name is skipped rather than written as `undefined`, which would make
+      // the world generate nothing where the surface should be.
+      const resolved = resolveGameId(raw);
+      if (resolved && resolved.isBlock) out[field] = resolved.id;
+      continue;
+    }
+    if (field === 'treeType' || field === 'floraType') {
+      if (typeof raw === 'string' && raw) out[field] = raw;
+      continue;
+    }
+    if (Number.isFinite(raw)) out[field] = raw;
+  }
+  return out;
 }
 
 /** Every mob named by any spawner category, de-duplicated and sorted for a stable result. */

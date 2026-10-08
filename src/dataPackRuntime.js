@@ -40,8 +40,79 @@ export const DIMENSION_TYPES = new Map();
 export const PACK_FEATURES = new Map();
 export const PACK_STRUCTURES = new Map();
 
+/**
+ * Structure SETS a pack has loaded, by id.
+ *
+ * Loaded for one reason: an empty set is how a pack says "this world has no structures at all". Without it
+ * the two cases are indistinguishable -- a pack that carries no structure files and a pack that deliberately
+ * wants none both leave `PACK_STRUCTURES` empty -- and `enabledStructureIds` falls back to the baked three,
+ * so a preset advertising a structureless world silently generated villages.
+ */
+export const PACK_STRUCTURE_SETS = new Map();
+
+/** True when a loaded set declares an empty `structures` list, i.e. the pack wants no structures. */
+export function packSuppressesStructures(registry = PACK_STRUCTURE_SETS) {
+  for (const set of registry.values()) {
+    if (Array.isArray(set?.structures) && set.structures.length === 0) return true;
+  }
+  return false;
+}
+
 /** Which packs are currently applied, in order, so the same one is not applied twice. */
 const APPLIED_PACK_ORDER = [];
+
+/**
+ * Every applied record, in apply order, so a revert can REBUILD a key rather than undo it blindly.
+ *
+ * Reverting by restoring `previous` is only correct when reverts happen in reverse apply order. Reverting in
+ * apply order -- which is what `t.after` hooks do, in registration order -- leaves an intermediate pack's
+ * value installed: reverting A is skipped because B owns the key, then reverting B restores B's `previous`,
+ * which is A's value. A pack's terrain stayed in the world with no pack claiming it.
+ *
+ * So a key's value is recomputed instead: the installed value of the highest still-applied pack that touched
+ * it, or the ENGINE's original when none remain. That is correct for any revert order and idempotent.
+ */
+const APPLIED_RECORDS = [];
+
+/** `key -> {existed, value}`: what a key held before ANY pack touched it. */
+const KEY_ORIGINALS = new Map();
+
+/** Remember what a key held the first time a pack is about to change it. */
+function rememberOriginal(key, existed, value) {
+  if (KEY_ORIGINALS.has(key)) return;
+  KEY_ORIGINALS.set(key, { existed, value });
+}
+
+/** The entry a record holds for a biome key, whether it added it or overwrote it. */
+function biomeEntry(record, key) {
+  return record?.biomes?.added?.find(b => b.key === key)
+    ?? record?.biomes?.overwritten?.find(b => b.key === key)
+    ?? null;
+}
+
+/** Recompute one biome key from the still-applied records, or restore the engine's own value. */
+function rebuildBiome(key) {
+  for (let i = APPLIED_RECORDS.length - 1; i >= 0; i--) {
+    const entry = biomeEntry(APPLIED_RECORDS[i], key);
+    if (entry) { BIOMES[key] = entry.installed; return; }
+  }
+  const original = KEY_ORIGINALS.get(key);
+  if (!original) return;
+  if (original.existed) BIOMES[key] = original.value;
+  else delete BIOMES[key];
+  // Nothing owns the key any more, so the remembered original is spent. Keeping it would make a later pack
+  // "restore" a value from a world that had already moved on.
+  KEY_ORIGINALS.delete(key);
+}
+
+/** The same, for a biome's spawn table. */
+function rebuildSpawns(biomeId) {
+  for (let i = APPLIED_RECORDS.length - 1; i >= 0; i--) {
+    const entry = APPLIED_RECORDS[i]?.spawns?.find(s => s.biomeId === biomeId);
+    if (entry) { setPackBiomeSpawns(biomeId, entry.installed); return; }
+  }
+  clearPackBiomeSpawns(biomeId);
+}
 
 /** Every tag a pack named, so a consumer can ask "what does `#minecraft:logs` hold". */
 export function itemTag(tag) {
@@ -88,6 +159,7 @@ export function applyDataPack(resolved, options = {}) {
     dimensions: [],
     features: [],
     structures: [],
+    structureSets: [],
     unresolved: [],
     warnings: [],
   };
@@ -144,16 +216,15 @@ export function applyDataPack(resolved, options = {}) {
     if (!adapted.dimension) adapted.dimension = fallback?.dimension ?? 'overworld';
     adapted.fromDataPack = true;
     adapted.packName = name;
-    // `installed` is recorded alongside `previous` so the revert can tell whether this pack's value is
-    // STILL the one in place. Without it, reverting two packs out of order resurrects what the first
-    // revert removed: pack B records A's biome as "previous", so reverting B after A re-adds A's value.
+    // The engine's own value for this key, remembered the first time any pack touches it, so a rebuild can
+    // put it back once the last pack owning the key is gone.
+    rememberOriginal(path, existed, existed ? BIOMES[path] : undefined);
     if (existed) applied.biomes.overwritten.push({ key: path, previous: BIOMES[path], installed: adapted });
     else applied.biomes.added.push({ key: path, installed: adapted });
     BIOMES[path] = adapted;
 
     // The spawn table, which is what natural spawning reads. `BIOMES[x].mobs` is a flat list of names and
-    // carries no weights, so it cannot drive spawning; the resolver reads this registry instead. Recorded so
-    // a revert puts the baked vanilla table back.
+    // carries no weights, so it cannot drive spawning; the resolver reads this registry instead.
     if (adapted.spawners) {
       const previous = packBiomeSpawnsFor(path);
       const installed = adapted.spawners;
@@ -236,8 +307,20 @@ export function applyDataPack(resolved, options = {}) {
     PACK_STRUCTURES.set(id, adapted);
     applied.structures.push({ id, previous });
   }
+  for (const [id, entry] of byType.structure_set ?? new Map()) {
+    const json = entry.json;
+    if (!json || typeof json !== 'object') continue;
+    // Only `structures` matters here: an EMPTY array is the pack saying "no structures at all", which is a
+    // statement `enabledStructureIds` needs to be able to tell apart from silence.
+    const adapted = { structures: Array.isArray(json.structures) ? json.structures : [] };
+    const previous = PACK_STRUCTURE_SETS.get(id) ?? null;
+    PACK_STRUCTURE_SETS.set(id, adapted);
+    applied.structureSets.push({ id, previous });
+  }
 
   APPLIED_PACK_ORDER.push(name);
+  // The record joins the rebuild stack, so a later revert in ANY order can recompute what a key should hold.
+  APPLIED_RECORDS.push(applied);
   applied.recipeCount = applied.recipes.reduce((n, r) => n + r.count, 0);
   return applied;
 }
@@ -251,28 +334,27 @@ export function applyDataPack(resolved, options = {}) {
 export function revertDataPack(applied) {
   if (!applied || applied.skipped) return false;
 
-  // ORDER-SAFE, and idempotent. Each entry is restored only when this pack's own value is still the one in
-  // place; otherwise something else owns the key now and restoring would resurrect a value this pack
-  // replaced.
+  // ORDER-SAFE, and idempotent, by REBUILDING rather than by undoing.
   //
-  // The bug this closes: with two packs stacked, pack B records A's biome as its `previous`. Reverting A and
-  // then B -- which is what `t.after` hooks do, in registration order rather than reverse -- re-added A's
-  // biome through B's revert, leaving a biome in the registry that no pack claims and no revert removes. The
-  // next test to walk `BIOMES` saw a biome with no spawn table.
-  for (const record of applied.biomes.overwritten) {
-    if (BIOMES[record.key] === record.installed) BIOMES[record.key] = record.previous;
-  }
-  for (const record of applied.biomes.added) {
-    if (BIOMES[record.key] === record.installed) delete BIOMES[record.key];
-  }
+  // Restoring each pack's `previous` is only correct when reverts happen in reverse apply order. Reverting in
+  // apply order -- which is what `t.after` hooks do, in registration order -- left an intermediate pack's
+  // value installed: reverting A was skipped because B owned the key, then reverting B restored B's
+  // `previous`, which was A's value. A preset's terrain stayed in the world with no pack claiming it.
+  //
+  // So the record is withdrawn FIRST and each key it touched is recomputed from what is left: the installed
+  // value of the highest still-applied pack that touched it, or the engine's original when none remain.
+  const recordIndex = APPLIED_RECORDS.indexOf(applied);
+  if (recordIndex >= 0) APPLIED_RECORDS.splice(recordIndex, 1);
 
-  // Spawn tables come off after the biomes they came from, so a failure part-way leaves the registry
-  // consistent with what the biome objects say rather than the other way round. Guarded the same way.
-  for (const { biomeId, previous, installed } of applied.spawns) {
-    if (packBiomeSpawnsFor(biomeId) !== installed) continue;
-    if (previous) setPackBiomeSpawns(biomeId, previous);
-    else clearPackBiomeSpawns(biomeId);
-  }
+  const touchedBiomes = new Set([
+    ...applied.biomes.overwritten.map(b => b.key),
+    ...applied.biomes.added.map(b => b.key),
+  ]);
+  for (const key of touchedBiomes) rebuildBiome(key);
+
+  // Spawn tables are recomputed after the biomes they came from, so a failure part-way leaves the registry
+  // consistent with what the biome objects say rather than the other way round.
+  for (const { biomeId } of applied.spawns) rebuildSpawns(biomeId);
 
   // Truncate from the end, deepest index first, so earlier indices stay valid.
   for (const record of [...applied.recipes].sort((a, b) => b.fromIndex - a.fromIndex)) {
@@ -299,6 +381,9 @@ export function revertDataPack(applied) {
   for (const { id, previous } of applied.structures) {
     if (previous) PACK_STRUCTURES.set(id, previous); else PACK_STRUCTURES.delete(id);
   }
+  for (const { id, previous } of applied.structureSets ?? []) {
+    if (previous) PACK_STRUCTURE_SETS.set(id, previous); else PACK_STRUCTURE_SETS.delete(id);
+  }
 
   const at = APPLIED_PACK_ORDER.lastIndexOf(applied.name);
   if (at >= 0) APPLIED_PACK_ORDER.splice(at, 1);
@@ -307,11 +392,23 @@ export function revertDataPack(applied) {
 
 /** Undo the tag registry entirely, for a test or a full reset. */
 export function resetTagRegistry() {
+  // RESTORE FIRST, then forget. Clearing the bookkeeping while packs are still applied would strand their
+  // values: a later `revertDataPack` would find no records and no remembered original, and would leave the
+  // pack's terrain in the world permanently. That is exactly what happened when a test registered two
+  // reverts and the first one's cleanup wiped the state the second one needed.
+  for (const [key, original] of KEY_ORIGINALS) {
+    if (original.existed) BIOMES[key] = original.value;
+    else delete BIOMES[key];
+  }
+  KEY_ORIGINALS.clear();
+  APPLIED_RECORDS.length = 0;
+
   TAG_REGISTRY.item_tag.clear();
   TAG_REGISTRY.block_tag.clear();
   DIMENSION_TYPES.clear();
   PACK_FEATURES.clear();
   PACK_STRUCTURES.clear();
+  PACK_STRUCTURE_SETS.clear();
   APPLIED_PACK_ORDER.length = 0;
   resetPackBiomeSpawns();
   resetAdapterCaches();
