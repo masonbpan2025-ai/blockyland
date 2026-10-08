@@ -164,7 +164,7 @@ function rebuildBiome(key) {
 function rebuildSpawns(biomeId) {
   for (let i = APPLIED_RECORDS.length - 1; i >= 0; i--) {
     const entry = APPLIED_RECORDS[i]?.spawns?.find(s => s.biomeId === biomeId);
-    if (entry) { setPackBiomeSpawns(biomeId, entry.installed); return; }
+    if (entry) { setPackBiomeSpawns(biomeId, entry.installed, entry.packName ?? null); return; }
   }
   clearPackBiomeSpawns(biomeId);
 }
@@ -283,8 +283,8 @@ export function applyDataPack(resolved, options = {}) {
     if (adapted.spawners) {
       const previous = packBiomeSpawnsFor(path);
       const installed = adapted.spawners;
-      setPackBiomeSpawns(path, installed);
-      applied.spawns.push({ biomeId: path, previous, installed });
+      setPackBiomeSpawns(path, installed, name);
+      applied.spawns.push({ biomeId: path, previous, installed, packName: name });
     }
   }
 

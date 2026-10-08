@@ -17,6 +17,10 @@ import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationF
 import { createPackStore, allPacks, addPack, removePack, PACK_SOURCES } from './dataPackStore.js';
 import { buildPresetPack } from './dataPackPresets.js';
 import { PREFERRED_PACK_FORMAT } from './dataPack.js';
+import { buildMobStatsReport } from './spawning/mobStatsReport.js';
+import { biomeSpawnsFor } from './spawning/biomeSpawnResolver.js';
+import { packBiomeSpawnSource } from './spawning/packBiomeSpawns.js';
+import { isCreative } from './sessionSettings.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { applyStore, revertAll } from './dataPackApply.js';
 import { revertDataPack } from './dataPackRuntime.js';
@@ -3288,6 +3292,55 @@ class Game {
     }
   }
 
+  /**
+   * Gather the live state `/show_mobs` reports on.
+   *
+   * Kept separate from the report itself: this part touches the running game, and the report is a pure
+   * function of what this returns, so every answer it can give is tested without a world.
+   */
+  buildMobStatsReport() {
+    const player = this.player?.position ?? null;
+    const biomeId = this.world?.getBiome
+      ? this.world.getBiome(Math.floor(player?.x ?? 0), Math.floor(player?.z ?? 0))
+      : null;
+    const spawnManager = this.spawnManager;
+    const snapshot = spawnManager?.debugSnapshot ? spawnManager.debugSnapshot() : {};
+
+    // The mobs the game actually holds, in the shape the report wants. `mobs.mobs` is the live array.
+    const loaded = (this.mobs?.mobs ?? []).map(m => ({
+      type: m.type ?? m.mobType ?? m.kind ?? 'unknown',
+      category: m.category ?? null,
+      position: m.mesh?.position ?? m.position ?? null,
+    }));
+
+    // The biome's spawn table, through the SAME resolver natural spawning uses, so the report cannot
+    // disagree with what the spawner is actually working from.
+    const tableFor = (category) => biomeSpawnsFor(biomeId, category);
+
+    // The light at the player, which is the number the hostile rule is applied against.
+    let lightLevel = null;
+    try {
+      lightLevel = this.world?.getLightLevel
+        ? this.world.getLightLevel(
+          Math.floor(player?.x ?? 0), Math.floor(player?.y ?? 0), Math.floor(player?.z ?? 0),
+          spawnManager?.skyDarken ?? 0)
+        : null;
+    } catch { lightLevel = null; }
+
+    return buildMobStatsReport({
+      mobs: loaded,
+      snapshot,
+      player,
+      biomeId,
+      tableFor,
+      lightLevel,
+      gamemode: this.player?.gamemode ?? this.settings?.gameMode ?? null,
+      peaceful: spawnManager?.peacefulMode === true,
+      chunkGeneration: spawnManager?.chunkGenerationSpawner?.stats ?? null,
+      packName: packBiomeSpawnSource(biomeId),
+    });
+  }
+
   handleCommand(cmd) {
     const parts = cmd.trim().split(/\s+/);
     const root = parts[0].toLowerCase();
@@ -3336,10 +3389,33 @@ class Game {
       }
       return;
     }
+    if (root === '/show_mobs') {
+      // A diagnostic for "why can I see no mobs", which has five causes that look identical from a
+      // screenshot: an empty biome table, a full category cap, a spawner that has not ticked, hostiles
+      // refused for light, or animals never placed at chunk generation.
+      //
+      // Gated to Creative / cheats, because it reports internals rather than doing anything a player needs,
+      // and the refusal says how to get it rather than merely declining.
+      if (!isCreative(this.settings) && !this.settings?.cheats) {
+        this.ui.addChatMessage(
+          '/show_mobs is a Creative diagnostic. It is available in Creative mode, or with cheats on.',
+          'error',
+        );
+        return;
+      }
+      try {
+        const report = this.buildMobStatsReport();
+        for (const line of report.lines) this.ui.addChatMessage(line.text, line.kind);
+      } catch (error) {
+        this.ui.addChatMessage(`/show_mobs failed: ${error.message}`, 'error');
+      }
+      return;
+    }
     if (root === '/help') {
       this.ui.addChatMessage('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate','help');
       this.ui.addChatMessage('/redstone game <name> - Build a playable redstone machine; /redstone list to see them','help');
       this.ui.addChatMessage('/locate [structure] [id] - Show the nearest generated structure and how far it is','help');
+      this.ui.addChatMessage('/show_mobs - What mobs exist, what the spawner is doing, and why you may see none (Creative)','help');
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
       this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
