@@ -14,7 +14,9 @@ import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
 import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, clampDelta } from './worldLifecycle.js';
-import { createPackStore } from './dataPackStore.js';
+import { createPackStore, allPacks, addPack, removePack, PACK_SOURCES } from './dataPackStore.js';
+import { buildPresetPack } from './dataPackPresets.js';
+import { PREFERRED_PACK_FORMAT } from './dataPack.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { applyStore, revertAll } from './dataPackApply.js';
 import { revertDataPack } from './dataPackRuntime.js';
@@ -1041,7 +1043,49 @@ class Game {
     this.difficulty = this.settings.difficulty;
     this.player?.setGameMode?.(this.settings.gameMode);
     if (this.player) this.player.difficulty = this.settings.difficulty;
+    // A changed pack choice is a changed world: put the new preset in the store now, so the apply that runs
+    // at the start of generation uses it. `installDataPackPreset` is idempotent for an unchanged id.
+    if (Object.prototype.hasOwnProperty.call(raw, 'dataPackPreset')) {
+      this.installDataPackPreset(this.settings.dataPackPreset);
+    }
     return this.settings;
+  }
+
+  /**
+   * Put the chosen world-generation preset into the pack store.
+   *
+   * The preset STACKS on top of the bundled vanilla pack rather than replacing it: it overrides the biomes,
+   * spawners and structures it names and leaves everything else vanilla. `applyStore` applies in store order
+   * and a later pack wins, so the preset is added last and therefore wins.
+   *
+   * Changing the choice removes the previous preset first. Leaving it would keep its terrain, because a pack
+   * that is no longer in the store is still installed in the registries until something reverts it -- and the
+   * next apply would then lay the new preset over the old one's biomes.
+   *
+   * An unknown id removes any preset and installs nothing, which is what a stale value in an old save means:
+   * no preset, not a crash.
+   */
+  installDataPackPreset(id) {
+    if (!this.dataPacks) return { ok: false, reason: 'no pack store' };
+    // Remove whatever preset is loaded, so a change is a change and not an addition.
+    for (const pack of allPacks(this.dataPacks)) {
+      if (pack.source === PACK_SOURCES.PRESET) this.removeDataPack(pack.name);
+    }
+    for (const pack of allPacks(this.dataPacks)) {
+      if (pack.source === PACK_SOURCES.PRESET) removePack(this.dataPacks, pack.name);
+    }
+    if (!id) return { ok: true, removed: true };
+
+    const built = buildPresetPack(id);
+    if (!built) return { ok: false, reason: `unknown generation preset "${id}"` };
+    const added = addPack(this.dataPacks, {
+      name: built.name,
+      files: built.files,
+      source: PACK_SOURCES.PRESET,
+      format: PREFERRED_PACK_FORMAT,
+    });
+    if (added.ok) this.markDataPacksDirty();
+    return added;
   }
 
   /**

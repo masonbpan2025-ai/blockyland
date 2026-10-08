@@ -50,9 +50,64 @@ export const PACK_STRUCTURES = new Map();
  */
 export const PACK_STRUCTURE_SETS = new Map();
 
-/** True when a loaded set declares an empty `structures` list, i.e. the pack wants no structures. */
-export function packSuppressesStructures(registry = PACK_STRUCTURE_SETS) {
-  for (const set of registry.values()) {
+/**
+ * A monotonic stamp for each applied pack that carries structure data.
+ *
+ * Structure sets PRECEDE by pack, they do not merge. With the bundled vanilla pack and a chosen preset both
+ * applied, merging gave every preset vanilla's thirty-odd structures plus its own -- so "Dungeon Rush" and
+ * "Lush Havens" ended up enabling the same set and the structure half of a preset meant nothing. The highest
+ * stamp wins, which is the same rule `applyStore` already uses for registries: the later pack overrides.
+ */
+let PACK_STAMP = 0;
+
+/** The highest stamp present among structure entries, or 0 when there are none. */
+function highestStamp(registry) {
+  let highest = 0;
+  for (const entry of registry.values()) {
+    if (Number.isFinite(entry?.packStamp) && entry.packStamp > highest) highest = entry.packStamp;
+  }
+  return highest;
+}
+
+/**
+ * The highest stamp across BOTH structure registries.
+ *
+ * Shared on purpose. A pack's stamp is assigned once and written to everything it contributes, so a pack that
+ * carries only a structure SET -- which is how "no structures" is expressed -- has to be able to outrank an
+ * earlier pack's structure ENTRIES. Reading only one registry let vanilla's thirty-odd structures keep winning
+ * over a preset that had explicitly asked for none.
+ */
+export function structurePackStamp() {
+  return Math.max(highestStamp(PACK_STRUCTURES), highestStamp(PACK_STRUCTURE_SETS));
+}
+
+/**
+ * The structure ids the WINNING pack carries -- the highest stamp, not every id from every pack.
+ *
+ * @returns {string[]} namespaced ids, as stored
+ */
+export function winningStructureIds() {
+  const highest = structurePackStamp();
+  if (highest === 0) return [];
+  const out = [];
+  for (const [id, entry] of PACK_STRUCTURES) {
+    if (entry?.packStamp === highest) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * True when the WINNING pack's structure sets are all empty, i.e. it wants no structures.
+ *
+ * Precedence matters here too: the bundled vanilla pack carries no structure sets, so a preset saying
+ * "none" is not contradicted by it. If it were the other way round -- vanilla declaring a set and a preset
+ * declaring none -- the preset is the later pack and its answer has to win.
+ */
+export function packSuppressesStructures() {
+  const highest = structurePackStamp();
+  if (highest === 0) return false;
+  for (const set of PACK_STRUCTURE_SETS.values()) {
+    if (set?.packStamp !== highest) continue;
     if (Array.isArray(set?.structures) && set.structures.length === 0) return true;
   }
   return false;
@@ -300,11 +355,16 @@ export function applyDataPack(resolved, options = {}) {
     PACK_FEATURES.set(id, adapted);
     applied.features.push({ id, previous });
   }
+  // One stamp for this pack, shared by its structure entries and its structure sets, so precedence between
+  // packs is decided by which pack this is rather than by which file happened to be read last.
+  const structuresFromThisPack = (byType.structure?.size ?? 0) > 0 || (byType.structure_set?.size ?? 0) > 0;
+  const stamp = structuresFromThisPack ? ++PACK_STAMP : 0;
+
   for (const [id, entry] of byType.structure ?? new Map()) {
     const adapted = adaptStructure(entry.json);
     if (!adapted) { applied.unresolved.push({ type: 'structure', id, reason: 'no type' }); continue; }
     const previous = PACK_STRUCTURES.get(id) ?? null;
-    PACK_STRUCTURES.set(id, adapted);
+    PACK_STRUCTURES.set(id, { ...adapted, packStamp: stamp });
     applied.structures.push({ id, previous });
   }
   for (const [id, entry] of byType.structure_set ?? new Map()) {
@@ -312,7 +372,7 @@ export function applyDataPack(resolved, options = {}) {
     if (!json || typeof json !== 'object') continue;
     // Only `structures` matters here: an EMPTY array is the pack saying "no structures at all", which is a
     // statement `enabledStructureIds` needs to be able to tell apart from silence.
-    const adapted = { structures: Array.isArray(json.structures) ? json.structures : [] };
+    const adapted = { structures: Array.isArray(json.structures) ? json.structures : [], packStamp: stamp };
     const previous = PACK_STRUCTURE_SETS.get(id) ?? null;
     PACK_STRUCTURE_SETS.set(id, adapted);
     applied.structureSets.push({ id, previous });

@@ -41,6 +41,19 @@ export const DEFAULT_SETTINGS = Object.freeze({
   preset: 'ordinary',
   biome: 'all',
   seed: null,
+  /**
+   * The world-generation data pack chosen on the setup screen, or null for none.
+   *
+   * Deliberately a SEPARATE field from `preset`: that one is the world TYPE (`ordinary` or `showcase`, the
+   * scripted demo population) and this is a content pack. Overloading one for both would make "showcase" and
+   * "Lush Havens" mutually exclusive for no reason.
+   *
+   * Held as a plain id and NOT validated here. `sessionSettings` is imported by the player, the UI and the
+   * game, so validating would mean pulling the whole pack machinery -- biomes, crafting, drops -- into a
+   * settings module. `buildPresetPack` already returns null for an unknown id, so a stale value in an old
+   * save does nothing rather than throwing.
+   */
+  dataPackPreset: null,
 });
 
 /** A mode string from the UI, or the default when it is not one of the two. */
@@ -77,6 +90,10 @@ export function normaliseSettings(raw = {}) {
     preset,
     biome: typeof source.biome === 'string' && source.biome ? source.biome : DEFAULT_SETTINGS.biome,
     seed: source.seed ?? null,
+    // A string id, or null. Not checked against the preset list: see `DEFAULT_SETTINGS.dataPackPreset`.
+    dataPackPreset: typeof source.dataPackPreset === 'string' && source.dataPackPreset
+      ? source.dataPackPreset
+      : null,
   });
 }
 

@@ -7,6 +7,7 @@ import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from '
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
 import { normaliseGamerules, gameruleFor } from './sessionSettings.js';
+import { generationPresetList, getGenerationPreset } from './dataPackPresets.js';
 import { bindDataPackPanel } from './dataPackPanel.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { setPackEnabled, removePack } from './dataPackStore.js';
@@ -335,6 +336,8 @@ export class UIManager {
     // Biome Selection Modal Elements
     this.biomeModal = document.getElementById('world-biome-modal');
     this.worldBiomeSelect = document.getElementById('world-biome-select');
+    this.worldDataPackSelect = document.getElementById('world-datapack-select');
+    this.worldDataPackHint = document.getElementById('world-datapack-hint');
     this.worldSeedInput = document.getElementById('world-seed-input');
     this.btnRandomizeSeed = document.getElementById('btn-randomize-seed');
     this.btnCreateWorldConfirm = document.getElementById('btn-create-world-confirm');
@@ -364,6 +367,7 @@ export class UIManager {
     this.bindMapModalEvents();
     this.bindBiomeModalEvents();
     this.bindWorldModeControls();
+    this.bindDataPackPresetSelect();
     this.bindTerminalWorldSettings();
     this.bindDataPackPanel();
     this.bindChatEvents();
@@ -3608,6 +3612,58 @@ export class UIManager {
    * Survival is the default, and its difficulty is only offered when Survival is chosen: a Creative world has
    * no use for one. The choice is recorded here and applied by the Create World handler, before generation.
    */
+  /**
+   * The World Generation Pack dropdown.
+   *
+   * Populated from `generationPresetList`, so the menu cannot drift from the presets that actually exist --
+   * a hard-coded list of ten options is a list that goes stale the first time one is renamed.
+   *
+   * The first entry is "Vanilla (default)", which selects NO preset: the bundled vanilla pack still applies,
+   * and a world with no preset generates exactly what it did before this existed.
+   */
+  bindDataPackPresetSelect() {
+    const select = this.worldDataPackSelect;
+    if (!select) return null;
+    const hint = this.worldDataPackHint;
+    this.selectedDataPackPreset = this.selectedDataPackPreset ?? null;
+
+    if (select.options && select.options.length === 0) {
+      const add = (value, label) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+      };
+      add('', '🌍 Vanilla (default) — the standard world, no generation pack');
+      for (const entry of generationPresetList()) {
+        add(entry.id, `${entry.emoji} ${entry.name} — ${entry.property}`);
+      }
+    }
+
+    const paint = () => {
+      const chosen = getGenerationPreset(this.selectedDataPackPreset);
+      select.value = chosen ? chosen.id : '';
+      if (hint) {
+        hint.textContent = chosen
+          ? `${chosen.blurb} (${chosen.structureCount} structure types)`
+          : 'The standard overworld: vanilla terrain, mobs and structures.';
+      }
+    };
+
+    select.addEventListener('change', () => {
+      this.selectedDataPackPreset = select.value || null;
+      paint();
+    });
+
+    this.refreshDataPackPresetSelect = () => {
+      // Reflect a preset restored from a save, so the menu shows the world it is about to describe.
+      this.selectedDataPackPreset = this.game?.settings?.dataPackPreset ?? this.selectedDataPackPreset ?? null;
+      paint();
+    };
+    paint();
+    return { refresh: this.refreshDataPackPresetSelect };
+  }
+
   bindWorldModeControls() {
     const modes = ['survival', 'creative'];
     const difficulties = ['peaceful', 'easy', 'normal', 'hard'];
@@ -3807,6 +3863,9 @@ export class UIManager {
             preset: 'ordinary',
             biome: biomeId,
             seed: seedNum,
+            // The generation pack, applied by `applyWorldSettings` BEFORE the reseed below, so the terrain,
+            // spawners and structures are in place when the world reads them.
+            dataPackPreset: this.selectedDataPackPreset ?? null,
           });
           this.game.player?.setGameMode?.(chosenMode);
 

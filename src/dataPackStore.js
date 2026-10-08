@@ -14,6 +14,14 @@ export const PACK_SOURCES = Object.freeze({
   BUNDLED: 'bundled',
   PASTED: 'pasted',
   UPLOADED: 'uploaded',
+  /**
+   * A world-generation preset chosen on the setup screen.
+   *
+   * Its own source rather than `bundled`, because it is replaced wholesale when the player picks a different
+   * one and only a pack marked as a preset may be removed that way -- a bundled or pasted pack must never be
+   * swept up by a dropdown change.
+   */
+  PRESET: 'preset',
 });
 
 /**
