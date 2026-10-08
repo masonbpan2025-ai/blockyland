@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { MobManager } from '../src/mobs.js';
 import { EntityManager } from '../src/entities.js';
 import { BLOCKS } from '../src/blocks.js';
-import { provoke } from '../src/endermanBehavior.js';
+import { provoke, ENDERMAN_CHASE_SPEED } from '../src/endermanBehavior.js';
 import { createMobDebugSession } from '../src/mobDebugSession.js';
 
 function fixture() {
@@ -133,16 +133,15 @@ test('other enderman teleport and pursuit behaviour still works', () => {
   // rather than deleted -- and the next block is the positive control that keeps this from passing merely
   // because all pursuit was disabled.
   manager.update(0.1, player);
-  // Wiki: neutral mobs wander, so an unprovoked enderman is not motionless -- what it must not do is head for
-  // the player. Asserting that its velocity is exactly zero pinned "does not pursue" to "does not move",
-  // which contradicts both the wiki and mobUpdateSmoke's requirement that every mob actually moves.
-  const heading = new THREE.Vector3(enderman.velocity.x, 0, enderman.velocity.z);
-  const toPlayer = player.position.clone().sub(enderman.mesh.position).setY(0);
-  const closing = heading.lengthSq() > 0 && toPlayer.lengthSq() > 0
-    ? heading.normalize().dot(toPlayer.normalize())
-    : 0;
-  assert.ok(closing < 0.5, `an unprovoked enderman does not pursue (heading dot ${closing.toFixed(3)})`);
+  // Wiki: neutral mobs wander, so an unprovoked enderman is not motionless -- what it must not do is move at
+  // it. Two earlier versions of this assertion were wrong: "velocity is exactly zero" contradicted the
+  // wiki's wandering neutrals, and "the heading does not point at the player" was a coin toss, because a
+  // wander goal can happen to lie in the player's direction. The chase has its own speed, so comparing the
+  // speed against it is what actually distinguishes wandering from pursuit.
   assert.equal(enderman.state, 'idle');
+  const wanderSpeed = Math.hypot(enderman.velocity.x, enderman.velocity.z);
+  assert.ok(wanderSpeed < ENDERMAN_CHASE_SPEED / 2,
+    `an unprovoked enderman does not pursue (speed ${wanderSpeed.toFixed(2)}, chase ${ENDERMAN_CHASE_SPEED})`);
 
   // POSITIVE CONTROL: provoked, it does pursue.
   provoke(enderman, 'damage');
