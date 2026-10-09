@@ -871,6 +871,16 @@
         </div>
       </div>
 
+      <!-- World Generation Pack.
+           A data pack chosen before the world exists, because a generation pack changes the terrain, the
+           mobs and the structures -- all of which are read WHILE the world is built. Choosing one afterwards
+           could not change terrain that had already been generated. -->
+      <div class="biome-form-section">
+        <label class="biome-field-label" for="world-datapack-select">World Generation Pack:</label>
+        <select id="world-datapack-select" class="biome-select"></select>
+        <div class="biome-field-hint" id="world-datapack-hint"></div>
+      </div>
+
       <!-- Biome Information Card -->
       <div id="biome-info-card" class="biome-info-card">
         <div class="biome-info-header">

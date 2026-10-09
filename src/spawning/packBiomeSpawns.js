@@ -25,6 +25,21 @@
  */
 export const PACK_BIOME_SPAWNS = new Map();
 
+/**
+ * Biome id -> the name of the pack that supplied the table.
+ *
+ * Kept separately rather than wrapped around the table, so every existing reader of `PACK_BIOME_SPAWNS` and
+ * `packBiomeSpawnsFor` keeps working. "Which pack gave this biome its spawners" is the first question when a
+ * world spawns something unexpected, and the answer is not recoverable from the table itself.
+ */
+export const PACK_BIOME_SPAWN_SOURCES = new Map();
+
+/** The pack that supplied a biome's spawn table, or null when the baked table applies. */
+export function packBiomeSpawnSource(biomeId) {
+  if (!biomeId) return null;
+  return PACK_BIOME_SPAWN_SOURCES.get(String(biomeId).toLowerCase().trim().replace(/[\s-]+/g, '_')) ?? null;
+}
+
 /** The categories vanilla and this engine both use, in the order the report reads best. */
 export const SPAWN_CATEGORIES = [
   'monster', 'creature', 'ambient', 'axolotls',
@@ -68,16 +83,21 @@ export function spawnerTable(spawners) {
   return any ? table : null;
 }
 
-/** Install a pack's table for a biome. */
-export function setPackBiomeSpawns(biomeId, table) {
+/** Install a pack's table for a biome, remembering which pack it came from. */
+export function setPackBiomeSpawns(biomeId, table, packName = null) {
   if (!biomeId || !table) return false;
-  PACK_BIOME_SPAWNS.set(String(biomeId).toLowerCase(), table);
+  const key = String(biomeId).toLowerCase();
+  PACK_BIOME_SPAWNS.set(key, table);
+  if (packName) PACK_BIOME_SPAWN_SOURCES.set(key, packName);
+  else PACK_BIOME_SPAWN_SOURCES.delete(key);
   return true;
 }
 
 /** Remove a pack's table, restoring the baked one. */
 export function clearPackBiomeSpawns(biomeId) {
-  return PACK_BIOME_SPAWNS.delete(String(biomeId ?? '').toLowerCase());
+  const key = String(biomeId ?? '').toLowerCase();
+  PACK_BIOME_SPAWN_SOURCES.delete(key);
+  return PACK_BIOME_SPAWNS.delete(key);
 }
 
 /** The pack's table for a biome, or null when the pack says nothing about it. */
@@ -89,6 +109,7 @@ export function packBiomeSpawnsFor(biomeId) {
 /** Drop every override. For a full revert, or a test. */
 export function resetPackBiomeSpawns() {
   PACK_BIOME_SPAWNS.clear();
+  PACK_BIOME_SPAWN_SOURCES.clear();
 }
 
 /**

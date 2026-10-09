@@ -28,7 +28,7 @@
 
 import { createStructureEngine, getSetForStructure, generatorCoverage } from './worldgen/index.js';
 import { BLOCKS } from './blocks.js';
-import { PACK_STRUCTURES, packSuppressesStructures } from './dataPackRuntime.js';
+import { PACK_STRUCTURES, packSuppressesStructures, winningStructureIds } from './dataPackRuntime.js';
 
 /**
  * The structures enabled in generated worlds.
@@ -86,11 +86,17 @@ export function enabledStructureIds(packIds = packStructureIds()) {
   return [...WORLD_STRUCTURE_IDS];
 }
 
-/** The structure ids the currently applied packs carry, namespaced ids stripped. */
-export function packStructureIds(registry = PACK_STRUCTURES) {
-  if (!registry || typeof registry.keys !== 'function') return [];
+/**
+ * The structure ids the WINNING applied pack carries, namespaced ids stripped.
+ *
+ * The winning pack, not every pack: structure sets PRECEDE. Taking every key meant that with the bundled
+ * vanilla pack and a chosen preset both applied, each preset got vanilla's thirty-odd structures PLUS its own
+ * -- so "Dungeon Rush" and "Lush Havens" enabled the same set and the structure half of a preset meant
+ * nothing. `winningStructureIds` picks the highest pack stamp, which is the same rule the registries use.
+ */
+export function packStructureIds() {
   const out = [];
-  for (const id of registry.keys()) {
+  for (const id of winningStructureIds()) {
     const clean = String(id).includes(':') ? String(id).slice(String(id).indexOf(':') + 1) : String(id);
     if (!out.includes(clean)) out.push(clean);
   }

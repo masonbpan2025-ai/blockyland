@@ -217,7 +217,10 @@ export function captureSessionState(game) {
     dataPacks: capturePacks(game.dataPacks),
     settings: game.settings
       ? { gameMode: game.settings.gameMode, difficulty: game.settings.difficulty,
-        cheats: game.settings.cheats, preset: game.settings.preset }
+        cheats: game.settings.cheats, preset: game.settings.preset,
+        // Which generation pack the world was built with, so the setup screen can show it again rather than
+        // silently reverting to Vanilla on the next world.
+        dataPackPreset: game.settings.dataPackPreset ?? null }
       : null,
     gamerules: game.gamerules ? { ...game.gamerules } : {},
   };
