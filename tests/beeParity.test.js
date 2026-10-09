@@ -14,11 +14,15 @@ import {
   BEE_STINGERLESS_DEATH_SECONDS, BEE_ANGER_SECONDS, BEE_HIVE_RANGE, BEE_NECTAR_TICKS,
   BEE_HIVE_CAPACITY, BEE_HIVE_MAX_HONEY, BEE_HONEY_DOUBLE_CHANCE, BEE_WATER_DAMAGE,
   BEE_FLOWERS, BEE_COLORS, BEE_POLLINATABLE, BEE_WITHER_ROSE, BEE_EYEBLOSSOM,
+  BEE_SKIN_PATHS, BEE_BREEDING_FLOWERS,
   isBee, beeDamageFor, beePoisonFor, beeDrops, isBeeFlower, beeGatherHazard,
   rollBeeAngerSeconds, angerBees, updateBeeAnger, beeIsAngry, beeSting,
   updateBeeStingerless, updateBeeWater, updateBeeNectar, deliverBeeNectar,
-  hiveIsHarvestable, hiveHasRoom, canPollinate, createBeeModel, poseBee
+  hiveIsHarvestable, hiveHasRoom, canPollinate, createBeeModel, poseBee,
+  isBeeBreedingFood, isPollinatableCrop, advancePollinatedCrop, hasCampfireBelow, beeFaces
 } from '../src/beeBehavior.js';
+import { AnimalBehaviors, BREEDING_FOODS } from '../src/animalBehaviors.js';
+import { HiveManager } from '../src/hives.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
 function fixture({ difficulty = 'normal' } = {}) {
@@ -463,3 +467,195 @@ test('the helpers are safe on non-bees', () => {
   assert.doesNotThrow(() => updateBeeAnger({ type: 'cow' }, 1));
   assert.equal(updateBeeNectar({ type: 'cow' }, 1, { atFlower: true }), false);
 });
+
+test('bee breeding foods, hazards and golden dandelion age-locking match wiki', () => {
+  assert.ok(Array.isArray(BREEDING_FOODS.bee), 'bee is in BREEDING_FOODS');
+  assert.ok(BREEDING_FOODS.bee.includes('dandelion'), 'dandelion breeds bees');
+  assert.ok(BREEDING_FOODS.bee.includes('poppy'), 'poppy breeds bees');
+  assert.ok(BREEDING_FOODS.bee.includes('wither_rose'), 'wither rose breeds bees');
+  assert.ok(BREEDING_FOODS.bee.includes('open_eyeblossom'), 'open eyeblossom breeds bees');
+
+  assert.equal(isBeeBreedingFood('dandelion'), true);
+  assert.equal(isBeeBreedingFood('poppy'), true);
+  assert.equal(isBeeBreedingFood('wither_rose'), true);
+  assert.equal(isBeeBreedingFood(BLOCKS.DANDELION), true);
+  assert.equal(isBeeBreedingFood(BLOCKS.POPPY), true);
+  assert.equal(isBeeBreedingFood('wheat'), false);
+  assert.equal(isBeeBreedingFood('golden_dandelion'), false, 'wiki: golden dandelion is ignored for breeding');
+
+  const { manager, player, entities } = fixture();
+  const animalBehaviors = new AnimalBehaviors(manager, manager.world, manager.sounds, entities);
+  manager.animalBehaviors = animalBehaviors;
+
+  const adult = manager.spawnMob('bee', 0, 1, 0);
+  const inventory = {
+    active: { id: 'dandelion', count: 10 },
+    getActiveItem() { return this.active; },
+    consumeActiveItem(n = 1) { this.active.count -= n; }
+  };
+
+  // Adult fed dandelion enters love mode
+  const fed = animalBehaviors.interact(adult, player, inventory);
+  assert.equal(fed, true, 'feeding flower succeeds');
+  assert.ok(adult.inLove > 0, 'adult enters love mode');
+
+  // Feeding wither rose inflicts wither effect
+  const adult2 = manager.spawnMob('bee', 2, 1, 0);
+  inventory.active = { id: 'wither_rose', count: 5 };
+  animalBehaviors.interact(adult2, player, inventory);
+  assert.equal(adult2.statusEffects?.wither?.seconds, 2, 'wiki: wither rose gives 2s wither');
+
+  // Feeding open eyeblossom inflicts poison effect
+  const adult3 = manager.spawnMob('bee', 4, 1, 0);
+  inventory.active = { id: 'open_eyeblossom', count: 5 };
+  animalBehaviors.interact(adult3, player, inventory);
+  assert.equal(adult3.statusEffects?.poison?.seconds, 1.25, 'wiki: open eyeblossom gives 1.25s poison');
+
+  // Baby bee fed flower accelerates growth
+  const baby = manager.spawnMob('bee', 6, 1, 0, { isBaby: true });
+  baby.babyGrowthTimer = 1000;
+  inventory.active = { id: 'poppy', count: 5 };
+  animalBehaviors.interact(baby, player, inventory);
+  assert.ok(baby.babyGrowthTimer < 1000, 'flower accelerated baby growth');
+
+  // Baby bee fed golden dandelion toggles age-lock
+  inventory.active = { id: 'golden_dandelion', count: 2 };
+  assert.equal(baby.ageLocked, undefined);
+  animalBehaviors.interact(baby, player, inventory);
+  assert.equal(baby.ageLocked, true, 'golden dandelion locked baby age');
+  animalBehaviors.interact(baby, player, inventory);
+  assert.equal(baby.ageLocked, false, 'feeding golden dandelion again unlocked age');
+});
+
+test('breeding two bees births baby bee and awards 1-7 XP', () => {
+  const { manager, entities } = fixture();
+  const animalBehaviors = new AnimalBehaviors(manager, manager.world, manager.sounds, entities);
+  manager.animalBehaviors = animalBehaviors;
+
+  const beeA = manager.spawnBee(0, 1, 0);
+  const beeB = manager.spawnBee(0.5, 1, 0);
+  beeA.inLove = 30;
+  beeB.inLove = 30;
+
+  for (let t = 0; t < 150; t++) {
+    animalBehaviors.update(1 / 30, null);
+  }
+
+  const baby = manager.mobs.find(m => m.type === 'bee' && m.isBaby);
+  assert.ok(baby, 'baby bee was born');
+  assert.equal(baby.width, BEE_BABY_DIMENSIONS.width);
+  assert.equal(baby.height, BEE_BABY_DIMENSIONS.height);
+  assert.ok(beeA.breedingCooldown > 290 && beeA.breedingCooldown <= 300, 'wiki: 5-minute breeding cooldown');
+  assert.ok(beeB.breedingCooldown > 290 && beeB.breedingCooldown <= 300, 'wiki: 5-minute breeding cooldown');
+  assert.ok(xpFrom(entities) >= 1 && xpFrom(entities) <= 7, 'wiki: grants 1-7 XP');
+});
+
+test('calm bees follow a player holding a breeding flower within 10 blocks', () => {
+  const { manager, player } = fixture();
+  const bee = manager.spawnBee(0, 1, 0);
+  player.position.set(5, 1, 0);
+  player.inventory = {
+    active: { id: 'poppy' },
+    getActiveItem() { return this.active; }
+  };
+
+  manager.update(1 / 20, player);
+  assert.ok(bee.velocity.x > 0, 'bee moved toward flower-holding player');
+
+  // When player holds non-flower, bee does not follow toward player
+  player.inventory.active = { id: 'stick' };
+  bee.velocity.set(0, 0, 0);
+  manager.update(1 / 20, player);
+  // Velocity is random wander rather than direct player chase
+  assert.notEqual(bee.velocity.x, (5 / 5) * 2.2);
+});
+
+test('pollen-carrying bee fertilizes crops 1-2 blocks below and delivers to hive', () => {
+  const { manager } = fixture();
+  // Place wheat stage 0 in world at (0, 0, 0)
+  manager.world.getVoxel = (x, y, z) => {
+    if (x === 0 && y === 0 && z === 0) return manager.wheatStage;
+    if (y < 0) return BLOCKS.STONE;
+    return BLOCKS.AIR;
+  };
+  manager.world.setVoxel = (x, y, z, v) => {
+    if (x === 0 && y === 0 && z === 0) manager.wheatStage = v;
+  };
+  manager.wheatStage = BLOCKS.WHEAT_STAGE_0;
+
+  assert.equal(isPollinatableCrop(BLOCKS.WHEAT_STAGE_0), true);
+  assert.equal(isPollinatableCrop(BLOCKS.WHEAT_STAGE_7), false, 'mature wheat cannot be pollinated');
+
+  // Advance crop
+  advancePollinatedCrop(manager.world, 0, 0, 0);
+  assert.equal(manager.wheatStage, BLOCKS.WHEAT_STAGE_1, 'crop stage advanced by 1');
+
+  // Delivery to hive
+  const bee = manager.spawnBee(0, 1, 0, { hasNectar: true });
+  const hive = { honeyLevel: 0, mesh: { position: new THREE.Vector3(0.5, 1, 0) } };
+  bee.hive = hive;
+
+  deliverBeeNectar(bee, hive, () => 0.5);
+  assert.equal(bee.hasNectar, false, 'nectar spent');
+  assert.equal(hive.honeyLevel, 1, 'hive honey level rose');
+});
+
+test('harvesting a hive with campfire below pacifies bees; without campfire angers colony', () => {
+  const { manager, player, entities } = fixture();
+  const hiveManager = new HiveManager({ world: manager.world, mobs: manager });
+  hiveManager.game.player = player;
+
+  const voxels = new Map();
+  manager.world.getVoxel = (x, y, z) => voxels.get(`${x},${y},${z}`) || BLOCKS.AIR;
+  manager.world.setVoxel = (x, y, z, v) => voxels.set(`${x},${y},${z}`, v);
+
+  // Hive at (10, 5, 10)
+  voxels.set('10,5,10', BLOCKS.BEEHIVE);
+  hiveManager.ensure(10, 5, 10, 5); // full level 5 hive
+
+  // Campfire directly 2 blocks below at (10, 3, 10)
+  voxels.set('10,3,10', BLOCKS.CAMPFIRE);
+  assert.equal(hasCampfireBelow(manager.world, 10, 5, 10), true, 'campfire detected below');
+
+  const bee = manager.spawnBee(10, 6, 10);
+  player.inventory = {
+    active: { id: 'shears', durability: 100 },
+    getActiveItem() { return this.active; },
+    addItem: () => true
+  };
+
+  const res1 = hiveManager.harvest(10, 5, 10, player);
+  assert.equal(res1.ok, true);
+  assert.equal(bee.angerTimer, 0, 'bee stayed calm due to campfire smoke');
+
+  // Now harvest without campfire: remove campfire
+  voxels.set('10,3,10', BLOCKS.AIR);
+  assert.equal(hasCampfireBelow(manager.world, 10, 5, 10), false, 'no campfire below');
+
+  hiveManager.ensure(10, 5, 10).level = 5;
+  const res2 = hiveManager.harvest(10, 5, 10, player);
+  assert.equal(res2.ok, true);
+  assert.ok(bee.angerTimer >= 20, 'wiki: harvesting without campfire angered nearby bees');
+  assert.equal(bee.angryAt, player);
+});
+
+test('bee model and texture UV mapping matches canonical 64x64 atlas', () => {
+  const bodyMat = new THREE.MeshLambertMaterial();
+  const stripeMat = new THREE.MeshLambertMaterial();
+  const wingMat = new THREE.MeshLambertMaterial();
+  const eyeMat = new THREE.MeshBasicMaterial();
+  const model = createBeeModel(bodyMat, stripeMat, wingMat, eyeMat);
+
+  // Canonical body face unwrap
+  const faces = beeFaces(0, 0, 7, 7, 10);
+  assert.deepEqual(faces[4], { x: 10, y: 10, w: 7, h: 7 }, 'front face at (10,10)');
+  assert.deepEqual(faces[0], { x: 0, y: 10, w: 10, h: 7 }, 'right face at (0,10)');
+  assert.deepEqual(faces[1], { x: 17, y: 10, w: 10, h: 7 }, 'left face at (17,10)');
+  assert.deepEqual(faces[2], { x: 10, y: 0, w: 7, h: 10 }, 'top face at (10,0)');
+  assert.deepEqual(faces[3], { x: 17, y: 0, w: 7, h: 10 }, 'bottom face at (17,0)');
+  assert.deepEqual(faces[5], { x: 27, y: 10, w: 7, h: 7 }, 'back face at (27,10)');
+
+  assert.equal(BEE_SKIN_PATHS.regular, '/assets/entity/bee/bee.png');
+  assert.equal(BEE_SKIN_PATHS.nectar, '/assets/entity/bee/bee_nectar.png');
+});
+

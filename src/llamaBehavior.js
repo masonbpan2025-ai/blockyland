@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
+import { adoptWhenReady, applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 import { applyQuadUvs } from './mobVisuals/entityBox.js';
 
 /**
@@ -122,6 +122,72 @@ export function inheritLlamaStrength(parentA, parentB, random = Math.random) {
   return Math.min(LLAMA_STRENGTH.max, base + bonus);
 }
 
+/** The decor texture sheet worn by Trader Llamas. */
+export const TRADER_LLAMA_CARPET_PATH = '/assets/entity/llama/decor/trader_llama.png';
+
+/** Wiki: carpet decor hex colors for the 16 dyed carpets. */
+export const LLAMA_CARPET_COLORS = {
+  white: 0xf9fffe,
+  orange: 0xf9801d,
+  magenta: 0xc74ebd,
+  light_blue: 0x3ab3da,
+  yellow: 0xfed83d,
+  lime: 0x80c71f,
+  pink: 0xf4b2c8,
+  gray: 0x474f52,
+  light_gray: 0x9d9d97,
+  cyan: 0x169c9c,
+  purple: 0x8932b8,
+  blue: 0x3c44aa,
+  brown: 0x835432,
+  green: 0x5e7c16,
+  red: 0xb02e26,
+  black: 0x1d1d21
+};
+
+export function resolveLlamaCarpetHex(color) {
+  if (typeof color === 'number') return color;
+  if (!color) return 0xf9fffe;
+  const clean = String(color).replace('_carpet', '').toLowerCase();
+  return LLAMA_CARPET_COLORS[clean] ?? 0xf9fffe;
+}
+
+/** Wiki: Trader Llamas defend the Wandering Trader against zombies, illagers, and vexes. */
+export const LLAMA_DEFENSE_TARGETS = [
+  'zombie',
+  'husk',
+  'drowned',
+  'zombie_villager',
+  'pillager',
+  'vindicator',
+  'evoker',
+  'illusioner',
+  'vex'
+];
+
+/** Maximum number of llamas in a caravan train. */
+export const LLAMA_MAX_CARAVAN_LENGTH = 10;
+
+/** Whether a mob is a llama or trader llama. */
+export function isLlama(mob) {
+  return mob?.type === 'llama' || mob?.type === 'trader_llama' || !!mob?.isTraderLlama;
+}
+
+/** Whether a mob is specifically a trader llama. */
+export function isTraderLlama(mob) {
+  return mob?.type === 'trader_llama' || !!mob?.isTraderLlama;
+}
+
+/**
+ * Wiki: untamed wolves flee from llamas with strength >= 4, and attack llamas with strength 1-3.
+ * Tamed wolves ignore wild llamas.
+ */
+export function wolfReactsToLlama(wolf, llama) {
+  if (!wolf || !llama || wolf.isTamed) return null;
+  const strength = llama.strength ?? 1;
+  return strength >= 4 ? 'flee' : 'attack';
+}
+
 /** Wiki: spit damage by difficulty. */
 export function llamaSpitDamage(difficulty) {
   const key = Object.hasOwn(LLAMA_SPIT_DAMAGE, difficulty ?? '') ? difficulty : 'normal';
@@ -133,15 +199,28 @@ export function llamaSpitDamage(difficulty) {
  *
  * Wiki: a llama retaliates when attacked by a player or another mob, and is hostile toward wolves
  * without provocation. It never attacks on Peaceful.
+ * Trader Llamas also retaliate against anyone attacking their Wandering Trader, and naturally attack
+ * zombies, illagers, and vexes within 16 blocks.
  */
 export function llamaWantsToSpit(llama, candidate, { difficulty = 'normal', recentAttacker = null } = {}) {
   if (!llama || !candidate || candidate === llama) return false;
   if (difficulty === 'peaceful') return false;
   if (candidate.health !== undefined && candidate.health <= 0) return false;
+
   // Wiki: hostile toward wolves without provocation.
-  if (candidate.type === 'wolf') return true;
-  // Otherwise it only retaliates against whoever hurt it.
-  return !!recentAttacker && candidate === recentAttacker;
+  if (candidate.type === 'wolf' && !candidate.isTamed) return true;
+
+  // Wiki: retaliates against whoever attacked it.
+  if (recentAttacker && candidate === recentAttacker) return true;
+  if (llama.recentAttacker && candidate === llama.recentAttacker) return true;
+
+  // Wiki: Trader llama defends its master and attacks zombies, illagers, vexes
+  if (isTraderLlama(llama)) {
+    if (llama.leashHolder?.recentAttacker && candidate === llama.leashHolder.recentAttacker) return true;
+    if (LLAMA_DEFENSE_TARGETS.includes(candidate.type)) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -293,79 +372,145 @@ export function removeLlamaSpit(manager, spit) {
 export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 1.0), bodyMat);
-  applyQuadUvs(body, 16, 16, 12, 9, 18, 128, 64);
-  body.position.set(0, 1.0, 0);
+  // Vanilla LlamaModel texture: 128x64
+  // Body: 12x18x10 at (29, 0), rotated PI/2 on X like vanilla PartPose
+  const bodyGeo = new THREE.BoxGeometry(0.75, 1.125, 0.625);
+  applyVanillaBoxUVs(bodyGeo, 29, 0, 128, 64, 12, 18, 10);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.set(0, 1.1875, 0);
+  body.rotation.x = Math.PI / 2;
   group.add(body);
 
-  // The neck, tall and slightly forward.
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.72, 0.32), bodyMat);
-  applyQuadUvs(neck, 0, 16, 4, 18, 6, 128, 64);
-  neck.position.set(0, 1.55, 0.34);
+  // Neck group: hinged at base of neck (front of body).
+  // Contains the 8x18x6 pillar which carries the eyes and head on its upper front!
+  const neck = new THREE.Group();
+  neck.position.set(0, 1.05, 0.35);
   neck.rotation.x = 0.28;
   group.add(neck);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.44), bodyMat);
-  applyQuadUvs(head, 0, 42, 5, 5, 6, 128, 64);
-  head.position.set(0, 1.95, 0.5);
-  group.add(head);
+  // Neck + Head pillar: 8x18x6 at (0, 14).
+  // The upper part of this pillar carries the facial features (eyes and mouth) in vanilla!
+  const neckGeo = new THREE.BoxGeometry(0.5, 1.125, 0.375);
+  applyVanillaBoxUVs(neckGeo, 0, 14, 128, 64, 8, 18, 6);
+  const neckMesh = new THREE.Mesh(neckGeo, bodyMat);
+  neckMesh.position.set(0, 1.125 / 2, 0);
+  neck.add(neckMesh);
 
-  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), darkMat);
-  muzzle.position.set(0, -0.04, 0.28);
+  // Head group at the top of the neck pillar. Holds the protruding snout and ears.
+  const head = new THREE.Group();
+  head.position.set(0, 1.125, 0);
+  neck.add(head);
+
+  // Snout (muzzle): 4x4x9 at (0, 0) - protruding forward in front of the upper head
+  const snoutGeo = new THREE.BoxGeometry(0.25, 0.25, 0.5625);
+  applyVanillaBoxUVs(snoutGeo, 0, 0, 128, 64, 4, 4, 9);
+  const muzzle = new THREE.Mesh(snoutGeo, bodyMat);
+  muzzle.position.set(0, -0.22, 0.125);
   head.add(muzzle);
 
-  // Large banana-shaped ears, which are the llama's most recognisable feature.
-  const earGeo = new THREE.BoxGeometry(0.07, 0.3, 0.1);
+  // Ears: 3x3x2 at (17, 0) - placed directly on top of the head
   const ears = [-1, 1].map((side) => {
-    const ear = new THREE.Mesh(earGeo, darkMat);
-    ear.position.set(side * 0.1, 0.2, -0.05);
-    ear.rotation.z = side * 0.35;
-    ear.rotation.x = -0.2;
+    const earGeo = new THREE.BoxGeometry(0.1875, 0.1875, 0.125);
+    applyVanillaBoxUVs(earGeo, 17, 0, 128, 64, 3, 3, 2);
+    const ear = new THREE.Mesh(earGeo, bodyMat);
+    ear.position.set(side * 0.156, 0.09375, -0.0625);
     head.add(ear);
     return ear;
   });
 
-  const eyeGeo = new THREE.BoxGeometry(0.06, 0.07, 0.03);
-  const eyes = [-1, 1].map((side) => {
-    const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.1, 0.04, 0.23);
+  const eyes = [-1, 1].map(side => {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), bodyMat);
+    eye.position.set(side * 0.25, -0.12, 0.1875);
+    eye.visible = false;
     head.add(eye);
     return eye;
   });
 
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.12), darkMat);
-  tail.position.set(0, 1.15, -0.55);
+  // Tail: 2x6x2 at (29, 29)
+  const tailGeo = new THREE.BoxGeometry(0.125, 0.375, 0.125);
+  applyVanillaBoxUVs(tailGeo, 29, 29, 128, 64, 2, 6, 2);
+  const tail = new THREE.Mesh(tailGeo, bodyMat);
+  tail.position.set(0, 1.15, -0.6);
   tail.rotation.x = -0.3;
   group.add(tail);
 
-  // A chest, hidden until the llama is equipped with one.
-  const chest = new THREE.Mesh(
-    new THREE.BoxGeometry(0.66, 0.4, 0.5),
-    new THREE.MeshLambertMaterial({ color: 0x8b5a2b })
-  );
-  chest.position.set(0, 1.2, -0.2);
-  chest.visible = false;
-  group.add(chest);
+  // Dual side chest packs:
+  const chestMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+  const chestMesh = new THREE.Group();
+  chestMesh.name = 'llama-chest';
+  chestMesh.material = chestMat;
 
-  // A carpet, hidden until one is applied. Its colour is set by the caller.
+  const leftChestGeo = new THREE.BoxGeometry(0.2, 0.45, 0.45);
+  applyVanillaBoxUVs(leftChestGeo, 45, 28, 128, 64, 8, 8, 3);
+  const leftChest = new THREE.Mesh(leftChestGeo, chestMat);
+  leftChest.position.set(-0.44, 1.15, -0.05);
+  chestMesh.add(leftChest);
+
+  const rightChestGeo = new THREE.BoxGeometry(0.2, 0.45, 0.45);
+  applyVanillaBoxUVs(rightChestGeo, 45, 41, 128, 64, 8, 8, 3);
+  const rightChest = new THREE.Mesh(rightChestGeo, chestMat);
+  rightChest.position.set(0.44, 1.15, -0.05);
+  chestMesh.add(rightChest);
+
+  chestMesh.visible = false;
+  group.add(chestMesh);
+
+  // Carpet overlay:
   const carpetMat = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
-  const carpet = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.06, 0.8), carpetMat);
-  carpet.position.set(0, 1.32, 0.05);
-  carpet.visible = false;
-  group.add(carpet);
+  const carpetMesh = new THREE.Group();
+  carpetMesh.name = 'llama-carpet';
+  carpetMesh.material = carpetMat;
 
-  const legGeo = new THREE.BoxGeometry(0.16, 0.72, 0.16);
+  const carpetBodyGeo = new THREE.BoxGeometry(0.77, 1.15, 0.65);
+  applyVanillaBoxUVs(carpetBodyGeo, 29, 10, 128, 64, 11, 11, 20);
+  const carpetBody = new THREE.Mesh(carpetBodyGeo, carpetMat);
+  carpetBody.position.set(0, 1.1875, 0);
+  carpetBody.rotation.x = Math.PI / 2;
+  carpetMesh.add(carpetBody);
+
+  const carpetNeckGeo = new THREE.BoxGeometry(0.53, 1.13, 0.40);
+  carpetNeckGeo.translate(0, 1.125 / 2, 0);
+  applyVanillaBoxUVs(carpetNeckGeo, 0, 14, 128, 64, 4, 14, 7);
+  const carpetNeck = new THREE.Mesh(carpetNeckGeo, carpetMat);
+  carpetNeck.position.set(0, 1.05, 0.35);
+  carpetNeck.rotation.x = 0.28;
+  carpetMesh.add(carpetNeck);
+
+  carpetMesh.visible = false;
+  group.add(carpetMesh);
+
+  // Legs: 4x14x4 at (29, 29)
   const legs = [];
   for (const side of [-1, 1]) {
-    for (const z of [0.3, -0.3]) {
+    for (const z of [0.3125, -0.375]) {
+      const legGeo = new THREE.BoxGeometry(0.25, 0.875, 0.25);
+      applyVanillaBoxUVs(legGeo, 29, 29, 128, 64, 4, 14, 4);
       const leg = new THREE.Mesh(legGeo, bodyMat);
-      leg.position.set(side * 0.21, 0.36, z);
+      leg.position.set(side * 0.21875, 0.4375, z);
       group.add(leg);
       legs.push({ mesh: leg, side, front: z > 0 });
     }
   }
 
-  return { group, body, neck, head, muzzle, ears, eyes, tail, legs, chest, carpet, chestMesh: chest, carpetMesh: carpet };
+  return {
+    group,
+    body,
+    neck,
+    head,
+    muzzle,
+    ears,
+    eyes,
+    tail,
+    legs,
+    chest: chestMesh,
+    carpet: carpetMesh,
+    chestMesh,
+    carpetMesh,
+    carpetNeck,
+    leftChest,
+    rightChest,
+    carpetBody
+  };
 }
 
 /** Apply the coat colour to the model. */
@@ -385,10 +530,34 @@ export function applyLlamaCoat(llama) {
 export function applyLlamaEquipment(llama) {
   if (!llama) return;
   if (llama.chestMesh) llama.chestMesh.visible = !!llama.hasChest;
+
   if (llama.carpetMesh) {
-    llama.carpetMesh.visible = !!llama.carpetColor;
-    if (llama.carpetColor && llama.carpetMesh.material?.color) {
-      llama.carpetMesh.material.color.set(llama.carpetColor);
+    const isTrader = isTraderLlama(llama) || !!llama.hasTraderCarpet;
+    const hasCarpet = isTrader || Boolean(llama.carpetColor) || Boolean(llama.carpetItem);
+    llama.carpetMesh.visible = hasCarpet;
+
+    if (hasCarpet && llama.carpetMesh.material) {
+      if (isTrader && !llama.carpetColor) {
+        // Default Trader Llama carpet overlay from trader_llama.png
+        const path = TRADER_LLAMA_CARPET_PATH;
+        const skin = llama.skinManager?.loadTexture ? llama.skinManager.loadTexture(path) : null;
+        if (skin) {
+          adoptWhenReady(llama.carpetMesh.material, skin, 0xffffff);
+          llama.carpetMesh.material.transparent = true;
+          llama.carpetMesh.material.alphaTest = 0.1;
+        } else {
+          llama.carpetMesh.material.color?.setHex(0x3c44aa);
+        }
+      } else if (llama.carpetColor) {
+        if (llama.carpetMesh.material.map) {
+          llama.carpetMesh.material.map = null;
+          llama.carpetMesh.material.transparent = false;
+          llama.carpetMesh.material.needsUpdate = true;
+        }
+        if (llama.carpetMesh.material.color) {
+          llama.carpetMesh.material.color.set(resolveLlamaCarpetHex(llama.carpetColor));
+        }
+      }
     }
   }
 }
@@ -401,7 +570,148 @@ export function poseLlamaLegs(llama, phase, walking = true) {
     leg.mesh.rotation.x = swing * 0.45;
   });
   // Wiki: a spitting llama raises its head and leans back before firing.
-  const spitting = llama.spitCharge > 0;
+  const spitting = (llama.spitCharge || 0) > 0;
   if (llama.neck) llama.neck.rotation.x = spitting ? -0.15 : 0.28;
+  if (llama.carpetNeck) llama.carpetNeck.rotation.x = spitting ? -0.15 : 0.28;
   if (llama.head) llama.head.rotation.x = spitting ? -0.3 : 0;
+}
+
+/** Equip a chest onto a llama, creating its inventory based on its strength. */
+export function equipLlamaChest(llama) {
+  if (!llama) return false;
+  llama.hasChest = true;
+  llama.chestSlots = llamaSlotsFor(llama.strength ?? 1);
+  if (!llama.chestInventory || llama.chestInventory.length !== llama.chestSlots) {
+    llama.chestInventory = new Array(llama.chestSlots).fill(null);
+  }
+  applyLlamaEquipment(llama);
+  return true;
+}
+
+/** Equip a carpet onto a llama, displaying its dyed pattern. */
+export function equipLlamaCarpet(llama, carpet) {
+  if (!llama || !carpet) return false;
+  llama.carpetItem = typeof carpet === 'string' ? carpet : 'white_carpet';
+  llama.carpetColor = carpet;
+  llama.hasTraderCarpet = false;
+  applyLlamaEquipment(llama);
+  return true;
+}
+
+/**
+ * Caravan train mechanics.
+ *
+ * Wiki: When a llama is leashed, up to 10 llamas form a caravan following the llama ahead of them.
+ * If a follower gets > 16 blocks away, it leaves the caravan.
+ */
+export function updateLlamaCaravan(manager, llama, dt) {
+  if (!llama || !manager?.mobs) return;
+
+  // 1. If following another llama in caravan:
+  if (llama.caravanFollows) {
+    const ahead = llama.caravanFollows;
+    if (ahead.health <= 0 || !manager.mobs.includes(ahead)) {
+      llama.caravanFollows = null;
+      if (ahead.caravanFollower === llama) ahead.caravanFollower = null;
+      return;
+    }
+
+    const dist = llama.mesh.position.distanceTo(ahead.mesh.position);
+    if (dist > 16.0) {
+      llama.caravanFollows = null;
+      if (ahead.caravanFollower === llama) ahead.caravanFollower = null;
+      return;
+    }
+
+    if (dist > 2.0) {
+      const dir = ahead.mesh.position.clone().sub(llama.mesh.position);
+      dir.y = 0;
+      if (dir.lengthSq() > 1e-4) {
+        dir.normalize();
+        llama.yaw = Math.atan2(dir.x, dir.z);
+        if (llama.mesh) llama.mesh.rotation.y = llama.yaw;
+        const speed = dist > 5.0 ? 3.8 : 2.4;
+        llama.velocity.x = dir.x * speed;
+        llama.velocity.z = dir.z * speed;
+      }
+    } else {
+      llama.velocity.x *= 0.2;
+      llama.velocity.z *= 0.2;
+    }
+    return;
+  }
+
+  // 2. Lead llama recruits followers up to maximum 10
+  if (llama.leashHolder && !llama.caravanFollows) {
+    let tail = llama;
+    let length = 1;
+    while (tail.caravanFollower && length < LLAMA_MAX_CARAVAN_LENGTH) {
+      tail = tail.caravanFollower;
+      length++;
+    }
+
+    if (length < LLAMA_MAX_CARAVAN_LENGTH) {
+      for (const other of manager.mobs) {
+        if (other === llama || !isLlama(other) || other.health <= 0) continue;
+        if (other.caravanFollows || other.leashHolder) continue;
+        const dist = tail.mesh.position.distanceTo(other.mesh.position);
+        if (dist <= 10.0) {
+          tail.caravanFollower = other;
+          other.caravanFollows = tail;
+          tail = other;
+          length++;
+          if (length >= LLAMA_MAX_CARAVAN_LENGTH) break;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Death drops.
+ *
+ * Wiki:
+ * - 0-2 leather, increased by looting (max +1 per looting level)
+ * - Equipped carpet
+ * - Equipped chest + all items in chest inventory
+ */
+export function llamaDrops(mob, { random = Math.random, looting = 0 } = {}) {
+  if (!isLlama(mob)) return [];
+  const rows = [];
+  if (mob.isBaby) return rows;
+
+  const maxLeather = 2 + Math.max(0, Math.floor(looting));
+  rows.push(['leather', false, 0, maxLeather]);
+
+  // Equipped carpet
+  if (mob.carpetItem) {
+    rows.push([mob.carpetItem, false, 1, 1]);
+  } else if (mob.carpetColor) {
+    const carpetName = typeof mob.carpetColor === 'string'
+      ? (mob.carpetColor.endsWith('_carpet') ? mob.carpetColor : `${mob.carpetColor}_carpet`)
+      : 'white_carpet';
+    rows.push([carpetName, false, 1, 1]);
+  } else if (isTraderLlama(mob) && mob.hasTraderCarpet) {
+    rows.push(['blue_carpet', false, 1, 1]);
+  }
+
+  // Equipped chest + inventory contents
+  if (mob.hasChest) {
+    rows.push(['chest', true, 1, 1]);
+    if (Array.isArray(mob.chestInventory)) {
+      for (const item of mob.chestInventory) {
+        if (item && item.id) {
+          rows.push([item.id, !!item.isBlock, item.count || 1, item.count || 1]);
+        }
+      }
+    }
+  }
+
+  return rows;
+}
+
+/** Wiki: 1-3 XP for adult, 0 for baby. */
+export function llamaXp(mob) {
+  if (!isLlama(mob) || mob.isBaby) return 0;
+  return 1 + Math.floor(Math.random() * 3);
 }

@@ -487,47 +487,89 @@ export function happyGhastXp() {
 export function createHappyGhastModel(skinMat, tentacleMat, eyeMat, mouthMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 4), skinMat);
-  body.position.y = 2.4;
+  // 3.8 x 3.6 x 3.8 pale ghostly body, positioned so it hovers with tentacles clearly visible below
+  const body = new THREE.Mesh(new THREE.BoxGeometry(3.8, 3.6, 3.8), skinMat);
+  body.position.y = 2.8;
   group.add(body);
 
-  const face = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, 0.2), mouthMat);
-  face.position.set(0, 0.2, 2.05);
+  // Face panel sitting flush on the +Z front face of the body
+  const face = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 0.05), skinMat);
+  face.position.set(0, 0, 1.91);
   body.add(face);
 
+  // Joyful arched smiling eyes ^_^
   const eyes = [];
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.2), eyeMat);
-    eye.position.set(side * 0.85, 0.5, 0.15);
-    face.add(eye);
-    eyes.push(eye);
+    const eyeGroup = new THREE.Group();
+    eyeGroup.position.set(side * 0.9, 0.4, 0.04);
+    // Arch: horizontal center bar with downward corners for a happy closed eye
+    const topBar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.04), eyeMat);
+    eyeGroup.add(topBar);
+    const leftCorner = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.04), eyeMat);
+    leftCorner.position.set(-0.24, -0.12, 0);
+    eyeGroup.add(leftCorner);
+    const rightCorner = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.04), eyeMat);
+    rightCorner.position.set(0.24, -0.12, 0);
+    eyeGroup.add(rightCorner);
+
+    face.add(eyeGroup);
+    eyes.push(eyeGroup);
   }
 
-  const mouth = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.35, 0.2), mouthMat);
-  mouth.position.set(0, -0.5, 0.15);
+  // Rosy pink blush cheeks below the eyes, signature of the Happy Ghast
+  const blushMat = new THREE.MeshLambertMaterial({ color: 0xf4a6b2 });
+  for (const side of [-1, 1]) {
+    const blush = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.04), blushMat);
+    blush.position.set(side * 1.15, -0.05, 0.035);
+    face.add(blush);
+  }
+
+  // Friendly warm smile (upturned mouth)
+  const mouth = new THREE.Group();
+  mouth.position.set(0, -0.45, 0.04);
+  const mouthCenter = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.04), mouthMat);
+  mouth.add(mouthCenter);
+  for (const side of [-1, 1]) {
+    const corner = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.24, 0.04), mouthMat);
+    corner.position.set(side * 0.38, 0.08, 0);
+    mouth.add(corner);
+  }
   face.add(mouth);
 
-  // Nine tentacles, which is the ghast's count.
+  // Nine dangling tentacles hanging visibly BELOW the body (pivoted at top)
   const tentacles = [];
-  const offsets = [[-1.4, -1.4], [0, -1.6], [1.4, -1.4], [-1.6, 0], [1.6, 0], [-1.4, 1.4], [0, 1.6], [1.4, 1.4], [0, 0]];
+  const offsets = [
+    [-1.2, -1.2], [0, -1.3], [1.2, -1.2],
+    [-1.3, 0], [1.3, 0],
+    [-1.2, 1.2], [0, 1.3], [1.2, 1.2],
+    [0, 0]
+  ];
   offsets.forEach(([x, z], index) => {
-    const tentacle = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 0.3), tentacleMat);
-    tentacle.position.set(x, -0.85, z);
-    tentacle.userData.phase = index * 0.7;
-    body.add(tentacle);
-    tentacles.push(tentacle);
+    // Pivot at top of tentacle where it attaches to underside of body (y = -1.8)
+    const tentaclePivot = new THREE.Group();
+    tentaclePivot.position.set(x, -1.8, z);
+    tentaclePivot.userData.phase = index * 0.7;
+
+    const tentacleMesh = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.8, 0.35), tentacleMat);
+    // Center mesh so its top connects to the pivot
+    tentacleMesh.position.y = -0.9;
+    tentaclePivot.add(tentacleMesh);
+
+    body.add(tentaclePivot);
+    tentacles.push(tentaclePivot);
   });
 
   // The harness overlay and its lowered goggles, both hidden until equipped.
-  const harness = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.1, 4.2), tentacleMat);
-  harness.position.y = 1.4;
+  const harnessMat = new THREE.MeshLambertMaterial({ color: HAPPY_GHAST_COLORS.harness || 0x8a5a3c });
+  const harness = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.8, 3.9), harnessMat);
+  harness.position.y = 0.2;
   harness.visible = false;
-  group.add(harness);
+  body.add(harness);
 
-  const goggles = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.5, 0.25), eyeMat);
-  goggles.position.set(0, 0.2, 2.2);
+  const goggles = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.45, 0.25), eyeMat);
+  goggles.position.set(0, 0.5, 1.95);
   goggles.visible = false;
-  group.add(goggles);
+  body.add(goggles);
 
   return { group, body, face, eyes, mouth, tentacles, harness, goggles };
 }

@@ -18,7 +18,7 @@ import {
   removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay,
   camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth,
   accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp,
-  createCamelModel, poseCamel
+  createCamelModel, poseCamel, camelProtectsRiderFrom
 } from '../src/camelBehavior.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
@@ -510,3 +510,117 @@ test('the helpers are safe on non-camels and malformed input', () => {
   assert.doesNotThrow(() => poseCamel(null));
   assert.equal(manager.spawnMob('camel', 9, 1, 9).type, 'camel');
 });
+
+test('camel height advantage protects mounted rider from short ground melee mobs', () => {
+  const { manager, player } = fixture();
+  const camel = manager.spawnMob('camel', 0, 1, 0);
+  player.position.set(0, 3.1, 0); // mounted camera / player height on standing camel
+  player.ridingMob = camel;
+
+  const zombie = { height: 1.95, position: new THREE.Vector3(0, 1, 0) };
+  const spider = { height: 0.9, position: new THREE.Vector3(0, 1, 0) };
+  const silverfish = { height: 0.3, position: new THREE.Vector3(0, 1, 0) };
+  const enderman = { height: 2.9, position: new THREE.Vector3(0, 1, 0) };
+  const ironGolem = { height: 2.7, position: new THREE.Vector3(0, 1, 0) };
+
+  // Wiki: "Due to the camel's height, most hostile melee mobs are unable to reach the player while riding,
+  // including zombies, vindicators, husks, drowned, piglins, and silverfish."
+  assert.equal(camelProtectsRiderFrom(zombie, player), true, 'protected from zombie');
+  assert.equal(camelProtectsRiderFrom(spider, player), true, 'protected from spider');
+  assert.equal(camelProtectsRiderFrom(silverfish, player), true, 'protected from silverfish');
+
+  // Tall mobs can reach
+  assert.equal(camelProtectsRiderFrom(enderman, player), false, 'not protected from enderman');
+  assert.equal(camelProtectsRiderFrom(ironGolem, player), false, 'not protected from iron golem');
+
+  // Sitting camel lowers the rider so protection is lost
+  camel.isSitting = true;
+  assert.equal(camelProtectsRiderFrom(zombie, player), false, 'sitting camel loses height protection');
+
+  // Unmounted player has no camel height protection
+  player.ridingMob = null;
+  assert.equal(camelProtectsRiderFrom(zombie, player), false, 'unmounted player is not protected');
+});
+
+test('camel interacts with saddle, shears, cactus, and empty-hand mounting for two riders', () => {
+  const { manager, player, entities } = fixture();
+  const camel = manager.spawnMob('camel', 0, 1, 0);
+  camel.health = 20; // injured adult
+  const inventory = {
+    active: null,
+    getActiveItem() { return this.active; },
+    consumeActiveItem(n = 1) { if (this.active) this.active.count -= n; }
+  };
+
+  // 1. Equip saddle
+  inventory.active = { id: 'saddle', count: 1 };
+  assert.equal(manager.animalBehaviors.interact(camel, player, inventory), true);
+  assert.equal(camel.hasSaddle, true);
+  assert.equal(camel.saddleMesh?.visible, true);
+  assert.equal(inventory.active.count, 0);
+
+  // 2. Feed cactus to heal
+  inventory.active = { id: 'cactus', count: 2 };
+  assert.equal(manager.animalBehaviors.interact(camel, player, inventory), true);
+  assert.equal(camel.health, 22, 'cactus heals camel by 2 HP');
+  assert.equal(inventory.active.count, 1);
+
+  // 3. Remove saddle with shears
+  inventory.active = { id: 'shears', durability: 238 };
+  assert.equal(manager.animalBehaviors.interact(camel, player, inventory), true);
+  assert.equal(camel.hasSaddle, false);
+  assert.equal(camel.saddleMesh?.visible, false);
+  assert.ok(entities.droppedItems.some(d => d.itemType === 'saddle'));
+
+  // 4. Mount with empty hand
+  inventory.active = null;
+  assert.equal(manager.animalBehaviors.interact(camel, player, inventory), true);
+  assert.equal(player.ridingMob, camel);
+  assert.equal(camel.riderCount, 1);
+  assert.equal(camelCanSeat(camel), true, 'camel has space for a second rider');
+
+  // 5. Second rider mounts
+  const player2 = { position: new THREE.Vector3(), keys: {} };
+  assert.equal(manager.animalBehaviors.mountMob(camel, player2), true);
+  assert.equal(camel.riderCount, 2);
+  assert.equal(camelCanSeat(camel), false, 'two players is the maximum capacity');
+
+  // Dismounting clears seats
+  manager.animalBehaviors.dismount(player);
+  assert.equal(player.ridingMob, null);
+  assert.equal(camel.riderCount, 1);
+  assert.equal(camelCanSeat(camel), true);
+});
+
+test('mounted camel steering supports walk and sprint speed, 1.5m step height, and dash charge', () => {
+  const { manager, player } = fixture();
+  const camel = manager.spawnMob('camel', 0, 1, 0);
+  camel.hasSaddle = true;
+  manager.animalBehaviors.mountMob(camel, player);
+  assert.equal(player.ridingMob, camel);
+
+  // Steer forward while walking
+  manager.animalBehaviors.updateMountSteering(0.1, player, { forward: true, sprint: false }, { forward: true });
+  const walkSpeed = Math.hypot(camel.velocity.x, camel.velocity.z);
+  assert.ok(Math.abs(walkSpeed - CAMEL_SPEED.walk) < 0.1, `walk speed matches CAMEL_SPEED.walk: ${walkSpeed}`);
+  assert.equal(camel.stepHeight, 1.5, 'stepHeight is 1.5m');
+
+  // Steer forward while sprinting
+  manager.animalBehaviors.updateMountSteering(0.1, player, { forward: true, sprint: true }, { forward: true });
+  const sprintSpeed = Math.hypot(camel.velocity.x, camel.velocity.z);
+  assert.ok(Math.abs(sprintSpeed - CAMEL_SPEED.sprint) < 0.1, `sprint speed matches CAMEL_SPEED.sprint: ${sprintSpeed}`);
+
+  // Jump charge and dash release
+  camel.onGround = true;
+  camel.dashCooldown = 0;
+  // Hold jump to charge
+  manager.animalBehaviors.updateMountSteering(0.5, player, { jump: true }, {});
+  assert.ok(manager.animalBehaviors.isChargingJump);
+  assert.ok(manager.animalBehaviors.jumpCharge >= 0.5);
+
+  // Release jump to dash
+  manager.animalBehaviors.updateMountSteering(0.1, player, { jump: false }, {});
+  assert.equal(manager.animalBehaviors.isChargingJump, false);
+  assert.ok(camel.isDashing, 'camel launched dash');
+});
+

@@ -140,6 +140,11 @@ export class MobSpawnManager {
     return this.game?.world ?? null;
   }
 
+  spawnSettingsAt(x, z) {
+    const biome = this.world?.getBiome?.(Math.floor(x ?? 0), Math.floor(z ?? 0));
+    return BIOMES[biome]?.spawnSettings;
+  }
+
   get mobs() {
     return this.game?.mobs?.mobs ?? [];
   }

@@ -283,8 +283,8 @@ export const SNOW_GOLEM_UV = {
   headFace: { u: 8, v: 8, w: 8, h: 8 },
   // Packed white snow, shared by the head's other faces and all three snowballs.
   snow: { u: 0, v: 8, w: 8, h: 8 },
-  // The brown stick-wood patch at the top-right of the sheet.
-  armWood: { u: 56, v: 0, w: 8, h: 8 }
+  // The brown stick-wood patch at (34, 2) of the sheet (solid bark texture with zero transparent margins).
+  armWood: { u: 34, v: 2, w: 12, h: 2 }
 };
 
 /**
@@ -329,9 +329,14 @@ export function createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, ex
     const built = createTexturedBox(w, h, d, faceSpec, texW, texH);
     return new THREE.Mesh(built.geometry, built.materials);
   };
+  const armMaterial = materials.armWood || materials.shadow;
   const snowAll = (rect) => [
     [materials.snow, rect], [materials.snow, rect], [materials.snow, rect],
     [materials.snow, rect], [materials.snow, rect], [materials.snow, rect]
+  ];
+  const woodAll = (rect) => [
+    [armMaterial, rect], [armMaterial, rect], [armMaterial, rect],
+    [armMaterial, rect], [armMaterial, rect], [armMaterial, rect]
   ];
 
   const lower = box(0.7, 0.55, 0.7, snowAll(SNOW_GOLEM_UV.snow));
@@ -381,12 +386,16 @@ export function createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, ex
   pumpkin.add(shell);
   head.add(pumpkin);
 
-  // Stick arms, taken from the brown strip at the top-right of the golem's own skin.
+  // Stick arms, firmly attached to the middle snowball body.
   const arms = [];
   for (const side of [-1, 1]) {
-    const arm = box(0.08, 0.08, 0.62, snowAll(SNOW_GOLEM_UV.armWood));
-    if (!createTexturedBox) arm.material = materials.shadow;
-    arm.position.set(side * 0.4, 0.95, 0);
+    const armFaces = materials.armWood ? [
+      [armMaterial, null], [armMaterial, null], [armMaterial, null],
+      [armMaterial, null], [armMaterial, null], [armMaterial, null]
+    ] : woodAll(SNOW_GOLEM_UV.armWood);
+    const arm = box(0.08, 0.08, 0.62, armFaces);
+    if (!createTexturedBox) arm.material = armMaterial;
+    arm.position.set(side * 0.34, 0.88, 0.04);
     group.add(arm);
     arms.push(arm);
   }

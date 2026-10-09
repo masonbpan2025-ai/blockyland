@@ -19,6 +19,7 @@
 // `HONEY_LEVEL_SECONDS` while at least one bee is homed to the hive and nearby. That is stated here rather
 // than hidden.
 import { BLOCKS, ITEMS } from './blocks.js';
+import { hasCampfireBelow, rollBeeAngerSeconds } from './beeBehavior.js';
 
 /** Levels a hive fills through. Vanilla calls this `honey_level`. */
 export const HONEY_LEVEL_MAX = 5;
@@ -167,6 +168,26 @@ export class HiveManager {
 
     hive.level = 0;
     hive.timer = 0;
+
+    // Wiki: harvesting without a campfire below (within 5 blocks) angers all nearby bees within 24 blocks
+    const pacified = hasCampfireBelow(this.game?.world, x, y, z);
+    if (!pacified) {
+      const bees = this.game?.mobs?.mobs ?? [];
+      for (const mob of bees) {
+        if (mob?.type === 'bee' && mob.health > 0) {
+          const pos = mob.mesh?.position;
+          if (!pos) continue;
+          const dx = pos.x - (x + 0.5);
+          const dy = pos.y - (y + 0.5);
+          const dz = pos.z - (z + 0.5);
+          if (Math.hypot(dx, dy, dz) <= 24) {
+            mob.angerTimer = Math.max(mob.angerTimer || 0, rollBeeAngerSeconds());
+            mob.angryAt = player;
+          }
+        }
+      }
+    }
+
     return { ok: true, product, level: 0 };
   }
 }

@@ -276,62 +276,52 @@ const FROG_MODEL = {
 };
 
 export function createFrogModel(bodyMat, bellyMat, eyeMat, options = {}) {
-  // The real decompiled frog. Its tongue and all four hands and feet are FLAT, so this needs `plane` parts and a
-  // texture; without a skin the old flat build is used so the mob still renders in a build with no assets.
-  if (options.texture) {
-    const built = buildModel(FROG_MODEL, {
-      materials: { default: bodyMat, belly: bellyMat, eye: eyeMat },
-      textureContext: { texW: 48, texH: 48 },
-      texture: options.texture,
-      onTextureReady: options.onTextureReady
-    });
-    const eyes = [built.parts.eyeRight, built.parts.eyeLeft].filter(Boolean);
-    const tongue = built.parts.tongue;
-    // The tongue is only visible mid-flick.
-    if (tongue) tongue.visible = false;
-    return {
-      group: built.group,
-      body: built.parts.body,
-      belly: built.parts.bodyLayer,
-      head: built.parts.head,
-      eyes,
-      tongue,
-      // Four limbs. Vanilla calls the front pair `arms` and the back pair `legs`; the jump pose below distinguishes
-      // them with `front`, which is also how the tests describe a frog: two long hind legs and two small forelegs.
-      legs: [
-        { mesh: built.parts.legLeft },
-        { mesh: built.parts.legRight },
-        { mesh: built.parts.armLeft, front: true },
-        { mesh: built.parts.armRight, front: true }
-      ].filter((l) => l.mesh),
-      parts: built.parts
-    };
-  }
-
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.46), bodyMat);
-  body.position.set(0, 0.24, 0);
+  // Squat frog body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.46), bodyMat);
+  body.position.set(0, 0.22, 0);
   group.add(body);
 
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.4), bellyMat);
-  belly.position.set(0, 0.15, 0.02);
+  // Pale belly underneath
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.10, 0.40), bellyMat);
+  belly.position.set(0, 0.13, 0.02);
   group.add(belly);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.24, 0.32), bodyMat);
-  head.position.set(0, 0.3, 0.36);
+  // Broad head with throat
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.22, 0.32), bodyMat);
+  head.position.set(0, 0.27, 0.34);
   group.add(head);
 
-  // Bulging eyes on top of the head, which is the frog's silhouette.
-  const eyeGeo = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+  // Pale chin / throat underside
+  const chin = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.26), bellyMat);
+  chin.position.set(0, -0.09, 0.02);
+  head.add(chin);
+
+  // Bulging eyes with eyelid socket and horizontal pupils
+  const eyeStalkGeo = new THREE.BoxGeometry(0.12, 0.11, 0.12);
+  const pupilGeo = new THREE.BoxGeometry(0.08, 0.06, 0.02);
+  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x18181b });
+  const irisMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+
   const eyes = [-1, 1].map((side) => {
-    const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.11, 0.14, 0.06);
+    // Eyelid / socket in body color
+    const eye = new THREE.Mesh(eyeStalkGeo, bodyMat);
+    eye.position.set(side * 0.13, 0.13, 0.06);
+    // Amber iris on front face
+    const iris = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.02), irisMat);
+    iris.position.set(0, 0, 0.06);
+    eye.add(iris);
+    // Dark horizontal pupil slit
+    const pupil = new THREE.Mesh(pupilGeo, eyeMat || pupilMat);
+    pupil.position.set(0, 0, 0.07);
+    eye.add(pupil);
+
     head.add(eye);
     return eye;
   });
 
-  // The tongue, hidden until a flick is in progress.
+  // The tongue, hidden until a flick is in progress
   const tongue = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.05, 0.3),
     new THREE.MeshLambertMaterial({ color: 0xf472b6 })
@@ -340,21 +330,34 @@ export function createFrogModel(bodyMat, bellyMat, eyeMat, options = {}) {
   tongue.visible = false;
   head.add(tongue);
 
-  // Long folded hind legs, which is what makes a frog read as a jumper rather than a walker.
+  // Long folded hind legs with webbed feet
   const hindGeo = new THREE.BoxGeometry(0.14, 0.12, 0.34);
+  const footGeo = new THREE.BoxGeometry(0.16, 0.02, 0.16);
   const legs = [];
   for (const side of [-1, 1]) {
     const hind = new THREE.Mesh(hindGeo, bodyMat);
-    hind.position.set(side * 0.2, 0.14, -0.16);
-    hind.rotation.y = side * 0.5;
+    hind.position.set(side * 0.20, 0.14, -0.16);
+    hind.rotation.y = side * 0.45;
+
+    const foot = new THREE.Mesh(footGeo, bodyMat);
+    foot.position.set(0, -0.06, 0.10);
+    hind.add(foot);
+
     group.add(hind);
     legs.push({ mesh: hind, side, front: false });
   }
-  // Small front legs.
-  const foreGeo = new THREE.BoxGeometry(0.09, 0.2, 0.09);
+
+  // Small forelegs with webbed hands
+  const foreGeo = new THREE.BoxGeometry(0.09, 0.20, 0.09);
+  const handGeo = new THREE.BoxGeometry(0.13, 0.02, 0.13);
   for (const side of [-1, 1]) {
     const fore = new THREE.Mesh(foreGeo, bodyMat);
-    fore.position.set(side * 0.13, 0.1, 0.28);
+    fore.position.set(side * 0.14, 0.10, 0.26);
+
+    const hand = new THREE.Mesh(handGeo, bodyMat);
+    hand.position.set(0, -0.09, 0.04);
+    fore.add(hand);
+
     group.add(fore);
     legs.push({ mesh: fore, side, front: true });
   }

@@ -354,15 +354,39 @@ export function breezeXp(mob) {
  * The rods and the wind overlay are what make the silhouette read as a breeze rather than a small
  * humanoid, and they are the parts the wiki says stay visible under Invisibility.
  */
+function applyBreezeBoxUVs(geo, u, v, tw, th, td) {
+  const faces = [
+    { x: u + td + tw, y: v + td, w: td, h: th },
+    { x: u, y: v + td, w: td, h: th },
+    { x: u + td, y: v, w: tw, h: td },
+    { x: u + td + tw, y: v, w: tw, h: td },
+    { x: u + td, y: v + td, w: tw, h: th },
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+  ];
+  const uvs = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = faces[f];
+    const u0 = r.x / 32, u1 = (r.x + r.w) / 32;
+    const v1 = 1 - r.y / 32, v0 = 1 - (r.y + r.h) / 32;
+    const b = f * 4;
+    uvs.setXY(b + 0, u0, v1); uvs.setXY(b + 1, u1, v1);
+    uvs.setXY(b + 2, u0, v0); uvs.setXY(b + 3, u1, v0);
+  }
+  uvs.needsUpdate = true;
+  return geo;
+}
+
 export function createBreezeModel(bodyMat, rodMat, windMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), bodyMat);
+  const bodyGeo = applyBreezeBoxUVs(new THREE.BoxGeometry(0.5, 0.6, 0.5), 8, 0, 2, 4, 2);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.95;
   group.add(body);
 
-  // The head sits low and forward, with the glowing eyes the wiki calls out.
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.42), bodyMat);
+  // The head sits low and forward, mapped with the authentic head UV (0, 0, 8, 8, 8)
+  const headGeo = applyBreezeBoxUVs(new THREE.BoxGeometry(0.42, 0.4, 0.42), 0, 0, 8, 8, 8);
+  const head = new THREE.Mesh(headGeo, bodyMat);
   head.position.set(0, 1.35, 0.05);
   group.add(head);
 
@@ -384,9 +408,11 @@ export function createBreezeModel(bodyMat, rodMat, windMat, eyeMat) {
   }
 
   // Four vertical rods under the body, which is the breeze's signature silhouette.
+  // Mapped with the authentic rod UV (0, 19, 2, 6, 2)
   const rods = [];
   for (const [rx, rz] of [[-0.16, 0.16], [0.16, 0.16], [-0.16, -0.16], [0.16, -0.16]]) {
-    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.62, 0.09), rodMat);
+    const rodGeo = applyBreezeBoxUVs(new THREE.BoxGeometry(0.09, 0.62, 0.09), 0, 19, 2, 6, 2);
+    const rod = new THREE.Mesh(rodGeo, rodMat);
     rod.position.set(rx, 0.34, rz);
     group.add(rod);
     rods.push(rod);

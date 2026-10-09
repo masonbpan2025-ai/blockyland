@@ -31,8 +31,8 @@ function applyPreset(t, id) {
 }
 
 /** Everything a preset could plausibly change, for an exact before/after comparison. */
-function snapshot() {
-  const plains = BIOMES.plains;
+function snapshot(biome = 'plains') {
+  const plains = BIOMES[biome];
   return {
     baseHeight: plains.baseHeight,
     heightScale: plains.heightScale,
@@ -43,10 +43,12 @@ function snapshot() {
     treeDensity: plains.treeDensity,
     floraDensity: plains.floraDensity,
     fogColor: plains.fogColor,
-    monsters: biomeSpawnsFor('plains', MobCategory.MONSTER).map(e => `${e.type}:${e.weight}`).join(','),
-    creatures: biomeSpawnsFor('plains', MobCategory.CREATURE).map(e => `${e.type}:${e.weight}`).join(','),
-    monsterCount: biomeSpawnsFor('plains', MobCategory.MONSTER).length,
-    creatureCount: biomeSpawnsFor('plains', MobCategory.CREATURE).length,
+    spawnSettings: JSON.stringify(plains.spawnSettings),
+    aquatic: JSON.stringify(biomeSpawnsFor(biome, MobCategory.WATER_AMBIENT)),
+    monsters: biomeSpawnsFor(biome, MobCategory.MONSTER).map(e => `${e.type}:${e.weight}`).join(','),
+    creatures: biomeSpawnsFor(biome, MobCategory.CREATURE).map(e => `${e.type}:${e.weight}`).join(','),
+    monsterCount: biomeSpawnsFor(biome, MobCategory.MONSTER).length,
+    creatureCount: biomeSpawnsFor(biome, MobCategory.CREATURE).length,
     // DENSITY, not species count. A pack can narrow the cast while raising the rate -- Beast Wilds
     // does exactly that -- so the count is the wrong measure of "more monsters".
     monsterWeight: totalWeight(MobCategory.MONSTER),
@@ -68,12 +70,12 @@ function differences(a, b) {
 
 // --- the list itself ------------------------------------------------------------------------------------
 
-test('there are ten presets, each with a name that states its property', (t) => {
-  assert.equal(GENERATION_PRESETS.length, 10, 'the menu lists ten');
+test('the catalog includes world-wide and biome-focused presets with descriptive names', (t) => {
+  assert.ok(GENERATION_PRESETS.length >= 16, 'ten original packs and six biome-focused packs');
   const ids = GENERATION_PRESETS.map(p => p.id);
-  assert.equal(new Set(ids).size, 10, 'every id is unique');
+  assert.equal(new Set(ids).size, GENERATION_PRESETS.length, 'every id is unique');
   const names = GENERATION_PRESETS.map(p => p.name);
-  assert.equal(new Set(names).size, 10, 'and every name is unique');
+  assert.equal(new Set(names).size, GENERATION_PRESETS.length, 'and every name is unique');
   for (const preset of GENERATION_PRESETS) {
     assert.match(preset.id, /^[a-z][a-z0-9_]*$/, preset.id + ' is a usable id');
     assert.ok(preset.name.length >= 3, preset.id + ' has a name');
@@ -87,7 +89,7 @@ test('there are ten presets, each with a name that states its property', (t) => 
 test('the names are distinct enough to choose between', (t) => {
   // A menu of ten near-synonyms is not a choice. Comparing the property lines catches that.
   const properties = GENERATION_PRESETS.map(p => p.property.toLowerCase());
-  assert.equal(new Set(properties).size, 10, 'no two presets claim the same thing');
+  assert.equal(new Set(properties).size, GENERATION_PRESETS.length, 'no two presets claim the same thing');
 });
 
 test('the default preset is the first one, so the menu and the code agree', (t) => {
@@ -99,7 +101,7 @@ test('the default preset is the first one, so the menu and the code agree', (t) 
 
 test('the menu list carries what a dropdown needs', (t) => {
   const list = generationPresetList();
-  assert.equal(list.length, 10);
+  assert.equal(list.length, GENERATION_PRESETS.length);
   for (const entry of list) {
     assert.ok(entry.id && entry.name && entry.emoji && entry.property && entry.blurb);
     assert.equal(typeof entry.structureCount, 'number');
@@ -135,12 +137,12 @@ test('every structure a preset names is one the engine can actually build', (t) 
 
 test('every preset changes at least two things about the world', (t) => {
   // The point of the whole feature. One change would be a switch, not a world pack.
-  const baseline = snapshot();
   for (const preset of GENERATION_PRESETS) {
+    const baseline = snapshot(preset.biomes[0]);
     const built = buildPresetPack(preset.id);
     const applied = applyDataPack(mergePacks([createDataPack({ name: built.name, files: built.files })]),
       { name: built.name });
-    const after = snapshot();
+    const after = snapshot(preset.biomes[0]);
     revertDataPack(applied);
     resetTagRegistry();
     const changed = differences(baseline, after);
@@ -151,13 +153,13 @@ test('every preset changes at least two things about the world', (t) => {
 
 test('no two presets change the world in the same way', (t) => {
   // Ten presets that all do the same thing would be one preset and nine decoys.
-  const baseline = snapshot();
   const signatures = new Map();
   for (const preset of GENERATION_PRESETS) {
+    const baseline = snapshot(preset.biomes[0]);
     const built = buildPresetPack(preset.id);
     const applied = applyDataPack(mergePacks([createDataPack({ name: built.name, files: built.files })]),
       { name: built.name });
-    const after = snapshot();
+    const after = snapshot(preset.biomes[0]);
     revertDataPack(applied);
     resetTagRegistry();
     const signature = differences(baseline, after).map(k => `${k}=${after[k]}`).sort().join('|');
@@ -207,7 +209,8 @@ test('Lush Havens really does put those mobs in the world, not just in a table',
   const biome = world.getBiome(0, 0);
   const creatures = biomeSpawnsFor(biome, MobCategory.CREATURE);
   assert.ok(creatures.length > 0, `the spawn biome (${biome}) has passive creatures`);
-  assert.ok(creatures.some(e => e.weight >= 40), 'and they are weighted to be common');
+  assert.ok(BIOMES[biome].spawnSettings.generation.creature.probability >= 0.8,
+    'density is a population probability, not the sum of relative species weights');
 });
 
 test('the structure-rich presets really do change what the planner places', (t) => {

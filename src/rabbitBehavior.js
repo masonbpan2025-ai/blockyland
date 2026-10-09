@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
+import { createBoxFromFaces } from './mobVisuals/entityBox.js';
 
 /**
  * Rabbit rules and model.
@@ -45,6 +47,18 @@ export const RABBIT_COATS = ['brown', 'white', 'black', 'white_splotched', 'gold
 
 /** Wiki: `RabbitType: 99` is The Killer Bunny. */
 export const KILLER_BUNNY_TYPE = 99;
+
+/** The vanilla sheet each rabbit coat wears, where one exists on disk. A coat IS its texture. */
+export const RABBIT_SKIN_PATHS = {
+  brown: '/assets/entity/rabbit/brown.png',
+  white: '/assets/entity/rabbit/white.png',
+  black: '/assets/entity/rabbit/black.png',
+  white_splotched: '/assets/entity/rabbit/white_splotched.png',
+  gold: '/assets/entity/rabbit/gold.png',
+  salt: '/assets/entity/rabbit/salt.png',
+  toast: '/assets/entity/rabbit/toast.png',
+  killer: '/assets/entity/rabbit/caerbannog.png'
+};
 
 /** Body colour per coat, with the two-tone coats expressed as a base and a patch. */
 export const RABBIT_COAT_COLORS = {
@@ -122,14 +136,30 @@ export function applyRabbitName(mob) {
 export function applyRabbitCoat(mob) {
   if (!isRabbit(mob)) return;
   const colors = RABBIT_COAT_COLORS[mob.coat] ?? RABBIT_COAT_COLORS.brown;
-  mob.bodyMat?.color?.setHex(colors.base);
+  // The coat IS its sheet where one exists: naming a rabbit "Toast" re-textures it, so a colour change would be
+  // invisible against the bound map. The colour stays as the fallback for coats with no sheet yet.
+  const coatPath = RABBIT_SKIN_PATHS[mob.coat];
+  const coatSkin = coatPath && mob.skinManager?.loadTexture ? mob.skinManager.loadTexture(coatPath) : null;
+  if (coatSkin) {
+    const fixAtlas = () => {
+      if (coatSkin.image && coatSkin.image.height > 32 && coatSkin.image.width === 64) {
+        const factor = 32 / coatSkin.image.height;
+        coatSkin.repeat.set(1, factor);
+        coatSkin.offset.set(0, 1 - factor);
+        coatSkin.needsUpdate = true;
+      }
+    };
+    if (coatSkin.image?.height) fixAtlas();
+    else coatSkin.image?.addEventListener?.('load', fixAtlas);
+  }
+  if (coatSkin && mob.bodyMat) adoptWhenReady(mob.bodyMat, coatSkin, colors.base);
+  else mob.bodyMat?.color?.setHex(colors.base);
   mob.patchMat?.color?.setHex(colors.patch);
   mob.eyeMat?.color?.setHex(colors.eye);
   // Emissive eyes only for the coats the wiki gives a glowing or hollow look.
-  if (mob.eyeMat) mob.eyeMat.color.setHex(colors.eye);
   if (mob.patchMesh) {
-    // Solid coats hide the patch so the silhouette matches the wiki's single-colour rabbits.
-    mob.patchMesh.visible = ['white_splotched', 'salt', 'toast'].includes(mob.coat);
+    // Legacy box kept for model compatibility; canonical textures render coat patterns directly.
+    mob.patchMesh.visible = false;
   }
 }
 
@@ -272,69 +302,140 @@ export function onKillerBunnyHurt(mob, seconds = 1.5) {
 }
 
 /**
- * Rabbit model: a small hunched body with long ears, a round tail and large hind feet.
+ * UV face unwrap for vanilla 64x32 rabbit texture atlas.
+ */
+function rabbitFaces(u, v, tw, th, td) {
+  return [
+    { x: u, y: v + td, w: td, h: th },                  // +X (right)
+    { x: u + td + tw, y: v + td, w: td, h: th },        // -X (left)
+    { x: u + td, y: v, w: tw, h: td },                  // +Y (top)
+    { x: u + td + tw, y: v, w: tw, h: td },             // -Y (bottom)
+    { x: u + td, y: v + td, w: tw, h: th },             // +Z (front)
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }    // -Z (back)
+  ];
+}
+
+function rabbitBoxGeo(w, h, d, u, v, tw, th, td) {
+  return createBoxFromFaces(w, h, d, rabbitFaces(u, v, tw, th, td), { texW: 64, texH: 32 });
+}
+
+/**
+ * Rabbit model: vanilla-accurate geometry and UV mapping from RabbitEntityModel (class_596).
  *
- * The wiki notes rabbits hop rather than walk, so the hind legs are modelled longer than the
- * front pair and the whole body tilts with the hop cycle.
+ * Atlas is 64x32:
+ *   body: 6x5x10 at (0, 0)
+ *   head: 5x4x5 at (32, 0), nose 1x1x1 at (32, 9)
+ *   right ear: 2x5x1 at (52, 0), left ear: 2x5x1 at (58, 0)
+ *   tail: 3x3x2 at (52, 6)
+ *   front legs: 2x7x2 at (0, 15) right, (8, 15) left
+ *   haunches: 2x4x5 at (16, 15) right, (30, 15) left
+ *   hind feet: 2x1x7 at (8, 24) right, (26, 24) left
  */
 export function createRabbitModel(bodyMat, patchMat, eyeMat) {
   const group = new THREE.Group();
 
-  // Hunched body.
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.34), bodyMat);
+  // Hunched body: 6x5x10 at (0, 0) on 64x32 atlas.
+  const bodyGeo = rabbitBoxGeo(0.24, 0.20, 0.36, 0, 0, 6, 5, 10);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, 0.16, -0.02);
+  body.rotation.x = -Math.PI / 9;
   group.add(body);
 
   // The patch, used by the two-tone coats.
   const patchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.16, 0.12), patchMat);
   patchMesh.position.set(0, 0.17, 0.1);
+  patchMesh.visible = false;
   group.add(patchMesh);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.16), patchMat);
-  head.position.set(0, 0.2, 0.2);
+  // Head: 5x4x5 at (32, 0) on 64x32 atlas.
+  const headGeo = rabbitBoxGeo(0.20, 0.16, 0.20, 32, 0, 5, 4, 5);
+  const head = new THREE.Mesh(headGeo, bodyMat);
+  head.position.set(0, 0.20, 0.14);
   group.add(head);
 
-  // Eyes on the sides of the head, as the wiki model has them.
-  const eyeGeo = new THREE.BoxGeometry(0.03, 0.03, 0.02);
+  // Nose: 1x1x1 at (32, 9).
+  const noseGeo = rabbitBoxGeo(0.04, 0.04, 0.04, 32, 9, 1, 1, 1);
+  const nose = new THREE.Mesh(noseGeo, bodyMat);
+  nose.position.set(0, -0.03, 0.105);
+  head.add(nose);
+
+  // Eyes on the sides of the head.
+  const eyeGeo = new THREE.BoxGeometry(0.002, 0.02, 0.02);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.085, 0.02, 0.02);
+    eye.position.set(side * 0.101, 0.01, 0.02);
     head.add(eye);
     return eye;
   });
 
-  // The long ears, which are the rabbit's defining silhouette.
-  const earGeo = new THREE.BoxGeometry(0.05, 0.24, 0.03);
-  const ears = [];
-  for (const side of [-1, 1]) {
-    const ear = new THREE.Mesh(earGeo, bodyMat);
-    ear.position.set(side * 0.05, 0.19, -0.03);
-    ear.rotation.z = side * 0.14;
-    ear.rotation.x = -0.2;
-    head.add(ear);
-    ears.push(ear);
-  }
+  // Long ears: right 2x5x1 at (52, 0), left 2x5x1 at (58, 0).
+  const rightEarGeo = rabbitBoxGeo(0.06, 0.20, 0.03, 52, 0, 2, 5, 1);
+  const rightEar = new THREE.Mesh(rightEarGeo, bodyMat);
+  rightEar.position.set(-0.045, 0.17, -0.01);
+  rightEar.rotation.y = -Math.PI / 12;
+  rightEar.rotation.x = -0.15;
+  head.add(rightEar);
 
-  // Round tail tuft.
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.05), patchMat);
-  tail.position.set(0, 0.17, -0.2);
+  const leftEarGeo = rabbitBoxGeo(0.06, 0.20, 0.03, 58, 0, 2, 5, 1);
+  const leftEar = new THREE.Mesh(leftEarGeo, bodyMat);
+  leftEar.position.set(0.045, 0.17, -0.01);
+  leftEar.rotation.y = Math.PI / 12;
+  leftEar.rotation.x = -0.15;
+  head.add(leftEar);
+
+  const ears = [rightEar, leftEar];
+
+  // Tail: 3x3x2 at (52, 6).
+  const tailGeo = rabbitBoxGeo(0.10, 0.10, 0.07, 52, 6, 3, 3, 2);
+  const tail = new THREE.Mesh(tailGeo, bodyMat);
+  tail.position.set(0, 0.17, -0.21);
+  tail.rotation.x = -0.35;
   group.add(tail);
 
-  // Front legs (short) and hind legs (long), because a rabbit hops rather than walks.
-  const frontGeo = new THREE.BoxGeometry(0.05, 0.1, 0.05);
-  const hindGeo = new THREE.BoxGeometry(0.06, 0.15, 0.09);
-  const legs = [];
-  for (const side of [-1, 1]) {
-    const front = new THREE.Mesh(frontGeo, bodyMat);
-    front.position.set(side * 0.07, 0.05, 0.12);
-    group.add(front);
-    legs.push({ mesh: front, side, hind: false, baseY: 0.05 });
+  // Front legs (short): 2x7x2 at (0, 15) right, (8, 15) left.
+  const rfGeo = rabbitBoxGeo(0.06, 0.14, 0.06, 0, 15, 2, 7, 2);
+  const rf = new THREE.Mesh(rfGeo, bodyMat);
+  rf.position.set(-0.065, 0.07, 0.10);
+  rf.rotation.x = -Math.PI / 18;
+  group.add(rf);
 
-    const hind = new THREE.Mesh(hindGeo, bodyMat);
-    hind.position.set(side * 0.08, 0.075, -0.12);
-    group.add(hind);
-    legs.push({ mesh: hind, side, hind: true, baseY: 0.075 });
-  }
+  const lfGeo = rabbitBoxGeo(0.06, 0.14, 0.06, 8, 15, 2, 7, 2);
+  const lf = new THREE.Mesh(lfGeo, bodyMat);
+  lf.position.set(0.065, 0.07, 0.10);
+  lf.rotation.x = -Math.PI / 18;
+  group.add(lf);
+
+  // Hind legs (long): haunches 2x4x5 at (16, 15) right, (30, 15) left; feet 2x1x7 at (8, 24) right, (26, 24) left.
+  const rhHaunchGeo = rabbitBoxGeo(0.06, 0.12, 0.16, 16, 15, 2, 4, 5);
+  const rhHaunch = new THREE.Mesh(rhHaunchGeo, bodyMat);
+  rhHaunch.position.set(-0.08, 0.075, -0.12);
+  rhHaunch.rotation.x = -Math.PI / 9;
+
+  const rhFootGeo = rabbitBoxGeo(0.06, 0.035, 0.22, 8, 24, 2, 1, 7);
+  const rhFoot = new THREE.Mesh(rhFootGeo, bodyMat);
+  rhFoot.position.set(0, -0.045, 0.04);
+  rhFoot.rotation.x = Math.PI / 9;
+  rhHaunch.add(rhFoot);
+  group.add(rhHaunch);
+
+  const lhHaunchGeo = rabbitBoxGeo(0.06, 0.12, 0.16, 30, 15, 2, 4, 5);
+  const lhHaunch = new THREE.Mesh(lhHaunchGeo, bodyMat);
+  lhHaunch.position.set(0.08, 0.075, -0.12);
+  lhHaunch.rotation.x = -Math.PI / 9;
+
+  const lhFootGeo = rabbitBoxGeo(0.06, 0.035, 0.22, 26, 24, 2, 1, 7);
+  const lhFoot = new THREE.Mesh(lhFootGeo, bodyMat);
+  lhFoot.position.set(0, -0.045, 0.04);
+  lhFoot.rotation.x = Math.PI / 9;
+  lhHaunch.add(lhFoot);
+  group.add(lhHaunch);
+
+  const legs = [
+    { mesh: rf, side: -1, hind: false, baseY: 0.07 },
+    { mesh: lf, side: 1, hind: false, baseY: 0.07 },
+    { mesh: rhHaunch, side: -1, hind: true, baseY: 0.075 },
+    { mesh: lhHaunch, side: 1, hind: true, baseY: 0.075 }
+  ];
 
   return { group, head, body, patchMesh, tail, ears, legs, eyes };
 }
@@ -349,7 +450,7 @@ export function poseRabbitHop(rabbit, phase, airborne = false) {
   for (const leg of legs) {
     const swing = Math.sin(phase + (leg.hind ? Math.PI : 0));
     leg.mesh.position.y = leg.baseY + tuck * 0.04 + Math.abs(swing) * 0.02;
-    leg.mesh.rotation.x = (leg.hind ? -0.5 : 0.3) * tuck + swing * 0.15;
+    leg.mesh.rotation.x = (leg.hind ? -Math.PI / 9 - 0.4 * tuck : -Math.PI / 18 + 0.3 * tuck) + swing * 0.15;
   }
-  if (rabbit.body) rabbit.body.rotation.x = -tuck * 0.18;
+  if (rabbit.body) rabbit.body.rotation.x = -Math.PI / 9 - tuck * 0.18;
 }

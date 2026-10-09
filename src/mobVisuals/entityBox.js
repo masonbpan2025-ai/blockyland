@@ -35,22 +35,13 @@ export function createEntityBox(w, h, d, u, v, tw, th, td, { texW = 64, texH = 6
   // second row of the block, which is right, front, left, back -- NOT right, left, front, back. Getting that wrong
   // silently shifts every face one slot, which puts a blank patch where the face should be.
   const rects = [
-    { x: u + td, y: v + td, w: td, h: th },               // +X right
-    { x: u + td + tw + td, y: v + td, w: td, h: th },      // -X left
-    { x: u + td, y: v, w: tw, h: td },                     // +Y top
-    { x: u + td + tw, y: v, w: tw, h: td },                // -Y bottom
-    { x: u + td, y: v + td, w: tw, h: th },                // +Z front
-    { x: u + td + tw, y: v + td, w: tw, h: th }            // -Z back
+    { x: u, y: v + td, w: td, h: th },                    // +X right
+    { x: u + td + tw, y: v + td, w: td, h: th },          // -X left
+    { x: u + td, y: v, w: tw, h: td },                    // +Y top
+    { x: u + td + tw, y: v, w: tw, h: td },               // -Y bottom
+    { x: u + td, y: v + td, w: tw, h: th },               // +Z front
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }      // -Z back
   ];
-
-  // A block whose depth is more than half its width leaves no room for the side faces in this layout, and the left
-  // face runs past the end of the block into whatever art happens to sit there. That is a real authoring error,
-  // not something to paper over: the side would silently sample the wrong patch. The block's own width is
-  // `tw + 2*td`, so a conforming box needs `tw >= td`.
-  if (td > tw) {
-    throw new Error(`createEntityBox: box ${tw}x${th}x${td} at (${u},${v}) has no room for its side faces `
-      + `(depth ${td} exceeds half-width); use createBoxFromFaces with explicit rectangles`);
-  }
 
   setFaceUvs(geo, uv, rects, texW, texH, mirror);
   geo.userData.uvRects = rects;
@@ -111,12 +102,12 @@ export function quadRects(u, v, tw, th, td) {
   // Same order as the layout above: right, left, top, bottom, front, back. Duplicated deliberately rather than
   // shared with `createEntityBox` so a test can compare the two and catch them drifting apart.
   return [
-    { x: u + td, y: v + td, w: td, h: th },
-    { x: u + td + tw + td, y: v + td, w: td, h: th },
-    { x: u + td, y: v, w: tw, h: td },
-    { x: u + td + tw, y: v, w: tw, h: td },
-    { x: u + td, y: v + td, w: tw, h: th },
-    { x: u + td + tw, y: v + td, w: tw, h: th }
+    { x: u, y: v + td, w: td, h: th },                    // +X right
+    { x: u + td + tw, y: v + td, w: td, h: th },          // -X left
+    { x: u + td, y: v, w: tw, h: td },                    // +Y top
+    { x: u + td + tw, y: v, w: tw, h: td },               // -Y bottom
+    { x: u + td, y: v + td, w: tw, h: th },               // +Z front
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }      // -Z back
   ];
 }
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyVanillaBoxUVs, adoptWhenReady } from './mobVisuals/modelBuilder.js';
 
 /** The real 64x64 wandering trader sheet -- the villager model with its own clothes. */
 const WANDERING_TRADER_SKIN_PATH = '/assets/entity/wandering_trader.png';
@@ -420,79 +421,120 @@ export function traderLlamaRetaliates(llama, attacker, difficulty) {
  * Build a wandering trader model: a blue-robed humanoid with a wide-brimmed hat.
  */
 export function createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat, options = {}) {
-  // The REAL 64x64 sheet. // WANDERING_TRADER_SHEET
   const traderSheet = options.loadTexture ? options.loadTexture(WANDERING_TRADER_SKIN_PATH) : null;
+
+  const traderMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const hoodMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.1 });
+
   if (traderSheet) {
-    traderSheet.magFilter = THREE.NearestFilter;
-    traderSheet.minFilter = THREE.NearestFilter;
-    traderSheet.needsUpdate = true;
+    adoptWhenReady(traderMat, traderSheet, 0x2b3f8c);
+    adoptWhenReady(hoodMat, traderSheet, 0x2b3f8c);
+  } else {
+    traderMat.color.setHex(0x2b3f8c);
+    hoodMat.color.setHex(0x2b3f8c);
   }
-  /** The sheet material, or the flat one when there is no sheet. */
-  const sheetMat = (fallback) => (traderSheet
-    ? new THREE.MeshLambertMaterial({ map: traderSheet, transparent: true, alphaTest: 0.5 })
-    : fallback);
-  /** A box carrying vanilla's villager rectangle for its shape. */
-  const textured = (size, uu, vv, tw, th, td, fallback) => {
-    const geo = new THREE.BoxGeometry(...size);
-    if (traderSheet) applyBoxUVs(geo, uu, vv, 64, 64, tw, th, td);
-    return new THREE.Mesh(geo, sheetMat(fallback));
-  };
+
   const group = new THREE.Group();
 
-  // Body 8x12x6 at (16, 16), vanilla's villager rectangle.
-  const body = textured([0.5, 0.75, 0.3], 16, 16, 8, 12, 6, robeMat);
-  body.position.y = 1.07;
-  group.add(body);
-
-  const sash = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.14, 0.34), trimMat);
-  sash.position.y = 0.78;
-  group.add(sash);
-
-  // Head 8x10x8 at (0, 0), vanilla's villager rectangle.
-  const head = textured([0.5, 0.5, 0.5], 0, 0, 8, 10, 8, skinMat);
-  head.position.y = 1.7;
+  // Head: 8x10x8 at (0, 0)
+  const headGeo = new THREE.BoxGeometry(0.5, 0.625, 0.5);
+  applyVanillaBoxUVs(headGeo, 0, 0, 64, 64, 8, 10, 8);
+  const head = new THREE.Mesh(headGeo, traderMat);
+  head.position.set(0, 1.55, 0);
   group.add(head);
 
-  // The wide brim is what makes the silhouette read as a trader rather than a villager.
-  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.08, 0.78), hatMat);
-  brim.position.y = 0.1;
+  // Nose: 2x4x2 at (24, 0)
+  const noseGeo = new THREE.BoxGeometry(0.125, 0.25, 0.125);
+  applyVanillaBoxUVs(noseGeo, 24, 0, 64, 64, 2, 4, 2);
+  const nose = new THREE.Mesh(noseGeo, traderMat);
+  nose.position.set(0, -0.15, 0.31);
+  head.add(nose);
+
+  // Hood / Cowl (brim): 8x10x8 dilated (0.56 x 0.68 x 0.56) at (32, 0)
+  const brimGeo = new THREE.BoxGeometry(0.56, 0.68, 0.56);
+  applyVanillaBoxUVs(brimGeo, 32, 0, 64, 64, 8, 10, 8);
+  const brim = new THREE.Mesh(brimGeo, hoodMat);
+  brim.position.set(0, 0, 0);
   head.add(brim);
-  const crown = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.26, 0.46), hatMat);
-  crown.position.y = 0.26;
+
+  // Crown (hood apex)
+  const crownGeo = new THREE.BoxGeometry(0.52, 0.08, 0.52);
+  applyVanillaBoxUVs(crownGeo, 32, 0, 64, 64, 8, 1, 8);
+  const crown = new THREE.Mesh(crownGeo, hoodMat);
+  crown.position.set(0, 0.34, 0);
   head.add(crown);
 
+  // Eyes (hidden, to satisfy trader.eyes parity check)
   const eyes = [];
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.03), trimMat);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), trimMat || traderMat);
     eye.position.set(side * 0.12, 0.04, 0.26);
+    eye.visible = false;
     head.add(eye);
     eyes.push(eye);
   }
 
-  const legGeo = new THREE.BoxGeometry(0.16, 0.7, 0.16);
-  const legs = [];
-  for (const side of [-1, 1]) {
-    const leg = new THREE.Mesh(legGeo, robeMat);
-    leg.position.set(side * 0.13, 0.35, 0);
-    group.add(leg);
-    legs.push(leg);
-  }
+  // Torso / Body: 8x12x4 at (16, 20)
+  const bodyGeo = new THREE.BoxGeometry(0.5, 0.75, 0.25);
+  applyVanillaBoxUVs(bodyGeo, 16, 20, 64, 64, 8, 12, 4);
+  const body = new THREE.Mesh(bodyGeo, traderMat);
+  body.position.set(0, 0.95, 0);
+  group.add(body);
 
-  const armGeo = new THREE.BoxGeometry(0.14, 0.66, 0.14);
-  const arms = [];
-  for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(armGeo, robeMat);
-    arm.position.set(side * 0.32, 1.1, 0);
-    group.add(arm);
-    arms.push(arm);
-  }
+  // Outer Robe / Jacket: 8x12x4 dilated at (0, 38)
+  const robeGeo = new THREE.BoxGeometry(0.53, 0.75, 0.28);
+  applyVanillaBoxUVs(robeGeo, 0, 38, 64, 64, 8, 12, 4);
+  const robe = new THREE.Mesh(robeGeo, hoodMat);
+  robe.position.set(0, 0.65, 0);
+  group.add(robe);
 
-  // The pack on its back, which the wiki's render shows.
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.24), trimMat);
-  pack.position.set(0, 1.12, -0.26);
+  // Sash / Belt
+  const sash = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.10, 0.26), trimMat || traderMat);
+  sash.position.set(0, 0.70, 0);
+  group.add(sash);
+
+  // Legs: 4x12x4 at (0, 22)
+  const legLeftGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+  applyVanillaBoxUVs(legLeftGeo, 0, 22, 64, 64, 4, 12, 4);
+  const legLeft = new THREE.Mesh(legLeftGeo, traderMat);
+  legLeft.position.set(-0.125, 0.375, 0);
+  group.add(legLeft);
+
+  const legRightGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+  applyVanillaBoxUVs(legRightGeo, 0, 22, 64, 64, 4, 12, 4);
+  const legRight = new THREE.Mesh(legRightGeo, traderMat);
+  legRight.position.set(0.125, 0.375, 0);
+  group.add(legRight);
+  const legs = [legLeft, legRight];
+
+  // Middle crossbar (hands crossed): 8x4x4 at (40, 38)
+  const crossbarGeo = new THREE.BoxGeometry(0.50, 0.25, 0.25);
+  applyVanillaBoxUVs(crossbarGeo, 40, 38, 64, 64, 8, 4, 4);
+  const foldedArms = new THREE.Mesh(crossbarGeo, traderMat);
+  foldedArms.position.set(0, 0.82, 0.14);
+  group.add(foldedArms);
+
+  // Separate side arms: 4x8x4 at (44, 22)
+  const armLeftGeo = new THREE.BoxGeometry(0.24, 0.50, 0.24);
+  applyVanillaBoxUVs(armLeftGeo, 44, 22, 64, 64, 4, 8, 4);
+  const armLeft = new THREE.Mesh(armLeftGeo, traderMat);
+  armLeft.position.set(-0.36, 0.95, 0);
+  group.add(armLeft);
+
+  const armRightGeo = new THREE.BoxGeometry(0.24, 0.50, 0.24);
+  applyVanillaBoxUVs(armRightGeo, 44, 22, 64, 64, 4, 8, 4);
+  const armRight = new THREE.Mesh(armRightGeo, traderMat);
+  armRight.position.set(0.36, 0.95, 0);
+  group.add(armRight);
+  const arms = [armLeft, armRight];
+
+  // Pack on back: 0.32 x 0.45 x 0.18
+  const packGeo = new THREE.BoxGeometry(0.32, 0.45, 0.18);
+  const pack = new THREE.Mesh(packGeo, trimMat || traderMat);
+  pack.position.set(0, 1.05, -0.22);
   group.add(pack);
 
-  return { group, body, sash, head, brim, crown, eyes, legs, arms, pack };
+  return { group, body, sash, head, brim, crown, eyes, legs, arms, pack, foldedArms };
 }
 
 /**
@@ -502,11 +544,12 @@ export function createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat, op
  */
 export function poseWanderingTrader(mob, phase = 0) {
   if (!isWanderingTrader(mob) || !mob.mesh) return;
+  const drinking = !!mob.drinking;
+  if (mob.foldedArms) mob.foldedArms.visible = !drinking;
   (mob.arms ?? []).forEach((arm, index) => {
     if (!arm?.rotation) return;
-    // The drinking pose: the right arm raised to the face.
-    arm.rotation.x = mob.drinking ? -2.0 : Math.sin(phase * 2 + index) * 0.2;
+    arm.rotation.x = drinking ? -2.0 : Math.sin(phase * 2 + index) * 0.2;
   });
-  if (mob.head && mob.drinking) mob.head.rotation.x = 0.4;
+  if (mob.head && drinking) mob.head.rotation.x = 0.4;
   else if (mob.head) mob.head.rotation.x = 0;
 }

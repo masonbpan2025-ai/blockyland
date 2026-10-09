@@ -212,7 +212,8 @@ export class NaturalSpawner {
     // monsters: there is no per-category interval table in 1.21.4, and the `/400` cadence applies to
     // every category whose `isPersistent()` is true -- which is everything except MONSTER (plus
     // AMBIENT, which is also non-persistent).
-    const spawnPassives = this.tickCount % 400 === 0;
+    const settings = this.manager.spawnSettingsAt?.(players[0].x, players[0].z);
+    const spawnPassives = this.tickCount % (settings?.passiveInterval ?? 400) === 0;
     const spawningCategories = this.filteredCategories(state, {
       spawnFriendlies,
       spawnEnemies,
@@ -313,7 +314,8 @@ export class NaturalSpawner {
   buildState(players, force = false) {
     const cache = this.manager?.stateCache;
     const signature = signatureOf(players);
-    if (!force && cache && cache.signature === signature && this.tickCount - cache.tick < 400) {
+    const settings = this.manager.spawnSettingsAt?.(players[0]?.x, players[0]?.z);
+    if (!force && cache && cache.signature === signature && this.tickCount - cache.tick < (settings?.passiveInterval ?? 400)) {
       return cache.state;
     }
     const loadedChunkKeys = new Set(this.world.chunks.keys());
@@ -323,6 +325,7 @@ export class NaturalSpawner {
       mobs: this.manager?.mobs || [],
       localCapEnabled: this.manager?.localCapEnabled !== false,
       countPersistent: this.manager?.countPersistentInCap === true,
+      categoryCaps: this.manager.spawnSettingsAt?.(players[0]?.x, players[0]?.z)?.caps,
     });
     if (this.manager) this.manager.stateCache = { tick: this.tickCount, state, signature };
     return state;
@@ -357,6 +360,8 @@ export class NaturalSpawner {
     }
 
     const random = this.manager.random;
+    const chance = this.manager.spawnSettingsAt?.(entry.x, entry.z)?.chance?.[category] ?? 1;
+    if (chance < 1 && random.nextDouble() >= chance) return [];
     // `getRandomPosWithin`: X and Z uniform over the chunk's 16 columns, Y uniform over
     // [minY, WORLD_SURFACE + 1]. NOTE the heightmap is WORLD_SURFACE -- "the highest non-air block"
     // -- not MOTION_BLOCKING_NO_LEAVES. The per-entity heightmap is used later, by the placement

@@ -160,16 +160,13 @@ const SILVERFISH_MODEL = {
   transparent: true,
   alphaTest: 0.5,
   parts: [
-    { name: 'segment0', box: [3, 2, 2], uv: { u: 0, v: 0, tw: 3, th: 2, td: 2 }, at: [0, 22, -3.5] },
-    { name: 'segment1', box: [4, 3, 2], uv: { u: 0, v: 4, tw: 4, th: 3, td: 2 }, at: [0, 21, -1.5] },
-    { name: 'segment2', box: [6, 4, 3], uv: { u: 0, v: 9, tw: 6, th: 4, td: 3 }, at: [0, 20, 1] },
-    { name: 'segment3', box: [3, 3, 3], uv: { u: 0, v: 16, tw: 3, th: 3, td: 3 }, at: [0, 21, 4] },
-    { name: 'segment4', box: [2, 2, 3], uv: { u: 0, v: 22, tw: 2, th: 2, td: 3 }, at: [0, 22, 7] },
-    { name: 'segment5', box: [2, 1, 2], uv: { u: 11, v: 0, tw: 2, th: 1, td: 2 }, at: [0, 23, 9.5] },
-    { name: 'segment6', box: [1, 1, 2], uv: { u: 13, v: 4, tw: 1, th: 1, td: 2 }, at: [0, 23, 11.5] },
-    { name: 'layer0', box: [10, 8, 3], uv: { u: 20, v: 0, tw: 10, th: 8, td: 3 }, at: [0, 16, 1] },
-    { name: 'layer1', box: [6, 4, 3], uv: { u: 20, v: 11, tw: 6, th: 4, td: 3 }, at: [0, 20, 7] },
-    { name: 'layer2', box: [6, 5, 2], uv: { u: 20, v: 18, tw: 6, th: 5, td: 2 }, at: [0, 19, -1.5] }
+    { name: 'segment0', box: [3, 2, 2], uv: { u: 0, v: 0, tw: 3, th: 2, td: 2 }, at: [0, 1, -3.5] },
+    { name: 'segment1', box: [4, 3, 2], uv: { u: 0, v: 4, tw: 4, th: 3, td: 2 }, at: [0, 1.5, -1.5] },
+    { name: 'segment2', box: [6, 4, 3], uv: { u: 0, v: 9, tw: 6, th: 4, td: 3 }, at: [0, 2, 1] },
+    { name: 'segment3', box: [3, 3, 3], uv: { u: 0, v: 16, tw: 3, th: 3, td: 3 }, at: [0, 1.5, 4] },
+    { name: 'segment4', box: [2, 2, 3], uv: { u: 0, v: 22, tw: 2, th: 2, td: 3 }, at: [0, 1, 7] },
+    { name: 'segment5', box: [2, 1, 2], uv: { u: 11, v: 0, tw: 2, th: 1, td: 2 }, at: [0, 0.5, 9.5] },
+    { name: 'segment6', box: [1, 1, 2], uv: { u: 13, v: 4, tw: 1, th: 1, td: 2 }, at: [0, 0.5, 11.5] }
   ]
 };
 
@@ -189,36 +186,38 @@ export function createSilverfishModel(bodyMat, eyeMat, options = {}) {
     const eyeGeo = new THREE.BoxGeometry(0.035, 0.035, 0.03);
     const eyes = [-1, 1].map((side) => {
       const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(side * 0.045, 0.02, 0.08);
+      eye.position.set(side * 0.045, 0.02, -0.06);
       if (headMesh) headMesh.add(eye);
       return eye;
     });
     const antennaGeo = new THREE.BoxGeometry(0.02, 0.02, 0.22);
     for (const side of [-1, 1]) {
       const antenna = new THREE.Mesh(antennaGeo, bodyMat);
-      antenna.position.set(side * 0.05, 0.09, 0.2);
-      antenna.rotation.y = side * 0.5;
+      antenna.position.set(side * 0.05, 0.04, -0.15);
+      antenna.rotation.y = -side * 0.5;
       if (headMesh) headMesh.add(antenna);
     }
 
     // Six legs, each WRAPPED as `{ mesh }` because `poseSilverfishLegs` writes `leg.mesh.position.x` and
     // alternates neighbouring legs. Bare meshes silently produce no animation.
     const legHost = built.group;
-    const legGeo = new THREE.BoxGeometry(0.03, 0.1, 0.03);
+    const legGeo = new THREE.BoxGeometry(0.03, 0.08, 0.03);
     const legs = [];
     for (const side of [-1, 1]) {
-      for (const z of [-0.08, 0.02, 0.12]) {
+      for (const z of [-0.08, 0.04, 0.16]) {
         const mesh = new THREE.Mesh(legGeo, bodyMat);
-        mesh.position.set(side * 0.11, 0.03, z);
+        mesh.position.set(side * 0.16, 0.04, z);
         legHost.add(mesh);
         legs.push({ mesh });
       }
     }
 
+    built.parts.layer0 = built.parts.segment2;
     return {
       group: built.group,
       head: built.parts.segment0,
-      body: built.parts.layer0,
+      body: built.parts.segment2,
+      layer0: built.parts.segment2,
       mid: built.parts.segment3,
       tail: built.parts.segment6,
       legs,

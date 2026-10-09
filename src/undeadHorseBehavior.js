@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 
 /**
  * Undead horse rules: the skeleton horse and the zombie horse.
@@ -283,51 +284,83 @@ export function undeadHorseXp(mob, random = Math.random) {
  */
 export function createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat) {
   const group = new THREE.Group();
+  const isSkeleton = type === 'skeleton_horse';
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 1.6), coatMat);
-  body.position.y = 1.0;
+  // Body: vanilla UV (0, 32), size 10x10x22 (w=0.72, h=0.72, d=1.58)
+  const bodyGeo = new THREE.BoxGeometry(0.72, 0.72, 1.58);
+  applyVanillaBoxUVs(bodyGeo, 0, 32, 64, 64, 10, 10, 22);
+  const body = new THREE.Mesh(bodyGeo, coatMat);
+  body.position.set(0, 1.0, -0.05);
   group.add(body);
 
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.9, 0.5), coatMat);
-  neck.position.set(0, 1.45, 0.85);
+  // Neck: vanilla UV (0, 35), size 4x12x7 (w=0.28, h=0.84, d=0.49)
+  const neckGeo = new THREE.BoxGeometry(0.28, 0.84, 0.49);
+  applyVanillaBoxUVs(neckGeo, 0, 35, 64, 64, 4, 12, 7);
+  const neck = new THREE.Mesh(neckGeo, coatMat);
+  neck.position.set(0, 1.35, 0.65);
+  neck.rotation.x = 0.52;
   group.add(neck);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.85), coatMat);
-  head.position.set(0, 1.85, 1.15);
+  // Head: vanilla UV (0, 13), size 7x7x10 (w=0.38, h=0.38, d=0.54)
+  const headGeo = new THREE.BoxGeometry(0.38, 0.38, 0.54);
+  applyVanillaBoxUVs(headGeo, 0, 13, 64, 64, 7, 7, 10);
+  const head = new THREE.Mesh(headGeo, coatMat);
+  head.position.set(0, 1.82, 1.0);
+  head.rotation.x = 0.52;
   group.add(head);
+
+  // Snout / muzzle: vanilla UV (0, 25), size 4x5x5
+  const snoutGeo = new THREE.BoxGeometry(0.32, 0.3, 0.36);
+  applyVanillaBoxUVs(snoutGeo, 0, 25, 64, 64, 4, 5, 5);
+  const snout = new THREE.Mesh(snoutGeo, coatMat);
+  snout.position.set(0, -0.04, 0.38);
+  head.add(snout);
 
   const eyes = [];
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), eyeMat);
-    eye.position.set(side * 0.16, 0.04, 0.44);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.04), eyeMat);
+    eye.position.set(side * 0.16, 0.04, 0.12);
     head.add(eye);
+    eye.visible = false; // Authentic sheet texture carries eyes / sockets
     eyes.push(eye);
   }
 
-  // The mane, which is what reads as a horse at a glance.
-  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.9), maneMat);
-  mane.position.set(0, 1.8, 0.7);
+  // Mane: vanilla UV (56, 36), size 2x16x2. Absent on skeleton horse.
+  const maneGeo = new THREE.BoxGeometry(0.12, 0.75, 0.15);
+  applyVanillaBoxUVs(maneGeo, 56, 36, 64, 64, 2, 16, 2);
+  const mane = new THREE.Mesh(maneGeo, maneMat);
+  mane.position.set(0, 1.58, 0.52);
+  mane.rotation.x = 0.52;
+  if (isSkeleton) mane.visible = false;
   group.add(mane);
 
-  const legGeo = new THREE.BoxGeometry(0.24, 0.95, 0.24);
+  // Legs: vanilla UV (48, 21), size 4x11x4 (w=0.24, h=0.88, d=0.24)
+  const legGeo = new THREE.BoxGeometry(0.24, 0.88, 0.24);
+  applyVanillaBoxUVs(legGeo, 48, 21, 64, 64, 4, 11, 4);
   const legs = [];
-  for (const [lx, lz] of [[-0.28, 0.55], [0.28, 0.55], [-0.28, -0.55], [0.28, -0.55]]) {
+  for (const [lx, lz] of [[-0.24, 0.52], [0.24, 0.52], [-0.24, -0.52], [0.24, -0.52]]) {
     const leg = new THREE.Mesh(legGeo, coatMat);
-    leg.position.set(lx, 0.48, lz);
+    leg.position.set(lx, 0.44, lz);
     group.add(leg);
-    const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.28), hoofMat);
-    hoof.position.y = -0.45;
-    leg.add(hoof);
+    if (!isSkeleton) {
+      const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.26), hoofMat);
+      hoof.position.y = -0.4;
+      leg.add(hoof);
+    }
     legs.push(leg);
   }
 
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.6, 0.16), maneMat);
-  tail.position.set(0, 1.2, -0.9);
+  // Tail: vanilla UV (42, 36), size 3x14x4
+  const tailGeo = new THREE.BoxGeometry(0.18, 0.84, 0.24);
+  applyVanillaBoxUVs(tailGeo, 42, 36, 64, 64, 3, 14, 4);
+  const tail = new THREE.Mesh(tailGeo, maneMat);
+  tail.position.set(0, 1.25, -0.85);
+  tail.rotation.x = -0.3;
   group.add(tail);
 
-  // The saddle, hidden until equipped. The skeleton horse is saddled in its trap form.
-  const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.7), hoofMat);
-  saddle.position.set(0, 1.42, 0);
+  // Saddle: hidden until equipped
+  const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.14, 0.65), hoofMat);
+  saddle.position.set(0, 1.38, -0.05);
   saddle.visible = false;
   group.add(saddle);
 

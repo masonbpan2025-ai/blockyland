@@ -358,6 +358,23 @@ test('the model has a hidden face under a pumpkin helmet and stick arms', () => 
   assert.equal(golem.faceMesh.visible, false, 'hidden by default');
   assert.equal(golem.arms.length, 2, 'two stick arms');
   assert.equal(golem.arms[0].geometry.parameters.depth > 0.5, true, 'which are stick-like and long');
+  // Parity check: stick arms must be 100% solid and non-transparent to prevent comb-like notches or holes
+  for (const arm of golem.arms) {
+    const mats = Array.isArray(arm.material) ? arm.material : [arm.material];
+    for (const m of mats) {
+      assert.equal(m.transparent, false, 'arms are opaque without holes');
+      assert.equal(m.alphaTest ?? 0, 0, 'zero alpha culling on stick arms');
+      assert.equal(m.depthWrite, true, 'depthWrite enabled on stick arms');
+    }
+  }
+  // Verify createStickWoodTexture produces 100% opaque texture
+  const stickTex = manager.createStickWoodTexture();
+  assert.ok(stickTex && stickTex.image && stickTex.image.data, 'generates stick bark data texture');
+  const texData = stickTex.image.data;
+  assert.equal(texData.length, 16 * 16 * 4);
+  for (let i = 3; i < texData.length; i += 4) {
+    assert.equal(texData[i], 255, 'all texels are 100% opaque with zero transparency');
+  }
   assert.ok(SNOW_GOLEM_COLORS.pumpkin > 0);
   const model = createSnowGolemModel(
     new THREE.MeshLambertMaterial(), new THREE.MeshLambertMaterial(),

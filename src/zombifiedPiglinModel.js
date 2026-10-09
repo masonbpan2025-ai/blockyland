@@ -89,18 +89,19 @@ export function createZombifiedPiglinModel(cache = {}, options = {}) {
   const box = (parent, name, size, pos, mat) => {const part = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);part.name=name;part.position.set(...pos);parent.add(part);return part;};
   // The head carries the player rectangle at (0, 0): 8x8x8.
     const head = textured(mesh, 'head', [.625,.5,.5], [0,1.625,0], skull, 0, 0, 8, 8, 8);
-  box(head,'snout',[.25,.18,.19],[0,-.08,.34],flesh);
+  textured(head,'snout',[.25,.18,.19],[0,-.08,.34],materials('flesh'), 31, 1, 4, 3, 1);
   for (const x of [-.07,.07]) box(head,'nostril',[.035,.04,.014],[x,-.07,.442],dark);
   box(head,'remaining-tusk',[.055,.11,.055],[.15,-.09,.35],bone);
-  box(head,'left-ear',[.10,.28,.18],[.35,-.015,0],flesh).rotation.z=.3;
-  box(head,'torn-ear',[.10,.08,.09],[-.35,.04,0],flesh).rotation.z=-.25;
+  textured(head,'left-ear',[.10,.28,.18],[.35,-.015,0],materials('flesh'), 51, 6, 1, 5, 4).rotation.z=.3;
+  textured(head,'torn-ear',[.10,.08,.09],[-.35,.04,0],materials('flesh'), 51, 6, 1, 2, 2).rotation.z=-.25;
   // The torso carries the player rectangle at (16, 16): 8x12x4.
     textured(mesh, 'torso', [.5,.75,.25], [0,1.125,0], ribs, 16, 16, 8, 12, 4);
   box(mesh,'loincloth',[.51,.22,.27],[0,.81,0],cloth);
-  const limb = (name,x,y,mat) => {const pivot=new THREE.Group();pivot.name=name;pivot.position.set(x,y,0);mesh.add(pivot);box(pivot,name+'-skin',[.25,.75,.25],[0,-.375,0],mat);return pivot;};
-  const leftArm=limb('left-arm',-.375,1.5,flesh),rightArm=limb('right-arm',.375,1.5,ribs);
-  const leftLeg=limb('left-leg',-.125,.75,flesh),rightLeg=limb('right-leg',.125,.75,flesh);
-  for(const arm of [leftArm,rightArm])box(arm,'dark-hand',[.251,.14,.251],[0,-.68,0],dark);
+  const limb = (name,x,y,mat,uu,vv,tw,th,td) => {const pivot=new THREE.Group();pivot.name=name;pivot.position.set(x,y,0);mesh.add(pivot);textured(pivot,name+'-skin',[.25,.75,.25],[0,-.375,0],mat,uu,vv,tw,th,td);return pivot;};
+  const leftArm=limb('left-arm',-.375,1.5,materials('flesh'), 32, 48, 4, 12, 4),
+        rightArm=limb('right-arm',.375,1.5,materials('ribs'), 40, 16, 4, 12, 4);
+  const leftLeg=limb('left-leg',-.125,.75,materials('flesh'), 16, 48, 4, 12, 4),
+        rightLeg=limb('right-leg',.125,.75,materials('flesh'), 0, 16, 4, 12, 4);
   for(const leg of [leftLeg,rightLeg])box(leg,'dark-sole',[.251,.045,.251],[0,-.73,0],dark);
   box(leftLeg,'exposed-shin',[.1,.38,.014],[-.04,-.38,.132],bone);
   leftArm.rotation.x=rightArm.rotation.x=-1.2;

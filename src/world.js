@@ -590,8 +590,7 @@ export class World {
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
     this.generateChunkTerrain(chunk);
     this.water.initChunk(chunk);
-    // Light must exist before anything asks whether a position is dark: the generator writes
-    // terrain, so the first light query can only answer once this chunk has been seeded.
+    // Allocate lighting; initChunk queues propagation and its arrays initially contain zeroes.
     this.light.initChunk(cx, cz);
     // Chunk-generation creature population.
     //
@@ -599,7 +598,13 @@ export class World {
     // `placePlayerOnSurface`'s padding ring, and by the structure and studio paths, and a page of
     // terrain that skipped population would be a visible hole in the animal distribution. The
     // generator is idempotent per chunk, so a chunk created twice is still populated once.
-    this.game?.spawnManager?.chunkGenerationSpawner?.onChunkGenerated?.(cx, cz);
+    const generationSpawner = this.game?.spawnManager?.chunkGenerationSpawner;
+    if (generationSpawner?.onChunkGenerated) {
+      // Population is a one-shot pass. Waiting for the frame's budgeted light update would make
+      // every animal see light 0 here, fail its predicate, and never get another generation attempt.
+      this.light.relightChunk(cx, cz);
+      generationSpawner.onChunkGenerated(cx, cz);
+    }
     return chunk;
   }
 

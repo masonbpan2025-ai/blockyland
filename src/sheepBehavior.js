@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * Sheep colour rules, shared by the model, the interaction handlers and the tests.
  *
@@ -14,6 +16,12 @@ export const SHEEP_COLORS = [
   'white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray',
   'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'
 ];
+
+export function isSheep(mob) {
+  if (!mob) return false;
+  const t = typeof mob === 'string' ? mob : mob.type;
+  return t === 'sheep';
+}
 
 /**
  * Tint applied to the wool layer. Java renders non-white wool 25% darker than the
@@ -38,6 +46,57 @@ export const SHEEP_COLOR_HEX = {
   red: 0xdc2626,
   black: 0x18181b
 };
+
+/**
+ * Natural sheep spawn weights from the wiki:
+ * - White: 81.836%
+ * - Light Gray: 5.0%
+ * - Gray: 5.0%
+ * - Black: 5.0%
+ * - Brown: 3.0%
+ * - Pink: 0.164% (rare natural spawn)
+ */
+export const NATURAL_SHEEP_WEIGHTS = [
+  { color: 'white', weight: 81.836 },
+  { color: 'light_gray', weight: 5.0 },
+  { color: 'gray', weight: 5.0 },
+  { color: 'black', weight: 5.0 },
+  { color: 'brown', weight: 3.0 },
+  { color: 'pink', weight: 0.164 }
+];
+
+export function rollNaturalSheepColor(random = Math.random) {
+  const roll = random() * 100;
+  let cum = 0;
+  for (const entry of NATURAL_SHEEP_WEIGHTS) {
+    cum += entry.weight;
+    if (roll < cum) return entry.color;
+  }
+  return 'white';
+}
+
+/**
+ * Wiki: "If a sheep is named jeb_ using a name tag or an anvil, its wool cycles
+ * through all colors that a sheep can have in a smooth rainbow transition."
+ */
+export function isJebSheep(mob) {
+  if (!mob || (mob.type && mob.type !== 'sheep')) return false;
+  const name = mob.name || mob.customName;
+  return name === 'jeb_';
+}
+
+/** Compute the smooth rainbow color for a jeb_ sheep at the given time. */
+export function getJebRainbowColor(time = 0) {
+  const cycleSeconds = 2.5;
+  const progress = (((time % cycleSeconds) + cycleSeconds) % cycleSeconds) / cycleSeconds;
+  const len = SHEEP_COLORS.length;
+  const index = Math.floor(progress * len);
+  const nextIndex = (index + 1) % len;
+  const frac = (progress * len) - index;
+  const c1 = new THREE.Color(SHEEP_COLOR_HEX[SHEEP_COLORS[index]]);
+  const c2 = new THREE.Color(SHEEP_COLOR_HEX[SHEEP_COLORS[nextIndex]]);
+  return c1.lerp(c2, frac);
+}
 
 /**
  * Sheep breeding colour mixing, as the wiki's "Color mixing from sheep breeding" table.
@@ -95,11 +154,19 @@ export function inheritSheepColor(a, b, random = Math.random) {
  *
  * Every place that changes a sheep's colour or shears it routes through this one
  * function, so the mesh, the material tint and the `isSheared` flag cannot disagree.
+ * Supports the jeb_ rainbow animation when unsheared.
  */
-export function sheepApplyWool(mob) {
+export function sheepApplyWool(mob, time = 0) {
   const wool = mob?.woolMesh;
   if (!wool) return;
-  wool.material?.color?.setHex(SHEEP_COLOR_HEX[mob.woolColor] ?? SHEEP_COLOR_HEX.white);
+  if (isJebSheep(mob) && !mob.isSheared) {
+    const rainbow = getJebRainbowColor(mob.jebTime ?? time);
+    if (wool.material?.color) {
+      wool.material.color.copy(rainbow);
+    }
+  } else {
+    wool.material?.color?.setHex(SHEEP_COLOR_HEX[mob.woolColor] ?? SHEEP_COLOR_HEX.white);
+  }
   wool.visible = !mob.isSheared;
 }
 

@@ -16,8 +16,13 @@ import {
   rollLlamaStrength, llamaHealthFor, llamaSlotsFor, rollLlamaVariant, inheritLlamaVariant,
   inheritLlamaStrength, llamaSpitDamage, llamaWantsToSpit, llamaCoatColors,
   createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs,
-  spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit
+  spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit,
+  TRADER_LLAMA_CARPET_PATH, LLAMA_CARPET_COLORS, resolveLlamaCarpetHex,
+  LLAMA_DEFENSE_TARGETS, LLAMA_MAX_CARAVAN_LENGTH, isLlama, isTraderLlama,
+  wolfReactsToLlama, updateLlamaCaravan, equipLlamaChest, equipLlamaCarpet,
+  llamaDrops, llamaXp
 } from '../src/llamaBehavior.js';
+import { AnimalBehaviors, BREEDING_FOODS } from '../src/animalBehaviors.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
 
 function fixture({ difficulty = 'normal' } = {}) {
@@ -33,6 +38,8 @@ function fixture({ difficulty = 'normal' } = {}) {
     world, scene, sounds, entities, mobs: [], arrows: [], customProjectiles: [],
     textures: {}, random: () => 0.5, isBlockSolid: (x, y, z) => world.getVoxel(x, y, z) === BLOCKS.STONE
   });
+  const animalBehaviors = new AnimalBehaviors(manager, world, sounds, entities);
+  manager.animalBehaviors = animalBehaviors;
   const player = {
     position: new THREE.Vector3(10, 1, 0), velocity: new THREE.Vector3(),
     gamemode: 'survival', health: 20, keys: {}, onGround: true, statusEffects: {},
@@ -40,10 +47,10 @@ function fixture({ difficulty = 'normal' } = {}) {
     takeDamage(n) { this.damageTaken += n; this.health -= n; },
     applyStatusEffect() {}, hasStatusEffect: () => false
   };
-  const inventory = { active: null, getActiveItem() { return this.active; } };
+  const inventory = { active: null, getActiveItem() { return this.active; }, consumeActiveItem() {} };
   player.inventory = inventory;
   manager.game = { player, difficulty, worldTime: 6000, controls: {}, weather: { weatherType: 'clear' }, ui: null };
-  return { manager, player, inventory, entities };
+  return { manager, player, inventory, entities, animalBehaviors };
 }
 
 test('llama is a native type, not the Villager fallback', () => {
@@ -454,4 +461,239 @@ test('createLlamaModel is callable standalone with the expected parts', () => {
   // The legs keep their front/back and side markers, which the gait uses.
   assert.equal(model.legs.filter(l => l.front).length, 2);
   assert.equal(model.legs.filter(l => !l.front).length, 2);
+});
+
+test('isLlama and isTraderLlama recognize llamas and trader llamas', () => {
+  const { manager } = fixture();
+  const llama = manager.spawnMob('llama', 0, 1, 0);
+  const traderLlama = manager.spawnMob('trader_llama', 0, 1, 0);
+  const cow = manager.spawnMob('cow', 0, 1, 0);
+
+  assert.equal(isLlama(llama), true);
+  assert.equal(isLlama(traderLlama), true);
+  assert.equal(isLlama(cow), false);
+
+  assert.equal(isTraderLlama(llama), false);
+  assert.equal(isTraderLlama(traderLlama), true);
+  assert.equal(isTraderLlama(cow), false);
+});
+
+test('trader llama decor texture path and 16 dyed carpet colors match wiki', () => {
+  assert.equal(TRADER_LLAMA_CARPET_PATH, '/assets/entity/llama/decor/trader_llama.png');
+  const expectedColors = [
+    'black', 'blue', 'brown', 'cyan', 'gray', 'green', 'light_blue', 'light_gray',
+    'lime', 'magenta', 'orange', 'pink', 'purple', 'red', 'white', 'yellow'
+  ];
+  assert.deepEqual(Object.keys(LLAMA_CARPET_COLORS).sort(), expectedColors);
+  assert.equal(resolveLlamaCarpetHex('red_carpet'), LLAMA_CARPET_COLORS.red);
+  assert.equal(resolveLlamaCarpetHex('blue'), LLAMA_CARPET_COLORS.blue);
+  assert.equal(resolveLlamaCarpetHex(0x123456), 0x123456);
+});
+
+test('llama model has dual side chest packs on left and right flanks', () => {
+  const { manager } = fixture();
+  const llama = manager.spawnMob('llama', 0, 1, 0);
+  assert.ok(llama.leftChest && llama.rightChest, 'two flank chest meshes exist');
+  assert.equal(llama.leftChest.position.x < 0, true, 'left pack on negative X flank');
+  assert.equal(llama.rightChest.position.x > 0, true, 'right pack on positive X flank');
+  assert.ok(llama.carpetBody && llama.carpetNeck, 'carpet has body and neck overlays');
+});
+
+test('equipLlamaChest sets slots to 3x strength and displays dual side packs', () => {
+  const { manager } = fixture();
+  const llama = manager.spawnMob('llama', 0, 1, 0, { strength: 4 });
+  assert.equal(llama.hasChest, false);
+  assert.equal(llama.chestMesh.visible, false);
+
+  equipLlamaChest(llama);
+  assert.equal(llama.hasChest, true);
+  assert.equal(llama.chestSlots, 12, 'strength 4 gives 12 slots');
+  assert.equal(llama.chestInventory.length, 12);
+  assert.equal(llama.chestMesh.visible, true);
+});
+
+test('equipLlamaCarpet and shearing carpet on llamas', () => {
+  const { manager, player, inventory, animalBehaviors } = fixture();
+  const llama = manager.spawnMob('llama', 0, 1, 0);
+  llama.isTamed = true;
+
+  inventory.active = { id: 'cyan_carpet' };
+  assert.equal(animalBehaviors.canInteract(llama, player, inventory), true);
+  animalBehaviors.interact(llama, player, inventory);
+
+  assert.equal(llama.carpetItem, 'cyan_carpet');
+  assert.equal(llama.carpetMesh.visible, true);
+
+  // Shearing removes carpet
+  inventory.active = { id: 'shears' };
+  assert.equal(animalBehaviors.canInteract(llama, player, inventory), true);
+  animalBehaviors.interact(llama, player, inventory);
+
+  assert.equal(llama.carpetItem, null);
+  assert.equal(llama.carpetColor, null);
+  assert.equal(llama.carpetMesh.visible, false);
+});
+
+test('trader llama naturally has trader decor carpet and preserves identity', () => {
+  const { manager } = fixture();
+  const tl = manager.spawnMob('trader_llama', 0, 1, 0);
+  assert.equal(tl.type, 'trader_llama');
+  assert.equal(tl.isTraderLlama, true);
+  assert.equal(tl.hasTraderCarpet, true);
+  assert.equal(tl.carpetMesh.visible, true, 'trader decor carpet is visible by default');
+});
+
+test('wolf reaction to llama strength: flee for strength 4-5, attack for strength 1-3', () => {
+  const wolf = { type: 'wolf', isTamed: false };
+  const strongLlama = { type: 'llama', strength: 4 };
+  const maxLlama = { type: 'llama', strength: 5 };
+  const weakLlama = { type: 'llama', strength: 3 };
+  const weakestLlama = { type: 'llama', strength: 1 };
+  const tamedWolf = { type: 'wolf', isTamed: true };
+
+  assert.equal(wolfReactsToLlama(wolf, strongLlama), 'flee', 'untamed wolf flees strength 4 llama');
+  assert.equal(wolfReactsToLlama(wolf, maxLlama), 'flee', 'untamed wolf flees strength 5 llama');
+  assert.equal(wolfReactsToLlama(wolf, weakLlama), 'attack', 'untamed wolf attacks strength 3 llama');
+  assert.equal(wolfReactsToLlama(wolf, weakestLlama), 'attack', 'untamed wolf attacks strength 1 llama');
+  assert.equal(wolfReactsToLlama(tamedWolf, strongLlama), null, 'tamed wolf ignores llama');
+});
+
+test('trader llama defends wandering trader and attacks hostile mobs', () => {
+  const { manager } = fixture();
+  const trader = manager.spawnMob('wandering_trader', 0, 1, 0);
+  const tl = manager.spawnMob('trader_llama', 2, 1, 0);
+  tl.leashHolder = trader;
+
+  const zombie = manager.spawnMob('zombie', 5, 1, 0);
+  assert.equal(llamaWantsToSpit(tl, zombie), true, 'trader llama attacks zombie without provocation');
+
+  const pillager = manager.spawnMob('pillager', 5, 1, 0);
+  assert.equal(llamaWantsToSpit(tl, pillager), true, 'trader llama attacks pillager without provocation');
+
+  const player = { type: 'player', position: new THREE.Vector3(5, 1, 0) };
+  assert.equal(llamaWantsToSpit(tl, player), false, 'does not attack unprovoked player');
+
+  // Player attacks wandering trader
+  trader.recentAttacker = player;
+  assert.equal(llamaWantsToSpit(tl, player), true, 'trader llama retaliates against master attacker');
+});
+
+test('caravan mechanics: leashed llama leads up to 10 followers in line', () => {
+  const { manager } = fixture();
+  const leadLlama = manager.spawnMob('llama', 0, 1, 0);
+  leadLlama.leashHolder = { position: new THREE.Vector3(0, 1, 0) };
+
+  const followers = [];
+  for (let i = 1; i <= 12; i++) {
+    followers.push(manager.spawnMob('llama', i * 0.5, 1, 0));
+  }
+
+  // Update caravan
+  updateLlamaCaravan(manager, leadLlama, 1 / 20);
+
+  // Check caravan recruited up to 10 total llamas (1 lead + 9 followers)
+  let count = 1;
+  let curr = leadLlama;
+  while (curr.caravanFollower) {
+    count++;
+    assert.equal(curr.caravanFollower.caravanFollows, curr, 'follower follows the one ahead');
+    curr = curr.caravanFollower;
+  }
+  assert.equal(count, LLAMA_MAX_CARAVAN_LENGTH, 'caravan caps at exactly 10 llamas');
+});
+
+test('caravan follower disconnects if distance exceeds 16 blocks', () => {
+  const { manager } = fixture();
+  const leader = manager.spawnMob('llama', 0, 1, 0);
+  const follower = manager.spawnMob('llama', 5, 1, 0);
+
+  leader.caravanFollower = follower;
+  follower.caravanFollows = leader;
+
+  // Move follower 17 blocks away
+  follower.mesh.position.set(20, 1, 0);
+  updateLlamaCaravan(manager, follower, 1 / 20);
+
+  assert.equal(follower.caravanFollows, null, 'disconnects when > 16 blocks away');
+});
+
+test('feeding wheat and hay bale values and effects match wiki', () => {
+  const { manager, player, inventory, animalBehaviors } = fixture();
+  const llama = manager.spawnMob('llama', 0, 1, 0);
+  llama.health = 10;
+  llama.maxHealth = 24;
+  llama.temper = 5;
+
+  // Wheat: +2 health, +3 temper
+  inventory.active = { id: 'wheat' };
+  animalBehaviors.interact(llama, player, inventory);
+  assert.equal(llama.health, 12, 'wheat heals 2 HP');
+  assert.equal(llama.temper, 8, 'wheat adds 3 temper');
+
+  // Hay bale: +10 health, +6 temper
+  inventory.active = { id: 'hay_block' };
+  animalBehaviors.interact(llama, player, inventory);
+  assert.equal(llama.health, 22, 'hay bale heals 10 HP');
+  assert.equal(llama.temper, 14, 'hay bale adds 6 temper');
+});
+
+test('breeding requires tamed llamas and hay block; trader llamas produce normal llama', () => {
+  assert.deepEqual(BREEDING_FOODS.llama, ['hay_block'], 'llamas breed with hay block');
+  assert.deepEqual(BREEDING_FOODS.trader_llama, ['hay_block'], 'trader llamas breed with hay block');
+
+  const { manager, animalBehaviors } = fixture();
+  const tl1 = manager.spawnMob('trader_llama', 0, 1, 0);
+  const tl2 = manager.spawnMob('trader_llama', 1, 1, 0);
+  tl1.isTamed = true;
+  tl2.isTamed = true;
+  tl1.inLove = 20;
+  tl2.inLove = 20;
+
+  // Test breeding matchmaking
+  animalBehaviors.checkBreedingPair(tl1, 2.5);
+
+  const babies = manager.mobs.filter(m => m.isBaby);
+  assert.equal(babies.length, 1, 'baby is born');
+  assert.equal(babies[0].type, 'llama', 'wiki: breeding two trader llamas produces a normal llama');
+});
+
+test('llama death drops include leather with looting, equipped carpet, chest and inventory', () => {
+  const llama = {
+    type: 'llama',
+    isBaby: false,
+    hasChest: true,
+    carpetItem: 'red_carpet',
+    chestInventory: [{ id: 'emerald', isBlock: false, count: 5 }],
+    lootingLevel: 2
+  };
+
+  const drops = llamaDrops(llama, { random: () => 0.5, looting: 2 });
+  assert.ok(drops.some(d => d[0] === 'leather'), 'drops leather');
+  assert.ok(drops.some(d => d[0] === 'red_carpet'), 'drops equipped carpet');
+  assert.ok(drops.some(d => d[0] === 'chest'), 'drops equipped chest');
+  assert.ok(drops.some(d => d[0] === 'emerald' && d[2] === 5), 'drops inventory items');
+
+  const baby = { type: 'llama', isBaby: true };
+  assert.deepEqual(llamaDrops(baby), [], 'baby drops nothing on death');
+});
+
+test('llama death XP matches wiki (1-3 for adult, 0 for baby)', () => {
+  const adult = { type: 'llama', isBaby: false };
+  const baby = { type: 'llama', isBaby: true };
+
+  const xp = llamaXp(adult);
+  assert.ok(xp >= 1 && xp <= 3, `adult drops 1-3 XP, got ${xp}`);
+  assert.equal(llamaXp(baby), 0, 'baby drops 0 XP');
+});
+
+test('mob inspector telemetry captures trader llama, carpet, and caravan state', () => {
+  const s = createMobDebugSession(new THREE.Scene(), () => {});
+  const tl = s.reset('trader_llama');
+  assert.equal(tl.type, 'trader_llama');
+
+  const snap = s.snapshot();
+  assert.equal(snap.type, 'trader_llama');
+  assert.equal(snap.traderCarpet, true);
+  assert.ok(snap.llamaStrength >= 1 && snap.llamaStrength <= 5);
+  assert.equal(snap.llamaSlots, snap.llamaStrength * 3);
 });

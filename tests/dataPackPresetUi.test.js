@@ -87,7 +87,7 @@ test('every element the binding looks up exists in the markup', () => {
 
 // --- the options ---------------------------------------------------------------------------------------
 
-test('the dropdown offers vanilla plus all ten presets', () => {
+test('the dropdown offers vanilla plus all available presets', () => {
   const dom = makeDom(['world-datapack-select', 'world-datapack-hint']);
   const ui = bind(dom);
   const select = dom.getElementById('world-datapack-select');
@@ -97,7 +97,7 @@ test('the dropdown offers vanilla plus all ten presets', () => {
   assert.match(select.options[0].textContent, /Vanilla \(default\)/);
   const values = select.options.slice(1).map(o => o.value);
   assert.deepEqual(values, GENERATION_PRESETS.map(p => p.id), 'one option per preset, in order');
-  assert.equal(new Set(values).size, 10);
+  assert.equal(new Set(values).size, GENERATION_PRESETS.length);
 });
 
 test('every option label states the property, so the menu is readable without trying each one', () => {
@@ -129,8 +129,9 @@ test('the hint describes the default and then whatever is chosen', async () => {
 
   select.value = 'lush_havens';
   await select.fire('change');
-  assert.match(hint.textContent, /Docile animals everywhere/, 'the blurb is shown');
+  assert.match(hint.textContent, /Frequent, varied wildlife/, 'the blurb is shown');
   assert.match(hint.textContent, /structure types/, 'and how much it builds');
+  assert.ok(!hint.textContent.includes('undefined'), 'the hint shows an actual structure count');
 });
 
 test('choosing a preset records it, and vanilla clears it', async () => {
@@ -387,5 +388,5 @@ test('the menu can show the preset a save was built with', () => {
   assert.ok(typeof ui.refreshDataPackPresetSelect === 'function', 'there is a refresh');
   ui.refreshDataPackPresetSelect();
   assert.equal(dom.getElementById('world-datapack-select').value, 'beast_wilds');
-  assert.match(dom.getElementById('world-datapack-hint').textContent, /Night comes early/);
+  assert.match(dom.getElementById('world-datapack-hint').textContent, /Nights come armed/);
 });
