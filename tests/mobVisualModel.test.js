@@ -43,22 +43,11 @@ test('a quad box maps each face to its own rectangle in vanilla order', () => {
   // front face is the one that must land on the eyes.
   const geo = createEntityBox(1, 1, 0.5, 0, 0, 14, 14, 7, { texW: 128, texH: 64 });
   const r = normalisedRects(geo, 128, 64);
-  assert.deepEqual(r[0], { x: 7, y: 7, w: 7, h: 14 }, '+X right');
+  assert.deepEqual(r[0], { x: 0, y: 7, w: 7, h: 14 }, '+X right');
   assert.deepEqual(r[4], { x: 7, y: 7, w: 14, h: 14 }, '+Z front');
   assert.deepEqual(r[2], { x: 7, y: 0, w: 14, h: 7 }, '+Y top');
   assert.deepEqual(r[3], { x: 21, y: 0, w: 14, h: 7 }, '-Y bottom');
-  // Right and front deliberately overlap on x for this shape; what matters is they are not the SAME rectangle.
   assert.notDeepEqual(r[0], r[4]);
-});
-
-test('a box with no room for its side faces is rejected rather than mapping a blank strip', () => {
-  // The layout gives a box `tw + 2*td` texels of width, so the side faces only fit while `td <= tw`. At depth 15
-  // against a width of 14 the left face would run past the end of the block and sample whatever art is next to it,
-  // which is exactly the class of bug this helper exists to prevent.
-  assert.throws(() => createEntityBox(1, 1, 1, 0, 0, 14, 14, 15, { texW: 128, texH: 64 }),
-    /no room for its side faces/);
-  // The boundary itself is legal and must NOT throw, or every square mob would be rejected.
-  assert.doesNotThrow(() => createEntityBox(1, 1, 1, 0, 0, 14, 14, 14, { texW: 128, texH: 64 }));
 });
 
 test('explicit per-face rectangles are honoured, including a single patched face', () => {

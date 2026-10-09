@@ -38,7 +38,7 @@ import { createWildEndermanState, isProvoked, provoke, tickAnger, gazeProvokes,
   ENDERMAN_CHASE_SPEED, pickTeleportDestination, isValidTeleportDestination } from './endermanBehavior.js';
 import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
-import { sheepApplyWool, SHEEP_COLOR_HEX } from './sheepBehavior.js';
+import { sheepApplyWool, SHEEP_COLOR_HEX, isJebSheep, rollNaturalSheepColor } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { creeperDiscDrop } from './musicDiscs.js';
@@ -52,9 +52,9 @@ import { ENDERMITE_HEALTH, ENDERMITE_DIMENSIONS, ENDERMITE_XP, endermiteDrops, c
 import { RABBIT_HEALTH, RABBIT_DIMENSIONS, RABBIT_BABY_DIMENSIONS, RABBIT_BABY_SCALE, RABBIT_XP, RABBIT_COATS, RABBIT_COAT_COLORS, RABBIT_PLAYER_AVOID_RANGE, KILLER_BUNNY_TYPE, KILLER_BUNNY_ARMOR, createRabbitModel, poseRabbitHop, applyRabbitCoat, applyRabbitName, isRabbit, isKillerBunny, rollRabbitCoat, rabbitDrops, updateKillerBunnyHunt, onKillerBunnyHurt } from './rabbitBehavior.js';
 import { BAT_HEALTH, BAT_DIMENSIONS, batDrops, createBatModel, poseBatWings, updateBatFlight, updateBatDespawn } from './batBehavior.js';
 import { FOX_HEALTH, FOX_DIMENSIONS, FOX_BABY_DIMENSIONS, FOX_BABY_SCALE, FOX_COAT_COLORS, FOX_PREY, FOX_POUNCE, FOX_SAFE_FALL_BLOCKS, createFoxModel, poseFoxLegs, applyFoxCoat, rollFoxCoat, rollFoxHeldItem, foxDrops, foxDamageFor, foxHasTotem, consumeFoxTotem, foxTrusts, foxShouldFlee, foxCanSleep, startFoxPounce, updateFoxPounce, lightAt as foxLightAt } from './foxBehavior.js';
-import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower } from './beeBehavior.js';
+import { BEE_HEALTH, BEE_DIMENSIONS, BEE_BABY_DIMENSIONS, BEE_BABY_SCALE, BEE_COLORS, BEE_XP, BEE_HIVE_RANGE, BEE_SKIN_PATHS, createBeeModel, poseBee, beeDrops, beeSting, beeIsAngry, angerBees, updateBeeAnger, updateBeeStingerless, updateBeeWater, updateBeeNectar, isBee, isBeeFlower, isBeeBreedingFood, isPollinatableCrop, advancePollinatedCrop, deliverBeeNectar, BEE_POLLINATE_CHANCE, BEE_MAX_CROPS_GROWN } from './beeBehavior.js';
 import { GOAT_HEALTH, GOAT_DIMENSIONS, GOAT_BABY_DIMENSIONS, GOAT_BABY_SCALE, GOAT_JUMP_DIMENSIONS, GOAT_COLORS, GOAT_RAM, GOAT_FOLLOW_RANGE, GOAT_FALL_DAMAGE_REDUCTION, createGoatModel, poseGoat, poseGoatLegs, isGoat, goatDrops, goatXp, goatRamDamage, goatRamKnockback, rollGoatRamCooldown, rollGoatJumpCooldown, rollScreamingGoat, inheritScreamingGoat, rollGoatHorns, rollGoatHornVariant, goatHasHorn, snapGoatHorn, blockSnapsGoatHorn, isValidGoatTarget, isUnmovingTarget, startGoatRam, updateGoatRam, endGoatRam, startGoatJump, landGoatJump } from './goatBehavior.js';
-import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit } from './llamaBehavior.js';
+import { LLAMA_HEALTH, LLAMA_DIMENSIONS, LLAMA_BABY_DIMENSIONS, LLAMA_BABY_SCALE, LLAMA_VARIANTS, LLAMA_STRENGTH, LLAMA_TEMPER, LLAMA_FOOD, LLAMA_SPIT, llamaHealthFor, llamaSlotsFor, llamaSpitDamage, rollLlamaStrength, rollLlamaVariant, inheritLlamaVariant, inheritLlamaStrength, llamaWantsToSpit, llamaCoatColors, createLlamaModel, applyLlamaCoat, applyLlamaEquipment, poseLlamaLegs, spawnLlamaSpit, updateLlamaSpit, removeLlamaSpit, updateLlamaCaravan, wolfReactsToLlama, llamaDrops, llamaXp, isLlama, isTraderLlama, TRADER_LLAMA_CARPET_PATH } from './llamaBehavior.js';
 import { HAPPY_GHAST_HEALTH, HAPPY_GHAST_DIMENSIONS, GHASTLING_DIMENSIONS, HAPPY_GHAST_SPEED, HAPPY_GHAST_RIDDEN_SPEED, HAPPY_GHAST_SEATS, HAPPY_GHAST_SEAT_ORDER, HAPPY_GHAST_ROAM, GHASTLING_GROWTH_SECONDS, GHASTLING_SNOWBALL_SPEEDUP, GHASTLING_BEDROCK_SNOWBALLS, GHASTLING_FOLLOW_RANGE, GHASTLING_FOLLOW_SPEED_BOOST, GHASTLING_STOP_DISTANCE, GHASTLING_FOLLOWABLE, GHASTLING_NEVER_FOLLOWS, HAPPY_GHAST_BULKY_CARGO, HAPPY_GHAST_STANDING_FACING, DRIED_GHAST_REHYDRATION, HAPPY_GHAST_COLORS, HAPPY_GHAST_REHOME_EVENTS, isHappyGhast, isGhastling, happyGhastDimensions, happyGhastRoamRadius, setHappyGhastHome, onHappyGhastEvent, clampToHome, equipHappyGhastHarness, removeHappyGhastHarness, mountHappyGhast, dismountHappyGhast, happyGhastSeatOf, happyGhastIsStationary, happyGhastStationaryFacing, attachHappyGhastCargo, releaseHappyGhastCargo, temptHappyGhast, endHappyGhastTemptation, feedGhastlingSnowball, updateGhastlingGrowth, ghastlingFollows, findGhastlingTarget, ghastlingShouldStop, rehydrateDriedGhast, happyGhastWanderTarget, steerHappyGhast, happyGhastDrops, happyGhastXp, createHappyGhastModel, poseHappyGhast } from './happyGhastBehavior.js';
 import { COPPER_GOLEM_HEALTH, COPPER_GOLEM_DIMENSIONS, COPPER_GOLEM_SPEED, COPPER_OXIDATION_STAGES, COPPER_OXIDATION_SECONDS, COPPER_GOLEM_COLORS, isCopperGolem, copperGolemDimensions, copperGolemCanPlaceIn, copperGolemCanTakeFrom, copperGolemCanStoreIn, findCopperGolemSource, findCopperGolemDestination, copperGolemTake, copperGolemPlace, updateCopperGolemOxidation, waxCopperGolem, scrapeCopperGolem, reanimateCopperGolemStatue, shearCopperGolem, giveCopperGolemPoppy, copperGolemDrops, copperGolemXp, copperGolemColor, createCopperGolemModel, poseCopperGolem } from './copperGolemBehavior.js';
 import { CAMEL_HUSK_HEALTH, CAMEL_HUSK_DIMENSIONS, CAMEL_HUSK_SITTING_DIMENSIONS, CAMEL_HUSK_STAND_CLEARANCE, CAMEL_HUSK_SPEED, CAMEL_HUSK_CAMEL_SPEED, CAMEL_HUSK_UNDEAD_TRAITS, CAMEL_HUSK_JOCKEY, CAMEL_HUSK_SPAWN, CAMEL_HUSK_EQUIPMENT, CAMEL_HUSK_DROPS, CAMEL_HUSK_COLORS, isCamelHusk, camelHuskDimensions, camelHuskBurnsInDaylight, camelHuskCanStand, camelHuskSit, camelHuskStand, updateCamelHuskSitting, camelHuskIsHostile, separateCamelHuskRiders, mountCamelHuskJockey, camelHuskDrops, camelHuskXp, equipCamelHuskSaddle, shearCamelHuskSaddle, createCamelHuskModel, poseCamelHusk } from './camelHuskBehavior.js';
@@ -64,7 +64,7 @@ import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSI
 import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
 import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
-import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel } from './camelBehavior.js';
+import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel, camelProtectsRiderFrom } from './camelBehavior.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
@@ -78,6 +78,10 @@ import { PARROT_SKIN_PATHS, PARROT_HEALTH, PARROT_DIMENSIONS, PARROT_VARIANTS, P
 import { TADPOLE_HEALTH, TADPOLE_DIMENSIONS, TADPOLE_SPEED, TADPOLE_DRY_SECONDS, TADPOLE_GROWTH_SECONDS, TADPOLE_HATCH_GROUP, TADPOLE_COLORS, TADPOLE_FOLLOW_RANGE, TADPOLE_WATER_SEARCH, isTadpole, tadpoleVariantForBiome, rollTadpoleHatchCount, updateTadpoleDryness, updateTadpoleGrowth, accelerateTadpoleGrowth, createTadpoleModel, poseTadpole, tadpoleDrops, tadpoleXp } from './tadpoleBehavior.js';
 import { FROG_HEALTH, FROG_DIMENSIONS, FROG_JUMP, FROG_SPEED, FROG_FOLLOW_RANGE, FROG_TONGUE, FROG_COLORS, FROG_VARIANTS, FROG_BREEDING_FOOD, isFrog, frogVariantForBiome, froglightForVariant, frogCanEat, frogEatingDrops, frogDrops, frogXp, startFrogTongue, updateFrogTongue, eatFrogPrey, createFrogModel, applyFrogVariant, poseFrog, startFrogJump } from './frogBehavior.js';
 import { TURTLE_HEALTH, TURTLE_DIMENSIONS, TURTLE_BABY_DIMENSIONS, TURTLE_BABY_SCALE, TURTLE_EGG, TURTLE_EGG_CLUSTER, TURTLE_DIG_SECONDS, TURTLE_BREED_COOLDOWN_SECONDS, isTurtle, turtleDimensions, turtleDrops, turtleXp, turtleMaturationDrops, findWaterNear, isSandBlock, setTurtleHome, applyTurtlePregnancy, tryLayTurtleEggs, updateTurtleMovement, createTurtleModel, poseTurtle } from './turtleBehavior.js';
+import { VINDICATOR_HEALTH, VINDICATOR_DIMENSIONS, VINDICATOR_SPEED, VINDICATOR_DAMAGE, isVindicator, isJohnnyVindicator, vindicatorTargetsMob, vindicatorDamageFor, vindicatorDrops, vindicatorXp, poseVindicator, updateVindicatorAI } from './vindicatorBehavior.js';
+import { EVOKER_HEALTH, EVOKER_DIMENSIONS, EVOKER_SPEED, EVOKER_FANG_DAMAGE, isEvoker, evokerTargetsMob, evokerDrops, evokerXp, castEvokerFangs, castSummonVexes, castWololo, updateEvokerAI } from './evokerBehavior.js';
+import { ENDER_DRAGON_HEALTH, ENDER_DRAGON_DIMENSIONS, ENDER_DRAGON_DAMAGE, ENDER_DRAGON_XP, isEnderDragon, enderDragonDimensions, enderDragonDamageFor, enderDragonDrops, enderDragonXp, updateEnderDragonAI, onCrystalDestroyed, collectDragonBreath } from './enderDragonBehavior.js';
+import { WITHER_HEALTH, WITHER_DIMENSIONS, WITHER_XP, WITHER_UNDEAD_TRAITS, isWither, witherDimensions, isWitherArmored, witherDrops, witherXp, witherSkullDamageFor, updateWitherAI } from './witherBossBehavior.js';
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding, applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
@@ -96,12 +100,12 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  con
   // Row 1 (y = v): [empty: td] [top: tw] [bottom: tw]
   // Row 2 (y = v + td): [right: td] [front: tw] [left: td] [back: tw]
   const faceUVMap = [
-    { x: u + td + tw, y: v + td, w: td, h: th },        // 0: Right (+X)
-    { x: u, y: v + td, w: td, h: th },                // 1: Left (-X)
-    { x: u + td, y: v, w: tw, h: td },                // 2: Top (+Y)
-    { x: u + td + tw, y: v, w: tw, h: td },           // 3: Bottom (-Y)
-    { x: u + td, y: v + td, w: tw, h: th },           // 4: Front (+Z)
-    { x: u + td + tw + td, y: v + td, w: tw, h: th }  // 5: Back (-Z)
+    { x: u, y: v + td, w: td, h: th },                  // 0: Right (+X)
+    { x: u + td + tw, y: v + td, w: td, h: th },        // 1: Left (-X)
+    { x: u + td, y: v, w: tw, h: td },                  // 2: Top (+Y)
+    { x: u + td + tw, y: v, w: tw, h: td },             // 3: Bottom (-Y)
+    { x: u + td, y: v + td, w: tw, h: th },             // 4: Front (+Z)
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }    // 5: Back (-Z)
   ];
 
   for (let face = 0; face < 6; face++) {
@@ -129,8 +133,8 @@ function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  con
  */
 function applyBoxUVs(geo, u, v, texW, texH, tw, th, td) {
   const faces = [
-    { x: u + td + tw, y: v + td, w: td, h: th },
     { x: u, y: v + td, w: td, h: th },
+    { x: u + td + tw, y: v + td, w: td, h: th },
     { x: u + td, y: v, w: tw, h: td },
     { x: u + td + tw, y: v, w: tw, h: td },
     { x: u + td, y: v + td, w: tw, h: th },
@@ -305,6 +309,7 @@ const CAMEL_SKIN_PATH = '/assets/entity/camel/camel.png';
 /** The guardian sheets, both 64x64. */
 const GUARDIAN_SKIN_PATH = '/assets/entity/guardian.png';
 const ELDER_GUARDIAN_SKIN_PATH = '/assets/entity/guardian_elder.png';
+const DROWNED_SKIN_PATH = '/assets/entity/zombie/drowned.png';
 const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
 const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
 const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
@@ -385,10 +390,32 @@ const FROG_SKIN_PATH = '/assets/entity/frog/temperate_frog.png';
  */
 
 /**
- * The wolf's real model, decompiled from `WolfEntityModel` rather than inferred from its texture.
+ * Vanilla-accurate cube UV layout for a box of (w, h, d) at atlas (u, v), in three's face order
+ * (+X, -X, +Y, -Y, +Z, -Z) for a model facing +Z.
+ */
+function wolfFaces(u, v, w, h, d) {
+  return [
+    { x: u + d + w, y: v + d, w: d, h },     // +X (right side of wolf)
+    { x: u, y: v + d, w: d, h },             // -X (left side of wolf)
+    { x: u + d, y: v, w, h: d },             // +Y top
+    { x: u + d + w, y: v, w, h: d },         // -Y bottom
+    { x: u + d, y: v + d, w, h },            // +Z front
+    { x: u + d + d + w, y: v + d, w, h }     // -Z back
+  ];
+}
+
+/**
+ * The wolf's real model, transcribed from vanilla `WolfEntityModel` (`class_624`).
  *
- * Pixel inference got this mob wrong three times; the real rectangles differ from every guess, so this is kept as
- * data with its provenance rather than as loose numbers in the spawner.
+ * Coordinates converted via project (x, y, z) = vanilla (x, 24 - y, -z) in texels so the wolf
+ * faces +Z.
+ *   - Head: 6x6x4 at (0, 10.5, 7) hinged at neck (0, 10.5, 7)
+ *   - Ears: 2x2x1 at (16, 14), offsets (-2, 2, -1) and (2, 2, -1) relative to head
+ *   - Snout: 3x3x4 at (0, 10), offset (0, -1.5, 4) relative to head
+ *   - Body: 6x9x6 at (18, 14), placed at (0, 10, -2) rotated PI/2 about X
+ *   - Upper Body / Mane: 8x6x7 at (21, 0), placed at (0, 10, 3) rotated PI/2 about X
+ *   - Legs: 2x8x2 at (0, 18), front legs at (+-1.5, 8, 4), hind legs at (+-1.5, 8, -7)
+ *   - Tail: 2x8x2 at (9, 18), placed at (0, 12, -8) rotated -PI/5 about X
  */
 const WOLF_MODEL = {
   texture: WOLF_SKIN_PATH,
@@ -397,35 +424,27 @@ const WOLF_MODEL = {
   transparent: true,
   alphaTest: 0.5,
   parts: [
-    // Head 6x6x4 at (0,0), carrying the face and the ears and snout as children, exactly as vanilla nests them.
-    { name: 'head', box: [6, 6, 4], uv: { u: 0, v: 0, tw: 6, th: 6, td: 4 }, at: [0, 4, 7] },
-    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { u: 16, v: 14, tw: 2, th: 2, td: 1 }, at: [-2, -5, 0] },
-    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { u: 16, v: 14, tw: 2, th: 2, td: 1 }, at: [2, -5, 0] },
-    // The snout is 3 wide but 4 deep, so vanilla's own layout has no room for its side faces (the same shape
-    // `createEntityBox` refuses). Explicit rectangles keep every face on the snout.
+    // Head: 6x6x4 at (0, 0), pivot at neck (0, 10.5, 7).
     {
-      name: 'snout', parent: 'head', box: [3, 3, 4], at: [-0.5, 0, 5],
-      faces: [
-        { x: 4, y: 14, w: 3, h: 3 },   // +X right
-        { x: 8, y: 14, w: 3, h: 3 },   // -X left
-        { x: 4, y: 10, w: 3, h: 4 },   // +Y top
-        { x: 7, y: 10, w: 3, h: 4 },   // -Y bottom
-        { x: 4, y: 14, w: 3, h: 3 },   // +Z front
-        { x: 7, y: 14, w: 3, h: 3 }    // -Z back
-      ]
+      name: 'head', box: [6, 6, 4], uv: { faces: wolfFaces(0, 0, 6, 6, 4) },
+      pivot: [0, 0, 0], at: [0, 10.5, 7]
     },
-    // Body 6x9x6 at (18,14).
-    { name: 'body', box: [6, 9, 6], uv: { u: 18, v: 14, tw: 6, th: 9, td: 6 }, at: [0, 6, 2] },
-    // Upper body 8x6x7 at (21,0) -- the chest and neck, which a wolf holds lower than its body.
-    { name: 'upperBody', box: [8, 6, 7], uv: { u: 21, v: 0, tw: 8, th: 6, td: 7 }, at: [-1, 6, -3] },
-    // Four legs, 2x8x2 at (0,18), at vanilla's own offsets.
-    { name: 'legRightHind', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [-2.5, 8, 7] },
-    { name: 'legLeftHind', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [0.5, 8, 7] },
-    { name: 'legRightFront', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [-2.5, 8, -4] },
-    { name: 'legLeftFront', box: [2, 8, 2], uv: { u: 0, v: 18, tw: 2, th: 8, td: 2 }, at: [0.5, 8, -4] },
-    // The tail, and the `real_tail` child vanilla swings independently (2x8x2 at (9,18)).
-    { name: 'tail', box: [2, 8, 2], uv: { u: 9, v: 18, tw: 2, th: 8, td: 2 }, at: [-1, 4, 8] },
-    { name: 'tailTip', parent: 'tail', box: [2, 8, 2], uv: { u: 9, v: 18, tw: 2, th: 8, td: 2 }, at: [0, 0, -1] }
+    // Ears: 2x2x1 at (16, 14) on head, sitting atop the head (Y=4).
+    { name: 'earLeft', parent: 'head', box: [2, 2, 1], uv: { faces: wolfFaces(16, 14, 2, 2, 1) }, at: [2, 4, -0.5] },
+    { name: 'earRight', parent: 'head', box: [2, 2, 1], uv: { faces: wolfFaces(16, 14, 2, 2, 1) }, at: [-2, 4, -0.5], mirror: true },
+    // Snout: 3x3x4 at (0, 10) on head, facing forward (+Z), flush with face.
+    { name: 'snout', parent: 'head', box: [3, 3, 4], uv: { faces: wolfFaces(0, 10, 3, 3, 4) }, at: [0, -1.5, 3] },
+    // Body: 6x9x6 at (18, 14), rotated 90 degrees on X.
+    { name: 'body', box: [6, 9, 6], uv: { faces: wolfFaces(18, 14, 6, 9, 6) }, at: [0, 10, -2], rotate: [Math.PI / 2, 0, 0] },
+    // Upper body (mane): 8x6x7 at (21, 0), rotated 90 degrees on X.
+    { name: 'upperBody', box: [8, 6, 7], uv: { faces: wolfFaces(21, 0, 8, 6, 7) }, at: [0, 10, 3], rotate: [Math.PI / 2, 0, 0] },
+    // Legs: 2x8x2 at (0, 18), each pivoting at its hip/shoulder joint (top of the leg).
+    { name: 'legRightFront', box: [2, 8, 2], uv: { faces: wolfFaces(0, 18, 2, 8, 2) }, pivot: [0, 4, 0], at: [-1.5, 8, 4] },
+    { name: 'legLeftFront', box: [2, 8, 2], uv: { faces: wolfFaces(0, 18, 2, 8, 2) }, pivot: [0, 4, 0], at: [1.5, 8, 4] },
+    { name: 'legRightHind', box: [2, 8, 2], uv: { faces: wolfFaces(0, 18, 2, 8, 2) }, pivot: [0, 4, 0], at: [-1.5, 8, -7] },
+    { name: 'legLeftHind', box: [2, 8, 2], uv: { faces: wolfFaces(0, 18, 2, 8, 2) }, pivot: [0, 4, 0], at: [1.5, 8, -7] },
+    // Tail: 2x8x2 at (9, 18), hinged at the top base of the tail.
+    { name: 'tail', box: [2, 8, 2], uv: { faces: wolfFaces(9, 18, 2, 8, 2) }, pivot: [0, 4, 0], at: [0, 12, -8], rotate: [-Math.PI / 5, 0, 0] }
   ]
 };
 /** The rabbit's coat sheets, keyed by the coat name the mob rolled. */
@@ -433,6 +452,7 @@ const RABBIT_SKIN_PATHS = {
   brown: '/assets/entity/rabbit/brown.png',
   white: '/assets/entity/rabbit/white.png',
   black: '/assets/entity/rabbit/black.png',
+  white_splotched: '/assets/entity/rabbit/white.png',
   gold: '/assets/entity/rabbit/gold.png',
   salt: '/assets/entity/rabbit/salt.png',
   toast: '/assets/entity/rabbit/toast.png',
@@ -506,24 +526,27 @@ const WITCH_MODEL = {
   transparent: true,
   alphaTest: 0.5,
   parts: [
-    { name: 'body', box: [8, 12, 4], uv: { u: 16, v: 20, tw: 8, th: 12, td: 4 }, at: [0, 12, 0] },
+    // Legs: 4x12x4, grounded from y=0 to y=12
+    { name: 'legLeft', box: [4, 12, 4], uv: { u: 0, v: 22, tw: 4, th: 12, td: 4 }, at: [-2, 6, 0] },
+    { name: 'legRight', box: [4, 12, 4], uv: { u: 0, v: 22, tw: 4, th: 12, td: 4 }, at: [2, 6, 0] },
+    // Torso / Robe: 8x12x6, from y=12 to y=24
+    { name: 'body', box: [8, 12, 6], uv: { u: 16, v: 20, tw: 8, th: 12, td: 6 }, at: [0, 18, 0] },
+    { name: 'robe', box: [8.5, 12.5, 6.5], uv: { u: 0, v: 38, tw: 8, th: 12, td: 6 }, at: [0, 18, 0] },
+    // Villager crossed arms: 8x8x6 at chest height
+    { name: 'arms', box: [8.5, 7, 6.5], uv: { u: 40, v: 38, tw: 8, th: 8, td: 6 }, at: [0, 16.5, 1.5] },
+    // Head: 8x10x8 from y=24 to y=34
     {
       name: 'head', box: [8, 10, 8], uv: { u: 0, v: 0, tw: 8, th: 10, td: 8 },
-      pivot: [0, -5, 0], at: [0, 24, 0]
+      at: [0, 29, 0]
     },
-    // Her hat, which is the single most recognisable thing about her and was previously absent entirely.
-    { name: 'hatBrim', parent: 'head', box: [10, 1, 10], uv: { u: 0, v: 64, tw: 10, th: 1, td: 10 }, at: [0, 5, 0] },
-    { name: 'hatCrown', parent: 'head', box: [6, 8, 6], uv: { u: 0, v: 76, tw: 6, th: 8, td: 6 }, at: [0, 9, 0] },
-    {
-      name: 'armLeft', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
-      pivot: [0, 6, 0], at: [-6, 22, -2], rotate: [-1.2, 0, 0]
-    },
-    {
-      name: 'armRight', box: [4, 12, 4], uv: { u: 44, v: 20, tw: 4, th: 12, td: 4 },
-      pivot: [0, 6, 0], at: [6, 22, -2], rotate: [-1.2, 0, 0]
-    },
-    { name: 'legLeft', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [-2, 12, 0] },
-    { name: 'legRight', box: [4, 12, 4], uv: { u: 0, v: 20, tw: 4, th: 12, td: 4 }, at: [2, 12, 0] }
+    // The big hooked villager nose (2x4x2) with mole
+    { name: 'nose', parent: 'head', box: [2, 4, 2], uv: { u: 24, v: 0, tw: 2, th: 4, td: 2 }, at: [0, -2, 5] },
+    { name: 'mole', parent: 'head', box: [1, 1, 1], uv: { u: 0, v: 0, tw: 1, th: 1, td: 1 }, at: [-1, -3, 6] },
+    // 4-tier pointed witch hat
+    { name: 'hatBrim', parent: 'head', box: [10, 2, 10], uv: { u: 0, v: 64, tw: 10, th: 2, td: 10 }, at: [0, 5, 0] },
+    { name: 'hatCone1', parent: 'hatBrim', box: [7, 4, 7], uv: { u: 0, v: 76, tw: 7, th: 4, td: 7 }, at: [0, 3, -0.5], rotate: [-0.05, 0, 0.025] },
+    { name: 'hatCone2', parent: 'hatCone1', box: [4, 4, 4], uv: { u: 0, v: 87, tw: 4, th: 4, td: 4 }, at: [0, 4, -0.5], rotate: [-0.1, 0, 0.05] },
+    { name: 'hatTip', parent: 'hatCone2', box: [2, 2, 2], uv: { u: 0, v: 95, tw: 2, th: 2, td: 2 }, at: [0, 3, -0.5], rotate: [-0.2, 0, 0.1] }
   ]
 };
 
@@ -539,26 +562,23 @@ const VEX_MODEL = {
   texture: VEX_SKIN_PATH,
   textureSize: [32, 32],
   units: 16,
-  transparent: true,
-  alphaTest: 0.5,
+  materials: {
+    default: { map: 'skin', transparent: true, alphaTest: 0.5 },
+    wings: { map: 'skin', transparent: true, alphaTest: 0.5, side: 'double' }
+  },
   parts: [
-    // Vanilla's root sits at y = -2.5, so every child offset is expressed inside it exactly as the game does.
-    // The root is a bare pivot carrying vanilla's -2.5 offset. It must stay VISIBLE: three propagates a hidden
-    // parent to every child, so hiding it hid the whole mob.
-    { name: 'root', box: [0, 0, 0], at: [0, -2.5, 0] },
-    // Head: 5x5x5 at (0,0), which is where the vex face is drawn.
-    { name: 'head', parent: 'root', box: [5, 5, 5], uv: { u: 0, v: 0, tw: 5, th: 5, td: 5 }, at: [0, 20, 0] },
-    // Body: two LAYERS of the same 3-wide, 2-deep box. The inner one is dilated -0.2 and uses its own patch,
-    // which is how vanilla gives the vex a robe over its body.
-    { name: 'body', parent: 'root', box: [3, 4, 2], uv: { u: 0, v: 10, tw: 3, th: 4, td: 2 }, at: [0, 20, 0] },
-    { name: 'bodyRobe', parent: 'body', box: [3, 5, 2], uv: { u: 0, v: 16, tw: 3, th: 5, td: 2 }, at: [0, 1, 0], offset: [-0.2, -0.2, -0.2] },
-    // Arms: 2x4x2, dilate -0.1, at vanilla offsets.
-    { name: 'armRight', parent: 'body', box: [2, 4, 2], uv: { u: 23, v: 0, tw: 2, th: 4, td: 2 }, at: [-1.75, 0.25, 0] },
-    { name: 'armLeft', parent: 'body', box: [2, 4, 2], uv: { u: 23, v: 6, tw: 2, th: 4, td: 2 }, at: [1.75, 0.25, 0] },
-    // THE WINGS ARE FLAT: vanilla gives them width 0 and mirrors one onto the other from the SAME 5x8 patch.
-    // A zero-width box has no volume, so it is built as a plane; `mirror` flips the left wing as the game does.
-    { name: 'wingRight', parent: 'body', plane: [8, 5], uv: { u: 16, v: 14, tw: 5, th: 8 }, at: [-0.5, 1, 1], rotate: [0, -0.35, 0] },
-    { name: 'wingLeft', parent: 'body', plane: [8, 5], uv: { u: 16, v: 14, tw: 5, th: 8 }, at: [0.5, 1, 1], rotate: [0, 0.35, 0], mirror: true }
+    // Head: 5x5x5 at y=9.5 (sits above torso)
+    { name: 'head', box: [5, 5, 5], uv: { u: 0, v: 0, tw: 5, th: 5, td: 5 }, at: [0, 9.5, 0] },
+    // Body: 3x4x2 at y=5 (chest)
+    { name: 'body', box: [3, 4, 2], uv: { u: 0, v: 10, tw: 3, th: 4, td: 2 }, at: [0, 5, 0] },
+    // Robe overlay: 3.2x5.2x2.2 at y=3
+    { name: 'bodyRobe', box: [3.2, 5.2, 2.2], uv: { u: 0, v: 16, tw: 3, th: 5, td: 2 }, at: [0, 3, 0] },
+    // Arms: 2x4x2 at sides of body
+    { name: 'armRight', box: [2, 4, 2], uv: { u: 23, v: 0, tw: 2, th: 4, td: 2 }, at: [-2.5, 5, 0] },
+    { name: 'armLeft', box: [2, 4, 2], uv: { u: 23, v: 6, tw: 2, th: 4, td: 2 }, at: [2.5, 5, 0] },
+    // Wings: 8 wide by 5 tall planes spread outward behind the back (UV at u: 16, v: 22)
+    { name: 'wingRight', material: 'wings', plane: [8, 5], uv: { u: 16, v: 22, tw: 8, th: 5 }, at: [-2.5, 6, -1.2], rotate: [0, -Math.PI / 2 + 0.4, 0.2] },
+    { name: 'wingLeft', material: 'wings', plane: [8, 5], uv: { u: 16, v: 22, tw: 8, th: 5 }, at: [2.5, 6, -1.2], rotate: [0, Math.PI / 2 - 0.4, -0.2], mirror: true }
   ]
 };
 
@@ -631,6 +651,35 @@ function polarBearFaces(u, v, w, h, d) {
     { x: u + d + d + w, y: v + d, w, h }     // -Z back
   ];
 }
+
+const PANDA_MODEL = {
+  name: 'panda',
+  texture: '/assets/entity/panda/panda.png',
+  textureSize: [64, 64],
+  units: 16,
+  transparent: true,
+  alphaTest: 0.5,
+  parts: [
+    // Body: 19x26x13 in texture space at (0, 25), rotated by PI/2 about X
+    { name: 'body', box: [19, 26, 13], uv: { faces: polarBearFaces(0, 25, 19, 26, 13) }, at: [0, 14, 0], rotate: [Math.PI / 2, 0, 0] },
+    // Head: 13x10x9 at (0, 6)
+    {
+      name: 'head', box: [13, 10, 9], uv: { faces: polarBearFaces(0, 6, 13, 10, 9) },
+      pivot: [0, 0, 0], at: [0, 12.5, 17]
+    },
+    // Snout: 7x5x2 at (45, 16) in head space
+    { name: 'snout', parent: 'head', box: [7, 5, 2], uv: { faces: polarBearFaces(45, 16, 7, 5, 2) }, at: [0, -2.5, 5.5] },
+    // Ears: 5x4x1 at (52, 25)
+    { name: 'earRight', parent: 'head', box: [5, 4, 1], uv: { faces: polarBearFaces(52, 25, 5, 4, 1) }, at: [-6, 5.5, -1] },
+    { name: 'earLeft', parent: 'head', box: [5, 4, 1], uv: { faces: polarBearFaces(52, 25, 5, 4, 1) }, at: [6, 5.5, -1] },
+    // FRONT legs: 6x9x6 at (40, 0)
+    { name: 'legFrontRight', box: [6, 9, 6], uv: { faces: polarBearFaces(40, 0, 6, 9, 6) }, pivot: [0, 4.5, 0], at: [-5.5, 9, 9] },
+    { name: 'legFrontLeft', box: [6, 9, 6], uv: { faces: polarBearFaces(40, 0, 6, 9, 6) }, pivot: [0, 4.5, 0], at: [5.5, 9, 9] },
+    // HIND legs: 6x9x6 at (40, 0) (vanilla: class_586 class_5606 $$4 uses (40, 0) for all 4 legs)
+    { name: 'legBackRight', box: [6, 9, 6], uv: { faces: polarBearFaces(40, 0, 6, 9, 6) }, pivot: [0, 4.5, 0], at: [-5.5, 9, -9] },
+    { name: 'legBackLeft', box: [6, 9, 6], uv: { faces: polarBearFaces(40, 0, 6, 9, 6) }, pivot: [0, 4.5, 0], at: [5.5, 9, -9] }
+  ]
+};
 
 function applyVariantIdentity(mob, variant, options = {}) {
   if (!mob || !variantHealth(variant)) return mob;
@@ -717,6 +766,8 @@ export class MobManager {
       slime: this.loadTexture(SLIME_SKIN_PATH),
       sniffer: this.loadTexture(SNIFFER_SKIN_PATH),
       ender_dragon: this.loadTexture(ENDER_DRAGON_SKIN_PATH),
+      skeleton_horse: this.loadTexture(SKELETON_HORSE_SKIN_PATH),
+      zombie_horse: this.loadTexture(ZOMBIE_HORSE_SKIN_PATH),
       pig: this.loadTexture('/assets/entity/pig.png'),
       cow: this.loadTexture('/assets/entity/cow.png'),
       sheep: this.loadTexture('/assets/entity/sheep.png'),
@@ -734,7 +785,7 @@ export class MobManager {
       guardian: this.loadTexture(GUARDIAN_SKIN_PATH, () => this.createAquaticTexture('guardian')),
       elder_guardian: this.loadTexture(ELDER_GUARDIAN_SKIN_PATH, () => this.createAquaticTexture('elder_guardian')),
       glow_squid: this.createAquaticTexture('glow_squid'),
-      drowned: this.createAquaticTexture('drowned'),
+      drowned: this.loadTexture(DROWNED_SKIN_PATH, () => this.createAquaticTexture('drowned')),
       cod: this.createAquaticTexture('cod'),
       tournament_host: this.createHostTexture(),
       enderman: this.createEndermanTexture(),
@@ -751,7 +802,7 @@ export class MobManager {
       // The real vanilla ocelot sheet, rather than a procedural canvas: a canvas texture whose bitmap has not
     // uploaded renders BLACK, which is the trap the husk hit.
     ocelot: this.loadTexture(OCELOT_SKIN_PATH, () => this.createCatTexture('ocelot')),
-      wolf: this.createWolfTexture(),
+      wolf: this.loadTexture(WOLF_SKIN_PATH, () => this.createWolfTexture()),
       spider: this.createSpiderTexture(),
       ghast_plain: this.createNetherTexture('ghast_plain'),
       ghast: this.createNetherTexture('ghast'),
@@ -770,7 +821,13 @@ export class MobManager {
       strider: this.createNetherTexture('strider'),
       strider_cold: this.createNetherTexture('strider_cold'),
       wither_skeleton: this.createNetherTexture('wither_skeleton'),
-      wither_skull: this.createNetherTexture('wither_skull')
+      wither_skull: this.createNetherTexture('wither_skull'),
+      phantom: this.loadTexture('/assets/entity/phantom.png'),
+      panda: this.loadTexture('/assets/entity/panda/panda.png'),
+      wither: this.loadTexture('/assets/entity/wither/wither.png'),
+      vindicator: this.loadTexture('/assets/entity/illager/vindicator.png'),
+      evoker: this.loadTexture('/assets/entity/illager/evoker.png'),
+      wandering_trader: this.loadTexture('/assets/entity/wandering_trader.png')
     };
 
     // Derived skins, built AFTER the literal above is assigned.
@@ -1135,8 +1192,8 @@ export class MobManager {
       case 'piglin_brute': return this.spawnPiglinBrute(x, y, z, options);
       case 'zombified_piglin':
       case 'zombie_pigman': return this.spawnZombifiedPiglin(x, y, z, options);
-      case 'hoglin': return this.spawnHoglin(x, y, z);
-      case 'zoglin': { const mob = this.spawnHoglin(x, y, z); mob.type = 'zoglin'; mob.name = 'Zoglin'; mob.fireImmune = true; return mob; }
+      case 'hoglin': return this.spawnHoglin(x, y, z, options);
+      case 'zoglin': { const mob = this.spawnHoglin(x, y, z, { type: 'zoglin', ...options }); mob.type = 'zoglin'; mob.name = 'Zoglin'; mob.fireImmune = true; return mob; }
       case 'ghast': return this.spawnGhast(x, y, z);
       case 'magma_cube': return this.spawnMagmaCube(x, y, z);
       case 'shulker': return this.spawnShulker(x, y, z);
@@ -1921,12 +1978,10 @@ export class MobManager {
       }
     }
 
-    // 6. Legs (u:40, v:0; u:40, v:12; u:48, v:0; u:48, v:12)
+    // 6. Legs (front at 40,0; back at 8,13)
     ctx.fillStyle = pawColor;
-    ctx.fillRect(40, 6, 8, 2);
-    ctx.fillRect(40, 18, 8, 2);
-    ctx.fillRect(48, 6, 8, 2);
-    ctx.fillRect(48, 18, 8, 2);
+    ctx.fillRect(40, 8, 8, 2);
+    ctx.fillRect(8, 17, 8, 2);
 
     // 7. Tail (u:0, v:15)
     if (breed === 'tuxedo') {
@@ -2058,11 +2113,6 @@ export class MobManager {
       ctx.fillStyle = '#9aa5ad';
       ctx.fillRect(44, 18, 16, 12);
       ctx.fillRect(48, 44, 14, 10);
-      // Eyes
-      ctx.fillStyle = '#151515';
-      ctx.fillRect(6, 18, 4, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(6, 18, 2, 2);
     } else if (type === 'dolphin') {
       // Oceanic slate-blue upper body and clean ivory-white underbelly
       ctx.fillStyle = '#678297';
@@ -2080,14 +2130,9 @@ export class MobManager {
         const ry = 16 + Math.floor(Math.random() * 20);
         ctx.fillRect(rx, ry, 3, 2);
       }
-      // Blowhole & snout
+      // Blowhole
       ctx.fillStyle = '#26343e';
       ctx.fillRect(28, 4, 6, 4);
-      // Eyes
-      ctx.fillStyle = '#151c22';
-      ctx.fillRect(8, 20, 4, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(8, 20, 2, 2);
     } else if (type === 'octopus') {
       // Deep squid navy-cyan mantle with bioluminescent spots & suction cups
       ctx.fillStyle = '#163546';
@@ -2114,31 +2159,12 @@ export class MobManager {
       ctx.fillRect(10, 32, 4, 4);
       ctx.fillRect(50, 32, 4, 4);
     } else if (type === 'axolotl') {
-      // Lucy Axolotl soft pink with ruby-magenta external gill frills
+      // Lucy Axolotl soft pink with paler belly
       ctx.fillStyle = '#f7aab7';
       ctx.fillRect(0, 0, 64, 64);
       // Soft paler belly
       ctx.fillStyle = '#fde2e8';
       ctx.fillRect(0, 38, 64, 26);
-      // Crimson / magenta gill accents
-      ctx.fillStyle = '#e6356c';
-      ctx.fillRect(0, 0, 20, 16);
-      ctx.fillRect(44, 0, 20, 16);
-      ctx.fillStyle = '#ba184b';
-      ctx.fillRect(4, 4, 12, 8);
-      ctx.fillRect(48, 4, 12, 8);
-      // Cute black bead eyes with twinkle & mouth
-      ctx.fillStyle = '#151515';
-      ctx.fillRect(14, 24, 4, 4);
-      ctx.fillRect(46, 24, 4, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(14, 24, 2, 2);
-      ctx.fillRect(46, 24, 2, 2);
-      // Cute smile
-      ctx.fillStyle = '#d67487';
-      ctx.fillRect(26, 32, 12, 2);
-      ctx.fillRect(24, 30, 2, 2);
-      ctx.fillRect(38, 30, 2, 2);
     } else if (type === 'guardian') {
       // Prismarine teal base with geometric brick segments
       ctx.fillStyle = '#1e7b75';
@@ -2281,11 +2307,6 @@ export class MobManager {
       ctx.fillStyle = '#c4bbb0';
       ctx.fillRect(46, 18, 14, 10);
       ctx.fillRect(48, 44, 12, 8);
-      // Eyes
-      ctx.fillStyle = '#18181b';
-      ctx.fillRect(6, 18, 4, 4);
-      ctx.fillStyle = '#fafaf9';
-      ctx.fillRect(6, 18, 2, 2);
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -2433,29 +2454,6 @@ export class MobManager {
       ctx.fillRect(x + 2, 28, 3, 3);
       ctx.fillRect(x - 1, 40, 5, 2);
     }
-
-    // Muzzle and nose are intentionally high contrast so the face is visible
-    // even when the mob is viewed from a distance or in shadow.
-    ctx.fillStyle = '#252b31';
-    ctx.fillRect(20, 34, 24, 14);
-    ctx.fillStyle = '#11161b';
-    ctx.fillRect(27, 40, 10, 6);
-    ctx.fillStyle = '#a8b0b5';
-    ctx.fillRect(22, 35, 5, 3);
-    ctx.fillRect(37, 35, 5, 3);
-
-    // Red-brown brow and scar accents match the hostile raid variant.
-    ctx.fillStyle = '#8f3e36';
-    ctx.fillRect(9, 20, 14, 5);
-    ctx.fillRect(41, 20, 14, 5);
-    ctx.fillRect(13, 52, 9, 4);
-    ctx.fillRect(43, 52, 9, 4);
-    ctx.fillStyle = '#d7dde0';
-    ctx.fillRect(19, 22, 5, 5);
-    ctx.fillRect(40, 22, 5, 5);
-    ctx.fillStyle = '#0b0d0f';
-    ctx.fillRect(21, 23, 2, 3);
-    ctx.fillRect(41, 23, 2, 3);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.magFilter = THREE.NearestFilter;
@@ -2914,26 +2912,50 @@ export class MobManager {
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(15, 6, 3, 5);
     } else if (type === 'hoglin') {
-      // Deep crimson hide
-      ctx.fillStyle = '#831843';
+      // Authentic warm russet boar hide with natural mottling
+      ctx.fillStyle = '#9c5b45';
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = '#701a75';
+      // Natural mottled porcine hide texture
       for (let x = 0; x < 64; x += 4) {
         for (let y = 0; y < 64; y += 4) {
-          if ((x * 13 + y * 3) % 4 === 0) ctx.fillRect(x, y, 4, 4);
+          const n = (x * 19 + y * 23 + (x ^ y) * 7) % 7;
+          if (n === 0) {
+            ctx.fillStyle = '#ad6a52';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 1) {
+            ctx.fillStyle = '#8a4e3a';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 2) {
+            ctx.fillStyle = '#b6745c';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 3) {
+            ctx.fillStyle = '#7a4230';
+            ctx.fillRect(x, y, 4, 4);
+          }
         }
       }
-      // Dark spine ridge
-      ctx.fillStyle = '#500724';
-      ctx.fillRect(24, 0, 16, 64);
-      // Tusks
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(6, 44, 12, 16);
-      ctx.fillRect(46, 44, 12, 16);
-      // Eyes
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(12, 18, 4, 4);
-      ctx.fillRect(48, 18, 4, 4);
+    } else if (type === 'zoglin') {
+      // Decaying pale greenish-flesh rotting hide with exposed rot
+      ctx.fillStyle = '#6b7a52';
+      ctx.fillRect(0, 0, 64, 64);
+      for (let x = 0; x < 64; x += 4) {
+        for (let y = 0; y < 64; y += 4) {
+          const n = (x * 17 + y * 29 + (x ^ y) * 5) % 8;
+          if (n === 0) {
+            ctx.fillStyle = '#5c6b44';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 1) {
+            ctx.fillStyle = '#7d8e62';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 2) {
+            ctx.fillStyle = '#8f9d77';
+            ctx.fillRect(x, y, 4, 4);
+          } else if (n === 3) {
+            ctx.fillStyle = '#4f5c38';
+            ctx.fillRect(x, y, 4, 4);
+          }
+        }
+      }
     } else if (type === 'magma_cube') {
       // Obsidian crust
       ctx.fillStyle = '#1c1917';
@@ -3466,8 +3488,10 @@ export class MobManager {
       case 'chicken': return { width: 0.4, height: 0.7 };
       case 'ravager': return { width: 1.95, height: 2.2 };
       case 'warden': return { width: 1.4, height: 2.9 };
-      case 'ender_dragon': return { width: 3.5, height: 1.8 };
-      case 'wither': return { width: 1.8, height: 2.4 };
+      case 'vindicator': return VINDICATOR_DIMENSIONS;
+      case 'evoker': return EVOKER_DIMENSIONS;
+      case 'ender_dragon': return ENDER_DRAGON_DIMENSIONS;
+      case 'wither': return WITHER_DIMENSIONS;
       case 'ghast': return { width: 4.0, height: 4.0 };
       // Wiki: a happy ghast is 4.0 x 4.0, and a ghastling 0.95.
       case 'happy_ghast': return HAPPY_GHAST_DIMENSIONS;
@@ -3710,49 +3734,45 @@ export class MobManager {
     const box = (w, h, d, uu, vv, tw, th, td, mat) => new THREE.Mesh(
       createBoxWithUV(w * u, h * u, d * u, uu, vv, 64, 64, tw, th, td), mat);
 
-    // Vanilla's frame sits the parts around y = 24; the shared guarded helper grounds the result afterwards.
-    const frame = new THREE.Group();
-    frame.position.y = 24 * u;
-    group.add(frame);
+    // Head (8x10x8)
+    const head = box(8, 10, 8, 0, 0, 8, 10, 8, bodyMat);
+    head.position.y = 1.35;
+    group.add(head);
 
-    const head = box(8, 8, 8, 0, 0, 8, 8, 8, bodyMat);
-    frame.add(head);
-
-    // The villager's long nose, which is what separates it from a plain zombie at a glance.
+    // The villager's long nose (2x4x2), sits proudly on the front face of the head
     const nose = box(2, 4, 2, 24, 0, 2, 4, 2, bodyMat);
-    nose.position.set(0, 0, -4 * u);
+    nose.position.set(0, -0.15, 0.31);
     head.add(nose);
 
+    // Torso (8x12x6)
     const body = box(8, 12, 6, 16, 20, 8, 12, 6, clothesMat);
-    frame.add(body);
+    body.position.set(0, 0.75, 0);
+    group.add(body);
 
-    // The arms keep their OUTSTRETCHED pose: vanilla sets that in the animation layer, and this project has always
-    // shown a zombie villager with its arms forward.
-    const rightArm = box(4, 12, 4, 44, 22, 4, 12, 4, bodyMat);
-    rightArm.position.set(-5 * u, 2 * u, 0);
-    rightArm.rotation.x = -Math.PI / 2;
-    frame.add(rightArm);
+    // Robe overlay (8x12x6 slightly expanded)
+    const robe = box(8.2, 12.2, 6.2, 0, 38, 8, 12, 6, clothesMat);
+    robe.position.set(0, 0.75, 0);
+    group.add(robe);
 
+    // Arms outstretched forward (zombie pose)
     const leftArm = box(4, 12, 4, 44, 22, 4, 12, 4, bodyMat);
-    leftArm.position.set(5 * u, 2 * u, 0);
+    leftArm.position.set(-0.38, 0.75, 0.25);
     leftArm.rotation.x = -Math.PI / 2;
-    frame.add(leftArm);
+    group.add(leftArm);
+
+    const rightArm = box(4, 12, 4, 44, 22, 4, 12, 4, bodyMat);
+    rightArm.position.set(0.38, 0.75, 0.25);
+    rightArm.rotation.x = -Math.PI / 2;
+    group.add(rightArm);
+
+    // Legs (4x12x4)
+    const leftLeg = box(4, 12, 4, 0, 22, 4, 12, 4, clothesMat);
+    leftLeg.position.set(-0.13, 0.38, 0);
+    group.add(leftLeg);
 
     const rightLeg = box(4, 12, 4, 0, 22, 4, 12, 4, clothesMat);
-    rightLeg.position.set(-2 * u, -12 * u, 0);
-    frame.add(rightLeg);
-
-    const leftLeg = box(4, 12, 4, 0, 22, 4, 12, 4, clothesMat);
-    leftLeg.position.set(2 * u, -12 * u, 0);
-    frame.add(leftLeg);
-
-    // The robe overlay, matching the torso but one unit proud, which is what gives a zombie villager its silhouette.
-    const robe = box(8.2, 12.2, 6.2, 0, 38, 8, 12, 6, clothesMat);
-    robe.position.set(0, -0.1 * u, 0);
-    frame.add(robe);
-
-    // Ground it by measurement, the shared guarded helper.
-    groundModel({ group });
+    rightLeg.position.set(0.13, 0.38, 0);
+    group.add(rightLeg);
 
     group.position.set(x, y, z);
     group.traverse((obj) => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -4024,22 +4044,22 @@ export class MobManager {
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.pig });
 
     // Body
-    const body = new THREE.Mesh(createBoxWithUV(0.65, 0.5, 0.9, 28, 8, 64, 32), mat);
+    const body = new THREE.Mesh(createBoxWithUV(0.65, 0.5, 0.9, 28, 8, 64, 32, 10, 16, 8), mat);
     body.position.y = 0.55;
     group.add(body);
 
     // Head
-    const head = new THREE.Mesh(createBoxWithUV(0.45, 0.45, 0.45, 0, 0, 64, 32), mat);
+    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8), mat);
     head.position.set(0, 0.75, 0.55);
     group.add(head);
 
     // Snout
-    const snout = new THREE.Mesh(createBoxWithUV(0.22, 0.16, 0.08, 16, 16, 64, 32), mat);
-    snout.position.set(0, -0.08, 0.26);
+    const snout = new THREE.Mesh(createBoxWithUV(0.25, 0.18, 0.08, 16, 16, 64, 32, 4, 3, 1), mat);
+    snout.position.set(0, -0.08, 0.28);
     head.add(snout);
 
     // 4 Legs
-    const legGeo = createBoxWithUV(0.2, 0.35, 0.2, 0, 16, 64, 32);
+    const legGeo = createBoxWithUV(0.2, 0.35, 0.2, 0, 16, 64, 32, 4, 6, 4);
     const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.2, 0.18, 0.3); group.add(fl);
     const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.2, 0.18, 0.3); group.add(fr);
     const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.2, 0.18, -0.3); group.add(bl);
@@ -4542,10 +4562,10 @@ export class MobManager {
    * later. It pollinates flowers, carries nectar to a hive, and answers anger as a colony.
    */
   spawnBee(x, y, z, options = {}) {
-    // The real 64x64 bee skin. The model was rebuilt with UVs so the texture actually dresses it: before this the
-        // banding was two loose stripe boxes balanced on the body and the skin was never sampled at all.
-        const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body, transparent: true, alphaTest: 0.5 });
-        adoptTexture(bodyMat, this.loadTexture(BEE_SKIN_PATH), BEE_COLORS.body);
+    // The real 64x64 bee skin. The model was rebuilt with UVs so the texture actually dresses it.
+    const initialSkin = options.hasNectar ? BEE_SKIN_PATHS.nectar : BEE_SKIN_PATHS.regular;
+    const bodyMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.body, transparent: true, alphaTest: 0.5 });
+    adoptTexture(bodyMat, this.loadTexture(initialSkin), BEE_COLORS.body);
     const stripeMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.stripe });
     const wingMat = new THREE.MeshLambertMaterial({ color: BEE_COLORS.wing, transparent: true, opacity: 0.75 });
     const eyeMat = new THREE.MeshBasicMaterial({ color: BEE_COLORS.eye });
@@ -4569,6 +4589,8 @@ export class MobManager {
       stripeMat,
       wingMat,
       eyeMat,
+      skinManager: this,
+      _lastNectarSkin: !!options.hasNectar,
       isFlying: true,
       isArthropod: true,
       // Wiki: bees are immune to poison (they inflict it), and take no fall damage.
@@ -4768,15 +4790,15 @@ export class MobManager {
     const strength = options.strength ?? rollLlamaStrength(random);
     const colors = llamaCoatColors(variant);
     // The real llama coat sheet. There are four coats plus a trader texture, so the coat is a texture
-    // choice; the model already had the right shape but no UVs, so its parts are mapped with `applyQuadUvs`.
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base, transparent: true, alphaTest: 0.5 });
+    // choice; mapped using vanilla LlamaModel UV coordinates.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
     // `variant` arrives as a name from `rollLlamaVariant` but a caller may pass a numeric id, so normalise it
     // before indexing the sheet table.
     const llamaCoat = typeof variant === 'number' ? (Object.keys(LLAMA_VARIANTS)[variant] ?? 'creamy') : variant;
     adoptTexture(bodyMat, this.loadTexture(LLAMA_SKIN_PATHS[llamaCoat] ?? LLAMA_SKIN_PATHS.creamy), colors.base);
     const darkMat = new THREE.MeshLambertMaterial({ color: colors.dark });
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1c1917 });
-    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh } = createLlamaModel(bodyMat, darkMat, eyeMat, { loadTexture: (p) => this.loadTexture(p) });
+    const { group, body, neck, head, muzzle, ears, eyes, tail, legs, chestMesh, carpetMesh, leftChest, rightChest, carpetBody, carpetNeck } = createLlamaModel(bodyMat, darkMat, eyeMat, { loadTexture: (p) => this.loadTexture(p) });
     group.position.set(x, y, z);
     if (options.isBaby) group.scale.setScalar(LLAMA_BABY_SCALE);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -4803,6 +4825,10 @@ export class MobManager {
       legs,
       chestMesh,
       carpetMesh,
+      leftChest,
+      rightChest,
+      carpetBody,
+      carpetNeck,
       bodyMat,
       darkMat,
       eyeMat,
@@ -4951,13 +4977,12 @@ export class MobManager {
     const bodyMat = new THREE.MeshLambertMaterial({ color: colors.base });
     const bellyMat = new THREE.MeshLambertMaterial({ color: colors.belly });
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
-    // The real 48x48 frog sheet. The model was rebuilt from the decompiled one, whose tongue and hands and feet
-    // are FLAT planes, so this is the only shape that can sample it.
+    const frogTexPath = `/assets/entity/frog/${variant}_frog.png`;
     const { group, body, belly, head, eyes, tongue, legs } = createFrogModel(bodyMat, bellyMat, eyeMat, {
-      // The builder loads its own sheet through this hook; handing it a pre-loaded texture binds nothing.
+      texture: frogTexPath,
       loadTexture: (p) => this.loadTexture(p),
       onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
-        });
+    });
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
@@ -5196,24 +5221,24 @@ export class MobManager {
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.cow });
 
-    const body = new THREE.Mesh(createBoxWithUV(0.75, 0.65, 1.1, 18, 4, 64, 32), mat);
+    const body = new THREE.Mesh(createBoxWithUV(0.75, 0.65, 1.1, 18, 4, 64, 32, 12, 18, 10), mat);
     body.position.y = 0.7;
     group.add(body);
 
-    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32), mat);
+    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.375, 0, 0, 64, 32, 8, 8, 6), mat);
     head.position.set(0, 0.95, 0.65);
     group.add(head);
 
     // Horns
-    const hornGeo = createBoxWithUV(0.08, 0.18, 0.08, 22, 0, 64, 32);
+    const hornGeo = createBoxWithUV(0.06, 0.18, 0.06, 22, 0, 64, 32, 1, 3, 1);
     const hornL = new THREE.Mesh(hornGeo, mat); hornL.position.set(-0.25, 0.28, 0.05); head.add(hornL);
     const hornR = new THREE.Mesh(hornGeo, mat); hornR.position.set(0.25, 0.28, 0.05); head.add(hornR);
 
     // Udder
-    const udderGeo = createBoxWithUV(0.25, 0.15, 0.35, 52, 0, 64, 32);
+    const udderGeo = createBoxWithUV(0.25, 0.15, 0.35, 52, 0, 64, 32, 4, 6, 2);
     const udder = new THREE.Mesh(udderGeo, mat); udder.position.set(0, 0.42, -0.2); group.add(udder);
 
-    const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
+    const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32, 4, 12, 4);
     const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
     const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
     const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
@@ -5251,23 +5276,33 @@ export class MobManager {
     // The wool layer is tinted per sheep instead of using sixteen textures. Colours
     // come from SHEEP_COLOR_HEX, so the wool block a sheep drops and the tint on its
     // back are derived from one source and cannot drift apart.
-    const woolMat = new THREE.MeshLambertMaterial({ map: this.textures.sheep });
+    const woolSheet = this.textures.white_wool || this.loadTexture('/assets/blocks/white_wool.png');
+    if (woolSheet) { woolSheet.magFilter = THREE.NearestFilter; woolSheet.minFilter = THREE.NearestFilter; }
+    const woolMat = new THREE.MeshLambertMaterial({ map: woolSheet || this.textures.sheep });
 
-    const body = new THREE.Mesh(createBoxWithUV(0.7, 0.6, 1.0, 28, 8, 64, 32), mat);
+    const sheepFaces = [
+      { x: 28, y: 14, w: 6, h: 16 }, // +X Right
+      { x: 42, y: 14, w: 6, h: 16 }, // -X Left
+      { x: 34, y: 14, w: 8, h: 16 }, // +Y Top
+      { x: 48, y: 14, w: 8, h: 16 }, // -Y Bottom
+      { x: 34, y: 8,  w: 8, h: 6 },  // +Z Front
+      { x: 42, y: 8,  w: 8, h: 6 }   // -Z Back
+    ];
+    const body = new THREE.Mesh(createBoxFromFaces(0.7, 0.6, 1.0, sheepFaces, { texW: 64, texH: 32 }), mat);
     body.position.y = 0.65;
     group.add(body);
 
     // Wool shell, inflated slightly around the body so shearing reveals the skin cube
     // underneath rather than deleting geometry.
-    const woolMesh = new THREE.Mesh(createBoxWithUV(0.79, 0.68, 1.09, 28, 8, 64, 32), woolMat);
+    const woolMesh = new THREE.Mesh(new THREE.BoxGeometry(0.79, 0.68, 1.09), woolMat);
     woolMesh.position.y = 0.68;
     group.add(woolMesh);
 
-    const head = new THREE.Mesh(createBoxWithUV(0.42, 0.42, 0.45, 0, 0, 64, 32), mat);
+    const head = new THREE.Mesh(createBoxWithUV(0.38, 0.38, 0.5, 0, 0, 64, 32, 6, 6, 8), mat);
     head.position.set(0, 0.88, 0.6);
     group.add(head);
 
-    const legGeo = createBoxWithUV(0.2, 0.4, 0.2, 0, 16, 64, 32);
+    const legGeo = createBoxWithUV(0.2, 0.4, 0.2, 0, 16, 64, 32, 4, 12, 4);
     const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.22, 0.2, 0.32); group.add(fl);
     const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.22, 0.2, 0.32); group.add(fr);
     const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.22, 0.2, -0.32); group.add(bl);
@@ -5279,12 +5314,13 @@ export class MobManager {
 
     const mob = {
       type: 'sheep',
-      name: 'Sheep',
+      name: options.name || 'Sheep',
+      customName: options.customName || options.name || null,
       mesh: group,
       head: head,
       woolMesh: woolMesh,
       woolMaterial: woolMat,
-      woolColor: options.woolColor || 'white',
+      woolColor: options.woolColor || (options.natural ? rollNaturalSheepColor(this.random ?? Math.random) : 'white'),
       isSheared: !!options.isSheared,
       legs: [fl, fr, bl, br],
       mat: mat,
@@ -5294,9 +5330,13 @@ export class MobManager {
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
-      timer: 0,
-      hitCooldown: 0
+      hitCooldown: 0,
+      isBaby: !!options.isBaby,
+      babyGrowthTimer: options.babyGrowthTimer !== undefined ? options.babyGrowthTimer : (options.isBaby ? 1200 : undefined)
     };
+    if (options.isBaby) {
+      group.scale.set(0.5, 0.5, 0.5);
+    }
     sheepApplyWool(mob);
 
     this.mobs.push(mob);
@@ -5310,52 +5350,61 @@ export class MobManager {
     // right coordinates -- but the texture was a procedural `createChickenTexture()`, so the model wore a generated
     // pattern instead of the asset. `adoptTexture` binds the sheet once it decodes and keeps the flat colour until
     // then, so a build with no assets still renders a chicken.
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
     adoptTexture(mat, this.loadTexture(CHICKEN_SKIN_PATH), 0xffffff);
 
     // Torso / Body (6w, 6h, 8d in pixels)
     const bodyGeo = createBoxWithUV(0.38, 0.38, 0.5, 0, 9, 64, 32, 6, 6, 8);
     const body = new THREE.Mesh(bodyGeo, mat);
-    body.position.y = 0.35;
+    body.position.y = 0.45;
     group.add(body);
 
     // Head (4w, 6h, 3d in pixels)
     const headGeo = createBoxWithUV(0.25, 0.38, 0.2, 0, 0, 64, 32, 4, 6, 3);
     const head = new THREE.Mesh(headGeo, mat);
-    head.position.set(0, 0.58, 0.22);
+    head.position.set(0, 0.67, 0.26);
     group.add(head);
 
     // Bill / Beak (4w, 2h, 2d in pixels)
     const billGeo = createBoxWithUV(0.25, 0.12, 0.12, 14, 0, 64, 32, 4, 2, 2);
     const bill = new THREE.Mesh(billGeo, mat);
-    bill.position.set(0, -0.04, 0.14);
+    bill.position.set(0, -0.04, 0.16);
     head.add(bill);
 
-    // Wattle / Red chin flap (2w, 4h, 2d in pixels)
-    const wattleGeo = createBoxWithUV(0.12, 0.22, 0.12, 14, 4, 64, 32, 2, 4, 2);
+    // Wattle / Red chin flap (2w, 2h, 2d in pixels)
+    const wattleGeo = createBoxWithUV(0.12, 0.12, 0.12, 14, 4, 64, 32, 2, 2, 2);
     const wattle = new THREE.Mesh(wattleGeo, mat);
-    wattle.position.set(0, -0.16, 0.08);
+    wattle.position.set(0, -0.10, 0.10);
     head.add(wattle);
 
     // Left Wing (1w, 4h, 6d in pixels)
     const wingGeo = createBoxWithUV(0.06, 0.25, 0.38, 24, 13, 64, 32, 1, 4, 6);
     const wingLGroup = new THREE.Group();
-    wingLGroup.position.set(-0.21, 0.44, 0);
+    wingLGroup.position.set(-0.21, 0.50, 0);
     const wingL = new THREE.Mesh(wingGeo, mat);
-    wingL.position.set(-0.03, -0.1, 0);
+    wingL.position.set(-0.03, -0.06, 0);
     wingLGroup.add(wingL);
     group.add(wingLGroup);
 
     // Right Wing (1w, 4h, 6d in pixels)
     const wingRGroup = new THREE.Group();
-    wingRGroup.position.set(0.21, 0.44, 0);
+    wingRGroup.position.set(0.21, 0.50, 0);
     const wingR = new THREE.Mesh(wingGeo, mat);
-    wingR.position.set(0.03, -0.1, 0);
+    wingR.position.set(0.03, -0.06, 0);
     wingRGroup.add(wingR);
     group.add(wingRGroup);
 
     // 2 Legs (3w, 5h, 3d in pixels)
     const legGeo = createBoxWithUV(0.16, 0.28, 0.16, 26, 0, 64, 32, 3, 5, 3);
+    // In vanilla chicken.png, the foot is on -Y (bottom) and the vertical shaft is on -Z (back).
+    // Duplicate the back UVs to front (+Z) so the leg shaft renders solidly from both front and rear.
+    const legUvs = legGeo.attributes.uv;
+    for (let i = 0; i < 4; i++) {
+      legUvs.setXY(16 + i, legUvs.getX(20 + i), legUvs.getY(20 + i)); // Front (+Z)
+      legUvs.setXY(0 + i, legUvs.getX(20 + i), legUvs.getY(20 + i));  // Right (+X)
+      legUvs.setXY(4 + i, legUvs.getX(20 + i), legUvs.getY(20 + i));  // Left (-X)
+    }
+    legUvs.needsUpdate = true;
     const leftLeg = new THREE.Mesh(legGeo, mat);
     leftLeg.position.set(-0.1, 0.14, 0.02);
     group.add(leftLeg);
@@ -5518,38 +5567,29 @@ export class MobManager {
     // how the head ended up wearing the body's texture.
     const skinPath = isBrown ? BROWN_MOOSHROOM_SKIN_PATH : MOOSHROOM_SKIN_PATH;
     const sheet = this.loadTexture(skinPath);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
     adoptTexture(bodyMat, sheet, 0xffffff);
 
-    // Head. The cow's face -- the dark markings that read as eyes -- is drawn at (2,8) on the sheet, which is not
-    // where the textbook head layout looks. The face is copied to the layout's own origin so the head can be an
-    // ordinary 8x8x8 box with its other five sides in the normal places. The copy is retried once the sheet
-    // finishes decoding, because at spawn it is usually still in flight.
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 });
-    const bindFace = () => {
-      const face = this.faceSheetTexture(sheet, 2, 8, 8, 8);
-      // Only bind the copy once it really is a copy; binding the raw sheet would put the body's hide on the face.
-      if (face !== sheet || sheet.image?.width) adoptTexture(headMat, face, 0xffffff);
-    };
-    bindFace();
-    MobManager.onTextureReady(sheet, bindFace);
-    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 32, 8, 8, 8), headMat);
-    head.position.set(0, 1.05, 0.65);
+    // Head
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    adoptTexture(headMat, sheet, 0xffffff);
+    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.375, 0, 0, 64, 32, 8, 8, 6), headMat);
+    head.position.set(0, 0.95, 0.65);
     group.add(head);
 
-    // Body: 12 long, 10 tall, 18 deep -- the standard quadruped barrel. Its depth is more than half its width, so
-    // vanilla's own left-face slot would land outside the part's block; explicit rectangles measured off the atlas
-    // (every one of the six is fully opaque there) keep it honest.
-    const body = new THREE.Mesh(createBoxFromFaces(0.75, 0.65, 1.1, [
-      { x: 18, y: 4, w: 18, h: 10 },   // +X right
-      { x: 42, y: 4, w: 18, h: 10 },   // -X left
-      { x: 18, y: 0, w: 12, h: 18 },   // +Y top
-      { x: 30, y: 0, w: 12, h: 18 },   // -Y bottom
-      { x: 18, y: 4, w: 12, h: 10 },   // +Z front
-      { x: 30, y: 4, w: 12, h: 10 }    // -Z back
-    ], { texW: 64, texH: 32 }), bodyMat);
-    body.position.y = 0.75;
+    // Horns
+    const hornGeo = createBoxWithUV(0.06, 0.18, 0.06, 22, 0, 64, 32, 1, 3, 1);
+    const hornL = new THREE.Mesh(hornGeo, bodyMat); hornL.position.set(-0.25, 0.28, 0.05); head.add(hornL);
+    const hornR = new THREE.Mesh(hornGeo, bodyMat); hornR.position.set(0.25, 0.28, 0.05); head.add(hornR);
+
+    // Body
+    const body = new THREE.Mesh(createBoxWithUV(0.75, 0.65, 1.1, 18, 4, 64, 32, 12, 18, 10), bodyMat);
+    body.position.y = 0.7;
     group.add(body);
+
+    // Udder
+    const udderGeo = createBoxWithUV(0.25, 0.15, 0.35, 52, 0, 64, 32, 4, 6, 2);
+    const udder = new THREE.Mesh(udderGeo, bodyMat); udder.position.set(0, 0.42, -0.2); group.add(udder);
 
     // Wiki: five mushrooms grow on its back. They are real mushroom blocks now rather than coloured cubes, so the
     // caps and the stems read as mushrooms; red mooshrooms carry red ones and brown mooshrooms brown.
@@ -5692,25 +5732,165 @@ export class MobManager {
    * the rider controls the pathfinding, and both become passive once separated so a player can saddle
    * and ride them. The skeleton horse does not burn in sunlight; the zombie horse does.
    */
+  createUndeadHorseTexture(type, part = 'coat') {
+    const size = 64;
+    const data = new Uint8Array(size * size * 4);
+    const isSkeleton = type === 'skeleton_horse';
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let r = 0, g = 0, b = 0, a = 0;
+        const noise = ((x * 37 + y * 53 + (x ^ y) * 11) % 17 - 8) * 1.5;
+        if (isSkeleton) {
+          // Authentic skeletal pixel layout matching Minecraft horse_skeleton.png (64x64)
+          // 1. Body at (0, 32) spanning 64x32
+          if (y >= 32) {
+            // Sides of the ribcage (y: 54-64, x: 0-22 and x: 32-54): vertical rib bars with transparent air gaps!
+            const isRibSide = (y >= 54) && ((x >= 0 && x < 22) || (x >= 32 && x < 54));
+            if (isRibSide) {
+              const ribCol = x % 4;
+              if (ribCol === 0 || ribCol === 1) {
+                // Rib bone
+                r = 225; g = 220; b = 205; a = 255;
+              } else {
+                // Transparent gap between ribs
+                a = 0;
+              }
+            } else if (y < 54 && ((x >= 12 && x <= 17) || (x >= 44 && x <= 49))) {
+              // Dorsal vertebral column / spine along top
+              r = 215; g = 210; b = 195; a = 255;
+            } else if ((x >= 8 && x <= 23 && y >= 50 && y < 54) || (x >= 40 && x <= 55 && y >= 50 && y < 54)) {
+              // Sternum / pelvis connectors
+              r = 210; g = 205; b = 190; a = 255;
+            } else if ((x >= 10 && x < 20 && y >= 54) || (x >= 42 && x < 52 && y >= 54)) {
+              // Front/back chest & pelvic bone plates
+              r = 220; g = 215; b = 200; a = 255;
+            }
+          }
+          // 2. Head at (0, 13) spanning 34x17 & Snout at (0, 25) spanning 26x12
+          else if (y >= 13 && y < 32 && x < 34) {
+            // Hollow eye sockets & nasal cavity
+            const isEye = (y >= 17 && y <= 21 && ((x >= 8 && x <= 12) || (x >= 22 && x <= 26)));
+            const isNose = (y >= 26 && y <= 29 && x >= 10 && x <= 16);
+            if (isEye || isNose) {
+              r = 30; g = 30; b = 30; a = 255; // Dark cavity
+            } else {
+              r = 225; g = 220; b = 205; a = 255; // Ivory cranial bone
+            }
+          }
+          // 3. Neck at (0, 35) or (26, 0)
+          else if (x >= 26 && x < 44 && y < 19) {
+            // Cervical vertebrae column
+            const isSpine = (x >= 32 && x <= 37);
+            if (isSpine) {
+              r = 220; g = 215; b = 200; a = 255;
+            } else if ((x + y) % 3 === 0) {
+              r = 195; g = 190; b = 175; a = 255;
+            }
+          }
+          // 4. Legs at (48, 21) spanning 16x15
+          else if (x >= 48 && y >= 21 && y < 36) {
+            const legX = (x - 48) % 4;
+            const isHoof = (y >= 33);
+            if (isHoof) {
+              r = 66; g = 64; b = 58; a = 255; // Dark bone hoof
+            } else if (legX === 1 || legX === 2 || y === 27 || y === 28) {
+              // Thin leg bone shaft & joint
+              r = 220; g = 215; b = 200; a = 255;
+            } else {
+              a = 0; // Cutout around thin leg bones
+            }
+          }
+          // 5. Tail at (42, 36)
+          else if (x >= 42 && x < 46 && y >= 36 && y < 50) {
+            r = 215; g = 210; b = 195; a = 255; // Thin tail vertebrae
+          }
+        } else {
+          // Zombie horse rotted green hide
+          a = 255;
+          const isDecay = (Math.floor(x / 4) * 7 + Math.floor(y / 4) * 11) % 13 < 4;
+          const isBonePatch = (x > 36 && x < 48 && y > 24 && y < 36);
+          if (isBonePatch) {
+            r = 210; g = 205; b = 190;
+          } else if (isDecay) {
+            r = 52; g = 78; b = 40;
+          } else {
+            r = 74; g = 107; b = 58;
+          }
+        }
+        const i = (y * size + x) * 4;
+        data[i] = Math.max(0, Math.min(255, r + noise));
+        data[i + 1] = Math.max(0, Math.min(255, g + noise));
+        data[i + 2] = Math.max(0, Math.min(255, b + noise));
+        data[i + 3] = a;
+      }
+    }
+    const tex = new THREE.DataTexture(data, size, size);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  createStickWoodTexture() {
+    const size = 16;
+    const data = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        const grain = ((x * 17 + y * 7 + (x ^ y)) % 7);
+        let r = 107, g = 73, b = 43; // Base warm oak stick bark #6b492b
+        if (grain === 0 || grain === 1) {
+          r = 90; g = 61; b = 36;   // Darker fiber line #5a3d24
+        } else if (grain === 2) {
+          r = 124; g = 85; b = 50;  // Highlight bark line #7c5532
+        } else if (grain === 3) {
+          r = 99; g = 67; b = 39;   // Mid bark tone #634327
+        }
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 255; // 100% OPAQUE - zero holes, zero transparency
+      }
+    }
+    const tex = new THREE.DataTexture(data, size, size);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
   spawnUndeadHorse(x, y, z, type, options = {}) {
     if (!isUndeadHorse(type)) return null;
     const colors = UNDEAD_HORSE_COLORS[type];
     const group = new THREE.Group();
-    // The real sheet for this type, from the PRELOADED ATLAS when a key exists -- a fresh `loadTexture(path)` returns a
-    // texture with a null bitmap, which draws nothing. Bound through the deferred hook so it lands on decode.
-    const sheetPath = type === 'zombie_horse' ? ZOMBIE_HORSE_SKIN_PATH : SKELETON_HORSE_SKIN_PATH;
-    const undeadSheet = this.textures?.[type] ?? this.loadTexture(sheetPath);
-    /** A sheet material, with the flat colour as the stand-in until the bitmap arrives. */
-    const undeadMat = (fallback) => {
-      if (!undeadSheet) return fallback;
-      const mat = new THREE.MeshLambertMaterial({ map: undeadSheet, transparent: true, alphaTest: 0.5 });
-      adoptWhenReady(mat, undeadSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
-      return mat;
-    };
-    const coatMat = undeadMat(new THREE.MeshLambertMaterial({ color: colors.coat }));
-    const maneMat = undeadMat(new THREE.MeshLambertMaterial({ color: colors.mane }));
+    const isSkeleton = type === 'skeleton_horse';
+    const skinPath = isSkeleton ? SKELETON_HORSE_SKIN_PATH : ZOMBIE_HORSE_SKIN_PATH;
+    const sheet = this.textures?.[type] ?? this.loadTexture(skinPath);
+    if (sheet) {
+      sheet.magFilter = sheet.minFilter = THREE.NearestFilter;
+      sheet.needsUpdate = true;
+    }
+    const coatTex = this.createUndeadHorseTexture(type, 'coat');
+    const maneTex = this.createUndeadHorseTexture(type, 'mane');
+    const coatMat = new THREE.MeshLambertMaterial({
+      map: coatTex,
+      color: 0xffffff,
+      transparent: isSkeleton,
+      alphaTest: isSkeleton ? 0.1 : 0,
+      side: isSkeleton ? THREE.DoubleSide : THREE.FrontSide
+    });
+    const maneMat = new THREE.MeshLambertMaterial({
+      map: maneTex,
+      color: 0xffffff,
+      transparent: isSkeleton,
+      alphaTest: isSkeleton ? 0.1 : 0,
+      side: isSkeleton ? THREE.DoubleSide : THREE.FrontSide
+    });
+    adoptWhenReady(coatMat, sheet, colors.coat);
+    adoptWhenReady(maneMat, sheet, colors.mane);
     const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eye });
-    const hoofMat = new THREE.MeshLambertMaterial({ color: 0x2b2b26 });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: isSkeleton ? 0x42403a : 0x2b3324 });
     const { group: model, body, neck, head, eyes, mane, legs, tail, saddle } =
       createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat);
     group.add(model);
@@ -5855,8 +6035,16 @@ export class MobManager {
     const faceMat = new THREE.MeshBasicMaterial({ color: SNOW_GOLEM_COLORS.face });
     // The pumpkin is a real carved-pumpkin block: the grin on the front, rind on the sides, stem end on top.
     const pumpkinMat = this.createPumpkinMaterials();
+    const stickTex = this.createStickWoodTexture();
+    const armWoodMat = new THREE.MeshLambertMaterial({
+      map: stickTex,
+      color: 0xffffff,
+      transparent: false,
+      alphaTest: 0,
+      depthWrite: true
+    });
     const { group: model, lower, middle, head, face, pumpkin, arms } =
-      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, { snowFace: snowFaceMat }, { createTexturedBox });
+      createSnowGolemModel(snowMat, shadowMat, pumpkinMat, faceMat, { snowFace: snowFaceMat, armWood: armWoodMat }, { createTexturedBox });
     group.add(model);
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -6057,7 +6245,7 @@ export class MobManager {
     const trimMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.trim });
     const skinMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.skin });
     const hatMat = new THREE.MeshLambertMaterial({ color: WANDERING_TRADER_COLORS.hat });
-    const { group: model, body, sash, head, brim, crown, eyes, legs, arms, pack } =
+    const { group: model, body, sash, head, brim, crown, eyes, legs, arms, pack, foldedArms } =
       createWanderingTraderModel(robeMat, trimMat, skinMat, hatMat, { loadTexture: (p) => this.loadTexture(p) });
     group.add(model);
     group.position.set(x, y, z);
@@ -6070,7 +6258,7 @@ export class MobManager {
       // A definite groundedness, so a branch reading it never sees undefined.
       onGround: true,
       mesh: group,
-      body, sash, head, brim, crown, eyes, legs, arms, pack,
+      body, sash, head, brim, crown, eyes, legs, arms, pack, foldedArms,
       // Wiki: 20 HP.
       health: WANDERING_TRADER_HEALTH,
       maxHealth: WANDERING_TRADER_HEALTH,
@@ -6115,16 +6303,14 @@ export class MobManager {
   spawnTraderLlama(x, y, z, options = {}) {
     // Reuse the llama model, then mark it as a trader llama.
     // The loader reaches the carpet material inside the llama model, so the caravan decor can be bound.
-        const llama = this.spawnLlama(x, y, z, { ...options, loadTexture: (p) => this.loadTexture(p) });
+    const llama = this.spawnLlama(x, y, z, { ...options, loadTexture: (p) => this.loadTexture(p) });
     if (!llama) return llama;
     llama.type = 'trader_llama';
     llama.name = 'Trader Llama';
     llama.isTraderLlama = true;
     // Wiki: a trader llama has the trader llama carpet, which is its only visual difference.
     llama.hasTraderCarpet = true;
-        // The flag was SET AND READ NOWHERE, so a trader llama looked exactly like a plain one. Show the carpet it is
-        // defined by, which is what makes `hasTraderCarpet` mean something.
-        if (llama.carpetMesh) llama.carpetMesh.visible = true;
+    applyLlamaEquipment(llama);
     return llama;
   }
 
@@ -6550,39 +6736,20 @@ export class MobManager {
       ? { mainGene: options.mainGene, hiddenGene: options.hiddenGene ?? options.mainGene }
       : rollPandaGenes(options.random || Math.random);
 
-    // The panda keeps its flat black-and-white build, because `applyPandaColors` recolours a BROWN panda by writing
-    // colours onto these two materials, and a textured material cannot take that. What it gains instead is the two
-    // things the flat version was missing: real eye patches on the face, and legs sampled from the black band of
-    // the real skin rather than four plain boxes. The brown-panda skin is recorded as a gap in
-    // docs/mob-visual-audit.md rather than half-done here.
-    const whiteMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.light });
-    const blackMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.dark });
-
-    const body = new THREE.Mesh(createBoxWithUV(0.9, 0.85, 1.2, 16, 31, 64, 64), whiteMat);
-    body.position.y = 0.8;
-    group.add(body);
-
-    // The head is textured from the atlas patch that carries the eye patches -- the actual FACE of a panda, which
-    // the flat version never had. It uses its own material so `applyPandaColors` cannot stain it brown.
-    const skinMat = new THREE.MeshLambertMaterial({ color: PANDA_COLORS.normal.light });
-    adoptTexture(skinMat, this.loadTexture('/assets/entity/panda/panda.png'), PANDA_COLORS.normal.light);
-    const head = new THREE.Mesh(createBoxWithUV(0.62, 0.6, 0.5, 10, 10, 64, 64), skinMat);
-    head.position.set(0, 1.12, 0.72);
-    group.add(head);
-
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.25), blackMat);
-    snout.position.set(0, 0.98, 1.02);
-    group.add(snout);
-
-    const legGeo = createBoxWithUV(0.28, 0.5, 0.28, 0, 40, 64, 64);
-    const fl = new THREE.Mesh(legGeo, blackMat); fl.position.set(-0.3, 0.25, 0.4); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, blackMat); fr.position.set(0.3, 0.25, 0.4); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, blackMat); bl.position.set(-0.3, 0.25, -0.4); group.add(bl);
-    const br = new THREE.Mesh(legGeo, blackMat); br.position.set(0.3, 0.25, -0.4); group.add(br);
+    const built = buildModel(PANDA_MODEL, {
+      loadTexture: (p) => this.loadTexture(p),
+      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
+    });
+    group.add(built.group);
+    groundModel(built);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
     this.scene.add(group);
+
+    const head = built.parts.head;
+    const legs = [built.parts.legFrontLeft, built.parts.legFrontRight, built.parts.legBackLeft, built.parts.legBackRight];
+    const pandaMat = built.materials.default;
 
     const mob = {
       type: 'panda',
@@ -6592,11 +6759,10 @@ export class MobManager {
       name: 'Panda',
       mesh: group,
       head: head,
-      legs: [fl, fr, bl, br],
-      // The two materials the model is built from, so `applyPandaColors` can recolour a brown panda
-      // without traversing for them.
-      darkMat: blackMat,
-      lightMat: whiteMat,
+      legs: legs,
+      snout: built.parts.snout,
+      darkMat: pandaMat,
+      lightMat: pandaMat,
       // Wiki: a panda has a MainGene and a HiddenGene, and the personality follows from them.
       mainGene: genes.mainGene,
       hiddenGene: genes.hiddenGene,
@@ -6621,15 +6787,9 @@ export class MobManager {
       hitCooldown: 0
     };
     applyPandaPersonality(mob);
-    // Wiki: a brown panda is brown and white. The other six personalities share the normal palette.
-    //
-    // This is deliberate and is the ONE thing that keeps the panda off its real skin for now. A brown panda is
-    // recoloured by writing flat colours onto two materials, so both have to be untextured to take the colour.
-    // Giving the panda its real skin here would mean one material carrying the whole animal -- and tinting that
-    // would stain the eye patches and the black legs as well as the white fur, which is worse than the flat
-    // version. Doing it properly needs a separate brown skin (or a recoloured derived texture) plus a
-    // dark/light split; that is recorded as a gap in docs/mob-visual-audit.md rather than half-done here.
-    applyPandaColors(mob);
+    if (mob.personality === 'brown' && pandaMat) {
+      pandaMat.color.setHex(0xb2774c);
+    }
     if (options.isBaby) group.scale.setScalar(PANDA_BABY_SCALE);
     this.mobs.push(mob);
     return mob;
@@ -6766,7 +6926,7 @@ export class MobManager {
     group.add(head);
 
     // Snout
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.16), skinMat);
+    const snout = new THREE.Mesh(createBoxWithUV(0.34, 0.22, 0.16, 31, 1, 64, 64, 4, 3, 1), skinMat);
     snout.position.set(0, -0.1, 0.32);
     head.add(snout);
 
@@ -6787,12 +6947,11 @@ export class MobManager {
     head.add(tuskR);
 
     // Floppy ears
-    const earGeo = new THREE.BoxGeometry(0.08, 0.32, 0.18);
-    const earL = new THREE.Mesh(earGeo, skinMat);
+    const earL = new THREE.Mesh(createBoxWithUV(0.08, 0.32, 0.18, 51, 6, 64, 64, 1, 5, 4), skinMat);
     earL.position.set(-0.35, 0, 0);
     earL.rotation.z = -0.3;
     head.add(earL);
-    const earR = new THREE.Mesh(earGeo, skinMat);
+    const earR = new THREE.Mesh(createBoxWithUV(0.08, 0.32, 0.18, 39, 6, 64, 64, 1, 5, 4), skinMat);
     earR.position.set(0.35, 0, 0);
     earR.rotation.z = 0.3;
     head.add(earR);
@@ -6803,9 +6962,8 @@ export class MobManager {
     body.position.y = 0.95;
     group.add(body);
 
-    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftArm = new THREE.Mesh(armGeo, skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
+    const leftArm = new THREE.Mesh(createBoxWithUV(0.2, 0.75, 0.2, 32, 48, 64, 64, 4, 12, 4), skinMat); leftArm.position.set(-0.36, 0.95, 0); group.add(leftArm);
+    const rightArm = new THREE.Mesh(createBoxWithUV(0.2, 0.75, 0.2, 40, 16, 64, 64, 4, 12, 4), skinMat); rightArm.position.set(0.36, 0.95, 0); group.add(rightArm);
 
     const admiredGold = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.12), goldMat);
     admiredGold.position.set(0, -0.3, 0.14);
@@ -6820,17 +6978,17 @@ export class MobManager {
     rightArm.add(sword);
     sword.visible = weapon === 'golden_sword';
     if (weapon === 'crossbow') {
-      const bow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.09, 0.12), clothesMat);
+      const woodMat = new THREE.MeshLambertMaterial({ color: 0x5a3d28 });
+      const bow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.09, 0.12), woodMat);
       bow.userData.piglinWeapon = 'crossbow';
       bow.position.set(0, -0.3, 0.3); rightArm.add(bow);
-      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.45), clothesMat);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.45), woodMat);
       stock.userData.piglinWeapon = 'crossbow';
       stock.position.set(0, -0.3, 0.2); rightArm.add(stock);
     }
 
-    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftLeg = new THREE.Mesh(legGeo, clothesMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, clothesMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
+    const leftLeg = new THREE.Mesh(createBoxWithUV(0.2, 0.75, 0.2, 16, 48, 64, 64, 4, 12, 4), clothesMat); leftLeg.position.set(-0.13, 0.38, 0); group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(createBoxWithUV(0.2, 0.75, 0.2, 0, 16, 64, 64, 4, 12, 4), clothesMat); rightLeg.position.set(0.13, 0.38, 0); group.add(rightLeg);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -6900,25 +7058,47 @@ export class MobManager {
     return this.spawnZombifiedPiglin(x, y, z);
   }
 
-  spawnHoglin(x, y, z) {
+  spawnHoglin(x, y, z, options = {}) {
     const group = new THREE.Group();
+    const isZoglin = options.type === 'zoglin' || options.isZoglin;
+    this.textures.hoglin ||= this.createNetherTexture('hoglin');
+    this.textures.zoglin ||= this.createNetherTexture('zoglin');
+    const texture = isZoglin ? this.textures.zoglin : this.textures.hoglin;
     const hideMat = new THREE.MeshLambertMaterial({
-      map: this.textures.hoglin,
+      map: texture,
       color: 0xffffff
     });
-    const tuskMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
-    const hoofMat = new THREE.MeshLambertMaterial({ color: 0x3f3f46 });
+    const tuskMat = new THREE.MeshLambertMaterial({ color: isZoglin ? 0xd1d5db : 0xf8fafc });
+    const hoofMat = new THREE.MeshLambertMaterial({ color: isZoglin ? 0x27272a : 0x3f3f46 });
 
     // Bulky quadruped body
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.95, 1.5), hideMat);
     body.position.y = 1.0;
     group.add(body);
 
+    // 3D dorsal mane along the spine
+    const maneMat = new THREE.MeshLambertMaterial({ color: isZoglin ? 0x3d472c : 0x3d1f14 });
+    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.14, 1.45), maneMat);
+    mane.position.set(0, 0.52, 0);
+    body.add(mane);
+
     // Large angled head
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.75, 0.8), hideMat);
     head.position.set(0, 1.15, 0.9);
     head.rotation.x = 0.2;
     group.add(head);
+
+    // 3D modeled face eyes
+    const eyeWhiteMat = new THREE.MeshLambertMaterial({ color: isZoglin ? 0xdc2626 : 0xf1f5f9 });
+    const eyePupilMat = new THREE.MeshLambertMaterial({ color: isZoglin ? 0x450a0a : 0x1f1412 });
+    for (const side of [-1, 1]) {
+      const eyeWhite = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.09, 0.09), eyeWhiteMat);
+      eyeWhite.position.set(side * 0.46, 0.12, 0.18);
+      head.add(eyeWhite);
+      const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.06, 0.05), eyePupilMat);
+      pupil.position.set(side * 0.465, 0.12, 0.2);
+      head.add(pupil);
+    }
 
     // Curved Ivory Tusks
     const tuskGeo = new THREE.BoxGeometry(0.14, 0.5, 0.14);
@@ -7148,17 +7328,23 @@ export class MobManager {
     const shellMat = new THREE.MeshLambertMaterial({ color: SHULKER_SHELL_COLOR, transparent: true, alphaTest: 0.5 });
     adoptTexture(shellMat, skin, SHULKER_SHELL_COLOR);
 
-    // Body: 16x16x16 texels.
-    const body = new THREE.Mesh(createBoxWithUV(1, 1, 1, 16, 16, 64, 64, 16, 16, 16), shellMat);
-    body.position.y = 0.5;
+    // Body / Base: 16x8x16 texels at (0, 28).
+    const body = new THREE.Mesh(createBoxWithUV(1, 0.5, 1, 0, 28, 64, 64, 16, 8, 16), shellMat);
+    body.position.y = 0.25;
     group.add(body);
 
-    // Lid: 16x8x16 texels, hinged at its BACK edge so it can lift open.
+    // Inner head: 6x6x6 texels at (0, 52).
+    const headGeo = createBoxWithUV(0.375, 0.375, 0.375, 0, 52, 64, 64, 6, 6, 6);
+    const innerHead = new THREE.Mesh(headGeo, shellMat);
+    innerHead.position.y = 0.45;
+    group.add(innerHead);
+
+    // Lid: 16x12x16 texels at (0, 0), hinged at its back edge so it can lift open.
     const lidPivot = new THREE.Group();
-    lidPivot.position.set(0, 1, -0.25);
+    lidPivot.position.set(0, 0.5, -0.5);
     group.add(lidPivot);
-    const lid = new THREE.Mesh(createBoxWithUV(1, 0.5, 1, 16, 16, 64, 64, 16, 8, 16), shellMat);
-    lid.position.set(0, 0.25, 0.25);
+    const lid = new THREE.Mesh(createBoxWithUV(1, 0.75, 1, 0, 0, 64, 64, 16, 12, 16), shellMat);
+    lid.position.set(0, 0.375, 0.5);
     lidPivot.add(lid);
 
     group.position.set(x, y, z);
@@ -7169,10 +7355,10 @@ export class MobManager {
       type: 'shulker',
       name: 'Shulker',
       mesh: group,
-      // The lid is the part that moves, so it is what the opening animation turns.
       head: lidPivot,
       shellMesh: body,
       lidMesh: lid,
+      innerHead,
       health: 30,
       maxHealth: 30,
       velocity: new THREE.Vector3(),
@@ -7208,15 +7394,10 @@ export class MobManager {
 
   // --- WOLF ---
   spawnWolf(x, y, z, options = {}) {
-    const wolfTex = this.textures?.wolf || this.createWolfTexture();
-    const wolfMat = new THREE.MeshLambertMaterial({ map: wolfTex });
-
     // The wolf's real geometry, built from the decompiled model definition. Its texture blocks are the ones
     // vanilla uses, so the sheet finally lines up.
-    const WOLF_TEXTURE_CONTEXT = { texW: 64, texH: 32 };
     const built = buildModel(WOLF_MODEL, {
-      materials: { default: wolfMat },
-      textureContext: WOLF_TEXTURE_CONTEXT,
+      loadTexture: (p) => this.loadTexture(p),
       onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
     });
     const group = built.group;
@@ -7224,31 +7405,12 @@ export class MobManager {
     const head = built.parts.head;
     const muzzle = built.parts.snout;
     const lEar = built.parts.earLeft;
-    const rEar = built.parts.earRight;
     const legs = [
-      built.parts.legRightHind, built.parts.legLeftHind,
-      built.parts.legRightFront, built.parts.legLeftFront
+      built.parts.legLeftFront, built.parts.legRightFront,
+      built.parts.legLeftHind, built.parts.legRightHind
     ];
     const [fl, fr, bl, br] = legs;
     const tail = built.parts.tail;
-
-    // The nose and eyes stay separate marks: vanilla draws them on the snout texture, but this model renders the
-    // snout as its own box and small dark marks read more clearly at this scale.
-    const noseMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), noseMat);
-    nose.position.set(0, 0.04, 0.13);
-    muzzle.add(nose);
-
-    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
-    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.02);
-    const lEye = new THREE.Mesh(eyeGeo, eyeMat);
-    lEye.position.set(-0.11, 0.05, 0.21);
-    head.add(lEye);
-    const rEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rEye.position.set(0.11, 0.05, 0.21);
-    head.add(rEye);
-    const eyes = [lEye, rEye];
-    const ears = [lEar, rEar];
 
     // The collar, which changes colour when the wolf is tamed. `collarColor` is a dye NAME ('red', 'lime'), so it
     // resolves through the shared palette rather than being used as a number.
@@ -7258,8 +7420,9 @@ export class MobManager {
       transparent: true,
       opacity: 0.9
     });
-    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.42), collarMat);
-    collar.position.set(0, 12.5 / 16, 0);
+    // Collar sits around the neck/upper body at z=3, y=10.
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(8.5 / 16, 2 / 16, 6.5 / 16), collarMat);
+    collar.position.set(0, 10 / 16, 3 / 16);
     // Hidden until the wolf is tamed; the taming path reveals it.
     collar.visible = false;
     group.add(collar);
@@ -7315,9 +7478,10 @@ export class MobManager {
       || this.createCatTexture(chosenBreed);
     const catMat = new THREE.MeshLambertMaterial({ map: catTex });
 
-    // Body (0.30 x 0.26 x 0.55) - sleek cat body
-    const bodyGeo = createBoxWithUV(0.30, 0.26, 0.55, 20, 0, 64, 32, 5, 5, 12);
+    // Body (4w x 16h x 6d in pixels) rotated 90° about X, exactly matching vanilla CatModel
+    const bodyGeo = createBoxWithUV(0.24, 0.55, 0.25, 20, 0, 64, 32, 4, 16, 6);
     const body = new THREE.Mesh(bodyGeo, catMat);
+    body.rotation.x = Math.PI / 2;
     body.position.set(0, 0.40, -0.05);
     group.add(body);
 
@@ -7350,16 +7514,14 @@ export class MobManager {
     collar.visible = false;
     head.add(collar);
 
-    // 4 Legs: fl, fr, bl, br (0.10 x 0.32 x 0.10)
-    const legGeoFL = createBoxWithUV(0.10, 0.32, 0.10, 40, 0, 64, 32, 2, 8, 2);
-    const legGeoFR = createBoxWithUV(0.10, 0.32, 0.10, 40, 12, 64, 32, 2, 8, 2);
-    const legGeoBL = createBoxWithUV(0.10, 0.32, 0.10, 48, 0, 64, 32, 2, 8, 2);
-    const legGeoBR = createBoxWithUV(0.10, 0.32, 0.10, 48, 12, 64, 32, 2, 8, 2);
+    // 4 Legs: fl, fr use front leg UV (40, 0, 2w, 10h, 2d); bl, br use back leg UV (8, 13, 2w, 6h, 2d)
+    const legGeoFront = createBoxWithUV(0.10, 0.32, 0.10, 40, 0, 64, 32, 2, 10, 2);
+    const legGeoBack = createBoxWithUV(0.10, 0.32, 0.10, 8, 13, 64, 32, 2, 6, 2);
 
-    const fl = new THREE.Mesh(legGeoFL, catMat); fl.position.set(-0.10, 0.16, 0.18); group.add(fl);
-    const fr = new THREE.Mesh(legGeoFR, catMat); fr.position.set(0.10, 0.16, 0.18); group.add(fr);
-    const bl = new THREE.Mesh(legGeoBL, catMat); bl.position.set(-0.10, 0.16, -0.22); group.add(bl);
-    const br = new THREE.Mesh(legGeoBR, catMat); br.position.set(0.10, 0.16, -0.22); group.add(br);
+    const fl = new THREE.Mesh(legGeoFront, catMat); fl.position.set(-0.10, 0.16, 0.18); group.add(fl);
+    const fr = new THREE.Mesh(legGeoFront, catMat); fr.position.set(0.10, 0.16, 0.18); group.add(fr);
+    const bl = new THREE.Mesh(legGeoBack, catMat); bl.position.set(-0.10, 0.16, -0.22); group.add(bl);
+    const br = new THREE.Mesh(legGeoBack, catMat); br.position.set(0.10, 0.16, -0.22); group.add(br);
 
     // Articulated Tail: Upper tail and Lower tail
     const tailUpperGeo = createBoxWithUV(0.06, 0.22, 0.06, 0, 15, 64, 32, 1, 6, 1);
@@ -7441,31 +7603,37 @@ export class MobManager {
     applyVanillaBoxUVs(outerGeo, 0, 0, 64, 32, 8, 8, 8);
     const outer = new THREE.Mesh(outerGeo, outerMat);
     outer.position.y = 0.25;
+    outer.renderOrder = 1;
+    if (outer.material) outer.material.depthWrite = false;
     group.add(outer);
 
     // The inner cube: vanilla's rectangle 6x6x6 at (0, 16).
     const innerGeo = new THREE.BoxGeometry(0.375, 0.375, 0.375);
     applyVanillaBoxUVs(innerGeo, 0, 16, 64, 32, 6, 6, 6);
     const inner = new THREE.Mesh(innerGeo, innerMat);
-    inner.position.y = 0.28;
+    inner.position.y = 0.25;
     group.add(inner);
 
-    // The face: two 2x2x2 eyes and a 1x1x1 mouth. These hang off the GROUP, NOT off `outer`: attaching them to a
-    // `transparent: true` parent made the whole slime vanish from the Inspector, so they deliberately sit beside the
-    // translucent cube rather than inside it. Offsets are in the cube's frame, whose centre is world y = 0.25.
-    const faceMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+    // The face: two 2x2x2 eyes and a 1x1x1 mouth encased inside the translucent jelly, proud of the inner core.
+    const faceMat = new THREE.MeshLambertMaterial({ color: 0x14532d });
     const unit = 0.0625;
-    const faceY = 0.25;
-    // Slightly proud of the 0.5-block cube, so the face is not buried inside the translucent shell.
-    const faceZ = 0.25 + 0.005;
-    for (const x of [-3.25, 1.25]) {
-      const slimeEye = new THREE.Mesh(new THREE.BoxGeometry(2 * unit, 2 * unit, 2 * unit), faceMat);
-      slimeEye.position.set(x * unit, faceY + (18 - 20) * unit, faceZ); // SLIME_FACE_SIGN_FLIPPED
-      group.add(slimeEye);
-    }
-    const slimeMouth = new THREE.Mesh(new THREE.BoxGeometry(unit, unit, unit), faceMat);
-    slimeMouth.position.set(0, faceY + (21 - 20) * unit, 3.5 * unit); // SLIME_FACE_SIGN_FLIPPED
-    group.add(slimeMouth);
+    const eyeGeoR = new THREE.BoxGeometry(2 * unit, 2 * unit, 2 * unit);
+    applyVanillaBoxUVs(eyeGeoR, 32, 0, 64, 32, 2, 2, 2);
+    const eyeR = new THREE.Mesh(eyeGeoR, slimeMat(faceMat));
+    eyeR.position.set(-2.25 * unit, 5 * unit, 2.25 * unit);
+    group.add(eyeR);
+
+    const eyeGeoL = new THREE.BoxGeometry(2 * unit, 2 * unit, 2 * unit);
+    applyVanillaBoxUVs(eyeGeoL, 32, 4, 64, 32, 2, 2, 2);
+    const eyeL = new THREE.Mesh(eyeGeoL, slimeMat(faceMat));
+    eyeL.position.set(2.25 * unit, 5 * unit, 2.25 * unit);
+    group.add(eyeL);
+
+    const mouthGeo = new THREE.BoxGeometry(unit, unit, unit);
+    applyVanillaBoxUVs(mouthGeo, 32, 8, 64, 32, 1, 1, 1);
+    const mouth = new THREE.Mesh(mouthGeo, slimeMat(faceMat));
+    mouth.position.set(0, 2.5 * unit, 2.75 * unit);
+    group.add(mouth);
 
     const s = size / 4;
     group.scale.set(s, s, s);
@@ -7518,6 +7686,10 @@ export class MobManager {
       name: 'Witch',
       mesh: group,
       head: built.parts.head,
+      legLeft: built.parts.legLeft,
+      legRight: built.parts.legRight,
+      leftLeg: built.parts.legLeft,
+      rightLeg: built.parts.legRight,
       health: 26,
       maxHealth: 26,
       velocity: new THREE.Vector3(),
@@ -7566,19 +7738,23 @@ export class MobManager {
     const spikeColor = isElder ? 0x9a3412 : 0xf97316;
     const spikeMat = new THREE.MeshLambertMaterial({ color: spikeColor });
 
-    // Main Prismarine Body Box (0.85 x 0.85 x 0.85)
-    // Vanilla's rectangle is 12x12x12 at (0, 0) on the 64x64 sheet, and a 0.85 cube has the same 1:1:1 ratio -- so the
-    // rectangle applies directly. UNCONDITIONAL: a rectangle describes the GEOMETRY, and a `map` check would be false at
-    // construction because the atlas bitmap has not decoded.
-    const bodyGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
-    applyBoxUVs(bodyGeo, 0, 0, 64, 64, 12, 12, 12);
+    // Main Prismarine Body Box: mapped to authentic solid prismarine regions on 64x64 sheet
+    const guardianFaces = [
+      { x: 0, y: 40, w: 14, h: 12 },   // +X (Right)
+      { x: 26, y: 40, w: 14, h: 12 },  // -X (Left)
+      { x: 28, y: 40, w: 12, h: 12 },  // +Y (Top)
+      { x: 40, y: 40, w: 12, h: 12 },  // -Y (Bottom)
+      { x: 16, y: 16, w: 12, h: 12 },  // +Z (Front)
+      { x: 44, y: 16, w: 12, h: 12 }   // -Z (Back)
+    ];
+    const bodyGeo = createBoxFromFaces(0.75, 0.75, 1.0, guardianFaces, { texW: 64, texH: 64 });
     const body = new THREE.Mesh(bodyGeo, mat);
     body.position.y = 0.5;
     group.add(body);
 
     // Dynamic cyclops eyeball & tracking pupil on front (+Z)
     const eyeSocket = new THREE.Group();
-    eyeSocket.position.set(0, 0.5, 0.43);
+    eyeSocket.position.set(0, 0.5, 0.51);
     const eyeBase = new THREE.Mesh(
       new THREE.BoxGeometry(0.26, 0.26, 0.04),
       new THREE.MeshLambertMaterial({ color: isElder ? 0xf1f5f9 : 0xffffff })
@@ -7630,14 +7806,20 @@ export class MobManager {
     const tailGroup1 = new THREE.Group();
     tailGroup1.position.set(0, 0.5, -0.42);
 
-    const tailMesh1 = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.35), mat);
+    const tailMesh1 = new THREE.Mesh(
+      createEntityBox(0.36, 0.36, 0.35, { u: 40, v: 0, tw: 8, th: 4, td: 8 }, { texW: 64, texH: 64 }),
+      mat
+    );
     tailMesh1.position.set(0, 0, -0.17);
     tailGroup1.add(tailMesh1);
 
     const tailGroup2 = new THREE.Group();
     tailGroup2.position.set(0, 0, -0.34);
 
-    const tailMesh2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.28), mat);
+    const tailMesh2 = new THREE.Mesh(
+      createEntityBox(0.24, 0.24, 0.28, { u: 40, v: 0, tw: 8, th: 4, td: 8 }, { texW: 64, texH: 64 }),
+      mat
+    );
     tailMesh2.position.set(0, 0, -0.14);
     tailGroup2.add(tailMesh2);
 
@@ -7692,44 +7874,36 @@ export class MobManager {
     const group = new THREE.Group();
     const drownedMat = new THREE.MeshLambertMaterial({ map: this.textures.drowned });
 
-    // Torso
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), drownedMat);
+    // Torso (8x12x4 in 16th scale = 0.5 x 0.75 x 0.25) at (16, 16)
+    const body = new THREE.Mesh(createBoxWithUV(0.5, 0.75, 0.25, 16, 16, 64, 64, 8, 12, 4), drownedMat);
     body.position.y = 1.0;
     group.add(body);
 
-    // Head
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), drownedMat);
+    // Head (8x8x8 = 0.5 x 0.5 x 0.5) at (0, 0)
+    const head = new THREE.Mesh(createBoxWithUV(0.5, 0.5, 0.5, 0, 0, 64, 64, 8, 8, 8), drownedMat);
     head.position.y = 1.62;
     group.add(head);
 
-    // Glowing cyan eyes
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat);
-    eyeL.position.set(-0.12, 1.62, 0.26);
-    group.add(eyeL);
-    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat);
-    eyeR.position.set(0.12, 1.62, 0.26);
-    group.add(eyeR);
-
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftLeg = new THREE.Mesh(legGeo, drownedMat);
+    // Legs (4x12x4 = 0.24 x 0.75 x 0.24)
+    // Left leg at (16, 48), Right leg at (0, 16)
+    const leftLeg = new THREE.Mesh(createBoxWithUV(0.24, 0.75, 0.24, 16, 48, 64, 64, 4, 12, 4), drownedMat);
     leftLeg.position.set(-0.14, 0.38, 0);
     group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, drownedMat);
+    const rightLeg = new THREE.Mesh(createBoxWithUV(0.24, 0.75, 0.24, 0, 16, 64, 64, 4, 12, 4), drownedMat);
     rightLeg.position.set(0.14, 0.38, 0);
     group.add(rightLeg);
 
-    // Left Arm
-    const armGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-    const leftArm = new THREE.Mesh(armGeo, drownedMat);
+    // Left Arm at (32, 48)
+    const armGeoL = createBoxWithUV(0.24, 0.75, 0.24, 32, 48, 64, 64, 4, 12, 4);
+    const leftArm = new THREE.Mesh(armGeoL, drownedMat);
     leftArm.position.set(-0.35, 1.0, 0);
     group.add(leftArm);
 
-    // Right Arm holding Trident
+    // Right Arm holding Trident at (40, 16)
+    const armGeoR = createBoxWithUV(0.24, 0.75, 0.24, 40, 16, 64, 64, 4, 12, 4);
     const rightArmGroup = new THREE.Group();
     rightArmGroup.position.set(0.35, 1.35, 0);
-    const rightArm = new THREE.Mesh(armGeo, drownedMat);
+    const rightArm = new THREE.Mesh(armGeoR, drownedMat);
     rightArm.position.set(0, -0.35, 0);
     rightArmGroup.add(rightArm);
 
@@ -7816,6 +7990,12 @@ export class MobManager {
     head.position.set(0, 0.11, 0.26);
     group.add(head);
 
+    // Lateral eyes on head
+    const eyeGeo = new THREE.BoxGeometry(0.02, 0.035, 0.035);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x18181b });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.061, 0.12, 0.28); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.061, 0.12, 0.28); group.add(eyeR);
+
     // Dorsal Fin
     const dorsalGeo = new THREE.BoxGeometry(0.03, 0.12, 0.18);
     const dorsal = new THREE.Mesh(dorsalGeo, mat);
@@ -7882,31 +8062,48 @@ export class MobManager {
   // --- PHANTOM ---
   spawnPhantom(x, y, z) {
     const group = new THREE.Group();
-    // The REAL 64x64 phantom sheet, with the flat colour kept as the stand-in so a build with no assets still
-    // renders a phantom. Every part shares this material, so binding it here reaches the wings too.
-    // // PHANTOM_REAL_SHEET
-    const phantomSheet = this.loadTexture(PHANTOM_SKIN_PATH);
-    const phantomMat = phantomSheet
-      ? new THREE.MeshLambertMaterial({ map: phantomSheet, transparent: true, alphaTest: 0.5 })
-      : new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x84cc16 });
+    // The REAL 64x64 phantom sheet, with adoptTexture for reliable binding.
+    const phantomMat = new THREE.MeshLambertMaterial({ color: 0x1e1b4b, transparent: true });
+    adoptTexture(phantomMat, this.textures.phantom || this.loadTexture(PHANTOM_SKIN_PATH), 0x1e1b4b);
 
-    // The body carries vanilla's rectangle at (0, 8): 5x3x9.
-    const body = new THREE.Mesh(createBoxWithUV(0.5, 0.2, 0.8, 0, 8, 64, 64, 5, 3, 9), phantomMat);
+    // Body: 5x3x9 at (0, 8)
+    const bodyGeo = new THREE.BoxGeometry(0.35, 0.18, 0.60);
+    applyVanillaBoxUVs(bodyGeo, 0, 8, 64, 64, 5, 3, 9);
+    const body = new THREE.Mesh(bodyGeo, phantomMat);
     group.add(body);
 
-    // The head carries vanilla's rectangle at (0, 0): 7x3x5.
-    const head = new THREE.Mesh(createBoxWithUV(0.35, 0.2, 0.35, 0, 0, 64, 64, 7, 3, 5), phantomMat);
-    head.position.set(0, 0, 0.5);
+    // Head: 7x3x5 at (0, 0) - has authentic bright green eyes right in the texture
+    const headGeo = new THREE.BoxGeometry(0.46, 0.18, 0.35);
+    applyVanillaBoxUVs(headGeo, 0, 0, 64, 64, 7, 3, 5);
+    const head = new THREE.Mesh(headGeo, phantomMat);
+    head.position.set(0, 0.02, 0.45);
     group.add(head);
 
-    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeL.position.set(-0.12, 0.08, 0.65); group.add(eyeL);
-    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), eyeMat); eyeR.position.set(0.12, 0.08, 0.65); group.add(eyeR);
+    // Tail 1: 3x2x6 at (3, 20)
+    const tailGeo = new THREE.BoxGeometry(0.20, 0.12, 0.40);
+    applyVanillaBoxUVs(tailGeo, 3, 20, 64, 64, 3, 2, 6);
+    const tail = new THREE.Mesh(tailGeo, phantomMat);
+    tail.position.set(0, 0.02, -0.48);
+    group.add(tail);
 
-    // Broad wings, split into two pivots. The shared `moveFlyingMob` helper writes
-    // `mob.wings.left.rotation.z`, so a single undivided wing mesh freezes the mob -- the trap the
-    // bat fell into.
+    // Tail 2 (Tip): 1x1x6 at (4, 29)
+    const tailTipGeo = new THREE.BoxGeometry(0.08, 0.08, 0.40);
+    applyVanillaBoxUVs(tailTipGeo, 4, 29, 64, 64, 1, 1, 6);
+    const tailTip = new THREE.Mesh(tailTipGeo, phantomMat);
+    tailTip.position.set(0, 0.02, -0.86);
+    group.add(tailTip);
+
+    // Broad articulated wings: wing base (6x2x9) and wing tip (13x1x9)
     const wings = createPhantomWings(phantomMat, group);
+
+    const eyeMeshes = [];
+    for (const side of [-1, 1]) {
+      const eyeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), new THREE.MeshBasicMaterial({ color: 0x88ff88 }));
+      eyeMesh.position.set(side * 0.12, 0.04, 0.18);
+      eyeMesh.visible = false;
+      head.add(eyeMesh);
+      eyeMeshes.push(eyeMesh);
+    }
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -7923,7 +8120,7 @@ export class MobManager {
       width: PHANTOM_DIMENSIONS.width,
       height: PHANTOM_DIMENSIONS.height,
       wings,
-      eyeMeshes: [eyeL, eyeR],
+      eyeMeshes,
       // Wiki entity tags: undead, burn_in_daylight, fall_damage_immune, can_breathe_under_water,
       // ignores_poison_and_regen, inverted_healing_and_harm, sensitive_to_smite.
       isUndead: true,
@@ -7956,34 +8153,115 @@ export class MobManager {
     return mob;
   }
 
+  createIllagerMesh(skinPath, type = 'vindicator') {
+    const group = new THREE.Group();
+    const fallbackCol = type === 'evoker' ? 0x27272a : 0x71717a;
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    adoptTexture(mat, this.textures?.[type] || (this.loadTexture ? this.loadTexture(skinPath) : null), fallbackCol);
+
+    // Head: 8x10x8 at (0, 0)
+    const headGeo = new THREE.BoxGeometry(0.5, 0.625, 0.5);
+    applyVanillaBoxUVs(headGeo, 0, 0, 64, 64, 8, 10, 8);
+    const head = new THREE.Mesh(headGeo, mat);
+    head.position.set(0, 1.55, 0);
+    group.add(head);
+
+    // Nose: 2x4x2 at (24, 0)
+    const noseGeo = new THREE.BoxGeometry(0.125, 0.25, 0.125);
+    applyVanillaBoxUVs(noseGeo, 24, 0, 64, 64, 2, 4, 2);
+    const nose = new THREE.Mesh(noseGeo, mat);
+    nose.position.set(0, -0.15, 0.31);
+    head.add(nose);
+
+    // Torso / Body: 8x12x4 at (16, 20)
+    const bodyGeo = new THREE.BoxGeometry(0.5, 0.75, 0.25);
+    applyVanillaBoxUVs(bodyGeo, 16, 20, 64, 64, 8, 12, 4);
+    const body = new THREE.Mesh(bodyGeo, mat);
+    body.position.set(0, 0.95, 0);
+    group.add(body);
+
+    // Lower Robe / coat layer: 8x12x4 at (0, 34) (gives the authentic long coat)
+    const robeGeo = new THREE.BoxGeometry(0.52, 0.72, 0.27);
+    applyVanillaBoxUVs(robeGeo, 0, 34, 64, 64, 8, 12, 4);
+    const robe = new THREE.Mesh(robeGeo, mat);
+    robe.position.set(0, 0.65, 0);
+    group.add(robe);
+
+    // Legs: 4x12x4 at (0, 22)
+    const legLeftGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+    applyVanillaBoxUVs(legLeftGeo, 0, 22, 64, 64, 4, 12, 4);
+    const legLeft = new THREE.Mesh(legLeftGeo, mat);
+    legLeft.position.set(-0.125, 0.375, 0);
+    group.add(legLeft);
+
+    const legRightGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+    applyVanillaBoxUVs(legRightGeo, 0, 22, 64, 64, 4, 12, 4);
+    const legRight = new THREE.Mesh(legRightGeo, mat);
+    legRight.position.set(0.125, 0.375, 0);
+    group.add(legRight);
+
+    // Crossed arms: 8x8x4 at (40, 38)
+    const foldedGeo = new THREE.BoxGeometry(0.55, 0.42, 0.32);
+    applyVanillaBoxUVs(foldedGeo, 40, 38, 64, 64, 8, 8, 4);
+    const foldedArms = new THREE.Mesh(foldedGeo, mat);
+    foldedArms.position.set(0, 0.88, 0.14);
+    group.add(foldedArms);
+
+    // Separate arms: 4x12x4 at (40, 46)
+    const armLeftGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+    applyVanillaBoxUVs(armLeftGeo, 40, 46, 64, 64, 4, 12, 4);
+    const armLeft = new THREE.Mesh(armLeftGeo, mat);
+    armLeft.position.set(-0.36, 0.95, 0);
+    group.add(armLeft);
+
+    const armRightGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+    applyVanillaBoxUVs(armRightGeo, 40, 46, 64, 64, 4, 12, 4);
+    const armRight = new THREE.Mesh(armRightGeo, mat);
+    armRight.position.set(0.36, 0.95, 0);
+    group.add(armRight);
+
+    if (type === 'vindicator') {
+      foldedArms.visible = false;
+      armLeft.visible = true;
+      armRight.visible = true;
+
+      // Iron Axe in right hand
+      const axeMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+      const axe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.65, 0.25), axeMat);
+      axe.position.set(0, -0.22, 0.18);
+      axe.rotation.x = -Math.PI / 4;
+      armRight.add(axe);
+    } else {
+      foldedArms.visible = true;
+      armLeft.visible = false;
+      armRight.visible = false;
+    }
+
+    return { group, head, nose, body, robe, legLeft, legRight, armLeft, armRight, foldedArms };
+  }
+
   // --- VINDICATOR & EVOKER & VEX & RAVAGER ---
   spawnVindicator(x, y, z) {
-    const group = new THREE.Group();
-    // The real skin, so the grey coat, the crossed arms and -- most importantly -- the face all come from the
-    // texture. This used to be two flat boxes and a light-grey cube for a head, so it had no face at all.
-    const built = buildModel(illagerModel(ILLAGER_SKIN_PATH), {
-      loadTexture: (p) => this.loadTexture(p),
-      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
-    });
-    group.add(built.group);
-
-    // The iron axe, held in the right hand.
-    const axeMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
-    const axe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.25), axeMat);
-    axe.position.set(0.45, 1.1, 0.2);
-    group.add(axe);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
+    const parts = this.createIllagerMesh(ILLAGER_SKIN_PATH, 'vindicator');
+    parts.group.position.set(x, y, z);
+    parts.group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(parts.group);
 
     const mob = {
       type: 'vindicator',
       name: 'Vindicator',
-      mesh: group,
-      head: built.parts.head,
-      health: 24,
-      maxHealth: 24,
+      mesh: parts.group,
+      head: parts.head,
+      armLeft: parts.armLeft,
+      armRight: parts.armRight,
+      rightArm: parts.armRight,
+      leftArm: parts.armLeft,
+      foldedArms: parts.foldedArms,
+      health: VINDICATOR_HEALTH,
+      maxHealth: VINDICATOR_HEALTH,
+      width: VINDICATOR_DIMENSIONS.width,
+      height: VINDICATOR_DIMENSIONS.height,
+      speed: VINDICATOR_SPEED.walk,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -7995,26 +8273,26 @@ export class MobManager {
   }
 
   spawnEvoker(x, y, z) {
-    const group = new THREE.Group();
-    // Same model as the vindicator, different skin: the evoker's robe and his face come from the texture, which
-    // the flat black box and grey cube never carried.
-    const built = buildModel(illagerModel(EVOKER_SKIN_PATH), {
-      loadTexture: (p) => this.loadTexture(p),
-      onTextureReady: (texture, fn) => MobManager.onTextureReady(texture, fn)
-    });
-    group.add(built.group);
-
-    group.position.set(x, y, z);
-    group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
-    this.scene.add(group);
+    const parts = this.createIllagerMesh(EVOKER_SKIN_PATH, 'evoker');
+    parts.group.position.set(x, y, z);
+    parts.group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
+    this.scene.add(parts.group);
 
     const mob = {
       type: 'evoker',
       name: 'Evoker',
-      mesh: group,
-      head: built.parts.head,
-      health: 24,
-      maxHealth: 24,
+      mesh: parts.group,
+      head: parts.head,
+      armLeft: parts.armLeft,
+      armRight: parts.armRight,
+      rightArm: parts.armRight,
+      leftArm: parts.armLeft,
+      foldedArms: parts.foldedArms,
+      health: EVOKER_HEALTH,
+      maxHealth: EVOKER_HEALTH,
+      width: EVOKER_DIMENSIONS.width,
+      height: EVOKER_DIMENSIONS.height,
+      speed: EVOKER_SPEED.walk,
       velocity: new THREE.Vector3(),
       yaw: Math.random() * Math.PI * 2,
       state: 'idle',
@@ -8087,6 +8365,9 @@ export class MobManager {
     const eyeGeo = new THREE.BoxGeometry(0.12, 0.1, 0.05);
     const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.23, 2.03, 1.74); group.add(eyeL);
     const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.23, 2.03, 1.74); group.add(eyeR);
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+    const pupilL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilL.position.set(-0.23, 2.03, 1.766); group.add(pupilL);
+    const pupilR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilR.position.set(0.23, 2.03, 1.766); group.add(pupilR);
 
     // Horns
     const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornL.position.set(-0.55, 2.3, 1.2); group.add(hornL);
@@ -8127,70 +8408,125 @@ export class MobManager {
     // The REAL 256x256 ender dragon sheet, from the PRELOADED ATLAS, bound through the DEFERRED hook. // DRAGON_SHEET
     const dragonSheet = this.textures?.ender_dragon ?? this.loadTexture(ENDER_DRAGON_SKIN_PATH);
     if (dragonSheet) { dragonSheet.magFilter = THREE.NearestFilter; dragonSheet.minFilter = THREE.NearestFilter; dragonSheet.needsUpdate = true; }
-    /** The sheet material, or the flat one when there is no sheet. */
-    const dragonMat = (() => {
-      if (!dragonSheet) return new THREE.MeshLambertMaterial({ color: 0x111827 });
-      const m = new THREE.MeshLambertMaterial({ map: dragonSheet, transparent: true, alphaTest: 0.5 });
-      adoptWhenReady(m, dragonSheet, 0xffffff, { onTextureReady: (t, fn) => MobManager.onTextureReady(t, fn) });
-      return m;
-    })();
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
+    const dragonMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+    adoptTexture(dragonMat, dragonSheet, 0x111827);
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0xdf38ec, emissive: 0xa818cc });
 
-    // Body. CORRECTED IN ROUND ONE HUNDRED AND THIRTY-ONE: vanilla's body rectangle is **24x24x64** at (0, 0), NOT the
-    // 16x32x16 this line used -- that is the HIND LEG's rectangle, and round one hundred and twenty-six's resize was built
-    // on the wrong one. At `1 unit = 1.6/24 = 0.0667 blocks` the body is 1.60 x 1.60 x 4.27: a long barrel of even width
-    // and height, which is what a dragon's torso is. // DRAGON_RECTS
+    // Body. Vanilla's body rectangle is 24x24x64 at (0, 0)
     const bodyGeo = new THREE.BoxGeometry(1.6, 1.6, 4.27);
     applyVanillaBoxUVs(bodyGeo, 0, 0, 256, 256, 24, 24, 64);
     const body = new THREE.Mesh(bodyGeo, dragonMat);
     body.position.y = 1.0;
     group.add(body);
 
-    // Long Neck
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 1.4), dragonMat);
-    neck.position.set(0, 1.6, 2.0);
-    group.add(neck);
+    const U = 1.6 / 24;
 
-    // Head with purple eyes. Vanilla's rectangle is 8x24x8 at (112, 104) -- a TALL narrow skull. At the body's factor
-    // (0.0667 blocks/unit) that is 0.53 x 1.60 x 0.53, which is taller than the body is wide: correct for a dragon.
-    const headGeo = new THREE.BoxGeometry(0.53, 1.60, 0.53);
-    applyVanillaBoxUVs(headGeo, 112, 104, 256, 256, 8, 24, 8);
+    // Dorsal spine plates: 2x4x6 at (220, 0) in dragon.png
+    const spineGeo = new THREE.BoxGeometry(2 * U, 4 * U, 6 * U);
+    applyVanillaBoxUVs(spineGeo, 220, 0, 256, 256, 2, 4, 6);
+
+    // 4 dorsal spines along the body's back
+    for (let i = 0; i < 4; i++) {
+      const spine = new THREE.Mesh(spineGeo, dragonMat);
+      spine.position.set(0, 0.8 + 2 * U, 1.5 - i * 1.0);
+      body.add(spine);
+    }
+
+    // Segmented Neck: 5 articulated segments curving up and forward
+    const neckSegGeo = new THREE.BoxGeometry(10 * U, 10 * U, 14 * U);
+    applyVanillaBoxUVs(neckSegGeo, 112, 54, 256, 256, 10, 10, 14);
+    for (let i = 0; i < 5; i++) {
+      const t = (i + 1) / 5;
+      const seg = new THREE.Mesh(neckSegGeo, dragonMat);
+      seg.position.set(0, 1.0 + t * 0.5, 2.0 + t * 1.8);
+      seg.rotation.x = 0.12;
+      group.add(seg);
+      const neckSpine = new THREE.Mesh(spineGeo, dragonMat);
+      neckSpine.position.set(0, 5 * U + 2 * U, 0);
+      seg.add(neckSpine);
+    }
+
+    // Head with snout, jaws, horns and glowing eyes
+    const headGeo = new THREE.BoxGeometry(16 * U, 16 * U, 16 * U);
+    applyVanillaBoxUVs(headGeo, 112, 30, 256, 256, 16, 16, 16);
     const head = new THREE.Mesh(headGeo, dragonMat);
-    head.position.set(0, 1.8, 3.0);
+    head.position.set(0, 1.6, 4.0);
     group.add(head);
 
-    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeL.position.set(-0.48, 1.9, 3.2); group.add(eyeL);
-    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), eyeMat); eyeR.position.set(0.48, 1.9, 3.2); group.add(eyeR);
+    // Snout / Upper Jaw: 12x5x16 at (176, 44)
+    const snoutGeo = new THREE.BoxGeometry(12 * U, 5 * U, 16 * U);
+    applyVanillaBoxUVs(snoutGeo, 176, 44, 256, 256, 12, 5, 16);
+    const snout = new THREE.Mesh(snoutGeo, dragonMat);
+    snout.position.set(0, -2 * U, 12 * U);
+    head.add(snout);
 
-    // Wings: vanilla builds each as a BONE box plus a SKIN PLANE, and the plane is mirrored (`.method_32096()`), which is
-    // why its u is NEGATIVE. From `class_895.java`:
-    //
-    //   left_wing      bone 56 x 8 x 8  at (112, 88)    skin 56 x 0 x 56 at (-56, 88)     offset (12, 5, 2)
-    //   left_wing_tip  bone 56 x 4 x 4  at (112, 136)   skin 56 x 0 x 56 at (-56, 144)    offset (56, 0, 0)
-    //
-    // At the body's factor (0.0667 blocks/unit) the bone is 3.73 x 0.53 x 0.53 and the skin 3.73 x 0 x 3.73 -- the eighth
-    // zero-thickness PLANE case in this project. The skin is given a hair of thickness so it renders double-sided without
-    // z-fighting, which is the convention the frog and phantom wings already use. // DRAGON_WINGS
-    const U = 1.6 / 24;
+    // Lower Jaw: 12x4x16 at (176, 65)
+    const jawGeo = new THREE.BoxGeometry(12 * U, 4 * U, 16 * U);
+    applyVanillaBoxUVs(jawGeo, 176, 65, 256, 256, 12, 4, 16);
+    const jaw = new THREE.Mesh(jawGeo, dragonMat);
+    jaw.position.set(0, -6 * U, 12 * U);
+    head.add(jaw);
+
+    // Horns: 2x4x6 at (112, 0)
+    for (const side of [-1, 1]) {
+      const hornGeo = new THREE.BoxGeometry(2 * U, 4 * U, 6 * U);
+      applyVanillaBoxUVs(hornGeo, 112, 0, 256, 256, 2, 4, 6);
+      const horn = new THREE.Mesh(hornGeo, dragonMat);
+      horn.position.set(side * 5 * U, 9 * U, -5 * U);
+      horn.rotation.x = -0.35;
+      head.add(horn);
+    }
+
+    // Glowing purple Ender Dragon eyes
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), eyeMat);
+      eye.position.set(side * 8 * U, 2 * U, 4 * U);
+      head.add(eye);
+    }
+
+    // Wing membrane material: transparent bat wings with authentic scalloped edges
+    const wingMat = new THREE.MeshLambertMaterial({
+      color: 0xffffff,
+      transparent: true,
+      alphaTest: 0.25,
+      side: THREE.DoubleSide
+    });
+    adoptTexture(wingMat, dragonSheet, 0x111827);
+
+    const createWingPlane = (u, v, tw, th, mirror = false) => {
+      const geo = new THREE.PlaneGeometry(tw * U, th * U);
+      geo.rotateX(-Math.PI / 2);
+      const uvs = geo.attributes.uv;
+      const u0 = mirror ? (u + tw) / 256 : u / 256;
+      const u1 = mirror ? u / 256 : (u + tw) / 256;
+      const v1 = 1 - v / 256;
+      const v0 = 1 - (v + th) / 256;
+      uvs.setXY(0, u0, v1);
+      uvs.setXY(1, u1, v1);
+      uvs.setXY(2, u0, v0);
+      uvs.setXY(3, u1, v0);
+      uvs.needsUpdate = true;
+      return geo;
+    };
+
     const wings = [];
     for (const side of [-1, 1]) {
+      const isRight = side === 1;
       const boneGeo = new THREE.BoxGeometry(56 * U, 8 * U, 8 * U);
       applyVanillaBoxUVs(boneGeo, 112, 88, 256, 256, 56, 8, 8);
       const bone = new THREE.Mesh(boneGeo, dragonMat);
       bone.position.set(side * 12 * U, 5 * U, 2 * U);
-      // Vanilla mirrors the right wing; the negative x position is that mirror in world terms.
-      bone.position.x = side * 12 * U;
       group.add(bone);
       wings.push(bone);
 
-      // The membrane. The rectangle is at a NEGATIVE u because vanilla mirrors it into place.
-      const skinGeo = new THREE.BoxGeometry(56 * U, 0.02, 56 * U);
-      applyVanillaBoxUVs(skinGeo, -56, 88, 256, 256, 56, 0, 56);
-      const skin = new THREE.Mesh(skinGeo, dragonMat);
-      skin.position.set(side * 28 * U, 0, 2 * U);
+      // Scalloped bat-wing membrane at u:0, v:88
+      const skinGeo = createWingPlane(0, 88, 56, 56, isRight);
+      const skin = new THREE.Mesh(skinGeo, wingMat);
+      skin.position.set(side * 28 * U, 0, 16 * U);
       bone.add(skin);
       wings.push(skin);
 
+      // Tip bone at u:112, v:136
       const tipGeo = new THREE.BoxGeometry(56 * U, 4 * U, 4 * U);
       applyVanillaBoxUVs(tipGeo, 112, 136, 256, 256, 56, 4, 4);
       const tip = new THREE.Mesh(tipGeo, dragonMat);
@@ -8198,58 +8534,84 @@ export class MobManager {
       bone.add(tip);
       wings.push(tip);
 
-      const tipSkinGeo = new THREE.BoxGeometry(56 * U, 0.02, 56 * U);
-      applyVanillaBoxUVs(tipSkinGeo, -56, 144, 256, 256, 56, 0, 56);
-      const tipSkin = new THREE.Mesh(tipSkinGeo, dragonMat);
-      tipSkin.position.set(side * 28 * U, 0, 2 * U);
+      // Tip membrane at u:0, v:144
+      const tipSkinGeo = createWingPlane(0, 144, 56, 56, isRight);
+      const tipSkin = new THREE.Mesh(tipSkinGeo, wingMat);
+      tipSkin.position.set(side * 28 * U, 0, 16 * U);
       tip.add(tipSkin);
       wings.push(tipSkin);
     }
 
-    // LEGS. Vanilla's dragon has six, each a leg plus a foot, from `class_895.java`:
-    //
-    //   front_leg      8 x 24 x 8   at (112, 104)   offset (12, 20, 2)
-    //   front_foot     8 x  4 x 16  at (144, 104)   offset (0, 23, 0)
-    //   hind_leg      16 x 32 x 16  at (0, 0)       offset (16, 16, 42)
-    //   hind_foot     18 x  6 x 24  at (112, 0)     offset (0, 31, 4)
-    //
-    // The project had NO legs at all, which is why the render showed a body floating on wings. Sizes follow the body's
-    // factor (U = 1.6/24). // DRAGON_LEGS
+    // Legs: front legs and hind legs
     const legs = [];
     for (const side of [-1, 1]) {
+      // Front leg (thigh)
       const frontLegGeo = new THREE.BoxGeometry(8 * U, 24 * U, 8 * U);
       applyVanillaBoxUVs(frontLegGeo, 112, 104, 256, 256, 8, 24, 8);
       const frontLeg = new THREE.Mesh(frontLegGeo, dragonMat);
-      frontLeg.position.set(side * 12 * U, 20 * U - 1.4 + 0.3, 2 * U + 1.2 - 1.2 + 0.133);
+      frontLeg.position.set(side * 12 * U, 0.3, 1.2);
+      frontLeg.rotation.x = 0.7; // Tilted backwards in flying pose
       group.add(frontLeg);
       legs.push(frontLeg);
 
+      // Front shin (frontLegTip)
+      const frontShinGeo = new THREE.BoxGeometry(6 * U, 24 * U, 6 * U);
+      applyVanillaBoxUVs(frontShinGeo, 226, 138, 256, 256, 6, 24, 6);
+      const frontShin = new THREE.Mesh(frontShinGeo, dragonMat);
+      frontShin.position.set(0, -20 * U, -1 * U);
+      frontShin.rotation.x = -0.5; // Bends downward/forward
+      frontLeg.add(frontShin);
+      legs.push(frontShin);
+
+      // Front foot
       const frontFootGeo = new THREE.BoxGeometry(8 * U, 4 * U, 16 * U);
       applyVanillaBoxUVs(frontFootGeo, 144, 104, 256, 256, 8, 4, 16);
       const frontFoot = new THREE.Mesh(frontFootGeo, dragonMat);
-      frontFoot.position.set(0, -23 * U, 0);
-      frontLeg.add(frontFoot);
+      frontFoot.position.set(0, -12 * U, 4 * U);
+      frontFoot.rotation.x = 0.4; // Level horizontal claws
+      frontShin.add(frontFoot);
       legs.push(frontFoot);
 
+      // Hind leg (thigh)
       const hindLegGeo = new THREE.BoxGeometry(16 * U, 32 * U, 16 * U);
       applyVanillaBoxUVs(hindLegGeo, 0, 0, 256, 256, 16, 32, 16);
       const hindLeg = new THREE.Mesh(hindLegGeo, dragonMat);
-      hindLeg.position.set(side * 16 * U, 16 * U - 1.4 + 0.1, 42 * U - 1.6 + 1.2 - 2.8);
+      hindLeg.position.set(side * 16 * U, 0.4, -1.2);
+      hindLeg.rotation.x = 0.7;
       group.add(hindLeg);
       legs.push(hindLeg);
 
+      // Hind shin (rearLegTip)
+      const hindShinGeo = new THREE.BoxGeometry(12 * U, 32 * U, 12 * U);
+      applyVanillaBoxUVs(hindShinGeo, 196, 0, 256, 256, 12, 32, 12);
+      const hindShin = new THREE.Mesh(hindShinGeo, dragonMat);
+      hindShin.position.set(0, -26 * U, 2 * U);
+      hindShin.rotation.x = -0.5;
+      hindLeg.add(hindShin);
+      legs.push(hindShin);
+
+      // Hind foot
       const hindFootGeo = new THREE.BoxGeometry(18 * U, 6 * U, 24 * U);
       applyVanillaBoxUVs(hindFootGeo, 112, 0, 256, 256, 18, 6, 24);
       const hindFoot = new THREE.Mesh(hindFootGeo, dragonMat);
-      hindFoot.position.set(0, -31 * U, 4 * U);
-      hindLeg.add(hindFoot);
+      hindFoot.position.set(0, -16 * U, 4 * U);
+      hindFoot.rotation.x = 0.4;
+      hindShin.add(hindFoot);
       legs.push(hindFoot);
     }
 
-    // Segmented Tail
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.5), dragonMat);
-    tail.position.set(0, 0.9, -2.5);
-    group.add(tail);
+    // Segmented Tail: 5 tapering segments with dorsal spines
+    for (let i = 0; i < 5; i++) {
+      const scale = 1.0 - i * 0.12;
+      const tGeo = new THREE.BoxGeometry(10 * U * scale, 10 * U * scale, 16 * U);
+      applyVanillaBoxUVs(tGeo, 112, 54, 256, 256, 10, 10, 14);
+      const tSeg = new THREE.Mesh(tGeo, dragonMat);
+      tSeg.position.set(0, 1.0 - i * 0.08, -2.1 - (i * 0.95 + 0.5));
+      group.add(tSeg);
+      const tSpine = new THREE.Mesh(spineGeo, dragonMat);
+      tSpine.position.set(0, 5 * U * scale + 2 * U, 0);
+      tSeg.add(tSpine);
+    }
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -8266,8 +8628,10 @@ export class MobManager {
       wingR: wings[4],
       isFlying: true,
       isBoss: true,
-      health: 200,
-      maxHealth: 200,
+      health: ENDER_DRAGON_HEALTH,
+      maxHealth: ENDER_DRAGON_HEALTH,
+      width: ENDER_DRAGON_DIMENSIONS.width,
+      height: ENDER_DRAGON_DIMENSIONS.height,
       velocity: new THREE.Vector3(),
       yaw: 0,
       state: 'idle',
@@ -8281,37 +8645,58 @@ export class MobManager {
   // --- THE WITHER BOSS ---
   spawnWither(x, y, z) {
     const group = new THREE.Group();
-    const witherMat = new THREE.MeshLambertMaterial({ color: 0x18181b });
-    const skullMat = new THREE.MeshLambertMaterial({
-      map: this.textures?.wither_skull || this.textures?.wither_skeleton,
-      color: 0xffffff
-    });
-    const ribMat = new THREE.MeshLambertMaterial({ color: 0x27272a });
+    const witherMat = new THREE.MeshLambertMaterial({ color: 0x141416 });
+    adoptTexture(witherMat, this.textures?.wither || this.loadTexture('/assets/entity/wither/wither.png'), 0x141416);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x18181c });
 
-    // Central spine
-    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.3, 0.22), witherMat);
-    spine.position.y = 1.0;
+    // Upper shoulders / horizontal crossbar (20 x 3 x 3) connecting the three heads
+    const shoulderGeo = new THREE.BoxGeometry(1.6, 0.24, 0.24);
+    const shoulders = new THREE.Mesh(shoulderGeo, bodyMat);
+    shoulders.position.set(0, 1.52, 0);
+    group.add(shoulders);
+
+    // Central spine (3 x 12 x 3)
+    const spineGeo = new THREE.BoxGeometry(0.24, 0.96, 0.24);
+    const spine = new THREE.Mesh(spineGeo, bodyMat);
+    spine.position.set(0, 0.95, 0);
     group.add(spine);
 
-    // 3 distinct horizontal rib bars
-    for (let r = 0; r < 3; r++) {
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.85 - r * 0.15, 0.12, 0.25), ribMat);
-      rib.position.set(0, 1.3 - r * 0.22, 0);
-      group.add(rib);
+    // 3 distinct horizontal rib bars across the spine
+    const ribs = [
+      { w: 0.88, y: 1.25 },
+      { w: 0.68, y: 1.02 },
+      { w: 0.48, y: 0.80 }
+    ];
+    for (const rib of ribs) {
+      const ribMesh = new THREE.Mesh(new THREE.BoxGeometry(rib.w, 0.16, 0.20), bodyMat);
+      ribMesh.position.set(0, rib.y, 0);
+      group.add(ribMesh);
     }
 
-    // 3 Skulls: Center main skull + Left & Right sub-skulls
-    const centerHead = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), skullMat);
+    // Lower tail taper
+    const tailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.35, 0.18), bodyMat);
+    tailMesh.position.set(0, 0.35, 0);
+    group.add(tailMesh);
+
+    // Center main head: 8x8x8 at (0, 0)
+    const centerHeadGeo = new THREE.BoxGeometry(0.64, 0.64, 0.64);
+    applyVanillaBoxUVs(centerHeadGeo, 0, 0, 64, 64, 8, 8, 8);
+    const centerHead = new THREE.Mesh(centerHeadGeo, witherMat);
     centerHead.position.set(0, 1.85, 0);
     group.add(centerHead);
 
-    const sideHeadGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
-    const leftHead = new THREE.Mesh(sideHeadGeo, skullMat);
-    leftHead.position.set(-0.75, 1.7, 0);
+    // Left sub-head: 6x6x6 at (32, 0)
+    const leftHeadGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
+    applyVanillaBoxUVs(leftHeadGeo, 32, 0, 64, 64, 6, 6, 6);
+    const leftHead = new THREE.Mesh(leftHeadGeo, witherMat);
+    leftHead.position.set(-0.72, 1.70, 0);
     group.add(leftHead);
 
-    const rightHead = new THREE.Mesh(sideHeadGeo, skullMat);
-    rightHead.position.set(0.75, 1.7, 0);
+    // Right sub-head: 6x6x6 at (32, 0)
+    const rightHeadGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
+    applyVanillaBoxUVs(rightHeadGeo, 32, 0, 64, 64, 6, 6, 6);
+    const rightHead = new THREE.Mesh(rightHeadGeo, witherMat);
+    rightHead.position.set(0.72, 1.70, 0);
     group.add(rightHead);
 
     group.position.set(x, y, z);
@@ -8327,8 +8712,17 @@ export class MobManager {
       rightHead: rightHead,
       isFlying: true,
       isBoss: true,
-      health: 300,
-      maxHealth: 300,
+      undead: WITHER_UNDEAD_TRAITS.undead,
+      poisonImmune: WITHER_UNDEAD_TRAITS.poisonImmune,
+      witherImmune: WITHER_UNDEAD_TRAITS.witherImmune,
+      invertedHealing: WITHER_UNDEAD_TRAITS.invertedHealing,
+      canBreatheUnderwater: WITHER_UNDEAD_TRAITS.canBreatheUnderwater,
+      sensitiveToSmite: WITHER_UNDEAD_TRAITS.sensitiveToSmite,
+      burnsInDaylight: WITHER_UNDEAD_TRAITS.burnsInDaylight,
+      health: WITHER_HEALTH,
+      maxHealth: WITHER_HEALTH,
+      width: WITHER_DIMENSIONS.width,
+      height: WITHER_DIMENSIONS.height,
       velocity: new THREE.Vector3(),
       yaw: 0,
       state: 'idle',
@@ -9399,6 +9793,12 @@ export class MobManager {
     head.position.set(0, 0.15, 0.32);
     group.add(head);
 
+    // Lateral eyes on head
+    const eyeGeo = new THREE.BoxGeometry(0.02, 0.04, 0.04);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x151515 });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.076, 0.17, 0.34); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.076, 0.17, 0.34); group.add(eyeR);
+
     // Dorsal Fin
     const dorsalGeo = new THREE.BoxGeometry(0.04, 0.14, 0.2);
     const dorsal = new THREE.Mesh(dorsalGeo, mat);
@@ -9485,6 +9885,12 @@ export class MobManager {
     const head = new THREE.Mesh(headGeo, mat);
     head.position.set(0, 0.23, 0.55);
     group.add(head);
+
+    // Lateral dolphin eyes
+    const eyeGeo = new THREE.BoxGeometry(0.03, 0.04, 0.04);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x151c22 });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.215, 0.25, 0.60); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.215, 0.25, 0.60); group.add(eyeR);
 
     // Snout / Beak
     const snoutGeo = new THREE.BoxGeometry(0.2, 0.12, 0.24);
@@ -9646,13 +10052,23 @@ export class MobManager {
     head.position.set(0, 0.15, 0.42);
     group.add(head);
 
-    // External Branching Gill Frills (3 left, 3 right)
+    // Cute bead eyes and smile on axolotl face
+    const eyeGeo = new THREE.BoxGeometry(0.04, 0.04, 0.02);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x18181b });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.14, 0.17, 0.591); group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.14, 0.17, 0.591); group.add(eyeR);
+    const smileGeo = new THREE.BoxGeometry(0.10, 0.02, 0.02);
+    const smileMat = new THREE.MeshBasicMaterial({ color: 0xd67487 });
+    const smile = new THREE.Mesh(smileGeo, smileMat); smile.position.set(0, 0.10, 0.591); group.add(smile);
+
+    // External Branching Gill Frills (3 left, 3 right) in authentic magenta
+    const gillMat = new THREE.MeshLambertMaterial({ color: 0xe6356c });
     const gillsL = new THREE.Group();
     gillsL.position.set(-0.24, 0.16, 0.42);
     const gillGeo = new THREE.BoxGeometry(0.18, 0.05, 0.05);
 
     for (let g = 0; g < 3; g++) {
-      const gMesh = new THREE.Mesh(gillGeo, mat);
+      const gMesh = new THREE.Mesh(gillGeo, gillMat);
       gMesh.position.set(-0.08, (g - 1) * 0.08, 0);
       gMesh.rotation.z = -0.2 + (g - 1) * 0.25;
       gillsL.add(gMesh);
@@ -9662,7 +10078,7 @@ export class MobManager {
     const gillsR = new THREE.Group();
     gillsR.position.set(0.24, 0.16, 0.42);
     for (let g = 0; g < 3; g++) {
-      const gMesh = new THREE.Mesh(gillGeo, mat);
+      const gMesh = new THREE.Mesh(gillGeo, gillMat);
       gMesh.position.set(0.08, (g - 1) * 0.08, 0);
       gMesh.rotation.z = 0.2 - (g - 1) * 0.25;
       gillsR.add(gMesh);
@@ -10199,8 +10615,8 @@ export class MobManager {
       zombie_villager: [['rotten_flesh', false, 1, 2], ['iron_ingot', false, 0, 1], ['carrot', false, 1, 1, 0.008333333333333333], ['potato', false, 1, 1, 0.008333333333333333]],
       iron_golem: [['iron_ingot', false, 3, 5], [BLOCKS.POPPY, true, 1, 1]],
       pillager: [['arrow', false, 1, 2]],
-      vindicator: [['emerald', false, 0, 1]],
-      evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 1, 1]],
+      vindicator: [['emerald', false, 0, 1], ['iron_axe', false, 1, 1, 0.085]],
+      evoker: [['totem_of_undying', false, 1, 1], ['emerald', false, 0, 1]],
       blaze: mob.playerDamaged ? [['blaze_rod', false, 0, 1 + (mob.blazeLooting || 0)]] : [],
       ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
       piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
@@ -10259,9 +10675,7 @@ export class MobManager {
     const goatRows = isGoat(mob) ? goatDrops(mob) : [];
     // Wiki: a llama drops 0-2 leather, anything it is wearing, and everything it was carrying.
     const llamaRows = isLlamaLike(mob)
-      ? [...(mob.playerDamaged || mob.wolfKilled ? [['leather', false, 0, 2]] : []),
-         ...(mob.carpetColor ? [[mob.carpetColor, false, 1, 1]] : []),
-         ...(mob.hasChest ? (mob.chestInventory || []).filter(Boolean).map(item => [item.id, !!item.isBlock, item.count || 1]) : [])]
+      ? llamaDrops(mob, { random, looting: mob.lootingLevel || 0 })
       : [];
     const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
     // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
@@ -10431,6 +10845,10 @@ export class MobManager {
           : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
           : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
           : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
+          : mob.type === 'vindicator' ? (mob.playerDamaged || mob.wolfKilled ? vindicatorXp(mob) : 0)
+          : mob.type === 'evoker' ? (mob.playerDamaged || mob.wolfKilled ? evokerXp(mob) : 0)
+          : mob.type === 'wither' ? (mob.playerDamaged || mob.wolfKilled ? witherXp(mob) : 0)
+          : mob.type === 'ender_dragon' ? (mob.playerDamaged || mob.wolfKilled ? enderDragonXp(mob) : 0)
           : mob.type === 'snow_golem' ? 0
           : mob.type === 'creaking' ? 0
           : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
@@ -10451,7 +10869,7 @@ export class MobManager {
           : mob.type === 'tadpole' ? 0
           : mob.type === 'frog' ? (mob.playerDamaged || mob.wolfKilled ? frogXp(mob) : 0)
           : mob.type === 'turtle' ? (mob.playerDamaged || mob.wolfKilled ? turtleXp(mob) : 0)
-          : isLlamaLike(mob) ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
+          : isLlamaLike(mob) ? (mob.playerDamaged || mob.wolfKilled ? llamaXp(mob) : 0)
           : mob.type === 'goat' ? (mob.playerDamaged || mob.wolfKilled ? goatXp(mob) : 0)
           : mob.type === 'bee' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
           : mob.type === 'fox' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : 1 + Math.floor(Math.random() * 3)) : 0)
@@ -11027,6 +11445,10 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
+    if(mob.type==='vindicator'){updateVindicatorAI(this,mob,dt,player);return true;}
+    if(mob.type==='evoker'){updateEvokerAI(this,mob,dt,player);return true;}
+    if(mob.type==='ender_dragon'){updateEnderDragonAI(this,mob,dt,player);return true;}
+    if(mob.type==='wither'){updateWitherAI(this,mob,dt,player);return true;}
     if(mob.type==='slime'||mob.type==='magma_cube'){
       // Wiki: cubes move by hopping every 0.5-1.5s, three times as often when they have a target,
       // always jump one block high, do not pathfind, and damage whatever they land on. Neither had
@@ -11541,7 +11963,9 @@ export class MobManager {
       }
 
       // Wiki: a ridden one is steered by its rider, so the horse does not wander on its own.
-      if (mob.riderCount > 0) {
+      if (mob.rider === player || this.animalBehaviors?.mount?.mob === mob) {
+        mob.state = 'ridden';
+      } else if (mob.riderCount > 0) {
         mob.velocity.x *= 0.85;
         mob.velocity.z *= 0.85;
         mob.state = 'ridden';
@@ -11849,7 +12273,9 @@ export class MobManager {
       else if (sit === 'blocked') mob.state = 'sitting-blocked';
 
       // Wiki: a sitting camel does not move, and cannot be pushed by players or mobs.
-      if (mob.isSitting) {
+      if (mob.rider === player || this.animalBehaviors?.mount?.mob === mob || (mob.riderCount ?? 0) > 0) {
+        mob.state = 'ridden';
+      } else if (mob.isSitting) {
         mob.velocity.x = 0;
         mob.velocity.z = 0;
       } else if (tempted && player?.position) {
@@ -11871,6 +12297,7 @@ export class MobManager {
 
       // Wiki: it heals slowly on its own, at 1/900 per tick.
       updateCamelRegen(mob, dt, this.random ?? Math.random);
+      updateCamelDash(mob, dt);
 
       moveGroundMob(this, mob, dt);
       if (mob.onGround) mob.groundY = mob.mesh.position.y;
@@ -12381,6 +12808,9 @@ export class MobManager {
       return true;
     }
     if(isLlamaLike(mob)){
+      // Caravan update
+      updateLlamaCaravan(this, mob, dt);
+
       // Wiki: neutral. It spits at whatever attacked it and at wolves without provocation, is
       // completely passive on Peaceful, and has a 1/900 chance per tick to regenerate 1 HP.
       mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
@@ -12430,10 +12860,12 @@ export class MobManager {
         }
       }
 
-      // Firing, or wandering.
+      // Firing, or caravan following, or wandering.
       if (mob.pendingSpitTarget) {
         mob.velocity.x = 0;
         mob.velocity.z = 0;
+      } else if (mob.caravanFollows) {
+        // Caravan movement is handled by updateLlamaCaravan
       } else {
         wanderMob(this, mob, dt, 1.0);
       }
@@ -12550,6 +12982,35 @@ export class MobManager {
       const atFlower = isBeeFlower(flowerBelow);
       if (!mob.hasNectar && atFlower) updateBeeNectar(mob, dt, { atFlower: true });
 
+      // Crop pollination: carrying nectar allows bee to fertilize crops beneath it
+      if (mob.hasNectar && (mob.cropsGrownSincePollination || 0) < BEE_MAX_CROPS_GROWN) {
+        for (let dy = 1; dy <= 2; dy++) {
+          const cropBlock = this.world.getVoxel(bX, bY - dy, bZ);
+          if (isPollinatableCrop(cropBlock)) {
+            if (Math.random() < BEE_POLLINATE_CHANCE) {
+              if (advancePollinatedCrop(this.world, bX, bY - dy, bZ, this.game)) {
+                mob.cropsGrownSincePollination = (mob.cropsGrownSincePollination || 0) + 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Deliver nectar if at hive
+      if (mob.hasNectar && mob.hive) {
+        const hivePos = mob.hive.mesh?.position || (mob.hive.x !== undefined ? new THREE.Vector3(mob.hive.x + 0.5, mob.hive.y + 0.5, mob.hive.z + 0.5) : null);
+        if (hivePos && mob.mesh.position.distanceTo(hivePos) < 1.3) {
+          deliverBeeNectar(mob, mob.hive);
+          if (this.game?.hiveManager) {
+            const hx = Math.floor(hivePos.x), hy = Math.floor(hivePos.y), hz = Math.floor(hivePos.z);
+            this.game.hiveManager.ensure(hx, hy, hz);
+            const hiveRec = this.game.hiveManager.hives.get(`${hx},${hy},${hz}`);
+            if (hiveRec) hiveRec.level = Math.min(5, hiveRec.level + 1);
+          }
+        }
+      }
+
       // A stung bee cannot sting again, so it flees instead of attacking.
       if (mob.stingerless) {
         if (player?.position) {
@@ -12588,26 +13049,59 @@ export class MobManager {
         return true;
       }
 
-      // Calm flight: wander, and return toward the hive when carrying nectar.
-      if (mob.hasNectar && mob.hive?.mesh?.position) {
-        const toHive = mob.hive.mesh.position.clone().sub(mob.mesh.position);
-        const dist = toHive.length();
-        if (dist > 0.001) toHive.normalize();
-        mob.yaw = Math.atan2(toHive.x, toHive.z);
-        mob.velocity.set(toHive.x * 2.2, toHive.y * 2.2, toHive.z * 2.2);
-      } else {
-        mob.wanderTimer = (mob.wanderTimer || 0) - dt;
-        if (mob.wanderTimer <= 0) {
-          mob.wanderTimer = 1 + Math.random() * 2;
-          mob.yaw += (Math.random() - 0.5) * 2.2;
-          mob.targetPitch = (Math.random() - 0.5) * 0.5;
+      // Tempting by flowers when calm (not angry and not stingerless)
+      let isTempted = false;
+      if (!beeIsAngry(mob) && !mob.stingerless && player?.inventory) {
+        const active = player.inventory.getActiveItem() || player.inventory.getOffhandItem?.();
+        const activeId = active ? (typeof active.id === 'string' ? active.id : active?.id?.id || active?.id) : null;
+        if (isBeeBreedingFood(activeId)) {
+          const dToPlayer = mob.mesh.position.distanceTo(player.position);
+          if (dToPlayer <= 10.0) {
+            isTempted = true;
+            const toPlayer = player.position.clone().sub(mob.mesh.position);
+            toPlayer.y += 0.8;
+            const dist = toPlayer.length();
+            if (dist > 1.8) {
+              toPlayer.normalize();
+              mob.yaw = Math.atan2(toPlayer.x, toPlayer.z);
+              mob.pitch = -Math.asin(Math.max(-1, Math.min(1, toPlayer.y))) * 0.4;
+              mob.velocity.set(toPlayer.x * 2.2, toPlayer.y * 1.5, toPlayer.z * 2.2);
+            } else {
+              mob.velocity.multiplyScalar(0.4);
+              mob.yaw = Math.atan2(toPlayer.x, toPlayer.z);
+            }
+          }
         }
-        mob.pitch = (mob.pitch || 0) + ((mob.targetPitch ?? 0) - (mob.pitch || 0)) * Math.min(1, dt * 3);
-        mob.velocity.set(
-          Math.sin(mob.yaw) * Math.cos(mob.pitch) * 1.8,
-          -Math.sin(mob.pitch) * 1.8,
-          Math.cos(mob.yaw) * Math.cos(mob.pitch) * 1.8
-        );
+      }
+
+      if (!isTempted) {
+        // Night or rain: return to hive if known
+        const isRaining = this.game?.weather?.isRaining || false;
+        const timeOfDay = (this.game?.worldTime ?? 6000) % 24000;
+        const isNight = timeOfDay > 12500 && timeOfDay < 23500;
+        const wantsHome = (mob.hasNectar || isNight || isRaining) && mob.hive;
+        const hivePos = mob.hive?.mesh?.position || (mob.hive?.x !== undefined ? new THREE.Vector3(mob.hive.x + 0.5, mob.hive.y + 0.5, mob.hive.z + 0.5) : null);
+
+        if (wantsHome && hivePos) {
+          const toHive = hivePos.clone().sub(mob.mesh.position);
+          const dist = toHive.length();
+          if (dist > 0.001) toHive.normalize();
+          mob.yaw = Math.atan2(toHive.x, toHive.z);
+          mob.velocity.set(toHive.x * 2.2, toHive.y * 2.2, toHive.z * 2.2);
+        } else {
+          mob.wanderTimer = (mob.wanderTimer || 0) - dt;
+          if (mob.wanderTimer <= 0) {
+            mob.wanderTimer = 1 + Math.random() * 2;
+            mob.yaw += (Math.random() - 0.5) * 2.2;
+            mob.targetPitch = (Math.random() - 0.5) * 0.5;
+          }
+          mob.pitch = (mob.pitch || 0) + ((mob.targetPitch ?? 0) - (mob.pitch || 0)) * Math.min(1, dt * 3);
+          mob.velocity.set(
+            Math.sin(mob.yaw) * Math.cos(mob.pitch) * 1.8,
+            -Math.sin(mob.pitch) * 1.8,
+            Math.cos(mob.yaw) * Math.cos(mob.pitch) * 1.8
+          );
+        }
       }
       poseBee(mob);
       moveFlyingMob(this, mob, dt);
@@ -13047,9 +13541,11 @@ export class MobManager {
           mob.velocity.z *= 0.5;
         }
 
-        // Attack player
+        // Attack player (wiki: camel height protects mounted rider from short melee mobs)
         if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
-          player.takeDamage(3, mob.mesh.position, mob.type);
+          if (!camelProtectsRiderFrom(mob, player)) {
+            player.takeDamage(3, mob.mesh.position, mob.type);
+          }
           mob.hitCooldown = 1.0;
         }
       } else {
@@ -13085,6 +13581,88 @@ export class MobManager {
       if (mob.inLove > 0) {
         isFollowing = true;
         mob.wanderGoal = null;
+      }
+
+      // Untamed wolf reaction to nearby llamas:
+      // Wiki: Untamed wolves flee from llamas with strength >= 4, and attack llamas with strength 1-3.
+      if (mob.type === 'wolf' && !mob.isTamed && !mob.isSitting) {
+        let nearbyLlama = null;
+        let bestDist = 12;
+        for (const other of this.mobs) {
+          if (other !== mob && isLlamaLike(other) && other.health > 0) {
+            const d = mob.mesh.position.distanceTo(other.mesh.position);
+            if (d < bestDist) {
+              bestDist = d;
+              nearbyLlama = other;
+            }
+          }
+        }
+        if (nearbyLlama) {
+          const reaction = wolfReactsToLlama(mob, nearbyLlama);
+          if (reaction === 'flee') {
+            const away = mob.mesh.position.clone().sub(nearbyLlama.mesh.position);
+            away.y = 0;
+            if (away.lengthSq() > 1e-4) {
+              away.normalize();
+              mob.velocity.x = away.x * 3.5;
+              mob.velocity.z = away.z * 3.5;
+              mob.yaw = Math.atan2(away.x, away.z);
+              isFollowing = true;
+            }
+          } else if (reaction === 'attack') {
+            const toward = nearbyLlama.mesh.position.clone().sub(mob.mesh.position);
+            toward.y = 0;
+            const dist = toward.length();
+            if (dist > 1.2) {
+              toward.normalize();
+              mob.velocity.x = toward.x * 3.5;
+              mob.velocity.z = toward.z * 3.5;
+              mob.yaw = Math.atan2(toward.x, toward.z);
+            } else {
+              mob.attackCooldown = (mob.attackCooldown || 0) - dt;
+              if (mob.attackCooldown <= 0) {
+                this.damageMob(nearbyLlama, 4, mob.mesh.position, false, mob);
+                mob.attackCooldown = 1.0;
+              }
+            }
+            isFollowing = true;
+          }
+        }
+
+        // Untamed wolf naturally attacks sheep, rabbits and foxes
+        if (!isFollowing && !mob.target) {
+          let nearestPrey = null;
+          let bestPreyDist = 12;
+          for (const other of this.mobs) {
+            if (other !== mob && other.health > 0 && (other.type === 'sheep' || other.type === 'rabbit' || other.type === 'fox')) {
+              const d = mob.mesh.position.distanceTo(other.mesh.position);
+              if (d < bestPreyDist) {
+                bestPreyDist = d;
+                nearestPrey = other;
+              }
+            }
+          }
+          if (nearestPrey) {
+            const toward = nearestPrey.mesh.position.clone().sub(mob.mesh.position);
+            toward.y = 0;
+            const dist = toward.length();
+            if (dist > 1.2) {
+              toward.normalize();
+              mob.velocity.x = toward.x * 3.5;
+              mob.velocity.z = toward.z * 3.5;
+              mob.yaw = Math.atan2(toward.x, toward.z);
+            } else {
+              mob.attackCooldown = (mob.attackCooldown || 0) - dt;
+              if (mob.attackCooldown <= 0) {
+                this.damageMob(nearestPrey, 4, mob.mesh.position, false, mob);
+                mob.attackCooldown = 1.0;
+                if (this.sounds?.playWolf) this.sounds.playWolf();
+              }
+            }
+            mob.preyTarget = nearestPrey;
+            isFollowing = true;
+          }
+        }
       }
 
       // Chicken / Animal following player holding seeds or breeding food (main hand or offhand)
@@ -13227,6 +13805,11 @@ export class MobManager {
               this.sounds.playCow();
             }
           }
+        }
+
+        if (mob.type === 'sheep' && isJebSheep(mob)) {
+          mob.jebTime = (mob.jebTime || 0) + dt;
+          sheepApplyWool(mob);
         }
 
         if (mob.legs && mob.legs.length === 4) {
@@ -14335,9 +14918,11 @@ export class MobManager {
           mob.velocity.z *= 0.5;
         }
 
-        // Melee attack
+        // Melee attack (wiki: camel height protects mounted rider from short melee mobs)
         if (distToPlayer < 1.7 && mob.hitCooldown <= 0) {
-          player.takeDamage(mob.attackDamage, mob.mesh.position, mob.type);
+          if (!camelProtectsRiderFrom(mob, player)) {
+            player.takeDamage(mob.attackDamage, mob.mesh.position, mob.type);
+          }
           mob.hitCooldown = 1.0;
           if (mob.leftArm && mob.rightArm) {
             mob.leftArm.rotation.x = -Math.PI / 2.2;

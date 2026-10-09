@@ -7,7 +7,7 @@ import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from '
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
 import { normaliseGamerules, gameruleFor } from './sessionSettings.js';
-import { generationPresetList, getGenerationPreset } from './dataPackPresets.js';
+import { generationPresetList } from './dataPackPresets.js';
 import { bindDataPackPanel } from './dataPackPanel.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { setPackEnabled, removePack } from './dataPackStore.js';
@@ -22,6 +22,7 @@ import {
   saveMapToCustomFile,
   loadMapFromCustomFile
 } from './mapManager.js';
+import { exportMapToMcWorld } from './io/mcworldExporter.js';
 import {
   isEnchantableItem,
   calculateBookshelfCount,
@@ -3641,7 +3642,7 @@ export class UIManager {
     }
 
     const paint = () => {
-      const chosen = getGenerationPreset(this.selectedDataPackPreset);
+      const chosen = generationPresetList().find(entry => entry.id === this.selectedDataPackPreset);
       select.value = chosen ? chosen.id : '';
       if (hint) {
         hint.textContent = chosen
@@ -4253,28 +4254,44 @@ export class UIManager {
           }
         };
 
-        // Export / Download Button
+        // Export / Download Button (.mcworld for official Minecraft)
         const btnExport = document.createElement('button');
         btnExport.className = 'map-card-btn';
         btnExport.textContent = 'Export';
-        btnExport.title = 'Save copy to custom file / download';
+        btnExport.title = 'Export as .mcworld for official Minecraft';
         btnExport.onclick = async () => {
+          btnExport.disabled = true;
+          btnExport.textContent = 'Exporting...';
           try {
-            const res = await fetch(`/api/saves/${encodeURIComponent(save.filename)}`);
-            if (res.ok) {
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = save.filename;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              this.showMapFeedback('load', `Exported "${save.filename}" to downloads!`, false);
+            let mapData = null;
+            if (save.filename) {
+              try {
+                const res = await fetch(`/api/saves/${encodeURIComponent(save.filename)}`);
+                if (res.ok) {
+                  mapData = await res.json();
+                }
+              } catch (err) {}
             }
+
+            if (!mapData) {
+              const safeName = (save.filename || save.name || 'world').replace(/\.json$/, '');
+              const localRaw = localStorage.getItem(`mc_map_save_${safeName}`);
+              if (localRaw) {
+                mapData = JSON.parse(localRaw);
+              }
+            }
+
+            if (!mapData) {
+              throw new Error(`Could not find save data for "${save.name || save.filename}"`);
+            }
+
+            const result = exportMapToMcWorld(mapData, save.name || save.filename);
+            this.showMapFeedback('load', `Exported "${result.filename}" for Minecraft!`, false);
           } catch (e) {
             this.showMapFeedback('load', `Export failed: ${e.message}`, true);
+          } finally {
+            btnExport.disabled = false;
+            btnExport.textContent = 'Export';
           }
         };
 

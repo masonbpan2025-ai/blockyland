@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { createBoxFromFaces } from './mobVisuals/entityBox.js';
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 
 /**
  * Bee rules and model.
@@ -10,6 +12,11 @@ import { BLOCKS } from './blocks.js';
  * the bee**: it loses its stinger, cannot attack again, and dies about a minute later. It also
  * pollinates flowers, carries nectar home to a hive, and answers anger as a colony.
  */
+
+export const BEE_SKIN_PATHS = {
+  regular: '/assets/entity/bee/bee.png',
+  nectar: '/assets/entity/bee/bee_nectar.png'
+};
 
 /** Wiki: 10 HP. */
 export const BEE_HEALTH = 10;
@@ -79,6 +86,35 @@ export const BEE_FLOWERS = [
   'lilac', 'peony', 'rose_bush', 'sunflower', 'pink_petals',
   'cherry_leaves', 'azalea_leaves', 'spore_blossom', 'chorus_flower', 'mangrove_propagule'
 ];
+
+/**
+ * Wiki: flowers and flowering plants that breed bees and tempt them.
+ * Includes small/tall flowers, wither roses, spore blossoms, flowering azaleas,
+ * mangrove propagules, cherry leaves, pink petals, and eyeblossoms.
+ * Golden dandelions are excluded because they are age-locking items, not breeding food.
+ */
+export const BEE_BREEDING_FLOWERS = [
+  'poppy', 'dandelion', 'allium', 'azure_bluet', 'blue_orchid', 'cornflower',
+  'lily_of_the_valley', 'orange_tulip', 'pink_tulip', 'red_tulip', 'white_tulip',
+  'oxeye_daisy', 'lilac', 'peony', 'rose_bush', 'sunflower', 'torchflower',
+  'pitcher_plant', 'pink_petals', 'spore_blossom', 'wither_rose', 'cherry_leaves',
+  'flowering_azalea', 'flowering_azalea_leaves', 'azalea_leaves', 'mangrove_propagule',
+  'chorus_flower', 'open_eyeblossom', 'closed_eyeblossom'
+];
+
+/** True when item id or block id is a valid flower for breeding bees. */
+export function isBeeBreedingFood(itemId) {
+  if (itemId === null || itemId === undefined) return false;
+  if (typeof itemId === 'number') {
+    for (const [name, id] of Object.entries(BLOCKS)) {
+      if (id === itemId) return BEE_BREEDING_FLOWERS.includes(name.toLowerCase());
+    }
+    return false;
+  }
+  const clean = String(typeof itemId === 'string' ? itemId : itemId?.id || '').toLowerCase().trim();
+  if (clean === 'golden_dandelion') return false;
+  return BEE_BREEDING_FLOWERS.includes(clean);
+}
 
 /** Wiki: feeding a bee a wither rose gives it Wither for 2 seconds. */
 export const BEE_WITHER_ROSE = { effect: 'wither', seconds: 2 };
@@ -323,70 +359,151 @@ export function canPollinate(blockName, verticalOffset) {
   return verticalOffset >= 1 && verticalOffset <= 2;
 }
 
+/** Check if a block id in the world is a crop that can be grown by bee pollination. */
+export function isPollinatableCrop(blockId) {
+  if (blockId === null || blockId === undefined) return false;
+  if (blockId >= BLOCKS.WHEAT_STAGE_0 && blockId < BLOCKS.WHEAT_STAGE_7) return true;
+  if (blockId >= BLOCKS.CARROTS_STAGE_0 && blockId < BLOCKS.CARROTS_STAGE_3) return true;
+  if (blockId >= BLOCKS.POTATOES_STAGE_0 && blockId < BLOCKS.POTATOES_STAGE_3) return true;
+  return false;
+}
+
 /**
- * Bee model: a striped body, two pairs of wings, antennae, and a stinger that is hidden once the
- * bee has stung.
+ * Advance a pollinated crop by one growth stage.
  *
- * The wings are exposed as `left`/`right` aliases carrying a reachable `rotation`, because the
- * shared `moveFlyingMob` animates wings through exactly that path. The bat shipped a frozen model
- * by getting this shape wrong, so it is matched deliberately here.
+ * Wiki: "When a pollen-carrying bee flies over crops... it advances the crop's growth by one
+ * stage (similar to applying bone meal)."
+ */
+export function advancePollinatedCrop(world, x, y, z, game = null) {
+  if (!world) return false;
+  const blockId = world.getVoxel(x, y, z);
+  let nextBlock = null;
+  if (blockId >= BLOCKS.WHEAT_STAGE_0 && blockId < BLOCKS.WHEAT_STAGE_7) {
+    nextBlock = blockId + 1;
+  } else if (blockId >= BLOCKS.CARROTS_STAGE_0 && blockId < BLOCKS.CARROTS_STAGE_3) {
+    nextBlock = blockId + 1;
+  } else if (blockId >= BLOCKS.POTATOES_STAGE_0 && blockId < BLOCKS.POTATOES_STAGE_3) {
+    nextBlock = blockId + 1;
+  }
+  if (nextBlock !== null) {
+    world.setVoxel(x, y, z, nextBlock);
+    if (game?.entities?.spawnBoneMealParticles) {
+      game.entities.spawnBoneMealParticles(new THREE.Vector3(x + 0.5, y + 0.3, z + 0.5), 10);
+    }
+    game?.farming?.rebuildBlockChunk?.(x, z);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Check if a lit campfire is placed within 5 blocks directly below the hive/nest.
+ *
+ * Wiki: "Harvesting a bee nest or beehive with shears or a glass bottle angers all bees in the hive
+ * and any nearby bees within 24 blocks, unless there is a lit campfire directly below the nest or hive
+ * (up to 5 blocks below) with only air or carpet between them."
+ */
+export function hasCampfireBelow(world, x, y, z) {
+  if (!world) return false;
+  for (let dy = 1; dy <= 5; dy++) {
+    const voxel = world.getVoxel(x, y - dy, z);
+    if (voxel === BLOCKS.CAMPFIRE || voxel === BLOCKS.SOUL_CAMPFIRE) {
+      return true;
+    }
+    // Only air and carpet may separate the campfire and hive
+    if (voxel !== BLOCKS.AIR && voxel !== BLOCKS.MOSS_CARPET && voxel !== BLOCKS.WHITE_CARPET) {
+      break;
+    }
+  }
+  return false;
+}
+
+/**
+ * UV face unwrap for canonical 64x64 bee texture atlas (BeeEntityModel).
+ */
+export function beeFaces(u, v, tw, th, td) {
+  return [
+    { x: u, y: v + td, w: td, h: th },                  // +X (right)
+    { x: u + td + tw, y: v + td, w: td, h: th },        // -X (left)
+    { x: u + td, y: v, w: tw, h: td },                  // +Y (top)
+    { x: u + td + tw, y: v, w: tw, h: td },             // -Y (bottom)
+    { x: u + td, y: v + td, w: tw, h: th },             // +Z (front)
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }    // -Z (back)
+  ];
+}
+
+/**
+ * Bee model: vanilla-accurate geometry and UV mapping from BeeEntityModel (class_4495).
+ *
+ * Atlas is 64x64:
+ *   body: 7x7x10 at (0, 0), with face, mouth, and stripes mapped natively.
+ *   antennae: left and right attached to top front.
+ *   legs: 6 legs hanging underneath.
+ *   wings: two wide translucent wings pivoting at top edges.
+ *   stinger: rear center, toggled when stung.
+ *   eyes: overlay meshes on the front face allowing dynamic calm/angry color shifts.
  */
 export function createBeeModel(bodyMat, stripeMat, wingMat, eyeMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.4), bodyMat);
+  // Body: 7x7x10 at (0, 0) on 64x64 atlas.
+  const bodyGeo = createBoxFromFaces(0.44, 0.44, 0.60, beeFaces(0, 0, 7, 7, 10), { texW: 64, texH: 64 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, 0.28, 0);
   group.add(body);
 
-  // Two dark stripes, which is what makes a bee read as a bee at a glance.
-  for (const z of [0.06, -0.08]) {
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.27, 0.07), stripeMat);
-    stripe.position.set(0, 0.28, z);
-    group.add(stripe);
-  }
+  // Head anchor on the front face of the body (+Z).
+  const head = new THREE.Group();
+  head.position.set(0, 0, 0.30);
+  body.add(head);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), bodyMat);
-  head.position.set(0, 0.3, 0.28);
-  group.add(head);
-
-  const eyeGeo = new THREE.BoxGeometry(0.05, 0.06, 0.03);
+  // Eye overlays over the textured eyes on the front face so color turns angry red.
+  const eyeGeo = new THREE.BoxGeometry(0.045, 0.065, 0.005);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.07, 0.02, 0.1);
+    eye.position.set(side * 0.09, -0.01, 0.003);
     head.add(eye);
     return eye;
   });
 
-  // Antennae.
-  const antennaGeo = new THREE.BoxGeometry(0.02, 0.02, 0.16);
+  // Antennae at top front.
+  const antennaGeo = new THREE.BoxGeometry(0.02, 0.02, 0.14);
   for (const side of [-1, 1]) {
     const antenna = new THREE.Mesh(antennaGeo, stripeMat);
-    antenna.position.set(side * 0.05, 0.11, 0.06);
-    antenna.rotation.x = -0.5;
-    antenna.rotation.y = side * 0.4;
-    head.add(antenna);
+    antenna.position.set(side * 0.08, 0.22, 0.24);
+    antenna.rotation.x = -0.4;
+    antenna.rotation.y = side * 0.3;
+    body.add(antenna);
+  }
+
+  // Six legs underneath the body.
+  const legGeo = new THREE.BoxGeometry(0.03, 0.09, 0.03);
+  for (const side of [-1, 1]) {
+    for (const z of [0.12, 0.0, -0.12]) {
+      const leg = new THREE.Mesh(legGeo, stripeMat);
+      leg.position.set(side * 0.10, -0.22, z);
+      leg.rotation.x = 0.25;
+      body.add(leg);
+    }
   }
 
   // The stinger, hidden once the bee has stung.
-  const stinger = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.12), stripeMat);
-  stinger.position.set(0, 0.26, -0.24);
-  group.add(stinger);
+  const stinger = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.12), stripeMat);
+  stinger.position.set(0, -0.01, -0.36);
+  body.add(stinger);
 
-  // Two wings per side. The wrapper carries `rotation` pointing at the pivot, which is the
-  // contract `moveFlyingMob` writes to.
-  const wingGeo = new THREE.BoxGeometry(0.22, 0.02, 0.12);
+  // Wings: wide translucent wings pivoting at the upper sides of the body.
+  const wingGeo = new THREE.BoxGeometry(0.44, 0.01, 0.30);
   const wings = [];
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.14, 0.42, 0);
-    for (const z of [0.06, -0.06]) {
-      const wing = new THREE.Mesh(wingGeo, wingMat);
-      wing.position.set(side * 0.11, 0, z);
-      wing.rotation.z = side * 0.15;
-      pivot.add(wing);
-    }
-    group.add(pivot);
-    wings.push({ pivot, side, rotation: pivot.rotation, wing: pivot.children[0] });
+    pivot.position.set(side * 0.10, 0.22, -0.05);
+    const wingMesh = new THREE.Mesh(wingGeo, wingMat);
+    wingMesh.position.set(side * 0.22, 0, 0);
+    wingMesh.rotation.z = side * 0.05;
+    pivot.add(wingMesh);
+    body.add(pivot);
+    wings.push({ pivot, side, rotation: pivot.rotation, wing: wingMesh });
   }
   wings.left = wings[0];
   wings.right = wings[1];
@@ -394,7 +511,7 @@ export function createBeeModel(bodyMat, stripeMat, wingMat, eyeMat) {
   return { group, body, head, eyes, stinger, wings };
 }
 
-/** Hide the stinger once the bee has used it, and tint an angry bee's eyes red. */
+/** Hide the stinger once the bee has used it, tint an angry bee's eyes red, and swap nectar skin. */
 export function poseBee(bee) {
   if (!bee) return;
   if (bee.stinger) bee.stinger.visible = !bee.hasStung;
@@ -405,5 +522,12 @@ export function poseBee(bee) {
       const target = beeIsAngry(bee) ? 0xdc2626 : BEE_COLORS.eye;
       eye.material.color.setHex(target);
     }
+  }
+  // Texture swap when nectar collection state changes
+  if (bee.bodyMat && bee.hasNectar !== bee._lastNectarSkin) {
+    bee._lastNectarSkin = !!bee.hasNectar;
+    const skinPath = bee.hasNectar ? BEE_SKIN_PATHS.nectar : BEE_SKIN_PATHS.regular;
+    const skin = bee.skinManager?.loadTexture ? bee.skinManager.loadTexture(skinPath) : null;
+    if (skin) adoptWhenReady(bee.bodyMat, skin, BEE_COLORS.body);
   }
 }

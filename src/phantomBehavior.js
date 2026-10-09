@@ -290,17 +290,30 @@ export function phantomXp(mob) {
  * undivided wing mesh freezes the mob. This returns the shape that contract needs, which is the trap
  * the bat fell into.
  */
+import { applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
+
 export function createPhantomWings(material, body) {
-  const wingGeo = new THREE.BoxGeometry(0.9, 0.06, 0.5);
   const wings = [];
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.25, 0, 0);
-    const wing = new THREE.Mesh(wingGeo, material);
-    wing.position.set(side * 0.45, 0, 0);
-    pivot.add(wing);
+    pivot.position.set(side * 0.16, 0, 0);
+
+    // Wing base: 6x2x9 at (23, 12)
+    const baseGeo = new THREE.BoxGeometry(0.38, 0.12, 0.56);
+    applyVanillaBoxUVs(baseGeo, 23, 12, 64, 64, 6, 2, 9);
+    const baseWing = new THREE.Mesh(baseGeo, material);
+    baseWing.position.set(side * 0.19, 0, 0);
+    pivot.add(baseWing);
+
+    // Wing tip: 13x1x9 at (16, 24)
+    const tipGeo = new THREE.BoxGeometry(0.81, 0.06, 0.56);
+    applyVanillaBoxUVs(tipGeo, 16, 24, 64, 64, 13, 1, 9);
+    const tipWing = new THREE.Mesh(tipGeo, material);
+    tipWing.position.set(side * 0.79, 0, 0);
+    pivot.add(tipWing);
+
     body.add(pivot);
-    wings.push({ pivot, wing, side, rotation: pivot.rotation });
+    wings.push({ pivot, wing: baseWing, tipWing, side, rotation: pivot.rotation });
   }
   wings.left = wings[0];
   wings.right = wings[1];

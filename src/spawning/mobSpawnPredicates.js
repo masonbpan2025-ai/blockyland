@@ -124,7 +124,7 @@ const MOOSHROOM_GROUND = blockSet(['mycelium']);
 const TURTLE_GROUND = blockSet(['sand']);
 const BAT_GROUND = blockSet(['stone', 'granite', 'diorite', 'andesite', 'tuff', 'deepslate',
   'cobbled_deepslate']);
-const POLAR_BEAR_GROUND = blockSet(['grass_block', 'grass', 'ice']);
+const POLAR_BEAR_GROUND = blockSet(['grass_block', 'grass', 'ice', 'packed_ice', 'snow', 'snow_block']);
 
 /** Does a block emit light at or above the level that forbids spawning on top of it? */
 function blockBelowEmitsTooMuch(blockId) {

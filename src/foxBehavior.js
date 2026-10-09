@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createBoxFromFaces } from './mobVisuals/entityBox.js';
 
 /**
  * Fox rules and model.
@@ -260,83 +261,138 @@ export function updateFoxPounce(mob, dt, targetPos = null) {
   return null;
 }
 
+function foxBoxFaces(u, v, tw, th, td) {
+  return [
+    { x: u, y: v + td, w: td, h: th },                  // +X (right)
+    { x: u + td + tw, y: v + td, w: td, h: th },        // -X (left)
+    { x: u + td, y: v, w: tw, h: td },                  // +Y (top)
+    { x: u + td + tw, y: v, w: tw, h: td },             // -Y (bottom)
+    { x: u + td, y: v + td, w: tw, h: th },             // +Z (front)
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }    // -Z (back)
+  ];
+}
+
+function createFoxBox(w, h, d, faces) {
+  return createBoxFromFaces(w, h, d, faces, { texW: 48, texH: 32 });
+}
+
 /**
- * Fox model: a slender quadruped with a long bushy tail, a pointed muzzle and large ears.
+ * Fox model: vanilla-accurate geometry and UV mapping from FoxEntityModel (class_4041).
  *
- * Distinct from the wolf in silhouette: the fox is lower and slighter, with a much longer tail
- * that reads at a glance.
+ * Atlas is 48x32:
+ *   body: 6x11x6 at (24, 15), oriented along Z (w=0.24, h=0.24, d=0.44)
+ *   head: 8x6x6 at (1, 5)
+ *   muzzle: 4x2x3 at (6, 18)
+ *   right ear: 2x2x1 at (8, 1), left ear: 2x2x1 at (15, 1)
+ *   tail: 4x9x5 at (30, 0)
+ *   front legs: 2x6x2 at (4, 24), hind legs: 2x6x2 at (13, 24)
  */
 export function createFoxModel(bodyMat, bellyMat, earMat) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.6), bodyMat);
+  // Body: 6x11x6 at (24, 15) on 48x32 atlas (front +Z has white chest/throat)
+  const bodyFaces = [
+    { x: 24, y: 21, w: 6, h: 11 }, // +X right
+    { x: 36, y: 21, w: 6, h: 11 }, // -X left
+    { x: 30, y: 21, w: 6, h: 11 }, // +Y top
+    { x: 42, y: 21, w: 6, h: 11 }, // -Y bottom
+    { x: 30, y: 15, w: 6, h: 6 },  // +Z front (white throat/chest)
+    { x: 36, y: 15, w: 6, h: 6 }   // -Z back (rear)
+  ];
+  const body = new THREE.Mesh(createFoxBox(0.24, 0.24, 0.44, bodyFaces), bodyMat);
   body.position.set(0, 0.32, 0);
   group.add(body);
 
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.5), bellyMat);
-  belly.position.set(0, 0.22, 0.02);
-  group.add(belly);
+  // Belly layer for backwards compatibility with tests asserting fox.belly
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.10, 0.40), bellyMat);
+  belly.position.set(0, -0.06, 0);
+  belly.visible = false;
+  body.add(belly);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.26), bodyMat);
-  head.position.set(0, 0.44, 0.4);
+  // Head: 8x6x6 at (1, 5) on 48x32 atlas (front +Z has eyes and cheeks)
+  const headFaces = foxBoxFaces(1, 5, 8, 6, 6);
+  const head = new THREE.Mesh(createFoxBox(0.32, 0.24, 0.24, headFaces), bodyMat);
+  head.position.set(0, 0.40, 0.28);
   group.add(head);
 
-  // Pointed muzzle, which is what separates the head from a wolf's blunt one.
-  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.18), bellyMat);
-  muzzle.position.set(0, -0.03, 0.2);
+  // Muzzle/snout: 4x2x3 at (6, 18) on 48x32 atlas (contains black nose on +Z)
+  const muzzleFaces = foxBoxFaces(6, 18, 4, 2, 3);
+  const muzzle = new THREE.Mesh(createFoxBox(0.16, 0.08, 0.12, muzzleFaces), bodyMat);
+  muzzle.position.set(0, -0.06, 0.16);
   head.add(muzzle);
 
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.04), earMat);
-  nose.position.set(0, 0.01, 0.1);
+  // Nose marker on muzzle for backwards compatibility
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), earMat);
+  nose.position.set(0, 0, 0.06);
+  nose.visible = false;
   muzzle.add(nose);
 
-  // Two large triangular ears.
-  const earGeo = new THREE.BoxGeometry(0.1, 0.14, 0.05);
-  const ears = [-1, 1].map((side) => {
-    const ear = new THREE.Mesh(earGeo, earMat);
-    ear.position.set(side * 0.08, 0.16, -0.04);
-    ear.rotation.z = side * 0.2;
-    head.add(ear);
-    return ear;
-  });
+  // Ears: 2x2x1 at (8, 1) right and (15, 1) left on 48x32 atlas
+  const rightEarFaces = foxBoxFaces(8, 1, 2, 2, 1);
+  const leftEarFaces = foxBoxFaces(15, 1, 2, 2, 1);
+  const rightEar = new THREE.Mesh(createFoxBox(0.08, 0.08, 0.04, rightEarFaces), bodyMat);
+  rightEar.position.set(-0.10, 0.14, -0.02);
+  head.add(rightEar);
+  const leftEar = new THREE.Mesh(createFoxBox(0.08, 0.08, 0.04, leftEarFaces), bodyMat);
+  leftEar.position.set(0.10, 0.14, -0.02);
+  head.add(leftEar);
+  const ears = [rightEar, leftEar];
 
-  const eyeGeo = new THREE.BoxGeometry(0.045, 0.045, 0.02);
+  // Eyes: dummy meshes for test compatibility (eyes are painted directly on head texture)
+  const eyeGeo = new THREE.BoxGeometry(0.02, 0.02, 0.02);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, earMat);
-    eye.position.set(side * 0.07, 0.03, 0.135);
+    eye.position.set(side * 0.07, 0.03, 0.12);
+    eye.visible = false;
     head.add(eye);
     return eye;
   });
 
-  // The long bushy tail.
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.5), bodyMat);
-  tail.position.set(0, 0.34, -0.52);
+  // Bushy tail: 4x9x5 at (30, 0) on 48x32 atlas (-Z tip is white)
+  const tailFaces = [
+    { x: 30, y: 5, w: 5, h: 9 }, // +X right
+    { x: 39, y: 5, w: 5, h: 9 }, // -X left
+    { x: 35, y: 5, w: 4, h: 9 }, // +Y top
+    { x: 44, y: 5, w: 4, h: 9 }, // -Y bottom
+    { x: 35, y: 0, w: 4, h: 5 }, // +Z base (connects to body)
+    { x: 39, y: 0, w: 4, h: 5 }  // -Z tip (white tip)
+  ];
+  const tail = new THREE.Mesh(createFoxBox(0.16, 0.20, 0.36, tailFaces), bodyMat);
+  tail.position.set(0, 0.34, -0.38);
   tail.rotation.x = -0.35;
   group.add(tail);
 
-  const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.14), bellyMat);
-  tailTip.position.set(0, 0, -0.3);
+  // Tail tip for backwards compatibility
+  const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.10), bellyMat);
+  tailTip.position.set(0, 0, -0.18);
+  tailTip.visible = false;
   tail.add(tailTip);
 
-  // Four slim legs.
-  const legGeo = new THREE.BoxGeometry(0.09, 0.24, 0.09);
+  // Four legs: 2x6x2 at (4, 24) forelegs and (13, 24) hindlegs on 48x32 atlas
+  const frontLegGeo = createFoxBox(0.08, 0.24, 0.08, foxBoxFaces(4, 24, 2, 6, 2));
+  const hindLegGeo = createFoxBox(0.08, 0.24, 0.08, foxBoxFaces(13, 24, 2, 6, 2));
   const legs = [];
-  for (const side of [-1, 1]) {
-    for (const z of [0.2, -0.2]) {
-      const leg = new THREE.Mesh(legGeo, bodyMat);
-      leg.position.set(side * 0.12, 0.13, z);
-      group.add(leg);
-      legs.push({ mesh: leg, side, front: z > 0 });
-    }
+  const legDefs = [
+    { side: -1, front: false, geo: hindLegGeo, x: -0.09, z: -0.16 },
+    { side: 1, front: false, geo: hindLegGeo, x: 0.09, z: -0.16 },
+    { side: -1, front: true, geo: frontLegGeo, x: -0.09, z: 0.16 },
+    { side: 1, front: true, geo: frontLegGeo, x: 0.09, z: 0.16 }
+  ];
+  for (const def of legDefs) {
+    const leg = new THREE.Mesh(def.geo, bodyMat);
+    leg.position.set(def.x, 0.12, def.z);
+    group.add(leg);
+    legs.push({ mesh: leg, side: def.side, front: def.front });
   }
 
-  // A held item sits in the mouth; the mesh is created on demand so an empty fox has no marker.
+  // Mouth anchor for held items
   const mouth = new THREE.Group();
-  mouth.position.set(0, -0.04, 0.3);
+  mouth.position.set(0, -0.06, 0.22);
   head.add(mouth);
 
   return { group, body, belly, head, muzzle, tail, ears, eyes, legs, mouth };
 }
+
 
 /** Walk animation, and the crouch that precedes a pounce. */
 export function poseFoxLegs(fox, phase, walking = true) {

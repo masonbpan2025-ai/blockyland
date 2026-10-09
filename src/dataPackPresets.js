@@ -12,12 +12,66 @@
 // the generation, which is the one thing a generation pack exists to do.
 //
 // These presets therefore use the documented `engine_terrain` extension (see `adaptEngineTerrain`) for
-// terrain and plain vanilla `spawners` for mobs. The extension key is the only non-Minecraft field, so it is
-// obvious which parts a vanilla reader would ignore.
+// terrain, `engine_spawning` for density, and vanilla-shaped `spawners` for species. The engine extensions
+// are documented in docs/generation-pack-wildlife.md; vanilla readers ignore those keys.
 //
 // The names describe what each pack DOES rather than borrowing a third-party pack's name, because none of
 // these is that pack: they express the same IDEA with the levers this engine actually has.
 import { generatableStructureIds } from './worldStructures.js';
+import { BIOME_SPAWN_TABLES } from './spawning/vanillaBiomeSpawns.js';
+import { BIOMES } from './biomes.js';
+
+const AQUATIC_BIOMES = ['ocean', 'deep_ocean', 'warm_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean',
+  'cold_ocean', 'deep_cold_ocean', 'frozen_ocean', 'deep_frozen_ocean', 'river', 'frozen_river'];
+const CAVE_BIOMES = ['lush_caves', 'dripstone_caves', 'deep_dark', 'sulfur_caves', 'ice_caves'];
+const mobEntry = (type, weight = 20, minCount = 1, maxCount = 2) => ({ type: `minecraft:${type}`, weight, minCount, maxCount });
+
+// Rates and caps are independent of relative species weights. These apply only to authored presets.
+export const SPAWN_PROFILES = {
+  pollinator_meadows: { generation: { creature: { probability: 0.9, groups: 1 } }, caps: { creature: 160, monster: 12 }, chance: { monster: 0.12 }, passive_interval: 100 },
+  jungle_canopy: { generation: { creature: { probability: 0.9, groups: 1 }, ambient: { probability: 0.3, groups: 1 }, water_ambient: { probability: 0.7, groups: 1 } }, caps: { creature: 160, ambient: 24, water_ambient: 60 }, passive_interval: 100 },
+  taiga_trails: { generation: { creature: { probability: 0.8, groups: 1 } }, caps: { creature: 120 }, passive_interval: 140 },
+  desert_caravans: { generation: { creature: { probability: 0.65, groups: 1 } }, caps: { creature: 100 }, passive_interval: 180 },
+  reef_life: { generation: { water_ambient: { probability: 0.95, groups: 2 }, water_creature: { probability: 0.7, groups: 1 } }, caps: { water_ambient: 100, water_creature: 40 }, passive_interval: 80 },
+  mushroom_sanctuary: { generation: { creature: { probability: 0.9, groups: 1 }, ambient: { probability: 0.3, groups: 1 } }, caps: { creature: 140, monster: 0, ambient: 24 }, passive_interval: 120 },
+  lush_havens: { generation: { creature: { probability: 0.95, groups: 1 }, water_ambient: { probability: 0.85, groups: 2 },
+    water_creature: { probability: 0.4, groups: 1 }, ambient: { probability: 0.3, groups: 1 }, axolotls: { probability: 0.5, groups: 1 } },
+    caps: { creature: 240, monster: 12, ambient: 24, water_ambient: 80, water_creature: 24, axolotls: 12 },
+    chance: { monster: 0.12 }, passive_interval: 80 },
+  verdant_overgrowth: { generation: { creature: { probability: 0.8, groups: 2 }, water_ambient: { probability: 0.65, groups: 1 }, ambient: { probability: 0.5, groups: 1 } },
+    caps: { creature: 180, monster: 70, water_ambient: 50 }, passive_interval: 100 },
+  amber_autumn: { generation: { creature: { probability: 0.65, groups: 2 }, water_ambient: { probability: 0.4, groups: 1 } }, caps: { creature: 120 }, passive_interval: 160 },
+  frozen_frontier: { generation: { creature: { probability: 0.45, groups: 1 }, water_ambient: { probability: 0.5, groups: 1 } }, caps: { creature: 60, monster: 40, water_ambient: 40 }, passive_interval: 200 },
+  scorched_badlands: { generation: { creature: { probability: 0.08, groups: 1 } }, caps: { creature: 16, monster: 100 }, passive_interval: 600 },
+  sunken_shores: { generation: { creature: { probability: 0.5, groups: 1 }, water_ambient: { probability: 0.95, groups: 2 }, water_creature: { probability: 0.7, groups: 1 } },
+    caps: { creature: 80, water_ambient: 100, water_creature: 40 }, passive_interval: 80 },
+  dungeon_rush: { generation: { creature: { probability: 0.06, groups: 1 } }, caps: { creature: 12, monster: 8 }, chance: { monster: 0.08 }, passive_interval: 800 },
+  beast_wilds: { generation: { creature: { probability: 0.12, groups: 1 } }, caps: { creature: 24, monster: 120 }, passive_interval: 400 },
+};
+
+function habitatSpawns(biome, preset, native) {
+  const cold = COLD_BIOMES.includes(biome) || preset.id === 'frozen_frontier';
+  const water = AQUATIC_BIOMES.includes(biome);
+  const cave = CAVE_BIOMES.includes(biome);
+  let creatures;
+  if (preset.id === 'amber_autumn') creatures = ['wolf', 'fox', 'rabbit'];
+  else if (cold) creatures = ['polar_bear', 'rabbit', 'wolf', 'fox', 'goat'];
+  else if (ARID_BIOMES.includes(biome) && preset.id !== 'sunken_shores') creatures = ['rabbit', 'camel', 'armadillo'];
+  else if (biome === 'mushroom_fields') creatures = ['mooshroom'];
+  else creatures = ['cow', 'sheep', 'pig', 'chicken', 'horse', 'rabbit', 'wolf', 'fox', 'bee', 'llama'];
+  if (!cold && FOREST_BIOMES.includes(biome)) creatures.push('parrot');
+  if (!cold && ['jungle', 'bamboo_jungle', 'sparse_jungle'].includes(biome)) creatures.push('panda', 'ocelot');
+  if (!cold && ['swamp', 'mangrove_swamp'].includes(biome)) creatures.push('frog');
+  if (water || cave) creatures = (native.creature ?? []).map(e => e.type.replace('minecraft:', ''));
+  const warm = ['warm_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean', 'jungle', 'bamboo_jungle', 'mangrove_swamp', 'lush_caves'].includes(biome);
+  return {
+    creature: creatures.map(type => mobEntry(type, type === 'polar_bear' ? 60 : ['bee', 'parrot'].includes(type) ? 30 : 20)),
+    ambient: biome === 'deep_dark' ? [] : [mobEntry('bat', 10, 1, 2)],
+    water_ambient: biome === 'deep_dark' ? [] : (warm ? ['tropical_fish', 'pufferfish'] : ['salmon', 'cod']).map(type => mobEntry(type, 20, 2, 4)),
+    water_creature: cave ? [] : [mobEntry('squid', 10, 1, 2), ...(water && !cold ? [mobEntry('dolphin', 5)] : [])],
+    ...(biome === 'lush_caves' ? { axolotls: [mobEntry('axolotl', 20)] } : {}),
+  };
+}
 
 /** The structure ids this engine can build, for validating a preset's list. */
 const BUILDABLE = new Set(generatableStructureIds());
@@ -163,7 +217,7 @@ export const STRUCTURE_SETS = Object.freeze({
 });
 
 /**
- * The ten presets, in the order the menu lists them.
+ * The presets, in the order the menu lists them. Biome-focused packs modify only their named habitats.
  *
  * `biomes` names which biome ids get the preset's `terrain` and `spawners`; `structures` is the enabled
  * structure set. A preset with no `structures` leaves the engine's default three alone.
@@ -174,13 +228,63 @@ export const GENERATION_PRESETS = Object.freeze([
     name: 'Lush Havens',
     emoji: '🐄',
     property: 'Plenty of friendly mobs and plenty of structures',
-    blurb: 'Docile animals everywhere, calm nights, and a village or a ruin within sight. The world is built '
+    blurb: 'Frequent, varied wildlife on land and in water, calm nights, and villages and ruins to discover. The world is built '
       + 'for gathering and building rather than for fighting.',
     biomes: LAND_BIOMES,
-    terrain: { tree_density: 0.42, flora_density: 0.45, tree_type: 'oak' },
+    terrain: { tree_density: 0.28, flora_density: 0.35, tree_type: 'oak' },
     surface: 'minecraft:grass_block',
     spawners: ['creatureAbundant', 'hostileSparse'],
     structures: STRUCTURE_SETS.populated,
+  },
+  {
+    id: 'pollinator_meadows', name: 'Pollinator Meadows', emoji: '🐝',
+    property: 'Open flowering meadows with bees and grazing animals',
+    blurb: 'Flower forests, meadows and plains become open, flower-rich habitats for bees, sheep, cows and rabbits, with calm nights. Other biomes keep their own character.',
+    biomes: ['plains', 'sunflower_plains', 'meadow', 'flower_forest', 'cherry_grove'],
+    terrain: { tree_density: 0.08, flora_density: 0.65 },
+    wildlife: ['bee', 'sheep', 'cow', 'rabbit'], spawners: ['hostileSparse'],
+    structures: STRUCTURE_SETS.populated,
+  },
+  {
+    id: 'jungle_canopy', name: 'Jungle Canopy', emoji: '🦜',
+    property: 'Tropical woodland with parrots, pandas and river fish',
+    blurb: 'Jungle biomes grow a dense jungle canopy with parrots, pandas, ocelots and tropical fish in their waterways. Sheltered caves support bats; nights keep their native dangers.',
+    biomes: ['jungle', 'sparse_jungle', 'bamboo_jungle'],
+    terrain: { tree_density: 0.5, tree_type: 'jungle', flora_density: 0.5 },
+    wildlife: ['parrot', 'panda', 'ocelot', 'chicken'], spawners: ['creatureAbundant'],
+    structures: ['jungle_pyramid', 'ruined_portal_jungle', 'trail_ruins'],
+  },
+  {
+    id: 'taiga_trails', name: 'Taiga Trails', emoji: '🦊',
+    property: 'Spruce woodland with foxes, wolves and rabbits',
+    blurb: 'Taiga biomes become spruce woodland with frequent small groups of foxes, wolves and rabbits. Native snowy surfaces remain intact, with taiga villages and trail ruins enabled.',
+    biomes: ['taiga', 'old_growth_pine_taiga', 'old_growth_spruce_taiga', 'snowy_taiga'],
+    terrain: { tree_density: 0.32, tree_type: 'spruce', flora_density: 0.12 },
+    wildlife: ['fox', 'wolf', 'rabbit'], spawners: ['creatureAbundant'],
+    structures: ['village_taiga', 'trail_ruins', 'igloo'],
+  },
+  {
+    id: 'desert_caravans', name: 'Desert Caravans', emoji: '🐪',
+    property: 'Open arid habitats with camels, rabbits and armadillos',
+    blurb: 'Deserts, badlands and savannas retain their native sand, terracotta and grass, with sparse vegetation and roaming camels, rabbits and armadillos. Desert and savanna settlements offer exploration.',
+    biomes: ARID_BIOMES,
+    terrain: { tree_density: 0.02, flora_density: 0.04 },
+    wildlife: ['camel', 'rabbit', 'armadillo'], spawners: ['creatureAbundant'],
+    structures: ['village_desert', 'village_savanna', 'desert_pyramid', 'ruined_portal_desert'],
+  },
+  {
+    id: 'reef_life', name: 'Reef Life', emoji: '🐠',
+    property: 'Warm seas with fish schools, squid and dolphins',
+    blurb: 'Warm and lukewarm oceans keep their sea floor and coastline, while frequent tropical fish and pufferfish schools share the water with squid and dolphins. Maritime structures are enabled.',
+    biomes: ['warm_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean'],
+    habitatWildlife: true, spawners: ['creatureAbundant'], structures: STRUCTURE_SETS.maritime,
+  },
+  {
+    id: 'mushroom_sanctuary', name: 'Mushroom Sanctuary', emoji: '🍄',
+    property: 'Quiet mycelium islands with plentiful mooshrooms',
+    blurb: 'Mushroom fields keep their mycelium and giant mushrooms, with frequent small mooshroom herds and no natural monsters in this biome. Other biomes remain unchanged.',
+    biomes: ['mushroom_fields'], wildlife: ['mooshroom'],
+    spawners: ['creatureAbundant'],
   },
   {
     id: 'wild_highlands',
@@ -233,12 +337,13 @@ export const GENERATION_PRESETS = Object.freeze([
     id: 'frozen_frontier',
     name: 'Frozen Frontier',
     emoji: '❄️',
-    property: 'Snow and ice wherever you go',
-    blurb: 'Every land biome freezes over, with the animals that live there. Cold, sparse and quiet.',
+    property: 'Snowy terrain and cold-climate wildlife',
+    blurb: 'Snow covers every land biome, with polar bears, rabbits and other cold-climate wildlife. Cold, sparse and quiet.',
     biomes: LAND_BIOMES,
     terrain: { tree_density: 0.12, tree_type: 'spruce', flora_density: 0.05 },
     surface: 'minecraft:snow_block',
     subsurface: 'minecraft:dirt',
+    temperature: -0.5,
     spawners: ['creatureCold', 'hostileVanilla'],
     structures: STRUCTURE_SETS.default,
   },
@@ -273,7 +378,7 @@ export const GENERATION_PRESETS = Object.freeze([
     name: 'Dungeon Rush',
     emoji: '🗝️',
     property: 'Built for exploring: many buried structures, few mobs',
-    blurb: 'Trail ruins, trial chambers and ruined portals are common; the surface is quiet. Made for '
+    blurb: 'Explore a wider mix of buried structures, including trail ruins, trial chambers and ruined portals; the surface is quiet. Made for '
       + 'caving and looting rather than surviving.',
     biomes: LAND_BIOMES,
     terrain: { tree_density: 0.2 },
@@ -285,7 +390,7 @@ export const GENERATION_PRESETS = Object.freeze([
     name: 'Beast Wilds',
     emoji: '💀',
     property: 'Dangerous: dense hostile spawning, no structures to hide in',
-    blurb: 'Night comes early and comes armed. Deliberately the hardest preset here, with nothing built to '
+    blurb: 'Nights come armed with dense hostile packs. Deliberately the hardest preset here, with nothing built to '
       + 'shelter in.',
     biomes: LAND_BIOMES,
     terrain: { tree_density: 0.25 },
@@ -326,7 +431,9 @@ function biomeFile(preset, biomeId) {
   // An empty extension would be a pack that changes nothing; drop it so the file stays vanilla-shaped.
   if (Object.keys(json.engine_terrain).length === 0) delete json.engine_terrain;
 
-  const spawners = {};
+  const native = BIOME_SPAWN_TABLES[biomeId] ?? {};
+  const spawners = Object.fromEntries(Object.entries(native).filter(([, list]) => Array.isArray(list))
+    .map(([category, list]) => [category, list.map(e => ({ ...e, type: `minecraft:${e.type.replace('minecraft:', '')}` }))]));
   for (const setName of preset.spawners ?? []) {
     const set = SPAWN_SETS[setName];
     if (!set) continue;
@@ -334,7 +441,25 @@ function biomeFile(preset, biomeId) {
   }
   // A preset that names no spawner set leaves spawning entirely alone, which is different from writing an
   // empty `spawners` block -- that would suppress every spawn in the biome.
-  if (Object.keys(spawners).length) json.spawners = spawners;
+  if (preset.wildlife || preset.habitatWildlife || ['lush_havens', 'verdant_overgrowth', 'amber_autumn', 'frozen_frontier', 'sunken_shores'].includes(preset.id)) {
+    Object.assign(spawners, habitatSpawns(biomeId, preset, native));
+  }
+  if (preset.wildlife) spawners.creature = preset.wildlife.map(type => mobEntry(type, ['bee', 'parrot'].includes(type) ? 40 : 20));
+  if (['deep_dark', 'mushroom_fields'].includes(biomeId) && preset.id !== 'beast_wilds') spawners.monster = [];
+  if (preset.id === 'scorched_badlands') spawners.creature = ['rabbit', 'camel', 'armadillo'].map(type => mobEntry(type));
+  // Terrain-only presets leave the entire baked spawn table untouched.
+  if (preset.spawners?.length) json.spawners = spawners;
+  if (SPAWN_PROFILES[preset.id]) json.engine_spawning = SPAWN_PROFILES[preset.id];
+  if (preset.id === 'amber_autumn') json.effects = { foliage_color: 0xc28538, grass_color: 0xb69b52, sky_color: 0xe6bb85 };
+  // Lush wildlife keeps snow, sand and mycelium habitats rather than flattening every biome to grass.
+  if (['lush_havens', 'verdant_overgrowth'].includes(preset.id)
+    && (COLD_BIOMES.includes(biomeId) || ARID_BIOMES.includes(biomeId) || biomeId === 'mushroom_fields')) {
+    delete json.engine_terrain.surface_block;
+  }
+  if (AQUATIC_BIOMES.includes(biomeId) || CAVE_BIOMES.includes(biomeId)) {
+    // Wildlife-only overrides do not raise ocean floors or turn caves into surface forests.
+    if (preset.id !== 'sunken_shores') delete json.engine_terrain;
+  }
   // Climate to match the surface, so a frozen world does not snow on red sand.
   if (preset.temperature !== undefined) json.temperature = preset.temperature;
   return json;
@@ -352,7 +477,12 @@ export function buildPresetPack(id) {
   if (!preset) return null;
   const files = {};
   const namespace = `preset_${preset.id}`;
-  for (const biomeId of preset.biomes ?? LAND_BIOMES) {
+  const biomes = new Set(preset.biomes ?? LAND_BIOMES);
+  if (['lush_havens', 'verdant_overgrowth', 'sunken_shores'].includes(preset.id)) {
+    for (const biome of [...AQUATIC_BIOMES, ...CAVE_BIOMES]) if (BIOMES[biome]) biomes.add(biome);
+  }
+  if (preset.id === 'frozen_frontier') for (const biome of AQUATIC_BIOMES) if (COLD_BIOMES.includes(biome)) biomes.add(biome);
+  for (const biomeId of biomes) {
     files[`data/${namespace}/worldgen/biome/${biomeId}.json`] = biomeFile(preset, biomeId);
   }
   for (const structureId of preset.structures ?? []) {

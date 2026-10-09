@@ -77,7 +77,7 @@ export class BossFightManager {
     wither.health = 300;
     wither.maxHealth = 300;
     wither.isInvulnerable = true;
-    wither.summonChargeTimer = 10.0; // 10s birth charge
+    wither.summonChargeTimer = 11.0; // 11s (220-tick) birth charge
     wither.mesh.scale.set(0.4, 0.4, 0.4);
 
     if (this.sounds?.playWitherSpawn) this.sounds.playWitherSpawn();
@@ -152,8 +152,8 @@ export class BossFightManager {
             if (this.sounds?.playExplosion) this.sounds.playExplosion();
             this.mobManager.spawnParticleBurst?.(c.position, 0xd946ef, 30);
 
-            if (this.enderDragon && this.enderDragon.mesh.position.distanceTo(c.position) < 14) {
-              this.enderDragon.health -= 15;
+            if (this.enderDragon && this.enderDragon.mesh.position.distanceTo(c.position) <= 38) {
+              this.enderDragon.health = Math.max(0, this.enderDragon.health - 10);
             }
             return true;
           }
@@ -326,7 +326,7 @@ export class BossFightManager {
     this.ui?.removeBossBar?.('wither');
     // Drop Nether Star & XP
     this.entities?.spawnDroppedItem(pos.clone().add(new THREE.Vector3(0, 1, 0)), 'nether_star', false);
-    this.mobManager.spawnXpOrbs?.(pos, 500);
+    this.mobManager.spawnXpOrbs?.(pos, 50);
     if (this.sounds?.playExplosion) this.sounds.playExplosion();
   }
 

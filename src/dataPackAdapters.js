@@ -463,6 +463,9 @@ export function adaptBiome(json, fallback = null) {
     // `mobs` below, a flat list of names -- and a flat list cannot express a weight, so using it would have
     // made a zombie villager as common as a zombie and quietly changed the spawn rate of every pack.
     spawners: spawnerTable(json.spawners),
+    creatureSpawnProbability: Number.isFinite(json.creature_spawn_probability)
+      ? Math.max(0, Math.min(0.95, json.creature_spawn_probability)) : base.creatureSpawnProbability,
+    spawnSettings: adaptEngineSpawning(json.engine_spawning) ?? base.spawnSettings,
     // Kept as well: an unweighted list of the mobs that appear here, which is what a menu or a
     // "what lives in this biome" line wants.
     mobs: spawnerMobList(json.spawners) ?? base.mobs,
@@ -535,6 +538,28 @@ export function adaptEngineTerrain(json, base = {}) {
     }
     if (Number.isFinite(raw)) out[field] = raw;
   }
+  return out;
+}
+
+// Engine extension: bounded population rolls per chunk, runtime caps and passive cadence.
+// Species, ground, collision, fluid and light predicates still apply to every candidate.
+export function adaptEngineSpawning(ext) {
+  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
+  const out = { generation: {}, caps: {}, chance: {} };
+  const categories = ['monster', 'creature', 'ambient', 'water_creature', 'water_ambient',
+    'underground_water_creature', 'axolotls'];
+  for (const category of categories) {
+    const generation = ext.generation?.[category];
+    if (category !== 'monster' && generation && Number.isFinite(generation.probability)) {
+      out.generation[category] = {
+        probability: Math.max(0, Math.min(1, generation.probability)),
+        groups: Number.isFinite(generation.groups) ? Math.max(1, Math.min(3, Math.floor(generation.groups))) : 1,
+      };
+    }
+    if (Number.isFinite(ext.caps?.[category])) out.caps[category] = Math.max(0, Math.min(400, Math.floor(ext.caps[category])));
+    if (Number.isFinite(ext.chance?.[category])) out.chance[category] = Math.max(0, Math.min(1, ext.chance[category]));
+  }
+  if (Number.isFinite(ext.passive_interval)) out.passiveInterval = Math.max(20, Math.min(1200, Math.floor(ext.passive_interval)));
   return out;
 }
 

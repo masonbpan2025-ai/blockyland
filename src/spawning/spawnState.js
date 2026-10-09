@@ -96,6 +96,7 @@ export class SpawnState {
     countPersistent = false,
     spawnableRadius = SPAWNABLE_CHUNK_RADIUS,
     eligibleRadius = SPAWN_ELIGIBLE_RADIUS,
+    categoryCaps = {},
   } = {}) {
     this.players = players;
     this.mobs = mobs;
@@ -103,6 +104,7 @@ export class SpawnState {
     this.countPersistent = countPersistent;
     this.spawnableRadius = spawnableRadius;
     this.eligibleRadius = eligibleRadius;
+    this.categoryCaps = categoryCaps;
 
     /** Chunk keys eligible for natural spawning. */
     this.eligibleChunkKeys = new Set();
@@ -217,7 +219,7 @@ export class SpawnState {
         caps[category] = Infinity;
         continue;
       }
-      caps[category] = Math.floor((info.maxPerChunkArea * this.capSquareChunkCount) / MOB_CAP_DIVISOR);
+      caps[category] = Math.floor(((this.categoryCaps[category] ?? info.maxPerChunkArea) * this.capSquareChunkCount) / MOB_CAP_DIVISOR);
     }
     return caps;
   }

@@ -659,3 +659,5 @@ export async function loadMapFromCustomFile(game, file, options = {}) {
   deserializeWorld(game, mapData, { progress: options.progress });
   return { success: true, name: mapData.name || file.name };
 }
+
+export { generateMcWorld, exportMapToMcWorld } from './io/mcworldExporter.js';

@@ -373,57 +373,57 @@
       "for": "fox (snow)"
     },
     "rabbit_skins": {
-      "path": "entity/rabbit/rabbit_brown.png",
+      "path": "entity/rabbit/brown.png",
       "dest": "assets/entity/rabbit/brown.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_brown.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/brown.png",
       "ref": "1.21.4",
       "sha256": "788418e8b6866675b68e6470474762624ad385d87813ee0b8f13355472ae44c7",
       "bytes": 514,
       "for": "rabbit (brown)"
     },
     "rabbit_white": {
-      "path": "entity/rabbit/rabbit_white.png",
+      "path": "entity/rabbit/white.png",
       "dest": "assets/entity/rabbit/white.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_white.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/white.png",
       "ref": "1.21.4",
-      "sha256": "8ad43b99f88626ff9b52b24448f85cf6cc205f65f06b38359623db5c4eb0542c",
-      "bytes": 402,
+      "sha256": "057910bce1d91794c2cf0994f95d720e27453d9b5b1e163997f210ff56b5f42b",
+      "bytes": 527,
       "for": "rabbit (white)"
     },
     "rabbit_black": {
-      "path": "entity/rabbit/rabbit_black.png",
+      "path": "entity/rabbit/black.png",
       "dest": "assets/entity/rabbit/black.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_black.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/black.png",
       "ref": "1.21.4",
-      "sha256": "f38b04e1fb07231ae5871b5ce583405f103eac133a85800524b8e102bc665067",
-      "bytes": 400,
+      "sha256": "a641387c8024609f6d9a39385fc6fa5599ff5fefa921134ac385ce497bde8761",
+      "bytes": 503,
       "for": "rabbit (black)"
     },
     "rabbit_gold": {
-      "path": "entity/rabbit/rabbit_gold.png",
+      "path": "entity/rabbit/gold.png",
       "dest": "assets/entity/rabbit/gold.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_gold.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/gold.png",
       "ref": "1.21.4",
       "sha256": "f42896eec3530993ce93cdd63f76326ed30297411f7a836224dd5aecaf696f5b",
       "bytes": 524,
       "for": "rabbit (gold)"
     },
     "rabbit_salt": {
-      "path": "entity/rabbit/rabbit_salt.png",
+      "path": "entity/rabbit/salt.png",
       "dest": "assets/entity/rabbit/salt.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_salt.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/salt.png",
       "ref": "1.21.4",
-      "sha256": "e8d14ec11863fe4a2668503d34245a34477e4918fd1f2b6875637a9b788455e5",
-      "bytes": 475,
+      "sha256": "323978f633010ffb17327aa5cf7bef7d658a3b061853d24cbd9719c00813dce7",
+      "bytes": 593,
       "for": "rabbit (salt)"
     },
     "rabbit_toast": {
-      "path": "entity/rabbit/rabbit_toast.png",
+      "path": "entity/rabbit/toast.png",
       "dest": "assets/entity/rabbit/toast.png",
-      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/rabbit_toast.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/toast.png",
       "ref": "1.21.4",
-      "sha256": "b2cfa8f31f3786794aa2de19b24d75b678091c3bb72e15068fa4534f8d1a14da",
-      "bytes": 503,
+      "sha256": "9d45db69ee2f57c2306ecd28b8d8e18aa019fe893d7b0e2b09180352c0efb7f7",
+      "bytes": 605,
       "for": "rabbit (toast)"
     },
     "rabbit_killer": {
@@ -533,6 +533,15 @@
       "sha256": "4e273b660cd2833e24dc177aa9b782324a0fe0c8250369b7e27780b3c4d7ddd0",
       "bytes": 486,
       "for": "salmon"
+    },
+    "rabbit_white_splotched": {
+      "path": "entity/rabbit/white_splotched.png",
+      "dest": "assets/entity/rabbit/white_splotched.png",
+      "url": "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/entity/rabbit/white_splotched.png",
+      "ref": "1.21.4",
+      "sha256": "d8f69ad356c5d7c67bf666858ea27a07aeaf7928a773e2e1c3630a4211dff35f",
+      "bytes": 636,
+      "for": "rabbit (white splotched)"
     }
   }
 }

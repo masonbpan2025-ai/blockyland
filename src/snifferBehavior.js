@@ -381,97 +381,85 @@ export const SNIFFER_COLORS = { body: 0x8fa86b, belly: 0xe8e0c8, shell: 0x6f8a4f
 export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat) {
   const group = new THREE.Group();
 
-  // THE BODY IS RESIZED TO VANILLA'S PROPORTIONS (rounds 95, 96, 101). `SnifferEntityModel` (`class_8185`), texture
-  // 192x192: body 25x29x40 at (62, 68) -- ratios 0.625 : 0.725 : 1. The project's body was 1.0 x 0.7 x 1.7
-  // (0.588 : 0.412 : 1), which is 43% too flat in height; it is now 1.063 x 1.232 x 1.7, the same longest side and
-  // vanilla's ratios. Applied UNCONDITIONALLY: a rectangle describes the GEOMETRY.
+  // Sniffer body: 25x29x40 at (62, 68)
   const bodyGeo = new THREE.BoxGeometry(1.063, 1.232, 1.7);
   applyVanillaBoxUVs(bodyGeo, 62, 68, 192, 192, 25, 29, 40);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.95;
   group.add(body);
 
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 1.5), bellyMat);
-  belly.position.y = 0.62;
-  group.add(belly);
-
-  // A banded shell over the back.
-  const shell = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.3, 1.5), shellMat);
-  shell.position.y = 1.29;
+  // The iconic green moss shell over the back: 24x10x40 at (62, 0)
+  const shellGeo = new THREE.BoxGeometry(1.04, 0.43, 1.72);
+  applyVanillaBoxUVs(shellGeo, 62, 0, 192, 192, 24, 10, 40);
+  const shell = new THREE.Mesh(shellGeo, shellMat);
+  shell.position.y = 1.38;
   group.add(shell);
-  const bands = [];
-  for (const z of [-0.45, 0, 0.45]) {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.32, 0.08), bellyMat);
-    band.position.set(0, 1.29, z);
-    group.add(band);
-    bands.push(band);
-  }
 
-  // The head sits low and forward on a short neck, with the long yellow snout.
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), bodyMat);
-  neck.position.set(0, 1.1, 0.9);
+  const belly = new THREE.Group();
+  group.add(belly);
+  const bands = [new THREE.Group(), new THREE.Group(), new THREE.Group()];
+  bands.forEach(b => group.add(b));
+
+  const neck = new THREE.Group();
+  neck.position.set(0, 0.85, 0.9);
   group.add(neck);
-  // Head: vanilla's rectangle 13x18x11 at (8, 15), ratios 0.722 : 1 : 0.611. Resized from 0.6 x 0.5 x 0.6 to
-  // 0.433 x 0.600 x 0.367 -- same longest side, vanilla's proportions.
-  const headGeo = new THREE.BoxGeometry(0.433, 0.600, 0.367);
+
+  // Head: 13x18x11 at (8, 15)
+  const headGeo = new THREE.BoxGeometry(0.552, 0.765, 0.468);
   applyVanillaBoxUVs(headGeo, 8, 15, 192, 192, 13, 18, 11);
   const head = new THREE.Mesh(headGeo, bodyMat);
-  head.position.set(0, 1.18, 1.25);
+  head.position.set(0, 0.85, 1.15);
   group.add(head);
-  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.28, 0.5), snoutMat);
-  snout.position.set(0, -0.08, 0.5);
-  head.add(snout);
 
-  // THE PARTS VANILLA'S SNIFFER HAS AND THIS MODEL DID NOT: two ears, a nose and a lower beak. Sizes are vanilla's
-  // rectangles at this model's scale (1 unit = 1.7/40 = 0.0425 blocks, from the body's 40-unit length against its 1.7).
-  // // SNIFFER_PARTS
+  // The nose: 13x2x9 at (10, 45), flat top of the snout
+  const noseGeo = new THREE.BoxGeometry(0.552, 0.085, 0.382);
+  applyVanillaBoxUVs(noseGeo, 10, 45, 192, 192, 13, 2, 9);
+  const nose = new THREE.Mesh(noseGeo, snoutMat);
+  nose.position.set(0, 0.09, 0.38);
+  head.add(nose);
+
+  // The lower beak: 13x12x9 at (10, 57), hangs below the snout
+  const beakGeo = new THREE.BoxGeometry(0.552, 0.510, 0.382);
+  applyVanillaBoxUVs(beakGeo, 10, 57, 192, 192, 13, 12, 9);
+  const lowerBeak = new THREE.Mesh(beakGeo, snoutMat);
+  lowerBeak.position.set(0, -0.20, 0.38);
+  head.add(lowerBeak);
+
+  const snout = lowerBeak;
+
+  // Two long drooping ears
   const ears = [];
   for (const [side, uu] of [[-1, 2], [1, 48]]) {
     const earGeo = new THREE.BoxGeometry(0.042, 0.807, 0.297);
     applyVanillaBoxUVs(earGeo, uu, 0, 192, 192, 1, 19, 7);
     const ear = new THREE.Mesh(earGeo, bodyMat);
-    // Vanilla hangs them off the head, to either side.
-    ear.position.set(side * 0.24, -0.1, -0.05);
+    ear.position.set(side * 0.30, -0.15, -0.05);
     head.add(ear);
     ears.push(ear);
   }
-  // The nose: vanilla's 13x2x9 at (10, 45), the flat top of the snout.
-  const noseGeo = new THREE.BoxGeometry(0.552, 0.085, 0.382);
-  applyVanillaBoxUVs(noseGeo, 10, 45, 192, 192, 13, 2, 9);
-  const nose = new THREE.Mesh(noseGeo, snoutMat);
-  nose.position.set(0, 0.09, 0.5);
-  head.add(nose);
-  // The lower beak: vanilla's 13x12x9 at (10, 57), which hangs below the snout.
-  const beakGeo = new THREE.BoxGeometry(0.552, 0.510, 0.382);
-  applyVanillaBoxUVs(beakGeo, 10, 57, 192, 192, 13, 12, 9);
-  const lowerBeak = new THREE.Mesh(beakGeo, snoutMat);
-  lowerBeak.position.set(0, -0.30, 0.52);
-  head.add(lowerBeak);
 
   const eyes = [];
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), snoutMat);
-    eye.position.set(side * 0.2, 0.12, 0.28);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), snoutMat);
+    eye.position.set(side * 0.28, 0.15, 0.22);
     head.add(eye);
     eyes.push(eye);
   }
 
-  // Six short legs in two rows, which is the centipede-ish gait the wiki mentions.
+  // Six short legs in two rows
   const legs = [];
-  // Legs: vanilla 7x10x8 units -> 0.297 x 0.425 x 0.340 at this scale, on the (0, 87)/(0, 105)/(0, 123) column.
   const legGeo = new THREE.BoxGeometry(0.297, 0.425, 0.340);
   applyVanillaBoxUVs(legGeo, 0, 87, 192, 192, 7, 10, 8);
-  for (const z of [0.6, 0, -0.6]) {
+  for (const z of [0.55, 0, -0.55]) {
     for (const side of [-1, 1]) {
       const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(side * 0.44, 0.3, z);
+      leg.position.set(side * 0.44, 0.21, z);
       group.add(leg);
       legs.push(leg);
     }
   }
 
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.4), shellMat);
-  tail.position.set(0, 1.0, -1.0);
+  const tail = new THREE.Group();
   group.add(tail);
 
   return { group, body, belly, shell, bands, neck, head, snout, ears, nose, lowerBeak, eyes, legs, tail };

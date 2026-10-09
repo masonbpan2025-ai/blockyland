@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { applyQuadUvs } from './mobVisuals/entityBox.js';
+import { createBoxFromFaces } from './mobVisuals/entityBox.js';
 
 /**
  * Goat rules and model.
@@ -106,7 +106,7 @@ export function isGoat(mob) {
  *
  * Note which object the `hasOwn` check runs against: the difficulty keys live on the per-age table,
  * not on `GOAT_RAM_DAMAGE` itself, so checking the outer object would always miss and silently fall
- * back to Normal — which is exactly the bug this table shipped with, and why the check is written
+ * back to Normal â€” which is exactly the bug this table shipped with, and why the check is written
  * against `table` rather than the constant.
  */
 export function goatRamDamage(isBaby, difficulty) {
@@ -285,7 +285,7 @@ export const GOAT_RAM_CHARGE_SECONDS = 2.0;
  *
  * Note that this moves the goat itself rather than only setting a velocity. The shared update loop
  * does not apply `velocity`, and the caller's fall-through would be skipped by the `return true`
- * that follows this branch — so a charge that only set a velocity would be a goat crouching in
+ * that follows this branch â€” so a charge that only set a velocity would be a goat crouching in
  * place forever, which is the exact failure mode documented in docs/mob-update-smoke-coverage.md.
  *
  * `move` is the ground mover, injected so this module stays free of the motion helpers.
@@ -425,83 +425,124 @@ export function landGoatJump(mob, random = Math.random) {
 }
 
 /**
- * Goat model: a stocky quadruped with a beard, a short tail and two swept-back horns.
+ * Goat model, transcribed from vanilla `GoatModel.createBodyLayer()` (64x64 sheet).
  *
- * Distinct from the sheep in silhouette: taller, with a longer face and the horns reading at a
- * glance. The horns are separate meshes so one can be removed when it snaps off.
+ * The previous model was an invented sheep-like shape: one body box sampling the wrong rectangle, a head box
+ * sampling a 12x10x16 block at (0,0) that is not the head, flat-coloured muzzle/beard/horn/eye boxes, a tail
+ * vanilla does not have, and four equal legs. Vanilla's goat is quite different:
+ *
+ *   body       9x11x16 at (1,1) plus a shaggy 11x14x11 at (0,28) over the shoulders
+ *   head       a 5x7x10 `nose` at (34,46) pitched down 0.9599 rad -- the whole face, eyes included, is on it
+ *   ears       3x2x1 at (2,61), sticking out sideways
+ *   goatee     a ZERO-width 0x7x5 plane at (23,52) under the chin
+ *   horns      2x7x2 at (12,55), each a separate part so one can snap off
+ *   legs       FRONT 3x10x3 at (35,2)/(49,2); HIND only 3x6x3 at (36,29)/(49,29), hanging from the body's underside
+ *
+ * Conversion: project (x, y, z) = vanilla (x - 0.5, 24 - y, -z) in texels. Vanilla's goat is built half a texel off
+ * centre (its body spans x -4..5), so the -0.5 recentres it; the y/z flip is a 180-degree turn about X, so vanilla's
+ * xRot carries across unchanged, and it turns vanilla's -Z front into this project's +Z front.
  */
-/**
- * Map one vanilla layout block of the goat sheet onto an existing box, using the shared in-place helper.
- */
-function applyGoatUvs(mesh, u, v, tw, th, td) {
-  applyQuadUvs(mesh, u, v, tw, th, td, 64, 64);
+const GOAT_TEX = 64;
+const GT = 1 / 16;
+
+/** Vanilla's cube layout in three's face order (+X, -X, +Y, -Y, +Z, -Z), for a part facing +Z. */
+function goatFaces(u, v, w, h, d) {
+  return [
+    { x: u + d + w, y: v + d, w: d, h },     // +X (the strip right of the front)
+    { x: u, y: v + d, w: d, h },             // -X
+    { x: u + d, y: v, w, h: d },             // +Y top
+    { x: u + d + w, y: v, w, h: d },         // -Y bottom
+    { x: u + d, y: v + d, w, h },            // +Z front
+    { x: u + d + d + w, y: v + d, w, h }     // -Z back
+  ];
+}
+
+/** One textured cube, `size` and `at` in texels. */
+function goatBox(material, [w, h, d], [u, v], at, faces = goatFaces(u, v, w, h, d), mirror = false) {
+  const mesh = new THREE.Mesh(
+    createBoxFromFaces(w * GT, h * GT, d * GT, faces, { texW: GOAT_TEX, texH: GOAT_TEX, mirror }),
+    material
+  );
+  mesh.position.set(at[0] * GT, at[1] * GT, at[2] * GT);
+  return mesh;
+}
+
+/** A hinge group at `hinge` holding one cube whose centre sits at `centre`, both in texels relative to the parent. */
+function goatHinged(material, size, uv, hinge, centre, mirror = false) {
+  const holder = new THREE.Group();
+  holder.position.set(hinge[0] * GT, hinge[1] * GT, hinge[2] * GT);
+  const box = goatBox(material, size, uv,
+    [centre[0] - hinge[0], centre[1] - hinge[1], centre[2] - hinge[2]], undefined, mirror);
+  holder.add(box);
+  return { holder, box };
 }
 
 export function createGoatModel(bodyMat, darkMat, hornMat, eyeMat) {
+  void darkMat; void hornMat; void eyeMat; // Every part, horns and face included, is painted on the sheet.
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 1.0), bodyMat);
-  // Sampled from the goat sheet instead of being painted one colour.
-  applyGoatUvs(body, 38, 0, 12, 10, 16);
-  body.position.set(0, 0.75, 0);
+  // Body: one part at vanilla (0, 24, 0) holding two cubes. The group sits at the body's mid-height so the
+  // charging pitch in `poseGoat` tilts it about its own middle rather than the floor.
+  const body = new THREE.Group();
+  body.position.set(0, 12 * GT, 0);
   group.add(body);
+  // (-4,-17,-7) 9x11x16 -> centre (0, 11.5, -1); the long torso.
+  body.add(goatBox(bodyMat, [9, 11, 16], [1, 1], [0, -0.5, -1]));
+  // (-5,-18,-8) 11x14x11 -> centre (0, 11, 2.5); the shaggy coat over the chest and shoulders.
+  body.add(goatBox(bodyMat, [11, 14, 11], [0, 28], [0, -1, 2.5]));
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.44), bodyMat);
-  // The head block carries the goat's face, so its eyes and brow come from the texture.
-  applyGoatUvs(head, 0, 0, 12, 10, 16);
-  head.position.set(0, 1.0, 0.6);
+  // Head: a bare pivot at vanilla (1, 14, 0) -> (0.5, 10, 0). Everything below is relative to it.
+  const head = new THREE.Group();
+  head.position.set(0.5 * GT, 10 * GT, 0);
   group.add(head);
 
-  // A long muzzle, which is what separates a goat's face from a sheep's.
-  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.24, 0.26), darkMat);
-  muzzle.position.set(0, -0.04, 0.32);
-  head.add(muzzle);
+  // The face: `nose` pivots at (0,-8,-8) -> (0, 8, 8); its cube (-3,-4,-8) 5x7x10 centres at (-0.5, 0.5, 3) from
+  // that pivot, and the whole thing is pitched down 0.9599 rad, which is the goat's long downward-angled head.
+  const nose = goatHinged(bodyMat, [5, 7, 10], [34, 46], [0, 8, 8], [-0.5, 8.5, 11]);
+  nose.holder.rotation.x = 0.9599;
+  head.add(nose.holder);
+  const muzzle = nose.holder;
 
-  // The beard.
-  const beard = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.12), darkMat);
-  beard.position.set(0, -0.2, 0.24);
+  // Ears: 3x2x1 at (2,61), boxes (-6,-11,-10) and (2,-11,-10); the left one mirrored.
+  head.add(goatBox(bodyMat, [3, 2, 1], [2, 61], [-4.5, 10, 9.5]));
+  head.add(goatBox(bodyMat, [3, 2, 1], [2, 61], [3.5, 10, 9.5], undefined, true));
+
+  // Goatee: vanilla's box is (-0.5,-3,-14) 0x7x5 -- zero width, so only its two 5x7 side faces exist. A box of
+  // zero extent breaks bounding-box maths elsewhere, so it is a hair thick and both sides carry the beard.
+  const beardSide = { x: 23, y: 57, w: 5, h: 7 };
+  const beardOther = { x: 28, y: 57, w: 5, h: 7 };
+  const beard = goatBox(bodyMat, [0.05, 7, 5], [23, 52], [-0.5, -0.5, 11.5],
+    [beardOther, beardSide, beardSide, beardSide, beardSide, beardSide]);
   head.add(beard);
 
-  const eyeGeo = new THREE.BoxGeometry(0.07, 0.07, 0.03);
-  const eyes = [-1, 1].map((side) => {
-    const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(side * 0.12, 0.06, 0.23);
-    head.add(eye);
-    return eye;
+  // Horns: 2x7x2 at (12,55), boxes (-0.01,-16,-10) left and (-2.99,-16,-10) right. Separate meshes so either can
+  // be hidden when it snaps off.
+  const hornSides = {
+    left: goatBox(bodyMat, [2, 7, 2], [12, 55], [0.99, 12.5, 9]),
+    right: goatBox(bodyMat, [2, 7, 2], [12, 55], [-1.99, 12.5, 9])
+  };
+  head.add(hornSides.left, hornSides.right);
+  const horns = [hornSides.left, hornSides.right];
+
+  // Legs. Vanilla's left is +X here (the goat faces +Z). Each hinges where vanilla's part offset sits.
+  //   front: (0,0,0) 3x10x3 at offsets (1|-3, 14, -6) -> hinge y 10, z 6; cube centre y 5, z 4.5
+  //   hind:  (0,4,0) 3x6x3  at offsets (1|-3, 14,  4) -> hinge y 10, z -4; cube centre y 3, z -5.5
+  const legSpecs = [
+    { uv: [49, 2], size: [3, 10, 3], x: 2, hingeZ: 6, centreY: 5, centreZ: 4.5, side: 1, front: true },
+    { uv: [36, 29], size: [3, 6, 3], x: 2, hingeZ: -4, centreY: 3, centreZ: -5.5, side: 1, front: false },
+    { uv: [35, 2], size: [3, 10, 3], x: -2, hingeZ: 6, centreY: 5, centreZ: 4.5, side: -1, front: true },
+    { uv: [49, 29], size: [3, 6, 3], x: -2, hingeZ: -4, centreY: 3, centreZ: -5.5, side: -1, front: false }
+  ];
+  const legs = legSpecs.map((s) => {
+    const { holder } = goatHinged(bodyMat, s.size, s.uv, [s.x, 10, s.hingeZ], [s.x, s.centreY, s.centreZ]);
+    group.add(holder);
+    return { mesh: holder, side: s.side, front: s.front };
   });
 
-  // Two swept-back horns, each removable independently. Exposed as an array, which is the shape the
-  // shared baby-growth code expects (`mob.horns.forEach(h => h.visible = ...)`) and the same shape
-  // other horned mobs use; the left/right split is kept alongside it so one can be removed.
-  const hornGeo = new THREE.BoxGeometry(0.09, 0.09, 0.42);
-  const horns = [];
-  const hornSides = {};
-  for (const [name, side] of [['left', -1], ['right', 1]]) {
-    const horn = new THREE.Mesh(hornGeo, hornMat);
-    horn.position.set(side * 0.13, 0.2, -0.1);
-    horn.rotation.x = -0.45;
-    horn.rotation.z = side * 0.2;
-    head.add(horn);
-    horns.push(horn);
-    hornSides[name] = horn;
-  }
-
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.22), darkMat);
-  tail.position.set(0, 0.9, -0.55);
-  tail.rotation.x = -0.6;
-  group.add(tail);
-
-  const legGeo = new THREE.BoxGeometry(0.15, 0.5, 0.15);
-  const legs = [];
-  for (const side of [-1, 1]) {
-    for (const z of [0.32, -0.32]) {
-      const leg = new THREE.Mesh(legGeo, bodyMat);
-      applyGoatUvs(leg, 0, 17, 4, 12, 4);
-      leg.position.set(side * 0.22, 0.25, z);
-      group.add(leg);
-      legs.push({ mesh: leg, side, front: z > 0 });
-    }
-  }
+  // Vanilla has no tail and no separate eyes: the eyes are painted on the face. Kept as explicit empties so
+  // callers that probe for them see a definite answer.
+  const tail = null;
+  const eyes = [];
 
   return { group, body, head, muzzle, beard, tail, eyes, horns, hornSides, legs };
 }
@@ -510,8 +551,9 @@ export function createGoatModel(bodyMat, darkMat, hornMat, eyeMat) {
 export function poseGoat(goat) {
   if (!goat) return;
   if (goat.hornSides) {
-    if (goat.hornSides.left) goat.hornSides.left.visible = !!goat.hasLeftHorn;
-    if (goat.hornSides.right) goat.hornSides.right.visible = !!goat.hasRightHorn;
+    // Vanilla: `horn.visible = !young && hasHorn` -- kids are drawn hornless.
+    if (goat.hornSides.left) goat.hornSides.left.visible = !!goat.hasLeftHorn && !goat.isBaby;
+    if (goat.hornSides.right) goat.hornSides.right.visible = !!goat.hasRightHorn && !goat.isBaby;
   }
   // Wiki: the goat "lowers its head" to prepare and to jump.
   const lowered = goat.ramState === 'preparing' || goat.isGoatJumping;

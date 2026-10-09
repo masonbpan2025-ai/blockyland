@@ -168,13 +168,27 @@ const TADPOLE_MODEL = {
   textureSize: [16, 16],
   units: 16,
   transparent: true,
-  alphaTest: 0.5,
+  alphaTest: 0.1,
   parts: [
     { name: 'body', box: [3, 2, 3], uv: { u: 0, v: 0, tw: 3, th: 2, td: 3 }, at: [0, 22, -3] },
-    // Vanilla gives the tail a ZERO width, i.e. a plane. A zero-extent part makes the bounding box degenerate, and the
-    // MEASURED grounding then produces NaN and the whole mob disappears -- the failure the slime's face hit too. So the
-    // tail is a THIN BOX instead of a plane: visually the same flat fin, but with a real extent to measure.
-    { name: 'tail', parent: 'body', box: [0.1, 2, 7], uv: { u: 0, v: 0, tw: 2, th: 2, td: 7 }, at: [0, 0, 3] }
+    // Vanilla models the tail as a vertical fin (0x2x7). In vanilla's 16x16 tadpole texture, the tail
+    // is at u: 0, v: 7 with width 7 and height 2. Both side faces (-X and +X) map this 7x2 texture.
+    {
+      name: 'tail',
+      parent: 'body',
+      box: [0.35, 2, 7],
+      uv: {
+        faces: [
+          { x: 0, y: 7, w: 7, h: 2 }, // +X Right
+          { x: 0, y: 7, w: 7, h: 2 }, // -X Left
+          { x: 0, y: 7, w: 7, h: 1 }, // +Y Top
+          { x: 0, y: 7, w: 7, h: 1 }, // -Y Bottom
+          { x: 0, y: 7, w: 1, h: 2 }, // +Z Front
+          { x: 6, y: 7, w: 1, h: 2 }  // -Z Back
+        ]
+      },
+      at: [0, 0, 3]
+    }
   ]
 };
 

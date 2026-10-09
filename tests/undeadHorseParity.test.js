@@ -20,6 +20,7 @@ import {
   undeadHorseDrops, undeadHorseEquipmentDrops, undeadHorseXp, createUndeadHorseModel, poseUndeadHorse
 } from '../src/undeadHorseBehavior.js';
 import { createMobDebugSession, DEBUG_MOBS } from '../src/mobDebugSession.js';
+import { AnimalBehaviors } from '../src/animalBehaviors.js';
 
 function fixture({ worldTime = 6000, weatherType = 'clear' } = {}) {
   const scene = new THREE.Scene();
@@ -47,8 +48,9 @@ function fixture({ worldTime = 6000, weatherType = 'clear' } = {}) {
     applyStatusEffect() {}, hasStatusEffect: () => false
   };
   player.inventory = { active: null, getActiveItem() { return this.active; }, consumeActiveItem() {} };
+  manager.animalBehaviors = new AnimalBehaviors(manager, world, sounds, entities);
   manager.game = { player, difficulty: 'normal', worldTime, controls: {}, weather: { weatherType }, ui: null };
-  return { manager, player, entities };
+  return { manager, player, entities, world };
 }
 
 test('both are native types, not the Villager fallback', () => {
@@ -430,3 +432,86 @@ test('the helpers are safe on non-horses and malformed input', () => {
   assert.equal(manager.spawnMob('skeleton_horse', 9, 1, 9).type, 'skeleton_horse');
   assert.equal(manager.spawnMob('zombie_horse', 9, 1, 9).type, 'zombie_horse');
 });
+
+test('undead horse interaction pipeline supports saddle, zombie armor, shears, and mounting', () => {
+  const { manager, player, entities } = fixture();
+  const skeleton = manager.spawnMob('skeleton_horse', 0, 1, 0, { isTrap: false });
+  const zombie = manager.spawnMob('zombie_horse', 4, 1, 0);
+  const inventory = {
+    active: null,
+    getActiveItem() { return this.active; },
+    consumeActiveItem(n = 1) { if (this.active) this.active.count -= n; }
+  };
+
+  // 1. Skeleton horse equips saddle
+  inventory.active = { id: 'saddle', count: 1 };
+  assert.equal(manager.animalBehaviors.interact(skeleton, player, inventory), true);
+  assert.equal(skeleton.hasSaddle, true);
+  assert.equal(skeleton.saddle?.visible, true);
+
+  // Wiki: skeleton horses cannot wear horse armor
+  inventory.active = { id: 'diamond_horse_armor', count: 1 };
+  assert.equal(manager.animalBehaviors.interact(skeleton, player, inventory), false);
+  assert.equal(skeleton.horseArmor, null);
+
+  // Shears removes saddle from skeleton horse
+  inventory.active = { id: 'shears', durability: 238 };
+  assert.equal(manager.animalBehaviors.interact(skeleton, player, inventory), true);
+  assert.equal(skeleton.hasSaddle, false);
+  assert.equal(skeleton.saddle?.visible, false);
+  assert.ok(entities.droppedItems.some(d => d.itemType === 'saddle'));
+
+  // 2. Zombie horse equips saddle and armor
+  inventory.active = { id: 'saddle', count: 1 };
+  assert.equal(manager.animalBehaviors.interact(zombie, player, inventory), true);
+  assert.equal(zombie.hasSaddle, true);
+
+  inventory.active = { id: 'iron_horse_armor', count: 1 };
+  assert.equal(manager.animalBehaviors.interact(zombie, player, inventory), true);
+  assert.equal(zombie.horseArmor, 'iron_horse_armor');
+
+  // Shearing zombie horse removes armor first, then saddle
+  inventory.active = { id: 'shears', durability: 238 };
+  assert.equal(manager.animalBehaviors.interact(zombie, player, inventory), true);
+  assert.equal(zombie.horseArmor, null);
+  assert.ok(entities.droppedItems.some(d => d.itemType === 'iron_horse_armor'));
+
+  // Empty hand mounting
+  inventory.active = null;
+  assert.equal(manager.animalBehaviors.interact(skeleton, player, inventory), true);
+  assert.equal(player.ridingMob, skeleton);
+});
+
+test('skeleton horse underwater travel parity allows riding submerged without dismounting', () => {
+  // World with water block at mob head / water level
+  const underwater = {
+    getVoxel(x, y, z) {
+      if (y < 1) return BLOCKS.STONE;
+      if (y >= 1 && y <= 3) return BLOCKS.WATER;
+      return BLOCKS.AIR;
+    },
+    surfaceHeightAt: () => 1, getLightLevel: () => 15, setVoxel() {}
+  };
+  const { manager, player } = fixture();
+  manager.world = underwater;
+  manager.animalBehaviors.world = underwater;
+
+  // 1. Skeleton horse riding in water: does NOT dismount (can walk underwater on ocean floor)
+  const skeleton = manager.spawnMob('skeleton_horse', 0, 1, 0);
+  skeleton.hasSaddle = true;
+  manager.animalBehaviors.mountMob(skeleton, player);
+  assert.equal(player.ridingMob, skeleton);
+
+  manager.animalBehaviors.updateMountSteering(0.1, player, { forward: true }, { forward: true });
+  assert.equal(player.ridingMob, skeleton, 'wiki: skeleton horse can be ridden underwater without dismounting');
+
+  // 2. Living horse riding into water: dismounts immediately
+  const livingHorse = { type: 'horse', mesh: new THREE.Mesh(), velocity: new THREE.Vector3(), isTamed: true, hasSaddle: true };
+  livingHorse.mesh.position.set(0, 1, 0);
+  manager.animalBehaviors.mountMob(livingHorse, player);
+  assert.equal(player.ridingMob, livingHorse);
+
+  manager.animalBehaviors.updateMountSteering(0.1, player, { forward: true }, { forward: true });
+  assert.equal(player.ridingMob, null, 'living horse dismounts player when submerged in water');
+});
+

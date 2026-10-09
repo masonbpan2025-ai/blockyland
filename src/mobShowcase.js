@@ -29,7 +29,7 @@ export function mobProperties(mob,manager,definition) {
   }
   return {definition:definition || {id:mob.type,native:true},dimensions:{...manager.getMobDimensions(mob.type),...(mob.width?{width:mob.width,height:mob.height}:{})},breedingFoods:BREEDING_FOODS[mob.type] || [],runtime:clean(mob)};
 }
-const hostile=new Set('blaze magma_cube ghast piglin zombified_piglin hoglin zoglin wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite pillager ravager witch slime enderman shulker guardian elder_guardian drowned warden phantom vindicator evoker vex ender_dragon wither iron_golem'.split(' '));
+const hostile=new Set('blaze magma_cube ghast piglin zombified_piglin hoglin zoglin wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite pillager ravager witch slime enderman shulker guardian elder_guardian drowned warden phantom vindicator evoker vex ender_dragon wither iron_golem bee'.split(' '));
 const aquatic=new Set('cod salmon squid glow_squid dolphin axolotl guardian elder_guardian drowned'.split(' '));
 function equip(s,id){s.inventory.active=id?{id,count:64,isBlock:typeof id==='number'}:null;}
 function interact(s,id,mob=s.mob){equip(s,id);return s.manager.animalBehaviors.interact(mob,s.player,s.inventory);}
@@ -54,7 +54,7 @@ const ATTACK_AI = {
   zombie_villager: 'melee', iron_golem: 'melee', spider: 'melee', cave_spider: 'melee', silverfish: 'melee', endermite: 'melee',
   skeleton: 'ranged', stray: 'ranged', blaze: 'ranged', ghast: 'ranged',
   wither_skeleton: 'melee', pillager: 'ranged',
-  zombified_piglin: 'anger', zombie_pigman: 'anger',
+  zombified_piglin: 'anger', zombie_pigman: 'anger', bee: 'anger',
   witch: 'special', slime: 'special', magma_cube: 'special',
   piglin: 'melee', hoglin: 'melee', zoglin: 'melee',
   phantom: 'special', guardian: 'special', elder_guardian: 'special'

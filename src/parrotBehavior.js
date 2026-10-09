@@ -352,8 +352,8 @@ export function createParrotModel(bodyMat, wingMat, headMat, beakMat) {
   const box = (w, h, d, u, v, tw, th, td) => new THREE.Mesh(
     createEntityBox(w, h, d, u, v, tw, th, td, { texW: 32, texH: 32 }), bodyMat);
 
-  // Body: 6x8x6 at (2,8).
-  const body = box(0.3, 0.4, 0.3, 2, 8, 6, 8, 6);
+  // Body: 3x6x3 at (2,8) on 32x32 sheet, perfectly enclosing feather plumage.
+  const body = box(0.3, 0.4, 0.3, 2, 8, 3, 6, 3);
   body.position.set(0, 0.5, 0);
   group.add(body);
 
@@ -412,11 +412,11 @@ export function createParrotModel(bodyMat, wingMat, headMat, beakMat) {
   tail.rotation.x = 0.2;
   group.add(tail);
 
-  // Two small feet.
-  const footGeo = new THREE.BoxGeometry(0.06, 0.14, 0.06);
+  // Two small feet connecting from the floor to the body.
+  const footGeo = new THREE.BoxGeometry(0.06, 0.26, 0.06);
   for (const side of [-1, 1]) {
     const foot = new THREE.Mesh(footGeo, beakMat);
-    foot.position.set(side * 0.07, 0.08, 0.03);
+    foot.position.set(side * 0.07, 0.17, 0.03);
     group.add(foot);
   }
 
@@ -430,11 +430,12 @@ export function applyParrotVariant(parrot) {
   // The variant is its SHEET. Binding it is what makes the colour change; tinting the materials instead would
   // fight `adoptTexture`, which whitens a material once its map lands.
   const skin = parrot.skinManager?.loadTexture ? parrot.skinManager.loadTexture(path) : null;
-  if (skin && parrot.bodyMat) adoptWhenReady(parrot.bodyMat, skin, colors.body);
-  else parrot.bodyMat?.color?.setHex?.(colors.body);
-
-  // The head and wings share the body sheet, so a fallback colour is all they need when there is no asset.
-  if (!skin) {
+  if (skin) {
+    if (parrot.bodyMat) adoptWhenReady(parrot.bodyMat, skin, colors.body);
+    if (parrot.headMat) adoptWhenReady(parrot.headMat, skin, colors.head);
+    if (parrot.wingMat) adoptWhenReady(parrot.wingMat, skin, colors.wing);
+  } else {
+    parrot.bodyMat?.color?.setHex?.(colors.body);
     parrot.wingMat?.color?.setHex(colors.wing);
     parrot.headMat?.color?.setHex(colors.head);
   }

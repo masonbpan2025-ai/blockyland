@@ -405,33 +405,26 @@ export function allayXp(mob) {
 export function createAllayModel(bodyMat, wingMat, trimMat, eyeMat) {
   const group = new THREE.Group();
 
-  // Every part samples the real 32x32 allay sheet; previously all of them were flat colours, so the skin was
-  // never read at all.
   const box = (w, h, d, u, v, tw, th, td) => new THREE.Mesh(
     createEntityBox(w, h, d, u, v, tw, th, td, { texW: 32, texH: 32 }), bodyMat);
 
-  // Body: 8x8x8 at (0,0).
-  const body = box(0.3, 0.3, 0.3, 0, 0, 8, 8, 8);
-  body.position.set(0, 0.34, 0);
+  // Body: 3x4x2 at (0, 10).
+  const body = box(0.18, 0.24, 0.12, 0, 10, 3, 4, 2);
+  body.position.set(0, 0.32, 0);
   group.add(body);
 
-  // Head: a smaller box carrying the face.
-  const head = box(0.26, 0.24, 0.24, 0, 0, 6, 6, 6);
-  head.position.set(0, 0.58, 0.02);
-  group.add(head);
+  // Robe: 3x5x2 at (0, 16).
+  const robe = box(0.20, 0.28, 0.14, 0, 16, 3, 5, 2);
+  robe.position.set(0, 0.20, 0);
+  group.add(robe);
 
-  const eyes = [];
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), eyeMat);
-    eye.position.set(side * 0.06, 0.02, 0.12);
-    head.add(eye);
-    eyes.push(eye);
-  }
+  // Head: 5x5x5 at (0, 0).
+  const head = box(0.26, 0.26, 0.26, 0, 0, 5, 5, 5);
+  head.position.set(0, 0.48, 0);
+  group.add(head);
 
   // Two large wings. `wings` is an OBJECT with named sides: `moveFlyingMob` writes `mob.wings.left.rotation.z`,
   // and `allayParity.test.js` pins left/right/rotation/length.
-  // The wing box is 2 wide but 7 deep, so depth exceeds half its width and vanilla's own layout has no room for
-  // its side faces -- `createEntityBox` rightly rejects that shape. Explicit rectangles are the escape hatch.
   const wingGeo = createBoxFromFaces(0.08, 0.26, 0.2, [
     { x: 18, y: 12, w: 7, h: 8 },   // +X right
     { x: 16, y: 12, w: 7, h: 8 },   // -X left
@@ -443,7 +436,7 @@ export function createAllayModel(bodyMat, wingMat, trimMat, eyeMat) {
   const wings = { length: 2 };
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.16, 0.44, 0);
+    pivot.position.set(side * 0.12, 0.38, 0);
     const wing = new THREE.Mesh(wingGeo, wingMat);
     wing.position.set(side * 0.06, 0.09, 0);
     pivot.add(wing);
@@ -451,20 +444,26 @@ export function createAllayModel(bodyMat, wingMat, trimMat, eyeMat) {
     wings[side < 0 ? 'left' : 'right'] = pivot;
   }
 
-  // The glowing trim band the allay is named for, which the shared code can pulse.
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.03, 0.32), trimMat);
-  trim.position.set(0, 0.2, 0);
-  group.add(trim);
-
-  // Small arms, held out; the spawner reads them for the carry pose.
-  const armGeo = new THREE.BoxGeometry(0.05, 0.16, 0.05);
+  // Small arms, properly mapped with vanilla UVs (23, 0)
+  const armGeo = createEntityBox(0.08, 0.20, 0.08, 23, 0, 2, 4, 2, { texW: 32, texH: 32 });
   const arms = [];
   for (const side of [-1, 1]) {
     const arm = new THREE.Mesh(armGeo, bodyMat);
-    arm.position.set(side * 0.2, 0.36, 0);
+    arm.position.set(side * 0.14, 0.30, 0.04);
     group.add(arm);
     arms.push(arm);
   }
+
+  const eyes = [];
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.01), eyeMat);
+    eye.position.set(side * 0.05, 0.01, 0.13);
+    head.add(eye);
+    eyes.push(eye);
+  }
+
+  const trim = new THREE.Group();
+  group.add(trim);
 
   return { group, body, head, eyes, wings, trim, arms };
 }

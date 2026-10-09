@@ -57,6 +57,8 @@ test('an EMPTY biome table is named as the reason', () => {
   const v = spawnVerdicts({ tableFor: () => [], biomeId: 'the_void', snapshot: { spawnTicks: 5 } });
   assert.ok(v.some(s => /NO monster spawns/.test(s)), JSON.stringify(v));
   assert.ok(v.some(s => /NO creature spawns/.test(s)));
+  assert.ok(v.some(s => /no land animals.*Aquatic and cave categories are separate/.test(s)));
+  assert.ok(!v.some(s => /no animals can appear/.test(s)));
 });
 
 test('DAYLIGHT is named as the reason for missing hostiles, and not when it is dark', () => {

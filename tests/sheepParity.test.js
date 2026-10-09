@@ -13,7 +13,8 @@ import { BLOCKS } from '../src/blocks.js';
 import { AnimalBehaviors } from '../src/animalBehaviors.js';
 import {
   SHEEP_COLORS, SHEEP_COLOR_HEX, mixSheepColors, sheepColorsMix,
-  inheritSheepColor, sheepApplyWool, rollSheepWoolCount
+  inheritSheepColor, sheepApplyWool, rollSheepWoolCount,
+  isJebSheep, getJebRainbowColor, rollNaturalSheepColor, NATURAL_SHEEP_WEIGHTS
 } from '../src/sheepBehavior.js';
 import { createMobDebugSession } from '../src/mobDebugSession.js';
 
@@ -308,3 +309,87 @@ test('spawn options set colour and sheared state while the defaults stay white a
   assert.equal(custom.woolMesh.visible, false, 'a sheep spawned sheared shows no wool');
   assert.equal(custom.woolMesh.material.color.getHex(), SHEEP_COLOR_HEX.pink);
 });
+
+test('jeb_ easter egg makes wool rainbow while alive, but drops original base color when sheared', () => {
+  const { manager, entities, player, inventory } = fixture();
+  const drops = recordDrops(entities);
+  const sheep = manager.spawnSheep(0, 1, 0, { woolColor: 'lime' });
+  assert.equal(isJebSheep(sheep), false);
+
+  // Apply name tag "jeb_"
+  held(inventory, 'name_tag', { customName: 'jeb_' });
+  const interacted = manager.animalBehaviors.interact(sheep, player, inventory);
+  assert.equal(interacted, true);
+  assert.equal(sheep.customName, 'jeb_');
+  assert.equal(isJebSheep(sheep), true, 'sheep is now a jeb_ rainbow sheep');
+  assert.equal(sheep.woolColor, 'lime', 'base woolColor is preserved as lime');
+
+  // Verify smooth rainbow cycle over time
+  sheep.jebTime = 0.5;
+  sheepApplyWool(sheep);
+  const colorAt05 = sheep.woolMesh.material.color.clone();
+  sheep.jebTime = 1.5;
+  sheepApplyWool(sheep);
+  const colorAt15 = sheep.woolMesh.material.color.clone();
+  assert.notEqual(colorAt05.getHex(), colorAt15.getHex(), 'wool color smoothly animates over time');
+
+  // Wiki: "When sheared, a jeb_ sheep drops wool of its original color rather than the color displayed at the moment of shearing."
+  held(inventory, 'shears');
+  manager.animalBehaviors.interact(sheep, player, inventory);
+  assert.equal(sheep.isSheared, true);
+  assert.equal(sheep.woolMesh.visible, false);
+  assert.ok(drops.length >= 1);
+  for (const drop of drops) {
+    assert.equal(drop.itemType, BLOCKS.LIME_WOOL, 'dropped wool is lime, the original base color');
+  }
+});
+
+test('natural sheep color distribution covers white, light gray, gray, black, brown, pink', () => {
+  assert.equal(NATURAL_SHEEP_WEIGHTS.length, 6);
+  assert.equal(NATURAL_SHEEP_WEIGHTS[0].color, 'white');
+  assert.equal(NATURAL_SHEEP_WEIGHTS[5].color, 'pink');
+
+  // Pinned roll tests
+  assert.equal(rollNaturalSheepColor(() => 0.0), 'white');
+  assert.equal(rollNaturalSheepColor(() => 0.81), 'white');
+  assert.equal(rollNaturalSheepColor(() => 0.83), 'light_gray');
+  assert.equal(rollNaturalSheepColor(() => 0.88), 'gray');
+  assert.equal(rollNaturalSheepColor(() => 0.93), 'black');
+  assert.equal(rollNaturalSheepColor(() => 0.98), 'brown');
+  assert.equal(rollNaturalSheepColor(() => 0.999), 'pink');
+
+  const { manager } = fixture();
+  const naturalSheep = manager.spawnSheep(0, 1, 0, { natural: true });
+  assert.ok(SHEEP_COLORS.includes(naturalSheep.woolColor));
+});
+
+test('baby sheep grazing on grass accelerates growth by 60 seconds (10%)', () => {
+  const grassy = {
+    edits: new Map(),
+    getVoxel(x, y, z) { return this.edits.get(`${x},${y},${z}`) ?? (y <= 0 ? BLOCKS.GRASS_BLOCK : BLOCKS.AIR); },
+    setVoxel(x, y, z, id) { this.edits.set(`${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`, id); },
+    getHeightAt() { return 0; }
+  };
+  const { manager, player } = fixture(grassy);
+  const lamb = manager.spawnSheep(0, 1, 0, { isBaby: true });
+  lamb.babyGrowthTimer = 1200; // 20 minutes (1200s)
+  lamb.grazeTimer = 0.01;
+
+  manager.animalBehaviors.update(0.02, player);
+  // Wiki: baby sheep eating grass reduces remaining time to grow by 60 seconds (10%)
+  assert.ok(lamb.babyGrowthTimer <= 1140, `growth accelerated: remaining ${lamb.babyGrowthTimer} <= 1140`);
+});
+
+test('untamed wild wolf targets and hunts nearby wild sheep', () => {
+  const { manager, player } = fixture();
+  manager.textures.wolf = new THREE.Texture();
+  const wolf = manager.spawnMob('wolf', 0, 1, 0);
+  const sheep = manager.spawnSheep(5, 1, 0);
+  assert.equal(wolf.isTamed, false);
+
+  // Update wolf loop - wild wolf detects sheep within range and pursues it
+  manager.update(0.1, player);
+  assert.equal(wolf.preyTarget, sheep, 'untamed wolf targets nearby sheep as prey');
+  assert.ok(wolf.velocity.x > 0, 'wolf moves towards sheep');
+});
+

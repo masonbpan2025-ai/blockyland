@@ -72,12 +72,13 @@ export const ASSETS = [
   { id: 'brown_mooshroom_skin', path: 'entity/cow/brown_mooshroom.png', dest: 'assets/entity/cow/brown_mooshroom.png', for: 'mooshroom (brown)' },
   // The spider: vanilla nests this one a directory deeper than a flat mirror suggests.
   // The parrot's five variant sheets: a parrot variant IS its texture, so all five are needed.
-  { id: 'rabbit_skins', path: 'entity/rabbit/rabbit_brown.png', dest: 'assets/entity/rabbit/brown.png', for: 'rabbit (brown)' },
-  { id: 'rabbit_white', path: 'entity/rabbit/rabbit_white.png', dest: 'assets/entity/rabbit/white.png', for: 'rabbit (white)' },
-  { id: 'rabbit_black', path: 'entity/rabbit/rabbit_black.png', dest: 'assets/entity/rabbit/black.png', for: 'rabbit (black)' },
-  { id: 'rabbit_gold', path: 'entity/rabbit/rabbit_gold.png', dest: 'assets/entity/rabbit/gold.png', for: 'rabbit (gold)' },
-  { id: 'rabbit_salt', path: 'entity/rabbit/rabbit_salt.png', dest: 'assets/entity/rabbit/salt.png', for: 'rabbit (salt)' },
-  { id: 'rabbit_toast', path: 'entity/rabbit/rabbit_toast.png', dest: 'assets/entity/rabbit/toast.png', for: 'rabbit (toast)' },
+  { id: 'rabbit_skins', path: 'entity/rabbit/brown.png', dest: 'assets/entity/rabbit/brown.png', for: 'rabbit (brown)' },
+  { id: 'rabbit_white', path: 'entity/rabbit/white.png', dest: 'assets/entity/rabbit/white.png', for: 'rabbit (white)' },
+  { id: 'rabbit_black', path: 'entity/rabbit/black.png', dest: 'assets/entity/rabbit/black.png', for: 'rabbit (black)' },
+  { id: 'rabbit_gold', path: 'entity/rabbit/gold.png', dest: 'assets/entity/rabbit/gold.png', for: 'rabbit (gold)' },
+  { id: 'rabbit_salt', path: 'entity/rabbit/salt.png', dest: 'assets/entity/rabbit/salt.png', for: 'rabbit (salt)' },
+  { id: 'rabbit_white_splotched', path: 'entity/rabbit/white_splotched.png', dest: 'assets/entity/rabbit/white_splotched.png', for: 'rabbit (white splotched)' },
+  { id: 'rabbit_toast', path: 'entity/rabbit/toast.png', dest: 'assets/entity/rabbit/toast.png', for: 'rabbit (toast)' },
   { id: 'rabbit_killer', path: 'entity/rabbit/caerbannog.png', dest: 'assets/entity/rabbit/caerbannog.png', for: 'rabbit (killer)' },
   // The frog's three biome sheets. Extracted, but NOT yet bound: the frog's sheet is 48x48 and does not follow the
   // standard quadruped layout, so its model needs real UV work first. Kept so the bytes are pinned and reproducible.

@@ -182,11 +182,24 @@ test('the model has horns, a beard and four legs', () => {
   const goat = manager.spawnMob('goat', 0, 1, 0);
   assert.ok(goat.body && goat.head && goat.muzzle, 'body, head and muzzle');
   assert.ok(goat.beard, 'a goat has a beard');
-  assert.ok(goat.tail, 'and a tail');
+  // Vanilla GoatModel has no tail part and no eye cubes -- the eyes are painted on the face.
+  assert.equal(goat.tail, null, 'vanilla goats have no tail');
   assert.equal(goat.legs.length, 4);
   assert.equal(goat.horns.length, 2, 'two horn meshes, exposed as an array the shared baby-growth code can iterate');
   assert.ok(goat.hornSides.left && goat.hornSides.right, 'with a left/right split so one can be removed');
-  assert.equal(goat.eyes.length, 2);
+  assert.equal(goat.eyes.length, 0, 'eyes come from the skin, not separate meshes');
+  // Vanilla: hind legs are 6 texels tall, front legs 10.
+  const legHeight = (leg) => leg.mesh.children[0].geometry.parameters.height;
+  assert.ok(Math.abs(legHeight(goat.legs.find(l => l.front)) - 10 / 16) < 1e-9, 'front legs are 10 tall');
+  assert.ok(Math.abs(legHeight(goat.legs.find(l => !l.front)) - 6 / 16) < 1e-9, 'hind legs are 6 tall');
+});
+
+test('kids are drawn hornless, as vanilla hides horns on young goats', () => {
+  const { manager } = fixture();
+  const kid = manager.spawnGoat(0, 1, 0, { isBaby: true });
+  poseGoat(kid);
+  assert.equal(kid.hornSides.left.visible, false);
+  assert.equal(kid.hornSides.right.visible, false);
 });
 
 test('a missing horn is hidden on the model, not just cleared in state', () => {

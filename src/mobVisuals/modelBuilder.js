@@ -318,12 +318,12 @@ export function adoptWhenReady(material, texture, fallbackColor = 0xffffff, ctx 
 export function applyVanillaBoxUVs(geo, u, v, texW, texH, tw, th, td) {
   // Vanilla's six cross-layout rectangles, in the order +X, -X, +Y, -Y, +Z, -Z, which is BoxGeometry's face order.
   const faces = [
-    { x: u + td + tw, y: v + td, w: td, h: th },
-    { x: u, y: v + td, w: td, h: th },
-    { x: u + td, y: v, w: tw, h: td },
-    { x: u + td + tw, y: v, w: tw, h: td },
-    { x: u + td, y: v + td, w: tw, h: th },
-    { x: u + td + tw + td, y: v + td, w: tw, h: th }
+    { x: u, y: v + td, w: td, h: th },                    // 0: +X (Right)
+    { x: u + td + tw, y: v + td, w: td, h: th },          // 1: -X (Left)
+    { x: u + td, y: v, w: tw, h: td },                    // 2: +Y top
+    { x: u + td + tw, y: v, w: tw, h: td },               // 3: -Y bottom
+    { x: u + td, y: v + td, w: tw, h: th },               // 4: +Z front
+    { x: u + td + tw + td, y: v + td, w: tw, h: th }      // 5: -Z back
   ];
   const uvs = geo.attributes.uv;
   for (let f = 0; f < 6; f++) {

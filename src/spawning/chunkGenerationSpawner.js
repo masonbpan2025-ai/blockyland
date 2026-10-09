@@ -21,12 +21,16 @@
 //
 // Reference: docs/mob-spawning-spec-1.21.4.md section 11, and the wiki's "Mob spawning on chunk
 // generation" section. Behaviour reimplemented; no Mojang source copied.
+// Authored packs may additionally populate aquatic/ambient habitats with bounded density settings;
+// absent that extension, the original creature-only generation behavior remains the default.
 
 import { CHUNK_HEIGHT, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './lightEngine.js';
 import { MobCategory } from './mobCategories.js';
 import { packSizeFor, selectWeightedEntry, biomeSpawnsFor } from './biomeSpawnResolver.js';
 import { HeightmapType, SpawnPlacementType, spawnPlacementFor } from './spawnPlacements.js';
 import { heightAt, isPeaceful, validateSpawnSpace } from './spawnValidation.js';
+import { BIOMES } from '../biomes.js';
+import { BLOCKS } from '../blocks.js';
 
 /**
  * Per-biome probability that a chunk-generation pass places any creatures at all.
@@ -78,6 +82,7 @@ export class ChunkGenerationSpawner {
       chunksPopulated: 0,
       packs: 0,
       mobs: 0,
+      byCategory: {},
       /** Candidate positions refused by the shared spatial validator or the species predicate. */
       rejected: 0,
       lastMs: 0,
@@ -123,7 +128,17 @@ export class ChunkGenerationSpawner {
     }
 
     const started = now();
-    const placed = this.populateChunk(cx, cz);
+    const biome = world.getBiome?.(cx * CHUNK_SIZE_X, cz * CHUNK_SIZE_Z) ?? 'plains';
+    const generation = BIOMES[biome]?.spawnSettings?.generation;
+    const populatedBefore = this.stats.chunksPopulated;
+    const skippedBefore = this.stats.skipped;
+    let placed = 0;
+    if (generation && Object.keys(generation).length) {
+      for (const [category, policy] of Object.entries(generation)) placed += this.populateChunk(cx, cz, category, policy);
+      // One chunk, even when multiple habitats/categories were populated.
+      this.stats.chunksPopulated = populatedBefore + (placed > 0 ? 1 : 0);
+      this.stats.skipped = skippedBefore + (placed === 0 ? 1 : 0);
+    } else placed = this.populateChunk(cx, cz);
     this.stats.lastMs = now() - started;
     return placed;
   }
@@ -135,7 +150,7 @@ export class ChunkGenerationSpawner {
    * decision, not the biome at each spawn position. That is why a chunk straddling two biomes
    * generates only one of them, and it is reproduced here deliberately.
    */
-  populateChunk(cx, cz) {
+  populateChunk(cx, cz, category = MobCategory.CREATURE, policy = null) {
     const world = this.world;
     const random = this.manager.random;
     const baseX = cx * CHUNK_SIZE_X;
@@ -144,10 +159,11 @@ export class ChunkGenerationSpawner {
     const biomeId = world.getBiome
       ? world.getBiome(baseX, baseZ)
       : 'plains';
-    const entries = biomeSpawnsFor(biomeId, MobCategory.CREATURE);
+    const entries = biomeSpawnsFor(biomeId, category);
     if (entries.length === 0) return 0;
 
-    const probability = CREATURE_SPAWN_PROBABILITY[biomeId] ?? DEFAULT_CREATURE_SPAWN_PROBABILITY;
+    const probability = policy?.probability ?? BIOMES[biomeId]?.creatureSpawnProbability
+      ?? CREATURE_SPAWN_PROBABILITY[biomeId] ?? DEFAULT_CREATURE_SPAWN_PROBABILITY;
     let placed = 0;
     let packs = 0;
 
@@ -155,7 +171,8 @@ export class ChunkGenerationSpawner {
     // More than one pack per chunk is possible and is vanilla behaviour: a lucky chunk can be
     // populated twice over.
     let guard = 0;
-    while (random.nextDouble() < probability && guard++ < 16) {
+    while (guard < (policy?.groups ?? 16) && random.nextDouble() < probability) {
+      guard++;
       const entry = selectWeightedEntry(entries, random);
       if (!entry) break;
       packs++;
@@ -171,7 +188,7 @@ export class ChunkGenerationSpawner {
           x += random.nextInt(GENERATION_OFFSET_SPREAD * 2 + 1) - GENERATION_OFFSET_SPREAD;
           z += random.nextInt(GENERATION_OFFSET_SPREAD * 2 + 1) - GENERATION_OFFSET_SPREAD;
         }
-        const mob = this.placeGenerationMember(entry.type, x, z, cx, cz, biomeId);
+        const mob = this.placeGenerationMember(entry.type, x, z, cx, cz, biomeId, category);
         if (mob) placed++;
       }
     }
@@ -196,7 +213,7 @@ export class ChunkGenerationSpawner {
    *  - the chunk bounds are enforced (vanilla nudges a mob wider than a block inwards);
    *  - no cap, no spawn cost, no structure override.
    */
-  placeGenerationMember(type, x, z, cx, cz, biomeId) {
+  placeGenerationMember(type, x, z, cx, cz, biomeId, category = MobCategory.CREATURE) {
     const world = this.world;
     const random = this.manager.random;
     const placement = spawnPlacementFor(type);
@@ -214,12 +231,23 @@ export class ChunkGenerationSpawner {
       const bx = Math.min(maxX, Math.max(minX, px));
       const bz = Math.min(maxZ, Math.max(minZ, pz));
 
-      // Snap to the top of the column using the mob's own placement heightmap.
+      // Walking animals need ground beneath leaves and flora, not WORLD_SURFACE's canopy/flowers.
+      // Keep aquatic placement at the ocean floor; all other types use their registered heightmap.
       const heightmap = placement.placement === SpawnPlacementType.IN_WATER
         ? HeightmapType.OCEAN_FLOOR
-        : HeightmapType.WORLD_SURFACE;
+        : placement.heightmap;
       const top = heightAt(world, bx, bz, heightmap);
-      const y = Math.min(CHUNK_HEIGHT - 2, top + 1);
+      let y = Math.min(CHUNK_HEIGHT - 2, top + 1);
+      if (placement.placement === SpawnPlacementType.IN_WATER || category === MobCategory.AMBIENT) {
+        const candidates = [];
+        for (let cy = 1; cy < CHUNK_HEIGHT - 1; cy++) {
+          if (placement.placement === SpawnPlacementType.IN_WATER && world.getVoxel(bx, cy, bz) !== BLOCKS.WATER) continue;
+          if (category === MobCategory.AMBIENT && world.getVoxel(bx, cy, bz) !== BLOCKS.AIR) continue;
+          if (this.generationPredicateAllows(type, placement, bx, cy, bz, biomeId, category)) candidates.push(cy);
+        }
+        if (!candidates.length) continue;
+        y = candidates[random.nextInt(candidates.length)];
+      }
 
       // Spatial validation, shared with the runtime cycle. Previously ONLY the species predicate ran
       // here, and a mob with no predicate was treated as valid, so a generated animal could be placed
@@ -243,7 +271,7 @@ export class ChunkGenerationSpawner {
         continue;
       }
 
-      if (!this.generationPredicateAllows(type, placement, bx, y, bz, biomeId)) {
+      if (!this.generationPredicateAllows(type, placement, bx, y, bz, biomeId, category)) {
         this.stats.rejected++;
         this.lastRejection = 'MOB_PREDICATE_FAILED';
         continue;
@@ -251,12 +279,13 @@ export class ChunkGenerationSpawner {
 
       const mob = this.manager.createMob(type, bx + 0.5, y, bz + 0.5, {
         natural: false,
-        category: MobCategory.CREATURE,
+        category,
         biomeId,
         source: 'chunk_generation',
         structureId: null,
       });
       if (mob) {
+        this.stats.byCategory[category] = (this.stats.byCategory[category] ?? 0) + 1;
         // Vanilla: mobs generated with a structure do not despawn on their own. A chunk-generation
         // animal is not a structure mob, but the wiki is explicit that generation-spawned creatures
         // are not removed by the normal distance rule while the player is nearby, and the engine's
@@ -269,12 +298,12 @@ export class ChunkGenerationSpawner {
   }
 
   /** Run the mob's own predicate, if it has one, and the generic floor/fluid checks. */
-  generationPredicateAllows(type, placement, x, y, z, biomeId) {
+  generationPredicateAllows(type, placement, x, y, z, biomeId, category = MobCategory.CREATURE) {
     const world = this.world;
     if (!placement.predicate) return true;
     try {
       return placement.predicate(this.manager.naturalSpawner.predicateContext({
-        world, x, y, z, biomeId, category: MobCategory.CREATURE, structureId: null, type,
+        world, x, y, z, biomeId, category, structureId: null, type,
       }));
     } catch {
       return false;

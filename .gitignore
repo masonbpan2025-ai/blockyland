@@ -37,3 +37,22 @@ saves/*.json
 
 # Raw upstream JSON cached by scripts/generate-mc-data.mjs
 .cache/
+
+# Development artefacts from the mob-visual and parity audits: browser profiles, captured screenshots, raw
+# wiki/scene dumps and validation logs. None of it is source.
+.chrome-*/
+.chrome-*/
+audit_images/
+audit_*.png
+*_current.png
+*_final.png
+*_fixed.png
+raw_*.txt
+preset*-validation.log
+*-validation.log
+*-tests.log
+*-regression.log
+mob-report-validation.log
+extract/
+pages/
+sections_structure.json

@@ -9,10 +9,15 @@ import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariant
 import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
 import { inheritFoxCoat } from './foxBehavior.js';
 // Wiki: a killer bunny can breed with any rabbit, so the offspring rule lives with the mob.
-import { inheritKillerBunny, makeKillerBunny } from './rabbitBehavior.js';
+import { inheritKillerBunny, makeKillerBunny, applyRabbitCoat } from './rabbitBehavior.js';
 import { SNIFFER_BREEDING } from './snifferBehavior.js';
 import { turtleDimensions, turtleMaturationDrops } from './turtleBehavior.js';
 import { BABY_GROWTH_SECONDS, babyGrowthSecondsFor, accelerateBabyGrowth, startBabyGrowth, updateBabyGrowth } from './babyGrowth.js';
+import { BEE_BREEDING_FLOWERS, isBeeBreedingFood, BEE_WITHER_ROSE, BEE_EYEBLOSSOM } from './beeBehavior.js';
+import { isLlama, isTraderLlama, LLAMA_FOOD, LLAMA_TEMPER, LLAMA_BABY_FEED_ACCELERATION, llamaSlotsFor, llamaHealthFor, inheritLlamaVariant, inheritLlamaStrength, applyLlamaCoat, applyLlamaEquipment, equipLlamaChest, equipLlamaCarpet } from './llamaBehavior.js';
+import { isCamel, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, feedCamelCactus, accelerateCamelGrowth, isCamelBreedingFood, camelDash, camelStand, CAMEL_SPEED } from './camelBehavior.js';
+import { isUndeadHorse, isSkeletonHorse, isZombieHorse, equipUndeadHorse, shearUndeadHorse } from './undeadHorseBehavior.js';
+import { isJebSheep } from './sheepBehavior.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 
@@ -34,6 +39,8 @@ export const BREEDING_FOODS = {
   // Wiki: rabbits breed with carrots, golden carrots or dandelions. The dandelion is a block
   // id here, so it is listed as the block constant rather than a string.
   rabbit: ['carrot', 'golden_carrot', BLOCKS.DANDELION],
+  // Wiki: bees breed with any flower, flowering azalea, mangrove propagule, pink petals, etc.
+  bee: BEE_BREEDING_FLOWERS,
   strider: ['warped_fungus', BLOCKS.WARPED_FUNGUS],
   hoglin: [BLOCKS.CRIMSON_FUNGUS, 'crimson_fungus'],
   sheep: ['wheat'],
@@ -58,7 +65,9 @@ export const BREEDING_FOODS = {
   wolf: ['beef', 'cooked_beef', 'porkchop', 'cooked_porkchop', 'chicken', 'cooked_chicken', 'mutton', 'cooked_mutton', 'rabbit', 'cooked_rabbit'],
   cat: ['salmon', 'cod', 'cooked_salmon', 'cooked_cod'],
   horse: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple'],
-  donkey: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple']
+  donkey: ['golden_apple', 'golden_carrot', 'enchanted_golden_apple'],
+  llama: ['hay_block'],
+  trader_llama: ['hay_block']
 };
 
 export class AnimalBehaviors {
@@ -117,6 +126,9 @@ export class AnimalBehaviors {
     // grazing, so holding dye must not advertise a usable interaction.
     if (mob.type === 'sheep' && itemName.endsWith('_dye')) return !mob.isSheared;
 
+    // Naming sheep with name tag (e.g., jeb_)
+    if (mob.type === 'sheep' && itemId === 'name_tag') return true;
+
     // Wolf taming or healing or sitting
     if (mob.type === 'wolf') {
       if (!mob.isTamed && itemId === 'bone') return true;
@@ -141,10 +153,55 @@ export class AnimalBehaviors {
       return true;
     }
 
+    // Undead horse (skeleton horse & zombie horse): saddling, armor (zombie), shears, riding
+    if (isUndeadHorse(mob)) {
+      if (!itemId) return !mob.rider && !mob.isBaby;
+      if (itemId === 'saddle') return !mob.isBaby && !mob.hasSaddle;
+      if (isZombieHorse(mob) && itemName.endsWith('_horse_armor')) return !mob.isBaby && !mob.horseArmor;
+      if (itemId === 'shears') return !!(mob.hasSaddle || mob.horseArmor);
+      if (itemId === 'lead' || itemId === 'name_tag') return true;
+      return false;
+    }
+
+    // Camel: saddling, shears, cactus feeding/breeding, golden dandelion, riding
+    if (isCamel(mob)) {
+      if (!itemId) return camelCanSeat(mob);
+      if (itemId === 'saddle') return !mob.isBaby && !mob.hasSaddle;
+      if (itemId === 'shears') return !!mob.hasSaddle;
+      if (itemId === 'cactus') return mob.health < mob.maxHealth || (mob.isBaby && !mob.ageLocked) || (!mob.isBaby && mob.health === mob.maxHealth && !(mob.breedingCooldown > 0) && !(mob.inLove > 0));
+      if (itemId === 'golden_dandelion') return !!mob.isBaby && !(mob.ageLockCooldown > 0);
+      if (itemId === 'lead' || itemId === 'name_tag') return true;
+      return false;
+    }
+
     // Pig / strider
     if (mob.type === 'pig' || mob.type === 'strider') {
       if (itemId === 'saddle' && !mob.isSaddled) return true;
       if (mob.isSaddled || mob.hasSaddle) return true;
+    }
+
+    // Bee age lock with golden dandelion
+    if (mob.type === 'bee' && mob.isBaby && (itemId === 'golden_dandelion' || itemName === 'golden_dandelion')) return true;
+
+    // Llama & Trader Llama: empty hand ride/tame, wheat/hay feeding, chest/carpet/shears equipping
+    if (isLlama(mob)) {
+      if (!itemId) {
+        return !mob.isBaby;
+      }
+      if (itemId === 'wheat') {
+        return mob.isBaby || mob.health < mob.maxHealth || !mob.isTamed;
+      }
+      if (itemId === 'hay_block') {
+        if (mob.isBaby || mob.health < mob.maxHealth || !mob.isTamed) return true;
+        if (mob.isTamed && (!mob.breedingCooldown || mob.breedingCooldown <= 0) && (!mob.inLove || mob.inLove <= 0)) return true;
+        return false;
+      }
+      if (mob.isTamed) {
+        if (itemId === 'chest' && !mob.hasChest) return true;
+        if (itemName.endsWith('_carpet')) return true;
+        if (itemId === 'shears' && (mob.carpetColor || mob.carpetItem)) return true;
+      }
+      return false;
     }
 
     // Breeding food
@@ -303,6 +360,18 @@ export class AnimalBehaviors {
       }
     }
 
+    // Naming a Sheep with Name Tag (e.g., jeb_ easter egg)
+    if (mob.type === 'sheep' && itemId === 'name_tag') {
+      const item = inventory.getActiveItem();
+      const name = item?.customName || item?.name;
+      if (!name || name === 'Name Tag') return false;
+      mob.name = String(name).slice(0, 64);
+      mob.customName = mob.name;
+      sheepApplyWool(mob);
+      if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+      return true;
+    }
+
     // 4. Wolf: Taming with bones, collar dyeing, sitting toggle
     if (mob.type === 'wolf') {
       if (!mob.isTamed && itemId === 'bone') {
@@ -396,6 +465,254 @@ export class AnimalBehaviors {
       }
     }
 
+    // Bee: golden dandelion locks / unlocks baby bee age
+    if (mob.type === 'bee' && mob.isBaby && (itemId === 'golden_dandelion' || itemName === 'golden_dandelion')) {
+      mob.ageLocked = !mob.ageLocked;
+      if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+      if (this.sounds?.playPop) this.sounds.playPop();
+      if (this.mobManager?.spawnParticleBurst) {
+        this.mobManager.spawnParticleBurst(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xfacc15, 6);
+      }
+      return true;
+    }
+
+    // Bee: feeding hazards (wither rose gives Wither for 2s, open eyeblossom gives Poison for 1.25s)
+    if (mob.type === 'bee' && this.isBreedingFood(mob.type, itemId)) {
+      if (itemId === 'wither_rose' || itemName === 'wither_rose') {
+        if (!mob.statusEffects) mob.statusEffects = {};
+        mob.statusEffects.wither = { seconds: BEE_WITHER_ROSE.seconds, level: 1 };
+        if (mob.applyStatusEffect) mob.applyStatusEffect(BEE_WITHER_ROSE.effect, BEE_WITHER_ROSE.seconds, 1);
+        mob.witherTimer = BEE_WITHER_ROSE.seconds;
+      } else if (itemId === 'open_eyeblossom' || itemName === 'open_eyeblossom') {
+        if (!mob.statusEffects) mob.statusEffects = {};
+        mob.statusEffects.poison = { seconds: BEE_EYEBLOSSOM.seconds, level: 1 };
+        if (mob.applyStatusEffect) mob.applyStatusEffect(BEE_EYEBLOSSOM.effect, BEE_EYEBLOSSOM.seconds, 1);
+        mob.poisonTimer = BEE_EYEBLOSSOM.seconds;
+      }
+    }
+
+    // 7.5. Llama & Trader Llama: wheat/hay feeding, equipping chest/carpet, shears, empty-hand taming/riding
+    if (isLlama(mob) && mob.health > 0) {
+      if (itemId === 'wheat') {
+        let fed = false;
+        if (mob.isBaby) {
+          accelerateBabyGrowth(mob, LLAMA_BABY_FEED_ACCELERATION);
+          mob.health = Math.min(mob.maxHealth, mob.health + LLAMA_FOOD.wheat.heal);
+          fed = true;
+        } else if (mob.health < mob.maxHealth || !mob.isTamed) {
+          mob.health = Math.min(mob.maxHealth, mob.health + LLAMA_FOOD.wheat.heal);
+          mob.temper = Math.min(LLAMA_TEMPER.max, (mob.temper || 0) + LLAMA_FOOD.wheat.temper);
+          fed = true;
+        }
+        if (fed) {
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          if (this.sounds?.playPop) this.sounds.playPop();
+          this.spawnGreenParticles(mob.mesh.position);
+          return true;
+        }
+        return false;
+      }
+
+      if (itemId === 'hay_block') {
+        let fed = false;
+        if (mob.isBaby) {
+          accelerateBabyGrowth(mob, 90 / BABY_GROWTH_SECONDS);
+          mob.health = Math.min(mob.maxHealth, mob.health + LLAMA_FOOD.hay_block.heal);
+          fed = true;
+        } else {
+          if (mob.health < mob.maxHealth || !mob.isTamed) {
+            mob.health = Math.min(mob.maxHealth, mob.health + LLAMA_FOOD.hay_block.heal);
+            mob.temper = Math.min(LLAMA_TEMPER.max, (mob.temper || 0) + LLAMA_FOOD.hay_block.temper);
+            fed = true;
+          }
+          if (mob.isTamed && (!mob.breedingCooldown || mob.breedingCooldown <= 0) && (!mob.inLove || mob.inLove <= 0)) {
+            mob.inLove = 30.0;
+            this.spawnHeartParticles(mob.mesh.position);
+            fed = true;
+          }
+        }
+        if (fed) {
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          if (this.sounds?.playPop) this.sounds.playPop();
+          return true;
+        }
+        return false;
+      }
+
+      if (mob.isTamed && itemId === 'chest' && !mob.hasChest) {
+        equipLlamaChest(mob);
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playPop) this.sounds.playPop();
+        return true;
+      }
+
+      if (mob.isTamed && itemName.endsWith('_carpet')) {
+        equipLlamaCarpet(mob, itemName);
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playPop) this.sounds.playPop();
+        return true;
+      }
+
+      if (mob.isTamed && itemId === 'shears' && (mob.carpetColor || mob.carpetItem)) {
+        const drop = mob.carpetItem || (typeof mob.carpetColor === 'string' ? (mob.carpetColor.endsWith('_carpet') ? mob.carpetColor : `${mob.carpetColor}_carpet`) : 'white_carpet');
+        this.entities?.spawnDroppedItem?.(mob.mesh.position, drop, false, 1);
+        mob.carpetColor = null;
+        mob.carpetItem = null;
+        if (isTraderLlama(mob)) mob.hasTraderCarpet = true;
+        applyLlamaEquipment(mob);
+        if (this.sounds?.playShears) this.sounds.playShears();
+        return true;
+      }
+
+      if (!itemId && !mob.isBaby) {
+        if (!mob.isTamed) {
+          return this.tameLlama(mob, player);
+        } else {
+          this.mount = { mob, type: mob.type };
+          mob.rider = player;
+          player.ridingMob = mob;
+          return true;
+        }
+      }
+    }
+
+    // Camel: saddling, shears, cactus feeding/breeding, golden dandelion, riding
+    if (isCamel(mob)) {
+      if (mob.health <= 0) return false;
+      if (itemId === 'saddle') {
+        if (!equipCamelSaddle(mob, 'saddle')) return false;
+        if (mob.saddle) mob.saddle.visible = true;
+        if (mob.saddleMesh) mob.saddleMesh.visible = true;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playArmorEquip) this.sounds.playArmorEquip();
+        return true;
+      }
+      if (itemId === 'shears') {
+        if (!removeCamelSaddle(mob, 'shears')) return false;
+        if (mob.saddle) mob.saddle.visible = false;
+        if (mob.saddleMesh) mob.saddleMesh.visible = false;
+        this.entities?.spawnDroppedItem?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 'saddle', false, 1);
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
+        }
+        if (this.sounds?.playShears) this.sounds.playShears();
+        return true;
+      }
+      if (itemId === 'cactus') {
+        let fed = false;
+        if (mob.isSitting) camelStand(mob);
+        if (mob.isBaby) {
+          if (!mob.ageLocked) accelerateCamelGrowth(mob, 10);
+          feedCamelCactus(mob);
+          fed = true;
+        } else {
+          if (mob.health < mob.maxHealth) {
+            feedCamelCactus(mob);
+            fed = true;
+          } else if (mob.health === mob.maxHealth && (!mob.breedingCooldown || mob.breedingCooldown <= 0) && (!mob.inLove || mob.inLove <= 0)) {
+            mob.inLove = 30;
+            this.spawnHeartParticles(mob.mesh.position);
+            fed = true;
+          }
+        }
+        if (fed) {
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          if (this.sounds?.playEat) this.sounds.playEat();
+          return true;
+        }
+        return false;
+      }
+      if (itemId === 'golden_dandelion') {
+        if (!mob.isBaby || mob.ageLockCooldown > 0) return false;
+        mob.ageLocked = !mob.ageLocked;
+        mob.ageLockCooldown = 2;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        return true;
+      }
+      if (itemId === 'lead') {
+        if (mob.leashHolder || mob.leashAnchor) {
+          this.entities?.spawnDroppedItem?.(mob.mesh.position, 'lead', false, 1);
+          mob.leashHolder = null;
+          mob.leashAnchor = null;
+          return true;
+        }
+        mob.leashHolder = player;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        return true;
+      }
+      if (itemId === 'name_tag') {
+        const item = inventory.getActiveItem();
+        const name = item?.customName || item?.name;
+        if (!name || name === 'Name Tag') return false;
+        mob.name = String(name).slice(0, 64);
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        return true;
+      }
+      if (!itemId && !mob.isBaby && camelCanSeat(mob)) {
+        if (mob.isSitting) camelStand(mob);
+        this.mountMob(mob, player);
+        return true;
+      }
+      return false;
+    }
+
+    // Undead horse (skeleton horse & zombie horse): saddling, armor (zombie), shears, riding
+    if (isUndeadHorse(mob)) {
+      if (mob.health <= 0) return false;
+      if (itemId === 'saddle') {
+        if (!equipUndeadHorse(mob, 'saddle')) return false;
+        if (mob.saddle) mob.saddle.visible = true;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playArmorEquip) this.sounds.playArmorEquip();
+        return true;
+      }
+      if (isZombieHorse(mob) && itemName.endsWith('_horse_armor')) {
+        if (!equipUndeadHorse(mob, itemName)) return false;
+        if (mob.armorMesh) mob.armorMesh.visible = true;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        if (this.sounds?.playArmorEquip) this.sounds.playArmorEquip();
+        return true;
+      }
+      if (itemId === 'shears') {
+        const removed = shearUndeadHorse(mob, 'shears');
+        if (!removed) return false;
+        if (removed === 'saddle' && mob.saddle) mob.saddle.visible = false;
+        if (removed.endsWith('_horse_armor') && mob.armorMesh) mob.armorMesh.visible = false;
+        this.entities?.spawnDroppedItem?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), removed, false, 1);
+        if (player.gamemode !== 'creative' && activeItem && typeof activeItem.durability === 'number') {
+          activeItem.durability = Math.max(0, activeItem.durability - 1);
+          if (activeItem.durability === 0) inventory.consumeActiveItem(1);
+        }
+        if (this.sounds?.playShears) this.sounds.playShears();
+        return true;
+      }
+      if (itemId === 'lead') {
+        if (mob.leashHolder || mob.leashAnchor) {
+          this.entities?.spawnDroppedItem?.(mob.mesh.position, 'lead', false, 1);
+          mob.leashHolder = null;
+          mob.leashAnchor = null;
+          return true;
+        }
+        mob.leashHolder = player;
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        return true;
+      }
+      if (itemId === 'name_tag') {
+        const item = inventory.getActiveItem();
+        const name = item?.customName || item?.name;
+        if (!name || name === 'Name Tag') return false;
+        mob.name = String(name).slice(0, 64);
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+        return true;
+      }
+      if (!itemId && !mob.isBaby && !mob.rider) {
+        this.mountMob(mob, player);
+        return true;
+      }
+      return false;
+    }
+
     // 8. Animal Breeding (Love mode with food) & Baby growth acceleration
     if (this.isBreedingFood(mob.type, itemId)) {
       if (mob.isBaby) {
@@ -434,6 +751,7 @@ export class AnimalBehaviors {
 
   isBreedingFood(type, itemId) {
     if (!type || !itemId) return false;
+    if (type === 'bee') return isBeeBreedingFood(itemId);
     if (type === 'hoglin' && (itemId === BLOCKS.CRIMSON_FUNGUS || itemId?.id === BLOCKS.CRIMSON_FUNGUS)) return true;
     const cleanId = String(typeof itemId === 'string' ? itemId : itemId?.id || '').toLowerCase().trim();
     const foods = BREEDING_FOODS[type];
@@ -444,27 +762,49 @@ export class AnimalBehaviors {
   }
 
   mountMob(mob, player) {
-    if(mob.rider&&mob.rider!==player)return false;
-    if ((isEquine(mob)||mob.type==='strider') && mob.isBaby) return false;
+    if(mob.rider&&mob.rider!==player && !isCamel(mob))return false;
+    if ((isEquine(mob)||mob.type==='strider'||isCamel(mob)||isUndeadHorse(mob)) && mob.isBaby) return false;
     if(mob.type==='strider'&&(!mob.isSaddled||mob.rider))return false;
-    if(this.mount)this.dismount(player);
+    if(isCamel(mob) && (mob.riderCount || 0) >= 2) return false;
+    if(player?.ridingMob) this.dismount(player);
+    else if(this.mount && !isCamel(mob)) this.dismount(player);
     this.jumpCharge=0;this.isChargingJump=false;
-    this.mount = {
-      mob,
-      type: mob.type,
-      boostTimer: 0,
-      tameAttempts: mob.tameAttempts || 0
-    };
+    if (!this.mount || this.mount.mob !== mob) {
+      this.mount = {
+        mob,
+        type: mob.type,
+        boostTimer: 0,
+        tameAttempts: mob.tameAttempts || 0
+      };
+    }
     player.ridingMob = mob;
-    mob.rider = player;
+    if (!mob.rider) mob.rider = player;
+    else if (!mob.passenger) mob.passenger = player;
+    if (isCamel(mob)) {
+      mob.riderCount = Math.min(2, (mob.riderCount || 0) + 1);
+    }
+    return true;
   }
 
   dismount(player) {
     this.jumpCharge=0;this.isChargingJump=false;
+    const targetMount = player?.ridingMob || this.mount?.mob;
     if(this.mount?.type==='strider'&&player)safeStriderDismount(this,this.mount.mob,player);
-    if(this.mount?.mob)this.mount.mob.jumpCharge=0;
-    if (this.mount) {
-      if (this.mount.mob) this.mount.mob.rider = null;
+    if(targetMount) {
+      targetMount.jumpCharge=0;
+      if (isCamel(targetMount)) {
+        targetMount.riderCount = Math.max(0, (targetMount.riderCount || 1) - 1);
+      }
+      if (targetMount.passenger === player) {
+        targetMount.passenger = null;
+      } else if (targetMount.rider === player) {
+        targetMount.rider = targetMount.passenger || null;
+        targetMount.passenger = null;
+      }
+      if (targetMount.riderCount === 0 || (!targetMount.rider && !targetMount.passenger)) {
+        if (this.mount?.mob === targetMount) this.mount = null;
+      }
+    } else if (this.mount) {
       this.mount = null;
     }
     if (player) player.ridingMob = null;
@@ -640,11 +980,15 @@ export class AnimalBehaviors {
         }
       }
 
-      // 4. Sheep Grazing to Regrow Wool
+      // 4. Sheep Grazing to Regrow Wool & jeb_ rainbow wool animation
       if (mob.type === 'sheep') {
+        if (isJebSheep(mob)) {
+          mob.jebTime = (mob.jebTime || 0) + dt;
+          sheepApplyWool(mob);
+        }
         mob.grazeTimer = (mob.grazeTimer !== undefined ? mob.grazeTimer : (mob.eatGrassTimer !== undefined ? mob.eatGrassTimer : (15 + Math.random() * 25))) - dt;
         if (mob.grazeTimer <= 0) {
-          mob.grazeTimer = 20 + Math.random() * 30;
+          mob.grazeTimer = mob.isBaby ? (10 + Math.random() * 15) : (20 + Math.random() * 30);
           const bx = Math.round(mob.mesh.position.x);
           const by = Math.round(mob.mesh.position.y) - 1;
           const bz = Math.round(mob.mesh.position.z);
@@ -655,6 +999,10 @@ export class AnimalBehaviors {
             // Regrowing the wool restores the sheep's retained colour, so a dyed sheep
             // is still that colour after it is sheared and regrows.
             sheepApplyWool(mob);
+            // Wiki: eating grass accelerates a baby sheep's growth by 10% (60 seconds)
+            if (mob.isBaby && !mob.ageLocked) {
+              mob.babyGrowthTimer = Math.max(0, (mob.babyGrowthTimer ?? 1200) - 60);
+            }
             if (this.sounds?.playStep) this.sounds.playStep('grass');
           }
         }
@@ -767,12 +1115,38 @@ export class AnimalBehaviors {
       }
     }
 
-    if(isEquine(type)) {
-      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount || this.world?.getVoxel(mob.mesh.position.x,mob.mesh.position.y+(isPackEquine(mob)?this.mobManager.getMobDimensions(type).height+.1:1.4),mob.mesh.position.z)===BLOCKS.WATER){this.dismount(player);return;}
-      if(!mob.isTamed || !mob.isSaddled){mob.velocity.x=mob.velocity.z=0;this.jumpCharge=0;this.isChargingJump=false;mob.jumpCharge=0;return;}
+    if(isEquine(type) || isUndeadHorse(type)) {
+      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount) {
+        this.dismount(player);
+        return;
+      }
+      // Water dismount: Skeleton horse CAN be ridden underwater!
+      if(!isSkeletonHorse(type) && this.world?.getVoxel(mob.mesh.position.x,mob.mesh.position.y+(isPackEquine(mob)?this.mobManager.getMobDimensions(type).height+.1:1.4),mob.mesh.position.z)===BLOCKS.WATER){
+        this.dismount(player);
+        return;
+      }
+      if((isEquine(type) && !mob.isTamed) || (!mob.isSaddled && !mob.hasSaddle)){
+        mob.velocity.x=mob.velocity.z=0;
+        this.jumpCharge=0;
+        this.isChargingJump=false;
+        mob.jumpCharge=0;
+        return;
+      }
     }
+
+    if(isCamel(type)) {
+      if(player.keys?.ShiftLeft || player.keys?.ShiftRight || controls.dismount) {
+        this.dismount(player);
+        return;
+      }
+      if(!mob.hasSaddle) {
+        mob.velocity.x=mob.velocity.z=0;
+        return;
+      }
+    }
+
     // Camera sync: Player position sits on top of mob
-    const mountOffset = isPackEquine(mob) ? 1.4*mob.rig.scale.y : isEquine(type) ? 1.4 : 0.8;
+    const mountOffset = isCamel(type) ? 2.1 : (isPackEquine(mob) ? 1.4*mob.rig.scale.y : (isEquine(type) || isUndeadHorse(type)) ? 1.4 : 0.8);
     player.position.copy(mob.mesh.position).add(new THREE.Vector3(0, mountOffset, 0));
 
     // Direction from camera
@@ -792,9 +1166,17 @@ export class AnimalBehaviors {
     if (movement.right) { moveX += rightDir.x; moveZ += rightDir.z; }
 
     const inputLen = Math.hypot(moveX, moveZ);
-    let speed = (isEquine(type) ? (mob.movementSpeed ?? .175)*43.17 : 3.5);
+    let speed = 3.5;
+    if (isCamel(type)) {
+      speed = (movement.sprint || controls.sprint) ? CAMEL_SPEED.sprint : CAMEL_SPEED.walk;
+      mob.stepHeight = 1.5;
+      mob.isSitting = false;
+    } else if (isEquine(type) || isUndeadHorse(type)) {
+      speed = (mob.movementSpeed ?? (isUndeadHorse(type) ? 0.2 : 0.175)) * 43.17;
+      if (movement.backward) speed *= .25;
+      else if (!movement.forward && (movement.left || movement.right)) speed *= .5;
+    }
 
-    if(isEquine(type)){if(movement.backward)speed*=.25;else if(!movement.forward&&(movement.left||movement.right))speed*=.5;}
     // Boost timer for carrot / fungus on stick
     if (this.mount.boostTimer > 0) {
       this.mount.boostTimer -= dt;
@@ -804,7 +1186,7 @@ export class AnimalBehaviors {
     if (inputLen > 0.01) {
       moveX = (moveX / inputLen) * speed;
       moveZ = (moveZ / inputLen) * speed;
-      mob.yaw = isEquine(type) ? Math.atan2(lookDir.x,lookDir.z) : Math.atan2(moveX, moveZ);
+      mob.yaw = (isEquine(type) || isUndeadHorse(type) || isCamel(type)) ? Math.atan2(lookDir.x,lookDir.z) : Math.atan2(moveX, moveZ);
       mob.mesh.rotation.y = mob.yaw;
     } else {
       moveX = 0;
@@ -815,8 +1197,8 @@ export class AnimalBehaviors {
     mob.velocity.x = moveX;
     mob.velocity.z = moveZ;
 
-    // Jump charging for equines
-    if (isEquine(type)) {
+    // Jump charging for equines & undead horses
+    if (isEquine(type) || isUndeadHorse(type)) {
       if (movement.jump || movement.space) {
         this.isChargingJump = true;
         this.jumpCharge = Math.min(1.0, this.jumpCharge + dt * 1.5);
@@ -827,6 +1209,24 @@ export class AnimalBehaviors {
           const jumpPower = Math.sqrt(2*(mob.gravity ?? 24)*horseJumpHeight(mob.jumpStrength ?? .5))*(.4+.6*this.jumpCharge);
           mob.velocity.y = jumpPower;mob.onGround=false;
           if(isPackEquine(mob))this.sounds?.playDonkey?.('jump',mob.isBaby);else this.sounds?.playHorse?.();
+        }
+        this.isChargingJump = false;
+        this.jumpCharge = 0;
+        mob.jumpCharge = 0;
+      }
+    } else if (isCamel(type)) {
+      if (movement.jump || movement.space) {
+        this.isChargingJump = true;
+        this.jumpCharge = Math.min(1.0, this.jumpCharge + dt * 1.5);
+        mob.jumpCharge = this.jumpCharge;
+      } else if (this.isChargingJump) {
+        if (mob.onGround && (mob.dashCooldown || 0) <= 0) {
+          const dashVel = camelDash(mob, { charged: this.jumpCharge >= 0.5 });
+          if (dashVel) {
+            mob.velocity.copy(dashVel);
+            mob.onGround = false;
+            mob.isDashing = true;
+          }
         }
         this.isChargingJump = false;
         this.jumpCharge = 0;
@@ -890,6 +1290,7 @@ export class AnimalBehaviors {
       const coats = [parentA.coat, parentB.coat].filter(c => c !== undefined && c !== null && c !== 'killer');
       if (coats.length) {
         baby.coat = coats[Math.floor(random() * coats.length)];
+        applyRabbitCoat(baby);
         return 'rabbitCoat';
       }
       // Neither parent carried an inheritable coat -- both were killers and the roll failed, or the coat
@@ -977,6 +1378,23 @@ export class AnimalBehaviors {
       return null;
     }
 
+    if (baby.type === 'bee') {
+      baby.width = 0.275;
+      baby.height = 0.25;
+      return 'beeTraits';
+    }
+
+    if (baby.type === 'llama') {
+      baby.variant = inheritLlamaVariant(parentA.variant, parentB.variant, random);
+      baby.strength = inheritLlamaStrength(parentA.strength, parentB.strength, random);
+      baby.health = llamaHealthFor(baby.strength);
+      baby.maxHealth = baby.health;
+      baby.chestSlots = llamaSlotsFor(baby.strength);
+      baby.chestInventory = new Array(baby.chestSlots).fill(null);
+      applyLlamaCoat(baby);
+      return 'llamaTraits';
+    }
+
     return null;
   }
 
@@ -986,11 +1404,11 @@ export class AnimalBehaviors {
     // within a 7x7x3 area", and otherwise shake their heads and do not breed. This is checked
     // before anything else, so two pandas full of bamboo in a stone room never produce a cub.
     if (mob.type === 'panda' && mob.inLove > 0 && !pandaCanBreed(this.mobManager, mob)) return;
-    if(mob.isBaby || mob.health<=0 || mob.breedingCooldown>0 || (isEquine(mob)&&(!mob.isTamed||mob.type==='mule')))return;
+    if(mob.isBaby || mob.health<=0 || mob.breedingCooldown>0 || (isEquine(mob)&&(!mob.isTamed||mob.type==='mule')) || (isLlama(mob)&&!mob.isTamed))return;
     const mobs = this.mobManager.mobs;
     for (let i = 0; i < mobs.length; i++) {
       const other = mobs[i];
-      if (other !== mob && other.health>0 && (other.type === mob.type || (isEquine(mob)&&isEquine(other)&&other.type!=='mule')) && (!isEquine(other)||other.isTamed) && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
+      if (other !== mob && other.health>0 && (other.type === mob.type || (isEquine(mob)&&isEquine(other)&&other.type!=='mule')) && (!isEquine(other)||other.isTamed) && (!isLlama(other)||other.isTamed) && other.inLove > 0 && !other.isBaby && (!other.breedingCooldown || other.breedingCooldown <= 0)) {
         const dist = mob.mesh.position.distanceTo(other.mesh.position);
         // Scale with the bodies: a horse is 1.4 wide, so a flat 1.2 threshold was below the
         // distance two horses can physically reach and they could never mate.
@@ -1077,7 +1495,10 @@ export class AnimalBehaviors {
           this.spawnHeartParticles(babyPos);
           break;
         }
-        const baby = this.mobManager.spawnMob(isEquine(mob)&&mob.type!==other.type?'mule':mob.type, babyPos.x, babyPos.y, babyPos.z);
+        const babyType = (mob.type === 'trader_llama' && other.type === 'trader_llama')
+          ? 'llama'
+          : (isEquine(mob) && mob.type !== other.type ? 'mule' : mob.type);
+        const baby = this.mobManager.spawnMob(babyType, babyPos.x, babyPos.y, babyPos.z);
             if (baby) {
               baby.isBaby = true;
               if(isEquine(mob))inheritHorse(baby,mob,other,this.mobManager);
@@ -1126,5 +1547,28 @@ export class AnimalBehaviors {
     if (this.mobManager?.spawnParticleBurst) {
       this.mobManager.spawnParticleBurst(pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x64748b, 8);
     }
+  }
+
+  spawnGreenParticles(pos) {
+    if (this.mobManager?.spawnParticleBurst) {
+      this.mobManager.spawnParticleBurst(pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x22c55e, 8);
+    }
+  }
+
+  tameLlama(mob, player) {
+    const randomRoll = Math.floor(Math.random() * 100);
+    if ((mob.temper || 0) > randomRoll) {
+      mob.isTamed = true;
+      mob.owner = player;
+      this.spawnHeartParticles(mob.mesh.position);
+      if (this.sounds?.playPop) this.sounds.playPop();
+    } else {
+      mob.temper = Math.min(LLAMA_TEMPER.max, (mob.temper || 0) + LLAMA_TEMPER.perAttempt);
+      this.spawnSmokeParticles(mob.mesh.position);
+      if (player?.position) {
+        player.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.4, (Math.random() - 0.5) * 0.8));
+      }
+    }
+    return true;
   }
 }

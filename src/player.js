@@ -102,10 +102,6 @@ export class Player {
     // Input state
     this.keys = {};
     this.lastSpacePress = 0;
-    // Double-tapping the forward key is vanilla's secondary sprint binding; this holds it until the key is
-    // released or the player sneaks.
-    this.lastForwardPress = 0;
-    this.sprintKeyToggled = false;
     this.stepDistance = 0;
     this.controlsDisabled = false;
 
@@ -206,16 +202,6 @@ export class Player {
         this.lastSpacePress = now;
       }
 
-      // Double tap W to sprint, as vanilla's secondary sprint binding does.
-      if (e.code === 'KeyW' && !e.repeat) {
-        const now = performance.now();
-        if (now - this.lastForwardPress < 280) this.sprintKeyToggled = true;
-        this.lastForwardPress = now;
-      }
-
-      // Sneaking or carrying a shield cancels either kind of sprint.
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.sprintKeyToggled = false;
-
       // F5: Toggle perspective
       if (e.code === 'F5') {
         e.preventDefault();
@@ -256,8 +242,6 @@ export class Player {
         return;
       }
       this.keys[e.code] = false;
-      // Releasing the forward key ends a sprint started by double-tapping it.
-      if (e.code === 'KeyW') this.sprintKeyToggled = false;
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -513,11 +497,7 @@ export class Player {
 
     // Determine current speed mode
     this.isSneaking = !controlsDisabled && !!this.keys['ShiftLeft'];
-    // Either Control or a double-tapped forward key sprints, and vanilla refuses a sprint at or below six
-    // hunger points, which is what makes a sprint cost something.
-    const wantsSprint = !!this.keys['ControlLeft'] || this.sprintKeyToggled;
-    const canSprint = this.gamemode === 'creative' || typeof this.hunger !== 'number' || this.hunger > 6;
-    this.isSprinting = !controlsDisabled && wantsSprint && canSprint && !this.isSneaking && !this.isBlocking;
+    this.isSprinting = !controlsDisabled && !!this.keys['ControlLeft'] && !this.isSneaking && !this.isBlocking;
 
     // A mounted player is driven by AnimalBehaviors. Running normal player
     // gravity/collision here as well made the rider fight the mount every

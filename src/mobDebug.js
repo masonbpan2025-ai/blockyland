@@ -8,6 +8,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createMobDebugSession, DEBUG_MOBS } from './mobDebugSession.js';
 import { BLOCKS } from './blocks.js';
 import { MobShowcase, mobScenarios } from './mobShowcase.js';
+import { flushPendingSkinBindings } from './mobVisuals/modelBuilder.js';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#233044');
 const camera=new THREE.PerspectiveCamera(42,1,.05,200);camera.position.set(3,2.5,6);
@@ -23,6 +24,29 @@ const fluidMesh=new THREE.Mesh(new THREE.BoxGeometry(16,3,16),new THREE.MeshBasi
 const events=[];
 function log(message){events.unshift(message);events.length=Math.min(30,events.length);$('events').textContent=events.join('\n');$('events').style.whiteSpace='pre-wrap';}
 const session=createMobDebugSession(scene,log);
+window.__debugSession = session;
+window.__mobInspectDump = () => {
+  const mob = session.mob;
+  if (!mob?.mesh) return { error: 'no mob mesh' };
+  function dump(obj) {
+    return {
+      name: obj.name,
+      type: obj.type,
+      visible: obj.visible,
+      pos: [obj.position.x, obj.position.y, obj.position.z],
+      mat: obj.material ? {
+        color: obj.material.color?.getHexString(),
+        map: !!obj.material.map,
+        imageWidth: obj.material.map?.image?.width,
+        transparent: obj.material.transparent,
+        opacity: obj.material.opacity,
+        alphaTest: obj.material.alphaTest
+      } : null,
+      children: (obj.children || []).map(dump)
+    };
+  }
+  return dump(mob.mesh);
+};
 
 // --- Showcase: run every behavioural scenario built for the selected mob -------------
 let showcase=null;
@@ -118,7 +142,9 @@ function front(){
 }
 const angleView=document.createElement('button');angleView.textContent='3/4 view';$('front').after(angleView);
 angleView.onclick=()=>{const h=session.mob?.height||session.manager.getMobDimensions(selected).height;fitCamera(new THREE.Vector3(1,Math.min(0.5,h*0.22),1.25));};
-function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';session.reset(selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',`?mob=${selected}`);updateReadout();}
+const topView=document.createElement('button');topView.textContent='Top view';angleView.after(topView);
+topView.onclick=()=>{fitCamera(new THREE.Vector3(0.01,2.5,0.4));};
+function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';const coatParam=new URLSearchParams(location.search).get('coat');session.reset(coatParam?{type:selected,coat:coatParam}:selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',coatParam?`?mob=${selected}&coat=${coatParam}`:`?mob=${selected}`);updateReadout();}
 function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
 $('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;
 $('showcase').onclick=runShowcase;$('showcase-stop').onclick=()=>stopShowcase(true);
@@ -138,7 +164,7 @@ installSquidInspector(session,log);
 installWitherSkeletonInspector(session,log);
 installZombifiedInspector(session,log);
 installStriderInspector(session,log);
-renderer.setAnimationLoop(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){if(showcase?.running)tickShowcase();else if(!paused)tick();accumulator-=1/60;}}else accumulator=0;dummy.position.copy(session.player.position).y+=.9;dummy.visible=session.player.gamemode==='survival';fluidMesh.visible=session.world.fluid!==BLOCKS.AIR;fluidMesh.material.color.set(session.world.fluid===BLOCKS.LAVA?0xff7700:session.world.fluid===BLOCKS.POWDER_SNOW?0xe9efff:0x2786cb);syncArena();if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
+renderer.setAnimationLoop(now=>{flushPendingSkinBindings();const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){if(showcase?.running)tickShowcase();else if(!paused)tick();accumulator-=1/60;}}else accumulator=0;dummy.position.copy(session.player.position).y+=.9;dummy.visible=session.player.gamemode==='survival';fluidMesh.visible=session.world.fluid!==BLOCKS.AIR;fluidMesh.material.color.set(session.world.fluid===BLOCKS.LAVA?0xff7700:session.world.fluid===BLOCKS.POWDER_SNOW?0xe9efff:0x2786cb);syncArena();if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
 
 const arenaBlocks=new THREE.Group();scene.add(arenaBlocks);
 const arenaGeometry=new THREE.BoxGeometry(1,1,1),arenaMaterial=new THREE.MeshLambertMaterial({color:0x65738a});let arenaSignature='';
