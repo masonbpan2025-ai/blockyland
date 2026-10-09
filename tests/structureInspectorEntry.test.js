@@ -21,24 +21,27 @@ const panelsUiJs = read('src/structureInspectorPanelsUi.js');
 
 // --- the start-screen button -------------------------------------------------
 
-test('the start screen offers a Structure Inspector button', () => {
-  assert.match(html, /id="btn-start-structure-inspector"/, 'the button exists');
-  assert.match(html, />\s*Structure Inspector\s*</, 'and is labelled Structure Inspector');
+test('the start screen reaches the Structure Inspector through the picker', () => {
+  // The four Inspector buttons are one button and a picker now; Structure is one of its four choices.
+  assert.match(html, /id="btn-start-inspector"/, 'the single Inspector button exists');
+  assert.match(html, /id="btn-pick-inspector-structure"/, 'the picker offers a Structure choice');
+  assert.match(html, />\s*Structure\s*</, 'labelled Structure');
+  assert.doesNotMatch(html, /id="btn-start-structure-inspector"/, 'the old Structure Inspector button is gone');
 });
 
 test('adding it left the other start-screen entries alone', () => {
-  for (const id of ['btn-start-mob-inspector', 'btn-start-resource-inspector', 'btn-start-structure-studio', 'btn-start-new-world']) {
+  for (const id of ['btn-start-inspector', 'btn-start-structure-studio', 'btn-start-new-world']) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} must survive`);
   }
   assert.ok(existsSync(join(process.cwd(), 'structure-inspector.html')), 'the page exists');
 });
 
-test('clicking the button leads to the Structure Inspector page', () => {
+test('choosing Structure leads to the Structure Inspector page', () => {
   // Pinned to the WIRING, not to the idiom. This used to require getElementById plus
   // btnStructureInspector.addEventListener, and it failed the moment the start screen was refactored
   // onto a bind(id, handler) helper -- a correct refactor breaking a test that tested its spelling.
-  assert.match(mainJs, /btn-start-structure-inspector/, 'the button is bound by its id');
-  assert.match(mainJs, /this\.openStructureInspector\(\)/, 'and it opens the Inspector');
+  assert.match(mainJs, /getElementById\('btn-pick-inspector-structure'\)/, 'the choice is looked up');
+  assert.match(mainJs, /return this\.openStructureInspector\(\)/, 'and it opens the Inspector');
   assert.match(mainJs, /openStructureInspector\(/, 'the method exists');
 });
 

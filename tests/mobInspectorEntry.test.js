@@ -16,9 +16,14 @@ const inspectorJs = read('src/mobDebug.js');
 
 // --- the start-screen button -------------------------------------------------
 
-test('the start screen offers a Mob Inspector button and no Mob Studio button', () => {
-  assert.match(html, /id="btn-start-mob-inspector"/, 'the Inspector button exists');
-  assert.match(html, />\s*Mob Inspector\s*</, 'and is labelled Mob Inspector');
+test('the start screen offers one Inspector button, and no Mob Studio button', () => {
+  // The four Inspector buttons became one button and a picker: Structure, Item, Block and Mob. The picker's
+  // Mob choice is what this entry point is now, so that is what is pinned here.
+  assert.match(html, /id="btn-start-inspector"/, 'the single Inspector button exists');
+  assert.match(html, />\s*Inspector\s*</, 'and is labelled Inspector');
+  assert.match(html, /id="btn-pick-inspector-mob"/, 'the picker offers a Mob choice');
+  assert.match(html, />\s*Mob\s*</, 'labelled Mob');
+  assert.doesNotMatch(html, /id="btn-start-mob-inspector"/, 'the old Mob Inspector button is gone');
   assert.doesNotMatch(html, /id="btn-start-mob-studio"/, 'the old Studio button is gone');
   assert.doesNotMatch(html, />\s*Mob Studio\s*</, 'and so is its label');
 });
@@ -30,10 +35,14 @@ test('the Structure Studio button is left alone', () => {
 });
 
 test('clicking the button leads to the Inspector page', () => {
-  // The handler must be wired and must call the navigation method.
-  assert.match(mainJs, /getElementById\('btn-start-mob-inspector'\)/, 'the button is looked up');
-  assert.match(mainJs, /btnMobInspector\.addEventListener\('click'/, 'a click handler is bound');
-  assert.match(mainJs, /this\.openMobInspector\(\)/, 'and it opens the Inspector');
+  // The handler must be wired and must call the navigation method, through the picker.
+  assert.match(mainJs, /getElementById\('btn-start-inspector'\)/, 'the button is looked up');
+  assert.match(mainJs, /btnInspector\.addEventListener\('click'/, 'a click handler is bound');
+  assert.match(mainJs, /this\.openInspectorPicker\(\)/, 'and it opens the picker');
+  assert.match(mainJs, /openInspectorPicker\(\) \{/, 'the picker method exists');
+  assert.match(mainJs, /getElementById\('btn-pick-inspector-mob'\)/, 'the Mob choice is looked up');
+  assert.match(mainJs, /this\.openInspector\('mob'\)/, 'and its click opens the Inspector picker path');
+  assert.match(mainJs, /return this\.openMobInspector\(\)/, 'which opens the Mob Inspector');
   assert.match(mainJs, /openMobInspector\(\) \{/, 'the method exists');
 });
 

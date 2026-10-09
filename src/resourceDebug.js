@@ -23,6 +23,15 @@ import { RESOURCE_CHECKS, ResourceShowcase, buildVanillaIndex } from './resource
 
 const $ = (id) => document.getElementById(id);
 
+// The query string is read once, at load. The start screen's Inspector picker deep-links here with
+// `?kind=item` or `?kind=block` so its two choices land on different lists, and with `?resource=<key>` for
+// the one the player was examining. Reading it per fill would fight the Kind selector, which calls the same
+// function on change.
+const PAGE_PARAMS = new URLSearchParams(location.search);
+const PAGE_RESOURCE = PAGE_PARAMS.get('resource');
+const PAGE_KIND = PAGE_PARAMS.get('kind');
+let pageKindApplied = false;
+
 // --- scene ------------------------------------------------------------------
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#233044');
@@ -208,6 +217,11 @@ function selectResource(entry) {
 }
 
 function fillList() {
+  // Applied once, so the selector stays in the driver's hands afterwards.
+  if (!pageKindApplied) {
+    pageKindApplied = true;
+    if (PAGE_KIND === 'item' || PAGE_KIND === 'block') $('kind').value = PAGE_KIND;
+  }
   const kind = $('kind').value || null;
   const rows = searchResources($('search').value, { kind, limit: 400, reg: registry });
   const select = $('resource');
@@ -218,7 +232,7 @@ function fillList() {
     return option;
   }));
   $('count').textContent = `· ${rows.length}`;
-  const wanted = new URLSearchParams(location.search).get('resource');
+  const wanted = PAGE_RESOURCE;
   const match = rows.find((entry) => entry.key === wanted) ?? rows.find((entry) => entry.key === selected?.key) ?? rows[0];
   if (match) {
     select.value = match.key;

@@ -14,9 +14,14 @@ const START_BUTTONS = [
   'btn-start-designed-world',
   'btn-start-load-world',
   'btn-start-structure-studio',
-  'btn-start-mob-inspector',
-  'btn-start-resource-inspector',
-  'btn-start-structure-inspector',
+  // The four Inspector buttons are one button and a picker now, so the picker's own controls are bound here
+  // too: they are on the start screen and they must be live from the first frame, like the rest.
+  'btn-start-inspector',
+  'btn-close-inspector-picker',
+  'btn-pick-inspector-structure',
+  'btn-pick-inspector-item',
+  'btn-pick-inspector-block',
+  'btn-pick-inspector-mob',
 ];
 
 function bindStartScreenBody() {
