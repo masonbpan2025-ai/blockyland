@@ -100,6 +100,7 @@ import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { BeaconManager } from './beaconManager.js';
 import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
+import { COMMANDS, parseGive, giveItems, giveMessage } from './commands.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
 import { DeepDarkWardenManager } from './deepDarkWarden.js';
@@ -3629,16 +3630,15 @@ class Game {
       this.ui.addChatMessage('/show_mobs - What mobs exist, what the spawner is doing, and why you may see none (Creative)','help');
       this.ui.addChatMessage('Available Commands:', 'help');
       this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
-      this.ui.addChatMessage('/save [name] - Save map to local computer default path', 'help');
-      this.ui.addChatMessage('/load <name> - Load map from local computer', 'help');
-      this.ui.addChatMessage('/maps - Open World Map Manager GUI', 'help');
-      this.ui.addChatMessage('/weather <clear|rain|thunder> - Change weather', 'help');
-      this.ui.addChatMessage('/gamemode <creative|survival> - Switch game mode', 'help');
-      this.ui.addChatMessage('/time set <day|night> - Change world time', 'help');
-      this.ui.addChatMessage('/summon <villager|iron_golem|pillager|zombie|pig|cow|sheep|creeper|skeleton> - Spawn mob', 'help');
-      this.ui.addChatMessage('/give <item_name> [amount] - Add items to inventory', 'help');
-      this.ui.addChatMessage('/offline - Toggle the World Agent between API and offline presets', 'help');
-      this.ui.addChatMessage('/clear - Clear chat', 'help');
+      // Rendered from the command table in `commands.js` so the help text and the parser cannot
+      // disagree about a command's name or its arguments. The four blurbed above are skipped, since
+      // their explanations are longer than the table's `help` field.
+      const blurbed = new Set(['redstone', 'locate', 'show_mobs']);
+      for (const command of COMMANDS) {
+        if (blurbed.has(command.name)) continue;
+        const args = command.args ? ` ${command.args}` : '';
+        this.ui.addChatMessage(`/${command.name}${args} - ${command.help}`, 'help');
+      }
     } else if (root === '/offline') {
       const agent = this.geminiAgent;
       const nowOffline = !agent.offlineMode;
@@ -3782,28 +3782,32 @@ class Game {
         this.ui.addChatMessage('Unknown mob. Try: villager, tournament_host, enderman, iron_golem, pillager, zombie, pig, cow, sheep, chicken, salmon, cod, dolphin, squid, glow_squid, guardian, elder_guardian, drowned, polar_bear, axolotl', 'error');
       }
     } else if (root === '/give') {
-      const itName = parts[1] ? parts[1].toLowerCase() : '';
-      const count = parts[2] ? parseInt(parts[2]) : 64;
-
-      // Check if it's a block
-      let foundBlock = null;
-      for (const b in BLOCKS) {
-        if (b.toLowerCase() === itName) {
-          foundBlock = BLOCKS[b];
-          break;
-        }
-      }
-
-      if (foundBlock !== null) {
-        this.inventory.addItem(foundBlock, true, count);
-        this.ui.updateHotbar();
-        this.ui.addChatMessage(`Gave ${count} [${itName}] to Player`, 'system');
-      } else if (ITEMS[itName]) {
-        this.inventory.addItem(itName, false, count);
-        this.ui.updateHotbar();
-        this.ui.addChatMessage(`Gave ${count} [${itName}] to Player`, 'system');
+      // Vanilla's syntax is `/give <targets> <item> [<count>]`, and the count defaults to 1. This read
+      // `/give <item> [count]` and defaulted to 64, so the documented `/give @p diamond_sword` failed
+      // on `@p` as an item name and asking for one sword gave a stack of sixty-four.
+      const parsed = parseGive(parts.slice(1));
+      if (!parsed.ok) {
+        this.ui.addChatMessage(parsed.reason, 'error');
+        this.ui.addChatMessage(parsed.usage, 'error');
       } else {
-        this.ui.addChatMessage(`Unknown item '${itName}'`, 'error');
+        const { item, count, target } = parsed;
+        const p = this.player.position;
+        const result = giveItems({
+          inventory: this.inventory,
+          // "summons the rest items as an item entity dropped by the player" -- at the player, since
+          // that is where a dropped item they can pick straight back up belongs.
+          drop: (id, isBlock, n) => this.entities.spawnDroppedItem(
+            new THREE.Vector3(p.x, p.y + 1, p.z), id, isBlock, n),
+          gamemode: this.player.gamemode,
+          item,
+          count,
+        });
+        this.ui.updateHotbar();
+        this.ui.addChatMessage(giveMessage(item.display, result.given, target), 'system');
+        if (result.dropped > 0) {
+          this.ui.addChatMessage(
+            `Inventory full: ${result.dropped} dropped on the ground.`, 'system');
+        }
       }
     } else if (root === '/clear') {
       document.getElementById('chat-messages').innerHTML = '';
