@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, '..');
+const root = path.resolve(here, '../..');
 const outDir = path.join(root, '.cache', 'wiki');
 fs.mkdirSync(outDir, { recursive: true });
 
