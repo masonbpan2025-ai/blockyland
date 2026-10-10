@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { ITEMS } from '../src/blocks.js';
 import { EXTRA_ITEMS } from '../src/extraItems.js';
 import { describeTool, NON_MINING_TOOLS } from '../src/miningRules.js';
-import { ENCHANTMENT_REGISTRY, getItemEnchantCategory, isEnchantableItem, generateEnchantmentOffers, NOT_ENCHANTABLE } from '../src/enchanting.js';
+import { ENCHANTMENT_REGISTRY, getItemEnchantCategory, isEnchantableItem, isPrimaryFor, generateEnchantmentOffers, NOT_ENCHANTABLE } from '../src/enchanting.js';
 import { registry } from '../src/resourceRegistry.js';
 import { RESOURCE_CHECKS, CHECK_SKIP } from '../src/resourceShowcase.js';
 
@@ -70,9 +70,10 @@ test('the items vanilla enchants are enchantable now, with the pool this game ha
   // particular draw contains Sharpness is a coin toss -- which is exactly how this test failed intermittently
   // before it was written this way.
   const categoryOf = (id) => getItemEnchantCategory(id);
-  const targetsOf = (enchantment) => ENCHANTMENT_REGISTRY[enchantment].targets;
-  const offeredTo = (enchantment, item) => targetsOf(enchantment).includes('all')
-    || targetsOf(enchantment).includes(categoryOf(item));
+  // `isPrimaryFor` is the one place the registry's item tokens (`sword`, `pickaxe`, `helmet`) and this
+  // game's coarser categories (`weapon`, `tool`) are related, so asking it is what keeps this test from
+  // restating that mapping a second time.
+  const offeredTo = (enchantment, item) => isPrimaryFor(ENCHANTMENT_REGISTRY[enchantment], item);
 
   for (const [id, category] of [['trident', 'trident'], ['shield', 'shield'], ['shears', 'shears'],
     ['fishing_rod', 'fishing_rod'], ['brush', 'brush'],
@@ -87,14 +88,26 @@ test('the items vanilla enchants are enchantable now, with the pool this game ha
   // A sword is a weapon and can be offered Sharpness; a trident has its own category and cannot.
   assert.ok(offeredTo('sharpness', 'diamond_sword'), 'a sword takes Sharpness');
   assert.equal(offeredTo('sharpness', 'trident'), false, 'a trident takes no Sharpness in vanilla');
-  // The trident's own pool is not modelled here -- vanilla's Loyalty, Impaling, Riptide and Channeling do not
-  // exist in this game's registry -- so a trident is offered Unbreaking and the weapon-agnostic pool only.
-  // That is a real remaining gap and it is recorded rather than hidden behind a category that pretends
-  // otherwise.
-  assert.equal(ENCHANTMENT_REGISTRY.loyalty, undefined, 'Loyalty is still not modelled');
+  // The trident's own pool is modelled now: Loyalty, Impaling, Riptide and Channeling are all in the
+  // registry and all name the trident, which is the only item that takes them.
+  for (const enchantment of ['loyalty', 'impaling', 'riptide', 'channeling']) {
+    assert.equal(ENCHANTMENT_REGISTRY[enchantment]?.targets.join(','), 'trident', `${enchantment} is the trident's`);
+    assert.ok(offeredTo(enchantment, 'trident'), `a trident takes ${enchantment}`);
+    assert.equal(offeredTo(enchantment, 'diamond_sword'), false, `a sword does not take ${enchantment}`);
+    assert.equal(offeredTo(enchantment, 'diamond_axe'), false, `an axe does not take ${enchantment}`);
+  }
   // Shears mine leaves, wool and cobwebs, and vanilla gives them Efficiency.
   assert.ok(offeredTo('efficiency', 'shears'), 'shears take Efficiency');
   assert.equal(offeredTo('efficiency', 'brush'), false, 'a brush does not');
+  // The fishing rod's two are its own, and the crossbow's three are its own.
+  for (const enchantment of ['luck_of_the_sea', 'lure']) {
+    assert.ok(offeredTo(enchantment, 'fishing_rod'), `a fishing rod takes ${enchantment}`);
+    assert.equal(offeredTo(enchantment, 'bow'), false, `a bow does not take ${enchantment}`);
+  }
+  for (const enchantment of ['quick_charge', 'multishot', 'piercing']) {
+    assert.ok(offeredTo(enchantment, 'crossbow'), `a crossbow takes ${enchantment}`);
+    assert.equal(offeredTo(enchantment, 'bow'), false, `a bow does not take ${enchantment}`);
+  }
 });
 
 test('the items vanilla refuses are still refused', () => {

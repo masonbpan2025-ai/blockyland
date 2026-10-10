@@ -1,7 +1,7 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier } from './statusEffects.js';
-import { thornsReflect, depthStriderMultiplier } from './enchantmentEffects.js';
+import { thornsReflect, depthStriderMultiplier, protectionPoints } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
@@ -57,6 +57,7 @@ export class Player {
     this.gamemode = normaliseSettings(settings).gameMode;
     this.difficulty = normaliseSettings(settings).difficulty;
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
+    this.botControls = null;
 
     // Stats
     //
@@ -170,7 +171,14 @@ export class Player {
     if (typeof document !== 'undefined') {
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-        return true;
+        const isHidden = !activeEl.isConnected ||
+          activeEl.offsetParent === null ||
+          activeEl.closest?.('.hidden') ||
+          activeEl.closest?.('[style*="display: none"]') ||
+          (activeEl.getClientRects && activeEl.getClientRects().length === 0);
+        if (!isHidden) {
+          return true;
+        }
       }
       const geminiModal = document.getElementById('gemini-modal');
       if (geminiModal && !geminiModal.classList.contains('hidden')) {
@@ -260,17 +268,90 @@ export class Player {
       if (e.code === 'KeyW') this.sprintKeyToggled = false;
     });
 
+    window.addEventListener('mousedown', (e) => {
+      if (this.areControlsDisabled(e)) return;
+      this.isMouseDown = true;
+      this._lastMouseX = e.clientX;
+      this._lastMouseY = e.clientY;
+    });
+
+    window.addEventListener('mouseup', () => {
+      this.isMouseDown = false;
+      this._lastMouseX = undefined;
+      this._lastMouseY = undefined;
+    });
+
     window.addEventListener('mousemove', (e) => {
       if (this.isDungeonMode) return; // In Dungeon Top-Down mode, facing is controlled by movement
-      if (this.areControlsDisabled(e)) return;
-      if (document.pointerLockElement !== this.domElement) return;
+      if (this.areControlsDisabled(e)) {
+        this._lastMouseX = undefined;
+        this._lastMouseY = undefined;
+        return;
+      }
+
+      const isLocked = document.pointerLockElement && (
+        document.pointerLockElement === this.domElement ||
+        document.pointerLockElement === this.domElement?.parentElement ||
+        (this.domElement && document.pointerLockElement?.contains?.(this.domElement)) ||
+        (this.domElement && this.domElement?.contains?.(document.pointerLockElement))
+      );
+
+      let dx = 0;
+      let dy = 0;
+
+      if (isLocked) {
+        dx = e.movementX || 0;
+        dy = e.movementY || 0;
+        this._lastMouseX = e.clientX;
+        this._lastMouseY = e.clientY;
+      } else {
+        // Fallback when pointer lock is not active (test harness, iframe, background tab, or uncaptured cursor)
+        const target = e.target;
+        const isOverCanvas = target === this.domElement ||
+          target === this.domElement?.parentElement ||
+          (this.domElement && (this.domElement.contains?.(target) || this.domElement?.parentElement?.contains?.(target)));
+        const isInteracting = this.isMouseDown || (e.buttons !== undefined && e.buttons > 0);
+
+        if (!isOverCanvas && !isInteracting) {
+          this._lastMouseX = undefined;
+          this._lastMouseY = undefined;
+          return;
+        }
+
+        if (typeof e.movementX === 'number' && e.movementX !== 0) {
+          dx = e.movementX;
+        } else if (this._lastMouseX !== undefined && typeof e.clientX === 'number') {
+          dx = e.clientX - this._lastMouseX;
+        }
+
+        if (typeof e.movementY === 'number' && e.movementY !== 0) {
+          dy = e.movementY;
+        } else if (this._lastMouseY !== undefined && typeof e.clientY === 'number') {
+          dy = e.clientY - this._lastMouseY;
+        }
+
+        this._lastMouseX = e.clientX;
+        this._lastMouseY = e.clientY;
+      }
+
+      if (dx === 0 && dy === 0) return;
+
       const sensitivity = 0.0022;
-      this.yaw -= e.movementX * sensitivity;
-      this.pitch -= e.movementY * sensitivity;
+      this.yaw -= dx * sensitivity;
+      this.pitch -= dy * sensitivity;
 
       // Clamp pitch to avoid neck snapping (-89 to +89 degrees)
       const maxPitch = Math.PI / 2 - 0.01;
       this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+
+      // Immediately sync camera rotation so view updates
+      if (this.camera && !this.isDungeonMode && this.perspective === 0) {
+        if (this.camera.up?.set) this.camera.up.set(0, 1, 0);
+        this.camera.rotation.order = 'YXZ';
+        this.camera.rotation.y = this.yaw;
+        this.camera.rotation.x = this.pitch;
+        this.camera.rotation.z = 0;
+      }
     });
   }
 
@@ -497,7 +578,10 @@ export class Player {
     const blockAtFeet = this.world.getVoxel(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
     this.inWater = blockAtFeet === BLOCKS.WATER && this.position.y % 1 < waterHeight(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
 
-    const controlsDisabled = this.areControlsDisabled();
+    // A bot owns only its synthetic controls; modal keyboard suppression still
+    // applies to human input while the Agent Terminal stays open.
+    const controlsDisabled = this.areControlsDisabled() && !this.botControls;
+    if (this.botControls) this.keys = { ...this.botControls };
     if (controlsDisabled) {
       this.keys = {};
       this.isSneaking = false;
@@ -1082,21 +1166,16 @@ export class Player {
       const resistance = damageTakenMultiplier(this.statusEffects);
       if (resistance !== 1) amount = amount * resistance;
 
-      // Protection enchantment reduction (4% per level, up to 80%)
-      if (this.inventory?.armor) {
-        let epf = 0;
-        for (const slotKey of ['head', 'chest', 'legs', 'feet']) {
-          const piece = this.inventory.armor[slotKey];
-          if (piece && Array.isArray(piece.enchantments)) {
-            for (const ench of piece.enchantments) {
-              if (ench.id === 'protection') epf += ench.level;
-            }
-          }
-        }
-        if (epf > 0) {
-          const protReduction = Math.min(0.8, epf * 0.04);
-          amount = amount * (1 - protReduction);
-        }
+      // Protection enchantment reduction (4% per point, up to 80%).
+      //
+      // Which of the four protection enchantments answers depends on the source: Fire Protection for the
+      // fire and lava paths, Blast Protection for explosions, Projectile Protection for arrows, and
+      // Protection for the rest. Only Protection was read here, so the other three were obtainable from
+      // an enchanting table and did nothing at all.
+      const epf = protectionPoints(this.armourEnchantmentLists(), damageType);
+      if (epf > 0) {
+        const protReduction = Math.min(0.8, epf * 0.04);
+        amount = amount * (1 - protReduction);
       }
     }
 

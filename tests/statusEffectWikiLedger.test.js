@@ -48,8 +48,10 @@ test('the wiki\'s per-level rules that DO hold here', () => {
     (VANILLA_JUMP.velocity + 2 * VANILLA_JUMP.boostPerLevel) / VANILLA_JUMP.velocity, 'jump boost II');
   near(jumpVelocityMultiplier(active()), 1, 'no effect leaves the jump alone');
 
-  // Turtle Master is one brew standing for two statuses, as the wiki describes it.
+  // Turtle Master is one brew standing for two statuses, as the wiki describes it: Slowness IV and
+  // Resistance III regular, Slowness VI and Resistance IV enhanced.
   assert.deepEqual(compoundEffects('turtle_master'), [['slowness', 4], ['resistance', 3]]);
+  assert.deepEqual(compoundEffects('turtle_master', 2), [['slowness', 6], ['resistance', 4]]);
   assert.deepEqual(compoundEffects('speed'), [], 'an ordinary effect stands for nothing');
 });
 

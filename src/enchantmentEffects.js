@@ -115,6 +115,91 @@ export function unbreakingKeepsUse(level, random = Math.random) {
 }
 
 /**
+ * The protection enchantment a damage type is defended by, or null for one no protection covers.
+ *
+ * Vanilla's four protection enchantments split by source: Protection covers almost everything, Fire
+ * Protection the fire, lava and blaze damage, Blast Protection explosions (and their knockback, which is
+ * not modelled), and Projectile Protection arrows and thrown things. They are mutually exclusive, so at
+ * most one can be on a given piece, but a full set can carry several pieces' worth of the same one --
+ * which is why the caller sums across the armour rather than picking a single piece.
+ *
+ * The type names are this game's own, taken from what its call sites actually pass: `mobs.js` passes the
+ * attacking mob's type, and the elemental paths pass `fire`, `lava`, `fall`, `void` and so on.
+ *
+ * @param {string} damageType
+ * @returns {string|null}
+ */
+export function protectionEnchantmentFor(damageType) {
+  if (typeof damageType !== 'string' || !damageType) return 'protection';
+  switch (damageType) {
+    // Blast Protection: "reduces explosion damage and knockback".
+    case 'explosion':
+    case 'tnt':
+    case 'creeper':
+    case 'fireball':
+    case 'bed':
+    case 'wind_charge':
+      return 'blast_protection';
+    // Fire Protection: "reduces fire damage and burning time", including lava and blazes.
+    case 'fire':
+    case 'lava':
+    case 'hot_floor':
+    case 'campfire':
+    case 'magma':
+    case 'blaze':
+    case 'in_fire':
+    case 'on_fire':
+    case 'dragon_breath':
+    case 'lightning':
+      return 'fire_protection';
+    // Projectile Protection: "reduces damage from projectiles".
+    case 'arrow':
+    case 'projectile':
+    case 'trident':
+    case 'snowball':
+    case 'egg':
+    case 'firework':
+    case 'shulker_bullet':
+      return 'projectile_protection';
+    // Protection deliberately does not cover these: vanilla exempts the bypassing sources, and absorbing
+    // them would make a Protection set immune to the things the game means to be unavoidable.
+    case 'void':
+    case 'starvation':
+    case 'wither':
+    case 'fall':
+    case 'magic':
+      return null;
+    default:
+      return 'protection';
+  }
+}
+
+/**
+ * The protection points an armour set contributes against a damage type.
+ *
+ * Vanilla's four protection enchantments are mutually exclusive on one piece, so this sums the level of
+ * whichever one applies across all four pieces -- four Protection IV pieces give 16 points, which the
+ * caller turns into the 4%-per-point reduction capped at 80%.
+ *
+ * @param {Array<Array<{id:string, level:number}>>} armourEnchantments one list per worn piece
+ * @param {string} damageType
+ * @returns {number}
+ */
+export function protectionPoints(armourEnchantments, damageType) {
+  const wanted = protectionEnchantmentFor(damageType);
+  if (!wanted || !Array.isArray(armourEnchantments)) return 0;
+  let points = 0;
+  for (const list of armourEnchantments) {
+    if (!Array.isArray(list)) continue;
+    for (const ench of list) {
+      if (!ench || ench.id !== wanted || typeof ench.level !== 'number') continue;
+      points += Math.max(0, ench.level);
+    }
+  }
+  return points;
+}
+
+/**
  * The depth strider speed multiplier while in water.
  *
  * Mineclonia uses `level/3 + 0.75`, which at level 3 gives 1.75 and removes the water penalty entirely.

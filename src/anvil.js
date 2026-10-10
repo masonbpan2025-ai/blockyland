@@ -1,5 +1,5 @@
 import { ITEMS, BLOCKS } from './blocks.js';
-import { ENCHANTMENT_REGISTRY, getItemEnchantCategory } from './enchanting.js';
+import { ENCHANTMENT_REGISTRY, isPrimaryFor, areIncompatible } from './enchanting.js';
 
 // Material repair mapping (e.g. iron items can be repaired with iron_ingot)
 export const REPAIR_MATERIALS = {
@@ -40,16 +40,12 @@ export const REPAIR_MATERIALS = {
   netherite_boots: 'netherite_ingot'
 };
 
-// Incompatible enchantment pairs
-export const INCOMPATIBLE_ENCHANTMENTS = [
-  ['silk_touch', 'fortune'],
-  ['sharpness', 'smite'],
-  ['protection', 'fire_protection'],
-  ['protection', 'blast_protection'],
-  ['protection', 'projectile_protection'],
-  ['infinity', 'mending'],
-  ['multishot', 'piercing']
-];
+// Incompatible enchantment pairs. The list itself lives with the enchantments, in `enchanting.js`: this
+// was a second copy of it, and the two had already drifted -- the pair list here and the registry's own
+// `incompatible` fields are now the same data read through `areIncompatible`.
+export const INCOMPATIBLE_ENCHANTMENTS = Object.entries(ENCHANTMENT_REGISTRY)
+  .flatMap(([key, def]) => (def.incompatible ?? []).map((other) => [key, other]))
+  .filter(([a, b]) => a < b || !ENCHANTMENT_REGISTRY[b]?.incompatible?.includes(a));
 
 /**
  * Calculates the Anvil combination / rename result and level cost
@@ -124,26 +120,23 @@ export function calculateAnvilResult(leftItem, rightItem, customName = '', playe
 
     // C. Enchantment Merging (from another item or an Enchanted Book)
     const isEnchantedBook = rightItem.id === 'enchanted_book';
-    const targetCategory = getItemEnchantCategory(leftItem.id);
 
     if (rightItem.enchantments && rightItem.enchantments.length > 0) {
       for (const rightEnch of rightItem.enchantments) {
         const enchDef = ENCHANTMENT_REGISTRY[rightEnch.id];
         if (!enchDef) continue;
 
-        // Verify compatibility with item type (unless enchanted book with compatible target)
-        const compatible = leftItem.id === 'enchanted_book' || enchDef.targets.includes('all') || enchDef.targets.includes(targetCategory) || (['helmet', 'chestplate', 'leggings', 'boots'].includes(targetCategory) && enchDef.targets.includes('armor'));
+        // Verify the left item is a primary item for the enchantment. An enchanted book is primary for
+        // everything, which vanilla hardcodes. This asked `getItemEnchantCategory` before and compared its
+        // coarse answer against the registry's own tokens, so an enchanted Protection book no longer
+        // matched a chestplate at all -- the registry names armour pieces individually.
+        const compatible = leftItem.id === 'enchanted_book' || isPrimaryFor(enchDef, leftItem.id);
         if (!compatible) {
           continue;
         }
 
         // Check mutual exclusivity with existing enchantments
-        const isConflict = result.enchantments.some(existing => {
-          if (existing.id === rightEnch.id) return false;
-          return INCOMPATIBLE_ENCHANTMENTS.some(pair =>
-            pair.includes(existing.id) && pair.includes(rightEnch.id)
-          );
-        });
+        const isConflict = result.enchantments.some(existing => areIncompatible(existing.id, rightEnch.id));
 
         if (isConflict) continue;
 

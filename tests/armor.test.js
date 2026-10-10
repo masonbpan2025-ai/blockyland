@@ -379,6 +379,9 @@ test('UI - Armor Bar and Off-hand Slot Rendering', async () => {
         contains: () => false
       },
       appendChild: (c) => children.push(c),
+      // `UIManager.setupUI` rebuilds the world-generation pack dropdown with `replaceChildren`, which this
+      // stub was missing, so constructing a UIManager threw before any armour could be rendered.
+      replaceChildren: () => { children.length = 0; },
       addEventListener: () => {}
     };
   }

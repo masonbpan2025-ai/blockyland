@@ -11,8 +11,18 @@ import {
 } from '../src/experience.js';
 import {
   ENCHANTMENT_REGISTRY,
+  TREASURE_ENCHANTMENTS,
   getItemEnchantCategory,
   isEnchantableItem,
+  areIncompatible,
+  incompatibleWith,
+  eligibleEnchantments,
+  experienceCost,
+  enchantmentCost,
+  enchantabilityOf,
+  lapisCostForSlot,
+  levelForCost,
+  selectEnchantments,
   calculateBookshelfCount,
   generateRunes,
   generateEnchantmentOffers,
@@ -22,6 +32,25 @@ import {
 import { EntityManager } from '../src/entities.js';
 import { Inventory } from '../src/inventory.js';
 import { BLOCKS } from '../src/blocks.js';
+
+/**
+ * A deterministic `Math.random` stand-in.
+ *
+ * The offer engine is genuinely random in vanilla -- the whole point of the slot costs is that the same
+ * item can roll differently -- so the tests drive it with a seeded stream instead of asserting on one
+ * lucky roll. Mulberry32, because it is four lines and its stream is stable.
+ */
+function seeded(seed = 1) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const item = (id) => ({ id, isBlock: false, count: 1 });
 
 test('Minecraft Wiki Experience & Leveling Formulas', () => {
   // Level 0 -> 1: 2(0) + 7 = 7 XP
@@ -154,32 +183,45 @@ test('Enchantment Eligibility and Offer Generation', () => {
   assert.equal(getItemEnchantCategory('stick'), null);
 
   // isEnchantableItem
-  const sword = { id: 'diamond_sword', isBlock: false, count: 1 };
-  assert.equal(isEnchantableItem(sword), true);
+  assert.equal(isEnchantableItem(item('diamond_sword')), true);
+  assert.equal(isEnchantableItem({ id: 'stick', isBlock: false, count: 64 }), false);
+  assert.equal(isEnchantableItem({ ...item('diamond_sword'), enchantments: [{ id: 'sharpness', level: 1 }] }), false,
+    'Already enchanted item cannot be re-enchanted at table');
 
-  const stick = { id: 'stick', isBlock: false, count: 64 };
-  assert.equal(isEnchantableItem(stick), false);
+  // The slot costs are vanilla's, not the old flat 1/2/3.
+  //
+  // The wiki's own table is the check: with 0 bookshelves the three slots cost 1-2, 1-6 and 1-8 levels;
+  // with 15 they cost 2-10, 6-21 and exactly 30. Every roll of the engine has to land inside those.
+  for (const [books, bounds] of [[0, [[1, 2], [1, 6], [1, 8]]], [15, [[2, 10], [6, 21], [30, 30]]]]) {
+    for (let trial = 0; trial < 300; trial++) {
+      const r = seeded(trial * 7 + books + 1);
+      for (const slot of [0, 1, 2]) {
+        const cost = experienceCost(slot, books, r);
+        const [lo, hi] = bounds[slot];
+        assert.ok(cost >= lo && cost <= hi, `slot ${slot} @${books} books cost ${cost}, expected ${lo}-${hi}`);
+      }
+    }
+  }
+  // The lapis is the slot's own number, which is the one thing that was already right.
+  assert.deepEqual([0, 1, 2].map(lapisCostForSlot), [1, 2, 3]);
 
-  const alreadyEnchanted = { id: 'diamond_sword', isBlock: false, count: 1, enchantments: [{ id: 'sharpness', level: 1 }] };
-  assert.equal(isEnchantableItem(alreadyEnchanted), false, 'Already enchanted item cannot be re-enchanted at table');
-
-  // Offer generation with 0 bookshelves
-  const offers0 = generateEnchantmentOffers(sword, 0);
+  // Offer generation with 0 bookshelves: three slots, each affordable, each inside the reachable range.
+  const offers0 = generateEnchantmentOffers(item('diamond_sword'), 0, seeded(11));
   assert.equal(offers0.length, 3);
-  assert.equal(offers0[0].levelCost, 1);
-  assert.equal(offers0[0].lapisCost, 1);
-  assert.equal(offers0[1].levelCost, 2);
-  assert.equal(offers0[1].lapisCost, 2);
-  assert.equal(offers0[2].levelCost, 3);
-  assert.equal(offers0[2].lapisCost, 3);
-  assert.ok(offers0[2].levelRequirement <= 10, 'With 0 bookshelves, max level requirement is small');
+  for (const offer of offers0) {
+    assert.ok(offer.levelRequirement >= 1 && offer.levelRequirement <= 8, 'a 0-bookshelf slot is cheap');
+    assert.equal(offer.levelCost, offer.levelRequirement, 'the cost is the requirement, as in vanilla');
+    assert.ok(offer.lapisCost >= 1 && offer.lapisCost <= 3);
+    assert.ok(offer.primary.name.length > 0);
+    assert.ok(offer.runes.length > 0);
+  }
 
-  // Offer generation with 15 bookshelves: slot 3 achieves max level 30
-  const offers15 = generateEnchantmentOffers(sword, 15);
+  // With 15 bookshelves the bottom slot costs exactly 30, which is the figure the game is famous for.
+  const offers15 = generateEnchantmentOffers(item('diamond_sword'), 15, seeded(3));
   assert.equal(offers15.length, 3);
-  assert.equal(offers15[2].levelRequirement, 30, 'With 15 bookshelves, slot 3 reaches Level 30 requirement');
-  assert.ok(offers15[2].primary.name.length > 0);
-  assert.ok(offers15[2].runes.length > 0);
+  assert.equal(offers15[2].slot, 2);
+  assert.equal(offers15[2].levelRequirement, 30, 'With 15 bookshelves, slot 3 costs Level 30');
+  assert.ok(offers15[2].lapisCost === 3);
 });
 
 test('Applying Enchantments, Level Deduction, and Book Transformation', () => {
@@ -322,6 +364,9 @@ test('Enchanting Table GUI Integration - Open, Slot, Select Offer & Enchant', as
         contains: (c) => classSet.has(c)
       },
       appendChild: (c) => children.push(c),
+      // `UIManager.setupUI` rebuilds the world-generation pack dropdown with `replaceChildren`, which this
+      // stub was missing, so constructing a UIManager threw before the table could be opened.
+      replaceChildren: () => { children.length = 0; },
       addEventListener: () => {},
       removeAttribute: () => {},
       setAttribute: () => {},
@@ -413,22 +458,44 @@ test('Enchanting Table GUI Integration - Open, Slot, Select Offer & Enchant', as
   // 2. Put a diamond sword into the enchanting slot
   ui.enchantSlottedItem = { id: 'diamond_sword', isBlock: false, count: 1 };
   ui.enchantSlottedLapis = { id: 'lapis_lazuli', isBlock: false, count: 5 };
-  ui.currentOffers = generateEnchantmentOffers(ui.enchantSlottedItem, 5);
+  ui.currentOffers = generateEnchantmentOffers(ui.enchantSlottedItem, 5, seeded(9));
   ui.renderEnchantingGUI();
 
   assert.equal(ui.currentOffers.length, 3);
   assert.ok(elements['enchant-offer-0'].onclick !== null, 'Offer 0 should be interactive');
+  // The panel reports the slot's cost, and that cost is the level the player must have -- one number, as
+  // the game shows it, not the old "Req: 5 Lvl, Cost: 1 Lvl" pair.
+  const offer = ui.currentOffers[0];
+  assert.match(elements['enchant-req-0'].textContent, new RegExp(`Cost: ${offer.levelCost} Lvl \\+ ${offer.lapisCost} Lapis`));
 
-  // 3. Select Offer 0 (requires 1 lvl and 1 lapis)
+  // 3. Select Offer 0, which costs its own rolled number of levels and 1 lapis
   const prevLvl = player.level;
   const prevLapis = ui.enchantSlottedLapis.count;
   ui.selectEnchantOffer(0);
 
-  assert.equal(player.level, prevLvl - 1, 'Player level should decrease by 1');
-  assert.equal(ui.enchantSlottedLapis.count, prevLapis - 1, 'Lapis count should decrease by 1');
+  assert.equal(player.level, prevLvl - offer.levelCost, `Player level should drop by the slot cost (${offer.levelCost})`);
+  assert.equal(ui.enchantSlottedLapis.count, prevLapis - offer.lapisCost, 'Lapis count should decrease by the slot cost');
   assert.ok(Array.isArray(ui.enchantSlottedItem.enchantments), 'Item must have enchantments array');
   assert.ok(ui.enchantSlottedItem.enchantments.length >= 1, 'Item has at least 1 enchantment');
   assert.equal(playedEnchant, true, 'playEnchant was triggered');
+
+  // The enchantment is one of the two the slot named, and nothing else.
+  const granted = ui.enchantSlottedItem.enchantments.map((e) => e.id);
+  assert.deepEqual(granted, [offer.primary, ...offer.additional].map((e) => e.id));
+
+  // A player who cannot afford the slot cannot buy it, and is not charged for trying.
+  ui.enchantSlottedItem = { id: 'diamond_sword', isBlock: false, count: 1 };
+  ui.enchantSlottedLapis = { id: 'lapis_lazuli', isBlock: false, count: 5 };
+  ui.currentOffers = generateEnchantmentOffers(ui.enchantSlottedItem, 15, seeded(4));
+  ui.renderEnchantingGUI();
+  const dear = ui.currentOffers[2];
+  player.level = dear.levelCost - 1;
+  const poorLevel = player.level;
+  const poorLapis = ui.enchantSlottedLapis.count;
+  ui.selectEnchantOffer(2);
+  assert.equal(player.level, poorLevel, 'not enough levels: nothing was spent');
+  assert.equal(ui.enchantSlottedLapis.count, poorLapis, 'and no lapis either');
+  assert.equal(ui.enchantSlottedItem.enchantments, undefined, 'and the item is untouched');
 
   // 4. Close modal and check return of items
   ui.closeEnchantingModal();

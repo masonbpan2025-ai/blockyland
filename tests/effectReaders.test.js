@@ -176,6 +176,9 @@ test('Turtle Master is Slowness IV and Resistance III, and nothing else', () => 
   assert.deepEqual(compoundEffects('turtle_master'), [['slowness', 4], ['resistance', 3]]);
   assert.deepEqual(compoundEffects('speed'), [], 'an ordinary effect is not a compound');
   assert.equal(EFFECTS.turtle_master.compound.length, 2);
+  // The enhanced tier is its own pair, written out rather than scaled: IV/III doubled would be VIII/VI,
+  // and the two do not advance by the same amount (4 -> 6 against 3 -> 4), so no multiplier fits both.
+  assert.deepEqual(compoundEffects('turtle_master', 2), [['slowness', 6], ['resistance', 4]]);
 });
 
 test('drinking a Turtle Master potion applies both of its effects', () => {
@@ -191,6 +194,35 @@ test('drinking a Turtle Master potion applies both of its effects', () => {
   // Vanilla has no "Turtle Master" effect in the HUD, so the potion must not leave one behind.
   assert.equal(player.statusEffects.has('turtle_master'), false);
   assert.equal(player.statusEffects.get('slowness').duration, POTION_DATA.potion_of_turtle_master.duration);
+});
+
+test('the extended and enhanced Turtle Master potions work, at their own tiers', () => {
+  // Both forms are brewable in vanilla and neither existed here, so extending the potion brewed nothing.
+  const extended = standing();
+  const extendedInv = new Inventory({});
+  extendedInv.addItem('potion_of_turtle_master_long', false, 1);
+  drinkPotion('potion_of_turtle_master_long', extended, extendedInv, { gamemode: 'survival' });
+  assert.equal(extended.statusEffects.get('slowness').duration, 40, 'extended is 0:40');
+  assert.equal(extended.statusEffects.get('slowness').level, 4, 'and keeps the regular levels');
+  assert.equal(extended.statusEffects.get('resistance').level, 3);
+
+  // The enhanced tier is Slowness VI and Resistance IV, measured through the rules the game applies
+  // rather than through the table that declares them.
+  const enhanced = standing();
+  const enhancedInv = new Inventory({});
+  enhancedInv.addItem('potion_of_turtle_master_2', false, 1);
+  drinkPotion('potion_of_turtle_master_2', enhanced, enhancedInv, { gamemode: 'survival' });
+  assert.equal(enhanced.statusEffects.get('slowness').level, 6, 'enhanced is Slowness VI');
+  assert.equal(enhanced.statusEffects.get('resistance').level, 4, 'and Resistance IV');
+  assert.equal(enhanced.statusEffects.get('slowness').duration, 20, 'still 0:20');
+  assert.equal(enhanced.statusEffects.has('turtle_master'), false);
+
+  const base = standing();
+  const enhancedRatio = flyingSpeed(enhanced) / flyingSpeed(base);
+  near(enhancedRatio, 0.85 ** 6, 'Slowness VI is 0.85 to the sixth');
+
+  enhanced.takeDamage(8, null, 'generic');
+  near(20 - enhanced.health, 8 * 0.8 ** 4, 'Resistance IV is 0.8 to the fourth');
 });
 
 test('a Turtle Master potion is genuinely slow and genuinely protective', () => {

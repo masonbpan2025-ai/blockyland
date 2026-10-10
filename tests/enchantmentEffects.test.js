@@ -2,19 +2,64 @@
 //
 // The melee call site held these inline, with the undead list spelled out as a literal array. Extracting
 // them has a specific risk -- a tidy-up that quietly changes combat -- so the tests state the numbers
-// that were true BEFORE the extraction and assert they still are. Bane of arthropods and fire aspect are
-// new; thorns, unbreaking and depth strider are computed here but not yet wired into gameplay, which is
-// recorded rather than implied.
+// that were true BEFORE the extraction and assert they still are. Bane of arthropods, fire aspect and the
+// three non-Protection protection enchantments are the ones this module added.
 //
 // Values are vanilla's, cross-checked against the Mineclonia figures in docs/survival-parity-rules.md 2.5.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   attackBonus, fireAspectSeconds, thornsReflect, unbreakingKeepsUse, depthStriderMultiplier,
+  protectionEnchantmentFor, protectionPoints,
   UNDEAD, ARTHROPODS, AQUATIC,
 } from '../src/enchantmentEffects.js';
 
 const e = (id, level) => ({ id, level });
+
+// --- the four protection enchantments -------------------------------------------
+
+test('each protection answers its own damage type and nothing else', () => {
+  // The wiki's split: Protection for almost everything, Fire Protection for fire/lava/blaze, Blast
+  // Protection for explosions, Projectile Protection for projectiles. Only Protection was read before
+  // this, so the other three were obtainable and inert.
+  assert.equal(protectionEnchantmentFor('generic'), 'protection');
+  assert.equal(protectionEnchantmentFor('zombie'), 'protection', 'a mob type falls through to Protection');
+  assert.equal(protectionEnchantmentFor(undefined), 'protection');
+
+  for (const type of ['fire', 'lava', 'blaze', 'hot_floor', 'campfire', 'lightning', 'dragon_breath']) {
+    assert.equal(protectionEnchantmentFor(type), 'fire_protection', type);
+  }
+  for (const type of ['explosion', 'tnt', 'creeper', 'fireball', 'bed', 'wind_charge']) {
+    assert.equal(protectionEnchantmentFor(type), 'blast_protection', type);
+  }
+  for (const type of ['arrow', 'projectile', 'trident', 'snowball', 'egg', 'firework', 'shulker_bullet']) {
+    assert.equal(protectionEnchantmentFor(type), 'projectile_protection', type);
+  }
+  // Protection deliberately does not cover the bypassing sources.
+  for (const type of ['void', 'starvation', 'wither', 'fall', 'magic']) {
+    assert.equal(protectionEnchantmentFor(type), null, `${type} must not be absorbed by Protection`);
+  }
+});
+
+test('protections sum across the armour, and only the matching one counts', () => {
+  const full = (id, level) => [[e(id, level)], [e(id, level)], [e(id, level)], [e(id, level)]];
+  assert.equal(protectionPoints(full('protection', 4), 'generic'), 16, 'four pieces of Protection IV');
+  assert.equal(protectionPoints(full('fire_protection', 4), 'fire'), 16);
+  assert.equal(protectionPoints(full('fire_protection', 4), 'arrow'), 0, 'fire protection is not projectile protection');
+  assert.equal(protectionPoints(full('blast_protection', 2), 'explosion'), 8);
+  assert.equal(protectionPoints(full('projectile_protection', 4), 'arrow'), 16);
+  // A mixed set only counts the pieces carrying the relevant one.
+  const mixed = [[e('protection', 2)], [e('fire_protection', 3)], [e('blast_protection', 1)], []];
+  assert.equal(protectionPoints(mixed, 'generic'), 2);
+  assert.equal(protectionPoints(mixed, 'fire'), 3);
+  assert.equal(protectionPoints(mixed, 'explosion'), 1);
+  assert.equal(protectionPoints(mixed, 'arrow'), 0);
+  // Nonsense in, zero out rather than a throw.
+  assert.equal(protectionPoints(null, 'generic'), 0);
+  assert.equal(protectionPoints(undefined, 'fire'), 0);
+  assert.equal(protectionPoints([null, [], [{ id: 'protection' }]], 'generic'), 0, 'a level-less entry counts nothing');
+  assert.equal(protectionPoints(full('protection', 4), 'void'), 0);
+});
 
 test('sharpness keeps the numbers the inline code used', () => {
   // The pre-extraction formula was `0.5 * level + 0.5`, which at level 1 is a full extra point.
