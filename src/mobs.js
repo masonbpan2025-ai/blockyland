@@ -5630,6 +5630,8 @@ export class MobManager {
       // The behaviour file swaps these two materials to change variant, so the handles and the paths both travel
       // with the mob. `variantMeshes` is kept for anything still reading it.
       skinMaterial: bodyMat,
+    // The head's own material, so a variant swap can rebind its copy of the sheet too.
+    headMaterial: headMat,
       mushroomMaterial: shroomMat,
       redSkinPath: MOOSHROOM_SKIN_PATH,
       brownSkinPath: BROWN_MOOSHROOM_SKIN_PATH,

@@ -105,6 +105,12 @@ export function applyMooshroomVariant(mob) {
       mob.skinMaterial.color?.setHex(0xffffff);
       adoptWhenReady(mob.skinMaterial, loader.loadTexture(skinPath), 0xffffff);
     }
+    // The head carries its own copy of the sheet -- the face is drawn at a different atlas offset -- so it has
+    // to be rebound as well. It is the first mapped child, which is what the parity test reads.
+    if (skinPath && mob.headMaterial) {
+      mob.headMaterial.color?.setHex(0xffffff);
+      adoptWhenReady(mob.headMaterial, loader.loadTexture(skinPath), 0xffffff);
+    }
     if (mushroomPath && mob.mushroomMaterial) {
       mob.mushroomMaterial.color?.setHex(0xffffff);
       adoptWhenReady(mob.mushroomMaterial, loader.loadTexture(mushroomPath), 0xffffff);
