@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS, ITEMS } from './blocks.js';
+import { wanderMob } from './mobMotion.js';
 
 /**
  * Vindicator rules and combat AI.
@@ -151,6 +152,13 @@ export function updateVindicatorAI(manager, mob, dt, player) {
 
   const hasTarget = !!mob.target;
   poseVindicator(mob, hasTarget);
+
+  // No target in range: wander. An illager that only ever moves while chasing stands frozen at its spawn
+  // point, which is what 'every advertised mob actually moves' catches.
+  if (!hasTarget) {
+    wanderMob(manager, mob, dt, 1.0);
+    return false;
+  }
 
   if (mob.target) {
     const targetPos = mob.target.position || mob.target.mesh?.position;

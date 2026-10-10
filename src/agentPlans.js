@@ -14,11 +14,20 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
   }
   if (plan.dimensions && !['width', 'height', 'depth'].every(k => integer(plan.dimensions[k], 1, 64))) throw new Error('Dimensions must be integers from 1 to 64.');
   if (plan.offset && !vector(plan.offset)) throw new Error('Invalid edit offset.');
-  if (plan.action === 'edit' && (!plan.targetStructure || !plan.operations?.length)) throw new Error('An edit needs a target structure and operations.');
-  if (plan.action === 'destroy' && !plan.targetStructure) throw new Error('Destroy needs a target structure.');
-  if (plan.action === 'build' && !plan.structureType && !plan.operations?.length) throw new Error('Build needs a structure type or operations.');
+  // The target of an edit or a destroy arrives as `targetBuilding` (the field the executor and the prompt
+  // both use) or as `targetStructure` (the spelling some plans use). Accepting only one of them rejected
+  // every studio edit with "An edit needs a target structure" while the target sat right there.
+  const target = plan.targetStructure ?? plan.targetBuilding;
+  if (plan.action === 'edit' && (!target || !plan.operations?.length)) throw new Error('An edit needs a target structure and operations.');
+  if (plan.action === 'destroy' && !target) throw new Error('Destroy needs a target structure.');
+  // The name of the requested structure arrives under two spellings: the built-in builder sets
+  // `buildingType` (which is what the executor reads) while model-facing plans and the prompt schema say
+  // `structureType`. Reading only the latter rejected every offline plan -- "Build needs a structure type or
+  // operations" for a lighthouse -- because the local builder never used that word.
+  const structure = plan.structureType ?? plan.buildingType;
+  if (plan.action === 'build' && !structure && !plan.operations?.length) throw new Error('Build needs a structure type or operations.');
   const presets = ['stairs', 'staircase', 'ladder', 'aquarium', 'greenhouse', 'skyscraper', 'spaceship', 'lighthouse', 'statue', 'geometric', 'castle', 'tower', 'pyramid', 'pond', 'pool', 'bunker', 'bridge', 'wall', 'house'];
-  if (plan.action === 'build' && !plan.operations?.length && !presets.includes(plan.structureType)) throw new Error('Custom builds require voxel operations; no substitute structure was built.');
+  if (plan.action === 'build' && !plan.operations?.length && !presets.includes(structure)) throw new Error('Custom builds require voxel operations; no substitute structure was built.');
   if (plan.operations) {
     if (!Array.isArray(plan.operations) || plan.operations.length > 256) throw new Error('Too many operations.');
     for (const op of plan.operations) {

@@ -30,15 +30,27 @@ function ridingFixture() {
 test('all rideable mobs accept WASD input and move without jitter', () => {
   const { manager, player } = ridingFixture();
   const mounts = [
-    ['horse', mob => { mob.isTamed = true; }],
-    ['donkey', mob => { mob.isTamed = true; }],
+    // Wiki: a horse or donkey is only steerable once it is both tamed and saddled; an unsaddled one stands
+    // where it is while the rider sits on it. The equines therefore need the saddle as well as the taming,
+    // which the pig and the strider have always needed.
+    ['horse', mob => { mob.isTamed = true; mob.isSaddled = true; }],
+    ['donkey', mob => { mob.isTamed = true; mob.isSaddled = true; }],
     ['pig', mob => { mob.isSaddled = true; }],
     ['strider', mob => { mob.isSaddled = true; }]
   ];
 
-  for (const [type, prepare] of mounts) {
-    const mob = manager.spawnMob(type, 0, 1, 0);
+  // Each mount gets its own stretch of ground. They used to share the origin, so the previous mount was
+  // still standing there and could block the next one: the strider failed "should respond to W while ridden"
+  // in roughly one run in five, always because it had nowhere to go rather than because steering was broken.
+  const groundFor = index => [index * 40, 1, index * 40];
+
+  for (const [index, [type, prepare]] of mounts.entries()) {
+    const [spawnX, spawnY, spawnZ] = groundFor(index);
+    const mob = manager.spawnMob(type, spawnX, spawnY, spawnZ);
     prepare(mob);
+    // Wiki: a strider is the one mount that needs a warped fungus on a stick in the rider's hand before it
+    // will go anywhere, so the fixture hands it one for that mount only.
+    player.inventory.getActiveItem = () => (type === 'strider' ? { id: 'warped_fungus_on_a_stick' } : null);
     manager.animalBehaviors.mountMob(mob, player);
     const start = mob.mesh.position.clone();
     for (let i = 0; i < 20; i++) manager.update(1 / 60, player);
@@ -57,6 +69,9 @@ test('rider input is read from the player keyboard when no explicit controls obj
   const { manager, player } = ridingFixture();
   const horse = manager.spawnHorse(0, 1, 0);
   horse.isTamed = true;
+  // Saddled too: updateMountSteering stops an unsaddled equine dead (wiki: taming lets you ride, the saddle
+  // lets you steer), so without this the keyboard fallback under test is never reached.
+  horse.isSaddled = true;
   manager.animalBehaviors.mountMob(horse, player);
   manager.animalBehaviors.updateMountSteering(1 / 60, player, {});
   assert.ok(horse.velocity.z < -1, 'KeyW should drive a mounted horse forward');

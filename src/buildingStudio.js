@@ -244,7 +244,9 @@ function generate(origin, params, B) {
       return false;
     }
 
-    const type = String(plan.buildingType || plan.buildingId || '').toLowerCase().trim();
+    // The structure's name arrives as `structureType` from the model and the tests, and as `buildingType`
+    // or `buildingId` from the older callers. All three are accepted rather than one being renamed.
+    const type = String(plan.structureType || plan.buildingType || plan.buildingId || '').toLowerCase().trim();
     if (!type) return false;
 
     const all = BuildingLibrary.getAllBuildings();
@@ -389,6 +391,9 @@ function generate(origin, params, B) {
 
     return {
       building: matchedBuilding,
+      // The same object under the name the studio's tests read. Both are returned rather than one being
+      // renamed, because the prompt path and the tests each use one of the two words.
+      structure: matchedBuilding,
       extractedParams
     };
   }

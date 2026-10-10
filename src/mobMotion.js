@@ -5,15 +5,20 @@ import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
 import { isLethalStep, hazardKind, isFireImmune } from './hazards.js';
 
-export function wanderMob(manager, mob, dt, speed, random = Math.random) {
+export function wanderMob(manager, mob, dt, speed, random = null) {
+  // The manager's own generator is preferred over Math.random when the caller does not name one. Nearly every
+  // call site passes only the speed, so the injectable argument was decorative: a fixture that pins
+  // `random: () => 0.5` still got a different wander goal each run, which is why 'every advertised mob
+  // actually moves' could fail on a mob that had simply picked an unreachable goal.
+  const rng = random ?? manager?.random ?? Math.random;
   mob.wanderTimer = (mob.wanderTimer || 0) - dt;
   if (mob.wanderTimer <= 0 || (mob.wanderGoal && mob.mesh.position.distanceTo(mob.wanderGoal) < 0.65)) {
     mob.wanderGoal = null;
-    mob.wanderTimer = 1 + random() * 2;
-    if (random() > 0.2) {
+    mob.wanderTimer = 1 + rng() * 2;
+    if (rng() > 0.2) {
       for (let attempt = 0; attempt < 12; attempt++) {
-        const angle = random() * Math.PI * 2;
-        const distance = attempt < 6 ? 3 + random() * 5 : 1 + random() * 2;
+        const angle = rng() * Math.PI * 2;
+        const distance = attempt < 6 ? 3 + rng() * 5 : 1 + rng() * 2;
         const goal = mob.mesh.position.clone().add(new THREE.Vector3(Math.sin(angle) * distance, 0, Math.cos(angle) * distance));
         const baseY = Math.floor(goal.y);
         for (let y = baseY + 1; y >= baseY - 2; y--) {

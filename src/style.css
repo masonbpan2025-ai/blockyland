@@ -1256,6 +1256,16 @@ html, body {
   margin-top: 8px;
 }
 
+/* Inspector picker: the four destinations behind the start screen's single Inspector button. Two columns so
+   Structure/Item and Block/Mob pair up, matching the stacked start buttons above it. */
+.inspector-picker-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 20px 0 16px;
+  width: 100%;
+}
+
 .mc-btn-large {
   width: 360px;
   height: 52px;

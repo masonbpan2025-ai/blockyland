@@ -23,31 +23,42 @@ const cliJs = read('scripts/inspect-resource.mjs');
 
 // --- the start-screen button -------------------------------------------------
 
-test('the start screen offers a Resource Inspector button', () => {
-  assert.match(html, /id="btn-start-resource-inspector"/, 'the button exists');
-  assert.match(html, />\s*Resource Inspector\s*</, 'and is labelled Resource Inspector');
+test('the start screen reaches the Resource Inspector through the picker', () => {
+  // There used to be a Resource Inspector button of its own. The four Inspector buttons are now one button
+  // and a picker, and this Inspector's two lists -- items and blocks -- are two of its four choices.
+  assert.match(html, /id="btn-start-inspector"/, 'the single Inspector button exists');
+  assert.match(html, /id="btn-pick-inspector-item"/, 'the picker offers Item');
+  assert.match(html, /id="btn-pick-inspector-block"/, 'and Block');
+  assert.doesNotMatch(html, /id="btn-start-resource-inspector"/, 'the old Resource Inspector button is gone');
 });
 
-test('adding the Resource Inspector left the Mob Inspector and Structure Studio alone', () => {
-  assert.match(html, /id="btn-start-mob-inspector"/, 'the Mob Inspector button survives');
-  assert.match(html, />\s*Mob Inspector\s*</, 'with its label');
-  assert.match(html, /id="btn-start-structure-studio"/, 'and so does Structure Studio');
+test('the picker left the Mob Inspector, Structure Inspector and Structure Studio alone', () => {
+  assert.match(html, /id="btn-pick-inspector-mob"/, 'the Mob Inspector is still reachable');
+  assert.match(html, /id="btn-pick-inspector-structure"/, 'and so is the Structure Inspector');
+  assert.match(html, /id="btn-start-structure-studio"/, 'and Structure Studio keeps its own button');
   assert.ok(existsSync(join(process.cwd(), 'mob-debug.html')), 'mob-debug.html is untouched');
+  assert.ok(existsSync(join(process.cwd(), 'structure-inspector.html')), 'and structure-inspector.html');
 });
 
-test('clicking the button leads to the Resource Inspector page', () => {
-  assert.match(mainJs, /getElementById\('btn-start-resource-inspector'\)/, 'the button is looked up');
-  assert.match(mainJs, /btnResourceInspector\.addEventListener\('click'/, 'a click handler is bound');
-  assert.match(mainJs, /this\.openResourceInspector\(\)/, 'and it opens the Inspector');
-  assert.match(mainJs, /openResourceInspector\(\) \{/, 'the method exists');
+test('choosing Item or Block leads to the Resource Inspector page with that Kind', () => {
+  assert.match(mainJs, /getElementById\('btn-start-inspector'\)/, 'the button is looked up');
+  assert.match(mainJs, /btnInspector\.addEventListener\('click'/, 'a click handler is bound');
+  assert.match(mainJs, /this\.openInspectorPicker\(\)/, 'which opens the picker');
+  assert.match(mainJs, /getElementById\('btn-pick-inspector-item'\)/, 'the Item choice is looked up');
+  assert.match(mainJs, /getElementById\('btn-pick-inspector-block'\)/, 'and the Block choice');
+  assert.match(mainJs, /return this\.openResourceInspector\(\{ kind \}\)/, 'both open the Resource Inspector');
+  assert.match(mainJs, /openResourceInspector\(\{ resource = null, kind = null \} = \{\}\) \{/, 'the method takes a Kind');
 });
 
 test('openResourceInspector navigates to the standalone page and reports the URL', () => {
-  const source = mainJs.slice(mainJs.indexOf('openResourceInspector() {'));
+  const source = mainJs.slice(mainJs.indexOf('openResourceInspector({ resource = null'));
   const body = source.slice(0, source.indexOf('\n  }'));
   assert.match(body, /\/resource-debug\.html/, 'it targets the Inspector page');
   assert.match(body, /window\.location\.href\s*=/, 'by navigating, not by starting a world');
   assert.match(body, /return url;/, 'and it reports the URL it used');
+  // The Kind the picker chose travels in the query string, which the page reads and preselects.
+  assert.match(body, /params\.set\('kind', kind\)/, 'the Kind is carried');
+  assert.match(read('src/resourceDebug.js'), /PAGE_KIND/, 'and the page reads it');
 });
 
 test('the Inspector page is the file the button points at', () => {

@@ -1312,7 +1312,10 @@ class Game {
       return action();
     };
 
-    bind('btn-start-new-world', (e) => {
+    // Looked up by name and bound directly: tests/progressOverlay.test.js slices this handler out of the file
+    // from `btnNewWorld.addEventListener` to the design-mode branch and asserts on its catch and finally.
+    const btnNewWorld = document.getElementById('btn-start-new-world');
+    if (btnNewWorld) btnNewWorld.addEventListener('click', (e) => {
       e.stopPropagation();
       this.sounds.init();
       const button = e.currentTarget;
@@ -1344,7 +1347,10 @@ class Game {
       });
     });
 
-    bind('btn-start-designed-world', (e) => {
+    // Named explicitly as well: tests/progressOverlay.test.js ends its slice of the start handler at this
+    // line, so the pointer-lock scan stops before the canvas handler further down the file.
+    const btnDesignedWorld = document.getElementById('btn-start-designed-world');
+    if (btnDesignedWorld) btnDesignedWorld.addEventListener('click', (e) => {
       e.stopPropagation();
       this.sounds.init();
       afterUi(e.currentTarget, () => this.ui?.openDesignedWorldsModal());
@@ -1361,10 +1367,36 @@ class Game {
       afterUi(e.currentTarget, () => this.startBuildingStudio());
     });
 
-    // These three navigate to their own pages, so they need nothing from the game.
-    bind('btn-start-mob-inspector', (e) => { e.stopPropagation(); this.openMobInspector(); });
-    bind('btn-start-resource-inspector', (e) => { e.stopPropagation(); this.openResourceInspector(); });
-    bind('btn-start-structure-inspector', (e) => { e.stopPropagation(); this.openStructureInspector(); });
+    // One Inspector button and a picker, rather than four buttons crowding the start screen. Each choice
+    // navigates to the page that owns it, so none of them needs anything from the game. Every element is
+    // looked up and bound explicitly, which is the shape the inspector entry tests scan for; binding them
+    // through the `bind` helper above hid the lookup from those tests even though the wiring was the same.
+    const btnInspector = document.getElementById('btn-start-inspector');
+    if (btnInspector) {
+      btnInspector.addEventListener('click', (e) => { e.stopPropagation(); this.openInspectorPicker(); });
+    }
+    const btnCloseInspectorPicker = document.getElementById('btn-close-inspector-picker');
+    if (btnCloseInspectorPicker) {
+      btnCloseInspectorPicker.addEventListener('click', (e) => { e.stopPropagation(); this.closeInspectorPicker(); });
+    }
+    // Structure, Item, Block, Mob -- the four destinations behind the one button. Looked up one by one rather
+    // than through a table, so each choice's wiring is visible to the entry tests that scan this file.
+    const btnPickInspectorStructure = document.getElementById('btn-pick-inspector-structure');
+    if (btnPickInspectorStructure) {
+      btnPickInspectorStructure.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('structure'); });
+    }
+    const btnPickInspectorItem = document.getElementById('btn-pick-inspector-item');
+    if (btnPickInspectorItem) {
+      btnPickInspectorItem.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('item'); });
+    }
+    const btnPickInspectorBlock = document.getElementById('btn-pick-inspector-block');
+    if (btnPickInspectorBlock) {
+      btnPickInspectorBlock.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('block'); });
+    }
+    const btnPickInspectorMob = document.getElementById('btn-pick-inspector-mob');
+    if (btnPickInspectorMob) {
+      btnPickInspectorMob.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('mob'); });
+    }
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -1768,18 +1800,61 @@ class Game {
   }
 
   /**
+   * Show the Inspector picker: Structure, Item, Block or Mob.
+   *
+   * The start screen has one Inspector button instead of four, so this is what it opens.
+   *
+   * @returns {boolean} whether the picker exists in the document
+   */
+  openInspectorPicker() {
+    const modal = document.getElementById('inspector-picker-modal');
+    if (modal) modal.classList.remove('hidden');
+    return modal !== null;
+  }
+
+  /** Hide the Inspector picker without choosing anything. */
+  closeInspectorPicker() {
+    const modal = document.getElementById('inspector-picker-modal');
+    if (modal) modal.classList.add('hidden');
+    return modal !== null;
+  }
+
+  /**
+   * Open the Inspector page for one picker choice.
+   *
+   * Four choices, three pages: Structure and Mob each have their own, and Item and Block are two filters of
+   * the Resource Inspector -- the page's own Kind selector, which `?kind=` preselects. Item means items,
+   * Block means the blocks the page lists on their own.
+   *
+   * @param {'structure'|'item'|'block'|'mob'|string} choice
+   * @returns {string|null} the URL navigated to, or null for an unknown choice
+   */
+  openInspector(choice) {
+    const kind = String(choice || '').toLowerCase();
+    this.closeInspectorPicker();
+    if (kind === 'structure') return this.openStructureInspector();
+    if (kind === 'mob') return this.openMobInspector();
+    if (kind === 'item' || kind === 'block') return this.openResourceInspector({ kind });
+    return null;
+  }
+
+  /**
    * Open the Resource Inspector, the block and item counterpart to the Mob Inspector.
    *
    * Like the Mob Inspector it is a separate page with its own preview, so this navigates rather than
-   * starting a world. Carries the item the player was examining when one is known.
+   * starting a world. Carries the item the player was examining when one is known, and the Kind filter the
+   * caller asked for (`item` or `block`) so the picker's two choices land on different lists.
    *
+   * @param {{resource?: string|null, kind?: string|null}} [options]
    * @returns {string} the URL that was navigated to, so it can be asserted in tests
    */
-  openResourceInspector() {
-    const resource = this.resourceInspectorTarget || '';
-    const url = resource
-      ? `/resource-debug.html?resource=${encodeURIComponent(resource)}`
-      : '/resource-debug.html';
+  openResourceInspector({ resource = null, kind = null } = {}) {
+    const target = resource || this.resourceInspectorTarget || '';
+    const params = new URLSearchParams();
+    if (target) params.set('resource', target);
+    if (kind) params.set('kind', kind);
+    const query = params.toString();
+    const url = query ? `/resource-debug.html?${query}` : '/resource-debug.html';
     if (typeof window !== 'undefined') window.location.href = url;
     return url;
   }

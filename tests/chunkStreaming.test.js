@@ -94,7 +94,11 @@ test('generation starts nearest the player', () => {
   world.getOrCreateChunk = (cx, cz) => { order.push([cx, cz]); return original(cx, cz); };
 
   const s = streamerFor(game, { generateMs: 1 });
-  s.update(0, 0);
+  // Stepped until it has queued something, rather than a single frame: a one-millisecond wall-clock budget
+  // can expire before even the first chunk while the suite is running under load, which made 'something
+  // should have been generated' fail on roughly one full-suite run in two. This test is about the ORDER the
+  // generations are queued in; the budget has its own tests below.
+  for (let i = 0; i < 50 && order.length === 0; i++) s.update(0, 0);
 
   assert.ok(order.length > 0, 'something should have been generated');
   assert.deepEqual(order[0], [0, 0], 'the player chunk comes first');

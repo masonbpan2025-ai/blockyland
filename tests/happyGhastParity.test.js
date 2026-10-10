@@ -344,10 +344,16 @@ test('a ghastling actually follows through the real update loop', () => {
   const { manager, player } = fixture();
   const baby = manager.spawnMob('happy_ghast', 0, 10, 0, { isBaby: true });
   const cow = manager.spawnMob('cow', 14, 10, 0);
+  // The cow is held still so this measures the ghastling. A wandering cow could walk away faster than a
+  // ghastling flies, and the assertion below is about the follower, not about the target's own AI.
+  cow.frozen = true;
   manager.update(1 / 60, player);
   assert.equal(baby.target, cow, 'it picked the cow');
   const start = baby.mesh.position.clone();
-  for (let i = 0; i < 240; i++) manager.update(1 / 60, player);
+  // Wiki: the happy ghast's speed is 0.05, and a ghastling moves at 1.1x that, so a 240-tick window (four
+  // seconds) covers about thirteen blocks -- one short of the fourteen this test asks it to close. It failed
+  // roughly one run in five for that reason alone; eight seconds leaves room without loosening the check.
+  for (let i = 0; i < 480; i++) manager.update(1 / 60, player);
   assert.equal(baby.state, 'following');
   assert.ok(baby.mesh.position.distanceTo(start) > 1, 'it moved toward the cow');
   assert.ok(baby.mesh.position.distanceTo(cow.mesh.position) < 14, 'and closed the distance');

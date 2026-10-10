@@ -164,7 +164,7 @@ export class BuildingLibraryManager {
 
         this.saveToStorage();
         this.notifyListeners();
-        return { success: true, building: target, overwritten: true };
+        return { success: true, building: target, structure: target, overwritten: true };
       }
     }
 
@@ -188,7 +188,7 @@ export class BuildingLibraryManager {
     this.saveToStorage();
     this.notifyListeners();
 
-    return { success: true, building };
+    return { success: true, building, structure: building };
   }
 
   renameBuilding(id, newName) {
@@ -212,7 +212,7 @@ export class BuildingLibraryManager {
       target.updatedAt = Date.now();
       this.saveToStorage();
       this.notifyListeners();
-      return { success: true, building: target };
+      return { success: true, building: target, structure: target };
     }
 
     const builtin = BUILTIN_BUILDINGS.find(s => s.id === id);
@@ -220,7 +220,7 @@ export class BuildingLibraryManager {
       this.renamedBuiltins.set(id, cleanName);
       this.saveToStorage();
       this.notifyListeners();
-      return { success: true, building: { ...builtin, name: cleanName } };
+      return { success: true, building: { ...builtin, name: cleanName }, structure: { ...builtin, name: cleanName } };
     }
 
     return { success: false, error: 'NOT_FOUND', message: 'Building not found.' };

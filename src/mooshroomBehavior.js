@@ -8,6 +8,7 @@
  *
  * Reference: https://minecraft.wiki/w/Mooshroom
  */
+import { adoptWhenReady } from './mobVisuals/modelBuilder.js';
 import { babyGrowthSecondsFor } from './babyGrowth.js';
 
 /** The two variants. Only red spawns naturally; brown comes from lightning. */
@@ -87,9 +88,27 @@ export function isMooshroom(mob) {
  */
 export function applyMooshroomVariant(mob) {
   if (!isMooshroom(mob)) return;
-  const body = MOOSHROOM_COLORS[mob.variant] ?? MOOSHROOM_COLORS.red;
+  const variant = mob.variant === 'brown' ? 'brown' : 'red';
+  const body = MOOSHROOM_COLORS[variant] ?? MOOSHROOM_COLORS.red;
   for (const mesh of mob.variantMeshes || []) {
     mesh?.material?.color?.setHex(body);
+  }
+  // The variant is a SHEET, not a tint: a red and a brown mooshroom are the same cow shape wearing two
+  // different vanilla textures, so a strike has to rebind the hide and the mushrooms. The spawn records the
+  // two materials and both pairs of paths on the mob for exactly this swap; tinting alone left a converted
+  // mooshroom brown-tinted but still wearing the red sheet.
+  const loader = mob.skinManager;
+  const skinPath = variant === 'brown' ? mob.brownSkinPath : mob.redSkinPath;
+  const mushroomPath = variant === 'brown' ? mob.brownMushroomPath : mob.redMushroomPath;
+  if (typeof loader?.loadTexture === 'function') {
+    if (skinPath && mob.skinMaterial) {
+      mob.skinMaterial.color?.setHex(0xffffff);
+      adoptWhenReady(mob.skinMaterial, loader.loadTexture(skinPath), 0xffffff);
+    }
+    if (mushroomPath && mob.mushroomMaterial) {
+      mob.mushroomMaterial.color?.setHex(0xffffff);
+      adoptWhenReady(mob.mushroomMaterial, loader.loadTexture(mushroomPath), 0xffffff);
+    }
   }
   const showMushrooms = !mob.isBaby;
   for (const mesh of mob.mushroomMeshes || []) {

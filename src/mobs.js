@@ -4345,6 +4345,7 @@ export class MobManager {
       mesh: group,
       // The coat swap loads a different sheet, so the manager travels with the mob.
       skinManager: this,
+      skinPaths: RABBIT_SKIN_PATHS,
       head,
       body,
       patchMesh,
@@ -7309,7 +7310,11 @@ export class MobManager {
     mesh.position.y += 0.5;
     this.scene.add(mesh);
     if (!this.customProjectiles) this.customProjectiles = [];
-    this.customProjectiles.push({ mesh, ...data, isShulkerBullet: true });
+    // `position` as well as the mesh: updateCustomProjectiles steps `p.position` and then copies it onto the
+    // mesh, and every other projectile (the witch's potion, the ghast's fireball) carries both. The bullet
+    // data has only a velocity, so the missing position threw inside the projectile update and every shulker
+    // scenario that fires one -- movement, attack, damage -- died with it.
+    this.customProjectiles.push({ mesh, position: mesh.position.clone(), ...data, isShulkerBullet: true });
     this.sounds?.playShulkerShoot?.();
     return data;
   }
@@ -14241,7 +14246,18 @@ export class MobManager {
 
       if (!hostile) {
         // Idle: wander a little, and do not think about the player at all.
-        if (updateAmbientLocomotion) updateAmbientLocomotion(this, mob, dt, player, { wander: wanderMob });
+        //
+        // Wiki: an enderman is neutral and wanders its surroundings until it is provoked. The pace is passed
+        // in rather than declared in ambientLocomotion's table: the enderman has its own branch, and a table
+        // entry would make the generic fallback further down MobManager.update run for it as well and
+        // overwrite the chase this branch sets once it is hostile. `range: 0` keeps the wander from ever
+        // aiming at the player, which the branch above has already decided about.
+        if (updateAmbientLocomotion) {
+          updateAmbientLocomotion(this, mob, dt, player, {
+            wander: wanderMob,
+            spec: { role: 'passive', speed: 1.0, range: 0, damage: 0, attackReach: 0 }
+          });
+        }
         // No periodic teleport while neutral. The arena teleport was the reason an untouched enderman
         // appeared next to a new player's spawn.
       } else {

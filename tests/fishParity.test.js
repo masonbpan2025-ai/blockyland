@@ -302,10 +302,15 @@ test('the models have the parts the wiki describes', () => {
   const { manager } = fixture();
   const puffer = manager.spawnMob('pufferfish', 0, 1, 0);
   const tropical = manager.spawnMob('tropical_fish', 5, 1, 0);
-  // The pufferfish's spines are the point of the mob.
+  // The pufferfish's spines are the point of the mob. The model returns them in one list with the tail,
+  // which docs/mob-visual-audit.md records as eleven (the ten fins plus the tail). The wiki's Pufferfish
+  // page fixes no count, so what is asserted here is the model's own composition; the part that matters
+  // for the puff is that every entry scales with the inflation stage.
   assert.ok(puffer.body && puffer.belly && puffer.tail, 'a round body with a tail');
-  assert.equal(puffer.spines.length, 5, 'and spines');
-  assert.equal(puffer.eyes.length, 2);
+  assert.equal(puffer.spines.length, 11, 'and spines');
+  // Eyes are painted on the pufferfish's sheet, so a textured one models none -- docs/mob-visual-audit.md
+  // records exactly that ("eyes: 0"). The stand-in below, built without a sheet, is the case with two.
+  assert.equal(puffer.eyes.length, 0, 'the sheet carries the eyes');
   assert.ok(FISH_COLORS.pufferfish.body > 0);
   assert.ok(tropical.body && tropical.tail && tropical.dorsal, 'a disc with a tail and a dorsal fin');
   assert.equal(tropical.fins.length, 3, 'two pectorals and a dorsal');
@@ -313,7 +318,8 @@ test('the models have the parts the wiki describes', () => {
   const pm = createPufferfishModel(
     new THREE.MeshLambertMaterial(), new THREE.MeshLambertMaterial(),
     new THREE.MeshLambertMaterial(), new THREE.MeshBasicMaterial());
-  assert.ok(pm.group && pm.spines.length === 5);
+  assert.ok(pm.group && pm.spines.length === 11);
+  assert.equal(pm.eyes.length, 2, 'the untextured stand-in models its own two eyes');
   const tm = createTropicalFishModel(
     new THREE.MeshLambertMaterial(), new THREE.MeshLambertMaterial(), new THREE.MeshBasicMaterial());
   assert.ok(tm.group && tm.dorsal);

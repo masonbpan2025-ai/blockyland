@@ -1241,7 +1241,10 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
     const blocks = Array.from(voxelMap.values());
     if (blocks.length > 0) {
-      this.activeBuilding = targetBuilding || this.recordBuiltBuilding(plan.buildingType || 'custom', startX, baseY, startZ, W, H, D, { name: plan.name || title });
+      // The recorded type comes from `structureType` on modern plans and `buildingType` on older ones; reading
+      // only the latter filed every structure as "custom", which is what the multi-step reference test caught.
+      const recordedType = plan.structureType || plan.buildingType || 'custom';
+      this.activeBuilding = targetBuilding || this.recordBuiltBuilding(recordedType, startX, baseY, startZ, W, H, D, { name: plan.name || title });
       this.lastReferencedBuilding = this.activeBuilding;
       await this.applyVoxelChanges(blocks, `Building ${title}`);
       this.game.sounds.playLevelUp();
@@ -1849,24 +1852,27 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   // --- Execution Engine ---
   async runPlan(plan, originalPrompt) {
     this.activeBuilding = null;
-    if (plan.targetBuilding) {
-      const target = this.resolveBuilding(plan.targetBuilding);
+    // A plan names its target under `targetBuilding` (the field the prompt documents) or `targetStructure`
+    // (the field the model-facing schema and every geminiAgent test use). Resolving only the first meant a
+    // destroy or a stair attachment silently had no target at all.
+    const requestedTarget = plan.targetBuilding ?? plan.targetStructure;
+    if (requestedTarget) {
+      const target = this.resolveBuilding(requestedTarget);
       if (target) {
         plan = { ...plan, targetBuilding: target };
         this.lastReferencedBuilding = target;
       } else {
-        // A model will sometimes invent an id. With a building open in Building
-        // Studio there is exactly one thing it can mean, so use it rather than
-        // failing the entire plan with "Building not found".
+        // A model will sometimes invent an id. With a structure open in the Studio there is exactly one
+        // thing it can mean, so use it rather than failing the whole plan.
         const studioBuilding = this.getStudioBuilding();
         const editable = ['edit', 'destroy', 'build_stairs', 'build_ladder'].includes(plan.action);
         if (studioBuilding && editable) {
-          const requested = typeof plan.targetBuilding === 'string' ? plan.targetBuilding : 'that building';
-          this.log(`"${requested}" is not a known building; applying this to "${studioBuilding.name}" from Building Studio instead.`, 'warning');
+          const requested = typeof requestedTarget === 'string' ? requestedTarget : 'that structure';
+          this.log(`"${requested}" is not a known structure; applying this to "${studioBuilding.name}" from Structure Studio instead.`, 'warning');
           plan = { ...plan, targetBuilding: studioBuilding };
           this.lastReferencedBuilding = studioBuilding;
         } else {
-          throw new Error(`Building not found: ${typeof plan.targetBuilding === 'string' ? plan.targetBuilding : plan.targetBuilding.id}`);
+          throw new Error(`Structure not found: ${typeof requestedTarget === 'string' ? requestedTarget : requestedTarget.id}`);
         }
       }
     }
@@ -1958,23 +1964,26 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
       case 'build': {
         const pLow = (originalPrompt || '').toLowerCase();
+        // The structure's name comes from the model as `structureType` and from older callers as
+        // `buildingType`; reading only the latter passed undefined into executeBuild, which uppercased it.
+        const requestedType = plan.structureType || plan.buildingType;
         const isStairReq = (
-          plan.buildingType === 'stairs' || plan.buildingType === 'staircase' || plan.buildingType === 'stair' ||
-          plan.buildingType === 'ladder'
+          requestedType === 'stairs' || requestedType === 'staircase' || requestedType === 'stair' ||
+          requestedType === 'ladder'
         );
         const ref = plan.targetBuilding || this.findReferencedBuilding(originalPrompt) || this.lastBuiltBuilding;
 
         if (isStairReq && ref) {
           this.activeBuilding = ref;
-          if (plan.buildingType === 'ladder' || pLow.includes('ladder')) {
+          if (requestedType === 'ladder' || pLow.includes('ladder')) {
             await this.executeBuildLadder(ref, plan);
           } else {
             await this.executeBuildStairs(ref, plan);
           }
         } else if (plan.operations && plan.operations.length > 0) {
-          await this.executeOperations(plan.operations, plan.dimensions, plan.name || plan.buildingType || 'Custom Creation', null, plan);
+          await this.executeOperations(plan.operations, plan.dimensions, plan.name || requestedType || 'Custom Creation', null, plan);
         } else {
-          await this.executeBuild(plan.buildingType, plan);
+          await this.executeBuild(requestedType, plan);
         }
         break;
       }
@@ -3075,7 +3084,10 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       id: `studio_${studio.currentBuilding.id}`,
       name: studio.currentBuilding.name,
       type: studio.currentBuilding.id,
+      // Both spellings: the studio has been called a building and a structure in different rounds, and the
+      // tests and prompt text each use one of them.
       isStudioBuilding: true,
+      isStudioStructure: true,
       startX: origin.x + (info?.bounds?.minX ?? 0),
       baseY: origin.y + (info?.bounds?.minY ?? 0),
       startZ: origin.z + (info?.bounds?.minZ ?? 0),
@@ -3087,18 +3099,51 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     };
   }
 
+  /**
+   * The built list and the last built entry under the names the tests and the newer prompt text use.
+   *
+   * The agent has called these buildings from the start (builtBuildings, lastBuiltBuilding) and 17 test
+   * assertions call them structures. Getters rather than copies, so writing through either name is visible
+   * through the other.
+   */
+  get builtStructures() {
+    return this.builtBuildings;
+  }
+
+  set builtStructures(list) {
+    this.builtBuildings = list;
+  }
+
+  get lastBuiltStructure() {
+    return this.lastBuiltBuilding;
+  }
+
+  set lastBuiltStructure(entry) {
+    this.lastBuiltBuilding = entry;
+  }
+
+  /**
+   * The same resolution under its other name. The tests and the newer prompt text call a building a
+   * structure, and `resolveStructure` is the spelling they use, so both exist rather than one being renamed
+   * out from under callers.
+   */
+  resolveStructure(reference) {
+    return this.resolveBuilding(reference);
+  }
+
   resolveBuilding(reference) {
     const studioBuilding = this.getStudioBuilding();
 
     if (reference && typeof reference === 'object') {
-      if (reference.isStudioBuilding) return studioBuilding;
+      if (reference.isStudioBuilding || reference.isStudioStructure) return studioBuilding;
       return this.builtBuildings.find(s => s.id === reference.id) || null;
     }
     const text = String(reference || '').toLowerCase().trim().replace(/^(the|a|an)\s+/, '');
 
-    // In Building Studio the open building is the thing being worked on, so the
-    // usual pronouns and "the open building" resolve to it first.
-    if (studioBuilding && /^(it|that|this|that one|this one|previous one|last one|building|building|the open building|open building|current building)$/.test(text)) {
+    // In the Studio the open structure is the thing being worked on, so the usual pronouns and "the open
+    // structure" resolve to it first. Both words are listed because the feature has been called a building
+    // and a structure in different rounds, and "the structure" is what a player says.
+    if (studioBuilding && /^(it|that|this|that one|this one|previous one|last one|building|structure|the open building|open building|current building|the open structure|open structure|current structure|the structure)$/.test(text)) {
       return studioBuilding;
     }
     if (studioBuilding && [studioBuilding.id.toLowerCase(), studioBuilding.name.toLowerCase(), studioBuilding.type].includes(text)) {
@@ -3106,7 +3151,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     }
 
     if (text === 'last') return this.lastBuiltBuilding;
-    if (/^(it|that|this|that one|this one|previous one|last one|building|building)$/.test(text)) return this.lastReferencedBuilding || this.lastBuiltBuilding;
+    if (/^(it|that|this|that one|this one|previous one|last one|building|structure)$/.test(text)) return this.lastReferencedBuilding || this.lastBuiltBuilding;
     const exact = this.builtBuildings.filter(s => [s.id.toLowerCase(), s.name.toLowerCase(), s.type].includes(text));
     if (exact.length) return exact.at(-1);
     return null;
@@ -3176,6 +3221,12 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     this.log(`âœ“ Removed ${target.name}; restored ${blocks.length} blocks.`, 'success');
   }
 
+  /** The same reference scan under the structure name the tests use. */
+  findReferencedStructure(text) {
+    return this.findReferencedBuilding(text);
+  }
+
+  /** The same reference scan the prompt path has always used. */
   findReferencedBuilding(text) {
     if (!this.builtBuildings || this.builtBuildings.length === 0) {
       return null;

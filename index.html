@@ -1317,9 +1317,21 @@
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
       <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
-      <button class="mc-btn mc-btn-large mc-btn-mob-inspector" id="btn-start-mob-inspector">Mob Inspector</button>
-      <button class="mc-btn mc-btn-large mc-btn-resource-inspector" id="btn-start-resource-inspector">Resource Inspector</button>
-      <button class="mc-btn mc-btn-large mc-btn-structure-inspector" id="btn-start-structure-inspector">Structure Inspector</button>
+      <button class="mc-btn mc-btn-large mc-btn-inspector" id="btn-start-inspector">Inspector</button>
+    </div>
+    <!-- Inspector picker: one entry point on the start screen, four destinations behind it. -->
+    <div id="inspector-picker-modal" class="game-modal hidden">
+      <div class="map-modal-card biome-modal-card">
+        <div class="mc-title">Inspector</div>
+        <div class="biome-modal-subtitle">What would you like to inspect?</div>
+        <div class="inspector-picker-options">
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-structure">Structure</button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-item">Item</button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-block">Block</button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-mob">Mob</button>
+        </div>
+        <button class="mc-btn" id="btn-close-inspector-picker">Cancel</button>
+      </div>
     </div>
   <!-- Sleeping Overlay (Minecraft authentic bed sleep screen) -->
   <div id="sleeping-overlay" class="sleeping-overlay hidden">
