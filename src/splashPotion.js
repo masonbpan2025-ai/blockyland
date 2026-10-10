@@ -17,7 +17,7 @@
 // The effect is read from `POTION_DATA` by stripping the `splash_` prefix, so a potion and its splash form
 // cannot disagree and anything the brewing stand can produce is throwable by construction.
 import { POTION_DATA, potionCoreFor } from './brewing.js';
-import { effectsFor } from './statusEffects.js';
+import { effectsFor, immuneToEffect } from './statusEffects.js';
 
 /** Vanilla applies a splash potion within four blocks of where it lands. */
 export const SPLASH_RADIUS = 4.0;
@@ -94,6 +94,9 @@ export function splashTargets(center, entities, radius = SPLASH_RADIUS) {
  * otherwise. Consuming the item and the particle and sound effects stay with the caller, which owns the
  * inventory and the renderer.
  *
+ * A mob vanilla makes immune to an effect is skipped for that effect, which is why the whole stock of
+ * Splash Potions of Poison does not thin out a zombie horde. The player is never immune to anything.
+ *
  * @param {object} game
  * @param {{x:number,y:number,z:number}} center where the potion lands
  * @param {string} itemId
@@ -108,6 +111,7 @@ export function throwSplashPotion(game, center, itemId) {
     // Every status the potion stands for, so a splash of the Turtle Master lands its Slowness and its
     // Resistance rather than a single `turtle_master` status no rule in `statusEffects.js` reads.
     for (const [name, level] of effect.effects) {
+      if (target !== game?.player && immuneToEffect(name, target.type)) continue;
       target.applyStatusEffect?.(name, effect.seconds, level);
     }
   }

@@ -155,6 +155,43 @@ test('an ordinary splash potion still applies exactly its own single effect', ()
   assert.deepEqual(applied, [{ id: 'strength', s: 90, l: 2 }]);
 });
 
+test('a mob vanilla makes immune to an effect is skipped for that effect only', () => {
+  // "Undead mobs are immune to Regeneration and Poison" and "spiders and cave spiders are immune to
+  // Poison". Before this, a splash Potion of Poison thinned out a zombie horde.
+  const applied = [];
+  const mk = (type) => ({ type, position: new THREE.Vector3(), applyStatusEffect: (id) => applied.push(`${type}:${id}`) });
+  const zombie = mk('zombie');
+  const spider = mk('spider');
+  const pig = mk('pig');
+  const game = (player) => ({ mobs: { mobs: [zombie, spider, pig] }, player });
+
+  // Poison: the zombie and the spider are immune, the pig is not.
+  applied.length = 0;
+  throwSplashPotion(game({ position: new THREE.Vector3(), applyStatusEffect: (id) => applied.push(`player:${id}`) }),
+    new THREE.Vector3(), 'splash_potion_of_poison');
+  assert.deepEqual(applied.sort(), ['pig:poison', 'player:poison'],
+    'only the non-immune mob and the player take poison');
+
+  // Regeneration: the zombie is immune, the others are not. The player is never immune.
+  applied.length = 0;
+  throwSplashPotion(game({ position: new THREE.Vector3(), applyStatusEffect: (id) => applied.push(`player:${id}`) }),
+    new THREE.Vector3(), 'splash_potion_of_regeneration');
+  assert.deepEqual(applied.sort(), ['pig:regeneration', 'player:regeneration', 'spider:regeneration']);
+
+  // Speed has no immunity list, so everyone takes it.
+  applied.length = 0;
+  throwSplashPotion(game({ position: new THREE.Vector3(), applyStatusEffect: (id) => applied.push(`player:${id}`) }),
+    new THREE.Vector3(), 'splash_potion_of_swiftness');
+  assert.equal(applied.length, 4, 'all three mobs and the player');
+
+  // The ender dragon is immune to everything.
+  applied.length = 0;
+  const dragon = mk('ender_dragon');
+  throwSplashPotion({ mobs: { mobs: [dragon] }, player: { position: new THREE.Vector3(), applyStatusEffect: (id) => applied.push(`player:${id}`) } },
+    new THREE.Vector3(), 'splash_potion_of_healing');
+  assert.deepEqual(applied, ['player:instant_health'], 'the dragon takes nothing, the player takes the heal');
+});
+
 test('a target without the method does not throw', () => {
   const game = {
     mobs: { mobs: [{ mesh: { position: new THREE.Vector3() }, health: 10 }] },

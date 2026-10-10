@@ -1,4 +1,4 @@
-// Item parity batch 7: falling never hurt, and no effect ever scaled with its level.
+﻿// Item parity batch 7: falling never hurt, and no effect ever scaled with its level.
 //
 // Two defects that had the same shape -- a rule that existed and was never reached.
 //
@@ -22,7 +22,7 @@ import { Inventory } from '../src/inventory.js';
 import { Player, FALL_ABSORBING_BLOCKS } from '../src/player.js';
 import {
   EFFECTS, fallDamage, hasSlowFalling, FALL_DAMAGE,
-  attackMultiplier, damageTakenMultiplier, speedMultiplier,
+  attackDamageBonus, damageTakenMultiplier, speedMultiplier,
 } from '../src/statusEffects.js';
 
 const near = (actual, expected, message) => {
@@ -39,36 +39,36 @@ const atAmplifier = (...pairs) => new Map(pairs.map(([n, amplifier = 0]) => [n, 
 
 test('the effects table reads the level the game actually stores', () => {
   // `applyStatusEffect(effect, duration, level)` -- this is that shape.
-  near(attackMultiplier(atLevel(['strength'])), 1.3, 'strength I');
-  near(attackMultiplier(atLevel(['strength', 2])), 1.69, 'strength II');
-  near(damageTakenMultiplier(atLevel(['resistance', 4])), 0.4096, 'resistance IV');
-  near(speedMultiplier(atLevel(['slowness', 4])), 0.85 ** 4, 'slowness IV');
+  near(attackDamageBonus(atLevel(['strength'])), 3, 'strength I');
+  near(attackDamageBonus(atLevel(['strength', 2])), 6, 'strength II');
+  near(damageTakenMultiplier(atLevel(['resistance', 4])), 0.2, 'resistance IV removes 80%');
+  near(speedMultiplier(atLevel(['slowness', 4])), 1 - 0.15 * 4, 'slowness IV removes 60%');
 });
 
 test('an explicit amplifier is still honoured, because that is vanilla\'s field name', () => {
-  near(attackMultiplier(atAmplifier(['strength'])), 1.3, 'amplifier 0 is level I');
-  near(attackMultiplier(atAmplifier(['strength', 1])), 1.69, 'amplifier 1 is level II');
+  near(attackDamageBonus(atAmplifier(['strength'])), 3, 'amplifier 0 is level I');
+  near(attackDamageBonus(atAmplifier(['strength', 1])), 6, 'amplifier 1 is level II');
 });
 
 test('the two conventions cannot drift apart again', () => {
-  // The defect in one assertion: every multiplier must agree whether a level is expressed as the 1-based
+  // The defect in one assertion: every reader must agree whether a level is expressed as the 1-based
   // `level` this game stores or the 0-based `amplifier` vanilla names. If a future change reads one field
   // while a caller writes the other, these comparisons fail -- where the game itself would silently apply
   // everything at level 1.
-  const cases = [['strength', attackMultiplier], ['resistance', damageTakenMultiplier], ['speed', speedMultiplier]];
+  const cases = [['strength', attackDamageBonus], ['resistance', damageTakenMultiplier], ['speed', speedMultiplier]];
   for (const [effect, fn] of cases) {
     for (let level = 1; level <= 4; level++) {
       near(fn(atLevel([effect, level])), fn(atAmplifier([effect, level - 1])), `${effect} at level ${level}`);
     }
   }
   // And a level really does change the answer, so the loop above cannot pass by both sides being broken.
-  assert.notEqual(attackMultiplier(atLevel(['strength', 2])), attackMultiplier(atLevel(['strength', 1])));
+  assert.notEqual(attackDamageBonus(atLevel(['strength', 2])), attackDamageBonus(atLevel(['strength', 1])));
 });
 
 test('a level of zero or a missing field still means level I, not level 0', () => {
-  near(attackMultiplier(new Map([['strength', { duration: 5 }]])), 1.3, 'no level field');
-  near(attackMultiplier(new Map([['strength', { duration: 5, level: 0 }]])), 1.3, 'level 0 floors at I');
-  near(attackMultiplier(new Map([['strength', { duration: 5, level: -2 }]])), 1.3, 'a negative level floors at I');
+  near(attackDamageBonus(new Map([['strength', { duration: 5 }]])), 3, 'no level field');
+  near(attackDamageBonus(new Map([['strength', { duration: 5, level: 0 }]])), 3, 'level 0 floors at I');
+  near(attackDamageBonus(new Map([['strength', { duration: 5, level: -2 }]])), 3, 'a negative level floors at I');
 });
 
 // --- 2. the fall damage rule, on its own ------------------------------------
@@ -197,3 +197,4 @@ test('the cap is a cap and not a floor: rising is untouched', () => {
   player.update(1 / 20);
   assert.ok(player.velocity.y > 0, 'a jumping player should still rise under Slow Falling');
 });
+

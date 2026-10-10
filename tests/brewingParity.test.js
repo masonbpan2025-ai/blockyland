@@ -1,4 +1,4 @@
-// Brewing parity against https://minecraft.wiki/w/Brewing, the Brewing Stand article and
+﻿// Brewing parity against https://minecraft.wiki/w/Brewing, the Brewing Stand article and
 // https://minecraft.wiki/w/Potion.
 //
 // This file pins the whole ruleset rather than a sample, because every failure mode here is silent: a
@@ -24,7 +24,7 @@ import {
   BrewingStand, BrewingManager, BREW_DURATION, MAX_FUEL, BOTTLE_SLOTS,
   BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult, potionDataFor,
 } from '../src/brewing.js';
-import { effectsFor, compoundEffects, isKnownEffect } from '../src/statusEffects.js';
+import { EFFECTS, effectsFor, compoundEffects, isKnownEffect } from '../src/statusEffects.js';
 import { INSTANT_EFFECTS } from '../src/potionUse.js';
 
 // --- the stand's constants -----------------------------------------------------
@@ -417,19 +417,24 @@ test('the compound effect scales to the enhanced tier', () => {
 test('every potion\'s effect is one the game can actually apply', () => {
   // A potion naming an effect nothing implements is a potion that does nothing when drunk, silently.
   //
-  // Instant Health and Instant Damage are deliberately NOT in the `statusEffects` table -- that table is
-  // timed effects, and a status you can hold is the wrong shape for a heal that resolves once. They live
-  // in `INSTANT_EFFECTS`, which is what `applyPotionEffect` branches on, so an effect is "known" if
-  // either place handles it. `statusEffectWikiLedger.test.js` pins the same split from the other side.
-  const known = (name) => isKnownEffect(name) || INSTANT_EFFECTS.has(name);
+  // Every effect a potion names is now in the `statusEffects` table, including Instant Health and Instant
+  // Damage. Those two are marked `instant` there rather than left out: the table is where an effect's id,
+  // name, category and amount live, and a heal that resolves once is still an effect the game defines.
+  // `applyPotionEffect` branches on `INSTANT_EFFECT_IDS` for how to apply it, not on whether it exists.
   const unknown = Object.entries(POTION_DATA)
-    .filter(([, data]) => data.effect && !known(data.effect))
+    .filter(([, data]) => data.effect && !isKnownEffect(data.effect))
     .map(([id, data]) => `${id} -> ${data.effect}`);
   assert.deepEqual(unknown, []);
-  // And the two instant effects really are the only ones outside the table.
+  // Everything a potion can name is table-registered, so nothing falls outside it.
   const outsideTable = [...new Set(Object.values(POTION_DATA).map((d) => d.effect))]
     .filter((effect) => effect && !isKnownEffect(effect));
-  assert.deepEqual(outsideTable.sort(), ['instant_damage', 'instant_health']);
+  assert.deepEqual(outsideTable, []);
+  // And the two that resolve once are flagged as such in the table and in the shared set.
+  for (const id of ['instant_health', 'instant_damage']) {
+    assert.equal(EFFECTS[id].instant, true, `${id} is marked instant`);
+    assert.equal(INSTANT_EFFECTS.has(id), true, `${id} is in the instant set`);
+  }
+  assert.equal(INSTANT_EFFECTS.size, 2, 'and those are the only two');
 });
 
 test('a potion\'s declared level matches the level its name advertises', () => {
@@ -520,3 +525,4 @@ test('potionDataFor resolves every form of every potion', () => {
   assert.equal(potionDataFor('splash_potion').splash, true);
   assert.equal(potionDataFor('lingering_potion').lingering, true);
 });
+

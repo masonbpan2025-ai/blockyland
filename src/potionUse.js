@@ -8,15 +8,15 @@
 // 36 potions are base potions with no effect at all -- water, awkward, thick, mundane -- and they are
 // still consumed, because that is what vanilla does and it is how a player discards one.
 import { potionDataFor } from './brewing.js';
-import { effectsFor } from './statusEffects.js';
+import { effectsFor, instantAmount, INSTANT_EFFECT_IDS } from './statusEffects.js';
 
 /**
  * Effects that resolve in one instant rather than over a duration.
  *
- * POTION_DATA gives these an `amount` instead of a `duration`. Healing and Harming are the only two,
- * and neither can go through `applyStatusEffect`, which stores a timer.
+ * Re-exported from `statusEffects.js`, where the effects themselves live, so a caller that only wants to
+ * know "is this one instant" has one place to ask. Healing and Harming are the only two.
  */
-export const INSTANT_EFFECTS = new Set(['instant_health', 'instant_damage']);
+export const INSTANT_EFFECTS = INSTANT_EFFECT_IDS;
 
 /** Is this item something the player can drink, as opposed to throw? */
 export function isDrinkablePotion(itemId) {
@@ -36,18 +36,22 @@ export function applyPotionEffect(potion, player) {
   const effect = potion.effect ?? null;
   if (!effect) return { effect: null, instant: false, level: 1 };
 
+  // The two instant effects come from the effect table's own amounts, which double per level: Instant
+  // Health restores 4 HP at level I, 8 at II and 16 at III, and Instant Damage deals 6, 12 and 24. The
+  // table read a hard-coded 4 and 6 before, so a level III potion -- which a command or a data pack can
+  // make, and which the table's own `level` field described -- healed a quarter of what it should.
   if (effect === 'instant_health') {
-    const amount = potion.amount ?? 4;
+    const amount = instantAmount(effect, potion.level ?? 1);
     player.health = Math.min(player.maxHealth, player.health + amount);
-    return { effect, instant: true, level: potion.level ?? 1 };
+    return { effect, instant: true, level: potion.level ?? 1, amount };
   }
   if (effect === 'instant_damage') {
     // Routed through takeDamage so the death path, exhaustion and difficulty handling stay in one
     // place. Magic is not shield-blockable in vanilla, and `takeDamage` already exempts the types it
     // cannot block from the shield check.
-    const amount = potion.amount ?? 6;
+    const amount = instantAmount(effect, potion.level ?? 1);
     player.takeDamage?.(amount, null, 'magic');
-    return { effect, instant: true, level: potion.level ?? 1 };
+    return { effect, instant: true, level: potion.level ?? 1, amount };
   }
 
   // One potion, two effects. Vanilla's Potion of the Turtle Master applies Slowness IV and Resistance III

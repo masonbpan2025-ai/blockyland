@@ -219,10 +219,10 @@ test('the extended and enhanced Turtle Master potions work, at their own tiers',
 
   const base = standing();
   const enhancedRatio = flyingSpeed(enhanced) / flyingSpeed(base);
-  near(enhancedRatio, 0.85 ** 6, 'Slowness VI is 0.85 to the sixth');
+  near(enhancedRatio, 1 - 0.15 * 6, 'Slowness VI removes 15% per level, additively');
 
   enhanced.takeDamage(8, null, 'generic');
-  near(20 - enhanced.health, 8 * 0.8 ** 4, 'Resistance IV is 0.8 to the fourth');
+  near(20 - enhanced.health, 8 * (1 - 0.2 * 4), 'Resistance IV removes 20% per level');
 });
 
 test('a Turtle Master potion is genuinely slow and genuinely protective', () => {
@@ -235,14 +235,14 @@ test('a Turtle Master potion is genuinely slow and genuinely protective', () => 
   player.takeDamage(8, null, 'generic');
   const resisted = 20 - player.health;
   assert.ok(resisted < 8, `resistance should reduce the blow, took ${resisted}`);
-  near(resisted, 8 * 0.8 ** 3, 'Resistance III is 0.8 cubed');
+  near(resisted, 8 * (1 - 0.2 * 3), 'Resistance III removes 20% per level, additively');
 
   // Slowness IV, measured through the movement the player actually has rather than the base speed: the
   // effect multiplier is applied in `update`, so a base-speed comparison would pass either way.
   const slowed = player;
   const base = standing();
   const ratio = flyingSpeed(slowed) / flyingSpeed(base);
-  near(ratio, 0.85 ** 4, 'Slowness IV is 0.85 to the fourth');
+  near(ratio, 1 - 0.15 * 4, 'Slowness IV removes 15% per level, additively');
 });
 
 // --- the golden apples -------------------------------------------------------

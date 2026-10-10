@@ -1,6 +1,6 @@
 import { soulSpeedMultiplier } from './barterItems.js';
 import { tickWither } from './witherEffect.js';
-import { damageTakenMultiplier, attackMultiplier, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier } from './statusEffects.js';
+import { damageTakenMultiplier, attackDamageBonus, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier, immuneToEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier, protectionPoints } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import * as THREE from 'three';
@@ -962,13 +962,16 @@ export class Player {
   }
 
   /**
-   * The multiplier this player's outgoing damage takes from strength and weakness.
+   * The flat damage this player's outgoing hits gain from strength and weakness.
    *
    * Lives here so the melee call site needs no import from the effect module, and so a test can ask a
    * Player rather than reaching into its effect map.
+   *
+   * Vanilla adds a flat amount per level rather than scaling the hit, so this is a number of HP to add
+   * and not a multiplier: Strength II adds six damage to a wooden sword and six to a netherite one.
    */
-  attackDamageMultiplier() {
-    return attackMultiplier(this.statusEffects);
+  attackDamageBonus() {
+    return attackDamageBonus(this.statusEffects);
   }
 
   /** The multiplier this player's incoming damage takes from resistance. */
@@ -1413,6 +1416,20 @@ export class Player {
   }
 
   applyStatusEffect(effect, duration = 30, level = 1) {
+    // A higher level overwrites a lower one and a longer duration overwrites a shorter one, which is
+    // vanilla's rule: "It is not possible to apply the same effect multiple times... higher levels
+    // overwrite lower levels, and higher durations overwrite lower durations of the same level." The map
+    // already held one entry per effect; this keeps a weaker or shorter application from cutting a
+    // stronger or longer running one short, which it previously did on every sip.
+    const current = this.statusEffects.get(effect);
+    if (current) {
+      const runningLevel = Math.floor(current.level ?? 1);
+      const incomingLevel = Math.floor(level) || 1;
+      const runningDuration = current.duration ?? 0;
+      // The incoming effect wins when it is stronger, or equal in strength and at least as long.
+      if (runningLevel > incomingLevel) return;
+      if (runningLevel === incomingLevel && runningDuration >= duration) return;
+    }
     this.statusEffects.set(effect, { duration, level, tickTimer: 0 });
     // Absorption is a pool rather than a per-tick rule, so the shield is raised here, where the effect
     // starts, and spent in `takeDamage`. A second application takes the larger shield instead of adding,

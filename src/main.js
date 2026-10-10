@@ -1987,10 +1987,11 @@ class Game {
         // have somewhere to go, and so the numbers can be asserted directly.
         damage += attackBonus(activeItem.enchantments, this.targetMob.type);
       }
-      // Strength and weakness scale what this hit deals. Asked of the player rather than computed here,
-      // so the effect rules stay in one module and this call site needs no import.
-      const effectScale = this.player?.attackDamageMultiplier?.() ?? 1;
-      if (effectScale !== 1) damage *= effectScale;
+      // Strength and weakness change what this hit deals by a flat amount per level, as vanilla does --
+      // "+3 HP x level" -- so a hit is adjusted rather than scaled. Asked of the player rather than
+      // computed here, so the effect rules stay in one module and this call site needs no import.
+      const effectBonus = this.player?.attackDamageBonus?.() ?? 0;
+      if (effectBonus !== 0) damage = Math.max(0, damage + effectBonus);
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
       // Fire aspect sets the target alight after the hit lands, so a killing blow still burns the corpse
       // rather than skipping the effect.
