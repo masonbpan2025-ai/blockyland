@@ -21,6 +21,7 @@ import {
 } from './agentProviders.js';
 import { describeOpenBuilding, formatBuildingContext } from './buildingContext.js';
 import { explainFailure, isExternalFailure } from './agentCapabilities.js';
+import { PlayerBot, parsePlayerCommand } from './playerBot.js';
 
 // A thinking model can be silent for a long time before its first token, so we
 // abort on silence rather than on total duration.
@@ -63,7 +64,8 @@ function surfaceGlyph(id) {
 }
 
 const PLAN_JSON_SCHEMA = `{
-  "action": "build" | "edit" | "destroy" | "message" | "build_stairs" | "build_ladder" | "weather" | "summon" | "time" | "give" | "gamemode" | "heal" | "clear" | "light" | "multi" | "fill_water",
+  "action": "build" | "edit" | "destroy" | "message" | "build_stairs" | "build_ladder" | "weather" | "summon" | "time" | "give" | "gamemode" | "heal" | "clear" | "light" | "multi" | "fill_water" | "player_control",
+  "command": "mine 3 iron ore | go to X Y Z | follow cow | attack zombie | equip stone pickaxe | jump | look at pig | test movement | test mining iron ore",
   "name": "Short descriptive building name",
   "offset": [0, 0, 0],
   "mode": "creative" | "survival",
@@ -98,6 +100,10 @@ export class WorldAgent {
 
   constructor(game) {
     this.game = game;
+    this.playerBot = game.playerBot ||= new PlayerBot(game, {
+      log: (message, type) => this.log(message, type),
+      progress: (percent, message) => this.updateProgress(percent, message)
+    });
     this.settings = new AgentSettings();
     this.isExecuting = false;
     this.currentTask = null;
@@ -299,6 +305,13 @@ export class WorldAgent {
 
   // --- Main Entry Point ---
   async executePrompt(prompt, imageAttachment = null, options = {}) {
+    const playerCommand = !imageAttachment && parsePlayerCommand(prompt);
+    // Cancellation must remain available while the current task is awaiting ticks.
+    if (playerCommand?.type === 'stop' || playerCommand?.type === 'status') {
+      const result = await this.playerBot.run(playerCommand);
+      if (result?.message) this.log(result.message, 'info');
+      return result;
+    }
     if (this.isExecuting) {
       this.log('A task is already being executed. Please wait...', 'warning');
       return;
@@ -322,6 +335,14 @@ export class WorldAgent {
 
     try {
       let plan = null;
+
+      if (playerCommand) {
+        const result = await this.playerBot.run(playerCommand);
+        this.conversationHistory.push({ role: 'user', text: cleanPrompt }, { role: 'assistant', text: result.message });
+        if (!result.ok) this.lastError = new Error(result.message);
+        this.updateProgress(100, result.message);
+        return result;
+      }
 
       // Check if Building Studio is active and prompt configures a parametric building
       if (this.game?.buildingStudio?.isActive && cleanPrompt) {
@@ -625,6 +646,7 @@ For unsupported capabilities, ambiguity, or questions return action "message" an
 EVERY reply must be that JSON object, including purely conversational answers, and the "action" field is mandatory — a reply with no "action" is invalid. When the player asks a question about the world ("what's in front of me?", "tell me about this world", "what is around here?"), return action "message" and put the full answer in "explanation". Write that answer for the player: name what they are standing on and in, what the view is aimed at, the biome and terrain, anything notable nearby, and the time of day.
 Use the world state above as your eyes. It contains the player's position and facing, the block under the crosshair, DIRECTLY AHEAD (what the sight line hits), LOCAL TERRAIN (the surrounding columns) and any buildings you have built. Never say you cannot see the world — read it and describe it. Never ask the player to describe their own surroundings.
 You can also act: build, edit, destroy, summon, give, set weather or time, and design custom mobs. Mixing an answer with an action is fine — use "multi" when a request needs both.
+For requests to control the player, gather resources, travel, follow or attack a creature, or test gameplay, use action "player_control" with a command string from the schema. The bot walks using collision and mines through normal gameplay; it never grants items or teleports. Mining is bounded to 64 blocks and a 24-block search radius, navigation to nearby terrain, and requires an existing suitable tool in survival. Do not substitute "give" or "clear" for mining. For tasks outside these capabilities, explain the limit with action "message".
 
 WHO YOU ARE:
 You are an experienced Minecraft player sitting next to the player, looking at their screen with them. You are relaxed, warm and genuinely helpful — the friend who knows the game well and is happy to be asked anything. Never sound like a program, a form or a status report. Talk like a person: "nice spot for a pier, let's do it", not "Request acknowledged."
@@ -1851,6 +1873,12 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
   // --- Execution Engine ---
   async runPlan(plan, originalPrompt) {
+    if (plan.action === 'player_control') {
+      const result = await this.playerBot.run(plan.command);
+      if (!result?.ok) throw new Error(result?.message || 'Player bot task failed.');
+      this.updateProgress(100, result.message);
+      return result;
+    }
     this.activeBuilding = null;
     // A plan names its target under `targetBuilding` (the field the prompt documents) or `targetStructure`
     // (the field the model-facing schema and every geminiAgent test use). Resolving only the first meant a

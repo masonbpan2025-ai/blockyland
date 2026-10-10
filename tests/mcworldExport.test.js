@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { readNbt } from '../src/io/nbt.js';
 import {
   crc32,
@@ -7,6 +9,9 @@ import {
   maskCrc32c,
   buildLevelDbFiles,
   buildLevelDat,
+  buildBedrockPlayerData,
+  getBedrockItemName,
+  getItemDamage,
   createZipArchive,
   generateMcWorld,
   exportMapToMcWorld
@@ -340,3 +345,241 @@ test('mapManager re-exports generateMcWorld and exportMapToMcWorld', () => {
   assert.equal(typeof mapMgrGenerateMcWorld, 'function');
   assert.equal(typeof mapMgrExportMapToMcWorld, 'function');
 });
+
+test('buildBedrockPlayerData converts player location, rotation, inventory, and equipment accurately', () => {
+  const mapData = {
+    player: {
+      position: { x: 12.5, y: 70.0, z: -45.25 },
+      velocity: { x: 0.1, y: -0.2, z: 0.0 },
+      yaw: Math.PI / 2, // 90 degrees
+      pitch: -Math.PI / 4, // -45 degrees
+      health: 18,
+      hunger: 16,
+      saturation: 4.5,
+      level: 5,
+      exp: 0.75
+    },
+    inventory: {
+      activeSlot: 2,
+      hotbar: [
+        { id: 'diamond_sword', count: 1 },
+        null,
+        { id: 'iron_pickaxe', count: 1, maxDurability: 250, durability: 200 } // damage 50
+      ],
+      storage: [
+        { id: 'bread', count: 16 }
+      ],
+      armor: {
+        head: { id: 'iron_helmet', count: 1 },
+        chest: null,
+        legs: { id: 'diamond_leggings', count: 1 },
+        feet: null
+      },
+      offhand: { id: 'shield', count: 1 }
+    }
+  };
+
+  const playerData = buildBedrockPlayerData(mapData);
+
+  // Position and motion
+  assert.equal(playerData.Pos[0], 12.5);
+  assert.equal(playerData.Pos[1], 70.0);
+  assert.equal(playerData.Pos[2], -45.25);
+  assert.equal(playerData.Motion[0], 0.1);
+  assert.equal(playerData.Motion[1], -0.2);
+
+  // Angles in degrees
+  assert.equal(Math.round(playerData.Rotation[0]), 90);
+  assert.equal(Math.round(playerData.Rotation[1]), -45);
+
+  // Status
+  assert.equal(playerData.Health, 18);
+  assert.equal(playerData.foodLevel, 16);
+  assert.equal(playerData.PlayerLevel, 5);
+  assert.equal(playerData.SelectedItemSlot, 2);
+
+  // Hotbar items
+  const sword = playerData.Inventory.find(i => i.Slot === 0);
+  assert.ok(sword);
+  assert.equal(sword.Name, 'minecraft:diamond_sword');
+  assert.equal(sword.Count, 1);
+  assert.equal(sword.Damage, 0);
+
+  const pickaxe = playerData.Inventory.find(i => i.Slot === 2);
+  assert.ok(pickaxe);
+  assert.equal(pickaxe.Name, 'minecraft:iron_pickaxe');
+  assert.equal(pickaxe.Damage, 50);
+
+  // Storage item in slot 9 (first storage slot)
+  const bread = playerData.Inventory.find(i => i.Slot === 9);
+  assert.ok(bread);
+  assert.equal(bread.Name, 'minecraft:bread');
+  assert.equal(bread.Count, 16);
+
+  // Offhand in slot 40
+  const offhand = playerData.Inventory.find(i => i.Slot === 40);
+  assert.ok(offhand);
+  assert.equal(offhand.Name, 'minecraft:shield');
+
+  // Armor slots: 0 = head, 1 = chest, 2 = legs, 3 = feet
+  assert.equal(playerData.Armor[0].Name, 'minecraft:iron_helmet');
+  assert.equal(playerData.Armor[0].Count, 1);
+  assert.equal(playerData.Armor[1].Name, '');
+  assert.equal(playerData.Armor[1].Count, 0);
+  assert.equal(playerData.Armor[2].Name, 'minecraft:diamond_leggings');
+  assert.equal(playerData.Armor[2].Count, 1);
+  assert.equal(playerData.Armor[3].Name, '');
+  assert.equal(playerData.Armor[3].Count, 0);
+});
+
+test('buildLevelDbFiles encodes valid LevelDB ~local_player log record when mapData is provided', () => {
+  const mapData = {
+    player: {
+      position: { x: 34.0, y: 64.0, z: -12.0 },
+      yaw: 0,
+      pitch: 0,
+      health: 20
+    },
+    inventory: {
+      activeSlot: 0,
+      hotbar: [{ id: 'golden_apple', count: 5 }],
+      storage: [],
+      armor: {}
+    }
+  };
+
+  const { log } = buildLevelDbFiles(mapData);
+  assert.ok(log.length > 50, '000002.log must contain WriteBatch record with ~local_player');
+
+  // Check LevelDB WAL record header: [4-byte CRC][2-byte len][1-byte type=1]
+  const lv = new DataView(log.buffer, log.byteOffset, log.byteLength);
+  const recLen = lv.getUint16(4, true);
+  const recType = lv.getUint8(6);
+  assert.equal(recType, 1, 'WAL record type must be kFullType (1)');
+  assert.equal(recLen, log.length - 7, 'Payload length matches WAL record size');
+
+  // Check WriteBatch contents
+  const batch = log.subarray(7);
+  const bv = new DataView(batch.buffer, batch.byteOffset, batch.byteLength);
+  const seq = bv.getBigUint64(0, true);
+  const count = bv.getUint32(8, true);
+  assert.equal(seq, 1n);
+  assert.equal(count, 1);
+  assert.equal(batch[12], 1, 'Operation is kTypeValue');
+
+  const keyLen = batch[13];
+  assert.equal(keyLen, 13);
+  const key = new TextDecoder().decode(batch.subarray(14, 14 + keyLen));
+  assert.equal(key, '~local_player');
+
+  // Parse player NBT from WAL payload
+  const valOffset = 14 + keyLen + 2; // keyLen + 2-byte varint valLen
+  const playerNbtBytes = batch.subarray(valOffset);
+  const nbt = readNbt(playerNbtBytes, { littleEndian: true });
+
+  assert.equal(nbt.Pos[0], 34.0);
+  assert.equal(nbt.Pos[1], 64.0);
+  assert.equal(nbt.Pos[2], -12.0);
+  assert.equal(nbt.Inventory[0].Name, 'minecraft:golden_apple');
+  assert.equal(nbt.Inventory[0].Count, 5);
+});
+
+test('Exporting real save World_2026-10-08_iron_player preserves position, rotation, hotbar, storage, and equipped armor in both level.dat and db/000002.log', () => {
+  const savePath = path.resolve(process.cwd(), 'saves/World_2026-10-08_iron_player.json');
+  assert.ok(fs.existsSync(savePath), 'User saved map file must exist');
+
+  const mapData = JSON.parse(fs.readFileSync(savePath, 'utf8'));
+  const mcworldBytes = generateMcWorld(mapData);
+
+  // Extract level.dat and db/000002.log from zip
+  let eocdOffset = -1;
+  for (let i = mcworldBytes.length - 22; i >= 0; i--) {
+    if (
+      mcworldBytes[i] === 0x50 &&
+      mcworldBytes[i + 1] === 0x4b &&
+      mcworldBytes[i + 2] === 0x05 &&
+      mcworldBytes[i + 3] === 0x06
+    ) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  const eocdView = new DataView(mcworldBytes.buffer, mcworldBytes.byteOffset + eocdOffset, 22);
+  const totalEntries = eocdView.getUint16(10, true);
+  const centralDirOffset = eocdView.getUint32(16, true);
+
+  const filesFound = new Map();
+  let cdPos = centralDirOffset;
+  for (let i = 0; i < totalEntries; i++) {
+    const cv = new DataView(mcworldBytes.buffer, mcworldBytes.byteOffset + cdPos, 46);
+    const uncompSize = cv.getUint32(24, true);
+    const nameLen = cv.getUint16(28, true);
+    const extraLen = cv.getUint16(30, true);
+    const commentLen = cv.getUint16(32, true);
+    const localHeaderOffset = cv.getUint32(42, true);
+
+    const nameBytes = mcworldBytes.subarray(cdPos + 46, cdPos + 46 + nameLen);
+    const fileName = new TextDecoder().decode(nameBytes);
+
+    const lv = new DataView(mcworldBytes.buffer, mcworldBytes.byteOffset + localHeaderOffset, 30);
+    const localNameLen = lv.getUint16(26, true);
+    const localExtraLen = lv.getUint16(28, true);
+    const dataOffset = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    const data = mcworldBytes.subarray(dataOffset, dataOffset + uncompSize);
+
+    filesFound.set(fileName, data);
+    cdPos += 46 + nameLen + extraLen + commentLen;
+  }
+
+  // 1. Verify Player in level.dat
+  const levelDat = filesFound.get('level.dat');
+  assert.ok(levelDat && levelDat.length > 8);
+  const levelNbt = readNbt(levelDat.slice(8), { littleEndian: true });
+  assert.ok(levelNbt.Player, 'level.dat must contain Player compound');
+
+  const p = levelNbt.Player;
+  // Position from World_2026-10-08_iron_player: { x: 6.67, y: 27, z: 7.614 }
+  assert.ok(Math.abs(p.Pos[0] - 6.67) < 0.01, 'Player X must match saved map position');
+  assert.equal(p.Pos[1], 27, 'Player Y must match saved map position');
+  assert.ok(Math.abs(p.Pos[2] - 7.614) < 0.01, 'Player Z must match saved map position');
+
+  // SpawnX/Y/Z should also match
+  assert.equal(levelNbt.SpawnX, 7);
+  assert.equal(levelNbt.SpawnY, 27);
+  assert.equal(levelNbt.SpawnZ, 8);
+
+  // Active slot from save: 6
+  assert.equal(p.SelectedItemSlot, 6);
+
+  // Damaged stone pickaxe in hotbar slot 4 with durability wear 131 - 114 = 17
+  const pickaxe = p.Inventory.find(item => item.Slot === 4);
+  assert.ok(pickaxe, 'Hotbar slot 4 must contain stone pickaxe');
+  assert.equal(pickaxe.Name, 'minecraft:stone_pickaxe');
+  assert.equal(pickaxe.Damage, 17, 'Durability damage must be preserved');
+  assert.equal(pickaxe.Count, 1);
+
+  // Iron sword in hotbar slot 6
+  const sword = p.Inventory.find(item => item.Slot === 6);
+  assert.ok(sword, 'Hotbar slot 6 must contain iron sword');
+  assert.equal(sword.Name, 'minecraft:iron_sword');
+  assert.equal(sword.Count, 1);
+
+  // Sticks in storage slot 21 (Bedrock slot 21 + 9 = 30)
+  const sticks = p.Inventory.find(item => item.Slot === 30);
+  assert.ok(sticks, 'Storage must contain sticks at slot 30');
+  assert.equal(sticks.Name, 'minecraft:stick');
+  assert.equal(sticks.Count, 2);
+
+  // Equipped iron chestplate in armor slot 1
+  assert.equal(p.Armor[1].Name, 'minecraft:iron_chestplate', 'Armor slot 1 must be iron chestplate');
+  assert.equal(p.Armor[1].Count, 1);
+
+  // 2. Verify ~local_player in db/000002.log
+  const logData = filesFound.get('db/000002.log');
+  assert.ok(logData && logData.length > 50, 'db/000002.log must contain WAL record');
+  const logStr = new TextDecoder().decode(logData);
+  assert.ok(logStr.includes('~local_player'));
+  assert.ok(logStr.includes('minecraft:iron_chestplate'));
+  assert.ok(logStr.includes('minecraft:stone_pickaxe'));
+});
+

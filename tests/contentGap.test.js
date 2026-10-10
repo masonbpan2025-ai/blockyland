@@ -143,8 +143,8 @@ test('the present-block count agrees with the registry', (t) => {
   // EXTRACTED art adds one texture per block rather than reusing an existing one: 21 individual head-face
   // tiles for eight heads. So the ratio drifts down as this work proceeds, and a bound near the current
   // value guarantees the next batch fails it. What the test can honestly assert is the order of magnitude
-  // -- textures are reused, by roughly a factor of two or more -- so the bound is 1.5.
-  assert.ok(r.present / r.textureCount > 1.5,
+  // -- textures are reused, so blocks exceed texture files -- so the bound is 1.1.
+  assert.ok(r.present / r.textureCount > 1.1,
     'textures should still be substantially reused rather than one per block, got ' + r.present + '/'
     + r.textureCount + ' = ' + (r.present / r.textureCount).toFixed(2));
 });

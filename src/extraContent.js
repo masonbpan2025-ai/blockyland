@@ -939,7 +939,7 @@ export const EXTRA_BLOCK_DEFS = {
   417: { name: 'Brown Mushroom', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, light: 1, transparent: true, textures: { all: 'brown_mushroom.svg' } },
   418: { name: 'Cornflower', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'cornflower.svg' } },
   419: { name: 'Crimson Roots', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'crimson_roots.svg' } },
-  420: { name: 'Glow Lichen', hardness: 0.2, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'glow_lichen.svg' } },
+  420: { name: 'Glow Lichen', hardness: 0.2, sound: 'grass', plant: true, solid: false, transparent: true, light: 7, textures: { all: 'glow_lichen.png' } },
   421: { name: 'Lily Of The Valley', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'lily_of_the_valley.svg' } },
   422: { name: 'Nether Sprouts', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'nether_sprouts.svg' } },
   423: { name: 'Orange Tulip', hardness: 0, sound: 'grass', plant: true, solid: false, transparent: true, transparent: true, textures: { all: 'orange_tulip.svg' } },

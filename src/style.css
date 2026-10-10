@@ -4243,3 +4243,46 @@ body.hud-hidden #debug-screen-right,
 body.hud-hidden #offhand-hud-slot {
   display: none !important;
 }
+
+/* ==========================================================================
+   Multiplayer Host World & Share Link Modal Styling
+   ========================================================================== */
+#host-world-modal .mc-dialog-card {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 3px solid #38bdf8;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+}
+
+#host-room-id-badge {
+  color: #38bdf8;
+  letter-spacing: 1px;
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+#btn-copy-share-link {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  border-color: #38bdf8 #0c4a6e #0c4a6e #38bdf8;
+  transition: all 0.15s ease;
+}
+
+#btn-copy-share-link:hover {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+#hud-multiplayer-badge {
+  animation: pulseMultiplayer 2s infinite ease-in-out;
+}
+
+@keyframes pulseMultiplayer {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
+  }
+}
+

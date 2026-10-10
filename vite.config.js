@@ -2,6 +2,43 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { multiplayerPlugin } from './server/multiplayerVite.js';
+import { createWorldRelay } from './server/worldRelay.js';
+
+export function worldRelayPlugin() {
+  const relay = createWorldRelay({ path: '/ws/world-relay' });
+  const attach = (server) => {
+    if (server.httpServer) {
+      server.httpServer.on('upgrade', (req, socket, head) => {
+        relay.handleUpgrade(req, socket, head);
+      });
+      server.httpServer.once('close', () => {
+        relay.close();
+      });
+    }
+    server.middlewares.use((req, res, next) => {
+      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      if (url.pathname === '/api/world-relay/rooms' && req.method === 'GET') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ rooms: relay.getRooms() }));
+        return;
+      }
+      if (url.pathname.startsWith('/api/world-relay/room/') && req.method === 'GET') {
+        const roomId = url.pathname.slice('/api/world-relay/room/'.length).trim().toLowerCase();
+        const exists = relay.rooms.has(roomId);
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ exists, roomId, playerCount: exists ? relay.rooms.get(roomId).clients.size : 0 }));
+        return;
+      }
+      next();
+    });
+  };
+  return {
+    name: 'world-relay-server',
+    configureServer: attach,
+    configurePreviewServer: attach,
+  };
+}
+
 
 export default defineConfig({
   // The separately hosted multiplayer distribution contains its own HTML and
@@ -16,6 +53,7 @@ export default defineConfig({
   },
   plugins: [
     multiplayerPlugin(),
+    worldRelayPlugin(),
     {
       name: 'map-storage-server',
       configureServer(server) {

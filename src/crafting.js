@@ -37,6 +37,14 @@ export const RECIPES_2X2 = [
     ],
     result: { id: BLOCKS.TORCH, isBlock: true, count: 4 }
   },
+  // 1 Charcoal + 1 Stick -> 4 Torches
+  {
+    pattern: [
+      ['charcoal'],
+      ['stick']
+    ],
+    result: { id: BLOCKS.TORCH, isBlock: true, count: 4 }
+  },
   // 1 Bone -> 3 Bone Meal
   {
     pattern: [
@@ -101,13 +109,13 @@ export const RECIPES_3X3 = [
     ],
     result: { id: 'red_bed', isBlock: false, count: 1 }
   },
-  // 3 White Wool + 3 Planks -> Red Bed (Classic Minecraft default)
+  // 3 White Wool + 3 Planks -> White Bed (Vanilla Minecraft 1.12+)
   {
     pattern: [
       [BLOCKS.WHITE_WOOL, BLOCKS.WHITE_WOOL, BLOCKS.WHITE_WOOL],
       [BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS, BLOCKS.OAK_PLANKS]
     ],
-    result: { id: 'red_bed', isBlock: false, count: 1 }
+    result: { id: 'white_bed', isBlock: false, count: 1 }
   },
   // 3 Diamond + 2 Stick -> Diamond Pickaxe
   {
@@ -293,6 +301,9 @@ function slotValue(cell) {
   if (!cell || !(cell.count > 0)) return null;
   const def = typeof cell.id === 'string' ? ITEMS[cell.id] : undefined;
   if (def && typeof def.blockId === 'number') return def.blockId;
+  if (typeof cell.id === 'string' && typeof BLOCKS[cell.id.toUpperCase()] === 'number') {
+    return BLOCKS[cell.id.toUpperCase()];
+  }
   return cell.id;
 }
 
@@ -364,7 +375,8 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
       const cells = width * height;
       if (ingredients.length > cells) continue;
       if (multiset === null) multiset = gridMultiset(grid, width, height);
-      if (sameMultiset(multiset, [...ingredients].sort())) return recipe.result;
+      const normIng = ingredients.map(i => typeof i === 'string' && typeof BLOCKS[i.toUpperCase()] === 'number' ? BLOCKS[i.toUpperCase()] : i);
+      if (sameMultiset(multiset, [...normIng].sort())) return recipe.result;
       continue;
     }
 
@@ -384,8 +396,12 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
         if (expected === null && actualId !== null) {
           match = false; break;
         }
-        if (expected !== null && actualId !== expected) {
-          match = false; break;
+        if (expected !== null) {
+          const expNorm = typeof expected === 'string' && typeof BLOCKS[expected.toUpperCase()] === 'number'
+            ? BLOCKS[expected.toUpperCase()] : expected;
+          if (actualId !== expNorm) {
+            match = false; break;
+          }
         }
       }
       if (!match) break;

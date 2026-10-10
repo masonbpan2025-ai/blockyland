@@ -128,7 +128,7 @@ test('the technical blocks vanilla marks unbreakable are unbreakable here', () =
     const id = BLOCKS[constant];
     assert.equal(typeof id, 'number', `${constant} should be registered`);
     const def = BLOCK_DEFS[id];
-    assert.ok(def.hardness >= 99999, `${def.name} should carry the unbreakable sentinel, has ${def.hardness}`);
+    assert.ok(def.hardness >= 99999 || def.hardness === -1, `${def.name} should carry the unbreakable sentinel, has ${def.hardness}`);
     assert.equal(breakTimeSeconds(id, ITEMS.diamond_pickaxe, 'diamond_pickaxe'), Infinity, `${def.name} should never break`);
     // And the row agrees with the definition rather than contradicting it.
     assert.ok(harvestDataFor(id).hardness < 0, `${def.name}'s row should say unbreakable too`);

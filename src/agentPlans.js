@@ -1,11 +1,17 @@
 import { BLOCKS } from './blocks.js';
+import { validatePlayerCommand } from './playerBot.js';
 
 // Validate model output before executing any part of a plan.
 export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0 }) {
   if (++budget.steps > 64) throw new Error('Plan has too many steps.');
   if (!plan || typeof plan !== 'object' || Array.isArray(plan) || depth > 4) throw new Error('Invalid agent plan.');
-  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art'];
+  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art', 'player_control'];
   if (!actions.includes(plan.action)) throw new Error(`Unsupported action: ${plan.action}`);
+  if (plan.action === 'player_control') {
+    if (typeof plan.command !== 'string' || !plan.command.trim() || plan.command.length > 256) throw new Error('Player control requires a short command string.');
+    validatePlayerCommand(plan.command);
+    return plan;
+  }
   const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
   const vector = (v, size = 3) => Array.isArray(v) && v.length === size && v.every(n => integer(n, -64, 64));
   if (plan.action === 'multi') {

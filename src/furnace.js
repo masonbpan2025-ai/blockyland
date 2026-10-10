@@ -412,7 +412,7 @@ export class FurnaceManager {
               furnace.output.count += recipe.count;
             }
 
-            if (this.game.sounds) this.game.sounds.playPop();
+            this.game.sounds?.playPop?.();
           }
         } else {
           // No fuel active: cook progress resets or slowly decays
@@ -498,7 +498,7 @@ export class FurnaceManager {
     if (!this.game) return;
     const cx = Math.floor(x / 16);
     const cz = Math.floor(z / 16);
-    const chunk = this.game.world?.getChunk(cx, cz);
+    const chunk = this.game.world?.getChunk?.(cx, cz);
     if (chunk && typeof this.game.rebuildChunkMesh === 'function') {
       this.game.rebuildChunkMesh(chunk);
     }

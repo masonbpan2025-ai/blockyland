@@ -32,6 +32,7 @@ function makeDom(ids) {
       style: {},
       classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, toggle(c, on) { if (on) this._s.add(c); else this._s.delete(c); }, contains(c) { return this._s.has(c); } },
       appendChild(c) { this.children.push(c); if (c?.tagName === 'OPTION') this.options.push(c); return c; },
+      replaceChildren() { this.children = []; this.options = []; },
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
       async fire(type) { for (const fn of this.listeners[type] ?? []) await fn(); },
       set textContent(v) { this._t = v; },
@@ -48,6 +49,7 @@ function bind(dom, game = {}) {
   const ui = {
     worldDataPackSelect: dom.getElementById('world-datapack-select'),
     worldDataPackHint: dom.getElementById('world-datapack-hint'),
+    worldBiomeSelect: dom.getElementById('world-biome-select'),
     game,
     selectedDataPackPreset: null,
   };
@@ -62,6 +64,45 @@ function bind(dom, game = {}) {
 }
 
 // --- the markup ----------------------------------------------------------------------------------------
+
+test('Warm Ocean offers aquatic packs and excludes autumn and terrestrial packs', () => {
+  const ids = generationPresetList('warm_ocean').map(p => p.id);
+  assert.deepEqual(ids, ['lush_havens', 'reef_life', 'sunken_shores']);
+  assert.ok(!ids.includes('amber_autumn'));
+  assert.ok(generationPresetList('snowy_plains').some(p => p.id === 'frozen_frontier'));
+  assert.ok(generationPresetList('jungle').some(p => p.id === 'jungle_canopy'));
+  assert.ok(!generationPresetList('desert').some(p => p.id === 'jungle_canopy'));
+  assert.deepEqual(generationPresetList('the_void'), []);
+  assert.deepEqual(generationPresetList('nether'), []);
+  assert.equal(generationPresetList('all').length, GENERATION_PRESETS.length);
+});
+
+test('changing biome rebuilds choices, preserves compatible selections and clears incompatible ones', async () => {
+  const dom = makeDom(['world-datapack-select', 'world-datapack-hint', 'world-biome-select']);
+  const ui = bind(dom);
+  const select = ui.worldDataPackSelect;
+  const biome = ui.worldBiomeSelect;
+  select.value = 'amber_autumn';
+  await select.fire('change');
+  biome.value = 'warm_ocean';
+  await biome.fire('change');
+  assert.equal(ui.selectedDataPackPreset, null);
+  assert.equal(select.value, '');
+  assert.deepEqual(select.options.map(o => o.value), ['', 'lush_havens', 'reef_life', 'sunken_shores']);
+  select.value = 'reef_life';
+  await select.fire('change');
+  biome.value = 'lukewarm_ocean';
+  await biome.fire('change');
+  assert.equal(ui.selectedDataPackPreset, 'reef_life');
+  assert.match(ui.worldDataPackHint.textContent, /tropical fish/);
+  biome.value = 'the_void';
+  await biome.fire('change');
+  assert.equal(ui.selectedDataPackPreset, null);
+  assert.deepEqual(select.options.map(o => o.value), ['']);
+  biome.value = 'all';
+  await biome.fire('change');
+  assert.equal(select.options.length, GENERATION_PRESETS.length + 1);
+});
 
 test('the dropdown is in the create-world modal, ahead of the biome card', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');

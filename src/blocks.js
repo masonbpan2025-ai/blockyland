@@ -956,7 +956,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.BEDROCK]: {
     name: 'Bedrock',
-    hardness: 999999, // Unbreakable in survival
+    hardness: -1, // Unbreakable in survival (-1 vanilla sentinel)
     sound: 'stone',
     drop: null,
     textures: {
@@ -1131,7 +1131,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.NETHER_QUARTZ_ORE]: { name: 'Nether Quartz Ore', hardness: 3.0, sound: 'stone', dropItem: 'quartz', textures: { all: 'nether_quartz_ore.png' } },
   [BLOCKS.OBSIDIAN]: {
     name: 'Obsidian',
-    hardness: 10.0,
+    hardness: 50.0,
     sound: 'stone',
     drop: BLOCKS.OBSIDIAN,
     textures: {
@@ -1238,7 +1238,7 @@ export const BLOCK_DEFS = {
   // cauldron, while the real cauldron_top/side/bottom art sat unused. Same class of mistake as the flower
   // pot's iron_bars.png.
   [BLOCKS.WATER_CAULDRON]: { name: 'Water Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'water_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
-  [BLOCKS.LAVA_CAULDRON]: { name: 'Lava Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'lava_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
+  [BLOCKS.LAVA_CAULDRON]: { name: 'Lava Cauldron', hardness: 2.0, sound: 'stone', light: 15, workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'lava_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
   [BLOCKS.POWDER_SNOW_CAULDRON]: { name: 'Powder Snow Cauldron', hardness: 2.0, sound: 'stone', workstation: 'leatherworker', drop: BLOCKS.CAULDRON, textures: { top: 'powder_snow_cauldron_top.png', side: 'cauldron_side.png', bottom: 'cauldron_bottom.png' } },
 
   // --- Mob heads, twenty-fourth block-parity batch -----------------------------------------------
@@ -1511,10 +1511,10 @@ export const BLOCK_DEFS = {
   // budding block, and this game has no random-tick layer, so the four stages are placed rather than
   // grown into. The drops are still right: only the cluster yields, and it yields a shard.
   [BLOCKS.BUDDING_AMETHYST]: { name: 'Budding Amethyst', hardness: 1.5, sound: 'stone', drop: null, textures: { all: 'budding_amethyst.png' } },
-  [BLOCKS.AMETHYST_CLUSTER]: { name: 'Amethyst Cluster', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, dropItem: 'amethyst_shard', textures: { all: 'amethyst_cluster.png' } },
-  [BLOCKS.LARGE_AMETHYST_BUD]: { name: 'Large Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'large_amethyst_bud.png' } },
-  [BLOCKS.MEDIUM_AMETHYST_BUD]: { name: 'Medium Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'medium_amethyst_bud.png' } },
-  [BLOCKS.SMALL_AMETHYST_BUD]: { name: 'Small Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'small_amethyst_bud.png' } },
+  [BLOCKS.AMETHYST_CLUSTER]: { name: 'Amethyst Cluster', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, light: 5, dropItem: 'amethyst_shard', textures: { all: 'amethyst_cluster.png' } },
+  [BLOCKS.LARGE_AMETHYST_BUD]: { name: 'Large Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, light: 4, drop: null, textures: { all: 'large_amethyst_bud.png' } },
+  [BLOCKS.MEDIUM_AMETHYST_BUD]: { name: 'Medium Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, light: 2, drop: null, textures: { all: 'medium_amethyst_bud.png' } },
+  [BLOCKS.SMALL_AMETHYST_BUD]: { name: 'Small Amethyst Bud', hardness: 1.5, sound: 'stone', transparent: true, solid: false, plant: true, light: 1, drop: null, textures: { all: 'small_amethyst_bud.png' } },
 
   // --- Glazed terracotta, eleventh block-parity batch --------------------------------------------
   //
@@ -1617,7 +1617,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.TALL_SEAGRASS]: { name: 'Tall Seagrass', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'seagrass', textures: { all: 'tall_seagrass_top.png' } },
   [BLOCKS.KELP]: { name: 'Kelp', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp.png' } },
   [BLOCKS.KELP_PLANT]: { name: 'Kelp Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'kelp', textures: { all: 'kelp_plant.png' } },
-  [BLOCKS.SEA_PICKLE]: { name: 'Sea Pickle', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SEA_PICKLE, textures: { all: 'sea_pickle.png' } },
+  [BLOCKS.SEA_PICKLE]: { name: 'Sea Pickle', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, light: 6, drop: BLOCKS.SEA_PICKLE, textures: { all: 'sea_pickle.png' } },
 
   // --- Shulker boxes, fourteenth block-parity batch ----------------------------------------------
   //
@@ -1683,26 +1683,26 @@ export const BLOCK_DEFS = {
   // Runs a command when powered. This game has no command layer, so it is inert decoration.
   // Vanilla marks these unbreakable: hardness -1 in the pinned data against this game's bedrock sentinel.
   // The harvest table carries a row for them now, so the difference became visible.
-  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
+  [BLOCKS.COMMAND_BLOCK]: { name: 'Command Block', hardness: -1, sound: 'stone', drop: BLOCKS.COMMAND_BLOCK, textures: { front: 'command_block_front.png', side: 'command_block_side.png', back: 'command_block_back.png', top: 'command_block_conditional.png', bottom: 'command_block_conditional.png' } },
   // Runs a command every tick while powered. Inert here, like the plain command block.
-  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
+  [BLOCKS.REPEATING_COMMAND_BLOCK]: { name: 'Repeating Command Block', hardness: -1, sound: 'stone', drop: BLOCKS.REPEATING_COMMAND_BLOCK, textures: { front: 'repeating_command_block_front.png', side: 'repeating_command_block_side.png', back: 'repeating_command_block_back.png', top: 'repeating_command_block_conditional.png', bottom: 'repeating_command_block_conditional.png' } },
   // Runs a command when the block behind it runs. Inert here, like the other two.
-  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
+  [BLOCKS.CHAIN_COMMAND_BLOCK]: { name: 'Chain Command Block', hardness: -1, sound: 'stone', drop: BLOCKS.CHAIN_COMMAND_BLOCK, textures: { front: 'chain_command_block_front.png', side: 'chain_command_block_side.png', back: 'chain_command_block_back.png', top: 'chain_command_block_conditional.png', bottom: 'chain_command_block_conditional.png' } },
   // Saves and loads structures. The game has its own building library, but it is not driven by this block, so the block is inert.
-  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: 999999.0, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
+  [BLOCKS.STRUCTURE_BLOCK]: { name: 'Structure Block', hardness: -1, sound: 'stone', drop: BLOCKS.STRUCTURE_BLOCK, textures: { all: 'structure_block.png' } },
   // Assembles generated structures. No world-generation layer to hook into, so inert.
   // Vanilla marks the jigsaw block unbreakable (hardness -1 in the pinned data); this game's sentinel is
   // bedrock's. The harvest table has a row for it now, so the difference was visible.
-  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: 999999, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
+  [BLOCKS.JIGSAW]: { name: 'Jigsaw Block', hardness: -1, sound: 'stone', drop: BLOCKS.JIGSAW, textures: { top: 'jigsaw_top.png', side: 'jigsaw_side.png', bottom: 'jigsaw_bottom.png' } },
   // Spawns mobs on a timer while a player is near. This engine spawns mobs but has no spawner block entity, so it does not spawn anything. It IS breakable and drops nothing, matching its harvest row.
   [BLOCKS.SPAWNER]: { name: 'Monster Spawner', hardness: 5.0, sound: 'stone', drop: null, textures: { all: 'spawner.png' } },
   // Runs a trial when a player enters, then ejects rewards. Uses the INACTIVE textures because it is always inactive here; the active and ominous variants would need the trial mechanic.
-  [BLOCKS.TRIAL_SPAWNER]: { name: 'Trial Spawner', hardness: 0.0, sound: 'stone', drop: BLOCKS.TRIAL_SPAWNER, textures: { top: 'trial_spawner_top_inactive.png', side: 'trial_spawner_side_inactive.png', bottom: 'trial_spawner_bottom.png' } },
+  [BLOCKS.TRIAL_SPAWNER]: { name: 'Trial Spawner', hardness: 50.0, sound: 'stone', drop: BLOCKS.TRIAL_SPAWNER, textures: { top: 'trial_spawner_top_inactive.png', side: 'trial_spawner_side_inactive.png', bottom: 'trial_spawner_bottom.png' } },
   // Opens for a key and dispenses loot. Uses the OFF textures for the same reason; the front face is the one that would light up.
-  [BLOCKS.VAULT]: { name: 'Vault', hardness: 0.0, sound: 'stone', drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
+  [BLOCKS.VAULT]: { name: 'Vault', hardness: 50.0, sound: 'stone', light: 6, drop: BLOCKS.VAULT, textures: { top: 'vault_top.png', side: 'vault_side_off.png', front: 'vault_front_off.png', bottom: 'vault_bottom.png' } },
   // Holds an eye of ender and builds the end portal. It is a full cube here rather than the thin frame slab vanilla draws, because the slab shape would need its own geometry entry; recorded as an approximation.
-  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
-  [BLOCKS.END_PORTAL_FRAME_FILLED]: { name: 'End Portal Frame', hardness: 999999.0, sound: 'stone', drop: BLOCKS.END_PORTAL_FRAME, endPortalFrame: true, filled: true, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME]: { name: 'End Portal Frame', hardness: -1, sound: 'stone', light: 1, drop: BLOCKS.END_PORTAL_FRAME, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
+  [BLOCKS.END_PORTAL_FRAME_FILLED]: { name: 'End Portal Frame', hardness: -1, sound: 'stone', light: 1, drop: BLOCKS.END_PORTAL_FRAME, endPortalFrame: true, filled: true, textures: { top: 'end_portal_frame_top.png', side: 'end_portal_frame_side.png', bottom: 'end_portal_frame_side.png' } },
   // Hatches into baby turtles and is trampled when jumped on. No egg-hatching layer, so it is a decorative cube that drops nothing per its harvest row.
   [BLOCKS.TURTLE_EGG]: { name: 'Turtle Egg', hardness: 0.5, sound: 'stone', drop: null, textures: { all: 'turtle_egg.png' } },
   // Hatches tadpoles. This engine has frogs and tadpoles, but no frogspawn hatching, so it is decoration.
@@ -2074,10 +2074,10 @@ export const BLOCK_DEFS = {
   [BLOCKS.MUSHROOM_STEM]: { name: 'Mushroom Stem', hardness: 0.2, sound: 'wood', drop: BLOCKS.MUSHROOM_STEM, textures: { all: 'mushroom_stem.png' } },
 
   // Nether Biome Blocks
-  [BLOCKS.CRIMSON_NYLIUM]: { name: 'Crimson Nylium', hardness: 1.0, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'crimson_nylium.png', side: 'crimson_nylium_side.png', bottom: 'netherrack.png' } },
+  [BLOCKS.CRIMSON_NYLIUM]: { name: 'Crimson Nylium', hardness: 0.4, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'crimson_nylium.png', side: 'crimson_nylium_side.png', bottom: 'netherrack.png' } },
   [BLOCKS.CRIMSON_STEM]: { name: 'Crimson Stem', hardness: 2.0, sound: 'wood', drop: BLOCKS.CRIMSON_STEM, textures: { side: 'crimson_stem.png', top: 'crimson_stem_top.png', bottom: 'crimson_stem_top.png' } },
   [BLOCKS.NETHER_WART_BLOCK]: { name: 'Nether Wart Block', hardness: 1.0, sound: 'wood', drop: BLOCKS.NETHER_WART_BLOCK, textures: { all: 'nether_wart_block.png' } },
-  [BLOCKS.WARPED_NYLIUM]: { name: 'Warped Nylium', hardness: 1.0, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'warped_nylium.png', side: 'warped_nylium_side.png', bottom: 'netherrack.png' } },
+  [BLOCKS.WARPED_NYLIUM]: { name: 'Warped Nylium', hardness: 0.4, sound: 'stone', drop: BLOCKS.NETHERRACK, textures: { top: 'warped_nylium.png', side: 'warped_nylium_side.png', bottom: 'netherrack.png' } },
   [BLOCKS.WARPED_STEM]: { name: 'Warped Stem', hardness: 2.0, sound: 'wood', drop: BLOCKS.WARPED_STEM, textures: { side: 'warped_stem.png', top: 'warped_stem_top.png', bottom: 'warped_stem_top.png' } },
   [BLOCKS.WARPED_WART_BLOCK]: { name: 'Warped Wart Block', hardness: 1.0, sound: 'wood', drop: BLOCKS.WARPED_WART_BLOCK, textures: { all: 'warped_wart_block.png' } },
   [BLOCKS.SOUL_SOIL]: { name: 'Soul Soil', hardness: 0.5, sound: 'gravel', drop: BLOCKS.SOUL_SOIL, textures: { all: 'soul_soil.png' } },
@@ -2086,7 +2086,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.MAGMA_BLOCK]: { name: 'Magma Block', hardness: 0.5, sound: 'stone', light: 3, lightColor: 0xff6600, drop: BLOCKS.MAGMA_BLOCK, textures: { all: 'magma.png' } },
 
   // Cave & Underground Blocks
-  [BLOCKS.SCULK]: { name: 'Sculk', hardness: 0.6, sound: 'grass', drop: BLOCKS.SCULK, textures: { all: 'sculk.png' } },
+  [BLOCKS.SCULK]: { name: 'Sculk', hardness: 0.2, sound: 'grass', drop: BLOCKS.SCULK, textures: { all: 'sculk.png' } },
   [BLOCKS.SCULK_CATALYST]: { name: 'Sculk Catalyst', hardness: 3.0, sound: 'stone', light: 6, lightColor: 0x06b6d4, drop: BLOCKS.SCULK_CATALYST, textures: { side: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png', bottom: 'sculk_catalyst_bottom.png' } },
   [BLOCKS.DEEPSLATE]: { name: 'Deepslate', hardness: 3.0, sound: 'stone', drop: BLOCKS.COBBLED_DEEPSLATE, textures: { side: 'deepslate.png', top: 'deepslate_top.png', bottom: 'deepslate_top.png' } },
   // Vanilla: deepslate drops cobbled deepslate when mined without Silk Touch. The drop above used to
@@ -2162,8 +2162,8 @@ export const BLOCK_DEFS = {
   [BLOCKS.POTATOES_STAGE_3]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 3, mature: true, dropItem: 'potato', textures: { all: 'potatoes_stage_3.png' } },
 
   // Specialized & Boss Blocks
-  [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, dropItem: 'sculk_sensor', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
-  [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, dropItem: 'sculk_shrieker', textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
+  [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, drop: BLOCKS.SCULK_SENSOR, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
+  [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, drop: BLOCKS.SCULK_SHRIEKER, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
   [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
   // This entry had `textures: { all: 'coal_block.png' }` and a `skull: true` flag that nothing in the
@@ -3013,14 +3013,14 @@ BLOCK_DEFS[BLOCKS.HOPPER] = {name: 'Hopper', redstone: true, hardness: 1.5, soun
 BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN] = {name: 'Iron Door Open', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: false, door: true, isIron: true, internal: true, textures: {bottom: 'iron_door_bottom.png', top: 'iron_door_top.png', all: 'iron_door_bottom.png'}, icon: '/assets/items/iron_door.png', drop: BLOCKS.IRON_DOOR, dropItem: 'iron_door'};
 BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN] = {name: 'Iron Trapdoor Open', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: false, trapdoor: true, isIron: true, internal: true, textures: {all: 'iron_trapdoor.png'}, icon: '/assets/items/iron_trapdoor.png', drop: BLOCKS.IRON_TRAPDOOR, dropItem: 'iron_trapdoor'};
 BLOCK_DEFS[BLOCKS.TRIPWIRE_HOOK] = {name: 'Tripwire Hook', redstone: true, hardness: 0.5, sound: 'wood', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/tripwire_hook.svg'};
-BLOCK_DEFS[BLOCKS.TRIPWIRE] = {name: 'Tripwire', redstone: true, hardness: 0, sound: 'wool', transparent: true, solid: false, drop: 'string', textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/tripwire.svg'};
+BLOCK_DEFS[BLOCKS.TRIPWIRE] = {name: 'Tripwire', redstone: true, hardness: 0, sound: 'wool', transparent: true, solid: false, dropItem: 'string', textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/tripwire.svg'};
 
-BLOCK_DEFS[BLOCKS.REDSTONE_WIRE].drop='redstone';
+BLOCK_DEFS[BLOCKS.REDSTONE_WIRE].dropItem = 'redstone';
 BLOCK_DEFS[BLOCKS.PISTON_HEAD].drop=null;
 BLOCK_DEFS[BLOCKS.IRON_DOOR_OPEN].drop=BLOCKS.IRON_DOOR;
 BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR_OPEN].drop=BLOCKS.IRON_TRAPDOOR;
 BLOCK_DEFS[BLOCKS.TRIPWIRE_HOOK].drop=BLOCKS.TRIPWIRE_HOOK;
-BLOCK_DEFS[BLOCKS.TRIPWIRE].drop='string';
+BLOCK_DEFS[BLOCKS.TRIPWIRE].dropItem = 'string';
 
 // --- Rails and wooden doors -------------------------------------------------
 // Rails carry a direction in their redstone state so one block id covers straight,

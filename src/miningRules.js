@@ -65,6 +65,7 @@ export const NON_MINING_TOOLS = new Set([
   'gray_bundle', 'light_gray_bundle', 'cyan_bundle', 'purple_bundle', 'blue_bundle', 'brown_bundle',
   'green_bundle', 'red_bundle', 'black_bundle',
   'compass', 'clock', 'lead', 'name_tag', 'saddle',
+  'powder_snow_bucket', 'spyglass', 'recovery_compass', 'debug_stick',
   // This project's own weapon: a spear thrusts, it does not mine.
   'golden_spear',
 ]);
@@ -153,7 +154,7 @@ export function breakTimeSeconds(blockId, tool = null, toolId = null, efficiency
     // an absurd hardness) must never finish, and anything else falls back to its own
     // definition rather than becoming instantly breakable.
     const def = BLOCK_DEFS?.[blockId];
-    if (def && def.hardness >= 99999) return Infinity;
+    if (def && (def.hardness >= 99999 || def.hardness < 0)) return Infinity;
     return def?.hardness ? Math.max(0, def.hardness) : 0;
   }
   // Unbreakable blocks (bedrock and friends) are marked with an absurd hardness.

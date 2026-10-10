@@ -62,5 +62,9 @@ not rerolled; evaluate changed generation using a new world or newly explored ch
 
 The six biome-focused packs appear in the same World Generation Packs menu and use the same pack loader.
 Select a matching biome for a focused world, or All Biomes for selective changes in a mixed world.
+The creation menu filters packs by the selected biome. Warm Ocean offers Lush Havens, Reef Life and
+Sunken Shores alongside Vanilla; terrestrial autumn/forest packs are hidden. Frozen Frontier is offered
+for cold biomes, and Scorched Badlands for arid biomes. All Biomes offers the entire catalog. Switching
+biomes preserves a compatible pack and resets an incompatible selection to Vanilla before creation.
 Their biome overrides leave unrelated biome terrain and wildlife untouched. Structure selection is a
 world-wide setting: named structure types still obey the engine's placement and biome restrictions.

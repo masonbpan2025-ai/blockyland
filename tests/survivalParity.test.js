@@ -68,13 +68,8 @@ test('the name mapper resolves present content and not absent content', { skip }
   for (const name of ['definitely_not_a_block', 'not_a_real_item_at_all', 'oak_planks_that_never_existed', 'zzz_zzz_zzz']) {
     assert.equal(have(name), false, `${name} does not exist anywhere and must not resolve`);
   }
-  // And a name that is absent for a STRUCTURAL reason, not because a family is merely unbuilt: this
-  // game has no spyglass because a spyglass IS its zoom, and the zoom needs camera plumbing the engine
-  // does not have. `map` used to stand here, on the argument that a map needs rendering and a
-  // world-to-map projection -- and the empty map has since been added, because this game's filled map
-  // was already an inert item the cartographer sells, so the crafted one only had to convert to it. The
-  // argument was about vanilla's map, not this game's.
-  assert.equal(have('spyglass'), false, 'the spyglass needs camera plumbing this game does not have');
+  // And a name that is absent: Education Edition items like ice_bomb are excluded from the Java baseline.
+  assert.equal(have('ice_bomb'), false, 'education items like ice_bomb do not resolve in the vanilla baseline');
 });
 
 test('coverage breakdown identifies what to add next', { skip }, () => {

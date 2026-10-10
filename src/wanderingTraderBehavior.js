@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { applyVanillaBoxUVs, adoptWhenReady } from './mobVisuals/modelBuilder.js';
+import { tradeSide, resolveWikiId } from './villagerEconomy.js';
 
 /** The real 64x64 wandering trader sheet -- the villager model with its own clothes. */
 const WANDERING_TRADER_SKIN_PATH = '/assets/entity/wandering_trader.png';
@@ -95,96 +96,125 @@ export const WANDERING_TRADER_DROP_LOOTING_BONUS = 0.01;
  * group. `want` is what the player gives, `give` what they receive; a purchase trade has `emeralds` as
  * `give` because it pays out emeralds.
  *
- * Each entry lists `item` (the block or item id) and `count`. Ids that this build does not register are
- * still listed, because they are the wiki's real trades; `availableTrades` filters them out at runtime so
- * a missing item cannot produce a broken offer.
+ * Every row of the article's three tables is here, transcribed in table order, including the ids this build
+ * does not register (`poplar_log`, `sulfur_spike` and the rest of the newest content): `availableTrades`
+ * filters those out at runtime, so a missing item cannot produce a broken offer, and the table stays a
+ * faithful record of the wiki rather than of this build.
  */
+function wtRow(give, giveCount, want, wantCount, maxTrades, extra = {}) {
+  return { give, giveCount, want, wantCount, maxTrades, ...extra };
+}
+
 export const TRADES = {
   purchase: [
-    { give: 'emerald', giveCount: 1, want: 'hay_block', wantCount: 1, maxTrades: 2 },
-    { give: 'emerald', giveCount: 1, want: 'potion_water', wantCount: 1, maxTrades: 2 },
-    { give: 'emerald', giveCount: 1, want: 'baked_potato', wantCount: 4, maxTrades: 2 },
-    { give: 'emerald', giveCount: 2, want: 'milk_bucket', wantCount: 1, maxTrades: 2 },
-    { give: 'emerald', giveCount: 2, want: 'water_bucket', wantCount: 1, maxTrades: 2 },
-    { give: 'emerald', giveCount: 3, want: 'fermented_spider_eye', wantCount: 1, maxTrades: 2 }
+    wtRow('emerald', 1, 'hay_block', 1, 2),
+    wtRow('emerald', 1, 'potion_water', 1, 2),
+    wtRow('emerald', 1, 'baked_potato', 4, 2),
+    wtRow('emerald', 2, 'milk_bucket', 1, 2),
+    wtRow('emerald', 2, 'water_bucket', 1, 2),
+    wtRow('emerald', 3, 'fermented_spider_eye', 1, 2)
   ],
   special: [
-    { give: 'packed_ice', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 6 },
-    { give: 'gunpowder', giveCount: 4, want: 'emerald', wantCount: 1, maxTrades: 2 },
-    { give: 'acacia_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'birch_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'cherry_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'dark_oak_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'jungle_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'mangrove_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'oak_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'pale_oak_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'spruce_log', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'podzol', giveCount: 3, want: 'emerald', wantCount: 3, maxTrades: 6 },
-    { give: 'potion_of_invisibility', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 1 },
-    { give: 'blue_ice', giveCount: 1, want: 'emerald', wantCount: 6, maxTrades: 6 },
-    { give: 'iron_pickaxe', giveCount: 1, want: 'emerald', wantCount: 6, maxTrades: 1, enchanted: true }
+    wtRow('packed_ice', 1, 'emerald', 1, 6),
+    wtRow('gunpowder', 4, 'emerald', 1, 2),
+    wtRow('acacia_log', 8, 'emerald', 1, 4),
+    wtRow('birch_log', 8, 'emerald', 1, 4),
+    wtRow('cherry_log', 8, 'emerald', 1, 4),
+    wtRow('dark_oak_log', 8, 'emerald', 1, 4),
+    wtRow('jungle_log', 8, 'emerald', 1, 4),
+    wtRow('mangrove_log', 8, 'emerald', 1, 4),
+    wtRow('oak_log', 8, 'emerald', 1, 4),
+    wtRow('pale_oak_log', 8, 'emerald', 1, 4),
+    wtRow('spruce_log', 8, 'emerald', 1, 4),
+    wtRow('poplar_log', 8, 'emerald', 1, 4),
+    wtRow('podzol', 3, 'emerald', 3, 6),
+    wtRow('potion_of_invisibility', 1, 'emerald', 5, 1, { note: 'Duration: 8:00' }),
+    wtRow('blue_ice', 1, 'emerald', 6, 6),
+    wtRow('iron_pickaxe', 1, 'emerald', 6, 1, {
+      enchanted: true,
+      wantCountMax: 20,
+      note: 'Enchanted for a random cost of 5-19 levels; the price is 1 plus that cost.'
+    })
   ],
   ordinary: [
-    { give: 'fern', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'sugar_cane', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 8 },
-    { give: 'pumpkin', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'dandelion', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'poppy', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'allium', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'azure_bluet', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'red_tulip', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'orange_tulip', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'white_tulip', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'pink_tulip', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'oxeye_daisy', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'cornflower', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'blue_orchid', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 8 },
-    { give: 'lily_of_the_valley', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 7 },
-    { give: 'wheat_seeds', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'beetroot_seeds', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'pumpkin_seeds', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'melon_seeds', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'name_tag', giveCount: 1, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'white_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'light_gray_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'gray_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'black_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'brown_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'red_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'orange_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'yellow_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'lime_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'green_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'cyan_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'light_blue_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'blue_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'purple_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'magenta_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'pink_dye', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 12 },
-    { give: 'vine', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'brown_mushroom', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'red_mushroom', giveCount: 3, want: 'emerald', wantCount: 1, maxTrades: 4 },
-    { give: 'lily_pad', giveCount: 5, want: 'emerald', wantCount: 1, maxTrades: 2 },
-    { give: 'small_dripleaf', giveCount: 2, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'sand', giveCount: 8, want: 'emerald', wantCount: 1, maxTrades: 8 },
-    { give: 'red_sand', giveCount: 4, want: 'emerald', wantCount: 1, maxTrades: 6 },
-    { give: 'pointed_dripstone', giveCount: 2, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'rooted_dirt', giveCount: 2, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'moss_block', giveCount: 2, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'pale_moss_block', giveCount: 2, want: 'emerald', wantCount: 1, maxTrades: 5 },
-    { give: 'glowstone', giveCount: 1, want: 'emerald', wantCount: 2, maxTrades: 5 },
-    { give: 'kelp', giveCount: 1, want: 'emerald', wantCount: 3, maxTrades: 12 },
-    { give: 'cactus', giveCount: 1, want: 'emerald', wantCount: 3, maxTrades: 8 },
-    { give: 'slime_ball', giveCount: 1, want: 'emerald', wantCount: 4, maxTrades: 5 },
-    { give: 'acacia_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'birch_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'cherry_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'dark_oak_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'jungle_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'oak_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'spruce_sapling', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 8 },
-    { give: 'nautilus_shell', giveCount: 1, want: 'emerald', wantCount: 5, maxTrades: 5 }
+    wtRow('fern', 1, 'emerald', 1, 12),
+    wtRow('sugar_cane', 1, 'emerald', 1, 8),
+    wtRow('pumpkin', 1, 'emerald', 1, 4),
+    wtRow('dandelion', 1, 'emerald', 1, 12),
+    wtRow('poppy', 1, 'emerald', 1, 12),
+    wtRow('allium', 1, 'emerald', 1, 12),
+    wtRow('azure_bluet', 1, 'emerald', 1, 12),
+    wtRow('red_tulip', 1, 'emerald', 1, 12),
+    wtRow('orange_tulip', 1, 'emerald', 1, 12),
+    wtRow('white_tulip', 1, 'emerald', 1, 12),
+    wtRow('pink_tulip', 1, 'emerald', 1, 12),
+    wtRow('oxeye_daisy', 1, 'emerald', 1, 12),
+    wtRow('cornflower', 1, 'emerald', 1, 12),
+    wtRow('blue_orchid', 1, 'emerald', 1, 8),
+    wtRow('lily_of_the_valley', 1, 'emerald', 1, 7),
+    wtRow('open_eyeblossom', 1, 'emerald', 1, 7),
+    wtRow('wheat_seeds', 1, 'emerald', 1, 12),
+    wtRow('beetroot_seeds', 1, 'emerald', 1, 12),
+    wtRow('pumpkin_seeds', 1, 'emerald', 1, 12),
+    wtRow('melon_seeds', 1, 'emerald', 1, 12),
+    wtRow('name_tag', 1, 'emerald', 1, 5),
+    wtRow('sulfur_spike', 2, 'emerald', 1, 5),
+    wtRow('white_dye', 3, 'emerald', 1, 12),
+    wtRow('light_gray_dye', 3, 'emerald', 1, 12),
+    wtRow('gray_dye', 3, 'emerald', 1, 12),
+    wtRow('black_dye', 3, 'emerald', 1, 12),
+    wtRow('brown_dye', 3, 'emerald', 1, 12),
+    wtRow('red_dye', 3, 'emerald', 1, 12),
+    wtRow('orange_dye', 3, 'emerald', 1, 12),
+    wtRow('yellow_dye', 3, 'emerald', 1, 12),
+    wtRow('lime_dye', 3, 'emerald', 1, 12),
+    wtRow('green_dye', 3, 'emerald', 1, 12),
+    wtRow('cyan_dye', 3, 'emerald', 1, 12),
+    wtRow('light_blue_dye', 3, 'emerald', 1, 12),
+    wtRow('blue_dye', 3, 'emerald', 1, 12),
+    wtRow('purple_dye', 3, 'emerald', 1, 12),
+    wtRow('magenta_dye', 3, 'emerald', 1, 12),
+    wtRow('pink_dye', 3, 'emerald', 1, 12),
+    wtRow('vine', 3, 'emerald', 1, 4),
+    wtRow('pale_hanging_moss', 3, 'emerald', 1, 4),
+    wtRow('brown_mushroom', 3, 'emerald', 1, 4),
+    wtRow('red_mushroom', 3, 'emerald', 1, 4),
+    wtRow('shelf_mushroom', 3, 'emerald', 1, 12),
+    wtRow('lily_pad', 5, 'emerald', 1, 2),
+    wtRow('small_dripleaf', 2, 'emerald', 1, 5),
+    wtRow('sand', 8, 'emerald', 1, 8),
+    wtRow('red_sand', 4, 'emerald', 1, 6),
+    wtRow('pointed_dripstone', 2, 'emerald', 1, 5),
+    wtRow('rooted_dirt', 2, 'emerald', 1, 5),
+    wtRow('moss_block', 2, 'emerald', 1, 5),
+    wtRow('pale_moss_block', 2, 'emerald', 1, 5),
+    wtRow('wildflowers', 1, 'emerald', 1, 12),
+    wtRow('tall_dry_grass', 1, 'emerald', 1, 12),
+    wtRow('golden_dandelion', 1, 'emerald', 2, 12),
+    wtRow('sea_pickle', 1, 'emerald', 2, 5),
+    wtRow('glowstone', 1, 'emerald', 2, 5),
+    wtRow('bucket_of_tropical_fish', 1, 'emerald', 3, 4),
+    wtRow('bucket_of_pufferfish', 1, 'emerald', 3, 4),
+    wtRow('kelp', 1, 'emerald', 3, 12),
+    wtRow('cactus', 1, 'emerald', 3, 8),
+    wtRow('brain_coral_block', 1, 'emerald', 3, 8),
+    wtRow('bubble_coral_block', 1, 'emerald', 3, 8),
+    wtRow('fire_coral_block', 1, 'emerald', 3, 8),
+    wtRow('horn_coral_block', 1, 'emerald', 3, 8),
+    wtRow('tube_coral_block', 1, 'emerald', 3, 8),
+    wtRow('firefly_bush', 1, 'emerald', 3, 12),
+    wtRow('slime_ball', 1, 'emerald', 4, 5),
+    wtRow('acacia_sapling', 1, 'emerald', 5, 8),
+    wtRow('birch_sapling', 1, 'emerald', 5, 8),
+    wtRow('cherry_sapling', 1, 'emerald', 5, 8),
+    wtRow('dark_oak_sapling', 1, 'emerald', 5, 8),
+    wtRow('jungle_sapling', 1, 'emerald', 5, 8),
+    wtRow('mangrove_propagule', 1, 'emerald', 5, 8),
+    wtRow('oak_sapling', 1, 'emerald', 5, 8),
+    wtRow('pale_oak_sapling', 1, 'emerald', 5, 8),
+    wtRow('spruce_sapling', 1, 'emerald', 5, 8),
+    wtRow('poplar_sapling', 1, 'emerald', 5, 8),
+    wtRow('nautilus_shell', 1, 'emerald', 5, 5)
   ]
 };
 
@@ -214,12 +244,15 @@ export function wanderingTraderHasBabyForm() {
  *
  * A trade whose item this build does not register would be a broken offer, so it is dropped rather than
  * shown. `registry` is the ITEMS object; blocks are accepted through `blocks` because several trades sell
- * blocks.
+ * blocks. The wiki's own names are mapped first, so a row written as the article writes it -- "Water Bottle"
+ * is `potion_water`, a bucket of tropical fish is `bucket_of_tropical_fish` -- resolves against this build's
+ * id instead of being filtered out as missing.
  */
 export function isResolvableTradeItem(id, registry, blocks) {
   if (!id) return false;
-  if (registry && Object.hasOwn(registry, id)) return true;
-  if (blocks && Object.hasOwn(blocks, id.toUpperCase())) return true;
+  const resolved = resolveWikiId(id);
+  if (registry && Object.hasOwn(registry, resolved)) return true;
+  if (blocks && Object.hasOwn(blocks, String(resolved).toUpperCase())) return true;
   return false;
 }
 
@@ -241,6 +274,36 @@ export function availableTrades(registry, blocks) {
 }
 
 /**
+ * Turn one table row into a live offer.
+ *
+ * The offer carries both shapes on purpose. `give`/`want`/`maxTrades` are the wiki's columns and are what
+ * the parity suite reads; `cost`/`reward`/`maxUses` are the same two sides resolved to the forms the
+ * inventory really holds, which is what lets a wandering trader be traded with through the same window and
+ * the same `executeTrade` a villager uses. A price the wiki prints as a range is rolled once, here.
+ */
+function makeOffer(entry, group, random) {
+  const rollCount = (min, max) => (min >= max
+    ? min
+    : min + Math.min(max - min, Math.floor(random() * (max - min + 1))));
+  const costMin = entry.wantCount;
+  const costMax = entry.wantCountMax ?? entry.wantCount;
+  return {
+    ...entry,
+    group,
+    uses: 0,
+    disabled: false,
+    maxUses: entry.maxTrades,
+    cost: { ...tradeSide(entry.want, costMin), countMin: costMin, countMax: costMax, count: rollCount(costMin, costMax) },
+    cost2: null,
+    reward: { ...tradeSide(entry.give, entry.giveCount), countMin: entry.giveCount, countMax: entry.giveCount, count: entry.giveCount },
+    priceMultiplier: 0,
+    demand: 0,
+    enchantedBook: false,
+    note: entry.note ?? ''
+  };
+}
+
+/**
  * Roll a trader's offers.
  *
  * Wiki: nine trades, two purchase, two special, five ordinary, each equally likely within its group.
@@ -252,9 +315,9 @@ export function rollTrades(registry, blocks, random = Math.random) {
   for (const [group, wanted] of Object.entries(TRADE_LAYOUT)) {
     const candidates = [...(pool[group] ?? [])];
     for (let i = 0; i < wanted && candidates.length; i++) {
-      const index = Math.floor(random() * candidates.length);
+      const index = Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)));
       const entry = candidates.splice(index, 1)[0];
-      offers.push({ ...entry, group, uses: 0 });
+      offers.push(makeOffer(entry, group, random));
     }
   }
   return offers;

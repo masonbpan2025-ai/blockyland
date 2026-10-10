@@ -257,8 +257,8 @@ test('a bed is three wool and three planks', () => {
   const W = BLOCKS.WHITE_WOOL, P = BLOCKS.OAK_PLANKS;
   const bed = craft([W, W, W, P, P, P], 3, 2);
   assert.ok(bed, 'three wool over three planks is the bed recipe');
-  assert.equal(bed.id, 'red_bed', 'this project registers the red bed');
-  assert.equal(ITEMS['red_bed'] !== undefined, true);
+  assert.equal(bed.id, 'white_bed', 'three white wool crafts a white bed');
+  assert.equal(ITEMS['white_bed'] !== undefined, true);
 });
 
 // --- step 6: the first night -------------------------------------------------------------------------

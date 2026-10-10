@@ -412,8 +412,16 @@ export function getGenerationPreset(id) {
 }
 
 /** The menu's view of the presets: what to show, and nothing about how they are built. */
-export function generationPresetList() {
-  return GENERATION_PRESETS.map(p => ({
+export function generationPresetList(biome = 'all') {
+  return GENERATION_PRESETS.filter(p => {
+    if (!biome || biome === 'all') return true;
+    // The menu follows the pack's theme, including wildlife-only aquatic overrides.
+    if (p.id === 'lush_havens') return [...LAND_BIOMES, ...AQUATIC_BIOMES, ...CAVE_BIOMES].includes(biome) && biome !== 'deep_dark';
+    if (p.id === 'sunken_shores') return [...LAND_BIOMES, ...AQUATIC_BIOMES].includes(biome);
+    if (p.id === 'frozen_frontier') return COLD_BIOMES.includes(biome);
+    if (p.id === 'scorched_badlands') return ARID_BIOMES.includes(biome);
+    return (p.biomes ?? LAND_BIOMES).includes(biome);
+  }).map(p => ({
     id: p.id,
     name: p.name,
     emoji: p.emoji,

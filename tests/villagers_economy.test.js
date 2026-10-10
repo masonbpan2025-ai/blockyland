@@ -101,11 +101,13 @@ test('Trading Economy: Leveling progression (Novice to Master) with XP threshold
     type: 'villager',
     cured: false
   };
-  initVillagerEconomy(villager, 'weaponsmith');
+  // The draw is pinned, because a level now offers two of its pool at random rather than the whole pool.
+  initVillagerEconomy(villager, 'weaponsmith', { random: () => 0 });
 
   assert.equal(villager.level, 1, 'Starts at Level 1 (Novice)');
   assert.equal(villager.xp, 0);
   assert.ok(villager.trades.length > 0, 'Has initial novice trades');
+  assert.equal(villager.trades.length, 2, 'a level offers two of its pool, as the wiki says');
 
   // Mock player inventory with coal
   const inventory = {
@@ -132,18 +134,21 @@ test('Trading Economy: Leveling progression (Novice to Master) with XP threshold
   // Force level 5 (Master tier)
   villager.xp = 250;
   for (let lvl = 2; lvl <= 5; lvl++) {
-    unlockTradesForLevel(villager, lvl);
+    unlockTradesForLevel(villager, lvl, () => 0);
   }
   villager.level = 5;
   assert.ok(villager.trades.some(t => t.level === 5), 'Master tier trades unlocked');
   const diamondTrade = villager.trades.find(t => t.level === 5 && t.reward.id === 'diamond_sword');
   assert.ok(diamondTrade, 'Master Weaponsmith offers Diamond Sword');
+  // Wiki: "villagers have a maximum of 10 trades".
+  assert.ok(villager.trades.length <= 10, `a villager holds at most ten offers, got ${villager.trades.length}`);
 });
 
 test('Trading Mechanics: Supply & demand price surge, restocking, and out-of-stock locking', () => {
   const villager = {};
-  initVillagerEconomy(villager, 'farmer');
-  const trade = villager.trades[0]; // e.g. 20 wheat -> 1 emerald
+  initVillagerEconomy(villager, 'farmer', { random: () => 0 });
+  const trade = villager.trades.find(t => t.cost.id === 'wheat'); // 20 wheat -> 1 emerald
+  assert.ok(trade, 'the pinned draw includes the wheat offer');
 
   const inventory = {
     hotbar: [{ id: 'wheat', count: 200, isBlock: false }],
@@ -157,9 +162,10 @@ test('Trading Mechanics: Supply & demand price surge, restocking, and out-of-sto
   const initialCost = calculateTradeCost(trade, villager);
   assert.equal(initialCost.effectiveCount, 20);
 
-  // 2. High demand increases price
+  // 2. High demand increases price, by the article's formula: floor(20 * (0.05 * 6 + 1)) = 26
   trade.demand = 6;
   const demandCost = calculateTradeCost(trade, villager);
+  assert.equal(demandCost.effectiveCount, 26, 'the markup is p * (m * demand + 1)');
   assert.ok(demandCost.effectiveCount > 20, 'Price marked up due to high demand');
   assert.equal(demandCost.markup, true);
 
@@ -170,11 +176,13 @@ test('Trading Mechanics: Supply & demand price surge, restocking, and out-of-sto
   assert.equal(failResult.success, false);
   assert.equal(failResult.reason, 'out_of_stock');
 
-  // 4. Restock restores uses and lowers demand
+  // 4. Restock restores uses, disables nothing and moves demand by the wiki's restock rule:
+  //    demand += uses - (maxUses - uses). A fully sold-out offer therefore pushes demand UP, which is what
+  //    makes an over-used trade dearer rather than cheaper.
   restockVillager(villager);
   assert.equal(trade.uses, 0);
   assert.equal(trade.disabled, false);
-  assert.ok(trade.demand < 6, 'Unused trades during restock drop demand');
+  assert.equal(trade.demand, 6 + 16, 'a sold-out offer adds its whole stock back to demand');
 
   const postRestockResult = executeTrade(trade, villager, inventory);
   assert.equal(postRestockResult.success, true, 'Trade successful after restock');
@@ -213,20 +221,23 @@ test('Zombie Villager Curing: Weakness splash potion + Golden apple ritual, tran
 
   // 4. Update curing progression & transformation
   zv.savedProfession = 'armorer';
-  const curedVillager = updateZombieVillagerCuring(zv, 0.1, mobs, { instantCure: true });
+  const curedVillager = updateZombieVillagerCuring(zv, 0.1, mobs, { instantCure: true, random: () => 0 });
   assert.ok(curedVillager, 'Transformation completed');
   assert.equal(curedVillager.type, 'villager');
   assert.equal(curedVillager.cured, true, 'Villager has cured flag');
   assert.equal(curedVillager.profession, 'armorer', 'Cured villager kept saved profession');
 
-  // 5. Cured Discount: Massive discount on emerald buying prices and material turn-in
-  const highTierTrade = curedVillager.trades.find(t => t.cost.id === 'emerald');
-  assert.ok(highTierTrade, 'Found emerald cost trade on Armorer');
+  // 5. Cured Discount: the cure is the game's largest reputation gain, and it reaches the price. The armorer
+  // novice pool holds five rows and a level offers two, so the draw is pinned to the iron helmet -- a
+  // five-emerald trade, which the cure's reputation of 125 with a multiplier of 0.2 drives to the floor.
+  const highTierTrade = curedVillager.trades.find(t => t.cost.id === 'emerald' && t.cost.count > 1);
+  assert.ok(highTierTrade, 'Found an emerald-cost trade on the cured Armorer');
 
   const regularVillager = { profession: 'armorer', cured: false };
   const regCost = calculateTradeCost(highTierTrade, regularVillager);
   const curedCost = calculateTradeCost(highTierTrade, curedVillager);
 
+  assert.equal(curedCost.reputation, 125, 'a first cure is worth a major and a minor positive gossip');
   assert.ok(curedCost.effectiveCount < regCost.effectiveCount, 'Cured villager offers significant discount');
   assert.equal(curedCost.discounted, true);
   assert.ok(curedCost.effectiveCount >= 1, 'Cost never drops below 1 (price floor)');

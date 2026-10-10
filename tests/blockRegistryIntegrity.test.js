@@ -40,11 +40,9 @@ const HAND_ADDED_ID_FLOOR = 946;
 /** Definitions in the generated range that name a texture which is not on disk. Reported, not asserted. */
 const KNOWN_GENERATED_TEXTURE_GAPS = 'generated-range art gaps (see block-parity/gap-summary.mjs)';
 
-/** Blocks whose declared drop does not resolve to a real item or block. Pre-existing, reported below. */
+/** Blocks whose declared drop does not resolve to a real item or block. Previously 4, now 0. */
 const KNOWN_PHANTOM_DROPS = new Set([
-  // `drop` was given the item NAME where a block id belongs, so getBlockDrop returns a string and the
-  // drop spawns nothing. Not block-parity work; recorded so the test stays honest about the residue.
-  'Redstone Wire', 'Tripwire', 'Sculk Sensor', 'Sculk Shrieker',
+  // All four prior phantom drops (Redstone Wire, Tripwire, Sculk Sensor, Sculk Shrieker) are resolved.
 ]);
 
 const textureFiles = (def) =>

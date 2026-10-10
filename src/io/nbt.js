@@ -246,6 +246,25 @@ export function writeNbt(value, { littleEndian = false, rootName = '', rootType 
   const writer = new ByteWriter();
   writer.littleEndian = littleEndian;
 
+  const lookupType = (p, key = null) => {
+    if (types[p] !== undefined) return types[p];
+    const normalized = p.replace(/\[\d+\]/g, '[]');
+    if (types[normalized] !== undefined) return types[normalized];
+    const wildcard = p.replace(/\[\d+\]/g, '[0]');
+    if (types[wildcard] !== undefined) return types[wildcard];
+    if (key && types[key] !== undefined) return types[key];
+    const dotIdx = p.lastIndexOf('.');
+    if (dotIdx !== -1) {
+      const sub = p.slice(dotIdx + 1);
+      if (types[sub] !== undefined) return types[sub];
+      const normSub = sub.replace(/\[\d+\]/g, '[]');
+      if (types[normSub] !== undefined) return types[normSub];
+    }
+    const lastPart = p.split(/[.[\]]+/).filter(Boolean).pop();
+    if (lastPart && types[lastPart] !== undefined) return types[lastPart];
+    return undefined;
+  };
+
   const writePayload = (type, payload, path, depth) => {
     if (depth > limits.maxDepth) throw new NbtError(`refusing to write NBT deeper than ${limits.maxDepth} levels`);
     switch (type) {
@@ -277,9 +296,10 @@ export function writeNbt(value, { littleEndian = false, rootName = '', rootType 
       case TagType.LIST: {
         checkLength(payload.length, limits, `list at ${path}`);
         // The element type is the first element's, which is the format's rule: lists are homogeneous.
+        const elemPath = `${path}[0]`;
         const elementType = payload.length === 0
           ? TagType.END
-          : typeOf(payload[0], (types[`${path}[0]`]));
+          : typeOf(payload[0], lookupType(elemPath));
         writer.u8(elementType);
         writer.i32(payload.length);
         payload.forEach((item, index) => writePayload(elementType, item, `${path}[${index}]`, depth + 1));
@@ -288,7 +308,7 @@ export function writeNbt(value, { littleEndian = false, rootName = '', rootType 
       case TagType.COMPOUND: {
         for (const [key, child] of Object.entries(payload)) {
           const childPath = path ? `${path}.${key}` : key;
-          const childType = typeOf(child, types[childPath]);
+          const childType = typeOf(child, lookupType(childPath, key));
           if (childType === TagType.END) continue; // null means "absent", which is how the format spells it
           writer.u8(childType);
           writer.str(key);

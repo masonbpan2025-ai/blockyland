@@ -450,7 +450,7 @@ export class DoorManager {
     if (!this.game) return;
     const cx = Math.floor(x / 16);
     const cz = Math.floor(z / 16);
-    const chunk = this.game.world?.getChunk(cx, cz);
+    const chunk = this.game.world?.getChunk?.(cx, cz);
     if (chunk && typeof this.game.rebuildChunkMesh === 'function') {
       this.game.rebuildChunkMesh(chunk);
     }

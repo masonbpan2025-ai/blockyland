@@ -3,7 +3,8 @@ import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
-import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade } from './villagerEconomy.js';
+import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade, DEFAULT_PLAYER_KEY } from './villagerEconomy.js';
+import { isWanderingTrader } from './wanderingTraderBehavior.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
 import { normaliseGamerules, gameruleFor } from './sessionSettings.js';
@@ -31,7 +32,7 @@ import {
 } from './enchanting.js';
 import { getExpProgress, consumePlayerLevels, addPlayerExperience } from './experience.js';
 import { renderPlayerDoll } from './playerDoll.js';
-import { BrewingStand, getBrewingResult, POTION_DATA } from './brewing.js';
+import { BrewingManager, getBrewingResult, POTION_DATA } from './brewing.js';
 import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
 import { calculateSmithingResult } from './smithing.js';
@@ -185,10 +186,14 @@ export class UIManager {
 
     this.villagerModal = document.getElementById('villager-modal');
 
-    // Brewing Stand
+    // Brewing Stand. The stands themselves live in `brewingManager`, one per block position, because a
+    // stand's contents belong to the block and not to the open window: a single stand held here meant
+    // opening a second stand discarded the first one's bottles, and a stand left to brew forgot
+    // everything the moment the player walked away.
     this.brewingModal = document.getElementById('brewing-modal');
     this.closeBrewingBtn = document.getElementById('close-brewing');
-    this.brewingStand = new BrewingStand();
+    this.brewingManager = new BrewingManager();
+    this.brewingStand = null; // the stand of the open window, or null when the window is closed
     this.currentBrewingPos = null;
 
     // Anvil
@@ -582,7 +587,16 @@ export class UIManager {
   }
 
   closeAllModals() {
+    // The brewing window is closed by its own method rather than by hiding the element: it owns the
+    // "open stand" reference, and leaving it set would keep repainting a window that is no longer shown.
+    if (this.brewingModal && !this.brewingModal.classList.contains('hidden')) {
+      this.closeBrewingModal();
+    }
     this.invModal.classList.add('hidden');
+    if (this.villagerModal) this.villagerModal.classList.add('hidden');
+    if (this.activeVillager) this.activeVillager.tradingWith = false;
+    this.activeVillager = null;
+    if (this.game) this.game.tradingOpen = false;
     if (this.creativeModal) this.creativeModal.classList.add('hidden');
     this.craftModal.classList.add('hidden');
     if (this.furnaceModal) this.furnaceModal.classList.add('hidden');
@@ -593,9 +607,6 @@ export class UIManager {
     this.currentChestPos = null;
     if (this.enchantingModal && !this.enchantingModal.classList.contains('hidden')) {
       this.closeEnchantingModal();
-    }
-    if (this.brewingModal && !this.brewingModal.classList.contains('hidden')) {
-      this.closeBrewingModal();
     }
     if (this.anvilModal && !this.anvilModal.classList.contains('hidden')) {
       this.closeAnvilModal();
@@ -615,6 +626,18 @@ export class UIManager {
     if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.biomeModal) this.biomeModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
+    if (typeof document !== 'undefined') {
+      const allModals = document.querySelectorAll('.game-modal');
+      allModals.forEach(m => m.classList.add('hidden'));
+      if (document.activeElement?.blur) {
+        document.activeElement.blur();
+      }
+    }
+    if (this.player) {
+      this.player.keys = {};
+      this.player.controlsDisabled = false;
+      this.player.isSleeping = false;
+    }
     this.hideTooltip();
 
     // Return any cursor item to inventory
@@ -625,6 +648,18 @@ export class UIManager {
     // Always sync the ghost icon, whether or not an item was held: this is the
     // single place every close path funnels through, so it cannot be left visible.
     this.updateFloatingCursor();
+  }
+
+  requestGamePointerLock() {
+    const el = this.game?.renderer?.domElement || (typeof document !== 'undefined' ? document.getElementById('canvas-container') : null);
+    if (el && typeof el.requestPointerLock === 'function') {
+      try {
+        const res = el.requestPointerLock();
+        if (res && typeof res.catch === 'function') {
+          res.catch(() => {});
+        }
+      } catch (err) {}
+    }
   }
 
   playPopSound() {
@@ -1404,6 +1439,11 @@ export class UIManager {
     this.closeAllModals();
     this.villagerModal.classList.remove('hidden');
     this.renderVillagerTrades(villagerMob);
+    // Wiki: "Interacting with an employed villager or wandering trader opens the menu for trading with them,
+    // pauses their pathfinding, and makes them face the trading player", and "ticks spent with the trading UI
+    // open are not counted" toward a wandering trader's despawn.
+    if (villagerMob) villagerMob.tradingWith = true;
+    if (this.game) this.game.tradingOpen = true;
   }
 
   togglePauseMenu() {
@@ -2219,7 +2259,7 @@ export class UIManager {
           offerEl.onclick = null;
         }
         if (hintEl) hintEl.textContent = 'Insert item & lapis...';
-        if (reqEl) reqEl.textContent = `Req: ${slotIdx + 1} Lvl`;
+        if (reqEl) reqEl.textContent = 'Cost: — Lvl + — Lapis';
       } else {
         const hasLevel = (this.player?.level || 0) >= offer.levelRequirement;
         const hasLapis = (this.enchantSlottedLapis?.count || 0) >= offer.lapisCost;
@@ -2232,7 +2272,11 @@ export class UIManager {
         if (runesEl) runesEl.textContent = offer.runes;
         if (hintEl) hintEl.textContent = offer.hint;
         if (reqEl) {
-          reqEl.textContent = `Req: ${offer.levelRequirement} Lvl, Cost: ${offer.levelCost} Lvl + ${offer.lapisCost} Lapis`;
+          // Vanilla shows one number: the levels the slot costs, which is also the level the player must
+          // have. The lapis requirement is the slot's 1/2/3 and is shown beside it because this panel has
+          // room; the old label showed a requirement of 30 next to a cost of 3, which was two numbers for
+          // one price and neither of them what the game charges.
+          reqEl.textContent = `Cost: ${offer.levelCost} Lvl + ${offer.lapisCost} Lapis`;
         }
       }
     }
@@ -2400,6 +2444,9 @@ export class UIManager {
     if (!this.brewingModal) return;
 
     this.currentBrewingPos = { x, y, z };
+    // The block's own stand, created on first use. Nothing moves into the player's inventory when a
+    // different stand is opened, because the previous stand keeps its contents where they are.
+    this.brewingStand = this.brewingManager.getOrCreateStand(x, y, z);
     this.brewingModal.classList.remove('hidden');
     this.renderBrewingGUI();
   }
@@ -2407,18 +2454,11 @@ export class UIManager {
   closeBrewingModal() {
     if (this.brewingModal) this.brewingModal.classList.add('hidden');
     this.currentBrewingPos = null;
+    // Vanilla keeps a brewing stand's bottles, ingredient and fuel in the block: closing the window
+    // does not empty it and the brew keeps running. Only what is on the cursor is the player's, so
+    // only that is handed back -- the three bottle slots, the ingredient slot and the fuel slot stay.
+    this.brewingStand = null;
 
-    if (this.brewingStand.ingredient) {
-      this.inv.addItem(this.brewingStand.ingredient.id, false, this.brewingStand.ingredient.count);
-      this.brewingStand.ingredient = null;
-    }
-    for (let i = 0; i < 3; i++) {
-      const b = this.brewingStand.bottles[i];
-      if (b) {
-        this.inv.addItem(b.id, false, b.count);
-        this.brewingStand.bottles[i] = null;
-      }
-    }
     if (this.inv.cursorItem) {
       this.inv.addItem(this.inv.cursorItem.id, this.inv.cursorItem.isBlock, this.inv.cursorItem.count);
       this.inv.cursorItem = null;
@@ -2427,26 +2467,56 @@ export class UIManager {
     this.updateHotbar();
   }
 
-  renderBrewingGUI() {
+  /**
+   * Advance every brewing stand by `dt` seconds and repaint the window when it is showing one.
+   *
+   * Called from the game loop. Before this nothing ever ticked a stand, so `getProgress()` was always
+   * zero and `canBrew()` was true forever without the potion ever changing: the brew had no duration at
+   * all, and the progress bar in the GUI was decorative.
+   */
+  tickBrewing(dt) {
+    const completed = this.brewingManager.update(dt);
+    // Repaint while the window is open, so the bar moves and the potion appears when the stage lands.
+    // `false` skips the two inventory grids: they only change when the player moves something, and
+    // rebuilding 36 slot elements every frame would be work for nothing.
+    if (this.brewingStand && this.brewingModal && !this.brewingModal.classList.contains('hidden')) {
+      this.renderBrewingGUI({ grids: false });
+      if (completed > 0) this.sounds?.playPop?.();
+    }
+    return completed;
+  }
+
+  /**
+   * Paint the brewing window.
+   *
+   * @param {{grids?: boolean}} [options] `grids: false` leaves the storage and hotbar grids alone, which
+   *   is what the per-frame tick wants.
+   */
+  renderBrewingGUI(options = {}) {
+    const withGrids = options.grids !== false;
     if (!this.brewingModal || this.brewingModal.classList.contains('hidden')) return;
+    const stand = this.brewingStand;
+    if (!stand) return;
 
     // Fuel slot & fuel bar
     const fuelSlot = document.getElementById('brewing-fuel-slot');
     const fuelBar = document.getElementById('brewing-fuel-bar');
     if (fuelSlot) {
-      const fuelItem = this.brewingStand.fuel > 0 ? { id: 'blaze_powder', count: this.brewingStand.fuel } : null;
+      // The slot shows the charges the piece of blaze powder has left, which is how the vanilla GUI
+      // draws it: one powder is 20 stages, and the bar behind it is those charges.
+      const fuelItem = stand.fuel > 0 ? { id: 'blaze_powder', count: stand.fuel } : null;
       this.renderSlotContent(fuelSlot, fuelItem);
       fuelSlot.onclick = () => this.handleBrewingSlotClick('fuel');
     }
     if (fuelBar) {
-      const fuelPct = Math.round((this.brewingStand.fuel / this.brewingStand.maxFuel) * 100);
+      const fuelPct = Math.round((stand.fuel / stand.maxFuel) * 100);
       fuelBar.style.width = `${fuelPct}%`;
     }
 
     // Ingredient slot
     const ingSlot = document.getElementById('brewing-ingredient-slot');
     if (ingSlot) {
-      this.renderSlotContent(ingSlot, this.brewingStand.ingredient);
+      this.renderSlotContent(ingSlot, stand.ingredient);
       ingSlot.onclick = (e) => this.handleBrewingSlotClick('ingredient', e.button === 2, e.shiftKey);
       ingSlot.oncontextmenu = (e) => { e.preventDefault(); this.handleBrewingSlotClick('ingredient', true, e.shiftKey); };
     }
@@ -2455,24 +2525,26 @@ export class UIManager {
     const progBar = document.getElementById('brewing-progress-bar');
     const statusText = document.getElementById('brewing-status-text');
     if (progBar) {
-      const prog = Math.round(this.brewingStand.getProgress() * 100);
+      const prog = Math.round(stand.getProgress() * 100);
       progBar.style.width = `${prog}%`;
     }
     if (statusText) {
-      statusText.textContent = this.brewingStand.isBrewing ? 'Brewing...' : (this.brewingStand.canBrew() ? 'Ready' : 'Idle');
+      statusText.textContent = stand.isBrewing ? 'Brewing...' : (stand.canBrew() ? 'Ready' : 'Idle');
     }
 
     // 3 Bottle slots
     for (let i = 0; i < 3; i++) {
       const bottleSlot = document.getElementById(`brewing-bottle-${i}`);
       if (bottleSlot) {
-        this.renderSlotContent(bottleSlot, this.brewingStand.bottles[i]);
+        this.renderSlotContent(bottleSlot, stand.bottles[i]);
         bottleSlot.onclick = (e) => this.handleBrewingSlotClick(`bottle-${i}`, e.button === 2, e.shiftKey);
         bottleSlot.oncontextmenu = (e) => { e.preventDefault(); this.handleBrewingSlotClick(`bottle-${i}`, true, e.shiftKey); };
       }
     }
 
-    // Inventory grids
+    // Inventory grids. The per-frame tick skips these entirely.
+    if (!withGrids) return;
+
     this.renderSlotGrid('brewing-storage-grid', this.inv.storage, (idx, right, shift) => {
       if (shift) this.quickMoveToBrewing(this.inv.storage, idx);
       else this.inv.handleSlotClick(this.inv.storage, idx, right, shift);
@@ -2489,9 +2561,11 @@ export class UIManager {
   }
 
   handleBrewingSlotClick(slotKey, rightClick = false, shiftClick = false) {
+    const stand = this.brewingStand;
+    if (!stand) return;
     if (slotKey === 'fuel') {
       if (this.inv.cursorItem && this.inv.cursorItem.id === 'blaze_powder') {
-        if (this.brewingStand.addFuel(this.inv.cursorItem)) {
+        if (stand.addFuel(this.inv.cursorItem)) {
           this.inv.cursorItem.count -= 1;
           if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           this.sounds.playClick?.();
@@ -2499,47 +2573,47 @@ export class UIManager {
       }
     } else if (slotKey === 'ingredient') {
       if (!this.inv.cursorItem) {
-        if (this.brewingStand.ingredient) {
-          this.inv.cursorItem = this.brewingStand.ingredient;
-          this.brewingStand.ingredient = null;
+        if (stand.ingredient) {
+          this.inv.cursorItem = stand.ingredient;
+          stand.ingredient = null;
           this.sounds.playClick?.();
         }
       } else {
-        if (!this.brewingStand.ingredient) {
-          this.brewingStand.ingredient = this.inv.cursorItem;
+        if (!stand.ingredient) {
+          stand.ingredient = this.inv.cursorItem;
           this.inv.cursorItem = null;
           this.sounds.playClick?.();
-        } else if (this.brewingStand.ingredient.id === this.inv.cursorItem.id) {
-          const space = 64 - this.brewingStand.ingredient.count;
+        } else if (stand.ingredient.id === this.inv.cursorItem.id) {
+          const space = 64 - stand.ingredient.count;
           const add = Math.min(space, this.inv.cursorItem.count);
-          this.brewingStand.ingredient.count += add;
+          stand.ingredient.count += add;
           this.inv.cursorItem.count -= add;
           if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           this.sounds.playClick?.();
         } else {
-          const tmp = this.brewingStand.ingredient;
-          this.brewingStand.ingredient = this.inv.cursorItem;
+          const tmp = stand.ingredient;
+          stand.ingredient = this.inv.cursorItem;
           this.inv.cursorItem = tmp;
           this.sounds.playClick?.();
         }
       }
     } else if (slotKey.startsWith('bottle-')) {
       const idx = parseInt(slotKey.split('-')[1], 10);
-      const currentBottle = this.brewingStand.bottles[idx];
+      const currentBottle = stand.bottles[idx];
       if (!this.inv.cursorItem) {
         if (currentBottle) {
           this.inv.cursorItem = currentBottle;
-          this.brewingStand.bottles[idx] = null;
+          stand.bottles[idx] = null;
           this.sounds.playClick?.();
         }
       } else {
         if (!currentBottle) {
-          this.brewingStand.bottles[idx] = this.inv.cursorItem;
+          stand.bottles[idx] = this.inv.cursorItem;
           this.inv.cursorItem = null;
           this.sounds.playClick?.();
         } else {
           const tmp = currentBottle;
-          this.brewingStand.bottles[idx] = this.inv.cursorItem;
+          stand.bottles[idx] = this.inv.cursorItem;
           this.inv.cursorItem = tmp;
           this.sounds.playClick?.();
         }
@@ -2551,12 +2625,14 @@ export class UIManager {
   }
 
   quickMoveToBrewing(list, idx) {
+    const stand = this.brewingStand;
+    if (!stand) return;
     const item = list[idx];
     if (!item) return;
 
     if (item.id === 'blaze_powder') {
-      if (this.brewingStand.fuel < this.brewingStand.maxFuel) {
-        this.brewingStand.addFuel(item);
+      if (stand.fuel < stand.maxFuel) {
+        stand.addFuel(item);
         item.count -= 1;
         if (item.count <= 0) list[idx] = null;
         this.sounds.playClick?.();
@@ -2566,8 +2642,8 @@ export class UIManager {
 
     if (item.id === 'glass_bottle' || item.id === 'water_bottle' || (typeof item.id === 'string' && item.id.includes('potion'))) {
       for (let i = 0; i < 3; i++) {
-        if (!this.brewingStand.bottles[i]) {
-          this.brewingStand.bottles[i] = item;
+        if (!stand.bottles[i]) {
+          stand.bottles[i] = item;
           list[idx] = null;
           this.sounds.playClick?.();
           return;
@@ -2575,8 +2651,8 @@ export class UIManager {
       }
     }
 
-    if (!this.brewingStand.ingredient) {
-      this.brewingStand.ingredient = item;
+    if (!stand.ingredient) {
+      stand.ingredient = item;
       list[idx] = null;
       this.sounds.playClick?.();
       return;
@@ -3342,6 +3418,30 @@ export class UIManager {
     this.renderVillagerTrades();
   }
 
+  /**
+   * The player key a price is quoted against.
+   *
+   * Reputation is tracked per player by each villager, so the key has to be stable. A multiplayer session
+   * names the local player; single player uses the shared default.
+   */
+  get tradePlayerKey() {
+    return this.player?.username || this.player?.name || DEFAULT_PLAYER_KEY;
+  }
+
+  /** The Hero of the Village level the player is under, which the price formula scales in steps of 6.25%. */
+  get heroOfTheVillageLevel() {
+    const effect = this.player?.statusEffects?.get?.('hero_of_the_village');
+    return Math.max(0, Math.floor(effect?.level ?? (this.player?.hasStatusEffect?.('hero_of_the_village') ? 1 : 0)));
+  }
+
+  /**
+   * Render the trading window for a villager or a wandering trader.
+   *
+   * The two merchants share this window because the wiki's mechanic is one mechanic: "Interacting with an
+   * employed villager or wandering trader opens the menu for trading with them." What differs is what backs
+   * the offer list -- a villager's levelled `trades`, or a wandering trader's rolled `offers` -- and whether
+   * the header shows a career level at all, since "the trader does not have experience levels to gain".
+   */
   renderVillagerTrades(villagerMob) {
     const list = document.getElementById('villager-trades');
     if (!list) return;
@@ -3350,6 +3450,7 @@ export class UIManager {
     const mob = villagerMob || this.activeVillager;
     if (mob) this.activeVillager = mob;
 
+    const trader = isWanderingTrader(mob);
     const profId = mob?.profession || 'farmer';
     const profDef = PROFESSIONS[profId] || { name: 'Farmer', workstationName: 'Composter' };
     const levelNum = mob?.level || 1;
@@ -3357,15 +3458,15 @@ export class UIManager {
 
     // Update Header and Badges
     const titleEl = document.getElementById('villager-title');
-    if (titleEl) titleEl.textContent = `${levelDef.title} ${profDef.name}`;
+    if (titleEl) titleEl.textContent = trader ? 'Wandering Trader' : `${levelDef.title} ${profDef.name}`;
 
     const descEl = document.getElementById('villager-profession-desc');
-    if (descEl) descEl.textContent = `(${profDef.workstationName})`;
+    if (descEl) descEl.textContent = trader ? '(wanders, then leaves)' : `(${profDef.workstationName})`;
 
     const badgeEl = document.getElementById('villager-badge');
     if (badgeEl) {
-      badgeEl.textContent = `${levelDef.title} (${levelDef.badge})`;
-      badgeEl.style.background = levelDef.badgeColor;
+      badgeEl.textContent = trader ? 'No career levels' : `${levelDef.title} (${levelDef.badge})`;
+      badgeEl.style.background = trader ? '#2b3f8c' : levelDef.badgeColor;
     }
 
     // Update XP Bar
@@ -3374,7 +3475,11 @@ export class UIManager {
     const currentXp = mob?.xp || 0;
     const nextLevel = VILLAGER_LEVELS.find(l => l.level === levelNum + 1);
 
-    if (nextLevel) {
+    if (trader) {
+      // Wiki: a wandering trader has no experience levels, so an XP bar would be a lie.
+      if (xpTextEl) xpTextEl.textContent = `${(mob?.offers || []).filter(o => (o.uses || 0) < o.maxUses).length} of ${(mob?.offers || []).length} offers left`;
+      if (xpFillEl) xpFillEl.style.width = '0%';
+    } else if (nextLevel) {
       const prevXp = levelDef.xpRequired;
       const progress = Math.min(100, Math.max(0, ((currentXp - prevXp) / (nextLevel.xpRequired - prevXp)) * 100));
       if (xpTextEl) xpTextEl.textContent = `${currentXp} / ${nextLevel.xpRequired} XP`;
@@ -3384,17 +3489,25 @@ export class UIManager {
       if (xpFillEl) xpFillEl.style.width = `100%`;
     }
 
-    // Trades
-    const trades = (mob && mob.trades && mob.trades.length > 0) ? mob.trades : VILLAGER_TRADES;
+    // Trades. A wandering trader's offers are always shown, including a locked one, because the wiki's
+    // lock is permanent: "unlike villagers, never unlocks the trade."
+    const trades = trader
+      ? (mob?.offers || [])
+      : ((mob && mob.trades && mob.trades.length > 0) ? mob.trades : VILLAGER_TRADES);
+
+    const playerStatus = {
+      playerKey: this.tradePlayerKey,
+      // Wiki: Hero of the Village "reduces the price of all villagers"; a wandering trader is not a villager.
+      heroOfTheVillageLevel: trader ? 0 : this.heroOfTheVillageLevel
+    };
 
     trades.forEach((trade) => {
       const row = document.createElement('div');
       const isOutOfStock = (trade.uses !== undefined && trade.maxUses !== undefined && trade.uses >= trade.maxUses) || trade.disabled;
       row.className = `trade-row ${isOutOfStock ? 'out-of-stock' : ''}`;
 
-      const { effectiveCount, originalCount, discounted, markup } = calculateTradeCost(trade, mob, {
-        heroOfTheVillage: this.player?.hasStatusEffect?.('hero_of_the_village')
-      });
+      const price = calculateTradeCost(trade, mob, playerStatus);
+      const { effectiveCount, originalCount, discounted, markup } = price;
 
       const costDisplay = discounted
         ? `<span class="trade-price-orig">${originalCount}</span><span style="color:#10b981; font-weight:bold;">${effectiveCount}</span><span class="trade-discount-badge">SALE</span>`
@@ -3411,7 +3524,7 @@ export class UIManager {
       ` : '';
 
       const usesTagHtml = trade.maxUses !== undefined ? `
-        <span class="trade-uses-tag">${isOutOfStock ? '❌ Sold Out' : `${trade.maxUses - trade.uses}/${trade.maxUses}`}</span>
+        <span class="trade-uses-tag">${isOutOfStock ? '❌ Sold Out' : `${trade.maxUses - (trade.uses || 0)}/${trade.maxUses}`}</span>
       ` : '';
 
       row.innerHTML = `
@@ -3419,7 +3532,7 @@ export class UIManager {
           <img class="slot-icon" src="${trade.cost.icon}">
           <div style="display:flex; align-items:center; gap: 4px;">
             ${costDisplay}
-            <span style="margin-left: 2px;">${trade.cost.name.replace(/^\\d+\\s*/, '')}</span>
+            <span style="margin-left: 2px;">${trade.cost.name}</span>
           </div>
           ${secondaryCostHtml}
         </div>
@@ -3427,11 +3540,23 @@ export class UIManager {
           <span class="trade-arrow">➔</span>
           <div style="display: flex; align-items: center; gap: 6px;">
             <img class="slot-icon" src="${trade.reward.icon}">
-            <span style="font-weight: 500;">${trade.reward.name}</span>
+            <span style="font-weight: 500;">${trade.reward.count > 1 ? `${trade.reward.count} ` : ''}${trade.reward.name}</span>
           </div>
           ${usesTagHtml}
         </div>
       `;
+      if (trade.note || (price.reputationAdjustment < 0 || price.heroDiscount > 0)) {
+        const why = [];
+        if (price.heroDiscount > 0) why.push(`Hero of the Village ${price.heroLevel} (-${price.heroDiscount})`);
+        if (price.reputationAdjustment < 0) why.push(`reputation ${price.reputation} (-${-price.reputationAdjustment})`);
+        if (price.reputationAdjustment > 0) why.push(`reputation ${price.reputation} (+${price.reputationAdjustment})`);
+        if (trade.note) why.push(trade.note);
+        const note = document.createElement('div');
+        note.className = 'trade-note';
+        note.style.cssText = 'flex-basis:100%;font-size:11px;color:#94a3b8;padding:0 6px 4px 6px;';
+        note.textContent = why.join(' · ');
+        row.appendChild(note);
+      }
 
       row.onclick = () => {
         if (isOutOfStock) {
@@ -3439,10 +3564,19 @@ export class UIManager {
           return;
         }
 
-        const result = executeTrade(trade, mob, this.inv, this.sounds);
+        const result = executeTrade(trade, mob, this.inv, this.sounds, {
+          player: this.player,
+          ui: this,
+          playerStatus,
+          playerKey: this.tradePlayerKey,
+          kind: trader ? 'wandering_trader' : 'villager'
+        });
         if (result.success) {
           this.renderVillagerTrades(mob);
           this.updateHotbar();
+          if (result.leveledUp) {
+            this.addChatMessage?.(`${mob?.name || 'Villager'} reached ${VILLAGER_LEVELS.find(l => l.level === result.newLevel)?.title || 'a new level'}!`, 'system');
+          }
         }
       };
 
@@ -3495,8 +3629,7 @@ export class UIManager {
   bindPauseEvents() {
     document.getElementById('btn-resume').onclick = () => {
       this.closeAllModals();
-      const canvas = document.getElementById('canvas-container');
-      canvas.requestPointerLock();
+      this.requestGamePointerLock();
     };
 
     const btnGamemode = document.getElementById('btn-gamemode');
@@ -3625,24 +3758,28 @@ export class UIManager {
   bindDataPackPresetSelect() {
     const select = this.worldDataPackSelect;
     if (!select) return null;
+    const doc = select.ownerDocument ?? document;
     const hint = this.worldDataPackHint;
     this.selectedDataPackPreset = this.selectedDataPackPreset ?? null;
 
-    if (select.options && select.options.length === 0) {
+    const rebuild = () => {
+      const entries = generationPresetList(this.worldBiomeSelect?.value || 'all');
+      if (!entries.some(entry => entry.id === this.selectedDataPackPreset)) this.selectedDataPackPreset = null;
+      select.replaceChildren();
       const add = (value, label) => {
-        const option = document.createElement('option');
+        const option = doc.createElement('option');
         option.value = value;
         option.textContent = label;
         select.appendChild(option);
       };
       add('', '🌍 Vanilla (default) — the standard world, no generation pack');
-      for (const entry of generationPresetList()) {
+      for (const entry of entries) {
         add(entry.id, `${entry.emoji} ${entry.name} — ${entry.property}`);
       }
-    }
+    };
 
     const paint = () => {
-      const chosen = generationPresetList().find(entry => entry.id === this.selectedDataPackPreset);
+      const chosen = generationPresetList(this.worldBiomeSelect?.value || 'all').find(entry => entry.id === this.selectedDataPackPreset);
       select.value = chosen ? chosen.id : '';
       if (hint) {
         hint.textContent = chosen
@@ -3655,12 +3792,15 @@ export class UIManager {
       this.selectedDataPackPreset = select.value || null;
       paint();
     });
+    this.worldBiomeSelect?.addEventListener('change', () => { rebuild(); paint(); });
 
     this.refreshDataPackPresetSelect = () => {
       // Reflect a preset restored from a save, so the menu shows the world it is about to describe.
       this.selectedDataPackPreset = this.game?.settings?.dataPackPreset ?? this.selectedDataPackPreset ?? null;
+      rebuild();
       paint();
     };
+    rebuild();
     paint();
     return { refresh: this.refreshDataPackPresetSelect };
   }
@@ -3999,6 +4139,9 @@ export class UIManager {
   }
 
   closeMapModal() {
+    if (typeof document !== 'undefined' && document.activeElement?.blur) {
+      document.activeElement.blur();
+    }
     if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.mapSaveFeedback) this.mapSaveFeedback.classList.add('hidden');
     if (this.mapLoadFeedback) this.mapLoadFeedback.classList.add('hidden');
@@ -4127,12 +4270,12 @@ export class UIManager {
             );
             this.playPopSound();
             this.showMapFeedback('designed', `Designed world "${world.name}" loaded!`, false);
-            setTimeout(() => {
-              this.closeAllModals();
-              if (this.startOverlay) this.startOverlay.style.display = 'none';
-              const canvas = document.getElementById('canvas-container');
-              if (canvas) canvas.requestPointerLock();
-            }, 300);
+            this.closeAllModals();
+            if (this.startOverlay) this.startOverlay.style.display = 'none';
+            if (typeof document !== 'undefined' && document.activeElement?.blur) {
+              document.activeElement.blur();
+            }
+            this.requestGamePointerLock();
           } catch (err) {
             btnPlay.disabled = false;
             btnPlay.textContent = 'Play World';
@@ -4241,12 +4384,12 @@ export class UIManager {
             );
             this.playPopSound();
             this.showMapFeedback('load', `Map "${save.name}" loaded successfully!`, false);
-            setTimeout(() => {
-              this.closeAllModals();
-              if (this.startOverlay) this.startOverlay.style.display = 'none';
-              const canvas = document.getElementById('canvas-container');
-              if (canvas) canvas.requestPointerLock();
-            }, 300);
+            this.closeAllModals();
+            if (this.startOverlay) this.startOverlay.style.display = 'none';
+            if (typeof document !== 'undefined' && document.activeElement?.blur) {
+              document.activeElement.blur();
+            }
+            this.requestGamePointerLock();
           } catch (err) {
             btnLoad.disabled = false;
             btnLoad.textContent = 'Load';
@@ -4339,8 +4482,7 @@ export class UIManager {
       this.btnCloseMapModal.onclick = () => {
         this.closeMapModal();
         if (this.game?.worldGenerated) {
-          const canvas = document.getElementById('canvas-container');
-          if (canvas) canvas.requestPointerLock();
+          this.requestGamePointerLock();
         }
       };
     }
@@ -4426,9 +4568,12 @@ export class UIManager {
           );
           this.playPopSound();
           this.showMapFeedback('load', `Map "${file.name}" loaded successfully!`, false);
-          setTimeout(() => {
-            this.closeAllModals();
-          }, 800);
+          this.closeAllModals();
+          if (this.startOverlay) this.startOverlay.style.display = 'none';
+          if (typeof document !== 'undefined' && document.activeElement?.blur) {
+            document.activeElement.blur();
+          }
+          this.requestGamePointerLock();
         } catch (err) {
           this.showMapFeedback('load', `Failed to load file: ${err.message}`, true);
         }
@@ -4447,7 +4592,9 @@ export class UIManager {
           if (val.startsWith('/')) {
             if (this.onCommand) this.onCommand(val);
           } else {
-            this.addChatMessage(`<Player> ${val}`);
+            const myName = this.game?.worldSync?.client?.playerName || 'Player';
+            this.addChatMessage(`<${myName}> ${val}`);
+            this.game?.worldSync?.onChatSent(val);
           }
         }
         this.closeChat();
@@ -4476,9 +4623,8 @@ export class UIManager {
     if (this.player) {
       this.player.keys = {};
     }
-    const canvas = document.getElementById('canvas-container');
-    if (canvas && !this.isModalOpen() && !this.isGeminiOpen()) {
-      canvas.requestPointerLock();
+    if (!this.isModalOpen() && !this.isGeminiOpen()) {
+      this.requestGamePointerLock();
     }
   }
 
@@ -4592,9 +4738,8 @@ export class UIManager {
     if (this.player) {
       this.player.keys = {};
     }
-    const canvas = document.getElementById('canvas-container');
-    if (canvas && !this.isModalOpen() && !this.isChatOpen) {
-      canvas.requestPointerLock();
+    if (!this.isModalOpen() && !this.isChatOpen) {
+      this.requestGamePointerLock();
     }
   }
 
@@ -4734,6 +4879,15 @@ export class UIManager {
     }
 
     // Connect agent callbacks
+    const stopPlayerBot = document.createElement('button');
+    stopPlayerBot.type = 'button';
+    stopPlayerBot.id = 'player-bot-stop';
+    stopPlayerBot.className = 'gemini-exec-btn';
+    stopPlayerBot.textContent = 'Stop bot';
+    stopPlayerBot.title = 'Stop player automation and release its controls';
+    stopPlayerBot.onclick = () => geminiAgent.playerBot.stop();
+    this.geminiExecBtn?.after(stopPlayerBot);
+    this.addGeminiLog('Player bot: try "mine some iron ore", "go to 10 64 10", "follow cow", or "test movement". Stop bot releases control.', 'info');
     geminiAgent.onLog = (msg, type) => {
       this.addGeminiLog(msg, type);
     };

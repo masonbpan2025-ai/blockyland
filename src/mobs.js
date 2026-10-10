@@ -85,7 +85,7 @@ import { WITHER_HEALTH, WITHER_DIMENSIONS, WITHER_XP, WITHER_UNDEAD_TRAITS, isWi
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding, applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
-import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring } from './villagerEconomy.js';
+import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring, updateVillagerRegeneration, recordAttack, recordKill, decayGossip } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
 function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  const geo = new THREE.BoxGeometry(w, h, d);
@@ -10314,6 +10314,9 @@ export class MobManager {
       amount = armadilloDamageReduction(amount, { rolled: true });
     }
     mob.health -= amount;
+    // Wiki: "Attacking the villager" is a `minor_negative` gossip worth 25, which is what makes the prices
+    // an abusive player is quoted rise. Only the player's own hits count; a zombie's do not.
+    if (mob.type === 'villager' && attacker === this.game?.player) recordAttack(mob);
     if(isPackEquine(mob))hurtPackEquine(this,mob,attacker);
     if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
@@ -10760,6 +10763,14 @@ export class MobManager {
   updateDeath(mob, dt) {
     if (!mob.dying) {
       mob.dying = true;
+      // Wiki: killing a villager stores a `major_negative` of 25 "for all villagers whom it has a line of
+      // sight inside a box extending 16 blocks from the villager in all coordinate directions".
+      if (mob.type === 'villager') {
+        for (const other of this.mobs) {
+          if (other === mob || other.type !== 'villager' || other.health <= 0) continue;
+          if (other.mesh.position.distanceTo(mob.mesh.position) <= 16) recordKill(other);
+        }
+      }
       if (mob.laserLine && this.scene) {
         this.scene.remove(mob.laserLine);
         mob.laserLine.geometry?.dispose();
@@ -13370,36 +13381,70 @@ export class MobManager {
         }
       }
     } else if (mob.type === 'villager') {
-      // Periodically check workstation claims and restocking
+      // Periodically check workstation claims and restocking. The day counter is what caps a villager at the
+      // wiki's "twice per day", so it has to travel with the call rather than be recomputed from a clock that
+      // wraps every 24000 ticks.
       mob.workstationCheckTimer = (mob.workstationCheckTimer || 0) - dt;
       if (mob.workstationCheckTimer <= 0) {
         mob.workstationCheckTimer = 2.0;
-        updateVillagerWorkstation(mob, this.world, this.mobs);
+        updateVillagerWorkstation(mob, this.world, this.mobs, { day: this.game?.dayCount ?? 0 });
       }
 
-      // Flee from nearby zombies or zombie villagers
-      let threat = null;
-      let threatDist = 12;
-      for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager' || other.type === 'husk')) {
-          const d = mob.mesh.position.distanceTo(other.mesh.position);
-          if (d < threatDist) {
-            threatDist = d;
-            threat = other;
+      // Wiki: "Every 20 minutes, all gossips of a villager decays by the amount in the 'Decay' column." The
+      // curing gossip's decay is zero, which is what makes a cure's discount permanent.
+      decayGossip(mob, dt);
+
+      // Wiki: a level-up grants the villager ten seconds of Regeneration I, worth four hit points.
+      const regenerated = updateVillagerRegeneration(mob, dt);
+      if (regenerated === 'healed') {
+        this.spawnParticleBurst?.(mob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff00ff, 2);
+      }
+      if (mob.levelUpFlash) {
+        // Wiki: the level-up "emits magenta particles" and "green plus-shaped particles".
+        mob.levelUpFlash = false;
+        const at = mob.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+        this.spawnParticleBurst?.(at, 0xff00ff, 8);
+        this.spawnParticleBurst?.(at, 0x22c55e, 8);
+      }
+
+      // Wiki: a non-trading villager "grunts and bobs its head" when a player tries to trade with it.
+      if (mob.refuseHeadBobTimer > 0) {
+        mob.refuseHeadBobTimer = Math.max(0, mob.refuseHeadBobTimer - dt);
+        if (mob.head) mob.head.rotation.x = Math.sin(mob.refuseHeadBobTimer * 12) * 0.28;
+      } else if (mob.head && mob.refuseHeadBobTimer !== undefined && mob.head.rotation.x !== 0) {
+        mob.head.rotation.x = 0;
+      }
+
+      // Wiki: opening the menu "pauses their pathfinding, and makes them face the trading player."
+      if (mob.tradingWith) {
+        mob.velocity.x = 0;
+        mob.velocity.z = 0;
+        mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+      } else {
+        // Flee from nearby zombies or zombie villagers
+        let threat = null;
+        let threatDist = 12;
+        for (const other of this.mobs) {
+          if (other.health > 0 && (other.type === 'zombie' || other.type === 'zombie_villager' || other.type === 'husk')) {
+            const d = mob.mesh.position.distanceTo(other.mesh.position);
+            if (d < threatDist) {
+              threatDist = d;
+              threat = other;
+            }
           }
         }
-      }
-      if (threat) {
-        const fleeYaw = Math.atan2(mob.mesh.position.x - threat.mesh.position.x, mob.mesh.position.z - threat.mesh.position.z);
-        mob.yaw = fleeYaw;
-        mob.velocity.x = Math.sin(fleeYaw) * 3.2;
-        mob.velocity.z = Math.cos(fleeYaw) * 3.2;
-      } else if (distToPlayer < 2.5) {
-        mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
-        mob.velocity.x *= 0.5;
-        mob.velocity.z *= 0.5;
-      } else {
-        wanderMob(this, mob, dt, 1.2);
+        if (threat) {
+          const fleeYaw = Math.atan2(mob.mesh.position.x - threat.mesh.position.x, mob.mesh.position.z - threat.mesh.position.z);
+          mob.yaw = fleeYaw;
+          mob.velocity.x = Math.sin(fleeYaw) * 3.2;
+          mob.velocity.z = Math.cos(fleeYaw) * 3.2;
+        } else if (distToPlayer < 2.5) {
+          mob.yaw = Math.atan2(player.position.x - mob.mesh.position.x, player.position.z - mob.mesh.position.z);
+          mob.velocity.x *= 0.5;
+          mob.velocity.z *= 0.5;
+        } else {
+          wanderMob(this, mob, dt, 1.2);
+        }
       }
     } else if (mob.type === 'zombie_villager') {
       // Check curing progression

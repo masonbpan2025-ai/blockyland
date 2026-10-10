@@ -9,7 +9,7 @@
 // blocks, quoted names for items. Only recipes whose result AND every ingredient exist in this
 // game are listed; the generator reports what it had to skip.
 //
-// 1554 recipes.
+// 1556 recipes.
 
 import { BLOCKS } from './blocks.js';
 
@@ -924,9 +924,11 @@ export const EXTRA_RECIPES = [
   {shapeless:true,ingredients:['paper','paper','paper','leather'],result:{id:'book',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.SLIME_BLOCK],result:{id:'slime_ball',isBlock:false,count:9}},
   {pattern:[[null,'iron_ingot',null],['iron_ingot','redstone','iron_ingot'],[null,'iron_ingot',null]],result:{id:'compass',isBlock:false,count:1}},
+  {pattern:[['echo_shard','echo_shard','echo_shard'],['echo_shard','compass','echo_shard'],['echo_shard','echo_shard','echo_shard']],result:{id:'recovery_compass',isBlock:false,count:1}},
   {pattern:[['string'],['leather']],result:{id:'bundle',isBlock:false,count:1}},
   {pattern:[[null,null,'stick'],[null,'stick','string'],['stick',null,'string']],result:{id:'fishing_rod',isBlock:false,count:1}},
   {pattern:[[null,'gold_ingot',null],['gold_ingot','redstone','gold_ingot'],[null,'gold_ingot',null]],result:{id:'clock',isBlock:false,count:1}},
+  {pattern:[['amethyst_shard'],['copper_ingot'],['copper_ingot']],result:{id:'spyglass',isBlock:false,count:1}},
   {shapeless:true,ingredients:['bone_meal'],result:{id:'white_dye',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.LILY_OF_THE_VALLEY],result:{id:'white_dye',isBlock:false,count:1}},
   {shapeless:true,ingredients:[B.ORANGE_TULIP],result:{id:'orange_dye',isBlock:false,count:1}},
@@ -1574,21 +1576,21 @@ export const EXTRA_RECIPES = [
 ];
 
 /** How many recipes this module provides, and what the generator could not express. */
-export const EXTRA_RECIPE_COUNT = 1554;
+export const EXTRA_RECIPE_COUNT = 1556;
 
 export const EXTRA_RECIPE_STATS = {
   "vanillaTotal": 1557,
-  "emitted": 1554,
-  "shaped": 1282,
+  "emitted": 1556,
+  "shaped": 1284,
   "shapeless": 272,
-  "skippedMissingResult": 2,
+  "skippedMissingResult": 0,
   "skippedMissingIngredient": 0,
   "shapelessWithoutFaithfulPattern": 0,
   "rejectedRaggedPattern": 0,
   "rejectedLargerThan3x3": 0,
   "rejectedEmptyPattern": 0,
   "unclassified": 0,
-  "emittedBeforeDedupe": 1554,
+  "emittedBeforeDedupe": 1556,
   "duplicatesCollapsed": 0,
   "skippedNotACraftableResult": 1,
   "skippedCountTooLarge": 0
