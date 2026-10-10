@@ -200,18 +200,24 @@ export function applyPandaPersonality(mob) {
 export function applyPandaColors(mob) {
   if (!isPanda(mob)) return mob;
   const palette = pandaColors(mob.personality);
+  // A normal panda wears the model's own colours -- near-black patches on white. `PANDA_COLORS.normal.light`
+  // is the grey the old flat model tinted its body with, so restoring the normal palette has to put the
+  // model's own white back instead of writing that grey: otherwise the recolour is not reversible.
+  const dark = palette.dark;
+  const light = palette === PANDA_COLORS.normal ? 0xffffff : palette.light;
   // The spawner records the two materials it built the model from, so the recolour is a two-line
   // operation rather than a traversal that could recolour an unrelated mesh.
-  mob.darkMat?.color?.setHex?.(palette.dark);
-  mob.lightMat?.color?.setHex?.(palette.light);
+  mob.darkMat?.color?.setHex?.(dark);
+  mob.lightMat?.color?.setHex?.(light);
   if (mob.mesh) {
-    // Fall back to a traversal for a model built without the material handles.
+    // Fall back to a traversal for a model built without the material handles. It remaps either palette in
+    // both directions, so a brown panda can be turned back into a normal one.
     mob.mesh.traverse?.((obj) => {
       if (!obj.isMesh || !obj.material?.color) return;
       const hex = obj.material.color.getHex();
       // Only remap colours that are one of the two palettes, so eyes and snout keep their own colour.
-      if (hex === PANDA_COLORS.normal.dark) obj.material.color.setHex(palette.dark);
-      else if (hex === PANDA_COLORS.normal.light) obj.material.color.setHex(palette.light);
+      if (hex === PANDA_COLORS.normal.dark || hex === PANDA_COLORS.brown.dark) obj.material.color.setHex(dark);
+      else if (hex === PANDA_COLORS.normal.light || hex === PANDA_COLORS.brown.light) obj.material.color.setHex(light);
     });
   }
   return mob;
