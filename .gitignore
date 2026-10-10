@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+.multiplayer-client/
+.npm-cache/
+test-results/
+playwright-report/
 .pnp
 .pnp.js
 

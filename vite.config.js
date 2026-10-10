@@ -1,14 +1,21 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import { multiplayerPlugin } from './server/multiplayerVite.js';
 
 export default defineConfig({
+  // The separately hosted multiplayer distribution contains its own HTML and
+  // prebuilt bundles. Keep Vite's dependency scanner on this game's entries.
+  optimizeDeps: {
+    entries: ['index.html', 'multiplayer.html', 'mob-debug.html', 'resource-debug.html', 'structure-inspector.html']
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,
     open: false
   },
   plugins: [
+    multiplayerPlugin(),
     {
       name: 'map-storage-server',
       configureServer(server) {
@@ -224,6 +231,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         game: path.resolve('index.html'),
+        multiplayer: path.resolve('multiplayer.html'),
         mobDebug: path.resolve('mob-debug.html'),
         resourceDebug: path.resolve('resource-debug.html'),
         structureInspector: path.resolve('structure-inspector.html')

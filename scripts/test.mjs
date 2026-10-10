@@ -32,6 +32,7 @@ const testsDir = join(root, 'tests');
  * areas aligned with the source modules so "I changed X" maps to an obvious area.
  */
 export const AREAS = {
+  multiplayer: ['multiplayerAddress', 'multiplayerPage', 'multiplayerServer', 'multiplayerProbe'],
   // --- agent / terminal ---
   agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring', 'startScreenBinding'],
   // --- mobs ---
