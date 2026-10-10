@@ -57,6 +57,10 @@ const ATTACK_AI = {
   zombified_piglin: 'anger', zombie_pigman: 'anger', bee: 'anger',
   witch: 'special', slime: 'special', magma_cube: 'special',
   piglin: 'melee', hoglin: 'melee', zoglin: 'melee',
+  // The two illagers whose behaviour modules arrived last. Both attack deterministically -- the vindicator
+  // closes to melee reach, the evoker casts fangs from a distance -- so their scenarios are scored rather
+  // than reported as unimplemented.
+  vindicator: 'melee', evoker: 'ranged',
   phantom: 'special', guardian: 'special', elder_guardian: 'special'
 };
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { isPanda } from './pandaBehavior.js';
 import { isSheep } from './sheepBehavior.js';
+import { wanderMob } from './mobMotion.js';
 
 /**
  * Evoker rules, spells and combat AI.
@@ -223,6 +224,13 @@ export function updateEvokerAI(manager, mob, dt, player) {
         }
       }
     }
+  }
+
+  // No target in range: wander. Like the vindicator, an evoker that only moves while chasing stands frozen
+  // at its spawn point, which is what 'every advertised mob actually moves' catches.
+  if (!mob.target) {
+    wanderMob(manager, mob, dt, 1.0);
+    return false;
   }
 
   if (mob.target) {

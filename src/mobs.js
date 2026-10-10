@@ -11445,8 +11445,10 @@ export class MobManager {
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
-    if(mob.type==='vindicator'){updateVindicatorAI(this,mob,dt,player);return true;}
-    if(mob.type==='evoker'){updateEvokerAI(this,mob,dt,player);return true;}
+    // Both new illager AIs only set a velocity; the handler has to apply it, exactly as the panic branch
+    // above does. Without the mover they stood at their spawn point however busy their AI was.
+    if(mob.type==='vindicator'){updateVindicatorAI(this,mob,dt,player);this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;}
+    if(mob.type==='evoker'){updateEvokerAI(this,mob,dt,player);this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;}
     if(mob.type==='ender_dragon'){updateEnderDragonAI(this,mob,dt,player);return true;}
     if(mob.type==='wither'){updateWitherAI(this,mob,dt,player);return true;}
     if(mob.type==='slime'||mob.type==='magma_cube'){
