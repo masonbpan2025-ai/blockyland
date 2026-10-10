@@ -34,7 +34,7 @@ const testsDir = join(root, 'tests');
 export const AREAS = {
   multiplayer: ['multiplayerAddress', 'multiplayerPage', 'multiplayerServer', 'multiplayerProbe'],
   // --- agent / terminal ---
-  agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring', 'startScreenBinding'],
+  agent: ['agentGuidance', 'agentProviders', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'forwardView', 'domWiring', 'startScreenBinding', 'playerBot'],
   // --- mobs ---
   // The natural-spawning subsystem's own tests come first because they are the slowest files in the
   // area and a failure there is the most informative:
