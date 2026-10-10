@@ -55,7 +55,18 @@ export const POTION_DATA = {
   // Durations are vanilla's: 1:30 base, 4:00 extended, 0:20 at level IV.
   potion_of_slowness: { name: 'Potion of Slowness', color: '#64748b', effect: 'slowness', duration: 90 },
   potion_of_slowness_long: { name: 'Potion of Slowness (Extended)', color: '#64748b', effect: 'slowness', duration: 240 },
-  potion_of_slowness_2: { name: 'Potion of Slowness IV', color: '#64748b', effect: 'slowness', duration: 20, level: 4 }
+  potion_of_slowness_2: { name: 'Potion of Slowness IV', color: '#64748b', effect: 'slowness', duration: 20, level: 4 },
+
+  // Turtle Master, which vanilla has in three forms and this table had only the base one. All three
+  // come from one ingredient -- turtle scute on an awkward potion -- and then redstone extends it
+  // (0:20 -> 0:40) or glowstone enhances it (Slowness IV/Resistance III -> Slowness VI/Resistance IV).
+  // Without these two the Potion of the Turtle Master was the only potion in the game with no extended
+  // form, so a player who extended it got nothing at all; the brew simply did not happen.
+  //
+  // The pair of effects and the levels for each tier live in `statusEffects.js` under `turtle_master`.
+  // The potion carries only which tier it is; `compoundEffects` reads the pair for that tier.
+  potion_of_turtle_master_long: { name: 'Potion of the Turtle Master (Extended)', color: '#14532d', effect: 'turtle_master', duration: 40 },
+  potion_of_turtle_master_2: { name: 'Potion of the Turtle Master II', color: '#14532d', effect: 'turtle_master', duration: 20, level: 2 }
 };
 
 // Base Brewing Recipes: (bottleId + ingredientId) -> resultId
@@ -110,6 +121,13 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'potion_of_slow_falling', ingredient: 'redstone', result: 'potion_of_slow_falling_long' },
   { bottle: 'potion_of_poison', ingredient: 'redstone', result: 'potion_of_poison_long' },
   { bottle: 'potion_of_weakness', ingredient: 'redstone', result: 'potion_of_weakness_long' },
+  // Vanilla extends Slowness with redstone, and this table had no row for it. `potion_of_slowness_long`
+  // was reachable only by corrupting an *already extended* swiftness or leaping potion, so extending a
+  // Slowness potion directly -- the obvious route -- silently brewed nothing.
+  { bottle: 'potion_of_slowness', ingredient: 'redstone', result: 'potion_of_slowness_long' },
+  // And Turtle Master extends, which is the row whose absence made it the one potion in the game with
+  // no way to lengthen it.
+  { bottle: 'potion_of_turtle_master', ingredient: 'redstone', result: 'potion_of_turtle_master_long' },
 
   // Glowstone Dust Enhancement (Level II Potency)
   { bottle: 'potion_of_healing', ingredient: 'glowstone_dust', result: 'potion_of_healing_2' },
@@ -122,7 +140,9 @@ export const BASE_BREWING_RECIPES = [
   // Slowness IV, which vanilla reaches with glowstone on Slowness. Without this row the potion existed
   // in POTION_DATA with nothing able to produce it -- the mirror of the slowness bug above, where a
   // recipe existed with no potion behind it.
-  { bottle: 'potion_of_slowness', ingredient: 'glowstone_dust', result: 'potion_of_slowness_2' }
+  { bottle: 'potion_of_slowness', ingredient: 'glowstone_dust', result: 'potion_of_slowness_2' },
+  // Turtle Master II, glowstone on Turtle Master, the same rule as every other enhanced potion.
+  { bottle: 'potion_of_turtle_master', ingredient: 'glowstone_dust', result: 'potion_of_turtle_master_2' }
 ];
 
 /**
@@ -237,6 +257,22 @@ export function potionDataFor(itemId) {
 }
 
 /**
+ * How long one brewing stage takes, in seconds.
+ *
+ * Vanilla's brewing stand takes 20 seconds -- 400 game ticks -- per stage, and the Brewing Stand article
+ * states it in as many words. This was 10, with a comment asserting that "vanilla and Mineclonia both
+ * take 10 s"; the code and its own comment agreed with each other and disagreed with the game, and the
+ * test asserted the same wrong figure, so the whole brew was twice as fast as the game it copies.
+ */
+export const BREW_DURATION = 20.0;
+
+/** Blaze powder charges one piece holds, and the stand's ceiling. */
+export const MAX_FUEL = 20;
+
+/** Bottle slots on a stand, as in vanilla's brewing stand GUI. */
+export const BOTTLE_SLOTS = 3;
+
+/**
  * BrewingStand Simulation Model
  */
 export class BrewingStand {
@@ -247,11 +283,9 @@ export class BrewingStand {
     this.ingredient = null; // { id, count }
     this.bottles = [null, null, null]; // 3 bottom slots: { id, count }
     this.fuel = 0; // 0 to 20 units
-    this.maxFuel = 20;
+    this.maxFuel = MAX_FUEL;
     this.brewTimer = 0;
-    // Vanilla and Mineclonia both take 10 seconds. This was 20, a factor of two, and the comment
-    // asserted the wrong figure so the two agreed with each other and disagreed with the game.
-    this.brewDuration = 10.0;
+    this.brewDuration = BREW_DURATION;
     this.isBrewing = false;
   }
 
@@ -262,7 +296,7 @@ export class BrewingStand {
     if (!item || item.id !== 'blaze_powder') return false;
     if (this.fuel >= this.maxFuel) return false;
 
-    this.fuel = Math.min(this.maxFuel, this.fuel + 20);
+    this.fuel = Math.min(this.maxFuel, this.fuel + MAX_FUEL);
     return true;
   }
 
@@ -348,5 +382,74 @@ export class BrewingStand {
   getProgress() {
     if (!this.isBrewing || this.brewDuration <= 0) return 0;
     return Math.max(0, Math.min(1, 1 - (this.brewTimer / this.brewDuration)));
+  }
+}
+
+/**
+ * The brewing stands in a world, one per block position.
+ *
+ * Without this the game had a single stand living on the UI, and opening a second stand replaced it --
+ * so the first stand's bottles and ingredient were simply gone, and a stand you had loaded and walked
+ * away from forgot everything. Vanilla keeps a brewing stand's contents in its block entity and keeps
+ * brewing while the interface is closed, which the wiki states outright: "there is no time limit; fuel
+ * is consumed only when there are water bottles and an ingredient to brew into it."
+ *
+ * Keyed by floor(x), floor(y), floor(z), the same way `FurnaceManager` keys its furnaces.
+ */
+export class BrewingManager {
+  constructor() {
+    this.stands = new Map();
+  }
+
+  /** Key for the block a position is inside, matching how the world addresses voxels. */
+  getKey(x, y, z) {
+    return `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+  }
+
+  /** The stand at a position, or null when nothing has ever been brewed there. */
+  getStand(x, y, z) {
+    return this.stands.get(this.getKey(x, y, z)) ?? null;
+  }
+
+  /** The stand at a position, created empty if this is the first time it is opened. */
+  getOrCreateStand(x, y, z) {
+    const key = this.getKey(x, y, z);
+    let stand = this.stands.get(key);
+    if (!stand) {
+      stand = new BrewingStand(Math.floor(x), Math.floor(y), Math.floor(z));
+      this.stands.set(key, stand);
+    }
+    return stand;
+  }
+
+  /** True when the block at this position is brewing, so a caller can tell "idle" from "running". */
+  isBrewingAt(x, y, z) {
+    return this.getStand(x, y, z)?.isBrewing === true;
+  }
+
+  /**
+   * Advance every stand by `dt` seconds.
+   *
+   * This is what makes a brew take 20 seconds of game time rather than happening the instant the player
+   * closes the window. `BrewingStand.update` already modelled the timer correctly, but nothing ever
+   * called it: a stand never entered its brewing state, so the timer never ran and the progress bar in
+   * the GUI was decorative.
+   *
+   * @returns {number} how many brewing stages completed this tick
+   */
+  update(dt) {
+    let completed = 0;
+    for (const stand of this.stands.values()) {
+      if (stand.update(dt)) completed++;
+    }
+    return completed;
+  }
+
+  /** Drop the stand at a position, for when its block is broken. */
+  removeStand(x, y, z) {
+    const key = this.getKey(x, y, z);
+    const stand = this.stands.get(key) ?? null;
+    this.stands.delete(key);
+    return stand;
   }
 }

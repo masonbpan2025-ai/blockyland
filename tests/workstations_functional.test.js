@@ -282,6 +282,9 @@ test('Interactive Workstation UI Modals: Opening, Interacting, Slotted items, an
       dataset: {},
       children,
       appendChild: (c) => { children.push(c); return c; },
+      // `UIManager.setupUI` rebuilds the world-generation pack dropdown with `replaceChildren`, which
+      // this stub was missing, so constructing a UIManager threw before any workstation could be opened.
+      replaceChildren: () => { children.length = 0; },
       addEventListener: function(ev, fn) { this[`on${ev}`] = fn; },
       removeEventListener: () => {},
       removeAttribute: () => {},
@@ -390,13 +393,55 @@ test('Interactive Workstation UI Modals: Opening, Interacting, Slotted items, an
   ui.openBrewingStand(10, 10, 10);
   assert.equal(elements['brewing-modal'].classList.contains('hidden'), false);
 
-  // Slotted item return on close
-  ui.brewingStand.ingredient = { id: 'nether_wart', count: 5 };
+  // Closing the window leaves the stand's contents in the block, as vanilla's block entity does, and
+  // only hands back what is on the cursor. The stand is still there to be reopened.
+  const openStand = ui.brewingStand;
+  openStand.ingredient = { id: 'nether_wart', count: 5 };
   ui.closeBrewingModal();
   assert.equal(elements['brewing-modal'].classList.contains('hidden'), true);
-  assert.equal(ui.brewingStand.ingredient, null);
-  const hasNetherWart = inv.hotbar.concat(inv.storage).some(s => s && s.id === 'nether_wart' && s.count >= 5);
-  assert.equal(hasNetherWart, true, 'Nether Wart was safely returned to inventory on modal close');
+  assert.equal(ui.brewingStand, null, 'no window is showing a stand any more');
+  assert.equal(openStand.ingredient.id, 'nether_wart', 'the ingredient stayed in the block');
+  assert.equal(openStand.ingredient.count, 5);
+  assert.equal(inv.hotbar.concat(inv.storage).some(s => s && s.id === 'nether_wart'), false,
+    'and it was not also copied into the inventory');
+
+  ui.openBrewingStand(10, 10, 10);
+  assert.equal(ui.brewingStand, openStand, 'reopening the same block shows the same stand');
+  assert.equal(ui.brewingStand.ingredient.count, 5, 'with what it was holding');
+  ui.brewingStand.ingredient = null;
+  ui.closeBrewingModal();
+
+  const otherStand = ui.brewingManager.getOrCreateStand(20, 10, 20);
+  assert.notEqual(otherStand, openStand, 'a different block has its own stand');
+  assert.equal(openStand.ingredient, null, 'and the two do not share a slot');
+
+  // A whole brew through the window, timed by the tick the game loop drives.
+  ui.openBrewingStand(30, 10, 30);
+  const stand = ui.brewingStand;
+  for (let i = 0; i < 3; i++) stand.bottles[i] = { id: 'water_bottle', count: 1 };
+  assert.equal(stand.addFuel({ id: 'blaze_powder' }), true, 'one blaze powder fuels the stand');
+  stand.ingredient = { id: 'nether_wart', count: 1 };
+
+  // Nineteen seconds: still water. The window keeps showing "Brewing..." and the bar has moved.
+  for (let i = 0; i < 19; i++) ui.tickBrewing(1.0);
+  assert.equal(stand.bottles.every(b => b.id === 'water_bottle'), true, 'nothing brewed early');
+  assert.equal(elements['brewing-status-text'].textContent, 'Brewing...');
+  assert.equal(elements['brewing-progress-bar'].style.width, '95%', 'the bar tracks the twenty-second timer');
+
+  // The twentieth second lands the stage on every bottle at once and spends one charge.
+  ui.tickBrewing(1.0);
+  assert.equal(stand.bottles.every(b => b.id === 'awkward_potion'), true, 'all three bottles brewed');
+  assert.equal(stand.ingredient, null, 'the ingredient was consumed');
+  assert.equal(stand.fuel, 19, 'and one charge was spent');
+
+  // Closing the window does not stop it: a loaded stand finishes its stage while the player walks away,
+  // which is what vanilla's block entity does.
+  stand.ingredient = { id: 'sugar', count: 1 };
+  ui.closeBrewingModal();
+  for (let i = 0; i < 20; i++) ui.tickBrewing(1.0);
+  assert.equal(stand.bottles.every(b => b.id === 'potion_of_swiftness'), true,
+    'the brew completed with the window closed');
+  assert.equal(stand.fuel, 18);
 
   // 2. Open Anvil GUI
   ui.openAnvil(15, 10, 15);

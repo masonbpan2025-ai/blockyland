@@ -122,9 +122,15 @@ export const POTION_ITEMS = {
   potion_of_slowness_2: { name: 'Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
   splash_potion_of_slowness_2: { name: 'Splash Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
   lingering_potion_of_slowness_2: { name: 'Lingering Potion of Slowness IV', icon: '/assets/items/potion_of_slowness_2.png', type: 'potion', stackSize: 1 },
+  potion_of_turtle_master_long: { name: 'Potion of the Turtle Master (Extended)', icon: '/assets/items/potion_of_turtle_master_long.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_turtle_master_long: { name: 'Splash Potion of the Turtle Master (Extended)', icon: '/assets/items/potion_of_turtle_master_long.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_turtle_master_long: { name: 'Lingering Potion of the Turtle Master (Extended)', icon: '/assets/items/potion_of_turtle_master_long.png', type: 'potion', stackSize: 1 },
+  potion_of_turtle_master_2: { name: 'Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_turtle_master_2: { name: 'Splash Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_turtle_master_2: { name: 'Lingering Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
 };
 
-export const POTION_ITEM_COUNT = 113;
+export const POTION_ITEM_COUNT = 119;
 
 /** The potion id each item is a form of, so a consumer can reach POTION_DATA without parsing prefixes. */
 export const POTION_ITEM_BASE = {
@@ -241,4 +247,10 @@ export const POTION_ITEM_BASE = {
   potion_of_slowness_2: 'potion_of_slowness_2',
   splash_potion_of_slowness_2: 'potion_of_slowness_2',
   lingering_potion_of_slowness_2: 'potion_of_slowness_2',
+  potion_of_turtle_master_long: 'potion_of_turtle_master_long',
+  splash_potion_of_turtle_master_long: 'potion_of_turtle_master_long',
+  lingering_potion_of_turtle_master_long: 'potion_of_turtle_master_long',
+  potion_of_turtle_master_2: 'potion_of_turtle_master_2',
+  splash_potion_of_turtle_master_2: 'potion_of_turtle_master_2',
+  lingering_potion_of_turtle_master_2: 'potion_of_turtle_master_2',
 };

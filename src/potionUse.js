@@ -8,7 +8,7 @@
 // 36 potions are base potions with no effect at all -- water, awkward, thick, mundane -- and they are
 // still consumed, because that is what vanilla does and it is how a player discards one.
 import { potionDataFor } from './brewing.js';
-import { compoundEffects } from './statusEffects.js';
+import { effectsFor } from './statusEffects.js';
 
 /**
  * Effects that resolve in one instant rather than over a duration.
@@ -53,17 +53,18 @@ export function applyPotionEffect(potion, player) {
   // One potion, two effects. Vanilla's Potion of the Turtle Master applies Slowness IV and Resistance III
   // together, and the potion carries a single level, so the pair comes from the effect table rather than
   // from the brew. Applied as two real effects instead of one `turtle_master` status, because that is what
-  // vanilla shows the player -- there is no Turtle Master effect in the HUD.
-  const compound = compoundEffects(effect);
-  if (compound.length) {
-    for (const [name, level] of compound) {
+  // vanilla shows the player -- there is no Turtle Master effect in the HUD. `effectsFor` carries the tier
+  // through, so the enhanced brew gives Slowness VI and Resistance IV, which is what the wiki tabulates.
+  const granted = effectsFor(effect, potion.level ?? 1);
+  if (granted.length) {
+    for (const [name, level] of granted) {
       player.applyStatusEffect?.(name, potion.duration ?? 30, level);
     }
-    return { effect, instant: false, level: potion.level ?? 1, applied: compound.map(([name]) => name) };
   }
-
-  player.applyStatusEffect?.(effect, potion.duration ?? 30, potion.level ?? 1);
-  return { effect, instant: false, level: potion.level ?? 1 };
+  const compound = granted.length > 1;
+  return compound
+    ? { effect, instant: false, level: potion.level ?? 1, applied: granted.map(([name]) => name) }
+    : { effect, instant: false, level: potion.level ?? 1 };
 }
 
 /**

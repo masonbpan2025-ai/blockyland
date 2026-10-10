@@ -80,14 +80,18 @@ export const EFFECTS = {
   glowing: { name: 'Glowing', category: 'neutral' },
 
   // --- one potion, two effects -----------------------------------------------
-  // Vanilla's Potion of the Turtle Master is a single brew that applies Slowness IV and Resistance III at
-  // once. One `level` cannot express two different levels, and the potion carries only one, so the pair is
-  // declared here and `compoundEffects` returns it. Vanilla has no "Turtle Master" effect in the HUD --
-  // the player sees Slowness and Resistance -- which is why this entry is a rule rather than a status the
-  // player holds.
+  // Vanilla's Potion of the Turtle Master applies two statuses at once, and its enhanced tier applies a
+  // stronger pair. There is no "Turtle Master" effect in the HUD -- the player sees Slowness and
+  // Resistance -- which is why this is a rule rather than a status the player holds.
+  //
+  // The two tiers are written out rather than scaled from one pair, because the levels are the EFFECT
+  // levels and not the potion's: the regular potion is Slowness IV + Resistance III and the enhanced one
+  // is Slowness VI + Resistance IV, so multiplying IV/III by two would give VIII/VI. The two do not
+  // advance by the same amount either (4 -> 6 against 3 -> 4), so no single multiplier produces both.
   turtle_master: {
     name: 'Turtle Master', category: 'beneficial',
     compound: [['slowness', 4], ['resistance', 3]],
+    compoundByLevel: { 2: [['slowness', 6], ['resistance', 4]] },
   },
 };
 
@@ -260,14 +264,42 @@ export function jumpVelocityMultiplier(effects) {
 }
 
 /**
- * The effects a compound effect stands for, at the levels it declares.
+ * The effects a compound effect stands for, at the levels it declares for that tier.
  *
  * Vanilla has exactly one of these: the Potion of the Turtle Master applies Slowness IV and Resistance III
- * from a single brew. Returns `[[name, level], ...]`, or an empty list for an ordinary effect.
+ * from a single brew, and the enhanced tier applies VI and IV. Returns `[[name, level], ...]`, or an
+ * empty list for an ordinary effect.
+ *
+ * @param {string} name effect name, `turtle_master` being the only compound one
+ * @param {number} [level] the potion's tier, 1 for the base brew and 2 for the enhanced one
  */
-export function compoundEffects(name) {
-  const compound = EFFECTS[name]?.compound;
-  return Array.isArray(compound) ? compound.map(([effect, level]) => [effect, level]) : [];
+export function compoundEffects(name, level = 1) {
+  const def = EFFECTS[name];
+  if (!def || !Array.isArray(def.compound)) return [];
+  const tier = Math.max(1, Math.floor(level) || 1);
+  // A tier with no entry of its own falls back to the base pair rather than being scaled, because the
+  // levels are effect levels: a hypothetical level III would otherwise silently apply something invented.
+  const pair = def.compoundByLevel?.[tier] ?? def.compound;
+  return pair.map(([effect, effectLevel]) => [effect, effectLevel]);
+}
+
+/**
+ * The status effects an effect name actually applies, as `[[name, level], ...]`.
+ *
+ * The one place that knows a compound effect is two effects and an ordinary one is one. Drinking and
+ * throwing were not sharing it, and could not: `potionUse.js` expanded `turtle_master` and
+ * `splashPotion.js` did not, so a thrown Splash Potion of the Turtle Master applied a `turtle_master`
+ * status -- which no rule in this table reads, and which vanilla has no HUD icon for -- and granted
+ * neither its Slowness nor its Resistance. Both paths ask this now, so the two cannot disagree.
+ *
+ * @param {string|null|undefined} name
+ * @param {number} [level]
+ * @returns {Array<[string, number]>}
+ */
+export function effectsFor(name, level = 1) {
+  if (!name) return [];
+  const compound = compoundEffects(name, level);
+  return compound.length ? compound : [[name, Math.max(1, Math.floor(level) || 1)]];
 }
 
 /**

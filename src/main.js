@@ -58,7 +58,7 @@ import { HeldItemRenderer } from './heldItem.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
 import { encodeScreenshotDataUrl } from './agentProviders.js';
-import { startZombieVillagerCure } from './villagerEconomy.js';
+import { startZombieVillagerCure, tradeRefusal } from './villagerEconomy.js';
 import {
   DEFAULT_BATCH_SIZE,
   ProgressOverlay,
@@ -104,6 +104,7 @@ import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
 import { DeepDarkWardenManager } from './deepDarkWarden.js';
 import { BossFightManager } from './bossFights.js';
+import { WorldSyncManager } from './multiplayer/worldSyncManager.js';
 
 
 class Game {
@@ -403,6 +404,9 @@ class Game {
     this.worldType = 'generated';
     this.mechanisms = new WorldMechanismManager(this);
 
+    // 5d. Initialize Multiplayer World Synchronization & Hosting
+    this.worldSync = new WorldSyncManager(this);
+
     // 6. Build Target Highlighting Box & Break Crack Mesh
     this.buildTargetHighlightMeshes();
 
@@ -411,6 +415,13 @@ class Game {
 
     // 8. Bind Mouse Interaction & Click-to-play
     this.bindEvents();
+
+    // 8b. Check if user is joining a hosted world via share link (?join=<roomId>)
+    const joinRoomId = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('join') : null;
+    if (joinRoomId) {
+      console.log('[Multiplayer] Joining world via shared link:', joinRoomId);
+      this.worldSync.joinWorld(joinRoomId);
+    }
 
     // 9. Start Animation Loop
     this.animate();
@@ -649,7 +660,29 @@ class Game {
    * that function reports through its progress callback.
    */
   async loadMapWithProgress(work, options = {}) {
-    if (!this.overlay) return work();
+    if (this.lifecycle) {
+      this.lifecycle.phase = 'loading';
+      this.lifecycle.startedAt = Date.now();
+      this.lifecycle.finishedAt = 0;
+      this.lifecycle.error = null;
+    }
+    if (!this.overlay) {
+      const res = await work();
+      if (this.ui?.closeAllModals) this.ui.closeAllModals();
+      if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
+      if (this.player) {
+        this.player.controlsDisabled = false;
+        this.player.isSleeping = false;
+        this.player.keys = {};
+      }
+      if (typeof document !== 'undefined' && document.activeElement?.blur) {
+        document.activeElement.blur();
+      }
+      if (this.ui?.requestGamePointerLock) {
+        this.ui.requestGamePointerLock();
+      }
+      return res;
+    }
 
     this.overlay.show(options.title || 'Loading Map');
     // One yield so the overlay is on screen before the blocking work starts.
@@ -661,6 +694,29 @@ class Game {
     this.overlay.set(100, 'Map loaded');
     await yieldToBrowser();
     this.overlay.hide();
+
+    this.worldReady = true;
+    this.worldGenerated = true;
+    if (this.lifecycle) {
+      this.lifecycle.phase = 'ready';
+      this.lifecycle.finishedAt = Date.now();
+      this.lifecycle.error = null;
+    }
+
+    if (this.ui?.closeAllModals) this.ui.closeAllModals();
+    if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
+    if (this.player) {
+      this.player.controlsDisabled = false;
+      this.player.isSleeping = false;
+      this.player.keys = {};
+    }
+    if (typeof document !== 'undefined' && document.activeElement?.blur) {
+      document.activeElement.blur();
+    }
+    if (this.ui?.requestGamePointerLock) {
+      this.ui.requestGamePointerLock();
+    }
+
     return result;
   }
 
@@ -1694,12 +1750,30 @@ class Game {
     // loads. They used to be bound here, at the end of start(), so a click during loading reached a
     // button with no listener and was dropped.
 
-    this.renderer.domElement.addEventListener('click', () => {
+    const requestLockOnClick = () => {
       if (this.player?.isDead) return;
-      if (this.worldGenerated && !this.ui.isModalOpen() && !this.ui.isChatOpen && document.pointerLockElement !== this.renderer.domElement) {
-        this.renderer.domElement.requestPointerLock();
+      if (this.dungeonMode?.isActive) return;
+      const isLocked = document.pointerLockElement && (
+        document.pointerLockElement === this.renderer?.domElement ||
+        document.pointerLockElement === this.container ||
+        document.pointerLockElement === this.renderer?.domElement?.parentElement
+      );
+      if (this.worldGenerated && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen && !isLocked) {
+        try {
+          (this.renderer?.domElement || this.container)?.requestPointerLock?.();
+        } catch (e) {}
+      }
+    };
+
+    this.renderer.domElement.addEventListener('click', (e) => {
+      requestLockOnClick();
+      if (this.worldGenerated && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen) {
+        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
       }
     });
+    if (this.container && this.container !== this.renderer.domElement) {
+      this.container.addEventListener('click', requestLockOnClick);
+    }
 
     // Mouse Down (Left click mine/attack, Right click place/interact)
     window.addEventListener('mousedown', (e) => {
@@ -1711,7 +1785,13 @@ class Game {
         return;
       }
 
-      if (document.pointerLockElement !== this.renderer.domElement) return;
+      const isLocked = document.pointerLockElement && (
+        document.pointerLockElement === this.renderer.domElement ||
+        document.pointerLockElement === this.container ||
+        document.pointerLockElement === this.renderer.domElement?.parentElement ||
+        (this.renderer?.domElement && document.pointerLockElement?.contains?.(this.renderer.domElement))
+      );
+      if (!isLocked) return;
 
       if (e.button === 0) {
         // Left Click: Mine / Attack
@@ -2182,8 +2262,24 @@ class Game {
       }
       return;
     }
-    // Interacting with Villager
-    if (this.targetMob && this.targetMob.type === 'villager') {
+    // Interacting with Villager / Wandering Trader
+    if (this.targetMob && (this.targetMob.type === 'villager' || this.targetMob.type === 'wandering_trader')) {
+      // Wiki: "Interacting with an employed villager or wandering trader opens the menu for trading with
+      // them", and a nitwit, an unemployed villager or a baby cannot trade at all -- "it grunts and bobs
+      // its head". Opening an empty window for one of those was the old behaviour.
+      const refusal = tradeRefusal(this.targetMob);
+      if (refusal) {
+        this.sounds.playVillager();
+        this.targetMob.refuseHeadBobTimer = 1.2;
+        this.ui?.addChatMessage?.(refusal.reason === 'unemployed'
+          ? 'This villager has no job site block, so it has nothing to trade.'
+          : refusal.reason === 'nitwit'
+            ? 'The nitwit grunts and shakes its head.'
+            : refusal.reason === 'baby'
+              ? 'Baby villagers cannot trade.'
+              : 'This villager has no offers.', 'system');
+        return;
+      }
       this.sounds.playVillager();
       this.ui.openVillagerTrade(this.targetMob);
       return;
@@ -2648,7 +2744,7 @@ class Game {
     }
 
     // Place Bed (occupies 2 blocks: foot and head)
-    if (activeItem && (activeItem.id === 'red_bed' || activeItem.id === 'bed' || activeItem.id === BLOCKS.RED_BED_FOOT) && this.targetBlock.normal) {
+    if (activeItem && (String(activeItem.id).endsWith('_bed') || activeItem.id === 'bed' || activeItem.id === BLOCKS.RED_BED_FOOT) && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
       const placeY = bY + this.targetBlock.normal.y;
       const placeZ = bZ + this.targetBlock.normal.z;
@@ -2804,6 +2900,7 @@ class Game {
         const blockIdToPlace = blockIdForPlacement(activeItem);
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
+        this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
@@ -3064,6 +3161,12 @@ class Game {
       if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
     }
 
+    // A broken brewing stand drops what it was holding, as its block entity does in vanilla. The stand
+    // itself is already a block drop; this is the bottles, the ingredient and any charges left.
+    if (blockId === BLOCKS.BREWING_STAND) {
+      this.dropBrewingStandContents(x, y, z);
+    }
+
     // A broken beacon or conduit stops granting anything. Checked before the door, bed and chest branches
     // below, because those return early and a beacon must unregister whichever branch handles the break.
     this.beaconManager?.onBlockBroken(x, y, z);
@@ -3101,6 +3204,7 @@ class Game {
 
     // Set air in world
     this.world.setVoxel(x, y, z, BLOCKS.AIR);
+    this.worldSync?.onBlockBroken(x, y, z);
 
     // Sculk vibration check on block break
     this.deepDarkManager?.onPlayerVibration(this.player.position, 1.0);
@@ -3114,6 +3218,32 @@ class Game {
     this.targetBlock = null;
     this.targetBoxMesh.visible = false;
     this.breakOverlayMesh.visible = false;
+  }
+
+  /**
+   * Drop everything a broken brewing stand was holding.
+   *
+   * Vanilla: "When broken, it also drops all of its contents." Without this the stand was the one
+   * container in the game that ate what was inside it -- the furnace, the chest and the bed all drop
+   * theirs. Bottles, the ingredient stack and one blaze powder per remaining charge are spawned at the
+   * block, and the stand is removed from the manager so reopening the position starts empty.
+   *
+   * @param {number} x @param {number} y @param {number} z
+   */
+  dropBrewingStandContents(x, y, z) {
+    const stand = this.ui?.brewingManager?.removeStand(x, y, z);
+    if (!stand) return;
+    const at = this.player.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const drop = (id, count) => {
+      if (id && count > 0) this.entities.spawnDroppedItem(at, id, false, count);
+    };
+    for (const bottle of stand.bottles) drop(bottle?.id, bottle?.count ?? 0);
+    drop(stand.ingredient?.id, stand.ingredient?.count ?? 0);
+    // Charges become whole pieces of blaze powder, which is what vanilla drops: the stand's fuel is a
+    // burn-time counter, and a partly spent piece comes back as a piece.
+    if (stand.fuel > 0) drop('blaze_powder', Math.ceil(stand.fuel / stand.maxFuel));
+    // The open window was showing this stand, so it must stop showing it.
+    if (this.ui?.brewingStand === stand) this.ui.closeBrewingModal?.();
   }
 
   updateRaycast() {
@@ -3294,7 +3424,12 @@ class Game {
       return;
     }
 
-    this.worldTime = (this.worldTime + (24000 / this.dayLengthSeconds) * dt) % 24000;
+    // The day counter advances when the sky wraps, because several mechanics are counted in days rather than
+    // in ticks -- a villager may restock "up to twice per day" -- and `worldTime` alone cannot express that,
+    // since it resets to zero every 24000 ticks.
+    const advancedTime = this.worldTime + (24000 / this.dayLengthSeconds) * dt;
+    if (advancedTime >= 24000) this.dayCount = (this.dayCount ?? 0) + Math.floor(advancedTime / 24000);
+    this.worldTime = advancedTime % 24000;
     this.sky.setTime(this.worldTime);
     followSun(this.sunLight, this.sky.sunDirection, this.camera.position);
     this.moonLight.position.copy(this.sky.sunDirection).multiplyScalar(-100);
@@ -3738,7 +3873,11 @@ class Game {
     //
     // This gate was `!this.worldGenerated`, a flag set on the first line of `generateNewWorld` -- so the whole
     // simulation ran for the entire terrain load. `allowsSimulation` is true only in the `ready` phase.
+    if (this.worldReady && this.lifecycle && this.lifecycle.phase === 'idle') {
+      this.lifecycle.phase = 'ready';
+    }
     if (!allowsSimulationForPhase(this.lifecycle?.phase ?? (this.worldReady ? 'ready' : 'idle'))) {
+      if (this.playerBot?.active) this.playerBot.stop('The world simulation paused or changed; player controls were released.');
       this.clock.getDelta();
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
@@ -3759,8 +3898,10 @@ class Game {
     this.railSystem?.update(dt);
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
+    this.playerBot?.tick(dt);
     this.player.update(dt);
     this.waterSplashes.update(dt, this.player.position);
+    this.worldSync?.update(dt);
 
     // 2. Update Held Item in Player Hand
     const activeItem = this.inventory.getActiveItem();
@@ -3770,6 +3911,7 @@ class Game {
 
     // 3. Update Voxel Raycasting & Mining
     this.updateRaycast();
+    this.playerBot?.afterRaycast();
     this.updateMining(dt);
 
     // 4. Update Mobs AI & Projectiles
@@ -3859,9 +4001,26 @@ class Game {
     // 5. Update Dropped Items, TNT, & Particles
     this.entities.update(dt, this.player, this.inventory);
 
+    // Wiki: "If the merchant takes damage or leaves the player's reach, the trading menu closes." The check
+    // lives here because neither the merchant nor the player knows about the other's window.
+    if (this.tradingOpen) {
+      const merchant = this.ui?.activeVillager;
+      const gone = !merchant || merchant.health <= 0 || merchant.dying || !merchant.mesh;
+      const far = merchant?.mesh && merchant.mesh.position.distanceTo(this.player.position) > 8;
+      if (gone || far) this.ui?.closeAllModals?.();
+    }
+
     // 5a. Update Furnaces (cooking progress, fuel consumption, lighting & particles)
     if (this.furnaceManager) {
       this.furnaceManager.update(dt);
+    }
+
+    // 5a1. Update brewing stands. A stage takes 20 seconds in vanilla and the stand keeps working while
+    // its window is closed, so this ticks every stand in the world rather than only the open one.
+    // Nothing called `BrewingStand.update` before this, which meant the timer never ran at all: a brew
+    // had no duration and the progress bar in the GUI was decorative.
+    if (this.ui?.tickBrewing) {
+      this.ui.tickBrewing(dt);
     }
 
     // 5a2. Update Beds (sleeping timer, transitions, wake-up)
@@ -3975,5 +4134,6 @@ class Game {
 // Start Game
 window.addEventListener('DOMContentLoaded', () => {
   const game = new Game();
+  window.game = game;
   game.start();
 });

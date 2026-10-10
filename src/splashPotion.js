@@ -17,6 +17,7 @@
 // The effect is read from `POTION_DATA` by stripping the `splash_` prefix, so a potion and its splash form
 // cannot disagree and anything the brewing stand can produce is throwable by construction.
 import { POTION_DATA, potionCoreFor } from './brewing.js';
+import { effectsFor } from './statusEffects.js';
 
 /** Vanilla applies a splash potion within four blocks of where it lands. */
 export const SPLASH_RADIUS = 4.0;
@@ -36,14 +37,25 @@ export function isSplashPotion(itemId) {
  * A water bottle and the brewing intermediates are throwable in vanilla and do nothing, so null here is a
  * valid answer rather than an error -- the potion is still consumed.
  *
+ * `id`, `seconds` and `level` describe the potion's own effect, which is enough for every potion whose
+ * effect is one status. `effects` is what to actually apply, and differs from `id` for the one compound
+ * potion: `turtle_master` is Slowness plus Resistance, so a thrown Turtle Master potion has to grant two
+ * statuses rather than one status nothing reads.
+ *
  * @param {string} itemId
- * @returns {{id:string, seconds:number, level:number}|null}
+ * @returns {{id:string, seconds:number, level:number, effects:Array<[string, number]>}|null}
  */
 export function splashPotionEffect(itemId) {
   if (!isSplashPotion(itemId)) return null;
   const data = POTION_DATA[potionCoreFor(itemId)];
   if (!data?.effect) return null;
-  return { id: data.effect, seconds: data.duration ?? 1, level: data.level ?? 1 };
+  const level = data.level ?? 1;
+  return {
+    id: data.effect,
+    seconds: data.duration ?? 1,
+    level,
+    effects: effectsFor(data.effect, level),
+  };
 }
 
 /**
@@ -93,7 +105,11 @@ export function throwSplashPotion(game, center, itemId) {
   if (!effect) return true; // thrown, consumed, and grants nothing -- vanilla's water bottle
   const candidates = [...(game?.mobs?.mobs ?? []), game?.player].filter(Boolean);
   for (const target of splashTargets(center, candidates)) {
-    target.applyStatusEffect?.(effect.id, effect.seconds, effect.level);
+    // Every status the potion stands for, so a splash of the Turtle Master lands its Slowness and its
+    // Resistance rather than a single `turtle_master` status no rule in `statusEffects.js` reads.
+    for (const [name, level] of effect.effects) {
+      target.applyStatusEffect?.(name, effect.seconds, level);
+    }
   }
   return true;
 }

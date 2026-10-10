@@ -118,6 +118,43 @@ test('a dead mob is skipped but the player is never excluded for having no healt
   assert.deepEqual(applied, ['player']);
 });
 
+test('a thrown compound potion lands both of its statuses, not the pair\'s name', () => {
+  // The Potion of the Turtle Master is Slowness plus Resistance, and there is no `turtle_master` status
+  // in vanilla's HUD. `applyPotionEffect` expanded the pair but this module applied `effect.id` raw, so
+  // a thrown Splash Potion of the Turtle Master set a status nothing in `statusEffects.js` reads and
+  // granted neither of its two effects. Both paths ask `effectsFor` now.
+  const applied = [];
+  const player = { position: new THREE.Vector3(), applyStatusEffect: (id, s, l) => applied.push({ id, s, l }) };
+  throwSplashPotion({ mobs: { mobs: [] }, player }, new THREE.Vector3(), 'splash_potion_of_turtle_master');
+  assert.deepEqual(applied.map(a => a.id), ['slowness', 'resistance'],
+    'the pair, and not a `turtle_master` status');
+  assert.deepEqual(applied.map(a => a.l), [4, 3], 'regular tier: Slowness IV and Resistance III');
+  assert.deepEqual(applied.map(a => a.s), [20, 20], 'for the potion\'s own 0:20');
+  assert.equal(applied.some(a => a.id === 'turtle_master'), false);
+
+  applied.length = 0;
+  throwSplashPotion({ mobs: { mobs: [] }, player }, new THREE.Vector3(), 'splash_potion_of_turtle_master_2');
+  assert.deepEqual(applied.map(a => a.id), ['slowness', 'resistance']);
+  assert.deepEqual(applied.map(a => a.l), [6, 4], 'enhanced tier: Slowness VI and Resistance IV');
+
+  applied.length = 0;
+  throwSplashPotion({ mobs: { mobs: [] }, player }, new THREE.Vector3(), 'splash_potion_of_turtle_master_long');
+  assert.deepEqual(applied.map(a => a.s), [40, 40], 'and the extended brew keeps its 0:40');
+});
+
+test('an ordinary splash potion still applies exactly its own single effect', () => {
+  // The compound expansion must not turn every potion into a list of one that some caller reads wrongly.
+  const effect = splashPotionEffect('splash_potion_of_strength_2');
+  assert.equal(effect.id, 'strength');
+  assert.deepEqual(effect.effects, [['strength', 2]], 'a one-effect potion expands to itself');
+  assert.equal(effect.level, 2);
+
+  const applied = [];
+  const player = { position: new THREE.Vector3(), applyStatusEffect: (id, s, l) => applied.push({ id, s, l }) };
+  throwSplashPotion({ mobs: { mobs: [] }, player }, new THREE.Vector3(), 'splash_potion_of_strength_2');
+  assert.deepEqual(applied, [{ id: 'strength', s: 90, l: 2 }]);
+});
+
 test('a target without the method does not throw', () => {
   const game = {
     mobs: { mobs: [{ mesh: { position: new THREE.Vector3() }, health: 10 }] },
