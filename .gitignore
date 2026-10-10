@@ -57,6 +57,10 @@ preset*-validation.log
 *-tests.log
 *-regression.log
 mob-report-validation.log
+# The image half of an ad-hoc validation run; nothing in the tree references it. The audit screenshot
+# that IS referenced, `survival-bot-audit.jpg`, is deliberately not matched here -- it is cited by
+# docs/survival-bot-audit.md and is committed.
+biome-pack-menu-validation.jpg
 extract/
 pages/
 sections_structure.json
