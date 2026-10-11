@@ -20,27 +20,67 @@ import {
   COMMANDS, findCommand, splitItemArgument, resolveItem, suggestItems,
   TARGET_SELECTORS, resolveTargets, GIVE_COUNT, parseGive, giveItems, giveMessage,
 } from '../src/commands.js';
+import { HANDLED_HERE, HANDLED_ELSEWHERE, buildCommandContext, runCommand } from '../src/commandRunner.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from '../src/blocks.js';
 
 // --- the command table ---------------------------------------------------------
 
-test('the command table names every command the dispatcher implements', () => {
-  // The table is what `/help` renders and what `findCommand` looks up, so a command the dispatcher
-  // handles but the table omits is a command `/help` cannot describe.
-  const source = readFileSync('src/main.js', 'utf8');
-  // Both spellings of the dispatcher's comparison appear in the file: `===` for the recent commands and
-  // `==` for the older ones, and `/redstone` uses the `==` form.
-  const handled = new Set(
-    [...source.matchAll(/root\s*===?\s*'(\/[a-z_]+)'/g)].map((m) => m[1].slice(1)),
+test('every command in the table is dispatched by exactly one of the two handlers', () => {
+  // Commands are split: the portable ones live in `commandRunner.js`, the six that need a manager stay on
+  // the Game class. Both sides are checked against the table, because a command in the table that nothing
+  // implements is a `/help` line that lies, and a command implemented but absent from the table is one
+  // `/help` cannot describe.
+  const main = readFileSync('src/main.js', 'utf8');
+  const runner = readFileSync('src/commandRunner.js', 'utf8');
+
+  const inRunner = new Set(
+    [...runner.matchAll(/case '(\/[a-z_]+)':/g)].map((m) => m[1].slice(1)),
   );
+  const inMain = new Set(
+    [...main.matchAll(/case '(\/[a-z_]+)':/g)].map((m) => m[1].slice(1)),
+  );
+  // `/maps` and `/saves` share one branch, so the second spelling has no `case` of its own.
+  inMain.add('saves');
+
+  // The two handler lists in `commandRunner.js` say which is which, and they must agree with the code.
+  // `saves` is an alias of `maps` rather than a `case` of its own, and it is in the runner's table.
+  assert.deepEqual([...HANDLED_HERE].sort(), [...inRunner].sort(),
+    'HANDLED_HERE and the runner switch disagree');
+  const elsewhere = [...inMain].filter((n) => !inRunner.has(n) && n !== 'saves');
+  assert.deepEqual([...HANDLED_ELSEWHERE].sort(), elsewhere.sort(),
+    'HANDLED_ELSEWHERE and the Game switch disagree');
+
   const known = new Set(COMMANDS.map((c) => c.name));
   const aliases = new Set(COMMANDS.flatMap((c) => c.aliases ?? []));
-  const undocumented = [...handled].filter((name) => !known.has(name) && !aliases.has(name)).sort();
-  assert.deepEqual(undocumented, [], 'these are dispatched but missing from the command table');
-  // And the reverse, for a command that is described but does nothing. An alias is not a `root ===`
-  // branch of its own, so it is excluded here for the same reason it is excluded above.
-  const unhandled = [...known].filter((name) => !handled.has(name) && !aliases.has(name)).sort();
-  assert.deepEqual(unhandled, [], 'these are in the table but the dispatcher does not handle them');
+  const dispatched = new Set([...inRunner, ...inMain]);
+  assert.deepEqual([...dispatched].filter((n) => !known.has(n) && !aliases.has(n)).sort(), [],
+    'these are dispatched but missing from the command table');
+  assert.deepEqual([...known].filter((n) => !dispatched.has(n) && !aliases.has(n)).sort(), [],
+    'these are in the table but nothing dispatches them');
+});
+
+test('main.js delegates rather than parsing commands itself', () => {
+  const source = readFileSync('src/main.js', 'utf8');
+  // The dispatcher assembles a context and hands the line to the runner first.
+  assert.match(source, /import \{ buildCommandContext, runCommand \} from '\.\/commandRunner\.js'/);
+  assert.match(source, /if \(runCommand\(buildCommandContext\(this\), cmd\)\) return;/);
+  // And it no longer owns the parsing or the item vocabulary.
+  assert.equal(/from '\.\/commands\.js'/.test(source), false,
+    'main.js should not import the command table or the parsers directly');
+  assert.equal(/const count = parts\[2\] \? parseInt\(parts\[2\]\) : 64/.test(source), false,
+    'the old default-to-64 line should be gone');
+  assert.equal(/Gave \$\{count\} \[\$\{itName\}\] to Player/.test(source), false,
+    'and so should the old confirmation line');
+  assert.equal(/Unknown item '\$\{itName\}'/.test(source), false,
+    'and the old unknown-item line, which had no suggestions');
+  // `/summon` reads a table rather than being a forty-branch chain. The check is scoped to the method,
+  // because a separate `mobType ===` chain in the click handler summons mobs for the world agent and is
+  // deliberately left alone.
+  assert.match(source, /const SUMMONABLE_MOBS = \{/);
+  const summonStart = source.indexOf('runSummonCommand(rawType) {');
+  const summonBody = source.slice(summonStart, source.indexOf('\n  }', summonStart));
+  assert.equal(/mobType ===/.test(summonBody), false, 'the /summon if/else chain should be gone');
+  assert.match(summonBody, /SUMMONABLE_MOBS\[type\]/, 'and should read the table');
 });
 
 test('every command declares vanilla\'s arguments and a permission level', () => {
@@ -372,35 +412,372 @@ test('a huge count does not hang the bisection', () => {
 
 // --- the call site ------------------------------------------------------------------
 
-test('main.js uses the shared parser rather than its own', () => {
-  const source = readFileSync('src/main.js', 'utf8');
-  assert.match(source, /import \{ COMMANDS, parseGive, giveItems, giveMessage \} from '\.\/commands\.js'/);
-  assert.match(source, /const parsed = parseGive\(parts\.slice\(1\)\)/);
-  assert.match(source, /giveItems\(\{/);
-  assert.match(source, /giveMessage\(item\.display, result\.given, target\)/);
-  // The old inline form must be gone, or it would shadow the shared one.
-  assert.equal(/const count = parts\[2\] \? parseInt\(parts\[2\]\) : 64/.test(source), false,
-    'the old default-to-64 line should be gone');
-  assert.equal(/Gave \$\{count\} \[\$\{itName\}\] to Player/.test(source), false,
-    'and so should the old confirmation line');
-  assert.equal(/Unknown item '\$\{itName\}'/.test(source), false,
-    'and the old unknown-item line, which had no suggestions');
+test('the /give handler lives in the runner, not in main.js', () => {
+  // The four defects were in the parsing, which is `commands.js`; the *handler* that fills the inventory
+  // and drops the overflow is `commandRunner.js`, and it is what a test can now execute.
+  const runner = readFileSync('src/commandRunner.js', 'utf8');
+  assert.match(runner, /import \{[^}]*parseGive[^}]*\} from '\.\/commands\.js'/s);
+  assert.match(runner, /function cmdGive\(context, parts\)/);
+  assert.match(runner, /const parsed = parseGive\(parts\.slice\(1\)\)/);
+  assert.match(runner, /giveItems\(\{/);
+  assert.match(runner, /giveMessage\(item\.display, result\.given, target\)/);
+  // And main.js no longer duplicates any of it.
+  const main = readFileSync('src/main.js', 'utf8');
+  assert.equal(/parseGive\(/.test(main), false, 'main.js should not parse /give itself');
+  assert.equal(/giveItems\(\{/.test(main), false, 'nor fill the inventory itself');
 });
 
 test('/help is rendered from the command table, so the two cannot disagree', () => {
-  // The help text used to be a hand-written list beside the dispatcher, and it had already drifted:
-  // it advertised `/give <item_name> [amount]`, which is not the syntax the dispatcher accepted or
-  // vanilla's. It iterates `COMMANDS` now.
-  const source = readFileSync('src/main.js', 'utf8');
-  const helpBlock = source.slice(source.indexOf("if (root === '/help')"), source.indexOf("} else if (root === '/offline')"));
-  assert.match(helpBlock, /for \(const command of COMMANDS\)/, '/help should iterate the table');
-  assert.equal(/\/give <item_name>/.test(source), false, 'the stale /give help line should be gone');
-  // Every command in the table reaches the help output, apart from the ones with their own longer
-  // explanation above it.
+  // The help text used to be a hand-written list beside the dispatcher, and it had already drifted: it
+  // advertised `/give <item_name> [amount]`, which is not the syntax vanilla defines nor the one the
+  // dispatcher accepted. It iterates the table now, and the table lives in `commands.js`.
+  const runner = readFileSync('src/commandRunner.js', 'utf8');
+  const helpStart = runner.indexOf('function cmdHelp');
+  assert.notEqual(helpStart, -1, 'cmdHelp should exist in the runner');
+  const helpBlock = runner.slice(helpStart, runner.indexOf('function cmdTime', helpStart));
+  assert.match(helpBlock, /for \(const command of context\.commands\)/, '/help should iterate the table');
+  // Nothing anywhere still carries the stale wording. The literal appears in a comment explaining the
+  // old defect, so the check looks for the string as a /help line rather than anywhere at all.
+  const stale = "this.ui.addChatMessage('/give <item_name>";
+  for (const file of ['src/main.js', 'src/commandRunner.js']) {
+    assert.equal(readFileSync(file, 'utf8').includes(stale), false, `${file} still has the stale help line`);
+  }
+  // Every command in the table reaches the help output, apart from the three with their own longer
+  // explanation written out above the loop.
   const blurbed = new Set(['redstone', 'locate', 'show_mobs']);
   for (const command of COMMANDS) {
     if (blurbed.has(command.name)) continue;
-    assert.ok(helpBlock.includes('command.name') || helpBlock.includes(`/${command.name}`),
-      `/${command.name} should be described by /help`);
+    assert.ok(helpBlock.includes('command.name'),
+      `/${command.name} should be described by the table-driven /help output`);
   }
 });
+
+
+// --- the /give handler through the real dispatcher ----------------------------------
+//
+// Everything above tests the parser and the inventory maths in isolation. These run the actual command
+// line through `runCommand`, which is the code path the chat box takes, so a wiring mistake between the
+// parser, the handler and the context is caught rather than assumed.
+
+/** A game stub with the eleven fields `buildCommandContext` reads. */
+function fakeGame(overrides = {}) {
+  const chat = [];
+  const dropped = [];
+  const game = {
+    chat,
+    dropped,
+    ui: {
+      addChatMessage: (text, kind = 'system') => chat.push({ text, kind }),
+      updateHotbar: () => { game.hotbarUpdates = (game.hotbarUpdates ?? 0) + 1; },
+      clearChat: () => { game.chatCleared = true; },
+    },
+    player: { position: { x: 10, y: 64, z: -5 }, gamemode: 'survival' },
+    // A store that answers "how much fits" without mutating when it can, because `giveItems` bisects and
+    // a fake that accumulated on every successful probe would answer later probes differently.
+    inventory: {
+      capacity: Infinity,
+      stored: [],
+      addItem(id, isBlock, count) {
+        const used = this.stored.reduce((n, s) => n + s.count, 0);
+        if (used + count > this.capacity) return false;
+        this.stored.push({ id, isBlock, count });
+        return true;
+      },
+    },
+    world: { setVoxel: () => {}, getOrCreateChunk: () => null, invalidateChunkCache: () => {} },
+    weather: { setWeather: (t) => { game.weatherSet = t; } },
+    entities: { spawnDroppedItem: (at, id, isBlock, count) => dropped.push({ at, id, isBlock, count }) },
+    mobs: {},
+    geminiAgent: { offlineMode: false, setOfflineMode: (v) => { game.geminiAgent.offlineMode = v; }, vendorLabel: 'Test', apiKey: 'k' },
+    settings: { gamemode: 'survival', cheats: true },
+    worldTime: 0,
+    setGameMode: (m) => { game.gameModeSet = m; },
+    ...overrides,
+  };
+  return game;
+}
+
+const lastChat = (game) => game.chat[game.chat.length - 1];
+const texts = (game) => game.chat.map((c) => c.text);
+const run = (game, line) => runCommand(buildCommandContext(game), line);
+
+/**
+ * An inventory that reports a fixed amount of room, without filling as it is asked.
+ *
+ * `giveItems` finds the fitting count by bisection, so a capacity fake has to answer the same question the
+ * same way every time. This records the last accepted request, which is the amount that fits.
+ */
+function capacityInventory(capacity) {
+  const accepted = [];
+  return {
+    capacity,
+    accepted,
+    addItem(id, isBlock, count) {
+      if (count > capacity) return false;
+      accepted.length = 0;
+      accepted.push({ id, isBlock, count });
+      return true;
+    },
+  };
+}
+
+test('the dispatcher claims /give and fills the inventory', () => {
+  const game = fakeGame();
+  assert.equal(run(game, '/give @p diamond_sword'), true, 'the runner should claim /give');
+  assert.deepEqual(game.inventory.stored, [{ id: 'diamond_sword', isBlock: false, count: 1 }],
+    'one diamond sword, because the count defaults to 1');
+  assert.equal(lastChat(game).text, 'Gave 1 [Diamond Sword] to @p', 'vanilla\'s confirmation line');
+  assert.equal(lastChat(game).kind, 'system');
+  assert.equal(game.hotbarUpdates, 1, 'the hotbar is repainted');
+  assert.deepEqual(game.dropped, [], 'and nothing is dropped');
+});
+
+test('the dispatcher drops the overflow at the player, as an item entity', () => {
+  const game = fakeGame({ inventory: capacityInventory(5) });
+  assert.equal(run(game, '/give @p stone 12'), true);
+  assert.deepEqual(game.inventory.accepted, [{ id: BLOCKS.STONE, isBlock: true, count: 5 }],
+    'five fit');
+  assert.equal(game.dropped.length, 1, 'the rest is one entity');
+  const drop = game.dropped[0];
+  assert.deepEqual(drop, { at: { x: 10, y: 65, z: -5 }, id: BLOCKS.STONE, isBlock: true, count: 7 },
+    'dropped one block above the player, as the block');
+  assert.ok(texts(game).some((t) => t.includes('Inventory full: 7 dropped on the ground')),
+    'and the player is told: ' + JSON.stringify(texts(game)));
+});
+
+test('the dispatcher reports an unparseable /give without touching the inventory', () => {
+  for (const [line, expected] of [
+    ['/give', 'Not enough arguments.'],
+    ['/give @p', 'Not enough arguments.'],
+    ['/give @p not_a_thing', 'unknown item'],
+    ['/give @a diamond 1', 'one player'],
+    ['/give @p stone 0', 'between 1 and'],
+    ['/give @p stone 99x', 'whole number'],
+  ]) {
+    const game = fakeGame();
+    assert.equal(run(game, line), true, `${line} should be claimed by /give`);
+    assert.deepEqual(game.inventory.stored, [], `${line} must not give anything`);
+    assert.ok(texts(game).some((t) => t.includes(expected)),
+      `${line} should report '${expected}', got ${JSON.stringify(texts(game))}`);
+  }
+});
+
+test('a refused /give shows the usage line as well as the reason', () => {
+  const game = fakeGame();
+  // A near miss, so the suggestion path is exercised rather than the bare refusal.
+  run(game, '/give @p diamon');
+  assert.ok(texts(game).some((t) => t === 'Usage: /give <targets> <item> [<count>]'),
+    'the usage line should follow the reason');
+  // The reason carries suggestions, which is what makes it actionable.
+  assert.ok(texts(game)[0].includes('Did you mean:'), 'the reason should suggest near misses');
+  assert.ok(texts(game)[0].includes('diamond'), 'and name the real item');
+  // A refusal with no near miss still shows the usage line, just without a suggestion.
+  const far = fakeGame();
+  run(far, '/give @p qqqzzz');
+  assert.equal(far.chat[0].text.includes('Did you mean:'), false);
+  assert.ok(texts(far).includes('Usage: /give <targets> <item> [<count>]'));
+});
+
+test('the dispatcher takes a namespaced id and a block name, and splits by the stack limit', () => {
+  const game = fakeGame();
+  run(game, '/give @s minecraft:ender_pearl 20');
+  const total = game.inventory.stored.reduce((n, s) => n + s.count, 0);
+  assert.equal(total, 20);
+  // The limit is enforced by the inventory, not the command; what matters is that the id it was handed
+  // is the item, not the string.
+  assert.ok(game.inventory.stored.every((s) => s.id === 'ender_pearl' && s.isBlock === false));
+
+  const blocks = fakeGame();
+  run(blocks, '/give @p hay_bale 3');
+  assert.deepEqual(blocks.inventory.stored, [{ id: BLOCKS.HAY_BLOCK, isBlock: true, count: 3 }],
+    'the wiki spelling resolves to the block id');
+});
+
+test('creative takes the whole count with nothing dropped', () => {
+  const game = fakeGame();
+  game.player.gamemode = 'creative';
+  game.inventory.capacity = 0;
+  run(game, '/give @p stone 64');
+  assert.deepEqual(game.dropped, [], 'nothing is summoned onto the ground in creative');
+  assert.ok(texts(game).some((t) => t.startsWith('Gave 64')), 'and the whole count is reported');
+});
+
+test('a missing inventory is reported rather than throwing', () => {
+  const game = fakeGame({ inventory: null });
+  assert.doesNotThrow(() => run(game, '/give @p stone 1'));
+  assert.ok(texts(game).some((t) => t.includes('inventory is not available')),
+    'the refusal should name what is missing: ' + JSON.stringify(texts(game)));
+});
+
+test('a missing entity manager still reports the give, and just cannot drop', () => {
+  const game = fakeGame({ entities: null, inventory: capacityInventory(2) });
+  assert.doesNotThrow(() => run(game, '/give @p stone 5'));
+  assert.ok(texts(game).some((t) => t.startsWith('Gave 2')), 'the two that fit are reported');
+  assert.ok(texts(game).some((t) => t.includes('3 dropped')), 'and the three that could not be');
+});
+
+test('the dispatcher leaves commands it does not own alone', () => {
+  // Returning false is what lets main.js fall through to its own manager-backed chain.
+  const game = fakeGame();
+  for (const line of ['/summon pig', '/save', '/load x', '/maps', '/redstone list', '/locate', '/show_mobs']) {
+    assert.equal(run(game, line), false, `${line} should not be claimed by the runner`);
+  }
+  assert.deepEqual(game.chat, [], 'and should print nothing');
+  // Nonsense and non-commands too.
+  assert.equal(run(game, '/not_a_command'), false);
+  assert.equal(run(game, 'hello'), false, 'a chat line without a slash is not a command');
+  assert.equal(run(game, ''), false);
+  assert.equal(run(game, '   '), false);
+  assert.equal(runCommand(null, '/give @p stone'), false, 'no context is not a crash');
+  assert.equal(runCommand(buildCommandContext(fakeGame()), 42), false, 'nor is a non-string line');
+});
+
+test('a command with no leading slash is not a command', () => {
+  const game = fakeGame();
+  assert.equal(run(game, 'give @p stone'), false);
+  assert.deepEqual(game.chat, []);
+});
+
+// --- the other portable commands ----------------------------------------------------
+
+test('/time set changes the world clock and refuses anything else', () => {
+  const day = fakeGame();
+  run(day, '/time set day');
+  assert.equal(day.worldTime, 6000);
+  assert.equal(lastChat(day).text, 'Set the time to 6000 (Day)');
+
+  const night = fakeGame();
+  run(night, '/time set night');
+  assert.equal(night.worldTime, 18000);
+
+  // The old handler silently did nothing for an unrecognised argument, which reads as a broken command.
+  for (const line of ['/time set noon', '/time set', '/time']) {
+    const game = fakeGame();
+    run(game, line);
+    assert.equal(game.worldTime, 0, `${line} must not move the clock`);
+    assert.ok(texts(game).some((t) => t === 'Usage: /time set <day|night>'),
+      `${line} should explain itself, got ${JSON.stringify(texts(game))}`);
+  }
+});
+
+test('/weather accepts the three vanilla arguments and nothing else', () => {
+  for (const type of ['clear', 'rain', 'thunder']) {
+    const game = fakeGame();
+    run(game, `/weather ${type}`);
+    assert.equal(game.weatherSet, type);
+    assert.equal(lastChat(game).text, `Set weather to ${type}`);
+  }
+  const bare = fakeGame();
+  run(bare, '/weather');
+  assert.equal(bare.weatherSet, 'clear', 'a bare /weather is clear, as it was');
+
+  const bad = fakeGame();
+  run(bad, '/weather snow');
+  assert.equal(bad.weatherSet, undefined, 'an unknown weather changes nothing');
+  assert.equal(lastChat(bad).text, 'Usage: /weather <clear|rain|thunder>');
+
+  const missing = fakeGame({ weather: null });
+  run(missing, '/weather rain');
+  assert.ok(texts(missing).some((t) => t.includes('weather system is not available')),
+    'a missing weather system is reported, not thrown');
+});
+
+test('/gamemode takes the names and the numeric and single-letter forms', () => {
+  for (const arg of ['creative', 'c', '1']) {
+    const game = fakeGame();
+    run(game, `/gamemode ${arg}`);
+    assert.equal(game.gameModeSet, 'creative', arg);
+    assert.equal(lastChat(game).text, 'Set game mode to Creative Mode');
+  }
+  for (const arg of ['survival', 's', '0']) {
+    const game = fakeGame();
+    run(game, `/gamemode ${arg}`);
+    assert.equal(game.gameModeSet, 'survival', arg);
+  }
+  const bad = fakeGame();
+  run(bad, '/gamemode adventure');
+  assert.equal(bad.gameModeSet, undefined);
+  assert.equal(lastChat(bad).text, 'Usage: /gamemode <creative|survival>');
+});
+
+test('/setblock resolves the block through the shared vocabulary', () => {
+  const placed = [];
+  const game = fakeGame();
+  game.world = {
+    setVoxel: (x, y, z, id) => placed.push({ x, y, z, id }),
+    getOrCreateChunk: () => null,
+    invalidateChunkCache: () => {},
+  };
+  run(game, '/setblock 1 2 3 oak_planks');
+  assert.deepEqual(placed, [{ x: 1, y: 2, z: 3, id: BLOCKS.OAK_PLANKS }]);
+  assert.ok(lastChat(game).text.startsWith('Changed the block at 1, 2, 3 to'));
+
+  // The wiki spelling works, which the old exact-uppercase match did not.
+  const spelled = fakeGame();
+  const placed2 = [];
+  spelled.world = { setVoxel: (x, y, z, id) => placed2.push(id), getOrCreateChunk: () => null, invalidateChunkCache: () => {} };
+  run(spelled, '/setblock 0 0 0 block_of_coal');
+  assert.deepEqual(placed2, [BLOCKS.COAL_BLOCK]);
+
+  // An item that is not a block is refused, with a message naming what it could not resolve.
+  const wrong = fakeGame();
+  run(wrong, '/setblock 0 0 0 diamond_sword');
+  assert.ok(texts(wrong).some((t) => t.startsWith("Unknown block '")),
+    'a non-block should be refused: ' + JSON.stringify(texts(wrong)));
+
+  // And bad coordinates are a usage error rather than a NaN write.
+  for (const line of ['/setblock 0 0', '/setblock a b c stone', '/setblock 0 0 0']) {
+    const game = fakeGame();
+    run(game, line);
+    assert.ok(texts(game).some((t) => t === 'Usage: /setblock <x> <y> <z> <block>'),
+      `${line} should show the usage`);
+  }
+});
+
+test('/clear empties the chat window', () => {
+  const game = fakeGame();
+  run(game, '/clear');
+  assert.equal(game.chatCleared, true);
+});
+
+test('/help lists every command in the table', () => {
+  const game = fakeGame();
+  run(game, '/help');
+  const lines = texts(game);
+  // One line per table entry, apart from the three with their own longer explanation.
+  const blurbed = new Set(['redstone', 'locate', 'show_mobs']);
+  for (const command of COMMANDS) {
+    if (blurbed.has(command.name)) continue;
+    assert.ok(lines.some((l) => l.startsWith(`/${command.name} `) || l === `/${command.name}`),
+      `/help should mention /${command.name}: ${JSON.stringify(lines)}`);
+  }
+  // The three blurbed ones are described too, just at more length.
+  for (const name of blurbed) {
+    assert.ok(lines.some((l) => l.startsWith(`/${name}`)), `/help should mention /${name}`);
+  }
+  assert.ok(lines.every((l) => typeof l === 'string' && l.length > 0), 'no empty help lines');
+});
+
+test('/offline toggles the agent and says which way it went', () => {
+  const game = fakeGame();
+  run(game, '/offline');
+  assert.equal(game.geminiAgent.offlineMode, true);
+  assert.ok(lastChat(game).text.includes('offline mode ON'));
+  run(game, '/offline');
+  assert.equal(game.geminiAgent.offlineMode, false);
+  assert.ok(lastChat(game).text.includes('offline mode OFF'));
+
+  const missing = fakeGame({ geminiAgent: null });
+  run(missing, '/offline');
+  assert.ok(texts(missing).some((t) => t.includes('World Agent is not available')),
+    'a missing agent is reported, not thrown');
+});
+
+test('an unrecognised command is not claimed by the runner', () => {
+  // The runner says "not mine"; main.js is what reports the unknown command, so that a command it does
+  // own is not reported as unknown.
+  const game = fakeGame();
+  assert.equal(run(game, '/definitely_not_a_command'), false);
+  assert.deepEqual(game.chat, []);
+});
+

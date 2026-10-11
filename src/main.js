@@ -100,13 +100,46 @@ import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { BeaconManager } from './beaconManager.js';
 import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
-import { COMMANDS, parseGive, giveItems, giveMessage } from './commands.js';
+import { buildCommandContext, runCommand } from './commandRunner.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
 import { DeepDarkWardenManager } from './deepDarkWarden.js';
 import { BossFightManager } from './bossFights.js';
 import { WorldSyncManager } from './multiplayer/worldSyncManager.js';
 
+
+/**
+ * The summon table: mob name -> [spawn method, block offset, display label].
+ *
+ * A table rather than the forty-branch chain this was, so the offset each mob uses is visible. Pillager
+ * and Zombie spawn three blocks away where everything else spawns two -- an existing difference, now
+ * stated rather than buried. `fish` and `host` are the aliases the old chain accepted.
+ */
+const SUMMONABLE_MOBS = {
+  villager: ['spawnVillager', 2, 'Villager'],
+  iron_golem: ['spawnIronGolem', 2, 'Iron Golem'],
+  pillager: ['spawnPillager', 3, 'Pillager'],
+  zombie: ['spawnZombie', 3, 'Zombie'],
+  pig: ['spawnPig', 2, 'Pig'],
+  chicken: ['spawnChicken', 2, 'Chicken'],
+  cow: ['spawnCow', 2, 'Cow'],
+  sheep: ['spawnSheep', 2, 'Sheep'],
+  salmon: ['spawnSalmon', 2, 'Salmon'],
+  fish: ['spawnSalmon', 2, 'Salmon'],
+  cod: ['spawnCod', 2, 'Cod'],
+  guardian: ['spawnGuardian', 2, 'Guardian'],
+  elder_guardian: ['spawnElderGuardian', 2, 'Elder Guardian'],
+  drowned: ['spawnDrowned', 2, 'Drowned'],
+  glow_squid: ['spawnGlowSquid', 2, 'Glow Squid'],
+  dolphin: ['spawnDolphin', 2, 'Dolphin'],
+  squid: ['spawnSquid', 2, 'Squid'],
+  octopus: ['spawnSquid', 2, 'Squid'],
+  axolotl: ['spawnAxolotl', 2, 'Axolotl'],
+  polar_bear: ['spawnPolarBear', 2, 'Polar Bear'],
+  tournament_host: ['spawnTournamentHost', 2, 'Tournament Announcer Host'],
+  host: ['spawnTournamentHost', 2, 'Tournament Announcer Host'],
+  enderman: ['spawnEnderman', 2, 'Enderman Challenger Boss'],
+};
 
 class Game {
   constructor() {
@@ -3204,8 +3237,9 @@ class Game {
       return;
     }
 
-    // Set air in world
-    this.world.setVoxel(x, y, z, BLOCKS.AIR);
+    // Set air in world (or restore water if breaking a water plant underwater)
+    const replacement = (def?.waterPlant && y < this.world.seaLevel) ? BLOCKS.WATER : BLOCKS.AIR;
+    this.world.setVoxel(x, y, z, replacement);
     this.worldSync?.onBlockBroken(x, y, z);
 
     // Sculk vibration check on block break
@@ -3460,8 +3494,8 @@ class Game {
       Math.floor(camPos.y),
       Math.floor(camPos.z)
     );
-    const wasUnderwater = this.isUnderwater;
-    this.isUnderwater = blockAtCamera === BLOCKS.WATER && camPos.y % 1 < waterHeight(this.world, Math.floor(camPos.x), Math.floor(camPos.y), Math.floor(camPos.z));
+    const isWaterBlock = blockAtCamera === BLOCKS.WATER || BLOCK_DEFS[blockAtCamera]?.waterPlant;
+    this.isUnderwater = isWaterBlock && (BLOCK_DEFS[blockAtCamera]?.waterPlant || camPos.y % 1 < waterHeight(this.world, Math.floor(camPos.x), Math.floor(camPos.y), Math.floor(camPos.z)));
 
     if (this.isUnderwater) {
       // Switch to Minecraft underwater fog: dense blue fog with short range
@@ -3553,281 +3587,194 @@ class Game {
     });
   }
 
+  /**
+   * Run a chat command.
+   *
+   * Most commands live in `commandRunner.js`, which takes a context rather than reaching into this
+   * class, so a test can execute them. This method assembles that context and falls back to the six
+   * commands that genuinely need a manager this class owns: /redstone, /locate, /show_mobs, /save,
+   * /load and /maps.
+   */
   handleCommand(cmd) {
+    if (typeof cmd !== 'string') return;
     const parts = cmd.trim().split(/\s+/);
     const root = parts[0].toLowerCase();
 
-    if(root==='/redstone'){
-      try{
-        if(parts[1]==='demo'){
-          const p=this.player.position;buildRedstoneDemo(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);this.refreshDirtyChunks();
-          this.ui.addChatMessage(parts[2]==='flyer'?'Flying engine started. Place obsidian ahead to stop it.':'Elevator built. Right-click its lever to raise/lower the slime platform.','system');
-        }else if(parts[1]==='game'){
-          const p=this.player.position;
-          const built=buildRedstoneGame(this.world,parts[2],[Math.floor(p.x)+4,Math.floor(p.y),Math.floor(p.z)]);
-          this.refreshDirtyChunks();
-          this.ui.addChatMessage(`${built.name} built. ${built.probe}`,'system');
-        }else if(parts[1]==='list'||!parts[1]){
-          this.ui.addChatMessage('Redstone games you can build:','help');
-          for(const g of listRedstoneGames())this.ui.addChatMessage(`  /redstone game ${g.key} - ${g.name}: ${g.blurb}`,'help');
-        }else throw new Error('Use /redstone demo <elevator|flyer>, /redstone game <name>, or /redstone list');
-      }catch(error){this.ui.addChatMessage(error.message,'error');}
-      return;
-    }
-    if (root === '/locate') {
-      // `/locate structure <id>`, and a bare `/locate` lists every structure this world generates.
-      //
-      // The structures ARE generated (see src/worldStructures.js) and a player still sees none at spawn: the
-      // placement sets use vanilla spacing, so the nearest is hundreds of blocks away. This is the command that
-      // makes "far away" distinguishable from "broken", and it is vanilla's own answer to the same problem.
-      try {
-        const wanted = parts[1] === 'structure' ? parts[2] : parts[1];
-        const p = this.player.position;
-        const ids = wanted ? [wanted] : (this.world.structures?.enabledIds || []);
-        if (ids.length === 0) throw new Error('this world generates no structures');
-        for (const id of ids) {
-          try {
-            const found = locateNearestStructure(this.world, id, p.x, p.z, { maxRadiusChunks: 4096 });
-            this.ui.addChatMessage(
-              `${found.structureId}: x ${found.centre.x}, z ${found.centre.z} (y ~${found.centre.y}) in the ${found.biome} biome, ${found.distance} blocks away, chunk ${found.chunk[0]},${found.chunk[1]}`,
-              'system'
-            );
-          } catch (error) {
-            this.ui.addChatMessage(`${id}: ${error.message}`, 'error');
-          }
-        }
-      } catch (error) {
-        this.ui.addChatMessage(error.message, 'error');
-      }
-      return;
-    }
-    if (root === '/show_mobs') {
-      // A diagnostic for "why can I see no mobs", which has five causes that look identical from a
-      // screenshot: an empty biome table, a full category cap, a spawner that has not ticked, hostiles
-      // refused for light, or animals never placed at chunk generation.
-      //
-      // Gated to Creative / cheats, because it reports internals rather than doing anything a player needs,
-      // and the refusal says how to get it rather than merely declining.
-      if (!isCreative(this.settings) && !this.settings?.cheats) {
-        this.ui.addChatMessage(
-          '/show_mobs is a Creative diagnostic. It is available in Creative mode, or with cheats on.',
-          'error',
-        );
-        return;
-      }
-      try {
-        const report = this.buildMobStatsReport();
-        for (const line of report.lines) this.ui.addChatMessage(line.text, line.kind);
-      } catch (error) {
-        this.ui.addChatMessage(`/show_mobs failed: ${error.message}`, 'error');
-      }
-      return;
-    }
-    if (root === '/help') {
-      this.ui.addChatMessage('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate','help');
-      this.ui.addChatMessage('/redstone game <name> - Build a playable redstone machine; /redstone list to see them','help');
-      this.ui.addChatMessage('/locate [structure] [id] - Show the nearest generated structure and how far it is','help');
-      this.ui.addChatMessage('/show_mobs - What mobs exist, what the spawner is doing, and why you may see none (Creative)','help');
-      this.ui.addChatMessage('Available Commands:', 'help');
-      this.ui.addChatMessage('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
-      // Rendered from the command table in `commands.js` so the help text and the parser cannot
-      // disagree about a command's name or its arguments. The four blurbed above are skipped, since
-      // their explanations are longer than the table's `help` field.
-      const blurbed = new Set(['redstone', 'locate', 'show_mobs']);
-      for (const command of COMMANDS) {
-        if (blurbed.has(command.name)) continue;
-        const args = command.args ? ` ${command.args}` : '';
-        this.ui.addChatMessage(`/${command.name}${args} - ${command.help}`, 'help');
-      }
-    } else if (root === '/offline') {
-      const agent = this.geminiAgent;
-      const nowOffline = !agent.offlineMode;
-      agent.setOfflineMode(nowOffline);
-      this.ui.addChatMessage(
-        nowOffline
-          ? `World Agent offline mode ON (${agent.vendorLabel} key kept). Type /offline again to re-enable the API.`
-          : `World Agent offline mode OFF.${agent.apiKey ? '' : ' No API key is saved yet, so the terminal still runs offline.'}`,
-        'system'
-      );
-      this.ui.openAgentSettings();
-    } else if (root === '/save') {
-      const now = new Date();
-      const defaultName = `World_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const name = parts.slice(1).join(' ') || defaultName;
-      this.ui.addChatMessage(`Saving map "${name}" to local computer...`, 'system');
-      saveMapToDefault(this, name).then(res => {
-        this.ui.addChatMessage(`Saved map successfully! Location: ${res.path}`, 'system');
-      }).catch(err => {
-        this.ui.addChatMessage(`Save failed: ${err.message}`, 'error');
-      });
-    } else if (root === '/load') {
-      const name = parts.slice(1).join(' ');
-      if (!name) {
-        this.ui.addChatMessage('Usage: /load <filename> (or type /maps to browse)', 'error');
-      } else {
-        const filename = name.endsWith('.json') ? name : `${name}.json`;
-        this.ui.addChatMessage(`Loading map "${filename}"...`, 'system');
-        this.loadMapWithProgress(progress => loadMapFromDefault(this, filename, { progress }), {
-          title: 'Loading Map'
-        }).then(res => {
-          this.ui.addChatMessage(`Map "${res.name}" loaded successfully!`, 'system');
-        }).catch(err => {
-          this.ui.addChatMessage(`Load failed: ${err.message}`, 'error');
-        });
-      }
-    } else if (root === '/maps' || root === '/saves') {
-      this.ui.openMapModal('load');
-    } else if (root === '/weather') {
+    // 1. The portable commands. runCommand returns false for anything it does not own, so the two chains
+    //    cannot both claim a command.
+    if (runCommand(buildCommandContext(this), cmd)) return;
 
-      const type = parts[1] ? parts[1].toLowerCase() : 'clear';
-      if (type === 'rain' || type === 'clear' || type === 'thunder') {
-        this.weather.setWeather(type);
-        this.ui.addChatMessage(`Set weather to ${type}`, 'system');
-      } else {
-        this.ui.addChatMessage('Usage: /weather <clear|rain|thunder>', 'error');
-      }
-    } else if (root === '/gamemode') {
-      const mode = parts[1] ? parts[1].toLowerCase() : '';
-      if (mode === 'creative' || mode === 'c' || mode === '1') {
-        if (this.tournament?.isTournamentMap) {
-          this.ui.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
-          return;
-        }
-        this.setGameMode('creative');
-        this.ui.addChatMessage('Set game mode to Creative Mode', 'system');
-      } else if (mode === 'survival' || mode === 's' || mode === '0') {
-        this.setGameMode('survival');
-        this.ui.addChatMessage('Set game mode to Survival Mode', 'system');
-      } else {
-        this.ui.addChatMessage('Usage: /gamemode <creative|survival>', 'error');
-      }
-    } else if (root === '/time') {
-      if (parts[1] === 'set') {
-        if (parts[2] === 'day') {
-          this.worldTime = 6000;
-          this.ui.addChatMessage('Set the time to 6000 (Day)', 'system');
-        } else if (parts[2] === 'night') {
-          this.worldTime = 18000;
-          this.ui.addChatMessage('Set the time to 18000 (Night)', 'system');
-        }
-      }
-    } else if (root === '/summon') {
-      const mobType = parts[1] ? parts[1].toLowerCase() : '';
-      const p = this.player.position;
-      if (mobType === 'villager') {
-        this.mobs.spawnVillager(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Villager', 'system');
-      } else if (mobType === 'iron_golem') {
-        this.mobs.spawnIronGolem(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Iron Golem', 'system');
-      } else if (mobType === 'pillager') {
-        this.mobs.spawnPillager(p.x + 3, p.y + 1, p.z + 3);
-        this.ui.addChatMessage('Summoned new Pillager', 'system');
-      } else if (mobType === 'zombie') {
-        this.mobs.spawnZombie(p.x + 3, p.y + 1, p.z + 3);
-        this.ui.addChatMessage('Summoned new Zombie', 'system');
-      } else if (mobType === 'pig') {
-        this.mobs.spawnPig(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Pig', 'system');
-      } else if (mobType === 'chicken') {
-        this.mobs.spawnChicken(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Chicken', 'system');
-      } else if (mobType === 'cow') {
-        this.mobs.spawnCow(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Cow', 'system');
-      } else if (mobType === 'sheep') {
-        this.mobs.spawnSheep(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Sheep', 'system');
-      } else if (mobType === 'salmon' || mobType === 'fish') {
-        this.mobs.spawnSalmon(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Salmon', 'system');
-      } else if (mobType === 'cod') {
-        this.mobs.spawnCod(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Cod', 'system');
-      } else if (mobType === 'guardian') {
-        this.mobs.spawnGuardian(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Guardian', 'system');
-      } else if (mobType === 'elder_guardian') {
-        this.mobs.spawnElderGuardian(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Elder Guardian', 'system');
-      } else if (mobType === 'drowned') {
-        this.mobs.spawnDrowned(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Drowned', 'system');
-      } else if (mobType === 'glow_squid') {
-        this.mobs.spawnGlowSquid(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Glow Squid', 'system');
-      } else if (mobType === 'dolphin') {
-        this.mobs.spawnDolphin(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Dolphin', 'system');
-      } else if (mobType === 'octopus' || mobType === 'squid') {
-        if (this.mobs.spawnSquid) {
-          this.mobs.spawnSquid(p.x + 2, p.y + 1, p.z + 2);
-        } else {
-          this.mobs.spawnOctopus(p.x + 2, p.y + 1, p.z + 2);
-        }
-        this.ui.addChatMessage('Summoned new Squid', 'system');
-      } else if (mobType === 'axolotl') {
-        this.mobs.spawnAxolotl(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Axolotl', 'system');
-      } else if (mobType === 'polar_bear') {
-        this.mobs.spawnPolarBear(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned new Polar Bear', 'system');
-      } else if (mobType === 'tournament_host' || mobType === 'host') {
-        this.mobs.spawnTournamentHost(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned Tournament Announcer Host', 'system');
-      } else if (mobType === 'enderman') {
-        this.mobs.spawnEnderman(p.x + 2, p.y + 1, p.z + 2);
-        this.ui.addChatMessage('Summoned Enderman Challenger Boss', 'system');
-      } else {
-        this.ui.addChatMessage('Unknown mob. Try: villager, tournament_host, enderman, iron_golem, pillager, zombie, pig, cow, sheep, chicken, salmon, cod, dolphin, squid, glow_squid, guardian, elder_guardian, drowned, polar_bear, axolotl', 'error');
-      }
-    } else if (root === '/give') {
-      // Vanilla's syntax is `/give <targets> <item> [<count>]`, and the count defaults to 1. This read
-      // `/give <item> [count]` and defaulted to 64, so the documented `/give @p diamond_sword` failed
-      // on `@p` as an item name and asking for one sword gave a stack of sixty-four.
-      const parsed = parseGive(parts.slice(1));
-      if (!parsed.ok) {
-        this.ui.addChatMessage(parsed.reason, 'error');
-        this.ui.addChatMessage(parsed.usage, 'error');
-      } else {
-        const { item, count, target } = parsed;
-        const p = this.player.position;
-        const result = giveItems({
-          inventory: this.inventory,
-          // "summons the rest items as an item entity dropped by the player" -- at the player, since
-          // that is where a dropped item they can pick straight back up belongs.
-          drop: (id, isBlock, n) => this.entities.spawnDroppedItem(
-            new THREE.Vector3(p.x, p.y + 1, p.z), id, isBlock, n),
-          gamemode: this.player.gamemode,
-          item,
-          count,
-        });
-        this.ui.updateHotbar();
-        this.ui.addChatMessage(giveMessage(item.display, result.given, target), 'system');
-        if (result.dropped > 0) {
-          this.ui.addChatMessage(
-            `Inventory full: ${result.dropped} dropped on the ground.`, 'system');
-        }
-      }
-    } else if (root === '/clear') {
-      document.getElementById('chat-messages').innerHTML = '';
-    } else if (root === '/setblock') {
-      // The counterpart to F3+I, which copies a command in exactly this shape.
-      const [sx, sy, sz] = [parts[1], parts[2], parts[3]].map((v) => parseInt(v, 10));
-      const blockName = parts[4] ? parts[4].toUpperCase() : '';
-      if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(sz) || !Object.prototype.hasOwnProperty.call(BLOCKS, blockName)) {
-        this.ui.addChatMessage('Usage: /setblock <x> <y> <z> <block>', 'error');
-      } else {
-        this.world.setVoxel(sx, sy, sz, BLOCKS[blockName]);
-        const chunk = this.world.getOrCreateChunk(Math.floor(sx / 16), Math.floor(sz / 16));
-        if (chunk) this.rebuildChunkMesh(chunk);
-        this.world.invalidateChunkCache?.();
-        this.ui.addChatMessage(`Changed the block at ${sx}, ${sy}, ${sz} to ${blockName.toLowerCase()}`, 'system');
-      }
-    } else {
-      this.ui.addChatMessage(`Unknown command: ${cmd}. Type /help for help.`, 'error');
+    // 2. The manager-backed commands.
+    switch (root) {
+      case '/redstone': return this.runRedstoneCommand(parts);
+      case '/locate': return this.runLocateCommand(parts);
+      case '/show_mobs': return this.runShowMobsCommand();
+      case '/save': return this.runSaveCommand(parts);
+      case '/load': return this.runLoadCommand(parts);
+      case '/maps':
+      case '/saves':
+        this.ui.openMapModal('load');
+        return;
+      case '/summon':
+        this.runSummonCommand(parts[1]);
+        return;
+      default:
+        this.ui.addChatMessage('Unknown command: ' + cmd + '. Type /help for help.', 'error');
     }
   }
+
+  /** /redstone <demo|game|list> [...] -- builds from redstoneDemos.js, which this class owns. */
+  runRedstoneCommand(parts) {
+    try {
+      const p = this.player.position;
+      const at = [Math.floor(p.x) + 4, Math.floor(p.y), Math.floor(p.z)];
+      if (parts[1] === 'demo') {
+        buildRedstoneDemo(this.world, parts[2], at);
+        this.refreshDirtyChunks();
+        this.ui.addChatMessage(
+          parts[2] === 'flyer'
+            ? 'Flying engine started. Place obsidian ahead to stop it.'
+            : 'Elevator built. Right-click its lever to raise/lower the slime platform.',
+          'system',
+        );
+      } else if (parts[1] === 'game') {
+        const built = buildRedstoneGame(this.world, parts[2], at);
+        this.refreshDirtyChunks();
+        this.ui.addChatMessage(built.name + ' built. ' + built.probe, 'system');
+      } else if (parts[1] === 'list' || !parts[1]) {
+        this.ui.addChatMessage('Redstone games you can build:', 'help');
+        for (const g of listRedstoneGames()) {
+          this.ui.addChatMessage('  /redstone game ' + g.key + ' - ' + g.name + ': ' + g.blurb, 'help');
+        }
+      } else {
+        throw new Error('Use /redstone demo <elevator|flyer>, /redstone game <name>, or /redstone list');
+      }
+    } catch (error) {
+      this.ui.addChatMessage(error.message, 'error');
+    }
+  }
+
+  /**
+   * /locate [structure] [id].
+   *
+   * The structures ARE generated (see src/worldStructures.js) and a player still sees none at spawn: the
+   * placement sets use vanilla spacing, so the nearest is hundreds of blocks away. This is the command
+   * that makes "far away" distinguishable from "broken", and it is vanilla's own answer to the same
+   * problem.
+   */
+  runLocateCommand(parts) {
+    try {
+      const wanted = parts[1] === 'structure' ? parts[2] : parts[1];
+      const p = this.player.position;
+      const ids = wanted ? [wanted] : (this.world.structures?.enabledIds || []);
+      if (ids.length === 0) throw new Error('this world generates no structures');
+      for (const id of ids) {
+        try {
+          const found = locateNearestStructure(this.world, id, p.x, p.z, { maxRadiusChunks: 4096 });
+          this.ui.addChatMessage(
+            found.structureId + ': x ' + found.centre.x + ', z ' + found.centre.z
+              + ' (y ~' + found.centre.y + ') in the ' + found.biome + ' biome, ' + found.distance
+              + ' blocks away, chunk ' + found.chunk[0] + ',' + found.chunk[1],
+            'system',
+          );
+        } catch (error) {
+          this.ui.addChatMessage(id + ': ' + error.message, 'error');
+        }
+      }
+    } catch (error) {
+      this.ui.addChatMessage(error.message, 'error');
+    }
+  }
+
+  /**
+   * /show_mobs -- "why can I see no mobs", which has five causes that look identical from a screenshot:
+   * an empty biome table, a full category cap, a spawner that has not ticked, hostiles refused for light,
+   * or animals never placed at chunk generation.
+   *
+   * Gated to Creative / cheats, because it reports internals rather than doing anything a player needs,
+   * and the refusal says how to get it rather than merely declining.
+   */
+  runShowMobsCommand() {
+    if (!isCreative(this.settings) && !this.settings?.cheats) {
+      this.ui.addChatMessage(
+        '/show_mobs is a Creative diagnostic. It is available in Creative mode, or with cheats on.',
+        'error',
+      );
+      return;
+    }
+    try {
+      const report = this.buildMobStatsReport();
+      for (const line of report.lines) this.ui.addChatMessage(line.text, line.kind);
+    } catch (error) {
+      this.ui.addChatMessage('/show_mobs failed: ' + error.message, 'error');
+    }
+  }
+
+  /** /save [name] -- the default name is the date, so a player who types nothing still gets a file. */
+  runSaveCommand(parts) {
+    const now = new Date();
+    const stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
+      + '-' + String(now.getDate()).padStart(2, '0');
+    const name = parts.slice(1).join(' ') || ('World_' + stamp);
+    this.ui.addChatMessage('Saving map "' + name + '" to local computer...', 'system');
+    saveMapToDefault(this, name).then((res) => {
+      this.ui.addChatMessage('Saved map successfully! Location: ' + res.path, 'system');
+    }).catch((err) => {
+      this.ui.addChatMessage('Save failed: ' + err.message, 'error');
+    });
+  }
+
+  /** /load <name> -- the .json suffix and the progress dialog are the caller's business. */
+  runLoadCommand(parts) {
+    const name = parts.slice(1).join(' ');
+    if (!name) {
+      this.ui.addChatMessage('Usage: /load <filename> (or type /maps to browse)', 'error');
+      return;
+    }
+    const filename = name.endsWith('.json') ? name : (name + '.json');
+    this.ui.addChatMessage('Loading map "' + filename + '"...', 'system');
+    this.loadMapWithProgress((progress) => loadMapFromDefault(this, filename, { progress }), {
+      title: 'Loading Map',
+    }).then((res) => {
+      this.ui.addChatMessage('Map "' + res.name + '" loaded successfully!', 'system');
+    }).catch((err) => {
+      this.ui.addChatMessage('Load failed: ' + err.message, 'error');
+    });
+  }
+
+  /**
+   * /summon <entity>.
+   *
+   * Reads SUMMONABLE_MOBS; the offsets are per-entry rather than repeated, so the existing difference
+   * that Pillager and Zombie spawn three blocks away where everything else spawns two is stated rather
+   * than buried in forty branches.
+   */
+  runSummonCommand(rawType) {
+    const type = String(rawType ?? '').toLowerCase();
+    const entry = SUMMONABLE_MOBS[type];
+    if (!entry) {
+      const names = Object.keys(SUMMONABLE_MOBS).sort().join(', ');
+      this.ui.addChatMessage('Unknown mob. Try: ' + names, 'error');
+      return;
+    }
+    const [method, distance, label] = entry;
+    const spawn = this.mobs?.[method];
+    if (typeof spawn !== 'function') {
+      this.ui.addChatMessage('This build has no ' + method + '; ' + label + ' cannot be summoned.', 'error');
+      return;
+    }
+    const p = this.player.position;
+    spawn.call(this.mobs, p.x + distance, p.y + 1, p.z + distance);
+    this.ui.addChatMessage('Summoned new ' + label, 'system');
+  }
+
+  /**
+   * `/summon <entity>`.
+   *
+   * A table rather than a forty-branch `if/else` chain. The spawn methods take the offsets now instead of
+   * each branch repeating `p.x + 2, p.y + 1, p.z + 2`, which is what made the chain unreadable and hid
+   * that three mobs were summoned three blocks away rather than two for no stated reason.
+   */
 
   /**
    * Step off whatever vehicle the player is riding.

@@ -190,11 +190,17 @@ test('only a brand-new ordinary world empties the inventory', () => {
 
 test('the game mode changes through exactly one entry point', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const runner = readFileSync(new URL('../src/commandRunner.js', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
-  // The setup screen and both in-game paths go through `setGameMode`.
+  // The setup screen, the pause-menu button and `/gamemode` all go through `setGameMode`.
   assert.match(main, /setGameMode\(mode\) \{/, 'the game owns the transition');
-  assert.match(main, /this\.setGameMode\('creative'\)/);
-  assert.match(main, /this\.setGameMode\('survival'\)/);
+  // `/gamemode` was moved into `commandRunner.js` by the command refactor; it reaches the same method
+  // through the context rather than writing the field, which is what this assertion is really about.
+  assert.match(runner, /context\.setGameMode\?\.\('creative'\)/);
+  assert.match(runner, /context\.setGameMode\?\.\('survival'\)/);
+  assert.equal(/gamemode\s*=\s*'/.test(runner), false,
+    '/gamemode must not assign the field directly');
+  assert.match(main, /this\.setGameMode\(next\)/, 'the in-game cycle goes through it');
   assert.match(ui, /this\.game\.setGameMode\(/);
   // The pause-menu button must no longer assign the field directly: that path never cleared flight.
   assert.equal(/this\.player\.gamemode = \(this\.player\.gamemode === 'survival'\)/.test(ui), false,
