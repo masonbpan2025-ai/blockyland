@@ -1,4 +1,6 @@
 import { serializeWitherSkeleton, restoreWitherSkeleton } from './witherSkeleton.js';
+// Which designed world owns a map is decided by the mod table, not by a name written in this file.
+import { resolveWorldMechanism } from './mods/loader.js';
 import { serializeSquid, restoreSquid } from './squidBehavior.js';
 import {serializeZombified,restoreZombified,restoreZombifiedLinks,isZombifiedPiglin} from './zombifiedPiglin.js';
 import { serializeStrider, restoreStrider, attachStriderPassenger } from './striderBehavior.js';
@@ -177,11 +179,18 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     if (progress) progress(percent, stage);
   };
 
-  const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
-                       (mapData.mechanism === 'dragonball_tournament') ||
-                       (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
+  // Which MOD owns this world, decided from the mod table rather than from a name written here.
+  //
+  // This used to read `mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default')`, so the core
+  // knew one designed world by name. The mechanism now comes from whichever mod's manifest claims this map,
+  // and `openDesignedWorld` loads that mod -- which is what registers the mechanism -- before it is set.
+  const resolved = game.openDesignedWorld
+    ? await game.openDesignedWorld(mapData)
+    : { mechanismId: mapData.mechanism || 'default', modId: null };
+  const isTournament = Boolean(resolved.modId) ||
+                       Boolean(mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
   const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
-  const targetMechanismId = mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default');
+  const targetMechanismId = resolved.mechanismId;
   game.worldType = targetWorldType;
   game.worldGenerated = true;
   game.worldReady = true;
@@ -253,7 +262,7 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    if (isTournament || targetMechanismId === 'dragonball_tournament') {
+    if (isTournament) {
       game.player.setGameMode?.('survival');
       game.player.isFlying = false;
     } else {
@@ -427,11 +436,21 @@ export function deserializeWorld(game, mapData, options = {}) {
   const progress = typeof options.progress === 'function' ? options.progress : null;
   const report = (percent, stage) => { if (progress) progress(percent, stage); };
 
-  const isTournament = (mapData.name && mapData.name.toLowerCase().includes('tournament')) ||
-                       (mapData.mechanism === 'dragonball_tournament') ||
-                       (mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
+  // Which MOD owns this world, decided from the mod table rather than from a name written here.
+  //
+  // This used to read `mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default')`, so the core
+  // knew one designed world by name. The mechanism now comes from whichever mod's manifest claims this map,
+  // and `openDesignedWorld` loads that mod -- which is what registers the mechanism -- before it is set.
+  // This function is SYNCHRONOUS, so it cannot load the mod itself -- the async wrapper above does that
+  // before calling in. Resolving only reads the manifests, which are already in memory, so the mechanism id
+  // is right either way; a mod that was never loaded simply leaves `setMechanism` falling back to `default`.
+  const resolved = game.modLoader
+    ? resolveWorldMechanism(game.modLoader, mapData)
+    : { mechanismId: mapData.mechanism || 'default', modId: null };
+  const isTournament = Boolean(resolved.modId) ||
+                       Boolean(mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
   const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
-  const targetMechanismId = mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default');
+  const targetMechanismId = resolved.mechanismId;
   game.worldType = targetWorldType;
   game.worldGenerated = true;
   // Marks the world as safe to enter, so the entry point does not hide the
@@ -498,7 +517,7 @@ export function deserializeWorld(game, mapData, options = {}) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    if (isTournament || targetMechanismId === 'dragonball_tournament') {
+    if (isTournament) {
       game.player.setGameMode?.('survival');
       game.player.isFlying = false;
     } else {

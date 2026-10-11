@@ -84,10 +84,10 @@ import {
   saveMapToCustomFile,
   loadMapFromCustomFile
 } from './mapManager.js';
-import { TournamentManager } from './tournament.js';
-import { DragonballSkillsManager } from './dragonballSkills.js';
-import { TrainingSitesManager } from './trainingSites.js';
-import { DungeonModeManager } from './dungeonMode.js';
+// Designed worlds are MODS. The core no longer imports any of them: the four managers that used to be
+// imported here (tournament, dragonballSkills, trainingSites, dungeonMode) are attached by the mod that owns
+// them, through `ModLoader`, when its world is opened.
+import { ModLoader, resolveWorldMechanism } from './mods/loader.js';
 import { WorldMechanismManager } from './worldMechanisms.js';
 import { BuildingStudioManager } from './buildingStudio.js';
 import { BuildingLibrary } from './buildingLibrary.js';
@@ -409,11 +409,18 @@ class Game {
     this.railSystem = new RailSystem(this.world, this);
     this.riding = null;
 
-    // 5b. Initialize Tournament & Dragon Ball Skills
-    this.tournament = new TournamentManager(this);    this.dragonballSkills = new DragonballSkillsManager(this);
-    this.skills = this.dragonballSkills;
-    this.trainingSites = new TrainingSitesManager(this);
-    this.dungeonMode = new DungeonModeManager(this);
+    // 5b. Designed worlds.
+    //
+    // These four used to be constructed here, from four imports of one designed world. They are now attached
+    // by that world's MOD, through its entrypoint, when the world is opened -- so this file no longer imports
+    // any of them and the game runs with the mod's directory deleted.
+    //
+    // `this.modLoader` discovers the mods and owns that lifetime. `this.mechanisms` is the registry they
+    // register into; the core supplies only `default`.
+    //
+    // The loader is built here and the mechanism manager a few lines below; they are joined immediately after
+    // that construction, so there is one mechanism registry rather than two.
+    this.modLoader = new ModLoader({ log: (line) => console.log(line) });
     this.buildingStudio = new BuildingStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
@@ -440,6 +447,10 @@ class Game {
     // 5c. Initialize World Mechanism System (Generated worlds default to pure vanilla)
     this.worldType = 'generated';
     this.mechanisms = new WorldMechanismManager(this);
+    // The loader and the mechanism manager share ONE registry. A mod's `registerMechanism` lands in the same
+    // map the core reads from, so `setMechanism('dragonball_tournament')` works without the core knowing the
+    // name -- it only ever passes through whatever id the world's map asked for.
+    this.modLoader.mechanisms = this.mechanisms.mechanisms;
 
     // 5d. Initialize Multiplayer World Synchronization & Hosting
     this.worldSync = new WorldSyncManager(this);
@@ -3547,6 +3558,33 @@ class Game {
     if (this.textures.waterUniforms) {
       this.textures.waterUniforms.uIsUnderwater.value = this.isUnderwater ? 1.0 : 0.0;
     }
+  }
+
+  /**
+   * Open a designed world: load the mod that owns it.
+   *
+   * This is what makes a designed world self-contained at runtime. The map file names a world; the loader
+   * finds the mod whose manifest claims that file, imports its entrypoint, and lets it register its content
+   * and its mechanism. Nothing here names a world.
+   *
+   * Returns the mechanism id the world should run, so the caller can `setMechanism` it.
+   */
+  async openDesignedWorld(mapData = {}) {
+    if (!this.modLoader) return { mechanismId: 'default', modId: null };
+    const resolved = resolveWorldMechanism(this.modLoader, mapData);
+    if (resolved.modId) {
+      const result = await this.modLoader.openWorld(mapData, { game: this });
+      if (!result.ok) {
+        console.warn(`mod '${resolved.modId}' failed to load: ${result.reason ?? 'unknown'}`);
+        // The world still opens; it simply runs on the core's mechanics without the mod's.
+        return { mechanismId: 'default', modId: null, failed: resolved.modId };
+      }
+    } else {
+      // A plain world: close whatever designed world was open, so its content leaves with it.
+      this.modLoader.closeWorld();
+      this.mechanisms?.setMechanism?.('default', this);
+    }
+    return resolved;
   }
 
   /**

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { TournamentManager, TOURNAMENT_STATE } from '../src/tournament.js';
+import { TournamentManager, TOURNAMENT_STATE } from '../src/mods/dragonball-tournament/tournament.js';
+// The mechanism belongs to the mod, so this suite registers it the way the mod's entrypoint does.
+import { MECHANISM_ID as TOURNAMENT_MECHANISM_ID, mechanismDefinition as tournamentMechanismDefinition }
+  from '../src/mods/dragonball-tournament/index.js';
 import { MobManager } from '../src/mobs.js';
 import { EntityManager } from '../src/entities.js';
 import { BLOCKS } from '../src/blocks.js';
@@ -363,8 +366,10 @@ test('Player health bar is 3x long (60 max HP and 30 hearts) in the world tourna
   wm.setMechanism('default', game);
   assert.equal(game.player.maxHealth, 20, 'Default world should have 20 max HP');
 
-  // Activate tournament mechanism
-  wm.setMechanism('dragonball_tournament', game);
+  // Activate the designed world's mechanism. It belongs to the MOD now, so the test registers it the way the
+  // mod's entrypoint does -- `setMechanism` alone used to work because the core registered it by name.
+  wm.registerMechanism(TOURNAMENT_MECHANISM_ID, tournamentMechanismDefinition());
+  wm.setMechanism(TOURNAMENT_MECHANISM_ID, game);
   assert.equal(game.player.maxHealth, 60, 'Tournament map player maxHealth should be 60 (3x of 20)');
   assert.equal(game.player.health, 60, 'Tournament map player health should be 60');
 

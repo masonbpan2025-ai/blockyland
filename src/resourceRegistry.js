@@ -17,6 +17,7 @@
 //   * `durability`-- a max-durability lookup. `src/durability.js` does not exist on every branch, and
 //                    a missing provider must report "unsupported" rather than a false failure.
 // `EXTRA_SMELTING` is imported directly because it is three-free and is the generated table's source.
+import { SCOPE } from './mods/registry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { harvestDataFor, knownHarvestBlockIds, knownHarvestNames, BLOCK_HARVEST } from './blockHarvestData.js';
 import { BONUS_DROPS, REPLACEMENT_DROPS, baseBlockDrop, bonusKeyFor } from './blockDrops.js';
@@ -421,8 +422,75 @@ export function buildRegistry(sources = {}) {
     if (entry.blockId !== null && !byBlockId.has(entry.blockId)) byBlockId.set(entry.blockId, entry);
   }
 
+  // --- scope ---------------------------------------------------------------------------------------------
+  //
+  // Every entry is tagged with the mod that owns it, and the view is then narrowed to one scope. The DEFAULT
+  // is core, which is the request this exists for: an Inspector that has not been told which designed world is
+  // open shows the game's own content and nothing else, so a designed world's blocks and items cannot be
+  // mistaken for vanilla ones.
+  //
+  // Tagging happens here rather than at each `makeEntry` call because everything built above is core content
+  // by construction -- the mods' content arrives through `sources.modEntries`, below.
+  const scopeRequest = sources.scope ?? SCOPE.CORE;
+  for (const entry of entries.values()) {
+    entry.scope = SCOPE.CORE;
+    entry.modId = null;
+  }
+
+  // Content registered by MODS. Read through the content registry rather than from `BLOCKS`/`ITEMS`, because a
+  // mod's blocks do not live in the core's tables -- that is the point of the namespacing.
+  for (const entry of sources.modEntries ?? []) {
+    if (!entry?.name) continue;
+    const key = entry.name;
+    if (entries.has(key)) continue;
+    entries.set(key, {
+      key,
+      kind: entry.kind === 'block' ? 'block' : 'item',
+      id: entry.path ?? entry.name,
+      def: entry.data ?? null,
+      name: entry.data?.name ?? entry.data?.display ?? entry.path ?? entry.name,
+      isBlock: entry.kind === 'block',
+      blockId: entry.data?.blockId ?? null,
+      blockDef: null,
+      blockAliases: [],
+      internal: false,
+      icon: entry.data?.icon ?? null,
+      type: entry.data?.type ?? null,
+      recipesAsResult: [], recipesAsIngredient: [], smeltingFrom: [], smeltedInto: [],
+      brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [],
+      // The two fields the scope is read from.
+      scope: SCOPE.MOD,
+      modId: entry.modId ?? null,
+      namespacedName: entry.name,
+    });
+  }
+
+  /** The entries one scope may see. */
+  const visible = (all) => {
+    if (scopeRequest === 'all' || scopeRequest === SCOPE.MOD && !sources.modId) return [...all];
+    if (scopeRequest === SCOPE.CORE) return [...all].filter(e => e.scope === SCOPE.CORE);
+    const wanted = sources.modId ?? (typeof scopeRequest === 'string' && scopeRequest.includes(':')
+      ? scopeRequest.split(':').pop() : scopeRequest);
+    return [...all].filter(e => e.modId === wanted);
+  };
+
+  const scopedEntries = new Map(visible(entries.values()).map(e => [e.key, e]));
+
+  /**
+   * The full registry, whatever the scope.
+   *
+   * Kept on the result so a caller can resolve a cross-reference that points at content outside the current
+   * view -- checking a mod's recipe against a core ingredient needs both -- without that content appearing in
+   * the list the Inspector shows.
+   */
+  const allEntries = entries;
+
   return {
-    entries,
+    entries: scopedEntries,
+    allEntries,
+    scope: { scope: scopeRequest, modId: sources.modId ?? null },
+    visibleCount: scopedEntries.size,
+    totalCount: allEntries.size,
     byBlockId,
     recipes,
     smelting,
@@ -430,9 +498,9 @@ export function buildRegistry(sources = {}) {
     loot,
     durabilityProvided: Boolean(durability),
     stats: {
-      items: [...entries.values()].filter((e) => e.kind === 'item').length,
-      blocksOnly: [...entries.values()].filter((e) => e.kind === 'block').length,
-      blockItems: [...entries.values()].filter((e) => e.blockId !== null).length,
+      items: [...scopedEntries.values()].filter((e) => e.kind === 'item').length,
+      blocksOnly: [...scopedEntries.values()].filter((e) => e.kind === 'block').length,
+      blockItems: [...scopedEntries.values()].filter((e) => e.blockId !== null).length,
       recipes: recipes.length,
       smelting: smelting.size,
       harvestBlocks: knownHarvestBlockIds().length,
@@ -441,12 +509,78 @@ export function buildRegistry(sources = {}) {
 }
 
 let cached = null;
+/** Scoped views, derived from the one full build rather than rebuilt. */
+const viewCache = new Map();
 
-/** The default registry, built once. Pass `{fresh: true}` to rebuild after mutating game data. */
-export function registry({ fresh = false, ...sources } = {}) {
-  if (fresh || !cached) cached = buildRegistry(sources);
-  return cached;
+/**
+ * The default registry, built once. Pass `{fresh: true}` to rebuild after mutating game data.
+ *
+ * `scope` selects what the returned view SHOWS and defaults to core, which is the requirement this exists
+ * for: the Inspector sees the game's own blocks and items unless it has been told which designed world is
+ * open. The build itself is always full -- one build, many views -- and each view keeps the full entry map on
+ * `allEntries`, so a cross-reference to content outside the view still resolves.
+ *
+ * @param {object} options
+ * @param {boolean} [options.fresh]  rebuild the full registry
+ * @param {string} [options.scope]   `core` (default), `mod`, `all`, or a mod id
+ * @param {string} [options.modId]   the mod to view when the scope names one
+ */
+export function registry({ fresh = false, scope = SCOPE.CORE, modId = null, ...sources } = {}) {
+  if (fresh || !cached) {
+    cached = buildRegistry({ ...sources, scope: 'all' });
+    viewCache.clear();
+  }
+  if (scope === 'all' && !modId) return cached;
+  const key = modId ? `mod:${modId}` : String(scope);
+  if (!viewCache.has(key)) viewCache.set(key, scopeView(cached, { scope, modId }));
+  return viewCache.get(key);
 }
+
+/**
+ * Narrow a built registry to one scope.
+ *
+ * `mod` with a `modId` shows that mod's content; `mod` without one shows every mod's, which is what a
+ * "browse the installed mods" screen wants. A cross-reference is unaffected: `allEntries` is untouched.
+ */
+export function scopeView(reg, { scope = SCOPE.CORE, modId = null } = {}) {
+  if (scope === 'all' && !modId) return reg;
+  let entries;
+  if (modId) entries = [...reg.allEntries.values()].filter(e => e.modId === modId);
+  else if (scope === SCOPE.CORE) entries = [...reg.allEntries.values()].filter(e => e.scope === SCOPE.CORE);
+  else if (scope === SCOPE.MOD) entries = [...reg.allEntries.values()].filter(e => e.scope === SCOPE.MOD);
+  else entries = [...reg.allEntries.values()].filter(e => e.modId === scope);
+
+  const scoped = new Map(entries.map(e => [e.key, e]));
+  return {
+    ...reg,
+    entries: scoped,
+    scope: { scope, modId: modId ?? null },
+    visibleCount: scoped.size,
+    totalCount: reg.allEntries.size,
+    stats: {
+      ...reg.stats,
+      items: entries.filter(e => e.kind === 'item').length,
+      blocksOnly: entries.filter(e => e.kind === 'block').length,
+      blockItems: entries.filter(e => e.blockId !== null).length,
+    },
+  };
+}
+
+/** How many entries each scope holds, for a report or a scope picker. */
+export function scopeSummary(reg = registry({ scope: 'all' })) {
+  const out = { core: 0, mod: 0 };
+  const byMod = {};
+  for (const entry of reg.allEntries.values()) {
+    if (entry.scope === SCOPE.CORE) out.core++;
+    else {
+      out.mod++;
+      const id = entry.modId ?? 'unknown';
+      byMod[id] = (byMod[id] ?? 0) + 1;
+    }
+  }
+  return { ...out, byMod };
+}
+
 
 /**
  * Find a resource by any of the names a caller might have: an item id (`oak_planks`), an upper-case

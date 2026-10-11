@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { DungeonModeManager } from '../src/dungeonMode.js';
-import { DragonballSkillsManager } from '../src/dragonballSkills.js';
+import { DungeonModeManager } from '../src/mods/dragonball-tournament/dungeonMode.js';
+import { DragonballSkillsManager } from '../src/mods/dragonball-tournament/dragonballSkills.js';
 import { MobManager } from '../src/mobs.js';
 import { Player } from '../src/player.js';
 import { BLOCKS } from '../src/blocks.js';

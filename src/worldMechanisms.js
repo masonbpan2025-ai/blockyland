@@ -1,15 +1,25 @@
 /**
  * World Mechanism System
  * Provides modular, isolated game rules, capabilities, and behaviors for worlds.
- * 
+ *
  * - Generated Worlds run on 'default' mechanisms (pure vanilla Minecraft mechanics).
- * - Designed Worlds run on 'default' + their own custom isolated mechanisms (e.g. dragonball_tournament).
+ * - Designed Worlds run on 'default' + their own custom isolated mechanisms, supplied by a MOD.
  * - Saved Worlds preserve the base mechanism of whichever world they were saved from.
+ *
+ * The tournament mechanism used to be registered here, by name, inside `registerDefaultMechanisms`. That made
+ * the core depend on one designed world: this file named `game.tournament`, `game.trainingSites`,
+ * `game.dragonballSkills` and `game.dungeonMode`, and `MECHANISM_IDS` listed the world's id as a constant.
+ *
+ * It now does not. This class is a REGISTRY -- `registerMechanism` was always the right seam -- and a mod
+ * registers into it from its own entrypoint. The core knows only `default`.
+ *
+ * That is the property the mod structure exists for: the core can be read, built and run with no designed
+ * world present, and a new world is a new directory rather than an edit to this file.
  */
 
+/** The one mechanism the core itself supplies. Every other mechanism comes from a mod. */
 export const MECHANISM_IDS = {
-  DEFAULT: 'default',
-  DRAGONBALL_TOURNAMENT: 'dragonball_tournament'
+  DEFAULT: 'default'
 };
 
 export class WorldMechanismManager {
@@ -28,7 +38,11 @@ export class WorldMechanismManager {
   }
 
   registerDefaultMechanisms() {
-    // 1. Vanilla Default Mechanism
+    // Vanilla Default Mechanism: the only mechanism the core knows.
+    //
+    // Its `activate` used to reach into the tournament, the training sites, the dungeon mode and the Dragon
+    // Ball skills by name -- four references to one designed world. It now runs a list of cleanup hooks that
+    // the loaded mods contribute, so the core can clean up "whatever worlds are open" without naming one.
     this.registerMechanism(MECHANISM_IDS.DEFAULT, {
       id: MECHANISM_IDS.DEFAULT,
       name: 'Default (Vanilla)',
@@ -43,92 +57,49 @@ export class WorldMechanismManager {
         allowFistPunchAttack: false,
         allowDodgeRoll: false
       },
+      /** Filled by `registerWorldCleanup`, one entry per loaded mod that has a world open. */
+      onLeaveModWorlds: [],
       activate: (game) => {
-        if (game.tournament) {
-          game.tournament.isTournamentMap = false;
-          game.tournament.cleanup?.();
-        }
-        if (game.trainingSites) {
-          game.trainingSites.cleanup?.();
-        }
-        if (game.dungeonMode && game.dungeonMode.isActive) {
-          game.dungeonMode.exitDungeonMode(false);
-        }
-        if (game.dragonballSkills) {
-          game.dragonballSkills.enabled = false;
-          game.dragonballSkills.reset?.();
+        const hooks = game?.mechanisms?.mechanisms?.get?.(MECHANISM_IDS.DEFAULT)?.onLeaveModWorlds ?? [];
+        for (const cleanup of hooks) {
+          // A mod that throws on cleanup must not strand the core on a dead mechanism.
+          try { cleanup(game); } catch { /* reported by the mod, not fatal here */ }
         }
       },
       deactivate: (game) => {}
     });
+  }
 
-    // 2. Dragon Ball World Tournament Mechanism
-    this.registerMechanism(MECHANISM_IDS.DRAGONBALL_TOURNAMENT, {
-      id: MECHANISM_IDS.DRAGONBALL_TOURNAMENT,
-      name: 'Dragon Ball World Tournament',
-      description: 'Martial arts tournament mechanics with Ki abilities (J: Kamehameha, K: Genki Dama, U: Punch, N: Dodge Roll), 4 training grounds, Announcer Host, and top-down dungeon combat.',
-      features: {
-        hasDragonBallSkills: true,
-        hasTournamentAnnouncer: true,
-        hasTrainingSites: true,
-        hasDungeonCombatMode: true,
-        hasOverheadHealthBars: true,
-        allowCreativeFlight: false, // Tournament is survival only
-        allowFistPunchAttack: true,
-        allowDodgeRoll: true
-      },
-      activate: (game, mapData) => {
-        if (game.player) {
-          game.player.gamemode = 'survival';
-          game.player.isFlying = false;
-          game.player.maxHealth = 60;
-          game.player.health = 60;
-        }
-        if (game.tournament) {
-          game.tournament.isTournamentMap = true;
-          game.tournament.reset?.();
-          game.tournament.ensureHost?.();
-        }
-        if (game.trainingSites) {
-          game.trainingSites.reset?.();
-          game.trainingSites.ensureSiteManagers?.();
-        }
-        if (game.dragonballSkills) {
-          game.dragonballSkills.enabled = true;
-          game.dragonballSkills.reset?.();
-        }
-        if (game.ui) {
-          game.ui.initStatusBarsDOM?.();
-          const sb = typeof document !== 'undefined' ? document.getElementById('status-bars') : null;
-          sb?.classList.add('tournament-mode');
-        }
-      },
-      deactivate: (game) => {
-        if (game.player) {
-          game.player.maxHealth = 20;
-          game.player.health = Math.min(20, game.player.health);
-        }
-        if (game.tournament) {
-          game.tournament.isTournamentMap = false;
-          game.tournament.cleanup?.();
-        }
-        if (game.trainingSites) {
-          game.trainingSites.cleanup?.();
-        }
-        if (game.dungeonMode && game.dungeonMode.isActive) {
-          game.dungeonMode.exitDungeonMode(false);
-        }
-        if (game.dragonballSkills) {
-          game.dragonballSkills.enabled = false;
-          game.dragonballSkills.reset?.();
-        }
-        if (game.ui) {
-          const sb = typeof document !== 'undefined' ? document.getElementById('status-bars') : null;
-          sb?.classList.remove('tournament-mode');
-          game.ui.initStatusBarsDOM?.();
-        }
-      }
-    });
+  /**
+   * Register a hook that runs when a mod's world is left.
+   *
+   * The mod loader calls this once per loaded mod. It is what lets `default` undo a designed world's setup
+   * without importing it, which is the whole reason the core no longer names any of them.
+   */
+  registerWorldCleanup(cleanup) {
+    const def = this.mechanisms.get(MECHANISM_IDS.DEFAULT);
+    if (!def || typeof cleanup !== 'function') return false;
+    if (!Array.isArray(def.onLeaveModWorlds)) def.onLeaveModWorlds = [];
+    if (def.onLeaveModWorlds.includes(cleanup)) return false;
+    def.onLeaveModWorlds.push(cleanup);
+    return true;
+  }
+
+  /** Every mechanism id that is registered, core's included. */
+  ids() {
+    return [...this.mechanisms.keys()];
+  }
+
+  /** The mechanism definitions, for a report or the Inspector. */
+  list() {
+    return [...this.mechanisms.values()].map(m => ({
+      id: m.id, name: m.name, modId: m.modId ?? null, features: { ...(m.features ?? {}) },
+    }));
+  }
+
+  /** True when a mechanism came from a mod rather than the core. */
+  isModMechanism(id) {
+    return Boolean(this.mechanisms.get(id)?.modId);
   }
 
   setMechanism(id, game = this.game, mapData = null) {

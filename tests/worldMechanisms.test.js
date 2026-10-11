@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url';
 
 import { WorldMechanismManager, MECHANISM_IDS } from '../src/worldMechanisms.js';
 import { serializeWorld, deserializeWorld } from '../src/mapManager.js';
-import { DragonballSkillsManager } from '../src/dragonballSkills.js';
-import { TournamentManager } from '../src/tournament.js';
-import { TrainingSitesManager } from '../src/trainingSites.js';
-import { DungeonModeManager } from '../src/dungeonMode.js';
+import { DragonballSkillsManager } from '../src/mods/dragonball-tournament/dragonballSkills.js';
+import { TournamentManager } from '../src/mods/dragonball-tournament/tournament.js';
+import { TrainingSitesManager } from '../src/mods/dragonball-tournament/trainingSites.js';
+import { DungeonModeManager } from '../src/mods/dragonball-tournament/dungeonMode.js';
+// The designed world's mechanism is the MOD's, not the core's. Registered from its entrypoint here, the same
+// way `index.js` does it, so this suite exercises the arrangement that ships.
+import { MECHANISM_ID as TOURNAMENT_MECHANISM_ID, mechanismDefinition as tournamentMechanismDefinition }
+  from '../src/mods/dragonball-tournament/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,9 +81,16 @@ test('WorldMechanismManager default mechanism isolates all custom mechanisms fro
   assert.equal(manager.isFeatureEnabled('allowDodgeRoll'), false);
   assert.equal(manager.isFeatureEnabled('allowCreativeFlight'), true);
 
-  // 2. Switch to DRAGONBALL_TOURNAMENT
-  manager.setMechanism(MECHANISM_IDS.DRAGONBALL_TOURNAMENT, mockGame);
-  assert.equal(manager.currentMechanismId, MECHANISM_IDS.DRAGONBALL_TOURNAMENT);
+  // 2. Switch to the designed world's mechanism.
+  //
+  // It is no longer a constant in the core: the mod registers it from its entrypoint. This test therefore
+  // registers it the same way the mod does, which is what makes it a test of the current architecture rather
+  // than of the arrangement it replaced.
+  manager.registerMechanism(TOURNAMENT_MECHANISM_ID, tournamentMechanismDefinition());
+  manager.setMechanism(TOURNAMENT_MECHANISM_ID, mockGame);
+  assert.equal(manager.currentMechanismId, TOURNAMENT_MECHANISM_ID);
+  assert.equal(manager.isModMechanism(TOURNAMENT_MECHANISM_ID), true,
+    'and the manager can tell a mod mechanism from its own');
   assert.equal(manager.isFeatureEnabled('hasDragonBallSkills'), true);
   assert.equal(manager.isFeatureEnabled('hasTournamentAnnouncer'), true);
   assert.equal(manager.isFeatureEnabled('hasTrainingSites'), true);
@@ -165,9 +176,10 @@ test('Serialization and Deserialization preserve mechanism and worldType for bot
   assert.equal(game.mechanisms.currentMechanismId, 'default');
   assert.equal(game.mechanisms.isFeatureEnabled('hasDragonBallSkills'), false);
 
-  // --- Case B: Designed World (Dragon Ball Tournament Mechanism) ---
+  // --- Case B: Designed World (the mod's tournament mechanism) ---
   game.worldType = 'designed';
-  game.mechanisms.setMechanism(MECHANISM_IDS.DRAGONBALL_TOURNAMENT, game);
+  game.mechanisms.registerMechanism(TOURNAMENT_MECHANISM_ID, tournamentMechanismDefinition());
+  game.mechanisms.setMechanism(TOURNAMENT_MECHANISM_ID, game);
 
   const designedSerialized = serializeWorld(game, 'Tournament Arena Custom Save');
   assert.equal(designedSerialized.worldType, 'designed');
