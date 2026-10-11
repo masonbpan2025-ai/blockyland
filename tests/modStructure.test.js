@@ -21,12 +21,14 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   CORE_NAMESPACE, KIND, SCOPE, ContentRegistry,
-  isValidName, joinName, normaliseNamespace, readModManifest, splitName,
+  isValidName, joinName, normaliseNamespace, splitName,
 } from '../src/mods/registry.js';
 import {
-  BUILTIN_MODS, MODS_DIRECTORY, ModApi, ModLoader, discoverMods, loadModTable,
+  BUILTIN_MODS, MODS_DIRECTORY, ModApi, ModLoader, discoverMods,
   modForMap, modForMechanism, resolveWorldMechanism,
 } from '../src/mods/loader.js';
+// The filesystem half. Node-only, and deliberately not reachable from `main.js`.
+import { loadModTable, readModManifest } from '../src/mods/manifestFile.js';
 import { allModContent, inspectorScope, inspectorSources, manifestContent } from '../src/mods/inspectorScope.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -406,7 +408,7 @@ test('the inline manifest and the file on disk agree', () => {
   // Two copies of one manifest is a drift risk, so the risk is tested rather than trusted. If somebody edits
   // `mod.json` and not the table -- or the reverse -- a mod would behave differently in the CLI and the game.
   const inline = discoverMods();
-  const disk = discoverMods({ fromDisk: true });
+  const disk = discoverMods({ fromDisk: true, readManifest: readModManifest });
   assert.deepEqual(disk.rejected, []);
   for (let i = 0; i < BUILTIN_MODS.length; i++) {
     assert.equal(inline.mods[i].id, disk.mods[i].id);
@@ -465,6 +467,101 @@ test('the loader never touches the filesystem on its default path', () => {
   assert.ok(!/readFileSync|existsSync|readdirSync/.test(constructorLine),
     'the constructor must not read a file: the browser has no filesystem');
   assert.match(source, /fromDisk \|\| !raw/, 'reading from disk is opt-in');
+});
+
+// --- the browser path must stay browser-legal ----------------------------------------------------------
+//
+// This section exists because of a real outage. `loader.js` imported its manifest with
+// `import m from './mod.json' with { type: 'json' }`. Node resolves that fine, so every test here passed --
+// but Vite rewrites the specifier to `mod.json?import` and serves it as `text/javascript`, while the import
+// attribute still demands JSON. Chrome rejects the mismatch, the module graph dies, `main.js` never runs, and
+// every button on the start screen does nothing.
+//
+// Nothing about that is visible from Node, so it is checked by reading the source.
+
+/** Every module reachable from the page entry, by following relative imports. */
+function browserReachableModules() {
+  const queue = ['src/main.js', 'src/progressOverlay.js'];
+  const seen = new Set();
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file) || !existsSync(join(ROOT, file))) continue;
+    seen.add(file);
+    for (const m of read(file).matchAll(/from\s+'(\.[^']+)'/g)) {
+      const base = file.slice(0, file.lastIndexOf('/'));
+      const parts = `${base}/${m[1]}`.split('/');
+      const out = [];
+      for (const p of parts) {
+        if (p === '.' || p === '') continue;
+        if (p === '..') out.pop();
+        else out.push(p);
+      }
+      queue.push(out.join('/'));
+    }
+  }
+  return [...seen];
+}
+
+test('no module the browser loads imports a Node builtin', () => {
+  // Vite stubs `node:fs` in dev and tree-shakes it from the build, so a dead import appears to work -- which is
+  // exactly why it has to be asserted rather than trusted.
+  const offenders = [];
+  for (const file of browserReachableModules()) {
+    const source = read(file);
+    for (const m of source.matchAll(/from\s+'(node:[^']+)'/g)) {
+      const lineStart = source.lastIndexOf('\n', m.index) + 1;
+      const line = source.slice(lineStart, source.indexOf('\n', m.index));
+      if (/^\s*(import|export)/.test(line)) offenders.push(`${file}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `browser-reachable modules must not import Node builtins:\n  ${offenders.join('\n  ')}`);
+});
+
+test('no module the browser loads uses a JSON import attribute', () => {
+  // The specific form that caused the outage: Vite serves `.json` as JavaScript, so `with { type: 'json' }`
+  // makes the browser refuse the module.
+  const offenders = [];
+  for (const file of browserReachableModules()) {
+    for (const m of read(file).matchAll(/^\s*import[^\n]*with\s*\{\s*type:\s*['"]json['"]/gm)) {
+      offenders.push(`${file}: ${m[0].trim().slice(0, 70)}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `JSON import attributes break the browser build:\n  ${offenders.join('\n  ')}`);
+});
+
+test('the manifest reaches the browser as a JS module, and matches mod.json', () => {
+  // `manifest.js` is the bundler-safe form; `mod.json` is canonical. Two copies is a drift risk, so the risk is
+  // tested rather than trusted -- this assertion is what makes the pair safe.
+  const js = read('src/mods/dragonball-tournament/manifest.js');
+  assert.match(js, /export default \{/);
+  // Checked on import LINES, not on the whole file: `manifest.js` explains the attribute it is avoiding, and a
+  // whole-file regex matches that comment -- which is how this assertion failed the first time it ran.
+  const attributeImports = [...js.matchAll(/^\s*import[^\n]*with\s*\{\s*type:\s*['"]json['"]/gm)];
+  assert.deepEqual(attributeImports, [], 'manifest.js must not use a JSON import attribute');
+
+  const fromJs = discoverMods();
+  const fromDisk = discoverMods({ fromDisk: true, readManifest: readModManifest });
+  assert.deepEqual(fromJs.rejected, []);
+  assert.deepEqual(fromDisk.rejected, []);
+  assert.deepEqual(fromJs.mods[0].provides, fromDisk.mods[0].provides, 'manifest.js and mod.json agree');
+  assert.equal(fromJs.mods[0].id, fromDisk.mods[0].id);
+  assert.equal(fromJs.mods[0].mechanism, fromDisk.mods[0].mechanism);
+  assert.deepEqual(fromJs.mods[0].maps, fromDisk.mods[0].maps);
+});
+
+test('the loader and registry work with no filesystem at all', async () => {
+  // The strongest form of the same claim: use them fresh, with no Node I/O anywhere on the path.
+  const { ModLoader: FreshLoader, discoverMods: freshDiscover } = await import('../src/mods/loader.js');
+  const { ContentRegistry: FreshRegistry } = await import('../src/mods/registry.js');
+  assert.equal(freshDiscover().mods.length, BUILTIN_MODS.length);
+  const loader = new FreshLoader({ registry: new FreshRegistry() });
+  assert.equal(loader.list().length, BUILTIN_MODS.length);
+  assert.equal(loader.activeModId, null);
+  assert.deepEqual(loader.inspectorScope(), { scope: SCOPE.CORE, modId: null });
+  // And the disk path REFUSES rather than throwing a ReferenceError at a caller with no reader.
+  const refused = freshDiscover({ fromDisk: true });
+  assert.equal(refused.mods.length, 0);
+  assert.match(refused.rejected[0].reason, /needs a readManifest/);
 });
 
 // --- the Inspector --------------------------------------------------------------------------------------

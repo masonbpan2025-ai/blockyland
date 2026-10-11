@@ -21,16 +21,20 @@
 // content once that world is selected.
 //
 // Free of Three.js and of the DOM; `import()` is the only I/O, and a test passes its own `importModule`.
-import { join } from 'node:path';
-import { existsSync, readdirSync } from 'node:fs';
 import {
   CORE_NAMESPACE, KIND, SCOPE,
-  ContentRegistry, normaliseManifest, readModManifest,
+  ContentRegistry, normaliseManifest,
 } from './registry.js';
-// The manifest as DATA, so the browser needs no filesystem. Imported statically rather than read at runtime:
-// a browser build has no `readFileSync`, and the first version of this file called `discoverMods()`, which
-// reads manifests from disk -- so the game would have thrown while constructing its own mod loader.
-import dragonballTournamentManifest from './dragonball-tournament/mod.json' with { type: 'json' };
+// The manifest as a JS MODULE, not a JSON import.
+//
+// `import manifest from './mod.json' with { type: 'json' }` works in Node -- and every test passed -- but Vite
+// rewrites the specifier to `mod.json?import`, which it serves as `text/javascript`. The browser then refuses
+// the module: the attribute demands JSON and the response is JavaScript. That killed the whole module graph,
+// so `main.js` never ran and every button on the start screen went dead.
+//
+// `manifest.js` is the same object in a form both the bundler and Node load. `mod.json` stays canonical, and a
+// test asserts the two are identical.
+import dragonballTournamentManifest from './dragonball-tournament/manifest.js';
 
 /** Where mods live. One directory per mod, each with a `mod.json`. */
 export const MODS_DIRECTORY = 'src/mods';
@@ -64,15 +68,27 @@ export const BUILTIN_MODS = Object.freeze([
 /**
  * Read every built-in mod's manifest.
  *
- * Prefers the INLINE manifest, which is what the browser uses. When `fromDisk` is passed, the manifest is read
- * from `manifestPath` instead -- that is the CLI and test path, and the two are asserted to agree.
+ * Prefers the INLINE manifest, which is what the browser uses. When `fromDisk` is passed, `readManifest` is
+ * called instead -- that is the CLI and test path, and `manifestFile.readModManifest` is the reader they pass.
+ *
+ * The reader is a PARAMETER rather than an import, deliberately. This module is imported by `main.js` and so
+ * reaches the browser, and the reader needs `node:fs`. Defaulting to it here -- which an earlier version did --
+ * meant the browser had a dead reference to a filesystem that does not exist, and only Vite stubbing the
+ * builtin kept it from failing.
  */
-export function discoverMods({ mods = BUILTIN_MODS, readManifest = readModManifest, fromDisk = false } = {}) {
+export function discoverMods({ mods = BUILTIN_MODS, readManifest = null, fromDisk = false } = {}) {
+  if (fromDisk && typeof readManifest !== 'function') {
+    return { mods: [], rejected: mods.map(m => ({ id: m.id, reason: 'fromDisk needs a readManifest function; pass readModManifest from manifestFile.js' })) };
+  }
   const found = [];
   const rejected = [];
   for (const entry of mods) {
     let raw = entry.manifest ?? null;
     if (fromDisk || !raw) {
+      if (typeof readManifest !== 'function') {
+        rejected.push({ id: entry.id, reason: 'no inline manifest, and no readManifest to read one with' });
+        continue;
+      }
       const result = readManifest(entry.manifestPath);
       if (!result.ok) {
         rejected.push({ id: entry.id, reason: result.reason });
@@ -401,17 +417,4 @@ export class ModLoader {
       content: this.registry.summary(),
     };
   }
-}
-
-/**
- * The built-in mod table read from disk, for the cases that need it eagerly.
- *
- * `discoverMods` is the real call; this exists so the CLI and a test can share one line.
- */
-export function loadModTable({ directory = MODS_DIRECTORY } = {}) {
-  if (!existsSync(directory)) return { mods: [], rejected: [] };
-  const entries = readdirSync(directory, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => ({ id: d.name.replace(/-/g, '_'), manifestPath: `${directory}/${d.name}/${MANIFEST_FILE}` }));
-  return discoverMods({ mods: entries });
 }

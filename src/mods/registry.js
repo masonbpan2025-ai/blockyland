@@ -16,7 +16,6 @@
 //
 // This module is deliberately free of Three.js and of the DOM, like `resourceRegistry.js`, so the whole of it
 // is testable in milliseconds and the CLI and the page can both drive it.
-import { readFileSync, existsSync } from 'node:fs';
 
 /** Vanilla's namespace, and this game's: content that ships with the game itself. */
 export const CORE_NAMESPACE = 'minecraft';
@@ -267,16 +266,4 @@ export function normaliseManifest(raw) {
       entrypoint: String(raw.entrypoint ?? './index.js'),
     }),
   };
-}
-
-/** Load and validate a mod manifest from a `mod.json` on disk. */
-export function readModManifest(path) {
-  if (!existsSync(path)) return { ok: false, reason: `${path} does not exist` };
-  let raw;
-  try {
-    raw = JSON.parse(readFileSync(path, 'utf8'));
-  } catch (error) {
-    return { ok: false, reason: `${path} is not valid JSON: ${error.message}` };
-  }
-  return normaliseManifest(raw);
 }
