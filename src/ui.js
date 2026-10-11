@@ -558,12 +558,8 @@ export class UIManager {
 
   isModalOpen() {
     const defeatOverlay = typeof document !== 'undefined' ? document.getElementById('defeat-overlay') : null;
-    const championOverlay = typeof document !== 'undefined' ? document.getElementById('champion-overlay') : null;
-    const setupModal = typeof document !== 'undefined' ? document.getElementById('tournament-setup-modal') : null;
 
     const isDefeatOpen = defeatOverlay && !defeatOverlay.classList.contains('hidden') && defeatOverlay.classList.contains('visible');
-    const isChampionOpen = championOverlay && !championOverlay.classList.contains('hidden') && championOverlay.classList.contains('visible');
-    const isSetupOpen = setupModal && !setupModal.classList.contains('hidden');
 
     if (typeof document !== 'undefined') {
       const anyGameModal = document.querySelector('.game-modal:not(.hidden)');
@@ -582,8 +578,7 @@ export class UIManager {
            (this.mapModal && !this.mapModal.classList.contains('hidden')) ||
            (this.biomeModal && !this.biomeModal.classList.contains('hidden')) ||
            Boolean(isDefeatOpen) ||
-           Boolean(isChampionOpen) ||
-           Boolean(isSetupOpen) ||
+           Boolean(this.game?.modRuntime?.isModalOpen?.()) ||
            this.isGeminiOpen();
   }
 
@@ -753,8 +748,7 @@ export class UIManager {
   }
 
   initStatusBarsDOM() {
-    const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
-    const maxHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
+    const maxHearts = Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
     // Armor shields (10 shields = up to 20 armor points)
     if (this.armorBarEl) {
@@ -766,7 +760,7 @@ export class UIManager {
       }
     }
 
-    // Hearts (30 in tournament mode = 3x long, 10 in standard mode)
+    // Heart count follows the player's current maximum health.
     if (this.healthBarEl) {
       this.healthBarEl.innerHTML = '';
       for (let i = 0; i < maxHearts; i++) {
@@ -799,20 +793,12 @@ export class UIManager {
     if (expContainer) expContainer.style.display = isCreative ? 'none' : 'block';
     if (isCreative) return;
 
-    const isTournament = !!(this.game?.tournament?.isTournamentMap || (this.player && this.player.maxHealth > 20));
-    const expectedHearts = isTournament ? 30 : Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
+    const expectedHearts = Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
     if (this.healthBarEl && this.healthBarEl.children.length !== expectedHearts) {
       this.initStatusBarsDOM();
     }
 
-    if (statusBars) {
-      if (isTournament) {
-        statusBars.classList.add('tournament-mode');
-      } else {
-        statusBars.classList.remove('tournament-mode');
-      }
-    }
 
     // Armor Bar calculation
     const armorPoints = this.inv?.getTotalArmorPoints ? this.inv.getTotalArmorPoints() : 0;
@@ -3113,9 +3099,13 @@ export class UIManager {
     if (this.inv.cursorItem) return;
 
     this.inv.cursorItem = calculation.result;
-    // The gear and the material are consumed. The template is not: vanilla returns it.
+    // The gear and the material are always consumed. The template is not -- but only for an UPGRADE:
+    // "the template is not consumed" for a netherite upgrade, and "The template is consumed in the
+    // process" for a trim. Keeping it unconditionally was right for the one operation that existed and
+    // would have let a player trim unlimited armour from one template.
     this.smithingBaseItem = null;
     this.smithingAdditionItem = null;
+    if (calculation.templateSurvives === false) this.smithingTemplateItem = null;
 
     this.sounds.playAnvil?.() ?? this.sounds.playClick?.();
     this.updateFloatingCursor();
@@ -3660,10 +3650,7 @@ export class UIManager {
     if (btnGamemode) {
       btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
       btnGamemode.onclick = () => {
-        if (this.game.tournament?.isTournamentMap) {
-          this.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
-          return;
-        }
+        if (this.game.modRuntime?.canChangeGameMode?.() === false) return;
         // Through `setGameMode`, so this and `/gamemode` cannot disagree. It used to assign
         // `player.gamemode` directly, which left Creative flight switched on after entering Survival.
         this.game.setGameMode(this.player.gamemode === 'survival' ? 'creative' : 'survival');
@@ -3723,14 +3710,7 @@ export class UIManager {
             this.game.blockLighting.dirty = true;
           }
           if (this.game.mobs?.clearMobs) this.game.mobs.clearMobs();
-          if (this.game.tournament) {
-            this.game.tournament.isTournamentMap = false;
-            this.game.tournament.cleanup?.();
-          }
-          if (this.game.trainingSites) this.game.trainingSites.cleanup?.();
-          if (this.game.dungeonMode && this.game.dungeonMode.isActive) {
-            this.game.dungeonMode.exitDungeonMode(false);
-          }
+          this.game.modLoader?.closeWorld();
           if (this.game.buildingStudio) {
             this.game.buildingStudio.exitStudio();
           }

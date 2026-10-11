@@ -56,7 +56,13 @@ export const SMELTING_RECIPES = {
   [BLOCKS.ACACIA_LOG]: { id: 'charcoal', isBlock: false, count: 1 },
   [BLOCKS.DARK_OAK_LOG]: { id: 'charcoal', isBlock: false, count: 1 },
   [BLOCKS.MANGROVE_LOG]: { id: 'charcoal', isBlock: false, count: 1 },
-  [BLOCKS.CHERRY_LOG]: { id: 'charcoal', isBlock: false, count: 1 }
+  [BLOCKS.CHERRY_LOG]: { id: 'charcoal', isBlock: false, count: 1 },
+
+  // Resin clump -> resin brick. The wiki's only source for a resin brick, and a resin brick is one of the
+  // eleven armour trim materials, so without this the Resin trim was unobtainable in survival. The clump
+  // is a block in this game rather than an item (it hangs off a creaking heart and drops from one), which
+  // is why the key is a block id like kelp above.
+  [BLOCKS.RESIN_CLUMP]: { id: 'resin_brick', isBlock: false, count: 1 }
 };
 
 // Vanilla smelting and fuel entries this table was missing, plus per-recipe experience.

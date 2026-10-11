@@ -3,6 +3,7 @@ import { setMagmaSize, updateBlaze, updateMagmaCube, updateBlazeFireball } from 
 import { updateHoglin } from './netherMobAI.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { hasGoldTrim } from './smithing.js';
 
 import { startBarter, updatePiglin } from './piglin.js';
 import { applyDolphinsGrace } from './dolphinBehavior.js';
@@ -111,18 +112,29 @@ export class HostileMobBehaviors {
   }
 
   /**
-   * Checks if player is protected from Piglin aggression by wearing gold armor
+   * Checks if player is protected from Piglin aggression by wearing gold armor.
+   *
+   * Vanilla's `#piglin_safe_armor` tag is "golden armour" plus, for each trim material, armour carrying
+   * that material's trim. So a netherite chestplate with a Gold trim pacifies piglins exactly as a
+   * golden chestplate does, and the wiki says so in as many words: "Piglins do not pick up any
+   * gold-trimmed armor pieces and remain hostile toward players wearing gold-trimmed armor, unless the
+   * base armor is also golden."
+   *
+   * The `id.includes('golden')` test is this game's own: every golden piece is named `golden_<slot>`.
+   * A trimmed piece is asked through `hasGoldTrim`, which reads the one trim shape -- the same accessor
+   * the smithing table writes.
    */
   isPlayerWearingGold(player) {
     if (!player || !player.inventory) return false;
     const armor = player.inventory.armor;
     if (!armor) return false;
-    return Boolean(
-      (armor.head?.id && armor.head.id.includes('golden')) ||
-      (armor.chest?.id && armor.chest.id.includes('golden')) ||
-      (armor.legs?.id && armor.legs.id.includes('golden')) ||
-      (armor.feet?.id && armor.feet.id.includes('golden'))
-    );
+    for (const slot of ['head', 'chest', 'legs', 'feet']) {
+      const piece = armor[slot];
+      if (!piece) continue;
+      if (typeof piece.id === 'string' && piece.id.includes('golden')) return true;
+      if (hasGoldTrim(piece)) return true;
+    }
+    return false;
   }
 
   /**
