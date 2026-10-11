@@ -627,7 +627,7 @@ export class UIManager {
     if (this.mapModal) this.mapModal.classList.add('hidden');
     if (this.biomeModal) this.biomeModal.classList.add('hidden');
     if (this.geminiModal) this.geminiModal.classList.add('hidden');
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
       const allModals = document.querySelectorAll('.game-modal');
       allModals.forEach(m => m.classList.add('hidden'));
       if (document.activeElement?.blur) {
@@ -2281,8 +2281,9 @@ export class UIManager {
         if (hintEl) hintEl.textContent = 'Insert item & lapis...';
         if (reqEl) reqEl.textContent = 'Cost: — Lvl + — Lapis';
       } else {
-        const hasLevel = (this.player?.level || 0) >= offer.levelRequirement;
-        const hasLapis = (this.enchantSlottedLapis?.count || 0) >= offer.lapisCost;
+        const isCreative = this.player?.gamemode === 'creative';
+        const hasLevel = isCreative || (this.player?.level || 0) >= offer.levelRequirement;
+        const hasLapis = isCreative || (this.enchantSlottedLapis?.count || 0) >= offer.lapisCost;
         const canAfford = hasLevel && hasLapis;
 
         if (offerEl) {
@@ -2398,13 +2399,16 @@ export class UIManager {
     if (!this.enchantSlottedItem || !this.currentOffers[offerIndex]) return;
     const offer = this.currentOffers[offerIndex];
 
-    if ((this.player?.level || 0) < offer.levelRequirement) return;
-    if (!this.enchantSlottedLapis || this.enchantSlottedLapis.count < offer.lapisCost) return;
+    const isCreative = this.player?.gamemode === 'creative';
+    if (!isCreative) {
+      if ((this.player?.level || 0) < offer.levelRequirement) return;
+      if (!this.enchantSlottedLapis || this.enchantSlottedLapis.count < offer.lapisCost) return;
 
-    // Deduct lapis lazuli
-    this.enchantSlottedLapis.count -= offer.lapisCost;
-    if (this.enchantSlottedLapis.count <= 0) {
-      this.enchantSlottedLapis = null;
+      // Deduct lapis lazuli
+      this.enchantSlottedLapis.count -= offer.lapisCost;
+      if (this.enchantSlottedLapis.count <= 0) {
+        this.enchantSlottedLapis = null;
+      }
     }
 
     // Apply enchantment

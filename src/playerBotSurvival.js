@@ -2,8 +2,13 @@ import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { getSmeltingRecipe, getFuelBurnTime, SMELTING_RECIPES } from './furnace.js';
 import { isHoe, getCropInfo } from './farming.js';
+import { lightPortal } from './netherPortal.js';
+import { insertEye, tryActivateAround } from './endPortal.js';
+import { calculateBookshelfCount, generateEnchantmentOffers, applyEnchantment } from './enchanting.js';
+import { executeTrade } from './villagerEconomy.js';
+import { BrewingManager } from './brewing.js';
 
-export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use'];
+export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use', 'brew', 'enchant', 'trade'];
 export function itemId(name) {
   if (typeof name === 'number' && BLOCK_DEFS[name]) return name;
   if (typeof name !== 'string') throw new Error('Specify an item name or block ID.');
@@ -24,13 +29,15 @@ export function itemId(name) {
 }
 export function validateSurvivalAction(c) {
   if (!SURVIVAL_ACTIONS.includes(c.type)) return c;
-  if (c.type !== 'sleep' && c.type !== 'till') itemId(c.item);
-  if (['place', 'cook', 'sleep', 'till', 'use'].includes(c.type)) {
+  if (c.type !== 'sleep' && c.type !== 'till' && c.type !== 'trade') itemId(c.item);
+  if (['place', 'cook', 'sleep', 'till', 'use', 'brew', 'enchant'].includes(c.type)) {
     if (!Array.isArray(c.position) || c.position.length !== 3 || c.position.some(n => !Number.isInteger(n) || Math.abs(n) > 30000000)) throw new Error('Action needs three integer world coordinates.');
   }
   if (c.type === 'cook') itemId(c.fuel);
-  for (const value of [c.count ?? 1, c.fuelCount ?? 1]) if (!Number.isInteger(value) || value < 1 || value > 64) throw new Error('Use a count from 1 to 64.');
-  if (['place','eat','sleep','till','use'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling and item use act once per command.');
+  if (c.type === 'brew' && c.bottle) itemId(c.bottle);
+  if (c.type === 'trade' && !c.mob) throw new Error('Trade needs a merchant mob name.');
+  for (const value of [c.count ?? 1, c.fuelCount ?? 1, c.bottleCount ?? 1]) if (!Number.isInteger(value) || value < 1 || value > 64) throw new Error('Use a count from 1 to 64.');
+  if (['place','eat','sleep','till','use','enchant'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling, item use and enchanting act once per command.');
   return c;
 }
 
@@ -164,6 +171,14 @@ export class BotSurvival {
     if (c.type === 'place') {
       const [x,y,z]=c.position;
       if (this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR) throw new Error('Placement cell is occupied.');
+      if (!this.bot.equip(s => this.sameItem(s.id, itemId(c.item)))) {
+        if (this.game.player.gamemode === 'creative') {
+          const id = itemId(c.item);
+          const isBlock = typeof id === 'number' || (BLOCKS[String(c.item).toUpperCase()] !== undefined);
+          this.game.inventory.addItem(c.item, isBlock, 64);
+          this.bot.equip(s => this.sameItem(s.id, id));
+        }
+      }
       if (!this.bot.equip(s => this.sameItem(s.id, itemId(c.item)))) throw new Error(`You do not have ${c.item}.`);
       const faces=[[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0]];
       t.faces ??= faces.filter(([a,b,d])=>!this.bot.passable(this.game.world.getVoxel(x+a,y+b,z+d)));
@@ -246,10 +261,172 @@ export class BotSurvival {
       const [x, y, z] = c.position;
       const v = this.game.world.getVoxel(x, y, z);
       this.requireReach(c.position, [v]);
+      if (!this.bot.equip(s => this.sameItem(s?.id, itemId(c.item)))) {
+        if (this.game.player.gamemode === 'creative') {
+          const id = itemId(c.item);
+          const isBlock = typeof id === 'number' || (BLOCKS[String(c.item).toUpperCase()] !== undefined);
+          this.game.inventory.addItem(c.item, isBlock, 64);
+          this.bot.equip(s => this.sameItem(s?.id, id));
+        }
+      }
       if (!this.bot.equip(s => this.sameItem(s?.id, itemId(c.item)))) throw new Error(`You do not have ${c.item}.`);
       t.before ??= this.count(itemId(c.item));
       this.bot.lookAt({ x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       if (t.elapsed > 3) throw new Error(`Using ${c.item} timed out.`);
+    } else if (c.type === 'brew') {
+      this.requireReach(c.position, [BLOCKS.BREWING_STAND]);
+      const bm = this.game.brewingManager || this.game.ui?.brewingManager || (this.game.brewingManager = new BrewingManager());
+      const stand = bm.getOrCreateStand(...c.position);
+      const isCreative = p.gamemode === 'creative';
+      const ingId = itemId(c.item);
+      const bottleId = itemId(c.bottle || 'water_bottle');
+      const count = c.count ?? 1;
+      const bottleCount = Math.min(3, c.bottleCount ?? 3);
+
+      if (!t.loaded) {
+        if (isCreative) {
+          if (stand.fuel <= 0) stand.addFuel({ id: 'blaze_powder' });
+          if (this.count(ingId) < count) {
+            this.inventory.addItem(ingId, false, count);
+          }
+          if (this.count(bottleId) < bottleCount) {
+            this.inventory.addItem(bottleId, false, bottleCount);
+          }
+        } else {
+          if (stand.fuel <= 0) {
+            if (!this.bot.equip(s => s && s.id === 'blaze_powder') || !stand.addFuel({ id: 'blaze_powder' })) {
+              throw new Error('Brewing stand needs blaze powder fuel.');
+            }
+            this.remove('blaze_powder', 1);
+          }
+        }
+
+        if (this.count(ingId) < count) throw new Error(`Not enough ${c.item} to brew.`);
+        if (this.count(bottleId) < bottleCount) throw new Error(`Not enough ${c.bottle || 'water_bottle'} to brew.`);
+
+        stand.ingredient = { id: ingId, count };
+        this.remove(ingId, count);
+
+        stand.bottles = [null, null, null];
+        for (let i = 0; i < bottleCount; i++) {
+          stand.bottles[i] = { id: bottleId, count: 1 };
+          this.remove(bottleId, 1);
+        }
+
+        if (!stand.canBrew()) throw new Error(`Cannot brew ${c.item} into ${c.bottle || 'water_bottle'}.`);
+        t.loaded = true;
+      }
+
+      if (isCreative || t.elapsed >= stand.brewDuration) {
+        stand.completeBrew();
+        let collectedCount = 0;
+        let resultId = null;
+        for (let i = 0; i < 3; i++) {
+          if (stand.bottles[i]) {
+            resultId = stand.bottles[i].id;
+            this.inventory.addItem(stand.bottles[i].id, false, stand.bottles[i].count);
+            collectedCount += stand.bottles[i].count;
+            stand.bottles[i] = null;
+          }
+        }
+        stand.ingredient = null;
+        this.bot.finish(true, `Brewed and collected ${collectedCount} ${resultId || 'potions'}.`);
+        return;
+      } else {
+        stand.update(0.5);
+      }
+    } else if (c.type === 'enchant') {
+      this.requireReach(c.position, [BLOCKS.ENCHANTING_TABLE]);
+      const isCreative = p.gamemode === 'creative';
+      const targetId = itemId(c.item);
+
+      if (!this.bot.equip(s => this.sameItem(s?.id, targetId))) {
+        if (isCreative) {
+          this.inventory.addItem(targetId, typeof targetId === 'number', 1);
+          this.bot.equip(s => this.sameItem(s?.id, targetId));
+        }
+      }
+      if (!this.bot.equip(s => this.sameItem(s?.id, targetId))) {
+        throw new Error(`You do not have ${c.item} to enchant.`);
+      }
+
+      const stack = this.inventory.getActiveItem();
+      if (!stack) throw new Error('No active item selected for enchanting.');
+
+      const shelves = calculateBookshelfCount(this.game.world, c.position[0], c.position[1], c.position[2]);
+      const offers = generateEnchantmentOffers(stack, shelves);
+      if (!offers.length) throw new Error(`Item ${c.item} cannot be enchanted or no offers available.`);
+
+      const slot = Math.max(0, Math.min(offers.length - 1, c.slot ?? 2));
+      const chosenOffer = offers[slot];
+
+      if (!isCreative) {
+        if (this.count('lapis_lazuli') < chosenOffer.lapisCost) {
+          throw new Error(`Enchanting slot requires ${chosenOffer.lapisCost} lapis lazuli.`);
+        }
+        this.remove('lapis_lazuli', chosenOffer.lapisCost);
+      }
+
+      const success = applyEnchantment(stack, chosenOffer, p, this.game.ui, this.game.sounds);
+      if (!success) throw new Error('Enchantment failed: level requirement not met.');
+
+      this.inventory.updateHotbar?.();
+      const enchNames = [chosenOffer.primary, ...(chosenOffer.additional || [])].map(e => `${e.name} ${e.level}`).join(', ');
+      this.bot.finish(true, `Enchanted ${stack.id} with ${enchNames}.`);
+      return;
+    } else if (c.type === 'trade') {
+      const isCreative = p.gamemode === 'creative';
+      const mobsList = this.game.mobs?.mobs || [];
+      const targetMob = mobsList.find(m => {
+        if (c.mob === 'wandering_trader' || c.mob === 'trader') {
+          return m.type === 'wandering_trader';
+        }
+        if (c.mob === 'villager') {
+          return m.type === 'villager';
+        }
+        return m.type === c.mob || m.profession === c.mob;
+      }) || this.game.targetMob;
+
+      if (!targetMob) throw new Error(`Merchant ${c.mob} not found nearby.`);
+
+      const pPos = p.position;
+      const mPos = targetMob.mesh ? targetMob.mesh.position : targetMob.position || pPos;
+      if (Math.hypot(pPos.x - mPos.x, pPos.y - mPos.y, pPos.z - mPos.z) > 4.5) {
+        throw new Error('Walk within reach of the merchant first.');
+      }
+
+      if (!targetMob.trades || !targetMob.trades.length) {
+        throw new Error('Merchant has no trades available.');
+      }
+
+      let trade = null;
+      if (c.item) {
+        const itemTarget = itemId(c.item);
+        trade = targetMob.trades.find(t => this.sameItem(t.reward?.id, itemTarget) || this.sameItem(t.cost?.id, itemTarget));
+      }
+      if (!trade) {
+        trade = targetMob.trades.find(t => !t.disabled && t.uses < t.maxUses) || targetMob.trades[0];
+      }
+
+      const times = c.count ?? 1;
+      let tradesCompleted = 0;
+      for (let i = 0; i < times; i++) {
+        const res = executeTrade(trade, targetMob, this.inventory, this.game.sounds, {
+          player: p,
+          ui: this.game.ui,
+          isCreative,
+          kind: targetMob.type === 'wandering_trader' ? 'wandering_trader' : 'villager'
+        });
+        if (!res.success) {
+          if (tradesCompleted === 0) throw new Error(`Trade failed: ${res.reason}`);
+          break;
+        }
+        tradesCompleted++;
+      }
+
+      this.inventory.updateHotbar?.();
+      this.bot.finish(true, `Completed ${tradesCompleted} trades with ${c.mob}.`);
+      return;
     }
   }
   afterRaycast(t) {
@@ -287,6 +464,17 @@ export class BotSurvival {
             crop = getCropInfo(this.game.world.getVoxel(x, y, z));
           }
         }
+      } else if (c.item === 'flint_and_steel') {
+        if (this.game.portalManager) {
+          this.game.portalManager.ignitePortal(this.game.world, x, y, z);
+        } else {
+          lightPortal(this.game.world, x, y, z);
+        }
+      } else if (c.item === 'ender_eye') {
+        if (insertEye(this.game.world, x, y, z)) {
+          if (p.gamemode !== 'creative') this.remove('ender_eye', 1);
+          tryActivateAround(this.game.world, x, y, z);
+        }
       } else if (this.game.farmingManager && c.item === 'bone_meal') {
         this.game.farmingManager.applyBoneMeal(x, y, z, p);
         let crop = getCropInfo(this.game.world.getVoxel(x, y, z));
@@ -296,46 +484,53 @@ export class BotSurvival {
         }
       }
       const voxAfter = this.game.world.getVoxel(x, y, z);
-      if (this.count(itemId(c.item)) < t.before || voxAfter !== t.beforeVoxel) {
+      if (
+        this.count(itemId(c.item)) < t.before ||
+        voxAfter !== t.beforeVoxel ||
+        this.game.world.getVoxel(x, y + 1, z) === BLOCKS.NETHER_PORTAL ||
+        this.game.world.getVoxel(x, y, z) === BLOCKS.NETHER_PORTAL ||
+        this.game.world.getVoxel(x, y, z) === BLOCKS.END_PORTAL_FRAME_FILLED
+      ) {
         this.bot.finish(true, `Used ${c.item} at ${c.position}.`);
       }
-    } else if(c.type==='place' && target?.normal) {
-      const actual=[target.x+target.normal.x,target.y+target.normal.y,target.z+target.normal.z];
-      if(actual.some((n,i)=>n!==c.position[i])) return;
+    } else if(c.type==='place') {
+      const actual = target?.normal ? [target.x+target.normal.x,target.y+target.normal.y,target.z+target.normal.z] : null;
+      const matched = actual && !actual.some((n,i)=>n!==c.position[i]);
+      if (!matched && p.gamemode !== 'creative' && t.elapsed < 1.0) return;
       const before=this.count(itemId(c.item));
-      if (typeof this.game.handleRightClick === 'function') {
+      if (matched && typeof this.game.handleRightClick === 'function') {
         this.game.handleRightClick();
       } else if (String(c.item).endsWith('_bed') || c.item === 'bed' || c.item === BLOCKS.RED_BED_FOOT) {
         if (this.game.bedManager) {
           const res = this.game.bedManager.placeBed(this.game.world, c.position, 3);
-          if (res.success) this.remove(itemId(c.item), 1);
+          if (res.success && p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
         } else {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], BLOCKS.RED_BED_FOOT);
-          this.remove(itemId(c.item), 1);
+          if (p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
         }
       } else if (String(c.item).endsWith('_door') || c.item === 'door' || c.item === BLOCKS.OAK_DOOR || c.item === BLOCKS.IRON_DOOR) {
         if (this.game.doorManager) {
           const isIron = c.item === 'iron_door' || c.item === BLOCKS.IRON_DOOR;
           const res = this.game.doorManager.placeDoor(this.game.world, c.position, 3, isIron);
-          if (res.success) this.remove(itemId(c.item), 1);
+          if (res.success && p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
         } else {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], BLOCKS.OAK_DOOR);
           this.game.world.setVoxel(c.position[0], c.position[1] + 1, c.position[2], BLOCKS.OAK_DOOR_TOP);
-          this.remove(itemId(c.item), 1);
+          if (p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
         }
       } else if (c.item === 'wheat_seeds' || c.item === 'seeds') {
         this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], BLOCKS.WHEAT_STAGE_0);
-        this.remove(itemId(c.item), 1);
+        if (p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
       } else {
         const id = itemId(c.item);
         const blockId = typeof id === 'number' ? id : (ITEMS[id]?.blockId ?? BLOCKS[String(id).toUpperCase()]);
         if (typeof blockId === 'number') {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], blockId);
-          this.remove(id, 1);
+          if (p.gamemode !== 'creative') this.remove(id, 1);
         }
       }
       const [x,y,z]=c.position;
-      if(this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR && this.count(itemId(c.item))===before-1) this.bot.finish(true,`Placed ${c.item} at ${c.position}.`);
+      if(this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR && (p.gamemode === 'creative' || this.count(itemId(c.item))===before-1)) this.bot.finish(true,`Placed ${c.item} at ${c.position}.`);
     }
   }
 }

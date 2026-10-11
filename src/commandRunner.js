@@ -52,14 +52,21 @@ export function buildCommandContext(game, { commands = COMMANDS, Vector3 = null 
     entities: game?.entities ?? null,
     mobs: game?.mobs ?? null,
     geminiAgent: game?.geminiAgent ?? null,
-    settings: game?.settings ?? null,
+    settings: game?.settings ?? (game?.player?.gamemode ? { gameMode: game.player.gamemode } : null),
     commands,
     Vector3,
     game,
     // `/time` and `/gamemode` are the game's own state, not a manager's, so they arrive as callbacks
     // rather than as `game.x` writes -- which is what lets a test pass a plain object.
     setWorldTime: (ticks) => { if (game) game.worldTime = ticks; },
-    setGameMode: (mode) => game?.setGameMode?.(mode),
+    setGameMode: (mode) => {
+      if (typeof game?.setGameMode === 'function') {
+        game.setGameMode(mode);
+      } else {
+        if (game?.player) game.player.gamemode = mode;
+        if (game?.settings) game.settings = { ...game.settings, gameMode: mode };
+      }
+    },
     say: (text, kind = 'system') => game?.ui?.addChatMessage?.(text, kind),
   };
 }
@@ -81,6 +88,7 @@ function unavailable(name) {
 function allowed(context, command) {
   const settings = context.settings ?? {};
   if (command.level === 0) return true;
+  if (context.player?.gamemode === 'creative') return true;
   return allowsAgentTerminal(settings);
 }
 
@@ -95,14 +103,16 @@ function allowed(context, command) {
  *
  * @param {object} settings  the game's settings
  * @param {string} root      the command with its leading slash, e.g. `/give`
+ * @param {object} [player]  optional player instance to check creative gamemode
  * @returns {string|null}
  */
-export function permissionRefusal(settings, root) {
+export function permissionRefusal(settings, root, player = null) {
   const command = findCommand(String(root ?? '').replace(/^\//, ''));
   if (!command) return null;
   if (command.gate !== true) return null;
   if (command.level === 0) return null;
-  if (allowsAgentTerminal(settings)) return null;
+  if (player?.gamemode === 'creative') return null;
+  if (settings && allowsAgentTerminal(settings)) return null;
   return `You do not have permission to use ${root}. It needs Creative mode or cheats.`;
 }
 
@@ -217,7 +227,18 @@ function cmdGamemode(context, parts) {
 }
 
 function cmdSetblock(context, parts) {
-  const [sx, sy, sz] = [parts[1], parts[2], parts[3]].map((v) => parseInt(v, 10));
+  const parseCoord = (str, origin = 0) => {
+    if (typeof str !== 'string') return NaN;
+    if (str.startsWith('~')) {
+      const offset = str.length > 1 ? parseFloat(str.slice(1)) : 0;
+      return Number.isFinite(offset) ? Math.floor(origin + offset) : NaN;
+    }
+    return parseInt(str, 10);
+  };
+  const p = context.player?.position ?? { x: 0, y: 0, z: 0 };
+  const sx = parseCoord(parts[1], p.x);
+  const sy = parseCoord(parts[2], p.y);
+  const sz = parseCoord(parts[3], p.z);
   if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(sz) || !parts[4]) {
     context.say('Usage: /setblock <x> <y> <z> <block>', 'error');
     return true;
@@ -236,7 +257,7 @@ function cmdSetblock(context, parts) {
   }
   world.setVoxel(sx, sy, sz, resolved.id);
   const chunk = world.getOrCreateChunk?.(Math.floor(sx / 16), Math.floor(sz / 16));
-  if (chunk) context.game.rebuildChunkMesh?.(chunk);
+  if (chunk) context.game?.rebuildChunkMesh?.(chunk);
   world.invalidateChunkCache?.();
   context.say(`Changed the block at ${sx}, ${sy}, ${sz} to ${resolved.key.toLowerCase().replace(/_/g, '')}`);
   return true;

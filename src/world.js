@@ -1037,6 +1037,9 @@ export class World {
               chunk.setVoxel(lx, y, lz, fluid);
             }
           }
+
+          // Underwater flora (seagrass, kelp, sea pickles) on ocean/river floor
+          this.decorateOceanFloorColumn(chunk, lx, height, lz, wx, wz, bId, def);
         }
 
         // Surface flora and decorations
@@ -1064,6 +1067,9 @@ export class World {
 
     // --- 5. BIOME TREES & GIANT VEGETATION ---
     this.plantTreesForChunk(chunk, cx, cz);
+
+    // --- 5.5 CORAL REEFS IN WARM OCEANS ---
+    this.generateCoralReefsForChunk(chunk, cx, cz);
 
     // --- 6. VILLAGE GENERATION IN CHUNK (0, 0) ---
     // Civilised Overworld biomes get a starting village
@@ -1632,7 +1638,11 @@ export class World {
   }
 
   getWaterLevel(wx, wy, wz) {
-    if (this.getVoxel(wx, wy, wz) !== BLOCKS.WATER) return -1;
+    const blockId = this.getVoxel(wx, wy, wz);
+    // Sea plants contain source water; they support adjacent water without
+    // being replaced by it. Ordinary dry plants still return -1.
+    if (BLOCK_DEFS[blockId]?.waterPlant) return 0;
+    if (blockId !== BLOCKS.WATER) return -1;
     const chunk = this.getChunk(Math.floor(wx / CHUNK_SIZE_X), Math.floor(wz / CHUNK_SIZE_Z));
     if (!chunk) return -1;
     return chunk.waterLevels[chunk.getIndex(wx & (CHUNK_SIZE_X - 1), wy, wz & (CHUNK_SIZE_Z - 1))];
@@ -1682,4 +1692,212 @@ export class World {
     // it would make one edit cost a chunk relight. LightEngine.update() does the work on a budget.
     this.light.markBlockChanged(wx, wy, wz);
   }
+
+  decorateOceanFloorColumn(chunk, lx, height, lz, wx, wz, bId, def) {
+    const depth = this.seaLevel - height;
+    if (depth < 2) return;
+
+    const floorBlock = chunk.getVoxel(lx, height, lz);
+    const isEligible = floorBlock === BLOCKS.SAND || floorBlock === BLOCKS.GRAVEL ||
+                       floorBlock === BLOCKS.DIRT || floorBlock === BLOCKS.STONE ||
+                       floorBlock === BLOCKS.CLAY;
+    if (!isEligible) return;
+
+    const plantHash = Math.abs(Math.sin(wx * 37.719 + wz * 73.193));
+
+    // 1. Warm Ocean (sea pickles and seagrass)
+    if (bId === 'warm_ocean' || def.floraType === 'sea_pickle') {
+      const pickleDensity = def.floraDensity || 0.08;
+      if (plantHash < pickleDensity) {
+        chunk.setVoxel(lx, height + 1, lz, BLOCKS.SEA_PICKLE);
+      } else {
+        const grassHash = Math.abs(Math.sin(wx * 83.17 + wz * 49.31));
+        if (grassHash < 0.38) {
+          if (grassHash < 0.12 && depth >= 3) {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.TALL_SEAGRASS);
+            chunk.setVoxel(lx, height + 2, lz, BLOCKS.TALL_SEAGRASS);
+          } else {
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.SEAGRASS);
+          }
+        }
+      }
+      return;
+    }
+
+    // 2. Kelp-bearing oceans (ocean, lukewarm_ocean, cold_ocean, deep_ocean, etc.)
+    if (def.floraType === 'kelp') {
+      const patchNoise = this.noise.noise2D(wx * 0.06, wz * 0.06);
+      const kelpHash = Math.abs(Math.sin(wx * 61.47 + wz * 29.83));
+      if (patchNoise > 0.05 && depth >= 4 && kelpHash < 0.70) {
+        const maxKelpHeight = Math.min(18, depth - 2);
+        const kelpH = 2 + Math.floor(kelpHash * (maxKelpHeight - 1));
+        for (let ky = 1; ky < kelpH; ky++) {
+          chunk.setVoxel(lx, height + ky, lz, BLOCKS.KELP_PLANT);
+        }
+        chunk.setVoxel(lx, height + kelpH, lz, BLOCKS.KELP);
+        return;
+      }
+
+      const grassHash = Math.abs(Math.sin(wx * 83.17 + wz * 49.31));
+      if (grassHash < 0.35) {
+        if (grassHash < 0.10 && depth >= 3) {
+          chunk.setVoxel(lx, height + 1, lz, BLOCKS.TALL_SEAGRASS);
+          chunk.setVoxel(lx, height + 2, lz, BLOCKS.TALL_SEAGRASS);
+        } else {
+          chunk.setVoxel(lx, height + 1, lz, BLOCKS.SEAGRASS);
+        }
+      }
+      return;
+    }
+
+    // 3. Rivers & other wetland waters (seagrass)
+    if (def.floraType === 'seagrass' || bId === 'river') {
+      const grassHash = Math.abs(Math.sin(wx * 83.17 + wz * 49.31));
+      if (grassHash < 0.30) {
+        if (grassHash < 0.08 && depth >= 3) {
+          chunk.setVoxel(lx, height + 1, lz, BLOCKS.TALL_SEAGRASS);
+          chunk.setVoxel(lx, height + 2, lz, BLOCKS.TALL_SEAGRASS);
+        } else {
+          chunk.setVoxel(lx, height + 1, lz, BLOCKS.SEAGRASS);
+        }
+      }
+    }
+  }
+
+  generateCoralReefsForChunk(chunk, cx, cz) {
+    const SPACING = 5;
+    const REEF_REACH = 3;
+    const baseX = cx * CHUNK_SIZE_X;
+    const baseZ = cz * CHUNK_SIZE_Z;
+
+    const firstGX = Math.floor((baseX - REEF_REACH) / SPACING);
+    const lastGX = Math.floor((baseX + CHUNK_SIZE_X - 1 + REEF_REACH) / SPACING);
+    const firstGZ = Math.floor((baseZ - REEF_REACH) / SPACING);
+    const lastGZ = Math.floor((baseZ + CHUNK_SIZE_Z - 1 + REEF_REACH) / SPACING);
+
+    for (let gx = firstGX; gx <= lastGX; gx++) {
+      for (let gz = firstGZ; gz <= lastGZ; gz++) {
+        const wx = gx * SPACING + Math.floor(jitterOf(gx, gz, this.seed) * SPACING);
+        const wz = gz * SPACING + Math.floor(jitterOf(gx + 8171, gz + 3313, this.seed) * SPACING);
+        const bId = this.getBiome(wx, wz);
+        const def = getBiomeDef(bId);
+
+        if (def.treeType !== 'coral' || def.treeDensity <= 0) continue;
+        if (candidateAt(gx, gz, this.seed) >= def.treeDensity) continue;
+
+        const floorY = this.surfaceHeightAt(wx, wz, bId);
+        if (floorY >= this.seaLevel - 3 || floorY < 4) continue;
+
+        const rng = mulberry32(treeSeed(gx, gz, this.seed));
+        this.generateCoralReef(chunk, wx - baseX, floorY, wz - baseZ, rng);
+      }
+    }
+  }
+
+  generateCoralReef(chunk, rx, floorY, rz, rng) {
+    const CORAL_PALETTES = [
+      { block: BLOCKS.TUBE_CORAL_BLOCK, plant: BLOCKS.TUBE_CORAL, fan: BLOCKS.TUBE_CORAL_FAN, wallFan: BLOCKS.TUBE_CORAL_WALL_FAN },
+      { block: BLOCKS.BRAIN_CORAL_BLOCK, plant: BLOCKS.BRAIN_CORAL, fan: BLOCKS.BRAIN_CORAL_FAN, wallFan: BLOCKS.BRAIN_CORAL_WALL_FAN },
+      { block: BLOCKS.BUBBLE_CORAL_BLOCK, plant: BLOCKS.BUBBLE_CORAL, fan: BLOCKS.BUBBLE_CORAL_FAN, wallFan: BLOCKS.BUBBLE_CORAL_WALL_FAN },
+      { block: BLOCKS.FIRE_CORAL_BLOCK, plant: BLOCKS.FIRE_CORAL, fan: BLOCKS.FIRE_CORAL_FAN, wallFan: BLOCKS.FIRE_CORAL_WALL_FAN },
+      { block: BLOCKS.HORN_CORAL_BLOCK, plant: BLOCKS.HORN_CORAL, fan: BLOCKS.HORN_CORAL_FAN, wallFan: BLOCKS.HORN_CORAL_WALL_FAN }
+    ];
+
+    const primary = CORAL_PALETTES[Math.floor(rng() * CORAL_PALETTES.length)];
+    const secondary = CORAL_PALETTES[Math.floor(rng() * CORAL_PALETTES.length)];
+
+    const setVoxelWaterOnly = (x, y, z, blockId) => {
+      if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y > 0 && y < this.seaLevel) {
+        const cur = chunk.getVoxel(x, y, z);
+        if (cur === BLOCKS.WATER || BLOCK_DEFS[cur]?.waterPlant) {
+          chunk.setVoxel(x, y, z, blockId);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const maxReefY = Math.min(this.seaLevel - 2, floorY + 6);
+    const height = Math.max(2, Math.min(maxReefY - floorY, 2 + Math.floor(rng() * 4)));
+    const reefType = Math.floor(rng() * 3);
+
+    const coralBlockList = [];
+
+    if (reefType === 0) {
+      for (let y = 1; y <= height; y++) {
+        if (setVoxelWaterOnly(rx, floorY + y, rz, primary.block)) {
+          coralBlockList.push({ x: rx, y: floorY + y, z: rz });
+        }
+      }
+      const branches = [
+        [1, 0], [-1, 0], [0, 1], [0, -1],
+        [1, 1], [-1, 1], [1, -1], [-1, -1]
+      ];
+      const branchCount = 2 + Math.floor(rng() * 3);
+      for (let b = 0; b < branchCount; b++) {
+        const [dx, dz] = branches[Math.floor(rng() * branches.length)];
+        const branchY = floorY + Math.max(1, height - Math.floor(rng() * 2));
+        const pal = rng() < 0.7 ? primary : secondary;
+        if (setVoxelWaterOnly(rx + dx, branchY, rz + dz, pal.block)) {
+          coralBlockList.push({ x: rx + dx, y: branchY, z: rz + dz });
+        }
+        if (rng() < 0.5 && branchY + 1 < this.seaLevel - 1) {
+          if (setVoxelWaterOnly(rx + dx, branchY + 1, rz + dz, pal.block)) {
+            coralBlockList.push({ x: rx + dx, y: branchY + 1, z: rz + dz });
+          }
+        }
+      }
+    } else if (reefType === 1) {
+      const radius = 1 + Math.floor(rng() * 2);
+      for (let dy = 1; dy <= height; dy++) {
+        const r = dy === height ? Math.max(0, radius - 1) : radius;
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dz = -r; dz <= r; dz++) {
+            if (dx * dx + dz * dz <= r * r + 0.5) {
+              const pal = rng() < 0.8 ? primary : secondary;
+              if (setVoxelWaterOnly(rx + dx, floorY + dy, rz + dz, pal.block)) {
+                coralBlockList.push({ x: rx + dx, y: floorY + dy, z: rz + dz });
+              }
+            }
+          }
+        }
+      }
+    } else {
+      let curX = rx, curZ = rz;
+      const dirX = rng() > 0.5 ? 1 : -1;
+      const dirZ = rng() > 0.5 ? 1 : -1;
+      for (let y = 1; y <= height; y++) {
+        if (y > 2 && rng() < 0.6) {
+          if (rng() < 0.5) curX += dirX;
+          else curZ += dirZ;
+        }
+        const pal = rng() < 0.75 ? primary : secondary;
+        if (setVoxelWaterOnly(curX, floorY + y, curZ, pal.block)) {
+          coralBlockList.push({ x: curX, y: floorY + y, z: curZ });
+        }
+        if (rng() < 0.4) {
+          setVoxelWaterOnly(curX + (rng() < 0.5 ? 1 : -1), floorY + y, curZ, pal.block);
+        }
+      }
+    }
+
+    for (const cb of coralBlockList) {
+      const topDecorRoll = rng();
+      if (topDecorRoll < 0.35) {
+        setVoxelWaterOnly(cb.x, cb.y + 1, cb.z, primary.plant);
+      } else if (topDecorRoll < 0.65) {
+        setVoxelWaterOnly(cb.x, cb.y + 1, cb.z, primary.fan);
+      } else if (topDecorRoll < 0.82) {
+        setVoxelWaterOnly(cb.x, cb.y + 1, cb.z, BLOCKS.SEA_PICKLE);
+      }
+
+      const sideDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (const [sdx, sdz] of sideDirs) {
+        if (rng() < 0.20) {
+          setVoxelWaterOnly(cb.x + sdx, cb.y, cb.z + sdz, primary.wallFan);
+        }
+      }
+    }
+  }
 }
+

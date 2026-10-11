@@ -4,6 +4,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { harvestsNothing, breakTimeSeconds } from './miningRules.js';
 import { baseBlockDrop } from './blockDrops.js';
 import { BotSurvival, SURVIVAL_ACTIONS, validateSurvivalAction, itemId } from './playerBotSurvival.js';
+import { buildCommandContext, runCommand, permissionRefusal } from './commandRunner.js';
 
 const key = p => `${p.x},${p.y},${p.z}`;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -14,14 +15,31 @@ const cell = (x, y, z, cost = 1, dig = []) => ({ x, y, z, cost, dig, hash: `${x}
 // remain the game's responsibility, including collision, effects and durability.
 export function parsePlayerCommand(prompt) {
   const text = String(prompt).trim().toLowerCase().replace(/^\/(?:bot|player)\s+/, '').replace(/^(?:please\s+|can you\s+|could you\s+)/, '').replace(/[.!]$/, '');
-  if (/^(?:stop|cancel)(?:\s+(?:bot|player|mining|moving|following|attacking))?$/.test(text)) return { type: 'stop' };
-  if (/^(?:bot status|player bot status)$/.test(text)) return { type: 'status' };
+  if (/^\/?(?:stop|cancel)(?:\s+(?:bot|player|mining|moving|following|attacking))?$/.test(text)) return { type: 'stop' };
+  if (/^\/?(?:bot status|player bot status)$/.test(text)) return { type: 'status' };
   if (/^(?:test|check)\s+(?:bot\s+)?movement$/.test(text)) return { type: 'test', test: 'movement' };
   if (/^(?:jump|make (?:the )?player jump)$/.test(text)) return { type: 'jump' };
+
+  // Explicit or prefixed game command (e.g. /give, /setblock, /time, /weather, /gamemode, /summon, /help, /clear, etc.)
+  const cmdMatch = text.match(/^(?:run\s+|execute\s+)?(?:command\s+)?(\/[a-z_]+(?:\s+.*)?)$/i) ||
+                   text.match(/^(?:run\s+|execute\s+)?command\s+([a-z_]+(?:\s+.*)?)$/i) ||
+                   text.match(/^(give\s+[@\w]+(?!\s+to\b).*|setblock\s+.*|time\s+set.*|weather\s+.*|gamemode\s+.*|summon\s+.*|locate\s+.*|show_mobs(?:\s+.*)?|help(?:\s+.*)?|clear(?:\s+.*)?)$/i);
+  if (cmdMatch) {
+    let cmdStr = cmdMatch[1].trim();
+    if (!cmdStr.startsWith('/')) cmdStr = '/' + cmdStr;
+    return { type: 'command', command: cmdStr };
+  }
+
   let action = text.match(/^(craft|eat)\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+)$/);
   if (action) return {type:action[1],item:action[3].trim().replace(/\s+/g, '_'),count:Number(action[2] || 1)};
   let tillMatch = text.match(/^till(?:\s+(?:dirt|grass|soil))?(?:\s+at)?\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (tillMatch) return { type: 'till', position: [Number(tillMatch[1]), Number(tillMatch[2]), Number(tillMatch[3])] };
+  let brewMatch = text.match(/^brew\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+into\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?))?\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
+  if (brewMatch) return { type: 'brew', count: Number(brewMatch[1] || 1), item: brewMatch[2].trim().replace(/\s+/g, '_'), bottleCount: Number(brewMatch[3] || 3), bottle: (brewMatch[4] || 'water_bottle').trim().replace(/\s+/g, '_'), position: [Number(brewMatch[5]), Number(brewMatch[6]), Number(brewMatch[7])] };
+  let enchantMatch = text.match(/^enchant\s+(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+(?:slot\s+)?([012]))?\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
+  if (enchantMatch) return { type: 'enchant', item: enchantMatch[1].trim().replace(/\s+/g, '_'), slot: enchantMatch[2] !== undefined ? Number(enchantMatch[2]) : 2, position: [Number(enchantMatch[3]), Number(enchantMatch[4]), Number(enchantMatch[5])] };
+  let tradeMatch = text.match(/^trade\s+(?:(\d+)\s+)?(?:(?:a\s+|an\s+|the\s+)?(.+?)\s+)?with\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
+  if (tradeMatch) return { type: 'trade', count: Number(tradeMatch[1] || 1), item: tradeMatch[2] ? tradeMatch[2].trim().replace(/\s+/g, '_') : null, mob: tradeMatch[3].trim().replace(/\s+/g, '_') };
   let useMatch = text.match(/^use\s+(?:a\s+|an\s+|the\s+)?(.+?)\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (useMatch) return { type: 'use', item: useMatch[1].trim().replace(/\s+/g, '_'), position: [Number(useMatch[2]), Number(useMatch[3]), Number(useMatch[4])] };
   let feedMatch = text.match(/^(?:feed|give)\s+(?:a\s+|an\s+|the\s+)?(.+?)\s+to\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
@@ -45,7 +63,12 @@ export function parsePlayerCommand(prompt) {
 
 export function validatePlayerCommand(command) {
   if (typeof command === 'string') command = parsePlayerCommand(command);
-  if (!command || !['mine','goto','jump','equip','follow','attack','look','feed','test','stop','status',...SURVIVAL_ACTIONS].includes(command.type)) throw new Error('Unknown player command. Try "mine some iron ore", "go to 10 64 10", or "test movement".');
+  if (!command || !['mine','goto','jump','equip','follow','attack','look','feed','test','stop','status','command',...SURVIVAL_ACTIONS].includes(command.type)) throw new Error('Unknown player command. Try "mine some iron ore", "go to 10 64 10", or "test movement".');
+  if (command.type === 'command') {
+    if (typeof command.command !== 'string' || !command.command.trim()) throw new Error('Command action needs a command string.');
+    const cmdStr = command.command.trim();
+    return { ...command, command: cmdStr.startsWith('/') ? cmdStr : '/' + cmdStr };
+  }
   validateSurvivalAction(command);
   if (command.type === 'goto' && (!Array.isArray(command.position) || command.position.length !== 3 || command.position.some(v => !Number.isFinite(v) || Math.abs(v) > 30000000))) throw new Error('Go to needs three finite world coordinates.');
   if (command.type === 'test' && !['movement','mining'].includes(command.test)) throw new Error('Supported live tests: movement and mining <block>.');
@@ -93,7 +116,13 @@ export class PlayerBot {
     }
     if (!['mine', 'goto', 'jump', 'equip', 'follow', 'attack', 'look', 'feed', ...SURVIVAL_ACTIONS].includes(command.type)) return Promise.reject(new Error('Unsupported player command.'));
     if (command.type === 'equip') {
-      const found = this.equip(item => this.survival.sameItem(item.id, itemId(command.item)));
+      let found = this.equip(item => this.survival.sameItem(item.id, itemId(command.item)));
+      if (!found && this.game.player.gamemode === 'creative') {
+        const id = itemId(command.item);
+        const isBlock = typeof id === 'number' || (BLOCKS[String(command.item).toUpperCase()] !== undefined);
+        this.game.inventory.addItem(command.item, isBlock, 64);
+        found = this.equip(item => this.survival.sameItem(item.id, id));
+      }
       if (!found) return Promise.reject(new Error(`You do not have ${command.item} in your inventory.`));
       const active = this.game.inventory.getActiveItem();
       if (active && ITEMS[active.id]?.armorSlot && this.game.inventory.equipArmorItem) {

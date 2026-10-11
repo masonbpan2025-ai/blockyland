@@ -188,15 +188,17 @@ export function pufferfishReactsTo(entity) {
  */
 export function findPufferfishThreat(manager, mob, player = null) {
   if (!isPufferfish(mob) || !mob.mesh) return null;
-  const candidates = [];
-  if (player?.position) candidates.push(player);
-  for (const other of manager?.mobs ?? []) {
-    if (other === mob || other.health <= 0) continue;
-    candidates.push(other);
-  }
   let best = null;
   let bestDistance = PUFFERFISH_TRIGGER.semiRange;
-  for (const candidate of candidates) {
+  // Visit the player first, then mobs in array order; strict '<' preserves equal-distance ties.
+  if (player?.position && pufferfishReactsTo(player)) {
+    const distance = mob.mesh.position.distanceTo(player.position);
+    if (distance < bestDistance) { bestDistance = distance; best = player; }
+  }
+  const mobs = manager?.mobs;
+  for (let i = 0; i < (mobs?.length ?? 0); i++) {
+    const candidate = mobs[i];
+    if (candidate === mob || candidate.health <= 0) continue;
     if (!pufferfishReactsTo(candidate)) continue;
     const position = candidate.position ?? candidate.mesh?.position;
     if (!position) continue;
@@ -232,7 +234,7 @@ export function updatePufferfishPuff(manager, mob, player = null) {
   mob.puffStage = target;
   mob.threat = threat;
 
-  const dims = pufferfishDimensions(target);
+  const dims = PUFFERFISH_DIMENSIONS[target] ?? PUFFERFISH_DIMENSIONS.unpuffed;
   mob.width = dims.width;
   mob.height = dims.height;
   mob.puffed = target !== 'unpuffed';

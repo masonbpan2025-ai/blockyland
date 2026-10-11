@@ -28,7 +28,9 @@ let borderBlocks = null;
 
 function ensureBorderBuffers() {
   if (borderBlocks) return;
-  borderBlocks = new Uint8Array(PAD_STRIDE_Y * CHUNK_HEIGHT);
+  // Match Chunk.voxels: coral and newer blocks have IDs above 255. Truncating
+  // them here breaks occlusion and emits thousands of hidden reef/water faces.
+  borderBlocks = new Uint16Array(PAD_STRIDE_Y * CHUNK_HEIGHT);
 }
 
 /**
@@ -249,6 +251,8 @@ export class ChunkMesher {
     const neighbors = new Int32Array(6);
     const depthCache = new Map();
     const tintCache = new Map();
+    const cornerCache = new Map();
+    const flowCache = new Map();
 
     // Copy the chunk and its border once. Everything the inner loop needs is then a flat array
     // read rather than a world lookup.
@@ -266,6 +270,8 @@ export class ChunkMesher {
     };
     // Shared world-coordinate corners produce matching depth/tint on both sides of a chunk seam.
     const waterCorner = (x, y, z) => {
+      const cornerKey = `${x},${y},${z}`;
+      if (cornerCache.has(cornerKey)) return cornerCache.get(cornerKey);
       let depth = 0;
       const tint = new THREE.Color(0, 0, 0);
       for (let dx = -1; dx <= 0; dx++) for (let dz = -1; dz <= 0; dz++) {
@@ -276,7 +282,14 @@ export class ChunkMesher {
         }
         tint.add(tintCache.get(key));
       }
-      return { depth: Math.max(0.25, depth / 4), tint: tint.multiplyScalar(0.25) };
+      const result = { depth: Math.max(0.25, depth / 4), tint: tint.multiplyScalar(0.25), height: null };
+      cornerCache.set(cornerKey, result);
+      return result;
+    };
+    const cachedCurrent = (x, y, z) => {
+      const key = `${x},${y},${z}`;
+      if (!flowCache.has(key)) flowCache.set(key, waterCurrent(world, x, y, z));
+      return flowCache.get(key);
     };
 
     for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
@@ -453,7 +466,7 @@ export class ChunkMesher {
 
             // Culling condition
             if (isWater) {
-              if (neighborId === BLOCKS.WATER) continue; // cull water adjacent to water
+              if (neighborId === BLOCKS.WATER || nDef?.waterPlant) continue; // cull water adjacent to water or water plants
               if (nDef && !nDef.transparent) continue; // cull water against solid blocks
             } else if (isTransparent) {
               if (neighborId === blockId) continue;
@@ -541,21 +554,22 @@ export class ChunkMesher {
               if (face === 0) py = topY;
               else if (face === 1) py = botY;
               else py = (corners[co + 1] === 1 ? topY : wy);
+              const corner = isWater ? waterCorner(Math.round(px), wy, Math.round(pz)) : null;
               // Water lowers only the corners sitting on the block's top plane.
               if (isWater && face !== 1 && py > wy) {
-                py = wy + waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
+                if (corner.height === null) corner.height = waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
+                py = wy + corner.height;
               }
               tPos.push(px, py, pz);
               tNorm.push(normal[0], normal[1], normal[2]);
               if (isWater) {
-                const corner = waterCorner(Math.round(px), wy, Math.round(pz));
                 wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
                 wtDepth.push(corner.depth);
                 // Inline rather than indexing per-face arrays of corner coordinates: those were
                 // two four-element arrays allocated for every visible face.
                 const vx = face === 2 || face === 3 || face === 4 ? faceX[face] + (v === 1 || v === 2 ? 1 : 0) : wx;
                 const vz = face === 0 || face === 1 ? wz : faceZ[face] + (v >= 2 ? 1 : 0);
-                const flow = waterCurrent(world, vx, wy, vz);
+                const flow = cachedCurrent(vx, wy, vz);
                 wtFlow.push(flow.x, flow.z);
               }
             }

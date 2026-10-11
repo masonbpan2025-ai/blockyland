@@ -543,11 +543,15 @@ export function generateEnchantmentOffers(item, bookshelfCount, random = Math.ra
 export function applyEnchantment(item, offer, player, ui = null, sounds = null) {
   if (!item || !offer || !player) return false;
 
+  const isCreative = player.gamemode === 'creative';
+
   // Validate player level
-  if ((player.level || 0) < offer.levelRequirement) return false;
+  if (!isCreative && (player.level || 0) < offer.levelRequirement) return false;
 
   // Consume levels
-  consumePlayerLevels(player, offer.levelCost, ui);
+  if (!isCreative) {
+    consumePlayerLevels(player, offer.levelCost, ui);
+  }
 
   // Attach enchantments. An offer is an offer for a *bare* item, but a caller can hand one an item that
   // already carries something -- an anvil path, or a test -- and overwriting the array there silently

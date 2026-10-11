@@ -4,10 +4,16 @@ export const WATER_TICK = 0.25; // Five 20 Hz game ticks.
 export const FALLING_WATER = 8;
 const SIDES = [[1,0],[-1,0],[0,1],[0,-1]];
 const NEIGHBORS = [[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+// Water cannot propagate upwards. An ocean's air surface is not an exposed
+// outlet, and an adjoining source-filled chunk does not need a fluid tick.
+const OUTLETS = [[1,0,0],[-1,0,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const key = (x,y,z) => `${x},${y},${z}`;
 
 export function waterReplaceable(id) {
   const def = BLOCK_DEFS[id];
+  // Aquatic plants occupy waterlogged cells, not air that flowing water can
+  // wash away. Replacing them dirtied every reef chunk and spawned item drops.
+  if (def?.waterPlant) return false;
   return id === BLOCKS.AIR || id === BLOCKS.FIRE || id === BLOCKS.WATER || !!def?.plant || def?.shape === 'torch';
 }
 
@@ -26,6 +32,11 @@ export class WaterSimulation {
   passable(x,y,z) { return this.loaded(x,y,z) && waterReplaceable(this.world.getVoxel(x,y,z)); }
   canFall(x,y,z) { return this.passable(x,y - 1,z) && this.level(x,y - 1,z) !== 0; }
   enqueue(x,y,z) { if (this.loaded(x,y,z)) this.pending.add(key(x,y,z)); }
+
+  needsTick(x,y,z,level = this.level(x,y,z)) {
+    return level > 0 || (level === 0 && OUTLETS.some(([dx,dy,dz]) =>
+      this.passable(x+dx,y+dy,z+dz) && this.level(x+dx,y+dy,z+dz)<0));
+  }
 
   notify(x,y,z, topology = false) {
     for (const [dx,dy,dz] of NEIGHBORS) this.enqueue(x+dx,y+dy,z+dz);
@@ -46,12 +57,12 @@ export class WaterSimulation {
     for (let y=0;y<64;y++) for(let z=0;z<16;z++) for(let x=0;x<16;x++) {
       if (chunk.getVoxel(x,y,z)!==BLOCKS.WATER) continue;
       const wx=chunk.cx*16+x, wz=chunk.cz*16+z;
-      if (chunk.waterLevels[chunk.getIndex(x,y,z)] || NEIGHBORS.slice(1).some(([dx,dy,dz]) => this.passable(wx+dx,y+dy,wz+dz) && this.level(wx+dx,y+dy,wz+dz)<0)) this.notify(wx,y,wz);
+      if (this.needsTick(wx,y,wz,chunk.waterLevels[chunk.getIndex(x,y,z)])) this.notify(wx,y,wz);
     }
     // Resume streams waiting on an unloaded chunk boundary, including negative coordinates.
     for(let y=0;y<64;y++) for(let i=0;i<16;i++) {
       for(const [x,z] of [[chunk.cx*16-1,chunk.cz*16+i],[chunk.cx*16+16,chunk.cz*16+i],[chunk.cx*16+i,chunk.cz*16-1],[chunk.cx*16+i,chunk.cz*16+16]]) {
-        if(this.level(x,y,z)>=0) this.notify(x,y,z);
+        if(this.needsTick(x,y,z)) this.notify(x,y,z);
       }
     }
   }

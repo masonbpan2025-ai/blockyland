@@ -277,6 +277,7 @@ export const GENERATION_PRESETS = Object.freeze([
     property: 'Warm seas with fish schools, squid and dolphins',
     blurb: 'Warm and lukewarm oceans keep their sea floor and coastline, while frequent tropical fish and pufferfish schools share the water with squid and dolphins. Maritime structures are enabled.',
     biomes: ['warm_ocean', 'lukewarm_ocean', 'deep_lukewarm_ocean'],
+    terrain: { tree_density: 0.22, flora_density: 0.15 },
     habitatWildlife: true, spawners: ['creatureAbundant'], structures: STRUCTURE_SETS.maritime,
   },
   {

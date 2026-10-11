@@ -3521,8 +3521,7 @@ export class MobManager {
     }
   }
 
-  checkMobCollision(mob, pos) {
-    const dims = this.getMobDimensions(mob.type);
+  checkMobCollision(mob, pos, dims = this.getMobDimensions(mob.type)) {
     const scale = mob.isBaby ? (isSquid(mob) ? .625 : mob.type==='horse' ? 0.7 : 0.5) : 1;
     const hw = (mob.width || dims.width) * scale / 2;
     const h = (mob.height || dims.height) * scale;
@@ -3552,16 +3551,31 @@ export class MobManager {
     const len = this.mobs.length;
     const checkCol = (m, p) => (typeof this.checkMobCollision === 'function' ? this.checkMobCollision(m, p) : false);
 
+    // Sizes cannot change during separation. Refresh once per call (including puff/baby changes),
+    // while reading positions live below: earlier pairs can push a mob into a later pair.
+    if (!this._collisionRadii || this._collisionRadii.length < len) {
+      const capacity = Math.max(len, (this._collisionRadii?.length || 0) * 2);
+      this._collisionRadii = new Float64Array(capacity);
+      this._collisionHeights = new Float64Array(capacity);
+    }
+    const radii = this._collisionRadii;
+    const heights = this._collisionHeights;
+    for (let i = 0; i < len; i++) {
+      const mob = this.mobs[i];
+      if (!mob || mob.health <= 0 || mob.dying || !mob.mesh?.position) continue;
+      const dims = this.getMobDimensions ? this.getMobDimensions(mob.type) : { width: 0.6, height: 1.0 };
+      const scale = mob.isBaby ? (isSquid(mob) ? .625 : mob.type === 'horse' ? .7 : .5) : 1.0;
+      heights[i] = (mob.height || dims?.height || 1.0) * scale;
+      radii[i] = Math.max(0.24, (mob.width || dims?.width || 0.6) * scale * 0.5);
+    }
+
     for (let iter = 0; iter < 2; iter++) {
       for (let i = 0; i < len; i++) {
         const mobA = this.mobs[i];
         if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
 
-        const dimsA = this.getMobDimensions ? this.getMobDimensions(mobA.type) : { width: 0.6, height: 1.0 };
-        const scaleA = mobA.isBaby ? (isSquid(mobA) ? .625 : mobA.type==='horse' ? .7 : .5) : 1.0;
-        const hA = (mobA.height || dimsA?.height || 1.0) * scaleA;
-        const wA = (mobA.width || dimsA?.width || 0.6) * scaleA;
-        const rA = Math.max(0.24, wA * 0.5);
+        const hA = heights[i];
+        const rA = radii[i];
         const yA = mobA.mesh.position.y;
 
         for (let j = i + 1; j < len; j++) {
@@ -3569,21 +3583,15 @@ export class MobManager {
           if (!mobB || mobB.health <= 0 || mobB.dying || !mobB.mesh?.position) continue;
           if (mobA.rider === mobB || mobB.rider === mobA) continue;
 
-          const dimsB = this.getMobDimensions ? this.getMobDimensions(mobB.type) : { width: 0.6, height: 1.0 };
-          const scaleB = mobB.isBaby ? (isSquid(mobB) ? .625 : mobB.type==='horse' ? .7 : .5) : 1.0;
-          const hB = (mobB.height || dimsB?.height || 1.0) * scaleB;
+          const dx = mobA.mesh.position.x - mobB.mesh.position.x;
+          const dz = mobA.mesh.position.z - mobB.mesh.position.z;
+          const distSq = dx * dx + dz * dz;
+          const minDist = rA + radii[j];
+          // Most reef pairs are far apart. Reject before reading the second mob's height.
+          if (distSq >= minDist * minDist) continue;
+          const hB = heights[j];
           const yB = mobB.mesh.position.y;
-
-          // Check vertical overlap
           if (yA + hA <= yB || yB + hB <= yA) continue;
-
-          const wB = (mobB.width || dimsB?.width || 0.6) * scaleB;
-          const rB = Math.max(0.24, wB * 0.5);
-          const minDist = rA + rB;
-
-          let dx = mobA.mesh.position.x - mobB.mesh.position.x;
-          let dz = mobA.mesh.position.z - mobB.mesh.position.z;
-          let distSq = dx * dx + dz * dz;
 
           if (distSq < minDist * minDist) {
             let dist = Math.sqrt(distSq);
@@ -14464,6 +14472,13 @@ export class MobManager {
       mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
 
       if (inWater) {
+        // Temporary positions never escape this synchronous update. Selected targets remain owned
+        // by each mob, so another fish cannot overwrite them when it reuses the search buffer.
+        const scratch = this._aquaticScratch ||= {
+          point: new THREE.Vector3(), direction: new THREE.Vector3(),
+          waterSpots: new Float64Array(6 * 5 * 6 * 3),
+        };
+        const collisionDims = this.getMobDimensions(mob.type);
         // Smoothly restore upright orientation in water
         mob.mesh.rotation.z = THREE.MathUtils.lerp(mob.mesh.rotation.z, 0, dt * 5.0);
 
@@ -14477,7 +14492,8 @@ export class MobManager {
         if (mob.timer <= 0 || !mob.targetPos || mob.mesh.position.distanceTo(mob.targetPos) < 0.8) {
           mob.timer = 2.5 + Math.random() * 4.0;
           // Search nearby water voxels within radius 6
-          const waterSpots = [];
+          const waterSpots = scratch.waterSpots;
+          let waterSpotCount = 0;
           for (let dx = -5; dx <= 5; dx += 2) {
             for (let dy = -2; dy <= 2; dy += 1) {
               for (let dz = -5; dz <= 5; dz += 2) {
@@ -14485,14 +14501,20 @@ export class MobManager {
                 const wy = bY + dy;
                 const wz = bZ + dz;
                 if (this.world.getVoxel(wx, wy, wz) === BLOCKS.WATER) {
-                  const candidate = new THREE.Vector3(wx + 0.5, wy + 0.15, wz + 0.5);
-                  if (!this.checkMobCollision(mob, candidate)) waterSpots.push(candidate);
+                  const candidate = scratch.point.set(wx + 0.5, wy + 0.15, wz + 0.5);
+                  if (!this.checkMobCollision(mob, candidate, collisionDims)) {
+                    const offset = waterSpotCount++ * 3;
+                    waterSpots[offset] = candidate.x;
+                    waterSpots[offset + 1] = candidate.y;
+                    waterSpots[offset + 2] = candidate.z;
+                  }
                 }
               }
             }
           }
-          if (waterSpots.length > 0) {
-            mob.targetPos = waterSpots[Math.floor(Math.random() * waterSpots.length)];
+          if (waterSpotCount > 0) {
+            const offset = Math.floor(Math.random() * waterSpotCount) * 3;
+            mob.targetPos = new THREE.Vector3(waterSpots[offset], waterSpots[offset + 1], waterSpots[offset + 2]);
           } else {
             mob.targetPos = mob.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 3));
           }
@@ -14500,7 +14522,7 @@ export class MobManager {
 
         // 3. Steer towards targetPos
         if (mob.targetPos) {
-          const dir = mob.targetPos.clone().sub(mob.mesh.position);
+          const dir = scratch.direction.copy(mob.targetPos).sub(mob.mesh.position);
           const dist = dir.length();
           if (dist > 0.1) {
             const targetYaw = Math.atan2(dir.x, dir.z);
@@ -14529,28 +14551,28 @@ export class MobManager {
         }
 
         // Keep fish inside water and recover from a blocked route on a cooldown.
-        const canSwimTo = pos => !this.checkMobCollision(mob, pos) && this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.15), Math.floor(pos.z)) === BLOCKS.WATER;
+        const canSwimTo = pos => !this.checkMobCollision(mob, pos, collisionDims) && this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.15), Math.floor(pos.z)) === BLOCKS.WATER;
         let swimBlocked = false;
         // Move with 3D collision check
         const stepX = mob.mesh.position.x + mob.velocity.x * dt;
         const stepY = mob.mesh.position.y + mob.velocity.y * dt;
         const stepZ = mob.mesh.position.z + mob.velocity.z * dt;
 
-        if (canSwimTo(new THREE.Vector3(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
+        if (canSwimTo(scratch.point.set(stepX, mob.mesh.position.y, mob.mesh.position.z))) {
           mob.mesh.position.x = stepX;
         } else {
           mob.velocity.x = 0;
           swimBlocked = true;
         }
 
-        if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
+        if (canSwimTo(scratch.point.set(mob.mesh.position.x, stepY, mob.mesh.position.z))) {
           mob.mesh.position.y = stepY;
         } else {
           mob.velocity.y = 0;
           swimBlocked = true;
         }
 
-        if (canSwimTo(new THREE.Vector3(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
+        if (canSwimTo(scratch.point.set(mob.mesh.position.x, mob.mesh.position.y, stepZ))) {
           mob.mesh.position.z = stepZ;
         } else {
           mob.velocity.z = 0;

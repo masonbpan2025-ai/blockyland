@@ -46,6 +46,10 @@ export class Player {
     // State
     this.onGround = false;
     this.inWater = false;
+    // Wiki (Water): "a breath meter that lasts 15 seconds. After they run out of breath, they take 2 HP
+    // drowning damage every second until they die, surface, or enter bubble columns."
+    this.breath = 15;
+    this.drownTimer = 0;
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;
@@ -513,6 +517,9 @@ export class Player {
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer -= dt;
     }
+
+    // Breath and drowning, before the effects tick so `water_breathing` this frame is honoured.
+    this.tickBreath(dt);
 
     // Update active status effects (poison, wither, slowness, dolphins_grace, etc.)
     for (const [effect, data] of this.statusEffects.entries()) {
@@ -1078,11 +1085,56 @@ export class Player {
    * both reduce it inside `takeDamage` and a caller that wants to know what a landing cost wants the
    * truth. Creative mode, invulnerability frames and a harmless landing all report zero.
    */
+  /**
+   * Breath and drowning.
+   *
+   * Wiki (Water, "Drowning"): "Players and mobs (except aquatic mobs, undead mobs and iron golems) have a
+   * breath meter that lasts 15 seconds. After they run out of breath, they take 2 HP drowning damage every
+   * second until they die, surface, or enter bubble columns." Respiration grants +15 seconds per level and,
+   * once the meter is empty, an x/(x+1) chance of taking no damage at all (so I averages 1 HP/s, II 2/3, III
+   * 1/2).
+   *
+   * The meter drains only while the HEAD is under water. `this.inWater` is measured at the feet, so a player
+   * standing in a one-block puddle has wet feet and dry lungs and must not drown.
+   */
+  tickBreath(dt) {
+    const respiration = this.armourEnchantmentLevel ? this.armourEnchantmentLevel('respiration') : 0;
+    const capacity = 15 + respiration * 15;
+    const head = this.world?.getVoxel(
+      Math.floor(this.position.x),
+      Math.floor(this.position.y + (this.eyeHeight ?? 1.62)),
+      Math.floor(this.position.z),
+    );
+    // A bubble column is air for breathing, which is what lets one be used as a lift out of the water.
+    const submerged = head === BLOCKS.WATER
+      && !(this.hasStatusEffect?.('water_breathing'));
+    if (!submerged) {
+      this.breath = capacity;
+      this.drownTimer = 0;
+      return;
+    }
+    if (this.breath > 0) {
+      this.breath = Math.max(0, this.breath - dt);
+      this.drownTimer = 0;
+      return;
+    }
+    this.drownTimer += dt;
+    if (this.drownTimer < 1) return;
+    this.drownTimer -= 1;
+    if (respiration > 0 && Math.random() < respiration / (respiration + 1)) return;
+    this.takeDamage(2, null, 'drowning');
+  }
+
   applyFallDamage(fallDistance, blockY) {
     if (!(fallDistance > 0)) return 0;
+    // Wiki (Water): "Water of any depth prevents any entity, including the player, from sustaining falling
+    // damage if they fall into it, regardless of the distance fallen." Doing this BEFORE the damage
+    // calculation is the point: a dive to the bottom of a pool is a long fall that must cost nothing, and
+    // this checked only the fall-absorbing blocks (hay, slime, honey), so water took full damage.
+    const landed = this.world?.getVoxel(Math.floor(this.position.x), blockY, Math.floor(this.position.z));
+    if (this.inWater || landed === BLOCKS.WATER) return 0;
     let damage = fallDamage(fallDistance, this.statusEffects);
     if (damage <= 0) return 0;
-    const landed = this.world?.getVoxel(Math.floor(this.position.x), blockY, Math.floor(this.position.z));
     const factor = FALL_ABSORBING_BLOCKS.get(landed);
     if (factor !== undefined) damage *= factor;
     damage = Math.floor(damage);

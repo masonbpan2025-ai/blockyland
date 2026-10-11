@@ -11,8 +11,16 @@ import { FarmingManager, isHoe, getSeedCrop } from '../src/farming.js';
 import { BLOCKS, ITEMS } from '../src/blocks.js';
 import { breakTimeSeconds, harvestsNothing } from '../src/miningRules.js';
 import { blockDrops } from '../src/blockDrops.js';
+import { NetherPortalManager, detectPortalFrame, lightPortal } from '../src/netherPortal.js';
+import {
+  isFrame, isFilledFrame, insertEye, tryActivateAround, isStandingInEndPortal,
+  portalDestination, portalArrival, buildEndPlatform, frameRingOffsets
+} from '../src/endPortal.js';
+import { initVillagerEconomy } from '../src/villagerEconomy.js';
+import { calculateBookshelfCount } from '../src/enchanting.js';
+import { BrewingManager } from '../src/brewing.js';
 
-function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
+export function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
   const cells = new Map();
   const logs = [];
 
@@ -55,6 +63,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
     sounds: { playClick() {} }
   });
   const furnaceManager = new FurnaceManager({ world });
+  const brewingManager = new BrewingManager();
   const mobsList = [];
   const droppedItems = [];
 
@@ -64,6 +73,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
     inventory,
     bedManager,
     furnaceManager,
+    brewingManager,
     worldReady: true,
     mobs: { mobs: mobsList },
     entities: {
@@ -113,6 +123,35 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
   const farmingManager = new FarmingManager(game);
   game.farmingManager = farmingManager;
 
+  const netherPortalManager = new NetherPortalManager(game);
+  game.portalManager = netherPortalManager;
+
+  game.switchDimension = (dim, targetPos = null) => {
+    game.currentDimension = dim;
+    if (targetPos) {
+      player.position.set(targetPos.x, targetPos.y, targetPos.z);
+    }
+    if (dim === 'the_end') {
+      buildEndPlatform(world, Math.floor(player.position.x), Math.floor(player.position.y) - 1, Math.floor(player.position.z), 12);
+    }
+  };
+
+  game.updateEndPortalTravel = (dt) => {
+    game.endPortalTravelCooldown = Math.max(0, (game.endPortalTravelCooldown || 0) - dt);
+    if (game.endPortalTravelCooldown > 0) return;
+    if (!game.world || !game.player || game.player.isDead) return;
+    if (!isStandingInEndPortal(game.world, game.player)) return;
+
+    const from = game.currentDimension || 'overworld';
+    const dest = portalDestination(from);
+    if (!dest) return;
+
+    game.endPortalTravelCooldown = 3.0;
+    const arrival = dest === 'the_end' ? portalArrival('the_end') : portalArrival('overworld');
+    game.switchDimension(dest, arrival);
+    game.ui?.addChatMessage?.(dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
+  };
+
   player.game = game;
   player.inventory = inventory;
   bedManager.game = game;
@@ -139,6 +178,31 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
       inventory.consumeActiveItem();
       player.hunger = Math.min(20, player.hunger + 8);
       return;
+    }
+    if (active && active.id === 'flint_and_steel') {
+      if (game.targetBlock) {
+        const norm = game.targetBlock.normal || { x: 0, y: 1, z: 0 };
+        if (game.portalManager?.ignitePortal(world, game.targetBlock.x, game.targetBlock.y, game.targetBlock.z, norm, player)) {
+          return;
+        }
+      }
+      if (bot.task?.command?.type === 'use' && bot.task.command.position) {
+        const [ux, uy, uz] = bot.task.command.position;
+        if (game.portalManager?.ignitePortal(world, ux, uy, uz, null, player)) {
+          return;
+        }
+      }
+    }
+    if (active && active.id === 'ender_eye' && game.targetBlock) {
+      const bX = game.targetBlock.x, bY = game.targetBlock.y, bZ = game.targetBlock.z;
+      const clickedBlock = world.getVoxel(bX, bY, bZ);
+      if (isFrame(clickedBlock) && clickedBlock === BLOCKS.END_PORTAL_FRAME) {
+        if (insertEye(world, bX, bY, bZ)) {
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          tryActivateAround(world, bX, bY, bZ);
+          return;
+        }
+      }
     }
     if (active && isHoe(active.id) && game.targetBlock) {
       if (farmingManager.till(game.targetBlock.x, game.targetBlock.y, game.targetBlock.z, player)) {
@@ -188,7 +252,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
       }
       const res = bedManager.placeBed(world, placePos, dir);
       if (res.success) {
-        inventory.consumeActiveItem();
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem();
       }
       return;
     }
@@ -201,7 +265,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
       const isIron = active.id === 'iron_door' || active.id === BLOCKS.IRON_DOOR;
       const res = doorManager.placeDoor(world, placePos, 3, isIron);
       if (res.success) {
-        inventory.consumeActiveItem();
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem();
       }
       return;
     }
@@ -216,7 +280,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
         : (ITEMS[active.id]?.blockId ?? BLOCKS[String(active.id).toUpperCase()]);
       if (typeof blockId === 'number' && world.getVoxel(...placePos) === BLOCKS.AIR) {
         world.setVoxel(...placePos, blockId);
-        inventory.consumeActiveItem();
+        if (player.gamemode !== 'creative') inventory.consumeActiveItem();
       }
     }
   };
@@ -229,6 +293,8 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
     player.update(dt);
     if (furnaceManager) furnaceManager.update(dt * 10);
     if (bedManager) bedManager.update(dt * 10);
+    if (netherPortalManager) netherPortalManager.update(dt, player, game);
+    if (game.updateEndPortalTravel) game.updateEndPortalTravel(dt);
 
     camera.position.set(
       player.position.x,
@@ -305,7 +371,7 @@ function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
     let done = false;
     promise.then(() => (done = true), () => (done = true));
     for (let i = 0; i < max && !done; i++) {
-      if (bot.active) step();
+      step();
       await Promise.resolve();
     }
     assert.equal(done, true, 'scenario task must terminate');
@@ -902,5 +968,289 @@ test("Survival Scenario 10: Beginner's Guide Step 8 - What next? (chests, fences
   assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
   assert.equal(report.checks.every(c => c.ok), true);
 });
+
+test('Survival Scenario 11: Nether Portal construction, ignition, and dimensional travel in Creative mode', async () => {
+  const f = createSurvivalFixture({ playerPos: [1.5, 2, 1.5] });
+  f.player.gamemode = 'creative';
+
+  // Platform at y = 1 so player standing at y = 2 has all portal frame blocks (y = 1..5) in reach
+  f.world.setVoxel(1, 1, 1, BLOCKS.DIRT);
+  f.world.setVoxel(2, 1, 1, BLOCKS.DIRT);
+
+  // Build standard 4x5 obsidian frame at z = 0, x = 0..3, y = 1..5
+  // Bottom row: (0, 1, 0), (1, 1, 0), (2, 1, 0), (3, 1, 0)
+  // Left pillar: (0, 2, 0), (0, 3, 0), (0, 4, 0), (0, 5, 0)
+  // Right pillar: (3, 2, 0), (3, 3, 0), (3, 4, 0), (3, 5, 0)
+  // Top row: (1, 5, 0), (2, 5, 0)
+  // Ignite with flint and steel at (1, 2, 0)
+  // Go into portal at (1.5, 2, 0)
+
+  const report = await f.drive(
+    f.bot.runScenario({
+      commands: [
+        'place obsidian at 0 1 0',
+        'place obsidian at 1 1 0',
+        'place obsidian at 2 1 0',
+        'place obsidian at 3 1 0',
+        'place obsidian at 0 2 0',
+        'place obsidian at 0 3 0',
+        'place obsidian at 0 4 0',
+        'place obsidian at 0 5 0',
+        'place obsidian at 3 2 0',
+        'place obsidian at 3 3 0',
+        'place obsidian at 3 4 0',
+        'place obsidian at 3 5 0',
+        'place obsidian at 1 5 0',
+        'place obsidian at 2 5 0',
+        'use flint_and_steel at 1 2 0',
+        'go to 1.5 2 0'
+      ],
+      assertions: [
+        {
+          name: 'obsidian frame is valid and detected',
+          check: game => detectPortalFrame(game.world, 1, 2, 0).valid === true
+        },
+        {
+          name: 'nether portal blocks are filled in the frame interior',
+          check: game => game.world.getVoxel(1, 2, 0) === BLOCKS.NETHER_PORTAL &&
+                         game.world.getVoxel(2, 4, 0) === BLOCKS.NETHER_PORTAL
+        }
+      ]
+    })
+  );
+
+  // Allow portal timer (0.5s in creative) to trigger teleportation
+  for (let i = 0; i < 25; i++) f.step();
+
+  assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
+  assert.equal(report.checks.every(c => c.ok), true);
+  assert.equal(f.game.currentDimension, 'nether', 'Bot should have traveled through portal to the Nether');
+});
+
+test('Survival Scenario 12: End Portal frame construction, eye insertion, activation, and dimensional travel in Creative mode', async () => {
+  const f = createSurvivalFixture({ playerPos: [10.5, 1, 10.5] });
+  f.player.gamemode = 'creative';
+
+  // 12 End portal frame blocks around center (10, 1, 10)
+  // West column (x = 8): (8, 1, 9), (8, 1, 10), (8, 1, 11)
+  // East column (x = 12): (12, 1, 9), (12, 1, 10), (12, 1, 11)
+  // North row (z = 8): (9, 1, 8), (10, 1, 8), (11, 1, 8)
+  // South row (z = 12): (9, 1, 12), (10, 1, 12), (11, 1, 12)
+
+  const report = await f.drive(
+    f.bot.runScenario({
+      commands: [
+        'place end_portal_frame at 8 1 9',
+        'place end_portal_frame at 8 1 10',
+        'place end_portal_frame at 8 1 11',
+        'place end_portal_frame at 12 1 9',
+        'place end_portal_frame at 12 1 10',
+        'place end_portal_frame at 12 1 11',
+        'place end_portal_frame at 9 1 8',
+        'place end_portal_frame at 10 1 8',
+        'place end_portal_frame at 11 1 8',
+        'place end_portal_frame at 9 1 12',
+        'place end_portal_frame at 10 1 12',
+        'place end_portal_frame at 11 1 12',
+        'use ender_eye at 8 1 9',
+        'use ender_eye at 8 1 10',
+        'use ender_eye at 8 1 11',
+        'use ender_eye at 12 1 9',
+        'use ender_eye at 12 1 10',
+        'use ender_eye at 12 1 11',
+        'use ender_eye at 9 1 8',
+        'use ender_eye at 10 1 8',
+        'use ender_eye at 11 1 8',
+        'use ender_eye at 9 1 12',
+        'use ender_eye at 10 1 12',
+        'use ender_eye at 11 1 12'
+      ],
+      assertions: [
+        {
+          name: 'all 12 end portal frames are filled',
+          check: game => isFilledFrame(game.world.getVoxel(8, 1, 10)) &&
+                         isFilledFrame(game.world.getVoxel(12, 1, 10)) &&
+                         isFilledFrame(game.world.getVoxel(10, 1, 8)) &&
+                         isFilledFrame(game.world.getVoxel(10, 1, 12))
+        },
+        {
+          name: 'end portal interior is activated with portal blocks',
+          check: game => game.world.getVoxel(10, 1, 10) === BLOCKS.END_PORTAL &&
+                         game.world.getVoxel(9, 1, 9) === BLOCKS.END_PORTAL &&
+                         game.world.getVoxel(11, 1, 11) === BLOCKS.END_PORTAL
+        }
+      ]
+    })
+  );
+
+  // Allow End portal travel to complete
+  for (let i = 0; i < 20; i++) f.step();
+
+  assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
+  assert.equal(report.checks.every(c => c.ok), true);
+  assert.equal(f.game.currentDimension, 'the_end', 'Bot should have traveled through portal to the End');
+  assert.equal(f.world.getVoxel(0, 32, 0), BLOCKS.END_STONE, 'Central End platform should be generated');
+});
+
+test('Survival Scenario 13: Brewing functionality in Creative mode (alchemy pipeline from water bottle to awkward and effect potions)', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.player.gamemode = 'creative';
+
+  // 1. Place brewing stand at (1, 1, 0)
+  // 2. Brew nether_wart into water_bottle at (1, 1, 0) -> awkward_potion
+  // 3. Brew golden_carrot into awkward_potion at (1, 1, 0) -> potion_of_night_vision
+  // 4. Brew fermented_spider_eye into potion_of_night_vision at (1, 1, 0) -> potion_of_invisibility
+
+  const report = await f.drive(
+    f.bot.runScenario({
+      commands: [
+        'place brewing_stand at 1 1 0',
+        'brew nether_wart into water_bottle at 1 1 0',
+        'brew golden_carrot into awkward_potion at 1 1 0',
+        'brew fermented_spider_eye into potion_of_night_vision at 1 1 0'
+      ],
+      assertions: [
+        {
+          name: 'brewing stand placed successfully',
+          check: game => game.world.getVoxel(1, 1, 0) === BLOCKS.BREWING_STAND
+        },
+        {
+          name: 'bot inventory contains brewed potions',
+          check: (game, bot) => bot.itemCount('awkward_potion') > 0 || bot.itemCount('potion_of_night_vision') > 0 || bot.itemCount('potion_of_invisibility') > 0
+        },
+        {
+          name: 'bot successfully brewed final potion of invisibility',
+          check: (game, bot) => bot.itemCount('potion_of_invisibility') > 0
+        }
+      ]
+    })
+  );
+
+  assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
+  assert.equal(report.checks.every(c => c.ok), true);
+  assert.ok(f.bot.itemCount('potion_of_invisibility') >= 1, 'Invisibility potion was brewed and collected');
+});
+
+test('Survival Scenario 14: Enchantment functionality with bookshelves in Creative mode (table, bookshelf boosting, tool and book enchanting)', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.player.gamemode = 'creative';
+  f.player.level = 0; // Confirm level 0 can enchant in creative mode without lapis
+
+  // Place enchanting table at 0 1 0
+  // Place 15 bookshelves around table in standard 5x5 bookshelf perimeter at distance 2
+  const bookshelfCommands = [
+    'place bookshelf at -2 1 -1',
+    'place bookshelf at -2 1 0',
+    'place bookshelf at -2 1 1',
+    'place bookshelf at 2 1 -1',
+    'place bookshelf at 2 1 0',
+    'place bookshelf at 2 1 1',
+    'place bookshelf at -1 1 -2',
+    'place bookshelf at 0 1 -2',
+    'place bookshelf at 1 1 -2',
+    'place bookshelf at -1 1 2',
+    'place bookshelf at 0 1 2',
+    'place bookshelf at 1 1 2',
+    'place bookshelf at -2 1 -2',
+    'place bookshelf at 2 1 -2',
+    'place bookshelf at -2 1 2'
+  ];
+
+  const report = await f.drive(
+    f.bot.runScenario({
+      commands: [
+        'place enchanting_table at 0 1 0',
+        ...bookshelfCommands,
+        'enchant diamond_sword slot 2 at 0 1 0',
+        'enchant book slot 2 at 0 1 0'
+      ],
+      assertions: [
+        {
+          name: 'enchanting table and 15 bookshelves placed',
+          check: game => game.world.getVoxel(0, 1, 0) === BLOCKS.ENCHANTING_TABLE &&
+                         calculateBookshelfCount(game.world, 0, 1, 0) === 15
+        },
+        {
+          name: 'diamond sword received high-tier enchantments',
+          check: (game, bot) => {
+            const sword = [...game.inventory.hotbar, ...game.inventory.storage].find(s => s && s.id === 'diamond_sword');
+            return sword && Array.isArray(sword.enchantments) && sword.enchantments.length > 0;
+          }
+        },
+        {
+          name: 'book converted to enchanted book with enchantments',
+          check: (game, bot) => {
+            const book = [...game.inventory.hotbar, ...game.inventory.storage].find(s => s && s.id === 'enchanted_book');
+            return book && Array.isArray(book.enchantments) && book.enchantments.length > 0;
+          }
+        }
+      ]
+    })
+  );
+
+  assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
+  assert.equal(report.checks.every(c => c.ok), true);
+  const sword = [...f.game.inventory.hotbar, ...f.game.inventory.storage].find(s => s && s.id === 'diamond_sword');
+  assert.ok(sword.enchantments.length >= 1, 'Sword has enchantments');
+  const book = [...f.game.inventory.hotbar, ...f.game.inventory.storage].find(s => s && s.id === 'enchanted_book');
+  assert.ok(book.enchantments.length >= 1, 'Book has enchantments');
+});
+
+test('Survival Scenario 15: Villager trading functionality in Creative mode (career progression, leveling up, regeneration grant, and rewards)', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.player.gamemode = 'creative';
+
+  // Spawn a Cleric villager next to player at (2, 1, 0.5)
+  const cleric = {
+    type: 'villager',
+    name: 'Cleric',
+    profession: 'cleric',
+    health: 20,
+    maxHealth: 20,
+    mesh: { position: new THREE.Vector3(2, 1, 0.5) },
+    position: new THREE.Vector3(2, 1, 0.5)
+  };
+  initVillagerEconomy(cleric, 'cleric', { random: () => 0.1 });
+  f.game.mobs.mobs.push(cleric);
+
+  const initialTrades = cleric.trades.length;
+  assert.ok(initialTrades >= 1, 'Cleric has initial novice trades');
+
+  const report = await f.drive(
+    f.bot.runScenario({
+      commands: [
+        'trade 5 with cleric'
+      ],
+      assertions: [
+        {
+          name: 'cleric gained experience from trades',
+          check: () => cleric.xp > 0
+        },
+        {
+          name: 'cleric leveled up to apprentice or beyond',
+          check: () => cleric.level >= 2
+        },
+        {
+          name: 'cleric received regeneration I timer from leveling up',
+          check: () => cleric.regenerationTimer > 0
+        },
+        {
+          name: 'new trades unlocked on career progression',
+          check: () => cleric.trades.length > initialTrades
+        },
+        {
+          name: 'bot received trade rewards in inventory',
+          check: (game, bot) => bot.itemCount('emerald') > 0 || bot.itemCount('redstone') > 0
+        }
+      ]
+    })
+  );
+
+  assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
+  assert.equal(report.checks.every(c => c.ok), true);
+  assert.ok(cleric.level >= 2, 'Cleric reached level 2+');
+  assert.ok(cleric.trades.length > initialTrades, 'New trades unlocked');
+});
+
 
 

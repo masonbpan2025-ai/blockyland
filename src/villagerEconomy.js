@@ -923,11 +923,13 @@ export function executeTrade(trade, villager, playerInventory, sounds = null, op
   const playerStatus = options.playerStatus ?? {};
   const { effectiveCount } = calculateTradeCost(trade, villager, playerStatus);
 
-  if (!hasPlayerItem(playerInventory, trade.cost, effectiveCount)) {
+  const isCreative = options.player?.gamemode === 'creative' || options.isCreative;
+
+  if (!isCreative && !hasPlayerItem(playerInventory, trade.cost, effectiveCount)) {
     sounds?.playHurt?.();
     return { success: false, reason: 'insufficient_items' };
   }
-  if (trade.cost2 && !hasPlayerItem(playerInventory, trade.cost2, trade.cost2.count)) {
+  if (!isCreative && trade.cost2 && !hasPlayerItem(playerInventory, trade.cost2, trade.cost2.count)) {
     sounds?.playHurt?.();
     return { success: false, reason: 'insufficient_secondary_items' };
   }
@@ -937,8 +939,10 @@ export function executeTrade(trade, villager, playerInventory, sounds = null, op
     ? playerInventory.addItem(trade.reward.id, trade.reward.isBlock, trade.reward.count, enchantments)
     : false;
 
-  consumePlayerItem(playerInventory, trade.cost, effectiveCount);
-  if (trade.cost2) consumePlayerItem(playerInventory, trade.cost2, trade.cost2.count);
+  if (!isCreative) {
+    consumePlayerItem(playerInventory, trade.cost, effectiveCount);
+    if (trade.cost2) consumePlayerItem(playerInventory, trade.cost2, trade.cost2.count);
+  }
 
   trade.uses += 1;
   if (trade.uses >= trade.maxUses) trade.disabled = true;
