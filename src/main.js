@@ -33,6 +33,7 @@ import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
+import { FishingController } from './fishingRod.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, blockIdForPlacement } from './blocks.js';
@@ -402,6 +403,8 @@ class Game {
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
     this.bow = new BowController(this);
+    // The fishing rod: another use-item feature with a state machine, so it sits with the bow.
+    this.fishing = new FishingController(this);
     // Rails, minecarts and boats: real physics for carts and floating props.
     this.railSystem = new RailSystem(this.world, this);
     this.riding = null;
@@ -1841,6 +1844,10 @@ class Game {
           this.player.isBlocking = true;
         }
 
+        // Fishing comes first: with a bobber already out, right-click is a REEL rather than a cast, and
+        // `cast()` reports which of the two it did. It returns false when the held item is not a rod, so a
+        // rod in the hotbar does not stop the click reaching the bow or the block placement below.
+        if (this.fishing.cast()) return;
         // Hold right click to draw the bow; release to fire.
         if (this.bow.start()) return;
         // Right Click: Place / Interact
@@ -1854,6 +1861,7 @@ class Game {
 
     window.addEventListener('blur', () => {
       this.bow?.cancel();
+      this.fishing?.cancel();
       this.player.isBlocking = false;
       // F3+P: vanilla pauses singleplayer when the window loses focus. This build never did, so the world
       // kept running while the tab was in the background; it only does it once the toggle is on.
@@ -1865,6 +1873,9 @@ class Game {
     document.addEventListener('pointerlockchange', () => {
       if (document.pointerLockElement !== this.renderer.domElement) {
         this.bow?.cancel();
+        // Losing pointer lock reels the line in, which is the same as the player looking away: no durability
+        // and no catch, matching the wiki's rule that abandoning the rod costs nothing.
+        this.fishing?.cancel();
         this.player.isBlocking = false;
       }
     });
@@ -3861,6 +3872,7 @@ class Game {
     this.railSystem?.update(dt);
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
+    this.fishing.update(dt);
     this.playerBot?.tick(dt);
     this.player.update(dt);
     this.waterSplashes.update(dt, this.player.position);
