@@ -13,8 +13,9 @@
 // The item vocabulary and the argument parsers stay in `commands.js`, because they are pure and have no
 // context to speak of. This file is the part that acts.
 import {
-  COMMANDS, parseGive, giveItems, giveMessage, resolveItem,
+  COMMANDS, parseGive, giveItems, giveMessage, resolveItem, findCommand,
 } from './commands.js';
+import { allowsAgentTerminal } from './sessionSettings.js';
 
 /** The fields a command may touch, and where the game gets each one. Recorded so the surface is visible. */
 export const COMMAND_CONTEXT_FIELDS = Object.freeze({
@@ -68,11 +69,41 @@ function unavailable(name) {
   return `${name} is not available in this session.`;
 }
 
-/** True when the player has the permission level a command needs. */
+/**
+ * True when the player has the permission level a command needs.
+ *
+ * Delegates to `allowsAgentTerminal` rather than restating the rule. The two gates are the same permission --
+ * "may this player do cheat things in this world" -- and this one used to read `settings.gamemode` while the
+ * setting is `settings.gameMode`, so the Creative half never matched: in Creative with cheats explicitly off,
+ * the Agent Terminal opened and `/give` was refused. Sharing the function means a terminal that opens and a
+ * command that runs can no longer disagree.
+ */
 function allowed(context, command) {
   const settings = context.settings ?? {};
   if (command.level === 0) return true;
-  return settings.gamemode === 'creative' || settings.cheats === true;
+  return allowsAgentTerminal(settings);
+}
+
+/**
+ * The refusal message for a command this player may not use, or null when it is allowed.
+ *
+ * Exported because the gate has to run for the commands `runCommand` does NOT own as well. `/summon`,
+ * `/locate`, `/redstone` and `/show_mobs` are dispatched by the game's own switch, so marking them `gate: true`
+ * and trusting the check inside `runCommand` silently did nothing for them -- `runCommand` returns false
+ * before reaching its gate, and the switch ran them anyway. `handleCommand` calls this once for every line,
+ * ahead of both dispatchers, so being handled in one place or the other cannot change whether it is gated.
+ *
+ * @param {object} settings  the game's settings
+ * @param {string} root      the command with its leading slash, e.g. `/give`
+ * @returns {string|null}
+ */
+export function permissionRefusal(settings, root) {
+  const command = findCommand(String(root ?? '').replace(/^\//, ''));
+  if (!command) return null;
+  if (command.gate !== true) return null;
+  if (command.level === 0) return null;
+  if (allowsAgentTerminal(settings)) return null;
+  return `You do not have permission to use ${root}. It needs Creative mode or cheats.`;
 }
 
 // --- the individual commands -------------------------------------------------------

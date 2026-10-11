@@ -100,7 +100,7 @@ import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { BeaconManager } from './beaconManager.js';
 import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
-import { buildCommandContext, runCommand } from './commandRunner.js';
+import { buildCommandContext, runCommand, permissionRefusal } from './commandRunner.js';
 import { NetherPortalManager } from './netherPortal.js';
 import { RaidManager } from './raids.js';
 import { DeepDarkWardenManager } from './deepDarkWarden.js';
@@ -3599,6 +3599,17 @@ class Game {
     if (typeof cmd !== 'string') return;
     const parts = cmd.trim().split(/\s+/);
     const root = parts[0].toLowerCase();
+
+    // 0. The cheats gate, once, ahead of BOTH dispatchers.
+    //
+    // It has to be here rather than only inside `runCommand`: `/summon`, `/locate`, `/redstone` and
+    // `/show_mobs` are dispatched by the switch below, and `runCommand` returns false for them before it ever
+    // reaches its own check -- so marking those commands as gated did nothing at all until this call existed.
+    const refusal = permissionRefusal(this.settings, root);
+    if (refusal) {
+      this.ui.addChatMessage(refusal, 'error');
+      return;
+    }
 
     // 1. The portable commands. runCommand returns false for anything it does not own, so the two chains
     //    cannot both claim a command.

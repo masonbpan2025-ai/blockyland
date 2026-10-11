@@ -61,8 +61,10 @@ test('every command in the table is dispatched by exactly one of the two handler
 
 test('main.js delegates rather than parsing commands itself', () => {
   const source = readFileSync('src/main.js', 'utf8');
-  // The dispatcher assembles a context and hands the line to the runner first.
-  assert.match(source, /import \{ buildCommandContext, runCommand \} from '\.\/commandRunner\.js'/);
+  // The dispatcher assembles a context and hands the line to the runner first. `permissionRefusal` joined the
+  // import when the cheats gate moved ahead of both dispatchers, so the pattern allows extra named imports
+  // rather than pinning the list -- what matters is that `runCommand` and `buildCommandContext` come from here.
+  assert.match(source, /import \{[^}]*\bbuildCommandContext\b[^}]*\brunCommand\b[^}]*\} from '\.\/commandRunner\.js'/);
   assert.match(source, /if \(runCommand\(buildCommandContext\(this\), cmd\)\) return;/);
   // And it no longer owns the parsing or the item vocabulary.
   assert.equal(/from '\.\/commands\.js'/.test(source), false,

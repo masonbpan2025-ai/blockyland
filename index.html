@@ -654,7 +654,15 @@
       <div class="mc-title">Game Paused</div>
       <button class="mc-btn" id="btn-resume">Back to Game</button>
       <button class="mc-btn" id="btn-save-map">💾 Save Map</button>
-      <button class="mc-btn" id="btn-open-map">📂 Load / Manage Maps</button>
+      <!--
+        Cheats, in the place "Load / Manage Maps" used to be.
+
+        The maps loader is still reachable with `/maps`, which is deliberately NOT a gated command, so a
+        Survival player without cheats keeps their only route to it. In exchange this gives the game the one
+        control it never had: `cheats` was a real setting that gated the Agent Terminal and every cheat
+        command, and there was no way to turn it on except by creating a Creative world.
+      -->
+      <button class="mc-btn" id="btn-cheats" aria-pressed="false" title="Allow the Agent Terminal and commands like /give in any game mode">Cheats: OFF</button>
       <button class="mc-btn mc-btn-designed" id="btn-host-world">🌐 Host & Share World</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
       <button class="mc-btn" id="btn-shader" aria-pressed="false" title="Lightweight lighting, bloom, water and atmosphere">Lightweight Shader: OFF</button>

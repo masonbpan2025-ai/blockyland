@@ -28,23 +28,36 @@ import { buildGameBlockIndex, normaliseBlockName, NAME_ALIASES } from './blockNa
  * Recorded here rather than only in the `/help` text so the two cannot disagree: `/help` renders this
  * table. `level` is vanilla's permission level (2 for `/give`, which is a cheat), and `args` is the
  * usage string.
+ *
+ * `gate: true` marks a command as one the CHEATS policy governs, and it is what makes the permission check
+ * in `commandRunner.runCommand` fire at all -- without it that check was dead code, and every command ran in
+ * every mode, so `/give` handed out items in an ordinary Survival world.
+ *
+ * `level` alone is not enough, deliberately: three level-2 commands below are this engine's own and have to
+ * stay reachable, so "vanilla calls it level 2" and "this game treats it as a cheat" are separate facts and
+ * both are written down.
  */
 export const COMMANDS = [
-  { name: 'give', args: '<targets> <item> [<count>]', level: 2, help: 'Give an item to a player' },
-  { name: 'summon', args: '<entity>', level: 2, help: 'Spawn a mob' },
-  { name: 'setblock', args: '<x> <y> <z> <block>', level: 2, help: 'Place a block' },
-  { name: 'time', args: 'set <day|night>', level: 2, help: 'Change world time' },
-  { name: 'weather', args: '<clear|rain|thunder>', level: 2, help: 'Change the weather' },
-  { name: 'gamemode', args: '<creative|survival>', level: 2, help: 'Switch game mode' },
-  { name: 'locate', args: '[structure] [id]', level: 2, help: 'Find the nearest generated structure' },
-  { name: 'show_mobs', args: '', level: 2, help: 'Why you may see no mobs (Creative)' },
+  { name: 'give', args: '<targets> <item> [<count>]', level: 2, gate: true, help: 'Give an item to a player' },
+  { name: 'summon', args: '<entity>', level: 2, gate: true, help: 'Spawn a mob' },
+  { name: 'setblock', args: '<x> <y> <z> <block>', level: 2, gate: true, help: 'Place a block' },
+  { name: 'time', args: 'set <day|night>', level: 2, gate: true, help: 'Change world time' },
+  { name: 'weather', args: '<clear|rain|thunder>', level: 2, gate: true, help: 'Change the weather' },
+  { name: 'gamemode', args: '<creative|survival>', level: 2, gate: true, help: 'Switch game mode' },
+  { name: 'locate', args: '[structure] [id]', level: 2, gate: true, help: 'Find the nearest generated structure' },
+  { name: 'show_mobs', args: '', level: 2, gate: true, help: 'Why you may see no mobs (Creative)' },
+  // NOT gated, though vanilla calls them level 2. These manage SAVE FILES rather than the world, and `/maps`
+  // is now the only route to the map loader -- the pause-menu button that used to open it was replaced by the
+  // Cheats toggle. Gating them would strand a Survival player with no way to load a saved map at all.
   { name: 'save', args: '[name]', level: 2, help: 'Save the map to this computer' },
   { name: 'load', args: '<name>', level: 2, help: 'Load a saved map' },
   { name: 'maps', args: '', level: 2, help: 'Open the map manager', aliases: ['saves'] },
   { name: 'clear', args: '', level: 0, help: 'Clear the chat window' },
   { name: 'help', args: '', level: 0, help: 'List the commands' },
+  // Not gated: this toggles the World Agent between the API and its offline presets. It is a setting for the
+  // player's own key rather than a way to change the world, and gating it would lock someone out of it.
   { name: 'offline', args: '', level: 2, help: 'Toggle the World Agent offline' },
-  { name: 'redstone', args: '<demo|game|list> [...]', level: 2, help: 'Build a redstone example' },
+  { name: 'redstone', args: '<demo|game|list> [...]', level: 2, gate: true, help: 'Build a redstone example' },
 ];
 
 /** Look a command up by name or alias, without the leading slash. */

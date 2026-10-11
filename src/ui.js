@@ -337,7 +337,8 @@ export class UIManager {
     this.mapLoadFeedback = document.getElementById('map-load-feedback');
     this.btnCloseMapModal = document.getElementById('btn-close-map-modal');
     this.btnSaveMap = document.getElementById('btn-save-map');
-    this.btnOpenMap = document.getElementById('btn-open-map');
+    // The pause menu's "Load / Manage Maps" button became the Cheats toggle. The map loader is still reached
+    // with `/maps`, which is deliberately not cheats-gated, so nothing lost its only route.
 
     // Biome Selection Modal Elements
     this.biomeModal = document.getElementById('world-biome-modal');
@@ -1451,8 +1452,27 @@ export class UIManager {
       document.exitPointerLock();
       this.closeAllModals();
       this.pauseModal.classList.remove('hidden');
+      // Refresh the toggles whose label is a READOUT of game state rather than of a click. Cheats can be
+      // changed from the Agent Terminal too, and the game mode from `/gamemode`, so a label painted only on
+      // click goes stale the moment anything else changes them.
+      this.refreshPauseMenuLabels();
     } else {
       this.closeAllModals();
+    }
+  }
+
+  /** Paint the pause menu's state readouts from the game, not from the last click. */
+  refreshPauseMenuLabels() {
+    const cheatsOn = this.game?.settings?.cheats === true;
+    const btnCheats = document.getElementById('btn-cheats');
+    if (btnCheats) {
+      btnCheats.textContent = `Cheats: ${cheatsOn ? 'ON' : 'OFF'}`;
+      btnCheats.setAttribute?.('aria-pressed', String(cheatsOn));
+    }
+    const mode = this.player?.gamemode ?? this.game?.settings?.gameMode;
+    const btnGamemode = document.getElementById('btn-gamemode');
+    if (btnGamemode && mode) {
+      btnGamemode.textContent = `Game Mode: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`;
     }
   }
 
@@ -3735,8 +3755,35 @@ export class UIManager {
       this.btnSaveMap.onclick = () => this.openMapModal('save');
     }
 
-    if (this.btnOpenMap) {
-      this.btnOpenMap.onclick = () => this.openMapModal('load');
+    // The Cheats toggle, which replaced "Load / Manage Maps" here.
+    //
+    // Maps are still reachable with `/maps`, and that command is deliberately NOT cheats-gated, so this is not
+    // the only route to the loader. What it gives the game is the control it never had: `cheats` gated the
+    // Agent Terminal and every cheat command, and the only way to set it was to create a Creative world.
+    const btnCheats = document.getElementById('btn-cheats');
+    if (btnCheats) {
+      btnCheats.onclick = () => {
+        const on = this.game?.settings?.cheats === true;
+        const next = !on;
+        // Through `applyWorldSettings`, so the setting, the terminal and every command read one value.
+        this.game.applyWorldSettings?.({ cheats: next });
+        if (btnCheats) {
+          btnCheats.textContent = `Cheats: ${next ? 'ON' : 'OFF'}`;
+          btnCheats.setAttribute?.('aria-pressed', String(next));
+        }
+        // Say what it means, and warn when turning it ON in Survival -- that is the case where it changes
+        // what the world is, and vanilla warns for the same reason.
+        if (next && this.game?.settings?.gameMode === 'survival') {
+          this.addChatMessage(
+            'Cheats ON. The Agent Terminal now opens with [C] and commands like /give work in Survival. '
+            + 'This world is no longer a vanilla Survival world.', 'system');
+        } else {
+          this.addChatMessage(`Cheats ${next ? 'ON' : 'OFF'}.`, 'system');
+        }
+      };
+      // Paint the current setting at bind time, so a Creative world -- where cheats default to ON -- does not
+      // open the pause menu reading "Cheats: OFF".
+      this.refreshPauseMenuLabels();
     }
   }
 

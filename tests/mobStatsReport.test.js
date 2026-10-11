@@ -23,6 +23,7 @@ import { buildPresetPack } from '../src/dataPackPresets.js';
 import { applyStore, revertAll } from '../src/dataPackApply.js';
 import { World } from '../src/world.js';
 import { BLOCKS, BLOCK_DEFS } from '../src/blocks.js';
+import { COMMANDS, findCommand } from '../src/commands.js';
 
 const PLAINS_TABLE = {
   monster: [{ type: 'zombie', weight: 95, minCount: 4, maxCount: 4 }],
@@ -211,13 +212,20 @@ test('formatMobStatsReport returns the same lines the chat prints', () => {
 
 test('/show_mobs is dispatched, listed in help, and gated to Creative or cheats', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /root === '\/show_mobs'/, 'it is dispatched');
+  // Dispatched by the manager switch. It was an `if (root === '/show_mobs')` in the same method; that chain
+  // was refactored into a switch plus `commandRunner.js`, so this asserts the shape that exists now.
+  assert.match(main, /case '\/show_mobs': return this\.runShowMobsCommand\(\);/);
+  assert.match(main, /runShowMobsCommand\(\) \{/);
   assert.match(main, /buildMobStatsReport\(\) \{/, 'there is a method that gathers the state');
   assert.match(main, /import \{ buildMobStatsReport \} from '\.\/spawning\/mobStatsReport\.js'/);
-  assert.match(main, /\/show_mobs - What mobs exist/, 'and it is in /help');
+  // The `/help` text lives in `commandRunner.cmdHelp` now, not in the 4,000-line `main.js`.
+  const runner = readFileSync(new URL('../src/commandRunner.js', import.meta.url), 'utf8');
+  assert.match(runner, /\/show_mobs - What mobs exist/, 'and it is advertised in /help');
   // The gate, and a refusal that says how to get it rather than merely declining.
   assert.match(main, /if \(!isCreative\(this\.settings\) && !this\.settings\?\.cheats\)/);
   assert.match(main, /is a Creative diagnostic/);
+  // It is ALSO declared a cheat command, so `permissionRefusal` refuses it before the switch is even reached.
+  assert.equal(findCommand('show_mobs')?.gate, true, '/show_mobs is a gated command');
 });
 
 test('the command reads the SAME tables natural spawning uses', () => {
