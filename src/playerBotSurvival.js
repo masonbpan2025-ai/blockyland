@@ -253,7 +253,7 @@ export class BotSurvival {
       this.bot.finish(true, 'Slept through the night and woke up at dawn.');
     } else if (c.type === 'till') {
       const [x, y, z] = c.position;
-      this.requireReach(c.position, [BLOCKS.DIRT, BLOCKS.GRASS, BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST, BLOCKS.PODZOL, BLOCKS.MYCELIUM, BLOCKS.MOSS_BLOCK].filter(v => v !== undefined));
+      this.requireReach(c.position, [BLOCKS.DIRT, BLOCKS.GRASS, BLOCKS.DIRT_PATH, BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST, BLOCKS.PODZOL, BLOCKS.MYCELIUM, BLOCKS.MOSS_BLOCK].filter(v => v !== undefined));
       if (!this.bot.equip(s => isHoe(s?.id))) throw new Error('You need a hoe to till.');
       this.bot.lookAt({ x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       if (t.elapsed > 3) throw new Error('Tilling timed out.');

@@ -1,7 +1,7 @@
-// Husk, Stray and Bogged parity.
+﻿// Husk, Stray and Bogged parity.
 //
 // Three new mob types that are variants of the zombie and skeleton. References:
-//   https://minecraft.wiki/w/Husk · https://minecraft.wiki/w/Stray · https://minecraft.wiki/w/Bogged
+//   https://minecraft.wiki/w/Husk Â· https://minecraft.wiki/w/Stray Â· https://minecraft.wiki/w/Bogged
 //
 // The point of testing them together is that they are variants: the *geometry* is shared with the base
 // mob and only the appearance, stats and one signature behaviour differ, so the suite asserts both that
@@ -16,7 +16,7 @@ import {
   HUSK_SPEED, HUSK_DAMAGE, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS,
   BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS,
   VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions,
-  variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning,
+  variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateHuskDrowning, updateSubmergedConversion, ZOMBIE_DROWNING,
   boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint,
   variantProfile
 } from '../src/undeadVariants.js';
@@ -229,7 +229,46 @@ test('a husk converts to a zombie when submerged long enough', () => {
   assert.equal(replacement.maxHealth, 20, 'at the zombie maximum');
   assert.equal(replacement.health > 0, true, 'and alive');
   assert.equal(manager.mobs.includes(husk), false, 'the husk is gone');
+  // `updateHuskDrowning` is the husk's NAMED entry point, so it still refuses another type. The shared
+  // `updateSubmergedConversion` is what handles the zombie below.
   assert.equal(updateHuskDrowning({ type: 'zombie' }, 10, { submerged: true }), null, 'only husks');
+});
+
+test('a zombie converts to a drowned when submerged long enough', () => {
+  // Wiki (Drowned Â§ Conversion): "If a zombie's head (not the legs) is submerged in water continuously for
+  // 30 seconds, it begins the process of converting into a drowned... 15 seconds later the zombie becomes a
+  // drowned. The drowned appears with full health even if the previous zombie did not."
+  //
+  // This is the mechanism of the flooded-monster-room drowned farm, the design the tutorial calls its easiest.
+  assert.deepEqual(ZOMBIE_DROWNING, { submergedSeconds: 30, convertSeconds: 15 });
+  const { manager } = fixture();
+  const zombie = manager.spawnMob('zombie', 0, 1, 0);
+  zombie.health = 6;
+
+  assert.equal(updateSubmergedConversion(zombie, 10, { submerged: true, manager }), 'counting');
+  assert.equal(updateSubmergedConversion(zombie, 10, { submerged: false, manager }), null,
+    'out of water the count resets');
+  assert.equal(zombie.submergedSeconds, 0, 'and the counter is cleared');
+  assert.equal(updateSubmergedConversion(zombie, 10, { submerged: true, manager }), 'counting');
+  assert.equal(updateSubmergedConversion(zombie, 10, { submerged: true, manager }), 'counting');
+  assert.equal(updateSubmergedConversion(zombie, 10, { submerged: true, manager }), 'converting');
+  assert.equal(zombie.convertTimer, 15, 'wiki: the conversion itself takes 15 s');
+  // Once begun it cannot be stopped, exactly as the husk's leg cannot.
+  assert.equal(updateSubmergedConversion(zombie, 5, { submerged: false, manager }), 'converting');
+  assert.equal(updateSubmergedConversion(zombie, 20, { submerged: true, manager }), 'converted');
+  const replacement = manager.mobs.find((m) => m.type === 'drowned');
+  assert.ok(replacement, 'a drowned replaced it');
+  assert.equal(replacement.health, replacement.maxHealth,
+    'at FULL health, even though the zombie had been damaged down to 6');
+  assert.equal(replacement.maxHealth, 20);
+  assert.equal(manager.mobs.includes(zombie), false, 'the zombie is gone');
+  // A mob with no conversion rule is untouched, which is what keeps zombie villagers and zombified piglins
+  // from turning into drowned -- the wiki names both as unable to convert.
+  for (const type of ['zombie_villager', 'zombified_piglin', 'skeleton', 'husk']) {
+    if (type === 'husk') continue; // the husk's own rule is asserted above
+    assert.equal(updateSubmergedConversion({ type }, 60, { submerged: true, manager: null }), null,
+      `${type} must not convert`);
+  }
 });
 
 test('the husk avoids water and the archers do not', () => {
@@ -472,3 +511,4 @@ test('the helpers are safe on non-variants and malformed input', () => {
   assert.equal(variantProfile('cow'), null);
   assert.doesNotThrow(() => updateHuskDrowning({ type: 'husk' }, 1, {}));
 });
+

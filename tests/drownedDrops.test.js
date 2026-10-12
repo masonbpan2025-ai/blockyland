@@ -70,8 +70,7 @@ test('a drowned drops a nautilus shell and its trident', () => {
   const ids = dropsWith(() => 0);
   assert.ok(ids.includes('nautilus_shell'), `expected a nautilus shell, got ${ids.join(', ')}`);
   assert.ok(ids.includes('trident'), `expected a trident, got ${ids.join(', ')}`);
-  // And the drops it always had are still there.
-  assert.ok(ids.includes('rotten_flesh'));
+  // And the drops it always had are still there (rotten flesh is 0-2, so a roll of 0 may give none).
   assert.ok(ids.includes('copper_ingot'));
 });
 
@@ -132,4 +131,94 @@ test('the Inspector now finds a source for both, and the conduit is reachable', 
   // The shell is what a conduit is made of, which is why it mattered.
   const shell = reg.entries.get('nautilus_shell');
   assert.ok(shell.recipesAsIngredient.length >= 16, `expected the conduit recipes, found ${shell.recipesAsIngredient.length}`);
+});
+
+// --- gurgles, the baby drowned ---------------------------------------------------
+
+test('about 5% of NATURAL drowned spawns are baby gurgles, and a summoned one never is', () => {
+  // Wiki: baby drowned are "known as gurgles" and "make up 5% of drowned spawns". They are faster, worth 12
+  // XP instead of 5, "remain babies indefinitely", and -- the part a drowned farm turns on -- the tutorial
+  // notes baby zombies "don't drown because they're too short", so a gurgle never converts.
+  //
+  // The roll is gated on the NATURAL spawn flag, the way the sheep's colour roll is: `/summon drowned` and a
+  // spawn egg must give an adult, and rolling unconditionally would make command spawns randomly baby.
+  let gurgles = 0;
+  const manager = Object.assign(Object.create(MobManager.prototype), {
+    world: { getVoxel: () => BLOCKS.AIR }, scene: new THREE.Scene(),
+    sounds: new Proxy({}, { get: () => () => {} }),
+    entities: new EntityManager(new THREE.Scene(), { getVoxel: () => BLOCKS.AIR }, new Proxy({}, { get: () => () => {} })),
+    mobs: [], arrows: [], customProjectiles: [], textures: {}, isBlockSolid: () => false,
+    random: Math.random,
+  });
+  const TRIES = 4000;
+  for (let i = 0; i < TRIES; i++) {
+    const mob = manager.spawnMob('drowned', 0, 1, 0, { natural: true });
+    if (mob.isBaby) gurgles++;
+    manager.mobs.pop();
+  }
+  const rate = gurgles / TRIES;
+  assert.ok(rate > 0.03 && rate < 0.07,
+    `expected roughly 5% gurgles, got ${gurgles} of ${TRIES} (${(rate * 100).toFixed(2)}%)`);
+
+  let summoned = 0;
+  for (let i = 0; i < 500; i++) {
+    const mob = manager.spawnMob('drowned', 0, 1, 0);
+    if (mob.isBaby) summoned++;
+    manager.mobs.pop();
+  }
+  assert.equal(summoned, 0, 'a command-spawned drowned is never a baby');
+
+  // A gurgle is smaller, which is what keeps its head out of a two-block water column.
+  const baby = manager.spawnMob('drowned', 0, 1, 0, { isBaby: true });
+  manager.mobs.pop();
+  assert.equal(baby.isBaby, true);
+  assert.ok(baby.height < 1.2, `a gurgle should be short, got height ${baby.height}`);
+  assert.equal(baby.mesh.scale.x, 0.5, 'and drawn at half scale');
+});
+
+
+// --- wiki-parity gaps found by the bot pass ----------------------------------------
+
+/** Count one item across many kills, with a real random so the ranges are exercised. */
+function tally(over, item, kills = 600) {
+  const counts = [];
+  for (let i = 0; i < kills; i++) {
+    const { manager, player, spawned } = fixture(Math.random);
+    const drowned = manager.spawnMob('drowned', 0, 3, 0);
+    Object.assign(drowned, over);
+    manager.damageMob(drowned, 1000, null, false, player);
+    for (let t = 0; t < 20 && !drowned.lootDropped; t++) manager.update(0.1, player);
+    counts.push(spawned.filter((d) => d.id === item).reduce((n, d) => n + d.count, 0));
+  }
+  return counts;
+}
+
+test('rotten flesh is 0-2, and Looting III widens it to 0-5', () => {
+  const base = tally({}, 'rotten_flesh');
+  assert.equal(Math.min(...base), 0, 'wiki: "0-2", so none is possible');
+  assert.equal(Math.max(...base), 2);
+  const looted = tally({ lootingLevel: 3 }, 'rotten_flesh');
+  assert.equal(Math.max(...looted), 5, 'wiki: up to 0-5 with Looting III');
+});
+
+test('copper ingots are 11%, 17% at Looting III, and only for a player kill', () => {
+  // 0.12 is past the base 11% and inside Looting III's 17%.
+  assert.equal(dropsWith(() => 0.10).includes('copper_ingot'), true);
+  assert.equal(dropsWith(() => 0.12).includes('copper_ingot'), false);
+  assert.equal(dropsWith(() => 0.12, { lootingLevel: 3 }).includes('copper_ingot'), true);
+  assert.equal(dropsWith(() => 0.16, { lootingLevel: 3 }).includes('copper_ingot'), true);
+  assert.equal(dropsWith(() => 0.18, { lootingLevel: 3 }).includes('copper_ingot'), false);
+
+  // Killed by something other than the player (here: environmental damage), no copper at all.
+  const { manager, spawned } = fixture(() => 0);
+  const drowned = manager.spawnMob('drowned', 0, 3, 0);
+  manager.damageMob(drowned, 1000, null, false, null);
+  for (let i = 0; i < 20 && !drowned.lootDropped; i++) manager.update(0.1, { position: new THREE.Vector3(0, 3, 0) });
+  assert.equal(spawned.some((d) => d.id === 'copper_ingot'), false, 'copper is a player-kill drop');
+});
+
+test('a gurgle drops the same loot as an adult (it used to drop nothing)', () => {
+  const ids = dropsWith(() => 0, { isBaby: true });
+  assert.ok(ids.includes('copper_ingot'), `a baby drowned must still drop loot, got [${ids.join(', ')}]`);
+  assert.ok(ids.includes('nautilus_shell') && ids.includes('trident'));
 });

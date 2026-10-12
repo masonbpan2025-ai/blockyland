@@ -39,6 +39,20 @@ export const HUSK_HUNGER_SECONDS = { min: 7, max: 21 };
 /** Wiki: a husk that is submerged for 30 s begins converting, which takes 15 s more. */
 export const HUSK_DROWNING = { submergedSeconds: 30, convertSeconds: 15 };
 
+/**
+ * Wiki (Drowned § Conversion): the same 30 s + 15 s rule turns a ZOMBIE into a drowned.
+ *
+ * The two are one mechanic with two ends -- a husk becomes a zombie, and a zombie becomes a drowned -- so
+ * they share the timer below rather than each carrying a copy of it.
+ */
+export const ZOMBIE_DROWNING = { submergedSeconds: 30, convertSeconds: 15 };
+
+/** Which mob each conversion produces. The husk's leg is the zombie's leg's prerequisite. */
+export const SUBMERGED_CONVERSIONS = {
+  husk: { to: 'zombie', submergedSeconds: HUSK_DROWNING.submergedSeconds, convertSeconds: HUSK_DROWNING.convertSeconds },
+  zombie: { to: 'drowned', submergedSeconds: ZOMBIE_DROWNING.submergedSeconds, convertSeconds: ZOMBIE_DROWNING.convertSeconds },
+};
+
 /** Wiki: strays inflict Slowness for 30 seconds with a tipped arrow. */
 export const STRAY_SLOWNESS_SECONDS = 30;
 
@@ -179,24 +193,27 @@ export function variantAttackEffect(type, { unarmed = true } = {}) {
 }
 
 /**
- * How long a husk has to stay submerged before it converts.
+ * The shared submerged-conversion timer, for both ends of the zombie family.
  *
- * Wiki: "A husk that is fully submerged in water for 30 seconds begins converting to a normal zombie,
- * which takes an additional 15 seconds and cannot be stopped."
+ * Wiki: "If a zombie's head (not the legs) is submerged in water continuously for 30 seconds, it begins the
+ * process of converting into a drowned... At this point, the process cannot be stopped, and 15 seconds later
+ * the zombie becomes a drowned. The drowned appears with full health even if the previous zombie did not."
+ * The husk's rule is the same shape with a different target, so one implementation serves both.
  *
- * Returns 'counting', 'converting', 'converted' or null.
+ * Returns 'counting', 'converting', 'converted' or null (null when this mob has no conversion at all).
  */
-export function updateHuskDrowning(mob, dt, { submerged = false, manager = null } = {}) {
-  if (mob?.type !== 'husk') return null;
+export function updateSubmergedConversion(mob, dt, { submerged = false, manager = null } = {}) {
+  const rule = SUBMERGED_CONVERSIONS[mob?.type];
+  if (!rule) return null;
 
   // An active conversion is checked FIRST, before the submerged test. The wiki is explicit that it
-  // "cannot be stopped even if the husk leaves water", so leaving the water must not skip the timer --
-  // an earlier version returned early here and a husk that surfaced mid-conversion was never converted.
+  // "cannot be stopped even if the [mob] leaves water", so leaving the water must not skip the timer --
+  // an earlier version returned early here and a mob that surfaced mid-conversion was never converted.
   if ((mob.convertTimer ?? 0) > 0) {
     mob.convertTimer -= dt;
     if (mob.convertTimer <= 0) {
-      // The replacement zombie has FULL health even if the husk was damaged.
-      manager?.replaceMobType?.(mob, 'zombie');
+      // The replacement has FULL health even if the original was damaged.
+      manager?.replaceMobType?.(mob, rule.to);
       return 'converted';
     }
     return 'converting';
@@ -209,12 +226,25 @@ export function updateHuskDrowning(mob, dt, { submerged = false, manager = null 
   }
 
   mob.submergedSeconds = (mob.submergedSeconds ?? 0) + dt;
-  if (mob.submergedSeconds >= HUSK_DROWNING.submergedSeconds) {
-    mob.submergedSeconds = HUSK_DROWNING.submergedSeconds;
-    mob.convertTimer = HUSK_DROWNING.convertSeconds;
+  if (mob.submergedSeconds >= rule.submergedSeconds) {
+    mob.submergedSeconds = rule.submergedSeconds;
+    mob.convertTimer = rule.convertSeconds;
     return 'converting';
   }
   return 'counting';
+}
+
+/**
+ * The husk's own entry point, kept because its name is what the husk call sites and their tests read.
+ *
+ * Wiki: "A husk that is fully submerged in water for 30 seconds begins converting to a normal zombie,
+ * which takes an additional 15 seconds and cannot be stopped."
+ *
+ * Returns 'counting', 'converting', 'converted' or null.
+ */
+export function updateHuskDrowning(mob, dt, options = {}) {
+  if (mob?.type !== 'husk') return null;
+  return updateSubmergedConversion(mob, dt, options);
 }
 
 /** The bogged's attack cooldown at a difficulty, which the wiki gives explicitly. */

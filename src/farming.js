@@ -1,14 +1,54 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { spendDurability } from './durability.js';
 
-// Tillable ground blocks in Minecraft
+/**
+ * The rest of the wiki's fertilizer table, as one block in and one block out.
+ *
+ * Wiki (Bone Meal), "Fertilizer": "Short Grass / Fern / Seagrass -- A one-block-high tall short grass, fern,
+ * or seagrass ... grows into a two-block-high tall grass, large fern, or tall seagrass." In this engine the
+ * tall forms are SINGLE blocks rather than a lower and an upper half, so the change is one substitution.
+ *
+ * Deliberately ABSENT, and why:
+ *   - Sugar cane and nether wart: the wiki's own "Bone meal does not affect" list names both, so their
+ *     absence is the correct behaviour rather than a gap.
+ *   - Saplings and azaleas (45% chance of a stage), and mushrooms / nether fungi (40% chance of a huge
+ *     form): both need a whole-tree or whole-structure generator, which this engine does not have.
+ *   - Cocoa and the sweet berry bush ("matures 1 growth stage"): modelled as single blocks at their mature
+ *     stage, so there is no earlier stage to advance from.
+ *   - Sea pickles, kelp, cave vines, glow lichen, moss blocks, dripleaf, rooted dirt, pink petals and the
+ *     torchflower/pitcher crops: each needs its own mechanic that is out of scope here.
+ * The two-block flowers (sunflower, lilac, rose bush, peony) are handled by their drop rows rather than here.
+ */
+export const BONE_MEAL_PLANTS = {
+  [BLOCKS.SHORT_GRASS]: { to: BLOCKS.TALL_GRASS },
+  [BLOCKS.FERN]: { to: BLOCKS.LARGE_FERN },
+  [BLOCKS.SEAGRASS]: { to: BLOCKS.TALL_SEAGRASS },
+  // Wiki (Bone Meal): "Sunflower / Lilac / Rose Bush / Peony -- The corresponding item form drops, without
+  // destroying the original plant." A `drop` entry rather than a `to`, because the plant stays put.
+  [BLOCKS.LILAC]: { drop: BLOCKS.LILAC },
+  [BLOCKS.ROSE_BUSH]: { drop: BLOCKS.ROSE_BUSH },
+  [BLOCKS.PEONY]: { drop: BLOCKS.PEONY },
+};
+
+// Wiki (Hoe): "Hoes can till dirt blocks, grass blocks and dirt paths" -- and "do not work on mycelium or
+// podzol". This set used to include podzol, mycelium and moss, which vanilla refuses.
 export const TILLABLE_BLOCKS = new Set([
   BLOCKS.GRASS,
   BLOCKS.DIRT,
-  BLOCKS.PODZOL,
-  BLOCKS.MYCELIUM,
-  BLOCKS.MOSS_BLOCK
-]);
+  BLOCKS.DIRT_PATH,
+].filter(v => v !== undefined));
+
+/** Wiki (Wheat): crops need "a light level of at least 9 to grow". */
+export const MIN_CROP_LIGHT = 9;
+
+/**
+ * Wiki (Farmland): trampling happens when something "jumps/falls on the block (with chance equal to
+ * distance fallen - 0.5)". Walking never tramples.
+ */
+export function trampleChance(fallDistance) {
+  return Math.max(0, Math.min(1, (fallDistance || 0) - 0.5));
+}
 
 // Hoes from wooden to netherite
 export function isHoe(itemId) {
@@ -27,48 +67,76 @@ export function getSeedCrop(itemId) {
   if (itemId === 'potato') {
     return { crop: 'potatoes', block0: BLOCKS.POTATOES_STAGE_0 };
   }
+  // Wiki: beetroot seeds plant beetroots, which grow through four stages like the other three crops.
+  if (itemId === 'beetroot_seeds') {
+    return { crop: 'beetroots', block0: BLOCKS.BEETROOTS_STAGE_0 };
+  }
   return null;
 }
 
+/**
+ * Each crop's stage blocks, lowest stage first.
+ *
+ * A table rather than `baseBlock + stage`, because the beetroot's four ids are NOT contiguous: the id space
+ * was nearly full when its three earlier stages were added, so they took the only free slots (54 and 150)
+ * plus the old single-stage id. `wheat`, `carrots` and `potatoes` remain runs, and their entries say so.
+ */
+export const CROP_STAGES = {
+  wheat: [BLOCKS.WHEAT_STAGE_0, BLOCKS.WHEAT_STAGE_1, BLOCKS.WHEAT_STAGE_2, BLOCKS.WHEAT_STAGE_3,
+    BLOCKS.WHEAT_STAGE_4, BLOCKS.WHEAT_STAGE_5, BLOCKS.WHEAT_STAGE_6, BLOCKS.WHEAT_STAGE_7],
+  carrots: [BLOCKS.CARROTS_STAGE_0, BLOCKS.CARROTS_STAGE_1, BLOCKS.CARROTS_STAGE_2, BLOCKS.CARROTS_STAGE_3],
+  potatoes: [BLOCKS.POTATOES_STAGE_0, BLOCKS.POTATOES_STAGE_1, BLOCKS.POTATOES_STAGE_2, BLOCKS.POTATOES_STAGE_3],
+  beetroots: [BLOCKS.BEETROOTS_STAGE_0, BLOCKS.BEETROOTS_STAGE_1, BLOCKS.BEETROOTS_STAGE_2, BLOCKS.BEETROOTS_STAGE_3],
+};
+
+/** The block id a crop sits at in a given stage. */
+export function cropStageBlock(type, stage) {
+  const stages = CROP_STAGES[type];
+  if (!stages) return undefined;
+  return stages[Math.max(0, Math.min(stages.length - 1, stage))];
+}
+
+/** The stage a block is, or null when it is not that crop's. */
+function stageOf(type, blockId) {
+  const index = CROP_STAGES[type]?.indexOf(blockId) ?? -1;
+  return index < 0 ? null : index;
+}
+
+/**
+ * What a crop drops.
+ *
+ * Wiki (Beetroot): a mature plant drops 1 beetroot and 0-3 seeds; an immature one drops 1 seed. It does NOT
+ * drop a beetroot before maturity, which is the one rule that separates it from carrots and potatoes.
+ */
+const CROP_DROPS = {
+  wheat: {
+    // Wiki (Wheat): a mature plant drops "1 wheat and 1-4 wheat seeds" (mean 2 5/7).
+    dropMature: { item: 'wheat', min: 1, max: 1, seed: 'wheat_seeds', minSeeds: 1, maxSeeds: 4,
+      // Vanilla's loot: 1 seed + Binomial(3, 4/7) more, which is where the wiki's 2 5/7 mean comes from.
+      seedExtraTrials: 3, seedExtraChance: 4 / 7 },
+    dropImmature: { item: 'wheat_seeds', count: 1 },
+  },
+  carrots: { dropMature: { item: 'carrot', min: 2, max: 5 }, dropImmature: { item: 'carrot', count: 1 } },
+  potatoes: { dropMature: { item: 'potato', min: 2, max: 5, poisonChance: 0.02 }, dropImmature: { item: 'potato', count: 1 } },
+  beetroots: {
+    dropMature: { item: 'beetroot', min: 1, max: 1, seed: 'beetroot_seeds', minSeeds: 0, maxSeeds: 3 },
+    dropImmature: { item: 'beetroot_seeds', count: 1 },
+  },
+};
+
 // Check if block is a crop and retrieve its metadata
 export function getCropInfo(blockId) {
-  // Wheat: 164..171 (stages 0..7)
-  if (blockId >= BLOCKS.WHEAT_STAGE_0 && blockId <= BLOCKS.WHEAT_STAGE_7) {
-    const stage = blockId - BLOCKS.WHEAT_STAGE_0;
+  for (const type of Object.keys(CROP_STAGES)) {
+    const stage = stageOf(type, blockId);
+    if (stage === null) continue;
+    const stages = CROP_STAGES[type];
     return {
-      type: 'wheat',
+      type,
       stage,
-      maxStage: 7,
-      isMature: stage === 7,
-      baseBlock: BLOCKS.WHEAT_STAGE_0,
-      dropMature: { item: 'wheat', min: 1, max: 1, seed: 'wheat_seeds', minSeeds: 1, maxSeeds: 3 },
-      dropImmature: { item: 'wheat_seeds', count: 1 }
-    };
-  }
-  // Carrots: 172..175 (stages 0..3)
-  if (blockId >= BLOCKS.CARROTS_STAGE_0 && blockId <= BLOCKS.CARROTS_STAGE_3) {
-    const stage = blockId - BLOCKS.CARROTS_STAGE_0;
-    return {
-      type: 'carrots',
-      stage,
-      maxStage: 3,
-      isMature: stage === 3,
-      baseBlock: BLOCKS.CARROTS_STAGE_0,
-      dropMature: { item: 'carrot', min: 2, max: 5 },
-      dropImmature: { item: 'carrot', count: 1 }
-    };
-  }
-  // Potatoes: 176..179 (stages 0..3)
-  if (blockId >= BLOCKS.POTATOES_STAGE_0 && blockId <= BLOCKS.POTATOES_STAGE_3) {
-    const stage = blockId - BLOCKS.POTATOES_STAGE_0;
-    return {
-      type: 'potatoes',
-      stage,
-      maxStage: 3,
-      isMature: stage === 3,
-      baseBlock: BLOCKS.POTATOES_STAGE_0,
-      dropMature: { item: 'potato', min: 2, max: 5, poisonChance: 0.02 },
-      dropImmature: { item: 'potato', count: 1 }
+      maxStage: stages.length - 1,
+      isMature: stage === stages.length - 1,
+      baseBlock: stages[0],
+      ...CROP_DROPS[type],
     };
   }
   return null;
@@ -76,8 +144,11 @@ export function getCropInfo(blockId) {
 
 // Minecraft wiki: water hydrates farmland within horizontal Chebyshev distance of 4 (dx, dz in [-4, 4])
 // and dy in [0, 1] (same level or 1 above).
-export function isWaterNearby(world, x, y, z) {
+export function isWaterNearby(world, x, y, z, game = null) {
   if (!world) return false;
+  // Wiki (Farmland): "Rain also hydrates farmland" -- when nothing covers its top surface.
+  const raining = game?.weather?.weatherType === 'rain' || game?.weather?.weatherType === 'thunder';
+  if (raining && isSkyExposed(world, x, y + 1, z)) return true;
   for (let dx = -4; dx <= 4; dx++) {
     for (let dz = -4; dz <= 4; dz++) {
       for (let dy = 0; dy <= 1; dy++) {
@@ -91,11 +162,23 @@ export function isWaterNearby(world, x, y, z) {
   return false;
 }
 
+function isSkyExposed(world, x, y, z) {
+  for (let yy = y; yy < y + 64; yy++) {
+    const id = world.getVoxel(x, yy, z);
+    if (id === BLOCKS.AIR || id === undefined || id === null) continue;
+    const def = BLOCK_DEFS[id];
+    if (def && def.solid === false) continue;
+    return false;
+  }
+  return true;
+}
+
 export class FarmingManager {
   constructor(game) {
     this.game = game;
     this.world = game?.world || null;
     this.tickTimer = 0;
+    this.random = Math.random; // injectable, so tests can pin trampling and growth rolls
     this.tickInterval = 1.0; // checks growth and hydration periodically
 
     // Active crop and farmland tracking for fast O(N) tick updates
@@ -139,11 +222,23 @@ export class FarmingManager {
     }
 
     // Determine hydration
-    const hydrated = isWaterNearby(this.world, x, y, z);
+    const hydrated = isWaterNearby(this.world, x, y, z, this.game);
     const newFarmland = hydrated ? BLOCKS.FARMLAND_MOIST : BLOCKS.FARMLAND;
 
     this.world.setVoxel(x, y, z, newFarmland);
     this.registerFarmland(x, y, z);
+
+    // Wiki (Hoe): tilling "uses 1 durability".
+    if (player && player.gamemode === 'survival') {
+      const held = this.game?.inventory?.getActiveItem?.();
+      if (held && isHoe(held.id)) {
+        const wear = spendDurability(held, 1);
+        if (wear.broke) {
+          this.game?.inventory?.consumeActiveItem?.(1);
+          this.game?.ui?.updateHotbar?.();
+        }
+      }
+    }
 
     // Audio
     this.game?.sounds?.playHoe?.();
@@ -217,16 +312,32 @@ export class FarmingManager {
       if (cropInfo.isMature) return false; // Already fully grown
 
       let advance = 0;
-      if (cropInfo.type === 'wheat') {
-        // Minecraft wiki: wheat advances by random 2-5 stages
+      if (cropInfo.type === 'wheat' || cropInfo.type === 'carrots' || cropInfo.type === 'potatoes') {
+        // Wiki (Bone Meal), the fertilizer table's first row: "Wheat / Carrots / Potatoes -- The plant
+        // matures 2-5 growth stages." It is ONE rule for all three. This used to branch, giving wheat 2-5 and
+        // everything else 1-3, so a single bone meal on carrots or potatoes could advance them by a single
+        // stage -- outside the range the wiki states, and short of what wheat gets from the same item.
         advance = 2 + Math.floor(Math.random() * 4);
+      } else if (cropInfo.type === 'beetroots') {
+        // Wiki (Bone Meal), the row below that one: "Beetroots -- The plant has a 75% chance of growing to
+        // the next growth stage." One stage, and only three times in four, so it is neither the 2-5 rule
+        // above nor a guarantee. A miss still spends the bone meal, which is what "wasting bone meal" means.
+        if (Math.random() >= 0.75) {
+          if (player && player.gamemode !== 'creative') {
+            this.game?.inventory?.consumeActiveItem?.();
+            this.game?.ui?.updateHotbar?.();
+          }
+          return true;
+        }
+        advance = 1;
       } else {
-        // Carrots & potatoes advance by random 1-3 stages
-        advance = 1 + Math.floor(Math.random() * 3);
+        // Any crop this build models later should state its own rule here rather than inherit one.
+        advance = 1;
       }
 
       const nextStage = Math.min(cropInfo.maxStage, cropInfo.stage + advance);
-      const newBlockId = cropInfo.baseBlock + nextStage;
+      // Through the stage TABLE, not `baseBlock + stage`: the beetroot's four stages are not contiguous.
+      const newBlockId = cropStageBlock(cropInfo.type, nextStage);
 
       this.world.setVoxel(cropX, cropY, cropZ, newBlockId);
       this.registerCrop(cropX, cropY, cropZ);
@@ -249,18 +360,34 @@ export class FarmingManager {
     const targetBlock = this.world.getVoxel(x, y, z);
     if (targetBlock === BLOCKS.GRASS) {
       let createdAny = false;
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let dz = -2; dz <= 2; dz++) {
-          if ((dx === 0 && dz === 0) || Math.random() < 0.45) {
+      // Wiki (Bone Meal), "Creating new plants": "Grass blocks within a 15x15x15 area of the target block
+      // randomly choose which type of foliage to grow". This used a 5x5 area at one level, so a bone meal
+      // grew a quarter of the foliage vanilla does. The area is a half-extent of 7, giving 15 blocks.
+      //
+      // Wiki also: the TYPE "depends on external factors like the biome and coordinates", and those factors
+      // are not modelled -- the roll below is still a flat dandelion/poppy choice. Recorded as
+      // SPEC_UNVERIFIED rather than guessed at.
+      const R = 7;
+      for (let dx = -R; dx <= R; dx++) {
+        for (let dz = -R; dz <= R; dz++) {
+          for (let dy = -R; dy <= R; dy++) {
             const gx = x + dx;
+            const gy = y + dy;
             const gz = z + dz;
-            const gy = y;
-            if (this.world.getVoxel(gx, gy, gz) === BLOCKS.GRASS && this.world.getVoxel(gx, gy + 1, gz) === BLOCKS.AIR) {
-              const flowerRoll = Math.random();
-              const flowerBlock = flowerRoll < 0.5 ? BLOCKS.DANDELION : BLOCKS.POPPY;
-              this.world.setVoxel(gx, gy + 1, gz, flowerBlock);
-              createdAny = true;
-            }
+            // FIND a candidate before rolling for it. The roll used to run first, so on a small patch -- which
+            // is what a test world or a lone grass block is -- the 45% gate almost never coincided with the
+            // one cell that held grass, and bone meal appeared to do nothing at all. Vanilla picks from the
+            // grass blocks in the volume, so the candidate check comes first and the roll decides sprouting.
+            const _v = this.world.getVoxel(gx, gy, gz);
+            if (_v !== BLOCKS.GRASS) continue;
+            if (this.world.getVoxel(gx, gy + 1, gz) !== BLOCKS.AIR) continue;
+            if (Math.random() >= 0.45) continue;
+            const flowerRoll = Math.random();
+            // The wiki's list of foliage this can create includes flowers, tall grass, ferns and pink petals.
+            // Tall grass is included here; the BIOME rule that picks between them is not modelled.
+            const flowerBlock = flowerRoll < 0.4 ? BLOCKS.DANDELION : flowerRoll < 0.8 ? BLOCKS.POPPY : BLOCKS.SHORT_GRASS;
+            this.world.setVoxel(gx, gy + 1, gz, flowerBlock);
+            createdAny = true;
           }
         }
       }
@@ -275,6 +402,44 @@ export class FarmingManager {
         this.game?.ui?.updateHotbar?.();
       }
       return true;
+    }
+
+    // 3c. Bone meal on the other plants the wiki's fertilizer table lists.
+    //
+    // Table-driven, because all of these are the same shape: one block in, one block out. Two whole rows of
+    // the wiki's table are of that form -- "Short Grass / Fern / Seagrass: a one-block-high ... grows into a
+    // two-block-high ..." and "Cocoa: The cocoa plant matures 1 growth stage". Sugar cane and nether wart are
+    // deliberately ABSENT: the wiki's "Bone meal does not affect" list names both.
+    const plantRule = BONE_MEAL_PLANTS[targetBlock];
+    if (plantRule) {
+      if (plantRule.to !== undefined) {
+        this.world.setVoxel(x, y, z, plantRule.to);
+        // A two-block plant needs its upper half placed as well, or the tall texture hangs over air.
+        if (plantRule.upper !== undefined && this.world.getVoxel(x, y + 1, z) === BLOCKS.AIR) {
+          this.world.setVoxel(x, y + 1, z, plantRule.upper);
+        }
+        this.registerCrop?.(x, y, z);
+        this.game?.entities?.spawnBoneMealParticles?.(new THREE.Vector3(x + 0.5, y + 0.6, z + 0.5), 12);
+        this.game?.sounds?.playBoneMeal?.();
+        this.rebuildBlockChunk(x, z);
+        if (player && player.gamemode !== 'creative') {
+          this.game?.inventory?.consumeActiveItem?.();
+          this.game?.ui?.updateHotbar?.();
+        }
+        return true;
+      }
+      // A drop-instead-of-growth entry: "The corresponding item form drops, without destroying the original."
+      if (plantRule.drop) {
+        this.game?.entities?.spawnDroppedItem?.(
+          new THREE.Vector3(x + 0.5, y + 0.4, z + 0.5), plantRule.drop, false, 1,
+        );
+        this.game?.sounds?.playBoneMeal?.();
+        if (player && player.gamemode !== 'creative') {
+          this.game?.inventory?.consumeActiveItem?.();
+          this.game?.ui?.updateHotbar?.();
+        }
+        return true;
+      }
     }
 
     return false;
@@ -319,34 +484,32 @@ export class FarmingManager {
       }
     };
 
+    // Driven by the crop's own drop table rather than a branch per crop, so adding a crop means adding a row
+    // rather than a fourth `else if` here and a fifth in the immature block below.
     if (cropInfo.isMature) {
-      if (cropInfo.type === 'wheat') {
-        spawnItem('wheat', 1);
-        // Seeds drop 1-3 (if right-click harvested, 1 is replanted so drop 0-2 or 1-3)
-        const seedCount = 1 + Math.floor(Math.random() * 3);
-        const seedsToDrop = isRightClickHarvest ? Math.max(0, seedCount - 1) : seedCount;
-        if (seedsToDrop > 0) spawnItem('wheat_seeds', seedsToDrop);
-      } else if (cropInfo.type === 'carrots') {
-        const carrotCount = 2 + Math.floor(Math.random() * 4); // 2 to 5 carrots
-        const dropCount = isRightClickHarvest ? Math.max(1, carrotCount - 1) : carrotCount;
-        spawnItem('carrot', dropCount);
-      } else if (cropInfo.type === 'potatoes') {
-        const potatoCount = 2 + Math.floor(Math.random() * 4); // 2 to 5 potatoes
-        const dropCount = isRightClickHarvest ? Math.max(1, potatoCount - 1) : potatoCount;
-        spawnItem('potato', dropCount);
-        if (Math.random() < 0.02) {
-          spawnItem('poisonous_potato', 1);
+      const mature = cropInfo.dropMature;
+      if (!mature) return;
+      const rolled = mature.max !== undefined
+        ? mature.min + Math.floor(Math.random() * (mature.max - mature.min + 1))
+        : 1;
+      // A right-click harvest replants one, which vanilla takes out of the yield rather than adding to it.
+      const count = isRightClickHarvest ? Math.max(mature.item === 'wheat' ? 1 : 1, rolled - 1) : rolled;
+      spawnItem(mature.item, count);
+      if (mature.seed) {
+        let seedRoll = mature.minSeeds + Math.floor(Math.random() * (mature.maxSeeds - mature.minSeeds + 1));
+        if (mature.seedExtraTrials) {
+          seedRoll = mature.minSeeds;
+          for (let i = 0; i < mature.seedExtraTrials; i++) if (Math.random() < mature.seedExtraChance) seedRoll++;
         }
+        const seeds = isRightClickHarvest ? Math.max(0, seedRoll - 1) : seedRoll;
+        if (seeds > 0) spawnItem(mature.seed, seeds);
       }
+      if (mature.poisonChance && Math.random() < mature.poisonChance) spawnItem('poisonous_potato', 1);
     } else {
-      // Immature crop yields only 1 seed/crop
-      if (cropInfo.type === 'wheat') {
-        spawnItem('wheat_seeds', 1);
-      } else if (cropInfo.type === 'carrots') {
-        spawnItem('carrot', 1);
-      } else if (cropInfo.type === 'potatoes') {
-        spawnItem('potato', 1);
-      }
+      // An immature crop yields only its seed -- and for beetroot, ONLY the seed: a beetroot comes off a
+      // mature plant alone, which is the rule that separates it from carrots and potatoes.
+      const immature = cropInfo.dropImmature;
+      if (immature) spawnItem(immature.item, immature.count ?? 1);
     }
   }
 
@@ -361,8 +524,9 @@ export class FarmingManager {
     }
 
     // Minecraft wiki: trampling occurs if landing with downward speed or fall distance
-    const isFalling = (fallDist > 0.45) || (player?.velocity?.y < -2.2) || (player?.keys && player.keys['Space']);
-    if (!isFalling) return false;
+    // Only a landing counts, never walking or merely holding jump, and it is a dice roll on the distance
+    // fallen: a one-block hop (1.25) tramples 75% of the time, a bare 0.5 never does.
+    if (this.random() >= trampleChance(fallDist)) return false;
 
     // Farmland reverts to dirt
     this.world.setVoxel(x, y, z, BLOCKS.DIRT);
@@ -400,7 +564,18 @@ export class FarmingManager {
         continue;
       }
 
-      const hydrated = isWaterNearby(this.world, pos.x, pos.y, pos.z);
+      // Wiki (Farmland): it reverts to dirt when "a solid block covers the top surface". Crops and other
+      // non-solid plants do not count.
+      const cover = this.world.getVoxel(pos.x, pos.y + 1, pos.z);
+      const coverDef = BLOCK_DEFS[cover];
+      if (cover !== BLOCKS.AIR && cover != null && coverDef && coverDef.solid !== false) {
+        this.world.setVoxel(pos.x, pos.y, pos.z, BLOCKS.DIRT);
+        this.farmlands.delete(key);
+        dirtyChunks.add(`${Math.floor(pos.x / 16)},${Math.floor(pos.z / 16)}`);
+        continue;
+      }
+
+      const hydrated = isWaterNearby(this.world, pos.x, pos.y, pos.z, this.game);
       if (hydrated && current === BLOCKS.FARMLAND) {
         this.world.setVoxel(pos.x, pos.y, pos.z, BLOCKS.FARMLAND_MOIST);
         dirtyChunks.add(`${Math.floor(pos.x / 16)},${Math.floor(pos.z / 16)}`);
@@ -440,14 +615,17 @@ export class FarmingManager {
 
       if (cropInfo.isMature) continue;
 
+      // Wiki (Wheat): "a light level of at least 9 to grow".
+      if (this.lightAt(pos.x, pos.y, pos.z) < MIN_CROP_LIGHT) continue;
+
       // Minecraft wiki growth probability:
       // Moist farmland accelerates crop growth dramatically (~2.5x to 3x faster than dry)
       const isMoist = soil === BLOCKS.FARMLAND_MOIST;
       const growthChance = isMoist ? 0.35 : 0.12;
 
-      if (Math.random() < growthChance) {
+      if (this.random() < growthChance) {
         const nextStage = cropInfo.stage + 1;
-        const nextBlock = cropInfo.baseBlock + nextStage;
+        const nextBlock = cropStageBlock(cropInfo.type, nextStage);
         this.world.setVoxel(pos.x, pos.y, pos.z, nextBlock);
         dirtyChunks.add(`${Math.floor(pos.x / 16)},${Math.floor(pos.z / 16)}`);
       }
@@ -463,6 +641,16 @@ export class FarmingManager {
     }
   }
 
+  /** Light at a crop. An unknown or unlit-engine answer counts as bright, so a bare test world still grows. */
+  lightAt(x, y, z) {
+    try {
+      const v = this.world?.getLightLevel?.(x, y, z, this.game?.skyDarken ?? 0);
+      return Number.isFinite(v) ? v : 15;
+    } catch {
+      return 15;
+    }
+  }
+
   rebuildBlockChunk(x, z) {
     if (!this.world) return;
     const cx = Math.floor(x / 16);
@@ -473,3 +661,9 @@ export class FarmingManager {
     }
   }
 }
+
+
+
+
+
+

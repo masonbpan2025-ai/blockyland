@@ -1254,3 +1254,50 @@ test('Survival Scenario 15: Villager trading functionality in Creative mode (car
 
 
 
+
+test('Survival Scenario 16: Farming parity - the bot tills a dirt path, is refused on podzol, and the hoe wears by 1 per tilling', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.world.setVoxel(1, 0, 0, BLOCKS.DIRT_PATH);
+  f.world.setVoxel(1, 0, 1, BLOCKS.PODZOL);
+  f.inventory.addItem('iron_hoe', false, 1);
+  const hoe = () => f.inventory.hotbar.concat(f.inventory.storage || []).find(i => i?.id === 'iron_hoe');
+
+  const tilled = await f.drive(f.bot.run({ type: 'till', position: [1, 0, 0] }));
+  assert.equal(tilled.ok, true, tilled.message);
+  assert.ok([BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST].includes(f.world.getVoxel(1, 0, 0)), 'dirt path becomes farmland');
+  assert.equal(hoe().durability, hoe().maxDurability - 1, 'one tilling spends exactly one durability');
+
+  const refused = await f.drive(f.bot.run({ type: 'till', position: [1, 0, 1] }).catch(e => ({ ok: false, message: e.message })));
+  assert.equal(refused.ok, false, 'wiki: hoes do not work on podzol');
+  assert.equal(f.world.getVoxel(1, 0, 1), BLOCKS.PODZOL, 'podzol is untouched');
+  assert.equal(hoe().durability, hoe().maxDurability - 1, 'a refused tilling costs nothing');
+});
+
+test('Survival Scenario 17: Farming parity - the bot plants wheat, light and bone meal decide growth, harvest drops 1 wheat and 1-4 seeds', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.world.setVoxel(1, 0, 0, BLOCKS.FARMLAND_MOIST);
+  f.world.setVoxel(2, 0, 2, BLOCKS.WATER);
+  f.game.farmingManager.registerFarmland(1, 0, 0);
+  f.inventory.addItem('wheat_seeds', false, 2);
+
+  const planted = await f.drive(f.bot.run({ type: 'place', item: 'wheat_seeds', position: [1, 1, 0], count: 1 }));
+  assert.equal(planted.ok, true, planted.message);
+  f.game.farmingManager.registerCrop(1, 1, 0);
+
+  // Growth is gated on light 9: dark -> stays at stage 0 however many ticks pass.
+  f.game.farmingManager.random = () => 0;
+  f.world.getLightLevel = () => 4;
+  for (let i = 0; i < 10; i++) { f.game.farmingManager.tickTimer = 99; f.game.farmingManager.update(0, null); }
+  assert.equal(f.world.getVoxel(1, 1, 0), BLOCKS.WHEAT_STAGE_0, 'no growth in the dark');
+  f.world.getLightLevel = () => 15;
+  for (let i = 0; i < 10; i++) { f.game.farmingManager.tickTimer = 99; f.game.farmingManager.update(0, null); }
+  assert.equal(f.world.getVoxel(1, 1, 0), BLOCKS.WHEAT_STAGE_7, 'lit, hydrated wheat reaches maturity');
+
+  // The bot harvests it: 1 wheat and at least one seed come back.
+  f.inventory.addItem('wheat_seeds', false, 0);
+  f.game.entities.droppedItems.length = 0;
+  f.game.farmingManager.harvest(1, 1, 0, f.player);
+  const ids = f.game.entities.droppedItems.map(d => d.itemType);
+  assert.ok(ids.includes('wheat'), 'harvest drops wheat');
+  assert.equal(f.world.getVoxel(1, 1, 0), BLOCKS.WHEAT_STAGE_0, 'right-click harvest replants');
+});

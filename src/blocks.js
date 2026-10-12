@@ -698,7 +698,19 @@ export const BLOCKS = {
   // directories instead of the bare name. It is the third time that lesson has paid: the earlier
   // "art-blocked" conclusions for ancient debris, tall grass, the candle cakes and the potted plants were
   // all the same mistake.
-  BEETROOTS: 1167,
+  // Beetroots grow through four stages, as wheat, carrots and potatoes already do.
+  //
+  // THE MATURE STAGE KEEPS ITS OLD ID (1167), because a block's id must never move: the harvest table, the
+  // save format and the texture maps are all keyed by it. The three earlier stages are APPENDED above the
+  // highest id rather than slotted into the two gaps below it (54 and 150), which keeps every new id above
+  // anything already written and leaves no block id standing for two things.
+  //
+  // They are therefore NOT a contiguous run, so `getCropInfo` resolves a beetroot's stage through an
+  // explicit stage table rather than by subtracting a base id.
+  BEETROOTS_STAGE_0: 1216,
+  BEETROOTS_STAGE_1: 1217,
+  BEETROOTS_STAGE_2: 1218,
+  BEETROOTS_STAGE_3: 1167,
   COCOA: 1168,
   PITCHER_CROP: 1169,
   TORCHFLOWER_CROP: 1170,
@@ -1214,7 +1226,10 @@ export const BLOCK_DEFS = {
   //
   // SCAFFOLDING DROPS ITSELF. Vanilla also lets you climb it and place it without support; neither is
   // modelled, so it is a solid block drawn from its top, side and bottom art.
-  [BLOCKS.BEETROOTS]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage3.png' } },
+  [BLOCKS.BEETROOTS_STAGE_0]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage0.png' } },
+  [BLOCKS.BEETROOTS_STAGE_1]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage1.png' } },
+  [BLOCKS.BEETROOTS_STAGE_2]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage2.png' } },
+  [BLOCKS.BEETROOTS_STAGE_3]: { name: 'Beetroots', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'beetroot_seeds', textures: { all: 'beetroots_stage3.png' } },
   [BLOCKS.COCOA]: { name: 'Cocoa', hardness: 0.2, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'cocoa_beans', textures: { all: 'cocoa_stage2.png' } },
   [BLOCKS.PITCHER_CROP]: { name: 'Pitcher Crop', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'pitcher_pod', textures: { all: 'pitcher_crop_top.png' } },
   [BLOCKS.TORCHFLOWER_CROP]: { name: 'Torchflower Crop', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'torchflower_seeds', textures: { all: 'torchflower_crop_stage0.png' } },
