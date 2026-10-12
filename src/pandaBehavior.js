@@ -207,8 +207,15 @@ export function applyPandaColors(mob) {
   const light = palette === PANDA_COLORS.normal ? 0xffffff : palette.light;
   // The spawner records the two materials it built the model from, so the recolour is a two-line
   // operation rather than a traversal that could recolour an unrelated mesh.
-  mob.darkMat?.color?.setHex?.(dark);
-  mob.lightMat?.color?.setHex?.(light);
+  if (mob.darkMat && mob.darkMat === mob.lightMat) {
+    // ONE material, textured. The sheet carries the black patches itself, so the palette here is a single tint
+    // over the whole model: a normal panda is left completely untinted (white), and only brown recolours it.
+    // Writing `dark` for the normal personality would paint the entire panda near-black.
+    mob.darkMat.color?.setHex?.(palette === PANDA_COLORS.normal ? 0xffffff : dark);
+  } else {
+    mob.darkMat?.color?.setHex?.(dark);
+    if (mob.lightMat !== mob.darkMat) mob.lightMat?.color?.setHex?.(light);
+  }
   if (mob.mesh) {
     // Fall back to a traversal for a model built without the material handles. It remaps either palette in
     // both directions, so a brown panda can be turned back into a normal one.

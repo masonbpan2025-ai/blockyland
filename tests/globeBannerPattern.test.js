@@ -47,11 +47,14 @@ test('the Inspector is told the trade is the source', () => {
   assert.equal(BLOCKS.GLOBE_BANNER_PATTERN, undefined, 'it is not a block, so nothing else can produce it');
 });
 
-test('the piglin banner pattern stays absent, and why', () => {
-  // Vanilla's other banner pattern comes from bartering, and this game's barter table is pinned to Java
-  // 1.21.6+'s nineteen entries at weight 469 -- which do not include it. Adding a row here would break that
-  // pin and would not be vanilla for the version the table models, so the item stays on the absent list with
-  // the reason recorded in the gap review.
-  assert.equal(ITEMS.piglin_banner_pattern, undefined);
-  assert.equal(addedItems().piglin_banner_pattern, undefined);
+test('the piglin banner pattern exists as a barter item, not a block', () => {
+  // Wiki (Banner Pattern): the Snout pattern is a real item, and bartering with piglins is the only way to get
+  // one -- there is no crafting recipe for it in any version.
+  //
+  // An earlier version of this test asserted the item was ABSENT, because this game's barter table is pinned to
+  // 1.21.6's nineteen entries at weight 469 and the gap review said it was not among them. The item has since
+  // been added, so what is pinned now is the half the wiki fixes: it exists, and it is an item, so no block can
+  // produce one and only the barter table can.
+  assert.ok(ITEMS.piglin_banner_pattern ?? addedItems().piglin_banner_pattern, 'the Snout pattern exists');
+  assert.equal(BLOCKS.PIGLIN_BANNER_PATTERN, undefined, 'it is not a block, so nothing else can produce it');
 });

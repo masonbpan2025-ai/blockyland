@@ -102,6 +102,10 @@ export function syncZombifiedEquipment(m){
   }
 }
 function attack(manager,m,target,damage){
+  // Nothing to hit. A zombified piglin's anger outlives its target -- the wiki keeps it angry until the
+  // attacker dies, and the attacker can die to something else first -- so this is reached with no target at
+  // all, and used to throw on `target.health` through damageMob.
+  if(!target)return false;
   m.attackAnimation=.3;
   if(target===manager.game?.player)target.takeDamage?.(damage,m.mesh.position,'zombified_piglin');
   else manager.damageMob(target,damage,m.mesh.position,false,m);

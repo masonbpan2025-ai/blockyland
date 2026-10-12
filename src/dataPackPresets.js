@@ -237,6 +237,25 @@ export const GENERATION_PRESETS = Object.freeze([
     structures: STRUCTURE_SETS.populated,
   },
   {
+    // The pack for "structures are still hard to find". Two things make a structure easy to reach: variety and
+    // proximity. This takes the variety -- every land biome, and every structure the engine can generate
+    // (`everything`, which was defined for exactly this and wired to nothing). Proximity stays vanilla's
+    // spacing (16 to 34 chunks between placement attempts), so this widens what you can find rather than
+    // moving it closer; `worldStructures.js` holds the spacing model if that is the half you want next.
+    id: 'structure_hunter',
+    name: 'Structure Hunter',
+    emoji: '🏛️',
+    property: 'Every structure the engine can build, on every land biome',
+    blurb: 'All land biomes in play with every generatable structure enabled: villages, outposts, pyramids, '
+      + 'ruins, monuments, mineshafts, trial chambers and ancient cities in the same world, so there is '
+      + 'something to find whichever way you walk.',
+    biomes: LAND_BIOMES,
+    terrain: { tree_density: 0.3, flora_density: 0.3, tree_type: 'oak' },
+    surface: 'minecraft:grass_block',
+    spawners: ['creatureAbundant', 'hostileSparse'],
+    structures: STRUCTURE_SETS.everything,
+  },
+  {
     id: 'pollinator_meadows', name: 'Pollinator Meadows', emoji: '🐝',
     property: 'Open flowering meadows with bees and grazing animals',
     blurb: 'Flower forests, meadows and plains become open, flower-rich habitats for bees, sheep, cows and rabbits, with calm nights. Other biomes keep their own character.',
