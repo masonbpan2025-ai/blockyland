@@ -255,7 +255,10 @@ test('every in-scope wiki name either matches a block or is a genuine absence', 
   // A floor, not a target: if matching broke, most of the list would look missing.
   assert.ok(covered.length > 700,
     `only ${covered.length} wiki names matched; the matcher looks broken rather than the game incomplete`);
-  assert.ok(missing.length > 100,
+  // Since the post-1.21.4 content landed, every Java block is present: what is left (67 in October 2026) is the
+  // Bedrock and Education Edition blocks -- Allow, Deny, Border, hardened glass, the chemistry blocks, coloured
+  // torches -- which this Java game leaves out. The floor still catches a matcher that matches everything.
+  assert.ok(missing.length > 50,
     `only ${missing.length} wiki names are missing; that is implausibly low and suggests over-matching`);
 });
 

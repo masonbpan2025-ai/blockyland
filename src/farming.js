@@ -2,6 +2,8 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { spendDurability } from './durability.js';
 import { exposedToRain } from './weatherRules.js';
+import { NetherPlantSystem } from './netherPlants.js';
+import { ChorusSystem } from './chorus.js';
 
 /**
  * The rest of the wiki's fertilizer table, as one block in and one block out.
@@ -13,8 +15,8 @@ import { exposedToRain } from './weatherRules.js';
  * Deliberately ABSENT, and why:
  *   - Sugar cane and nether wart: the wiki's own "Bone meal does not affect" list names both, so their
  *     absence is the correct behaviour rather than a gap.
- *   - Saplings and azaleas (45% chance of a stage), and mushrooms / nether fungi (40% chance of a huge
- *     form): both need a whole-tree or whole-structure generator, which this engine does not have.
+ *   - Saplings and azaleas (45% chance of a stage) need a tree growth generator.
+ *     Mushrooms and Nether fungi are handled separately by NetherPlantSystem.
  *   - Cocoa and the sweet berry bush ("matures 1 growth stage"): modelled as single blocks at their mature
  *     stage, so there is no earlier stage to advance from.
  *   - Sea pickles, kelp, cave vines, glow lichen, moss blocks, dripleaf, rooted dirt, pink petals and the
@@ -117,10 +119,14 @@ const CROP_DROPS = {
       seedExtraTrials: 3, seedExtraChance: 4 / 7 },
     dropImmature: { item: 'wheat_seeds', count: 1 },
   },
-  carrots: { dropMature: { item: 'carrot', min: 2, max: 5 }, dropImmature: { item: 'carrot', count: 1 } },
-  potatoes: { dropMature: { item: 'potato', min: 2, max: 5, poisonChance: 0.02 }, dropImmature: { item: 'potato', count: 1 } },
+  // Wiki (Carrot): "2 drops are fixed, then a drop is attempted three times with a success rate of 57.14286% to
+  // yield the extra 0-3 drops" (mean 3 5/7); potatoes the same. They were a flat 2-5 (mean 3.5).
+  carrots: { dropMature: { item: 'carrot', min: 2, max: 2, extraTrials: 3, extraChance: 4 / 7 }, dropImmature: { item: 'carrot', count: 1 } },
+  potatoes: { dropMature: { item: 'potato', min: 2, max: 2, extraTrials: 3, extraChance: 4 / 7, poisonChance: 0.02 }, dropImmature: { item: 'potato', count: 1 } },
   beetroots: {
-    dropMature: { item: 'beetroot', min: 1, max: 1, seed: 'beetroot_seeds', minSeeds: 0, maxSeeds: 3 },
+    // Wiki (Beetroot Seeds): "Harvesting fully-grown beetroot yields from 1 to 4 seeds" (mean 2 5/7) -- the same
+    // binomial as wheat's. They were a flat 0-3 (mean 1.5).
+    dropMature: { item: 'beetroot', min: 1, max: 1, seed: 'beetroot_seeds', minSeeds: 1, maxSeeds: 4, seedExtraTrials: 3, seedExtraChance: 4 / 7 },
     dropImmature: { item: 'beetroot_seeds', count: 1 },
   },
 };
@@ -184,6 +190,8 @@ export class FarmingManager {
     // Active crop and farmland tracking for fast O(N) tick updates
     this.crops = new Map(); // key "x,y,z" -> { x, y, z }
     this.farmlands = new Map(); // key "x,y,z" -> { x, y, z }
+    this.netherPlants=new NetherPlantSystem(this.world,{random:()=>this.random(),changed:(x,y,z)=>this.rebuildBlockChunk(x,z),drop:(x,y,z,id,count)=>this.game?.entities?.spawnDroppedItem?.(new THREE.Vector3(x+.5,y+.2,z+.5),id,true,count)});
+    this.chorus=new ChorusSystem(this.world,{random:()=>this.random(),changed:(x,y,z)=>this.rebuildBlockChunk(x,z)});
   }
 
   getKey(x, y, z) {
@@ -293,6 +301,12 @@ export class FarmingManager {
   applyBoneMeal(x, y, z, player) {
     if (!this.world) this.world = this.game?.world;
     if (!this.world) return false;
+    this.netherPlants.world=this.world;
+    if(this.netherPlants.boneMeal(x,y,z)) {
+      if(player?.gamemode!=='creative')this.game?.inventory?.consumeActiveItem?.();
+      this.game?.entities?.spawnBoneMealParticles?.(new THREE.Vector3(x+.5,y+.5,z+.5),12);
+      this.game?.ui?.updateHotbar?.();return true;
+    }
 
     let cropX = x;
     let cropY = y;
@@ -467,49 +481,19 @@ export class FarmingManager {
   }
 
   // --- 5. Break Crop & Drops Handling ---
-  handleCropBreak(x, y, z, blockId, gamemode) {
+  handleCropBreak(x, y, z, blockId, gamemode, fortune = 0) {
     const cropInfo = getCropInfo(blockId);
     this.unregisterCrop(x, y, z);
 
     if (gamemode === 'survival' && cropInfo) {
-      this.spawnCropDrops(x, y, z, cropInfo, false);
+      this.spawnCropDrops(x, y, z, cropInfo, false, fortune);
     }
   }
 
-  spawnCropDrops(x, y, z, cropInfo, isRightClickHarvest = false) {
+  spawnCropDrops(x, y, z, cropInfo, isRightClickHarvest = false, fortune = 0) {
     const pos = new THREE.Vector3(x + 0.5, y + 0.3, z + 0.5);
-    const spawnItem = (id, count) => {
-      for (let i = 0; i < count; i++) {
-        this.game?.entities?.spawnDroppedItem?.(pos.clone(), id, false, 1);
-      }
-    };
-
-    // Driven by the crop's own drop table rather than a branch per crop, so adding a crop means adding a row
-    // rather than a fourth `else if` here and a fifth in the immature block below.
-    if (cropInfo.isMature) {
-      const mature = cropInfo.dropMature;
-      if (!mature) return;
-      const rolled = mature.max !== undefined
-        ? mature.min + Math.floor(Math.random() * (mature.max - mature.min + 1))
-        : 1;
-      // A right-click harvest replants one, which vanilla takes out of the yield rather than adding to it.
-      const count = isRightClickHarvest ? Math.max(mature.item === 'wheat' ? 1 : 1, rolled - 1) : rolled;
-      spawnItem(mature.item, count);
-      if (mature.seed) {
-        let seedRoll = mature.minSeeds + Math.floor(Math.random() * (mature.maxSeeds - mature.minSeeds + 1));
-        if (mature.seedExtraTrials) {
-          seedRoll = mature.minSeeds;
-          for (let i = 0; i < mature.seedExtraTrials; i++) if (Math.random() < mature.seedExtraChance) seedRoll++;
-        }
-        const seeds = isRightClickHarvest ? Math.max(0, seedRoll - 1) : seedRoll;
-        if (seeds > 0) spawnItem(mature.seed, seeds);
-      }
-      if (mature.poisonChance && Math.random() < mature.poisonChance) spawnItem('poisonous_potato', 1);
-    } else {
-      // An immature crop yields only its seed -- and for beetroot, ONLY the seed: a beetroot comes off a
-      // mature plant alone, which is the rule that separates it from carrots and potatoes.
-      const immature = cropInfo.dropImmature;
-      if (immature) spawnItem(immature.item, immature.count ?? 1);
+    for (const { id, count } of cropDrops(cropInfo, { isRightClickHarvest, fortune })) {
+      for (let i = 0; i < count; i++) this.game?.entities?.spawnDroppedItem?.(pos.clone(), id, false, 1);
     }
   }
 
@@ -549,6 +533,9 @@ export class FarmingManager {
   update(dt, playerPos) {
     if (!this.world) this.world = this.game?.world;
     if (!this.world) return;
+    this.netherPlants.world=this.world;
+    this.netherPlants.update(dt,playerPos);
+    this.chorus.world=this.world;this.chorus.update(dt,playerPos);
 
     this.tickTimer += dt;
     if (this.tickTimer < this.tickInterval) return;
@@ -662,8 +649,41 @@ export class FarmingManager {
   }
 }
 
+/**
+ * What a crop gives, as [{id, count}]. Wiki (Fortune, "Seeds"): carrots, potatoes and the seeds of wheat and beetroot
+ * "use a binomial distribution. Fortune increases the number of tests for the distribution ... by 1 per level":
+ * the extra rolls are 3 + level at 4/7 each, on top of the fixed part (two carrots or potatoes, one seed).
+ */
+export function cropDrops(cropInfo, { isRightClickHarvest = false, fortune = 0, random = Math.random } = {}) {
+  const out = [];
+  const spawnItem = (id, count) => { if (count > 0) out.push({ id, count }); };
+  const binomial = (trials, chance) => { let n = 0; for (let i = 0; i < trials; i++) if (random() < chance) n++; return n; };
+  {
 
-
-
-
-
+    // Driven by the crop's own drop table rather than a branch per crop, so adding a crop means adding a row
+    // rather than a fourth `else if` here and a fifth in the immature block below.
+    if (cropInfo.isMature) {
+      const mature = cropInfo.dropMature;
+      if (!mature) return;
+      const rolled = (mature.max !== undefined
+        ? mature.min + Math.floor(random() * (mature.max - mature.min + 1))
+        : 1) + (mature.extraTrials ? binomial(mature.extraTrials + fortune, mature.extraChance) : 0);
+      // A right-click harvest replants one, which vanilla takes out of the yield rather than adding to it.
+      const count = isRightClickHarvest ? Math.max(mature.item === 'wheat' ? 1 : 1, rolled - 1) : rolled;
+      spawnItem(mature.item, count);
+      if (mature.seed) {
+        let seedRoll = mature.minSeeds + Math.floor(random() * (mature.maxSeeds - mature.minSeeds + 1));
+        if (mature.seedExtraTrials) seedRoll = mature.minSeeds + binomial(mature.seedExtraTrials + fortune, mature.seedExtraChance);
+        const seeds = isRightClickHarvest ? Math.max(0, seedRoll - 1) : seedRoll;
+        if (seeds > 0) spawnItem(mature.seed, seeds);
+      }
+      if (mature.poisonChance && random() < mature.poisonChance) spawnItem('poisonous_potato', 1);
+    } else {
+      // An immature crop yields only its seed -- and for beetroot, ONLY the seed: a beetroot comes off a
+      // mature plant alone, which is the rule that separates it from carrots and potatoes.
+      const immature = cropInfo.dropImmature;
+      if (immature) spawnItem(immature.item, immature.count ?? 1);
+    }
+  }
+  return out;
+}

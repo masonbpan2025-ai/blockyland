@@ -26,6 +26,26 @@ export function structureSlug(name) {
     .replace(/^_+|_+$/g, '');
 }
 
+/**
+ * Rows that cover several registry ids, or whose name is not the id: the cards (and evidence folders) a row stands
+ * for. An empty list is a row with no world-generation placement to locate (a gateway opened by the dragon fight, the
+ * bonus chest from the create-world option); unit tests stand in for its card, and its notes must say so.
+ */
+export const ROW_CARDS = {
+  shipwreck: ['shipwreck', 'shipwreck_beached'],
+  ocean_ruins: ['ocean_ruin_cold', 'ocean_ruin_warm'],
+  ruined_portal: ['ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_swamp', 'ruined_portal_mountain', 'ruined_portal_ocean'],
+  mineshaft: ['mineshaft', 'mineshaft_mesa'],
+  ocean_monument: ['monument'],
+  nether_fortress: ['fortress'],
+  exit_portal: ['end_podium'],
+  end_gateway: [],
+  bonus_chest: [],
+  end_city_ship: ['end_city'],
+  woodland_mansion: ['mansion']
+};
+export const cardsForRow = (row) => ROW_CARDS[row.slug] ?? [row.slug];
+
 /** The rows of the Section 7 table. */
 export function parseTracker(markdown) {
   const start = markdown.indexOf('## 7. Progress tracker');
@@ -66,15 +86,19 @@ export function validateTracker(rows, { cardIds = new Set(), evidenceFiles = () 
       for (const column of ['gen', 'cont', 'game']) {
         if (row[column] !== 'ok') problems.push(`${where}: ${row.status} needs ${column} = ok, found "${row[column]}"`);
       }
-      if (!cardIds.has(row.slug)) problems.push(`${where}: ${row.status} needs a spec card for "${row.slug}"`);
-      if (evidenceFiles(row.slug).length === 0) problems.push(`${where}: ${row.status} needs evidence under docs/structure-audit/evidence/${row.slug}/`);
+      const ids = cardsForRow(row);
+      if (ids.length === 0 && !/unit tests/i.test(row.notes)) problems.push(`${where}: ${row.status} with no card must name the unit tests that stand in for it`);
+      for (const id of ids) {
+        if (!cardIds.has(id)) problems.push(`${where}: ${row.status} needs a spec card for "${id}"`);
+        if (evidenceFiles(id).length === 0) problems.push(`${where}: ${row.status} needs evidence under docs/structure-audit/evidence/${id}/`);
+      }
     }
     if (row.status === 'AUDITED') {
       for (const column of ['vis', 'save']) {
         if (row[column] !== 'ok') problems.push(`${where}: AUDITED needs ${column} = ok, found "${row[column]}"`);
       }
     }
-    if (row.status === 'NOT AUDITED' && cardIds.has(row.slug)) problems.push(`${where}: has a spec card, so it is at least CARD WRITTEN`);
+    if (row.status === 'NOT AUDITED' && cardsForRow(row).some((id) => cardIds.has(id))) problems.push(`${where}: has a spec card, so it is at least CARD WRITTEN`);
   }
   return { problems, counts };
 }

@@ -368,9 +368,11 @@ export function createFoxModel(bodyMat, bellyMat, earMat) {
   tailTip.visible = false;
   tail.add(tailTip);
 
-  // Four legs: 2x6x2 at (4, 24) forelegs and (13, 24) hindlegs on 48x32 atlas
+  // Four legs: 2x6x2 at (4, 24) forelegs and (13, 24) hindlegs on 48x32 atlas, pivoting at hip joint (y = 0.24)
   const frontLegGeo = createFoxBox(0.08, 0.24, 0.08, foxBoxFaces(4, 24, 2, 6, 2));
+  frontLegGeo.translate(0, -0.24 / 2, 0);
   const hindLegGeo = createFoxBox(0.08, 0.24, 0.08, foxBoxFaces(13, 24, 2, 6, 2));
+  hindLegGeo.translate(0, -0.24 / 2, 0);
   const legs = [];
   const legDefs = [
     { side: -1, front: false, geo: hindLegGeo, x: -0.09, z: -0.16 },
@@ -380,7 +382,7 @@ export function createFoxModel(bodyMat, bellyMat, earMat) {
   ];
   for (const def of legDefs) {
     const leg = new THREE.Mesh(def.geo, bodyMat);
-    leg.position.set(def.x, 0.12, def.z);
+    leg.position.set(def.x, 0.24, def.z);
     group.add(leg);
     legs.push({ mesh: leg, side: def.side, front: def.front });
   }

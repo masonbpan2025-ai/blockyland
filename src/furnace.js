@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { EXTRA_SMELTING, EXTRA_FUEL, SMELTING_XP, DEFAULT_SMELTING_XP } from './extraSmelting.js';
+import { addPlayerExperience } from './experience.js';
+import { recordSmelt, dropAllExperience, takeExperienceWithHopperBacklog } from './furnaceExperience.js';
+import { applyWikiFurnaceFixes } from './wikiFurnaceFixes.js';
 
 // Cook time per item in seconds (Minecraft default is 10s)
 export const COOK_DURATION = 10.0;
@@ -92,7 +95,16 @@ for (const [key, value] of Object.entries(EXTRA_SMELTING)) {
  * returned the default for every block, which is the kind of bug that looks like "XP is 0.1 for
  * everything" rather than a lookup failure.
  */
-export function getSmeltingXp(output) {
+/**
+ * Experience per recipe, keyed by the INPUT, where the wiki gives a recipe its own: a copper tool smelts to a nugget
+ * for 0, copper horse armour to the same nugget for 0.1 -- one output, two values, which an output-keyed table
+ * cannot hold. Filled by applyWikiFurnaceFixes; getSmeltingXp asks it first.
+ */
+export const SMELTING_XP_BY_INPUT = {};
+
+export function getSmeltingXp(output, input = null) {
+  const inputKey = input === null || input === undefined ? null : (typeof input === 'number' ? blockNameForXp(input) : input);
+  if (inputKey && SMELTING_XP_BY_INPUT[inputKey] !== undefined) return SMELTING_XP_BY_INPUT[inputKey];
   if (!output) return DEFAULT_SMELTING_XP;
   const key = output.isBlock ? blockNameForXp(output.id) : output.id;
   if (key && SMELTING_XP[key] !== undefined) return SMELTING_XP[key];
@@ -189,11 +201,46 @@ for (const [blockName, output] of PENDING_ORE_SMELTING) {
   if (typeof sapling === 'number' && FUEL_BURN_TIMES[sapling] === undefined) FUEL_BURN_TIMES[sapling] = 5.0;
 }
 
+// The recipe parity audit's fixes, adopted from the wiki's smelting templates and fuel table (wikiFurnaceFixes.js).
+export const WIKI_FURNACE_CHANGES = applyWikiFurnaceFixes(SMELTING_RECIPES, SMELTING_XP, FUEL_BURN_TIMES, SMELTING_XP_BY_INPUT);
+
 export function getSmeltingRecipe(item) {
   if (!item) return null;
   const id = typeof item === 'object' ? item.id : item;
   const recipe = SMELTING_RECIPES[id];
   return recipe ? { ...recipe } : null;
+}
+
+// --- the furnace's two specialists ---------------------------------------------------------------------------
+//
+// Wiki, Blast Furnace: it "smelts ores and metal items twice as quickly as a furnace, but cannot smelt anything
+// else". Smoker: it "cooks food twice as quickly as a furnace, but cannot smelt anything else ... taking only 5
+// seconds per item instead of 10". And the Smelting page's fuel table: "When burned in a blast furnace or smoker,
+// fuel is burned twice as fast but produces the same number of items." Both blocks were placeable and did nothing.
+
+/** What a blast furnace makes: the ores' and raw metals' products, and the nuggets and scrap metal gear gives. */
+const BLASTING_OUTPUTS = new Set(['iron_ingot', 'gold_ingot', 'copper_ingot', 'netherite_scrap', 'iron_nugget', 'gold_nugget',
+  'coal', 'diamond', 'emerald', 'lapis_lazuli', 'redstone', 'quartz']);
+
+/** Which kind of furnace a block is: 'furnace', 'blast_furnace' or 'smoker' (null for anything else). */
+export function furnaceKindOf(blockId) {
+  if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) return 'furnace';
+  if (blockId === BLOCKS.BLAST_FURNACE) return 'blast_furnace';
+  if (blockId === BLOCKS.SMOKER) return 'smoker';
+  return null;
+}
+
+/** Seconds per item for each kind. */
+export const COOK_DURATION_BY_KIND = { furnace: COOK_DURATION, blast_furnace: COOK_DURATION / 2, smoker: COOK_DURATION / 2 };
+
+/** The recipe a kind of furnace makes from this input, or null when it cannot (a smoker given ore). */
+export function getKindSmeltingRecipe(kind, item) {
+  const recipe = getSmeltingRecipe(item);
+  if (!recipe || !kind || kind === 'furnace') return recipe;
+  const out = recipe.isBlock ? null : recipe.id;
+  if (kind === 'blast_furnace') return out && BLASTING_OUTPUTS.has(out) ? recipe : null;
+  if (kind === 'smoker') return out && (ITEMS[out]?.type === 'food' || ITEMS[out]?.food !== undefined) ? recipe : null;
+  return null;
 }
 
 export function getFuelBurnTime(item) {
@@ -232,11 +279,15 @@ export class FurnaceManager {
         maxBurnTime: 0,
         cookTime: 0,
         cookDuration: COOK_DURATION,
+        kind: 'furnace',
         lit: false,
         pointLight: null
       };
       this.furnaces.set(key, furnace);
     }
+    // The block decides the kind (a blast furnace and a smoker share this manager with the furnace).
+    const kind = furnaceKindOf(this.game?.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z)));
+    if (kind && kind !== furnace.kind) { furnace.kind = kind; furnace.cookDuration = COOK_DURATION_BY_KIND[kind]; }
     return furnace;
   }
 
@@ -349,6 +400,9 @@ export class FurnaceManager {
     dropItem(furnace.input);
     dropItem(furnace.fuel);
     dropItem(furnace.output);
+    // "The furnace is broken: The contents of all the slots, any accumulated experience, and the furnace itself are dropped."
+    const xp = dropAllExperience(furnace);
+    if (xp > 0) this.game?.entities?.spawnXpOrbs?.(this.game.player.position.clone().set(x + 0.5, y + 0.5, z + 0.5), xp);
 
     this.furnaces.delete(key);
     if (this.openFurnaceKey === key) {
@@ -365,12 +419,13 @@ export class FurnaceManager {
       const { x, y, z } = furnace;
 
       // 1. Progress active burn time
+      // A blast furnace and a smoker burn their fuel twice as fast.
       if (furnace.burnTime > 0) {
-        furnace.burnTime = Math.max(0, furnace.burnTime - dt);
+        furnace.burnTime = Math.max(0, furnace.burnTime - dt * (furnace.kind && furnace.kind !== 'furnace' ? 2 : 1));
       }
 
       // 2. Cooking check
-      const recipe = getSmeltingRecipe(furnace.input);
+      const recipe = getKindSmeltingRecipe(furnace.kind ?? 'furnace', furnace.input);
       const canOutput = recipe && (
         !furnace.output ||
         (furnace.output.id === recipe.id &&
@@ -406,6 +461,9 @@ export class FurnaceManager {
           furnace.cookTime += dt;
           if (furnace.cookTime >= furnace.cookDuration - 0.0001) {
             furnace.cookTime = Math.max(0, furnace.cookTime - furnace.cookDuration);
+
+            // Bank the experience (furnaceExperience.js), per recipe, before the input is used up.
+            recordSmelt(furnace, getSmeltingXp(recipe, furnace.input.id), recipe.count ?? 1);
 
             // Decrement input
             furnace.input.count--;

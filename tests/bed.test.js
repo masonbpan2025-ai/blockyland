@@ -133,6 +133,7 @@ test('Bed sleeping: sets respawn point and checks night / daytime conditions', (
 
   bedManager.placeBed(world, [0, 11, 0], 3);
   fakeGame.player.position.set(0.5, 11, 1.5); // close to bed
+  fakeGame.player.anchorSpawn = { x: 8, y: 20, z: 8, dimension: 'nether' };
 
   // 1. Daytime test: worldTime = 6000 (midday)
   fakeGame.worldTime = 6000;
@@ -143,6 +144,7 @@ test('Bed sleeping: sets respawn point and checks night / daytime conditions', (
   // is overwrite the WORLD spawn, which the old code did with `player.spawnPosition.copy(safeSpawn)`.
   assert.ok(chatMessages.some(m => m.msg.includes('Respawn point set')), 'Respawn point still sets on click');
   assert.ok(fakeGame.player.bedSpawnPosition, 'the bed binding is set');
+  assert.equal(fakeGame.player.anchorSpawn, null, 'the latest bed binding replaces the previous anchor');
   assert.equal(fakeGame.player.spawnPosition.x, 0, 'and the WORLD spawn is untouched');
   assert.equal(fakeGame.player.spawnPosition.y, 20);
   assert.equal(fakeGame.player.spawnPosition.z, 0);

@@ -313,7 +313,7 @@ export function ghastPredicate(context) {
 export function magmaCubePredicate(context) {
   const below = context.blockBelow;
   if (below === BLOCKS.WATER || below === BLOCKS.LAVA) return false;
-  return commonHostileRules(context);
+  return hostileFloorRules(context);
 }
 
 /**
@@ -360,12 +360,17 @@ export function fortressSkeletonPredicate(context) {
 /** Piglin, hoglin and zombified piglin: "Cannot spawn on nether wart block." */
 export function netherWartRefusingPredicate(context) {
   if (context.blockBelow === BLOCKS.NETHER_WART_BLOCK) return false;
-  return commonHostileRules(context);
+  // Hoglins ignore light; piglins and zombified piglins accept levels 0–11.
+  // Applying the generic Nether monster threshold (7) emptied lit forests.
+  if (!hostileFloorRules(context)) return false;
+  if (context.type === 'hoglin' || context.type === 'zoglin') return true;
+  return (context.blockLight ?? context.lightLevel ?? 0) <= 11 && !isDamagingBlock(context.blockAt);
 }
 
 /** Wither skeleton and blaze: only ever inside a nether fortress. */
 export function fortressOnlyPredicate(context) {
-  if (!context.structureId) return false;
+  if (!['fortress','nether_fortress'].includes(context.structureId)) return false;
+  if (context.type === 'blaze') return hostileFloorRules(context) && (context.blockLight ?? context.lightLevel ?? 0) <= 11;
   return commonHostileRules(context);
 }
 
@@ -703,6 +708,10 @@ export function registerDefaultSpawnPlacements() {
   registerSpawnPlacement('zombified_piglin', {
     placement: G, heightmap: HM, predicate: netherWartRefusingPredicate,
     note: 'cannot spawn on nether wart block',
+  });
+  registerSpawnPlacement('piglin', {
+    placement: G, heightmap: HM, predicate: netherWartRefusingPredicate,
+    note: 'light at most 11; cannot spawn on nether wart blocks',
   });
   registerSpawnPlacement('zombie_pigman', {
     placement: G, heightmap: HM, predicate: netherWartRefusingPredicate,

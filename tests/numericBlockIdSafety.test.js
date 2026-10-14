@@ -48,7 +48,8 @@ test('a dispenser firing a plain block drops it instead of throwing', () => {
   const lever = put(world, [0, 3, 0], B.LEVER);
   lever.on = true;
 
-  assert.doesNotThrow(() => ticks(world, 2), 'dispensing a block threw');
+  // A dispenser fires 4 game ticks (2 redstone ticks) after it is powered.
+  assert.doesNotThrow(() => ticks(world, 4), 'dispensing a block threw');
   assert.equal(dropped.length, 1, 'the block was dispensed');
   assert.deepEqual(dropped[0], { id: B.WHITE_WOOL, isBlock: true });
 });

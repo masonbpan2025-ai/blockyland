@@ -320,7 +320,10 @@ export class ChunkMesher {
             }
 
             if (isWater && face !== 'bottom') {
-              positions = positions.map(([x,y,z]) => [x, y > wy ? wy + waterCornerHeight(world, Math.round(x), wy, Math.round(z)) : y, z]);
+              // Kept in step with src/mesher.js (2026-10): corners lower only under open air; under glass or ice the
+              // surface is inset 0.005 so the two faces do not z-fight.
+              const glassOrIceTop = [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.top);
+              positions = positions.map(([x,y,z]) => [x, y > wy ? (neighbors.top === BLOCKS.AIR ? wy + waterCornerHeight(world, Math.round(x), wy, Math.round(z)) : glassOrIceTop ? wy + 0.995 : y) : y, z]);
             }
             const uv = this.tm.getFaceUVs(blockId, face);
 
@@ -436,13 +439,13 @@ export class ChunkMesher {
           // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
           // and slightly inset against glass to avoid coplanar z-fighting with glass panes
           const topY = isWater
-            ? (neighbors.top === BLOCKS.AIR ? (wy + 0.90) : (neighbors.top === BLOCKS.GLASS ? (wy + 0.995) : (wy + 1)))
+            ? (neighbors.top === BLOCKS.AIR ? (wy + 0.90) : ([BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.top) ? (wy + 0.995) : (wy + 1)))
             : (wy + 1);
-          const botY = (isWater && neighbors.bottom === BLOCKS.GLASS) ? (wy + 0.005) : wy;
-          const northZ = (isWater && neighbors.north === BLOCKS.GLASS) ? (wz + 0.995) : (wz + 1);
-          const southZ = (isWater && neighbors.south === BLOCKS.GLASS) ? (wz + 0.005) : wz;
-          const eastX = (isWater && neighbors.east === BLOCKS.GLASS) ? (wx + 0.995) : (wx + 1);
-          const westX = (isWater && neighbors.west === BLOCKS.GLASS) ? (wx + 0.005) : wx;
+          const botY = (isWater && [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.bottom)) ? (wy + 0.005) : wy;
+          const northZ = (isWater && [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.north)) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.south)) ? (wz + 0.005) : wz;
+          const eastX = (isWater && [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.east)) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && [BLOCKS.GLASS, BLOCKS.ICE, BLOCKS.FROSTED_ICE].includes(neighbors.west)) ? (wx + 0.005) : wx;
 
           // Top face (+Y)
           addFace('top', [

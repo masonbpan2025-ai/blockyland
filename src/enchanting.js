@@ -89,21 +89,21 @@ export const ENCHANTMENT_REGISTRY = {
   aqua_affinity: entry('Aqua Affinity', 1, 2, [[1, 41]], ['helmet'], { desc: 'Removes the mining speed reduction that occurs when underwater.' }),
   respiration: entry('Respiration', 3, 2, [[10, 19], [20, 29], [30, 60]], ['helmet'], { desc: 'Extends underwater breathing time.' }),
   protection: entry('Protection', 4, 10, [[5, 12], [13, 20], [21, 28], [29, 37]], ['helmet', 'chestplate', 'leggings', 'boots'], { desc: 'Reduces damage taken from almost all sources.', incompatible: ['fire_protection', 'blast_protection', 'projectile_protection'] }),
-  fire_protection: entry('Fire Protection', 4, 5, [[10, 18], [19, 27], [28, 36], [37, 45]], ['helmet', 'chestplate', 'leggings', 'boots'], { desc: 'Reduces fire, lava, and blaze damage.', incompatible: ['protection', 'blast_protection', 'projectile_protection'] }),
+  fire_protection: entry('Fire Protection', 4, 5, [[10, 17], [18, 25], [26, 33], [34, 42]], ['helmet', 'chestplate', 'leggings', 'boots'], { desc: 'Reduces fire, lava, and blaze damage.', incompatible: ['protection', 'blast_protection', 'projectile_protection'] }),
   blast_protection: entry('Blast Protection', 4, 2, [[5, 12], [13, 20], [21, 28], [29, 37]], ['helmet', 'chestplate', 'leggings', 'boots'], { desc: 'Reduces explosion damage and knockback.', incompatible: ['protection', 'fire_protection', 'projectile_protection'] }),
   projectile_protection: entry('Projectile Protection', 4, 5, [[3, 8], [9, 14], [15, 20], [21, 27]], ['helmet', 'chestplate', 'leggings', 'boots'], { desc: 'Reduces damage from projectiles.', incompatible: ['protection', 'fire_protection', 'blast_protection'] }),
-  thorns: entry('Thorns', 3, 1, [[10, 29], [30, 49], [50, 100]], ['chestplate', 'helmet', 'leggings', 'boots'], { desc: 'Reflects damage back at attacking enemies.' }),
+  thorns: entry('Thorns', 3, 1, [[10, 29], [30, 49], [50, 100]], ['chestplate'], { secondary: ['helmet', 'leggings', 'boots'], desc: 'Reflects damage back at attacking enemies.' }),
   feather_falling: entry('Feather Falling', 4, 5, [[5, 10], [11, 16], [17, 22], [23, 29]], ['boots'], { desc: 'Reduces fall damage.' }),
   depth_strider: entry('Depth Strider', 3, 2, [[10, 19], [20, 29], [30, 45]], ['boots'], { desc: 'Lessens the movement speed reduction that occurs when in water.', incompatible: ['frost_walker'] }),
   frost_walker: entry('Frost Walker', 2, 2, [1, 9], ['boots'], { desc: 'Turns water into frosted ice beneath the wearer’s feet.', treasure: true, tradable: true, incompatible: ['depth_strider'] }),
-  sharpness: entry('Sharpness', 5, 10, [[1, 11], [12, 22], [23, 33], [34, 44], [45, 65]], ['sword'], { desc: 'Increases melee damage.', incompatible: ['smite', 'bane_of_arthropods'] }),
-  smite: entry('Smite', 5, 5, [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]], ['sword'], { desc: 'Increases damage dealt against undead mobs.', incompatible: ['sharpness', 'bane_of_arthropods'] }),
-  bane_of_arthropods: entry('Bane of Arthropods', 5, 5, [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]], ['sword'], { desc: 'Increases damage against arthropods and applies Slowness IV to them.', incompatible: ['sharpness', 'smite'] }),
+  sharpness: entry('Sharpness', 5, 10, [[1, 11], [12, 22], [23, 33], [34, 44], [45, 65]], ['sword'], { secondary: ['axe'], desc: 'Increases melee damage.', incompatible: ['smite', 'bane_of_arthropods'] }),
+  smite: entry('Smite', 5, 5, [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]], ['sword'], { secondary: ['axe', 'mace'], desc: 'Increases damage dealt against undead mobs.', incompatible: ['sharpness', 'bane_of_arthropods'] }),
+  bane_of_arthropods: entry('Bane of Arthropods', 5, 5, [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]], ['sword'], { secondary: ['axe', 'mace'], desc: 'Increases damage against arthropods and applies Slowness IV to them.', incompatible: ['sharpness', 'smite'] }),
   knockback: entry('Knockback', 2, 5, [[5, 24], [25, 75]], ['sword'], { desc: 'Increases melee knockback.' }),
-  fire_aspect: entry('Fire Aspect', 2, 2, [[10, 19], [20, 80]], ['sword'], { desc: 'Sets naturally flammable mobs on fire.' }),
+  fire_aspect: entry('Fire Aspect', 2, 2, [[10, 19], [20, 80]], ['sword'], { secondary: ['mace'], desc: 'Sets naturally flammable mobs on fire.' }),
   looting: entry('Looting', 3, 2, [[15, 23], [24, 32], [33, 83]], ['sword'], { desc: 'Increases mob item and rare drop quantities.' }),
   sweeping_edge: entry('Sweeping Edge', 3, 2, [[5, 13], [14, 22], [23, 38]], ['sword'], { desc: 'Increases the damage of a sword sweep attack.' }),
-  efficiency: entry('Efficiency', 5, 10, [[1, 10], [11, 20], [21, 30], [31, 40], [41, 91]], ['pickaxe', 'shovel', 'hoe', 'axe', 'shears'], { desc: 'Increases mining efficiency.' }),
+  efficiency: entry('Efficiency', 5, 10, [[1, 10], [11, 20], [21, 30], [31, 40], [41, 91]], ['pickaxe', 'shovel', 'hoe', 'axe'], { secondary: ['shears'], desc: 'Increases mining efficiency.' }),
   silk_touch: entry('Silk Touch', 1, 1, [[15, 65]], ['pickaxe', 'shovel', 'hoe', 'axe'], { desc: 'Certain blocks drop themselves instead of other items or nothing.', incompatible: ['fortune'] }),
   fortune: entry('Fortune', 3, 2, [[15, 23], [24, 32], [33, 83]], ['pickaxe', 'shovel', 'hoe', 'axe'], { desc: 'Chance to receive more item drops from certain blocks.', incompatible: ['silk_touch'] }),
   power: entry('Power', 5, 10, [[1, 10], [11, 20], [21, 30], [31, 40], [41, 56]], ['bow'], { desc: 'Increases arrow damage.' }),
@@ -112,25 +112,29 @@ export const ENCHANTMENT_REGISTRY = {
   infinity: entry('Infinity', 1, 1, [[20, 50]], ['bow'], { desc: 'Prevents consumption of arrows.', incompatible: ['mending'] }),
   quick_charge: entry('Quick Charge', 3, 5, [[12, 31], [32, 50], [51, 69]], ['crossbow'], { desc: 'Increases crossbow charging speed.' }),
   multishot: entry('Multishot', 1, 2, [[20, 50]], ['crossbow'], { desc: 'Shoots three arrows at the cost of extra durability.', incompatible: ['piercing'] }),
-  piercing: entry('Piercing', 4, 10, [[1, 11], [12, 22], [23, 33], [34, 44]], ['crossbow'], { desc: 'Fired arrows pierce entities.', incompatible: ['multishot'] }),
-  loyalty: entry('Loyalty', 3, 5, [1, 2, 3], ['trident'], { desc: 'Returns the trident to its owner after being thrown.', incompatible: ['riptide'] }),
-  impaling: entry('Impaling', 5, 2, [1, 2, 3, 4, 5], ['trident'], { desc: 'Increases damage against aquatic mobs.' }),
-  riptide: entry('Riptide', 3, 2, [1, 2, 3], ['trident'], { desc: 'Launches the wielder when used in water or rain.', incompatible: ['loyalty', 'channeling'] }),
-  channeling: entry('Channeling', 1, 1, [[25]], ['trident'], { desc: 'Summons a lightning bolt on the target during a thunderstorm.', incompatible: ['riptide'] }),
-  luck_of_the_sea: entry('Luck of the Sea', 3, 2, [1, 2, 3], ['fishing_rod'], { desc: 'Increases the rate of treasure items from fishing.' }),
-  lure: entry('Lure', 3, 2, [1, 2, 3], ['fishing_rod'], { desc: 'Decreases time for bites when fishing.' }),
+  piercing: entry('Piercing', 4, 10, [[1, 10], [11, 20], [21, 30], [31, 50]], ['crossbow'], { desc: 'Fired arrows pierce entities.', incompatible: ['multishot'] }),
+  loyalty: entry('Loyalty', 3, 5, [[12, 18], [19, 25], [26, 50]], ['trident'], { desc: 'Returns the trident to its owner after being thrown.', incompatible: ['riptide'] }),
+  impaling: entry('Impaling', 5, 2, [[1, 8], [9, 16], [17, 24], [25, 32], [33, 53]], ['trident'], { desc: 'Increases damage against aquatic mobs.' }),
+  riptide: entry('Riptide', 3, 2, [[17, 23], [24, 30], [31, 50]], ['trident'], { desc: 'Launches the wielder when used in water or rain.', incompatible: ['loyalty', 'channeling'] }),
+  channeling: entry('Channeling', 1, 1, [[25, 50]], ['trident'], { desc: 'Summons a lightning bolt on the target during a thunderstorm.', incompatible: ['riptide'] }),
+  luck_of_the_sea: entry('Luck of the Sea', 3, 2, [[15, 23], [24, 32], [33, 83]], ['fishing_rod'], { desc: 'Increases the rate of treasure items from fishing.' }),
+  lure: entry('Lure', 3, 2, [[15, 23], [24, 32], [33, 83]], ['fishing_rod'], { desc: 'Decreases time for bites when fishing.' }),
   unbreaking: entry('Unbreaking', 3, 5, [[5, 12], [13, 20], [21, 71]], ANY, { desc: 'Increases item durability.' }),
   mending: entry('Mending', 1, 2, [[1]], ANY, { desc: 'Repairs the item using experience.', treasure: true }),
   soul_speed: entry('Soul Speed', 3, 1, [1, 2, 3], ['boots'], { desc: 'Move faster on soul sand and soul soil.', treasure: true, tradable: false }),
   swift_sneak: entry('Swift Sneak', 3, 1, [1, 2, 3], ['leggings'], { desc: 'Lessens the movement speed reduction that occurs when sneaking.', treasure: true, tradable: false }),
   binding_curse: entry('Curse of Binding', 1, 1, [[25]], ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'], { desc: 'Items cannot be removed from armour slots.', treasure: true, curse: true }),
   vanishing_curse: entry('Curse of Vanishing', 1, 1, [[25]], ANY, { desc: 'Item disappears on death.', treasure: true, curse: true }),
+  // The mace's three (their pages; weights and cost ranges from Enchanting table mechanics). Breach and Density
+  // are offered for a mace at the table; Wind Burst is a treasure enchantment. Their effects are in maceSmash.js.
+  breach: entry('Breach', 4, 2, [[15, 23], [24, 32], [33, 41], [42, 92]], ['mace'], { desc: 'Reduces the effectiveness of the target’s armor.', incompatible: ['density', 'sharpness', 'smite', 'bane_of_arthropods'] }),
+  density: entry('Density', 5, 5, [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]], ['mace'], { desc: 'Increases smash attack damage per block fallen.', incompatible: ['breach', 'sharpness', 'smite', 'bane_of_arthropods'] }),
+  wind_burst: entry('Wind Burst', 3, 2, [[15, 23], [24, 32], [33, 83]], ['mace'], { desc: 'Launches the wielder upward after a smash attack.', treasure: true }),
 };
 
-// The registry above is exactly vanilla's own list, keyed by vanilla's identifiers. Enchantments this
-// project has no item for -- `density`, `breach` and `wind_burst` all belong to the mace, which the game
-// has not got -- are named here rather than invented as registry rows.
-export const NOT_OFFERED = Object.freeze(['density', 'breach', 'wind_burst']);
+// The registry above is exactly vanilla's own list, keyed by vanilla's identifiers. The mace's three used to be
+// named here as missing; the mace exists now and so do they.
+export const NOT_OFFERED = Object.freeze([]);
 
 /** Enchantment ids the offer engine may produce that are not table-offerable, for trade and loot. */
 export const TREASURE_ENCHANTMENTS = new Set(
@@ -153,8 +157,16 @@ const EXTRA_ENCHANTABLE = {
   brush: 'brush',
   carrot_on_a_stick: 'carrot_on_a_stick',
   warped_fungus_on_a_stick: 'warped_fungus_on_a_stick',
-  // This project's own weapon. It takes the weapon pool because that is what it is.
+  mace: 'mace',
+  elytra: 'elytra',
+  // Spears take the weapon pool
   golden_spear: 'weapon',
+  wooden_spear: 'weapon',
+  stone_spear: 'weapon',
+  copper_spear: 'weapon',
+  iron_spear: 'weapon',
+  diamond_spear: 'weapon',
+  netherite_spear: 'weapon',
 };
 
 /**
@@ -175,6 +187,7 @@ export const NOT_ENCHANTABLE = new Set([
   'compass', 'clock', 'lead', 'name_tag', 'saddle', 'flint_and_steel',
   'powder_snow_bucket', 'spyglass', 'recovery_compass', 'debug_stick',
   'leather_horse_armor', 'iron_horse_armor', 'golden_horse_armor', 'diamond_horse_armor',
+  'copper_horse_armor', 'netherite_horse_armor', 'sulfur_cube_bucket',
 ]);
 
 /**
@@ -210,7 +223,9 @@ function categoriesFor(itemId) {
   if (!category) return [];
   const out = new Set([category]);
   if (category === 'weapon') {
-    out.add('sword');
+    // An axe is not a sword: the table offers it the tool enchantments, and Sharpness, Smite and Bane only at an
+    // anvil (they list the axe among their secondary items).
+    if (!itemId.endsWith('_axe')) out.add('sword');
     if (itemId.endsWith('_axe')) out.add('axe');
     if (itemId === 'golden_spear') out.add('spear');
   }
@@ -220,8 +235,24 @@ function categoriesFor(itemId) {
     if (itemId.endsWith('_hoe')) out.add('hoe');
     if (itemId.endsWith('_axe')) out.add('axe');
   }
-  if (category === 'bow' && itemId === 'crossbow') out.add('crossbow');
+  // A crossbow takes the crossbow's enchantments, not the bow's.
+  if (category === 'bow' && itemId === 'crossbow') { out.delete('bow'); out.add('crossbow'); }
   return [...out];
+}
+
+/**
+ * Items an anvil can enchant but an enchanting table cannot: each enchantment page lists them as "secondary
+ * items" only (shears, flint and steel, shields, elytra, the fishing-rod sticks, brushes).
+ */
+export const ANVIL_ONLY = new Set(['shears', 'flint_and_steel', 'shield', 'elytra', 'carrot_on_a_stick', 'warped_fungus_on_a_stick', 'brush']);
+
+/** Can an anvil put this enchantment on this item? Its primary items, and its secondary ones. */
+export function anvilAccepts(def, itemId) {
+  if (!def || !itemId) return false;
+  if (isPrimaryFor(def, itemId)) return true;
+  const cats = new Set([...categoriesFor(itemId), itemId]);
+  if (itemId.endsWith('_axe')) cats.add('axe');
+  return (def.secondary ?? []).some((cat) => cats.has(cat));
 }
 
 /** Does an enchantment's target list admit this item at the enchanting table? */
@@ -236,7 +267,7 @@ export function isEnchantableItem(item) {
   if (!item) return false;
   // If already enchanted, standard enchanting table cannot re-enchant
   if (Array.isArray(item.enchantments) && item.enchantments.length > 0) return false;
-  return getItemEnchantCategory(item.id) !== null;
+  return getItemEnchantCategory(item.id) !== null && !ANVIL_ONLY.has(item.id);
 }
 
 /**
@@ -277,7 +308,7 @@ export function incompatibleWith(key) {
  */
 export function eligibleEnchantments(itemId, { allowTreasure = false, exclude = [] } = {}) {
   const category = getItemEnchantCategory(itemId);
-  if (!category) return [];
+  if (!category || ANVIL_ONLY.has(itemId)) return [];
   const out = [];
   for (const [key, def] of Object.entries(ENCHANTMENT_REGISTRY)) {
     if (def.treasure && !allowTreasure) continue;
@@ -333,9 +364,13 @@ export function enchantabilityOf(itemId) {
   if (typeof itemId !== 'string' || !itemId) return 1;
   const material = itemId.split('_')[0];
   const armour = /_(helmet|chestplate|leggings|boots)$/.test(itemId);
+  if (ENCHANTABILITY_BY_ITEM[itemId] !== undefined) return ENCHANTABILITY_BY_ITEM[itemId];
   const table = armour ? ARMOUR_ENCHANTABILITY : ENCHANTABILITY_BY_MATERIAL;
   return table[material] ?? 1;
 }
+
+/** Items whose enchantability is not their material's: the mace's is 15 (its wiki infobox). */
+const ENCHANTABILITY_BY_ITEM = { mace: 15 };
 
 /** Vanilla's enchantability by material for tools and weapons, from the mechanics page's table. */
 const ENCHANTABILITY_BY_MATERIAL = {

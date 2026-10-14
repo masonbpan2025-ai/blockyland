@@ -66,11 +66,11 @@ const STAGE_SPECIFIC_ROWS = new Set([
 /**
  * Blocks with no vanilla counterpart to take harvest data from.
  *
- * pressure_plate is this game's own generic block; sulfur_block and dried_ghast postdate the pinned
+ * pressure_plate is this game's own generic block; sulfur_block, dried_ghast and firefly_bush postdate the pinned
  * 1.21.4 data. Named rather than patterned, and a test requires each name to still be a block the game has, so
  * the list cannot rot into a place where real gaps hide.
  */
-const NO_VANILLA_HARVEST = new Set(['pressure_plate', 'sulfur_block', 'dried_ghast']);
+const NO_VANILLA_HARVEST = new Set(['pressure_plate', 'sulfur_block', 'dried_ghast', 'firefly_bush']);
 const skipTechnical = (entry) =>
   NON_SOLID_NAMES.has(entry.blockAliases?.[0]) || entry.blockAliases?.some((a) => NON_SOLID_NAMES.has(a));
 

@@ -15,6 +15,8 @@
 // // `drops` key means the block is not harvestable into an item.
 
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { FUTURE_BLOCK_DEFS } from './futureContent.js';
+import { futureHarvestRows } from './futureContentWiki.js';
 
 export const BLOCK_HARVEST = {
   acacia_button: {hardness:0.5,tool:'axe',drops:['acacia_button'],bb:'empty'},
@@ -1114,6 +1116,16 @@ export const BLOCK_HARVEST = {
   zombie_wall_head: {hardness:1,drops:['zombie_head']},
 };
 
+// Corrections to the generated rows, each from the block's wiki page and found by the wiki parity audit (B-TOOL).
+// Applied here rather than in the table above, which regeneration rewrites.
+//   crafter: its {{breaking row}} names the pickaxe as its proper tool ("Crafter|Pickaxe"); the row had none, so a
+//   pickaxe mined it no faster than a hand.
+Object.assign(BLOCK_HARVEST.crafter, { tool: 'pickaxe' });
+
+// The post-1.21.4 blocks src/futureContent.js registers: their rows from their wiki breaking data, so they stop
+// borrowing a guessed sibling's (futureContentWiki.js). A hand-written row above wins.
+for (const [name, row] of Object.entries(futureHarvestRows(FUTURE_BLOCK_DEFS))) BLOCK_HARVEST[name] ??= row;
+
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
 
@@ -1202,6 +1214,12 @@ export function knownHarvestNames() {
 // mesher does not have. The visible consequence is the material of what survives, not the shape of
 // the crater.
 
+/**
+ * Blast resistance the generated rows lack, from the blocks' wiki pages (Module:Blast resistance values): a bubble
+ * column is water, and resists like it.
+ */
+export const BLAST_RESISTANCE_OVERRIDES = { bubble_column: 100 };
+
 /** Explosion power of a primed TNT block, and therefore the base of every threshold above. */
 export const TNT_EXPLOSION_POWER = 4;
 
@@ -1231,7 +1249,12 @@ export function blastResistanceThreshold(power = TNT_EXPLOSION_POWER) {
  *     not a resistance value, so both are reported as null.
  */
 export function blastResistanceFor(blockId) {
-  const data = BY_ID.get(blockId);
+  // The row a state shares with its block (an open copper door is a copper door): read by `harvestDataFor`, as the
+  // mining path does. Reading only this id's own row gave every open door and trapdoor its hardness instead, so
+  // an open copper door was half as blast resistant as a closed one -- found by the wiki parity audit (B-BLAST).
+  const data = harvestDataFor(blockId);
+  const named = BLAST_RESISTANCE_OVERRIDES[data?.name];
+  if (typeof named === 'number') return named;
   const hardness = typeof data?.hardness === 'number' ? data.hardness : BLOCK_DEFS[blockId]?.hardness;
   const resistance = typeof data?.resistance === 'number' ? data.resistance : hardness;
   if (typeof resistance !== 'number' || !Number.isFinite(resistance)) return null;

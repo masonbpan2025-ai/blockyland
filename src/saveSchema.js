@@ -16,6 +16,7 @@
 // This module owns the schema, the migration and the normalisation, so `mapManager` only has to call it.
 
 import { capturePacks, restorePacks, createPackStore } from './dataPackStore.js';
+import { captureEndState, restoreEndState } from './endProgression.js';
 
 /**
  * Bumped when the shape changes.
@@ -97,6 +98,7 @@ export function capturePlayerState(player) {
       ? { x: player.bedSpawnPosition.x, y: player.bedSpawnPosition.y, z: player.bedSpawnPosition.z }
       : null,
     bedDimension: player.bedDimension ?? null,
+    anchorSpawn: player.anchorSpawn ? { ...player.anchorSpawn } : null,
     spawnPosition: player.spawnPosition
       ? { x: player.spawnPosition.x, y: player.spawnPosition.y, z: player.spawnPosition.z }
       : null,
@@ -149,6 +151,7 @@ export function applyPlayerState(player, saved, helpers = {}) {
     ? makeVector(num(s.bedSpawnPosition.x, 0), num(s.bedSpawnPosition.y, 0), num(s.bedSpawnPosition.z, 0))
     : null;
   player.bedDimension = typeof s.bedDimension === 'string' ? s.bedDimension : null;
+  player.anchorSpawn = s.anchorSpawn ? {x:num(s.anchorSpawn.x,0),y:num(s.anchorSpawn.y,0),z:num(s.anchorSpawn.z,0),dimension:String(s.anchorSpawn.dimension??'nether')} : null;
   if (s.spawnPosition) {
     player.spawnPosition = makeVector(
       num(s.spawnPosition.x, 0), num(s.spawnPosition.y, 0), num(s.spawnPosition.z, 0));
@@ -211,6 +214,7 @@ export function captureSessionState(game) {
     dimension: game.currentDimension || game.world?.dimension || 'overworld',
     biomes: game.world?.selectedBiome,
     dayCount: game.dayCount ?? 0,
+    endState: captureEndState(game.world),
     // The loaded data packs. Captured here rather than beside the world, because a pack changes the CONTENT
     // -- biomes, recipes, drops -- and content has to be back in place before the world is regenerated from
     // it. A save that restored the terrain but not the packs would rebuild the world with different rules.
@@ -235,6 +239,7 @@ export function captureSessionState(game) {
 export function applySessionState(game, saved) {
   if (!game) return null;
   const s = saved && typeof saved === 'object' ? saved : {};
+  if(game.world && 'endState' in s)restoreEndState(game.world,s.endState);
   if (typeof s.difficulty === 'string' && s.difficulty) {
     game.difficulty = s.difficulty;
     if (game.player) game.player.difficulty = s.difficulty;

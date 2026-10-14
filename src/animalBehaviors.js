@@ -6,7 +6,7 @@ import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
 import { isEquine, canInteractHorse, interactHorse, inheritHorse, horseJumpHeight, updateHorse } from './horseBehavior.js';
 import { SHEEP_COLORS, SHEEP_COLOR_HEX, sheepApplyWool, inheritSheepColor, rollSheepWoolCount } from './sheepBehavior.js';
 import { isMooshroom, isBrownMooshroom, convertMooshroomToCow, MOOSHROOM_SHEAR_DROPS, MOOSHROOM_MUSHROOM_BLOCK, applyMooshroomVariant, isSmallFlower, STEW_EFFECTS } from './mooshroomBehavior.js';
-import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { applyWolfTamed, WOLF_TAME_CHANCE, WOLF_DEFAULT_COLLAR, canEquipWolfArmor, equipWolfArmor, removeWolfArmor, repairWolfArmor, WOLF_ARMOR_DURABILITY } from './wolfBehavior.js';
 import { isParrotTamingFood, isParrotLethalFood, rollParrotTaming, parrotVariantName, applyParrotVariant } from './parrotBehavior.js';
 import { breedPandaGenes, applyPandaPersonality, pandaCanBreed } from './pandaBehavior.js';
 import { inheritFoxCoat } from './foxBehavior.js';
@@ -406,6 +406,24 @@ export class AnimalBehaviors {
       }
 
       if (mob.isTamed && mob.owner === player) {
+        // Wolf armour: put on (an adult only), taken off with shears, repaired with a scute (wiki, Wolf Armor).
+        if (itemId === 'wolf_armor' && canEquipWolfArmor(mob, player)) {
+          // A worn piece keeps its wear: `durability` on a stack is what it has left (durability.js).
+          const held = inventory.getActiveItem?.();
+          equipWolfArmor(mob, typeof held?.durability === 'number' ? held.durability : WOLF_ARMOR_DURABILITY);
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          this.sounds?.playClick?.();
+          return true;
+        }
+        if (itemId === 'shears' && mob.wolfArmor) {
+          const removed = removeWolfArmor(mob);
+          this.entities?.spawnDroppedItem?.(mob.mesh.position.clone(), 'wolf_armor', false, 1, { durability: removed.durability });
+          return true;
+        }
+        if (itemId === 'armadillo_scute' && repairWolfArmor(mob)) {
+          if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+          return true;
+        }
         // Dye collar
         if (itemName.endsWith('_dye')) {
           const dyeColor = itemName.replace('_dye', '');

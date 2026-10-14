@@ -13,7 +13,8 @@
 // showcase content belongs to an explicit preset rather than to every world.
 
 /** The two modes the setup screen offers. */
-export const GAME_MODES = ['survival', 'creative'];
+// Java's four (gameModeRules.js); the setup screen offers Survival and Creative, /gamemode all four.
+export const GAME_MODES = ['survival', 'creative', 'adventure', 'spectator'];
 
 /** Java's four difficulties, in increasing order of danger. */
 export const DIFFICULTIES = ['peaceful', 'easy', 'normal', 'hard'];
@@ -54,6 +55,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
    * save does nothing rather than throwing.
    */
   dataPackPreset: null,
+  // The create-world screen's "Bonus Chest" option (https://minecraft.wiki/w/Bonus_Chest).
+  bonusChest: false,
 });
 
 /** A mode string from the UI, or the default when it is not one of the two. */
@@ -94,6 +97,7 @@ export function normaliseSettings(raw = {}) {
     dataPackPreset: typeof source.dataPackPreset === 'string' && source.dataPackPreset
       ? source.dataPackPreset
       : null,
+    bonusChest: source.bonusChest === true,
   });
 }
 

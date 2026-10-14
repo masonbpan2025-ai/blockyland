@@ -140,11 +140,12 @@ export async function observe(structureId, {
     const radius = 6;
     for (let cx = Math.floor(box.minX / 16) - radius; cx <= Math.floor(box.maxX / 16) + radius; cx++) {
       for (let cz = Math.floor(box.minZ / 16) - radius; cz <= Math.floor(box.maxZ / 16) + radius; cz++) {
-        const other = world.structures.planAt(cx, cz);
-        if (!other || other === found.start || (other.chunkX === found.start.chunkX && other.chunkZ === found.start.chunkZ)) continue;
-        if (!other.box.intersects(box)) continue;
-        const impl = GENERATORS[STRUCTURES[other.structureId]?.implementation];
-        impl?.realize(other, (x, y, z) => { others.add(`${x},${y},${z}`); return true; }, BLOCKS);
+        for (const other of world.structures.plansAt(cx, cz)) {
+          if (other.structureId === found.start.structureId && other.chunkX === found.start.chunkX && other.chunkZ === found.start.chunkZ) continue;
+          if (!other.box.intersects(box)) continue;
+          const impl = GENERATORS[STRUCTURES[other.structureId]?.implementation];
+          impl?.realize(other, (x, y, z) => { others.add(`${x},${y},${z}`); return true; }, BLOCKS);
+        }
       }
     }
     let compared = 0;

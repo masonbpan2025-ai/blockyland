@@ -23,8 +23,8 @@
 //     whose Y band falls outside 0..63 are trimmed by the writer and COUNTED in `stats.outOfWorld`, so
 //     enabling `ancient_city` (Y -63..-31) or `trial_chambers` would write nothing and say so. Those need
 //     either a taller world or a world-specific Y remap, and neither is guessed at here.
-//   * Chest loot has nowhere to go: this world has no block-entity container store, so loot tables are
-//     collected in `loot` for a caller (or a test) to use and are NOT yet attached to the placed chests.
+//   * Loot tables and block entities are collected during realization; the world preserves their state
+//     and the live game initializes the corresponding containers and spawners.
 
 import { createStructureEngine, getSetForStructure, generatorCoverage } from './worldgen/index.js';
 import { BLOCKS } from './blocks.js';
@@ -33,12 +33,12 @@ import { PACK_STRUCTURES, packSuppressesStructures, winningStructureIds } from '
 /**
  * The structures enabled in generated worlds.
  *
- * Three surface structures on purpose, as the first end-to-end landing: each is small, sits at or near the
- * surface, is gated to a common biome (plains, snowy, desert), and fits inside the world's 64-block height.
- * The rest of the registry is one list entry away, but a structure that lands outside this world's Y range
- * would write nothing while looking enabled, so the list is grown deliberately rather than all at once.
+ * Surface starters plus the Nether survival structures whose generators fit the 64-block world.
+ * Dimension and biome gates still apply: enabling a fortress does not put one in the Overworld.
  */
-export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid'];
+export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid',
+  'fortress', 'bastion_remnant', 'nether_fossil', 'ruined_portal_nether',
+  'end_spike', 'end_podium', 'end_platform', 'end_city'];
 
 /**
  * Every structure id the engine can actually generate.
@@ -220,23 +220,24 @@ export function createWorldStructures({
   }
 
   /** The start whose origin is this chunk, if it is one this world places. */
-  function planAt(chunkX, chunkZ, dimension = dimensionNow()) {
+  function plansAt(chunkX, chunkZ, dimension = dimensionNow()) {
     const key = `${dimension}|${chunkX},${chunkZ}`;
     if (plans.has(key)) return plans.get(key);
     const engine = engineFor(dimension);
-    let start = null;
+    let starts = [];
     const candidates = engine.candidatesForChunk(chunkX, chunkZ);
     if (candidates.some((set) => enabledSets.has(set))) {
-      const plan = engine.planChunk(chunkX, chunkZ);
-      // The engine chooses which structure applies to a chunk; this world only places the enabled ones, so a
-      // disabled pick is dropped rather than written.
-      if (plan && plan.start && enabled.has(plan.structureId)) {
-        start = plan.start;
-        stats.planned++;
-      }
+      // Every set plans on its own (a mineshaft and a shipwreck can share a chunk); this world places the enabled ones.
+      starts = engine.planChunkAll(chunkX, chunkZ).filter((plan) => plan.start && enabled.has(plan.structureId)).map((plan) => plan.start);
+      stats.planned += starts.length;
     }
-    plans.set(key, start);
-    return start;
+    plans.set(key, starts);
+    return starts;
+  }
+
+  /** The (first) start whose origin is this chunk, if it is one this world places. */
+  function planAt(chunkX, chunkZ, dimension = dimensionNow()) {
+    return plansAt(chunkX, chunkZ, dimension)[0] ?? null;
   }
 
   /**
@@ -257,10 +258,10 @@ export function createWorldStructures({
     const cz = Math.floor(bz / sizes.z);
     for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
       for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
-        const start = planAt(cx + dx, cz + dz);
-        if (!start) continue;
-        for (const piece of start.pieces) {
-          if (piece.box.contains(bx, by, bz)) return start.structureId;
+        for (const start of plansAt(cx + dx, cz + dz)) {
+          for (const piece of start.pieces) {
+            if (piece.box.contains(bx, by, bz)) return start.structureId;
+          }
         }
       }
     }
@@ -284,8 +285,7 @@ export function createWorldStructures({
     const engine = engineFor(dimension);
     for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
       for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
-        const start = planAt(chunk.cx + dx, chunk.cz + dz, dimension);
-        if (!start) continue;
+        for (const start of plansAt(chunk.cx + dx, chunk.cz + dz, dimension)) {
         const box = start.box;
         // Overlap in the horizontal plane only: a structure's Y band can lie entirely outside this world's
         // height, and that is a separate case reported through `outOfWorld` rather than by skipping it here.
@@ -313,10 +313,16 @@ export function createWorldStructures({
           // chunk holds only its id.
           const props = meta?.state?.properties;
           // A top slab has no facing but must still be remembered, or it renders as a bottom slab.
-          if ((props && (props.facing || props.type === 'top')) || meta?.spawner) {
+          // A vine's faces are booleans (north/east/south/west/up), not a facing.
+          const vineFaces = props && ['north', 'south', 'east', 'west', 'up'].some((f) => String(props[f]) === 'true')
+            ? Object.fromEntries(['north', 'south', 'east', 'west', 'up'].map((f) => [f, String(props[f]) === 'true'])) : null;
+          if ((props && (props.facing || props.type === 'top' || props.age !== undefined)) || vineFaces || meta?.spawner || meta?.trialSpawner || meta?.vault) {
             const request = { x, y, z, id, name: meta.state?.name ?? null, facing: props?.facing ?? null, half: props?.half ?? null,
+              ...(vineFaces ? { vineFaces } : {}),
+              ...(props?.age!==undefined?{plantAge:Number(props.age)}:{}),
               hinge: props?.hinge ?? null, lootTable: meta.lootTable ?? null, slabType: props?.type === 'top' ? 'top' : null,
-              ...(meta?.spawner ? { spawner: meta.spawner } : {}) };
+              ...(meta?.spawner ? { spawner: meta.spawner } : {}), ...(meta?.extraItems ? { extraItems: meta.extraItems } : {}),
+              ...(meta?.trialSpawner ? { trialSpawner: meta.trialSpawner } : {}), ...(meta?.vault ? { vault: meta.vault } : {}) };
             orientations.push(request);
             dispatch('orient', request);
           }
@@ -339,6 +345,7 @@ export function createWorldStructures({
 
         stats.structures++;
         stats.blocks += typeof written === 'number' ? written : 0;
+        }
       }
     }
     return stats;
@@ -347,6 +354,7 @@ export function createWorldStructures({
   return {
     applyToChunk,
     planAt,
+    plansAt,
     structureIdAt,
     stats,
     loot,

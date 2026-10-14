@@ -7,7 +7,7 @@ import {createHorseModel,HORSE_COATS,HORSE_MARKINGS} from '../src/horseModel.js'
 import {HORSE_FOODS,horseJumpHeight,updateHorse,inheritStat,randomHorseStats,serializeHorse,restoreHorse} from '../src/horseBehavior.js';
 const session=()=>{const s=createMobDebugSession(new THREE.Scene());s.reset('horse');return s;};
 const use=(s,id,m=s.mob)=>{s.inventory.active=id?{id,count:4}:null;return s.manager.animalBehaviors.interact(m,s.player,s.inventory);};
-for(const c of mobScenarios('horse'))test(`inspector horse: ${c.id}`,()=>{const s=session();s.startPosition=s.mob.mesh.position.clone();c.setup(s);for(let t=0;t<c.duration;t+=1/30)s.tick(1/30);assert.equal(c.check(s),true);assert.equal(s.manager.brokenMobs.has(s.mob),false);});
+for(const c of mobScenarios('horse'))test(`inspector horse: ${c.id}`,()=>{const s=session();s.startPosition=s.mob.mesh.position.clone();c.setup(s);for(let t=0;t<c.duration;t+=1/30){s.tick(1/30);c.update?.(s);}assert.equal(c.check(s),true);assert.equal(s.manager.brokenMobs.has(s.mob),false);});
 test('all 35 variants have textured torso, coherent head and hip-pivot hooves',()=>{
  const seen=new Set();for(let c=0;c<HORSE_COATS.length;c++)for(let m=0;m<HORSE_MARKINGS.length;m++){
   const h=createHorseModel(c,m);assert.equal(h.legs.length,4);assert.equal(h.head.getObjectByName('muzzle').parent,h.head.getObjectByName('eye').parent);

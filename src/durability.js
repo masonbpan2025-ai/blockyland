@@ -33,6 +33,10 @@ export const FIXED_DURABILITY = {
   trident: 250,
   elytra: 432,
   brush: 64,
+  // The wiki's figures (Module:Default data component/items, max_damage), found by the wiki parity audit.
+  mace: 500,
+  wolf_armor: 64,
+  golden_spear: 32,
   turtle_helmet: 275,
   // Armour, which the material table does not cover because the multipliers differ from tools.
   leather_helmet: 55, leather_chestplate: 80, leather_leggings: 75, leather_boots: 65,

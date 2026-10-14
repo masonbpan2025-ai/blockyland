@@ -31,7 +31,8 @@ test('every command in the table is dispatched by exactly one of the two handler
   // implements is a `/help` line that lies, and a command implemented but absent from the table is one
   // `/help` cannot describe.
   const main = readFileSync('src/main.js', 'utf8');
-  const runner = readFileSync('src/commandRunner.js', 'utf8');
+  // The runner's switch, and the Java commands it hands to vanillaCommands.js.
+  const runner = readFileSync('src/commandRunner.js', 'utf8') + readFileSync('src/vanillaCommands.js', 'utf8') + readFileSync('src/advancedCommands.js', 'utf8');
 
   const inRunner = new Set(
     [...runner.matchAll(/case '(\/[a-z_]+)':/g)].map((m) => m[1].slice(1)),
@@ -79,7 +80,7 @@ test('main.js delegates rather than parsing commands itself', () => {
   // because a separate `mobType ===` chain in the click handler summons mobs for the world agent and is
   // deliberately left alone.
   assert.match(source, /const SUMMONABLE_MOBS = \{/);
-  const summonStart = source.indexOf('runSummonCommand(rawType) {');
+  const summonStart = source.indexOf('runSummonCommand(rawType, posArgs = []) {');
   const summonBody = source.slice(summonStart, source.indexOf('\n  }', summonStart));
   assert.equal(/mobType ===/.test(summonBody), false, 'the /summon if/else chain should be gone');
   assert.match(summonBody, /SUMMONABLE_MOBS\[type\]/, 'and should read the table');
@@ -807,22 +808,29 @@ test('a command with no leading slash is not a command', () => {
 
 // --- the other portable commands ----------------------------------------------------
 
-test('/time set changes the world clock and refuses anything else', () => {
-  const day = fakeGame();
-  run(day, '/time set day');
-  assert.equal(day.worldTime, 6000);
-  assert.equal(lastChat(day).text, 'Set the time to 6000 (Day)');
+test('/time set takes Java\'s markers and times, and refuses anything else', () => {
+  // Commands/time: "/time set day ... is equivalent to 1000, and /time set night ... 13000"; noon 6000,
+  // midnight 18000. This used to put "day" at 6000 and "night" at 18000 and refuse noon and midnight.
+  for (const [marker, ticks] of [['day', 1000], ['noon', 6000], ['night', 13000], ['midnight', 18000], ['1234', 1234], ['2d', 48000], ['30s', 600]]) {
+    const game = fakeGame();
+    run(game, `/time set ${marker}`);
+    assert.equal(game.worldTime, ticks, marker);
+    assert.equal(lastChat(game).text, `Set the time to ${ticks % 24000}`);
+  }
+  const later = fakeGame({ worldTime: 1000 });
+  run(later, '/time add 500');
+  assert.equal(later.worldTime, 1500);
+  const asked = fakeGame({ worldTime: 25000 });
+  run(asked, '/time query daytime');
+  assert.equal(lastChat(asked).text, 'The time is 1000');
+  run(asked, '/time query day');
+  assert.equal(lastChat(asked).text, 'The time is 1');
 
-  const night = fakeGame();
-  run(night, '/time set night');
-  assert.equal(night.worldTime, 18000);
-
-  // The old handler silently did nothing for an unrecognised argument, which reads as a broken command.
-  for (const line of ['/time set noon', '/time set', '/time']) {
+  for (const line of ['/time set dusk', '/time set', '/time']) {
     const game = fakeGame();
     run(game, line);
     assert.equal(game.worldTime, 0, `${line} must not move the clock`);
-    assert.ok(texts(game).some((t) => t === 'Usage: /time set <day|night>'),
+    assert.ok(texts(game).some((t) => t.startsWith('Usage: /time')),
       `${line} should explain itself, got ${JSON.stringify(texts(game))}`);
   }
 });
@@ -861,10 +869,16 @@ test('/gamemode takes the names and the numeric and single-letter forms', () => 
     run(game, `/gamemode ${arg}`);
     assert.equal(game.gameModeSet, 'survival', arg);
   }
+  // Java's other two modes and their shorthands (gameModeRules.js).
+  for (const [arg, mode] of [['adventure', 'adventure'], ['a', 'adventure'], ['2', 'adventure'], ['spectator', 'spectator'], ['sp', 'spectator'], ['3', 'spectator']]) {
+    const game = fakeGame();
+    run(game, `/gamemode ${arg}`);
+    assert.equal(game.gameModeSet, mode, arg);
+  }
   const bad = fakeGame();
-  run(bad, '/gamemode adventure');
+  run(bad, '/gamemode hardcore');
   assert.equal(bad.gameModeSet, undefined);
-  assert.equal(lastChat(bad).text, 'Usage: /gamemode <creative|survival>');
+  assert.equal(lastChat(bad).text, 'Usage: /gamemode <survival|creative|adventure|spectator>');
 });
 
 test('/setblock resolves the block through the shared vocabulary', () => {
@@ -901,10 +915,19 @@ test('/setblock resolves the block through the shared vocabulary', () => {
   }
 });
 
-test('/clear empties the chat window', () => {
+test('/clearchat empties the chat window; /clear is Java\'s inventory clear', () => {
   const game = fakeGame();
-  run(game, '/clear');
+  run(game, '/clearchat');
   assert.equal(game.chatCleared, true);
+  const full = fakeGame();
+  full.inventory.hotbar[0] = { id: 'diamond', isBlock: false, count: 5 };
+  full.inventory.hotbar[1] = { id: 'stick', isBlock: false, count: 2 };
+  run(full, '/clear @s diamond 3');
+  assert.equal(full.inventory.hotbar[0].count, 2, 'maxCount takes only three');
+  assert.equal(lastChat(full).text, 'Removed 3 item(s) from player Player');
+  run(full, '/clear');
+  assert.deepEqual(full.inventory.hotbar.filter(Boolean), [], 'no item argument clears everything');
+  assert.equal(full.chatCleared, undefined, 'and the chat is left alone');
 });
 
 test('/help lists every command in the table', () => {

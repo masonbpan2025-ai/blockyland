@@ -23,6 +23,11 @@ import { RESOURCE_CHECKS, ResourceShowcase, buildVanillaIndex } from './resource
 import { inspectorSources } from './mods/inspectorScope.js';
 import { fillInspectorSource } from './mods/inspectorSelector.js';
 import { ResourceInspectionWorld, ResourceBehaviorShowcase } from './resourceBehaviorShowcase.js';
+import { HeldItemRenderer } from './heldItem.js';
+import { ItemVisuals } from './itemVisuals.js';
+import { resolveVisualPolicy } from './resourceVisualPolicy.js';
+import { vanillaItemsMissing } from './resourceWikiAudit.js';
+import { parityCasesForEntry, parityAuditEverything, CASE_LABELS } from './resourceParityCases.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -81,6 +86,10 @@ let inspectionWorld = null;
 let displayedRevision = -1;
 let displayedDrops = -1;
 let dropPreview = null;
+let viewMode = 'placed';
+let heldRenderer = null;
+let itemVisuals = null;
+let droppedPreviewMesh = null;
 
 function disposePreview(group) {
   group?.removeFromParent();
@@ -130,14 +139,14 @@ function renderInspectionWorld() {
 }
 
 function renderInspectionDrops() {
-  if (!inspectionWorld || inspectionWorld.drops.length === displayedDrops) return;
+  if (!inspectionWorld || inspectionWorld.dropsVersion === displayedDrops) return;
   disposePreview(dropPreview);
   dropPreview = new THREE.Group();
   inspectionWorld.drops.forEach((drop, index) => {
     // Real registry icon / geometry, rather than generic coloured cubes.
-    const entry = [...registry.entries.values()].find(e => drop.isBlock ? e.blockId === drop.id : e.id === drop.id);
+    const entry = [...registry.entries.values()].find(e => drop.isBlock && typeof drop.id === 'number' ? e.blockId === drop.id : e.id === drop.id);
     let mesh;
-    if (drop.isBlock) {
+    if (drop.isBlock && typeof drop.id === 'number') {
       const geometry = createBlockGeometry(drop.id, textures);
       geometry.translate(-0.5, -0.5, -0.5);
       mesh = new THREE.Mesh(geometry, textures.opaqueMaterial);
@@ -155,19 +164,22 @@ function renderInspectionDrops() {
     }
   });
   scene.add(dropPreview);
-  displayedDrops = inspectionWorld.drops.length;
+  displayedDrops = inspectionWorld.dropsVersion;
 }
 
 function showBehaviorProgress() {
   if (!behaviorRun) return;
   const results = behaviorRun.results;
+  // A known difference is counted on its own and never as a pass; not-applicable and no-wiki-data are skipped.
   const failures = results.filter(r => ['not observed', 'error'].includes(r.status)).length;
-  const skipped = results.filter(r => r.status === 'unsupported').length;
-  const passed = results.length - failures - skipped;
+  const known = results.filter(r => r.status === 'known difference').length;
+  const passed = results.filter(r => r.status === 'observed').length;
+  const skipped = results.length - failures - known - passed;
   $('showcase-status').textContent = behaviorRun.running
     ? `${behaviorRun.index + 1}/${behaviorRun.steps.length} · ${behaviorRun.current.label}`
-    : `Finished: ${passed} passed, ${failures} failed, ${skipped} unsupported / visual-only.`;
-  $('showcase-results').textContent = results.map(r => `${r.status === 'observed' ? '[ok]' : r.status === 'unsupported' ? '[--]' : '[!!]'} ${r.label}${r.detail ? ` — ${r.detail}` : ''}`).join('\n');
+    : `Finished: ${passed} passed, ${failures} failed${known ? `, ${known} known differences` : ''}, ${skipped} unsupported / not applicable / visual-only.`;
+  const icon = (status) => ({ observed: '[ok]', 'known difference': '[~~]', 'not observed': '[!!]', error: '[!!]' }[status] ?? '[--]');
+  $('showcase-results').textContent = results.map(r => `${icon(r.status)} ${r.label}${r.detail ? ` — ${r.detail}` : ''}`).join('\n');
   $('showcase-stop').disabled = !behaviorRun.running;
   $('showcase').disabled = behaviorRun.running;
   if (inspectionWorld && [BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(selected?.blockId)) {
@@ -178,6 +190,11 @@ function showBehaviorProgress() {
       : inspectionWorld.world.getVoxel(8, 2, 8) === BLOCKS.AIR
         ? `Furnace broken\nDrops: ${inspectionWorld.drops.map(d => `${d.count} × ${d.id}`).join(', ')}`
         : 'Shell inspection: carpet beside and below; stone platform underneath.';
+  } else if (inspectionWorld && selected) {
+    const vox = inspectionWorld.world.getVoxel(8, 2, 8);
+    const voxName = BLOCK_DEFS[vox]?.name || (vox === 0 ? 'Air' : `Block ${vox}`);
+    const dropText = inspectionWorld.drops.length ? inspectionWorld.drops.map(d => `${d.count} × ${d.id}`).join(', ') : 'none';
+    $('showcase-telemetry').textContent = `Resource: ${selected.name} (${selected.key})\nVoxel at (8,2,8): ${voxName}\nActive drops: ${dropText}\nRevision: ${inspectionWorld.revision}`;
   }
 }
 
@@ -193,7 +210,7 @@ async function startShowcase() {
     showcase.run(entry);
     showChecks();
     displayedRevision = displayedDrops = -1;
-    if (entry.blockId !== null) inspectionWorld = new ResourceInspectionWorld(entry.blockId, { scene });
+    inspectionWorld = new ResourceInspectionWorld(entry.blockId ?? 0, { scene });
     behaviorRun = new ResourceBehaviorShowcase({ entry, checks: showcase.results, session: inspectionWorld, textures,
       onStep(step) {
         // The support platform would otherwise block a camera below the block.
@@ -216,7 +233,7 @@ async function startShowcase() {
     });
     renderInspectionWorld();
     showBehaviorProgress();
-    log(`Showcase started: ${entry.name}. Registry checks and six views${inspectionWorld && [BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(entry.blockId) ? '; real furnace simulation' : '; no specialized behavior simulation for this resource'}.`);
+    log(`Showcase started: ${entry.name}. Running comprehensive look & behavior suite.`);
   } catch (error) {
     $('error').textContent = error.stack || error.message;
     stopShowcase();
@@ -226,6 +243,8 @@ async function startShowcase() {
 // A small automation hook for the same scenarios the visible button drives.
 window.resourceInspector = {
   get run() { return behaviorRun; },
+  get wikiCases() { return selected ? parityCasesForEntry(selected) : []; },
+  runWikiAudit() { runWikiAudit(); return lastWikiAudit; },
   get session() { return inspectionWorld; },
   get ready() { return !!selected && (selected.blockId === null || texturesReady); },
 };
@@ -277,9 +296,60 @@ async function showPreview(entry) {
     disposePreview(preview);
     preview = null;
   }
+  droppedPreviewMesh = null;
   if (!entry) return;
   const group = new THREE.Group();
 
+  if ($('swing-btn')) {
+    $('swing-btn').style.display = viewMode === 'held' ? 'inline-block' : 'none';
+  }
+
+  if (viewMode === 'held') {
+    if (!texturesReady) await ensureTextures().catch(() => {});
+    if (!heldRenderer) heldRenderer = new HeldItemRenderer(camera, textures);
+    heldRenderer.setItem({ id: entry.blockId ?? entry.id, isBlock: entry.blockId !== null, count: 64 });
+    preview = group;
+    scene.add(group);
+    grid.visible = false;
+    return;
+  }
+
+  if (viewMode === 'dropped') {
+    if (!texturesReady) await ensureTextures().catch(() => {});
+    if (!itemVisuals) itemVisuals = new ItemVisuals(textures);
+    droppedPreviewMesh = itemVisuals.create(entry.blockId ?? entry.id, entry.blockId !== null, 0.6);
+    droppedPreviewMesh.position.set(0, 0.4, 0);
+    group.add(droppedPreviewMesh);
+    preview = group;
+    scene.add(group);
+    grid.visible = true;
+    return;
+  }
+
+  if (viewMode === 'inventory') {
+    if (entry.icon) {
+      const texture = new THREE.TextureLoader().load(entry.icon);
+      texture.magFilter = texture.minFilter = THREE.NearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.05 });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), material);
+      mesh.userData.ownsMaterial = true;
+      group.add(mesh);
+    } else if (entry.blockId !== null && BLOCK_DEFS[entry.blockId]) {
+      if (!texturesReady) await ensureTextures().catch(() => {});
+      const geometry = createBlockGeometry(entry.blockId, textures);
+      geometry.translate(-0.5, -0.5, -0.5);
+      const def = BLOCK_DEFS[entry.blockId];
+      const material = def?.light ? textures.lightMaterial : (def?.plant || def?.transparent ? textures.transparentMaterial : textures.opaqueMaterial);
+      group.add(new THREE.Mesh(geometry, material));
+    }
+    preview = group;
+    scene.add(group);
+    grid.visible = false;
+    return;
+  }
+
+  // Default: 'placed' / 3D model view
   if (entry.blockId !== null && BLOCK_DEFS[entry.blockId]) {
     if (!texturesReady) {
       try {
@@ -292,7 +362,8 @@ async function showPreview(entry) {
       const geometry = createBlockGeometry(entry.blockId, textures);
       geometry.translate(-0.5, -0.5, -0.5);
       if (BLOCK_DEFS[entry.blockId].shape === 'torch') geometry.translate(0, 0.5, 0);
-      const material = BLOCK_DEFS[entry.blockId].light ? textures.lightMaterial : textures.opaqueMaterial;
+      const def = BLOCK_DEFS[entry.blockId];
+      const material = def.light ? textures.lightMaterial : (def.plant || def.transparent ? textures.transparentMaterial : textures.opaqueMaterial);
       group.add(new THREE.Mesh(geometry, material));
     }
   } else if (entry.icon) {
@@ -345,6 +416,68 @@ function factsText(report) {
   return lines.join('\n');
 }
 
+// --- wiki parity -------------------------------------------------------------
+// The selected resource's wiki cases (src/resourceWikiAudit.js: the wiki's hardness, blast resistance, light, tool,
+// break time, drops, Silk Touch, stack size, durability, food, attack, armour...), each with the wiki's value, the
+// game's, and the page it came from; and the whole audit on demand. The same cases run in
+// tests/resourceWikiAudit.test.js, so this panel and the test suite cannot disagree.
+const WIKI_CHIP = { PASS: ['pass', 'PASS'], FAIL: ['fail', 'FAIL'], KNOWN: ['known', 'KNOWN'], NA: ['na', 'n/a'], NO_DATA: ['na', 'no data'] };
+
+function wikiRow(c, { subject = null } = {}) {
+  const li = document.createElement('li');
+  const [cls, text] = WIKI_CHIP[c.status];
+  const chip = document.createElement('span');
+  chip.className = `chip ${cls}`;
+  chip.textContent = text;
+  const body = document.createElement('span');
+  body.textContent = ` ${subject ? `${subject} · ` : ''}${c.id} ${c.label}: wiki ${c.expected} / game ${c.actual}${c.note ? ` — ${c.note}` : ''} `;
+  li.append(chip, body);
+  if (c.source) {
+    const a = document.createElement('a');
+    a.href = c.source; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'wiki';
+    li.append(a);
+  }
+  return li;
+}
+
+function showWikiCases(entry) {
+  if (!$('wiki-cases')) return;
+  const cases = parityCasesForEntry(entry);
+  const count = (s) => cases.filter((c) => c.status === s).length;
+  $('wiki-badge').textContent = cases.length
+    ? `${count('PASS')} pass · ${count('FAIL')} fail${count('KNOWN') ? ` · ${count('KNOWN')} known` : ''} · ${count('NA') + count('NO_DATA')} n/a`
+    : 'no cases';
+  $('wiki-badge').className = count('FAIL') ? 'fail' : count('KNOWN') ? 'known' : 'pass';
+  $('wiki-cases').replaceChildren(...cases.map((c) => wikiRow(c)));
+}
+
+let lastWikiAudit = null;
+function runWikiAudit() {
+  const started = performance.now();
+  const audit = parityAuditEverything();
+  const missing = vanillaItemsMissing();
+  lastWikiAudit = { ...audit, missing };
+  const t = audit.totals;
+  $('wiki-summary').textContent = [
+    `${audit.rows.length} cases over every block and item in ${Math.round(performance.now() - started)} ms`,
+    `PASS ${t.PASS} · FAIL ${t.FAIL} · KNOWN ${t.KNOWN} · not applicable ${t.NA} · no wiki data ${t.NO_DATA}`,
+    ...Object.entries(audit.byCase).map(([id, c]) => `  ${id.padEnd(17)} ${String(c.PASS).padStart(5)} pass  ${c.FAIL} fail  ${c.KNOWN} known  (${CASE_LABELS[id] ?? ''})`),
+    `Vanilla items this game lacks: ${missing.length}, all newer than its 1.21.4 target`,
+  ].join('\n');
+  const flagged = audit.rows.filter((r) => r.status === 'FAIL' || r.status === 'KNOWN');
+  $('wiki-flagged').replaceChildren(...flagged.map((r) => wikiRow(r, { subject: r.subject })));
+  log(`Wiki audit: ${t.PASS} pass, ${t.FAIL} fail, ${t.KNOWN} known over ${audit.rows.length} cases.`);
+}
+
+function exportWikiAudit() {
+  if (!lastWikiAudit) runWikiAudit();
+  const blob = new Blob([JSON.stringify({ timestamp: new Date().toISOString(), ...lastWikiAudit }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wiki-parity-audit.json';
+  a.click();
+}
+
 // --- checks -----------------------------------------------------------------
 function showChecks() {
   if (!showcase || !showcase.results.length) return;
@@ -389,6 +522,7 @@ function selectResource(entry) {
     };
     showcase.run(entry);
     showChecks();
+    showWikiCases(entry);
     showPreview(entry).catch((error) => { $('error').textContent = error.stack || error.message; });
     syncUrl(entry.key);
   } catch (error) {
@@ -397,7 +531,11 @@ function selectResource(entry) {
 }
 
 function fillList() {
-  const rows = searchResources($('search').value, { kind: PAGE_KIND, limit: 400, reg: registry });
+  // Every match: the list was cut at 400, so most resources (every potion, the shelves, the wooden buttons) could not
+  // be picked, and a ?resource= link to one of them fell back to the first row.
+  const rows = searchResources($('search').value, { kind: PAGE_KIND, limit: Infinity, reg: registry, placeable: true });
+  const linked = PAGE_RESOURCE && !rows.some((e) => e.key === PAGE_RESOURCE) ? registry.entries.get(PAGE_RESOURCE) : null;
+  if (linked) rows.unshift(linked);
   const select = $('resource');
   select.replaceChildren(...rows.map((entry) => {
     const option = document.createElement('option');
@@ -474,6 +612,45 @@ async function boot() {
   $('showcase').onclick = startShowcase;
   $('showcase-stop').onclick = () => stopShowcase();
   $('group').onchange = showChecks;
+  if ($('view-mode')) {
+    $('view-mode').onchange = () => {
+      viewMode = $('view-mode').value;
+      if (selected) showPreview(selected);
+    };
+  }
+  if ($('swing-btn')) {
+    $('swing-btn').onclick = () => heldRenderer?.swing();
+  }
+  if ($('export-json')) {
+    $('export-json').onclick = exportJsonReport;
+  }
+  if ($('wiki-run-all')) $('wiki-run-all').onclick = runWikiAudit;
+  if ($('wiki-export')) $('wiki-export').onclick = exportWikiAudit;
+}
+
+function exportJsonReport() {
+  if (!selected) return;
+  const list = behaviorRun?.results || showcase?.results || [];
+  const data = {
+    resource: selected.key,
+    name: selected.name,
+    kind: selected.kind,
+    timestamp: new Date().toISOString(),
+    results: list,
+    summary: {
+      total: list.length,
+      passed: list.filter(r => r.status === 'observed').length,
+      unsupported: list.filter(r => r.status === 'unsupported').length,
+      failed: list.filter(r => ['not observed', 'error'].includes(r.status)).length,
+    }
+  };
+  const jsonStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit-${selected.key.replace(/[:/]/g, '_')}.json`;
+  a.click();
+  log(`Exported audit report for ${selected.name} (${data.summary.passed} passed, ${data.summary.failed} failed)`);
 }
 
 const resize = new ResizeObserver(() => {
@@ -497,7 +674,17 @@ renderer.setAnimationLoop(now => {
   }
   if (texturesReady) textures.update(dt);
   controls.update();
-  renderer.render(scene, camera);
+
+  if (viewMode === 'held' && heldRenderer && !behaviorRun?.running) {
+    renderer.clear();
+    heldRenderer.update(dt, 0);
+    heldRenderer.render(renderer);
+  } else {
+    if (viewMode === 'dropped' && droppedPreviewMesh) {
+      droppedPreviewMesh.rotation.y += dt * 1.5;
+    }
+    renderer.render(scene, camera);
+  }
 });
 
 boot().catch((error) => { $('error').textContent = error.stack || error.message; });

@@ -310,22 +310,27 @@ export function createTurtleModel(shellMat, skinMat, darkMat) {
   rim.position.set(0, 0.15, 0);
   group.add(rim);
 
-  // The head on a short neck, at the front.
+  // The head and neck pivot together from the front of the shell
+  const headGroup = new THREE.Group();
+  headGroup.name = 'turtle-head';
+  headGroup.position.set(0, 0.24, 0.48);
+  group.add(headGroup);
+
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.24), skinMat);
   applyQuadUvs(neck, 0, 0, 3, 3, 4, 128, 64);
-  neck.position.set(0, 0.24, 0.6);
-  group.add(neck);
+  neck.position.set(0, 0, 0.12);
+  headGroup.add(neck);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.3), skinMat);
-  applyQuadUvs(head, 0, 8, 4, 3, 5, 128, 64);
-  head.position.set(0, 0.25, 0.78);
-  group.add(head);
+  const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.3), skinMat);
+  applyQuadUvs(headMesh, 0, 8, 4, 3, 5, 128, 64);
+  headMesh.position.set(0, 0.01, 0.30);
+  headGroup.add(headMesh);
 
   const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.03);
   const eyes = [-1, 1].map((side) => {
     const eye = new THREE.Mesh(eyeGeo, darkMat);
     eye.position.set(side * 0.09, 0.03, 0.16);
-    head.add(eye);
+    headMesh.add(eye);
     return eye;
   });
 
@@ -346,7 +351,7 @@ export function createTurtleModel(shellMat, skinMat, darkMat) {
   tail.position.set(0, 0.2, -0.6);
   group.add(tail);
 
-  return { group, shell, rim, neck, head, eyes, flippers, tail };
+  return { group, shell, rim, neck, head: headGroup, headMesh, eyes, flippers, tail };
 }
 
 /**

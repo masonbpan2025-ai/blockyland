@@ -1,5 +1,10 @@
 import { BLOCKS as B, BLOCK_DEFS, stackLimitFor } from './blocks.js';
 import * as THREE from 'three';
+// Buttons, pressure plates, torch burn-out and the comparator's container reading, per their wiki pages; see
+// redstoneComponents.js. The engine ticks once per redstone tick (2 game ticks): a hold of n redstone ticks that
+// starts at the next tick is `until = tickNumber + n + 1` (the output is on while `until > tickNumber`); one whose
+// output is set at once (a struck rod, a hit target) is `tickNumber + n`.
+import { BUTTON_HOLD, PLATE_KIND, plateSignal, plateReleaseTicks, TORCH_BURNOUT, containerSignal } from './redstoneComponents.js';
 
 export const DIRECTIONS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const key = p => p.join(',');
@@ -33,7 +38,7 @@ export class Redstone {
     const s=this.state(p);if(!s)return null;
     if(sneak&&directional.has(s.id)){if(s.extended)return 'Retract the piston before rotating it';s.dir=(s.dir+1)%6;this.mark(p);return 'Facing '+['east','west','up','down','south','north'][s.dir];}
     if(s.id===B.LEVER)s.on=!s.on;
-    else if(s.id===B.STONE_BUTTON)s.until=this.tickNumber+10;
+    else if(BUTTON_HOLD.has(s.id))s.until=this.tickNumber+BUTTON_HOLD.get(s.id)+1;
     else if(s.id===B.REPEATER)s.delay=s.delay%4+1;
     else if(s.id===B.COMPARATOR)s.subtract=!s.subtract;
     else if(s.id===B.DAYLIGHT_DETECTOR)s.inverted=!s.inverted;
@@ -85,9 +90,10 @@ export class Redstone {
   getContainerSignal(p){
     const s=this.state(p);
     if(s?.inventory?.length){
-      const total=s.inventory.reduce((n,i)=>n+(i?.count||0),0);
+      // "floor(1 + ((sum of all slots' fullnesses) / (number of slots)) x 14)", each slot's fullness against its
+      // item's own stack size (an ender pearl's is 16) -- not 64 for every item, as this read before.
       const slots=s.id===B.HOPPER?5:(s.id===B.DISPENSER||s.id===B.DROPPER?9:5);
-      return Math.min(15, 1+Math.floor(14*total/(slots*64)));
+      return containerSignal(s.inventory, slots, stackLimitFor);
     }
     const id=this.id(p);
     if(id===B.CHEST&&this.game?.chestManager)return this.game.chestManager.getRedstoneSignal(...p);
@@ -108,7 +114,7 @@ export class Redstone {
     const s=this.state(p);
     return this.output(s,to);
   }
-  hitTarget(pos, hitPos){
+  hitTarget(pos, hitPos, projectile='arrow'){
     const s=this.state(pos);
     if(!s||s.id!==B.TARGET_BLOCK)return;
     const center=[pos[0]+.5,pos[1]+.5,pos[2]+.5];
@@ -116,23 +122,34 @@ export class Redstone {
     const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
     const power=Math.max(1,Math.min(15,Math.round(15-dist*28)));
     s.hitPower=power;
-    s.until=this.tickNumber+8;
+    // "emits redstone power for 8 gt ... Arrows and tridents instead ... for 20 gt" (4 or 10 redstone ticks).
+    // The output is set at the hit itself, so the hold counts from now (no +1).
+    s.until=this.tickNumber+(projectile==='arrow'||projectile==='trident'?10:4);
     s.output=power;
     this.mark(pos);
     for(const d of DIRECTIONS)this.mark(add(pos,d));
   }
   strikeRod(p){
     const s=this.state(p);if(s?.id!==B.LIGHTNING_ROD)return false;
-    s.until=this.tickNumber+4;s.output=15;this.mark(p);return true;
+    s.until=this.tickNumber+4;s.output=15;this.mark(p);return true; // on from the strike: 8 game ticks, 4 redstone ticks
   }
   tick(actors=[]){
     this.tickNumber++;const list=[...this.states.values()];
     for(const s of list){const old=s.output;
       if(s.id===B.LEVER)s.output=s.on?15:0;
       if(s.id===B.REDSTONE_BLOCK)s.output=15;
-      if(s.id===B.STONE_BUTTON||s.id===B.OBSERVER||s.id===B.LIGHTNING_ROD)s.output=(s.until||0)>this.tickNumber?15:0;
+      if(BUTTON_HOLD.has(s.id)||s.id===B.OBSERVER||s.id===B.LIGHTNING_ROD)s.output=(s.until||0)>this.tickNumber?15:0;
       if(s.id===B.TARGET_BLOCK)s.output=(s.until||0)>this.tickNumber?(s.hitPower||15):0;
-      if(s.id===B.PRESSURE_PLATE)s.output=actors.some(a=>{const p=a.position||a.mesh?.position;return p&&Math.abs(p.x-s.p[0]-.5)<.7&&Math.abs(p.z-s.p[2]-.5)<.7&&p.y>=s.p[1]&&p.y<s.p[1]+.4;})?15:0;
+      if(PLATE_KIND.has(s.id)){
+        // Who is on it (a player has a position, a mob a mesh), the plate kind's signal for them, and the hold: a
+        // released plate keeps its signal until its next check, 20 game ticks later (10 for a weighted one).
+        const kind=PLATE_KIND.get(s.id);
+        const on=actors.filter(a=>{const p=a.position||a.mesh?.position;return p&&Math.abs(p.x-s.p[0]-.5)<.7&&Math.abs(p.z-s.p[2]-.5)<.7&&p.y>=s.p[1]&&p.y<s.p[1]+.4;})
+          .map(a=>({isPlayer:!a.mesh||a===this.game?.player,isMob:Boolean(a.mesh&&a.type),isItem:Boolean(a.isItem)}));
+        const signal=plateSignal(kind,on);
+        if(signal>0){s.output=signal;s.releaseAt=this.tickNumber+plateReleaseTicks(kind)+1;}
+        else if(!(s.releaseAt>this.tickNumber))s.output=0;
+      }
       if(s.id===B.TRIPWIRE_HOOK){
         let active=false;const d=DIRECTIONS[s.dir];
         for(let step=1;step<=40;step++){
@@ -147,7 +164,11 @@ export class Redstone {
         s.output=actors.some(a=>{const pos=a.position||a.mesh?.position;return pos&&Math.abs(pos.x-s.p[0]-.5)<.6&&Math.abs(pos.z-s.p[2]-.5)<.6&&pos.y>=s.p[1]&&pos.y<s.p[1]+.9;})?15:0;
       }
       if(s.id===B.DAYLIGHT_DETECTOR){const daylight=this.daylight??1;s.output=Math.round(15*(s.inverted?1-daylight:daylight));}
-      if(s.pendingAt<=this.tickNumber){s.output=s.pendingOutput;delete s.pendingAt;}
+      if(s.pendingAt<=this.tickNumber){
+        // A torch that turns off more than eight times in 60 game ticks burns out.
+        if(s.id===B.REDSTONE_TORCH&&s.output>0&&s.pendingOutput===0){s.turnOffs=[...(s.turnOffs||[]),this.tickNumber];if(s.turnOffs.filter(t=>t>this.tickNumber-TORCH_BURNOUT.windowTicks).length>TORCH_BURNOUT.maxTurnOffs)s.burnt=true;}
+        s.output=s.pendingOutput;delete s.pendingAt;
+      }
       if(old!==s.output)this.mark(s.p);
       if(s.id===B.REDSTONE_WIRE)s.power=0;
     }
@@ -163,7 +184,12 @@ export class Redstone {
     for(const s of list){if(this.state(s.p)!==s)continue;const input=this.input(s.p,[B.PISTON,B.STICKY_PISTON].includes(s.id)?add(s.p,DIRECTIONS[s.dir]):null);
       if(s.id===B.REDSTONE_WIRE){const connections=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].filter(d=>[-1,0,1].some(dy=>this.state(add(add(s.p,d),[0,dy,0]))));if(JSON.stringify(connections)!==JSON.stringify(s.connections)){s.connections=connections;this.mark(s.p);}if(s.drawPower!==s.power){s.drawPower=s.power;this.mark(s.p);}continue;}
       let desired;
-      if(s.id===B.REDSTONE_TORCH)desired=this.input(add(s.p,[0,-1,0]),s.p)>0?0:15;
+      if(s.id===B.REDSTONE_TORCH){desired=this.input(add(s.p,[0,-1,0]),s.p)>0?0:15;
+        // Burnt out: it stays off, ignoring its input, "until the number of state changes in the last 60 game
+        // ticks drops to fewer than eight".
+        s.turnOffs=(s.turnOffs||[]).filter(t=>t>this.tickNumber-TORCH_BURNOUT.windowTicks);
+        if(s.burnt){if(s.turnOffs.length<TORCH_BURNOUT.maxTurnOffs)s.burnt=false;else desired=0;}
+      }
       if(s.id===B.REPEATER||s.id===B.COMPARATOR){const rear=this.signalAt(this.rear(s),s.p),d=DIRECTIONS[s.dir];let side=0;for(const e of DIRECTIONS)if(e[1]===0&&e[0]*d[0]+e[2]*d[2]===0)side=Math.max(side,this.signalAt(add(s.p,e),s.p));
         if(s.id===B.REPEATER){if(side>0)continue;desired=rear?15:0;}else desired=s.subtract?Math.max(0,rear-side):(rear>=side?rear:0);
       }
@@ -199,7 +225,9 @@ export class Redstone {
           }
         }
       }
-      if([B.DISPENSER,B.DROPPER,B.NOTE_BLOCK].includes(s.id)&&input>0&&!s.lastInput){if(s.id===B.NOTE_BLOCK)this.playNote(s);else this.dispense(s);}
+      // A dropper or dispenser "waits 4 game ticks and then ejects one item" (2 redstone ticks); a note block plays at once.
+      if(s.fireAt!==undefined&&s.fireAt<=this.tickNumber){delete s.fireAt;this.dispense(s);}
+      if([B.DISPENSER,B.DROPPER,B.NOTE_BLOCK].includes(s.id)&&input>0&&!s.lastInput){if(s.id===B.NOTE_BLOCK)this.playNote(s);else if(s.fireAt===undefined)s.fireAt=this.tickNumber+2;}
       if(s.id===B.HOPPER&&!input){
         this.collectFloatingItems(s);
         if(this.tickNumber%4===0){

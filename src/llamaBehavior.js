@@ -381,12 +381,14 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   body.rotation.x = Math.PI / 2;
   group.add(body);
 
-  // Neck group: hinged at base of neck (front of body).
-  // Contains the 8x18x6 pillar which carries the eyes and head on its upper front!
-  const neck = new THREE.Group();
-  neck.position.set(0, 1.05, 0.35);
-  neck.rotation.x = 0.28;
-  group.add(neck);
+  // Head / Neck group: hinged at base of neck (front of body) at (0, 1.05, 0.35).
+  // In vanilla Minecraft LlamaModel, the entire neck+head pillar (carrying eyes and face),
+  // snout, ears, and carpet neck overlay are all part of 'head' and rotate together.
+  const head = new THREE.Group();
+  head.name = 'llama-head';
+  head.position.set(0, 1.05, 0.35);
+  head.rotation.x = 0.28;
+  group.add(head);
 
   // Neck + Head pillar: 8x18x6 at (0, 14).
   // The upper part of this pillar carries the facial features (eyes and mouth) in vanilla!
@@ -394,18 +396,13 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   applyVanillaBoxUVs(neckGeo, 0, 14, 128, 64, 8, 18, 6);
   const neckMesh = new THREE.Mesh(neckGeo, bodyMat);
   neckMesh.position.set(0, 1.125 / 2, 0);
-  neck.add(neckMesh);
-
-  // Head group at the top of the neck pillar. Holds the protruding snout and ears.
-  const head = new THREE.Group();
-  head.position.set(0, 1.125, 0);
-  neck.add(head);
+  head.add(neckMesh);
 
   // Snout (muzzle): 4x4x9 at (0, 0) - protruding forward in front of the upper head
   const snoutGeo = new THREE.BoxGeometry(0.25, 0.25, 0.5625);
   applyVanillaBoxUVs(snoutGeo, 0, 0, 128, 64, 4, 4, 9);
   const muzzle = new THREE.Mesh(snoutGeo, bodyMat);
-  muzzle.position.set(0, -0.22, 0.125);
+  muzzle.position.set(0, 1.125 - 0.22, 0.125);
   head.add(muzzle);
 
   // Ears: 3x3x2 at (17, 0) - placed directly on top of the head
@@ -413,18 +410,21 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
     const earGeo = new THREE.BoxGeometry(0.1875, 0.1875, 0.125);
     applyVanillaBoxUVs(earGeo, 17, 0, 128, 64, 3, 3, 2);
     const ear = new THREE.Mesh(earGeo, bodyMat);
-    ear.position.set(side * 0.156, 0.09375, -0.0625);
+    ear.position.set(side * 0.156, 1.125 + 0.09375, -0.0625);
     head.add(ear);
     return ear;
   });
 
   const eyes = [-1, 1].map(side => {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), bodyMat);
-    eye.position.set(side * 0.25, -0.12, 0.1875);
+    eye.position.set(side * 0.25, 1.125 - 0.12, 0.1875);
     eye.visible = false;
     head.add(eye);
     return eye;
   });
+
+  // Neck reference points to head so code referencing mob.neck or mob.head operates on the articulated assembly
+  const neck = head;
 
   // Tail: 2x6x2 at (29, 29)
   const tailGeo = new THREE.BoxGeometry(0.125, 0.375, 0.125);
@@ -468,25 +468,27 @@ export function createLlamaModel(bodyMat, darkMat, eyeMat) {
   carpetBody.rotation.x = Math.PI / 2;
   carpetMesh.add(carpetBody);
 
+  // Carpet neck overlay attached to head so it turns with the neck!
   const carpetNeckGeo = new THREE.BoxGeometry(0.53, 1.13, 0.40);
   carpetNeckGeo.translate(0, 1.125 / 2, 0);
   applyVanillaBoxUVs(carpetNeckGeo, 0, 14, 128, 64, 4, 14, 7);
   const carpetNeck = new THREE.Mesh(carpetNeckGeo, carpetMat);
-  carpetNeck.position.set(0, 1.05, 0.35);
-  carpetNeck.rotation.x = 0.28;
-  carpetMesh.add(carpetNeck);
+  carpetNeck.position.set(0, 0, 0);
+  carpetNeck.visible = false;
+  head.add(carpetNeck);
 
   carpetMesh.visible = false;
   group.add(carpetMesh);
 
-  // Legs: 4x14x4 at (29, 29)
+  // Legs: 4x14x4 at (29, 29), pivoting at hip joint (y = 0.875) so legs do not detach when walking
   const legs = [];
   for (const side of [-1, 1]) {
     for (const z of [0.3125, -0.375]) {
       const legGeo = new THREE.BoxGeometry(0.25, 0.875, 0.25);
+      legGeo.translate(0, -0.875 / 2, 0);
       applyVanillaBoxUVs(legGeo, 29, 29, 128, 64, 4, 14, 4);
       const leg = new THREE.Mesh(legGeo, bodyMat);
-      leg.position.set(side * 0.21875, 0.4375, z);
+      leg.position.set(side * 0.21875, 0.875, z);
       group.add(leg);
       legs.push({ mesh: leg, side, front: z > 0 });
     }
@@ -535,6 +537,7 @@ export function applyLlamaEquipment(llama) {
     const isTrader = isTraderLlama(llama) || !!llama.hasTraderCarpet;
     const hasCarpet = isTrader || Boolean(llama.carpetColor) || Boolean(llama.carpetItem);
     llama.carpetMesh.visible = hasCarpet;
+    if (llama.carpetNeck) llama.carpetNeck.visible = hasCarpet;
 
     if (hasCarpet && llama.carpetMesh.material) {
       if (isTrader && !llama.carpetColor) {
@@ -571,9 +574,7 @@ export function poseLlamaLegs(llama, phase, walking = true) {
   });
   // Wiki: a spitting llama raises its head and leans back before firing.
   const spitting = (llama.spitCharge || 0) > 0;
-  if (llama.neck) llama.neck.rotation.x = spitting ? -0.15 : 0.28;
-  if (llama.carpetNeck) llama.carpetNeck.rotation.x = spitting ? -0.15 : 0.28;
-  if (llama.head) llama.head.rotation.x = spitting ? -0.3 : 0;
+  if (llama.head) llama.head.rotation.x = spitting ? -0.15 : 0.28;
 }
 
 /** Equip a chest onto a llama, creating its inventory based on its strength. */

@@ -17,7 +17,7 @@
 //
 // The names describe what each pack DOES rather than borrowing a third-party pack's name, because none of
 // these is that pack: they express the same IDEA with the levers this engine actually has.
-import { generatableStructureIds } from './worldStructures.js';
+import { generatableStructureIds, WORLD_STRUCTURE_IDS } from './worldStructures.js';
 import { BIOME_SPAWN_TABLES } from './spawning/vanillaBiomeSpawns.js';
 import { BIOMES } from './biomes.js';
 
@@ -195,8 +195,8 @@ export const INVISIBLE_IN_SHORT_WORLD = new Set(['ancient_city', 'trial_chambers
 
 /** The structure sets the presets draw on, all of them validated against what the engine can build. */
 export const STRUCTURE_SETS = Object.freeze({
-  /** The engine's own default three. */
-  default: ['village_plains', 'igloo', 'desert_pyramid'],
+  /** The engine's own default set (WORLD_STRUCTURE_IDS: the three surface finds and the Nether's four). */
+  default: [...WORLD_STRUCTURE_IDS],
   /** Every village variant plus the small surface finds -- a populated world. */
   populated: [
     'village_plains', 'village_desert', 'village_savanna', 'village_snowy', 'village_taiga',
@@ -207,7 +207,9 @@ export const STRUCTURE_SETS = Object.freeze({
   /** Buried and underground finds, for a world that is about exploring. */
   dungeons: [
     'trial_chambers', 'ancient_city', 'trail_ruins', 'buried_treasure', 'ruined_portal',
-    'mineshaft', 'stronghold',
+    'mineshaft', 'mineshaft_mesa', 'stronghold',
+    // The Nether's dungeons: the fortress and the bastion remnant.
+    'fortress', 'bastion_remnant',
   ].filter(id => BUILDABLE.has(id)),
   /** Coastal and oceanic. */
   maritime: [

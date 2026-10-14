@@ -32,15 +32,22 @@ export class CellCanvas {
 
 /** A start whose pieces are the given boxes and whose cells are the canvas's. */
 export function cellStart({ structureId, chunkX, chunkZ, seed, biome = null, id, pieces, canvas, meta = {} }) {
-  const startPieces = pieces.map((p, index) => new StructurePiece({ id, index, type: p.type ?? 'procedural', family: 'procedural', box: p.box, meta: { kind: p.kind } }));
+  const startPieces = pieces.map((p, index) => new StructurePiece({ id, index, type: p.type ?? 'procedural', family: 'procedural', box: p.box, meta: { kind: p.kind, ...(p.name ? { name: p.name } : {}) } }));
   // Cells can reach past the pieces (a bridge's log pillar down to the ground, a chain up to the roof); an extra
   // 'extent' piece covers them, so every chunk they fall in realizes them.
   const all = canvas.box();
   if (all && !startPieces.some((p) => p.box.minX <= all.minX && p.box.minY <= all.minY && p.box.minZ <= all.minZ && p.box.maxX >= all.maxX && p.box.maxY >= all.maxY && p.box.maxZ >= all.maxZ)) {
     const outside = [...canvas.cells.values()].filter((c) => !startPieces.some((p) => p.box.contains(c.x, c.y, c.z)));
     if (outside.length) {
-      // A one-block box per outside cell keeps the chunk overlap exact.
-      for (const c of outside) startPieces.push(new StructurePiece({ id, index: startPieces.length, type: 'procedural', family: 'procedural', box: new BlockBox(c.x, c.y, c.z, c.x, c.y, c.z), meta: { kind: 'extent' } }));
+      // One box per chunk column round the outside cells in it: exact enough for chunk overlap, and few.
+      const byChunk = new Map();
+      for (const c of outside) {
+        const k = `${Math.floor(c.x / 16)},${Math.floor(c.z / 16)}`;
+        const b = byChunk.get(k);
+        if (!b) byChunk.set(k, [c.x, c.y, c.z, c.x, c.y, c.z]);
+        else { b[0] = Math.min(b[0], c.x); b[1] = Math.min(b[1], c.y); b[2] = Math.min(b[2], c.z); b[3] = Math.max(b[3], c.x); b[4] = Math.max(b[4], c.y); b[5] = Math.max(b[5], c.z); }
+      }
+      for (const b of byChunk.values()) startPieces.push(new StructurePiece({ id, index: startPieces.length, type: 'procedural', family: 'procedural', box: new BlockBox(...b), meta: { kind: 'extent' } }));
     }
   }
   const start = new StructureStart({ structureId, chunkX, chunkZ, pieces: startPieces, biome, seed });
@@ -63,7 +70,7 @@ export function realizeCells(start, setBlock, blockIds, { spawnMob = null, clip 
     const loot = c.nbt?.LootTable ?? null;
     if (loot) chests.push(loot);
     const spawner = c.nbt?.SpawnData?.entity?.id?.replace('minecraft:', '') ?? null;
-    if (setBlock(c.x, c.y, c.z, id, { state, ...(loot ? { lootTable: loot } : {}), ...(spawner ? { spawner } : {}), ...(c.ifAir ? { ifAir: true } : {}) })) written++;
+    if (setBlock(c.x, c.y, c.z, id, { state, ...(loot ? { lootTable: loot } : {}), ...(spawner ? { spawner } : {}), ...(c.nbt?.extra ? { extraItems: c.nbt.extra } : {}), ...(c.nbt?.trialSpawner ? { trialSpawner: c.nbt.trialSpawner } : {}), ...(c.nbt?.vault ? { vault: c.nbt.vault } : {}) })) written++;
   }
   const spawns = [];
   for (const e of start.meta.entities) {

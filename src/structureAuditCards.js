@@ -17,6 +17,15 @@ import { STYLES } from './worldgen/generators/villageStyles.js';
 import { VILLAGE_BLUEPRINTS } from './worldgen/generators/villageBlueprintData.js';
 import { buildVillagePart, createVillagePools, abandonBlock, villageElement } from './worldgen/generators/village.js';
 import { STRUCTURES, STRUCTURE_SETS } from './worldgen/registry.js';
+import { MANSION_LOOT, JAILS as JAIL_ROOMS } from './worldgen/generators/mansion.js';
+import { CHAMBER_KINDS as TRIAL_CHAMBER_KINDS, MOB_CATEGORIES as TRIAL_CATEGORIES } from './worldgen/generators/trialChambers.js';
+import { CITY_FLOOR_Y, CITY_LOOT } from './worldgen/generators/ancientCity.js';
+import { TRAIL_LOOT } from './worldgen/generators/trailRuins.js';
+import { BRIDGE_CHANCE, SHIP_CHANCE, SHULKERS, END_CITY_LOOT } from './worldgen/generators/endCity.js';
+import { SPIKE_CENTRES, SPIKE_SIZES, spikeColumns } from './worldgen/generators/endFeatures.js';
+import { BASTION_TYPES, BASTION_LOOT } from './worldgen/generators/bastion.js';
+import { DRIED_GHAST_CHANCE } from './worldgen/generators/netherFossil.js';
+import { FORTRESS_PIECES, FORTRESS_LOOT } from './worldgen/generators/fortress.js';
 import { PIECE_LIMITS, STRONGHOLD_LOOT } from './worldgen/generators/stronghold.js';
 import { MINESHAFT_LOOT } from './worldgen/generators/mineshaft.js';
 import { GEODE_CHANCE, CRACK_CHANCE, geodeIsCracked } from './worldgen/generators/geode.js';
@@ -1338,6 +1347,454 @@ const strongholdFacts = [
   }
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Nether fortresses. Source: https://minecraft.wiki/w/Nether_Fortress and /Structure.
+
+const FORT_WIKI = 'Nether Fortress';
+const fortressFacts = [
+  {
+    id: 'NF1', layer: 'L1', source: `${FORT_WIKI}: "generate in all Nether biomes ... The chance of a fortress attempting to generate instead of a bastion is 2/5 (40%)"`,
+    text: 'Any Nether biome, in the regions it shares with bastions, 2 in 5.',
+    check: (o) => {
+      const set = STRUCTURE_SETS.find((s) => s.name === 'nether_complexes');
+      const w = Object.fromEntries(set.structures);
+      return { ok: o.registry.biomes.length === 0 && w.fortress === 2 && w.bastion_remnant === 3 && set.spacing === 27 && set.separation === 4, detail: `weights ${JSON.stringify(w)}` };
+    }
+  },
+  {
+    id: 'NF2', layer: 'L2', source: `${FORT_WIKI}: "The fortress generation starts with a plain four-way crossing centered at chunk coordinates 11, ~, 11"`,
+    text: 'It starts with a plain four-way crossing centred at chunk-local 11, 11.',
+    check: (o) => {
+      const [x, , z] = o.start.meta.centre;
+      const first = o.pieces[0];
+      const mid = [(first.box.minX + first.box.maxX) / 2, (first.box.minZ + first.box.maxZ) / 2];
+      const ok = first.meta.kind === 'crossing' && ((x % 16) + 16) % 16 === 11 && ((z % 16) + 16) % 16 === 11 && Math.abs(mid[0] - x) <= 1 && Math.abs(mid[1] - z) <= 1;
+      return { ok, detail: `start ${first.meta.kind} centred ${mid.join(',')} (chunk-local ${((x % 16) + 16) % 16}, ${((z % 16) + 16) % 16})` };
+    }
+  },
+  {
+    id: 'NF3', layer: 'L2', source: `${FORT_WIKI}: the piece limits (5 crossings, 4 arched crossings, 4 small rooms, 2 blaze platforms; inside 5 crossings, 20 turns, 3 stairways, 2 balconies, 2 gardens)`,
+    text: 'Exterior bridges and interior corridors, no piece past its limit.',
+    check: (o) => {
+      const c = o.start.meta.counts;
+      const over = Object.entries(FORTRESS_PIECES).filter(([k, d]) => (c[k] ?? 0) > d.limit).map(([k]) => k);
+      return { ok: over.length === 0 && c.bridge > 0, detail: JSON.stringify(c) };
+    }
+  },
+  {
+    id: 'NF4', layer: 'L3', source: `${FORT_WIKI}: "blaze monster spawner platforms ... with a blaze monster spawner in the center"; "each with a 1/3 chance of having a loot chest"`,
+    text: 'One blaze spawner per platform; every chest with the fortress loot.',
+    check: (o) => {
+      const spawners = o.start.meta.cells.filter((c) => c.name === 'spawner');
+      const chests = o.writes.filter((w) => w.name === 'chest');
+      const ok = spawners.length === (o.start.meta.counts.blaze_platform ?? 0) && spawners.every((s) => s.nbt.SpawnData.entity.id === 'minecraft:blaze') && chests.every((c) => c.lootTable === FORTRESS_LOOT);
+      return { ok, detail: `${spawners.length} blaze spawners, ${chests.length} chests` };
+    }
+  },
+  {
+    id: 'NF5', layer: 'L3', source: `${FORT_WIKI}: "supported by pillars that tower high above the lava seas"`,
+    text: 'The bridges stand on pillars down to the ground.',
+    check: (o) => {
+      const groundOK = o.pieces.filter((p) => p.meta.kind === 'bridge').slice(0, 5).every((p) => o.writes.some((w) => w.name === 'nether_bricks' && w.y < p.box.minY && w.x >= p.box.minX && w.x <= p.box.maxX && w.z >= p.box.minZ && w.z <= p.box.maxZ));
+      return { ok: groundOK, detail: groundOK ? 'pillars under the bridges' : 'a bridge with no pillar' };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Nether fossils. Source: https://minecraft.wiki/w/Nether_Fossil and /Structure.
+
+const NFOSSIL_WIKI = 'Nether Fossil';
+const NFOSSIL_TABLE = [10, 10, 6, 6, 5, 21, 18, 6, 15, 8, 24, 11, 17, 26];
+const netherFossilFacts = [
+  {
+    id: 'NX1', layer: 'L1', source: `${NFOSSIL_WIKI}: "Nether fossils generate randomly throughout the Nether in soul sand valleys"`,
+    text: 'Soul sand valleys only.',
+    check: (o) => ({ ok: o.registry.biomes.join() === 'soul_sand_valley', detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'NX2', layer: 'L3', source: `${NFOSSIL_WIKI}: "composed of 5 to 27 bone blocks ... they do not have a lowered structure integrity and no blocks are replaced with coal or diamond ore"; the 14 variants' tables`,
+    text: 'Exactly the variant\'s bone blocks, no ore, nothing missing.',
+    check: (o) => {
+      const want = NFOSSIL_TABLE[o.start.meta.variant - 1];
+      return { ok: o.count('bone_block') === want && o.countMatching(/_ore$/) === 0, detail: `fossil_${o.start.meta.variant}: ${o.count('bone_block')}/${want} bone` };
+    }
+  },
+  {
+    id: 'NX3', layer: 'L3', source: `${NFOSSIL_WIKI}: "a 1/3 (~33.3%) chance of generating a dried ghast adjacent to them"`,
+    text: 'A dried ghast beside the fossil when it rolls one.',
+    check: (o) => {
+      const g = o.writes.filter((w) => w.name === 'dried_ghast');
+      const touching = g.every((d) => o.writes.some((w) => w.name === 'bone_block' && Math.abs(w.x - d.x) + Math.abs(w.z - d.z) <= 2 && Math.abs(w.y - d.y) <= 1));
+      return { ok: DRIED_GHAST_CHANCE === 1 / 3 && g.length === (o.start.meta.ghast ? 1 : 0), detail: `${g.length} dried ghast${touching ? '' : ' (not beside)'}` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Bastion remnants. Source: https://minecraft.wiki/w/Bastion_Remnant.
+
+const BASTION_WIKI = 'Bastion Remnant';
+const bastionFacts = [
+  {
+    id: 'BR1', layer: 'L1', source: `${BASTION_WIKI}: "generate in all Nether biomes except basalt deltas"`,
+    text: 'Every Nether biome but the basalt deltas.',
+    check: (o) => ({ ok: !o.registry.biomes.includes('basalt_deltas') && o.registry.biomes.length === 4, detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'BR2', layer: 'L2', source: `${BASTION_WIKI}: "Bastion remnants generate as 4 types of structures: bridges, hoglin stables, housing units, and treasure rooms"; they "float above, entirely even"`,
+    text: 'One of the four types, floating (no pillars down to the lava).',
+    check: (o) => ({ ok: BASTION_TYPES.includes(o.start.meta.type) && o.start.meta.floats, detail: o.start.meta.type })
+  },
+  {
+    id: 'BR3', layer: 'L3', source: `${BASTION_WIKI}: Loot -- bridge, generic, hoglin stable and treasure chests`,
+    text: 'Every chest carries a bastion loot table fitting its type (treasure chests only in the treasure room).',
+    check: (o) => {
+      const tables = o.writes.filter((w) => w.name === 'chest').map((w) => w.lootTable);
+      const type = o.start.meta.type;
+      const allowed = [BASTION_LOOT.generic, BASTION_LOOT[type]];
+      return { ok: tables.length > 0 && tables.every((t) => allowed.includes(t)), detail: tables.map((t) => t.replace('minecraft:chests/bastion_', '')).join(', ') };
+    }
+  },
+  {
+    id: 'BR4', layer: 'L4', source: `${BASTION_WIKI}: piglin brutes 10%, piglins with a golden sword 40%, with a crossbow 40%; hoglins in the stables; "neither despawn naturally"`,
+    text: 'Piglins and piglin brutes (hoglins too in the stables), all persistent.',
+    check: (o) => {
+      const types = new Set(o.spawns.map((s) => s.type));
+      const ok = o.spawns.length > 0 && o.spawns.every((s) => s.options.persistent) && [...types].every((t) => ['piglin', 'piglin_brute', 'hoglin'].includes(t))
+        && (o.start.meta.type !== 'hoglin_stable' || types.has('hoglin'));
+      return { ok, detail: [...types].map((t) => `${t} ${o.spawns.filter((s) => s.type === t).length}`).join(', ') };
+    }
+  },
+  {
+    id: 'BR5', layer: 'L3', source: `${BASTION_WIKI}: the treasure room -- "a magma cube monster spawner, and a center loot area consisting of blocks of gold, as well as 1 or 2 treasure chests"`,
+    text: 'A treasure room has its magma cube spawner, gold and 1-2 treasure chests; the others have no spawner.',
+    check: (o) => {
+      const spawners = o.start.meta.cells.filter((c) => c.name === 'spawner');
+      const treasure = o.writes.filter((w) => w.lootTable === BASTION_LOOT.treasure).length;
+      const ok = o.start.meta.type === 'treasure'
+        ? spawners.length === 1 && spawners[0].nbt.SpawnData.entity.id === 'minecraft:magma_cube' && treasure >= 1 && treasure <= 2 && o.count('gold_block') >= 8
+        : spawners.length === 0 && treasure === 0;
+      return { ok, detail: `${o.start.meta.type}: ${spawners.length} spawner, ${treasure} treasure chests, ${o.count('gold_block')} gold` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// The End's features. Sources: https://minecraft.wiki/w/End_Spike, /Exit_Portal, /End_Platform.
+
+const endSpikeFacts = [
+  {
+    id: 'ES1', layer: 'L2', source: 'End Spike: "The following 10 pillars generate in a 43-block radius circle around the exit portal in a random order"; the fixed centres',
+    text: 'Ten spikes at the wiki\'s ten centres, every height used once.',
+    check: (o) => {
+      const spikes = o.start.meta.spikes;
+      const centres = spikes.map((s) => `${s.x},${s.z}`).sort().join(';') === SPIKE_CENTRES.map(([x, z]) => `${x},${z}`).sort().join(';');
+      const heights = spikes.map((s) => s.vanillaTop).sort((a, b) => a - b).join() === SPIKE_SIZES.map(([, t]) => t).join();
+      return { ok: spikes.length === 10 && centres && heights, detail: spikes.map((s) => `${s.vanillaTop}`).join(', ') };
+    }
+  },
+  {
+    id: 'ES2', layer: 'L3', source: 'End Spike: radii 3,3,3,4,4,4,5,5,5,6; obsidian totals (1596 = 76 layers of 21 for the first); "The bottom of all pillars are at Y level 0"',
+    text: 'Each spike is an obsidian cylinder of its radius\'s cross-section, from y 0 to its top.',
+    check: (o) => {
+      const wrong = o.start.meta.spikes.filter((s) => {
+        const n = o.writes.filter((w) => w.name === 'obsidian' && Math.abs(w.x - s.x) <= s.radius && Math.abs(w.z - s.z) <= s.radius).length;
+        return n !== spikeColumns(s.radius).length * s.top;
+      });
+      const areas = [3, 4, 5, 6].map((r) => spikeColumns(r).length).join();
+      return { ok: wrong.length === 0 && spikeColumns(3).length * 76 === 1596 && spikeColumns(4).length * 85 === 3145, detail: `cross-sections ${areas}; ${wrong.length} spikes off` };
+    }
+  },
+  {
+    id: 'ES3', layer: 'L3', source: 'End Spike: "a single bedrock block, a fire block, and an End crystal on top of each pillar"; "The second and third shortest pillars include a cage comprised of 73 iron bars"',
+    text: 'Bedrock, fire and an End crystal on each; 73 iron bars round each of the two cages.',
+    check: (o) => {
+      const spikes = o.start.meta.spikes;
+      const tops = spikes.every((s) => o.writes.some((w) => w.name === 'bedrock' && w.x === s.x && w.y === s.top && w.z === s.z) && o.writes.some((w) => w.name === 'fire' && w.x === s.x && w.y === s.top + 1 && w.z === s.z));
+      const caged = spikes.filter((s) => s.caged);
+      const bars = o.count('iron_bars');
+      const crystals = o.spawns.filter((s) => s.type === 'end_crystal').length;
+      return { ok: tops && caged.length === 2 && caged.every((s) => [79, 82].includes(s.vanillaTop)) && bars === 146 && crystals === 10, detail: `${bars} iron bars, ${crystals} crystals` };
+    }
+  }
+];
+const endPodiumFacts = [
+  {
+    id: 'EP1', layer: 'L2', source: 'Exit Portal: "always generates at the coordinates 0,0 ... placing the End portal blocks at the y-level of the highest block found at 0,0"',
+    text: 'At 0, 0, its portal level just above the island\'s top there.',
+    check: (o) => ({ ok: o.start.meta.portalY === o.groundAt(0, 0) + 1 && o.writes.some((w) => w.x === 0 && w.z === 0 && w.name === 'bedrock'), detail: `portal level y ${o.start.meta.portalY}, ground ${o.groundAt(0, 0)}` })
+  },
+  {
+    id: 'EP2', layer: 'L3', source: 'Exit Portal: "a 7-block wide bowl-shaped frame of bedrock, and a central pillar of bedrock with a torch on each side ... 16 End stone blocks, one under each outer bedrock block, as well as four torches"; inactive while the dragon lives',
+    text: '16 bedrock round the rim with 16 End stone under them, a bedrock pillar with four torches, no portal blocks yet.',
+    check: (o) => {
+      const y = o.start.meta.portalY;
+      const rim = o.writes.filter((w) => w.name === 'bedrock' && w.y === y && !(w.x === 0 && w.z === 0)).length;
+      const stone = o.count('end_stone');
+      const torches = o.count('wall_torch');
+      return { ok: rim === 16 && stone === 16 && torches === 4 && o.count('end_portal') === 0, detail: `rim ${rim}, end stone ${stone}, torches ${torches}, portal ${o.count('end_portal')}` };
+    }
+  }
+];
+const endPlatformFacts = [
+  {
+    id: 'EL1', layer: 'L2', source: 'End Platform: "always generates at coordinates (100, 48, 0)"; 5 x 5 obsidian; "all blocks within 3 blocks above the platform are destroyed"',
+    text: 'A 5 x 5 obsidian platform at x 100, z 0 with three empty layers over it, where players arrive.',
+    check: (o) => {
+      const obsidian = o.writes.filter((w) => w.name === 'obsidian');
+      const xs = obsidian.map((w) => w.x); const zs = obsidian.map((w) => w.z);
+      const ok = obsidian.length === 25 && Math.min(...xs) === 98 && Math.max(...xs) === 102 && Math.min(...zs) === -2 && Math.max(...zs) === 2 && o.airWrites === 75;
+      return { ok, detail: `${obsidian.length} obsidian at x ${Math.min(...xs)}..${Math.max(...xs)}, y ${obsidian[0]?.y}; ${o.airWrites} air above` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// The void start platform. Source: https://minecraft.wiki/w/Void_Start_Platform.
+
+const voidPlatformFacts = [
+  {
+    id: 'VP1', layer: 'L2', source: 'Void Start Platform: "from block positions (-8, -61, -8) to (24, -61, 24)"; "33x33 platforms, consisting largely of stone, with a lone cobblestone block in the center"',
+    text: '33 x 33 stone from -8 to 24 on both axes, one cobblestone at its middle (8, 8).',
+    check: (o) => {
+      const stone = o.writes.filter((w) => w.name === 'stone');
+      const cobble = o.writes.filter((w) => w.name === 'cobblestone');
+      const xs = stone.map((w) => w.x);
+      return { ok: stone.length === 33 * 33 - 1 && cobble.length === 1 && cobble[0].x === 8 && cobble[0].z === 8 && Math.min(...xs) === -8 && Math.max(...xs) === 24, detail: `${stone.length} stone, cobblestone at ${cobble.map((c) => `${c.x},${c.z}`)}` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// End cities. Source: https://minecraft.wiki/w/End_City and /Structure.
+
+const CITY_WIKI = 'End City';
+const endCityFacts = [
+  {
+    id: 'EC1', layer: 'L1', source: `${CITY_WIKI}: "in 'midlands' or 'highlands' biomes"`,
+    text: 'End midlands and highlands only.',
+    check: (o) => ({ ok: [...o.registry.biomes].sort().join() === 'end_highlands,end_midlands', detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'EC2', layer: 'L2', source: `${CITY_WIKI}: "Base floors which are empty floors found at the base of every city"; small and large towers; "Each direction of every tower ... a 50% chance of generating a bridge"`,
+    text: 'A base, then towers (small with a banner room, or large with a loot room), joined by bridges.',
+    check: (o) => {
+      const kinds = o.start.meta.kinds;
+      const ok = kinds[0] === 'base_room' && (kinds.includes('small_tower_base') || kinds.includes('large_room')) && BRIDGE_CHANCE === 0.5;
+      return { ok, detail: kinds.join(', ') };
+    }
+  },
+  {
+    id: 'EC3', layer: 'L2', source: `${CITY_WIKI}: "the bridge itself has a 12.5% chance to generate an End ship. At most one ship can generate in a given End city"`,
+    text: 'At most one ship.',
+    check: (o) => ({ ok: SHIP_CHANCE === 0.125 && o.start.meta.ships <= 1, detail: `${o.start.meta.ships} ship(s)` })
+  },
+  {
+    id: 'EC4', layer: 'L4', source: `${CITY_WIKI}: the shulkers of each piece (base 2, large tower floor 4, large room 1, loot room 2, banner room 1, ship 3)`,
+    text: 'Shulkers in the pieces that have them, persistent.',
+    check: (o) => {
+      const want = o.start.meta.kinds.reduce((sum, k) => sum + (SHULKERS[k === 'ship' ? 'end_ship' : k] ?? 0), 0);
+      const got = o.spawns.filter((s) => s.type === 'shulker');
+      return { ok: got.length > 0 && got.length <= want && got.every((s) => s.options.persistent), detail: `${got.length} of ${want} shulkers` };
+    }
+  },
+  {
+    id: 'EC5', layer: 'L3', source: `${CITY_WIKI}: loot rooms' chests; the ship's "two loot chests", dragon head and brewing stand`,
+    text: 'Every chest has the End city loot; a ship carries its dragon head and brewing stand.',
+    check: (o) => {
+      const chests = o.writes.filter((w) => w.name === 'chest');
+      const shipOK = !o.start.meta.hasShip || (o.count('dragon_head') + o.count('dragon_wall_head') >= 1 && o.count('brewing_stand') >= 1);
+      return { ok: chests.every((c) => c.lootTable === END_CITY_LOOT) && shipOK, detail: `${chests.length} chests; ship ${o.start.meta.hasShip}` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Trail ruins. Source: https://minecraft.wiki/w/Trail_Ruins.
+
+const TRAIL_WIKI = 'Trail Ruins';
+const trailRuinsFacts = [
+  {
+    id: 'TR1', layer: 'L1', source: `${TRAIL_WIKI}: "taiga, snowy taiga, old growth spruce taiga, old growth pine taiga, old growth birch forest, and the jungle"`,
+    text: 'Those six biomes.',
+    check: (o) => ({ ok: [...o.registry.biomes].sort().join() === 'jungle,old_growth_birch_forest,old_growth_pine_taiga,old_growth_spruce_taiga,snowy_taiga,taiga', detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'TR2', layer: 'L2', source: `${TRAIL_WIKI}: "mostly underground with only the top of the tower above the ground"`,
+    text: 'Only the tower top rises above the ground.',
+    check: (o) => {
+      const top = o.pieces.find((p) => p.meta.kind === 'tower_top').box;
+      const above = o.writes.filter((w) => w.y > o.groundAt(w.x, w.z) && !top.contains(w.x, w.y, w.z)).length;
+      return { ok: above === 0 && top.maxY > o.start.meta.ground, detail: `${above} blocks above the ground besides the tower top (to y ${top.maxY}, ground ${o.start.meta.ground})` };
+    }
+  },
+  {
+    id: 'TR3', layer: 'L2', source: `${TRAIL_WIKI}: "a main road ... that connect multiple small buildings and a central tower made of stained terracotta and glazed terracotta ... two rooms"`,
+    text: 'A terracotta tower with two rooms beside it and roads of cobblestone, stone and stone bricks.',
+    check: (o) => {
+      const kinds = o.start.meta.kinds;
+      const ok = kinds.filter((k) => k === 'tower_hall').length === 2 && kinds.includes('road') && o.countMatching(/_glazed_terracotta$/) > 0 && o.count('cobblestone') + o.count('stone') + o.count('stone_bricks') > 0;
+      return { ok, detail: kinds.join(', ') };
+    }
+  },
+  {
+    id: 'TR4', layer: 'L3', source: `${TRAIL_WIKI}: "tower_top ... and everything in the roads folder replace two gravel with two common suspicious gravel. The rest replace nine gravel with six common ... and three rare"; no chests`,
+    text: 'Suspicious gravel per piece (2 common in the tower top and roads; 6 common + 3 rare elsewhere), no chests.',
+    check: (o) => {
+      const sus = o.writes.filter((w) => w.name === 'suspicious_gravel');
+      const common = sus.filter((w) => w.lootTable === TRAIL_LOOT.common).length; const rare = sus.filter((w) => w.lootTable === TRAIL_LOOT.rare).length;
+      const tops = o.pieces.filter((p) => ['tower_top', 'road'].includes(p.meta.kind)).length;
+      const full = o.pieces.filter((p) => !['tower_top', 'road', 'extent'].includes(p.meta.kind)).length;
+      return { ok: o.count('chest') === 0 && common <= tops * 2 + full * 6 && rare <= full * 3 && rare > 0 && common > 0, detail: `${common} common, ${rare} rare in ${tops} top/road + ${full} other pieces` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Ancient cities. Source: https://minecraft.wiki/w/Ancient_City and /Structure/Blueprints.
+
+const ANCIENT_WIKI = 'Ancient City';
+const ancientCityFacts = [
+  {
+    id: 'AC1', layer: 'L1', source: `${ANCIENT_WIKI}: "they can only generate in the deep dark"`,
+    text: 'Deep dark only.',
+    check: (o) => ({ ok: o.registry.biomes.join() === 'deep_dark', detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'AC2', layer: 'L2', source: `${ANCIENT_WIKI}: "The floor of the city always generates at Y=-51 and is about 20 blocks high"`,
+    text: 'One fixed floor level for every city (y 13 in this 64-tall world: -51 is 13 above vanilla\'s floor).',
+    check: (o) => {
+      const corridors = o.pieces.filter((p) => p.meta.kind === 'corridor');
+      return { ok: o.start.meta.floorY === CITY_FLOOR_Y && corridors.every((p) => p.box.minY === CITY_FLOOR_Y - 1), detail: `floor y ${o.start.meta.floorY}` };
+    }
+  },
+  {
+    id: 'AC3', layer: 'L2', source: `${ANCIENT_WIKI}: "long corridors with 2-block-deep floors of gray wool ... smaller ruin structures ... The city's center features a frame resembling a portal"`,
+    text: 'The centre with its reinforced deepslate frame, the entrance, gray-wool corridors and buildings beside them.',
+    check: (o) => {
+      const kinds = o.start.meta.kinds;
+      const ok = kinds.includes('city_center') && kinds.includes('entrance') && kinds.filter((k) => k === 'corridor').length >= 4 && kinds.filter((k) => k === 'building').length >= 6 && o.count('reinforced_deepslate') > 0 && o.count('gray_wool') > 0;
+      return { ok, detail: `${kinds.filter((k) => k === 'building').length} buildings, ${kinds.filter((k) => k === 'corridor').length} corridors, ${o.count('reinforced_deepslate')} reinforced deepslate` };
+    }
+  },
+  {
+    id: 'AC4', layer: 'L3', source: `${ANCIENT_WIKI}: Loot -- the ancient city chests; ice boxes have their own`,
+    text: 'Chests with the ancient city loot (the ice box\'s with its own).',
+    check: (o) => {
+      const chests = o.writes.filter((w) => w.name === 'chest');
+      return { ok: chests.length > 0 && chests.every((c) => Object.values(CITY_LOOT).includes(c.lootTable)), detail: `${chests.length} chests` };
+    }
+  },
+  {
+    id: 'AC5', layer: 'L4', source: `${ANCIENT_WIKI} infobox: mobs -- "Warden (from sculk shrieker)"`,
+    text: 'No mob is placed by the structure (the warden comes from shriekers).',
+    check: (o) => ({ ok: o.spawns.length === 0, detail: `${o.spawns.length} mobs` })
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Trial chambers. Source: https://minecraft.wiki/w/Trial_Chambers.
+
+const TRIAL_WIKI = 'Trial Chambers';
+const trialChamberFacts = [
+  {
+    id: 'TC1', layer: 'L1', source: `${TRIAL_WIKI}: "generate underground in the Overworld ... unless a deep dark biome cancels the generation"; 34-chunk regions`,
+    text: 'Anywhere in the Overworld but the deep dark, one per 34-chunk region.',
+    check: (o) => {
+      const set = STRUCTURE_SETS.find((s) => s.name === 'trial_chambers');
+      return { ok: o.registry.biomes.length === 0 && o.registry.biomeTagExcludes?.includes('deep_dark') && set.spacing === 34, detail: `spacing ${set.spacing}` };
+    }
+  },
+  {
+    id: 'TC2', layer: 'L2', source: `${TRIAL_WIKI}: "The starting room of the structure is corridor/end ... an intersection links to another chamber ... ends on the atrium, which then leads to the entrance room"`,
+    text: 'The corridor end first, then chambers, an intersection, the atrium and the entrance.',
+    check: (o) => {
+      const kinds = o.start.meta.kinds;
+      const chambers = kinds.filter((k) => TRIAL_CHAMBER_KINDS.includes(k)).length;
+      const ok = kinds[0] === 'corridor_end' && chambers >= 2 && kinds.includes('intersection') && kinds.includes('atrium');
+      return { ok, detail: kinds.join(', ') };
+    }
+  },
+  {
+    id: 'TC3', layer: 'L3', source: `${TRIAL_WIKI}: "one mob from each of the following categories is randomly selected ... Breeze (always) ... Melee ... Ranged ... Small melee"`,
+    text: 'Trial spawners, each spawning its category\'s mob for this structure; the breeze is always one of them.',
+    check: (o) => {
+      const spawners = o.start.meta.cells.filter((c) => c.name === 'trial_spawner');
+      const mobs = o.start.meta.mobs;
+      const ok = spawners.length > 0 && spawners.every((s) => s.nbt.trialSpawner.mob === mobs[s.nbt.trialSpawner.category] && TRIAL_CATEGORIES[s.nbt.trialSpawner.category].includes(s.nbt.trialSpawner.mob)) && mobs.breeze === 'breeze';
+      return { ok, detail: `${spawners.length} trial spawners: ${[...new Set(spawners.map((s) => s.nbt.trialSpawner.mob))].join(', ')}` };
+    }
+  },
+  {
+    id: 'TC4', layer: 'L3', source: `${TRIAL_WIKI}: Loot -- vaults and ominous vaults, chests, barrels, decorated pots, dispensers; "Natural mob spawning do not occur"`,
+    text: 'Vaults in the chambers; chests with the trial chambers tables; no mob placed by the structure.',
+    check: (o) => {
+      const vaults = o.count('vault');
+      const chests = o.writes.filter((w) => w.name === 'chest');
+      const ok = vaults > 0 && chests.every((c) => /trial_chambers/.test(c.lootTable)) && o.spawns.length === 0;
+      return { ok, detail: `${vaults} vaults, ${chests.length} chests` };
+    }
+  }
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Woodland mansions. Source: https://minecraft.wiki/w/Woodland_Mansion and /Structure/Blueprints.
+
+const MANSION_WIKI = 'Woodland Mansion';
+const mansionFacts = [
+  {
+    id: 'WM1', layer: 'L1', source: `${MANSION_WIKI}: "generate rarely in dark forests" (pale gardens are newer than this game)`,
+    text: 'Dark forests only.',
+    check: (o) => ({ ok: o.registry.biomes.join() === 'dark_forest', detail: o.registry.biomes.join(', ') })
+  },
+  {
+    id: 'WM2', layer: 'L2', source: `${MANSION_WIKI}: "they all have three floors ... The top floor is about half the size of the lower floors"`,
+    text: 'Three floors of rooms, the top one smaller.',
+    check: (o) => {
+      const rooms = o.pieces.filter((p) => p.meta.kind === 'room' || p.meta.kind === 'corridor');
+      const floors = [...new Set(rooms.map((p) => p.box.minY))].sort((a, b) => a - b);
+      const area = (y) => rooms.filter((p) => p.box.minY === y).reduce((s, p) => s + (p.box.maxX - p.box.minX + 1) * (p.box.maxZ - p.box.minZ + 1), 0);
+      const ok = floors.length === 3 && area(floors[2]) < area(floors[0]);
+      return { ok, detail: `floors at y ${floors.join(', ')}; areas ${floors.map(area).join(', ')}` };
+    }
+  },
+  {
+    id: 'WM3', layer: 'L3', source: `${MANSION_WIKI}: "generate a cobblestone foundation underneath the entire structure if there are any gaps"`,
+    text: 'Cobblestone under the floor down to the ground wherever the ground is lower.',
+    check: (o) => {
+      const y = o.start.meta.floorY;
+      const box = o.pieces.find((p) => p.meta.kind === 'foundation').box;
+      let gaps = 0;
+      for (let bx = box.minX; bx <= box.maxX; bx += 7) for (let bz = box.minZ; bz <= box.maxZ; bz += 7) {
+        const ground = o.groundAt(bx, bz);
+        for (let by = ground + 1; by < y - 1; by++) if (o.writes.find((w) => w.x === bx && w.y === by && w.z === bz)?.name !== 'cobblestone') gaps++;
+      }
+      return { ok: gaps === 0, detail: `${gaps} gaps under the floor` };
+    }
+  },
+  {
+    id: 'WM4', layer: 'L4', source: `${MANSION_WIKI}: "The first floor ... may only generate rooms that contain vindicators; from the second floor upward, some large rooms may contain both evokers and vindicators ... Allays are found imprisoned in cells inside 'jail' rooms"`,
+    text: 'Vindicators; evokers only above the ground floor; allays only in jails; none despawn.',
+    check: (o) => {
+      const y = o.start.meta.floorY;
+      const evokersLow = o.spawns.filter((s) => s.type === 'evoker' && s.y < y + 8).length;
+      const jails = o.pieces.filter((p) => JAIL_ROOMS.includes(p.meta.name));
+      const strayAllays = o.spawns.filter((s) => s.type === 'allay' && !jails.some((j) => j.box.contains(Math.floor(s.x), Math.floor(s.y), Math.floor(s.z)))).length;
+      const ok = o.spawns.some((s) => s.type === 'vindicator') && evokersLow === 0 && strayAllays === 0 && o.spawns.every((s) => s.options.persistent && ['vindicator', 'evoker', 'allay'].includes(s.type));
+      return { ok, detail: ['vindicator', 'evoker', 'allay'].map((t) => `${t} ${o.spawns.filter((s) => s.type === t).length}`).join(', ') };
+    }
+  },
+  {
+    id: 'WM5', layer: 'L3', source: `${MANSION_WIKI}: Loot -- the woodland mansion chests`,
+    text: 'Every chest carries the woodland mansion loot.',
+    check: (o) => {
+      const chests = o.writes.filter((w) => w.name === 'chest');
+      return { ok: chests.length > 0 && chests.every((c) => c.lootTable === MANSION_LOOT), detail: `${chests.length} chests` };
+    }
+  }
+];
+
 export const STRUCTURE_AUDIT_CARDS = {
   swamp_hut: {
     title: 'Swamp Hut', wiki: 'https://minecraft.wiki/w/Swamp_Hut', facts: swampHutFacts,
@@ -1404,6 +1861,49 @@ export const STRUCTURE_AUDIT_CARDS = {
     // The Blocks list; the lit portal and water are conditional (the fountain room, a lit portal).
     infoboxBlocks: ['bookshelf', 'chest', 'cobblestone_stairs', 'cobblestone', 'cobweb', 'cracked_stone_bricks', 'end_portal_frame', 'end_portal', 'infested_stone_bricks', 'iron_bars', 'iron_door', 'ladder', 'lava', 'spawner', 'mossy_stone_bricks', 'oak_door', 'oak_fence', 'oak_planks', 'smooth_stone_slab', 'stone_brick_slab', 'stone_brick_stairs', 'stone_bricks', 'stone_button', 'torch', 'water'],
     infoboxSubset: true, normaliseBlock: (name) => ({ end_portal_frame_filled: 'end_portal_frame', wall_torch: 'torch' }[name] ?? name)
+  },
+  fortress: {
+    title: 'Nether Fortress', wiki: 'https://minecraft.wiki/w/Nether_Fortress', facts: fortressFacts,
+    infoboxBlocks: ['nether_bricks', 'nether_brick_fence', 'nether_brick_stairs', 'soul_sand', 'nether_wart', 'chest', 'spawner', 'lava'],
+    infoboxSubset: true
+  },
+  nether_fossil: { title: 'Nether Fossil', wiki: 'https://minecraft.wiki/w/Nether_Fossil', facts: netherFossilFacts, infoboxBlocks: ['bone_block', 'dried_ghast'], infoboxSubset: true },
+  bastion_remnant: {
+    title: 'Bastion Remnant', wiki: 'https://minecraft.wiki/w/Bastion_Remnant', facts: bastionFacts,
+    infoboxBlocks: ['basalt', 'polished_basalt', 'blackstone', 'blackstone_slab', 'blackstone_stairs', 'blackstone_wall', 'gilded_blackstone', 'polished_blackstone_bricks', 'polished_blackstone_brick_stairs', 'cracked_polished_blackstone_bricks', 'chiseled_polished_blackstone', 'gold_block', 'chain', 'chest', 'fire', 'glowstone', 'lantern', 'lava', 'magma_block', 'nether_wart', 'netherrack', 'quartz_block', 'smooth_quartz', 'smooth_quartz_slab', 'soul_sand', 'spawner'],
+    infoboxSubset: true
+  },
+  end_spike: { title: 'End Spike', wiki: 'https://minecraft.wiki/w/End_Spike', facts: endSpikeFacts, infoboxBlocks: ['obsidian', 'bedrock', 'fire', 'iron_bars'] },
+  end_podium: { title: 'Exit Portal (End podium)', wiki: 'https://minecraft.wiki/w/Exit_Portal', facts: endPodiumFacts, infoboxBlocks: ['bedrock', 'end_stone', 'wall_torch'] },
+  end_platform: { title: 'End Platform', wiki: 'https://minecraft.wiki/w/End_Platform', facts: endPlatformFacts, infoboxBlocks: ['obsidian'] },
+  void_start_platform: { title: 'Void Start Platform', wiki: 'https://minecraft.wiki/w/Void_Start_Platform', facts: voidPlatformFacts, infoboxBlocks: ['stone', 'cobblestone'] },
+  end_city: {
+    title: 'End City', wiki: 'https://minecraft.wiki/w/End_City', facts: endCityFacts,
+    infoboxBlocks: ['chest', 'end_rod', 'end_stone_bricks', 'ender_chest', 'ladder', 'magenta_stained_glass', 'magenta_wall_banner', 'purple_stained_glass', 'purpur_block', 'purpur_pillar', 'purpur_slab', 'purpur_stairs', 'brewing_stand', 'dragon_head', 'obsidian'],
+    infoboxSubset: true
+  },
+  trail_ruins: {
+    title: 'Trail Ruins', wiki: 'https://minecraft.wiki/w/Trail_Ruins', facts: trailRuinsFacts,
+    infoboxBlocks: ['black_glazed_terracotta', 'blast_furnace', 'coal_block', 'blue_terracotta', 'brick_slab', 'brick_stairs', 'brick_wall', 'bricks', 'brown_stained_glass', 'brown_terracotta', 'campfire', 'cartography_table', 'cauldron', 'coarse_dirt', 'cobblestone', 'composter', 'cracked_stone_bricks', 'crafting_table', 'cyan_glazed_terracotta', 'cyan_terracotta', 'dirt', 'damaged_anvil', 'furnace', 'gravel', 'gray_terracotta', 'grindstone', 'iron_bars', 'ladder', 'light_blue_glazed_terracotta', 'light_gray_glazed_terracotta', 'light_gray_terracotta', 'loom', 'mud', 'mud_brick_slab', 'mud_brick_stairs', 'mud_brick_wall', 'mud_bricks', 'orange_glazed_terracotta', 'orange_terracotta', 'packed_mud', 'red_terracotta', 'smithing_table', 'smooth_stone_slab', 'suspicious_gravel', 'stone', 'stone_bricks', 'white_terracotta', 'yellow_glazed_terracotta', 'yellow_terracotta'],
+    infoboxSubset: true
+  },
+  ancient_city: {
+    title: 'Ancient City', wiki: 'https://minecraft.wiki/w/Ancient_City', facts: ancientCityFacts,
+    // The Blocks table's two lists (redstone dust is the redstone_wire block; snow is the snow layer).
+    infoboxBlocks: ['deepslate', 'cobbled_deepslate', 'polished_deepslate', 'deepslate_bricks', 'deepslate_tiles', 'chiseled_deepslate', 'cracked_deepslate_bricks', 'cracked_deepslate_tiles', 'cobbled_deepslate_slab', 'cobbled_deepslate_stairs', 'cobbled_deepslate_wall', 'polished_deepslate_slab', 'polished_deepslate_stairs', 'polished_deepslate_wall', 'deepslate_brick_slab', 'deepslate_brick_stairs', 'deepslate_brick_wall', 'deepslate_tile_slab', 'deepslate_tile_stairs', 'deepslate_tile_wall', 'gray_wool', 'polished_basalt', 'smooth_basalt', 'dark_oak_log', 'dark_oak_planks', 'dark_oak_fence', 'ladder', 'candle', 'soul_lantern', 'torch', 'chest', 'reinforced_deepslate', 'sculk_sensor', 'redstone_lamp', 'soul_fire', 'soul_sand', 'redstone_wire', 'comparator', 'repeater', 'redstone_torch', 'redstone_wall_torch', 'redstone_block', 'lectern', 'target', 'furnace', 'lever', 'sticky_piston', 'piston_head', 'gray_carpet', 'glass', 'glass_pane', 'dirt', 'grass_block', 'blue_wool', 'cyan_wool', 'light_blue_wool', 'campfire', 'iron_trapdoor', 'ice', 'packed_ice', 'blue_ice', 'snow', 'note_block', 'stone_pressure_plate', 'skeleton_skull', 'white_candle', 'water', 'blue_carpet', 'cyan_carpet', 'light_blue_carpet'],
+    infoboxSubset: true, normaliseBlock: (name) => ({ wall_torch: 'torch', skeleton_wall_skull: 'skeleton_skull', redstone_comparator: 'comparator', grass: 'grass_block' }[name] ?? name)
+  },
+  trial_chambers: {
+    title: 'Trial Chambers', wiki: 'https://minecraft.wiki/w/Trial_Chambers', facts: trialChamberFacts,
+    infoboxBlocks: ['barrel', 'chest', 'chiseled_tuff', 'chiseled_tuff_bricks', 'copper_block', 'decorated_pot', 'dispenser', 'magma_block', 'polished_tuff', 'polished_tuff_slab', 'powder_snow', 'trial_spawner', 'tuff_bricks', 'vault', 'water', 'waxed_copper_block', 'waxed_chiseled_copper', 'waxed_copper_bulb', 'waxed_copper_door', 'waxed_copper_grate', 'waxed_cut_copper', 'waxed_cut_copper_slab', 'waxed_cut_copper_stairs', 'waxed_oxidized_chiseled_copper', 'waxed_oxidized_copper', 'waxed_oxidized_copper_door', 'waxed_oxidized_copper_grate', 'waxed_oxidized_cut_copper', 'stone', 'cobweb', 'bone_block', 'podzol', 'red_mushroom', 'chiseled_sandstone', 'mossy_cobblestone'],
+    infoboxSubset: true
+  },
+  mansion: {
+    title: 'Woodland Mansion', wiki: 'https://minecraft.wiki/w/Woodland_Mansion', facts: mansionFacts,
+    infoboxBlocks: ['attached_melon_stem', 'attached_pumpkin_stem', 'birch_fence', 'birch_planks', 'birch_slab', 'birch_stairs', 'black_wall_banner', 'black_carpet', 'black_wool', 'diamond_block', 'lapis_block', 'blue_carpet', 'blue_wool', 'bookshelf', 'brown_carpet', 'brown_mushroom', 'brown_wool', 'carved_pumpkin', 'cauldron', 'chest', 'coarse_dirt', 'cobblestone', 'cobblestone_slab', 'cobblestone_stairs', 'cobblestone_wall', 'cobweb', 'cyan_carpet', 'cyan_wool', 'damaged_anvil', 'dark_oak_door', 'dark_oak_fence', 'dark_oak_fence_gate', 'dark_oak_leaves', 'dark_oak_log', 'dark_oak_planks', 'dark_oak_sapling', 'dark_oak_stairs', 'dirt', 'farmland', 'glass', 'glass_pane', 'gray_wall_banner', 'gray_carpet', 'gray_wool', 'green_carpet', 'green_wool', 'infested_cobblestone', 'iron_bars', 'iron_door', 'ladder', 'lava', 'lever', 'light_blue_wool', 'light_gray_wall_banner', 'light_gray_carpet', 'light_gray_wool', 'lily_pad', 'lime_carpet', 'lime_wool', 'magenta_carpet', 'melon', 'melon_stem', 'monster_spawner', 'oak_fence', 'oak_planks', 'oak_slab', 'oak_stairs', 'obsidian', 'orange_wool', 'pumpkin', 'pumpkin_stem', 'pink_carpet', 'polished_andesite', 'potted_allium', 'potted_azure_bluet', 'potted_birch_sapling', 'potted_blue_orchid', 'potted_dandelion', 'potted_oxeye_daisy', 'potted_poppy', 'potted_red_tulip', 'potted_white_tulip', 'purple_carpet', 'rail', 'red_carpet', 'red_mushroom', 'red_wool', 'redstone_dust', 'smooth_stone_slab', 'tnt', 'torch', 'trapped_chest', 'vines', 'wall_torch', 'water', 'water_cauldron', 'wheat', 'white_carpet', 'white_wool', 'yellow_carpet', 'yellow_wool'],
+    infoboxSubset: true, // Plus blocks the Blueprints page draws that the infobox leaves out (a light blue carpet, empty flower pots); this
+    // game places a potted flower as the flower, and dark oak wood where the drawings have it.
+    normaliseBlock: (name) => ({ wall_torch: 'torch', grass: 'grass_block', spawner: 'monster_spawner', vine: 'vines', redstone_wire: 'redstone_dust', dark_oak_wood: 'dark_oak_log', light_blue_carpet: 'light_blue_wool', flower_pot: 'potted_dandelion', dandelion: 'potted_dandelion', poppy: 'potted_poppy', red_tulip: 'potted_red_tulip', oxeye_daisy: 'potted_oxeye_daisy', allium: 'potted_allium', blue_orchid: 'potted_blue_orchid' }[name] ?? name.replace(/^wheat_stage_\d$/, 'wheat').replace(/_banner$/, '_wall_banner').replace(/_wall_wall_banner$/, '_wall_banner'))
   },
   desert_well: {
     title: 'Desert Well', wiki: 'https://minecraft.wiki/w/Desert_Well', facts: desertWellFacts,

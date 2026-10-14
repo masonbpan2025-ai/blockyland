@@ -527,7 +527,7 @@ function makeGame({ water = true, raining = false, biome = 'plains', items = nul
     player,
     world: {
       getVoxel: (x, y, z) => {
-        if (!water) return 1;
+        if (!water) return y <= 30 ? 1 : 0;
         // A pool from y=25 up to y=30, water at 30..25 and air above.
         if (y <= 30 && y >= 25) return 12;      // BLOCKS.WATER
         return 0;                                // BLOCKS.AIR
@@ -556,6 +556,11 @@ function makeGame({ water = true, raining = false, biome = 'plains', items = nul
   return game;
 }
 
+function land(fishing) {
+  for (let i = 0; i < 600 && fishing.state === FISHING_STATE.CASTING; i++) fishing.update(1/60);
+  assert.equal(fishing.state, FISHING_STATE.WAITING, 'the projectile landed');
+}
+
 test('the controller starts idle and a cast puts a bobber in the water', () => {
   const game = makeGame();
   const fishing = new FishingController(game);
@@ -564,6 +569,8 @@ test('the controller starts idle and a cast puts a bobber in the water', () => {
 
   assert.equal(fishing.cast(), true, 'the rod consumed the click');
   assert.equal(fishing.active, true);
+  assert.equal(fishing.state, FISHING_STATE.CASTING, 'casting starts in flight');
+  land(fishing);
   assert.equal(fishing.state, FISHING_STATE.WAITING);
   assert.ok(fishing.waitTicks >= 100 && fishing.waitTicks <= 600, `wait was ${fishing.waitTicks}`);
   assert.ok(fishing.bobber, 'there is a bobber in the scene');
@@ -592,6 +599,7 @@ test('reeling with nothing on the hook costs no durability', () => {
   const game = makeGame();
   const fishing = new FishingController(game);
   fishing.cast();
+  land(fishing);
   assert.equal(fishing.state, FISHING_STATE.WAITING, 'still waiting');
   const before = fishing.rod().durability;
   fishing.reel();
@@ -603,6 +611,7 @@ test('a successful catch costs 1 durability, gives the item and awards 1-6 XP', 
   const fishing = new FishingController(game);
   fishing.cast();
   // Drive it to the bite: run the wait out, then the approach, then we are inside the window.
+  land(fishing);
   fishing.waitTicks = 0;
   fishing.update(0.05);
   assert.equal(fishing.state, FISHING_STATE.APPROACHING, 'the particles are on their way');
@@ -622,6 +631,7 @@ test('missing the bite window resets the wait rather than catching anything', ()
   const game = makeGame();
   const fishing = new FishingController(game);
   fishing.cast();
+  land(fishing);
   fishing.waitTicks = 0;
   fishing.update(0.05);
   fishing.approachLeft = 0;
@@ -639,19 +649,23 @@ test('casting at a non-water block hooks the ground and costs 2 to reel', () => 
   const game = makeGame({ water: false });
   const fishing = new FishingController(game);
   fishing.cast();
+  land(fishing);
   assert.equal(fishing.stuckInBlock, true, 'it landed on ground');
   const before = fishing.rod().durability;
   fishing.reel();
   assert.equal(fishing.rod().durability, before - 2, 'a stuck bobber costs 2');
 });
 
-test('casting at open air does nothing at all', () => {
-  // Nothing in reach: the ray finds no block, so there is nowhere for a bobber to be.
+test('casting at open air launches a bobber which falls under gravity', () => {
   const game = makeGame();
   game.world.getVoxel = () => 0;
   const fishing = new FishingController(game);
   assert.equal(fishing.cast(), true, 'the click is still consumed by the rod');
-  assert.equal(fishing.active, false, 'but no bobber appears');
+  assert.equal(fishing.state, FISHING_STATE.CASTING);
+  const start = fishing.bobber.position.y;
+  fishing.update(0.1);
+  assert.ok(fishing.bobber.position.y < start, 'the downward cast moves, rather than teleporting');
+  fishing.cancel();
 });
 
 test('the line breaks past 32 blocks and costs no durability', () => {
@@ -688,6 +702,7 @@ test('the wait is eaten faster in the rain and slower under a roof', () => {
   const b = new FishingController(wet);
   a.cast();
   b.cast();
+  land(a); land(b);
   a.waitTicks = 100000;
   b.waitTicks = 100000;
   // Keep the bobber exposed to the sky in both, which the stub world already is.

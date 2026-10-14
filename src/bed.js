@@ -435,6 +435,7 @@ export class BedManager {
       return { success: false, reason: 'The bed is obstructed' };
     }
     player.bedSpawnPosition = safeSpawn.clone();
+    player.anchorSpawn = null;
     player.bedDimension = dimension;
     this.game.sounds?.playClick?.();
     this.game.ui?.addChatMessage?.('Respawn point set', 'system');

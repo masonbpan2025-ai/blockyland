@@ -26,7 +26,7 @@ export const PERSISTED_MOB_FIELDS = [
   // Salmon.
   'size',
   // Rabbit and wolf.
-  'coat', 'rabbitType', 'wolfArmor', 'collarColor',
+  'coat', 'rabbitType', 'wolfArmor', 'wolfArmorDurability', 'collarColor',
   // The killer bunny's 8 armour points and any other size- or variant-scaled armour.
   'armor',
   // Wolf, cat, horse.

@@ -21,6 +21,7 @@ import { separatePlayerFromMobs } from './mobPlayerCollision.js';
 import { piglinTexture, angerPiglins, syncPiglinEquipment } from './piglin.js';
 import { PIGLIN_BRUTE_HEALTH, PIGLIN_BRUTE_DIMENSIONS, PIGLIN_BRUTE_DAMAGE, PIGLIN_BRUTE_WEAPON, PIGLIN_BRUTE_DIFFERENCES, PIGLIN_BRUTE_SHARED, PIGLIN_BRUTE_COLORS, isPiglinBrute, piglinBruteHealth, piglinBruteDimensions, piglinBruteDamageFor, piglinBruteBarters, piglinBruteRetreats, piglinBruteDistractedByGold, piglinBrutePursues, makePiglinBrute, piglinBruteDrops, piglinBruteXp } from './piglinBruteBehavior.js';
 import * as THREE from 'three';
+import { quadrupedMode, updateQuadrupedMotion } from './quadrupedMotion.js';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
@@ -47,11 +48,13 @@ import { updateCreeper, CREEPER_FOLLOW_RANGE } from './creeperBehavior.js';
 import { angerWolf, updateAngryWolf } from './wolfCombat.js';
 import { updateFrogspawn, updatePregnantFrog } from './frogspawn.js';
 import { holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES } from './mobEnvironment.js';
+import { breachedArmourFraction } from './maceSmash.js';
+import { applyNaturalZombieSpawn, dismountIfChickenDead, lavaChickenDrop, tearsDrop, JOCKEY_CHICKEN_XP } from './chickenJockey.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { creeperDiscDrop } from './musicDiscs.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide, updateCubeHop, cubeSquashOnLand } from './cubeMobBehavior.js';
-import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR } from './wolfBehavior.js';
+import { WOLF_WILD_HEALTH, WOLF_DIMENSIONS, WOLF_DEFAULT_COLLAR, absorbWithWolfArmor } from './wolfBehavior.js';
 import { createSpiderModel, poseSpiderLegs } from './spiderModel.js';
 import { SPIDER_HEALTH, SPIDER_DIMENSIONS, SPIDER_XP, spiderDrops, angerSpider, updateSpiderAnger, updateSpiderClimbing, spiderWantsTarget, CAVE_SPIDER_HEALTH, CAVE_SPIDER_DIMENSIONS, CAVE_SPIDER_SCALE, applyCaveSpiderPoison, updateSpiderHunt, moveSpider } from './spiderBehavior.js';
 import { SILVERFISH_HEALTH, SILVERFISH_DIMENSIONS, SILVERFISH_XP, silverfishDrops, createSilverfishModel, poseSilverfishLegs, alertSilverfish, angerSilverfish, updateSilverfishAnger, updateSilverfishHunt } from './silverfishBehavior.js';
@@ -1138,7 +1141,10 @@ export class MobManager {
       case 'enderman': return this.spawnEnderman(x, y, z, options);
       case 'iron_golem': return this.spawnIronGolem(x, y, z);
       case 'pillager': return this.spawnPillager(x, y, z);
-      case 'zombie': return this.spawnZombie(x, y, z);
+      case 'zombie': {
+        const zombie = this.spawnZombie(x, y, z);
+        return options.natural ? applyNaturalZombieSpawn(zombie, { chickens: this.mobs, spawnChicken: (cx, cy, cz) => this.spawnChicken(cx, cy, cz) }) : zombie;
+      }
       case 'giant': return this.spawnGiant(x, y, z, options);
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
@@ -1198,7 +1204,7 @@ export class MobManager {
       case 'parched': return this.spawnSkeletonVariant(x, y, z, 'parched', options);
       case 'warden': return this.spawnWarden(x, y, z);
       case 'blaze': return this.spawnBlaze(x, y, z);
-      case 'piglin': return this.spawnPiglin(x, y, z);
+      case 'piglin': return this.spawnPiglin(x, y, z, options?.weapon ? { weapon: options.weapon } : {});
       // Wiki: a brute is a stronger PIGLIN, so it is built by the piglin spawner and then given the
       // brute's numbers rather than duplicating the model and the whole AI.
       case 'piglin_brute': return this.spawnPiglinBrute(x, y, z, options);
@@ -1450,12 +1456,13 @@ export class MobManager {
         head.add(snout);
       }
 
-      // 4 Legs
+      // 4 Legs: pivoting at hip joint so legs do not detach when walking
       const legGeo = createBoxWithUV(0.375, 0.8125, 0.375, 76, 48, 128, 128, 6, 13, 6); // WARDEN_UV_NOTE
-      const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.25, 0.22, 0.35); group.add(fl);
-      const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.25, 0.22, 0.35); group.add(fr);
-      const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.25, 0.22, -0.35); group.add(bl);
-      const br = new THREE.Mesh(legGeo, mat); br.position.set(0.25, 0.22, -0.35); group.add(br);
+      legGeo.translate(0, -0.8125 / 2, 0);
+      const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.25, 0.62625, 0.35); group.add(fl);
+      const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.25, 0.62625, 0.35); group.add(fr);
+      const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.25, 0.62625, -0.35); group.add(bl);
+      const br = new THREE.Mesh(legGeo, mat); br.position.set(0.25, 0.62625, -0.35); group.add(br);
       legs = [fl, fr, bl, br];
 
       // Tail (only if no custom tail like lightning is specified)
@@ -3889,12 +3896,13 @@ export class MobManager {
     snout.position.set(0, -0.08, 0.28);
     head.add(snout);
 
-    // 4 Legs
+    // 4 Legs: pivoting at hip joint (y = 0.35)
     const legGeo = createBoxWithUV(0.2, 0.35, 0.2, 0, 16, 64, 32, 4, 6, 4);
-    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.2, 0.18, 0.3); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.2, 0.18, 0.3); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.2, 0.18, -0.3); group.add(bl);
-    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.2, 0.18, -0.3); group.add(br);
+    legGeo.translate(0, -0.35 / 2, 0);
+    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.2, 0.35, 0.3); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.2, 0.35, 0.3); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.2, 0.35, -0.3); group.add(bl);
+    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.2, 0.35, -0.3); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5069,11 +5077,13 @@ export class MobManager {
     const udderGeo = createBoxWithUV(0.25, 0.15, 0.35, 52, 0, 64, 32, 4, 6, 2);
     const udder = new THREE.Mesh(udderGeo, mat); udder.position.set(0, 0.42, -0.2); group.add(udder);
 
+    // 4 Legs: pivoting at hip joint (y = 0.45)
     const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32, 4, 12, 4);
-    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
-    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.24, 0.22, -0.35); group.add(br);
+    legGeo.translate(0, -0.45 / 2, 0);
+    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.24, 0.45, 0.35); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.24, 0.45, 0.35); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.24, 0.45, -0.35); group.add(bl);
+    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.24, 0.45, -0.35); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5133,11 +5143,13 @@ export class MobManager {
     head.position.set(0, 0.88, 0.6);
     group.add(head);
 
+    // 4 Legs: pivoting at hip joint (y = 0.4)
     const legGeo = createBoxWithUV(0.2, 0.4, 0.2, 0, 16, 64, 32, 4, 12, 4);
-    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.22, 0.2, 0.32); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.22, 0.2, 0.32); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.22, 0.2, -0.32); group.add(bl);
-    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.22, 0.2, -0.32); group.add(br);
+    legGeo.translate(0, -0.4 / 2, 0);
+    const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.22, 0.4, 0.32); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.22, 0.4, 0.32); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.22, 0.4, -0.32); group.add(bl);
+    const br = new THREE.Mesh(legGeo, mat); br.position.set(0.22, 0.4, -0.32); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5297,12 +5309,13 @@ export class MobManager {
     torso.position.y = 0.75;
     group.add(torso);
 
-    // 4 Feet (4x6x4)
+    // 4 Feet (4x6x4), pivoting at hip joint (y = 0.38)
     const footGeo = createBoxWithUV(0.24, 0.38, 0.24, 0, 16, 64, 32, 4, 6, 4);
-    const fl = new THREE.Mesh(footGeo, mat); fl.position.set(-0.14, 0.19, 0.16); group.add(fl);
-    const fr = new THREE.Mesh(footGeo, mat); fr.position.set(0.14, 0.19, 0.16); group.add(fr);
-    const bl = new THREE.Mesh(footGeo, mat); bl.position.set(-0.14, 0.19, -0.16); group.add(bl);
-    const br = new THREE.Mesh(footGeo, mat); br.position.set(0.14, 0.19, -0.16); group.add(br);
+    footGeo.translate(0, -0.38 / 2, 0);
+    const fl = new THREE.Mesh(footGeo, mat); fl.position.set(-0.14, 0.38, 0.16); group.add(fl);
+    const fr = new THREE.Mesh(footGeo, mat); fr.position.set(0.14, 0.38, 0.16); group.add(fr);
+    const bl = new THREE.Mesh(footGeo, mat); bl.position.set(-0.14, 0.38, -0.16); group.add(bl);
+    const br = new THREE.Mesh(footGeo, mat); br.position.set(0.14, 0.38, -0.16); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -5440,11 +5453,13 @@ export class MobManager {
       return mesh;
     });
 
+    // 4 Legs: pivoting at hip joint (y = 0.45)
     const legGeo = createBoxWithUV(0.22, 0.45, 0.22, 0, 16, 64, 32);
-    const fl = new THREE.Mesh(legGeo, bodyMat); fl.position.set(-0.24, 0.22, 0.35); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, bodyMat); fr.position.set(0.24, 0.22, 0.35); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, bodyMat); bl.position.set(-0.24, 0.22, -0.35); group.add(bl);
-    const br = new THREE.Mesh(legGeo, bodyMat); br.position.set(0.24, 0.22, -0.35); group.add(br);
+    legGeo.translate(0, -0.45 / 2, 0);
+    const fl = new THREE.Mesh(legGeo, bodyMat); fl.position.set(-0.24, 0.45, 0.35); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, bodyMat); fr.position.set(0.24, 0.45, 0.35); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, bodyMat); bl.position.set(-0.24, 0.45, -0.35); group.add(bl);
+    const br = new THREE.Mesh(legGeo, bodyMat); br.position.set(0.24, 0.45, -0.35); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -6447,12 +6462,13 @@ export class MobManager {
       ears.push(ear);
     }
 
-    // Four short legs and a tapering tail.
+    // Four short legs and a tapering tail, pivoting at hip joint (y = 0.2)
     const legGeo = new THREE.BoxGeometry(0.12, 0.2, 0.12);
+    legGeo.translate(0, -0.1, 0);
     const legs = [];
     for (const [lx, lz] of [[-0.18, 0.22], [0.18, 0.22], [-0.18, -0.22], [0.18, -0.22]]) {
       const leg = new THREE.Mesh(legGeo, darkMat);
-      leg.position.set(lx, 0.1, lz);
+      leg.position.set(lx, 0.2, lz);
       group.add(leg);
       legs.push(leg);
     }
@@ -6659,13 +6675,13 @@ export class MobManager {
     const wardenEyeGeo = new THREE.BoxGeometry(0.22, 0.1, 0.06);
     for (const side of [-1, 1]) {
       const eye = new THREE.Mesh(wardenEyeGeo, cyanMat);
-      eye.position.set(side * 0.26, 3.27, 0.61); // WARDEN_PLACED
-      group.add(eye);
+      eye.position.set(side * 0.26, 0.42, 0.32);
+      head.add(eye);
     }
 
     // Horns.
-    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 3.92, 0) // WARDEN_PLACED; group.add(hornL);
-    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 3.92, 0); // WARDEN_PLACED group.add(hornR);
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornL.position.set(-0.55, 1.07, 0); head.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.15), cyanMat); hornR.position.set(0.55, 1.07, 0); head.add(hornR);
 
     // Glowing chest core, the warden's brightest feature.
     const core = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 0.12), cyanMat); core.position.set(0, 1.84, 0.4) // WARDEN_PLACED; group.add(core);
@@ -6806,7 +6822,8 @@ export class MobManager {
     admiredGold.position.set(0, -0.3, 0.14);
     admiredGold.visible = false;
     leftArm.add(admiredGold);
-    const weapon = Math.random() < 0.5 ? 'golden_sword' : 'crossbow';
+    // A bastion says which weapon a piglin it places holds (golden sword or crossbow); otherwise it is a coin toss.
+    const weapon = options.weapon ?? (Math.random() < 0.5 ? 'golden_sword' : 'crossbow');
     // Golden Sword in hand
     const sword = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 0.14), goldMat);
     sword.position.set(0, -0.3, 0.3);
@@ -6962,12 +6979,13 @@ export class MobManager {
     earR.rotation.z = 0.5;
     head.add(earR);
 
-    // 4 sturdy legs
+    // 4 sturdy legs, pivoting at hip/shoulder joint (y = 0.65)
     const legGeo = new THREE.BoxGeometry(0.32, 0.65, 0.32);
-    const legFL = new THREE.Mesh(legGeo, hoofMat); legFL.position.set(-0.45, 0.33, 0.5); group.add(legFL);
-    const legFR = new THREE.Mesh(legGeo, hoofMat); legFR.position.set(0.45, 0.33, 0.5); group.add(legFR);
-    const legBL = new THREE.Mesh(legGeo, hoofMat); legBL.position.set(-0.45, 0.33, -0.5); group.add(legBL);
-    const legBR = new THREE.Mesh(legGeo, hoofMat); legBR.position.set(0.45, 0.33, -0.5); group.add(legBR);
+    legGeo.translate(0, -0.65 / 2, 0);
+    const legFL = new THREE.Mesh(legGeo, hoofMat); legFL.position.set(-0.45, 0.65, 0.5); group.add(legFL);
+    const legFR = new THREE.Mesh(legGeo, hoofMat); legFR.position.set(0.45, 0.65, 0.5); group.add(legFR);
+    const legBL = new THREE.Mesh(legGeo, hoofMat); legBL.position.set(-0.45, 0.65, -0.5); group.add(legBL);
+    const legBR = new THREE.Mesh(legGeo, hoofMat); legBR.position.set(0.45, 0.65, -0.5); group.add(legBR);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -7351,14 +7369,16 @@ export class MobManager {
     collar.visible = false;
     head.add(collar);
 
-    // 4 Legs: fl, fr use front leg UV (40, 0, 2w, 10h, 2d); bl, br use back leg UV (8, 13, 2w, 6h, 2d)
+    // 4 Legs: fl, fr use front leg UV (40, 0, 2w, 10h, 2d); bl, br use back leg UV (8, 13, 2w, 6h, 2d), pivoting at hip (y = 0.32)
     const legGeoFront = createBoxWithUV(0.10, 0.32, 0.10, 40, 0, 64, 32, 2, 10, 2);
+    legGeoFront.translate(0, -0.16, 0);
     const legGeoBack = createBoxWithUV(0.10, 0.32, 0.10, 8, 13, 64, 32, 2, 6, 2);
+    legGeoBack.translate(0, -0.16, 0);
 
-    const fl = new THREE.Mesh(legGeoFront, catMat); fl.position.set(-0.10, 0.16, 0.18); group.add(fl);
-    const fr = new THREE.Mesh(legGeoFront, catMat); fr.position.set(0.10, 0.16, 0.18); group.add(fr);
-    const bl = new THREE.Mesh(legGeoBack, catMat); bl.position.set(-0.10, 0.16, -0.22); group.add(bl);
-    const br = new THREE.Mesh(legGeoBack, catMat); br.position.set(0.10, 0.16, -0.22); group.add(br);
+    const fl = new THREE.Mesh(legGeoFront, catMat); fl.position.set(-0.10, 0.32, 0.18); group.add(fl);
+    const fr = new THREE.Mesh(legGeoFront, catMat); fr.position.set(0.10, 0.32, 0.18); group.add(fr);
+    const bl = new THREE.Mesh(legGeoBack, catMat); bl.position.set(-0.10, 0.32, -0.22); group.add(bl);
+    const br = new THREE.Mesh(legGeoBack, catMat); br.position.set(0.10, 0.32, -0.22); group.add(br);
 
     // Articulated Tail: Upper tail and Lower tail
     const tailUpperGeo = createBoxWithUV(0.06, 0.22, 0.06, 0, 15, 64, 32, 1, 6, 1);
@@ -8228,25 +8248,26 @@ export class MobManager {
     // the face readable from any camera angle instead of looking like a white
     // cube when the atlas is still loading.
     const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.12), faceMat);
-    muzzle.position.set(0, 1.62, 1.76);
-    group.add(muzzle);
+    muzzle.position.set(0, -0.18, 0.46);
+    head.add(muzzle);
     const eyeGeo = new THREE.BoxGeometry(0.12, 0.1, 0.05);
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.23, 2.03, 1.74); group.add(eyeL);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.23, 2.03, 1.74); group.add(eyeR);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.23, 0.23, 0.44); head.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.23, 0.23, 0.44); head.add(eyeR);
     const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
-    const pupilL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilL.position.set(-0.23, 2.03, 1.766); group.add(pupilL);
-    const pupilR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilR.position.set(0.23, 2.03, 1.766); group.add(pupilR);
+    const pupilL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilL.position.set(-0.23, 0.23, 0.466); head.add(pupilL);
+    const pupilR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), pupilMat); pupilR.position.set(0.23, 0.23, 0.466); head.add(pupilR);
 
     // Horns
-    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornL.position.set(-0.55, 2.3, 1.2); group.add(hornL);
-    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornR.position.set(0.55, 2.3, 1.2); group.add(hornR);
+    const hornL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornL.position.set(-0.55, 0.5, -0.1); head.add(hornL);
+    const hornR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), hornMat); hornR.position.set(0.55, 0.5, -0.1); head.add(hornR);
 
-    // 4 Heavy Legs
+    // 4 Heavy Legs, pivoting at hip joint (y = 1.0)
     const legGeo = new THREE.BoxGeometry(0.45, 1.0, 0.45);
-    const fl = new THREE.Mesh(legGeo, ravagerMat); fl.position.set(-0.5, 0.5, 0.7); group.add(fl);
-    const fr = new THREE.Mesh(legGeo, ravagerMat); fr.position.set(0.5, 0.5, 0.7); group.add(fr);
-    const bl = new THREE.Mesh(legGeo, ravagerMat); bl.position.set(-0.5, 0.5, -0.7); group.add(bl);
-    const br = new THREE.Mesh(legGeo, ravagerMat); br.position.set(0.5, 0.5, -0.7); group.add(br);
+    legGeo.translate(0, -0.5, 0);
+    const fl = new THREE.Mesh(legGeo, ravagerMat); fl.position.set(-0.5, 1.0, 0.7); group.add(fl);
+    const fr = new THREE.Mesh(legGeo, ravagerMat); fr.position.set(0.5, 1.0, 0.7); group.add(fr);
+    const bl = new THREE.Mesh(legGeo, ravagerMat); bl.position.set(-0.5, 1.0, -0.7); group.add(bl);
+    const br = new THREE.Mesh(legGeo, ravagerMat); br.position.set(0.5, 1.0, -0.7); group.add(br);
 
     group.position.set(x, y, z);
     group.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
@@ -9512,16 +9533,16 @@ export class MobManager {
     // Cute bead eyes and smile on axolotl face
     const eyeGeo = new THREE.BoxGeometry(0.04, 0.04, 0.02);
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x18181b });
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.14, 0.17, 0.591); group.add(eyeL);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.14, 0.17, 0.591); group.add(eyeR);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.14, 0.02, 0.171); head.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.14, 0.02, 0.171); head.add(eyeR);
     const smileGeo = new THREE.BoxGeometry(0.10, 0.02, 0.02);
     const smileMat = new THREE.MeshBasicMaterial({ color: 0xd67487 });
-    const smile = new THREE.Mesh(smileGeo, smileMat); smile.position.set(0, 0.10, 0.591); group.add(smile);
+    const smile = new THREE.Mesh(smileGeo, smileMat); smile.position.set(0, -0.05, 0.171); head.add(smile);
 
     // External Branching Gill Frills (3 left, 3 right) in authentic magenta
     const gillMat = new THREE.MeshLambertMaterial({ color: 0xe6356c });
     const gillsL = new THREE.Group();
-    gillsL.position.set(-0.24, 0.16, 0.42);
+    gillsL.position.set(-0.24, 0.01, 0);
     const gillGeo = new THREE.BoxGeometry(0.18, 0.05, 0.05);
 
     for (let g = 0; g < 3; g++) {
@@ -9530,24 +9551,25 @@ export class MobManager {
       gMesh.rotation.z = -0.2 + (g - 1) * 0.25;
       gillsL.add(gMesh);
     }
-    group.add(gillsL);
+    head.add(gillsL);
 
     const gillsR = new THREE.Group();
-    gillsR.position.set(0.24, 0.16, 0.42);
+    gillsR.position.set(0.24, 0.01, 0);
     for (let g = 0; g < 3; g++) {
       const gMesh = new THREE.Mesh(gillGeo, gillMat);
       gMesh.position.set(0.08, (g - 1) * 0.08, 0);
       gMesh.rotation.z = 0.2 - (g - 1) * 0.25;
       gillsR.add(gMesh);
     }
-    group.add(gillsR);
+    head.add(gillsR);
 
-    // 4 Splayed Swimming Feet
+    // 4 Splayed Swimming Feet, pivoting at shoulder/hip (y = 0.085)
     const footGeo = new THREE.BoxGeometry(0.18, 0.05, 0.14);
-    const fl = new THREE.Mesh(footGeo, mat); fl.position.set(-0.24, 0.06, 0.22); group.add(fl);
-    const fr = new THREE.Mesh(footGeo, mat); fr.position.set(0.24, 0.06, 0.22); group.add(fr);
-    const bl = new THREE.Mesh(footGeo, mat); bl.position.set(-0.24, 0.06, -0.22); group.add(bl);
-    const br = new THREE.Mesh(footGeo, mat); br.position.set(0.24, 0.06, -0.22); group.add(br);
+    footGeo.translate(0, -0.025, 0);
+    const fl = new THREE.Mesh(footGeo, mat); fl.position.set(-0.24, 0.085, 0.22); group.add(fl);
+    const fr = new THREE.Mesh(footGeo, mat); fr.position.set(0.24, 0.085, 0.22); group.add(fr);
+    const bl = new THREE.Mesh(footGeo, mat); bl.position.set(-0.24, 0.085, -0.22); group.add(bl);
+    const br = new THREE.Mesh(footGeo, mat); br.position.set(0.24, 0.085, -0.22); group.add(br);
 
     // Swimming Tail
     const tailGroup = new THREE.Group();
@@ -9568,6 +9590,7 @@ export class MobManager {
       type: 'axolotl',
       name: 'Axolotl',
       mesh: group,
+      head,
       isAquatic: true,
       inWater: true,
       tail: tailGroup,
@@ -9725,7 +9748,16 @@ export class MobManager {
     }
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
-    if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
+    // A wolf's armour takes the hit while it lasts (wolfBehavior.js): the damage reaching the wolf is zero, and the
+    // rest of this path still runs, so it "still turns red" as the wiki says.
+    if (mob.type === 'wolf' && mob.wolfArmor) {
+      const absorbed = absorbWithWolfArmor(mob, amount, mob.pendingDamageType ?? null);
+      amount = absorbed.damage;
+      if (absorbed.broke) this.sounds?.playBreak?.('stone');
+    }
+    // Breach (a mace's, set by the attack in main.js) takes 15 percentage points per level off what the armour stops.
+    const breach = mob.pendingBreach ?? 0; mob.pendingBreach = 0;
+    if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - breachedArmourFraction(Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/(2 + (mob.armorToughness || 0)/4)))/25, breach);
     if (attacker === this.game?.player || (mob.type !== 'blaze' && !isZombifiedPiglin(mob) && !attacker && knockbackOrigin)) mob.playerDamaged = true;
     if (mob.type === 'blaze') {
       if (attacker === this.game?.player || (attacker?.type === 'wolf' && attacker.isTamed)) {
@@ -9748,7 +9780,7 @@ export class MobManager {
     // only known at damage time, which is the same reason `wolfKilled` and `playerDamaged` exist.
     // `isPunch` is what separates an arrow from a melee hit, which vanilla does not count -- and an
     // exploded creeper sets `noLoot`, so shooting one and then letting it blow up still gives nothing.
-    if(mob.type==='creeper'&&!isPunch&&(attacker?.type==='skeleton'||attacker?.type==='stray'))mob.shotBySkeleton=true;
+    if(mob.type==='creeper'&&!isPunch&&['skeleton','stray','bogged','parched','wither_skeleton'].includes(attacker?.type))mob.shotBySkeleton=true;
     if(isSquid(mob)&&attacker?.type==='wolf'&&attacker.isTamed)mob.wolfKilled=true;
     if(isSquid(mob)&&attacker===this.game?.player){mob.playerCreditSeconds=5;const e=attacker.inventory?.getActiveItem?.()?.enchantments;mob.lootingLevel=Math.max(0,Math.min(3,(Array.isArray(e)?e.find(v=>v.id==='looting')?.level:e?.looting)||0));}
     // Wiki: a rolled armadillo "takes a reduced amount of damage given by (original damage-1)/2", and
@@ -10150,6 +10182,8 @@ export class MobManager {
     // Wiki: a creeper drops one gunpowder from the base table, and a music disc if a skeleton or a stray
     // killed it. `shotBySkeleton` is set in `damageMob`, where the attacker is still known.
     const creeperRows = mob.type === 'creeper' && mob.shotBySkeleton ? creeperDiscDrop(random) : [];
+    // Wiki: a baby zombie riding a chicken drops "Lava Chicken"; a ghast a deflected fireball killed drops "Tears".
+    const discRows = [...lavaChickenDrop(mob), ...tearsDrop(mob)];
     // Wiki: a piglin brute drops its golden axe on an 8.5% roll.
     const piglinBruteRows = isPiglinBrute(mob) ? piglinBruteDrops(mob, random) : [];
     // Wiki: the giant's page gives no drop table and no experience value.
@@ -10162,7 +10196,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows, ...discRows];
   }
 
   /**
@@ -10246,7 +10280,7 @@ export class MobManager {
       }
       if(mob.type==='strider'&&!mob.isBaby&&mob.isSaddled)this.entities?.spawnDroppedItem(pos,'saddle',false,1);
       // Wiki: a wolf wearing wolf armor always drops it, regardless of what killed it.
-      if(mob.type==='wolf'&&mob.wolfArmor)this.entities?.spawnDroppedItem(pos,mob.wolfArmor,false,1);
+      if(mob.type==='wolf'&&mob.wolfArmor)this.entities?.spawnDroppedItem(pos,mob.wolfArmor,false,1,{durability:mob.wolfArmorDurability});
       if (mob.type==='horse' && !mob.isBaby) {
         for(const id of [mob.isSaddled && 'saddle',mob.horseArmor,mob.hasChest && 'chest'].filter(Boolean))this.entities?.spawnDroppedItem(pos,id,false,1);
       }
@@ -10282,7 +10316,7 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'drowned', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? (mob.playerDamaged || mob.wolfKilled ? rollKillXp('happy_ghast') : 0)
+          const xpVal = mob.type === 'chicken' && mob.isJockey ? (mob.playerDamaged || mob.wolfKilled ? JOCKEY_CHICKEN_XP : 0) : mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? (mob.playerDamaged || mob.wolfKilled ? rollKillXp('happy_ghast') : 0)
           : isCopperGolem(mob) ? 0
           : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
           : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
@@ -10293,7 +10327,7 @@ export class MobManager {
           : mob.type === 'vindicator' ? (mob.playerDamaged || mob.wolfKilled ? vindicatorXp(mob) : 0)
           : mob.type === 'evoker' ? (mob.playerDamaged || mob.wolfKilled ? evokerXp(mob) : 0)
           : mob.type === 'wither' ? (mob.playerDamaged || mob.wolfKilled ? witherXp(mob) : 0)
-          : mob.type === 'ender_dragon' ? (mob.playerDamaged || mob.wolfKilled ? enderDragonXp(mob) : 0)
+          : mob.type === 'ender_dragon' ? (mob.endEncounterManaged ? 0 : (mob.playerDamaged || mob.wolfKilled ? enderDragonXp(mob) : 0))
           : mob.type === 'snow_golem' ? 0
           : mob.type === 'creaking' ? 0
           : mob.type === 'camel' ? (mob.playerDamaged || mob.wolfKilled ? camelXp(mob) : 0)
@@ -10662,10 +10696,17 @@ export class MobManager {
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
       if (this.brokenMobs.has(mob)) continue;
+      let motionStartX, motionStartZ;
       try {
+        motionStartX = mob.mesh.position.x; motionStartZ = mob.mesh.position.z;
         // A frozen mob is posed, not simulated: no AI, no physics, no animation. Mob
         // Studio sets this so a mob stands still while you look at it, and the debug
         // inspector sets it so a model can be examined without it wandering off.
+        if (mob.vehicle?.type === 'chicken') dismountIfChickenDead(mob);
+        // A chicken jockey's chicken goes where its baby zombie rider takes it, and the rider sits on it.
+        if (mob.type === 'chicken' && mob.rider?.vehicle === mob && mob.rider.health > 0 && mob.health > 0 && mob.rider.mesh && mob.mesh) {
+          mob.mesh.position.copy(mob.rider.mesh.position);
+        }
         if (mob.vehicle?.type === 'strider') {
           if(mob.vehicle.health<=0){mob.vehicle.rider=null;mob.vehicle=null;}
           else if(mob.health<=0){mob.vehicle.rider=null;mob.vehicle=null;this.updateDeath(mob,dt);continue;}
@@ -10794,6 +10835,16 @@ export class MobManager {
         // now on, rather than throwing every frame and burying the cause.
         this.brokenMobs.add(mob);
         this.reportMobError(err, mob);
+      } finally {
+        // Species AI may return early for a pose, a ride or aquatic motion. Articulate
+        // every surviving quadruped after that path, while preserving its special action.
+        if (!this.brokenMobs.has(mob) && quadrupedMode(mob)) try {
+          const p = mob.mesh.position;
+          updateQuadrupedMotion(mob, dt, {
+            distance: Math.hypot(p.x - motionStartX, p.z - motionStartZ), player,
+            inWater: !!mob.inWater || this.world.getVoxel(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)) === BLOCKS.WATER
+          });
+        } catch (err) { this.brokenMobs.add(mob); this.reportMobError(err, mob); }
       }
     }
 
@@ -10823,7 +10874,7 @@ export class MobManager {
     if (this.customProjectiles && this.customProjectiles.length > 0) {
       for (let pIdx = this.customProjectiles.length - 1; pIdx >= 0; pIdx--) {
         const p = this.customProjectiles[pIdx];
-        if (p.isBlazeFireball) continue;
+        if (p.isBlazeFireball || p.isDragonBreathBall) continue;
         p.life -= dt;
         // A homing projectile steers before it moves, so it tracks rather than flying a fixed line.
         if (p.homing) steerShulkerBullet(p, player, dt);
@@ -10931,7 +10982,10 @@ export class MobManager {
     // above does. Without the mover they stood at their spawn point however busy their AI was.
     if(mob.type==='vindicator'){updateVindicatorAI(this,mob,dt,player);this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;}
     if(mob.type==='evoker'){updateEvokerAI(this,mob,dt,player);this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;}
-    if(mob.type==='ender_dragon'){updateEnderDragonAI(this,mob,dt,player);return true;}
+    if(mob.type==='ender_dragon'){
+      if(!mob.endEncounterManaged){updateEnderDragonAI(this,mob,dt,player);mob.mesh.position.addScaledVector(mob.velocity,dt);}
+      return true;
+    }
     if(mob.type==='wither'){updateWitherAI(this,mob,dt,player);return true;}
     if(mob.type==='slime'||mob.type==='magma_cube'){
       // Wiki: cubes move by hopping every 0.5-1.5s, three times as often when they have a target,
@@ -11189,7 +11243,12 @@ export class MobManager {
       }
 
       moveGroundMob(this, mob, dt);
-      posePolarBear(mob, mob.polarPhase || 0);
+      let lookTarget = null;
+      if (!mob.isHostile && player?.position) {
+        const d = mob.mesh.position.distanceTo(player.position);
+        if (d < 10) lookTarget = player.position;
+      }
+      posePolarBear(mob, mob.polarPhase || 0, lookTarget);
       mob.polarPhase = (mob.polarPhase || 0) + dt * 6;
       return true;
     }
@@ -13417,8 +13476,8 @@ export class MobManager {
           }
           if (mob.legs && mob.legs.length === 4) {
             const [fl, fr, bl, br] = mob.legs;
-            if (fl) { fl.position.set(-0.10, 0.16, 0.18); fl.rotation.x = 0; }
-            if (fr) { fr.position.set(0.10, 0.16, 0.18); fr.rotation.x = 0; }
+            if (fl) { fl.position.set(-0.10, 0.30, 0.18); fl.rotation.x = 0; }
+            if (fr) { fr.position.set(0.10, 0.30, 0.18); fr.rotation.x = 0; }
             if (bl) { bl.position.set(-0.10, 0.08, -0.06); bl.rotation.x = -Math.PI / 2; }
             if (br) { br.position.set(0.10, 0.08, -0.06); br.rotation.x = -Math.PI / 2; }
           }
@@ -13440,10 +13499,10 @@ export class MobManager {
           }
           if (mob.legs && mob.legs.length === 4) {
             const [fl, fr, bl, br] = mob.legs;
-            if (fl) fl.position.set(-0.10, 0.16, 0.18);
-            if (fr) fr.position.set(0.10, 0.16, 0.18);
-            if (bl) bl.position.set(-0.10, 0.16, -0.22);
-            if (br) br.position.set(0.10, 0.16, -0.22);
+            if (fl) fl.position.set(-0.10, 0.32, 0.18);
+            if (fr) fr.position.set(0.10, 0.32, 0.18);
+            if (bl) bl.position.set(-0.10, 0.32, -0.22);
+            if (br) br.position.set(0.10, 0.32, -0.22);
 
             if (speedXZ > 0.1) {
               mob.walkCycle = (mob.walkCycle || 0) + dt * 11.0;
@@ -13703,15 +13762,21 @@ export class MobManager {
         mob.leftLeg.rotation.x = legSwing;
         mob.rightLeg.rotation.x = -legSwing;
       } else if (Array.isArray(mob.legs)) {
+        const getLegMesh = (l) => (l?.isObject3D ? l : l?.mesh);
         if (mob.legs.length === 4) {
-          mob.legs[0].rotation.x = legSwing;
-          mob.legs[1].rotation.x = -legSwing;
-          mob.legs[2].rotation.x = -legSwing;
-          mob.legs[3].rotation.x = legSwing;
+          const l0 = getLegMesh(mob.legs[0]);
+          const l1 = getLegMesh(mob.legs[1]);
+          const l2 = getLegMesh(mob.legs[2]);
+          const l3 = getLegMesh(mob.legs[3]);
+          if (l0) l0.rotation.x = legSwing;
+          if (l1) l1.rotation.x = -legSwing;
+          if (l2) l2.rotation.x = -legSwing;
+          if (l3) l3.rotation.x = legSwing;
         } else {
           for (let i = 0; i < mob.legs.length; i++) {
-            if (mob.legs[i]) {
-              mob.legs[i].rotation.x = (i % 2 === 0 ? legSwing : -legSwing);
+            const l = getLegMesh(mob.legs[i]);
+            if (l) {
+              l.rotation.x = (i % 2 === 0 ? legSwing : -legSwing);
             }
           }
         }

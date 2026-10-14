@@ -24,8 +24,7 @@ function measure(engine, set, regionCount = 10) {
   for (let cx = 0; cx < spacing * regionCount; cx++) {
     for (let cz = 0; cz < rows; cz++) {
       if (placement.isPlacementChunk(engine.seed, cx, cz)) candidates++;
-      const plan = engine.planChunk(cx, cz);
-      if (plan && plan.set === set.name) plans++;
+      if (engine.planChunkAll(cx, cz).some((plan) => plan.set === set.name)) plans++;
     }
   }
   return { candidates, plans, regions: regionCount, perRegion: candidates / regionCount, spacing, rows };

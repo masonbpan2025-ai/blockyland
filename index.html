@@ -259,7 +259,7 @@
   <div id="furnace-modal" class="game-modal hidden">
     <div class="container-gui" style="width: 390px;">
       <div class="gui-header">
-        <span>Furnace</span>
+        <span id="furnace-title">Furnace</span>
         <span class="close-btn" id="close-furnace">✕</span>
       </div>
       <div class="furnace-main-area">
@@ -584,6 +584,7 @@
       -->
       <button class="mc-btn" id="btn-cheats" aria-pressed="false" title="Allow the Agent Terminal and commands like /give in any game mode">Cheats: OFF</button>
       <button class="mc-btn mc-btn-designed" id="btn-host-world">🌐 Share This World</button>
+      <button class="mc-btn mc-btn-designed" id="btn-pause-packs" title="Load Minecraft Resource/Texture Packs and Player Skins">🎨 Resource & Skin Packs</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
       <button class="mc-btn" id="btn-shader" aria-pressed="false" title="Lightweight lighting, bloom, water and atmosphere">Lightweight Shader: OFF</button>
       <button class="mc-btn" id="btn-mob-debug" aria-pressed="false" title="Show each mob's name and current health above its head">Mob Debug Labels: OFF</button>
@@ -806,6 +807,11 @@
         <div class="biome-field-hint">
           Each world generation produces a substantially different landscape and layout.
         </div>
+      </div>
+
+      <div class="biome-form-section">
+        <label class="biome-field-label"><input type="checkbox" id="world-bonus-chest"> Bonus Chest</label>
+        <div class="biome-field-hint">A chest of starting supplies near the spawn point.</div>
       </div>
 
       <div class="map-modal-footer">
@@ -1162,6 +1168,7 @@
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
       <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-building-studio">Building Studio</button>
       <button class="mc-btn mc-btn-large mc-btn-inspector" id="btn-start-inspector">Inspector</button>
+      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-packs">🎨 Packs & Skins</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-host-world">🌐 Host World & Share</button>
     </div>
     <!-- Inspector picker: one entry point on the start screen, four destinations behind it. -->
@@ -1254,5 +1261,8 @@
 
   <script type="module" src="/src/main.js"></script>
   <script type="module" src="/src/progressOverlay.js"></script>
+  <!-- The command HUD (ui.renderCommandHud): /bossbar bars and the /scoreboard sidebar. -->
+  <div id="command-bossbars" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:40;pointer-events:none;font:13px monospace;color:#fff;text-align:center;text-shadow:1px 1px 0 #000"></div>
+  <div id="command-sidebar" style="display:none;position:fixed;right:6px;top:40%;z-index:40;pointer-events:none;font:13px monospace;color:#fff;background:rgba(0,0,0,0.35);padding:2px 6px;min-width:90px"></div>
 </body>
 </html>

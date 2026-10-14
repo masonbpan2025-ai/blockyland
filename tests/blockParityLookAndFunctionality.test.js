@@ -131,7 +131,7 @@ test('functionality parity: light levels match wiki values for light sources', (
     SHROOMLIGHT: 15,
     CRYING_OBSIDIAN: 10,
     BEACON: 15,
-    CONDUIT: 14,
+    CONDUIT: 15, // the wiki's infobox: "light=Yes (15)"
     END_ROD: 14,
     JACK_O_LANTERN: 15,
     OCHRE_FROGLIGHT: 15,

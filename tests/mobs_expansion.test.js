@@ -544,10 +544,12 @@ test('Ender Dragon: Boss Bar UI, End Crystal healing, dragon breath, and exit po
   bossManager.initEndArena();
   assert.ok(bossManager.enderDragon, 'Ender Dragon spawned');
   assert.ok(ui.bossBars.has('ender_dragon'), 'Ender Dragon Boss Bar active');
-  assert.equal(bossManager.endCrystals.length, 8, '8 Obsidian pillar End Crystals created');
+  assert.equal(bossManager.endCrystals.length, 10, 'an End Crystal on each of the 10 End spikes');
 
   // Crystal heals dragon
   bossManager.enderDragon.health = 150;
+  // The crystals stand on the spikes, 43 blocks out: the dragon heals when it flies near one.
+  bossManager.enderDragon.mesh.position.copy(bossManager.endCrystals[0].position).add(new THREE.Vector3(5, 0, 0));
   bossManager.updateEnderDragonBoss(bossManager.enderDragon, 1.0, { position: new THREE.Vector3(0, 30, 0) });
   assert.ok(bossManager.enderDragon.health > 150, 'End Crystal healed Ender Dragon');
 
@@ -563,6 +565,7 @@ test('Ender Dragon: Boss Bar UI, End Crystal healing, dragon breath, and exit po
   // Dragon death -> Exit portal and Dragon Egg
   bossManager.enderDragon.health = 0;
   bossManager.updateEnderDragonBoss(bossManager.enderDragon, 0.1, { position: new THREE.Vector3(0, 30, 0) });
-  assert.equal(world.getVoxel(0, 32, 0), BLOCKS.DRAGON_EGG, 'Dragon egg placed on exit portal fountain');
-  assert.equal(world.getVoxel(0, 28, 0), BLOCKS.END_PORTAL, 'End portal activated');
+  // The podium's portal sits one above the island top at 0, 0 (32 here) and the egg on its pillar, four above that.
+  assert.equal(world.getVoxel(0, 37, 0), BLOCKS.DRAGON_EGG, 'Dragon egg placed on the exit podium pillar');
+  assert.equal(world.getVoxel(1, 33, 1), BLOCKS.END_PORTAL, 'and the exit portal is active');
 });

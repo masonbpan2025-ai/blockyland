@@ -74,7 +74,7 @@ test('Armor System - Armor Item Stats and Tier Properties', () => {
   assert.equal(ITEMS.netherite_leggings.armor, 6);
   assert.equal(ITEMS.netherite_boots.armor, 3);
   assert.equal(ITEMS.netherite_chestplate.toughness, 3);
-  assert.equal(ITEMS.netherite_chestplate.knockbackResistance, 1);
+  assert.equal(ITEMS.netherite_chestplate.knockbackResistance, 0.1); // 10% per piece (wiki attribute modifiers)
 
   // Turtle Helmet: 2 armor, head slot
   assert.equal(ITEMS.turtle_helmet.armor, 2);
@@ -150,7 +150,7 @@ test('Inventory - Armor and Off-hand Equipment Slot Management', () => {
 
   assert.equal(inv.getTotalArmorPoints(), 20);
   assert.equal(inv.getTotalArmorToughness(), 12); // 3 * 4 = 12
-  assert.equal(inv.getTotalKnockbackResistance(), 4); // 1 * 4 = 4
+  assert.ok(Math.abs(inv.getTotalKnockbackResistance() - 0.4) < 1e-9); // 0.1 * 4 = 0.4, i.e. 40%
 });
 
 test('Inventory - Off-hand Swapping (F Keybind)', () => {

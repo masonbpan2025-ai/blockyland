@@ -42,6 +42,10 @@ export const DISC_SOURCES_ELSEWHERE = {
   music_disc_creator: 'trial chamber loot',
   music_disc_creator_music_box: 'trial chamber loot',
   music_disc_precipice: 'loot only',
+  // Their own pages' "Obtaining" sections (chickenJockey.js drops the first two):
+  music_disc_tears: 'dropped by a ghast killed by a player-deflected fireball',
+  music_disc_lava_chicken: 'dropped by a baby zombie riding a chicken, killed by a player or a tamed wolf',
+  music_disc_bounce: 'minecart chests in mineshafts in sulfur caves',
 };
 
 /**

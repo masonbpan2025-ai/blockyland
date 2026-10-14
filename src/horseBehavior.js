@@ -7,6 +7,9 @@ import { BABY_GROWTH_SECONDS, startBabyGrowth } from './babyGrowth.js';
 export const isEquine=m=>['horse','donkey','mule'].includes(typeof m==='string'?m:m.type);
 export const HORSE_FOODS={sugar:[1,30,3],wheat:[2,20,3],apple:[3,60,3],carrot:[3,60,3],golden_carrot:[4,60,5],golden_apple:[10,240,10],enchanted_golden_apple:[10,240,10],hay_block:[20,180,0]};
 export const HORSE_ARMOR={leather_horse_armor:3,iron_horse_armor:5,golden_horse_armor:7,diamond_horse_armor:11};
+// Diamond horse armour also carries 2 armour toughness (its wiki infobox: "armortoughness = 2"); found by the wiki
+// parity audit's I-ARMOR case. The others have none.
+export const HORSE_ARMOR_TOUGHNESS={diamond_horse_armor:2};
 export const goldenFood=id=>['golden_carrot','golden_apple','enchanted_golden_apple'].includes(id);
 export const horseFood=id=>HORSE_FOODS[id!==undefined&&id===BLOCKS.HAY_BLOCK?'hay_block':id];
 export function canFeedHorse(m,id){const f=horseFood(id);return !!f&&(m.health<m.maxHealth||(m.isBaby&&!m.ageLocked)||(!m.isTamed&&(m.temper||0)<100&&f[2]>0)||(m.type!=='mule'&&!m.isBaby&&m.isTamed&&goldenFood(id)&&m.health===m.maxHealth&&!(m.breedingCooldown>0)&&!(m.inLove>0)));}
@@ -33,10 +36,10 @@ export function interactHorse(b,m,player,inventory,id){
   else if(m.type!=='mule'&&!m.isBaby&&m.isTamed&&goldenFood(id)&&(!isPackEquine(m)||wasFull)&&!(m.breedingCooldown>0)&&!(m.inLove>0)){m.inLove=m.inLoveTimer=30;m.matingTimer=0;b.spawnHeartParticles(m.mesh.position);}
   b.sounds?.playEat?.();
  }else if(id==='shears'){
-  const removed=m.horseArmor||'saddle';if(m.horseArmor){m.horseArmor=null;m.armor=0;m.armorMesh.visible=false;}else{m.isSaddled=false;m.saddleMesh.visible=false;}
+  const removed=m.horseArmor||'saddle';if(m.horseArmor){m.horseArmor=null;m.armor=0;m.armorToughness=0;m.armorMesh.visible=false;}else{m.isSaddled=false;m.saddleMesh.visible=false;}
   b.entities?.spawnDroppedItem(m.mesh.position.clone(),removed,false,1);return true;
  }else if(id==='saddle'){m.isSaddled=true;m.saddleMesh.visible=true;}
- else if(HORSE_ARMOR[id]){m.horseArmor=id;m.armor=HORSE_ARMOR[id];m.armorMesh.visible=true;m.armorMesh.material.color.setHex({leather_horse_armor:0x8b5737,iron_horse_armor:0xc3ccd0,golden_horse_armor:0xecc34f,diamond_horse_armor:0x59d7db}[id]);}
+ else if(HORSE_ARMOR[id]){m.horseArmor=id;m.armor=HORSE_ARMOR[id];m.armorToughness=HORSE_ARMOR_TOUGHNESS[id]||0;m.armorMesh.visible=true;const col={leather_horse_armor:0x8b5737,iron_horse_armor:0xc3ccd0,golden_horse_armor:0xecc34f,diamond_horse_armor:0x59d7db}[id];m.armorMesh.material.color.setHex(col);if(m.neckArmorMesh)m.neckArmorMesh.material.color.setHex(col);if(m.headArmorMesh)m.headArmorMesh.material.color.setHex(col);}
  else if(isChestItem(id)){m.hasChest=true;chestSlots(m);if(m.chestMesh)m.chestMesh.visible=true;b.sounds?.playDonkey?.('chest',m.isBaby);}
  else{if(m.isTamed&&player.isSneaking&&b.mobManager.game?.ui?.openHorseInventory){b.mobManager.game.ui.openHorseInventory(m);return true;}if(b.mountMob(m,player)===false)return false;m.tameTimer=3;return true;}
  if(player.gamemode!=='creative')inventory.consumeActiveItem(1);return true;
@@ -56,7 +59,7 @@ export function horseJumpHeight(s){return 4.5816666667*s*s+1.5301666667*s-.19213
 export function updateHorse(m,dt,r=Math.random,sounds=null,player=null,manager=null){
  if(isPackEquine(m))updatePackEquine(m,dt,manager);
  if(m.health<=0)return;
- if(m.headArmorMesh)m.headArmorMesh.visible=!!m.horseArmor;if(m.bridleMesh)m.bridleMesh.visible=!m.isBaby&&!!m.isSaddled;
+ if(m.headArmorMesh)m.headArmorMesh.visible=!!m.horseArmor;if(m.neckArmorMesh)m.neckArmorMesh.visible=!!m.horseArmor;if(m.bridleMesh)m.bridleMesh.visible=!m.isBaby&&!!m.isSaddled;
  m.neighTimer=(m.neighTimer??20)-dt;if(m.neighTimer<=0){if(isPackEquine(m))sounds?.playDonkey?.('ambient',m.isBaby);else sounds?.playHorse?.();m.neighTimer=20+r()*30;}
  m.rearTime=Math.max(0,(m.rearTime||0)-dt);
  if(!m.rider&&!m.inLove&&Math.hypot(m.velocity.x,m.velocity.z)<.1&&r()<dt/60)m.rearTime=1;
@@ -81,7 +84,7 @@ export function restoreHorse(m,data,manager){
   Object.assign(m,createHorseModel(m.coat,m.marking,manager.textures));m.mesh.position.copy(pos);manager.scene.add(m.mesh);
  }
  m.health=Math.min(oldHealth,m.maxHealth);m.mesh.scale.setScalar(m.isBaby?.7:1);m.saddleMesh.visible=!!m.isSaddled;
- if(m.armorMesh){m.armorMesh.visible=!!HORSE_ARMOR[m.horseArmor];m.armor=HORSE_ARMOR[m.horseArmor]||0;m.armorMesh.material.color.setHex({leather_horse_armor:0x8b5737,iron_horse_armor:0xc3ccd0,golden_horse_armor:0xecc34f,diamond_horse_armor:0x59d7db}[m.horseArmor]||0xc3ccd0);}
+ if(m.armorMesh){m.armorMesh.visible=!!HORSE_ARMOR[m.horseArmor];m.armor=HORSE_ARMOR[m.horseArmor]||0;m.armorToughness=HORSE_ARMOR_TOUGHNESS[m.horseArmor]||0;const col={leather_horse_armor:0x8b5737,iron_horse_armor:0xc3ccd0,golden_horse_armor:0xecc34f,diamond_horse_armor:0x59d7db}[m.horseArmor]||0xc3ccd0;m.armorMesh.material.color.setHex(col);if(m.neckArmorMesh)m.neckArmorMesh.material.color.setHex(col);if(m.headArmorMesh)m.headArmorMesh.material.color.setHex(col);}
  if(m.chestMesh)m.chestMesh.visible=!!m.hasChest;
  if(isPackEquine(m)){m.horseArmor=null;m.armor=0;chestSlots(m);syncPackEquineAppearance(m);}
 }

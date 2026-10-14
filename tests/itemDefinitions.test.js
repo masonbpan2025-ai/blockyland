@@ -146,7 +146,9 @@ test('food hunger values match the pinned vanilla data', () => {
 // --- brewing named an ingredient that does not exist -------------------------
 
 test('a Turtle Master potion can actually be brewed', () => {
-  assert.equal(getBrewingResult('awkward_potion', 'turtle_scute'), 'potion_of_turtle_master');
+  // The Brewing page brews it from a Turtle Shell (turtle_helmet), not a scute.
+  assert.equal(getBrewingResult('awkward_potion', 'turtle_helmet'), 'potion_of_turtle_master');
+  assert.equal(getBrewingResult('awkward_potion', 'turtle_scute'), null);
   assert.equal(getBrewingResult('awkward_potion', 'scute'), null, 'the old name must not work');
 });
 

@@ -576,11 +576,10 @@ export class Inventory {
 
   // Update craft results
   checkCrafting() {
-    const res2 = findMatchingRecipe(this.craft2x2, 2, 2, RECIPES_2X2);
-    this.craft2x2Result = res2 ? { ...res2 } : null;
-
-    const res3 = findMatchingRecipe(this.craft3x3, 3, 3, RECIPES_3X3);
-    this.craft3x3Result = res3 ? { ...res3 } : null;
+    // The doLimitedCrafting game rule: "players can craft only unlocked recipes" (the game sets recipeGate).
+    const allowed = (r) => (r && (!this.recipeGate || this.recipeGate(r)) ? { ...r } : null);
+    this.craft2x2Result = allowed(findMatchingRecipe(this.craft2x2, 2, 2, RECIPES_2X2));
+    this.craft3x3Result = allowed(findMatchingRecipe(this.craft3x3, 3, 3, RECIPES_3X3));
   }
 
   takeCraftResult(is3x3 = false) {

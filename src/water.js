@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TERRAIN_SHADOW_CHUNK } from './terrainShadowSampling.js';
 
 // Biome variation inspired by Minecraft's water palette, softened for this world's lighting.
 export const WATER_COLORS = Object.fromEntries(Object.entries({
@@ -57,7 +58,7 @@ export const waterFragmentShader = `
       #include <fog_pars_fragment>
       #include <packing>
       #include <lights_pars_begin>
-      #include <shadowmap_pars_fragment>
+      ${TERRAIN_SHADOW_CHUNK}
 
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -285,6 +286,7 @@ export function createWaterMaterial() {
   return new THREE.ShaderMaterial({
     uniforms, lights: true, vertexColors: true, transparent: true, depthWrite: false,
     side: THREE.DoubleSide, forceSinglePass: true, fog: true,
+    defines: { HAS_NORMAL: '' },
     vertexShader: waterVertexShader,
     fragmentShader: waterFragmentShader,
   });

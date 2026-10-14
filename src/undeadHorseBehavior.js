@@ -293,34 +293,41 @@ export function createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat) 
   body.position.set(0, 1.0, -0.05);
   group.add(body);
 
+  // Neck pivot group: positioned at base of neck at (0, 1.0, 0.46)
+  // In vanilla Minecraft, the horse's neck, head, snout, eyes, and mane turn together as one unit.
+  const head = new THREE.Group();
+  head.name = 'neck-pivot';
+  head.position.set(0, 1.0, 0.46);
+  group.add(head);
+
   // Neck: vanilla UV (0, 35), size 4x12x7 (w=0.28, h=0.84, d=0.49)
   const neckGeo = new THREE.BoxGeometry(0.28, 0.84, 0.49);
   applyVanillaBoxUVs(neckGeo, 0, 35, 64, 64, 4, 12, 7);
   const neck = new THREE.Mesh(neckGeo, coatMat);
-  neck.position.set(0, 1.35, 0.65);
+  neck.position.set(0, 0.35, 0.19);
   neck.rotation.x = 0.52;
-  group.add(neck);
+  head.add(neck);
 
-  // Head: vanilla UV (0, 13), size 7x7x10 (w=0.38, h=0.38, d=0.54)
+  // Head / Skull: vanilla UV (0, 13), size 7x7x10 (w=0.38, h=0.38, d=0.54)
   const headGeo = new THREE.BoxGeometry(0.38, 0.38, 0.54);
   applyVanillaBoxUVs(headGeo, 0, 13, 64, 64, 7, 7, 10);
-  const head = new THREE.Mesh(headGeo, coatMat);
-  head.position.set(0, 1.82, 1.0);
-  head.rotation.x = 0.52;
-  group.add(head);
+  const skull = new THREE.Mesh(headGeo, coatMat);
+  skull.position.set(0, 0.82, 0.54);
+  skull.rotation.x = 0.52;
+  head.add(skull);
 
   // Snout / muzzle: vanilla UV (0, 25), size 4x5x5
   const snoutGeo = new THREE.BoxGeometry(0.32, 0.3, 0.36);
   applyVanillaBoxUVs(snoutGeo, 0, 25, 64, 64, 4, 5, 5);
   const snout = new THREE.Mesh(snoutGeo, coatMat);
   snout.position.set(0, -0.04, 0.38);
-  head.add(snout);
+  skull.add(snout);
 
   const eyes = [];
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.04), eyeMat);
     eye.position.set(side * 0.16, 0.04, 0.12);
-    head.add(eye);
+    skull.add(eye);
     eye.visible = false; // Authentic sheet texture carries eyes / sockets
     eyes.push(eye);
   }
@@ -329,22 +336,23 @@ export function createUndeadHorseModel(type, coatMat, maneMat, eyeMat, hoofMat) 
   const maneGeo = new THREE.BoxGeometry(0.12, 0.75, 0.15);
   applyVanillaBoxUVs(maneGeo, 56, 36, 64, 64, 2, 16, 2);
   const mane = new THREE.Mesh(maneGeo, maneMat);
-  mane.position.set(0, 1.58, 0.52);
+  mane.position.set(0, 0.58, 0.06);
   mane.rotation.x = 0.52;
   if (isSkeleton) mane.visible = false;
-  group.add(mane);
+  head.add(mane);
 
-  // Legs: vanilla UV (48, 21), size 4x11x4 (w=0.24, h=0.88, d=0.24)
+  // Legs: vanilla UV (48, 21), size 4x11x4 (w=0.24, h=0.88, d=0.24), pivoting at hip joint (y = 0.88)
   const legGeo = new THREE.BoxGeometry(0.24, 0.88, 0.24);
+  legGeo.translate(0, -0.88 / 2, 0);
   applyVanillaBoxUVs(legGeo, 48, 21, 64, 64, 4, 11, 4);
   const legs = [];
   for (const [lx, lz] of [[-0.24, 0.52], [0.24, 0.52], [-0.24, -0.52], [0.24, -0.52]]) {
     const leg = new THREE.Mesh(legGeo, coatMat);
-    leg.position.set(lx, 0.44, lz);
+    leg.position.set(lx, 0.88, lz);
     group.add(leg);
     if (!isSkeleton) {
       const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.26), hoofMat);
-      hoof.position.y = -0.4;
+      hoof.position.y = -0.84;
       leg.add(hoof);
     }
     legs.push(leg);

@@ -69,9 +69,14 @@ export function goldenFor(id, seed) {
   let found = null;
   for (let chunkZ = 0; chunkZ <= LOCATE_CHUNK_ROWS && !found; chunkZ++) {
     for (let chunkX = 0; chunkX < LOCATE_CHUNK_LIMIT && !found; chunkX++) {
-      const plan = engine.planChunk(chunkX, chunkZ);
-      if (plan && plan.structureId === id) found = plan;
+      const plan = engine.planChunkAll(chunkX, chunkZ).find((p) => p.structureId === id);
+      if (plan) found = plan;
     }
+  }
+  // A ring-placed structure (the stronghold) is nowhere near the first rows: ask locate instead.
+  if (!found) {
+    const located = engine.locate(id, 0, 0, { maxRadiusChunks: 400 });
+    if (located) found = { start: located.start, chunk: located.chunk };
   }
   if (!found) return null;
 

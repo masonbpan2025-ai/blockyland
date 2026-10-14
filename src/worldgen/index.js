@@ -46,6 +46,9 @@ import { generateFossil, realizeFossil } from './generators/fossil.js';
 import { generateGeode, realizeGeode } from './generators/geode.js';
 import { generateMineshaft, realizeMineshaft } from './generators/mineshaft.js';
 import { generateStronghold, realizeStronghold } from './generators/stronghold.js';
+import { generateFortress, realizeFortress } from './generators/fortress.js';
+import { generateEndSpikes, generatePodium, generatePlatform, realizeEndFeature } from './generators/endFeatures.js';
+import { generateVoidPlatform, realizeVoidPlatform } from './generators/voidPlatform.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -73,7 +76,12 @@ export const GENERATORS = {
   fossil: { generate: generateFossil, realize: realizeFossil },
   geode: { generate: generateGeode, realize: realizeGeode },
   mineshaft: { generate: generateMineshaft, realize: realizeMineshaft },
-  stronghold: { generate: generateStronghold, realize: realizeStronghold }
+  stronghold: { generate: generateStronghold, realize: realizeStronghold },
+  fortress: { generate: generateFortress, realize: realizeFortress },
+  endSpike: { generate: generateEndSpikes, realize: realizeEndFeature },
+  endPodium: { generate: generatePodium, realize: realizeEndFeature },
+  endPlatform: { generate: generatePlatform, realize: realizeEndFeature },
+  voidPlatform: { generate: generateVoidPlatform, realize: realizeVoidPlatform }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */
@@ -160,9 +168,36 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
     registry,
     placement: engine,
 
+    /**
+     * `/place structure`: this structure's start in this chunk regardless of where its set would place it, through
+     * the same generator and the same biome check ("There is no valid biome in this chunk to place the specified
+     * structure"). Returns { start } or { reason }.
+     */
+    generateAt(structureId, chunkX, chunkZ) {
+      const info = registry[structureId];
+      if (!info) return { reason: `Unknown structure '${structureId}'` };
+      const implementation = info.implementation && GENERATORS[info.implementation];
+      if (!implementation) return { reason: `This game has no generator for ${structureId}` };
+      const startX = chunkX * 16 + 9; const startZ = chunkZ * 16 + 9;
+      const biome = biomeAt ? biomeAt(startX, startZ) : null;
+      if (info.biomes?.length && (!biome || !info.biomes.includes(biome))) return { reason: 'There is no valid biome in this chunk to place the specified structure' };
+      const set = getSetForStructure(structureId);
+      const start = implementation.generate({ seed, chunkX, chunkZ, structureId, context: { biomeAt, surfaceY, solidAt, seaLevel, info, set } });
+      if (!start) return { reason: 'Failed to place structure' };
+      start.set = set;
+      start.terrainAdaptation = info.terrainAdaptation || TerrainAdaptation.NONE;
+      start.generationStep = info.step || 'surface_structures';
+      return { start };
+    },
+
     /** Plan the structure whose start lives in this chunk, or null. */
     planChunk(chunkX, chunkZ) {
       return engine.planChunk(chunkX, chunkZ);
+    },
+
+    /** Every set's start in this chunk (vanilla places each set on its own). */
+    planChunkAll(chunkX, chunkZ) {
+      return engine.planChunkAll(chunkX, chunkZ);
     },
 
     /** Plan every start whose origin falls in the given chunk rectangle, in vanilla's scan order. */
@@ -170,8 +205,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
       const starts = [];
       for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
         for (let chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-          const plan = engine.planChunk(chunkX, chunkZ);
-          if (plan) starts.push(plan);
+          starts.push(...engine.planChunkAll(chunkX, chunkZ));
         }
       }
       return starts;

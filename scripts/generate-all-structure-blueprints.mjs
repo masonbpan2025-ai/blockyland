@@ -21,9 +21,9 @@ export function slug(text) {
 export function collectBlueprints() {
   const out = {};
   for (const dir of readdirSync(WIKI)) {
-    if (!dir.endsWith('_Structure') || dir.startsWith('Village')) continue;
-    const structure = slug(dir.replace(/_Structure$/, ''));
-    const files = [[join(WIKI, dir, 'wiki.txt'), null]];
+    if (!/_Structure(_Blueprints)?$/.test(dir) || dir.startsWith('Village')) continue;
+    const structure = slug(dir.replace(/_Structure(_Blueprints)?$/, ''));
+    const files = existsSync(join(WIKI, dir, 'wiki.txt')) ? [[join(WIKI, dir, 'wiki.txt'), null]] : [];
     if (existsSync(join(WIKI, dir, 'sub'))) for (const f of readdirSync(join(WIKI, dir, 'sub'))) files.push([join(WIKI, dir, 'sub', f), f.replace(/\.txt$/, '')]);
     for (const [file, subName] of files) {
       const text = readFileSync(file, 'utf8');

@@ -22,6 +22,67 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { buildGameBlockIndex, normaliseBlockName, NAME_ALIASES } from './blockNameMatch.js';
 
+/** The Java commands vanillaCommands.js implements, as rows of the table below. */
+export const VANILLA_COMMAND_ROWS = [
+  { name: 'kill', args: '[<targets>]', level: 2, gate: true, help: 'Kill entities (the player, or @e[type=...])' },
+  { name: 'effect', args: 'give <targets> <effect> [<seconds>|infinite] [<amplifier>] | clear [<targets>] [<effect>]', level: 2, gate: true, help: 'Add or remove status effects' },
+  { name: 'enchant', args: '<targets> <enchantment> [<level>]', level: 2, gate: true, help: 'Enchant the held item' },
+  { name: 'experience', args: '(add|set|query) <targets> [<amount>] [levels|points]', level: 2, gate: true, aliases: ['xp'], help: 'Add, set or query experience' },
+  { name: 'difficulty', args: '[peaceful|easy|normal|hard]', level: 2, gate: true, help: 'Set or show the difficulty' },
+  { name: 'defaultgamemode', args: '<mode>', level: 2, gate: true, help: 'Set the default game mode' },
+  { name: 'gamerule', args: '<rule> [<value>]', level: 2, gate: true, help: 'Set or query a game rule' },
+  { name: 'fill', args: '<from> <to> <block> [destroy|hollow|keep|outline|replace [<filter>]]', level: 2, gate: true, help: 'Fill a region with a block' },
+  { name: 'clone', args: '<begin> <end> <destination> [replace|masked] [force|move|normal]', level: 2, gate: true, help: 'Copy blocks from one region to another' },
+  { name: 'say', args: '<message>', level: 2, gate: true, help: 'Send a message in chat' },
+  { name: 'me', args: '<action>', level: 0, help: 'Describe an action in chat' },
+  { name: 'msg', args: '<targets> <message>', level: 0, aliases: ['tell', 'w'], help: 'Send a private message' },
+  { name: 'list', args: '', level: 0, help: 'List the players' },
+  { name: 'tellraw', args: '<targets> <message>', level: 2, gate: true, help: 'Show a JSON text message' },
+  { name: 'title', args: '<targets> (clear|reset|title|subtitle|actionbar|times) ...', level: 2, gate: true, help: 'Show a title on screen' },
+  { name: 'seed', args: '', level: 0, help: 'Show the world seed' },
+  { name: 'setworldspawn', args: '[<pos>] [<angle>]', level: 2, gate: true, help: 'Set the world spawn' },
+  { name: 'spawnpoint', args: '[<targets>] [<pos>] [<angle>]', level: 2, gate: true, help: 'Set the player\'s spawn point' },
+  { name: 'random', args: '(value|roll) <range>', level: 0, help: 'Draw a random number' },
+  { name: 'damage', args: '<target> <amount> [<damageType>]', level: 2, gate: true, help: 'Damage entities' },
+  { name: 'ride', args: '<target> (mount <vehicle>|dismount)', level: 2, gate: true, help: 'Mount or dismount a vehicle' },
+  { name: 'rotate', args: '<target> <yaw> <pitch>', level: 2, gate: true, help: 'Turn the player' },
+  { name: 'spreadplayers', args: '<x> <z> <spreadDistance> <maxRange> <respectTeams> <targets>', level: 2, gate: true, help: 'Move the player to a random surface spot' },
+];
+
+/** The Java commands advancedCommands.js implements (round 4), with Java's OP levels (Commands page). */
+export const ADVANCED_COMMAND_ROWS = [
+  { name: 'scoreboard', args: '(objectives|players) ...', level: 2, gate: true, help: 'Manage scoreboard objectives and scores' },
+  { name: 'tag', args: '<targets> (add|remove|list) [<name>]', level: 2, gate: true, help: 'Manage entity tags' },
+  { name: 'team', args: '(add|remove|empty|join|leave|list|modify) ...', level: 2, gate: true, help: 'Manage teams' },
+  { name: 'teammsg', args: '<message>', level: 0, aliases: ['tm'], help: 'Message your team' },
+  { name: 'trigger', args: '<objective> [add|set <value>]', level: 0, help: 'Set a trigger objective' },
+  { name: 'execute', args: '... run <command>', level: 2, gate: true, help: 'Run a command as, at, if, unless or store' },
+  { name: 'function', args: '<name>', level: 2, gate: true, help: 'Run a data-pack function' },
+  { name: 'schedule', args: '(function <function> <time> [append|replace]|clear <function>)', level: 2, gate: true, help: 'Run a function later' },
+  { name: 'return', args: '(<value>|fail|run <command>)', level: 2, gate: true, help: 'Return from a function' },
+  { name: 'reload', args: '', level: 2, gate: true, help: 'Reload the data packs' },
+  { name: 'datapack', args: '(list|enable|disable) ...', level: 2, gate: true, help: 'Manage data packs' },
+  { name: 'data', args: '(get|merge|modify|remove) (entity|block|storage) ...', level: 2, gate: true, help: 'Read and change entity, block and storage data' },
+  { name: 'attribute', args: '<target> <attribute> (get|base|modifier) ...', level: 2, gate: true, help: 'Query or change an attribute' },
+  { name: 'bossbar', args: '(add|remove|list|get|set) ...', level: 2, gate: true, help: 'Manage custom boss bars' },
+  { name: 'worldborder', args: '(add|center|damage|get|set|warning) ...', level: 2, gate: true, help: 'Manage the world border' },
+  { name: 'tick', args: '(query|rate|freeze|unfreeze|step|sprint) ...', level: 3, gate: true, help: 'Control the tick rate' },
+  { name: 'forceload', args: '(add|remove|query) ...', level: 2, gate: true, help: 'Keep chunks loaded' },
+  { name: 'fillbiome', args: '<from> <to> <biome> [replace <filter>]', level: 2, gate: true, help: 'Change the biome of a region' },
+  { name: 'item', args: '(replace|modify) (entity|block) ...', level: 2, gate: true, help: 'Replace or modify items in slots' },
+  { name: 'loot', args: '(give|insert|spawn|replace) ... (loot|kill|mine) ...', level: 2, gate: true, help: 'Roll loot into the world or an inventory' },
+  { name: 'place', args: '(feature|jigsaw|structure|template) ...', level: 2, gate: true, help: 'Place a feature or structure' },
+  { name: 'particle', args: '<name> [<pos>] ...', level: 2, gate: true, help: 'Show particles' },
+  { name: 'playsound', args: '<sound> [<source>] [<targets>] ...', level: 2, gate: true, help: 'Play a sound' },
+  { name: 'stopsound', args: '<targets> [<source>] [<sound>]', level: 2, gate: true, help: 'Stop sounds' },
+  { name: 'recipe', args: '(give|take) <targets> (<recipe>|*)', level: 2, gate: true, help: 'Give or take recipes' },
+  { name: 'advancement', args: '(grant|revoke) <targets> ...', level: 2, gate: true, help: 'Grant or revoke advancements' },
+  { name: 'spectate', args: '[<target>] [<player>]', level: 2, gate: true, help: 'Spectate an entity (Spectator mode)' },
+  { name: 'kick', args: '<targets> [<reason>]', level: 3, gate: true, help: 'Kick a player' },
+  { name: 'debug', args: '(start|stop|function <name>)', level: 3, gate: true, help: 'Profile the game' },
+  { name: 'jfr', args: '(start|stop)', level: 4, gate: true, help: 'Record a performance profile' },
+];
+
 /**
  * The commands this game implements, with the arguments vanilla gives them.
  *
@@ -41,9 +102,9 @@ export const COMMANDS = [
   { name: 'give', args: '<targets> <item> [<count>]', level: 2, gate: true, help: 'Give an item to a player' },
   { name: 'summon', args: '<entity>', level: 2, gate: true, help: 'Spawn a mob' },
   { name: 'setblock', args: '<x> <y> <z> <block>', level: 2, gate: true, help: 'Place a block' },
-  { name: 'time', args: 'set <day|night>', level: 2, gate: true, help: 'Change world time' },
+  { name: 'time', args: 'set (<time>|day|noon|night|midnight) | add <time> | query (daytime|gametime|day)', level: 2, gate: true, help: 'Change or query the world time' },
   { name: 'weather', args: '<clear|rain|thunder> [seconds]', level: 2, gate: true, help: 'Change weather (rain becomes snow in cold biomes)' },
-  { name: 'gamemode', args: '<creative|survival>', level: 2, gate: true, help: 'Switch game mode' },
+  { name: 'gamemode', args: '<survival|creative|adventure|spectator>', level: 2, gate: true, help: 'Switch game mode' },
   { name: 'locate', args: '[structure] [id]', level: 2, gate: true, help: 'Find the nearest generated structure' },
   { name: 'teleport', args: '<x> <y> <z> | <structure>', level: 2, gate: true, aliases: ['tp'], help: 'Teleport to coordinates, or to the nearest structure (e.g. swamp_hut)' },
   { name: 'show_mobs', args: '', level: 2, gate: true, help: 'Why you may see no mobs (Creative)' },
@@ -53,12 +114,17 @@ export const COMMANDS = [
   { name: 'save', args: '[name]', level: 2, help: 'Save the map to this computer' },
   { name: 'load', args: '<name>', level: 2, help: 'Load a saved map' },
   { name: 'maps', args: '', level: 2, help: 'Open the map manager', aliases: ['saves'] },
-  { name: 'clear', args: '', level: 0, help: 'Clear the chat window' },
+  // Java's /clear empties the player's inventory (Commands/clear); the chat window is cleared by /clearchat.
+  { name: 'clear', args: '[<targets>] [<item>] [<maxCount>]', level: 2, gate: true, help: 'Clear items from the inventory' },
+  { name: 'clearchat', args: '', level: 0, help: 'Clear the chat window' },
   { name: 'help', args: '', level: 0, help: 'List the commands' },
   // Not gated: this toggles the World Agent between the API and its offline presets. It is a setting for the
   // player's own key rather than a way to change the world, and gating it would lock someone out of it.
   { name: 'offline', args: '', level: 2, help: 'Toggle the World Agent offline' },
   { name: 'redstone', args: '<demo|game|list> [...]', level: 2, gate: true, help: 'Build a redstone example' },
+  // Java's commands added by the systems parity audit (vanillaCommands.js runs them).
+  ...VANILLA_COMMAND_ROWS,
+  ...ADVANCED_COMMAND_ROWS,
 ];
 
 /** Look a command up by name or alias, without the leading slash. */

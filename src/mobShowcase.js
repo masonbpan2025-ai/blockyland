@@ -13,6 +13,7 @@ import { BLOCKS } from './blocks.js';
 import { universalScenarios } from './mobBehaviorScenarios.js';
 import { specificScenarios } from './mobSpecificScenarios.js';
 import { polarBearMotionScenarios } from './polarBearMotionScenarios.js';
+import { quadrupedMotionScenarios } from './quadrupedMotionScenarios.js';
 
 export function studioCatalog(library) {
   const existing=library.getAllMobs();
@@ -185,6 +186,7 @@ function baseScenarios(type,definition=null) {
 const CURATED=new Set('wither_skeleton squid glow_squid blaze strider horse donkey mule zombified_piglin zombie_pigman'.split(' '));
 export function mobScenarios(type,definition=null) {
   const own=baseScenarios(type,definition);
+  own.splice(Math.max(0,own.length-2),0,...quadrupedMotionScenarios(type));
   if(type==='polar_bear')own.unshift(...polarBearMotionScenarios());
   if(typeof type!=='string')return own;
   // Mobs with a hand-built suite keep exactly that suite: each of those is already 20-37 scenarios, all green.

@@ -5,6 +5,8 @@
 
 import * as THREE from 'three';
 import { BLOCKS as B, BLOCK_DEFS, stackLimitFor } from './blocks.js';
+import { waterSurfaceAt, isWaterCell } from './waterContact.js';
+import { createBoatModel, boatHasChest } from './boatModel.js';
 
 const DIRECTIONS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 
@@ -52,6 +54,7 @@ export class RailSystem {
     this.game = game;
     this.carts = [];
     this.boats = [];
+    this.boatAccumulator = 0;
     this.time = 0;
     this.listeners = new Set();
   }
@@ -567,15 +570,17 @@ export class RailSystem {
    * Supports 2-passenger rowing, high-speed gliding on ice, and Boat with Chest.
    */
   spawnBoat(p, { rider = null, subType = 'oak_boat', hasChest = false } = {}) {
-    const at = p.map(v => Math.floor(v));
-    const isChestBoat = hasChest || subType === 'chest_boat' || subType === 'oak_chest_boat';
-    const meshObj = this.#boatMesh(isChestBoat);
+    const isChestBoat = hasChest || boatHasChest(subType);
+    const meshObj = createBoatModel(subType, this.game?.textures, isChestBoat);
+    const px = Number.isInteger(p[0]) ? p[0]+0.5 : p[0];
+    const pz = Number.isInteger(p[2]) ? p[2]+0.5 : p[2];
+    const water = waterSurfaceAt(this.world, px, p[1], pz);
     const boat = {
       kind: 'boat',
-      subType: isChestBoat ? 'chest_boat' : 'oak_boat',
+      subType,
       hasChest: isChestBoat,
       chestItems: isChestBoat ? new Array(27).fill(null) : null,
-      position: new THREE.Vector3(at[0] + 0.5, at[1] + 0.1, at[2] + 0.5),
+      position: new THREE.Vector3(px, water ? this.#boatWaterY(water) : p[1], pz),
       velocity: new THREE.Vector3(),
       yaw: 0,
       rider: rider || null,         // Seat 0 (primary driver/rower)
@@ -585,48 +590,14 @@ export class RailSystem {
       leftOar: meshObj?.leftOar || null,
       rightOar: meshObj?.rightOar || null
     };
+    boat.mesh?.position.copy(boat.position);
     if (boat.mesh && this.game?.scene) this.game.scene.add(boat.mesh);
     this.boats.push(boat);
     return boat;
   }
 
-  #boatMesh(hasChest = false) {
-    if (typeof document === 'undefined') return null;
-    const group = new THREE.Group();
-    // Wooden boat hull
-    const hull = new THREE.Mesh(
-      new THREE.BoxGeometry(1.0, 0.35, 1.6),
-      new THREE.MeshLambertMaterial({ color: 0xb45309 })
-    );
-    group.add(hull);
-
-    // Left and right oars
-    const oarGeo = new THREE.BoxGeometry(0.1, 0.1, 0.9);
-    const oarMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
-    const leftOar = new THREE.Mesh(oarGeo, oarMat);
-    leftOar.position.set(-0.6, 0.15, 0.1);
-    leftOar.rotation.z = 0.25;
-    group.add(leftOar);
-
-    const rightOar = new THREE.Mesh(oarGeo, oarMat);
-    rightOar.position.set(0.6, 0.15, 0.1);
-    rightOar.rotation.z = -0.25;
-    group.add(rightOar);
-
-    if (hasChest) {
-      const chest = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.4, 0.5),
-        new THREE.MeshLambertMaterial({ color: 0x92400e })
-      );
-      chest.position.set(0, 0.3, 0.4);
-      group.add(chest);
-    }
-
-    return { group, leftOar, rightOar };
-  }
-
   #getSurfaceProperties(boat) {
-    const p = [Math.floor(boat.position.x), Math.floor(boat.position.y), Math.floor(boat.position.z)];
+    const p = [Math.floor(boat.position.x), Math.floor(boat.position.y + 0.13), Math.floor(boat.position.z)];
     const under = [p[0], Math.floor(boat.position.y - 0.2), p[2]];
     const vAt = this.world.getVoxel(...p);
     const vUnder = this.world.getVoxel(...under);
@@ -640,29 +611,40 @@ export class RailSystem {
     if (vAt === B.ICE || vUnder === B.ICE) {
       return { type: 'ice', maxSpeed: BOAT_ICE_MAX_SPEED, accel: BOAT_ICE_ACCEL, drag: BOAT_ICE_DRAG };
     }
-    if (vAt === B.WATER || vUnder === B.WATER || this.isWater(p) || this.isWater(under)) {
+    if (isWaterCell(vAt) || isWaterCell(vUnder)) {
       return { type: 'water', maxSpeed: BOAT_WATER_MAX_SPEED, accel: BOAT_WATER_ACCEL, drag: BOAT_WATER_DRAG };
     }
     return { type: 'land', maxSpeed: BOAT_LAND_MAX_SPEED, accel: BOAT_LAND_ACCEL, drag: BOAT_LAND_DRAG };
   }
 
   updateBoats(dt) {
+    if (!(dt > 0) || !Number.isFinite(dt)) return;
+    this.boatAccumulator += Math.min(dt, 0.25);
+    while (this.boatAccumulator + 1e-9 >= 1/60) {
+      this.boatAccumulator -= 1/60;
+      this.#stepBoats(1/60);
+    }
+  }
+
+  #stepBoats(dt) {
     for (const boat of this.boats) {
       const cell = [Math.floor(boat.position.x), Math.floor(boat.position.y), Math.floor(boat.position.z)];
       const props = this.#getSurfaceProperties(boat);
       boat.surface = props.type;
 
       // Surface height settling (water or solid ice/ground)
-      const surfaceY = this.#surfaceY(cell);
+      const water = waterSurfaceAt(this.world, boat.position.x, boat.position.y + 0.13, boat.position.z);
+      const surfaceY = water ? this.#boatWaterY(water) : this.#surfaceY(cell);
       if (surfaceY !== null) {
-        boat.position.y += (surfaceY - boat.position.y) * Math.min(1, dt * 5);
+        boat.position.y += (surfaceY - boat.position.y) * (1 - Math.exp(-5 * dt));
         boat.velocity.y = 0;
       } else {
         boat.velocity.y -= 9.8 * dt;
       }
 
       // Steering & Rowing from the rider
-      const input = this.game?.input || this.game?.controls;
+      const keys = boat.rider?.keys;
+      const input = this.game?.input || this.game?.controls || (keys ? { forward: keys.KeyW, backward: keys.KeyS, left: keys.KeyA, right: keys.KeyD } : null);
       if (boat.rider && input) {
         if (input.left) boat.yaw += 2.4 * dt;
         if (input.right) boat.yaw -= 2.4 * dt;
@@ -684,16 +666,22 @@ export class RailSystem {
         boat.velocity.x *= props.maxSpeed / horizontal;
         boat.velocity.z *= props.maxSpeed / horizontal;
       }
-      boat.velocity.x *= props.drag;
-      boat.velocity.z *= props.drag;
+      boat.velocity.x *= Math.pow(props.drag, dt * 20);
+      boat.velocity.z *= Math.pow(props.drag, dt * 20);
 
+      const previous = boat.position.clone();
       boat.position.addScaledVector(boat.velocity, dt);
 
-      // Solid block collision
-      const ahead = [Math.floor(boat.position.x), Math.floor(boat.position.y + 0.1), Math.floor(boat.position.z)];
-      const id = this.world.getVoxel(...ahead);
-      if (id !== B.AIR && id !== B.WATER && id !== B.ICE && id !== B.PACKED_ICE && id !== B.BLUE_ICE && BLOCK_DEFS[id]?.solid !== false) {
-        boat.velocity.set(0, 0, 0);
+      // Sweep the hull, not just its centre, so banks stop the boat before clipping.
+      const distance = boat.position.distanceTo(previous);
+      const next = boat.position.clone();
+      for (let i = 1, steps = Math.max(1, Math.ceil(distance / 0.1)); i <= steps; i++) {
+        boat.position.copy(previous).lerp(next, i / steps);
+        if (this.#boatBlocked(boat)) {
+          boat.position.copy(previous).lerp(next, (i-1)/steps);
+          boat.velocity.set(0, 0, 0);
+          break;
+        }
       }
 
       // Visual updates & oar animations
@@ -737,13 +725,35 @@ export class RailSystem {
     }
   }
 
+  #boatBlocked(boat) {
+    const p = boat.position;
+    const c = Math.abs(Math.cos(boat.yaw)), s = Math.abs(Math.sin(boat.yaw));
+    const rx = c*0.6875 + s*0.9375, rz = s*0.6875 + c*0.9375;
+    for (let x=Math.floor(p.x-rx+0.02); x<=Math.floor(p.x+rx-0.02); x++) {
+      for (let z=Math.floor(p.z-rz+0.02); z<=Math.floor(p.z+rz-0.02); z++) {
+        for (let y=Math.floor(p.y+0.15); y<=Math.floor(p.y+0.55); y++) {
+          const id=this.world.getVoxel(x,y,z);
+          if (id!==B.AIR && !isWaterCell(id) && BLOCK_DEFS[id]?.solid!==false) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  #boatWaterY(water) {
+    const below = this.world.getVoxel(water.x, water.y - 1, water.z);
+    const floor = below !== B.AIR && !isWaterCell(below) && BLOCK_DEFS[below]?.solid !== false ? water.y : -Infinity;
+    // A thin stream over solid ground cannot accommodate the full draft.
+    return Math.max(water.surfaceY - 0.13, floor);
+  }
+
   #surfaceY(p) {
-    for (let y = Math.min(63, p[1] + 2); y >= Math.max(0, p[1] - 2); y--) {
+    for (let y = Math.min(63, p[1]); y >= Math.max(0, p[1] - 1); y--) {
       const v = this.world.getVoxel(p[0], y, p[2]);
       if (v === B.WATER && this.world.getVoxel(p[0], y + 1, p[2]) !== B.WATER) {
-        return y + 0.05;
+        return this.#boatWaterY(waterSurfaceAt(this.world, p[0]+0.5, y, p[2]+0.5));
       }
-      if (v !== B.AIR && v !== B.WATER && this.world.getVoxel(p[0], y + 1, p[2]) === B.AIR) {
+      if (v !== B.AIR && v !== B.WATER && BLOCK_DEFS[v]?.solid !== false && this.world.getVoxel(p[0], y + 1, p[2]) === B.AIR) {
         return y + 1.0;
       }
     }
@@ -759,8 +769,15 @@ export class RailSystem {
   }
 
   remove(vehicle) {
+    if (this.game?.riding === vehicle) { this.game.dismount?.(); this.game.riding = null; }
     if(vehicle.rider?.vehicle===vehicle){vehicle.rider.vehicle=null;vehicle.rider=null;}
     if (vehicle.mesh && this.game?.scene) this.game.scene.remove(vehicle.mesh);
+    if (vehicle.kind === 'boat') {
+      const materials = new Set();
+      vehicle.mesh?.traverse(part => { part.geometry?.dispose(); if (part.material) materials.add(part.material); });
+      for (const material of materials) material.dispose();
+      if (vehicle.passenger) { vehicle.passenger.isRiding = false; vehicle.passenger.ridingBoat = null; vehicle.passenger = null; }
+    }
     let i = this.carts.indexOf(vehicle);
     if (i >= 0) this.carts.splice(i, 1);
     i = this.boats.indexOf(vehicle);
@@ -771,6 +788,7 @@ export class RailSystem {
     for (const cart of [...this.carts, ...this.boats]) this.remove(cart);
     this.carts = [];
     this.boats = [];
+    this.boatAccumulator = 0;
     this.time = 0;
   }
 

@@ -18,7 +18,9 @@ export function cellsOf(data) {
     const [x, y, z, p] = record.split(',').map(Number);
     const state = data.palette[p];
     // A drawing's door top is the door's upper half (its props already say `half: upper`).
-    const name = state.Name.replace('minecraft:', '').replace(/_door_top$/, '_door');
+    // ...and a few drawing names are not the block's id.
+    const raw = state.Name.replace('minecraft:', '').replace(/_door_top$/, '_door');
+    const name = { redstone_dust: 'redstone_wire', block_of_gold: 'gold_block', block_of_diamond: 'diamond_block', farmland_moist: 'farmland', monster_spawner: 'spawner' }[raw] ?? raw;
     return { x, y, z, name, props: state.Properties ?? null };
   });
 }

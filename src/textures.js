@@ -4,14 +4,19 @@ import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { parseColouredName, shadedHex } from './colourPalette.js';
 import { createWaterMaterial } from './water.js';
 import { prepareWaterMaterial } from './waterPass.js';
+import { resourcePackManager } from './resourcePackManager.js';
 
 export class TextureManager {
   constructor() {
-    this.atlasCanvas = document.createElement('canvas');
+    this.atlasCanvas = typeof document !== 'undefined'
+      ? document.createElement('canvas')
+      : { width: 512, height: 512, getContext: () => null };
     this.atlasCanvas.width = 512;
     this.atlasCanvas.height = 512;
-    this.ctx = this.atlasCanvas.getContext('2d');
-    this.ctx.imageSmoothingEnabled = false;
+    this.ctx = this.atlasCanvas && typeof this.atlasCanvas.getContext === 'function'
+      ? this.atlasCanvas.getContext('2d')
+      : null;
+    if (this.ctx) this.ctx.imageSmoothingEnabled = false;
 
     this.tileSize = 16;
     this.atlasGridSize = 32; // 32x32 tiles of 16x16 = 512x512 = 1024 tiles capacity
@@ -29,6 +34,18 @@ export class TextureManager {
   }
 
   async init() {
+    // 0. Set dynamic tile size based on active resource packs (e.g. 64 for Faithful 64x, 16 for vanilla)
+    this.tileSize = resourcePackManager.getActiveTileSize();
+    const canvasDim = this.atlasGridSize * this.tileSize;
+    if (this.atlasCanvas.width !== canvasDim || this.atlasCanvas.height !== canvasDim) {
+      this.atlasCanvas.width = canvasDim;
+      this.atlasCanvas.height = canvasDim;
+      this.ctx = this.atlasCanvas && typeof this.atlasCanvas.getContext === 'function'
+        ? this.atlasCanvas.getContext('2d')
+        : null;
+      if (this.ctx) this.ctx.imageSmoothingEnabled = false;
+    }
+
     // 1. Collect all unique texture filenames needed by blocks
     const textureNames = new Set();
     for (const id in BLOCK_DEFS) {
@@ -90,6 +107,9 @@ export class TextureManager {
 
     // 5. Load block break destroy stages (0-9)
     await this.loadDestroyStages();
+
+    // 6. Hook resource pack reload listener
+    resourcePackManager.onChange(() => this.rebuildAtlas());
   }
 
   update(dt, sunLight, skyColor, fog) {
@@ -133,7 +153,7 @@ export class TextureManager {
     const renderer=this.renderer;
     if(!renderer?.copyTextureToTexture||!this.atlasTexture||!renderer.properties?.get(this.atlasTexture)?.__webglTexture)return false;
     try{
-      if(!this.lavaTileCanvas){
+      if(!this.lavaTileCanvas || this.lavaTileCanvas.width !== this.tileSize){
         this.lavaTileCanvas=document.createElement('canvas');this.lavaTileCanvas.width=this.lavaTileCanvas.height=this.tileSize;
         this.lavaTileCtx=this.lavaTileCanvas.getContext('2d');
         this.lavaTileTexture=new THREE.CanvasTexture(this.lavaTileCanvas);this.lavaTileTexture.colorSpace=THREE.SRGBColorSpace;
@@ -173,6 +193,10 @@ export class TextureManager {
     this.tileCoords[fileName] = { col, row, u0, v0, u1, v1 };
 
     return new Promise((resolve) => {
+      if (typeof Image === 'undefined') {
+        resolve();
+        return;
+      }
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
@@ -180,7 +204,7 @@ export class TextureManager {
         // If image is a vertical animation strip (e.g. water_still 16x512, lava_still 16x320),
         // take only the first square frame (0, 0, img.width, img.width) to avoid squashing 32 frames!
         const srcHeight = Math.min(img.width, img.height);
-        this.ctx.drawImage(img, 0, 0, img.width, srcHeight, x, y, this.tileSize, this.tileSize);
+        if (this.ctx) this.ctx.drawImage(img, 0, 0, img.width, srcHeight, x, y, this.tileSize, this.tileSize);
         resolve();
       };
       img.onerror = () => {
@@ -188,11 +212,117 @@ export class TextureManager {
         this.drawFallbackTile(fileName, x, y);
         resolve();
       };
-      img.src = `/assets/blocks/${fileName}`;
+      const customUrl = resourcePackManager.resolveBlockTexture(fileName);
+      img.src = customUrl || `/assets/blocks/${fileName}`;
     });
   }
 
+  /**
+   * Rebuilds and repaints the entire texture atlas from active resource packs,
+   * preserving UV layout while updating visual graphics.
+   * Dynamically resizes atlas canvas between 16x (512x512) and 64x (2048x2048) or custom HD.
+   * When packs are deactivated/turned off, resizes back to 512x512 to ensure zero performance degradation.
+   */
+  async rebuildAtlas() {
+    const newTileSize = resourcePackManager.getActiveTileSize();
+    const sizeChanged = (newTileSize !== this.tileSize);
+
+    if (sizeChanged) {
+      this.tileSize = newTileSize;
+      const canvasDim = this.atlasGridSize * this.tileSize;
+      this.atlasCanvas.width = canvasDim;
+      this.atlasCanvas.height = canvasDim;
+      this.ctx = this.atlasCanvas && typeof this.atlasCanvas.getContext === 'function'
+        ? this.atlasCanvas.getContext('2d')
+        : null;
+      if (this.ctx) this.ctx.imageSmoothingEnabled = false;
+
+      // Recalculate texel-center inset for each tileCoord
+      const inset = 0.5 / (this.atlasGridSize * this.tileSize);
+      for (const fileName in this.tileCoords) {
+        const t = this.tileCoords[fileName];
+        t.u0 = t.col / this.atlasGridSize + inset;
+        t.u1 = (t.col + 1) / this.atlasGridSize - inset;
+        t.v1 = 1.0 - (t.row / this.atlasGridSize) - inset;
+        t.v0 = 1.0 - ((t.row + 1) / this.atlasGridSize) + inset;
+      }
+      if (this.missingUV) {
+        this.missingUV.u0 = this.missingUV.col / this.atlasGridSize + inset;
+        this.missingUV.u1 = (this.missingUV.col + 1) / this.atlasGridSize - inset;
+        this.missingUV.v1 = 1.0 - (this.missingUV.row / this.atlasGridSize) - inset;
+        this.missingUV.v0 = 1.0 - ((this.missingUV.row + 1) / this.atlasGridSize) + inset;
+      }
+      if (this.lavaTileCanvas) {
+        this.lavaTileCanvas.width = this.tileSize;
+        this.lavaTileCanvas.height = this.tileSize;
+        this.lavaTileTexture = new THREE.CanvasTexture(this.lavaTileCanvas);
+        this.lavaTileTexture.colorSpace = THREE.SRGBColorSpace;
+      }
+    } else if (this.ctx) {
+      this.ctx.clearRect(0, 0, this.atlasCanvas.width, this.atlasCanvas.height);
+    }
+
+    const promises = [];
+    for (const fileName in this.tileCoords) {
+      const tile = this.tileCoords[fileName];
+      const x = tile.col * this.tileSize;
+      const y = tile.row * this.tileSize;
+      promises.push(new Promise((resolve) => {
+        if (typeof Image === 'undefined') {
+          resolve();
+          return;
+        }
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          if (fileName === 'lava_still.png') this.lavaImage = img;
+          const srcHeight = Math.min(img.width, img.height);
+          if (this.ctx) this.ctx.drawImage(img, 0, 0, img.width, srcHeight, x, y, this.tileSize, this.tileSize);
+          resolve();
+        };
+        img.onerror = () => {
+          this.drawFallbackTile(fileName, x, y);
+          resolve();
+        };
+        const customUrl = resourcePackManager.resolveBlockTexture(fileName);
+        img.src = customUrl || `/assets/blocks/${fileName}`;
+      }));
+    }
+    await Promise.all(promises);
+
+    if (this.atlasTexture) {
+      if (sizeChanged) {
+        this.atlasTexture.dispose();
+        this.atlasTexture = new THREE.CanvasTexture(this.atlasCanvas);
+        this.atlasTexture.magFilter = THREE.NearestFilter;
+        this.atlasTexture.minFilter = THREE.NearestFilter;
+        this.atlasTexture.colorSpace = THREE.SRGBColorSpace;
+        this.atlasTexture.generateMipmaps = false;
+
+        if (this.opaqueMaterial) {
+          this.opaqueMaterial.map = this.atlasTexture;
+          this.opaqueMaterial.needsUpdate = true;
+        }
+        if (this.transparentMaterial) {
+          this.transparentMaterial.map = this.atlasTexture;
+          this.transparentMaterial.needsUpdate = true;
+        }
+        if (this.lightMaterial) {
+          this.lightMaterial.map = this.atlasTexture;
+          this.lightMaterial.needsUpdate = true;
+        }
+        if (this.lightDistanceMaterial) {
+          this.lightDistanceMaterial.map = this.atlasTexture;
+          this.lightDistanceMaterial.needsUpdate = true;
+        }
+      } else {
+        this.atlasTexture.needsUpdate = true;
+      }
+    }
+  }
+
   drawFallbackTile(name, x, y) {
+    if (!this.ctx) return;
     const s = this.tileSize;
     const n = name.toLowerCase();
 

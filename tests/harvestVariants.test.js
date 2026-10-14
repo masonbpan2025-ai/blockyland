@@ -160,7 +160,7 @@ test('every block the game implements now answers the hardness question', () => 
 
   // And the three named exemptions are still real blocks, so the list cannot rot into cover for a gap.
   const check = RESOURCE_CHECKS.find((c) => c.id === 'harvest-data');
-  for (const name of ['pressure_plate', 'sulfur_block', 'dried_ghast']) {
+  for (const name of ['pressure_plate', 'sulfur_block', 'dried_ghast', 'firefly_bush']) {
     const constant = name.toUpperCase();
     assert.equal(typeof BLOCKS[constant], 'number', `${name} is exempted but is not a block`);
     const entry = [...reg.entries.values()].find((e) => e.blockAliases?.includes(name));

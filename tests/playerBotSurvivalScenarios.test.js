@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { PLATFORM, regenerateEndPlatform } from '../src/worldgen/generators/endFeatures.js';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { Player } from '../src/player.js';
@@ -131,9 +132,7 @@ export function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
     if (targetPos) {
       player.position.set(targetPos.x, targetPos.y, targetPos.z);
     }
-    if (dim === 'the_end') {
-      buildEndPlatform(world, Math.floor(player.position.x), Math.floor(player.position.y) - 1, Math.floor(player.position.z), 12);
-    }
+    if (dim === 'the_end') regenerateEndPlatform(world, BLOCKS);
   };
 
   game.updateEndPortalTravel = (dt) => {
@@ -1089,7 +1088,8 @@ test('Survival Scenario 12: End Portal frame construction, eye insertion, activa
   assert.equal(report.ok, true, `Scenario failed: ${JSON.stringify(report)}`);
   assert.equal(report.checks.every(c => c.ok), true);
   assert.equal(f.game.currentDimension, 'the_end', 'Bot should have traveled through portal to the End');
-  assert.equal(f.world.getVoxel(0, 32, 0), BLOCKS.END_STONE, 'Central End platform should be generated');
+  // The arrival is the wiki's obsidian End platform, regenerated as the player enters.
+  assert.equal(f.world.getVoxel(PLATFORM.x, PLATFORM.y, PLATFORM.z), BLOCKS.OBSIDIAN, 'the End platform should be generated');
 });
 
 test('Survival Scenario 13: Brewing functionality in Creative mode (alchemy pipeline from water bottle to awkward and effect potions)', async () => {

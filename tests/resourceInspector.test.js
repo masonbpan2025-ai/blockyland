@@ -738,7 +738,8 @@ test('a block that declares no base drop does not drop itself', () => {
     }
   }
   // And the specific items this repaired are attributed to the block that drops them.
-  for (const [item, block] of [['vine', 'Vine'], ['cocoa_beans', 'Cocoa'], ['sweet_berry_bush', 'Sweet Berry Bush'],
+  // A broken sweet berry bush gives sweet berries (wiki: "2-3" from a mature bush), not itself.
+  for (const [item, block] of [['vine', 'Vine'], ['cocoa_beans', 'Cocoa'], ['sweet_berries', 'Sweet Berry Bush'],
     ['glow_lichen', 'Glow Lichen'], ['nether_sprouts', 'Nether Sprouts'], ['beetroot_seeds', 'Beetroots']]) {
     const entry = resolveResource(item, reg);
     assert.ok(entry, `${item} should be registered`);

@@ -64,7 +64,7 @@ export function enderDragonDrops(mob) {
 export function enderDragonXp(mob, killedByPlayer = true) {
   if (!isEnderDragon(mob)) return 0;
   // First dragon kill yields 12,000 XP
-  return ENDER_DRAGON_XP;
+  return mob?.endRepeatFight ? 500 : ENDER_DRAGON_XP;
 }
 
 /**
@@ -77,7 +77,7 @@ export function onCrystalDestroyed(manager, crystal) {
   const dragon = manager.enderDragon || manager.mobs?.find(m => isEnderDragon(m) && m.health > 0);
   if (dragon && dragon.mesh) {
     const dist = dragon.mesh.position.distanceTo(crystal.position);
-    if (dist <= 38.0) {
+    if (dist <= 38.0 && (!dragon.endEncounterManaged || dragon.healingCrystal===crystal)) {
       backlashDamage = ENDER_DRAGON_CRYSTAL_BACKLASH;
       dragon.health = Math.max(0, dragon.health - backlashDamage);
       if (manager.spawnParticleBurst) {
@@ -124,24 +124,18 @@ export function flyDragonTowards(dragon, tx, ty, tz, speed) {
 export function updateEnderDragonAI(manager, dragon, dt, player) {
   if (!isEnderDragon(dragon) || dragon.health <= 0) return false;
   const difficulty = manager.game?.difficulty ?? 'normal';
-  if (difficulty === 'peaceful') return false;
 
   // Track healing from End Crystals
   let isBeingHealed = false;
   const crystals = manager.endCrystals || manager.bossFightManager?.endCrystals || [];
-  for (const c of crystals) {
-    if (c.alive && !c.exploded) {
-      if (c.core) c.core.rotation.y += dt * 3.0;
-      const dist = dragon.mesh.position.distanceTo(c.position);
-      if (dist < 38.0) {
-        isBeingHealed = true;
-        dragon.health = Math.min(dragon.maxHealth, dragon.health + dt * 2.0);
-        if (manager.spawnParticleBurst) {
-          manager.spawnParticleBurst(dragon.mesh.position, 0xd946ef, 2);
-        }
-      }
-    }
+  let nearest=null,range=32;
+  for(const c of crystals)if(c.alive&&!c.exploded) {
+    if(c.core)c.core.rotation.y+=dt*3;
+    const distance=dragon.mesh.position.distanceTo(c.position);
+    if(distance<range){nearest=c;range=distance;}
   }
+  dragon.healingCrystal=nearest;
+  if(nearest){isBeingHealed=true;dragon.health=Math.min(dragon.maxHealth,dragon.health+dt*2);}
 
   // Update Boss Bar UI
   const hpPercent = dragon.health / dragon.maxHealth;
@@ -177,21 +171,25 @@ export function updateEnderDragonAI(manager, dragon, dt, player) {
     flyDragonTowards(dragon, targetX, targetY, targetZ, 14.0);
   } else if (dragon.dragonPhase === 'strafing') {
     dragon.isArrowImmune = false;
-    flyDragonTowards(dragon, pPos.x, pPos.y + 14, pPos.z, 18.0);
+    const attackable=player && !['creative','spectator'].includes(player.gamemode) && !player.isDead;
+    flyDragonTowards(dragon, attackable?pPos.x:0, attackable?pPos.y+14:48, attackable?pPos.z:0, 18.0);
     dragon.fireballCooldown = (dragon.fireballCooldown || 3.0) - dt;
-    if (dragon.fireballCooldown <= 0) {
+    if (dragon.fireballCooldown <= 0 && attackable && difficulty!=='peaceful') {
       dragon.fireballCooldown = 3.5;
       shootDragonBreathFireball(manager, dragon.mesh.position, pPos);
       if (manager.sounds?.playDragonRoar) manager.sounds.playDragonRoar();
     }
   } else if (dragon.dragonPhase === 'perching') {
     // Perch on center Exit Portal Bedrock Fountain (0, 31, 0)
-    flyDragonTowards(dragon, 0, 31, 0, 10.0);
+    const podiumY=manager.bossFightManager?.podiumY?.()??31;
+    flyDragonTowards(dragon, 0, podiumY+4, 0, 10.0);
     dragon.isArrowImmune = true; // Wiki: immune to arrows while perched!
 
     // Wing buffet knockback to nearby players
     const distToPlayer = dragon.mesh.position.distanceTo(pPos);
-    if (player && distToPlayer < 6.0) {
+    dragon.contactCooldown=Math.max(0,(dragon.contactCooldown??0)-dt);
+    if (player && !['creative','spectator'].includes(player.gamemode) && !player.isDead && distToPlayer < 6.0 && dragon.contactCooldown<=0) {
+      dragon.contactCooldown=.5;
       const dmg = enderDragonDamageFor(difficulty);
       player.takeDamage?.(dmg, dragon.mesh.position, 'dragon_wing');
       if (player.velocity) {

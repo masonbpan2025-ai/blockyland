@@ -103,8 +103,8 @@ test('standing on a pressure plate opens the floor trapdoor', () => {
   assert.equal(at(world, game.trapdoors[0]), B.OAK_TRAPDOOR_OPEN, 'the floor opens');
   assert.equal(at(world, game.trapdoors[1]), B.OAK_TRAPDOOR_OPEN, 'both halves of it');
 
-  // Step off and it closes again.
-  tick(world, 4, []);
+  // Step off and it closes again, once the plate's 20-game-tick hold has run out.
+  tick(world, 14, []);
   assert.equal(at(world, game.trapdoors[0]), B.OAK_TRAPDOOR, 'and closes when you step off');
 });
 

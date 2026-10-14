@@ -128,9 +128,21 @@ export const POTION_ITEMS = {
   potion_of_turtle_master_2: { name: 'Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
   splash_potion_of_turtle_master_2: { name: 'Splash Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
   lingering_potion_of_turtle_master_2: { name: 'Lingering Potion of the Turtle Master II', icon: '/assets/items/potion_of_turtle_master_2.png', type: 'potion', stackSize: 1 },
+  potion_of_oozing: { name: 'Potion of Oozing', icon: '/assets/items/potion_of_oozing.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_oozing: { name: 'Splash Potion of Oozing', icon: '/assets/items/potion_of_oozing.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_oozing: { name: 'Lingering Potion of Oozing', icon: '/assets/items/potion_of_oozing.png', type: 'potion', stackSize: 1 },
+  potion_of_weaving: { name: 'Potion of Weaving', icon: '/assets/items/potion_of_weaving.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_weaving: { name: 'Splash Potion of Weaving', icon: '/assets/items/potion_of_weaving.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_weaving: { name: 'Lingering Potion of Weaving', icon: '/assets/items/potion_of_weaving.png', type: 'potion', stackSize: 1 },
+  potion_of_wind_charging: { name: 'Potion of Wind Charging', icon: '/assets/items/potion_of_wind_charging.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_wind_charging: { name: 'Splash Potion of Wind Charging', icon: '/assets/items/potion_of_wind_charging.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_wind_charging: { name: 'Lingering Potion of Wind Charging', icon: '/assets/items/potion_of_wind_charging.png', type: 'potion', stackSize: 1 },
+  potion_of_infestation: { name: 'Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_infestation: { name: 'Splash Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_infestation: { name: 'Lingering Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
 };
 
-export const POTION_ITEM_COUNT = 119;
+export const POTION_ITEM_COUNT = 131;
 
 /** The potion id each item is a form of, so a consumer can reach POTION_DATA without parsing prefixes. */
 export const POTION_ITEM_BASE = {
@@ -253,4 +265,16 @@ export const POTION_ITEM_BASE = {
   potion_of_turtle_master_2: 'potion_of_turtle_master_2',
   splash_potion_of_turtle_master_2: 'potion_of_turtle_master_2',
   lingering_potion_of_turtle_master_2: 'potion_of_turtle_master_2',
+  potion_of_oozing: 'potion_of_oozing',
+  splash_potion_of_oozing: 'potion_of_oozing',
+  lingering_potion_of_oozing: 'potion_of_oozing',
+  potion_of_weaving: 'potion_of_weaving',
+  splash_potion_of_weaving: 'potion_of_weaving',
+  lingering_potion_of_weaving: 'potion_of_weaving',
+  potion_of_wind_charging: 'potion_of_wind_charging',
+  splash_potion_of_wind_charging: 'potion_of_wind_charging',
+  lingering_potion_of_wind_charging: 'potion_of_wind_charging',
+  potion_of_infestation: 'potion_of_infestation',
+  splash_potion_of_infestation: 'potion_of_infestation',
+  lingering_potion_of_infestation: 'potion_of_infestation',
 };

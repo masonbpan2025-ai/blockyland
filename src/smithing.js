@@ -17,7 +17,7 @@
 //              exception this file also models: gold trim and piglins, in `piglin.js`.
 //             "Armor with a trim can be trimmed again by applying another template to it; the old trim
 //              pattern is overwritten." So one piece carries at most one trim.
-import { ITEMS } from './blocks.js';
+import { BLOCK_DEFS, ITEMS } from './blocks.js';
 import { maxDurabilityFor } from './durability.js';
 
 export const NETHERITE_UPGRADE_TEMPLATE = 'netherite_upgrade_smithing_template';
@@ -271,6 +271,13 @@ export function resolveSmithingTemplate(name) {
 }
 
 /**
+ * The two blocks that survive fire and lava as dropped items: ancient debris and the block of netherite (their
+ * damage_resistant component on the wiki, Module:Default data component/items). A block drops as its numeric id,
+ * which the id-prefix rule below never saw, so both burned; found by the wiki parity audit's I-FIREPROOF case.
+ */
+const FIREPROOF_BLOCKS = new Set(['Ancient Debris', 'Block of Netherite']);
+
+/**
  * True when a dropped item survives lava and fire.
  *
  * The wiki lists "fire and lava resistance when dropped" among what a netherite upgrade gives. Every netherite
@@ -279,6 +286,7 @@ export function resolveSmithingTemplate(name) {
  * non-netherite armour piece trimmed with netherite still burns, which is why this reads the id and not the trim.
  */
 export function isFireproof(itemId) {
+  if (typeof itemId === 'number') return FIREPROOF_BLOCKS.has(BLOCK_DEFS[itemId]?.name);
   return typeof itemId === 'string' && itemId.startsWith('netherite_') && !itemId.endsWith('_smithing_template');
 }
 

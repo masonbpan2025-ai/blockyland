@@ -1,5 +1,5 @@
 import { ITEMS, BLOCKS } from './blocks.js';
-import { ENCHANTMENT_REGISTRY, isPrimaryFor, areIncompatible } from './enchanting.js';
+import { ENCHANTMENT_REGISTRY, anvilAccepts, areIncompatible } from './enchanting.js';
 
 // Material repair mapping (e.g. iron items can be repaired with iron_ingot)
 export const REPAIR_MATERIALS = {
@@ -126,11 +126,12 @@ export function calculateAnvilResult(leftItem, rightItem, customName = '', playe
         const enchDef = ENCHANTMENT_REGISTRY[rightEnch.id];
         if (!enchDef) continue;
 
-        // Verify the left item is a primary item for the enchantment. An enchanted book is primary for
+        // Verify the left item takes the enchantment: a primary or a secondary item (an anvil takes both; the
+        // table only primaries -- Sharpness on an axe, Thorns on boots). An enchanted book is primary for
         // everything, which vanilla hardcodes. This asked `getItemEnchantCategory` before and compared its
         // coarse answer against the registry's own tokens, so an enchanted Protection book no longer
         // matched a chestplate at all -- the registry names armour pieces individually.
-        const compatible = leftItem.id === 'enchanted_book' || isPrimaryFor(enchDef, leftItem.id);
+        const compatible = leftItem.id === 'enchanted_book' || anvilAccepts(enchDef, leftItem.id);
         if (!compatible) {
           continue;
         }

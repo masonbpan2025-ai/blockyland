@@ -151,7 +151,7 @@ const VANILLA_RECIPES = [
   ['awkward_potion', 'golden_carrot', 'potion_of_night_vision'],
   ['awkward_potion', 'blaze_powder', 'potion_of_strength'],
   ['awkward_potion', 'ghast_tear', 'potion_of_regeneration'],
-  ['awkward_potion', 'turtle_scute', 'potion_of_turtle_master'],
+  ['awkward_potion', 'turtle_helmet', 'potion_of_turtle_master'],
   ['awkward_potion', 'phantom_membrane', 'potion_of_slow_falling'],
 
   // Corruption: the five effect pairs vanilla converts.
@@ -270,17 +270,14 @@ test('the corruptions vanilla does not have are absent', () => {
   assert.deepEqual(wrong, []);
 });
 
-test('only the four base ingredients go straight onto a water bottle', () => {
+test('effect ingredients make a mundane potion of a water bottle, except the four exceptions', () => {
   // "When added directly to a water bottle, most of these ingredients produce a mundane potion. The
   // exceptions to this are the golden carrot, pufferfish, turtle shell, and phantom membrane, which
-  // cannot be added directly to a water bottle." This game has no mundane-from-effect-ingredient rule,
-  // so the only things a water bottle accepts are the four base ingredients; what matters is that the
-  // four exceptions do nothing rather than brewing something plausible.
-  const effectIngredients = [
-    'sugar', 'rabbit_foot', 'glistering_melon_slice', 'spider_eye', 'pufferfish', 'magma_cream',
-    'golden_carrot', 'blaze_powder', 'ghast_tear', 'turtle_scute', 'phantom_membrane',
-  ];
-  const brewed = effectIngredients
+  // cannot be added directly to a water bottle."
+  for (const ingredient of ['sugar', 'rabbit_foot', 'glistering_melon_slice', 'spider_eye', 'magma_cream', 'blaze_powder', 'ghast_tear']) {
+    assert.equal(getBrewingResult('water_bottle', ingredient), 'mundane_potion', ingredient);
+  }
+  const brewed = ['pufferfish', 'golden_carrot', 'turtle_helmet', 'phantom_membrane']
     .filter((ingredient) => getBrewingResult('water_bottle', ingredient) !== null)
     .map((ingredient) => `water_bottle + ${ingredient} -> ${getBrewingResult('water_bottle', ingredient)}`);
   assert.deepEqual(brewed, []);

@@ -12,10 +12,14 @@
 //
 // The item vocabulary and the argument parsers stay in `commands.js`, because they are pure and have no
 // context to speak of. This file is the part that acts.
+import { resolveGameMode } from './gameModeRules.js';
 import {
   COMMANDS, parseGive, giveItems, giveMessage, resolveItem, findCommand,
 } from './commands.js';
 import { allowsAgentTerminal } from './sessionSettings.js';
+import { placePlayerOnSurface } from './worldSpawn.js';
+import { runVanillaCommand, cmdTime, cmdClearInventory, parseTimeArgument } from './vanillaCommands.js';
+import { runAdvancedCommand } from './advancedCommands.js';
 
 /** The fields a command may touch, and where the game gets each one. Recorded so the surface is visible. */
 export const COMMAND_CONTEXT_FIELDS = Object.freeze({
@@ -67,7 +71,26 @@ export function buildCommandContext(game, { commands = COMMANDS, Vector3 = null 
         if (game?.settings) game.settings = { ...game.settings, gameMode: mode };
       }
     },
-    say: (text, kind = 'system') => game?.ui?.addChatMessage?.(text, kind),
+    setDifficulty: (difficulty) => {
+      if (!game) return;
+      game.difficulty = difficulty;
+      if (game.settings) game.settings = { ...game.settings, difficulty };
+      if (game.player) game.player.difficulty = difficulty;
+    },
+    placeOnSurface: (anchor) => (game?.world && game?.player ? placePlayerOnSurface(game, anchor) : null),
+    // A command reports failure through an error message; /execute store success and /return read it per context.
+    say(text, kind = 'system') {
+      if (kind === 'error' && this) this.failed = true;
+      game?.ui?.addChatMessage?.(text, kind);
+    },
+    // Run one more command line, from a function or /execute: in a context of its own (another executor or
+    // position), at function permission. The Game's own commands (/summon, /teleport, ...) take the context's
+    // position through runManagerCommand.
+    dispatch(line, sub = null) {
+      const target = sub ?? this;
+      return runCommand(target, line) || Boolean(game?.runManagerCommand?.(line, target));
+    },
+    recipeIds: () => game?.recipeIds?.() ?? new Set(),
   };
 }
 
@@ -180,24 +203,6 @@ function cmdHelp(context) {
   return true;
 }
 
-function cmdTime(context, parts) {
-  const say = context.say;
-  if (parts[1] !== 'set') {
-    say('Usage: /time set <day|night>', 'error');
-    return true;
-  }
-  if (parts[2] === 'day') {
-    context.setWorldTime?.(6000);
-    context.say('Set the time to 6000 (Day)');
-  } else if (parts[2] === 'night') {
-    context.setWorldTime?.(18000);
-    context.say('Set the time to 18000 (Night)');
-  } else {
-    context.say('Usage: /time set <day|night>', 'error');
-  }
-  return true;
-}
-
 function cmdWeather(context, parts) {
   const type = parts[1] ? parts[1].toLowerCase() : 'clear';
   if (type !== 'rain' && type !== 'clear' && type !== 'thunder') {
@@ -208,27 +213,28 @@ function cmdWeather(context, parts) {
     context.say(unavailable('The weather system'), 'error');
     return true;
   }
-  const duration=parts[2]===undefined?null:Number(parts[2]);
+  // Java's <duration> is a time argument: ticks by default, or with an s / d suffix (Commands/weather), "between
+  // 0 and 1000000". It used to be read as seconds, so `/weather clear 24000` (the page's one-day example) lasted
+  // twenty days.
+  const duration=parts[2]===undefined?null:parseTimeArgument(parts[2]);
   if(parts.length>3||(duration!==null&&(!Number.isFinite(duration)||duration<=0||duration>1000000))){
-    context.say('Usage: /weather <clear|rain|thunder> [seconds: 1..1000000]', 'error');return true;
+    context.say('Usage: /weather <clear|rain|thunder> [<duration>: ticks, or with s / d]', 'error');return true;
   }
   if(duration===null)context.weather.setWeather(type);
-  else context.weather.setWeather(type,duration);
+  else context.weather.setWeather(type,duration/20);
   context.say(`Set weather to ${type}`);
   return true;
 }
 
 function cmdGamemode(context, parts) {
-  const mode = parts[1] ? parts[1].toLowerCase() : '';
-  if (mode === 'creative' || mode === 'c' || mode === '1') {
-    context.setGameMode?.('creative');
-    context.say('Set game mode to Creative Mode');
-  } else if (mode === 'survival' || mode === 's' || mode === '0') {
-    context.setGameMode?.('survival');
-    context.say('Set game mode to Survival Mode');
-  } else {
-    context.say('Usage: /gamemode <creative|survival>', 'error');
+  // Java: survival, creative, adventure, spectator (and the 0-3 / s c a sp shorthands) -- gameModeRules.js.
+  const mode = resolveGameMode(parts[1]);
+  if (!mode) {
+    context.say('Usage: /gamemode <survival|creative|adventure|spectator>', 'error');
+    return true;
   }
+  context.setGameMode?.(mode);
+  context.say(`Set game mode to ${mode[0].toUpperCase()}${mode.slice(1)} Mode`);
   return true;
 }
 
@@ -270,7 +276,7 @@ function cmdSetblock(context, parts) {
 }
 
 function cmdClear(context) {
-  // The chat window rather than the inventory, which is this game's `/clear`.
+  // The chat window: /clearchat. Java's /clear (the inventory) is vanillaCommands.cmdClearInventory.
   context.ui?.clearChat?.();
   return true;
 }
@@ -300,7 +306,16 @@ function cmdOffline(context) {
  * are asserted against the two switches, so a command cannot end up dispatched by neither or by both.
  */
 export const HANDLED_HERE = Object.freeze([
-  'give', 'help', 'time', 'weather', 'gamemode', 'setblock', 'clear', 'offline',
+  'give', 'help', 'time', 'weather', 'gamemode', 'setblock', 'clear', 'clearchat', 'offline',
+  'kill', 'effect', 'enchant', 'experience', 'difficulty', 'defaultgamemode', 'gamerule', 'fill', 'clone', 'say', 'me',
+  'msg', 'list', 'tellraw', 'title', 'seed', 'setworldspawn', 'spawnpoint', 'random', 'damage',
+  // Aliases with their own case: /xp is /experience; /tell and /w are /msg.
+  'ride', 'rotate', 'spreadplayers',
+  'xp', 'tell', 'w',
+  // advancedCommands.js (round 4).
+  'scoreboard', 'trigger', 'tag', 'team', 'teammsg', 'tm', 'execute', 'function', 'schedule', 'return', 'reload', 'datapack',
+  'data', 'attribute', 'bossbar', 'worldborder', 'tick', 'forceload', 'fillbiome', 'item', 'loot', 'place', 'particle',
+  'playsound', 'stopsound', 'recipe', 'advancement', 'spectate', 'kick', 'debug', 'jfr',
 ]);
 export const HANDLED_ELSEWHERE = Object.freeze([
   'redstone', 'locate', 'show_mobs', 'save', 'load', 'maps', 'summon', 'teleport',
@@ -327,7 +342,8 @@ export function runCommand(context, line) {
   const command = context.commands.find((c) => c.name === root.slice(1) || c.aliases?.includes(root.slice(1)));
   // `level: 0` commands are ungated in vanilla, and every command here that acts on the world was already
   // reachable without cheats, so the gate refuses only what vanilla would.
-  if (command && command.level > 0 && command.gate === true && !allowed(context, command)) {
+  // A function or /execute runs at its own permission level (functions: 2), so `elevated` skips the gate.
+  if (command && command.level > 0 && command.gate === true && !context.elevated && !allowed(context, command)) {
     context.say(`You do not have permission to use ${root}. It needs Creative mode or cheats.`, 'error');
     return true;
   }
@@ -339,10 +355,12 @@ export function runCommand(context, line) {
     case '/weather': return cmdWeather(context, parts);
     case '/gamemode': return cmdGamemode(context, parts);
     case '/setblock': return cmdSetblock(context, parts);
-    case '/clear': return cmdClear(context);
+    case '/clear': return cmdClearInventory(context, parts);
+    case '/clearchat': return cmdClear(context);
     case '/offline': return cmdOffline(context);
     default:
-      // Not ours. The caller's own chain handles the rest, and if nothing does, it reports that.
-      return false;
+      // The Java commands vanillaCommands.js implements; anything else is not ours, and the caller's own chain
+      // handles it (and if nothing does, it reports that).
+      return runVanillaCommand(context, root, parts) || runAdvancedCommand(context, root, parts);
   }
 }

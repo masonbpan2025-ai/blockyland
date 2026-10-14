@@ -310,7 +310,8 @@ test('dimension filtering keeps ruined_portals usable in both dimensions', () =>
   assert.ok(!overworld.structures.some(([id]) => id === 'ruined_portal_nether'));
   assert.deepEqual(nether.structures.map(([id]) => id), ['ruined_portal_nether']);
   assert.equal(createSets({ dimension: 'the_end' }).has('end_cities'), true);
-  assert.equal(createSets({ dimension: 'the_end' }).size, 1);
+  // The End's other sets are its features (spikes, podium, platform).
+  assert.ok([...createSets({ dimension: 'the_end' }).keys()].every((name) => name === 'end_cities' || /^end_(spikes|podiums|platforms)$/.test(name)));
 });
 
 test('post-1.21.4 content is absent from the registry', () => {
@@ -457,7 +458,8 @@ test('generator coverage is honest about what is not implemented yet', () => {
   // assertion rather than read it.
   // An invariant rather than a magnitude: 'most structures are unimplemented' was a useful sanity check
   // early on and is now simply false. The partition between implemented and missing must hold for ever.
-  assert.ok(missing.length > 0, 'some structures are still unimplemented');
+  // Every registry structure has had a generator since the structure audit's round 1; the partition must still hold.
+  assert.equal(implemented.length + missing.length, Object.keys(STRUCTURES).length);
   for (const id of implemented) {
     assert.equal(missing.includes(id), false, `${id} is reported as both implemented and missing`);
     assert.ok(STRUCTURES[id], `${id} has a generator but is not in the registry`);

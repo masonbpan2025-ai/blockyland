@@ -1,6 +1,19 @@
+import { TrialSpawners, Vaults } from './trialSpawner.js';
+import { getCommandState, tickCommandState } from './commandState.js';
+import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
+import { rollStructureLoot } from './structureLoot.js';
+import { runFunction, allRecipeIds, recipeIdOf } from './advancedCommands.js';
+import { modeRules, playerAsSeenByWorld } from './gameModeRules.js';
+import { packsModal } from './packsModal.js';
+import { resourcePackManager } from './resourcePackManager.js';
+import { placeBonusChest } from './bonusChest.js';
+import { regenerateEndPlatform } from './worldgen/generators/endFeatures.js';
+import { EndItemController } from './endItems.js';
+import { updateEndGatewayTravel, endReturnArrival } from './endProgression.js';
 import { MonsterSpawners } from './monsterSpawner.js';
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
+import { canSmash, smashBonus, windBurstVelocity, enchantLevel, SMASH_KNOCKBACK_RADIUS } from './maceSmash.js';
 import { spendDurability } from './durability.js';
 import { EXHAUSTION } from './hunger.js';
 import { FOODS } from './foodData.js';
@@ -36,11 +49,12 @@ import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
 import { FishingController } from './fishingRod.js';
+import { useBoat } from './boatPlacement.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
 import { buildRedstoneGame, listRedstoneGames } from './redstoneGames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, blockIdForPlacement } from './blocks.js';
 import { drinkPotion, isDrinkablePotion } from './potionUse.js';
-import { miningSpeedMultiplier } from './statusEffects.js';
+import { miningSpeedMultiplier, hasSlowFalling } from './statusEffects.js';
 import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './miningRules.js';
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
@@ -60,6 +74,10 @@ import { RailSystem } from './rails.js';
 import { Inventory } from './inventory.js';
 import { UIManager } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
+import { canSupportPlant } from './resourceVisualPolicy.js';
+import { canPlantNether, isNetherFarmPlant } from './netherPlants.js';
+import { useRespawnAnchor } from './respawnAnchor.js';
+import { returnFoodContainer } from './foodContainers.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
 import { encodeScreenshotDataUrl } from './agentProviders.js';
@@ -79,7 +97,12 @@ import { catchFish, releaseFish } from './fishBuckets.js';
 import { takeFromBundle } from './bundles.js';
 import { brushSuspiciousBlock } from './archaeology.js';
 import { isGlassBottle, useGlassBottle } from './bottles.js';
-import { blockDrops } from './blockDrops.js';
+import { harvestDrops } from './blockDrops.js';
+import { CampfireCooking, isCampfire, CAMPFIRE_SLOT_POSES, CAMPFIRE_FOOD_HEIGHT } from './campfireCooking.js';
+import { isWallAttached, attachStateForClick, rememberAttachment, onSupportRemoved } from './wallAttached.js';
+
+/** Bad Omen from an ominous bottle lasts 100 minutes (wiki, Bad Omen: "1:40:00" from an ominous bottle). */
+const OMINOUS_BOTTLE_OMEN_SECONDS = 6000;
 import { BlockLighting, configureSunShadows, followSun, createEnvironmentLight, updateOutdoorLighting } from './lighting.js';
 import { overworldFogRange } from './atmosphere.js';
 import { snowDaylightStrength } from './snowShading.js';
@@ -343,6 +366,15 @@ class Game {
     this.mesher.game = this;
     this.world.game = this;
 
+    // Immediately re-mesh active chunks whenever a resource pack is activated, deactivated, or reordered
+    resourcePackManager.onChange(async () => {
+      if (this.world?.chunks) {
+        for (const chunk of this.world.chunks.values()) {
+          this.rebuildChunkMesh?.(chunk);
+        }
+      }
+    });
+
     // 2. Initialize Player & Controls
     this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds, this.settings);
     this.player.game = this;
@@ -399,6 +431,7 @@ class Game {
 
     // 4. Initialize Inventory & UI
     this.inventory = new Inventory(this.sounds);
+    this.inventory.recipeGate = (result) => this.recipeAllowed(result);
     this.player.inventory = this.inventory;
     this.ui = new UIManager(this.inventory, this.player, this.world, this.mobs, this.sounds, this);
     this.ui.game = this;
@@ -437,6 +470,12 @@ class Game {
     this.modLoader = new ModLoader({ log: (line) => console.log(line) });
     this.buildingStudio = new BuildingStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
+    // Food on a campfire is drawn lying on it, one piece per slot, with the dropped-item visuals.
+    this.campfireFoodMeshes = new Map();
+    this.campfireCooking = new CampfireCooking({
+      drop: (x, y, z, id, isBlock, count) => this.entities?.spawnDroppedItem?.(new THREE.Vector3(x + 0.5, y + 1.1, z + 0.5), id, isBlock, count),
+      changed: (x, y, z, slots) => this.showCampfireFood(x, y, z, slots),
+    });
     this.bedManager = new BedManager(this);
     // Wall paintings: placed from the painting item or by the Agent Terminal, saved with the world.
     this.paintings = new PaintingManager(this);
@@ -563,6 +602,15 @@ class Game {
       }
       if (this.sunLight) this.sunLight.intensity = 0;
       if (this.moonLight) this.moonLight.intensity = 0;
+    } else if(def?.isEnd) {
+      this.currentDimension='the_end';
+      this.normalBgColor=new THREE.Color(0x090614);
+      this.scene.background.copy(this.normalBgColor);this.scene.fog.color.setHex(0x18102b);
+      this.normalFogNear=40;this.normalFogFar=130;
+      this.scene.fog.near=40;this.scene.fog.far=130;
+      this.ambientLight.color.setHex(0x7d639b);this.ambientLight.intensity=.8;
+      if(this.sky){this.sky.disabled=true;this.sky.mesh.visible=false;}
+      this.sunLight.intensity=this.moonLight.intensity=0;
     } else if (this.sky) {
       this.sky.disabled = false;
       if (this.sky.mesh) this.sky.mesh.visible = true;
@@ -575,8 +623,16 @@ class Game {
       this.overlay.show('Generating World');
       await yieldToBrowser();
     }
-    const spawn = placePlayerOnSurface(this);
+    let spawn;
+    this.bossManager?.clearEndVisuals?.();this.endArenaBuilt=false;this.endItems?.clear();
+    if(this.world.dimension==='the_end') {
+      const arrival=regenerateEndPlatform(this.world,BLOCKS);
+      this.player.position.set(arrival.x,arrival.y,arrival.z);this.player.yaw=arrival.yaw;
+      this.player.spawnPosition=this.player.position.clone();
+      spawn={...arrival,found:true,reason:'End obsidian arrival platform'};
+    } else spawn=placePlayerOnSurface(this);
     await this.loadWorldProgressively();
+    if(this.world.dimension==='the_end'){this.endArenaBuilt=true;this.bossManager?.initEndArena();}
 
     if (spawn?.found) {
       console.log(`[World] Spawned the player on the surface at (${spawn.x}, ${spawn.y}, ${spawn.z}); ${spawn.reason}.`);
@@ -585,6 +641,11 @@ class Game {
     }
 
     this.spawnVillageMobs();
+    // The bonus chest, when the world was created with it.
+    if (this.settings?.bonusChest && spawn?.found) {
+      const placed = placeBonusChest(this.world, spawn.x, spawn.z, (x, y, z, lootTable) => this.world.applyStructureOrientation({ x, y, z, id: BLOCKS.CHEST, name: 'minecraft:chest', facing: 'north', lootTable }));
+      if (placed) this.rebuildChunkMesh?.(this.world.getChunk(Math.floor(placed.x / 16), Math.floor(placed.z / 16)));
+    }
     // The End portal chamber. Its frames are the first link of the route to the End, and without a room
     // there is nowhere to put an Eye of Ender at all.
     this.placeEndPortalRoom(spawn);
@@ -874,26 +935,27 @@ class Game {
     if (!dest) return;
 
     this.endPortalTravelCooldown = 3.0;
-    // Remember where the player came from, so the return trip is not a one-way door. Vanilla sends you to
-    // the world spawn; coming back to where you left is kinder and needs no spawn bookkeeping.
-    if (dest === 'the_end') {
-      this.endReturnPosition = this.player.position.clone();
-    }
     const arrival = dest === 'the_end'
       ? portalArrival('the_end')
-      : (this.endReturnPosition ? { x: this.endReturnPosition.x, y: this.endReturnPosition.y, z: this.endReturnPosition.z } : portalArrival('overworld'));
+      : (this.player.bedDimension==='overworld'?this.player.bedSpawnPosition:null) || this.player.commandSpawnPosition || this.player.spawnPosition || portalArrival('overworld');
 
     // The arena has crystals, pillars and a dragon but NO ground, and the End's chunks are generated from
     // whichever biome was selected, so the player would arrive in whatever that happened to be. Vanilla drops
     // you on a central island; this is that island.
-    if (dest === 'the_end') {
-      buildEndPlatform(this.world, Math.floor(arrival.x), Math.floor(arrival.y) - 1, Math.floor(arrival.z), 12);
-      for (const chunk of this.world.chunks.values()) {
-        this.rebuildChunkMesh?.(chunk);
-      }
-    }
+    // "Whenever a new entity enters the End, the platform is regenerated, and all blocks within 3 blocks above the
+    // platform are destroyed" -- done once the End's chunks are the world's (after the switch below).
+    const regenerate = dest === 'the_end';
 
     if (this.switchDimension) this.switchDimension(dest, arrival);
+    if (regenerate) {
+      regenerateEndPlatform(this.world, BLOCKS);
+      for (const chunk of this.world.chunks.values()) this.rebuildChunkMesh?.(chunk);
+    } else {
+      const safe=endReturnArrival(this);
+      if(safe)this.player.position.set(safe.x,safe.y,safe.z);
+      else placePlayerOnSurface(this);
+      this.loadChunksAroundPlayer();this.player.updateCameraAndModel?.(0);
+    }
     this.sounds?.playLevelUp?.();
     this.ui?.addChatMessage?.(
       dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
@@ -996,6 +1058,7 @@ class Game {
   }
 
   switchDimension(newDim, targetPos = null) {    if (!this.world) return;
+    this.bossManager?.clearEndVisuals?.();this.endArenaBuilt=false;
 
     // 1. Remove all active chunk meshes from scene
     for (const chunk of this.world.chunks.values()) {
@@ -1048,13 +1111,13 @@ class Game {
       this.normalBgColor = new THREE.Color(0x0a0515);
       this.scene.background.copy(this.normalBgColor);
       this.scene.fog.color.copy(new THREE.Color(0x100820));
-      this.normalFogNear = 20;
-      this.normalFogFar = 75;
+      this.normalFogNear = 40;
+      this.normalFogFar = 130;
       this.scene.fog.near = this.normalFogNear;
       this.scene.fog.far = this.normalFogFar;
-      this.ambientLight.color.setHex(0x3b1d54);
+      this.ambientLight.color.setHex(0x7d639b);
       this.ambientLight.groundColor.copy(this.ambientLight.color);
-      this.ambientLight.intensity = 0.45;
+      this.ambientLight.intensity = 0.8;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
       // Built ONCE per session. `initEndArena` spawns a dragon and six end crystals, so leaving the End and
@@ -1485,6 +1548,11 @@ class Game {
     bind('btn-start-building-studio', (e) => {
       e.stopPropagation();
       afterUi(e.currentTarget, () => this.startBuildingStudio());
+    });
+
+    bind('btn-start-packs', (e) => {
+      e.stopPropagation();
+      packsModal.open();
     });
 
     // One Inspector button and a picker, rather than four buttons crowding the start screen. Each choice
@@ -2034,6 +2102,8 @@ class Game {
   }
 
   handleLeftClick() {
+    // A spectator "observe[s] the world without interacting with it in any way".
+    if (!modeRules(this.player.gamemode).attack) return;
     const lookDir = this.camera?.getWorldDirection(new THREE.Vector3()) || new THREE.Vector3(0, 0, -1);
 
     // 1. Deflect hostile projectiles (e.g. Ghast fireballs)
@@ -2059,7 +2129,10 @@ class Game {
     // Attack mob if target mob is looked at
     if (this.targetMob) {
       const activeItem = this.inventory.getActiveItem();
-      let damage = 2; // hand damage
+      // A fist -- and any item without an attack modifier -- deals 1 (wiki, Damage: "Hand: 1"). It was 2 here,
+      // which made every non-weapon hit twice as hard; found by the wiki parity audit's I-ATTACK case.
+      // A fist deals the attack_damage attribute, 1 unless /attribute changed it.
+      let damage = this.player.attackAttribute ?? 1;
       if (activeItem && !activeItem.isBlock) {
         const it = ITEMS[activeItem.id];
         if (it && it.attack) damage = it.attack;
@@ -2073,7 +2146,30 @@ class Game {
       // computed here, so the effect rules stay in one module and this call site needs no import.
       const effectBonus = this.player?.attackDamageBonus?.() ?? 0;
       if (effectBonus !== 0) damage = Math.max(0, damage + effectBonus);
+      // The mace's smash attack (maceSmash.js): after a fall of 1.5 blocks or more, the fall adds damage (more with
+      // Density), the fall height resets, everything within 2.5 blocks is knocked back, and Wind Burst launches the
+      // wielder back up. Breach is read by damageMob, where a mob's armour is applied.
+      const smash = canSmash({ itemId: activeItem?.isBlock ? null : activeItem?.id, fallDistance: this.player.fallDistance,
+        onGround: this.player.onGround, elytraFlying: Boolean(this.player.elytraFlight), slowFalling: hasSlowFalling(this.player.statusEffects) });
+      if (activeItem && !activeItem.isBlock && activeItem.id === 'mace') this.targetMob.pendingBreach = enchantLevel(activeItem.enchantments, 'breach');
+      if (smash) damage += smashBonus(this.player.fallDistance, enchantLevel(activeItem.enchantments, 'density'));
+      const smashTarget = this.targetMob;
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
+      if (smash) {
+        this.player.fallDistance = 0;
+        for (const other of this.mobs.mobs ?? []) {
+          if (other === smashTarget || other.health <= 0 || !other.mesh) continue;
+          if (other.mesh.position.distanceTo(smashTarget.mesh.position) > SMASH_KNOCKBACK_RADIUS) continue;
+          // Knocked back, "similar to the effect of a wind charge", but not hurt.
+          const away = other.mesh.position.clone().sub(smashTarget.mesh.position).setY(0);
+          if (away.lengthSq() < 0.001) away.set(0, 0, 1);
+          other.knockback = away.normalize().multiplyScalar(6);
+          other.knockbackConsumed = true;
+          if (other.velocity) other.velocity.y += 4;
+        }
+        const launch = windBurstVelocity(enchantLevel(activeItem.enchantments, 'wind_burst'), this.player.gravity ?? 28);
+        if (launch > 0) { this.player.velocity.y = launch; this.player.onGround = false; }
+      }
       // Fire aspect sets the target alight after the hit lands, so a killing blow still burns the corpse
       // rather than skipping the effect.
       if (activeItem && Array.isArray(activeItem.enchantments)) {
@@ -2093,6 +2189,7 @@ class Game {
   }
 
   handleRightClick() {
+    if (!modeRules(this.player.gamemode).interact) return;
     const interaction = this.mobs?.getMobProvider(this.targetMob)?.interact;
     if (interaction) { interaction(this.targetMob); return; }
 
@@ -2197,6 +2294,8 @@ class Game {
     }
 
     if (useSnowball(this)) return;
+    this.endItems??=new EndItemController(this);
+    if(this.endItems.use())return;
     if (useBarterPotion(this)) return;
 
     // Splash potions. This block was hard-coded to `splash_potion_of_weakness` -- plus `potion_weakness`,
@@ -2434,6 +2533,10 @@ class Game {
           return;
         }
         // Mounting
+        if (vehicle.rider && vehicle.rider !== this.player && (vehicle.hasChest || vehicle.passenger)) {
+          this.ui?.addChatMessage?.('This vehicle has no empty seat.', 'system');
+          return;
+        }
         this.riding = vehicle;
         if (!vehicle.rider) {
           vehicle.rider = this.player;
@@ -2458,12 +2561,16 @@ class Game {
       }
     }
 
+    // Water is transparent to block selection: trace the liquid surface before
+    // requiring a solid target, otherwise a boat is placed on the seabed.
+    if (useBoat(this, activeItem)) return;
     if (!this.targetBlock) return;
 
     const bX = this.targetBlock.x;
     const bY = this.targetBlock.y;
     const bZ = this.targetBlock.z;
     const clickedBlock = this.world.getVoxel(bX, bY, bZ);
+    if(useRespawnAnchor(this,bX,bY,bZ))return;
     const clickedDef = BLOCK_DEFS[clickedBlock];
     if(clickedDef?.fence && tieHorseLeads(this.mobs,this.player,bX,bY,bZ))return;
 
@@ -2496,6 +2603,19 @@ class Game {
     //
     // `ender_eye` had zero references anywhere in `src/` before this, and `END_PORTAL_FRAME` was not a block
     // at all -- so the item could be brewed, held, and never used, and there was no way into the End.
+    // A vault: a trial key (an ominous key for an ominous vault) opens it once for this player.
+    if (clickedBlock === BLOCKS.VAULT) {
+      const held = this.inventory.getActiveItem();
+      const vault = this.world.vaultAt?.(bX, bY, bZ) ?? {};
+      const wanted = vault.ominous ? 'ominous_trial_key' : 'trial_key';
+      if (held?.id === wanted) {
+        this.vaults ??= new Vaults({ drop: (pos, stack) => this.entities?.spawnDroppedItem(new THREE.Vector3(pos.x, pos.y, pos.z), stack.id, !!stack.isBlock, stack.count ?? 1, { enchantments: stack.enchantments }) });
+        const out = this.vaults.use(bX, bY, bZ, 'player', { ominous: !!vault.ominous });
+        if (out) { if (this.player.gamemode !== 'creative') this.inventory.consumeActiveItem(); }
+        else this.ui?.addChatMessage?.('You have already opened this vault.', 'system');
+        return;
+      }
+    }
     if (isFrame(clickedBlock)) {
       const heldForFrame = this.inventory.getActiveItem();
       if (heldForFrame?.id === 'ender_eye' && clickedBlock === BLOCKS.END_PORTAL_FRAME) {
@@ -2529,8 +2649,15 @@ class Game {
       return;
     }
 
+    // Campfire cooking: raw food goes on the fire, one at a time, up to four (campfireCooking.js).
+    if (isCampfire(clickedBlock) && activeItem && this.campfireCooking?.add(bX, bY, bZ, activeItem)) {
+      if (this.player.gamemode !== 'creative') { this.inventory.consumeActiveItem(); this.ui.updateHotbar(); }
+      this.sounds.playClick();
+      return;
+    }
+
     // Furnace interaction
-    if (clickedBlock === BLOCKS.FURNACE || clickedBlock === BLOCKS.LIT_FURNACE) {
+    if (clickedBlock === BLOCKS.FURNACE || clickedBlock === BLOCKS.LIT_FURNACE || clickedBlock === BLOCKS.BLAST_FURNACE || clickedBlock === BLOCKS.SMOKER) {
       this.sounds.playClick();
       this.ui.openFurnace(bX, bY, bZ);
       return;
@@ -2646,8 +2773,11 @@ class Game {
       return;
     }
 
+    // Adventure: "Placing down any other block by using it" is impossible (Adventure page) -- fire, crops, buildings
+    // and blocks alike; using blocks (doors, levers, chests) above still works.
+    const canPlace = modeRules(this.player.gamemode).placeBlocks;
     // Flint and steel ignition (Nether Portal activation or fire placement)
-    if (activeItem && activeItem.id === 'flint_and_steel') {
+    if (canPlace && activeItem && activeItem.id === 'flint_and_steel') {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
       if (this.portalManager?.ignitePortal(this.world, bX, bY, bZ, norm, this.player)) {
         return;
@@ -2685,14 +2815,14 @@ class Game {
     }
 
     // Farming: Planting seeds and vegetable crops (wheat_seeds, carrot, potato)
-    if (activeItem && getSeedCrop(activeItem.id) && this.farmingManager) {
+    if (canPlace && activeItem && getSeedCrop(activeItem.id) && this.farmingManager) {
       if (this.farmingManager.plant(bX, bY, bZ, activeItem.id, this.player)) {
         return;
       }
     }
 
     // Place building from Building Library
-    if (activeItem && (activeItem.isBuilding || (typeof activeItem.id === 'string' && activeItem.id.startsWith('building_')))) {
+    if (canPlace && activeItem && (activeItem.isBuilding || (typeof activeItem.id === 'string' && activeItem.id.startsWith('building_')))) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
       const placeX = bX + (norm.x || 0);
       const placeY = bY + (norm.y !== undefined ? (norm.y > 0 ? 1 : (norm.y < 0 ? -1 : 0)) : 1);
@@ -2737,6 +2867,19 @@ class Game {
         return;
       }
 
+      // An ominous bottle is drunk, not eaten: "Consuming an ominous bottle gives a player the Bad Omen effect and
+      // destroys the bottle" (wiki, Ominous Bottle). It restores no hunger and can be drunk at any time. It was
+      // food here -- one hunger point and no omen -- until the wiki parity audit's I-FOOD case found it.
+      if (activeItem.id === 'ominous_bottle') {
+        this.player.applyStatusEffect?.('bad_omen', OMINOUS_BOTTLE_OMEN_SECONDS, 1);
+        this.sounds.playEat?.();
+        if (this.player.gamemode !== 'creative') {
+          this.inventory.consumeActiveItem();
+          this.ui.updateHotbar();
+        }
+        return;
+      }
+
       const it = ITEMS[activeItem.id];
       if (it && it.type === 'food') {
         // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
@@ -2766,6 +2909,7 @@ class Game {
           }
           if (this.player.gamemode !== 'creative') {
             this.inventory.consumeActiveItem();
+            returnFoodContainer(this,activeItem.id);
             this.ui.updateHotbar();
           }
           return;
@@ -2778,16 +2922,13 @@ class Game {
       // item itself did nothing at all when used.
       if (launchFirework(this, activeItem?.id)) return;
 
-      if (!activeItem?.isBlock && activeItem && ['minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart', 'oak_boat', 'chest_boat'].includes(activeItem.id)) {
+      if (!activeItem?.isBlock && activeItem && ['minecart', 'chest_minecart', 'furnace_minecart', 'hopper_minecart', 'tnt_minecart'].includes(activeItem.id)) {
       const norm = this.targetBlock.normal || { x: 0, y: 1, z: 0 };
       const px = bX + norm.x + 0.5;
       const py = bY + norm.y + 0.05;
       const pz = bZ + norm.z + 0.5;
 
-      if (activeItem.id === 'oak_boat' || activeItem.id === 'chest_boat') {
-        this.railSystem.spawnBoat([px, py, pz], { subType: activeItem.id, hasChest: activeItem.id === 'chest_boat' });
-        this.ui?.addChatMessage?.(activeItem.id === 'chest_boat' ? 'Boat with Chest placed.' : 'Boat placed. Right-click it to ride.', 'system');
-      } else {
+      {
         // A cart needs rail under it; offer to lay one if there is none.
         if (!this.railSystem.nearestRail([bX, bY, bZ], 1)) {
           this.world.setVoxel(bX, bY, bZ, BLOCKS.RAIL);
@@ -2976,7 +3117,7 @@ class Game {
     }
 
     // Place Block on adjacent targeted face
-    if (activeItem && (activeItem.isBlock || BLOCK_DEFS[activeItem.id] || ITEMS[activeItem.id]?.isBlock) && this.targetBlock.normal) {
+    if (canPlace && activeItem && (activeItem.isBlock || BLOCK_DEFS[activeItem.id] || ITEMS[activeItem.id]?.isBlock) && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
       const placeY = bY + this.targetBlock.normal.y;
       const placeZ = bZ + this.targetBlock.normal.z;
@@ -3000,8 +3141,22 @@ class Game {
       if (!collidesWithPlayer) {
         // Name- or id-keyed, whichever this game used for the item: see lockIdForPlacement.
         const blockIdToPlace = blockIdForPlacement(activeItem);
+        const def = BLOCK_DEFS[blockIdToPlace];
+        if(blockIdToPlace===BLOCKS.CHORUS_FLOWER && (this.targetBlock.normal.y!==1 || ![BLOCKS.END_STONE,BLOCKS.CHORUS_PLANT].includes(this.world.getVoxel(placeX,placeY-1,placeZ))))return;
+        if (def?.plant) {
+          if (this.targetBlock.normal.y !== (def.hang?-1:1)) return;
+          const below = this.world.getVoxel(placeX, placeY + (def.hang?1:-1), placeZ);
+          if (!canSupportPlant(below, blockIdToPlace)) return;
+          if(isNetherFarmPlant(blockIdToPlace)&&!canPlantNether(this.world,placeX,placeY,placeZ,blockIdToPlace))return;
+        }
+        // A ladder or vine hangs on the face that was clicked, and only on a solid one (wallAttached.js).
+        const attachment = isWallAttached(blockIdToPlace) ? attachStateForClick(blockIdToPlace, this.targetBlock.normal, this.world.getVoxel(bX, bY, bZ)) : null;
+        if (isWallAttached(blockIdToPlace) && !attachment) return;
 
         this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
+        this.farmingManager?.netherPlants?.register(placeX,placeY,placeZ);
+        this.farmingManager?.chorus?.register(placeX,placeY,placeZ,0);
+        if (attachment) rememberAttachment(this.world, placeX, placeY, placeZ, blockIdToPlace, attachment);
         this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
@@ -3009,7 +3164,6 @@ class Game {
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
 
-        const def = BLOCK_DEFS[blockIdToPlace];
         this.sounds.playPlace(def ? def.sound : 'wood');
 
         if (this.player.gamemode !== 'creative') {
@@ -3129,7 +3283,8 @@ class Game {
    *
    * One call rather than one drop, because a block can give more than one thing: an oak leaf gives an
    * apple, a stick and a sapling on separate rolls, and a grass plant gives a seed. The list comes from
-   * `blockDrops`, which owns both the always-drop and the probabilistic table.
+   * `harvestDrops`, which owns the always-drop and probabilistic tables and what the held tool changes:
+   * shears collect leaves, vines and grass, and Silk Touch gives glass, ice, ores and the rest back whole.
    *
    * The argument order is the part worth being careful about. This used to pass the drop's `count` field
    * as the third argument -- where `isBlock` belongs -- so it was always `undefined` and every drop
@@ -3138,8 +3293,31 @@ class Game {
    * block. The explosion path in `entities.js` passed the right field and was correct, so the same
    * diamond was a block when mined and an item when blown up.
    */
-  spawnBlockDrops(pos, blockId) {
-    for (const drop of blockDrops(blockId)) {
+  /** Draw what lies on a campfire (campfireCooking.js): each slot's food flat on the logs. */
+  showCampfireFood(x, y, z, slots) {
+    const key = `${x},${y},${z}`;
+    const visuals = this.entities?.itemVisuals;
+    for (const mesh of this.campfireFoodMeshes.get(key) ?? []) visuals?.release(mesh);
+    this.campfireFoodMeshes.delete(key);
+    if (!visuals || !slots.length) return;
+    const meshes = slots.map((slot, i) => {
+      const mesh = visuals.create(slot.id, slot.isBlock, 0.3);
+      const pose = CAMPFIRE_SLOT_POSES[i % CAMPFIRE_SLOT_POSES.length];
+      mesh.position.set(x + pose.x, y + CAMPFIRE_FOOD_HEIGHT, z + pose.z);
+      mesh.rotation.set(-Math.PI / 2, 0, pose.turn * Math.PI / 2);
+      this.scene.add(mesh);
+      return mesh;
+    });
+    this.campfireFoodMeshes.set(key, meshes);
+  }
+
+  spawnBlockDrops(pos, blockId, held = null) {
+    const toolId = held && !held.isBlock ? held.id : null;
+    const silkTouch = Boolean(held?.enchantments?.some?.((e) => e?.id === 'silk_touch'));
+    const fortune = held?.enchantments?.find?.((e) => e?.id === 'fortune')?.level ?? 0;
+    // A block's age, where the world keeps one (nether wart: netherPlants.js stores it with the block state).
+    const age = pos ? this.world?.structureOrientations?.get?.(`${Math.floor(pos.x)},${Math.floor(pos.y)},${Math.floor(pos.z)}`)?.plantAge ?? null : null;
+    for (const drop of harvestDrops(blockId, { toolId, silkTouch, fortune, age })) {
       this.entities.spawnDroppedItem(pos, drop.id, drop.isBlock, drop.count ?? 1);
     }
   }
@@ -3200,13 +3378,14 @@ class Game {
       const cropInfo = getCropInfo(blockId);
       if (cropInfo) {
         if (this.farmingManager) {
-          this.farmingManager.handleCropBreak(x, y, z, blockId, this.player.gamemode);
+          const cropFortune = heldAtBreak?.enchantments?.find?.((e) => e?.id === 'fortune')?.level ?? 0;
+          this.farmingManager.handleCropBreak(x, y, z, blockId, this.player.gamemode, cropFortune);
         }
       } else {
         // A block broken with the wrong tool yields nothing. This is the harvest table's
         // verdict rather than a per-block special case.
         if (!wrongTool) {
-          this.spawnBlockDrops(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), blockId);
+          this.spawnBlockDrops(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), blockId, heldAtBreak);
         }
       }
 
@@ -3263,7 +3442,8 @@ class Game {
       if (this.farmingManager) this.farmingManager.unregisterFarmland(x, y, z);
     }
 
-    if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE) {
+    if (isCampfire(blockId)) this.campfireCooking?.onBlockBroken(x, y, z);
+    if (blockId === BLOCKS.FURNACE || blockId === BLOCKS.LIT_FURNACE || blockId === BLOCKS.BLAST_FURNACE || blockId === BLOCKS.SMOKER) {
       if (this.furnaceManager) this.furnaceManager.onBlockBroken(x, y, z);
     }
 
@@ -3312,6 +3492,30 @@ class Game {
     const replacement = (def?.waterPlant && y < this.world.seaLevel) ? BLOCKS.WATER : BLOCKS.AIR;
     this.world.setVoxel(x, y, z, replacement);
     this.worldSync?.onBlockBroken(x, y, z);
+
+    // Ladders and vines hanging on this block lose their support (wallAttached.js).
+    onSupportRemoved(this.world, x, y, z, (nx, ny, nz, dropItself) => {
+      const hanging = this.world.getVoxel(nx, ny, nz);
+      this.world.setVoxel(nx, ny, nz, BLOCKS.AIR);
+      if (dropItself && this.player.gamemode === 'survival') this.spawnBlockDrops(new THREE.Vector3(nx + 0.5, ny + 0.5, nz + 0.5), hanging);
+      const near = this.world.getChunk(Math.floor(nx / 16), Math.floor(nz / 16));
+      if (near) this.rebuildChunkMesh(near);
+    });
+
+    // Support loss: if the block above was a plant relying on this substrate, break it and drop it
+    const aboveVoxel = this.world.getVoxel(x, y + 1, z);
+    const aboveDef = BLOCK_DEFS[aboveVoxel];
+    if (aboveDef?.plant && !canSupportPlant(replacement, aboveVoxel)) {
+      this.world.setVoxel(x, y + 1, z, BLOCKS.AIR);
+      this.worldSync?.onBlockBroken?.(x, y + 1, z);
+      if (this.player.gamemode === 'survival') {
+        this.spawnBlockDrops(new THREE.Vector3(x + 0.5, y + 1.5, z + 0.5), aboveVoxel);
+      }
+      const cxAbove = Math.floor(x / 16);
+      const czAbove = Math.floor(z / 16);
+      const chunkAbove = this.world.getChunk(cxAbove, czAbove);
+      if (chunkAbove) this.rebuildChunkMesh(chunkAbove);
+    }
 
     // Sculk vibration check on block break
     this.deepDarkManager?.onPlayerVibration(this.player.position, 1.0);
@@ -3458,7 +3662,8 @@ class Game {
   }
 
   updateMining(dt) {
-    if (!this.isMouseDown || !this.targetBlock || this.player.gamemode === 'creative') {
+    // Adventure and Spectator mine nothing ("cannot be destroyed by the player's fist", and no item carries can_break).
+    if (!this.isMouseDown || !this.targetBlock || this.player.gamemode === 'creative' || !modeRules(this.player.gamemode).breakBlocks) {
       this.breakOverlayMesh.visible = false;
       this.miningTime = 0;
       return;
@@ -3526,9 +3731,9 @@ class Game {
     // The brighter overworld fill must not replace the End's purple atmosphere.
     if (this.currentDimension === 'the_end' || this.world?.dimension === 'the_end') {
       this.textures?.setSnowDaylight(0);
-      this.ambientLight.color.setHex(0x3b1d54);
+      this.ambientLight.color.setHex(0x7d639b);
       this.ambientLight.groundColor.copy(this.ambientLight.color);
-      this.ambientLight.intensity = 0.45;
+      this.ambientLight.intensity = 0.8;
       this.sunLight.intensity = this.moonLight.intensity = 0;
       if (this.sky) {
         this.sky.disabled = true;
@@ -3762,6 +3967,78 @@ class Game {
     if (runCommand(buildCommandContext(this), cmd)) return;
 
     // 2. The manager-backed commands.
+    if (!this.runManagerCommand(cmd)) this.ui.addChatMessage('Unknown command: ' + cmd + '. Type /help for help.', 'error');
+  }
+
+  /**
+   * The commands this class owns. A function or /execute calls this with its own context: `context.origin` is
+   * where relative coordinates start (`/execute at @e[type=cow] run summon lightning_bolt ~ ~ ~`).
+   * Returns true when the command was one of these.
+   */
+  /** `/reload` and `/datapack enable|disable`: apply the enabled packs again. */
+  /** The doLimitedCrafting rule's gate for the crafting grids: true when this result may be crafted. */
+  recipeAllowed(result) {
+    if (this.gamerules?.doLimitedCrafting !== true) return true;
+    return Boolean(this.player?.knownRecipes?.has(recipeIdOf(result)));
+  }
+
+  reloadDataPacks() {
+    return this.applyDataPacks?.();
+  }
+
+  /** Every crafting recipe id (by result), for `/recipe`. */
+  recipeIds() {
+    return allRecipeIds([RECIPES_2X2, RECIPES_3X3]);
+  }
+
+  /**
+   * `/place structure` and `/place jigsaw`: generate the structure with its start in the chunk at (x, z), through the
+   * world's own structure engine and its biome check, and write it into the world -- its blocks, the facing of
+   * doors, stairs and chests, its loot, and its mobs.
+   */
+  placeStructureAt(structureId, x, z) {
+    const dimension = this.world?.dimension ?? 'overworld';
+    const engine = this.world?.structures?.engineFor?.(dimension);
+    if (!engine?.generateAt) return { ok: false, reason: 'Structures are not available in this world' };
+    const { start, reason } = engine.generateAt(structureId, Math.floor(x / 16), Math.floor(z / 16));
+    if (!start) return { ok: false, reason };
+    const touched = new Set();
+    const box = start.box;
+    if (box) for (let cx = Math.floor(box.minX / 16); cx <= Math.floor(box.maxX / 16); cx++) for (let cz = Math.floor(box.minZ / 16); cz <= Math.floor(box.maxZ / 16); cz++) this.world.getOrCreateChunk?.(cx, cz);
+    const written = engine.realize(start, (bx, by, bz, id, meta) => {
+      if (by < 0 || by >= 64) return false;
+      this.world.setVoxel(bx, by, bz, id);
+      touched.add(`${Math.floor(bx / 16)},${Math.floor(bz / 16)}`);
+      const props = meta?.state?.properties;
+      if (props && (props.facing || props.type === 'top')) {
+        this.world.applyStructureOrientation?.({ x: bx, y: by, z: bz, id, facing: props.facing ?? null, half: props.half ?? null, hinge: props.hinge ?? null, slabType: props.type === 'top' ? 'top' : null });
+      }
+      if (meta?.lootTable && this.chestManager?.adoptChest) {
+        this.chestManager.adoptChest([bx, by, bz], 0, rollStructureLoot(meta.lootTable, (bx * 73856093) ^ (by * 19349663) ^ (bz * 83492791) ^ (this.seed ?? 0)));
+      }
+      return true;
+    }, {
+      spawnMob: (type, mx, my, mz, options) => Boolean(this.mobs?.spawnMob?.(type, mx, my + 0.01, mz, options)),
+      surfaceY: (sx, sz) => this.world.surfaceHeightAt(sx, sz),
+      foundationBlock: BLOCKS.DIRT,
+    });
+    for (const key of touched) { const [cx, cz] = key.split(',').map(Number); const chunk = this.world.getChunk?.(cx, cz); if (chunk) this.rebuildChunkMesh(chunk); }
+    this.world.invalidateChunkCache?.();
+    return written > 0 ? { ok: true, written } : { ok: false, reason: 'Failed to place structure' };
+  }
+
+  runManagerCommand(cmd, context = null) {
+    const parts = String(cmd).trim().split(/\s+/);
+    const root = parts[0].toLowerCase();
+    this.commandOrigin = context?.origin ?? null;
+    try {
+      return this.dispatchManagerCommand(root, parts) !== false;
+    } finally {
+      this.commandOrigin = null;
+    }
+  }
+
+  dispatchManagerCommand(root, parts) {
     switch (root) {
       case '/redstone': return this.runRedstoneCommand(parts);
       case '/locate': return this.runLocateCommand(parts);
@@ -3776,7 +4053,7 @@ class Game {
         return;
       case '/summon':
         if(parts[1]?.replace('minecraft:','')==='lightning_bolt'){
-          const origin=this.player.position,values=parts.slice(2),position=origin.clone();
+          const origin=this.commandOrigin?new THREE.Vector3(this.commandOrigin.x,this.commandOrigin.y,this.commandOrigin.z):this.player.position,values=parts.slice(2),position=origin.clone();
           if(values.length&&values.length!==3){this.ui.addChatMessage('Usage: /summon lightning_bolt [x y z]','error');return;}
           for(const [i,axis] of ['x','y','z'].entries())if(values[i]!==undefined){const raw=values[i];position[axis]=raw.startsWith('~')?origin[axis]+Number(raw.slice(1)||0):Number(raw);}
           if(!position.toArray().every(Number.isFinite)){this.ui.addChatMessage('Invalid lightning coordinates','error');return;}
@@ -3784,10 +4061,10 @@ class Game {
           else this.ui.addChatMessage('Lightning is only available in the Overworld','error');
           return;
         }
-        this.runSummonCommand(parts[1]);
+        this.runSummonCommand(parts[1], parts.slice(2, 5));
         return;
       default:
-        this.ui.addChatMessage('Unknown command: ' + cmd + '. Type /help for help.', 'error');
+        return false;
     }
   }
 
@@ -3868,7 +4145,8 @@ class Game {
    */
   runTeleportCommand(parts) {
     try {
-      const p = this.player.position;
+      // Relative coordinates start at the command's position (/execute positioned ...), else the player's.
+      const p = this.commandOrigin ? new THREE.Vector3(this.commandOrigin.x, this.commandOrigin.y, this.commandOrigin.z) : this.player.position;
       const parsed = parseTeleport(parts.slice(1), p);
       if (!parsed.ok) throw new Error(parsed.reason);
       let target;
@@ -3957,8 +4235,8 @@ class Game {
    * that Pillager and Zombie spawn three blocks away where everything else spawns two is stated rather
    * than buried in forty branches.
    */
-  runSummonCommand(rawType) {
-    const type = String(rawType ?? '').toLowerCase();
+  runSummonCommand(rawType, posArgs = []) {
+    const type = String(rawType ?? '').toLowerCase().replace(/^minecraft:/, '');
     const entry = SUMMONABLE_MOBS[type];
     if (!entry) {
       const names = Object.keys(SUMMONABLE_MOBS).sort().join(', ');
@@ -3971,8 +4249,16 @@ class Game {
       this.ui.addChatMessage('This build has no ' + method + '; ' + label + ' cannot be summoned.', 'error');
       return;
     }
-    const p = this.player.position;
-    spawn.call(this.mobs, p.x + distance, p.y + 1, p.z + distance);
+    // "/summon <entity> [<pos>]": at the position when one is given (relative to the command's position), else
+    // beside the player as before.
+    const o = this.commandOrigin ?? this.player.position;
+    if (posArgs.length === 3) {
+      const at = posArgs.map((raw, i) => { const base = [o.x, o.y, o.z][i]; return raw.startsWith('~') ? base + Number(raw.slice(1) || 0) : Number(raw); });
+      if (!at.every(Number.isFinite)) { this.ui.addChatMessage('Invalid position', 'error'); return; }
+      spawn.call(this.mobs, at[0], at[1], at[2]);
+    } else {
+      spawn.call(this.mobs, o.x + distance, o.y + 1, o.z + distance);
+    }
     this.ui.addChatMessage('Summoned new ' + label, 'system');
   }
 
@@ -3990,7 +4276,8 @@ class Game {
   dismount() {
     const vehicle = this.riding;
     if (!vehicle) return;
-    vehicle.rider = null;
+    if (vehicle.rider === this.player) vehicle.rider = null;
+    if (vehicle.passenger === this.player) vehicle.passenger = null;
     this.player.position.set(vehicle.position.x, vehicle.position.y + 1.2, vehicle.position.z);
     this.player.velocity?.set?.(0, 0, 0);
     this.riding = null;
@@ -4057,13 +4344,29 @@ class Game {
     }
     const fps = 1.0 / Math.max(0.0001, dt);
 
+    // The command state (commandState.js): /tick's rate and freeze set how fast the world simulates (`worldDt`); the
+    // player is not slowed ("Players are not affected by tick rates that are higher than the default one" -- and a
+    // frozen game still lets the player move). Scheduled functions run, the world border hurts, a spectator follows.
+    const commandState = getCommandState(this);
+    const commandTick = tickCommandState(commandState, dt, {
+      runFunction: (fn) => { const ctx = buildCommandContext(this); ctx.elevated = true; runFunction(ctx, fn); },
+      player: this.player.gamemode === 'creative' || this.player.gamemode === 'spectator' ? null : this.player,
+    });
+    const worldDt = Math.min(0.25, dt * commandTick.scale);
+    if (commandState.profiler.jfr) commandState.profiler.jfr.frames.push(dt * 1000);
+    if (this.player.spectating && this.player.gamemode === 'spectator') {
+      const target = this.player.spectating;
+      const at = target.health > 0 ? target.mesh?.position ?? target.position : null;
+      if (at) this.player.position.set(at.x, at.y + 1.2, at.z); else this.player.spectating = null;
+    }
+
     // 1. Update Player Physics & Camera
     this.world.redstone.game=this;
     this.world.redstone.daylight=Math.max(0,Math.sin((this.worldTime/24000)*Math.PI*2));
-    this.world.redstone.update(dt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
+    this.world.redstone.update(worldDt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
     // Carts and boats move on their own clock, after redstone so powered rails have
     // their signal for this frame.
-    this.railSystem?.update(dt);
+    this.railSystem?.update(worldDt);
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
     this.fishing.update(dt);
@@ -4095,16 +4398,23 @@ class Game {
     // Building Studio's ground grid follows the player.
     this.buildingStudio?.update?.();
 
-    // Monster spawners placed by structures (monster rooms, mineshafts, fortresses, strongholds, bastions).
+    // Monster spawners placed by structures (monster rooms, mineshafts, fortresses, strongholds, bastions), and the
+    // trial chambers' trial spawners.
     this.monsterSpawners ??= new MonsterSpawners({ world: this.world, mobs: this.mobs });
-    this.monsterSpawnerClock = Math.min(40, (this.monsterSpawnerClock ?? 0) + dt * 20);
+    this.trialSpawners ??= new TrialSpawners({ world: this.world, mobs: this.mobs, drop: (pos, stack) => this.entities?.spawnDroppedItem(new THREE.Vector3(pos.x, pos.y, pos.z), stack.id, !!stack.isBlock, stack.count ?? 1, { enchantments: stack.enchantments }) });
+    this.monsterSpawnerClock = Math.min(40, (this.monsterSpawnerClock ?? 0) + worldDt * 20);
     while (this.monsterSpawnerClock >= 1) {
       this.monsterSpawnerClock -= 1;
-      try { this.monsterSpawners.tick({ position: this.player.position, gamemode: this.player.gamemode }, { difficulty: this.difficulty }); } catch (err) { console.error('monster spawner:', err); break; }
+      try {
+        const seen = playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z));
+        this.monsterSpawners.tick({ position: seen.position, gamemode: this.player.gamemode }, { difficulty: this.difficulty });
+        this.trialSpawners.tick([{ id: 'player', position: seen.position, gamemode: this.player.gamemode }], { difficulty: this.difficulty });
+      } catch (err) { console.error('spawner:', err); break; }
     }
 
     try {
-      this.mobs.update(dt, this.player);
+      // A spectator is "not noticed by mobs" and does not "trigger mob spawning ... nor ... prevent mob despawning".
+      this.mobs.update(worldDt, playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z)));
       this.mobUpdateError = null;
     } catch (err) {
       const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
@@ -4132,7 +4442,7 @@ class Game {
     if (this.worldGenerated) this.world.structures?.flushSpawns?.();
     if (this.spawnManager && this.worldGenerated && this.world.generationMode !== 'authored') {
       try {
-        this.spawnManager.update(dt);
+        this.spawnManager.update(worldDt);
         this.mobSpawnError = null;
       } catch (err) {
         const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
@@ -4182,7 +4492,8 @@ class Game {
     }
 
     // 5. Update Dropped Items, TNT, & Particles
-    this.entities.update(dt, this.player, this.inventory);
+    // "Items in the world also cannot be picked up" by a spectator.
+    this.entities.update(worldDt, playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z)), this.inventory);
 
     // Wiki: "If the merchant takes damage or leaves the player's reach, the trading menu closes." The check
     // lives here because neither the merchant nor the player knows about the other's window.
@@ -4195,7 +4506,8 @@ class Game {
 
     // 5a. Update Furnaces (cooking progress, fuel consumption, lighting & particles)
     if (this.furnaceManager) {
-      this.furnaceManager.update(dt);
+      this.furnaceManager.update(worldDt);
+      this.campfireCooking?.update(worldDt);
     }
 
     // 5a1. Update brewing stands. A stage takes 20 seconds in vanilla and the stand keeps working while
@@ -4203,7 +4515,7 @@ class Game {
     // Nothing called `BrewingStand.update` before this, which meant the timer never ran at all: a brew
     // had no duration and the progress bar in the GUI was decorative.
     if (this.ui?.tickBrewing) {
-      this.ui.tickBrewing(dt);
+      this.ui.tickBrewing(worldDt);
     }
 
     // 5a2. Update Beds (sleeping timer, transitions, wake-up)
@@ -4232,6 +4544,8 @@ class Game {
     // 5a5. Update End Portal travel. The last link of the route: before this, an activated End portal was a
     // floor pattern the player could stand on and nothing more.
     this.updateEndPortalTravel(dt);
+    updateEndGatewayTravel(this,dt);
+    this.endItems?.update(worldDt);
     this.updateEnderEyes(dt);
 
     // 5b. Update World Mechanism System & Active World Mechanics

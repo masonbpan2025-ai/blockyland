@@ -7,6 +7,7 @@ import { lavaCornerHeight, waterCornerHeight, waterCurrent } from './waterGeomet
 import { WATER_COLORS } from './water.js';
 import { isSnowSurface, snowFaceTint } from './snowShading.js';
 import { occludesWholeFace } from './blockOcclusion.js';
+import { netherWartHeight } from './netherPlants.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
 
@@ -338,9 +339,10 @@ export class ChunkMesher {
           // they are routed through createBlockGeometry. An unrecognised shape falls through to the
           // fast path and is drawn full size, which for any of these looks like a rendering bug
           // rather than a missing feature.
-          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.wallSign || def?.wallFan || def?.head || def?.wallHead || def?.sign || def?.rod || def?.rail || def?.flowerPot) {
+          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.wallSign || def?.wallFan || def?.head || def?.wallHead || def?.sign || def?.rod || def?.rail || def?.flowerPot || def?.model) {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
-            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab) && world.structureOrientations?.get(`${wx},${wy},${wz}`)) || {};
+            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab || def.plant || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
+              || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             if (def.snowLayer) {
               const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
@@ -409,7 +411,13 @@ export class ChunkMesher {
             for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
             geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
             lightGeometries.push(geometry);
+            // An ender chest gives light 7 (its wiki infobox); this branch used to skip registering it.
+            if (def?.light) lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + 0.5, wz + 0.5), level: def.light, color: def.lightColor || 0x9b5cff });
             continue;
+          }
+          if(blockId===BLOCKS.RESPAWN_ANCHOR) {
+            const level=Math.min(15,4*(world.structureOrientations?.get(`${wx},${wy},${wz}`)?.anchorCharges??0));
+            if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.8,wz+.5),level,color:0x995cff});
           }
           if (def?.light) {
             // Separate emitters so their distance-shadow material can suppress
@@ -436,6 +444,7 @@ export class ChunkMesher {
 
           // Cross-quad rendering for flowers (Poppy, Dandelion)
           if (isPlant) {
+            const plantHeight=blockId===BLOCKS.NETHER_WART?netherWartHeight(world.structureOrientations?.get(`${wx},${wy},${wz}`)?.plantAge):1;
             const uv = this.tm.getFaceUVs(blockId, 'all');
             // A plant anchored to a ceiling draws downward from the block's top face, so its texture has
             // to be flipped: the artwork's top edge belongs at the ceiling, not at the floor. The quad's
@@ -458,8 +467,8 @@ export class ChunkMesher {
               trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
               trVertCount += 4;
             };
-            addCrossQuad([wx, wy, wz], [wx + 1, wy, wz + 1], [wx + 1, wy + 1, wz + 1], [wx, wy + 1, wz]);
-            addCrossQuad([wx, wy, wz + 1], [wx + 1, wy, wz], [wx + 1, wy + 1, wz], [wx, wy + 1, wz + 1]);
+            addCrossQuad([wx, wy, wz], [wx + 1, wy, wz + 1], [wx + 1, wy + plantHeight, wz + 1], [wx, wy + plantHeight, wz]);
+            addCrossQuad([wx, wy, wz + 1], [wx + 1, wy, wz], [wx + 1, wy + plantHeight, wz], [wx, wy + plantHeight, wz + 1]);
             continue;
           }
 
@@ -476,15 +485,22 @@ export class ChunkMesher {
           neighbors[5] = padGet(lx - 1, ly, lz);
 
           // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
-          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
+          // and slightly inset against glass and ice to avoid coplanar z-fighting
+          const isIceAbove = neighbors[0] === BLOCKS.ICE || neighbors[0] === BLOCKS.FROSTED_ICE;
+          const isGlassAbove = neighbors[0] === BLOCKS.GLASS;
           const topY = isWater
-            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : (neighbors[0] === BLOCKS.GLASS ? (wy + 0.995) : (wy + 1)))
+            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : ((isGlassAbove || isIceAbove) ? (wy + 0.995) : (wy + 1)))
             : (wy + 1);
-          const botY = (isWater && neighbors[1] === BLOCKS.GLASS) ? (wy + 0.005) : wy;
-          const northZ = (isWater && neighbors[2] === BLOCKS.GLASS) ? (wz + 0.995) : (wz + 1);
-          const southZ = (isWater && neighbors[3] === BLOCKS.GLASS) ? (wz + 0.005) : wz;
-          const eastX = (isWater && neighbors[4] === BLOCKS.GLASS) ? (wx + 0.995) : (wx + 1);
-          const westX = (isWater && neighbors[5] === BLOCKS.GLASS) ? (wx + 0.005) : wx;
+          const isGlassOrIce1 = neighbors[1] === BLOCKS.GLASS || neighbors[1] === BLOCKS.ICE || neighbors[1] === BLOCKS.FROSTED_ICE;
+          const isGlassOrIce2 = neighbors[2] === BLOCKS.GLASS || neighbors[2] === BLOCKS.ICE || neighbors[2] === BLOCKS.FROSTED_ICE;
+          const isGlassOrIce3 = neighbors[3] === BLOCKS.GLASS || neighbors[3] === BLOCKS.ICE || neighbors[3] === BLOCKS.FROSTED_ICE;
+          const isGlassOrIce4 = neighbors[4] === BLOCKS.GLASS || neighbors[4] === BLOCKS.ICE || neighbors[4] === BLOCKS.FROSTED_ICE;
+          const isGlassOrIce5 = neighbors[5] === BLOCKS.GLASS || neighbors[5] === BLOCKS.ICE || neighbors[5] === BLOCKS.FROSTED_ICE;
+          const botY = (isWater && isGlassOrIce1) ? (wy + 0.005) : wy;
+          const northZ = (isWater && isGlassOrIce2) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && isGlassOrIce3) ? (wz + 0.005) : wz;
+          const eastX = (isWater && isGlassOrIce4) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && isGlassOrIce5) ? (wx + 0.005) : wx;
           const faceX = [wx, wx, northZ, southZ, eastX, westX];
           const faceZ = [wz, wz, northZ, southZ, wz, wz];
           const faceTop = [topY, botY, topY, topY, topY, topY];
@@ -591,10 +607,14 @@ export class ChunkMesher {
               else if (face === 1) py = botY;
               else py = (corners[co + 1] === 1 ? topY : wy);
               const corner = isWater ? waterCorner(Math.round(px), wy, Math.round(pz)) : null;
-              // Water lowers only the corners sitting on the block's top plane.
+              // Water lowers only the corners sitting on the block's top plane open to air.
               if (isWater && face !== 1 && py > wy) {
                 if (corner.height === null) corner.height = waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
-                py = wy + corner.height;
+                if (neighbors[0] === BLOCKS.AIR) {
+                  py = wy + corner.height;
+                } else if (isGlassAbove || isIceAbove) {
+                  py = wy + 0.995;
+                }
               }
               tPos.push(px, py, pz);
               tNorm.push(normal[0], normal[1], normal[2]);
@@ -670,4 +690,15 @@ export class ChunkMesher {
       waterGeo
     };
   }
+}
+
+/**
+ * Which neighbours a chorus plant reaches for: other chorus plants and flowers on every side, and end stone below
+ * (wiki, Chorus Plant: it "connects to" adjacent chorus plants and flowers, and to end stone beneath it).
+ */
+function chorusConnections(world, x, y, z) {
+  const chorus = (id) => id === BLOCKS.CHORUS_PLANT || id === BLOCKS.CHORUS_FLOWER;
+  const at = (dx, dy, dz) => world.getVoxel(x + dx, y + dy, z + dz);
+  return { north: chorus(at(0, 0, -1)), south: chorus(at(0, 0, 1)), west: chorus(at(-1, 0, 0)), east: chorus(at(1, 0, 0)),
+    up: chorus(at(0, 1, 0)), down: chorus(at(0, -1, 0)) || at(0, -1, 0) === BLOCKS.END_STONE };
 }

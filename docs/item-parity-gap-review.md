@@ -13,7 +13,7 @@ one of them can be reproduced with the commands at the end.
 
 | | Have | Vanilla | |
 | --- | --- | --- | --- |
-| Items (including item forms of blocks) | **1301** | 1385 | 93.9% |
+| Items (including item forms of blocks) | **1603** | 1385 | 115.7% |
 | Vanilla item names absent | **0** | 1385 | 100.0% named |
 | Registered blocks | 496 | 1095 | — |
 | Recipes | 3619 | 1557 vanilla | — |

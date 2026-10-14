@@ -135,7 +135,7 @@ test('a boat settles on the water surface and stays there', () => {
 
   for (let i = 0; i < 120; i++) rails.updateBoats(0.05);
 
-  assert.ok(boat.position.y > 1.8 && boat.position.y < 2.6,
+  assert.ok(Math.abs(boat.position.y - (2 + 8/9 - 0.13)) < 0.02,
     `the boat should float at the water surface, y was ${boat.position.y}`);
 });
 

@@ -3,9 +3,11 @@ import { TERRAIN_SHADOW_CHUNK } from './terrainShadowSampling.js';
 import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { netherWartHeight } from './netherPlants.js';
 import { createBedGeometry } from './bed.js';
 import { createSlabGeometry, createStairGeometry, createPaneGeometry, createCarpetGeometry, createCandleGeometry, createChainGeometry, createFenceGeometry, createWallGeometry, createPressurePlateGeometry, createButtonGeometry, createFenceGateGeometry, createBannerGeometry, createSignGeometry, createWallSignGeometry, createHangingSignGeometry, createWallFanGeometry, createHeadGeometry, createRodGeometry, createRailGeometry, createFlowerPotGeometry } from './slab.js';
 import { createChestGeometry } from './chest.js';
+import { createModelGeometry } from './blockModels.js';
 import { createDoorGeometry, createTrapdoorGeometry } from './door.js';
 
 function ensureFlameAttributes(geo) {
@@ -26,6 +28,8 @@ export function createBlockGeometry(id, textures, state = {}) {
   const def = BLOCK_DEFS[numericId] || BLOCK_DEFS[id];
   // Partial-cube shapes. All are placed before the cube fallback so none is ever drawn full size;
   // the mesher's dispatch routes them here for the same reason.
+  // A block with a box model (blockModelShapes.js): a cactus, a cauldron, an anvil, a cake...
+  if (def?.model) return ensureFlameAttributes(createModelGeometry(def, textures, state ?? {}));
   if (def?.stair) {
     // Stairs are two boxes: a base half and a step against the back. The facing comes from the
     // block state, which the mesher passes in the same way it does for doors and beds.
@@ -206,6 +210,34 @@ export function createBlockGeometry(id, textures, state = {}) {
     geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(count).fill(1), 1));
     geo.setAttribute('flameUv', new THREE.Float32BufferAttribute(flameUv, 2));
     return geo;
+  }
+  if (def?.plant) {
+    const tile = textures.getFaceUVs(numericId, 'all');
+    const hanging = Boolean(def.hang);
+    const plantHeight=numericId===BLOCKS.NETHER_WART?netherWartHeight(state.plantAge):1;
+    const p1 = new THREE.PlaneGeometry(1.4142, plantHeight);
+    const p2 = new THREE.PlaneGeometry(1.4142, plantHeight);
+    p1.rotateY(Math.PI / 4);
+    p2.rotateY(-Math.PI / 4);
+    p1.translate(0.5, plantHeight/2, 0.5);
+    p2.translate(0.5, plantHeight/2, 0.5);
+    const geo = mergeGeometries([p1, p2]);
+    p1.dispose();
+    p2.dispose();
+
+    const uv = geo.attributes.uv;
+    const count = geo.attributes.position.count;
+    for (let i = 0; i < count; i++) {
+      const origU = uv.getX(i);
+      const origV = uv.getY(i);
+      const v = hanging ? 1 - origV : origV;
+      uv.setXY(i, THREE.MathUtils.lerp(tile.u0, tile.u1, origU), THREE.MathUtils.lerp(tile.v0, tile.v1, v));
+    }
+    const colors = new Float32Array(count * 3).fill(1);
+    const emission = new Float32Array(count).fill(def?.light ? 0.8 : 0);
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('emission', new THREE.Float32BufferAttribute(emission, 1));
+    return ensureFlameAttributes(geo);
   }
   const torch = def?.shape === 'torch';
   // A wall torch shares the standing torch's box and UV cropping exactly; only its POSITION differs. It is

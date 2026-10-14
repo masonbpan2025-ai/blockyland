@@ -357,7 +357,7 @@ const WIKI_TRADES = {
     [2, ['pumpkin', 6], ['emerald', 1], { uses: 12, xp: 10, m: 0.05 }],
     [2, ['emerald', 1], ['pumpkin_pie', 4], { uses: 12, xp: 5, m: 0.05 }],
     [2, ['emerald', 1], ['apple', 4], { uses: 16, xp: 5, m: 0.05 }],
-    [3, ['melon_slice', 4], ['emerald', 1], { uses: 12, xp: 20, m: 0.05 }],
+    [3, ['melon', 4], ['emerald', 1], { uses: 12, xp: 20, m: 0.05 }],
     [3, ['emerald', 3], ['cookie', 18], { uses: 12, xp: 10, m: 0.05 }],
     [4, ['emerald', 1], ['suspicious_stew', 1], { uses: 12, xp: 15, m: 0.05, note: 'One of six effects is chosen when the trade is unlocked; this build gives the stew.' }],
     [4, ['emerald', 1], ['cake', 1], { uses: 12, xp: 15, m: 0.05 }],
@@ -436,7 +436,7 @@ const WIKI_TRADES = {
     [3, ['emerald', 1], ['polished_diorite', 4], { uses: 16, xp: 10, m: 0.05 }],
     [3, ['emerald', 1], ['polished_granite', 4], { uses: 16, xp: 10, m: 0.05 }],
     [4, ['quartz', 12], ['emerald', 1], { uses: 12, xp: 30, m: 0.05 }],
-    [4, ['emerald', 1], ['terracotta', 1], { uses: 12, xp: 15, m: 0.05, note: 'Every colour is its own offer in vanilla; plain terracotta is pinned here.' }],
+    [4, ['emerald', 1], ['white_terracotta', 1], { uses: 12, xp: 15, m: 0.05, note: 'The wiki sells "Any color Stained Terracotta"; every colour is its own offer in vanilla, white is pinned here.' }],
     [4, ['emerald', 1], ['white_glazed_terracotta', 1], { uses: 12, xp: 15, m: 0.05, note: 'Every colour is its own offer in vanilla; white is pinned here.' }],
     [5, ['emerald', 1], ['quartz_pillar', 1], { uses: 12, xp: 30, m: 0.05 }],
     [5, ['emerald', 1], ['quartz_block', 1], { uses: 12, xp: 30, m: 0.05 }]

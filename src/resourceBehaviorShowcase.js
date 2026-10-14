@@ -6,6 +6,48 @@ import { Chunk } from './world.js';
 import { ChunkMesher } from './mesher.js';
 import { FurnaceManager } from './furnace.js';
 import { occludesWholeFace } from './blockOcclusion.js';
+import { getScenariosForResource } from './resourceShowcaseScenarios.js';
+import { dropDemonstrations } from './resourceWikiAudit.js';
+import { parityCasesForEntry } from './resourceParityCases.js';
+
+/** A wiki case's verdict in the showcase's vocabulary: a known difference is never shown as a pass. */
+export const WIKI_STEP_STATUS = { PASS: 'observed', FAIL: 'not observed', KNOWN: 'known difference', NA: 'not applicable', NO_DATA: 'no wiki data' };
+
+/** The wiki parity cases for a resource, as showcase steps: each shows the wiki's value and the game's. */
+export function wikiSteps(entry) {
+  return parityCasesForEntry(entry).map((c) => ({
+    id: `wiki-${c.id}`,
+    label: `Wiki ${c.id} · ${c.label}: wiki ${c.expected} / game ${c.actual}`,
+    duration: 0.3,
+    wiki: c,
+    result: { status: WIKI_STEP_STATUS[c.status], detail: [c.note, c.source].filter(Boolean).join(' — ') },
+  }));
+}
+
+/**
+ * The block broken in the inspection world by hand, with its proper tool, with shears and with Silk Touch: the
+ * drops are the game's own (`harvestDrops`), spawned where the block stood so the preview shows them, and each
+ * step checks them against the wiki where the wiki says whether the block gives itself.
+ */
+export function dropSteps(entry, session) {
+  if (!session || entry.blockId === null || entry.blockId === undefined) return [];
+  return dropDemonstrations(entry.blockId).map((demo) => ({
+    id: `wiki-drops-${demo.id}`,
+    label: `Break it ${demo.label}: ${demo.drops.length ? demo.drops.map((d) => `${d.count} × ${d.isBlock ? BLOCK_DEFS[d.id]?.name ?? d.id : d.id}`).join(', ') : 'nothing'}`
+      + (demo.expectedSelf === null || demo.expectedSelf === undefined ? '' : ` (wiki: ${demo.expectedSelf ? 'drops itself' : 'does not drop itself'})`),
+    duration: 1.2,
+    enter() {
+      session.reset(entry.blockId);
+      session.world.setVoxel(...CENTER, BLOCKS.AIR);
+      session.drops.length = 0;
+      for (const d of demo.drops) session.game.entities.spawnDroppedItem(null, d.id, d.isBlock, d.count);
+    },
+    verify: demo.ok === null ? null : () => demo.ok,
+    // Put the block back, so the views and behaviours that follow see it.
+    exit() { session.reset(entry.blockId); },
+    detail: demo.ok === null ? 'shown, no wiki statement to check against' : '',
+  }));
+}
 
 export const INSPECTION_VIEWS = [
   { id: 'east', direction: [1, 0, 0] }, { id: 'west', direction: [-1, 0, 0] },
@@ -19,6 +61,7 @@ export class ResourceInspectionWorld {
   constructor(blockId, { scene = new THREE.Scene(), onChange = () => {} } = {}) {
     this.chunk = new Chunk(0, 0);
     this.drops = [];
+    this.dropsVersion = 0;
     this.revision = 0;
     this.blockId = blockId;
     this.world = {
@@ -29,7 +72,7 @@ export class ResourceInspectionWorld {
     this.game = {
       world: this.world, scene,
       rebuildChunkMesh: () => onChange(),
-      entities: { spawnDroppedItem: (position, id, isBlock, count) => this.drops.push({ position, id, isBlock, count }) },
+      entities: { spawnDroppedItem: (position, id, isBlock, count) => { this.drops.push({ position, id, isBlock, count }); this.dropsVersion++; } },
       ui: { closeFurnaceModal() {} },
     };
     this.furnaceManager = new FurnaceManager(this.game);
@@ -45,6 +88,7 @@ export class ResourceInspectionWorld {
     }
     this.furnaceManager.furnaces.clear();
     this.drops.length = 0;
+    this.dropsVersion++;
     this.chunk.voxels.fill(0);
     this.world.setVoxel(...CENTER, blockId);
     // The screenshot's regression: opaque-textured, one-pixel carpet beside
@@ -122,12 +166,16 @@ export class ResourceBehaviorShowcase {
     this.onStep = onStep;
     this.results = [];
     this.steps = checks.map(check => ({ id: check.id, label: check.label, duration: 0.12, result: check }));
+    // The wiki parity cases (src/resourceWikiAudit.js), then the drop demonstration, before the views and behaviours.
+    this.steps.push(...wikiSteps(entry), ...dropSteps(entry, session));
     for (const view of INSPECTION_VIEWS) {
       this.steps.push({ id: `view-${view.id}`, label: `Inspect ${view.id} view${view.id === 'bottom' && session ? ' (support cutaway)' : ''}`, duration: 0.7, view,
         verify: session && occludesWholeFace(BLOCK_DEFS[entry.blockId]) ? () => session.inspectFace(view.direction, textures) : null });
     }
     if (session && [BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(entry.blockId)) {
       this.steps.push(...furnaceScenarios(session));
+    } else if (session) {
+      this.steps.push(...getScenariosForResource({ entry, session, textures }));
     }
     this.index = -1;
     this.elapsed = 0;
@@ -156,9 +204,10 @@ export class ResourceBehaviorShowcase {
     let result = step.result;
     try {
       if (this.stepError) throw this.stepError;
-      if (!result) result = { status: step.verify ? (step.verify() ? 'observed' : 'not observed') : 'unsupported', detail: step.verify ? '' : 'Visual inspection; no automated assertion for this shape.' };
+      if (!result) result = { status: step.verify ? (step.verify() ? 'observed' : 'not observed') : 'unsupported', detail: step.detail ?? (step.verify ? '' : 'Visual inspection; no automated assertion for this shape.') };
     } catch (error) { result = { status: 'error', detail: error.message }; }
     this.results.push({ ...result, id: step.id, label: step.label });
+    try { step.exit?.(); } catch (error) { this.results.push({ status: 'error', detail: error.message, id: `${step.id}-exit`, label: step.label }); }
     this.next();
   }
   stop() { this.running = false; }

@@ -34,7 +34,9 @@ const refusal = (said) => said.find(m => /do not have permission/.test(m.text));
 test('the commands that change the world are gated, and the ones that do not are not', () => {
   // `gate` is what makes the permission check fire. Without it on some command the check is dead code.
   const gated = COMMANDS.filter(c => c.gate === true).map(c => c.name).sort();
-  assert.deepEqual(gated, ['gamemode', 'give', 'locate', 'redstone', 'setblock', 'show_mobs', 'summon', 'teleport', 'time', 'weather']);
+  // The Java commands the systems audit added are cheats too (Commands page: OP level 2), apart from the level-0 ones.
+  // Every Java command at OP level 2+ is a cheat here (the systems audit's K-LEVEL case checks each against the Commands page).
+  assert.deepEqual(gated, ['advancement', 'attribute', 'bossbar', 'clear', 'clone', 'damage', 'data', 'datapack', 'debug', 'defaultgamemode', 'difficulty', 'effect', 'enchant', 'execute', 'experience', 'fill', 'fillbiome', 'forceload', 'function', 'gamemode', 'gamerule', 'give', 'item', 'jfr', 'kick', 'kill', 'locate', 'loot', 'particle', 'place', 'playsound', 'recipe', 'redstone', 'reload', 'return', 'ride', 'rotate', 'say', 'schedule', 'scoreboard', 'setblock', 'setworldspawn', 'show_mobs', 'spawnpoint', 'spectate', 'spreadplayers', 'stopsound', 'summon', 'tag', 'team', 'teleport', 'tellraw', 'tick', 'time', 'title', 'weather', 'worldborder']);
 
   // Save-file management is level 2 in vanilla but NOT a cheat here, because `/maps` is now the only route to
   // the map loader -- the pause menu button that opened it was replaced by this toggle.
@@ -45,7 +47,9 @@ test('the commands that change the world are gated, and the ones that do not are
   }
   // And the two that are level 0 in vanilla.
   assert.equal(findCommand('help').level, 0);
-  assert.equal(findCommand('clear').level, 0);
+  assert.equal(findCommand('clearchat').level, 0);
+  // Java's level-0 commands stay open to everyone.
+  for (const name of ['me', 'msg', 'list', 'seed', 'random']) assert.equal(findCommand(name).level, 0, name);
 });
 
 test('every command carries the metadata the gate reads', () => {
@@ -138,7 +142,7 @@ test('permissionRefusal allows everything once cheats are ON, in Survival', () =
 
 test('permissionRefusal never blocks the save-file commands or an unknown one', () => {
   const survival = { gameMode: 'survival', cheats: false };
-  for (const root of ['/save', '/load', '/maps', '/saves', '/help', '/clear', '/offline']) {
+  for (const root of ['/save', '/load', '/maps', '/saves', '/help', '/clearchat', '/offline', '/seed', '/me', '/list']) {
     assert.equal(permissionRefusal(survival, root), null,
       root + ' must stay reachable: /maps is now the only route to the map loader');
   }

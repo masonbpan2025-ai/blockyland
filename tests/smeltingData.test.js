@@ -25,9 +25,12 @@ test('the generated smelting and fuel entries reached the tables', () => {
     assert.equal(merged.isBlock, value.isBlock);
     assert.equal(merged.count, value.count);
   }
+  // A generated fuel value the wiki's fuel table corrects is applied as the wiki has it (wikiFurnaceFixes.js): the
+  // bowl burns 5 s ("Bowl ... 5"), not Mineclonia's 10.
+  const WIKI_CORRECTED_FUEL = { bowl: 5 };
   for (const [key, seconds] of Object.entries(EXTRA_FUEL)) {
     const k = /^[0-9]+$/.test(key) ? Number(key) : key;
-    assert.equal(FUEL_BURN_TIMES[k], seconds, `generated fuel entry '${key}' was not merged`);
+    assert.equal(FUEL_BURN_TIMES[k], WIKI_CORRECTED_FUEL[key] ?? seconds, `generated fuel entry '${key}' was not merged`);
   }
   console.log(`  smelting ${Object.keys(SMELTING_RECIPES).length}, fuel ${Object.keys(FUEL_BURN_TIMES).length}`
     + ` (${extraKeys} generated smelting, ${Object.keys(EXTRA_FUEL).length} generated fuel)`);

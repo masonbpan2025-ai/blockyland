@@ -224,7 +224,7 @@ test('Dropper inserts into adjacent containers without dropping, or drops if in 
   dropperAir.inventory = [{ id: 'arrow', isBlock: false, count: 2 }];
   const lever1 = put(w, [0, 3, 0], B.LEVER);
   lever1.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(droppedSpawned, 1);
   assert.equal(dropperAir.inventory[0].count, 1);
 
@@ -234,7 +234,7 @@ test('Dropper inserts into adjacent containers without dropping, or drops if in 
   dropperContainer.inventory = [{ id: 'gold_ingot', isBlock: false, count: 2 }];
   const lever2 = put(w, [5, 3, 0], B.LEVER);
   lever2.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   // Directly transferred into hopper without dropping
   assert.equal(dropperContainer.inventory[0].count, 1);
   assert.equal(targetHopper.inventory[0].id, 'gold_ingot');
@@ -276,7 +276,7 @@ test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, 
   dWater.inventory = [{ id: 'water_bucket', isBlock: false, count: 1 }];
   const l1 = put(w, [0, 3, 0], B.LEVER);
   l1.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(w.getVoxel(1, 2, 0), B.WATER);
   assert.equal(dWater.inventory[0].id, 'bucket');
 
@@ -285,7 +285,7 @@ test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, 
   dBucket.inventory = [{ id: 'bucket', isBlock: false, count: 1 }];
   const l2 = put(w, [2, 3, 0], B.LEVER);
   l2.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(w.getVoxel(1, 2, 0), B.AIR);
   assert.equal(dBucket.inventory[0].id, 'water_bucket');
 
@@ -294,7 +294,7 @@ test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, 
   dShear.inventory = [{ id: 'shears', isBlock: false, count: 1 }];
   const l3 = put(w, [1, 3, 0], B.LEVER);
   l3.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(mockSheep.isSheared, true);
 
   // 4. Planting seeds on farmland
@@ -303,7 +303,7 @@ test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, 
   dPlant.inventory = [{ id: 'wheat_seeds', isBlock: false, count: 3 }];
   const l4 = put(w, [3, 3, 0], B.LEVER);
   l4.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(w.getVoxel(4, 2, 0), B.WHEAT_STAGE_0);
   assert.equal(dPlant.inventory[0].count, 2);
 });
@@ -317,8 +317,8 @@ test('Target Block accuracy-dependent power outputs', () => {
   ticks(w, 1);
   assert.equal(target.output, 15, 'Center hit should produce full power 15');
 
-  // Wait 9 ticks (signal holds for 8 redstone ticks)
-  ticks(w, 9);
+  // An arrow holds the target on for 20 game ticks (10 redstone ticks), then it drops.
+  ticks(w, 10);
   assert.equal(target.output, 0);
 
   // Off-center edge hit (distance ~ 0.45)
@@ -370,7 +370,7 @@ test('Dispenser equips armor onto player and ignites fire with flint and steel',
   dArmor.inventory = [{ id: 'diamond_helmet', isBlock: false, count: 1 }];
   const l1 = put(w, [0, 3, 0], B.LEVER);
   l1.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(inventory.armor.head?.id, 'diamond_helmet', 'Dispenser should equip helmet onto player in front');
   assert.equal(dArmor.inventory.length, 0);
 
@@ -379,7 +379,7 @@ test('Dispenser equips armor onto player and ignites fire with flint and steel',
   dFlint.inventory = [{ id: 'flint_and_steel', isBlock: false, count: 1 }];
   const l2 = put(w, [3, 3, 0], B.LEVER);
   l2.on = true;
-  ticks(w, 2);
+  ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(w.getVoxel(4, 2, 0), B.FIRE, 'Flint and steel should light fire in front');
 });
 

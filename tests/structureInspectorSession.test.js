@@ -4,6 +4,7 @@
 // tests drive the harness exactly as the page does: pick a structure, set a seed, locate a plan,
 // realize it, and compare hashes.
 import test from 'node:test';
+import { generatorCoverage } from '../src/worldgen/index.js';
 import assert from 'node:assert/strict';
 
 import {
@@ -23,9 +24,12 @@ test('the picker lists every registry structure with its set and placement', () 
   assert.match(buried.placement, /frequency=0\.01/);
   assert.equal(buried.defaultBiome, 'beach', 'the default preview biome comes from the structure gate');
 
-  const pending = list.find((entry) => entry.id === 'stronghold');
-  assert.equal(pending.implemented, false, 'an unimplemented structure is marked as such, not hidden');
-  assert.equal(typeof pending.terrainAdaptation, 'string');
+  const missingId = generatorCoverage().missing[0];
+  if (missingId) {
+    const pending = list.find((entry) => entry.id === missingId);
+    assert.equal(pending.implemented, false, 'an unimplemented structure is marked as such, not hidden');
+    assert.equal(typeof pending.terrainAdaptation, 'string');
+  }
   const stronghold = list.find((entry) => entry.id === 'stronghold');
   assert.match(stronghold.placement, /concentric_rings/);
 });
@@ -122,9 +126,11 @@ test('a chunk with no structure plans nothing and says so', () => {
   }
 });
 
-test('an unimplemented structure reports a plan is impossible rather than crashing', () => {
-  const session = createStructureInspectorSession({ seed: 1, structureId: 'stronghold' });
-  const entry = session.setStructure('stronghold');
+test('an unimplemented structure reports a plan is impossible rather than crashing', (t) => {
+  const missingId = generatorCoverage().missing[0];
+  if (!missingId) { t.skip('every registry structure has a generator now'); return; }
+  const session = createStructureInspectorSession({ seed: 1, structureId: missingId });
+  const entry = session.setStructure(missingId);
   assert.equal(entry.implemented, false);
   session.setBiome('plains');
   const found = session.planNearest({ maxRadiusChunks: 64 });
@@ -253,7 +259,8 @@ test('a structure deeper than the default window is still drawn, in a WIDENED wi
   session.setSurface(70);
   assert.ok(session.planNearest({ maxRadiusChunks: 512 }), 'the ancient city must be findable');
   const box = session.currentPlan().start.box;
-  assert.ok(box.maxY < PREVIEW_MIN_Y, 'this structure must genuinely live below the default window');
+  // The city's floor is at y 13 now (it fits the world); it still lives below the preview's default window.
+  assert.ok(box.minY < PREVIEW_MIN_Y, 'this structure must genuinely reach below the default window');
 
   const written = session.realize();
   const info = session.snapshot();

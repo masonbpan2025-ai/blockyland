@@ -115,12 +115,11 @@ test('SENSITIVITY: a taller or wider box, and a mangrove gate, fail', async () =
 
 test('SENSITIVITY (universal): structures that do not fit the 64-block world fail U4, and finding them is the point', async () => {
   const u4 = universalFacts().find((fact) => fact.id === 'U4');
-  for (const id of ['ancient_city', 'trial_chambers']) {
-    const obs = await observe(id, { mode: 'flat' });
-    const result = u4.check(obs);
-    assert.equal(result.ok, false, `${id} must fail: ${result.detail}`);
-    assert.ok(obs.stats.fitPercent < 5, `${id} fits ${obs.stats.fitPercent}%`);
-  }
+  // Every registry structure fits the world now, so a sunken copy of a real one stands in for the ones that once did not.
+  const real = await observe('swamp_hut', { mode: 'flat' });
+  const sunken = { ...real, stats: { ...real.stats, minY: -90, maxY: -70, clipped: real.stats.blocks, fitPercent: 0 } };
+  assert.equal(u4.check(sunken).ok, false, 'a structure below the world must fail U4');
+  for (const id of ['ancient_city', 'trial_chambers']) assert.equal(u4.check(await observe(id, { mode: 'flat' })).ok, true, `${id} fits the world now`);
   const fits = await observe('swamp_hut', { mode: 'flat' });
   assert.equal(u4.check(fits).ok, true);
   assert.equal(WORLD_HEIGHT, 64);
@@ -135,13 +134,14 @@ test('SENSITIVITY (universal): a block without a facing fails U6 (the chest/stai
   assert.equal(u6.check(obs).ok, false);
 });
 
-test('the audit knows a structure with no generator and one it cannot locate, instead of passing them', async () => {
-  const result = await auditStructure('mineshaft', { mode: 'flat' });
+test('the audit knows a structure with no generator and one it cannot locate, instead of passing them', async (t) => {
+  const missingId = (await import('../src/worldgen/index.js')).generatorCoverage().missing[0];
+  if (!missingId) { t.skip('every registry structure has a generator'); return; }
+  const result = await auditStructure(missingId, { mode: 'flat' });
   assert.equal(result.summary.pass, 0);
   assert.ok(result.rows.every((row) => row.status === 'unchecked' && /no generator/.test(row.detail)));
   const all = await auditAllStructures({ mode: 'flat' });
-  const mineshaft = all.find((entry) => entry.structureId === 'mineshaft');
-  assert.equal(mineshaft.implemented, false);
+  assert.equal(all.find((entry) => entry.structureId === missingId).implemented, false);
 });
 
 test('every village type passes its whole card, wiki infobox included, in flat and real-world mode on several seeds', async () => {
@@ -209,7 +209,8 @@ test('heightView shows how much of a structure is clipped', async () => {
   assert.equal(hut.clipped, 0);
   assert.ok(hut.world.from < hut.world.to);
   assert.ok(hut.structure.from >= hut.world.from && hut.structure.to <= hut.world.to, 'the hut sits inside the world band');
-  const city = heightView(await observe('ancient_city', { mode: 'flat' }));
+  const real = await observe('swamp_hut', { mode: 'flat' });
+  const city = heightView({ ...real, stats: { ...real.stats, minY: -63, maxY: -31, clipped: 5000, blocks: 5000, fitPercent: 0 } });
   assert.ok(city.fitPercent < 5 && city.clipped > 1000);
   assert.ok(city.structure.to < city.world.from, 'the whole city is below the world band');
   assert.match(city.label, /clipped/);
@@ -220,9 +221,8 @@ test('auditAllView gives one row per structure with a verdict', async () => {
   assert.equal(rows.length, Object.values(STRUCTURES).filter(Boolean).length);
   const by = Object.fromEntries(rows.map((row) => [row.structureId, row]));
   assert.equal(by.swamp_hut.verdict, 'incomplete', 'flat mode cannot finish the real-world facts');
-  assert.equal(by.stronghold.verdict, 'no generator');
-  assert.equal(by.ancient_city.verdict, 'fail');
-  assert.ok(by.ancient_city.failing.includes('U4'));
+  assert.equal(by.stronghold.verdict, 'incomplete', 'every structure has a generator now; flat mode leaves the real-world facts open');
+  assert.equal(by.ancient_city.verdict, 'incomplete', 'the city fits the world now (its floor is mapped to y 13)');
 });
 
 test('the Inspector session and page are wired to the audit', async () => {

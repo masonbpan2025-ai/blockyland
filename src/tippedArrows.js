@@ -8,6 +8,7 @@
 // The durations are DERIVED from the potion table rather than typed in, so an arrow cannot drift away from
 // the potion it is made from.
 import { POTION_DATA } from './brewing.js';
+import { TIPPED_ARROWS } from './tippedArrowItems.js';
 
 /**
  * Vanilla: a tipped arrow carries its potion's effect for one eighth of the potion's duration.
@@ -18,15 +19,12 @@ import { POTION_DATA } from './brewing.js';
 export const TIPPED_ARROW_DURATION_FACTOR = 1 / 8;
 
 /** Which potion each tipped arrow is brewed from. */
-export const TIPPED_ARROW_SOURCE = {
-  tipped_arrow_slowness: 'potion_of_slowness',
-  tipped_arrow_weakness: 'potion_of_weakness',
-  tipped_arrow_poison: 'potion_of_poison',
-};
+export const TIPPED_ARROW_SOURCE = Object.fromEntries(TIPPED_ARROWS.map((a) => [a.id, a.potion]));
 
 /** True for any item id that names a tipped arrow. */
 export function isTippedArrow(itemId) {
-  return typeof itemId === 'string' && itemId.startsWith('tipped_arrow_');
+  // The plain `tipped_arrow` too: an awkward, thick or mundane potion makes one (Java), and it flies like an arrow.
+  return itemId === 'tipped_arrow' || (typeof itemId === 'string' && itemId.startsWith('tipped_arrow_'));
 }
 
 /**
@@ -47,6 +45,7 @@ export function tippedArrowEffect(itemId) {
   if (!potionKey) return null;
   const potion = POTION_DATA[potionKey];
   if (!potion?.effect) return null;
-  const duration = Math.max(1, Math.floor(potion.duration * TIPPED_ARROW_DURATION_FACTOR));
+  // An instant effect (healing, harming) has no duration to divide: it is applied once.
+  const duration = potion.duration ? Math.max(1, Math.floor(potion.duration * TIPPED_ARROW_DURATION_FACTOR)) : 1;
   return { id: potion.effect, duration, level: potion.level ?? 1 };
 }

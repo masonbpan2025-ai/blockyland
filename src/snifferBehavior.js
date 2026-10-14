@@ -446,14 +446,15 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
     eyes.push(eye);
   }
 
-  // Six short legs in two rows
+  // Six short legs in two rows, pivoting at hip joint (y = 0.425)
   const legs = [];
   const legGeo = new THREE.BoxGeometry(0.297, 0.425, 0.340);
+  legGeo.translate(0, -0.425 / 2, 0);
   applyVanillaBoxUVs(legGeo, 0, 87, 192, 192, 7, 10, 8);
   for (const z of [0.55, 0, -0.55]) {
     for (const side of [-1, 1]) {
       const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(side * 0.44, 0.21, z);
+      leg.position.set(side * 0.44, 0.425, z);
       group.add(leg);
       legs.push(leg);
     }
@@ -462,6 +463,7 @@ export function createSnifferModel(bodyMat, bellyMat, shellMat, snoutMat, legMat
   const tail = new THREE.Group();
   group.add(tail);
 
+  head.add(neck);
   return { group, body, belly, shell, bands, neck, head, snout, ears, nose, lowerBeak, eyes, legs, tail };
 }
 

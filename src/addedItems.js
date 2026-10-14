@@ -93,7 +93,7 @@ export function addedItems() {
     red_shulker_box: { name: 'Red Shulker Box', icon: '/assets/items/red_shulker_box.png', isBlock: true, blockId: BLOCKS.RED_SHULKER_BOX, stackSize: 1, type: 'block' },
     black_shulker_box: { name: 'Black Shulker Box', icon: '/assets/items/black_shulker_box.png', isBlock: true, blockId: BLOCKS.BLACK_SHULKER_BOX, stackSize: 1, type: 'block' },
     resin_brick: { name: 'Resin Brick', icon: '/assets/items/resin_brick.png', stackSize: 64, type: 'material' },
-    powder_snow_bucket: { name: 'Powder Snow Bucket', icon: '/assets/items/powder_snow_bucket.png', isBlock: true, blockId: BLOCKS.POWDER_SNOW, stackSize: 1, type: 'tool' },
+    powder_snow_bucket: { name: 'Powder Snow Bucket', icon: '/assets/items/powder_snow_bucket.png', isBlock: false, blockId: BLOCKS.POWDER_SNOW, stackSize: 1, type: 'tool' },
     spyglass: { name: 'Spyglass', icon: '/assets/items/spyglass.png', stackSize: 1, type: 'tool' },
     trial_key: { name: 'Trial Key', icon: '/assets/items/trial_key.png', stackSize: 64, type: 'utility' },
     ominous_trial_key: { name: 'Ominous Trial Key', icon: '/assets/items/ominous_trial_key.png', stackSize: 64, type: 'utility' },

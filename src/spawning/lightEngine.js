@@ -92,8 +92,9 @@ export function isTransparent(blockId) {
 }
 
 /** How much light a block emits, 0 when it emits none. */
-export function blockEmission(blockId) {
+export function blockEmission(blockId,world=null,x=0,y=0,z=0) {
   if (blockId === BLOCKS.AIR) return 0;
+  if(blockId===BLOCKS.RESPAWN_ANCHOR)return Math.min(15,4*(world?.structureOrientations?.get(`${x},${y},${z}`)?.anchorCharges??0));
   const def = BLOCK_DEFS[blockId];
   if (!def) return 0;
   const level = def.light;
@@ -309,7 +310,8 @@ export class LightEngine {
           const fi = y * planeStride + rowOffset;
           const emissionLevel = emission[fi];
           if (emissionLevel <= 0) continue;
-          if (opacity[fi] >= MAX_LIGHT) continue; // a fully opaque emitter lights nothing
+          // Opaque emitters (shroomlight, glowstone, a charged anchor) still
+          // radiate outward. Opacity stops light entering a block, not emission.
           block[(y * CHUNK_SIZE_Z * CHUNK_SIZE_X) + columnBase] = emissionLevel;
         }
       }
@@ -362,7 +364,7 @@ export class LightEngine {
           const index = (y * strideZ + dz) * strideX + dx;
           const id = world.getVoxel(wx, y, wz);
           opacity[index] = blockOpacity(id);
-          emission[index] = blockEmission(id);
+          emission[index] = blockEmission(id,world,wx,y,wz);
         }
       }
     }

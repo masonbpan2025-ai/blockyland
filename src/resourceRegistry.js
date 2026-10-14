@@ -603,11 +603,13 @@ export function resolveResource(ref, reg = registry()) {
 }
 
 /** Search by name or id, optionally restricted to items or to blocks. */
-export function searchResources(text = '', { kind = null, limit = 500, reg = registry() } = {}) {
+// `placeable` widens kind 'block' to the items that place a block (an oak button, a shelf): the Block Inspector's
+// list, which otherwise held only the blocks with no item form and so never showed a button or a pressure plate.
+export function searchResources(text = '', { kind = null, limit = 500, reg = registry(), placeable = false } = {}) {
   const needle = lower(text).trim();
   const out = [];
   for (const entry of reg.entries.values()) {
-    if (kind && entry.kind !== kind) continue;
+    if (kind && entry.kind !== kind && !(placeable && kind === 'block' && entry.blockId !== null && entry.blockId !== undefined)) continue;
     if (needle && !lower(entry.id).includes(needle) && !lower(entry.name).includes(needle)) continue;
     out.push(entry);
     if (out.length >= limit) break;

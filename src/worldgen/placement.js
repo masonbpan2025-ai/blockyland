@@ -413,43 +413,66 @@ export class StructurePlacementEngine {
    */
   planChunk(chunkX, chunkZ) {
     this.stats.chunksAsked++;
-    // Structures before features: a feature (a monster room, a desert well) is placed in vanilla by a later step and
-    // never stops a structure from starting in its chunk.
-    const isFeature = (set) => set.structures.every((entry) => this.structureInfo?.(entry.structureId)?.family === 'feature');
-    const ordered = [...this.setsForChunk(chunkX, chunkZ)].sort((a, b) => Number(isFeature(a[1])) - Number(isFeature(b[1])));
-    for (const [setName, set] of ordered) {
-      const selection = this.selectStructureForChunk(chunkX, chunkZ, setName, set);
-      let pool = selection.pool;
-      let total = selection.total;
-      while (pool.length > 0 && total > 0) {
-        let chosen = null;
-        if (!selection.random) {
-          chosen = pool[0];
-        } else {
-          const roll = selection.random.nextIntBound(total);
-          let cursor = 0;
-          for (const entry of pool) {
-            cursor += entry.weight;
-            if (roll < cursor) { chosen = entry; break; }
-          }
-        }
-        if (!chosen) break;
+    for (const [setName, set] of this.orderedSets(chunkX, chunkZ)) {
+      const plan = this.planSet(chunkX, chunkZ, setName, set);
+      if (plan) return plan;
+    }
+    return null;
+  }
 
-        this.stats.candidates++;
-        const start = this.generate(this.seed, chosen.structureId, chunkX, chunkZ, {
-          set: setName,
-          placement: set.placement,
-          biomeAt: this.biomeAt,
-          structureInfo: this.structureInfo
-        });
-        if (start) {
-          this.stats.generated++;
-          return { set: setName, structureId: chosen.structureId, start };
+  /**
+   * Every set's plan for one chunk. Vanilla places each structure set on its own, so a mineshaft and a shipwreck can
+   * both start in the same chunk; `planChunk` (the first only) is kept for callers that want one answer.
+   */
+  planChunkAll(chunkX, chunkZ) {
+    this.stats.chunksAsked++;
+    const out = [];
+    for (const [setName, set] of this.orderedSets(chunkX, chunkZ)) {
+      const plan = this.planSet(chunkX, chunkZ, setName, set);
+      if (plan) out.push(plan);
+    }
+    return out;
+  }
+
+  /** The chunk's candidate sets, structures before features (a feature is placed by a later step in vanilla). */
+  orderedSets(chunkX, chunkZ) {
+    const isFeature = (set) => set.structures.every((entry) => this.structureInfo?.(entry.structureId)?.family === 'feature');
+    return [...this.setsForChunk(chunkX, chunkZ)].sort((a, b) => Number(isFeature(a[1])) - Number(isFeature(b[1])));
+  }
+
+  /** One set's plan for a chunk: its weighted pick, retrying the others when one refuses. */
+  planSet(chunkX, chunkZ, setName, set) {
+    const selection = this.selectStructureForChunk(chunkX, chunkZ, setName, set);
+    let pool = selection.pool;
+    let total = selection.total;
+    while (pool.length > 0 && total > 0) {
+      let chosen = null;
+      if (!selection.random) {
+        chosen = pool[0];
+      } else {
+        const roll = selection.random.nextIntBound(total);
+        let cursor = 0;
+        for (const entry of pool) {
+          cursor += entry.weight;
+          if (roll < cursor) { chosen = entry; break; }
         }
-        this.stats.rejected++;
-        pool = pool.filter((entry) => entry !== chosen);
-        total -= chosen.weight;
       }
+      if (!chosen) break;
+
+      this.stats.candidates++;
+      const start = this.generate(this.seed, chosen.structureId, chunkX, chunkZ, {
+        set: setName,
+        placement: set.placement,
+        biomeAt: this.biomeAt,
+        structureInfo: this.structureInfo
+      });
+      if (start) {
+        this.stats.generated++;
+        return { set: setName, structureId: chosen.structureId, start };
+      }
+      this.stats.rejected++;
+      pool = pool.filter((entry) => entry !== chosen);
+      total -= chosen.weight;
     }
     return null;
   }
@@ -487,7 +510,7 @@ export class StructurePlacementEngine {
             || Math.abs(chunkZ - centreChunkZ) >= radius - step;
           if (radius > 0 && !onShell) continue;
           if (!placement.isStructureChunk(this.context, chunkX, chunkZ, setName)) continue;
-          const plan = this.planChunk(chunkX, chunkZ);
+          const plan = this.planSet(chunkX, chunkZ, setName, set);
           if (!plan || plan.structureId !== structureId) continue;
           const reference = plan.start.placementReference();
           const offset = placement.locateOffset || { x: 0, y: 0, z: 0 };

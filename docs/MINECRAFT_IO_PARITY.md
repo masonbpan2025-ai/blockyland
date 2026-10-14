@@ -36,8 +36,8 @@ trusting an export.
 | Bedrock `.mcaddon` | Bedrock | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
 | Bedrock `.mctemplate` | Bedrock | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
 | Bedrock `.mcproject` | Bedrock | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
-| Java resource pack | Java | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
-| Java data pack | Java | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
+| Java resource pack | Java | read | no | — | — | — | — | — | — | — | — | — | — | — | yes | SUPPORTED (texture packs & presets) |
+| Java data pack | Java | read | no | — | — | — | — | — | — | — | — | — | — | — | yes | SUPPORTED |
 
 A format that is `NOT STARTED` is still **recognised**: `detectFormat` names it and `importStructure` refuses it
 with "recognised but not implemented" rather than "unknown file", which is what lets an import dialog say

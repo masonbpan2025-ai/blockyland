@@ -55,7 +55,9 @@ export const EXTRA_ITEMS = {
   gold_nugget: { name: 'Gold Nugget', icon: '/assets/items/gold_nugget.png', type: 'material' },
   wind_charge: { name: 'Wind Charge', icon: '/assets/items/wind_charge.png', type: 'material' },
   writable_book: { name: 'Book and Quill', icon: '/assets/items/writable_book.png', stackSize: 1, type: 'material' },
-  mace: { name: 'Mace', icon: '/assets/items/mace.png', stackSize: 1, type: 'material' },
+  // The wiki's mace: 6 attack damage (attribute modifiers); its durability (500) and enchantability (15) are in
+  // durability.js and enchanting.js. Its smash attack is not modelled.
+  mace: { name: 'Mace', attack: 6, icon: '/assets/items/mace.png', stackSize: 1, type: 'material' },
   glow_item_frame: { name: 'Glow Item Frame', icon: '/assets/items/glow_item_frame.png', type: 'material' },
   pumpkin_pie: { name: 'Pumpkin Pie', icon: '/assets/items/pumpkin_pie.png', food: 8, saturation: 4.8, type: 'food' },
   music_disc_5: { name: 'Music Disc 5', icon: '/assets/items/music_disc_5.png', stackSize: 1, type: 'material' },

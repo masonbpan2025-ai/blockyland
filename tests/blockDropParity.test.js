@@ -48,12 +48,14 @@ test('the drop tables name items and blocks that exist', () => {
   // names as this game spells them, which is what `bonusKeyFor` matches on.
   const keys = new Set(Object.keys(BLOCK_DEFS).map((id) => bonusKeyFor(Number(id))));
   for (const [block, item] of Object.entries(DROP_ITEM_OVERRIDES)) {
-    assert.ok(ALL_ITEMS[item], `${block} should drop ${item}, which is not an item`);
+    // An override names an item, or a block (the soul campfire's soul soil), which drops as that block.
+    assert.ok(ALL_ITEMS[item] || keys.has(item), `${block} should drop ${item}, which is neither an item nor a block`);
     assert.ok(keys.has(block), `no block is keyed '${block}'`);
   }
   for (const [block, [min, max]] of Object.entries(BASE_DROP_COUNTS)) {
     assert.ok(keys.has(block), `no block is keyed '${block}'`);
-    assert.ok(min >= 1 && max >= min, `${block} should have an ordered range, has ${min}..${max}`);
+    // A minimum below 1 is vanilla's "may drop nothing" roll (chorus plant 0-1, mushroom blocks -6..2 clamped at 0).
+    assert.ok(max >= 1 && max >= min, `${block} should have an ordered range, has ${min}..${max}`);
   }
 });
 
@@ -96,10 +98,9 @@ test('a block that deliberately drops nothing still drops nothing', () => {
   assert.equal(log.isBlock, true);
 });
 
-test('one block disagrees with vanilla, and it is the one that cannot be fixed yet', () => {
-  // The invariant over the whole registry. Exactly one block is reported, and the reason is that this game has
-  // no soul soil *item* to give: vanilla's soul campfire drops two of them. Naming it rather than counting it
-  // means the test has to be updated when soul soil lands, which is the point.
+test('no block disagrees with vanilla about its drop', () => {
+  // The invariant over the whole registry. The soul campfire was the last one reported -- it gave itself, for want
+  // of a soul soil item -- until the wiki parity audit gave it the soul soil block ("A soul campfire drops soul soil").
   const reg = buildRegistry();
   const vanilla = buildVanillaIndex({
     items: read('items'), recipes: read('recipes'), foods: read('foods'), blocks: read('blocks'),
@@ -107,9 +108,7 @@ test('one block disagrees with vanilla, and it is the one that cannot be fixed y
   const showcase = new ResourceShowcase({ registry: reg, vanilla, assetExists: () => true });
   const audit = showcase.audit([...reg.entries.values()]);
   const failures = audit.failures.filter((row) => row.check === 'block-drop-parity');
-  assert.deepEqual(failures.map((row) => row.resource), ['soul_campfire']);
-  assert.match(String(failures[0].detail), /soul_soil/);
-  assert.equal(ALL_ITEMS.soul_soil, undefined, 'and soul soil is indeed not an item here');
+  assert.deepEqual(failures.map((row) => row.resource), []);
 });
 
 test('the check skips shapes rather than drops', () => {

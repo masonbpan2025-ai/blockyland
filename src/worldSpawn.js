@@ -74,7 +74,7 @@ export function scoreSpawnColumn(world, wx, wz, anchor, options = {}) {
   if (groundY >= maxHeight) return null;
 
   const ground = world.getVoxel(wx, groundY, wz);
-  if (ground === BLOCKS.LAVA || ground === BLOCKS.FIRE || ground === BLOCKS.AIR) return null;
+  if (ground===BLOCKS.LAVA||ground===BLOCKS.FIRE||ground===BLOCKS.SOUL_FIRE||ground===BLOCKS.MAGMA_BLOCK||ground===BLOCKS.AIR) return null;
   if (!allowWater && ground === BLOCKS.WATER) return null;
   if (TREE_BLOCKS.has(ground)) return null;
 

@@ -1,4 +1,5 @@
 import { soulSpeedMultiplier } from './barterItems.js';
+import { modeRules, isSurvivalLike, takesDamage } from './gameModeRules.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackDamageBonus, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier, immuneToEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier, protectionPoints } from './enchantmentEffects.js';
@@ -13,6 +14,7 @@ import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXH
 import { normaliseSettings, normaliseGameMode, gameruleFor } from './sessionSettings.js';
 import { collectDeathDrops, xpLossFor, resolveRespawn, resetSurvivalState } from './deathAndRespawn.js';
 import { getTotalXpForLevel } from './experience.js';
+import { consumeAnchorRespawn } from './respawnAnchor.js';
 
 /**
  * How much of a fall the block landed on absorbs.
@@ -626,19 +628,20 @@ export class Player {
     // refused at 6 hunger or below and under Blindness, and ended by the same conditions or by leaving the water.
     this.updateSwimming(!controlsDisabled && wantsSprint && !this.isSneaking, !controlsDisabled && !!this.keys['KeyW']);
 
-    // A mounted player is driven by AnimalBehaviors. Running normal player
+    // A mounted player is driven by AnimalBehaviors or RailSystem. Running normal player
     // gravity/collision here as well made the rider fight the mount every
     // frame, producing visible jitter and immediately cancelling movement.
     // Keep input flags (especially sneak, used to dismount) but let the mount
     // own position, velocity and jump physics.
-    if (this.ridingMob) {
+    if (this.ridingMob || this.game?.riding) {
       this.velocity.set(0, 0, 0);
       this.onGround = true;
       this.updateCameraAndModel(dt);
       return;
     }
 
-    let targetSpeed = this.selectBaseSpeed();
+    // /attribute ... movement_speed scales the player's speed (advancedCommands.js).
+    let targetSpeed = this.selectBaseSpeed() * (this.speedAttributeScale ?? 1);
 
     if (!this.isFlying && !this.inWater) targetSpeed *= soulSpeedMultiplier(this.world, this);
 
@@ -668,7 +671,7 @@ export class Player {
       this.velocity.x = 0;
       this.velocity.z = 0;
       if (!this.isFlying) {
-        this.velocity.y -= this.gravity * dt;
+        this.velocity.y -= this.gravity * (this.gravityAttributeScale ?? 1) * dt;
         if (this.velocity.y < -78) this.velocity.y = -78;
       }
       this.moveWithCollision(dt);
@@ -737,7 +740,7 @@ export class Player {
       }
     } else {
       // Normal Gravity
-      this.velocity.y -= this.gravity * dt;
+      this.velocity.y -= this.gravity * (this.gravityAttributeScale ?? 1) * dt;
       // Slow Falling holds the descent as well as negating the damage, which is the half a player
       // notices: the landing is gentle rather than merely harmless.
       if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) {
@@ -747,7 +750,7 @@ export class Player {
 
       if (!controlsDisabled && this.onGround && this.keys['Space']) {
         // Jump Boost raises the jump; the fall half of the same effect is in `fallDamage`.
-        this.velocity.y = this.jumpForce * jumpVelocityMultiplier(this.statusEffects);
+        this.velocity.y = this.jumpForce * (this.jumpAttributeScale ?? 1) * jumpVelocityMultiplier(this.statusEffects);
         // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
         // sprint-jumping everywhere empties the hunger bar far faster.
         this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
@@ -780,7 +783,7 @@ export class Player {
     //
     // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
     // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
-    if (this.gamemode === 'survival' && !this.isDead) {
+    if (isSurvivalLike(this.gamemode) && !this.isDead) {
       if (this.position.y < -10) {
         this.takeDamage(10);
         if (!this.isDead) {
@@ -888,6 +891,13 @@ export class Player {
   }
 
   moveWithCollision(dt) {
+    // A spectator "can ... go through blocks and entities": no collision at all.
+    if (modeRules(this.gamemode).noclip) {
+      this.isFlying = true;
+      this.position.addScaledVector(this.velocity, dt);
+      this.onGround = false;
+      return;
+    }
     const oldPos = this.position.clone();
     const newPos = this.position.clone();
 
@@ -1219,9 +1229,10 @@ export class Player {
 
   takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
-    if (this.gamemode === 'survival' && amount > 0) this.addExhaustion(EXHAUSTION.damage);
+    if (isSurvivalLike(this.gamemode) && amount > 0) this.addExhaustion(EXHAUSTION.damage);
 
-    if (this.gamemode === 'creative') return;
+    // Creative takes none; a spectator only the void's and /kill's (gameModeRules.js).
+    if (!takesDamage(this.gamemode, damageType)) return;
     if (this.isDead) return;
     // The invulnerability window is the one a MELEE or projectile hit opens, so that a mob swinging twice in
     // one tick cannot hit twice. Vanilla's effect damage -- Wither, Instant Damage, Poison -- is not subject
@@ -1495,10 +1506,13 @@ export class Player {
     // Which anchor, revalidated now rather than trusted from when it was set: a spot that was safe before
     // death can be blocked afterwards.
     const decision = resolveRespawn({
+      anchorPosition: consumeAnchorRespawn(this),
+      validAnchor: !!this.anchorSpawn,
       bedPosition: this.bedSpawnPosition ?? null,
       isBedStillThere: (bed) => this.isBedStillThere(bed),
       isSpaceSafe: (pos) => this.isRespawnSpaceSafe(pos),
-      worldSpawn: this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5),
+      // /spawnpoint (vanillaCommands.js) sets the player's own respawn point; /setworldspawn the world's.
+      worldSpawn: this.commandSpawnPosition || this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5),
     });
 
     if (decision.lostBed) {
@@ -1597,6 +1611,8 @@ export class Player {
       this.elytraActive = false;
       this.elytraFlight = false;
     }
+    // "Spectators are always flying" (Spectator page).
+    if (modeRules(next).alwaysFlying) this.isFlying = true;
     return { previous, mode: next, changed: previous !== next };
   }
 

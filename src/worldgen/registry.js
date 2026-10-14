@@ -80,6 +80,11 @@ export const STRUCTURES = {
     implementation: 'fossil', terrainAdaptation: 'none', biomes: ['desert', 'swamp', 'mangrove_swamp'], step: 'underground_structures',
     notes: 'A feature: two attempts per chunk at 1/64, bone at integrity 0.9, coal or diamond ore at 0.1.'
   },
+  void_start_platform: {
+    type: 'void_start_platform', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
+    implementation: 'voidPlatform', terrainAdaptation: 'none', biomes: ['the_void'],
+    notes: 'A feature: the 33x33 stone platform (cobblestone centre) of "The Void" preset.'
+  },
   monster_room: {
     type: 'monster_room', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
     implementation: 'monsterRoom', terrainAdaptation: 'none', biomes: [], step: 'underground_structures',
@@ -112,7 +117,7 @@ export const STRUCTURES = {
   },
   fortress: {
     type: 'fortress', dimension: NETHER, family: GeneratorFamily.PROCEDURAL,
-    step: 'underground_decoration', biomes: [],
+    step: 'underground_decoration', biomes: [], implementation: 'fortress',
     notes: 'Nether brick corridors and ramparts, blaze spawners, nether wart farms.'
   },
   monument: {
@@ -168,6 +173,18 @@ export const STRUCTURES = {
     step: 'underground_structures', biomeTag: 'has_structure/nether_fossil', biomes: ['soul_sand_valley'], implementation: 'netherFossil',
     notes: 'nether_fossils/fossil_1..14; no integrity loss and no ore overlay, unlike the overworld fossil.'
   },
+  end_spike: {
+    type: 'end_spike', dimension: END, family: GeneratorFamily.FEATURE, implementation: 'endSpike', terrainAdaptation: 'none', biomes: [],
+    notes: 'A feature: the ten obsidian spikes round the main island, crystals on top, two caged.'
+  },
+  end_podium: {
+    type: 'end_podium', dimension: END, family: GeneratorFamily.FEATURE, implementation: 'endPodium', terrainAdaptation: 'none', biomes: [],
+    notes: 'A feature: the exit portal at 0, 0, inactive until the dragon is defeated.'
+  },
+  end_platform: {
+    type: 'end_platform', dimension: END, family: GeneratorFamily.FEATURE, implementation: 'endPlatform', terrainAdaptation: 'none', biomes: [],
+    notes: 'A feature: the 5x5 obsidian arrival platform at (100, 48, 0).'
+  },
   end_city: {
     type: 'end_city', dimension: END, family: GeneratorFamily.TEMPLATE,
     biomeTag: 'has_structure/end_city', biomes: ['end_midlands', 'end_highlands'], implementation: 'endCity',
@@ -213,7 +230,7 @@ export const STRUCTURES = {
   trial_chambers: {
     type: 'jigsaw', dimension: OVERWORLD, family: GeneratorFamily.JIGSAW,
     step: 'underground_structures', terrainAdaptation: TerrainAdaptation.ENCAPSULATE,
-    biomeTag: 'has_structure/trial_chambers', biomes: [], implementation: 'trialChambers',
+    biomeTag: 'has_structure/trial_chambers', biomes: [], biomeTagExcludes: ['deep_dark'], implementation: 'trialChambers',
     notes: 'Copper and tuff rooms with trial spawners, vaults, dispensers and the breeze; no natural mob spawning inside.'
   }
 };
@@ -234,9 +251,13 @@ export const STRUCTURE_SETS = [
   // reproduces "1/1000 chance per chunk" and lets /locate and the audit find them. The salt is ours.
   { name: 'amethyst_geodes', structures: [['amethyst_geode', 1]], spacing: 1, separation: 0, salt: 20000002, frequency: 1, feature: true },
   { name: 'fossils', structures: [['fossil', 1]], spacing: 1, separation: 0, salt: 14638191, frequency: 1, feature: true },
+  { name: 'void_start_platforms', structures: [['void_start_platform', 1]], spacing: 1, separation: 0, salt: 4, frequency: 1, feature: true },
   { name: 'monster_rooms', structures: [['monster_room', 1]], spacing: 1, separation: 0, salt: 10387319, frequency: 1, feature: true },
   { name: 'desert_wells', structures: [['desert_well', 1]], spacing: 1, separation: 0, salt: 40552791, frequency: 1 / 1000, feature: true },
   { name: 'desert_pyramids', structures: [['desert_pyramid', 1]], spacing: 32, separation: 8, salt: 14357617 },
+  { name: 'end_spikes', structures: [['end_spike', 1]], spacing: 1, separation: 0, salt: 1, frequency: 1, feature: true },
+  { name: 'end_podiums', structures: [['end_podium', 1]], spacing: 1, separation: 0, salt: 2, frequency: 1, feature: true },
+  { name: 'end_platforms', structures: [['end_platform', 1]], spacing: 1, separation: 0, salt: 3, frequency: 1, feature: true },
   { name: 'end_cities', structures: [['end_city', 1]], spacing: 20, separation: 11, salt: 10387313 },
   { name: 'igloos', structures: [['igloo', 1]], spacing: 32, separation: 8, salt: 14357618 },
   { name: 'jungle_temples', structures: [['jungle_pyramid', 1]], spacing: 32, separation: 8, salt: 14357619 },

@@ -7,6 +7,10 @@ import { EXTRA_BLOCK_IDS, EXTRA_BLOCK_DEFS } from './extraContent.js';
 import { EXTRA_ITEMS } from './extraItems.js';
 import { addedItems } from './addedItems.js';
 import { POTION_ITEMS } from './extraPotions.js';
+import { BLOCK_MODEL_SHAPES, CROSSED_PLANTS } from './blockModelShapes.js';
+import { TIPPED_ARROWS } from './tippedArrowItems.js';
+import { FUTURE_BLOCK_IDS, FUTURE_BLOCK_DEFS, FUTURE_ITEMS } from './futureContent.js';
+import { applyWikiItemStats, applyWikiBlockStats, applyVanillaShapes, normaliseFutureFlags, addFutureDoorStates } from './futureContentWiki.js';
 
 export const BLOCKS = {
   AIR: 0,
@@ -1615,7 +1619,7 @@ export const BLOCK_DEFS = {
   // they differ only in whether the stem has fruited, and the attached form is a different model that
   // points at the fruit. This game has no crop-growth layer, so both are registered as static crosses and
   // each is placed rather than grown into.
-  [BLOCKS.PUMPKIN_STEM]: { name: 'Pumpkin Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, drop: null, textures: { all: 'pumpkin_stem.png' } },
+  [BLOCKS.PUMPKIN_STEM]: { name: 'Pumpkin Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'pumpkin_seeds', textures: { all: 'pumpkin_stem.png' } },
   [BLOCKS.ATTACHED_PUMPKIN_STEM]: { name: 'Attached Pumpkin Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'pumpkin_seeds', textures: { all: 'attached_pumpkin_stem.png' } },
   [BLOCKS.MELON_STEM]: { name: 'Melon Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'melon_seeds', textures: { all: 'melon_stem.png' } },
   [BLOCKS.ATTACHED_MELON_STEM]: { name: 'Attached Melon Stem', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, dropItem: 'melon_seeds', textures: { all: 'attached_melon_stem.png' } },
@@ -2180,9 +2184,11 @@ export const BLOCK_DEFS = {
   [BLOCKS.POTATOES_STAGE_3]: { name: 'Potatoes', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, crop: 'potatoes', stage: 3, mature: true, dropItem: 'potato', textures: { all: 'potatoes_stage_3.png' } },
 
   // Specialized & Boss Blocks
-  [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, drop: BLOCKS.SCULK_SENSOR, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
+  // Light levels below (sculk sensor 1, dragon egg 1, conduit 15, ender chest 7) are the blocks' wiki infobox values,
+  // found by the wiki parity audit's B-LIGHT case.
+  [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, light: 1, drop: BLOCKS.SCULK_SENSOR, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, drop: BLOCKS.SCULK_SHRIEKER, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
-  [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
+  [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, light: 1, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
   [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
   // This entry had `textures: { all: 'coal_block.png' }` and a `skull: true` flag that nothing in the
   // codebase reads, so it rendered as a coal cube. It now carries `head`, which is what routes a block to
@@ -2226,7 +2232,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.CHIPPED_ANVIL]: { name: 'Chipped Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
   [BLOCKS.DAMAGED_ANVIL]: { name: 'Damaged Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
   [BLOCKS.BEACON]: { name: 'Beacon', hardness: 3.0, sound: 'glass', light: 15, transparent: true, interactable: true, textures: { all: 'glass.png' } },
-  [BLOCKS.CONDUIT]: { name: 'Conduit', hardness: 3.0, sound: 'stone', light: 14, transparent: true, interactable: true, textures: { all: 'prismarine_bricks.png' } },
+  [BLOCKS.CONDUIT]: { name: 'Conduit', hardness: 3.0, sound: 'stone', light: 15, transparent: true, interactable: true, textures: { all: 'prismarine_bricks.png' } },
 
   // Mineral Storage Blocks
   [BLOCKS.IRON_BLOCK]: { name: 'Block of Iron', hardness: 5.0, sound: 'metal', textures: { all: 'iron_block.png' } },
@@ -2272,6 +2278,10 @@ for (const [key, id] of Object.entries(EXTRA_BLOCK_IDS)) {
   BLOCKS[key] = id;
 }
 Object.assign(BLOCK_DEFS, EXTRA_BLOCK_DEFS);
+for (const [key, id] of Object.entries(FUTURE_BLOCK_IDS)) {
+  BLOCKS[key] = id;
+}
+Object.assign(BLOCK_DEFS, FUTURE_BLOCK_DEFS);
 BLOCK_DEFS[BLOCKS.FIREFLY_BUSH]={name:'Firefly Bush',hardness:0,sound:'grass',solid:false,transparent:true,plant:true,light:2,drop:BLOCKS.FIREFLY_BUSH,textures:{all:'firefly_bush.svg'},icon:'/assets/blocks/firefly_bush.svg'};
 BLOCK_DEFS[BLOCKS.LIGHTNING_ROD].redstone = true;
 
@@ -2293,18 +2303,20 @@ for (const id of WATER_PLANT_BLOCK_IDS) {
 export const ITEMS = {
   iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.svg', type: 'material' },
   spectral_arrow: { name: 'Spectral Arrow', icon: '/assets/items/spectral_arrow.svg', type: 'material' },
-  potion_of_fire_resistance: { name: 'Potion of Fire Resistance (3:00)', icon: '/assets/items/fire_resistance.svg', type: 'potion' },
-  splash_potion_of_fire_resistance: { name: 'Splash Potion of Fire Resistance (3:00)', icon: '/assets/items/splash_fire_resistance.svg', type: 'potion' },
+  potion_of_fire_resistance: { name: 'Potion of Fire Resistance (3:00)', icon: '/assets/items/fire_resistance.svg', type: 'potion', stackSize: 1 },
+  splash_potion_of_fire_resistance: { name: 'Splash Potion of Fire Resistance (3:00)', icon: '/assets/items/splash_fire_resistance.svg', type: 'potion', stackSize: 1 },
   // --- Swords / Weapons ---
   netherite_sword: { name: 'Netherite Sword', attack: 8, icon: '/assets/items/netherite_sword.png', type: 'weapon' },
   diamond_sword: { name: 'Diamond Sword', attack: 7, icon: '/assets/items/diamond_sword.png', type: 'weapon' },
-  golden_spear: { name: 'Golden Spear', attack: 4, icon: '/assets/items/trident.png', type: 'weapon' },
+  // The spear's jab is 1 (its wiki infobox); its charge attack is a multiplier this game does not model.
+  golden_spear: { name: 'Golden Spear', attack: 1, icon: '/assets/items/trident.png', type: 'weapon' },
   golden_sword: { name: 'Golden Sword', attack: 4, icon: '/assets/items/golden_sword.png', type: 'weapon' },
   iron_sword: { name: 'Iron Sword', attack: 6, icon: '/assets/items/iron_sword.png', type: 'weapon' },
   stone_sword: { name: 'Stone Sword', attack: 5, icon: '/assets/items/stone_sword.png', type: 'weapon' },
   wooden_sword: { name: 'Wooden Sword', attack: 4, icon: '/assets/items/wooden_sword.png', type: 'weapon' },
-  bow: { name: 'Bow', attack: 6, icon: '/assets/items/bow.png', type: 'weapon' },
-  crossbow: { name: 'Crossbow', attack: 8, icon: '/assets/items/crossbow.png', type: 'weapon' },
+  // A bow and a crossbow hit like a fist in melee (no attack modifier on the wiki); their damage is the arrow's.
+  bow: { name: 'Bow', icon: '/assets/items/bow.png', type: 'weapon' },
+  crossbow: { name: 'Crossbow', icon: '/assets/items/crossbow.png', type: 'weapon' },
   // Wiki: a stray drops an Arrow of Slowness and a bogged an Arrow of Poison.
   tipped_arrow_slowness: { name: 'Arrow of Slowness', icon: '/assets/items/tipped_arrow_slowness.png', type: 'material' },
   tipped_arrow_weakness: { name: 'Arrow of Weakness', icon: '/assets/items/tipped_arrow_weakness.png', type: 'material' },
@@ -2314,10 +2326,11 @@ export const ITEMS = {
   totem_of_undying: { name: 'Totem of Undying', icon: '/assets/items/totem_of_undying.png', type: 'special' },
 
   // --- Armor & Shield ---
-  netherite_helmet: { name: 'Netherite Helmet', armor: 3, toughness: 3, knockbackResistance: 1, armorSlot: 'head', icon: '/assets/items/netherite_helmet.png', type: 'armor' },
-  netherite_chestplate: { name: 'Netherite Chestplate', armor: 8, toughness: 3, knockbackResistance: 1, armorSlot: 'chest', icon: '/assets/items/netherite_chestplate.png', type: 'armor' },
-  netherite_leggings: { name: 'Netherite Leggings', armor: 6, toughness: 3, knockbackResistance: 1, armorSlot: 'legs', icon: '/assets/items/netherite_leggings.png', type: 'armor' },
-  netherite_boots: { name: 'Netherite Boots', armor: 3, toughness: 3, knockbackResistance: 1, armorSlot: 'feet', icon: '/assets/items/netherite_boots.png', type: 'armor' },
+  // Netherite's knockback resistance is 0.1 per piece (10%; the wiki's attribute modifiers), not 1.
+  netherite_helmet: { name: 'Netherite Helmet', armor: 3, toughness: 3, knockbackResistance: 0.1, armorSlot: 'head', icon: '/assets/items/netherite_helmet.png', type: 'armor' },
+  netherite_chestplate: { name: 'Netherite Chestplate', armor: 8, toughness: 3, knockbackResistance: 0.1, armorSlot: 'chest', icon: '/assets/items/netherite_chestplate.png', type: 'armor' },
+  netherite_leggings: { name: 'Netherite Leggings', armor: 6, toughness: 3, knockbackResistance: 0.1, armorSlot: 'legs', icon: '/assets/items/netherite_leggings.png', type: 'armor' },
+  netherite_boots: { name: 'Netherite Boots', armor: 3, toughness: 3, knockbackResistance: 0.1, armorSlot: 'feet', icon: '/assets/items/netherite_boots.png', type: 'armor' },
 
   diamond_helmet: { name: 'Diamond Helmet', armor: 3, toughness: 2, armorSlot: 'head', icon: '/assets/items/diamond_helmet.png', type: 'armor' },
   diamond_chestplate: { name: 'Diamond Chestplate', armor: 8, toughness: 2, armorSlot: 'chest', icon: '/assets/items/diamond_chestplate.png', type: 'armor' },
@@ -2353,12 +2366,15 @@ export const ITEMS = {
   iron_horse_armor: { name: 'Iron Horse Armor', icon: '/assets/items/iron_horse_armor.png', type: 'armor' },
 
   // --- Pickaxes ---
-  netherite_pickaxe: { name: 'Netherite Pickaxe', speed: 9, icon: '/assets/items/netherite_pickaxe.png', type: 'tool' },
-  diamond_pickaxe: { name: 'Diamond Pickaxe', speed: 8, icon: '/assets/items/diamond_pickaxe.png', type: 'tool' },
-  golden_pickaxe: { name: 'Golden Pickaxe', speed: 12, icon: '/assets/items/golden_pickaxe.png', type: 'tool' },
-  iron_pickaxe: { name: 'Iron Pickaxe', speed: 6, icon: '/assets/items/iron_pickaxe.png', type: 'tool' },
-  stone_pickaxe: { name: 'Stone Pickaxe', speed: 4, icon: '/assets/items/stone_pickaxe.png', type: 'tool' },
-  wooden_pickaxe: { name: 'Wooden Pickaxe', speed: 2, icon: '/assets/items/wooden_pickaxe.png', type: 'tool' },
+  // Attack damage of pickaxes and shovels (and of the mace and golden spear above) is the wiki's, from each item's
+  // attribute modifiers (Module:Default data component/items); found by the wiki parity audit's I-ATTACK case. Without
+  // it a pickaxe hit as hard as a fist.
+  netherite_pickaxe: { name: 'Netherite Pickaxe', attack: 6, speed: 9, icon: '/assets/items/netherite_pickaxe.png', type: 'tool' },
+  diamond_pickaxe: { name: 'Diamond Pickaxe', attack: 5, speed: 8, icon: '/assets/items/diamond_pickaxe.png', type: 'tool' },
+  golden_pickaxe: { name: 'Golden Pickaxe', attack: 2, speed: 12, icon: '/assets/items/golden_pickaxe.png', type: 'tool' },
+  iron_pickaxe: { name: 'Iron Pickaxe', attack: 4, speed: 6, icon: '/assets/items/iron_pickaxe.png', type: 'tool' },
+  stone_pickaxe: { name: 'Stone Pickaxe', attack: 3, speed: 4, icon: '/assets/items/stone_pickaxe.png', type: 'tool' },
+  wooden_pickaxe: { name: 'Wooden Pickaxe', attack: 2, speed: 2, icon: '/assets/items/wooden_pickaxe.png', type: 'tool' },
 
   // --- Axes ---
   netherite_axe: { name: 'Netherite Axe', speed: 9, attack: 10, icon: '/assets/items/netherite_axe.png', type: 'tool' },
@@ -2369,12 +2385,12 @@ export const ITEMS = {
   wooden_axe: { name: 'Wooden Axe', speed: 2, attack: 7, icon: '/assets/items/wooden_axe.png', type: 'tool' },
 
   // --- Shovels ---
-  netherite_shovel: { name: 'Netherite Shovel', speed: 9, icon: '/assets/items/netherite_shovel.png', type: 'tool' },
-  diamond_shovel: { name: 'Diamond Shovel', speed: 8, icon: '/assets/items/diamond_shovel.png', type: 'tool' },
-  golden_shovel: { name: 'Golden Shovel', speed: 12, icon: '/assets/items/golden_shovel.png', type: 'tool' },
-  iron_shovel: { name: 'Iron Shovel', speed: 6, icon: '/assets/items/iron_shovel.png', type: 'tool' },
-  stone_shovel: { name: 'Stone Shovel', speed: 4, icon: '/assets/items/stone_shovel.png', type: 'tool' },
-  wooden_shovel: { name: 'Wooden Shovel', speed: 2, icon: '/assets/items/wooden_shovel.png', type: 'tool' },
+  netherite_shovel: { name: 'Netherite Shovel', attack: 6.5, speed: 9, icon: '/assets/items/netherite_shovel.png', type: 'tool' },
+  diamond_shovel: { name: 'Diamond Shovel', attack: 5.5, speed: 8, icon: '/assets/items/diamond_shovel.png', type: 'tool' },
+  golden_shovel: { name: 'Golden Shovel', attack: 2.5, speed: 12, icon: '/assets/items/golden_shovel.png', type: 'tool' },
+  iron_shovel: { name: 'Iron Shovel', attack: 4.5, speed: 6, icon: '/assets/items/iron_shovel.png', type: 'tool' },
+  stone_shovel: { name: 'Stone Shovel', attack: 3.5, speed: 4, icon: '/assets/items/stone_shovel.png', type: 'tool' },
+  wooden_shovel: { name: 'Wooden Shovel', attack: 2.5, speed: 2, icon: '/assets/items/wooden_shovel.png', type: 'tool' },
 
   // --- Hoes ---
   netherite_hoe: { name: 'Netherite Hoe', speed: 9, icon: '/assets/items/netherite_hoe.png', type: 'tool' },
@@ -2590,13 +2606,14 @@ export const ITEMS = {
   // `splash_water_bottle` was here by hand and is gone: the generated potion items now derive vanilla's
   // `splash_potion` from the `water_bottle` core, because vanilla's generic splash potion IS the water one.
   // Leaving the hand-written entry behind registered the same item twice, under a name vanilla does not use.
-  water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion' },
-  splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion' },
+  water_bottle: { name: 'Water Bottle', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_weakness: { name: 'Splash Potion of Weakness', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
   // `foodData.js` and the pinned vanilla data both treat the ominous bottle as edible (1 hunger), and
   // it was the last id in the registry that something referenced and nothing defined. Its real source
   // -- vaults, trial spawners and raid captains -- is not implemented, so this is the item and its food
   // value only; the Bad Omen it grants in vanilla is not modelled.
-  ominous_bottle: { name: 'Ominous Bottle', food: 1, icon: '/assets/items/ominous_bottle.png', type: 'food' },
+  // Drunk for Bad Omen, not eaten: the wiki's infobox gives it an effect and no hunger (see main.js).
+  ominous_bottle: { name: 'Ominous Bottle', icon: '/assets/items/ominous_bottle.png', type: 'potion' },
   zombie_villager_spawn_egg: { name: 'Zombie Villager Spawn Egg', icon: '/assets/items/zombie_spawn_egg.png', type: 'spawn_egg', mob: 'zombie_villager' },
 
   // --- Music Discs ---
@@ -3035,7 +3052,8 @@ BLOCK_DEFS[BLOCKS.DIRT_PATH] = { name: 'Dirt Path', hardness: 0.65, sound: 'gras
 BLOCK_DEFS[BLOCKS.SLIME_BLOCK] = {name: 'Slime Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/slime_block.svg'};
 BLOCK_DEFS[BLOCKS.HONEY_BLOCK] = {name: 'Honey Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/honey_block.svg'};
 BLOCK_DEFS[BLOCKS.STONE_BUTTON] = {name: 'Stone Button', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/stone_button.svg'};
-BLOCK_DEFS[BLOCKS.PRESSURE_PLATE] = {name: 'Pressure Plate', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/pressure_plate.svg'};
+// Every pressure plate's hardness and blast resistance is 0.5 on the wiki (Module:Hardness values); this generic one was 1.5.
+BLOCK_DEFS[BLOCKS.PRESSURE_PLATE] = {name: 'Pressure Plate', redstone: true, hardness: 0.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/pressure_plate.svg'};
 BLOCK_DEFS[BLOCKS.DAYLIGHT_DETECTOR] = {name: 'Daylight Detector', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: false, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/daylight_detector.svg'};
 BLOCK_DEFS[BLOCKS.TARGET_BLOCK] = {name: 'Target Block', redstone: true, hardness: 1.5, sound: 'stone', transparent: true, solid: true, textures: {all: 'redstone_white.svg'}, icon: '/assets/blocks/target_block.svg'};
 BLOCK_DEFS[BLOCKS.IRON_DOOR] = {name: 'Iron Door', redstone: true, hardness: 5, sound: 'stone', transparent: true, solid: true, door: true, isIron: true, openId: BLOCKS.IRON_DOOR_OPEN, textures: {bottom: 'iron_door_bottom.png', top: 'iron_door_top.png', all: 'iron_door_bottom.png'}, icon: '/assets/items/iron_door.png', dropItem: 'iron_door'};
@@ -3155,7 +3173,7 @@ BLOCK_DEFS[BLOCKS.CHEST] = {
 //
 // WHAT IS NOT MODELLED for either: a chest here has no inventory. The plain chest is in the same position,
 // so this is a family-wide gap rather than one these two introduce.
-BLOCK_DEFS[BLOCKS.ENDER_CHEST] = { name: 'Ender Chest', chest: true, hardness: 22.5, sound: 'stone', transparent: true, drop: BLOCKS.OBSIDIAN, textures: { top: 'ender_chest_top.png', side: 'ender_chest_side.png', front: 'ender_chest_front.png', bottom: 'ender_chest_top.png', all: 'ender_chest_side.png', lock: 'ender_chest_lock.png' } };
+BLOCK_DEFS[BLOCKS.ENDER_CHEST] = { name: 'Ender Chest', chest: true, hardness: 22.5, sound: 'stone', transparent: true, light: 7, drop: BLOCKS.OBSIDIAN, textures: { top: 'ender_chest_top.png', side: 'ender_chest_side.png', front: 'ender_chest_front.png', bottom: 'ender_chest_top.png', all: 'ender_chest_side.png', lock: 'ender_chest_lock.png' } };
 BLOCK_DEFS[BLOCKS.TRAPPED_CHEST] = { name: 'Trapped Chest', chest: true, hardness: 2.5, sound: 'wood', transparent: true, drop: BLOCKS.TRAPPED_CHEST, textures: { top: 'trapped_chest_top.png', side: 'trapped_chest_side.png', front: 'trapped_chest_front.png', bottom: 'trapped_chest_top.png', all: 'trapped_chest_side.png', lock: 'trapped_chest_lock.png' } };
 
 // --- Nether Portal Block ----------------------------------------------------
@@ -3177,9 +3195,33 @@ BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {
 // Items added by this branch live in their own file, which commits that have never heard of them cannot
 // rewrite. See the note there: two of them have deleted these definitions out of this table already.
 Object.assign(ITEMS, addedItems());
+Object.assign(ITEMS, FUTURE_ITEMS);
+// The future content's stats come from the wiki data, not the guesses it was generated with (futureContentWiki.js).
+applyWikiItemStats(ITEMS, FUTURE_ITEMS);
+applyWikiBlockStats(BLOCK_DEFS, FUTURE_BLOCK_DEFS);
 ITEMS.powder_snow_bucket = {...ITEMS.powder_snow_bucket,isBlock:false,type:'tool',stackSize:1};
 ITEMS.firefly_bush={name:'Firefly Bush',isBlock:true,blockId:BLOCKS.FIREFLY_BUSH,type:'block',icon:'/assets/blocks/firefly_bush.svg'};
 
 for (const id of WATER_PLANT_BLOCK_IDS) {
   if (BLOCK_DEFS[id]) BLOCK_DEFS[id].waterPlant = true;
+}
+
+// Box models for the blocks that are not full cubes (blockModelShapes.js); blockGeometry.js builds them.
+for (const def of Object.values(BLOCK_DEFS)) {
+  const shape = def?.name ? BLOCK_MODEL_SHAPES[def.name] : null;
+  if (shape) def.model = shape;
+  if (def?.name && CROSSED_PLANTS.includes(def.name)) {
+    delete def.cube;
+    Object.assign(def, { plant: true, solid: false, transparent: true, sound: 'grass' });
+  }
+}
+// The post-1.21.4 copper bars, chains, lanterns, pots, shelves and statues take their shapes (futureContentWiki.js),
+// after the box models above so a lantern has one to copy.
+applyVanillaShapes(BLOCK_DEFS, FUTURE_BLOCK_DEFS);
+normaliseFutureFlags(BLOCK_DEFS, FUTURE_BLOCK_DEFS, BLOCKS);
+addFutureDoorStates(BLOCKS, BLOCK_DEFS, FUTURE_BLOCK_IDS);
+
+// Every tipped arrow (tippedArrowItems.js); the three hand-written ones above keep their entries.
+for (const arrow of TIPPED_ARROWS) {
+  ITEMS[arrow.id] ??= { name: arrow.name, icon: `/assets/items/${arrow.id}.png`, type: 'material' };
 }

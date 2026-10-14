@@ -396,7 +396,7 @@ test('the use chain fills a frame, lights the portal, and carries the player', (
   assert.match(source, /tryActivateAround\(this\.world, bX, bY, bZ\)/, 'and try to light the portal');
   assert.match(source, /this\.updateEndPortalTravel\(dt\)/, 'and the travel check should run each frame');
   assert.match(source, /buildEndPortalRoom\(this\.world, cx, floorY, cz/, 'and the chamber should be placed');
-  assert.match(source, /buildEndPlatform\(this\.world/, 'and the arrival island laid');
+  assert.match(source, /regenerateEndPlatform\(this\.world/, 'and the arrival platform regenerated');
   // The arena must be built once: a second call spawns a second dragon.
   assert.match(source, /if \(!this\.endArenaBuilt\)/, 'the arena build should be guarded');
   // A frame interaction must not fall through to placing the frame as a block.

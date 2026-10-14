@@ -2,9 +2,8 @@
 //
 // References: https://minecraft.wiki/w/Fishing · https://minecraft.wiki/w/Fishing_Rod
 //
-// The numbers and the rolls all live in `fishing.js`, which is pure and fully tested. This file is the part
-// that needs a world, and it is kept thin on purpose: it decides WHEN to call the model and what to do with
-// the answer, and it makes no parity decisions of its own.
+// Loot and timing rules live in fishing.js. This controller advances them with
+// accumulated simulation ticks and provides swept casting, floating and feedback.
 //
 // Shaped after `BowController`, which is the same kind of thing -- a use-item feature with a state machine
 // driven from the frame loop.
@@ -13,6 +12,8 @@ import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { maxDurabilityFor, spendDurability } from './durability.js';
 import { addPlayerExperience } from './experience.js';
 import { resolveItem } from './commands.js';
+import { waterSurfaceAt, isWaterCell } from './waterContact.js';
+import { FishingEffects } from './fishingEffects.js';
 import {
   ENCHANTMENT_REGISTRY, eligibleEnchantments, enchantmentEntry, levelForCost, selectEnchantments,
 } from './enchanting.js';
@@ -36,11 +37,11 @@ import {
   totalLuck,
 } from './fishing.js';
 
-/** The reach of a cast, in blocks. The wiki's line breaks at 32, so 33 is far enough to be useless. */
-const CAST_REACH = 33;
+/** Fixed flight steps and a separate accumulated 20 Hz fishing clock. */
+const SIMULATION_STEP = 1 / 60;
 
 /** How close the bobber has to be to a mob or a dropped item to hook it. */
-const HOOK_RANGE = 1.6;
+const HOOK_RANGE = 0.3;
 
 /**
  * Blocks that do not stop the bobber being "directly exposed to sun or moonlight".
@@ -61,6 +62,8 @@ const WATERLOGGED = new Set([
 /** The states the rod moves through. `idle` means no bobber in the world. */
 export const FISHING_STATE = Object.freeze({
   IDLE: 'idle',
+  CASTING: 'casting',
+  HOOKED: 'hooked',
   WAITING: 'waiting',
   APPROACHING: 'approaching',
   BITING: 'biting',
@@ -75,6 +78,7 @@ export const FISHING_STATE = Object.freeze({
 export class FishingController {
   constructor(game) {
     this.game = game;
+    this.effects = new FishingEffects(game.scene);
     this.reset();
   }
 
@@ -90,6 +94,12 @@ export class FishingController {
     this.hooked = null;
     this.stuckInBlock = false;
     this.catchPending = null;
+    this.waterBlock = null;
+    this.surfaceY = undefined;
+    this.velocity = new THREE.Vector3();
+    this.accumulator = 0;
+    this.waitAccumulator = 0;
+    this.elapsed = 0;
   }
 
   /** True while a bobber is out. */
@@ -130,23 +140,14 @@ export class FishingController {
     const origin = this.eyePosition();
     const direction = g.camera.getWorldDirection(new THREE.Vector3());
 
-    const hit = this.findCastingPoint(origin, direction);
-    // Casting at open air does nothing at all. Vanilla lets the bobber fly and fall back; there is no water
-    // or ground to land on here, so there is nothing to model.
-    if (!hit) return true;
-
-    const { point, water, stuck } = hit;
-    this.buildBobber(point);
-    this.stuckInBlock = stuck;
-    this.waterBlock = water ? { x: point.x, y: point.y, z: point.z } : null;
-
-    if (water) {
-      this.beginWait();
-    } else {
-      // Landed on ground. Vanilla keeps the bobber there, and reeling it in costs 2 durability.
-      this.state = FISHING_STATE.WAITING;
-      this.waitTicks = Infinity;
-    }
+    this.buildBobber(origin.addScaledVector(direction, 0.3));
+    // Launch from the player, rather than teleporting to the look-ray hit.
+    this.velocity.copy(direction).multiplyScalar(15);
+    this.velocity.y += 2;
+    this.state = FISHING_STATE.CASTING;
+    g.heldItemRenderer?.recoil?.();
+    g.sounds?.playBowShoot?.();
+    this.updateLine();
     return true;
   }
 
@@ -160,31 +161,48 @@ export class FishingController {
     while (ticks < 0 && guard++ < 16) ticks = rollWaitTicks(Math.random, { lureLevel: lure });
     this.waitTicks = Math.max(0, ticks);
     this.state = FISHING_STATE.WAITING;
+    this.waitAccumulator = 0;
+    this.updateFloat();
   }
 
-  /** March the look ray to the first block, and report whether it was water. */
-  findCastingPoint(origin, direction) {
+  /** Sweep every flight step; thin walls must not be skipped at low frame rates. */
+  updateFlight(dt) {
     const world = this.game.world;
-    const step = 0.25;
-    for (let t = 1; t <= CAST_REACH; t += step) {
-      const x = origin.x + direction.x * t;
-      const y = origin.y + direction.y * t;
-      const z = origin.z + direction.z * t;
+    this.velocity.y -= 9.8 * dt;
+    const origin = this.bobber.position.clone();
+    const displacement = this.velocity.clone().multiplyScalar(dt);
+    const steps = Math.max(1, Math.ceil(displacement.length() / 0.08));
+    for (let i = 1; i <= steps; i++) {
+      const point = origin.clone().addScaledVector(displacement, i / steps);
+      const { x, y, z } = point;
       const bx = Math.floor(x);
       const by = Math.floor(y);
       const bz = Math.floor(z);
       const voxel = world.getVoxel(bx, by, bz);
-      if (voxel === BLOCKS.WATER) {
-        // Float to the top of the column, which is where the wiki says the bobber sits.
-        let top = by;
-        while (top < 320 && world.getVoxel(bx, top + 1, bz) === BLOCKS.WATER) top++;
-        return { point: new THREE.Vector3(bx + 0.5, top + 0.85, bz + 0.5), water: { x: bx, y: top, z: bz }, stuck: false };
+      this.bobber.position.copy(point);
+      const hook = this.findHookTarget();
+      if (hook) { this.hooked = hook; this.state = FISHING_STATE.HOOKED; this.velocity.set(0,0,0); return; }
+      if (isWaterCell(voxel)) {
+        const water = waterSurfaceAt(world, x, y, z);
+        if (y > water.surfaceY) continue;
+        this.waterBlock = { x: water.x, y: water.y, z: water.z };
+        this.surfaceY = water.surfaceY;
+        this.velocity.set(0,0,0);
+        this.bobber.position.y = this.surfaceY;
+        this.effects.splash(this.bobber.position);
+        this.game.sounds?.playSplash?.();
+        this.beginWait();
+        return;
       }
-      if (voxel !== BLOCKS.AIR) {
-        return { point: new THREE.Vector3(x, y, z), water: null, stuck: true };
+      if (voxel !== BLOCKS.AIR && BLOCK_DEFS[voxel]?.solid !== false) {
+        this.bobber.position.copy(origin.clone().addScaledVector(displacement, (i - 1) / steps));
+        this.stuckInBlock = true;
+        this.state = FISHING_STATE.WAITING;
+        this.waitTicks = Infinity;
+        this.velocity.set(0,0,0);
+        return;
       }
     }
-    return null;
   }
 
   eyePosition() {
@@ -210,7 +228,7 @@ export class FishingController {
     bobber.position.copy(point);
     scene.add(bobber);
 
-    const geometry = new THREE.BufferGeometry().setFromPoints([point.clone(), point.clone()]);
+    const geometry = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 17 }, () => point.clone()));
     const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x2b2b2b }));
     scene.add(line);
 
@@ -220,8 +238,11 @@ export class FishingController {
 
   removeBobber() {
     const scene = this.game.scene;
-    if (this.bobber) scene.remove(this.bobber);
-    if (this.line) scene.remove(this.line);
+    for (const object of [this.bobber, this.line]) {
+      if (!object) continue;
+      scene?.remove(object);
+      object.traverse(child => { child.geometry?.dispose(); child.material?.dispose(); });
+    }
     this.bobber = null;
     this.line = null;
   }
@@ -231,11 +252,18 @@ export class FishingController {
     if (!this.line || !this.bobber) return;
     const tip = this.eyePosition();
     const dir = this.game.camera.getWorldDirection(new THREE.Vector3());
-    tip.addScaledVector(dir, 0.7).add(new THREE.Vector3(0, -0.25, 0));
+    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+    tip.addScaledVector(dir, 0.7).addScaledVector(right, 0.25).add(new THREE.Vector3(0, -0.2, 0));
     const positions = this.line.geometry.attributes.position;
-    positions.setXYZ(0, tip.x, tip.y, tip.z);
-    positions.setXYZ(1, this.bobber.position.x, this.bobber.position.y, this.bobber.position.z);
+    const sag = Math.min(0.75, tip.distanceTo(this.bobber.position) * 0.04);
+    for (let i = 0; i < positions.count; i++) {
+      const t = i / (positions.count - 1);
+      const p = tip.clone().lerp(this.bobber.position, t);
+      p.y -= Math.sin(Math.PI * t) * sag;
+      positions.setXYZ(i, p.x, p.y, p.z);
+    }
     positions.needsUpdate = true;
+    this.line.geometry.computeBoundingSphere();
   }
 
   // --- the world questions the model needs -------------------------------------------------------------
@@ -256,7 +284,7 @@ export class FishingController {
     // A lily pad is the one thing the wiki lets sit in an air layer, and it is non-colliding.
     if (voxel === BLOCKS.AIR || voxel === BLOCKS.LILY_PAD) return OPEN_WATER_BLOCK.AIR;
     // Waterlogged plants occupy a water cell without blocking it.
-    if (WATERLOGGED.has(voxel)) return OPEN_WATER_BLOCK.WATER;
+    if (WATERLOGGED.has(voxel) || BLOCK_DEFS[voxel]?.waterPlant) return OPEN_WATER_BLOCK.WATER;
     return OPEN_WATER_BLOCK.OTHER;
   }
 
@@ -285,7 +313,7 @@ export class FishingController {
       const def = BLOCK_DEFS?.[voxel];
       if (TRANSPARENT_TO_SKY.has(voxel)) continue;
       // A block the registry marks as not blocking light also lets sky light through.
-      if (def && (def.transparent === true || def.opacity === 0)) continue;
+      if (def && !def.leaves && !/ice|leaves/i.test(def.name ?? '') && (def.transparent === true || def.opacity === 0 || def.carpet)) continue;
       return false;
     }
     return true;
@@ -315,12 +343,15 @@ export class FishingController {
     for (const mob of this.game.mobs?.mobs ?? []) {
       if (!mob?.mesh?.position || mob.health <= 0) continue;
       if (mob.type === 'fishing_bobber') continue;
-      const d = mob.mesh.position.distanceTo(pos);
+      if (mob.mesh.position.distanceTo(pos) > 8) continue;
+      const box = new THREE.Box3().setFromObject(mob.mesh);
+      const d = box.isEmpty() ? mob.mesh.position.distanceTo(pos) : box.distanceToPoint(pos);
       if (d < bestDistance) { bestDistance = d; best = { kind: 'mob', ref: mob }; }
     }
     for (const drop of this.game.entities?.droppedItems ?? []) {
-      if (!drop?.mesh?.position || drop.collected) continue;
-      const d = drop.mesh.position.distanceTo(pos);
+      const position = (drop?.group ?? drop?.mesh)?.position;
+      if (!position || drop.collected) continue;
+      const d = position.distanceTo(pos);
       if (d < bestDistance) { bestDistance = d; best = { kind: 'item', ref: drop }; }
     }
     return best;
@@ -329,6 +360,9 @@ export class FishingController {
   // --- the frame ---------------------------------------------------------------------------------------
 
   update(dt) {
+    if (!(dt > 0) || !Number.isFinite(dt)) return;
+    dt = Math.min(dt, 0.25);
+    this.effects.update(dt);
     if (!this.active) return;
     const g = this.game;
 
@@ -340,21 +374,39 @@ export class FishingController {
       return;
     }
 
+    this.accumulator += dt;
+    while (this.accumulator + 1e-9 >= SIMULATION_STEP && this.active) {
+      this.accumulator -= SIMULATION_STEP;
+      this.elapsed += SIMULATION_STEP;
+      this.step(SIMULATION_STEP);
+      if (this.bobber?.position.distanceTo(this.eyePosition()) > LINE_BREAK_DISTANCE) this.cancel();
+    }
     this.updateLine();
-    if (!this.hooked) this.hooked = this.findHookTarget();
+  }
+
+  step(dt) {
+    if (this.state === FISHING_STATE.CASTING) { this.updateFlight(dt); return; }
+    if (this.hooked) {
+      const position = (this.hooked.ref.group ?? this.hooked.ref.mesh)?.position;
+      if (!position || this.hooked.ref.collected || this.hooked.ref.health <= 0) { this.cancel(); return; }
+      this.bobber.position.copy(position);
+      return;
+    }
+    if (!this.stuckInBlock) this.updateFloat();
 
     if (this.state === FISHING_STATE.WAITING) {
       if (this.waitTicks === Infinity) return;   // landed on ground: nothing will ever bite
       // `dt` is seconds; the wait is in ticks, and the wiki counts at 20 to the second.
-      let ticksThisFrame = dt * 20;
-      while (ticksThisFrame > 0) {
-        const step = Math.min(1, ticksThisFrame);
-        ticksThisFrame -= step;
-        if (step === 1) this.waitTicks = advanceWait(this.waitTicks, this.conditions());
+      this.waitAccumulator += dt * 20;
+      while (this.waitAccumulator + 1e-9 >= 1) {
+        this.waitAccumulator -= 1;
+        this.waitTicks = advanceWait(this.waitTicks, this.conditions());
       }
       if (this.waitTicks <= 0) {
         this.state = FISHING_STATE.APPROACHING;
         this.approachLeft = rollBiteApproachSeconds(Math.random);
+        this.approachDuration = this.approachLeft;
+        this.approachAngle = Math.random() * Math.PI * 2;
       }
       return;
     }
@@ -377,25 +429,44 @@ export class FishingController {
     }
   }
 
+  updateFloat() {
+    if (!this.waterBlock || !this.bobber) return;
+    const p = this.bobber.position;
+    const water = waterSurfaceAt(this.game.world, p.x, this.waterBlock.y, p.z);
+    if (!water) {
+      this.waterBlock = null;
+      this.state = FISHING_STATE.CASTING;
+      this.velocity.set(0,0,0);
+      return;
+    }
+    this.waterBlock = { x: water.x, y: water.y, z: water.z };
+    this.surfaceY = water.surfaceY;
+    // Dipping is an offset from the surface, not a permanent subtraction on each bite.
+    p.y = water.surfaceY + Math.sin(this.elapsed * 3.5) * 0.025 - (this.state === FISHING_STATE.BITING ? 0.28 : 0);
+  }
+
   /** The wiki's serpentine trail of fishing particles, approaching the bobber. */
   emitTrail(dt) {
     if (!this.bobber) return;
     this.trailTimer -= dt;
     if (this.trailTimer > 0) return;
     this.trailTimer = 0.08;
-    const target = this.bobber.position;
-    const jitter = new THREE.Vector3(
-      (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.9,
-    );
-    this.game.mobs?.spawnParticleBurst?.(target.clone().add(jitter).add(new THREE.Vector3(0, 0.2, 0)), 0x8fd6ff, 2);
+    const remaining = Math.max(0, this.approachLeft / (this.approachDuration || 1));
+    const distance = remaining * 3.5;
+    const angle = this.approachAngle + Math.sin(this.elapsed*8)*0.14;
+    const point = this.bobber.position.clone();
+    point.x += Math.cos(angle)*distance;
+    point.z += Math.sin(angle)*distance;
+    const water = waterSurfaceAt(this.game.world, point.x, this.waterBlock.y, point.z);
+    if (water) { point.y = water.surfaceY; this.effects.ripple(point); }
   }
 
   /** The bobber dipping below the surface when something takes it. */
   splash() {
     if (!this.bobber) return;
-    this.bobber.position.y -= 0.35;
-    this.game.mobs?.spawnParticleBurst?.(this.bobber.position.clone(), 0xbfe9ff, 8);
-    this.game.sounds?.play?.('splash');
+    this.effects.splash(new THREE.Vector3(this.bobber.position.x, this.surfaceY, this.bobber.position.z));
+    this.updateFloat();
+    this.game.sounds?.playSplash?.();
   }
 
   // --- reeling -----------------------------------------------------------------------------------------
@@ -404,7 +475,7 @@ export class FishingController {
   reel() {
     if (!this.active) return;
     const rod = this.rod();
-    const biting = this.state === FISHING_STATE.BITING;
+    const biting = this.state === FISHING_STATE.BITING && !this.hooked;
     const hooked = this.hooked;
 
     const cost = reelDurability({
@@ -415,8 +486,7 @@ export class FishingController {
     });
 
     // Wiki: pulling a mob or a dropped item drags it to the player.
-    if (hooked?.kind === 'mob') this.pullTowardPlayer(hooked.ref.mesh?.position);
-    if (hooked?.kind === 'item') this.pullTowardPlayer(hooked.ref.mesh?.position);
+    if (hooked) this.pullTowardPlayer(hooked.ref);
 
     let caught = null;
     if (biting) caught = this.awardCatch();
@@ -456,7 +526,9 @@ export class FishingController {
     this.giveToPlayer(stack);
 
     // Wiki: "An experience orb worth 1-6 experience points spawns at the position of the player."
-    addPlayerExperience(g.player, rollFishingXp(Math.random), g.sounds, g.ui);
+    const xp = rollFishingXp(Math.random);
+    if (g.entities?.spawnXpOrbs) g.entities.spawnXpOrbs(g.player.position.clone(), xp);
+    else addPlayerExperience(g.player, xp, g.sounds, g.ui);
     return stack.name;
   }
 
@@ -516,31 +588,43 @@ export class FishingController {
     return out;
   }
 
-  /** Wiki: the catch "is added to the player's inventory. If the player's inventory is full, the item drops
-   * on the ground." */
+  /** Launch real loot towards the player; normal pickup handles collision/full inventories. */
   giveToPlayer(stack) {
     const g = this.game;
-    const inv = g.inventory;
-    // `addItem` is positional: (itemId, isBlock, count, enchantments).
-    if (inv?.addItem?.(stack.id, stack.isBlock === true, stack.count ?? 1, stack.enchantments ?? null)) {
-      g.ui?.updateHotbar?.();
+    if (g.entities?.spawnDroppedItem && this.bobber) {
+      const pos = this.bobber.position.clone();
+      pos.y = (this.surfaceY ?? pos.y) + 0.22;
+      const countBefore = g.entities.droppedItems?.length ?? 0;
+      g.entities.spawnDroppedItem(pos, stack.id, stack.isBlock === true, stack.count ?? 1, { itemData: stack, enchantments: stack.enchantments, durability: stack.durability, pickupDelay: 0.1 });
+      const drop = g.entities.droppedItems?.length > countBefore ? g.entities.droppedItems.at(-1) : null;
+      if (drop?.velocity) {
+        const target = new THREE.Vector3(g.player.position.x, g.player.position.y + 0.8, g.player.position.z);
+        const direction = target.sub(pos);
+        const flightTime = Math.min(1.25, 0.4 + direction.length() * 0.04);
+        drop.velocity.copy(direction).divideScalar(flightTime);
+        // Match the dropped-item system's 18 blocks/s² gravity.
+        drop.velocity.y += 9 * flightTime;
+      }
       return;
     }
-    const pos = g.player.position.clone();
-    g.entities?.spawnDroppedItem?.(pos, stack.id, stack.isBlock === true, stack.count ?? 1);
+    if (g.inventory?.addItem?.(stack)) {
+      g.ui?.updateHotbar?.();
+    }
   }
 
-  pullTowardPlayer(position) {
+  pullTowardPlayer(target) {
+    const position = (target.group ?? target.mesh)?.position;
     if (!position) return;
-    const player = this.game.player.position;
-    const direction = player.clone().sub(position);
+    const direction = this.eyePosition().sub(position);
     const distance = direction.length();
-    if (distance > 0.001) position.addScaledVector(direction.normalize(), Math.min(distance, 0.75));
+    if (target.velocity?.addScaledVector) target.velocity.addScaledVector(direction, 0.1);
+    else if (distance > 0.001) position.addScaledVector(direction.normalize(), Math.min(distance, 0.75));
   }
 
   /** Abandon the line: no durability, no loot. Used by the 32-block rule and by losing pointer lock. */
   cancel() {
     this.removeBobber();
+    this.effects.clear();
     this.reset();
   }
 }

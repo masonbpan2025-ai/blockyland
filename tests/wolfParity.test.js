@@ -147,6 +147,12 @@ test('wolf armor drops on death regardless of the killer', () => {
   wolf.isTamed = true;
   assert.equal(wolf.wolfArmor, 'wolf_armor');
 
+  // The armour absorbs ordinary damage (wiki: "absorbs all damage done to the wolf ... until its durability runs
+  // out"), so the wolf is killed by damage it does not absorb: the void.
+  manager.damageMob(wolf, 5, null, false, player);
+  assert.equal(wolf.health, wolf.maxHealth, 'an armoured wolf takes no ordinary damage');
+  wolf.hitCooldown = 0;
+  wolf.pendingDamageType = 'void';
   manager.damageMob(wolf, 1000, null, false, player);
   for (let i = 0; i < 12; i++) manager.update(0.1, player);
   assert.ok(drops.some(d => d.itemType === 'wolf_armor'),

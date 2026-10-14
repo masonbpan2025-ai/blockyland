@@ -1,4 +1,5 @@
 import { renderHorseInventory } from './horseInventory.js';
+import { packsModal } from './packsModal.js';
 import { syncAgentTerminalControls } from './agentTerminalControls.js';
 import { allowsAgentTerminal } from './sessionSettings.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
@@ -357,6 +358,7 @@ export class UIManager {
     this.worldDataPackSelect = document.getElementById('world-datapack-select');
     this.worldDataPackHint = document.getElementById('world-datapack-hint');
     this.worldSeedInput = document.getElementById('world-seed-input');
+    this.worldBonusChest = document.getElementById('world-bonus-chest');
     this.btnRandomizeSeed = document.getElementById('btn-randomize-seed');
     this.btnCreateWorldConfirm = document.getElementById('btn-create-world-confirm');
     this.btnCloseBiomeModal = document.getElementById('btn-close-biome-modal');
@@ -1664,9 +1666,10 @@ export class UIManager {
     this.closeAllModals();
     if (!this.furnaceModal) return;
     this.currentFurnacePos = { x, y, z };
-    if (this.game?.furnaceManager) {
-      this.game.furnaceManager.openFurnaceAt(x, y, z);
-    }
+    const opened = this.game?.furnaceManager ? this.game.furnaceManager.openFurnaceAt(x, y, z) : null;
+    // One screen serves the furnace, the blast furnace and the smoker; the title says which.
+    const title = document.getElementById('furnace-title');
+    if (title) title.textContent = { blast_furnace: 'Blast Furnace', smoker: 'Smoker' }[opened?.kind] ?? 'Furnace';
     this.furnaceModal.classList.remove('hidden');
     this.renderFurnaceGrids();
   }
@@ -1806,10 +1809,17 @@ export class UIManager {
     const target = furnace.output;
     if (!target) return;
     this.sounds.playClick();
+    // Taking smelted items by hand awards the experience their smelting banked (furnaceExperience.js).
+    const inSlot = target.count;
+    const award = () => {
+      const taken = inSlot - (furnace.output?.count ?? 0);
+      if (taken > 0) this.game?.furnaceManager?.awardOutputExperience?.(furnace, taken, inSlot);
+    };
 
     if (isShiftClick) {
       this.inv.addItem(target.id, target.isBlock, target.count);
       furnace.output = null;
+      award();
       this.renderFurnaceGrids();
       this.updateHotbar();
       return;
@@ -1832,6 +1842,7 @@ export class UIManager {
       target.count -= transfer;
       if (target.count <= 0) furnace.output = null;
     }
+    award();
 
     this.renderFurnaceGrids();
     this.updateHotbar();
@@ -3679,6 +3690,13 @@ export class UIManager {
       this.requestGamePointerLock();
     };
 
+    const btnPausePacks = document.getElementById('btn-pause-packs');
+    if (btnPausePacks) {
+      btnPausePacks.onclick = () => {
+        packsModal.open();
+      };
+    }
+
     const btnGamemode = document.getElementById('btn-gamemode');
     if (btnGamemode) {
       btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
@@ -3998,6 +4016,7 @@ export class UIManager {
             // The generation pack, applied by `applyWorldSettings` BEFORE the reseed below, so the terrain,
             // spawners and structures are in place when the world reads them.
             dataPackPreset: this.selectedDataPackPreset ?? null,
+            bonusChest: Boolean(this.worldBonusChest?.checked),
           });
           this.game.player?.setGameMode?.(chosenMode);
 
@@ -4662,6 +4681,57 @@ export class UIManager {
   advancedTooltipSuffix(item) {
     const advanced = this.advancedTooltips ? advancedTooltipLines(item).join(' · ') : '';
     return [trimTooltipLine(item), advanced].filter(Boolean).join(' · ');
+  }
+
+  /**
+   * The command HUD (advancedCommands.hudModel): custom boss bars across the top -- a bar's colour and its notches
+   * (Commands/bossbar) -- and the scoreboard objective shown in the sidebar slot, at the right edge.
+   */
+  renderCommandHud({ bars = [], sidebar = null } = {}) {
+    if (typeof document === 'undefined') return;
+    const COLOURS = { blue: '#3b8eea', green: '#3bd16f', pink: '#ec5fb8', purple: '#9a5ae8', red: '#e5413e', white: '#f0f0f0', yellow: '#f0d23b' };
+    let top = document.getElementById('command-bossbars');
+    if (!top) {
+      top = document.createElement('div'); top.id = 'command-bossbars';
+      Object.assign(top.style, { position: 'fixed', top: '8px', left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', font: '13px monospace', color: '#fff', textAlign: 'center', textShadow: '1px 1px 0 #000' });
+      document.body.append(top);
+    }
+    top.replaceChildren(...bars.map((b) => {
+      const box = document.createElement('div'); box.style.margin = '0 0 6px';
+      const label = document.createElement('div'); label.textContent = b.name;
+      const track = document.createElement('div');
+      Object.assign(track.style, { width: '182px', height: '5px', background: '#333', border: '1px solid #000', margin: '2px auto 0', position: 'relative' });
+      const fill = document.createElement('div');
+      Object.assign(fill.style, { width: `${Math.round(b.fraction * 100)}%`, height: '100%', background: COLOURS[b.color] ?? '#fff' });
+      track.append(fill);
+      const notches = { notched_6: 6, notched_10: 10, notched_12: 12, notched_20: 20 }[b.style];
+      if (notches) track.style.backgroundImage = `repeating-linear-gradient(90deg, transparent 0 ${182 / notches - 1}px, #000 ${182 / notches - 1}px ${182 / notches}px)`;
+      box.append(label, track);
+      return box;
+    }));
+    let side = document.getElementById('command-sidebar');
+    if (!side) {
+      side = document.createElement('div'); side.id = 'command-sidebar';
+      Object.assign(side.style, { position: 'fixed', right: '6px', top: '40%', zIndex: 40, pointerEvents: 'none', font: '13px monospace', color: '#fff', background: 'rgba(0,0,0,0.35)', padding: '2px 6px', minWidth: '90px' });
+      document.body.append(side);
+    }
+    side.style.display = sidebar ? 'block' : 'none';
+    if (sidebar) {
+      const title = document.createElement('div'); title.textContent = sidebar.title; title.style.textAlign = 'center';
+      side.replaceChildren(title, ...sidebar.rows.map((r) => {
+        const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.gap = '12px';
+        const n = document.createElement('span'); n.textContent = r.name; const v = document.createElement('span'); v.textContent = r.score; v.style.color = '#ff5555';
+        row.append(n, v); return row;
+      }));
+    }
+  }
+
+  /** Offer a file to save (/jfr stop's profile). */
+  offerDownload(name, text) {
+    if (typeof document === 'undefined' || typeof Blob === 'undefined') return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name; a.click();
   }
 
   addChatMessage(msg, type = 'normal') {

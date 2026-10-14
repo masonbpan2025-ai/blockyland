@@ -2,6 +2,7 @@
  * Minecraft Brewing & Alchemy Engine
  * Reference: https://minecraft.wiki/w/Brewing
  */
+import { BLOCK_DEFS } from './blocks.js';
 
 // Canonical Potion Registry with Names, Types, and Effects
 export const POTION_DATA = {
@@ -66,7 +67,16 @@ export const POTION_DATA = {
   // The pair of effects and the levels for each tier live in `statusEffects.js` under `turtle_master`.
   // The potion carries only which tier it is; `compoundEffects` reads the pair for that tier.
   potion_of_turtle_master_long: { name: 'Potion of the Turtle Master (Extended)', color: '#14532d', effect: 'turtle_master', duration: 40 },
-  potion_of_turtle_master_2: { name: 'Potion of the Turtle Master II', color: '#14532d', effect: 'turtle_master', duration: 20, level: 2 }
+  potion_of_turtle_master_2: { name: 'Potion of the Turtle Master II', color: '#14532d', effect: 'turtle_master', duration: 20, level: 2 },
+
+  // The four potions Java 1.21 added (their wiki pages: brewed from an awkward potion with a slime block, a cobweb,
+  // a breeze rod and stone; 3:00 each; colours the effects' particle colours). The effects were already in
+  // statusEffects.js and nothing could give them; found by the recipe parity audit, whose tipped-arrow recipes
+  // named potions this game did not have.
+  potion_of_oozing: { name: 'Potion of Oozing', color: '#99ffa3', effect: 'oozing', duration: 180 },
+  potion_of_weaving: { name: 'Potion of Weaving', color: '#78695a', effect: 'weaving', duration: 180 },
+  potion_of_wind_charging: { name: 'Potion of Wind Charging', color: '#bdc9ff', effect: 'wind_charged', duration: 180 },
+  potion_of_infestation: { name: 'Potion of Infestation', color: '#8c9b8c', effect: 'infested', duration: 180 },
 };
 
 // Base Brewing Recipes: (bottleId + ingredientId) -> resultId
@@ -76,6 +86,11 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'water_bottle', ingredient: 'fermented_spider_eye', result: 'potion_of_weakness' },
   { bottle: 'water_bottle', ingredient: 'glowstone_dust', result: 'thick_potion' },
   { bottle: 'water_bottle', ingredient: 'redstone', result: 'mundane_potion' },
+  // The Brewing page's Mundane Potion row: a water bottle also turns mundane with any of these effect ingredients
+  // ("The exceptions to this are the golden carrot, pufferfish, turtle shell, and phantom membrane"). Found by the
+  // systems parity audit (src/systemsWikiAudit.js); only redstone was here.
+  ...['sugar', 'rabbit_foot', 'glistering_melon_slice', 'spider_eye', 'magma_cream', 'blaze_powder', 'ghast_tear',
+    'breeze_rod', 'stone', 'cobweb', 'slime_block'].map((ingredient) => ({ bottle: 'water_bottle', ingredient, result: 'mundane_potion' })),
 
   // Standard Potions from Awkward
   { bottle: 'awkward_potion', ingredient: 'sugar', result: 'potion_of_swiftness' },
@@ -88,9 +103,14 @@ export const BASE_BREWING_RECIPES = [
   { bottle: 'awkward_potion', ingredient: 'pufferfish', result: 'potion_of_water_breathing' },
   { bottle: 'awkward_potion', ingredient: 'golden_carrot', result: 'potion_of_night_vision' },
   { bottle: 'awkward_potion', ingredient: 'phantom_membrane', result: 'potion_of_slow_falling' },
-  // The ingredient is `turtle_scute`; naming it `scute` meant no bottle could ever produce this
-  // potion, because the ingredient id did not exist. The item itself was already registered.
-  { bottle: 'awkward_potion', ingredient: 'turtle_scute', result: 'potion_of_turtle_master' },
+  // The ingredient is the Turtle Shell (`turtle_helmet`): the Brewing page's recipe is "Input= Turtle Shell" on an
+  // awkward potion. It was `turtle_scute`, the shell's crafting material, which the wiki does not brew.
+  { bottle: 'awkward_potion', ingredient: 'turtle_helmet', result: 'potion_of_turtle_master' },
+  // Java 1.21's four. Block ingredients are named by block (a stand slot holds a block as its id; see below).
+  { bottle: 'awkward_potion', ingredient: 'slime_block', result: 'potion_of_oozing' },
+  { bottle: 'awkward_potion', ingredient: 'cobweb', result: 'potion_of_weaving' },
+  { bottle: 'awkward_potion', ingredient: 'breeze_rod', result: 'potion_of_wind_charging' },
+  { bottle: 'awkward_potion', ingredient: 'stone', result: 'potion_of_infestation' },
 
   // Fermented Spider Eye Corruptions
   { bottle: 'potion_of_night_vision', ingredient: 'fermented_spider_eye', result: 'potion_of_invisibility' },
@@ -197,6 +217,11 @@ const CORE_FOR_GENERIC_FORM = Object.fromEntries(
  */
 export function getBrewingResult(bottleId, ingredientId) {
   if (!bottleId || !ingredientId) return null;
+  // A block ingredient arrives as its numeric id; the recipes name it.
+  if (typeof ingredientId === 'number') {
+    ingredientId = String(BLOCK_DEFS[ingredientId]?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    if (!ingredientId) return null;
+  }
 
   // Gunpowder: converts any regular drinkable potion to a Splash potion. The water potion is vanilla's
   // generic one, so this asks the table rather than gluing a prefix on -- `splash_water_bottle` was an id

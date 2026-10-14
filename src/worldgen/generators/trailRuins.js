@@ -1,283 +1,134 @@
-// Trail ruins: a BURIED chain of path pieces with archaeology.
+// Trail ruins, from the wiki (https://minecraft.wiki/w/Trail_Ruins).
 //
-// From the wiki (`Trail Ruins`, 1.21.4 revision) and this repository's registry entry: taiga, old-growth taiga
-// and birch, and jungle family biomes; generated a little BELOW the surface with `terrain_adaptation: bury`,
-// which is what covers it over again; built from mud bricks, packed mud and terracotta with gravel, candles and
-// decorated pots; and it holds SUSPICIOUS GRAVEL and SAND carrying the archaeology loot, plus chests.
+// From the page:
+//   * taiga, snowy taiga, old growth spruce and pine taiga, old growth birch forest and jungle;
+//   * "generate mostly underground with only the top of the tower above the ground ... a main road made of cobblestone,
+//     stone, and stone bricks that connect multiple small buildings and a central tower made of stained terracotta and
+//     glazed terracotta ... Adjacent to the tower generates two rooms and sometimes other small buildings and a decor
+//     made out of mud bricks and terracotta. Most of the structure is buried in gravel, dirt, and coarse dirt, as well
+//     as suspicious gravel"; "Trail ruins are completely solid; they don't have interior rooms";
+//   * the pieces (tower, tower top, tower halls, buildings in groups, roads, decor) and their materials tables;
+//   * archaeology: "All of the tower_top structure pieces and everything in the roads folder replace two gravel with
+//     two common suspicious gravel. The rest replace nine gravel with six common suspicious gravel and three rare
+//     suspicious gravel. Additionally, all of the processor lists (except for the one used for the tower_top) first
+//     replace 20% of the gravel with dirt, then 10% of the remaining gravel with coarse dirt";
+//   * no chests: the loot is in the suspicious gravel (common and rare trail ruins tables).
 //
-// Its defining property is that it is a TRAIL: a run of path pieces that chain end to end, with ruins alongside
-// them, rather than one building. That is why it is built here on the jigsaw engine as a chain, reusing the
-// machinery verified by the village and the bastion.
-//
-// PROVENANCE: no Minecraft assets. Parts are built by code from the described shapes and materials, so the
-// LAYOUT is a clean-room approximation while the chaining, the buried placement, the archaeology blocks and the
-// loot are the engine's real behaviour.
-//
-// APPROXIMATIONS, recorded rather than hidden: the depth below the surface and the room sizes are clean-room;
-// the archaeology loot ids are conventional, because the wiki publishes `{{LootChest}}`-style keys rather than
-// namespaced ids.
+// The wiki publishes the pieces' materials but no drawings, so the shapes are ours: a tower of terracotta rings round a
+// gravel core whose top course rises above the ground, two to four roads out from it, buildings and decor beside
+// the roads, all solid and filled with gravel. This world is 64 tall: the tower top stands 2 above the ground.
 
-import { StructureStart } from '../start.js';
 import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
-import { TemplatePool, TemplatePoolRegistry, PoolElement, addPieces } from '../jigsaw.js';
-import { StructureTemplate } from '../template.js';
-import { placeTemplate } from '../templatePlacement.js';
-import { createBlockIdResolver } from '../blockIds.js';
+import { BlockBox } from '../geometry.js';
+import { CellCanvas, cellStart, realizeCells } from '../cellStructure.js';
 
-export const TRAIL_MATERIALS = {
-  brick: 'minecraft:mud_bricks',
-  mud: 'minecraft:packed_mud',
-  terracotta: 'minecraft:terracotta',
-  white: 'minecraft:white_terracotta',
-  orange: 'minecraft:orange_terracotta',
-  gravel: 'minecraft:gravel',
-  sand: 'minecraft:sand',
-  coarse: 'minecraft:coarse_dirt',
-  log: 'minecraft:oak_log',
-  plank: 'minecraft:oak_planks',
-  candle: 'minecraft:candle',
-  pot: 'minecraft:decorated_pot',
-  chest: 'minecraft:chest',
-  suspiciousGravel: 'minecraft:suspicious_gravel',
-  suspiciousSand: 'minecraft:suspicious_sand',
-  loot: 'minecraft:chests/trail_ruins_rare',
-  archaeology: 'minecraft:archaeology/trail_ruins_common'
-};
+export const TRAIL_LOOT = { common: 'minecraft:archaeology/trail_ruins_common', rare: 'minecraft:archaeology/trail_ruins_rare' };
+export const DIRT_SHARE = 0.2;
+export const COARSE_SHARE = 0.1;
+const TERRACOTTA = ['blue_terracotta', 'red_terracotta', 'yellow_terracotta', 'white_terracotta', 'cyan_terracotta', 'light_gray_terracotta', 'orange_terracotta', 'brown_terracotta', 'gray_terracotta'];
+const GLAZED = ['yellow_glazed_terracotta', 'light_gray_glazed_terracotta', 'cyan_glazed_terracotta', 'orange_glazed_terracotta', 'light_blue_glazed_terracotta', 'black_glazed_terracotta'];
+const ROAD = ['cobblestone', 'stone', 'stone_bricks', 'cracked_stone_bricks', 'gravel'];
+const FURNISHING = ['crafting_table', 'furnace', 'blast_furnace', 'loom', 'cartography_table', 'smithing_table', 'grindstone', 'composter', 'cauldron', 'campfire', 'damaged_anvil'];
 
-/** How far below the surface the trail sits. The wiki does not publish the offset in a verifiable form. */
-export const TRAIL_DEPTH = 2;
-export const TRAIL_MAX_DEPTH = 4;
-export const TRAIL_MAX_DISTANCE = 48;
-export const PATH_SLOT = 'trail/path';
-export const RUIN_SLOT = 'trail/ruin';
-export const PATH_POOL = 'trail/paths';
-export const RUIN_POOL = 'trail/ruins';
+export function buildTrailRuins({ seed, x, z, ground, groundAt = () => ground }) {
+  const random = new LegacyRandom(BigInt(seed));
+  const pick = (list) => list[random.nextIntBound(list.length)];
+  const canvas = new CellCanvas();
+  const pieces = [];
+  const piece = (box, kind, archaeology) => { pieces.push({ box, kind, archaeology }); return pieces[pieces.length - 1]; };
 
-export function buildTrailPart(kind, materials = TRAIL_MATERIALS) {
-  const palette = [{ Name: 'minecraft:air' }];
-  const index = new Map();
-  const material = (name) => {
-    if (!index.has(name)) { index.set(name, palette.length); palette.push({ Name: name }); }
-    return index.get(name);
-  };
-  const jigsawState = (front, top) => {
-    const orientation = front + '_' + top; // vanilla's order: `up_north` FRONTS NORTH
-    const key = 'jigsaw:' + orientation;
-    if (!index.has(key)) { index.set(key, palette.length); palette.push({ Name: 'minecraft:jigsaw', Properties: { orientation } }); }
-    return index.get(key);
-  };
-  const blocks = [];
-  let declared = [0, 0, 0];
-  const declare = (size) => { declared = size; return size; };
-  // A block outside the declared size would be written outside the piece box: a plan whose advertised box is a
-  // lie, and a chunk-clipping hazard. It is an error, not a silent extra block.
-  const push = (x, y, z, state, nbt = null) => {
-    const [sx, sy, sz] = declared;
-    if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) {
-      throw new Error('trail ruins ' + kind + ': block ' + x + ',' + y + ',' + z + ' is outside ' + declared.join('x'));
+  // The tower: rings of stained and glazed terracotta round a gravel core; only its top course clears the ground.
+  const towerTop = ground + 2;
+  const towerBottom = Math.max(2, towerTop - 14);
+  const colours = [pick(TERRACOTTA), pick(TERRACOTTA)];
+  const glaze = pick(GLAZED);
+  for (let y = towerBottom; y <= towerTop; y++) for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+    const edge = Math.abs(dx) === 3 || Math.abs(dz) === 3;
+    if (Math.abs(dx) === 3 && Math.abs(dz) === 3) continue;
+    const name = edge ? ((y - towerBottom) % 4 === 3 ? glaze : colours[(y >> 1) % 2]) : 'gravel';
+    canvas.set(x + dx, y, z + dz, name, name === glaze ? { facing: ['north', 'east', 'south', 'west'][(dx + dz + 8) % 4] } : null);
+  }
+  piece(new BlockBox(x - 3, towerBottom, z - 3, x + 3, towerTop - 3, z + 3), 'tower', 'full');
+  piece(new BlockBox(x - 3, towerTop - 2, z - 3, x + 3, towerTop, z + 3), 'tower_top', 'top');
+
+  // The two rooms beside the tower: mud brick halls with terracotta, filled with gravel.
+  const room = (x0, y0, z0, w, h, d, kind) => {
+    const colour = pick(TERRACOTTA);
+    for (let bx = x0; bx < x0 + w; bx++) for (let by = y0; by < y0 + h; by++) for (let bz = z0; bz < z0 + d; bz++) {
+      const edge = bx === x0 || bx === x0 + w - 1 || bz === z0 || bz === z0 + d - 1 || by === y0;
+      canvas.set(bx, by, bz, edge ? (random.nextFloat() < 0.25 ? colour : 'mud_bricks') : 'gravel', null, null, { keep: true });
     }
-    blocks.push(nbt ? { pos: [x, y, z], state, nbt } : { pos: [x, y, z], state });
+    canvas.set(x0 + 1, y0 + 1, z0 + 1, pick(FURNISHING), null, null);
+    canvas.set(x0 + w - 2, y0 + h - 1, z0 + 1, 'mud_brick_slab', { type: 'bottom' });
+    canvas.set(x0 + 1, y0 + 2, z0 + d - 2, 'mud_brick_stairs', { facing: 'north', half: 'bottom' });
+    return piece(new BlockBox(x0, y0, z0, x0 + w - 1, y0 + h - 1, z0 + d - 1), kind, 'full');
   };
-  const slot = (x, y, z, name, pool, front, top = 'up') => {
-    push(x, y, z, jigsawState(front, top), { name, pool, orientation: front + '_' + top, joint: 'aligned', target: 'minecraft:empty' });
-  };
-  const m = (key) => material(TRAIL_MATERIALS[key]);
+  room(x + 4, towerBottom + 4, z - 3, 7, 5, 7, 'tower_hall');
+  room(x - 10, towerBottom + 4, z - 3, 7, 5, 7, 'tower_hall');
 
-  if (kind === 'entrance') {
-    // The trail's head: a wider ruined platform with a path slot onwards and a ruin slot on each side.
-    const size = declare([7, 4, 11]);
-    for (let x = 0; x < 7; x++) {
-      for (let z = 0; z < 11; z++) {
-        const edge = x === 0 || x === 6 || z === 0 || z === 10;
-        push(x, 0, z, edge ? m('gravel') : m('coarse'));
-        // Ruined walls: present in patches rather than as a whole building.
-        if (edge && (x + z) % 3 !== 0) { push(x, 1, z, m('brick')); if ((x + z) % 2 === 0) push(x, 2, z, m('mud')); }
-      }
+  // Roads out from the tower, with buildings and decor beside them.
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const roads = 2 + random.nextIntBound(3);
+  for (let r = 0; r < roads; r++) {
+    const [dx, dz] = dirs[r];
+    const length = 10 + random.nextIntBound(14);
+    const start = dx ? 11 : 4;
+    // Buried under the lowest ground along it (and under its building at the end).
+    let low = ground;
+    for (let a = start - 2; a < start + length + 8; a++) for (let w = -3; w <= 3; w++) low = Math.min(low, groundAt(x + dx * a + (dz ? w : 0), z + dz * a + (dx ? w : 0)));
+    const y = low - 5 - random.nextIntBound(2);
+    for (let a = start; a < start + length; a++) for (let w = -1; w <= 1; w++) {
+      const bx = x + dx * a + (dz ? w : 0); const bz = z + dz * a + (dx ? w : 0);
+      canvas.set(bx, y, bz, pick(ROAD), null, null, { keep: true });
+      canvas.set(bx, y + 1, bz, 'gravel', null, null, { keep: true });
     }
-    push(2, 1, 5, m('candle'));
-    push(4, 1, 7, m('pot'));
-    // Archaeology: the blocks worth brushing, carrying the trail's loot.
-    push(3, 1, 9, m('suspiciousGravel'), { id: 'minecraft:suspicious_gravel', LootTable: materials.archaeology });
-    push(1, 1, 1, m('suspiciousSand'), { id: 'minecraft:suspicious_sand', LootTable: materials.archaeology });
-    slot(3, 0, 0, PATH_SLOT, PATH_POOL, 'north');
-    slot(0, 0, 5, RUIN_SLOT, RUIN_POOL, 'west');
-    slot(6, 0, 5, RUIN_SLOT, RUIN_POOL, 'east');
-    return { size, palette, blocks, entities: [] };
+    const [ax, az] = [x + dx * start, z + dz * start]; const [bx, bz] = [x + dx * (start + length - 1), z + dz * (start + length - 1)];
+    piece(new BlockBox(Math.min(ax, bx) - (dz ? 1 : 0), y, Math.min(az, bz) - (dx ? 1 : 0), Math.max(ax, bx) + (dz ? 1 : 0), y + 1, Math.max(az, bz) + (dx ? 1 : 0)), 'road', 'top');
+    // A building group at the road's end, and decor along it.
+    const ex = x + dx * (start + length + 1) - 2; const ez = z + dz * (start + length + 1) - 2;
+    if (random.nextFloat() < 0.7 && !pieces.some((p) => p.box.intersects(new BlockBox(ex, y, ez, ex + 4, y + 3, ez + 4)))) room(ex, y, ez, 5, 4, 5, 'building');
+    if (random.nextFloat() < 0.5) {
+      const mx = x + dx * (start + 4) + (dz ? 3 : 0); const mz = z + dz * (start + 4) + (dx ? 3 : 0);
+      for (let k = 0; k < 4; k++) canvas.set(mx + (k % 2), y + 1 + (k >> 1), mz, k === 3 ? pick(TERRACOTTA) : 'mud_bricks', null, null, { keep: true });
+      piece(new BlockBox(mx, y + 1, mz, mx + 1, y + 2, mz), 'decor', 'full');
+    }
   }
 
-  if (kind === 'path' || kind === 'path_corner') {
-    // The trail itself: a run of packed mud and gravel with the path slot at BOTH ends, so the trail continues
-    // until the depth limit stops it. Two connectors share the slot name, which deviation 0e blocked until the
-    // per-instance fix -- this is the fifth structure to rely on it.
-    const long = kind === 'path' ? 13 : 7;
-    const size = declare([5, 3, kind === 'path' ? long : 7]);
-    for (let x = 0; x < 5; x++) {
-      for (let z = 0; z < (kind === 'path' ? long : 7); z++) {
-        push(x, 0, z, (x + z) % 4 === 0 ? m('gravel') : m('coarse'));
-        if ((x === 0 || x === 4) && (x + z) % 3 !== 0) push(x, 1, z, m('brick'));
-      }
+  // The processors, piece by piece: dirt, coarse dirt, then the suspicious gravel.
+  for (const p of pieces) {
+    const gravel = [...canvas.cells.values()].filter((c) => c.name === 'gravel' && p.box.contains(c.x, c.y, c.z) && !c.processed);
+    for (const c of gravel) c.processed = true;
+    let rest = gravel;
+    if (p.kind !== 'tower_top') {
+      for (const c of rest) if (random.nextFloat() < DIRT_SHARE) c.name = 'dirt';
+      rest = rest.filter((c) => c.name === 'gravel');
+      for (const c of rest) if (random.nextFloat() < COARSE_SHARE) c.name = 'coarse_dirt';
+      rest = rest.filter((c) => c.name === 'gravel');
     }
-    push(2, 1, 6, m('candle'));
-    if (kind === 'path') {
-      push(2, 1, 3, m('suspiciousGravel'), { id: 'minecraft:suspicious_gravel', LootTable: materials.archaeology });
-      slot(2, 0, 0, PATH_SLOT, PATH_POOL, 'north');
-      slot(2, 0, long - 1, PATH_SLOT, PATH_POOL, 'south');
-      slot(0, 0, 6, RUIN_SLOT, RUIN_POOL, 'west');
-    } else {
-      slot(2, 0, 0, PATH_SLOT, PATH_POOL, 'north');
-      slot(4, 0, 3, PATH_SLOT, PATH_POOL, 'east');
+    const [common, rare] = p.archaeology === 'top' ? [2, 0] : [6, 3];
+    for (let i = 0; i < common + rare && rest.length; i++) {
+      const c = rest.splice(random.nextIntBound(rest.length), 1)[0];
+      c.name = 'suspicious_gravel';
+      c.nbt = { id: 'minecraft:brushable_block', LootTable: i < common ? TRAIL_LOOT.common : TRAIL_LOOT.rare };
     }
-    return { size, palette, blocks, entities: [] };
   }
-
-  if (kind === 'ruin_small' || kind === 'ruin_large' || kind === 'camp') {
-    const wide = kind === 'ruin_large' ? 9 : 7;
-    const size = declare([wide, 4, wide]);
-    for (let x = 0; x < wide; x++) {
-      for (let z = 0; z < wide; z++) {
-        const edge = x === 0 || x === wide - 1 || z === 0 || z === wide - 1;
-        push(x, 0, z, edge ? m('gravel') : m('coarse'));
-        // Partial walls: a ruin has gaps, which is what distinguishes it from a room.
-        if (edge && (x * 3 + z * 5) % 4 !== 0) push(x, 1, z, x % 2 === 0 ? m('brick') : m('terracotta'));
-      }
-    }
-    if (kind === 'camp') {
-      for (let x = 1; x < wide - 1; x++) for (let z = 1; z < wide - 1; z++) if ((x + z) % 3 === 0) push(x, 1, z, m('white'));
-      push(2, 1, 2, m('candle'));
-      push(wide - 3, 1, wide - 3, m('pot'));
-    }
-    // The rare chest and a second archaeology block, so every ruin is worth excavating.
-    blocks.push({ pos: [Math.floor(wide / 2), 1, Math.floor(wide / 2)], state: material(TRAIL_MATERIALS.chest), nbt: { id: 'minecraft:chest', LootTable: TRAIL_MATERIALS.loot } });
-    push(1, 1, wide - 2, m('suspiciousSand'), { id: 'minecraft:suspicious_sand', LootTable: materials.archaeology });
-    if (kind === 'ruin_large') push(wide - 2, 2, 1, m('log'));
-    slot(Math.floor(wide / 2), 0, 0, RUIN_SLOT, null, 'north');
-    return { size, palette, blocks, entities: [] };
-  }
-
-  throw new Error('unknown trail ruins part ' + kind);
+  for (const c of canvas.cells.values()) delete c.processed;
+  return { canvas, pieces };
 }
 
-export function createTrailPools(materials = TRAIL_MATERIALS) {
-  const pools = new TemplatePoolRegistry();
-  const element = (kind, weight = 1) => new PoolElement({
-    name: kind,
-    weight,
-    build: () => ({
-      connectors: buildTrailPart(kind, materials).blocks
-        .filter((block) => block.nbt && Object.prototype.hasOwnProperty.call(block.nbt, 'pool'))
-        .map((block) => ({
-          name: block.nbt.name,
-          pool: block.nbt.pool,
-          orientation: block.nbt.orientation,
-          joint: block.nbt.joint,
-          local: { x: block.pos[0], y: block.pos[1], z: block.pos[2] }
-        }))
-    })
-  });
-  pools.register(new TemplatePool({ id: 'trail/starts', elements: [element('entrance', 1)] }));
-  pools.register(new TemplatePool({ id: PATH_POOL, elements: [element('path', 3), element('path_corner', 2)] }));
-  pools.register(new TemplatePool({ id: RUIN_POOL, elements: [element('ruin_small', 3), element('ruin_large', 1), element('camp', 1)] }));
-  return pools;
-}
-
-function buildPiece(element, rotation, mirror, at, materials) {
-  const template = new StructureTemplate(buildTrailPart(element.name, materials), 'minecraft:trail_ruins/' + element.name);
-  const box = template.boundingBox(at, rotation, mirror);
-  const connectors = template.jigsaws(rotation, mirror).map((jigsaw) => ({
-    name: jigsaw.name,
-    pool: jigsaw.pool,
-    orientation: jigsaw.orientation,
-    joint: jigsaw.joint,
-    position: { x: at.x + jigsaw.local.x, y: at.y + jigsaw.local.y, z: at.z + jigsaw.local.z }
-  }));
-  return { box, connectors };
-}
-
-export function generateTrailRuins({ seed, chunkX, chunkZ, context }) {
-  const originX = chunkX * 16 + 8;
-  const originZ = chunkZ * 16 + 8;
-  const surface = context.surfaceY ? context.surfaceY(originX, originZ, 'world_surface_wg') : 70;
-  // Buried: the trail sits below the surface, and the registry's `bury` adaptation covers it over again.
-  const y = surface - TRAIL_DEPTH;
+export function generateTrailRuins({ seed, chunkX, chunkZ, structureId = 'trail_ruins', context }) {
   const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
-  const pools = createTrailPools();
-
-  const result = addPieces({
-    random,
-    startPool: pools.resolve('trail/starts'),
-    pools,
-    buildPiece: (element, rotation, mirror, at) => buildPiece(element, rotation, mirror, at, TRAIL_MATERIALS),
-    maxDepth: TRAIL_MAX_DEPTH,
-    origin: { x: originX, y, z: originZ },
-    maxDistanceFromCentre: TRAIL_MAX_DISTANCE
+  const x = chunkX * 16 + 8; const z = chunkZ * 16 + 8;
+  const ground = context.surfaceY ? context.surfaceY(x, z) : 40;
+  const groundAt = (gx, gz) => (context.surfaceY ? context.surfaceY(gx, gz) : ground);
+  const { canvas, pieces } = buildTrailRuins({ seed: random.nextInt(), x, z, ground, groundAt });
+  return cellStart({
+    structureId, chunkX, chunkZ, seed, id: 'minecraft:trail_ruins', pieces, canvas,
+    biome: context.biomeAt ? context.biomeAt(x, z) : null,
+    meta: { ground, towerTop: ground + 2, kinds: pieces.map((p) => p.kind) }
   });
-
-  const start = new StructureStart({
-    structureId: 'trail_ruins',
-    chunkX,
-    chunkZ,
-    pieces: result.pieces,
-    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null,
-    seed
-  });
-  start.meta = {
-    pieces: result.pieces.length,
-    maxDepth: Math.max(0, ...result.pieces.map((piece) => piece.meta.depth ?? 0)),
-    diagnostics: result.diagnostics,
-    connected: result.isConnected(),
-    y,
-    depthBelowSurface: TRAIL_DEPTH,
-    partMix: result.pieces.map((piece) => piece.meta.element)
-  };
-  return start;
 }
 
-export function realizeTrailRuins(start, setBlock, blockIds) {
-  const resolver = createBlockIdResolver(blockIds || undefined);
-  const missingBlocks = new Set();
-  const chests = [];
-  const archaeology = [];
-  let written = 0;
-
-  for (const piece of start.pieces) {
-    const kind = piece.meta.element;
-    const template = new StructureTemplate(buildTrailPart(kind, TRAIL_MATERIALS), 'minecraft:trail_ruins/' + kind);
-    const origin = { x: piece.box.minX, y: piece.box.minY, z: piece.box.minZ };
-    const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
-    const placement = placeTemplate({
-      template,
-      origin,
-      rotation: piece.rotation,
-      mirror: piece.mirror,
-      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] },
-      random,
-      world: null
-    });
-    for (const block of placement.blocks) {
-      const id = resolver.resolveState(block.state);
-      if (id === null) { missingBlocks.add(block.state.name); continue; }
-      // The blocks worth brushing are reported separately from the chests: a trail ruin's reward is as much the
-      // archaeology as the loot, and a structure that "contains suspicious blocks" only in a comment is not it.
-      if (block.state.name === 'minecraft:suspicious_gravel' || block.state.name === 'minecraft:suspicious_sand') {
-        archaeology.push({ x: block.x, y: block.y, z: block.z, block: block.state.name, lootTable: block.nbt?.LootTable ?? null });
-      }
-      if (block.nbt?.LootTable && !archaeology.some((entry) => entry.x === block.x && entry.y === block.y && entry.z === block.z)) {
-        chests.push(block.nbt.LootTable);
-      }
-      if (setBlock(block.x, block.y, block.z, id, {
-        state: block.state,
-        ...(block.nbt?.LootTable ? { lootTable: block.nbt.LootTable } : {})
-      })) written++;
-    }
-  }
-
-  return {
-    written,
-    pieces: start.pieces.length,
-    chests: chests.length,
-    chestLoot: chests,
-    archaeology,
-    missingBlocks: [...missingBlocks].sort(),
-    note: 'clean-room trail parts; the depth below the surface is an approximation'
-  };
+export function realizeTrailRuins(start, setBlock, blockIds, options = {}) {
+  return { ...realizeCells(start, setBlock, blockIds, options), note: 'trail ruins: buried, built to the wiki\'s pieces and processors' };
 }

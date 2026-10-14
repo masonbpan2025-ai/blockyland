@@ -4,6 +4,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 // deliberately differ from vanilla, and silently losing them to a generated duplicate would be a
 // regression that no coverage number would show.
 import { EXTRA_RECIPES } from './extraRecipes.js';
+import { applyWikiRecipeFixes, redyeResult } from './wikiRecipeFixes.js';
 
 export const RECIPES_2X2 = [
   { pattern: [['iron_ingot']], result: { id: 'iron_nugget', isBlock: false, count: 9 } },
@@ -529,7 +530,8 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
     }
   }
 
-  return null;
+  // Re-dyeing a wool, carpet or bed: one item of any colour and one dye (wikiRecipeFixes.js).
+  return redyeResult(grid);
 }
 
 // Core redstone recipes. Numeric entries are blocks; strings are inventory items.
@@ -617,6 +619,9 @@ for (const recipe of EXTRA_RECIPES) {
   const w = recipe.pattern[0].length;
   if (h <= 2 && w <= 2) RECIPES_2X2.push(recipe);
 }
+
+// The recipe parity audit's fixes: recipes adopted from the wiki, and the few the wiki does not have removed.
+export const WIKI_ADOPTED_RECIPES = applyWikiRecipeFixes(RECIPES_2X2, RECIPES_3X3, findMatchingRecipe);
 
 /** How many generated vanilla recipes were merged, for tests and reporting. */
 export const GENERATED_RECIPE_COUNT = EXTRA_RECIPES.length;

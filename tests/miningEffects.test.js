@@ -61,12 +61,16 @@ test('a block takes longer with the curse and less with Haste', () => {
   const hasted = breakTimeSeconds(stone, pick, 'iron_pickaxe', 0, miningSpeedMultiplier(atLevel('haste', 2)));
   const cursed = breakTimeSeconds(stone, pick, 'iron_pickaxe', 0, miningSpeedMultiplier(atLevel('mining_fatigue', 3)));
   assert.ok(base > 0, 'the control block should be breakable');
-  near(base / hasted, 1.4, 'Haste II is 1.4 times the speed');
-  near(cursed / base, 1 / 0.027, 'and the curse is 0.027 times the speed');
-  assert.ok(cursed > 10, `a cursed player should take seconds per block, took ${cursed}`);
+  // Breaking counts whole ticks (wiki, Breaking: ceil(hardness x 30 / speed)), so the multiplier is applied to the
+  // speed and the time is that speed's tick count: Haste II is 1.4 times the speed, the curse 0.027 times.
+  const ticks = (speed) => Math.ceil(1.5 * 30 / speed - 1e-9) / 20;
+  near(base, ticks(8), 'the plain time');
+  near(hasted, ticks(8 * 1.4), 'Haste II is 1.4 times the speed');
+  near(cursed, ticks(8 * 0.027), 'and the curse is 0.027 times the speed');
+  assert.ok(hasted < base && cursed > 10, `a cursed player should take seconds per block, took ${cursed}`);
   // The wiki's own table gives a mining duration of 123x at level IV, which is 1/0.0081.
   const capped = breakTimeSeconds(stone, pick, 'iron_pickaxe', 0, 0.0081);
-  near(capped / base, 1 / 0.0081, 'and level IV is 123 times the duration');
+  near(capped, ticks(8 * 0.0081), 'and level IV is 123 times the duration');
 });
 
 test('a multiplier that is zero or negative never produces a nonsensical time', () => {

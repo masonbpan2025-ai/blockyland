@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { createBlockGeometry } from './blockGeometry.js';
+import { resourcePackManager } from './resourcePackManager.js';
 
 // The drop rule lives in `blockDrops.js` now, which imports no Three.js, so a test can reach it without a
 // renderer. Re-exported under the name every existing caller uses, so nothing had to change.
@@ -10,6 +11,11 @@ export class ItemVisuals {
   constructor(textures = null) {
     this.textures = textures;
     this.materials = new Map();
+    this.unsubscribe = resourcePackManager.onChange(() => this.clearMaterials());
+  }
+
+  clearMaterials() {
+    this.materials.clear();
   }
 
   create(id, isBlock, size = 0.34) {
@@ -35,13 +41,19 @@ export class ItemVisuals {
       mesh.castShadow = mesh.receiveShadow = true;
       return mesh;
     }
-    const icon = def ? `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top}` : ITEMS[id]?.icon;
+    const blockTex = def ? (def.textures?.all || def.textures?.side || def.textures?.top) : null;
+    const customIcon = blockTex
+      ? resourcePackManager.resolveBlockTexture(blockTex)
+      : resourcePackManager.resolveItemTexture(id);
+    const icon = customIcon || (def ? `/assets/blocks/${blockTex}` : ITEMS[id]?.icon);
     let material = this.materials.get(icon || id);
     if (!material) {
-      const texture = new THREE.TextureLoader().load(icon || '/assets/items/stick.png');
+      const texture = typeof document !== 'undefined'
+        ? new THREE.TextureLoader().load(icon || '/assets/items/stick.png')
+        : new THREE.Texture();
       texture.magFilter = texture.minFilter = THREE.NearestFilter;
       texture.colorSpace = THREE.SRGBColorSpace;
-      material = new THREE.MeshLambertMaterial({ map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.2, alphaTest: 0.35, side: THREE.DoubleSide });
+      material = new THREE.MeshLambertMaterial({ map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.2, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
       this.materials.set(icon || id, material);
     }
     // Two crossed silhouettes remain visible throughout a full rotation.

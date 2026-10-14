@@ -28,6 +28,7 @@ import {
   getItemEnchantCategory,
   isEnchantableItem,
   isPrimaryFor,
+  anvilAccepts,
   areIncompatible,
   incompatibleWith,
   eligibleEnchantments,
@@ -101,13 +102,16 @@ const WIKI_ENCHANTMENTS = {
   swift_sneak: [3, 1],
   thorns: [3, 1],
   unbreaking: [3, 5],
+  // The mace's three (Enchantment page; weights from Enchanting table mechanics).
+  breach: [4, 2],
+  density: [5, 5],
+  wind_burst: [3, 2],
 };
 
 test('the registry is vanilla\'s list, with vanilla\'s max levels and weights', () => {
   const have = Object.keys(ENCHANTMENT_REGISTRY);
   const want = Object.keys(WIKI_ENCHANTMENTS);
-  // The mace enchantments are the three this game cannot express, and they are named rather than faked.
-  // Everything else in the wiki's table has to be here.
+  // Everything in the wiki's table has to be here, the mace's three included.
   assert.deepEqual(have.filter((k) => !want.includes(k)), []);
   assert.deepEqual(want.filter((k) => !have.includes(k)), [], 'these vanilla enchantments are missing');
   for (const [id, [maxLevel, weight]] of Object.entries(WIKI_ENCHANTMENTS)) {
@@ -117,18 +121,15 @@ test('the registry is vanilla\'s list, with vanilla\'s max levels and weights', 
     assert.equal(def.name.length > 0, true, `${id} has a name`);
     assert.equal(def.roman.length, maxLevel, `${id} has a numeral for every level`);
   }
-  // The three the wiki has that this game cannot: all belong to the mace, which does not exist here.
-  assert.deepEqual(NOT_OFFERED, ['density', 'breach', 'wind_burst']);
-  for (const id of NOT_OFFERED) {
-    assert.equal(ENCHANTMENT_REGISTRY[id], undefined, `${id} must not be invented as a registry row`);
-  }
+  // Nothing the wiki lists is missing any more: the mace exists, and so do its enchantments.
+  assert.deepEqual(NOT_OFFERED, []);
 });
 
-test('the six treasure enchantments are exactly vanilla\'s six', () => {
+test('the seven treasure enchantments are exactly vanilla\'s seven', () => {
   // The wiki's list: Curse of Binding, Curse of Vanishing, Frost Walker, Mending, Soul Speed,
-  // Swift Sneak, Wind Burst. Wind Burst is a mace enchantment and absent here, leaving six.
+  // Swift Sneak, Wind Burst.
   assert.deepEqual([...TREASURE_ENCHANTMENTS].sort(),
-    ['binding_curse', 'frost_walker', 'mending', 'soul_speed', 'swift_sneak', 'vanishing_curse']);
+    ['binding_curse', 'frost_walker', 'mending', 'soul_speed', 'swift_sneak', 'vanishing_curse', 'wind_burst']);
   // "Treasure enchantments cannot be obtained through an enchanting table."
   for (const key of TREASURE_ENCHANTMENTS) {
     assert.equal(ENCHANTMENT_REGISTRY[key].treasure, true, key);
@@ -149,6 +150,9 @@ test('every incompatible pair is declared both ways, and matches the wiki', () =
     ['infinity', 'mending'],
     ['multishot', 'piercing'],
     ['loyalty', 'riptide'], ['channeling', 'riptide'],
+    // The mace's: Breach and Density with each other and with the three damage enchantments.
+    ['breach', 'density'], ['breach', 'sharpness'], ['breach', 'smite'], ['breach', 'bane_of_arthropods'],
+    ['density', 'sharpness'], ['density', 'smite'], ['density', 'bane_of_arthropods'],
   ];
   for (const [a, b] of pairs) {
     assert.equal(areIncompatible(a, b), true, `${a} conflicts with ${b}`);
@@ -175,7 +179,7 @@ test('every incompatible pair is declared both ways, and matches the wiki', () =
  */
 const WIKI_COST_RANGES = {
   protection: [[5, 12], [13, 20], [21, 28], [29, 37]],
-  fire_protection: [[10, 18], [19, 27], [28, 36], [37, 45]],
+  fire_protection: [[10, 17], [18, 25], [26, 33], [34, 42]],
   blast_protection: [[5, 12], [13, 20], [21, 28], [29, 37]],
   projectile_protection: [[3, 8], [9, 14], [15, 20], [21, 27]],
   feather_falling: [[5, 10], [11, 16], [17, 22], [23, 29]],
@@ -199,8 +203,16 @@ const WIKI_COST_RANGES = {
   infinity: [[20, 50]],
   quick_charge: [[12, 31], [32, 50], [51, 69]],
   multishot: [[20, 50]],
-  piercing: [[1, 11], [12, 22], [23, 33], [34, 44]],
+  piercing: [[1, 10], [11, 20], [21, 30], [31, 50]],
   unbreaking: [[5, 12], [13, 20], [21, 71]],
+  impaling: [[1, 8], [9, 16], [17, 24], [25, 32], [33, 53]],
+  channeling: [[25, 50]],
+  loyalty: [[12, 18], [19, 25], [26, 50]],
+  riptide: [[17, 23], [24, 30], [31, 50]],
+  luck_of_the_sea: [[15, 23], [24, 32], [33, 83]],
+  lure: [[15, 23], [24, 32], [33, 83]],
+  breach: [[15, 23], [24, 32], [33, 41], [42, 92]],
+  density: [[5, 12], [13, 20], [21, 28], [29, 36], [37, 57]],
 };
 
 test('every published cost range matches the wiki exactly', () => {
@@ -417,8 +429,15 @@ test('the enchanting table offers an item only what it is a primary item for', (
   assert.equal(trident.includes('sharpness'), false);
   assert.equal(trident.includes('efficiency'), false);
 
-  // Shears take Efficiency, which is the one tool enchantment vanilla gives them.
-  assert.deepEqual(eligibleEnchantments('shears').map((e) => e.key).sort(), ['efficiency', 'unbreaking']);
+  // Shears are an anvil-only item: Efficiency and Unbreaking list them as secondary items, so the table
+  // offers them nothing (Enchanting table mechanics has no Shears row).
+  assert.deepEqual(eligibleEnchantments('shears').map((e) => e.key).sort(), []);
+  // An axe gets the tool enchantments at the table; Sharpness, Smite and Bane only at an anvil.
+  assert.deepEqual(eligibleEnchantments('iron_axe').map((e) => e.key).sort(), ['efficiency', 'fortune', 'silk_touch', 'unbreaking']);
+  // A crossbow is not a bow.
+  assert.deepEqual(eligibleEnchantments('crossbow').map((e) => e.key).sort(), ['multishot', 'piercing', 'quick_charge', 'unbreaking']);
+  // A mace: Breach, Density, Unbreaking (Wind Burst is treasure).
+  assert.deepEqual(eligibleEnchantments('mace').map((e) => e.key).sort(), ['breach', 'density', 'unbreaking']);
 });
 
 test('a book is primary for every non-treasure enchantment, as vanilla hardcodes', () => {
@@ -472,7 +491,12 @@ test('isPrimaryFor agrees with the target lists it reads', () => {
   assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.protection, 'diamond_chestplate'), true);
   assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.protection, 'diamond_sword'), false);
   assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.efficiency, 'golden_axe'), true, 'an axe is also a tool');
-  assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.sharpness, 'golden_axe'), true, 'and also a weapon');
+  // Sharpness lists the axe as a secondary item: an anvil puts it there, the table does not.
+  assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.sharpness, 'golden_axe'), false, 'secondary, not primary');
+  assert.equal(anvilAccepts(ENCHANTMENT_REGISTRY.sharpness, 'golden_axe'), true, 'an anvil puts it on an axe');
+  assert.equal(anvilAccepts(ENCHANTMENT_REGISTRY.thorns, 'iron_boots'), true, 'Thorns on boots, at an anvil');
+  assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.thorns, 'iron_boots'), false);
+  assert.equal(anvilAccepts(ENCHANTMENT_REGISTRY.power, 'crossbow'), false, 'a crossbow takes no bow enchantment');
   assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.loyalty, 'trident'), true);
   assert.equal(isPrimaryFor(ENCHANTMENT_REGISTRY.loyalty, 'diamond_sword'), false);
 });
@@ -750,6 +774,8 @@ test('every non-treasure enchantment the table can offer is wired to something',
   const wired = {
     aqua_affinity: 'registered only: this game has no underwater mining slowdown to remove',
     bane_of_arthropods: 'enchantmentEffects.attackBonus',
+    breach: 'maceSmash.breachedArmourFraction (mobs.damageMob)',
+    density: 'maceSmash.smashBonus (main.handleLeftClick)',
     blast_protection: 'enchantmentEffects.protectionPoints',
     channeling: 'registered only: no thrown-trident lightning',
     depth_strider: 'enchantmentEffects.depthStriderMultiplier',
@@ -788,7 +814,7 @@ test('every non-treasure enchantment the table can offer is wired to something',
   assert.deepEqual(Object.keys(wired).filter((k) => !offered.includes(k)).sort(), [],
     'these are recorded as offered and are not');
   // The count is pinned so a new enchantment has to be classified rather than slip through.
-  assert.equal(offered.length, 33);
+  assert.equal(offered.length, 35);
   // And at least the protection family really does reduce damage, rather than merely being named above.
   const set = (id, level) => [[{ id, level }], [{ id, level }], [{ id, level }], [{ id, level }]];
   assert.equal(protectionPoints(set('protection', 4), 'zombie'), 16);

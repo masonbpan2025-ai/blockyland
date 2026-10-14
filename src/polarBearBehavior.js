@@ -292,7 +292,7 @@ export function canBreedPolarBear() {
 }
 
 /** Diagonal walking pairs; quiet head exploration at rest; preserve the rearing maul. */
-export function posePolarBear(bear, phase = 0) {
+export function posePolarBear(bear, phase = 0, lookTarget = null) {
   if (!bear) return;
   const rearing = !!bear.isMauling;
   // The caller's clock advances by dt*6, even at rest. Locomotion must follow horizontal
@@ -315,11 +315,35 @@ export function posePolarBear(bear, phase = 0) {
   if (bear.head?.rotation) {
     const time = phase / 6;
     const curious = !rearing && !bear.isHostile;
-    const yaw = curious ? (Math.sin(time * 0.7) * 0.45 + Math.sin(time * 1.6) * 0.12) * (1 - 0.65 * bear.polarWalkAmount) : 0;
-    const pitch = rearing ? -0.12 : curious ? Math.sin(time * 0.9) * 0.09 : 0;
+    let targetYaw = 0;
+    let targetPitch = 0;
+    let tracked = false;
+    if (lookTarget && curious && bear.mesh) {
+      const dx = lookTarget.x - bear.mesh.position.x;
+      const dz = lookTarget.z - bear.mesh.position.z;
+      const dy = (lookTarget.y !== undefined ? lookTarget.y : 0) - (bear.mesh.position.y + 1.2);
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.5 && dist < 12) {
+        const angle = Math.atan2(dx, dz) - (bear.yaw ?? bear.mesh.rotation.y ?? 0);
+        const normAngle = Math.atan2(Math.sin(angle), Math.cos(angle));
+        if (Math.abs(normAngle) < 1.2) {
+          targetYaw = normAngle * (1 - 0.5 * bear.polarWalkAmount);
+          targetPitch = THREE.MathUtils.clamp(-Math.atan2(dy, dist), -0.25, 0.25);
+          tracked = true;
+        }
+      }
+    }
+    if (!tracked && curious) {
+      targetYaw = (Math.sin(time * 0.7) * 0.45 + Math.sin(time * 1.6) * 0.12) * (1 - 0.65 * bear.polarWalkAmount);
+      targetPitch = Math.sin(time * 0.9) * 0.09;
+    }
+    if (rearing) {
+      targetYaw = 0;
+      targetPitch = -0.12;
+    }
     const blend = 1 - Math.exp(-6 * dt);
-    bear.head.rotation.y += (yaw - bear.head.rotation.y) * blend;
-    bear.head.rotation.x += (pitch - bear.head.rotation.x) * blend;
+    bear.head.rotation.y += (targetYaw - bear.head.rotation.y) * blend;
+    bear.head.rotation.x += (targetPitch - bear.head.rotation.x) * blend;
   }
 }
 

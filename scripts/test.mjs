@@ -32,6 +32,8 @@ const testsDir = join(root, 'tests');
  * areas aligned with the source modules so "I changed X" maps to an obvious area.
  */
 export const AREAS = {
+  nether: ['netherSurvival', 'nether', 'netherParity', 'netherPortal', 'netherCombat', 'netherLavaEscape', 'piglin', 'piglinBruteParity', 'blazeParity', 'striderParity', 'cubeHopParity', 'zombifiedPiglinParity', 'witherSkeletonParity', 'monsterSpawner', 'farming', 'worldStructures', 'worldSpawn', 'playerDeathRespawn', 'survivalSaveLoad'],
+  fishing: ['fishingParity', 'fishingExperience', 'rails', 'vehicles_transport', 'waterFlow'],
   // --- agent / terminal ---
   agent: ['agentGuidance', 'agentProviders', 'claudeProvider', 'agentModelCatalog', 'stagedBuild', 'cheatsCreativeDefault', 'agentPerception', 'paintings', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'agentTerminalControls', 'forwardView', 'domWiring', 'startScreenBinding', 'playerBot'],
   // --- mobs ---
@@ -48,10 +50,10 @@ export const AREAS = {
   // --- studio tools ---
   studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
   // --- item/block Inspector scenarios and their actual world rendering ---
-  resources: ['resourceInspector', 'resourceInspectorEntry', 'resourceBehaviorShowcase', 'furnaceRendering', 'furnace', 'mesherFaceTextures', 'paneCarpetGeometry'],
+  resources: ['resourceInspector', 'resourceInspectorEntry', 'resourceBehaviorShowcase', 'flowerAudit', 'resourceVisualPolicy', 'resourcePack', 'skinPack', 'furnaceRendering', 'furnace', 'mesherFaceTextures', 'paneCarpetGeometry'],
   // --- vanilla structure generation ---
   structures: ['structureEngine', 'structureInspectorSession', 'structureInspectorPage', 'structureParityDoc', 'structureTemplate', 'structureProcessors', 'structureIgloo', 'structureRuinedPortal', 'structureNetherFossil', 'structureShipwreck', 'structureOceanRuin', 'structureDesertPyramid', 'structureSwampHut', 'structureJigsaw', 'structurePieceIndex', 'structureTerrainAdaptation', 'structureTerrainWiring', 'structurePillagerOutpost', 'structureGoldenSeeds', 'structurePlacementDensity', 'structureInspectorPanels', 'structureInspectorPanelsUi', 'structureInspectorEntry', 'structureInspectorGeometry', 'worldStructures', 'structureJigsawChains', 'structureVillage', 'structureBastion', 'structureTrialChambers', 'structureAncientCity', 'structureEndCity', 'structureMansion', 'structureTrailRuins', 'structureJunglePyramid', 'structureMonument'],
-  io: ['ioNbt', 'ioStructures'],
+  io: ['ioNbt', 'ioStructures', 'zipReader'],
   // --- world, terrain, fluids ---
   world: ['worldTeardown', 'pointerLock', 'camelFlee', 'knockbackType', 'reefPerformance', 'worldSpawn', 'worldMechanisms', 'worldChunkCache', 'chunkStreaming', 'treePlacement', 'biomes', 'biomeModalInteraction', 'nether', 'netherPortal', 'netherCombat', 'netherParity', 'water', 'waterFlow', 'waterSplashes', 'lava', 'lavaPlacement', 'fire'],
   // --- building and inventory ---

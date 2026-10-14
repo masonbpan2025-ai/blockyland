@@ -6,7 +6,7 @@ const PARTIAL_SHAPES = [
   'slab', 'pane', 'carpet', 'stair', 'candle', 'chain', 'fence', 'wall',
   'pressurePlate', 'button', 'fenceGate', 'banner', 'hangingSign', 'wallSign',
   'wallFan', 'head', 'wallHead', 'sign', 'rod', 'rail', 'flowerPot',
-  'door', 'trapdoor', 'bed', 'chest', 'redstone',
+  'door', 'trapdoor', 'bed', 'chest', 'redstone', 'model',
 ];
 
 export function occludesWholeFace(def) {

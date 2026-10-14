@@ -589,6 +589,8 @@ export class HostileMobBehaviors {
             const hitDist = (mob.type === 'ghast') ? 3.5 : 2.5;
             if (p.position.distanceTo(targetCenter) < hitDist) {
               hit = true;
+              // Remembered for the "Tears" disc (chickenJockey.js): a ghast killed by its own fireball, sent back.
+              if (mob.type === 'ghast') mob.killedByDeflectedFireball = true;
               this.mobManager.damageMob(mob, 35, p.position,false,this.mobManager.game?.player);
               if (this.sounds?.playExplosion) this.sounds.playExplosion();
               this.mobManager.spawnParticleBurst?.(p.position, 0xff5500, 18);

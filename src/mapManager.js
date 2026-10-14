@@ -182,6 +182,11 @@ function startMapLoad(game) {
 }
 
 function finishMapLoad(game) {
+  game.endItems?.clear?.();
+  game.bossManager?.clearEndVisuals?.();
+  if(game.world?.dimension==='the_end'){
+    game.bossManager?.initEndArena?.();game.endArenaBuilt=true;
+  }else game.endArenaBuilt=false;
   game.worldReady = true;
   if (game.lifecycle) Object.assign(game.lifecycle, {
     phase: 'ready', finishedAt: Date.now(), error: null,

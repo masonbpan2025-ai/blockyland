@@ -15,6 +15,7 @@
 //     . F F F .
 //
 // The border is 16 cells and the four corners are omitted, which is where the twelve comes from.
+import { PLATFORM } from './worldgen/generators/endFeatures.js';
 import { BLOCKS } from './blocks.js';
 
 /** Frames in a complete ring. Vanilla's figure, and the one the layout above produces. */
@@ -323,8 +324,9 @@ export function portalDestination(dimension) {
 
 /** The arrival point, in the destination dimension's own coordinates. */
 export function portalArrival(dimension) {
-  // The arena's platform is built around the origin at y=32, and the exit portal's fountain is at y=29.
-  if (dimension === 'the_end') return { x: 0.5, y: 33, z: 0.5 };
+  // "Players who enter the End spawn at coordinates (100, 49, 0), facing west toward the main island" -- on the
+  // obsidian platform (src/worldgen/generators/endFeatures.js; its height mapped onto this 64-tall End).
+  if (dimension === 'the_end') return { x: PLATFORM.x + 0.5, y: PLATFORM.y + 1, z: PLATFORM.z + 0.5, yaw: Math.PI / 2 };
   return { x: 0.5, y: 33, z: 0.5 };
 }
 

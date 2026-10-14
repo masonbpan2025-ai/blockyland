@@ -164,12 +164,13 @@ test('every smelting and fuel row is reachable, and no row sits under a phantom 
 
 // --- the last dangling reference ---------------------------------------------
 
-test('the ominous bottle is registered and edible, as the pinned vanilla data says', () => {
-  // It was the last id that game data referenced and the registry did not define. The pinned cache
-  // lists it as food with one hunger point, and `foodData.js` already agreed.
+test('the ominous bottle is registered and drunk for Bad Omen, not eaten', () => {
+  // It was the last id that game data referenced and the registry did not define. The pinned cache listed it as
+  // food with one hunger point; the wiki's infobox gives it the Bad Omen effect and no hunger ("Consuming an
+  // ominous bottle gives a player the Bad Omen effect"), and the wiki parity audit's I-FOOD case follows the wiki.
   const def = ITEMS.ominous_bottle;
   assert.ok(def, 'ominous_bottle must be registered');
-  assert.equal(def.food, FOODS.ominous_bottle.hunger);
-  assert.equal(def.food, 1);
+  assert.equal(def.food, undefined, 'no hunger');
+  assert.equal(FOODS.ominous_bottle, undefined, 'and no food row');
   assert.ok(readFileSync(join(process.cwd(), 'public', def.icon.replace(/^\//, ''))).length > 0, 'and has art');
 });

@@ -296,6 +296,7 @@ export default defineConfig({
         game: path.resolve('index.html'),
         mobDebug: path.resolve('mob-debug.html'),
         itemDebug: path.resolve('item-debug.html'),
+        fishingDebug: path.resolve('fishing-debug.html'),
         blockDebug: path.resolve('block-debug.html'),
         structureInspector: path.resolve('structure-inspector.html')
       }

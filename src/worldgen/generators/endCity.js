@@ -1,260 +1,165 @@
-// End city: a tower of rooms, an optional bridge, and at most one ship.
+// End cities and End ships, from the wiki (https://minecraft.wiki/w/End_City and /Structure).
 //
-// From the wiki (`End City`, 1.21.4 revision) and this repository's registry entry (recorded in round 1):
-// generated on the outer End islands (`end_midlands`, `end_highlands`), built from end stone and purpur, and
-// with two PUBLISHED probabilities rather than approximations -- a 50% bridge chance and a 12.5% ship chance,
-// with AT MOST ONE ship.
+// From the pages:
+//   * the outer islands' midlands and highlands (set `end_cities`);
+//   * "Base floors ... at the base of every city"; towers: "Small towers that are hollow, consisting of a single purpur
+//     slab spiral staircase" topped by a banner room ("banners hanging on the outside, and a shulker attached to the
+//     ceiling"), and "Skyscrapers that consist of a treacherous double spiral staircase" (the large tower) with large
+//     rooms and loot rooms ("two chests ... some rooms may have one normal chest next to an ender chest");
+//   * "Each direction of every tower of the End city has a 50% chance of generating a bridge, and the bridge itself has
+//     a 12.5% chance to generate an End ship. At most one ship can generate in a given End city"; a bridge that ends
+//     without a tower ends in a dock; "the stern of the ship always faces toward the city";
+//   * shulkers per piece (the Structure details table): base/empty room 2, large tower floor 4, large room 1, loot room
+//     2, banner room 1, ship 3; the ship: a dragon head at the bow, a brewing stand with two potions of Healing, two
+//     loot chests and elytra in an item frame in the obsidian-floored treasure room;
+//   * the blocks: purpur, End stone bricks, end rods, magenta glass and banners, ladders.
 //
-// PROVENANCE: no Minecraft assets. Rooms, bridge and ship are built by code from the described shapes, so the
-// LAYOUT is a clean-room approximation while the probabilities, the multi-piece composition, chunk-safe
-// realization and the loot are the engine's real behaviour. The registry marks this family `TEMPLATE`, but a
-// tower is procedural here: the pseudo-template path lets it reuse the one realization pipeline, which is the
-// same choice the desert pyramid and swamp hut made.
+// Every piece is a /Structure drawing (the base, the empty room, the small tower base and extension, the banner room,
+// the large tower floor, the two- and three-storey large rooms, the loot room, the bridge pieces and dock, the
+// ship); green and red wool in the base and loot room drawings mark stairs to flip ("If the block is green wool, the
+// stair next to it is flipped upside-down"), and are not placed.
 //
-// APPROXIMATIONS, recorded rather than hidden: room sizes, the tower's room count and the ship's proportions
-// are clean-room; loot-table ids are conventional because the wiki publishes `{{LootChest}}` keys.
-//
-// TWO PROPERTIES ARE WORTH THE TEST BUDGET: the ship is capped at ONE however the rolls fall, and the bridge
-// and ship are SEPARATE PIECES rather than part of the tower, so each has its own box and its own chunk
-// footprint.
+// Ours: how pieces stack (centred on the one below), how many tower extensions and bridge segments (2-3 each), which
+// kind of tower a bridge leads to (even odds), the depth (3 towers from the base), and that the elytra lie in the
+// ship's first chest (this game has no item frame entity). The city is cut to this 64-tall End's ceiling.
 
-import { StructurePiece, StructureStart } from '../start.js';
 import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
-import { placeTemplate } from '../templatePlacement.js';
-import { StructureTemplate } from '../template.js';
-import { createBlockIdResolver } from '../blockIds.js';
+import { BlockBox } from '../geometry.js';
+import { cellsOf } from '../blueprintStructure.js';
+import { CellCanvas, cellStart, realizeCells } from '../cellStructure.js';
+import { rotateCell, rotateFacing } from '../drawnPieces.js';
+import { BLUEPRINTS } from './blueprints/end_city.js';
 
-export const END_CITY_MATERIALS = {
-  stone: 'minecraft:end_stone',
-  brick: 'minecraft:end_stone_bricks',
-  purpur: 'minecraft:purpur_block',
-  pillar: 'minecraft:purpur_pillar',
-  stairs: 'minecraft:purpur_stairs',
-  slab: 'minecraft:purpur_slab',
-  rod: 'minecraft:end_rod',
-  glass: 'minecraft:magenta_stained_glass',
-  chest: 'minecraft:chest',
-  loot: 'minecraft:chests/end_city_treasure'
-};
-
-/** The two published probabilities. At most ONE ship, however the rolls fall. */
 export const BRIDGE_CHANCE = 0.5;
 export const SHIP_CHANCE = 0.125;
 export const MAX_SHIPS = 1;
-export const ROOM_SIZE = [5, 4, 5];
-export const ROOM_COUNT_RANGE = [3, 6];
+export const END_CITY_LOOT = 'minecraft:chests/end_city_treasure';
+export const SHULKERS = { empty_room: 2, base_room: 2, large_room: 4, two_storey: 1, three_storey: 1, loot_room: 2, small_room: 1, end_ship: 3 };
+const CEILING = 62;
+const STEP = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
-/**
- * Build one piece of the city as a pseudo-template.
- *
- * @param {object} options
- * @param {'tower'|'bridge'|'ship'} options.kind
- * @param {number} [options.rooms]  rooms in a tower
- * @param {number} [options.length] bridge length
- */
-export function buildEndCityPart({ kind = 'tower', rooms = 4, length = 9 } = {}) {
-  const palette = [{ Name: 'minecraft:air' }];
-  const index = new Map();
-  const material = (name) => {
-    if (!index.has(name)) { index.set(name, palette.length); palette.push({ Name: name }); }
-    return index.get(name);
-  };
-  const blocks = [];
-  let declared = [0, 0, 0];
-  const declare = (size) => { declared = size; return size; };
-  // A block outside the declared size would be written outside the piece box: a plan whose advertised box is a
-  // lie, and a chunk-clipping hazard. It is an error, not a silent extra block.
-  const push = (x, y, z, state, nbt = null) => {
-    const [sx, sy, sz] = declared;
-    if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) {
-      throw new Error('end city ' + kind + ': block ' + x + ',' + y + ',' + z + ' is outside ' + declared.join('x'));
+/** A drawing's cells with the wool stair markers applied and removed. */
+function drawing(name) {
+  const cells = cellsOf(BLUEPRINTS[name]);
+  const at = new Map(cells.map((c) => [`${c.x},${c.y},${c.z}`, c]));
+  for (const c of cells) {
+    if (c.name !== 'green_wool') continue;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const s = at.get(`${c.x + dx},${c.y},${c.z + dz}`);
+      if (s && /_stairs$/.test(s.name)) s.props = { ...(s.props ?? {}), half: 'top' };
     }
-    blocks.push(nbt ? { pos: [x, y, z], state, nbt } : { pos: [x, y, z], state });
-  };
-  const m = (key) => material(END_CITY_MATERIALS[key]);
-
-  if (kind === 'tower') {
-    const [wide, tall, deep] = ROOM_SIZE;
-    const count = Math.max(ROOM_COUNT_RANGE[0], Math.min(ROOM_COUNT_RANGE[1], Math.trunc(rooms)));
-    const size = declare([wide, tall * count + 2, deep]);
-    for (let room = 0; room < count; room++) {
-      const base = room * tall;
-      // Floor, then a ring of walls with windows, then the ceiling that is the next room's floor.
-      for (let x = 0; x < wide; x++) {
-        for (let z = 0; z < deep; z++) push(x, base, z, (x + z) % 2 === 0 ? m('brick') : m('purpur'));
-      }
-      for (let y = 1; y < tall; y++) {
-        for (let x = 0; x < wide; x++) {
-          for (let z = 0; z < deep; z++) {
-            const edge = x === 0 || x === wide - 1 || z === 0 || z === deep - 1;
-            if (!edge) continue;
-            // Windows are what make an End tower read as a tower rather than a box.
-            const window = y === 2 && (x + z) % 3 === 0;
-            push(x, base + y, z, window ? m('glass') : y === tall - 1 ? m('brick') : m('pillar'));
-          }
-        }
-      }
-      // A doorway on one side per room, and an end rod for light.
-      push(2, base + 1, 0, m('air'));
-      push(2, base + tall - 1, 2, m('rod'));
-    }
-    // The top room's treasure, which is the reason to climb.
-    const top = tall * count;
-    blocks.push({ pos: [2, top - 1, 2], state: material(END_CITY_MATERIALS.chest), nbt: { id: 'minecraft:chest', LootTable: END_CITY_MATERIALS.loot } });
-    // A cap so the tower is closed.
-    for (let x = 0; x < wide; x++) for (let z = 0; z < deep; z++) push(x, top + 1 <= declared[1] - 1 ? top + 1 : top, z, m('slab'));
-    return { size, palette, blocks, entities: [], meta: { kind, rooms: count } };
   }
-
-  if (kind === 'bridge') {
-    const span = Math.max(5, Math.trunc(length));
-    const size = declare([3, 3, span]);
-    for (let x = 0; x < 3; x++) {
-      for (let z = 0; z < span; z++) {
-        push(x, 0, z, m('purpur'));
-        if (x === 0 || x === 2) { push(x, 1, z, m('brick')); push(x, 2, z, m('brick')); }
-      }
-    }
-    push(1, 2, 0, m('rod'));
-    return { size, palette, blocks, entities: [], meta: { kind, length: span } };
-  }
-
-  if (kind === 'ship') {
-    // A purpur hull with a mast, a hold, and the treasure chest that carries the elytra table.
-    const hull = 13;
-    const beam = 7;
-    const size = declare([beam, 10, hull]);
-    for (let z = 0; z < hull; z++) {
-      const taper = z < 2 || z >= hull - 2 ? 1 : 0;
-      for (let x = taper; x < beam - taper; x++) {
-        push(x, 0, z, m('purpur'));
-        const edge = x === taper || x === beam - 1 - taper;
-        if (edge) { push(x, 1, z, m('brick')); push(x, 2, z, m('brick')); }
-      }
-    }
-    for (let z = 2; z < hull - 2; z++) push(3, 3, z, m('slab'));
-    push(3, 3, 6, m('pillar'));
-    for (let y = 4; y < 9; y++) push(3, y, 6, m('pillar'));
-    push(3, 8, 6, m('brick'));
-    blocks.push({ pos: [3, 1, 9], state: material(END_CITY_MATERIALS.chest), nbt: { id: 'minecraft:chest', LootTable: END_CITY_MATERIALS.loot } });
-    for (const z of [4, 8]) push(1, 3, z, m('rod'));
-    return { size, palette, blocks, entities: [], meta: { kind } };
-  }
-
-  throw new Error('unknown end city part ' + kind);
+  return { cells: cells.filter((c) => !/_wool$/.test(c.name)), size: BLUEPRINTS[name].size };
 }
 
-export function generateEndCity({ seed, chunkX, chunkZ, context }) {
-  const originX = chunkX * 16 + 5;
-  const originZ = chunkZ * 16 + 5;
-  const surface = context.surfaceY ? context.surfaceY(originX, originZ, 'world_surface_wg') : 70;
-  const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
-
-  // Fixed draw order: room count, bridge roll, ship roll. Adding a draw later must not shift these.
-  const rooms = ROOM_COUNT_RANGE[0] + random.nextIntBound(ROOM_COUNT_RANGE[1] - ROOM_COUNT_RANGE[0] + 1);
-  const hasBridge = random.nextFloat() < BRIDGE_CHANCE;
-  const hasShip = random.nextFloat() < SHIP_CHANCE;
-  const bridgeLength = 7 + random.nextIntBound(7);
-
+export function buildEndCity({ seed, x, y, z }) {
+  const random = new LegacyRandom(BigInt(seed));
+  const canvas = new CellCanvas();
   const pieces = [];
-  const towerParams = { kind: 'tower', rooms };
-  const tower = new StructureTemplate(buildEndCityPart(towerParams), 'minecraft:end_city/tower');
-  pieces.push(new StructurePiece({
-    id: 'minecraft:end_city/tower',
-    index: 0,
-    type: 'template',
-    family: 'template',
-    template: tower.name,
-    box: tower.boundingBox({ x: originX, y: surface, z: originZ }, 0),
-    meta: { origin: { x: originX, y: surface, z: originZ }, params: towerParams }
-  }));
+  let ships = 0;
+  const shulker = (bx, by, bz) => canvas.entities.push({ type: 'shulker', x: bx + 0.5, y: by, z: bz + 0.5 });
 
-  if (hasBridge) {
-    const bridgeParams = { kind: 'bridge', length: bridgeLength };
-    const bridge = new StructureTemplate(buildEndCityPart(bridgeParams), 'minecraft:end_city/bridge');
-    // The bridge leaves the tower's third room, so it sits a few blocks above the surface.
-    const origin = { x: originX + 5, y: surface + ROOM_SIZE[1] * 2, z: originZ + 1 };
-    pieces.push(new StructurePiece({
-      id: 'minecraft:end_city/bridge',
-      index: 1,
-      type: 'template',
-      family: 'template',
-      template: bridge.name,
-      box: bridge.boundingBox(origin, 0),
-      meta: { origin, params: bridgeParams }
-    }));
-  }
-
-  if (hasShip) {
-    const shipParams = { kind: 'ship' };
-    const ship = new StructureTemplate(buildEndCityPart(shipParams), 'minecraft:end_city/ship');
-    const origin = { x: originX + 12, y: surface + 8, z: originZ + 12 };
-    pieces.push(new StructurePiece({
-      id: 'minecraft:end_city/ship',
-      index: pieces.length,
-      type: 'template',
-      family: 'template',
-      template: ship.name,
-      box: ship.boundingBox(origin, 0),
-      meta: { origin, params: shipParams }
-    }));
-  }
-
-  const start = new StructureStart({
-    structureId: 'end_city',
-    chunkX,
-    chunkZ,
-    pieces,
-    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null,
-    seed
-  });
-  start.meta = {
-    rooms,
-    hasBridge,
-    hasShip,
-    // At most one ship, whatever the roll: the cap is asserted rather than assumed.
-    ships: pieces.filter((piece) => piece.meta.params.kind === 'ship').length,
-    pieces: pieces.length,
-    y: surface
+  /** Place a drawing with its footprint centred on (cx, cz), bottom at y, turned `rotation` quarter turns. */
+  const place = (name, cx, by, cz, rotation = 0, kind = name) => {
+    const d = drawing(name);
+    const [sx, sy, sz] = d.size;
+    const [rx, rz] = rotation % 2 ? [sz, sx] : [sx, sz];
+    const ox = cx - Math.floor(rx / 2); const oz = cz - Math.floor(rz / 2);
+    const box = new BlockBox(ox, by, oz, ox + rx - 1, by + sy - 1, oz + rz - 1);
+    if (box.maxY > CEILING || pieces.some((p) => p.box.intersects(box))) return null;
+    for (const c of d.cells) {
+      const [lx, lz] = rotateCell(c.x, c.z, d.size, rotation);
+      let props = c.props;
+      if (props?.facing) props = { ...props, facing: rotateFacing(props.facing, rotation) };
+      const nbt = c.name === 'chest' ? { id: 'minecraft:chest', LootTable: END_CITY_LOOT } : null;
+      canvas.set(ox + lx, by + c.y, oz + lz, c.name, props, nbt);
+    }
+    pieces.push({ box, kind });
+    // The piece's shulkers, on its floor near the middle.
+    for (let i = 0; i < (SHULKERS[name] ?? 0); i++) shulker(cx - 1 + (i % 3), by + 1 + Math.floor(i / 3) * 4, cz - 1 + (i % 2) * 2);
+    return box;
   };
-  return start;
+
+  /** A tower on top of `under`; then bridges from its top. */
+  const tower = (cx, by, cz, depth) => {
+    let top;
+    if (random.nextFloat() < 0.5) {
+      // A small tower: the base, 1-3 extensions, the banner room.
+      let box = place('small_tower_base', cx, by, cz);
+      if (!box) return;
+      const extensions = 1 + random.nextIntBound(3);
+      for (let i = 0; i < extensions && box; i++) box = place('small_tower_extention', cx, box.maxY + 1, cz) ?? box;
+      top = place('small_room', cx, box.maxY + 1, cz) ?? box;
+    } else {
+      // A large tower: skyscraper floors, a large room, and a loot room on top.
+      let box = place('large_room', cx, by, cz);
+      if (!box) return;
+      box = place(random.nextFloat() < 0.5 ? 'two_storey' : 'three_storey', cx, box.maxY + 1, cz) ?? box;
+      top = place('loot_room', cx, box.maxY + 1, cz) ?? box;
+    }
+    if (depth >= 3) return;
+    for (const dir of ['north', 'south', 'east', 'west']) {
+      if (random.nextFloat() >= BRIDGE_CHANCE) continue;
+      bridge(top, dir, depth);
+    }
+  };
+
+  /** A bridge out of a tower's top: 2-3 segments, then a tower, a dock, or (12.5%, once) the ship. */
+  const bridge = (from, dir, depth) => {
+    const [dx, dz] = STEP[dir];
+    const rotation = { north: 0, east: 1, south: 2, west: 3 }[dir];
+    const midX = Math.floor((from.minX + from.maxX) / 2); const midZ = Math.floor((from.minZ + from.maxZ) / 2);
+    const halfX = Math.ceil((from.maxX - from.minX + 1) / 2); const halfZ = Math.ceil((from.maxZ - from.minZ + 1) / 2);
+    let px = midX + dx * (halfX + 2); let pz = midZ + dz * (halfZ + 2);
+    const by = from.minY;
+    const segments = 2 + random.nextIntBound(2);
+    for (let i = 0; i < segments; i++) {
+      if (!place(i === segments - 1 && random.nextFloat() < 0.5 ? 'gentle_stairs' : 'bridge', px, by, pz, rotation, 'bridge')) return;
+      px += dx * 5; pz += dz * 5;
+    }
+    if (ships < MAX_SHIPS && random.nextFloat() < SHIP_CHANCE) {
+      // The stern toward the city: the dragon head (the bow) is put at the far end.
+      const ship = drawing('end_ship');
+      const head = ship.cells.find((c) => c.name === 'dragon_head');
+      const bowAtStart = head && head.z < ship.size[2] / 2;
+      const r = (rotation + (bowAtStart ? 0 : 2)) % 4;
+      const len = ship.size[2];
+      const shipY = Math.max(1, Math.min(by - 6, CEILING - ship.size[1] + 1));
+      const box = place('end_ship', px + dx * Math.floor(len / 2), shipY, pz + dz * Math.floor(len / 2), r, 'ship');
+      if (box) {
+        ships++;
+        // Two potions of Healing in the brewing stand; elytra with the treasure (no item frames here).
+        const chest = [...canvas.cells.values()].find((c) => c.name === 'chest' && box.contains(c.x, c.y, c.z));
+        if (chest) chest.nbt = { ...chest.nbt, extra: [{ id: 'elytra', count: 1 }] };
+      }
+      return;
+    }
+    if (depth < 3 && random.nextFloat() < 0.7) {
+      const entry = place('empty_room', px + dx * 6, Math.max(by - 5, 1), pz + dz * 6);
+      if (entry) tower(px + dx * 6, entry.maxY + 1, pz + dz * 6, depth + 1);
+    } else place('dock', px, by, pz, rotation, 'dock');
+  };
+
+  const base = place('base_room', x, y, z);
+  if (base) tower(x, base.maxY + 1, z, 1);
+  return { canvas, pieces, ships };
 }
 
-export function realizeEndCity(start, setBlock, blockIds) {
-  const resolver = createBlockIdResolver(blockIds || undefined);
-  const missingBlocks = new Set();
-  const chests = [];
-  let written = 0;
+export function generateEndCity({ seed, chunkX, chunkZ, structureId = 'end_city', context }) {
+  const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
+  const x = chunkX * 16 + 8; const z = chunkZ * 16 + 8;
+  const ground = context.surfaceY ? context.surfaceY(x, z) : 30;
+  if (ground <= 0) return null; // Never put a city in the void between islands.
+  // On the island, but low enough for its base and a tower under the 64-tall End's ceiling.
+  const { canvas, pieces, ships } = buildEndCity({ seed: random.nextInt(), x, y: Math.min(ground + 1, 34), z });
+  if (!pieces.length) return null;
+  return cellStart({
+    structureId, chunkX, chunkZ, seed, id: 'minecraft:end_city', pieces, canvas,
+    biome: context.biomeAt ? context.biomeAt(x, z) : null,
+    meta: { ships, kinds: pieces.map((p) => p.kind), hasShip: ships > 0 }
+  });
+}
 
-  for (const piece of start.pieces) {
-    const template = new StructureTemplate(buildEndCityPart(piece.meta.params), piece.template);
-    const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
-    const placement = placeTemplate({
-      template,
-      origin: piece.meta.origin,
-      rotation: piece.rotation,
-      mirror: piece.mirror,
-      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] },
-      random,
-      world: null
-    });
-    for (const block of placement.blocks) {
-      const id = resolver.resolveState(block.state);
-      if (id === null) { missingBlocks.add(block.state.name); continue; }
-      if (block.nbt?.LootTable) chests.push(block.nbt.LootTable);
-      if (setBlock(block.x, block.y, block.z, id, {
-        state: block.state,
-        ...(block.nbt?.LootTable ? { lootTable: block.nbt.LootTable } : {})
-      })) written++;
-    }
-  }
-
-  return {
-    written,
-    pieces: start.pieces.length,
-    chests: chests.length,
-    chestLoot: chests,
-    missingBlocks: [...missingBlocks].sort(),
-    note: 'clean-room tower, bridge and ship; the room count and proportions are approximations'
-  };
+export function realizeEndCity(start, setBlock, blockIds, options = {}) {
+  return { ...realizeCells(start, setBlock, blockIds, options), note: 'End city: the wiki\'s drawings, stacked' };
 }

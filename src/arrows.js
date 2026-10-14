@@ -56,13 +56,16 @@ export function updateArrows(manager,dt,player){
     for(let i=0;i<steps;i++){
       arrow.velocity.y-=9.8*step;
       const next=arrow.mesh.position.clone().addScaledVector(arrow.velocity,step);
+      if(manager.game?.bossManager?.hitCrystalSegment?.(arrow.mesh.position,next)) {
+        removeArrow(manager,arrow);removed=true;break;
+      }
       arrow.mesh.quaternion.setFromUnitVectors(forward,arrow.velocity.clone().normalize());
       if(solid(manager.world,next)){
         const targetPos=[Math.floor(next.x),Math.floor(next.y),Math.floor(next.z)];
         const targetState=manager.world.redstone?.state(targetPos);
         if(targetState?.id===BLOCKS.TARGET_BLOCK){
           if(manager.world.redstone.hitTarget)manager.world.redstone.hitTarget(targetPos,next);
-          else targetState.until=manager.world.redstone.tickNumber+8;
+          else targetState.until=manager.world.redstone.tickNumber+10;
         }
         arrow.anchor=next.clone();arrow.mesh.position.copy(next);arrow.stuck=true;arrow.life=60;arrow.orientation=arrow.mesh.quaternion.clone();arrow.trail.visible=false;break;
       }

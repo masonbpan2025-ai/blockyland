@@ -77,9 +77,11 @@ export function createHorseModel(coat=3,marking=0,cache={},options={}){
  for(const x of [-.35,.35]){box(saddleMesh,'saddle-flap',[.06,.4,.42],[x,1.19,-.08],leather);box(saddleMesh,'stirrup',[.07,.13,.16],[x,.95,-.05],dark);}
  const armorMat=new THREE.MeshLambertMaterial({color:0xb8c5ce});const armorMesh=box(mesh,'armor',[.65,.65,1.4],[0,1.03,-.06],armorMat);armorMesh.visible=false;
  const headArmorMesh=box(skull,'head-armor',[.33,.33,.43],[0,0,.08],armorMat);headArmorMesh.visible=false;
+ const neckArmorMesh=box(head,'neck-armor',[.28,.65,.4],[0,.24,.02],armorMat);neckArmorMesh.rotation.x=.48;neckArmorMesh.visible=false;
  const bridleMesh=new THREE.Group();skull.add(bridleMesh);bridleMesh.visible=false;
  box(bridleMesh,'nose-band',[.31,.24,.055],[0,-.025,.43],leather);
  for(const side of [-1,1])box(bridleMesh,'cheek-strap',[.02,.05,.42],[side*.17,0,.22],leather);
- box(armorMesh,'neck-armor',[.28,.65,.4],[0,.34,.53],armorMat).rotation.x=.48;
- mesh.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});return {mesh,head,legs,tail,saddleMesh,armorMesh,headArmorMesh,bridleMesh};
+ let _vis=false;
+ Object.defineProperty(armorMesh,'visible',{get(){return _vis;},set(v){_vis=v;neckArmorMesh.visible=v;}});
+ mesh.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});return {mesh,head,legs,tail,saddleMesh,armorMesh,headArmorMesh,neckArmorMesh,bridleMesh};
 }

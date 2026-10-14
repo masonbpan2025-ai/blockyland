@@ -135,9 +135,10 @@ test('the requirement is described in words for the player', () => {
 // --- break times -------------------------------------------------------------
 
 test('break time matches the real formula for stone', () => {
-  // hardness 1.5, correct tool => 30x divisor: 1.5 * 30 / speed / 20 seconds.
-  assert.ok(Math.abs(breakTimeSeconds(BLOCKS.STONE, ITEMS.wooden_pickaxe, 'wooden_pickaxe') - 1.125) < 0.01);
-  assert.ok(Math.abs(breakTimeSeconds(BLOCKS.STONE, ITEMS.diamond_pickaxe, 'diamond_pickaxe') - 0.28125) < 0.01);
+  // hardness 1.5, correct tool => 30x divisor: ceil(1.5 * 30 / speed) ticks. The wiki's table gives 1.15 s for a
+  // wooden pickaxe (23 ticks) and 0.3 s for a diamond one (6 ticks); breaking is counted in whole ticks.
+  assert.ok(Math.abs(breakTimeSeconds(BLOCKS.STONE, ITEMS.wooden_pickaxe, 'wooden_pickaxe') - 1.15) < 1e-9);
+  assert.ok(Math.abs(breakTimeSeconds(BLOCKS.STONE, ITEMS.diamond_pickaxe, 'diamond_pickaxe') - 0.3) < 1e-9);
   // Wrong/no tool => 100x divisor, so markedly slower.
   const hand = breakTimeSeconds(BLOCKS.STONE, null, null);
   assert.ok(hand > 7 && hand < 8, `bare hand on stone should be ~7.5s, got ${hand}`);

@@ -19,8 +19,12 @@ test('the duration is one eighth of the potion, and derived rather than typed in
     const potion = POTION_DATA[potionKey];
     assert.ok(potion, potionKey + ' should exist in the potion table');
     const effect = tippedArrowEffect(arrow);
+    // Water has no effect, so the arrow of Splashing carries none ("behave like regular arrows", Java).
+    if (!potion.effect) { assert.equal(effect, null, arrow + ' carries nothing'); continue; }
     assert.equal(effect.id, potion.effect, arrow + ' should carry its potion\'s effect');
-    assert.equal(effect.duration, Math.floor(potion.duration * TIPPED_ARROW_DURATION_FACTOR),
+    // An instant effect (healing, harming) has no duration: the arrow applies it once.
+    const expected = potion.duration ? Math.floor(potion.duration * TIPPED_ARROW_DURATION_FACTOR) : 1;
+    assert.equal(effect.duration, expected,
       arrow + ' should last one eighth of ' + potionKey + '\'s ' + potion.duration + 's');
   }
 });
@@ -63,6 +67,7 @@ test('an effect is never zero seconds', () => {
   // A potion with a short duration must still produce a usable arrow rather than an effect of length zero,
   // which status-effect code would drop or apply for no time at all.
   for (const arrow of Object.keys(TIPPED_ARROW_SOURCE)) {
+    if (arrow === 'tipped_arrow_splashing') continue; // no effect at all
     assert.ok(tippedArrowEffect(arrow).duration >= 1, arrow + ' should last at least a second');
   }
 });

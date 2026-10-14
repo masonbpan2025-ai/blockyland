@@ -8,10 +8,15 @@ import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
 import { createWorldStructures, enabledStructureIds } from './worldStructures.js';
+import { netherOreAt, decorateNetherChunk } from './netherTerrain.js';
+import { endColumn, decorateEndChunk } from './endTerrain.js';
+import { isChorus, collapseChorusSupport } from './chorus.js';
+import { decorateEndReturnGateway } from './endProgression.js';
 import { winningSpacingScale, winningSpacingOverrides } from './dataPackRuntime.js';
 import { lootSeedFor } from './villageLoot.js';
 import { rollStructureLoot } from './structureLoot.js';
 import { BED_DIRECTIONS } from './bed.js';
+import { isWallAttached, attachStateForStructure, rememberAttachment } from './wallAttached.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -502,6 +507,8 @@ export class World {
         if (!mobs || typeof mobs.spawnMob !== 'function') return false;
         // A swamp hut's witch does not spawn on Peaceful (the wiki says so); it is dropped, not retried.
         if ((request.type === 'witch' || request.type === 'zombie_villager') && this.game.difficulty === 'peaceful') return true;
+        // The End crystals on the spikes belong to the dragon fight, which places them (bossFights.initEndArena).
+        if (request.type === 'end_crystal') return true;
         // A mineshaft's chest is a minecart with a chest, standing on its rail.
         if (request.type === 'chest_minecart') {
           const rails = this.game?.railSystem;
@@ -535,8 +542,13 @@ export class World {
   applyStructureOrientation(request) {
     const key0 = `${request.x},${request.y},${request.z}`;
     // A monster spawner: the mob it spawns lives with the block's other structure data (and is saved with it).
-    if (request.spawner) {
+    if (request.spawner || request.trialSpawner || request.vault || request.plantAge !== undefined || request.anchorCharges !== undefined) {
       this.structureOrientations.set(key0, { ...request });
+      return true;
+    }
+    // A ladder or vine: which wall it hangs on (wallAttached.js).
+    if (isWallAttached(request.id)) {
+      rememberAttachment(this, request.x, request.y, request.z, request.id, attachStateForStructure(request.id, request));
       return true;
     }
     if (request.slabType === 'top' && BLOCK_DEFS[request.id]?.slab) {
@@ -563,6 +575,12 @@ export class World {
       // Chest facing uses its own order: 0 south, 1 west, 2 north, 3 east.
       const chestFacing = { south: 0, west: 1, north: 2, east: 3 }[request.facing];
       const items = request.lootTable ? rollStructureLoot(request.lootTable, lootSeedFor(request.x, request.y, request.z, this.seed)) : [];
+      // Items a structure puts in a chest besides its loot (the End ship's elytra), in the first free slots.
+      for (const extra of request.extraItems ?? []) {
+        const slot = items.findIndex((item) => !item);
+        const stack = { id: extra.id, isBlock: false, count: extra.count ?? 1 };
+        if (slot >= 0) items[slot] = stack; else if (items.length < 27) items.push(stack);
+      }
       const existing = chests.getChest(request.x, request.y, request.z);
       if (!existing) chests.adoptChest([request.x, request.y, request.z], chestFacing, items);
     } else if (def?.stair) {
@@ -576,6 +594,18 @@ export class World {
   }
 
   /** The orientations to write into a save: plain data, enough to apply each one again on load. */
+  /** The trial spawners structures placed: `[{ x, y, z, mob, kind }]`. */
+  trialSpawners() {
+    const out = [];
+    for (const o of this.structureOrientations.values()) if (o.trialSpawner) out.push({ x: o.x, y: o.y, z: o.z, mob: o.trialSpawner.mob, kind: o.trialSpawner.kind ?? 'normal' });
+    return out;
+  }
+
+  /** A vault's data (ominous or not), if a structure placed one here. */
+  vaultAt(x, y, z) {
+    return this.structureOrientations.get(`${x},${y},${z}`)?.vault ?? null;
+  }
+
   /** The monster spawners structures placed: `[{ x, y, z, mob }]`. */
   spawners() {
     const out = [];
@@ -586,7 +616,8 @@ export class World {
   serializeOrientations() {
     return [...this.structureOrientations.values()].map((o) => ({
       x: o.x, y: o.y, z: o.z, id: o.id, name: o.name, facing: o.facing, half: o.half, hinge: o.hinge, lootTable: o.lootTable, slabType: o.slabType ?? null,
-      ...(o.spawner ? { spawner: o.spawner } : {})
+      ...(o.spawner ? { spawner: o.spawner } : {}), ...(o.trialSpawner ? { trialSpawner: o.trialSpawner } : {}), ...(o.vault ? { vault: o.vault } : {})
+      ,...(o.plantAge!==undefined?{plantAge:o.plantAge}:{}),...(o.anchorCharges!==undefined?{anchorCharges:o.anchorCharges,anchorDimension:o.anchorDimension}:{})
     }));
   }
 
@@ -599,6 +630,7 @@ export class World {
   }
 
   reseed(seed = 4289, selectedBiome = this.selectedBiome) {
+    this.endState=null;
     this.structureOrientations = new Map();
     this.seed = seed;
     this.selectedBiome = selectedBiome || 'all';
@@ -668,7 +700,7 @@ export class World {
       this.seaLevel = 14;
     } else {
       const def = getBiomeDef(this.selectedBiome);
-      this.seaLevel = def.seaLevel !== undefined ? def.seaLevel : 22;
+      this.seaLevel = newDim === 'the_end' ? 0 : (!def.isEnd&&!def.isNether&&def.seaLevel!==undefined?def.seaLevel:22);
     }
   }
 
@@ -763,7 +795,11 @@ export class World {
   }
 
   getBiome(wx, wz) {
-    const isNetherDim = this.dimension === 'nether' || this.currentDimension === 'nether' || this.isNether || this.selectedBiome === 'nether';
+    // /fillbiome (advancedCommands.js) writes column overrides.
+    const override = this.biomeOverrides?.get(`${Math.floor(wx)},${Math.floor(wz)}`);
+    if (override) return override;
+    if (this.dimension === 'the_end' || this.currentDimension === 'the_end') return endColumn(this,wx,wz).biome;
+    const isNetherDim = this.dimension === 'nether' || this.currentDimension === 'nether' || this.isNether;
     if (isNetherDim) {
       if (this.selectedBiome && this.selectedBiome !== 'all' && this.selectedBiome !== 'nether' && getBiomeDef(this.selectedBiome)?.isNether) {
         return this.selectedBiome;
@@ -778,7 +814,7 @@ export class World {
     }
 
     // If user selected a specific biome, every chunk faithfully generates that biome
-    if (this.selectedBiome && this.selectedBiome !== 'all') {
+    if (this.selectedBiome && this.selectedBiome !== 'all' && !getBiomeDef(this.selectedBiome)?.isEnd && !getBiomeDef(this.selectedBiome)?.isNether) {
       return this.selectedBiome;
     }
 
@@ -839,6 +875,7 @@ export class World {
    * needs solid floor and ceiling and a cave beside it) without generating a chunk.
    */
   solidAtGen(wx, wy, wz) {
+    if(this.dimension==='the_end'){const c=endColumn(this,wx,wz);return c.top>0&&wy>=c.bottom&&wy<=c.top;}
     if (wy <= 0) return true;
     // The column's biome and height, kept for the last few thousand columns: a structure asks about many blocks of
     // the same few columns.
@@ -858,10 +895,12 @@ export class World {
   }
 
   surfaceHeightAt(wx, wz, biomeId = this.getBiome(wx, wz)) {
+    if (this.dimension === 'the_end' || getBiomeDef(biomeId)?.isEnd) return endColumn(this,wx,wz).top;
     return Math.min(CHUNK_HEIGHT - 6, Math.max(4, this.getHeight(wx, wz, biomeId)));
   }
 
   getHeight(wx, wz, biomeId) {
+    if (this.dimension === 'the_end' || getBiomeDef(biomeId)?.isEnd) return endColumn(this,wx,wz).top;
     const def = getBiomeDef(biomeId);
     if(def.mountainProfile)return mountainHeight(this,wx,wz,def.mountainProfile);
     const base = this.noise.noise2D(wx * 0.012, wz * 0.012);
@@ -878,8 +917,9 @@ export class World {
     if (def.isEnd) {
       // Floating island height
       const distFromOrigin = Math.hypot(wx, wz);
-      if (distFromOrigin < 45) {
-        return Math.floor(28 + base * 4 + detail * 2);
+      // The main island, as the End's chunk generator shapes it (so the exit podium sits on its top block).
+      if (distFromOrigin < 55) {
+        return Math.floor(28 + Math.cos(distFromOrigin * 0.05) * 4);
       }
       const islandNoise = this.noise.noise2D(wx * 0.015, wz * 0.015);
       return Math.floor(26 + islandNoise * 8 + detail * 3);
@@ -941,74 +981,23 @@ export class World {
 
     // --- 1. SPECIAL DIMENSION: THE VOID ---
     if (centerDef.isVoid) {
-      if (cx === 0 && cz === 0) {
-        for (let x = 4; x <= 11; x++) {
-          for (let z = 4; z <= 11; z++) {
-            const isCenter = (x === 7 || x === 8) && (z === 7 || z === 8);
-            chunk.setVoxel(x, 30, z, isCenter ? BLOCKS.OBSIDIAN : BLOCKS.BEDROCK);
-          }
-        }
-      }
-      return;
-    }
-
-    // --- 2. SPECIAL DIMENSION: THE END ---
-    if (centerDef.isEnd) {
-      for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
-        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
-          const wx = cx * CHUNK_SIZE_X + lx;
-          const wz = cz * CHUNK_SIZE_Z + lz;
-          const dist = Math.hypot(wx, wz);
-
-          let hasIsland = false;
-          let topY = 28;
-          let botY = 18;
-
-          if (centerBiomeId === 'the_end' && dist < 55) {
-            hasIsland = true;
-            topY = Math.floor(28 + Math.cos(dist * 0.05) * 4);
-            botY = Math.max(14, Math.floor(20 - Math.cos(dist * 0.05) * 4));
-          } else if (dist >= 60 || centerBiomeId !== 'the_end') {
-            const islandMask = this.noise.noise2D(wx * 0.02, wz * 0.02);
-            if (islandMask > 0.15) {
-              hasIsland = true;
-              topY = Math.floor(26 + islandMask * 8);
-              botY = Math.max(16, Math.floor(20 - islandMask * 5));
-            }
-          }
-
-          if (hasIsland) {
-            for (let y = botY; y <= topY; y++) {
-              chunk.setVoxel(lx, y, lz, BLOCKS.END_STONE);
-            }
-
-            // Chorus plants on outer islands
-            if (dist > 60 || centerBiomeId.includes('highlands') || centerBiomeId.includes('midlands')) {
-              const plantHash = Math.abs(Math.sin(wx * 43.12 + wz * 71.9));
-              if (plantHash < 0.025 && topY < CHUNK_HEIGHT - 12) {
-                this.generateChorusPlant(chunk, lx, topY + 1, lz);
-              }
-            }
-          }
-        }
-      }
-
-      // Obsidian pillars on central End Island
-      if (centerBiomeId === 'the_end' && cx === 0 && cz === 0) {
-        for (let y = 28; y <= 46; y++) {
-          for (let ox = -1; ox <= 1; ox++) {
-            for (let oz = -1; oz <= 1; oz++) {
-              chunk.setVoxel(8 + ox, y, 8 + oz, BLOCKS.OBSIDIAN);
-            }
-          }
-        }
-        chunk.setVoxel(8, 47, 8, BLOCKS.SEA_LANTERN);
-      }
-      // End structures (End cities, gateways), clipped to this chunk as in the Overworld.
+      // The void start platform is a feature (src/worldgen/generators/voidPlatform.js), placed like any other.
       this.structures?.applyToChunk(chunk);
       return;
     }
 
+    // --- 2. SPECIAL DIMENSION: THE END ---
+    if (this.dimension === 'the_end' || centerDef.isEnd) {
+      for (let lx = 0; lx < CHUNK_SIZE_X; lx++) for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+        const column = endColumn(this, cx * CHUNK_SIZE_X + lx, cz * CHUNK_SIZE_Z + lz);
+        if (!column.top) continue;
+        for (let y = column.bottom; y <= column.top; y++) chunk.setVoxel(lx, y, lz, BLOCKS.END_STONE);
+      }
+      decorateEndChunk(this,chunk);
+      this.structures?.applyToChunk(chunk);
+      decorateEndReturnGateway(this,chunk);
+      return;
+    }
     // --- 3. SPECIAL DIMENSION: THE NETHER ---
     if (centerDef.isNether || this.isNether || this.dimension === 'nether') {
       for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
@@ -1053,12 +1042,7 @@ export class World {
 
             // Ore veins inside deep netherrack strata
             if (y > 2 && y < floorHeight - 1) {
-              const oreHash = Math.abs(Math.sin(wx * 17.3 + y * 41.2 + wz * 13.7));
-              if (oreHash < 0.035) {
-                chunk.setVoxel(lx, y, lz, BLOCKS.GOLD_ORE); // Nether Gold Ore
-              } else if (oreHash < 0.065) {
-                chunk.setVoxel(lx, y, lz, BLOCKS.COAL_ORE); // Nether Quartz Ore
-              }
+              if(chunk.getVoxel(lx,y,lz)===BLOCKS.NETHERRACK)chunk.setVoxel(lx,y,lz,netherOreAt(this.seed,wx,y,wz));
             }
           }
 
@@ -1080,7 +1064,7 @@ export class World {
 
           // Nether ceiling
           for (let y = ceilHeight; y < CHUNK_HEIGHT - 1; y++) {
-            chunk.setVoxel(lx, y, lz, BLOCKS.NETHERRACK);
+            chunk.setVoxel(lx, y, lz, netherOreAt(this.seed,wx,y,wz));
           }
 
           // Ceiling Glowstone clusters
@@ -1103,24 +1087,16 @@ export class World {
               }
             } else if (bId === 'soul_sand_valley') {
               if (hash < 0.04) {
-                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.SOUL_TORCH);
+                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.SOUL_FIRE);
               } else if (hash < 0.065) {
                 this.generateBoneFossil(chunk, lx, floorHeight + 1, lz);
               } else if (hash < 0.1) {
                 this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
               }
             } else if (bId === 'crimson_forest') {
-              if (hash < 0.055) {
-                this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'crimson');
-              } else if (hash < 0.12) {
-                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.RED_MUSHROOM_BLOCK);
-              }
+              // Seeded fungi and understory are placed after all terrain columns.
             } else if (bId === 'warped_forest') {
-              if (hash < 0.055) {
-                this.generateNetherFungus(chunk, lx, floorHeight + 1, lz, 'warped');
-              } else if (hash < 0.12) {
-                chunk.setVoxel(lx, floorHeight + 1, lz, BLOCKS.BROWN_MUSHROOM_BLOCK);
-              }
+              // Seeded fungi and understory are placed after all terrain columns.
             } else if (bId === 'basalt_deltas') {
               if (hash < 0.08) {
                 this.generateBasaltPillar(chunk, lx, floorHeight + 1, lz);
@@ -1131,6 +1107,7 @@ export class World {
           }
         }
       }
+      decorateNetherChunk(this,chunk);
       // Nether structures (fortresses, bastions, Nether fossils, ruined portals), clipped to this chunk.
       this.structures?.applyToChunk(chunk);
       return;
@@ -1642,7 +1619,7 @@ export class World {
         const x = lx + dx, z = lz + dz;
         if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && capY < CHUNK_HEIGHT) {
           if (dx === 0 && dz === 0) {
-            chunk.setVoxel(x, capY, z, BLOCKS.GLOWSTONE); // Embedded shroomlight
+            chunk.setVoxel(x, capY, z, BLOCKS.SHROOMLIGHT);
           } else {
             chunk.setVoxel(x, capY, z, wartId);
           }
@@ -1841,6 +1818,7 @@ export class World {
     const level = (blockId === BLOCKS.WATER || blockId === BLOCKS.LAVA) ? Math.max(0, Math.min(8, waterLevel)) : 0;
     const index = chunk.getIndex(lx, wy, lz);
     if (chunk.voxels[index] === blockId && chunk.waterLevels[index] === level) return;
+    const previous=chunk.voxels[index];
     chunk.setVoxel(lx, wy, lz, blockId);
     this.cauldronLevels?.delete(`${wx},${wy},${wz}`);
     chunk.waterLevels[index] = level;
@@ -1875,6 +1853,7 @@ export class World {
     // here: `setVoxel` is called in tight loops by fluid flow and redstone, and relighting inside
     // it would make one edit cost a chunk relight. LightEngine.update() does the work on a budget.
     this.light.markBlockChanged(wx, wy, wz);
+    if(previous!==blockId && (isChorus(previous)||previous===BLOCKS.END_STONE))collapseChorusSupport(this,wx,wy,wz,{drop:(pos,id,isBlock,count)=>this.game?.entities?.spawnDroppedItem?.(pos,id,isBlock,count)});
   }
 
   decorateOceanFloorColumn(chunk, lx, height, lz, wx, wz, bId, def) {

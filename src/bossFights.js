@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { endSpikes, buildSpike, buildPodium, gatewayOrder } from './worldgen/generators/endFeatures.js';
+import { CellCanvas } from './worldgen/cellStructure.js';
+import { endStateFor, writeEndCanvas, addEndGateway } from './endProgression.js';
+import { updateEnderDragonAI, onCrystalDestroyed, createDragonBreathCloud } from './enderDragonBehavior.js';
 
 export class BossFightManager {
   constructor(mobManager, world, sounds, ui, entities) {
@@ -89,27 +93,65 @@ export class BossFightManager {
   // ENDER DRAGON ARENA INITIALIZATION
   // ==========================================
   initEndArena() {
-    this.endCrystals = [];
-    const pillarCoords = [
-      { x: 18, z: 0, h: 22 },
-      { x: -18, z: 0, h: 26 },
-      { x: 0, z: 18, h: 24 },
-      { x: 0, z: -18, h: 28 },
-      { x: 12, z: 12, h: 20 },
-      { x: -12, z: 12, h: 25 },
-      { x: 12, z: -12, h: 23 },
-      { x: -12, z: -12, h: 27 }
-    ];
-
-    for (const p of pillarCoords) {
-      this.spawnEndCrystal(p.x, p.h + 28, p.z);
+    this.clearEndVisuals();
+    const state=endStateFor(this.world);
+    state.initialized=true;
+    // Loaded mob snapshots and a live encounter must not create two dragons.
+    for(const mob of this.mobManager.mobs??[])if(mob.type==='ender_dragon')mob.mesh?.removeFromParent();
+    this.mobManager.mobs=(this.mobManager.mobs??[]).filter(m=>m.type!=='ender_dragon');
+    this.mobManager.bossFightManager=this;
+    // An End crystal on the bedrock atop each of the ten spikes (src/worldgen/generators/endFeatures.js places the
+    // spikes themselves when the End's chunks generate).
+    for (const [index,spike] of endSpikes(this.world?.seed ?? 0).entries()) {
+      if(state.crystals[index])this.spawnEndCrystal(spike.x + 0.5, spike.top + 1.5, spike.z + 0.5,{spikeIndex:index});
     }
-
-    // Spawn Ender Dragon
-    this.spawnEnderDragonBoss(0, 48, 0);
+    this.mobManager.endCrystals=this.endCrystals;
+    if(!state.defeated)this.spawnEnderDragonBoss(0,48,0);
+    if(state.respawning)for(const [dx,dz]of [[3,0],[-3,0],[0,3],[0,-3]])this.spawnEndCrystal(dx+.5,this.podiumY()+1,dz+.5,{placed:true});
+    if(state.defeated)this.activateEndExitPortal(false);
   }
 
-  spawnEndCrystal(x, y, z) {
+  clearEndVisuals() {
+    for(const c of this.endCrystals??[])c.mesh?.removeFromParent();
+    for(const c of this.dragonBreathClouds??[]) {c.mesh?.removeFromParent();c.mesh?.geometry?.dispose();c.mesh?.material?.dispose();}
+    this.enderDragon=null;this.endCrystals=[];this.dragonBreathClouds=[];
+    this.mobManager.endCrystals=this.endCrystals;
+    this.ui?.removeBossBar?.('ender_dragon');
+  }
+
+  podiumY(){return (this.world?.surfaceHeightAt?.(0,0)??32)+1;}
+
+  placeEndCrystal(x,y,z) {
+    const below=this.world.getVoxel(x,y-1,z);
+    if(![BLOCKS.OBSIDIAN,BLOCKS.BEDROCK].includes(below)||this.world.getVoxel(x,y,z)!==BLOCKS.AIR||this.world.getVoxel(x,y+1,z)!==BLOCKS.AIR)return false;
+    if(this.endCrystals.some(c=>c.alive&&Math.abs(c.position.x-x-.5)<1&&Math.abs(c.position.z-z-.5)<1&&Math.abs(c.position.y-y)<2))return false;
+    this.spawnEndCrystal(x+.5,y+.5,z+.5,{placed:true});
+    const state=endStateFor(this.world),level=this.podiumY()+1;
+    if(state.defeated&&[[3,0],[-3,0],[0,3],[0,-3]].every(([dx,dz])=>this.endCrystals.some(c=>c.alive&&c.placed&&Math.abs(c.position.x-dx-.5)<.6&&Math.abs(c.position.z-dz-.5)<.6&&Math.abs(c.position.y-level)<2))) {
+      state.respawning=true;state.ritualElapsed=0;
+      const canvas=new CellCanvas();buildPodium(canvas,this.podiumY());writeEndCanvas(this.world,canvas);
+      this.world.setVoxel(0,this.podiumY()+4,0,BLOCKS.AIR);
+    }
+    return true;
+  }
+
+  updateDragonRespawn(dt) {
+    const state=endStateFor(this.world);
+    if(!state.respawning)return;
+    state.ritualElapsed=(state.ritualElapsed??0)+dt;
+    const spikes=endSpikes(this.world.seed),index=Math.min(9,Math.floor(state.ritualElapsed/3));
+    const target=new THREE.Vector3(spikes[index].x+.5,spikes[index].top+2,spikes[index].z+.5);
+    for(const c of this.endCrystals)if(c.alive&&c.placed)this.setCrystalBeam(c,target);
+    if(state.ritualElapsed<30)return;
+    for(const c of this.endCrystals){if(c.alive&&c.placed)this.entities?.spawnExplosion?.(c.position);c.mesh?.removeFromParent();}
+    const canvas=new CellCanvas();
+    for(const spike of endSpikes(this.world.seed))buildSpike(canvas,spike);
+    writeEndCanvas(this.world,canvas);
+    state.crystals=Array(10).fill(true);state.health=200;state.defeated=false;state.respawning=false;
+    this.initEndArena();
+  }
+
+  spawnEndCrystal(x, y, z, options={}) {
     const group = new THREE.Group();
     // Glass cube
     const glass = new THREE.Mesh(
@@ -131,10 +173,19 @@ export class BossFightManager {
       core,
       position: new THREE.Vector3(x, y, z),
       health: 1,
-      alive: true
+      alive: true, ...options
     };
     this.endCrystals.push(crystal);
     return crystal;
+  }
+
+  setCrystalBeam(crystal,target) {
+    let beam=crystal.mesh.getObjectByName('crystal-beam');
+    if(!beam){beam=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1,6),new THREE.MeshBasicMaterial({color:0xf7a1ff,transparent:true,opacity:.7,depthWrite:false}));beam.name='crystal-beam';crystal.mesh.add(beam);}
+    beam.visible=!!target;if(!target)return;
+    const delta=target.clone().sub(crystal.position),length=delta.length();
+    beam.position.copy(delta).multiplyScalar(.5);beam.scale.y=length;
+    if(length)beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
   }
 
   checkCrystalHit(rayOrigin, rayDir) {
@@ -142,19 +193,11 @@ export class BossFightManager {
       if (c.alive && !c.exploded) {
         const toCrystal = c.position.clone().sub(rayOrigin);
         const proj = toCrystal.dot(rayDir);
-        if (proj > 0 && proj < 32.0) {
+        if (proj > 0 && proj < 6.0) {
           const closest = rayOrigin.clone().addScaledVector(rayDir, proj);
           const dist = closest.distanceTo(c.position);
           if (dist < 1.8) {
-            c.alive = false;
-            c.exploded = true;
-            if (c.mesh) this.mobManager.scene.remove(c.mesh);
-            if (this.sounds?.playExplosion) this.sounds.playExplosion();
-            this.mobManager.spawnParticleBurst?.(c.position, 0xd946ef, 30);
-
-            if (this.enderDragon && this.enderDragon.mesh.position.distanceTo(c.position) <= 38) {
-              this.enderDragon.health = Math.max(0, this.enderDragon.health - 10);
-            }
+            this.destroyEndCrystal(c);
             return true;
           }
         }
@@ -163,16 +206,41 @@ export class BossFightManager {
     return false;
   }
 
+  hitCrystalSegment(from,to) {
+    const delta=to.clone().sub(from),length=delta.lengthSq();
+    for(const crystal of this.endCrystals)if(crystal.alive) {
+      const t=length?THREE.MathUtils.clamp(crystal.position.clone().sub(from).dot(delta)/length,0,1):0;
+      if(from.clone().addScaledVector(delta,t).distanceTo(crystal.position)<1){this.destroyEndCrystal(crystal);return true;}
+    }
+    return false;
+  }
+
+  destroyEndCrystal(crystal) {
+    if(!crystal.alive)return false;
+    crystal.alive=false;crystal.exploded=true;crystal.mesh?.removeFromParent();
+    const state=endStateFor(this.world);
+    if(crystal.spikeIndex!==undefined)state.crystals[crystal.spikeIndex]=false;
+    if(crystal.placed&&state.respawning){state.respawning=false;state.ritualElapsed=0;this.activateEndExitPortal(false);}
+    onCrystalDestroyed(this.mobManager,crystal);
+    this.entities?.spawnExplosion?.(crystal.position);
+    this.sounds?.playExplosion?.();
+    const player=this.game?.player;
+    if(player?.position && player.position.distanceTo(crystal.position)<6 && !['creative','spectator'].includes(player.gamemode))player.takeDamage?.(Math.max(1,Math.round(30*(1-player.position.distanceTo(crystal.position)/6))),crystal.position,'explosion');
+    return true;
+  }
+
   spawnEnderDragonBoss(x, y, z) {
     const dragon = this.mobManager.spawnMob('ender_dragon', x, y, z);
     if (!dragon) return null;
     this.enderDragon = dragon;
     dragon.isBoss = true;
-    dragon.health = 200;
+    dragon.health = endStateFor(this.world).health || 200;
     dragon.maxHealth = 200;
     dragon.dragonPhase = 'circling';
     dragon.phaseTimer = 10.0;
     dragon.perchTimer = 0;
+    dragon.endEncounterManaged=true;
+    dragon.endRepeatFight=endStateFor(this.world).kills>0;
 
     if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
     this.ui?.setBossBar?.('ender_dragon', 'Ender Dragon', 1.0, '#a855f7');
@@ -188,6 +256,8 @@ export class BossFightManager {
       this.updateWitherBoss(dt, player);
     }
 
+    if(this.world?.dimension!=='the_end')return;
+    this.updateDragonRespawn(dt);
     // 2. Update Ender Dragon Boss
     if (this.enderDragon) {
       this.updateEnderDragonBoss(dt, player);
@@ -348,75 +418,11 @@ export class BossFightManager {
       return;
     }
 
-    // 1. Crystal Healing Beams
-    let isBeingHealed = false;
-    for (const c of this.endCrystals) {
-      if (c.alive) {
-        c.core.rotation.y += dt * 3.0;
-        const dist = dragon.mesh.position.distanceTo(c.position);
-        if (dist < 38) {
-          isBeingHealed = true;
-          dragon.health = Math.min(dragon.maxHealth, dragon.health + dt * 2.0);
-          this.mobManager.spawnParticleBurst?.(dragon.mesh.position, 0xd946ef, 3);
-        }
-      }
-    }
-
-    const hpPercent = dragon.health / dragon.maxHealth;
-    this.ui?.setBossBar?.('ender_dragon', isBeingHealed ? 'Ender Dragon (Healing)' : 'Ender Dragon', hpPercent, '#a855f7');
-
-    // 2. Dragon Phases: Circling, Strafing, Perching
-    dragon.phaseTimer -= dt;
-    if (dragon.phaseTimer <= 0) {
-      if (dragon.dragonPhase === 'circling') {
-        dragon.dragonPhase = 'strafing';
-        dragon.phaseTimer = 8.0;
-      } else if (dragon.dragonPhase === 'strafing') {
-        dragon.dragonPhase = 'perching';
-        dragon.phaseTimer = 12.0;
-        if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
-      } else {
-        dragon.dragonPhase = 'circling';
-        dragon.phaseTimer = 14.0;
-      }
-    }
-
-    if (dragon.dragonPhase === 'circling') {
-      // Circle the End island pillars
-      dragon.circleAngle = (dragon.circleAngle || 0) + dt * 0.45;
-      const targetX = Math.cos(dragon.circleAngle) * 35;
-      const targetZ = Math.sin(dragon.circleAngle) * 35;
-      const targetY = 48 + Math.sin(dragon.circleAngle * 2) * 5;
-      this.flyTowards(dragon, targetX, targetY, targetZ, 14.0);
-    } else if (dragon.dragonPhase === 'strafing') {
-      // Swoop towards player & launch Dragon Fireball
-      this.flyTowards(dragon, player.position.x, player.position.y + 14, player.position.z, 18.0);
-      dragon.fireballCooldown = (dragon.fireballCooldown || 3.0) - dt;
-      if (dragon.fireballCooldown <= 0) {
-        dragon.fireballCooldown = 3.5;
-        this.shootDragonBreathFireball(dragon.mesh.position, player.position);
-        if (this.sounds?.playDragonRoar) this.sounds.playDragonRoar();
-      }
-    } else if (dragon.dragonPhase === 'perching') {
-      // Perch on center Bedrock Fountain (0, 30, 0)
-      this.flyTowards(dragon, 0, 31, 0, 10.0);
-      dragon.isArrowImmune = true; // Invulnerable to arrows while perched!
-
-      // Wing buffet knockback to nearby players
-      if (dragon.mesh.position.distanceTo(player.position) < 6.0) {
-        player.takeDamage?.(10, 'dragon_wing');
-        if (player.velocity) {
-          const knock = player.position.clone().sub(dragon.mesh.position).normalize().multiplyScalar(16);
-          player.velocity.x += knock.x;
-          player.velocity.y += 6;
-          player.velocity.z += knock.z;
-        }
-      }
-    } else {
-      dragon.isArrowImmune = false;
-    }
+    updateEnderDragonAI(this.mobManager,dragon,dt,player);
+    dragon.mesh.position.addScaledVector(dragon.velocity,dt);
+    for(const c of this.endCrystals)if(c.alive)this.setCrystalBeam(c,c===dragon.healingCrystal?dragon.mesh.position:null);
+    const state=endStateFor(this.world);state.health=dragon.health;
   }
-
   flyTowards(dragon, tx, ty, tz, speed) {
     const target = new THREE.Vector3(tx, ty, tz);
     const dir = target.sub(dragon.mesh.position);
@@ -452,10 +458,22 @@ export class BossFightManager {
   updateDragonBreath(dt, player) {
     // Check if any dragon breath projectile hit ground -> creates lingering cloud
     if (this.mobManager.customProjectiles) {
-      for (const p of this.mobManager.customProjectiles) {
-        if (p.isDragonBreathBall && (p.position.y <= p.targetY || p.age > 4.0)) {
+      for (const p of [...this.mobManager.customProjectiles]) {
+        if(!p.isDragonBreathBall)continue;
+        p.age+=dt;
+        const steps=Math.max(1,Math.ceil(p.velocity.length()*dt/.2)),step=dt/steps;
+        for(let i=0;i<steps;i++) {
+          p.position.addScaledVector(p.velocity,step);
+          const id=this.world.getVoxel(Math.floor(p.position.x),Math.floor(p.position.y),Math.floor(p.position.z));
+          if(id!==BLOCKS.AIR){p.targetY=p.position.y;break;}
+        }
+        p.mesh.position.copy(p.position);
+        if (p.isDragonBreathBall && !p.breathCreated && (p.position.y <= p.targetY || p.age > 4.0)) {
+          p.breathCreated=true;
           p.age = 999;
           this.createDragonBreathCloud(p.position);
+          p.mesh.removeFromParent();p.mesh.geometry?.dispose();p.mesh.material?.dispose();
+          this.mobManager.customProjectiles.splice(this.mobManager.customProjectiles.indexOf(p),1);
         }
       }
     }
@@ -467,8 +485,10 @@ export class BossFightManager {
       cloud.age += dt;
 
       // Damage player inside cloud
-      if (cloud.position.distanceTo(player.position) < 3.5) {
-        player.takeDamage?.(4, 'dragon_breath');
+      cloud.damageCooldown=Math.max(0,(cloud.damageCooldown??0)-dt);
+      if (player && !['creative','spectator'].includes(player.gamemode) && cloud.position.distanceTo(player.position) < cloud.radius && cloud.damageCooldown<=0) {
+        player.takeDamage?.(3,cloud.position,'dragon_breath');
+        cloud.damageCooldown=.5;
       }
 
       if (cloud.age > 8.0) {
@@ -483,47 +503,29 @@ export class BossFightManager {
   }
 
   createDragonBreathCloud(pos) {
-    const cloudGeo = new THREE.CylinderGeometry(3.5, 3.5, 0.4, 12);
-    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xc026d3, transparent: true, opacity: 0.6 });
-    const mesh = new THREE.Mesh(cloudGeo, cloudMat);
-    mesh.position.set(pos.x, pos.y + 0.2, pos.z);
-    this.mobManager.scene.add(mesh);
-
-    this.dragonBreathClouds.push({
-      mesh,
-      position: pos.clone(),
-      age: 0
-    });
+    this.mobManager.dragonBreathClouds=this.dragonBreathClouds;
+    createDragonBreathCloud(this.mobManager,pos);
   }
 
   onDragonDefeated() {
-    this.ui?.removeBossBar?.('ender_dragon');
-    if (this.sounds?.playVictoryFanfare) this.sounds.playVictoryFanfare();
-
-    // Spawn massive XP drop (12,000 XP)
-    this.mobManager.spawnXpOrbs?.(new THREE.Vector3(0, 32, 0), 12000);
-
-    // Activate Exit Portal & place Dragon Egg atop central bedrock fountain
-    this.activateEndExitPortal();
-    this.enderDragon = null;
+    const state=endStateFor(this.world);
+    if(state.defeated)return;
+    state.defeated=true;state.health=0;
+    const xp=state.kills===0?12000:500;
+    state.kills++;
+    this.ui?.removeBossBar?.('ender_dragon');this.sounds?.playVictoryFanfare?.();
+    const position=new THREE.Vector3(0,this.podiumY()+3,0);
+    if(this.entities?.spawnXpOrbs)this.entities.spawnXpOrbs(position,xp);
+    else this.mobManager.spawnXpOrbs?.(position,xp);
+    this.activateEndExitPortal(true);
+    this.enderDragon=null;
   }
 
-  activateEndExitPortal() {
-    // Center bedrock fountain at (0, 28, 0)
-    for (let ox = -2; ox <= 2; ox++) {
-      for (let oz = -2; oz <= 2; oz++) {
-        if (Math.abs(ox) === 2 || Math.abs(oz) === 2) {
-          this.world?.setVoxel(ox, 28, oz, BLOCKS.BEDROCK);
-        } else {
-          this.world?.setVoxel(ox, 28, oz, BLOCKS.END_PORTAL);
-        }
-      }
-    }
-    // Bedrock pillar in center
-    this.world?.setVoxel(0, 29, 0, BLOCKS.BEDROCK);
-    this.world?.setVoxel(0, 30, 0, BLOCKS.BEDROCK);
-    this.world?.setVoxel(0, 31, 0, BLOCKS.BEDROCK);
-    // Dragon Egg on top!
-    this.world?.setVoxel(0, 32, 0, BLOCKS.DRAGON_EGG);
+  activateEndExitPortal(newDefeat=true) {
+    const state=endStateFor(this.world),canvas=new CellCanvas();
+    buildPodium(canvas,this.podiumY(),{active:true,egg:newDefeat&&state.kills===1});
+    writeEndCanvas(this.world,canvas);
+    const order=gatewayOrder(this.world.seed),opened=state.gateways.filter(g=>Math.hypot(g.x,g.z)<1000).length;
+    if(newDefeat&&opened<order.length){const g=order[opened];addEndGateway(this.world,g.x,g.y,g.z);}
   }
 }

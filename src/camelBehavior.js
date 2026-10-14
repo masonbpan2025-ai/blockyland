@@ -428,39 +428,46 @@ export function createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat) {
   hump.position.set(0, 1.98, -0.1);
   group.add(hump);
 
+  // Neck & Head root pivot group: hinged at base of neck at (0, 1.75, 0.45)
+  // In vanilla Minecraft CamelModel, the neck, head, ears, and muzzle all turn together with netHeadYaw.
+  const headGroup = new THREE.Group();
+  headGroup.name = 'camel-head';
+  headGroup.position.set(0, 1.75, 0.45);
+  group.add(headGroup);
+
   // Neck: 7x8x19 at UV (60, 24)
   const neckGeo = new THREE.BoxGeometry(0.4375, 0.85, 0.4375);
   applyVanillaBoxUVs(neckGeo, 60, 24, 128, 128, 7, 8, 19);
   const neck = new THREE.Mesh(neckGeo, coatMat);
-  neck.position.set(0, 2.05, 0.65);
-  group.add(neck);
+  neck.position.set(0, 0.30, 0.20);
+  headGroup.add(neck);
 
   // Head: 7x14x7 at UV (21, 0)
   const headGeo = new THREE.BoxGeometry(0.4375, 0.875, 0.4375);
   applyVanillaBoxUVs(headGeo, 21, 0, 128, 128, 7, 14, 7);
-  const head = new THREE.Mesh(headGeo, coatMat);
-  head.position.set(0, 2.6, 0.85);
-  group.add(head);
+  const headMesh = new THREE.Mesh(headGeo, coatMat);
+  headMesh.position.set(0, 0.85, 0.40);
+  headGroup.add(headMesh);
 
   // Muzzle: 5x5x6 at UV (50, 0)
   const muzzleGeo = new THREE.BoxGeometry(0.3125, 0.3125, 0.375);
   applyVanillaBoxUVs(muzzleGeo, 50, 0, 128, 128, 5, 5, 6);
   const muzzle = new THREE.Mesh(muzzleGeo, bellyMat);
   muzzle.position.set(0, -0.15, 0.35);
-  head.add(muzzle);
+  headMesh.add(muzzle);
 
   // Ears: left 3x1x2 at (45, 0), right 3x1x2 at (67, 0)
   const leftEarGeo = new THREE.BoxGeometry(0.1875, 0.0625, 0.125);
   applyVanillaBoxUVs(leftEarGeo, 45, 0, 128, 128, 3, 1, 2);
   const leftEar = new THREE.Mesh(leftEarGeo, coatMat);
   leftEar.position.set(0.24, 0.35, -0.05);
-  head.add(leftEar);
+  headMesh.add(leftEar);
 
   const rightEarGeo = new THREE.BoxGeometry(0.1875, 0.0625, 0.125);
   applyVanillaBoxUVs(rightEarGeo, 67, 0, 128, 128, 3, 1, 2);
   const rightEar = new THREE.Mesh(rightEarGeo, coatMat);
   rightEar.position.set(-0.24, 0.35, -0.05);
-  head.add(rightEar);
+  headMesh.add(rightEar);
 
   // Eyes: dummy meshes for test compatibility (eyes are painted on the head sides in camel.png)
   const eyes = [];
@@ -468,7 +475,7 @@ export function createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat) {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), eyeMat);
     eye.position.set(side * 0.22, 0.08, 0.28);
     eye.visible = false;
-    head.add(eye);
+    headMesh.add(eye);
     eyes.push(eye);
   }
 
@@ -482,13 +489,14 @@ export function createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat) {
   const legs = [];
   for (const spec of legSpecs) {
     const legGeo = new THREE.BoxGeometry(0.3125, 1.3125, 0.3125);
+    legGeo.translate(0, -1.3125 / 2, 0);
     applyVanillaBoxUVs(legGeo, spec.uv[0], spec.uv[1], 128, 128, 5, 21, 5);
     const leg = new THREE.Mesh(legGeo, coatMat);
-    leg.position.set(spec.pos[0], 0.65625, spec.pos[1]);
+    leg.position.set(spec.pos[0], 1.3125, spec.pos[1]);
     group.add(leg);
 
     const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.32), hoofMat);
-    hoof.position.y = -0.6;
+    hoof.position.y = -1.25;
     hoof.visible = false;
     leg.add(hoof);
     legs.push(leg);
@@ -509,7 +517,8 @@ export function createCamelModel(coatMat, humpMat, bellyMat, hoofMat, eyeMat) {
   saddle.visible = false;
   group.add(saddle);
 
-  return { group, body, belly, hump, neck, head, muzzle, eyes, legs, tail, saddle };
+  const head = headGroup;
+  return { group, body, belly, hump, neck, head, headMesh, muzzle, eyes, legs, tail, saddle };
 }
 
 /**

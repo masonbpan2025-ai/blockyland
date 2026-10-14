@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { parseTracker, validateTracker, structureSlug } from '../src/structureAuditTracker.js';
+import { parseTracker, validateTracker, cardsForRow, structureSlug } from '../src/structureAuditTracker.js';
 import { STRUCTURE_AUDIT_CARDS } from '../src/structureAuditCards.js';
 import { auditStructure } from '../src/structureAudit.js';
 
@@ -24,8 +24,10 @@ test('the real tracker is valid, and every GAME-VERIFIED structure really passes
   const { problems } = validateTracker(rows, { cardIds, evidenceFiles });
   assert.deepEqual(problems, []);
   for (const row of rows.filter((r) => r.status === 'GAME-VERIFIED' || r.status === 'AUDITED')) {
-    const result = await auditStructure(row.slug, { mode: 'world', seed: 20250401 });
-    assert.equal(result.rows.filter((fact) => fact.status === 'fail').length, 0, `${row.name} fails its audit`);
+    for (const id of cardsForRow(row)) {
+      const result = await auditStructure(id, { mode: 'world', seed: 20250401 });
+      assert.equal(result.rows.filter((fact) => fact.status === 'fail').length, 0, `${row.name} (${id}) fails its audit`);
+    }
   }
 });
 
@@ -33,7 +35,7 @@ test('SENSITIVITY: dishonest rows are rejected', () => {
   const check = (line, options = { cardIds, evidenceFiles }) => validateTracker(parseTracker(table(line)), options).problems;
   assert.match(check('| 1 | Swamp Hut | 1 | ok | ok | ~ | ok | - | - | `GAME-VERIFIED` | x |').join('\n'), /cont = ok/);
   assert.match(check('| 1 | Swamp Hut | 1 | ok | ok | ok | ok | - | - | `AUDITED` | x |').join('\n'), /vis = ok/);
-  assert.match(check('| 1 | Jungle Pyramid | 1 | ok | ok | ok | ok | ok | ok | `AUDITED` | x |').join('\n'), /spec card/);
+  assert.match(check('| 1 | Imaginary Tower | 1 | ok | ok | ok | ok | ok | ok | `AUDITED` | x |').join('\n'), /spec card/);
   assert.match(check('| 1 | Swamp Hut | 1 | ok | ok | ok | ok | ok | ok | `AUDITED` | x |', { cardIds, evidenceFiles: () => [] }).join('\n'), /evidence/);
   assert.match(check('| 1 | Swamp Hut | 1 | ok | ok | ok | ok | ok | ok | `DONE` | x |').join('\n'), /unknown status/);
   assert.match(check('| 1 | Swamp Hut | 1 | great | ok | ok | ok | ok | ok | `IN PROGRESS` | x |').join('\n'), /spec cell/);

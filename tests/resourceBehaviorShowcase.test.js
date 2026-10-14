@@ -14,8 +14,12 @@ test('the same Inspector scenarios verify fuel, smelting, collection, blocking, 
     const visits = [];
     const run = new ResourceBehaviorShowcase({ entry: { blockId }, session, onStep: step => visits.push(step.id) });
     finish(run);
-    assert.equal(run.results.length, 14);
-    assert.deepEqual(run.results.filter(r => r.status !== 'observed'), []);
+    // The furnace's own fourteen steps all pass; the wiki parity steps (resourceWikiAudit.js) that now run first
+    // may be not-applicable, but none fails.
+    const own = run.results.filter(r => !r.id.startsWith('wiki-'));
+    assert.equal(own.length, 14);
+    assert.deepEqual(own.filter(r => r.status !== 'observed'), []);
+    assert.deepEqual(run.results.filter(r => ['not observed', 'error'].includes(r.status)), []);
     for (const id of ['load-fuel', 'ignite', 'smelt', 'collect-output', 'blocked-output', 'lava-bucket', 'extinguish', 'break-contents']) assert.ok(visits.includes(id), id);
     assert.equal(session.furnaceManager.furnaces.size, 0);
     assert.equal(session.world.getVoxel(8, 2, 8), BLOCKS.AIR);
@@ -50,7 +54,9 @@ test('Stop freezes progression, and restarting uses fresh state without leaking 
   session.reset();
   const restart = new ResourceBehaviorShowcase({ entry: { blockId: BLOCKS.FURNACE }, session });
   finish(restart);
-  assert.equal(restart.results.filter(r => r.status !== 'observed').length, 0);
+  // Every step passes, apart from wiki parity steps that do not apply to a furnace (none fails).
+  assert.equal(restart.results.filter(r => r.status !== 'observed' && !r.id.startsWith('wiki-')).length, 0);
+  assert.equal(restart.results.filter(r => ['not observed', 'error'].includes(r.status)).length, 0);
 });
 
 test('scenario errors are reported and do not stop later checks', () => {

@@ -330,32 +330,34 @@ export function createFrogModel(bodyMat, bellyMat, eyeMat, options = {}) {
   tongue.visible = false;
   head.add(tongue);
 
-  // Long folded hind legs with webbed feet
+  // Long folded hind legs with webbed feet, pivoting at hip joint (y = 0.20)
   const hindGeo = new THREE.BoxGeometry(0.14, 0.12, 0.34);
+  hindGeo.translate(0, -0.06, 0);
   const footGeo = new THREE.BoxGeometry(0.16, 0.02, 0.16);
   const legs = [];
   for (const side of [-1, 1]) {
     const hind = new THREE.Mesh(hindGeo, bodyMat);
-    hind.position.set(side * 0.20, 0.14, -0.16);
+    hind.position.set(side * 0.20, 0.20, -0.16);
     hind.rotation.y = side * 0.45;
 
     const foot = new THREE.Mesh(footGeo, bodyMat);
-    foot.position.set(0, -0.06, 0.10);
+    foot.position.set(0, -0.12, 0.10);
     hind.add(foot);
 
     group.add(hind);
     legs.push({ mesh: hind, side, front: false });
   }
 
-  // Small forelegs with webbed hands
+  // Small forelegs with webbed hands, pivoting at shoulder joint (y = 0.20)
   const foreGeo = new THREE.BoxGeometry(0.09, 0.20, 0.09);
+  foreGeo.translate(0, -0.10, 0);
   const handGeo = new THREE.BoxGeometry(0.13, 0.02, 0.13);
   for (const side of [-1, 1]) {
     const fore = new THREE.Mesh(foreGeo, bodyMat);
-    fore.position.set(side * 0.14, 0.10, 0.26);
+    fore.position.set(side * 0.14, 0.20, 0.26);
 
     const hand = new THREE.Mesh(handGeo, bodyMat);
-    hand.position.set(0, -0.09, 0.04);
+    hand.position.set(0, -0.19, 0.04);
     fore.add(hand);
 
     group.add(fore);

@@ -17,9 +17,11 @@ import { updatePackEquine } from '../src/packEquine.js';
 
 const session=type=>{const s=createMobDebugSession(new THREE.Scene());s.reset(type);return s;};
 const tick=(s,seconds)=>{for(let t=0;t<seconds-1e-9;t+=1/60)s.tick(1/60);};
+// A scenario steps as MobShowcase steps it: its update hook (if any), then the session.
+const run=(s,c)=>{for(let t=0;t<c.duration-1e-9;t+=1/60){c.update?.(s,t,1/60);s.tick(1/60);}};
 for(const type of ['donkey','mule']) {
   for(const c of mobScenarios(type))test(`inspector ${type}: ${c.id}`,()=>{
-    const s=session(type);s.startPosition=s.mob.mesh.position.clone();c.setup(s);tick(s,c.duration);assert.ok(c.check(s),c.label);assert.equal(s.manager.brokenMobs.has(s.mob),false);
+    const s=session(type);s.startPosition=s.mob.mesh.position.clone();c.setup(s);run(s,c);assert.ok(c.check(s),c.label);assert.equal(s.manager.brokenMobs.has(s.mob),false);
   });
   test(`${type} showcase resets and completes every case`,()=>{
     const s=session(type),show=new MobShowcase(s);show.start(type);

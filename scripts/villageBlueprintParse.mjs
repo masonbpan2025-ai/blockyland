@@ -84,6 +84,8 @@ function parseOne(body, title) {
     if (/^\}\}/.test(line) || /^\{\||^==/.test(line)) break; // a page that forgets its closing braces
     if (!current) {
       if (line.startsWith('|')) readTokens(line.slice(1));
+      // A legend line may also start without its pipe (the End city's room pages).
+      else if (/^[^|=\s]=/.test(line.trim())) readTokens(line.trim());
       else if (!name && line.trim()) name = line.trim();
       continue;
     }

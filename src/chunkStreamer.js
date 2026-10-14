@@ -192,7 +192,8 @@ export class ChunkStreamer {
     for (const chunk of world.chunks.values()) {
       const dx = Math.abs(chunk.cx - pcx);
       const dz = Math.abs(chunk.cz - pcz);
-      if (Math.max(dx, dz) > this.unloadRadius) {
+      // A chunk /forceload marked stays (commandState.forced).
+      if (Math.max(dx, dz) > this.unloadRadius && !this.game?.commandState?.forced?.has(`${chunk.cx},${chunk.cz}`)) {
         this.unloadChunk(chunk);
         unloaded++;
       }

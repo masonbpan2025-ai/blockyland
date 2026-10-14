@@ -262,10 +262,11 @@ test('a structure the engine has no generator for is NOT enabled', (t) => {
   // A name that plans nothing while the world reports it as on is worse than not accepting it.
   const generatable = generatableStructureIds();
   assert.ok(generatable.includes('jungle_pyramid'));
-  assert.ok(!generatable.includes('mineshaft'), 'the engine cannot generate a mineshaft');
+  // Every registry structure has a generator now; ids from outside the registry (a newer version's abandoned camp,
+  // a made-up one) are the ones a pack can name that the engine cannot build.
+  assert.ok(!generatable.includes('abandoned_camp'), 'the engine cannot generate an abandoned camp');
   applyFor(t, {
-    'data/t/worldgen/structure/mineshaft.json': { type: 'minecraft:mineshaft' },
-    'data/t/worldgen/structure/stronghold.json': { type: 'minecraft:stronghold' },
+    'data/t/worldgen/structure/abandoned_camp.json': { type: 'minecraft:abandoned_camp' },
     'data/t/worldgen/structure/not_a_structure.json': { type: 'minecraft:nope' },
   });
   assert.deepEqual(enabledStructureIds(), [...WORLD_STRUCTURE_IDS],

@@ -38,7 +38,6 @@ export const FOODS = {
   melon_slice: {hunger:2,saturation:1.2},
   mushroom_stew: {hunger:6,saturation:7.2},
   mutton: {hunger:2,saturation:1.2},
-  ominous_bottle: {hunger:1,saturation:0.2},
   poisonous_potato: {hunger:2,saturation:1.2},
   porkchop: {hunger:3,saturation:1.8},
   potato: {hunger:1,saturation:0.6},

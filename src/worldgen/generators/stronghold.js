@@ -266,7 +266,7 @@ function tryBuild(random, sx, sy, sz) {
           const localFacing = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : (dz > 0 ? 'back' : 'front');
           set(p, lx, ly, lz, random.nextFloat() < EYE_CHANCE ? 'end_portal_frame_filled' : 'end_portal_frame', { facing: face(p, localFacing) });
           set(p, lx, ly - 1, lz, 'stone_bricks');
-        } else if (c.name === 'monster_spawner') set(p, lx, ly, lz, 'spawner', null, { id: 'minecraft:mob_spawner', SpawnData: { entity: { id: 'minecraft:silverfish' } } });
+        } else if (c.name === 'spawner') set(p, lx, ly, lz, 'spawner', null, { id: 'minecraft:mob_spawner', SpawnData: { entity: { id: 'minecraft:silverfish' } } });
         else if (c.name === 'stone_brick_stairs') set(p, lx, ly, lz, 'stone_brick_stairs', { facing: face(p, 'front'), half: 'bottom' });
         else set(p, lx, ly, lz, c.name === 'stone_bricks' ? wall() : c.name);
       }

@@ -218,7 +218,10 @@ test('the table only covers items nothing else produces', () => {
   const bare = registry({ fresh: true, smelting: SMELTING_RECIPES });
   for (const id of ALL_CODE_ITEMS) {
     const entry = bare.entries.get(id);
-    const dataSources = entry.recipesAsResult.length + entry.smeltingFrom.length + entry.brewingFrom.length
+    // The three tipped arrows are also crafted now (eight arrows around a lingering potion, adopted from the wiki
+    // by wikiRecipeFixes.js); their mob drop is still only in code, so their recipes do not count against them.
+    const crafted = id.startsWith('tipped_arrow_') ? 0 : entry.recipesAsResult.length;
+    const dataSources = crafted + entry.smeltingFrom.length + entry.brewingFrom.length
       + entry.lootFrom.length + entry.droppedBy.length + entry.smithingFrom.length;
     assert.equal(dataSources, 0, `${id} now has a data source, so it should leave interactionSources.js`);
   }

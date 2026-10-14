@@ -103,7 +103,11 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
   const inWater = hazards.getVoxel(cell.x, cell.y, cell.z) === waterId;
   if (inWater && !(isPackEquine(mob)&&mob.rider)) return true;
   // Deep drops were already avoided; keep that.
-  return !hazards.isSolid(cell.x, cell.y - 1.05, cell.z);
+  // A step is supported if there is solid ground at floor level (cell.y - 1)
+  // or a single-block step down (cell.y - 2). A drop of 2+ blocks is refused.
+  const hasFloor = hazards.isSolid(cell.x, cell.y - 1, cell.z)
+    || hazards.isSolid(cell.x, cell.y - 2, cell.z);
+  return !hasFloor;
 }
 
 /**
@@ -297,7 +301,7 @@ export function moveGroundMob(manager, mob, dt) {
     for (const [axis, speed] of [['x', vx], ['z', vz]]) {
       if (Math.abs(speed) < 0.001) continue;
       const candidate = pos.clone(); candidate[axis] += speed * step;
-      const cell = { x: Math.floor(candidate.x), y: Math.floor(candidate.y), z: Math.floor(candidate.z) };
+      const cell = { x: Math.floor(candidate.x), y: Math.floor(candidate.y + 0.1), z: Math.floor(candidate.z) };
       // Veto harm before anything else. This has to come first: lava, fire and powder snow
       // are authored with solid:false, so collision() is false for them and a check placed
       // after the collision split would never run.

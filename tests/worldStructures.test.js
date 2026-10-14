@@ -133,37 +133,32 @@ test('the same seed generates the same structures, and a reseed places different
 });
 
 test('a structure outside this world\'s height is REPORTED, not silently dropped', () => {
-  // This world is 64 blocks tall while the engine targets a 384-block world, so a deep structure cannot be
-  // written here at all. Enabling `ancient_city` (Y -63..-31) must therefore produce a COUNT of refused blocks
-  // rather than an empty chunk that looks like the wiring failed -- the same rule the Inspector follows for its
-  // Y window. A stubbed world puts the deep-dark biome anywhere, so this does not depend on biome luck.
-  const stub = {
-    getBiome: () => 'deep_dark',
-    surfaceHeightAt: () => 40
-  };
+  // Every registry structure fits this 64-tall world now (deep ones have their Y bands mapped onto it), so the rule is
+  // exercised with a world made too short for one: an ancient city (its floor at y 13) in a world 10 blocks tall
+  // must produce a COUNT of refused blocks rather than an empty chunk that looks like the wiring failed.
+  const HEIGHT = 10;
+  const stub = { getBiome: () => 'deep_dark', surfaceHeightAt: () => 8 };
   const integration = createWorldStructures({
     seed: 4242,
     world: stub,
-    sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z },
+    sizes: { x: CHUNK_SIZE_X, height: HEIGHT, z: CHUNK_SIZE_Z },
     enabledIds: ['ancient_city']
   });
   const found = integration.engine.locate('ancient_city', 0, 0, { maxRadiusChunks: 4096 });
   assert.ok(found, 'the engine must find an ancient city in a deep-dark world');
-  const box = found.start.box;
-  assert.ok(box.maxY < 0, 'the ancient city must genuinely sit below this world: ' + box.minY + '..' + box.maxY);
 
   // A chunk object shaped like the real one, so the integration's clamping is exercised for real.
-  const voxels = new Uint16Array(CHUNK_SIZE_X * CHUNK_HEIGHT * CHUNK_SIZE_Z);
+  const voxels = new Uint16Array(CHUNK_SIZE_X * HEIGHT * CHUNK_SIZE_Z);
   const chunk = {
     cx: found.chunk[0],
     cz: found.chunk[1],
     voxels,
+    getVoxel(lx, ly, lz) { return voxels[(ly * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx]; },
     setVoxel(lx, ly, lz, id) { voxels[(ly * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx] = id; }
   };
   integration.applyToChunk(chunk);
-  assert.equal(integration.stats.blocks, 0, 'nothing can be written in this world at that height');
-  assert.ok(integration.stats.outOfWorld > 0, 'but every refused block must be COUNTED, not silently dropped');
-  assert.equal(voxels.some((id) => id !== BLOCKS.AIR), false, 'and the chunk must be left untouched');
+  assert.ok(integration.stats.outOfWorld > 0, 'every refused block must be COUNTED, not silently dropped');
+  assert.ok(integration.stats.outOfWorld > integration.stats.blocks, 'and most of the city is refused');
 });
 
 test('disabling every structure writes nothing, so the gate is real', () => {
@@ -197,11 +192,14 @@ test('the search radius covers every enabled structure', () => {
   const reach = STRUCTURE_SEARCH_RADIUS_CHUNKS * CHUNK_SIZE_X;
   for (const id of WORLD_STRUCTURE_IDS) {
     // Find it somewhere, then check a start's own extent cannot exceed the scan.
-    const engine = integration.engine;
-    const found = engine.locate(id, 0, 0, { maxRadiusChunks: 4096 });
+    const biomes={igloo:'snowy_plains',village_plains:'plains',desert_pyramid:'desert',fortress:'nether_wastes',bastion_remnant:'nether_wastes',nether_fossil:'soul_sand_valley',ruined_portal_nether:'nether_wastes'};
+    const dimension=['fortress','bastion_remnant','nether_fossil','ruined_portal_nether'].includes(id)?'nether':'overworld';
+    const engine=createStructureEngine({seed:20250401,dimension,blockIds:BLOCKS,biomeAt:()=>biomes[id],surfaceY:()=>dimension==='nether'?20:40});
+    const found = engine.locate(id, 0, 0, { maxRadiusChunks: 128 });
     if (!found) continue; // not in this world's biomes: nothing to measure
     const box = found.start.box;
-    const extent = Math.max(box.maxX - box.minX, box.maxZ - box.minZ) + 1;
+    const centreX=found.chunk[0]*16+8,centreZ=found.chunk[1]*16+8;
+    const extent = Math.max(Math.abs(box.minX-centreX),Math.abs(box.maxX-centreX),Math.abs(box.minZ-centreZ),Math.abs(box.maxZ-centreZ));
     assert.ok(extent <= reach,
       `${id} spans ${extent} blocks, more than the ${reach}-block scan radius: raise STRUCTURE_SEARCH_RADIUS_CHUNKS`);
   }

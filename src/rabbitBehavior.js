@@ -392,49 +392,53 @@ export function createRabbitModel(bodyMat, patchMat, eyeMat) {
   tail.rotation.x = -0.35;
   group.add(tail);
 
-  // Front legs (short): 2x7x2 at (0, 15) right, (8, 15) left.
+  // Front legs (short): 2x7x2 at (0, 15) right, (8, 15) left, pivoting at hip joint (y = 0.14)
   const rfGeo = rabbitBoxGeo(0.06, 0.14, 0.06, 0, 15, 2, 7, 2);
+  rfGeo.translate(0, -0.07, 0);
   const rf = new THREE.Mesh(rfGeo, bodyMat);
-  rf.position.set(-0.065, 0.07, 0.10);
+  rf.position.set(-0.065, 0.14, 0.10);
   rf.rotation.x = -Math.PI / 18;
   group.add(rf);
 
   const lfGeo = rabbitBoxGeo(0.06, 0.14, 0.06, 8, 15, 2, 7, 2);
+  lfGeo.translate(0, -0.07, 0);
   const lf = new THREE.Mesh(lfGeo, bodyMat);
-  lf.position.set(0.065, 0.07, 0.10);
+  lf.position.set(0.065, 0.14, 0.10);
   lf.rotation.x = -Math.PI / 18;
   group.add(lf);
 
-  // Hind legs (long): haunches 2x4x5 at (16, 15) right, (30, 15) left; feet 2x1x7 at (8, 24) right, (26, 24) left.
+  // Hind legs (long): haunches 2x4x5 at (16, 15) right, (30, 15) left; feet 2x1x7 at (8, 24) right, (26, 24) left, pivoting at hip joint (y = 0.135)
   const rhHaunchGeo = rabbitBoxGeo(0.06, 0.12, 0.16, 16, 15, 2, 4, 5);
+  rhHaunchGeo.translate(0, -0.06, 0);
   const rhHaunch = new THREE.Mesh(rhHaunchGeo, bodyMat);
-  rhHaunch.position.set(-0.08, 0.075, -0.12);
+  rhHaunch.position.set(-0.08, 0.135, -0.12);
   rhHaunch.rotation.x = -Math.PI / 9;
 
   const rhFootGeo = rabbitBoxGeo(0.06, 0.035, 0.22, 8, 24, 2, 1, 7);
   const rhFoot = new THREE.Mesh(rhFootGeo, bodyMat);
-  rhFoot.position.set(0, -0.045, 0.04);
+  rhFoot.position.set(0, -0.105, 0.04);
   rhFoot.rotation.x = Math.PI / 9;
   rhHaunch.add(rhFoot);
   group.add(rhHaunch);
 
   const lhHaunchGeo = rabbitBoxGeo(0.06, 0.12, 0.16, 30, 15, 2, 4, 5);
+  lhHaunchGeo.translate(0, -0.06, 0);
   const lhHaunch = new THREE.Mesh(lhHaunchGeo, bodyMat);
-  lhHaunch.position.set(0.08, 0.075, -0.12);
+  lhHaunch.position.set(0.08, 0.135, -0.12);
   lhHaunch.rotation.x = -Math.PI / 9;
 
   const lhFootGeo = rabbitBoxGeo(0.06, 0.035, 0.22, 26, 24, 2, 1, 7);
   const lhFoot = new THREE.Mesh(lhFootGeo, bodyMat);
-  lhFoot.position.set(0, -0.045, 0.04);
+  lhFoot.position.set(0, -0.105, 0.04);
   lhFoot.rotation.x = Math.PI / 9;
   lhHaunch.add(lhFoot);
   group.add(lhHaunch);
 
   const legs = [
-    { mesh: rf, side: -1, hind: false, baseY: 0.07 },
-    { mesh: lf, side: 1, hind: false, baseY: 0.07 },
-    { mesh: rhHaunch, side: -1, hind: true, baseY: 0.075 },
-    { mesh: lhHaunch, side: 1, hind: true, baseY: 0.075 }
+    { mesh: rf, side: -1, hind: false, baseY: 0.14 },
+    { mesh: lf, side: 1, hind: false, baseY: 0.14 },
+    { mesh: rhHaunch, side: -1, hind: true, baseY: 0.135 },
+    { mesh: lhHaunch, side: 1, hind: true, baseY: 0.135 }
   ];
 
   return { group, head, body, patchMesh, tail, ears, legs, eyes };

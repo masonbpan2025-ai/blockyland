@@ -85,7 +85,7 @@ test('an unrecognised difficulty falls back to normal', () => {
 });
 
 test('the four difficulties and two modes are the ones offered', () => {
-  assert.deepEqual([...GAME_MODES], ['survival', 'creative']);
+  assert.deepEqual([...GAME_MODES], ['survival', 'creative', 'adventure', 'spectator']);
   assert.deepEqual([...DIFFICULTIES], ['peaceful', 'easy', 'normal', 'hard']);
   assert.equal(DEFAULT_SETTINGS.gameMode, 'survival');
 });
@@ -196,8 +196,9 @@ test('the game mode changes through exactly one entry point', () => {
   assert.match(main, /setGameMode\(mode\) \{/, 'the game owns the transition');
   // `/gamemode` was moved into `commandRunner.js` by the command refactor; it reaches the same method
   // through the context rather than writing the field, which is what this assertion is really about.
-  assert.match(runner, /context\.setGameMode\?\.\('creative'\)/);
-  assert.match(runner, /context\.setGameMode\?\.\('survival'\)/);
+  // All four modes (gameModeRules.resolveGameMode) go through the one call.
+  assert.match(runner, /context\.setGameMode\?\.\(mode\)/);
+  assert.match(runner, /resolveGameMode\(parts\[1\]\)/);
   assert.equal(/gamemode\s*=\s*'/.test(runner), false,
     '/gamemode must not assign the field directly');
   assert.match(main, /this\.setGameMode\(next\)/, 'the in-game cycle goes through it');

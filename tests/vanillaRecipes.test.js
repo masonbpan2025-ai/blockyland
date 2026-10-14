@@ -43,7 +43,13 @@ test('generated recipes were merged into both grids', () => {
   assert.ok(GENERATED_RECIPE_COUNT > 300,
     `expected a few hundred generated recipes, got ${GENERATED_RECIPE_COUNT}`);
   // Every generated recipe is in 3x3, and the ones that fit 2x2 are in the inventory grid too.
+  // Except the few the wiki has replaced, which wikiRecipeFixes.js removes (the lead's slimeball, the lodestone's
+  // netherite ingot, the six-ingot copper trapdoor, three snow blocks giving snow blocks).
+  const gone = (r) => !RECIPES_3X3.includes(r) && !RECIPES_2X2.includes(r);
+  const removed = EXTRA_RECIPES.filter(gone);
+  assert.ok(removed.length <= 6, `only the replaced recipes are gone, not ${removed.length}`);
   for (const r of EXTRA_RECIPES) {
+    if (removed.includes(r)) continue;
     assert.ok(RECIPES_3X3.includes(r), 'every generated recipe must be in RECIPES_3X3');
   }
   // A recipe fits the inventory grid when it occupies at most 2x2 cells: a small pattern, or a
@@ -51,7 +57,7 @@ test('generated recipes were merged into both grids', () => {
   const fits2 = EXTRA_RECIPES.filter((r) => (r.shapeless
     ? r.ingredients.length <= 4
     : (r.pattern.length <= 2 && r.pattern[0].length <= 2)));
-  for (const r of fits2) {
+  for (const r of fits2.filter((x) => !removed.includes(x))) {
     assert.ok(RECIPES_2X2.includes(r), 'a recipe that fits 2x2 must also work in the inventory grid');
   }
   assert.ok(RECIPES_3X3.length > 400, `expected the merged list to be large, got ${RECIPES_3X3.length}`);
