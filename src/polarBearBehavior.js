@@ -291,16 +291,35 @@ export function canBreedPolarBear() {
   return false;
 }
 
-/** Wiki: a polar bear rears on its back legs to maul. */
+/** Diagonal walking pairs; quiet head exploration at rest; preserve the rearing maul. */
 export function posePolarBear(bear, phase = 0) {
   if (!bear) return;
   const rearing = !!bear.isMauling;
+  // The caller's clock advances by dt*6, even at rest. Locomotion must follow horizontal
+  // speed instead: the old index*0.4 phase offsets made all four legs paddle together.
+  const dt = Math.min(0.1, Math.max(0, (phase - (bear.polarPoseClock ?? phase - 0.1)) / 6));
+  bear.polarPoseClock = phase;
+  const speed = Math.hypot(bear.velocity?.x ?? 0, bear.velocity?.z ?? 0);
+  const amount = rearing || speed < 0.03 ? 0 : Math.min(1, speed / 1.2);
+  bear.polarWalkAmount = (bear.polarWalkAmount ?? 0) + (amount - (bear.polarWalkAmount ?? 0)) * (1 - Math.exp(-20 * dt));
+  bear.polarWalkPhase = (bear.polarWalkPhase ?? 0) + (rearing ? 0 : speed * dt * 5);
+  const swing = Math.sin(bear.polarWalkPhase) * 0.65 * bear.polarWalkAmount;
   if (bear.mesh) bear.mesh.rotation.x = rearing ? -0.45 : 0;
   if (bear.legs) {
     bear.legs.forEach((leg, index) => {
       if (!leg?.rotation) return;
-      leg.rotation.x = rearing ? -0.7 : Math.sin(phase + index * 0.4) * 0.35;
+      // Spawner order: front left, front right, back left, back right.
+      leg.rotation.x = rearing ? -0.7 : swing * [1, -1, -1, 1][index];
     });
+  }
+  if (bear.head?.rotation) {
+    const time = phase / 6;
+    const curious = !rearing && !bear.isHostile;
+    const yaw = curious ? (Math.sin(time * 0.7) * 0.45 + Math.sin(time * 1.6) * 0.12) * (1 - 0.65 * bear.polarWalkAmount) : 0;
+    const pitch = rearing ? -0.12 : curious ? Math.sin(time * 0.9) * 0.09 : 0;
+    const blend = 1 - Math.exp(-6 * dt);
+    bear.head.rotation.y += (yaw - bear.head.rotation.y) * blend;
+    bear.head.rotation.x += (pitch - bear.head.rotation.x) * blend;
   }
 }
 

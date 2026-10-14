@@ -12,6 +12,7 @@ import { executeTrade, unlockTradesForLevel } from './villagerEconomy.js';
 import { BLOCKS } from './blocks.js';
 import { universalScenarios } from './mobBehaviorScenarios.js';
 import { specificScenarios } from './mobSpecificScenarios.js';
+import { polarBearMotionScenarios } from './polarBearMotionScenarios.js';
 
 export function studioCatalog(library) {
   const existing=library.getAllMobs();
@@ -184,6 +185,7 @@ function baseScenarios(type,definition=null) {
 const CURATED=new Set('wither_skeleton squid glow_squid blaze strider horse donkey mule zombified_piglin zombie_pigman'.split(' '));
 export function mobScenarios(type,definition=null) {
   const own=baseScenarios(type,definition);
+  if(type==='polar_bear')own.unshift(...polarBearMotionScenarios());
   if(typeof type!=='string')return own;
   // Mobs with a hand-built suite keep exactly that suite: each of those is already 20-37 scenarios, all green.
   if(CURATED.has(type))return own;
