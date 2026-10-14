@@ -67,14 +67,16 @@ sections_structure.json
 # Authoritative campaign save journals
 saves/mod-games/
 
-# Audit screenshots and wiki images: kept on disk for the audits, not part of the repository.
-docs/structure-audit/**/*.png
-docs/structure-audit/**/*.jpg
-docs/structure-audit/**/*.jpeg
-docs/structure-audit/**/*.gif
-docs/structure-audit/**/*.webp
-docs/mob-visual-evidence/*.png
-docs/mob-visual-evidence/*.jpg
+# Audit, research and parity reports, their screenshots and data: kept on disk, not part of the repository.
+# The guides, architecture notes and test inputs listed in the tree stay tracked; anything new under docs/
+# needs `git add -f`.
+docs/
+survival-bot-audit.jpg
+.cache-*.txt
+scripts/block-parity/game-blocks.txt
+scripts/block-parity/missing-vs-vanilladata.txt
+scripts/block-parity/report.json
+scripts/parity-audit/report.json
 
 # Claude Code's local, per-user settings
 .claude/
