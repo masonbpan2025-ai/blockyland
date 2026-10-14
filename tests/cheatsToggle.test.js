@@ -34,7 +34,7 @@ const refusal = (said) => said.find(m => /do not have permission/.test(m.text));
 test('the commands that change the world are gated, and the ones that do not are not', () => {
   // `gate` is what makes the permission check fire. Without it on some command the check is dead code.
   const gated = COMMANDS.filter(c => c.gate === true).map(c => c.name).sort();
-  assert.deepEqual(gated, ['gamemode', 'give', 'locate', 'redstone', 'setblock', 'show_mobs', 'summon', 'time', 'weather']);
+  assert.deepEqual(gated, ['gamemode', 'give', 'locate', 'redstone', 'setblock', 'show_mobs', 'summon', 'teleport', 'time', 'weather']);
 
   // Save-file management is level 2 in vanilla but NOT a cheat here, because `/maps` is now the only route to
   // the map loader -- the pause menu button that opened it was replaced by this toggle.
@@ -238,15 +238,18 @@ test('the toggle writes the setting through the one authority', () => {
 });
 
 test('the label is a readout of state, not of the last click', () => {
-  // Cheats can also be changed from the Agent Terminal, and the mode from `/gamemode`, so a label painted only
+  // Cheats can also be changed programmatically, and the mode from `/gamemode`, so a label painted only
   // on click goes stale.
   const ui = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   assert.match(ui, /refreshPauseMenuLabels\(\)/);
   assert.match(ui, /this\.refreshPauseMenuLabels\(\);\s*\n\s*\} else \{/, 'called when the menu opens');
-  const fn = ui.slice(ui.indexOf('refreshPauseMenuLabels() {'));
-  assert.match(fn.slice(0, 700), /settings\?\.cheats === true/);
-  assert.match(fn.slice(0, 700), /btn-cheats/);
-  assert.match(fn.slice(0, 700), /btn-gamemode/, 'and the mode label is refreshed with it');
+  const start = ui.indexOf('refreshPauseMenuLabels() {');
+  const end = ui.indexOf('bindInventoryEvents() {', start);
+  assert.ok(start >= 0 && end > start, 'the complete pause label method is present');
+  const fn = ui.slice(start, end);
+  assert.match(fn, /settings\?\.cheats === true/);
+  assert.match(fn, /btn-cheats/);
+  assert.match(fn, /btn-gamemode/, 'and the mode label is refreshed with it');
 });
 
 test('a Creative world shows Cheats: ON without anyone clicking', () => {

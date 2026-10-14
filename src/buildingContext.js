@@ -216,7 +216,7 @@ export function formatBuildingContext(info) {
     }).join('\n')
     : '  - no opening was detected at ground level; the building is enclosed.';
 
-  return `STRUCTURE STUDIO (the Building Studio) — the building currently open for editing:
+  return `BUILDING STUDIO — the building currently open for editing:
 "${info.name}" (id: studio_${info.id})
 THIS is the building to edit. For any change to it use targetBuilding "studio_${info.id}", or the exact name "${info.name}". NEVER invent a structure id (also called a building id): an id that is not shown here does not exist and the request will fail with "Structure not found".${info.description ? ` — ${info.description}` : ''}
 Blocks: ${info.blockCount}. Size: ${info.size.width} wide (X) x ${info.size.height} tall (Y) x ${info.size.depth} deep (Z).

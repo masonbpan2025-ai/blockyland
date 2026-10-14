@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "structure": "jungle_pyramid",
+  "seed": "20250401",
+  "chunk": [
+    15,
+    -25
+  ],
+  "biome": "jungle",
+  "box": {
+    "minX": 240,
+    "minY": 26,
+    "minZ": -400,
+    "maxX": 254,
+    "maxY": 39,
+    "maxZ": -389
+  },
+  "pieces": 1,
+  "blocks": {
+    "Mossy Cobblestone": 591,
+    "Cobblestone": 566,
+    "Dirt": 112,
+    "Jungle Leaves": 112,
+    "Grass Block": 56,
+    "Jungle Log": 27,
+    "Oak Leaves": 26,
+    "Cobblestone Stairs": 24,
+    "Redstone Wire": 15,
+    "Stone": 9,
+    "Tripwire": 5,
+    "Tripwire Hook": 4,
+    "Lever": 3,
+    "Chiseled Stone Bricks": 3,
+    "Sticky Piston": 3,
+    "Vine": 3,
+    "Chest": 2,
+    "Oak Log": 2,
+    "Dispenser": 2,
+    "Gold Ore": 1,
+    "Repeater": 1
+  },
+  "loot": {
+    "chests": 2,
+    "empty": 2,
+    "totals": []
+  },
+  "entities": {
+    "chest": 2
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 16,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

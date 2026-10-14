@@ -1,3 +1,5 @@
+import { discoverMods } from './mods/loader.js';
+import { captureWeatherState, restoreWeatherState } from './weatherClock.js';
 import { serializeWitherSkeleton, restoreWitherSkeleton } from './witherSkeleton.js';
 // Which designed world owns a map is decided by the mod table, not by a name written in this file.
 import { resolveWorldMechanism } from './mods/loader.js';
@@ -101,6 +103,8 @@ export function serializeWorld(game, mapName = 'World 1') {
 
   const mapData = {
     redstone: game.world.redstone?.serialize() || [],
+    // Which way a structure's doors, beds, chests and stairs face; the voxels hold only the block ids.
+    structureOrientations: game.world.serializeOrientations?.() ?? [],
     format: 'minecraft-web-map',
     // Bumped to the schema these captures come from. `migrateSave` brings older files forward on load.
     version: SAVE_VERSION,
@@ -110,11 +114,9 @@ export function serializeWorld(game, mapName = 'World 1') {
     mechanismName: game.mechanisms?.currentMechanism?.name || 'Default',
     savedAt: new Date().toISOString(),
     seed: game.world.seed,
+    generationMode: game.world.generationMode || (game.world.isFlatWorld ? 'flat' : 'procedural'),
     worldTime: Math.round(game.worldTime),
-    weather: {
-      isRaining: Boolean(game.weather?.isRaining),
-      rainIntensity: Number((game.weather?.rainIntensity || 0).toFixed(2))
-    },
+    weather: captureWeatherState(game.weather),
     // Everything Survival keeps that v1 did not write down.
     session: captureSessionState(game),
     player: {
@@ -141,6 +143,8 @@ export function serializeWorld(game, mapName = 'World 1') {
     inventory: captureInventoryState(game.inventory),
     chunks: chunksData,
     mobs: mobsData,
+    // Wall paintings: canvas, facing and the air cell they hang from. Older saves have none.
+    paintings: game.paintings?.serialize?.() ?? [],
     gemini: {
       builtStructures: (game.geminiAgent?.builtStructures || []).map(s => ({
         id: s.id,
@@ -167,7 +171,44 @@ export function serializeWorld(game, mapName = 'World 1') {
  * Deserializes map data and completely reconstructs the world progressively with yields to browser.
  * This drives the progress overlay with granular percentages and stage descriptions.
  */
+// Pause the old simulation before loading the mod or yielding. Only publish ready after
+// terrain, entities, meshes and controls have all been restored.
+function startMapLoad(game) {
+  game.worldReady = false;
+  if (game.lifecycle) Object.assign(game.lifecycle, {
+    phase: 'loading', startedAt: Date.now(), finishedAt: 0, error: null,
+  });
+  game.streamer?.reset?.();
+}
+
+function finishMapLoad(game) {
+  game.worldReady = true;
+  if (game.lifecycle) Object.assign(game.lifecycle, {
+    phase: 'ready', finishedAt: Date.now(), error: null,
+  });
+}
+
+function configureMapTerrain(game, mapData, worldType) {
+  const mode = worldType === 'designed' ? 'authored'
+    : mapData.generationMode || (worldType === 'building_studio' ? 'authored' : 'procedural');
+  game.world.generationMode = mode;
+  game.world.isFlatWorld = mode === 'flat';
+}
+
 export async function deserializeWorldAsync(game, mapData, options = {}) {
+  if (!mapData?.chunks) throw new Error('Invalid map file format: missing chunks data');
+  startMapLoad(game);
+  try {
+    return await restoreWorldAsync(game, mapData, options);
+  } catch (error) {
+    if (game.lifecycle) Object.assign(game.lifecycle, {
+      phase: 'failed', finishedAt: Date.now(), error: error.message,
+    });
+    throw error;
+  }
+}
+
+async function restoreWorldAsync(game, mapData, options = {}) {
   if (!mapData || !mapData.chunks) {
     throw new Error('Invalid map file format: missing chunks data');
   }
@@ -181,24 +222,18 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
 
   // Which MOD owns this world, decided from the mod table rather than from a name written here.
   //
-  // This used to read `mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default')`, so the core
+  // This used to read `mapData.mechanism || (isModWorld ? 'dragonball_tournament' : 'default')`, so the core
   // knew one designed world by name. The mechanism now comes from whichever mod's manifest claims this map,
   // and `openDesignedWorld` loads that mod -- which is what registers the mechanism -- before it is set.
   const resolved = game.openDesignedWorld
     ? await game.openDesignedWorld(mapData)
     : { mechanismId: mapData.mechanism || 'default', modId: null };
-  const isTournament = Boolean(resolved.modId) ||
-                       Boolean(mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
-  const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
+  const isModWorld = Boolean(resolved.modId);
+  const targetWorldType = mapData.worldType || (isModWorld ? 'designed' : 'generated');
   const targetMechanismId = resolved.mechanismId;
   game.worldType = targetWorldType;
   game.worldGenerated = true;
-  game.worldReady = true;
-  if (game.lifecycle) {
-    game.lifecycle.phase = 'ready';
-    game.lifecycle.finishedAt = Date.now();
-    game.lifecycle.error = null;
-  }
+  configureMapTerrain(game, mapData, targetWorldType);
 
   // 1. Clean up old chunk meshes from the 3D scene
   for (const chunk of game.world.chunks.values()) {
@@ -252,8 +287,11 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
 
   for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
   game.world.redstone?.restore(mapData.redstone);
+  game.world.restoreOrientations?.(mapData.structureOrientations);
   await report(58, 'Initialising fluids & redstone');
   await yieldFn();
+
+  game.world.invalidateChunkCache?.();
 
   // 6. Restore player state
   if (mapData.player) {
@@ -262,7 +300,7 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    if (isTournament) {
+    if (isModWorld) {
       game.player.setGameMode?.('survival');
       game.player.isFlying = false;
     } else {
@@ -299,7 +337,7 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     game.worldTime = mapData.worldTime;
   }
   if (mapData.weather && game.weather?.setWeather) {
-    game.weather.setWeather(mapData.weather.isRaining ? 'rain' : 'clear');
+    restoreWeatherState(game.weather, mapData.weather);
   }
   await report(66, 'Restoring player & inventory');
   await yieldFn();
@@ -336,6 +374,9 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     }
     await yieldFn();
   }
+
+  // 9b. Paintings hang on blocks, so they go back after the chunks and before the meshes.
+  game.paintings?.restore?.(mapData.paintings);
 
   // 10. Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
@@ -384,28 +425,12 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
   if (game.mechanisms) {
     game.mechanisms.setMechanism(targetMechanismId, game, mapData);
   } else {
-    if (game.tournament) {
-      game.tournament.reset();
-      if (isTournament) {
-        game.tournament.isTournamentMap = true;
-        game.tournament.ensureHost();
-      } else {
-        game.tournament.isTournamentMap = false;
-        game.tournament.cleanup?.();
-      }
-    }
-    if (game.dragonballSkills) game.dragonballSkills.reset();
-    if (game.trainingSites) {
-      game.trainingSites.reset();
-      if (isTournament) game.trainingSites.ensureSiteManagers();
-      else game.trainingSites.cleanup?.();
-    }
-    if (game.dungeonMode) game.dungeonMode.reset();
+    game.modRuntime?.activate?.(mapData);
   }
 
   // 14. Reset controls and close modals
   if (game.player) {
-    game.player.controlsDisabled = false;
+    game.player.controlsDisabled = Boolean(game.modRuntime?.exclusiveSimulation);
     game.player.isSleeping = false;
     game.player.keys = {};
   }
@@ -418,6 +443,7 @@ export async function deserializeWorldAsync(game, mapData, options = {}) {
     document.activeElement.blur();
   }
 
+  finishMapLoad(game);
   return true;
 }
 
@@ -438,7 +464,7 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   // Which MOD owns this world, decided from the mod table rather than from a name written here.
   //
-  // This used to read `mapData.mechanism || (isTournament ? 'dragonball_tournament' : 'default')`, so the core
+  // This used to read `mapData.mechanism || (isModWorld ? 'dragonball_tournament' : 'default')`, so the core
   // knew one designed world by name. The mechanism now comes from whichever mod's manifest claims this map,
   // and `openDesignedWorld` loads that mod -- which is what registers the mechanism -- before it is set.
   // This function is SYNCHRONOUS, so it cannot load the mod itself -- the async wrapper above does that
@@ -447,20 +473,13 @@ export function deserializeWorld(game, mapData, options = {}) {
   const resolved = game.modLoader
     ? resolveWorldMechanism(game.modLoader, mapData)
     : { mechanismId: mapData.mechanism || 'default', modId: null };
-  const isTournament = Boolean(resolved.modId) ||
-                       Boolean(mapData.gemini?.builtStructures?.some(s => s.type === 'tournament_arena' || s.id?.includes('tournament')));
-  const targetWorldType = mapData.worldType || (isTournament ? 'designed' : 'generated');
+  const isModWorld = Boolean(resolved.modId);
+  const targetWorldType = mapData.worldType || (isModWorld ? 'designed' : 'generated');
   const targetMechanismId = resolved.mechanismId;
   game.worldType = targetWorldType;
   game.worldGenerated = true;
-  // Marks the world as safe to enter, so the entry point does not hide the
-  // progress overlay while blocks are still being restored.
-  game.worldReady = true;
-  if (game.lifecycle) {
-    game.lifecycle.phase = 'ready';
-    game.lifecycle.finishedAt = Date.now();
-    game.lifecycle.error = null;
-  }
+  startMapLoad(game);
+  configureMapTerrain(game, mapData, targetWorldType);
 
   // 1. Clean up old chunk meshes from the 3D scene
   for (const chunk of game.world.chunks.values()) {
@@ -510,6 +529,8 @@ export function deserializeWorld(game, mapData, options = {}) {
   game.world.redstone?.restore(mapData.redstone);
   report(60, 'Initialising fluids');
 
+  game.world.invalidateChunkCache?.();
+
   // 6. Restore player state
   if (mapData.player) {
     const p = mapData.player;
@@ -517,7 +538,7 @@ export function deserializeWorld(game, mapData, options = {}) {
     game.player.velocity.set(p.velocity?.x || 0, p.velocity?.y || 0, p.velocity?.z || 0);
     game.player.yaw = p.yaw ?? Math.PI;
     game.player.pitch = p.pitch ?? -0.05;
-    if (isTournament) {
+    if (isModWorld) {
       game.player.setGameMode?.('survival');
       game.player.isFlying = false;
     } else {
@@ -568,7 +589,7 @@ export function deserializeWorld(game, mapData, options = {}) {
     game.worldTime = mapData.worldTime;
   }
   if (mapData.weather && game.weather?.setWeather) {
-    game.weather.setWeather(mapData.weather.isRaining ? 'rain' : 'clear');
+    restoreWeatherState(game.weather, mapData.weather);
   }
 
   const restoredMobs=[];
@@ -604,6 +625,9 @@ export function deserializeWorld(game, mapData, options = {}) {
     const vehicle=mapData.mobs[i].striderVehicle;
     if(Number.isInteger(vehicle)&&restoredMobs?.[vehicle]?.type==='strider'&&restoredMobs[i])attachStriderPassenger(restoredMobs[vehicle],restoredMobs[i]);
   }
+  // 9b. Paintings hang on blocks, so they go back after the chunks.
+  game.paintings?.restore?.(mapData.paintings);
+
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
     game.geminiAgent.builtStructures = mapData.gemini.builtStructures || [];
@@ -642,36 +666,12 @@ export function deserializeWorld(game, mapData, options = {}) {
   if (game.mechanisms) {
     game.mechanisms.setMechanism(targetMechanismId, game, mapData);
   } else {
-    // Fallback if mechanism manager not attached
-    if (game.tournament) {
-      game.tournament.reset();
-      if (isTournament) {
-        game.tournament.isTournamentMap = true;
-        game.tournament.ensureHost();
-      } else {
-        game.tournament.isTournamentMap = false;
-        game.tournament.cleanup?.();
-      }
-    }
-    if (game.dragonballSkills) {
-      game.dragonballSkills.reset();
-    }
-    if (game.trainingSites) {
-      game.trainingSites.reset();
-      if (isTournament) {
-        game.trainingSites.ensureSiteManagers();
-      } else {
-        game.trainingSites.cleanup?.();
-      }
-    }
-    if (game.dungeonMode) {
-      game.dungeonMode.reset();
-    }
+    game.modRuntime?.activate?.(mapData);
   }
 
   // 14. Ensure player controls and UI are completely clean and responsive after world load
   if (game.player) {
-    game.player.controlsDisabled = false;
+    game.player.controlsDisabled = Boolean(game.modRuntime?.exclusiveSimulation);
     game.player.isSleeping = false;
     game.player.keys = {};
   }
@@ -690,6 +690,7 @@ export function deserializeWorld(game, mapData, options = {}) {
     document.activeElement.blur();
   }
 
+  finishMapLoad(game);
   return true;
 }
 
@@ -709,18 +710,11 @@ export async function getDefaultPathInfo() {
   return 'saves/ (Local Computer Folder)';
 }
 
-export const CURATED_DESIGNED_WORLDS = [
-  {
-    name: 'World Martial Arts Tournament',
-    filename: 'World_Martial_Arts_Tournament.json',
-    description: 'Authentic Tenkaichi Budokai arena with 4 training sites, Goku Ki skills (Kamehameha/Genki Dama), Jackie Chun boss battle, and 2-Player mode.',
-    worldType: 'designed',
-    mechanism: 'dragonball_tournament',
-    mechanismName: 'Dragon Ball World Tournament',
-    gamemode: 'survival',
-    path: 'designed_worlds/World_Martial_Arts_Tournament.json'
-  }
-];
+export const CURATED_DESIGNED_WORLDS = discoverMods().mods.flatMap(mod => mod.maps.map(filename => ({
+  name: mod.name, filename, description: mod.description, worldType: 'designed',
+  mechanism: mod.mechanism, mechanismName: mod.name, gamemode: 'survival',
+  path: mod.mapUrls?.[filename],
+})));
 
 /**
  * List all designed maps from the designed_worlds folder.
@@ -759,7 +753,7 @@ export async function loadDesignedWorld(game, filename, options = {}) {
   // 2. Try static public path fallback
   if (!mapData) {
     try {
-      const res = await fetch(`/designed_worlds/${encodeURIComponent(filename)}`);
+      const res = await fetch(CURATED_DESIGNED_WORLDS.find(world => world.filename === filename)?.path ?? `/designed_worlds/${encodeURIComponent(filename)}`);
       if (res.ok) {
         mapData = await res.json();
       }

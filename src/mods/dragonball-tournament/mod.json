@@ -10,8 +10,9 @@
   ],
   "provides": {
     "mobs": [
-      { "id": "tournament_host", "name": "Tournament Host", "health": 20, "hostile": false, "dimensions": { "width": 0.6, "height": 1.95 } },
-      { "id": "jackie_chun", "name": "Jackie Chun", "health": 60, "hostile": true, "dimensions": { "width": 0.6, "height": 1.85 } }
+      { "id": "site_manager", "name": "Training Site Master", "health": 100, "hostile": false, "dimensions": { "width": 0.6, "height": 1.95 } },
+      { "id": "tournament_host", "name": "Tournament Host", "health": 100, "hostile": false, "dimensions": { "width": 0.6, "height": 1.95 } },
+      { "id": "jackie_chun", "name": "Jackie Chun", "health": 100, "hostile": true, "dimensions": { "width": 0.6, "height": 1.85 } }
     ],
     "managers": [
       { "id": "tournament", "name": "Tournament Manager" },

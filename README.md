@@ -1,82 +1,224 @@
-# Minecraft in the browser
+# Minecraft in the Browser
 
-Run `npm install` and `npm run dev`, then open http://localhost:3000.
+A from-scratch, Minecraft-style voxel game that runs entirely in the browser (three.js + Vite, plain JavaScript, no game server required). It pairs a **survival-faithful Minecraft 1.21.4 replica** — terrain, biomes, structures, redstone, brewing, enchanting, dozens of mobs with ported AI — with things most voxel projects don't have: an **LLM world agent** that edits the world from natural-language requests, an in-game **Building Studio**, a **data-pack runtime**, a **mod/game-package system** with an authoritative server model, and a **bot-driven parity test suite** that checks the game against the Minecraft Wiki.
 
-## AI world editing
+```sh
+npm install
+npm run dev        # http://localhost:3000
+```
 
-Press **C** to open the AI World Agent terminal. Open **⚙️ Settings**, pick a vendor, pick a model, and save that vendor's API key. Keys and choices are stored in this browser's localStorage and requests go directly from the browser to the vendor — no proxy. The status pill shows **DEEPSEEK READY**, **CHATGPT READY**, **GEMINI READY**, **OFFLINE**, or **ERROR**.
+Requires Node.js 22+ (tested on 24). `npm run dev` regenerates the mod catalog automatically.
+
+---
+
+## Contents
+
+- [Key features](#key-features)
+- [How it differs from Luanti and Minecraft Web Client](#how-it-differs-from-luanti-and-minecraft-web-client)
+- [AI world agent](#ai-world-agent)
+- [Mods and designed worlds](#mods-and-designed-worlds)
+- [Sharing a world](#sharing-a-world)
+- [Engine performance](#engine-performance)
+- [Lighting, water and effects](#lighting-water-and-effects)
+- [Testing](#testing)
+- [Repository layout](#repository-layout)
+- [Documentation index](#documentation-index)
+- [Known limits](#known-limits)
+
+---
+
+## Key features
+
+**Gameplay replica (target: Java Edition 1.21.4)**
+- Procedural worlds with seeded, order-independent chunk generation, many biomes, caves, oceans (including warm-ocean reefs) and trees across ten species plus huge mushrooms.
+- Structure generators ported from the game's own logic: villages, pillager outposts, ancient cities, bastions, end cities, mansions, monuments, trial chambers, trail ruins, shipwrecks, ruined portals, pyramids, igloos and more (`src/worldgen/`, with a jigsaw system and NBT template support).
+- Survival systems: hunger, durability, status effects, crafting, smelting, brewing, enchanting, anvils, smithing, villager trading and a raid system, beds, fishing, farming, elytra, beacons, nether and end portals, boss fights, weather and day/night.
+- A large mob roster, each with its own behavior module (animals, hostile mobs, nether and aquatic mobs, villagers, the wandering trader, golems, bosses) plus a natural mob-spawning engine built around a tick clock and a light engine.
+- Flowing water with sources, seven flow levels, falling water, buckets and currents; lava-to-obsidian interaction.
+- Redstone, rails, and an Inspector for browsing mobs, blocks, items and structures in isolation.
+- Creative and survival modes, difficulty levels, game rules and a `/give`-style command layer.
+
+**Beyond a replica**
+- **AI World Agent** — press **C** and describe what you want built, edited or removed. The model sees the terrain around you and a screenshot of your view. See [AI world agent](#ai-world-agent).
+- **Player bot** — a scriptable bot that drives the *real* player (physics, raycasting, mining times, tool checks, drops) using A* pathfinding. No API key needed for built-in commands.
+- **Building Studio** — design, save and reuse your own buildings in-game, on an invisible ground in empty space.
+- **Data packs** — import/paste vanilla-style JSON data packs and apply or revert them in a running world.
+- **Mod / game-package system** — namespaced content, dependency and engine-version checks, and a server-authoritative game model (a Web Worker locally, a Node host online). Two example packages ship in `src/mods/`.
+- **Share a world with a link** — *Share This World* gives you a link; friends click it and join your world directly from their browsers (peer to peer, your computer is the server, up to 8 players). See [Sharing a world](#sharing-a-world).
+- **Import/export layer** — a canonical block-state model with Sponge `.schem` and vanilla structure NBT codecs, plus a `.mcworld` exporter. Format-specific code is confined to `src/io/`.
+- **Test-first parity work** — 21 documented defects found and fixed by comparing against the Minecraft Wiki through both deterministic Node probes and a headless-browser bot, with open gaps listed honestly.
+
+---
+
+## How it differs from Luanti and Minecraft Web Client
+
+These projects solve different problems. This table is about intent, not quality.
+
+| | **This project** | **[Luanti](https://www.luanti.org/)** (ex-Minetest) | **[Minecraft Web Client](https://github.com/zardoy/minecraft-web-client)** |
+| --- | --- | --- | --- |
+| **What it is** | A Minecraft-1.21.4-style game *and* a small package platform, in the browser | A general-purpose voxel **game engine**; the look and rules come from the installed game | A vanilla-compatible **client** (plus integrated singleplayer server) for real Java servers |
+| **Runs as** | Static web app + optional Node helpers; no install for players | Native app (desktop, Android); servers run separately | Web app; needs a TCP→WebSocket proxy to reach Java servers |
+| **Gameplay source** | Reimplemented locally: worldgen, mobs, redstone, brewing, etc. | Whatever game you choose (e.g. Luanti Game, community games) | The Java server's world and rules, or its built-in server |
+| **Primary goal** | Faithful, self-contained survival sandbox you can extend and test | Moddable engine for *many different* voxel games | Play on existing Minecraft servers from a browser tab |
+| **Extending it** | JS packages with manifests, dependencies and an authoritative session; LLM agent; data packs; Building Studio | Lua mods, server-side, via ContentDB | Resource packs, Mineflayer plugins |
+| **Language** | JavaScript (ES modules), three.js | Engine in native code; Lua for content | TypeScript, three.js, Mineflayer/Prismarine |
+| **AI building** | Built in: LLM agent with terrain and screenshot context, plus offline presets | Not part of the engine | Mineflayer-based bots possible |
+| **Real Minecraft servers** | No: worlds are shared between browsers peer to peer through a link, with your computer as the server | No (different protocol) | Yes, its main purpose (1.8–1.21.5) |
+| **Verification** | Wiki-parity test passes with recorded defects and open gaps | Mature, community-maintained | Maintained upstream (currently in maintenance mode) |
+
+**Where each is the better choice**
+- Pick **Luanti** to build a *different* voxel game with a mature native engine, Lua mod ecosystem and server-side content distribution. This project deliberately does not embed Lua, copy its package format or let servers push arbitrary code to clients.
+- Pick **Minecraft Web Client** to join real Java servers or open real world saves in a browser. This project's local world is its own replica, not Java server state, and it does not connect to Java servers.
+- Pick **this project** when you want a hackable, readable, single-language Minecraft-like in the browser with deep survival parity, LLM-assisted building, authored/designed worlds and a test suite you can trust to catch regressions.
+
+Luanti and Minecraft Web Client facts above come from their public documentation and READMEs; both projects evolve, so check them for current details. The design notes in [`docs/voxel-engine-plan.md`](docs/voxel-engine-plan.md) and [`docs/mod-system.md`](docs/mod-system.md) record what this project learned from reading Luanti, noa, Voxelize and prismarine-viewer.
+
+---
+
+## AI world agent
+
+Press **C** to open the agent terminal. In **⚙️ Settings**, pick a vendor, model and API key. Keys and choices live in your browser's `localStorage`; requests go directly from the browser to the vendor, with no proxy.
 
 | Vendor | Default model | Default effort | Key |
 | --- | --- | --- | --- |
-| **DeepSeek** (default) | `deepseek-flash` (DeepSeek-V4.1-Flash) | `high` | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| **DeepSeek** (default) | `deepseek-flash` | `high` | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
 | ChatGPT | `gpt-6-astra` | `medium` | [platform.openai.com](https://platform.openai.com/api-keys) |
 | Gemini | `gemini-3.8-flash` | not applicable | [aistudio.google.com](https://aistudio.google.com/apikey) |
 
-Each vendor keeps its own key, model, and reasoning effort. Switching vendors never clears another vendor's settings. Reasoning effort (`minimal`…`max`) is sent to DeepSeek and ChatGPT and hidden for Gemini. A pre-existing `gemini_api_key` from the older Gemini-only build is adopted automatically. Set `VITE_DEEPSEEK_MODEL`, `VITE_OPENAI_MODEL`, or `VITE_GEMINI_MODEL` in `.env.local` to override a default model, then restart Vite.
+Each vendor keeps its own key, model and reasoning effort. Override defaults with `VITE_DEEPSEEK_MODEL`, `VITE_OPENAI_MODEL` or `VITE_GEMINI_MODEL` in `.env.local` and restart Vite.
 
-Every prompt is sent with the recent conversation turns, stable structure IDs, names, positions, attachments, **the local terrain around the player, and a live screenshot of the player's current first-person view**. That means spatial requests work:
+Each prompt carries recent conversation turns, stable structure IDs, names and positions, the local terrain, and (optionally) a downscaled screenshot of your first-person view, so spatial requests work:
 
 - “Build a lighthouse overlooking the water.”
 - “Replace its stone walls with brick, keeping the windows.”
 - “Bridge that gap in front of me.”
-- “Add a viewing platform to the lighthouse.”
 - “Destroy the lighthouse.”
 
-Wires used: DeepSeek and ChatGPT use OpenAI-compatible `POST /chat/completions` with `response_format: {"type":"json_object"}` (DeepSeek also sends `thinking: {"type":"enabled"}` with `reasoning_effort`); Gemini uses `generateContent` with `responseMimeType: application/json`. The player's view is captured from the WebGL canvas, downscaled to 1024 px and JPEG-encoded before being attached; uncheck the settings checkbox to send world state only.
+**Safety by design:** the agent returns validated JSON plans for the game's own actions; it never executes model-generated JavaScript. Structures track the blocks they change, so removal restores the originals while preserving later player edits.
 
-**Progress and long requests.** Every request is streamed, so the terminal shows the model's reasoning as it arrives — one live `🧠 thinking (12.3s)` line that reports the elapsed time, the reasoning-token count and the final trace. A status line updates every 0.5 s with either "waiting for DeepSeek to start responding" or how long it has been receiving output, and the progress bar creeps forward while the model thinks, so a slow request is never indistinguishable from a hang.
+**Streaming and long requests:** responses stream, with live reasoning display, elapsed time and a progress bar. Requests abort only after 60 s of silence. If a model exhausts its output budget while thinking, the agent retries once with thinking off. HTTP failures explain what to do (bad key, no credit, rate limit, unavailable model).
 
-Output budgets allow for reasoning: DeepSeek gets 64K tokens in thinking mode (its documented default) and 8K with thinking off, ChatGPT 32K. Reasoning tokens are billed against that budget, so if a model still exhausts it while thinking and returns no JSON, the agent **retries once with thinking mode off** instead of failing. A request is aborted only after 60 s of complete silence (not a total-duration limit), and HTTP failures say what to do — rejected key, no credit, rate limit, or unavailable model. Uncheck "show live thinking" in ⚙️ Settings to hide the reasoning display.
+**Offline mode** (⚙️ Settings or `/offline`) switches to a built-in preset planner without deleting your key. It is not a language model: it handles preset builds (e.g. “build a lighthouse”, “destroy it”) and basic world commands. With no key at all the status reads **NO KEY**; API errors never silently fall back to offline presets.
 
-### Offline mode
+**Player bot commands** (no key needed): `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`, `equip stone pickaxe`, `bot status`, `stop bot`. Details and limits in [`docs/player-bot.md`](docs/player-bot.md).
 
-**Offline Mode** in ⚙️ Settings (or the `/offline` chat command) switches the agent to the built-in preset planner without deleting anything. Your API key, vendor, model and effort stay saved, no requests are sent, and the status pill reads **OFFLINE MODE**. Press the highlighted **✓ Offline Mode** button or run `/offline` again to hand control back to the API. The choice persists across reloads, and because it is separate from the key, "no key yet" (**NO KEY**) and "deliberately offline" never look the same. Offline mode is not a language model: it handles the preset builds and basic world commands listed below.
+---
 
-The planner supports custom voxel builds, edits in place, removal, stairs, water, mobs, weather, time, inventory, and compound requests. It can answer or ask for clarification when a request cannot be represented by the available game actions. It does not execute model-generated JavaScript.
+## Mods and designed worlds
 
-Structures track the blocks they change, including foundations and attachments. Removal restores the original blocks while preserving later player changes whose block values differ. Memory lasts for the current world session; reloading resets both the world and agent memory. Large structure snapshots are explicitly marked when truncated.
+The engine/game/package split follows ideas from Luanti (engine hosts separately installed games) and Fabric/Bedrock (manifests, `namespace:path` identities, dependency and version metadata), implemented in JavaScript.
 
-Without a key, the status shows **NO KEY**. This mode provides limited preset commands, including “build a lighthouse” followed by “destroy the lighthouse” or “destroy it”. It is not a language model. Free-form requests need a key for the selected vendor. API errors remain visible and never silently execute an offline substitute.
+- **Layers:** engine (chunks, meshing, rendering, collision, ticks) → base game (Minecraft-style content) → packages (rules, maps, presentation) → world instances (seed, state, save).
+- **Packages** live in `src/mods/<id>/` with a `mod.json` manifest. `npm run mods:generate` validates them and emits the catalog; deleting a package and regenerating removes it from the build.
+- **Authority:** a package's rules run in an isolated `createGame()` factory — in a Web Worker for local play or on a Node host online (30 Hz ticks, snapshot then deltas, bounded input packets). Clients render declarative scene definitions.
+- **Examples:** `rescue-adventure` (a two-hero co-op campaign with five biomes) and `dragonball-tournament`.
+- **Trust model:** packages are trusted, build-installed code. This is not a sandbox for downloaded code, and there is no marketplace installer.
 
-## Lighting and visual effects
+Start with [`docs/mod-system.md`](docs/mod-system.md), [`docs/mod-api.md`](docs/mod-api.md) and [`docs/creating-mods.md`](docs/creating-mods.md).
 
-Torches and redstone/soul torches use centered 3D models. All emitting blocks in this game's catalog register colored lights: lava, glowstone, sea lantern, torch, redstone torch, redstone lamp, enchanting table, lit furnace and soul torch. Lit Furnace and Soul Torch are in the creative functional-blocks tab. Ordinary furnaces stay unlit; the existing redstone lamp remains always on (there is no redstone power simulation).
+---
 
-Emission strengths follow the [Minecraft light-emission reference](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/blockreference/examples/blockcomponents/minecraftblock_light_emission?view=minecraft-bedrock-stable). This implements the game's catalog, not every block/conditional state in the full Minecraft Wiki category.
+## Sharing a world
 
-The eight nearest exposed block lights within 40 blocks illuminate terrain, mobs, pickups and water and cast filtered shadows. Other emitting blocks remain visibly emissive. This fixed budget avoids allocating a six-face shadow map for every torch or lava voxel. Sun shadows cover a 64-block square around the player, with a warm yellow sun disc. Change `MAX_BLOCK_LIGHTS` in `src/lighting.js` to adjust the local-light budget.
+Play with a few friends in your world, with nothing to install and no account to make.
 
-Collectibles use actual block atlas textures or crossed item silhouettes, bob and rotate, and wait one second before pickup. Breaking grass drops a brown dirt block; logs preserve their wood textures. TNT has its own textured fuse animation, smoke, a brief light flash, an expanding pressure ring, sparks and textured debris. Temporary explosion meshes are removed after their animation.
+1. Open the pause menu (or the start screen) and choose **Share This World**.
+2. Copy the link and send it to your friends.
+3. They click it. They are in your world.
 
-With the development server running, open `/tests/visual-effects.html` for a reproducible day/night, pickup and TNT preview. **Blast snapshot** freezes the real explosion update shortly after detonation for inspection.
+Your computer is the server: friends connect straight to your browser, not to a service in the middle, so keep your tab open while they play. Up to 8 players. Blocks, players and chat are shared; see [`docs/sharing.md`](docs/sharing.md) for exactly what is, how a link reaches friends on another network (it needs the game served from an address they can open), the security model and troubleshooting.
 
-## Flowing water and buckets
+```sh
+npm run dev      # friends on the same Wi-Fi: the share dialog lists links they can open
+npm run share    # build and serve the game plus the sharing service, for a tunnel or a server
+```
 
-Water now has sources (level 0), seven diminishing horizontal flow levels, and falling water. Updates run every 0.25 seconds, prefer falling and nearby downhill paths, stop at solid walls, and resume when a wall or floor breaks. Streams retract when their supply is removed; two adjacent sources can regenerate a source above a solid block or another source. These are based on the [Minecraft Wiki fluid rules](https://minecraft.wiki/w/Fluid). Like Minecraft, source blocks provide an infinite supply: breaking a tank releases a stream rather than emptying a finite reservoir.
+Java server play (`/multiplayer.html` and its bridge) was removed: this project focuses on sharing worlds peer to peer.
 
-Right-click a supporting block with a water bucket to pour; right-click source water with an empty bucket to collect it. Flowing water cannot fill a bucket. Survival exchanges one bucket at a time, while creative keeps its bucket. Streams have sloping surfaces, directional ripples, and currents that move players and floating pickups. Water washes away flowers/torches and solidifies the game's existing source lava into obsidian.
+---
 
-Water levels are saved alongside voxel data. Older saved aquariums/oceans load as source water and respond to newly opened holes. Fluid updates operate on loaded chunks, resume at newly loaded boundaries, and use a work budget to avoid blocking the browser. This implements core water behavior; it does not add Minecraft's absent systems such as waterlogging, bubble columns, or a full lava-flow simulation.
+## Engine performance
 
-Open `/tests/water-flow.html` on the development server to test aquarium breaches, buckets and drainage. The buttons use the production simulation and bucket code.
+Performance is measured, not assumed. Highlights from [`docs/voxel-engine-plan.md`](docs/voxel-engine-plan.md) (harness figures on one development machine; ratios matter more than absolutes):
 
-## Automated tests
+- Voxel lookup: 121 → **28 ns/call**; one-chunk mesh: 44 → **14 ms**.
+- Time-sliced meshing with a shared per-frame budget: frames over 16.7 ms while walking at view radius 8 fell from **16.1% → 0.2%**.
+- Chunk streaming with nearest-first ordering and real unloading keeps resident geometry bounded (≈6.5 MB on a long walk, down from 41 MB and growing).
+- Deterministic generation: chunks are byte-identical regardless of generation order.
+- Warm-ocean reef optimization cut underwater mean frame interval by 35% and draw calls by 42% ([`docs/reef-performance.md`](docs/reef-performance.md)).
 
-`npm test` runs regression tests with mocked Gemini responses and the real voxel execution code. Requires Node.js 22 or later with `--test-isolation=none` support (tested with Node.js 24).
+The docs also record what was measured and rejected, and the bugs that made earlier “done” claims false.
 
-`npm run build` creates the production bundle. The automated tests do not make billable API requests; live Gemini quality and account access require a configured key.
+---
 
-## World loading progress
+## Lighting, water and effects
 
-Generating a new world and loading a save both show a progress overlay with a
-percentage and the current stage ("Generating terrain — chunk 40/81", "Building
-meshes", "Decoding chunks"). The start button stays disabled until generation
-finishes, so you are never dropped into a half-built world.
+- Colored block lights (lava, glowstone, sea lantern, torches, redstone lamp, enchanting table, lit furnace, soul torch). The nearest eight exposed lights within 40 blocks cast filtered shadows; change `MAX_BLOCK_LIGHTS` in `src/lighting.js` to adjust the budget. Sun shadows cover a 64-block square around the player.
+- An optional **Lightweight Shader** adds bloom, water and atmosphere.
+- Water: sources, flow levels, falling water, buckets, currents; levels are saved with the world and updates are work-budgeted.
+- Pickups, textured TNT with smoke, light flash and debris.
+- Loading overlay with real progress: generation and meshing are batched with yields so the page never freezes.
 
-This is not just cosmetic. The work used to run as one synchronous block, which
-meant the browser had no chance to repaint: the start screen simply froze for a
-few seconds with no feedback. Terrain generation and meshing are now split into
-batches with a real yield to the browser between them, so the bar actually
-advances. `deserializeWorld()` remains synchronous for its callers and tests, but
-reports progress through an optional hook; the overlay is painted before that
-blocking call starts. See `src/progressOverlay.js`.
+Visual test pages: `/tests/visual-effects.html`, `/tests/water-flow.html` on the dev server.
+
+---
+
+## Testing
+
+```sh
+npm test                 # node --test, real voxel/execution code, mocked LLM responses
+npm run test:list        # list grouped suites
+npm run test:mob | test:agent | test:redstone | test:world | test:build | test:combat | test:render | test:persist
+npm run test:bot         # player-bot controller tests
+npm run test:bot:browser # Playwright: bot in a private arena in the real game
+npm run test:share:browser # Playwright: two real browsers join one world through a link
+npm run test:mods
+```
+
+Automated tests make no billable API calls. The parity suites combine a seeded Node probe with a headless-browser bot that reads real inventories, voxels and entities, and never trusts the bot's own success message. See [`docs/parity-testing-summary.md`](docs/parity-testing-summary.md) for the full record: defects fixed, and open issues with reasons.
+
+---
+
+## Repository layout
+
+```text
+index.html                      entry page (the game)
+src/                              game and engine modules (main.js, world.js, mesher.js, mobs, crafting, ...)
+src/worldgen/                     structure generators, jigsaw, NBT templates, terrain adaptation
+src/io/                           canonical model, NBT, Sponge/vanilla codecs, .mcworld export
+src/engine/                       engine services for authored/mod games
+src/mods/                         game packages, loader, registry, compatibility checks
+src/multiplayer/                world sharing: links, WebRTC session, remote players
+server/                           world relay, Java-server bridge, mod-game host
+public/datapacks, public/assets   bundled data packs and assets
+docs/                             architecture notes, parity reports, mod API
+tests/, e2e/, scripts/            unit, browser and tooling scripts
+```
+
+---
+
+## Documentation index
+
+| Topic | Docs |
+| --- | --- |
+| Engine design and benchmarks | `docs/voxel-engine-plan.md`, `docs/reef-performance.md` |
+| Mods | `docs/mod-system.md`, `docs/mod-api.md`, `docs/creating-mods.md` |
+| Sharing a world | `docs/sharing.md` |
+| Import/export | `docs/MINECRAFT_IO_ARCHITECTURE.md`, `_PARITY.md`, `_REFERENCES.md` |
+| Structures | `docs/STRUCTURE_ARCHITECTURE.md`, `STRUCTURE_PARITY.md` |
+| Mob spawning | `docs/MOB_SPAWNING_ARCHITECTURE.md`, `MOB_SPAWNING_PARITY.md` |
+| Per-mob parity | `docs/*-parity.md` |
+| Testing | `docs/parity-testing-summary.md`, `docs/test-determinism.md` |
+| Player bot, `/give` | `docs/player-bot.md`, `docs/give-command-agent-guide.md` |
+
+---
+
+## Known limits
+
+- Not a general voxel engine like Luanti, and not a Java-protocol client for its local worlds.
+- Targets Java 1.21.4 behavior; the parity report lists open gaps (for example, structures cannot yet span chunk borders, and some mob/system details remain).
+- No redstone power simulation for the always-on redstone lamp; no waterlogging, bubble columns or full lava flow.
+- Mod packages are trusted code.
+- Shared worlds are peer to peer: mobs, redstone, fluids and the clock run separately on each player's computer, and anyone holding the link can join until the host stops sharing. There is no kick or ban yet. See [`docs/sharing.md`](docs/sharing.md).
+- Bot limits: ore search within 24 blocks, no swimming or parkour, no crafting yet.
+- This is an unofficial fan project, not affiliated with Mojang or Microsoft. Third-party licenses (e.g. mineflayer-pathfinder) are preserved under `docs/licenses/` and `src/vendor/`. Add a top-level `LICENSE` before publishing.

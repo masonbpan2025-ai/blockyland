@@ -1,0 +1,33 @@
+<noinclude>{{structure info}}</noinclude>
+{{layered blueprint|name=ruin2_brick|default=Layer 0|g=gravel|c=chest|S=Stone Bricks|P=Polished Granite|C=chiseled Stone Bricks|M=magma block|m=Mossy cobblestone
+|----Layer 1|
+ggggggg
+ggggggg
+ggggMgg
+gcggggg
+ggggggg
+ ggMggg
+|----Layer 2|
+m      
+ S mSS 
+       
+ g  m S 
+ mS    
+    m S 
+|----Layer 3|
+       
+ m  mS 
+       
+       
+  S    
+      S
+
+
+
+
+
+}}<noinclude>
+[[fr:Ruines océaniques/Structure/Ruine 2 pierre taillée]]
+[[ja:海底遺跡/構造/石レンガの海底遺跡 2]]
+[[zh:海底废墟/结构/ruin2 brick]]
+</noinclude>

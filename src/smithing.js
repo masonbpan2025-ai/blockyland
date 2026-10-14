@@ -256,6 +256,33 @@ export function trimOf(item) {
 }
 
 /**
+ * The template id a player's short name means, or null when it names none.
+ *
+ * `netherite_upgrade` and `sentry_armor_trim` are how a player says it; the item ids are the full
+ * `..._smithing_template` names. Only the exact names of the 19 templates resolve, so a typo does not
+ * quietly become a different template.
+ */
+export function resolveSmithingTemplate(name) {
+  const clean = String(name ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+  for (const candidate of [clean, `${clean}_smithing_template`, `${clean}_armor_trim_smithing_template`]) {
+    if (candidate === NETHERITE_UPGRADE_TEMPLATE || TRIM_PATTERNS[candidate]) return candidate;
+  }
+  return null;
+}
+
+/**
+ * True when a dropped item survives lava and fire.
+ *
+ * The wiki lists "fire and lava resistance when dropped" among what a netherite upgrade gives. Every netherite
+ * item carries it -- the ingot, the gear -- and the id prefix is the rule, except the upgrade template, which is a
+ * template and burns like one. A trim does not change it: a
+ * non-netherite armour piece trimmed with netherite still burns, which is why this reads the id and not the trim.
+ */
+export function isFireproof(itemId) {
+  return typeof itemId === 'string' && itemId.startsWith('netherite_') && !itemId.endsWith('_smithing_template');
+}
+
+/**
  * True when an item is trimmed with gold, which is the one trim with a gameplay effect.
  *
  * The wiki: "Piglins do not pick up any gold-trimmed armor pieces and remain hostile toward players

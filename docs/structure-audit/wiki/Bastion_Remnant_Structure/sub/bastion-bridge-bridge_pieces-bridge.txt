@@ -1,0 +1,668 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/bridge_pieces/bridge</code> ===
+[[File:Bastion Remnant bridge.png|thumb|200px|<code>bastion/bridge/bridge_pieces/bridge</code>]]
+The double deck bridge. Only 1 generates per bastion.
+
+The slabs on gold statue when looking at it from the front are positioned as; Left-up & Right-down. 
+
+Stairs on gold statue pedestal are oriented as such when looking at it from the front;
+{{Sprite grid
+|A=magenta-glazed-terracotta
+|B=magenta-glazed-terracotta-down
+|C=magenta-glazed-terracotta-left
+|D=magenta-glazed-terracotta-right
+|E=Polished Blackstone Bricks
+|BBC
+|DEC
+|AAA
+}}
+
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-bridge_pieces-bridge
+|default=Layer 14
+|a=Polished Blackstone Bricks
+|b=blackstone-top
+|e=basalt-top
+|E=polished-basalt-top
+|G=Block of Gold
+|S=Polished Blackstone Brick Stairs
+|i=Iron Chain
+|I=Lantern
+|C=Chiseled Polished Blackstone
+|q=Block of Quartz
+|Q=Smooth Quartz Block
+|p=Smooth Quartz Slab
+|P=Smooth Quartz Slab -rot180
+|w=jigsaw-lock -rot180
+|z=jigsaw-top
+|Z=jigsaw-bottom
+|----Layer 1|
+ 
+ 
+ 
+ 
+ 
+ 
+  aaaaaZaaaaaaa
+  aaaaaaaaaaaaa
+  aaaaaaaaaaaaa
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ aaaabbZa
+ aaaaaaaa bba
+aaaaaaaaaaaaa
+|----Layer 2|
+ 
+ 
+ 
+ 
+ 
+ 
+   bbb bbb aaaa
+      abbaaabaa
+   a aabbababaa
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ aaaabbbb
+ aaaaaaaabbb
+ aaaaaaaaaaaaa
+|----Layer 3|
+ 
+ 
+ 
+ 
+ 
+ 
+          aaaaa
+      bbb bbaaa
+    a  bbbb baa
+        b
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+     b
+ 
+ aaaabbbbb bb
+aaaaaaaaabbaa a
+aaaaaaaaaaaaaaa
+|----Layer 4|
+   aaaaaaa
+   aaaaaaaa
+   aaaaaaaa
+   aaaaaaaa
+        aaa
+        aaa
+    aaaaaaa aaa
+     aaaaa  aaa
+     aaaab  baa
+    aa aa
+   aa  aa
+   aa   a
+   aaaaaa
+   aaaaaa
+    aaaab
+     aabba
+      abbaa
+      abbaa
+      bbba
+      bb
+     abb
+     ab
+    aab a
+   aabbaaaa
+aa aaaaaaaa ab
+aa aaaaaaaa aaa
+aa aaaaaaza aaa
+   aaaaaaaa
+   aaaa aaa
+   aaaa aaa
+    aaaaaa
+|----Layer 5|
+   aaa aa
+   aaaaaaa
+    aaaabbb
+   aababbbb
+        bba
+    b   bba
+     bbbbab aea
+     bbbab  aaa
+    bbbba   aaa
+   ab  ba
+   a   bb
+   ab  bb
+    abaab
+    ababb
+     bbab
+     aaa a
+      aabbb
+      bbbab
+      abbb
+     aab
+     aab
+     aba
+     aab
+    abaabab
+aa  aabbbbb aa
+aa abbbbaba aa
+aa ababbb a aaa
+   aababba
+   baaa
+    abaa
+    bbaaa
+|----Layer 6|
+ 
+ 
+ 
+ 
+ 
+ 
+      a     abe
+      aa    aaa
+      ab    aaa
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ a          aaa
+aa    aa    aaa
+aa    aa    aaa
+|----Layer 7|
+ 
+ 
+ 
+ 
+ 
+ 
+             ab
+      ba    aaa
+       a    aaa
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aa           aa
+aa     a     aa
+aa     a    aaa
+|----Layer 8|
+ 
+ 
+ 
+ 
+ 
+ 
+            aba
+       a    a a
+      aa    aaa
+ 
+ 
+ 
+  I        I
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+           I
+ 
+ 
+ 
+aa     a      a
+aa     a     aa
+aa     a    aaa
+ 
+ 
+  I        I
+|----Layer 9|
+ 
+ 
+ 
+ 
+ 
+ 
+      aa    b e
+      aa    aaa
+      aa    aaa
+ 
+ 
+ 
+  i        i
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+           i
+ 
+ 
+ 
+aa    aa
+aa    aa     aa
+aa     a    aaa
+ 
+ 
+  i        i
+|----Layer 10|
+ 
+ 
+ 
+  a aaaaaaaa
+  aaaaaaaaaa
+  aaaaaaaa a
+  aaaaaa   aa a
+  aaaaaa   aaaa
+  aaaaaa  aaaaa
+  aaaaaaaaaa
+  aaaaa aaaa
+  aaaaa  aaa
+  aaa     aa
+  aaa     aa
+  aaa     aa
+  aaaa    aa
+  aaaa   aaa
+  aaaa   aaa
+   aaaaaaaaa
+    aaaaaaaa
+    aaaaaaaa
+    aaaaaa
+    aaaaa
+    aaaaa
+aaa aaaaaa a
+aaa aaaaaaaa aa
+aaa aaaaaaaaaaa
+  aaaaaaaaa
+  aaaaaaaaa
+  aaaaaaaaaa
+   aaaaaaa
+|----Layer 11|
+ 
+ 
+ 
+    aaaaaaaa
+  aaaaaaabaa
+  aaaaaaa  b
+  aaaaaa   baaa
+   aaaaa   aaaa
+  aaaaaaa baaaa
+  aaaaaaaaaa
+  eeeeaaaaaa
+  eeeeaaaaae
+  eeeeaaaaaa
+ abeeea aaaa
+  bee   aaaa
+  beee   bae
+  bee    baa
+  beee   aaa
+  beee bbaae
+  eeeeaaaaae
+   eeeaaaaaa
+  eeeeaaaaaa
+    eeaaaa a
+  aaaaaaaa a
+baaaaaaaaaaa
+aaa aaaaaaaaaaa
+aaaaaaaaaaaaaaa
+  aaaaaaaaaa
+  aaaaaaaaaa
+  a bbaaaaaa
+   bbbaaaaa
+|----Layer 12|
+ 
+ 
+ 
+   abbbbbbaa
+  aaaaaaa ba
+  aaaaaaa  b
+  aaaaaab   aaa
+  aaaaaab  baaa
+  aaaaaaa baaaa
+   aaaaaaaaa
+  eeeeaaaaaa
+  eeeeaaaaae
+  eeeeaaaaae
+  bee   aaaa
+  bee   aaae
+   be     be
+   ee    bba
+   ee   bbbe
+   eeebbbba
+  eeeeaaabae
+   eeeaaaaae
+  eeeeaaaaaa
+  beeeaaaaaa
+  aaaaaaaaaa
+baaaaaaaaaba
+aaaaaaaaabbbaaa
+aaaaaaaaabbbaaa
+  aaaaaaaabb
+  aaaaaaaaaa
+  a   aaaaaa
+      baaaa
+|----Layer 13|
+ 
+ 
+           a
+    bbbbbbaa
+  a aaaaa  a
+ aaaaaaab   ab
+  aaaaaab   aaa
+  aaaaaa   baaaa
+  aaaabaa  aaaaa
+  aaaaaaaaaaaaaa
+  eeeeaaaaae
+  eeeeaaaaae
+  eeee aaaae
+   ee    aae
+   ee     ae
+    e      e
+   ee      e
+   ee
+   eeebb
+   eeeabb a
+   eeeabbbae
+  eeeeaabbaa
+  eeeeaaaaaa
+bbaaabaaaabb
+aaaaaaaaab baaa
+aaaaaaaab   aaaa
+aaaaaaaab   aaaa
+aaaaaaaabb  aaaa
+  a aaaabbba
+  b   baaaaa
+      baabaa
+|----Layer 14|
+ 
+ 
+          a
+    bbbbbb
+   abbabb
+  Eaabab   bb
+  ab bab   baa
+   bbbab    aaaa
+  aaba   b baaaa
+  ab b  bbbaaaaa
+  eebb  bbae
+  ee   abbbe
+    e   bbae
+    b     ab
+    b     e
+ 
+    b
+    be
+    eba
+    aba   e
+   ebb    b
+   eb  b  be
+  eaa  b   a
+bbaab  a    a
+QQaa  ab    aaaa
+qqaaE ab    aaaa
+qqa   ab    aaaa
+aa   baa    aaaa
+    bbaa
+      bb   a
+      bbb  w
+|----Layer 15|
+ 
+ 
+ 
+ 
+ 
+ 
+            b
+            aaa
+            aaa
+   E
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+EE          EEE
+EE          EEE
+EE          EEE
+|----Layer 16|
+ 
+ 
+ 
+ 
+ 
+ 
+            bCa
+            CaC
+            aCa
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+EE           EE
+E            EE
+E            EE
+|----Layer 17|
+ 
+ 
+ 
+ 
+ 
+ 
+            SSS
+            SaS
+            SSS
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+EE          EEE
+E            EE
+EE          EEE
+|----Layer 18|
+ 
+ 
+ 
+ 
+ 
+ 
+           PGGG
+            GGG
+           pGGG
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+E
+E
+EE
+|----Layer 19|
+ 
+ 
+ 
+ 
+ 
+ 
+            GG
+           GGG
+            GG
+}}
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 14 || {{BlockLink|Polished Blackstone Bricks}} || bridge_connector || - || - || -
+|-
+| Layer 4 || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 1 (both) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/bridge/legs || leg_connector || Aligned
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 1371
+| 21 + 27 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 316
+| 4 + 60 blocks
+|-
+| {{BlockLink|Basalt}}
+| 155
+| 2 + 27 blocks
+|-
+| {{BlockLink|Polished Basalt}}
+| 45
+| 
+|-
+| {{BlockLink|Block of Gold}}
+| 16
+| 
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 8
+| 
+|-
+| {{BlockLink|Iron Chain}}
+| 5
+| 
+|-
+| {{BlockLink|Lantern}}
+| 5
+| 
+|-
+| {{BlockLink|Chiseled Polished Blackstone}}
+| 4
+| 
+|-
+| {{BlockLink|Block of Quartz}}
+| 4
+| 
+|-
+| {{BlockLink|id=smooth quartz|Smooth Quartz Block}}
+| 2
+| 
+|-
+| {{BlockLink|Smooth Quartz Slab}}
+| 2
+| 
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 1
+| 
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

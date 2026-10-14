@@ -1,0 +1,321 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/rampart_plates/plate_0</code> ===
+[[File:Bastion Remnant plate_0.png|thumb|200px|<code>bastion/bridge/rampart_plates/plate_0</code>]]
+A wall on <code>bastion/bridge/ramparts/rampart_1</code>.
+
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-rampart_plates-plate_0
+|default=Layer 19
+|a=Polished Blackstone Bricks
+|A=Cracked Polished Blackstone Bricks
+|b=blackstone-top
+|e=basalt-top
+|w=jigsaw-lock -rot-90
+|----Layer 1|
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+a
+ 
+ 
+A
+ 
+ 
+ 
+a
+|----Layer 2|
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+a
+ 
+ 
+A
+A
+ 
+ 
+a
+|----Layer 3|
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+A
+ 
+ 
+a
+|----Layer 4-5|
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+|----Layer 6|
+a
+ 
+ 
+a
+a
+ 
+ 
+a
+ 
+ 
+ 
+a
+a
+ 
+ 
+a
+|----Layer 7|
+aa
+ a
+ a
+aa
+aa
+ a
+ a
+aa
+aa
+ a
+ a
+aa
+aa
+ a
+ a
+aa
+|----Layer 8-9|
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+aa
+|----Layer 10|
+aa
+aa
+aa
+aa
+aa
+aa
+AA
+AA
+aa
+aa
+aa
+aa
+aa
+aa
+ a
+aa
+|----Layer 11|
+aa
+aa
+aa
+aa
+aa
+aa
+ A
+AA
+aA
+AA
+aa
+aa
+aa
+ae
+aa
+aa
+|----Layer 12|
+aa
+aa
+aa
+aa
+aa
+aa
+Ab
+bb
+Ae
+bb
+aa
+aa
+aa
+ae
+aA
+aa
+|----Layer 13-14|
+aa
+ab
+ab
+aa
+aa
+aa
+bb
+be
+be
+bb
+aa
+aa
+aA
+ae
+ae
+AA
+|----Layer 15|
+aa
+ab
+ab
+ab
+aa
+aa
+be
+be
+be
+ b
+ae
+aA
+aA
+ae
+ae
+Ae
+|----Layer 16|
+ee
+ee
+aa
+ab
+ab
+ab
+ee
+ee
+ee
+ee
+ee
+ee
+ea
+ee
+ae
+be
+|----Layer 17|
+ee
+ee
+b
+bb
+bb
+ab
+ee
+ee
+ee
+ee
+ee
+ae
+ee
+ee
+ee
+ee
+|----Layer 18|
+ee
+ee
+ 
+ 
+ 
+ 
+e
+ee
+ee
+ee
+ 
+ 
+ 
+ 
+ee
+ee
+|----Layer 19|
+ 
+e
+ 
+ 
+ 
+ 
+ 
+w
+e
+ee
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 19 || {{BlockLink|Basalt}} || rampart_plate_connector || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 260
+| 4 + 4 blocks
+|-
+| {{BlockLink|Basalt}}
+| 82
+| 1 + 18 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 38
+| 
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 26
+| 
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

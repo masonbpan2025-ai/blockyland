@@ -1,0 +1,65 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/stairs/stairs_1_0</code> ===
+Stairs connecting floors of stables.
+[[File:hoglin stable stairs 1 0.png|thumb|200px|<code>bastion/hoglin_stable/stairs/stairs_1_0</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 180
+| 2 + 52 blocks
+|-
+| {{BlockLink|Basalt}}
+| 57
+|
+|-
+| {{BlockLink|Blackstone}}
+| 31
+|
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 18
+|
+|-
+| {{BlockLink|Magma Block}}
+| 6
+|
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 4
+|
+|-
+| {{BlockLink|Lantern}}
+| 3
+|
+|-
+| {{BlockLink|Polished Basalt}}
+| 3
+|
+|-
+| {{BlockLink|Blackstone Stairs}}
+| 1
+|
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

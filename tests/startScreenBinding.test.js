@@ -13,7 +13,7 @@ const START_BUTTONS = [
   'btn-start-new-world',
   'btn-start-designed-world',
   'btn-start-load-world',
-  'btn-start-structure-studio',
+  'btn-start-building-studio',
   // The four Inspector buttons are one button and a picker now, so the picker's own controls are bound here
   // too: they are on the start screen and they must be live from the first frame, like the rest.
   'btn-start-inspector',

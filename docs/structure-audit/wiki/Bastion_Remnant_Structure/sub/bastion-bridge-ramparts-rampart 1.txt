@@ -1,0 +1,659 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/ramparts/rampart_1</code> ===
+[[File:Bastion Remnant rampart_1.png|thumb|200px|<code>bastion/bridge/ramparts/rampart_1</code>]]
+The upper half of one side of the rampart. 2 of these generate per bastion.
+
+{| class="wikitable"
+|+ Stairs placement
+|-
+! Layer !! Going !! Orientation
+|-
+| 30-29
+| up
+| {{BlockSprite|magenta-glazed-terracotta-left}}
+|-
+| 28-22
+| up
+| {{BlockSprite|magenta-glazed-terracotta}}
+|-
+| 20-18
+| up
+| {{BlockSprite|magenta-glazed-terracotta-left}}
+|}
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-ramparts-rampart_1
+|default=Layer 32
+|a=Polished Blackstone Bricks
+|A=Cracked Polished Blackstone Bricks
+|S=Polished Blackstone Brick Stairs
+|b=blackstone-top
+|e=basalt-top
+|g=Gilded Blackstone
+|T=Chest
+|I=Lantern
+|z=jigsaw-top -rot90
+|x=jigsaw-top
+|Z=jigsaw-bottom
+|w=jigsaw-lock -rot-90
+|----Layer 1|
+Zbbbbbbbbbaaaaaa
+bbbbbbbbbbaaaaaa
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+|----Layer 2|
+bbbbbbbbbbaaaaaa
+bbbbbbbbbbaaaaaa
+bbbbbbbbbbaaaaaa
+bbbbbbbbbbbbaaaa
+bbbbbbbbbbbaaaaa
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbb  bbb
+bbbbbbbbbb   bbe
+bbbbbbbbbb   b b
+bbbbbbbbbb
+bbbbbbbbbb
+bbbbbbbbbbbbbb
+
+|----Layer 3|
+aaaaaaaaaaaaAAAA
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaa aa
+aaaaaaaaaaa   ae
+aaaaaaaaaa    ae
+aaaaaaaaaa   aaa
+aaaaaaaaaa    aa
+aaaaaaaaaa
+aaaaaaaaaaaaa
+|----Layer 4|
+  aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaazea
+aaaaaaaaaaaaaaee
+Aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaa
+aaaaaaaaaaaa  a
+aaaaaaaaaaaa aaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaa
+AaaaaaaaaaAe        
+|----Layer 5|
+  aaaaaaaAaaaaaa
+  aaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaee a
+aaaaaaaaaaaae
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+Aaaaaaaaaaaaa aa
+ aaaeaaaaaae  aa
+|----Layer 6|
+  AaaaaaaaAaaaae
+  aaaaaaaaaaaaaa
+  aaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaae
+aaaaaaaaaaaaa aa
+aaaaaaaaaaae   a
+aaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaaa
+ aaaaaaaaaaeeaaa
+  aaeaaaaA   eaa
+|----Layer 7|
+  aaaaaaaaaaaaae
+  aaaaaaaaaaaaae
+aaaaaaaaaaaaa aa
+aaaaaaaaaaaae ae
+aaaaaaaaaaaa  aa
+aaaaaaaaaaaa   a
+Aaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaeaaa
+Aaaaaaaaaae  eaa
+ Aaaeeaaaa    aa
+|----Layer 8|
+  aaaaaaaAaaaaae
+  aaaaaaaaaaaeee
+aAaaaaaaaaaaa ae
+aaaaaaaaaaaa  ae
+aaaaaaaaaaaa  ae
+aaaaaaaaaaaa  aa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaAA
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaa eaA
+aaaaaaaaaae   aa
+Aaaaeeaaaa    aa
+|----Layer 9|
+ AaaaAaaaaaaee
+Aaaaaaaaaaaaa
+aaaaaaaaaaaa  e
+aaaaaaaaaaaa  ae
+aaaaaaaaaaaa  ae
+aaaaaaaaaaaa aae
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaa  aa
+aaaaA aaaae   aa
+aaaee aaaa    aA
+|----Layer 10|
+Aaaaaaaaaaaa
+aaaaaaaaaaaa
+aaaaaaaaaaaa
+aaaaaaaaaaaa   e
+aaaaaaaaaaaaaaae
+Aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaa
+aaaaAaaaaa    aa
+aaae  eeae    ae
+|----Layer 11|
+aAaaaaaaabbb
+aaaaaaaaaaaa
+aaaaaaaaaaaa b
+aaaaaaaaaaaabb
+aaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaAAaaeaaaaaaaA
+aae   e a    AAe
+|----Layer 12|
+aaaaaAaaa bb
+aaaaaaaaabbb
+aaaaaaaaaaaabb
+aaaaaaaaaaaabb
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaAAaaaaaaaaaae
+aa      a   aaee
+|----Layer 13|
+ aaAaaaa
+aaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa  e
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaee
+Aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaae
+aaaAaaAAaaaaaaae
+AA      eaaaaAee
+|----Layer 14|
+aaaaaaab
+aaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaae
+aaaaaaaAaaaaaaee
+a       eaaAeeee
+|----Layer 15|
+aaaaaaa
+aaaaaaab
+eaaaaaaaab
+aaaaaaaaaa
+aaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+Aaaaaaaaaaaaaa
+aaaaaaaaaaaaaaA
+eaaaaaaaaaaaaaA
+aaaaaaaaaaaaaaAA
+aaaaaaaaaaaeeeee
+aaaaaaaaaaaeeeee
+eaAaaAAAeeaeeeee
+a       eeAAeeee
+|----Layer 16|
+aaAaaab
+eaaaaaa
+eaaaaaab
+aaaaaaaaab
+aaaaaaaaaabb
+eaaaaaaaaaaba
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaAA
+eaaaaaaaaaaaaAA
+aaaaaaaaaaaaaAA
+aaaaaaaaaaaeeeee
+eaaaaaaaaaaeeee
+eaaaAa Aeeaeee
+a        eeee
+|----Layer 17|
+Aaa bbb
+eaaaaab
+eaaaaab
+aaaaaaaab
+aaaaaaaaaa
+eaaaaaaaaab
+eaaaaaazagaaa
+aaaaaaagza a
+aaaaaaagaaag
+eaaaaaaagxaAAA
+eaaaaaaaaaaaAAA
+aaaaaaaazagaAA
+aaaaaaagaaa
+eaaaaaagaga
+ eaAaa    e
+a
+|----Layer 18|
+a   bbe
+eaaaaS
+eaaaaS
+aaaaaae
+aaaaaae
+eaaaaS
+ aaaaS
+aaaaaaeT
+aaaaaaaT
+eaaaaS       e
+eaaaaS      AA
+aaaaaae     AA
+aaaaaaeT
+ eeaaS
+ eaAaS
+aa
+|----Layer 19|
+    ba
+ aaaS
+eaaaS
+aaaaaee
+aaaaaee
+  azS
+  aaS
+aaaaae
+aaagaae
+eeeaS
+eeaaS       AA
+aaaaaa      AA
+aaagaae
+   aS
+ eaaS
+aa
+|----Layer 20|
+ 
+ 
+ 
+aaS
+aaS
+ 
+ 
+aaS
+aaS
+ 
+            AA
+aaS         AA
+aaS
+ 
+ 
+aaA
+|----Layer 21|
+aa
+ 
+ 
+aa      a
+ a      aa
+        aaaa
+        aa
+aa      aa aa
+aa      aaaaaa
+        aaaaaaa
+        aaaaaaa
+aa      aaaaaaa
+aa      aAaa
+        aAAaaaa
+        aAAAaa a
+aaa    AaAAaaaea
+|----Layer 22|
+aaaaa
+aaaaa
+aaaaa    aa
+aaaa    aa
+aaaaa aaaaa
+aaaaaaaaaa a
+aaaaaaaaaaaaS
+aaaaaaaaaa aa
+aaaaaaaaaaaaa
+aaaaaaaIaaaaaaae
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaa   aaAAaaeaee
+|----Layer 23|
+aaAAa
+aaaaa
+aaaaaa
+aaaaa a a
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa SS
+aaaaaaaaaa aa
+aaaaaaaaaaaaaaee
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaee
+aaaaaaaAAAaaeee
+|----Layer 24|
+aAbAa
+aaaaa
+aaaaaa
+aaaaaa  aa
+aaaaaaa aa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa  S
+aaaaaaaaaaeeae
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaae
+aaaaaaaaaaaaaaae
+aaaaaaaaaa aeee
+aaa aaaaAa e e
+|----Layer 25|
+AAbAA
+aaaaaA
+aaaaaa a
+aaaaaa a
+aaaaaaa aa
+aaaaaaaaaa
+aaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaaeaae
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaeea
+aaaaaaaaaa ee
+aaaaaaaeaa
+|----Layer 26|
+AbbbA a
+aaaaaAa
+aaaaaa
+aaaaaa
+aaaaaaa
+aaaaaa a
+aaaaaaaaa
+aaaaaaaaaa
+aaaaaaaa
+aaaaaaaaa
+aaaaaaaaae SS
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaae
+aaaaaaaaa  e
+aaaaaae a
+|----Layer 27|
+AbbbA e
+aaaaaAa
+aaaaaa
+aaaaaa
+aaaaaae
+aaaaaae
+aaaaaaaae
+aaaaaaaaaa
+aaaaaaaa
+aaaaaaaaa
+aaaaaaaaae SS
+aaaaaaaaaaaaaa
+aaaaaaaaaaaaa
+aaaaaaaaaaaae
+aaaaaaaaa  e
+aaaaaae a
+|----Layer 28|
+AbbbbAe
+aaaaaa
+aaaaaaa
+aaaaaa
+aaaaaa
+aaaaaa
+aaaaae
+aaaaa   a
+aaaaaaa
+aaaaaaa
+aaaaaaaaa
+aaaaaeeaeeaaSS
+aaaaaaeeeeeaaa
+aaaaaaeeeaaee
+aaaaaaeee
+aaeaa
+|----Layer 29|
+bbbbbe
+aeeeee
+aaaaaa
+aaaaS
+aaaaS
+aaaaae
+aaaaae
+aaaaaa
+aaaaaa
+aaaaaa
+aaaaee
+aaaaS
+aaaaS
+aaaaae
+aaaaaa
+aaeaa
+|----Layer 30|
+eeebe
+aaeee
+eaa
+aS
+aS
+e
+eeeee
+eeeee
+eeeee
+eeeee
+aaa
+bS
+aS
+aaa
+aaaaa
+aeeaa
+|----Layer 31|
+eeeee
+eeaee
+ 
+ 
+ 
+ 
+eeeee
+eeeee
+eee
+ 
+ 
+ 
+ 
+ 
+aaaaa
+eeeae
+|----Layer 32|
+   ee
+   ee
+ 
+ 
+ 
+ 
+eeee
+eeee
+weee
+ e
+ 
+ 
+ 
+ 
+eeeee
+eeee
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 32 || {{BlockLink|Basalt}} || - || bastion/bridge/rampart_plates || rampart_plate_connector || -
+|-
+| Layer 19 || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 17 (3 leftmost Jigsaws) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin_melee || mob_connector || Rollable
+|-
+| Layer 17 (rightmost Jigsaw) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 4 || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 1 || {{BlockLink|Blackstone}} || ramparts || - || - || Aligned
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 4361
+| 68 + 9 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 496
+| 7 + 48 blocks
+|-
+| {{BlockLink|Basalt}}
+| 346
+| 5 + 26 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 146
+| 2 + 18 blocks
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 40
+| 
+|-
+| {{BlockLink|Gilded Blackstone}}
+| 11
+| 
+|-
+| {{BlockLink|Chest}}
+| 3
+| 
+|-
+| {{BlockLink|Lantern}}
+| 1
+| 
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 3
+| 
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin melee group">There is a {{frac|5|6}} chance of spawning a piglin brute and a {{frac|1|6}} chance of spawning a piglin with a golden sword.</ref>
+| 3
+| 
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

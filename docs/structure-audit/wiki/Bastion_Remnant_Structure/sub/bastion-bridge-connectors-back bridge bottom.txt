@@ -1,0 +1,67 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/connectors/back_bridge_bottom</code> ===
+[[File:Bastion Remnant back_bridge_bottom.png|thumb|200px|<code>bastion/bridge/connectors/back_bridge_bottom</code>]]
+First floor of the double deck bridge behind the rampart.
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-connectors-back_bridge_bottom
+|default=Layer 3
+|a=Polished Blackstone Bricks
+|b=blackstone-top
+|w=jigsaw-lock
+|----Layer 1|
+aaaaaaa
+aaaaaaa
+aaaaaaa
+aaaaaaa
+aaaaaaa
+aaabaaa
+aaabbaa
+ aa
+|----Layer 2|
+aaaaa
+abaaaa
+bbbaaa
+ bbaaaa
+  a aba
+ baaa b
+  baa
+    a
+|----Layer 3|
+   w
+   b
+   b
+    b
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 3 || {{BlockLink|Polished Blackstone Bricks}} || back_bridge_connector_bottom || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 75
+| 1 + 11 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 16
+| 
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

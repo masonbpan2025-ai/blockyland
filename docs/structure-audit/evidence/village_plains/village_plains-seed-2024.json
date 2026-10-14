@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "structure": "village_plains",
+  "seed": "2024",
+  "chunk": [
+    1,
+    -26
+  ],
+  "biome": "plains",
+  "box": {
+    "minX": -2,
+    "minY": 20,
+    "minZ": -480,
+    "maxX": 55,
+    "maxY": 56,
+    "maxZ": -349
+  },
+  "pieces": 27,
+  "blocks": {
+    "Stone": 67311,
+    "Dirt": 13792,
+    "Grass Block": 2529,
+    "Iron Ore": 2403,
+    "Coal Ore": 2073,
+    "Snow Block": 1917,
+    "Gold Ore": 1469,
+    "Spruce Leaves": 1185,
+    "Orange Terracotta": 846,
+    "Red Sand": 701,
+    "Red Terracotta": 676,
+    "Snow": 610,
+    "Cobblestone": 587,
+    "Calcite": 450,
+    "Dirt Path": 350,
+    "Oak Leaves": 323,
+    "Oak Log": 317,
+    "Yellow Terracotta": 313,
+    "Oak Stairs": 294,
+    "Oak Planks": 288,
+    "Powder Snow": 238,
+    "White Terracotta": 231,
+    "Spruce Log": 143,
+    "Oak Fence": 57,
+    "Moist Farmland": 54,
+    "Wall Torch": 45,
+    "Terracotta": 40,
+    "Cobblestone Stairs": 39,
+    "Glass Pane": 37,
+    "Cactus": 33,
+    "Poppy": 30,
+    "Oak Door": 18,
+    "Dandelion": 17,
+    "Wheat Crops": 16,
+    "Short Grass": 15,
+    "Water": 14,
+    "Carrots": 14,
+    "Oak Trapdoor": 14,
+    "Potatoes": 12,
+    "Beetroots": 12,
+    "Stripped Oak Log": 12,
+    "Yellow Stained Glass Pane": 10,
+    "White Stained Glass Pane": 10,
+    "Ladder": 10,
+    "Oak Slab": 9,
+    "Torch": 9,
+    "Hay Block": 8,
+    "Cobblestone Wall": 7,
+    "Yellow Carpet": 5,
+    "White Carpet": 5,
+    "White Bed Head": 5,
+    "White Bed": 5,
+    "Smooth Stone Slab": 5,
+    "Stripped Oak Wood": 4,
+    "Chest": 3,
+    "Composter": 2,
+    "Cobblestone Slab": 2,
+    "Bell": 2,
+    "Yellow Wool": 2,
+    "Loom": 2,
+    "Cartography Table": 1,
+    "Yellow Bed": 1,
+    "Brewing Stand": 1,
+    "Oak Pressure Plate": 1,
+    "Yellow Bed Head": 1,
+    "Oxeye Daisy": 1,
+    "Smooth Stone": 1,
+    "Smoker": 1,
+    "Tall Grass": 1
+  },
+  "loot": {
+    "chests": 3,
+    "empty": 1,
+    "totals": [
+      {
+        "name": "wheat_seeds",
+        "count": 12
+      },
+      {
+        "name": "wheat",
+        "count": 5
+      },
+      {
+        "name": "carrot",
+        "count": 4
+      },
+      {
+        "name": "bread",
+        "count": 1
+      },
+      {
+        "name": "gold_nugget",
+        "count": 1
+      },
+      {
+        "name": "poppy",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 3,
+    "door": 9,
+    "bed": 6,
+    "mob": 10
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

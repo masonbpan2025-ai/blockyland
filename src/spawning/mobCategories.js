@@ -245,7 +245,6 @@ export const MOB_TYPE_CATEGORY = Object.freeze({
   ender_dragon: MobCategory.MISC,
   wither: MobCategory.MISC,
   giant_misc: MobCategory.MISC,
-  tournament_host: MobCategory.MISC,
   site_manager: MobCategory.MISC,
   jackie_chun: MobCategory.MISC,
 });

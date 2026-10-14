@@ -369,7 +369,7 @@ test('Nether Atmosphere & Fog: Fog and background color stay locked in Nether an
   }
 
   assert.equal(scene.background.getHex(), 0x330808, 'Nether background is deep crimson');
-  assert.equal(scene.fog.color.getHex(), 0x471010, 'Nether fog is authentic dark crimson haze');
+  assert.equal(scene.fog.color.getHex(), 0x330808, 'Nether fog is the wiki fog colour #330808');
   assert.equal(scene.fog.near, 15);
   assert.equal(scene.fog.far, 55);
 });

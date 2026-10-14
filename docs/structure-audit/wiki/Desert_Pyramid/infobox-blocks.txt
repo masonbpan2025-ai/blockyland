@@ -1,0 +1,12 @@
+blue_terracotta
+chest
+chiseled_sandstone
+cut_sandstone
+orange_terracotta
+sand
+sandstone
+sandstone_slab
+sandstone_stairs
+stone_pressure_plate
+suspicious_sand
+tnt

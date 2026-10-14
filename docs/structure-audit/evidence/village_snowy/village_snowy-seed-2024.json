@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "structure": "village_snowy",
+  "seed": "2024",
+  "chunk": [
+    -23,
+    -15
+  ],
+  "biome": "snowy_plains",
+  "box": {
+    "minX": -432,
+    "minY": 19,
+    "minZ": -273,
+    "maxX": -312,
+    "maxY": 56,
+    "maxZ": -181
+  },
+  "pieces": 37,
+  "blocks": {
+    "Stone": 58424,
+    "Dirt": 34258,
+    "Snow Block": 16844,
+    "Packed Ice": 8879,
+    "Iron Ore": 2377,
+    "Coal Ore": 2139,
+    "Spruce Leaves": 1783,
+    "Snow": 1770,
+    "Gold Ore": 1628,
+    "Powder Snow": 808,
+    "Grass Block": 765,
+    "Water": 491,
+    "Dirt Path": 473,
+    "Spruce Planks": 465,
+    "Stripped Spruce Wood": 391,
+    "Spruce Log": 232,
+    "Spruce Slab": 128,
+    "Spruce Fence": 77,
+    "Spruce Stairs": 41,
+    "Light Gray Wool": 40,
+    "Blue Ice": 38,
+    "Moist Farmland": 37,
+    "Wall Torch": 24,
+    "Lantern": 23,
+    "Glass Pane": 19,
+    "Cobblestone Wall": 15,
+    "Spruce Door": 14,
+    "Spruce Door Top": 14,
+    "Carrots": 13,
+    "Wheat Crops": 12,
+    "Potatoes": 12,
+    "Stripped Spruce Log": 12,
+    "Ice": 8,
+    "Furnace": 7,
+    "Blue Bed Head": 6,
+    "Blue Bed": 6,
+    "White Bed": 6,
+    "White Bed Head": 6,
+    "Cobblestone": 6,
+    "Torch": 5,
+    "Composter": 2,
+    "Red Bed Head": 2,
+    "Red Bed": 2,
+    "Spruce Fence Gate": 1,
+    "Bell": 1,
+    "Brewing Stand": 1,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "potato",
+        "count": 13
+      },
+      {
+        "name": "apple",
+        "count": 3
+      },
+      {
+        "name": "snowball",
+        "count": 3
+      },
+      {
+        "name": "spruce_sapling",
+        "count": 2
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1,
+    "door": 14,
+    "bed": 14,
+    "mob": 20
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

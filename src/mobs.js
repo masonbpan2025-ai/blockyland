@@ -1,4 +1,6 @@
+import { createArmorStand, armorStandDrops } from './armorStand.js';
 import { createWitherSkeletonModel } from './witherSkeletonModel.js';
+import { exposedToRain } from './weatherRules.js';
 import { initializeWitherSkeleton, updateWitherSkeleton, hurtWitherSkeleton, dropWitherSkeletonLoot, updateWitherSkeletonSpawning, updateWolfWitherHunt } from './witherSkeleton.js';
 import { updateMobWither } from './witherEffect.js';
 import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
@@ -40,6 +42,11 @@ import { MobLibrary } from './mobLibrary.js';
 import { AnimalBehaviors } from './animalBehaviors.js';
 import { sheepApplyWool, SHEEP_COLOR_HEX, isJebSheep, rollNaturalSheepColor } from './sheepBehavior.js';
 import { applyMooshroomVariant, MOOSHROOM_COLORS } from './mooshroomBehavior.js';
+import { updateWaterAnimalAirSupply } from './waterAnimalAirSupply.js';
+import { updateCreeper, CREEPER_FOLLOW_RANGE } from './creeperBehavior.js';
+import { angerWolf, updateAngryWolf } from './wolfCombat.js';
+import { updateFrogspawn, updatePregnantFrog } from './frogspawn.js';
+import { holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES } from './mobEnvironment.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
 import { creeperDiscDrop } from './musicDiscs.js';
 import { DOLPHIN_HEALTH, DOLPHIN_DIMENSIONS, DOLPHIN_BABY_SCALE, DOLPHIN_MOISTNESS_TICKS, updateDolphinMoistness } from './dolphinBehavior.js';
@@ -64,7 +71,7 @@ import { UNDEAD_HORSE_HEALTH, UNDEAD_HORSE_DIMENSIONS, UNDEAD_HORSE_BABY_DIMENSI
 import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_DAMAGE, ILLUSIONER_SHOOT_SECONDS, SKELETON_SHOOT_SECONDS, ILLUSIONER_TARGET_BOX, ILLUSIONER_SEES_THROUGH_WALLS, ILLUSIONER_BLINDNESS, ILLUSIONER_INVISIBILITY, ILLUSIONER_DUPLICATES, ILLUSIONER_SPELL_SETTLE_SECONDS, ILLUSIONER_STRAFE, ILLUSIONER_COLORS, isIllusioner, illusionerDimensions, illusionerDamageRange, rollIllusionerDamage, isIllusionerTarget, findIllusionerTarget, illusionerIsInvisible, castIllusionerInvisibility, spawnIllusionerDuplicates, updateIllusionerDuplicates, onIllusionerHurt, castIllusionerBlindness, switchIllusionerTarget, updateIllusionerCooldowns, illusionerMovement, illusionerCanShoot, illusionerShoot, illusionerDrops, illusionerXp, createIllusionerModel, poseIllusioner } from './illusionerBehavior.js';
 import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
-import { CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel, camelProtectsRiderFrom } from './camelBehavior.js';
+import { camelFleeVelocity, CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel, camelProtectsRiderFrom } from './camelBehavior.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
@@ -1206,7 +1213,8 @@ export class MobManager {
       case 'mule': return this.spawnMule(x,y,z);
       case 'donkey': return this.spawnDonkey(x, y, z);
       case 'wolf': return this.spawnWolf(x, y, z, options);
-      case 'cat': return this.spawnCat(x, y, z);
+      case 'cat': return this.spawnCat(x, y, z, options?.variant === 'all_black' ? 'black' : null);
+      case 'armor_stand': return this.spawnArmorStand(x, y, z, options);
       case 'ocelot': return this.spawnOcelot(x, y, z);
       case 'slime': return this.spawnSlime(x, y, z);
       case 'witch': return this.spawnWitch(x, y, z);
@@ -1853,7 +1861,16 @@ export class MobManager {
     let hasSpots = false;
     let hasStripes = false;
 
-    if (breed === 'tabby') {
+    if (breed === 'black') {
+      // The all-black cat: a swamp hut's cat, and any cat made without a type in Java.
+      baseColor = '#101014';
+      chestColor = '#101014';
+      eyeColor = '#facc15'; // Yellow eyes
+      pupilColor = '#0f172a';
+      noseColor = '#3f3f46';
+      innerEarColor = '#3f3f46';
+      pawColor = '#101014';
+    } else if (breed === 'tabby') {
       baseColor = '#ea580c'; // Warm orange
       chestColor = '#fed7aa'; // Cream
       eyeColor = '#84cc16'; // Hazel green
@@ -3271,7 +3288,7 @@ export class MobManager {
       case 'giant': return GIANT_DIMENSIONS;
       case 'pillager': return { width: 0.6, height: 1.95 };
       case 'salmon': return { width: 0.4, height: 0.35 };
-      case 'cod': return { width: 0.35, height: 0.3 };
+      case 'cod': return { width: 0.5, height: 0.3 };
       // Wiki: a pufferfish has THREE hitboxes, 0.35 unpuffed, 0.49 semi-puffed and 0.7 fully puffed. The
       // unpuffed one is reported here; the mob's own width/height track the live stage.
       case 'pufferfish': return PUFFERFISH_DIMENSIONS.unpuffed;
@@ -3284,7 +3301,7 @@ export class MobManager {
       case 'squid':
       case 'glow_squid': return { width: 0.8, height: 0.8 };
       case 'drowned': return { width: 0.6, height: 1.95 };
-      case 'axolotl': return { width: 0.5, height: 0.35 };
+      case 'axolotl': return { width: 0.75, height: 0.42 };
       case 'horse': return { width: 1.4, height: 1.6 };
       case 'donkey': return { width: 1.3965, height: 1.5 };
       case 'mule': return { width: 1.3965, height: 1.6 };
@@ -3293,7 +3310,10 @@ export class MobManager {
       case 'ocelot': return { width: 0.6, height: 0.7 };
       case 'chicken': return { width: 0.4, height: 0.7 };
       case 'ravager': return { width: 1.95, height: 2.2 };
-      case 'warden': return { width: 1.4, height: 2.9 };
+      case 'warden': return { width: 0.9, height: 2.9 };
+      // Wiki: a vex is 0.4 x 0.8 and a shulker 1 x 1 (it grows to 2 tall only when it peeks).
+      case 'vex': return { width: 0.4, height: 0.8 };
+      case 'shulker': return { width: 1, height: 1 };
       case 'vindicator': return VINDICATOR_DIMENSIONS;
       case 'evoker': return EVOKER_DIMENSIONS;
       case 'ender_dragon': return ENDER_DRAGON_DIMENSIONS;
@@ -7387,6 +7407,19 @@ export class MobManager {
     return mob;
   }
 
+  /**
+   * An armour stand: an entity, not a mob -- it never moves, so it is spawned FROZEN, which the update loop treats as
+   * posed (no AI, no physics). The wiki: taiga villages are the only structure where armour stands generate, two at
+   * the armorer, "one with an iron helmet, the other with an iron chestplate". `options.equipment` lists what it
+   * wears, drawn as plain iron-grey pieces over the wooden stand.
+   */
+  spawnArmorStand(x, y, z, options = {}) {
+    const stand = createArmorStand(x, y, z, { equipment: options.equipment ?? [], yaw: options.yaw ?? 0 });
+    this.scene.add(stand.mesh);
+    this.mobs.push(stand);
+    return stand;
+  }
+
   spawnOcelot(x, y, z) {
     const mob = this.spawnCat(x, y, z, 'ocelot');
     mob.type = 'ocelot';
@@ -9679,6 +9712,17 @@ export class MobManager {
   }
 
   damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
+    // An armour stand breaks at the first hit and drops itself and its armour (nothing in Creative).
+    if (mob?.type === 'armor_stand') {
+      const creative = attacker?.gamemode === 'creative';
+      const pos = mob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+      for (const id of armorStandDrops(mob, creative)) this.entities?.spawnDroppedItem?.(pos, id, false, 1);
+      const index = this.mobs.indexOf(mob);
+      if (index >= 0) this.mobs.splice(index, 1);
+      this.scene.remove(mob.mesh);
+      mob.health = 0;
+      return true;
+    }
     if (mob.health <= 0 || mob.dying) return false;
     if (!isPunch && mob.hitCooldown > 0) return false;
     if ((mob.type === 'magma_cube' || mob.type === 'horse' || mob.type === 'wither_skeleton' || isZombifiedPiglin(mob)) && !bypassArmor) amount *= 1 - Math.min(20, Math.max((mob.armor || 0)/5, (mob.armor || 0)-amount/2))/25;
@@ -9779,8 +9823,13 @@ export class MobManager {
       angerSilverfish(mob, attacker);
       alertSilverfish(this, mob, attacker);
     } else if (mob.type === 'goat') {
-      // A goat never retaliates; the wiki is explicit that it cannot be provoked.
-      return;
+      // A goat never retaliates; the wiki is explicit that it cannot be provoked. It is still pushed, and still hurt.
+    } else if (mob.type === 'wolf') {
+      // Wiki: a wild wolf hurt but not killed turns on its attacker for 20-39 s, and the pack joins in.
+      if (mob.health > 0) angerWolf(this, mob, attacker ?? (knockbackOrigin ? this.game?.player : null));
+    } else if (mob.type === 'axolotl') {
+      // Wiki: an axolotl hurt underwater may play dead for 10 s, regenerating.
+      onAxolotlHurt(this, mob, amount);
     } else if (mob.type === 'armadillo') {
       // Wiki: an armadillo hides in its shell when it is hurt, and remembers the attacker as a threat.
       onArmadilloHurt(mob, attacker ?? (knockbackOrigin ? this.game?.player : null));
@@ -9852,8 +9901,11 @@ export class MobManager {
       if (kbDir.lengthSq() > 0.001) kbDir.normalize();
       else kbDir.set(0, 0, 1);
       const isHeavyOrFlying = mob.isBoss || mob.isFlying || /dragon/i.test(mob.name || '');
-      const kbFactor = isSquid(mob) ? .15 : ['hoglin', 'zoglin'].includes(mob.type) ? 0.4 : isHeavyOrFlying ? 0.25 : 1.0;
+      // Wiki: the share of knockback a mob takes is 1 minus its knockback resistance (iron golem and warden 100%, ravager
+      // 75%, hoglin 60%, squid 85%); a mob the wiki gives none for keeps the old weight classes.
+      const kbFactor = mob.isBoss || /dragon/i.test(mob.name || '') ? 0.25 : (knockbackFactor(mob.type) ?? (isHeavyOrFlying ? 0.25 : 1.0));
       mob.knockback = kbDir.multiplyScalar((isPunch ? 3.5 : 6) * kbFactor);
+      mob.knockbackConsumed = true; // the mover gets the first frame; applyUnconsumedKnockback only steps in if it ignores this
       mob.velocity.y += (isPunch ? 1.8 : 4) * kbFactor;
     }
 
@@ -9994,6 +10046,8 @@ export class MobManager {
       ghast: [['ghast_tear', false, 0, 1], ['gunpowder', false, 1, 2]],
       piglin: !mob.isBaby && !mob.equipment?.weapon && Math.random() < 0.085 ? [[mob.weapon || 'golden_sword', false, 1, 1]] : [],
       zoglin: [['rotten_flesh', false, 1, 3]],
+      // Wiki: a shulker drops a shulker shell 50% of the time when a player or tamed wolf kills it.
+      shulker: mob.playerDamaged ? [['shulker_shell', false, 0, 1]] : [],
       zombified_piglin: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
       zombie_pigman: [['rotten_flesh', false, 0, 2], ['gold_nugget', false, 1, 3], ['gold_ingot', false, 0, 1], ['golden_sword', false, 0, 1]],
       hoglin: [[burned ? 'cooked_porkchop' : 'porkchop', false, 2, 4], ['leather', false, 0, 1]],
@@ -10228,11 +10282,11 @@ export class MobManager {
           const hostile = ['skeleton', 'stray', 'bogged', 'parched', 'drowned', 'creeper', 'pillager', 'zombie', 'husk', 'spider', 'enderman', 'witch', 'blaze', 'piglin', 'hoglin', 'zoglin'].includes(mob.type);
           // Wiki: a slime drops XP equal to its size (large 4, medium 2, small 1), not the
           // flat hostile value. Magma cubes keep their existing size-valued drop.
-          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? 0
+          const xpVal = mob.type === 'blaze' ? (mob.playerDamaged ? 10 : 0) : (isEquine(mob)||mob.type==='strider') ? (mob.playerDamaged || mob.wolfKilled ? 1+Math.floor(Math.random()*3) : 0) : mob.type === 'slime' ? (mob.playerDamaged ? mob.slimeSize : 0) : isHappyGhast(mob) ? (mob.playerDamaged || mob.wolfKilled ? rollKillXp('happy_ghast') : 0)
           : isCopperGolem(mob) ? 0
           : isCamelHusk(mob) ? (mob.playerDamaged || mob.killedByTamedWolf || mob.wolfKilled ? camelHuskXp(mob) : 0)
           : isPiglinBrute(mob) ? (mob.playerDamaged || mob.killedByTamedWolf ? piglinBruteXp(mob) : 0)
-          : isGiant(mob) ? 0
+          : isGiant(mob) ? (mob.playerDamaged || mob.wolfKilled ? giantXp(mob) : 0)
           : isSmallFish(mob) ? (mob.playerDamaged || mob.wolfKilled ? fishXp(mob) : 0)
           : isUndeadHorse(mob) ? (mob.playerDamaged || mob.wolfKilled ? undeadHorseXp(mob) : 0)
           : mob.type === 'illusioner' ? (mob.playerDamaged || mob.wolfKilled ? illusionerXp(mob) : 0)
@@ -10268,7 +10322,7 @@ export class MobManager {
           : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
           : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
           : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
-          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (1 + Math.floor(Math.random() * 3)));
+          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (mob.playerDamaged || mob.wolfKilled ? rollKillXp(mob.type) : 0));
           // The baby zombie family's 12 XP is awarded by the baby block below; this block's flat 5 on top of
           // it would pay a gurgle 17 now that babies of this family reach the loot gate.
           const babyZombieKin = mob.isBaby && ['drowned', 'husk', 'zombie', 'zombie_villager'].includes(mob.type);
@@ -10592,6 +10646,7 @@ export class MobManager {
     // wind charges burst on impact. Both run here so they see the arrows after the arrow pass moved
     // them, which is what makes the deflection happen on the frame of contact.
     this.updateSnifferEggs(dt);
+    updateFrogspawn(this, dt);
     this.deflectBreezeProjectiles();
     this.updateWindCharges(dt);
     updateSnowballs(this, dt);
@@ -10667,6 +10722,7 @@ export class MobManager {
 
       // Overhead health bar for training & combat mobs
       this.updateMobHealthBar(mob);
+      applyUnconsumedKnockback(this, mob, dt);
 
       if (mob.health <= 0) {
         if(isEquine(mob)||mob.type==='strider')releaseHorseLead(this,mob);
@@ -10674,7 +10730,9 @@ export class MobManager {
         continue;
       }
 
-      if (mob.isAquatic && !isTurtle(mob) && !isTadpole(mob)) {
+      // The drowned is flagged aquatic but is a zombie variant: it walks on land and swims toward its target, so it has its
+      // own branch in updateMobTypeBehavior. Handing it to the fish routine made it flop on land like a salmon.
+      if (mob.isAquatic && !isTurtle(mob) && !isTadpole(mob) && mob.type !== 'drowned') {
         // Turtles and tadpoles are aquatic but not fish. A turtle walks on land and swims; a tadpole
         // flops on land, seeks water, and drowns out of it, then grows into a frog. Both own their
         // locomotion in their own branch. This path ends in an unconditional `return true`, so it
@@ -10712,6 +10770,10 @@ export class MobManager {
     if (this.updateAquaticMob(mob, dt, player)) continue;
       }
 
+      // Wiki: land mobs that cannot breathe underwater drown after 15 s with their head submerged.
+      updateDrowning(this, mob, dt);
+      updateWaterSensitivity(this, mob, dt);
+      updateSheepGrazing(this, mob, dt);
       // Distance to player
       const distToPlayer = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
 
@@ -10820,13 +10882,17 @@ export class MobManager {
     // exemption is data rather than a special case here. This is a standalone block near the top rather
     // than a clause deep in the if/else chain below: the chain is entered by whichever branch matches
     // first, and a behaviour that every undead mob shares should not depend on that ordering.
-    if (mob.isUndead || mob.burnsInDaylight !== undefined) {
+    // The zombie, skeleton, drowned and zombie villager only burn once the game has a clock to say it is day.
+    const burnsInSun = mob.burnsInDaylight ?? (SUN_BURNING_TYPES.has(mob.type) && this.game?.worldTime !== undefined);
+    if (mob.isUndead || mob.burnsInDaylight !== undefined || burnsInSun) {
       const ux = Math.floor(mob.mesh.position.x);
       const uy = Math.floor(mob.mesh.position.y);
       const uz = Math.floor(mob.mesh.position.z);
       const skyLight = this.world.getLightLevel?.(ux, uy, uz) ?? 15;
       const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
-      const exposed = mob.burnsInDaylight === true && isDaytime && skyLight > 11;
+      // Wiki: undead are safe from the sun in water and in rain; neither rain nor a roof can be assumed away.
+      const wet = exposedToRain(this.game?.weather,this.world,{x:ux,y:uy,z:uz}) || this.world.getVoxel(ux, Math.floor(mob.mesh.position.y + 0.2), uz) === BLOCKS.WATER;
+      const exposed = burnsInSun === true && isDaytime && skyLight > 11 && !wet;
       if (exposed && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
       if (!exposed && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
       if (mob.isBurning && mob.type !== 'phantom') {
@@ -10859,6 +10925,7 @@ export class MobManager {
       mob.velocity.x=Math.sin(mob.yaw)*speed;mob.velocity.z=Math.cos(mob.yaw)*speed;
       this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;
     }
+    if(mob.type==='wolf'&&updateAngryWolf(this,mob,dt,player)){this.updateMobAnimation(mob,dt,mob.velocity.x,mob.velocity.z);moveGroundMob(this,mob,dt);return true;}
     if(mob.type==='wither_skeleton'){updateWitherSkeleton(this,mob,dt,player);return true;}
     // Both new illager AIs only set a velocity; the handler has to apply it, exactly as the panic branch
     // above does. Without the mover they stood at their spawn point however busy their AI was.
@@ -11470,7 +11537,7 @@ export class MobManager {
       const gy = Math.floor(mob.mesh.position.y);
       const inWater = this.world.getVoxel(
         Math.floor(mob.mesh.position.x), gy, Math.floor(mob.mesh.position.z)) === BLOCKS.WATER;
-      const raining = this.game?.weather?.weatherType === 'rain' || this.game?.weather?.weatherType === 'thunder';
+      const raining = exposedToRain(this.game?.weather,this.world,{x:mob.mesh.position.x,y:mob.mesh.position.y+1.9,z:mob.mesh.position.z});
       const heat = updateSnowGolemHeat(mob, dt, { biome: mob.biome, inWater, raining });
       if (heat > 0 && mob.health <= 0) {
         // It died of heat, which is the wiki's whole point for hot biomes.
@@ -11678,11 +11745,14 @@ export class MobManager {
         // The adult hitbox is restored by the growth step.
       }
 
+      // Harmed camels flee (wiki), sitting or not. The hurt code sets `fleeTime` and `fleeFrom`; the flag this
+      // used to read, `mob.fleeing`, was never set by anything, so a struck camel never ran.
+      const fleeing = (mob.fleeTime ?? 0) > 0;
       const sit = updateCamelSitting(mob, dt, {
         clearance,
         random: this.random ?? Math.random,
-        alerted: mob.fleeing === true,
-        fleeing: mob.fleeing === true,
+        alerted: fleeing,
+        fleeing,
         tempted
       });
       if (sit === 'stood') mob.state = 'standing';
@@ -11692,9 +11762,19 @@ export class MobManager {
       // Wiki: a sitting camel does not move, and cannot be pushed by players or mobs.
       if (mob.rider === player || this.animalBehaviors?.mount?.mob === mob || (mob.riderCount ?? 0) > 0) {
         mob.state = 'ridden';
+      } else if (fleeing && !mob.isSitting) {
+        const flee = camelFleeVelocity(mob.mesh.position, mob.fleeFrom, CAMEL_SPEED.sprint);
+        if (flee) {
+          mob.velocity.x = flee.x;
+          mob.velocity.z = flee.z;
+          mob.yaw = Math.atan2(flee.x, flee.z);
+        }
+        mob.state = 'fleeing';
       } else if (mob.isSitting) {
         mob.velocity.x = 0;
         mob.velocity.z = 0;
+        // The same rule as the wiki's: a sitting camel cannot be pushed, so a blow it did not flee from is no push.
+        mob.knockback?.set?.(0, 0, 0);
       } else if (tempted && player?.position) {
         // Wiki: a cactus-tempted camel follows within 10 blocks.
         const dir = player.position.clone().sub(mob.mesh.position);
@@ -11717,6 +11797,8 @@ export class MobManager {
       updateCamelDash(mob, dt);
 
       moveGroundMob(this, mob, dt);
+      // The flight lasts as long as the hurt code's timer, then the camel settles.
+      if (mob.fleeTime > 0) mob.fleeTime = Math.max(0, mob.fleeTime - dt);
       if (mob.onGround) mob.groundY = mob.mesh.position.y;
       mob.camelPhase = (mob.camelPhase || 0) + dt;
       if (mob.saddleMesh) mob.saddleMesh.visible = mob.hasSaddle === true;
@@ -12154,6 +12236,22 @@ export class MobManager {
         }
       }
 
+      // A pregnant frog heads for water to lay frogspawn; otherwise a frog follows a player holding a slimeball (within 6).
+      let frogHold = false;
+      const frogLay = updatePregnantFrog(this, mob, dt);
+      if (frogLay) {
+        mob.yaw = Math.atan2(frogLay.x, frogLay.z);
+        mob.timer = 1;
+      } else if (player?.position && holdsTemptFood(this, mob, player) && mob.mesh.position.distanceTo(player.position) < FROG_FOLLOW_RANGE) {
+        const toward = player.position.clone().sub(mob.mesh.position);
+        toward.y = 0;
+        frogHold = toward.length() <= 1.8;
+        if (toward.lengthSq() > 1e-6) { mob.yaw = Math.atan2(toward.x, toward.z); mob.timer = 1; }
+      }
+
+      // A frog in love stops hopping so its partner can reach it; the courtship code supplies the approach velocity.
+      if (mob.inLove > 0 && !frogLay) frogHold = true;
+
       // 3. Movement: swim in water, otherwise a slow wander punctuated by long jumps.
       if (mob.inWater) {
         // Wiki: it swims upward and stays at the surface, and cannot drown.
@@ -12173,7 +12271,7 @@ export class MobManager {
           // Wiki: it occasionally croaks and inflates its vocal sac.
           if (Math.random() < 0.3) mob.croakTimer = 0.6;
         }
-        if (mob.hopTimer <= 0 && mob.onGround) {
+        if (mob.hopTimer <= 0 && mob.onGround && !frogHold) {
           // Wiki: a frog prefers jumping to higher ground, so each hop aims a little upward.
           mob.hopTimer = 0.8 + Math.random() * 1.2;
           startFrogJump(mob, { height: 2.2 + Math.random() * 1.5, forward: 1.5 + Math.random() });
@@ -12283,6 +12381,21 @@ export class MobManager {
         mob.velocity.z = 0;
       } else if (mob.caravanFollows) {
         // Caravan movement is handled by updateLlamaCaravan
+      } else if (player?.position && holdsTemptFood(this, mob, player) && mob.mesh.position.distanceTo(player.position) < 10) {
+        // Wiki: llamas follow a player holding a hay bale, and stop beside them.
+        const toward = player.position.clone().sub(mob.mesh.position);
+        toward.y = 0;
+        const gap = toward.length();
+        mob.wanderGoal = null;
+        if (gap > 1.8) {
+          toward.normalize();
+          mob.yaw = Math.atan2(toward.x, toward.z);
+          mob.velocity.x = toward.x * 2.0;
+          mob.velocity.z = toward.z * 2.0;
+        } else {
+          mob.velocity.x = 0;
+          mob.velocity.z = 0;
+        }
       } else {
         wanderMob(this, mob, dt, 1.0);
       }
@@ -12493,7 +12606,7 @@ export class MobManager {
 
       if (!isTempted) {
         // Night or rain: return to hive if known
-        const isRaining = this.game?.weather?.isRaining || false;
+        const isRaining = typeof this.game?.weather?.isRaining === 'function' ? this.game.weather.isRaining() : ['rain','thunder'].includes(this.game?.weather?.weatherType);
         const timeOfDay = (this.game?.worldTime ?? 6000) % 24000;
         const isNight = timeOfDay > 12500 && timeOfDay < 23500;
         const wantsHome = (mob.hasNectar || isNight || isRaining) && mob.hive;
@@ -12651,8 +12764,16 @@ export class MobManager {
         mob.timer = 2 + Math.random() * 4;
         mob.yaw = Math.random() * Math.PI * 2;
       }
-      // Wiki: normal rabbits avoid players within 8 blocks.
-      if (player?.position && mob.mesh.position.distanceTo(player.position) < RABBIT_PLAYER_AVOID_RANGE) {
+      // Wiki: rabbits run from players "that are not holding its food"; with a carrot, golden carrot or dandelion in hand
+      // the player is followed instead (within 10 blocks), and the rabbit sits still once it arrives.
+      const rabbitTempted = player?.position && holdsTemptFood(this, mob, player) && mob.mesh.position.distanceTo(player.position) < 10;
+      let rabbitArrived = false;
+      if (rabbitTempted) {
+        const toward = player.position.clone().sub(mob.mesh.position);
+        toward.y = 0;
+        rabbitArrived = toward.length() <= 1.8;
+        if (toward.lengthSq() > 1e-6) { mob.yaw = Math.atan2(toward.x, toward.z); mob.timer = 1; }
+      } else if (player?.position && mob.mesh.position.distanceTo(player.position) < RABBIT_PLAYER_AVOID_RANGE) {
         const away = mob.mesh.position.clone().sub(player.position);
         away.y = 0;
         if (away.lengthSq() > 1e-6) {
@@ -12664,7 +12785,7 @@ export class MobManager {
       if (mob.hopTimer <= 0) {
         // Wiki: rabbits hop rather than walk. Each hop is a short burst of velocity.
         mob.hopTimer = 0.45 + Math.random() * 0.4;
-        if (mob.onGround) {
+        if (mob.onGround && !rabbitArrived) {
           mob.velocity.x = Math.sin(mob.yaw) * 2.4;
           mob.velocity.z = Math.cos(mob.yaw) * 2.4;
           mob.velocity.y = 3.0;
@@ -12766,7 +12887,7 @@ export class MobManager {
 
         if (distToPlayer < 2.0 && mob.attackCooldown <= 0) {
           mob.attackCooldown = 1.2;
-          const dmg = 5;
+          const dmg = meleeDamage('drowned', this.game?.difficulty, 5);
           if (typeof player.takeDamage === 'function') {
             player.takeDamage(dmg, 'Drowned');
           } else if (player.health !== undefined) {
@@ -12780,6 +12901,7 @@ export class MobManager {
           mob.mesh.position.y += Math.sin(mob.swimCycle) * 0.01;
         } else {
           wanderMob(this, mob, dt, 1.0);
+          moveGroundMob(this, mob, dt);
         }
       }
     } else if (mob.type === 'villager') {
@@ -12860,7 +12982,7 @@ export class MobManager {
         mob.velocity.x = Math.sin(targetYaw) * (mob.speed || 1.4);
         mob.velocity.z = Math.cos(targetYaw) * (mob.speed || 1.4);
         if (distToPlayer < 1.4 && (!mob.hitCooldown || mob.hitCooldown <= 0)) {
-          player.takeDamage?.(3);
+          player.takeDamage?.(meleeDamage('zombie_villager', this.game?.difficulty, 3));
           mob.hitCooldown = 1.0;
           this.sounds?.playZombie?.();
         }
@@ -12985,7 +13107,7 @@ export class MobManager {
         // Attack player (wiki: camel height protects mounted rider from short melee mobs)
         if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
           if (!camelProtectsRiderFrom(mob, player)) {
-            player.takeDamage(3, mob.mesh.position, mob.type);
+            player.takeDamage(meleeDamage(mob.type, this.game?.difficulty, 3), mob.mesh.position, mob.type);
           }
           mob.hitCooldown = 1.0;
         }
@@ -12999,7 +13121,7 @@ export class MobManager {
       // the mob, which is what every neighbouring branch does.
       moveGroundMob(this, mob, dt);
       return true;
-    } else if (isEquine(mob) || mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf') {
+    } else if (isEquine(mob) || mob.type === 'pig' || mob.type === 'cow' || mob.type === 'sheep' || mob.type === 'chicken' || mob.type === 'cat' || mob.type === 'ocelot' || mob.type === 'wolf' || mob.type === 'mooshroom') {
       let isFollowing = false;
 
       // A ridden pig is steered by AnimalBehaviors. Do not let its ambient
@@ -13385,35 +13507,9 @@ export class MobManager {
         }
       }
     } else if (mob.type === 'creeper') {
-      if (distToPlayer < 16) {
-        const dir = player.position.clone().sub(mob.mesh.position);
-        dir.y = 0;
-        const dist = dir.length();
-        if (dist > 1.2) {
-          dir.normalize();
-          const targetYaw = Math.atan2(dir.x, dir.z);
-          const turn = Math.atan2(Math.sin(targetYaw - mob.yaw), Math.cos(targetYaw - mob.yaw));
-          mob.yaw += turn * Math.min(1.0, 9 * dt);
-          if (!mob.avoidTime || mob.avoidTime <= 0) {
-            mob.velocity.x = Math.sin(mob.yaw) * 2.5;
-            mob.velocity.z = Math.cos(mob.yaw) * 2.5;
-          }
-        } else {
-          mob.velocity.x *= 0.5;
-          mob.velocity.z *= 0.5;
-        }
-
-        if (distToPlayer < 2.0 && mob.hitCooldown <= 0) {
-          player.takeDamage(10, mob.mesh.position, mob.type);
-          this.sounds.playExplosion();
-          mob.health = 0; // explode
-          mob.noLoot = true;
-      if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
-          return true;
-        }
-      } else {
-        wanderMob(this, mob, dt, 0.8);
-      }
+      // Wiki: a creeper chases within 16 blocks, swells for a 1.5 s fuse once inside 3 (cancelled beyond 7), then explodes.
+      if (updateCreeper(this, mob, dt, player, distToPlayer)) return true;
+      if (!(distToPlayer < CREEPER_FOLLOW_RANGE && player?.gamemode !== 'creative' && player?.gamemode !== 'spectator')) wanderMob(this, mob, dt, 0.8);
     } else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'bogged' || mob.type === 'parched') {
       if (distToPlayer < 18) {
         const dir = player.position.clone().sub(mob.mesh.position);
@@ -13529,7 +13625,7 @@ export class MobManager {
 
         // Melee attack
         if (dist < ENDERMAN_ATTACK_REACH && mob.attackCooldown <= 0) {
-          player.takeDamage(ENDERMAN_ATTACK_DAMAGE, mob.mesh.position, mob.type);
+          player.takeDamage(meleeDamage('enderman', this.game?.difficulty, ENDERMAN_ATTACK_DAMAGE), mob.mesh.position, mob.type);
           if (this.sounds?.playZombie) this.sounds.playZombie();
           mob.attackCooldown = ENDERMAN_ATTACK_COOLDOWN;
           if (mob.leftArm && mob.rightArm) {
@@ -13571,7 +13667,9 @@ export class MobManager {
       // A mob with no branch of its own used to arrive here with a zero velocity and simply stand
       // still forever. Hostile and passive roles that were never wired up are declared in
       // ambientLocomotion.js, which gives them a target or a wander goal before the mover runs.
-      const ambientSpec = locomotionFor(mob.type);
+      // The mooshroom is in the cow-style animal chain above (it follows wheat and flees when hurt), and the ambient
+      // wander would overwrite that velocity every frame.
+      const ambientSpec = mob.type === 'mooshroom' ? null : locomotionFor(mob.type);
       if (ambientSpec) {
         // `fire` is injected rather than imported so `ambientLocomotion.js` can decide WHEN a turret shoots
         // without knowing how a projectile is built. A stationary spec with `ranged` and no hook fired
@@ -13638,6 +13736,7 @@ export class MobManager {
    */
   updateAquaticMob(mob, dt, player) {
       if(isSquid(mob)){updateSquid(this,mob,dt,player);return true;}
+      if(mob.type==='axolotl'&&updateAxolotlPlayDead(this,mob,dt))return true;
       if(updateSquidPredator(this,mob,dt))return true;
       // --- AQUATIC CREATURE AI & 3D SWIMMING PHYSICS ---
       const bX = Math.floor(mob.mesh.position.x);
@@ -13649,10 +13748,12 @@ export class MobManager {
 
       // Wiki: a dry dolphin suffocates after two minutes, and rain refills its moistness.
       if (mob.type === 'dolphin') {
-        const raining = this.game?.weather?.isRaining?.() ?? false;
+        const raining = exposedToRain(this.game?.weather,this.world,{x:mob.mesh.position.x,y:mob.mesh.position.y+.6,z:mob.mesh.position.z});
         updateDolphinMoistness(this, mob, dt, raining);
       }
 
+      // Wiki: fish and axolotls spend their air supply out of water, then take 2 damage a second.
+      if (updateWaterAnimalAirSupply(this, mob, dt) && mob.dead) return true;
       mob.swimCycle += dt * (inWater ? 1.0 : 2.5);
 
       if (inWater) {

@@ -1,177 +1,129 @@
-// Ruined portal tests: the multi-variant registry ids, the weighted generic setup, the placement-dependent
-// Y, and the two processors this structure is the first to use on real templates.
+// Ruined portals: the 13 designs (four of them the wiki's blueprints, nine built to its materials tables), the
+// Generation table's setups, the vertical rules and the replacement table. Cards R1-R5 + W1 for every variant run in
+// tests/structureWikiCards.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  generateRuinedPortal, realizeRuinedPortal, selectSetup, selectPortalY,
-  PORTAL_SETUPS, GENERIC_PORTAL_SETUP_WEIGHTS, GIANT_CHANCE
+  generateRuinedPortal, realizeRuinedPortal, buildRuinedPortal, designCells, processPortalBlock, portalBaseY, selectSetup,
+  PORTAL_SETUPS, NORMAL_DESIGNS, GIANT_DESIGNS, GIANT_CHANCE, PORTAL_LOOT, COLD_BIOMES
 } from '../src/worldgen/generators/ruinedPortal.js';
-import { buildRuinedPortal, PORTAL_SHAPES } from '../src/worldgen/templates/ruinedPortal.js';
-import { createStructureEngine, GENERATORS, generatorCoverage } from '../src/worldgen/index.js';
-import { StructureTemplate } from '../src/worldgen/template.js';
+import { PORTAL_MATERIALS } from '../src/worldgen/generators/ruinedPortalDesigns.js';
+import { generatorCoverage } from '../src/worldgen/index.js';
+import { LegacyRandom } from '../src/worldgen/random.js';
+import { STRUCTURE_AUDIT_CARDS } from '../src/structureAuditCards.js';
 import { BLOCKS } from '../src/blocks.js';
-import { createBlockIdResolver } from '../src/worldgen/blockIds.js';
 
-const PORTAL_IDS = [
-  'ruined_portal', 'ruined_portal_desert', 'ruined_portal_jungle', 'ruined_portal_mountain',
-  'ruined_portal_ocean', 'ruined_portal_swamp', 'ruined_portal_nether'
-];
-const flat = (biome = 'plains', surface = 70) => ({ biomeAt: () => biome, surfaceY: () => surface });
+const PORTAL_IDS = Object.keys(PORTAL_SETUPS);
+const flat = (biome = 'plains', surface = 40) => ({ biomeAt: () => biome, surfaceY: () => surface });
+const countOf = (cells) => { const n = {}; for (const c of cells) { const k = c.name === 'block_of_gold' ? 'gold_block' : c.name; n[k] = (n[k] ?? 0) + 1; } return n; };
 
-test('all seven ruined portal ids have a generator, and the generic one is gated off the deep dark', () => {
+test('all seven ruined portal ids have a generator', () => {
   const { implemented } = generatorCoverage();
-  for (const id of PORTAL_IDS) assert.ok(implemented.includes(id), `${id} has no generator`);
-  assert.ok(GENERATORS.ruinedPortal.realize);
-  const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, ...flat() });
-  // The generic id's biome list is empty because vanilla gates it with a tag; without the explicit
-  // exclusion it would have generated in the deep dark.
-  assert.deepEqual(engine.registry.ruined_portal.biomeTagExcludes, ['deep_dark']);
-  assert.equal(PORTAL_IDS.length, 7, 'vanilla has seven ruined portal ids in one set');
+  for (const id of PORTAL_IDS) assert.ok(implemented.includes(id), id);
+  assert.equal(PORTAL_IDS.length, 7);
 });
 
-test('a pinned id uses its own setup, and the generic id draws one by weight', () => {
-  assert.equal(selectSetup('ruined_portal_desert', 1, 0, 0).source, 'pinned');
-  assert.equal(selectSetup('ruined_portal_desert', 1, 0, 0).setup.mossiness, 0);
-  assert.equal(selectSetup('ruined_portal_jungle', 1, 0, 0).setup.mossiness, 0.8);
-  assert.equal(selectSetup('ruined_portal_nether', 1, 0, 0).setup.replaceWithBlackstone, true);
+test('every one of the 13 designs has its materials table, inside its own box', () => {
+  assert.deepEqual([NORMAL_DESIGNS.length, GIANT_DESIGNS.length, GIANT_CHANCE], [10, 3, 0.05]);
+  for (const design of [...NORMAL_DESIGNS, ...GIANT_DESIGNS]) {
+    const { cells, size } = designCells(design);
+    const n = countOf(cells);
+    // portal_3's drawing has one netherrack and two slabs more than its table (pinned, as with the igloo).
+    if (design === 'portal_3') { n.netherrack -= 1; n.stone_brick_slab -= 2; }
+    assert.deepEqual(n, PORTAL_MATERIALS[design], design);
+    for (const c of cells) assert.ok(c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < size[0] && c.y < size[1] && c.z < size[2], `${design} ${c.x},${c.y},${c.z}`);
+    assert.equal(new Set(cells.map((c) => `${c.x},${c.y},${c.z}`)).size, cells.length, `${design}: two blocks in one place`);
+  }
+});
 
-  // The generic id must reach every weighted entry across chunks, deterministically.
+test('design odds: 5% giant, the rest split evenly', () => {
+  const n = {};
+  for (let i = 0; i < 4000; i++) {
+    const start = generateRuinedPortal({ seed: 11, chunkX: i, chunkZ: -i, structureId: 'ruined_portal', context: flat() });
+    n[start.meta.design] = (n[start.meta.design] ?? 0) + 1;
+  }
+  const giant = GIANT_DESIGNS.reduce((sum, d) => sum + (n[d] ?? 0), 0) / 4000;
+  assert.ok(giant > 0.035 && giant < 0.065, `giant share ${giant}`);
+  for (const d of NORMAL_DESIGNS) assert.ok(n[d] > 300 && n[d] < 470, `${d}: ${n[d]}`);
+});
+
+test('the replacement table', () => {
+  const warm = { mossiness: 0, cold: false, ocean: false, blackstone: false };
+  assert.equal(processPortalBlock('block_of_gold', null, warm, 0.29, 0), null, 'gold 30% air');
+  assert.equal(processPortalBlock('block_of_gold', null, warm, 0.31, 0).name, 'gold_block');
+  assert.equal(processPortalBlock('lava', null, warm, 0.19, 0).name, 'magma_block', 'lava 20% magma');
+  assert.equal(processPortalBlock('lava', null, warm, 0.21, 0).name, 'lava');
+  assert.equal(processPortalBlock('lava', null, { ...warm, ocean: true }, 0.9, 0).name, 'magma_block', 'on the ocean floor, always magma');
+  assert.equal(processPortalBlock('lava', null, { ...warm, cold: true }, 0.1, 0).name, 'netherrack', 'cold: netherrack');
+  assert.equal(processPortalBlock('netherrack', null, warm, 0.06, 0).name, 'magma_block', 'netherrack 7% magma');
+  assert.equal(processPortalBlock('netherrack', null, { ...warm, cold: true }, 0.06, 0).name, 'netherrack');
+  assert.equal(processPortalBlock('obsidian', null, warm, 0.14, 0).name, 'crying_obsidian', 'obsidian 15% crying');
+  assert.equal(processPortalBlock('obsidian', null, warm, 0.16, 0).name, 'obsidian');
+  // Block age: 50% x (1 - mossiness) cracked, 50% x mossiness mossy.
+  const moss = { ...warm, mossiness: 0.8 };
+  assert.equal(processPortalBlock('stone_bricks', null, moss, 0.05, 0.1).name, 'cracked_stone_bricks');
+  assert.equal(processPortalBlock('stone_bricks', null, moss, 0.3, 0.1).name, 'mossy_stone_bricks');
+  assert.equal(processPortalBlock('stone_bricks', null, moss, 0.6, 0.1).name, 'stone_bricks');
+  assert.equal(processPortalBlock('stone_brick_slab', null, moss, 0.7, 0).name, 'mossy_stone_brick_slab');
+  assert.equal(processPortalBlock('stone_brick_wall', null, moss, 0.7, 0).name, 'mossy_stone_brick_wall');
+  for (let r = 0; r < 1; r += 0.05) assert.doesNotMatch(processPortalBlock('stone_bricks', null, warm, r, 0.1).name, /mossy/, 'a desert portal never goes mossy');
+  // The Nether: blackstone equivalents, chains for bars.
+  const nether = { ...warm, blackstone: true };
+  assert.equal(processPortalBlock('stone_bricks', null, nether, 0.9, 0).name, 'polished_blackstone_bricks');
+  assert.equal(processPortalBlock('iron_bars', null, nether, 0.9, 0).name, 'chain');
+  assert.equal(processPortalBlock('smooth_stone_slab', null, nether, 0.9, 0).name, 'polished_blackstone_slab');
+  assert.ok(COLD_BIOMES.has('snowy_plains') && !COLD_BIOMES.has('plains'));
+});
+
+test('the vertical rules', () => {
+  const random = () => new LegacyRandom(5n);
+  const at = (placement, extra = {}) => portalBaseY({ placement, ...extra }, { surface: 60, oceanFloor: 40, height: 8, random: random() });
+  assert.equal(at('on_land_surface'), 59, 'the ground layer replaces the surface block');
+  assert.equal(at('on_ocean_floor'), 39);
+  for (let i = 0; i < 50; i++) {
+    const r = new LegacyRandom(BigInt(i));
+    const buried = portalBaseY({ placement: 'partly_buried' }, { surface: 60, height: 8, random: r });
+    assert.ok(buried >= 54 && buried <= 60, '"n-n2, plus a random integer from 2 to 8"');
+    const under = portalBaseY({ placement: 'underground' }, { surface: 60, height: 8, random: new LegacyRandom(BigInt(i)) });
+    assert.ok(under >= 15 && under <= 52, '"from 15 to n-n2"');
+    const pocket = portalBaseY({ placement: 'in_nether', airPocket: true }, { surface: 60, height: 8, random: new LegacyRandom(BigInt(i)) });
+    assert.ok(pocket >= 32 && pocket <= 100);
+  }
+});
+
+test('a pinned id always uses its own setup; the standard id draws both of its setups', () => {
+  assert.equal(selectSetup('ruined_portal_desert', new LegacyRandom(1n)).placement, 'partly_buried');
   const seen = new Set();
-  for (let chunkX = 0; chunkX < 200; chunkX++) {
-    const first = selectSetup('ruined_portal', 99, chunkX, 0);
-    assert.equal(selectSetup('ruined_portal', 99, chunkX, 0).source, first.source, 'the setup roll must be stable');
-    seen.add(first.source);
-  }
-  assert.equal(seen.size, Object.keys(GENERIC_PORTAL_SETUP_WEIGHTS).length,
-    `expected every weighted setup to appear, saw ${[...seen]}`);
-  assert.throws(() => selectSetup('igloo', 1, 0, 0), /not a ruined portal id/);
+  for (let i = 0; i < 40; i++) seen.add(selectSetup('ruined_portal', new LegacyRandom(BigInt(i) * 0x9E3779B97F4A7C15n)).placement);
+  assert.deepEqual([...seen].sort(), ['on_land_surface', 'underground']);
+  assert.throws(() => selectSetup('igloo', new LegacyRandom(1n)), /not a ruined portal id/);
 });
 
-test('the placed Y follows the setup placement rule', () => {
-  const base = { seed: 5, chunkX: 3, chunkZ: -2, surface: 70, oceanFloor: 58 };
-  const yFor = (placement, extra = {}) =>
-    selectPortalY({ ...base, setup: { placement, airPocketProbability: 0, ...extra } });
-  assert.equal(yFor('on_land_surface'), 70);
-  assert.ok(yFor('partly_buried') <= 70 && yFor('partly_buried') >= 67, 'buried by up to three blocks');
-  // An ocean-floor portal must sit at the ocean floor, not the world surface.
-  assert.equal(yFor('on_ocean_floor'), 58);
-  assert.ok(yFor('underground') <= 55 && yFor('underground') >= 49, 'underground portals sit well below');
-  assert.ok(yFor('in_mountain') >= 70);
-  // Nether rules: an air pocket lands in 32..100, and with probability 1 it must always do so.
-  for (let chunkX = 0; chunkX < 50; chunkX++) {
-    const y = selectPortalY({ ...base, chunkX, setup: { placement: 'in_nether', airPocketProbability: 1 } });
-    assert.ok(y >= 32 && y <= 100, `air-pocket portal at Y ${y} is outside 32..100`);
-  }
-  assert.throws(() => yFor('not_a_placement'), /unknown ruined portal placement/);
+test('mossy, overgrown and vine portals look it; the chest has the loot', () => {
+  const jungle = buildRuinedPortal({ design: 'giant_portal_1', seed: 3, mossiness: 0.8, overgrown: true, vines: true });
+  const names = jungle.palette.map((p) => p.Name);
+  for (const n of ['minecraft:jungle_leaves', 'minecraft:vine', 'minecraft:mossy_stone_bricks']) assert.ok(names.includes(n), n);
+  const chest = jungle.blocks.filter((b) => jungle.palette[b.state].Name === 'minecraft:chest');
+  assert.equal(chest.length, 1);
+  assert.equal(chest[0].nbt.LootTable, PORTAL_LOOT);
+  const desert = buildRuinedPortal({ design: 'giant_portal_1', seed: 3, mossiness: 0 });
+  assert.ok(!desert.palette.some((p) => /mossy|jungle_leaves|vine/.test(p.Name)));
 });
 
-test('the templates are well formed for both shapes and every base material', () => {
-  for (const shape of Object.keys(PORTAL_SHAPES)) {
-    for (const baseBlock of ['minecraft:stone_bricks', 'minecraft:sandstone', 'minecraft:blackstone']) {
-      const json = buildRuinedPortal({ shape, baseBlock, integrity: 1, seed: 7 });
-      const template = new StructureTemplate(json, `portal/${shape}`);
-      assert.deepEqual(template.size, PORTAL_SHAPES[shape].size);
-      assert.ok(template.blockCount > 20, `${shape}/${baseBlock} produced only ${template.blockCount} blocks`);
-      assert.ok(template.palette.some((entry) => entry.name === baseBlock), 'the setup material must appear');
-      for (const block of template.blocks) {
-        const [x, y, z] = block.pos;
-        const [sx, sy, sz] = template.size;
-        assert.ok(x >= 0 && x < sx && y >= 0 && y < sy && z >= 0 && z < sz,
-          `${shape}: block at ${block.pos} is outside ${template.size}`);
-      }
-    }
-  }
-  // Damage is real: an integrity of 0 leaves no obsidian at all, and full integrity leaves some.
-  const broken = new StructureTemplate(buildRuinedPortal({ integrity: 0, seed: 1 }), 'broken');
-  assert.equal(broken.blocks.filter((block) => broken.palette[block.state].name === 'minecraft:obsidian').length, 0);
-  const whole = new StructureTemplate(buildRuinedPortal({ integrity: 1, seed: 1 }), 'whole');
-  assert.ok(whole.blocks.filter((block) => whole.palette[block.state].name === 'minecraft:obsidian').length > 5);
+test('realization: resolves every block, spreads netherrack round the portal, deterministic', () => {
+  const start = generateRuinedPortal({ seed: 9, chunkX: 4, chunkZ: 2, structureId: 'ruined_portal_jungle', context: flat('jungle') });
+  const collect = () => { const out = []; const r = realizeRuinedPortal(start, (x, y, z, id) => { out.push(`${x},${y},${z},${id}`); return true; }, BLOCKS); return [out, r]; };
+  const [a, report] = collect();
+  assert.deepEqual(a, collect()[0]);
+  assert.deepEqual(report.missingBlocks, []);
+  assert.ok(report.spreadWritten > 10, `${report.spreadWritten} netherrack spread`);
 });
 
-test('crying obsidian appears at roughly the documented rate', () => {
-  // Measured across many portals, not one: a single template has only ~14 obsidian draws, so it can
-  // legitimately contain none at a 15% rate, and asserting otherwise would be a flaky test rather than a
-  // check on the rate.
-  let obsidian = 0;
-  let crying = 0;
-  for (let seed = 0; seed < 60; seed++) {
-    const template = new StructureTemplate(buildRuinedPortal({ integrity: 1, cryingChance: 0.15, seed }), `rate-${seed}`);
-    for (const block of template.blocks) {
-      const name = template.palette[block.state].name;
-      if (name === 'minecraft:obsidian') obsidian++;
-      else if (name === 'minecraft:crying_obsidian') crying++;
-    }
-  }
-  assert.ok(obsidian + crying > 400, `need enough obsidian to measure a rate, got ${obsidian + crying}`);
-  const rate = crying / (obsidian + crying);
-  assert.ok(rate > 0.08 && rate < 0.22, `expected roughly 15% crying obsidian, measured ${(rate * 100).toFixed(1)}%`);
-  // With cryingChance 0 nothing may turn, which is the control that proves the rate is the parameter.
-  const none = new StructureTemplate(buildRuinedPortal({ integrity: 1, cryingChance: 0, seed: 3 }), 'none');
-  assert.equal(none.blocks.filter((block) => none.palette[block.state].name === 'minecraft:crying_obsidian').length, 0);
-});
-
-test('generation is deterministic and the giant roll happens', () => {
-  const context = flat('plains', 70);
-  const first = generateRuinedPortal({ seed: 1234, chunkX: 8, chunkZ: -8, structureId: 'ruined_portal', context });
-  const again = generateRuinedPortal({ seed: 1234, chunkX: 8, chunkZ: -8, structureId: 'ruined_portal', context });
-  assert.deepEqual(first.box.toArray(), again.box.toArray());
-  assert.equal(first.meta.integrity, again.meta.integrity);
-  assert.equal(first.pieces[0].template, again.pieces[0].template);
-
-  let giants = 0;
-  for (let chunkX = 0; chunkX < 800; chunkX++) {
-    const start = generateRuinedPortal({ seed: 7, chunkX, chunkZ: 0, structureId: 'ruined_portal', context });
-    if (start.meta.giant) giants++;
-  }
-  assert.ok(giants > 800 * (GIANT_CHANCE - 0.03) && giants < 800 * (GIANT_CHANCE + 0.03),
-    `expected roughly 5% giants, got ${giants}/800`);
-});
-
-test('realization writes the portal, resolves ids, and reports unapplied flags', () => {
-  const context = flat('jungle', 70);
-  const start = generateRuinedPortal({ seed: 21, chunkX: 2, chunkZ: 5, structureId: 'ruined_portal_jungle', context });
-  const written = [];
-  const report = realizeRuinedPortal(start, (x, y, z, id, meta) => { written.push({ x, y, z, id, meta }); return true; }, BLOCKS);
-
-  assert.ok(report.written > 20, `expected a portal, wrote ${report.written}`);
-  assert.deepEqual(report.missingBlocks, [], `unresolved palette blocks: ${report.missingBlocks}`);
-  // The processors this structure is the first to exercise on real data must have run.
-  assert.ok(report.processorTypes.includes('block_age'), 'mossiness is the block_age argument');
-  assert.ok(report.processorTypes.includes('jigsaw_replacement'));
-  // Every written block must be a real numeric id.
-  assert.ok(written.every((entry) => typeof entry.id === 'number'));
-  // The chest must survive with an identifiable state, or the loot is decorative.
-  const chestId = createBlockIdResolver(BLOCKS).resolve('minecraft:chest');
-  assert.ok(written.some((entry) => entry.id === chestId), 'a ruined portal contains a chest');
-  // The flags carried but not applied are reported rather than hidden.
-  assert.deepEqual(start.meta.unappliedFlags, ['overgrown', 'vines']);
-  assert.match(report.note, /not applied/);
-});
-
-test('the nether variant runs the blackstone processor', () => {
-  const context = { biomeAt: () => 'nether_wastes', surfaceY: () => 70 };
-  const start = generateRuinedPortal({ seed: 3, chunkX: 1, chunkZ: 1, structureId: 'ruined_portal_nether', context });
-  const report = realizeRuinedPortal(start, () => true, BLOCKS);
-  assert.ok(report.processorTypes.includes('blackstone_replace'),
-    'replace_with_blackstone is the blackstone_replace processor');
-  assert.equal(start.meta.setup.baseBlock, 'minecraft:blackstone');
-  // A nether portal uses the nether placement rule, so it lands inside the nether's Y band.
-  assert.ok(start.meta.y >= 27 && start.meta.y <= 100, `nether portal at Y ${start.meta.y}`);
-});
-
-test('the Engine plans a portal through the real placement path', () => {
-  const engine = createStructureEngine({ seed: 4242, blockIds: BLOCKS, ...flat('plains', 70) });
-  let plan = null;
-  for (let chunkX = 0; chunkX < 4000 && !plan; chunkX++) {
-    const candidate = engine.planChunk(chunkX, 0);
-    if (candidate && candidate.structureId.startsWith('ruined_portal')) plan = candidate;
-  }
-  assert.ok(plan, 'spacing 40 must yield a portal within 4000 chunks');
-  assert.ok(plan.set === 'ruined_portals');
-  // The plan must realize through the engine, clipped to its own chunk.
-  let written = 0;
-  engine.realize(plan.start, () => { written++; return true; }, { chunkX: plan.start.chunkX, chunkZ: plan.start.chunkZ });
-  assert.ok(written > 0, 'the engine must be able to realize the portal it planned');
-  assert.ok(engine.hashStart(plan.start) !== undefined);
+test('the card notices the wrong setup', () => {
+  const r1 = STRUCTURE_AUDIT_CARDS.ruined_portal_jungle.facts.find((f) => f.id === 'R1');
+  assert.equal(r1.check().ok, true);
+  const saved = PORTAL_SETUPS.ruined_portal_jungle[0][1].mossiness;
+  PORTAL_SETUPS.ruined_portal_jungle[0][1].mossiness = 0.2;
+  try { assert.equal(r1.check().ok, false); } finally { PORTAL_SETUPS.ruined_portal_jungle[0][1].mossiness = saved; }
 });

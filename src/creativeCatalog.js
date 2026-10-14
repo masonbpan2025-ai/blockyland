@@ -1,4 +1,4 @@
-import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+﻿import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
@@ -13,7 +13,7 @@ export const CREATIVE_TABS = [
   { id: 'food_drinks', name: 'Food & Drinks', icon: '/assets/items/golden_apple.png' },
   { id: 'ingredients', name: 'Ingredients', icon: '/assets/items/iron_ingot.png' },
   { id: 'spawn_eggs', name: 'Spawn Eggs', icon: '/assets/items/spawn_egg.png' },
-  { id: 'building', name: 'Structures', icon: '/assets/blocks/crafting_table_top.png' },
+  { id: 'building', name: 'Buildings', icon: '/assets/blocks/crafting_table_top.png' },
   { id: 'all_items', name: 'Search / All Items', icon: '/assets/items/compass.png' }
 ];
 
@@ -102,6 +102,7 @@ export function buildCreativeCatalog() {
     BLOCKS.GRASS, BLOCKS.DIRT, BLOCKS.FARMLAND, BLOCKS.FARMLAND_MOIST, BLOCKS.SAND, BLOCKS.GRAVEL,
     BLOCKS.OAK_LOG, BLOCKS.OAK_LEAVES, BLOCKS.CACTUS, BLOCKS.SNOW, BLOCKS.ICE,
     BLOCKS.POPPY, BLOCKS.DANDELION,
+    BLOCKS.FIREFLY_BUSH,
     // The saplings. Each is its own item because breaking one returns the sapling itself, so they need
     // no separate ITEMS entry -- blockItem() derives name and icon from the definition.
     BLOCKS.OAK_SAPLING, BLOCKS.SPRUCE_SAPLING, BLOCKS.BIRCH_SAPLING, BLOCKS.JUNGLE_SAPLING,
@@ -182,7 +183,7 @@ export function buildCreativeCatalog() {
     // Crops at their mature stage, soul fire, the suspicious blocks and scaffolding. Grouped as the
     // twenty-second batch's leftovers rather than by theme, because that is what they are: eight blocks
     // whose art only turned up when the sweep stopped probing bare names.
-    BLOCKS.BEETROOTS, BLOCKS.COCOA, BLOCKS.PITCHER_CROP, BLOCKS.TORCHFLOWER_CROP,
+    BLOCKS.BEETROOTS_STAGE_3, BLOCKS.COCOA, BLOCKS.PITCHER_CROP, BLOCKS.TORCHFLOWER_CROP,
     BLOCKS.SOUL_FIRE, BLOCKS.SUSPICIOUS_SAND, BLOCKS.SUSPICIOUS_GRAVEL, BLOCKS.SCAFFOLDING,
     // Tall and ceiling plants. Hanging roots is ceiling-anchored, which is a placement consequence
     // rather than a catalogue one, so it sits here with the rest of the ground cover.
@@ -483,9 +484,8 @@ export function buildCreativeCatalog() {
         isBuilding: true,
         buildingId: st.id,
         tab: 'building',
-        // `structure`, which is the category the studio and the tests look for; the tab id stays `building`
-        // because creativeInventory.test.js and getCreativeItemsByTab() both address it by that id.
-        category: 'structure',
+        // The tab and its category are both `building`, the name Building Studio and the Building Library use.
+        category: 'building',
         count: 1,
         searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
       });

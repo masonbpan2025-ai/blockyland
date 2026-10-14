@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { waterHeight } from './waterGeometry.js';
+import { markOverWater } from './waterPass.js';
 
 // Detect feet entering a free water surface, including a fast fall crossing a whole voxel.
 export function waterEntry(world, previous, position) {
@@ -30,12 +31,15 @@ export class WaterSplashes {
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Droplets and rings sit on and above the surface, so they are drawn over it rather than under it.
+    markOverWater(this.mesh);
     scene.add(this.mesh);
     this.ringGeometry = new THREE.RingGeometry(.91, 1, 48);
     this.rings = Array.from({ length: 4 }, () => {
       const mesh = new THREE.Mesh(this.ringGeometry, new THREE.MeshBasicMaterial({ color: 0xc4eaff, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false }));
       mesh.rotation.x = -Math.PI / 2;
       mesh.visible = false;
+      markOverWater(mesh);
       scene.add(mesh);
       return { mesh, life: 0, strength: 1 };
     });

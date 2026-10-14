@@ -4,13 +4,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test --test-isolation=none",
+    "test": "node --test --test-isolation=none tests/*.test.js",
     "test:all": "node scripts/test.mjs --all",
     "test:list": "node scripts/test.mjs --list",
     "test:mob": "node scripts/test.mjs mob",
     "test:agent": "node scripts/test.mjs agent",
     "test:bot": "node --test --test-isolation=none tests/playerBot.test.js tests/playerBotSurvival.test.js tests/playerBotSurvivalScenarios.test.js",
     "test:survival:bot": "playwright test -c playwright.survival.config.js",
+    "test:smith:bot": "playwright test -c playwright.smith.config.js",
+    "test:water:browser": "playwright test -c playwright.water.config.js",
+    "test:share:browser": "playwright test -c playwright.share.config.js",
+    "share": "vite build && node server/shareServer.js",
+    "share:check": "node scripts/check-share.mjs",
+    "test:world:browser": "playwright test -c playwright.worldStart.config.js",
+    "profile:water": "node scripts/profile-water.mjs",
     "test:bot:browser": "playwright test -c playwright.bot.config.js",
     "test:redstone": "node scripts/test.mjs redstone",
     "test:studio": "node scripts/test.mjs studio",
@@ -22,22 +29,23 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "multiplayer:setup": "node scripts/setup-multiplayer.mjs",
-    "test:multiplayer": "node --test --test-isolation=none tests/multiplayer*.test.js",
-    "test:multiplayer:live": "node scripts/test-multiplayer-live.mjs",
-    "test:multiplayer:browser": "playwright test -c playwright.multiplayer.config.js"
+    "deploy:cloudflare:share": "npx wrangler deploy --config cloudflare/share/wrangler.jsonc",
+    "deploy:cloudflare": "npm run deploy:cloudflare:share && npm run build && npx wrangler pages deploy dist --project-name blockyland",
+    "mods:generate": "node scripts/generate-mod-catalog.mjs",
+    "predev": "npm run mods:generate",
+    "prebuild": "npm run mods:generate",
+    "test:mods": "node --test --test-isolation=none tests/modStructure.test.js tests/modInspectorIsolation.test.js tests/rescueAdventure.test.js tests/modAuthority.test.js tests/savedMapLoadProgress.test.js tests/campaignPresentation.test.js",
+    "test:mods:visuals": "node scripts/test-campaign-visuals.mjs",
+    "benchmark:textures:cpu": "node scripts/benchmark-textures-cpu.mjs"
   },
   "type": "module",
   "dependencies": {
-    "express": "5.2.1",
-    "minecraft-protocol": "1.68.0",
-    "mwc-proxy": "0.0.4",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
-    "vite": "^8.3.1",
-    "ws": "8.22.0"
+    "vite": "^8.3.1"
   },
   "overrides": {
     "axios": "0.34.0",

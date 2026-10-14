@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "structure": "pillager_outpost",
+  "seed": "20250401",
+  "chunk": [
+    19,
+    -32
+  ],
+  "biome": "snowy_plains",
+  "box": {
+    "minX": 292,
+    "minY": 10,
+    "minZ": -529,
+    "maxX": 347,
+    "maxY": 54,
+    "maxZ": -474
+  },
+  "pieces": 5,
+  "blocks": {
+    "Stone": 29906,
+    "Dirt": 6389,
+    "Water": 2950,
+    "Packed Ice": 2778,
+    "Snow Block": 2724,
+    "Spruce Leaves": 1988,
+    "Coal Ore": 1238,
+    "Gravel": 1135,
+    "Iron Ore": 1004,
+    "Grass Block": 796,
+    "Gold Ore": 530,
+    "Dark Oak Planks": 393,
+    "Sand": 388,
+    "Redstone Ore": 367,
+    "Snow": 327,
+    "Spruce Log": 257,
+    "Birch Planks": 244,
+    "Kelp Plant": 224,
+    "Cobblestone": 208,
+    "Dark Oak Log": 165,
+    "Diamond Ore": 150,
+    "Powder Snow": 124,
+    "Kelp": 80,
+    "Ice": 80,
+    "Dark Oak Fence": 78,
+    "White Wool": 60,
+    "Dark Oak Slab": 45,
+    "Seagrass": 38,
+    "Cobblestone Stairs": 33,
+    "Tall Seagrass": 28,
+    "Dark Oak Stairs": 16,
+    "White Wall Banner": 8,
+    "Cobblestone Wall": 8,
+    "Pumpkin": 8,
+    "Cobblestone Slab": 4,
+    "Crafting Table": 3,
+    "Wall Torch": 2,
+    "Torch": 2,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1,
+    "mob": 8
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 17,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

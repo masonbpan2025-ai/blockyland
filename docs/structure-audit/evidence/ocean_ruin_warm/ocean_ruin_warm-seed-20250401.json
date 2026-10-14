@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "structure": "ocean_ruin_warm",
+  "seed": "20250401",
+  "chunk": [
+    50,
+    20
+  ],
+  "biome": "warm_ocean",
+  "box": {
+    "minX": 800,
+    "minY": 17,
+    "minZ": 320,
+    "maxX": 805,
+    "maxY": 22,
+    "maxZ": 326
+  },
+  "pieces": 1,
+  "blocks": {
+    "Water": 165,
+    "Sand": 54,
+    "Cut Sandstone": 15,
+    "Seagrass": 5,
+    "Sandstone Stairs": 4,
+    "Suspicious Sand": 3,
+    "Tall Seagrass": 3,
+    "Magma Block": 2,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "wheat",
+        "count": 7
+      },
+      {
+        "name": "coal",
+        "count": 4
+      },
+      {
+        "name": "leather_chestplate",
+        "count": 1
+      },
+      {
+        "name": "rotten_flesh",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1,
+    "mob": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 16,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

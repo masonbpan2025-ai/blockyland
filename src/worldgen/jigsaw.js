@@ -231,7 +231,12 @@ export function addPieces({
     return piece;
   };
 
-  const start = place(startPool.elements[0], Rotation.NONE, Mirror.NONE, origin, 0, null);
+  // Vanilla (`JigsawPlacement.addPieces`): a random rotation, then ONE weighted draw from the start pool. Always
+  // taking the first element with no rotation made every village open with the same meeting point, facing the same
+  // way, and made a weighted variant (the 2% abandoned village) impossible.
+  const startRotation = random.nextIntBound(4);
+  const startElement = startPool.elements.length > 1 ? startPool.elements[startPool.shuffledOrder(random)[0]] : startPool.elements[0];
+  const start = place(startElement, startRotation, Mirror.NONE, origin, 0, null);
   if (!start) return { pieces, diagnostics, start: null };
 
   // Breadth-first over a queue, which is what makes `max_depth` a real depth and not a placement count.
@@ -254,7 +259,9 @@ export function addPieces({
 
       for (const index of order) {
         const element = pool.elements[index];
-        if (element.isEmpty) continue;
+        // Vanilla: drawing the empty element ends the attempt -- the connector is deliberately left with nothing
+        // (`if (element == EmptyPoolElement.INSTANCE) break;`). Skipping it instead made empty elements weightless.
+        if (element.isEmpty) { placedForConnector = true; break; }
 
         // The candidate must expose a connector with the SAME NAME on its own list; that is how vanilla
         // joins a corridor to a corridor rather than to a random door.

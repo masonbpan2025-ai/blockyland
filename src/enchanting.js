@@ -350,9 +350,16 @@ const ENCHANTABILITY_BY_MATERIAL = {
   stone: 5,
 };
 
-/** The same table's armour column, which is not the tools column for four of the materials. */
+/**
+ * The same table's armour column, which is not the tools column for four of the materials.
+ *
+ * `turtle` is here, not in the tools table: the wiki's armour row names the Turtle Shell, whose 9 is the
+ * same figure as iron armour, and this game's item is `turtle_helmet`. Without the entry the material
+ * lookup fell through to the "all other items" value of 1, so a turtle shell was as hard to enchant as a
+ * book and could never reach the higher cost ranges.
+ */
 const ARMOUR_ENCHANTABILITY = {
-  golden: 25, leather: 15, netherite: 15, iron: 9, chainmail: 12, diamond: 10, copper: 8,
+  golden: 25, leather: 15, netherite: 15, iron: 9, chainmail: 12, diamond: 10, copper: 8, turtle: 9,
 };
 
 /**

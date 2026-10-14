@@ -207,41 +207,6 @@ html, body {
   image-rendering: pixelated;
 }
 
-/* Tournament Mode 3x Long Health Bar */
-#status-bars.tournament-mode {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: auto;
-  max-width: 90vw;
-  margin-bottom: 6px;
-  gap: 4px;
-}
-
-#status-bars.tournament-mode #health-bar {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 2px;
-  background: rgba(18, 6, 8, 0.85);
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 2px solid rgba(239, 68, 68, 0.75);
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45), inset 0 0 8px rgba(239, 68, 68, 0.2);
-}
-
-#status-bars.tournament-mode #health-bar .stat-icon {
-  width: 18px;
-  height: 18px;
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-
-#status-bars.tournament-mode #hunger-bar {
-  display: flex;
-  gap: 2px;
-  opacity: 0.85;
-}
-
 /* Experience Bar */
 #exp-container {
   position: relative;
@@ -1260,10 +1225,38 @@ html, body {
    Structure/Item and Block/Mob pair up, matching the stacked start buttons above it. */
 .inspector-picker-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin: 20px 0 16px;
   width: 100%;
+}
+
+/* The shared large button is a fixed 360px for the start screen; inside the picker it fills its grid cell,
+   and stacks its name over a short caption so the four choices read at a glance. */
+.inspector-picker-options .mc-btn-large {
+  width: 100%;
+  height: auto;
+  min-height: 64px;
+  padding: 8px 10px;
+  font-size: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.inspector-picker-note {
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0;
+  color: #e6e6e6;
+  opacity: 0.85;
+}
+
+#inspector-picker-modal .biome-modal-card {
+  width: 520px;
+  overflow-x: hidden;
 }
 
 .mc-btn-large {
@@ -1398,7 +1391,7 @@ html, body {
    Gemini AI Command Terminal (C)
    ========================================================================== */
 .gemini-terminal-card {
-  width: 680px;
+  width: 860px;
   max-width: 95vw;
   background: rgba(12, 16, 28, 0.94);
   backdrop-filter: blur(18px);
@@ -1427,12 +1420,16 @@ html, body {
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   padding-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .gemini-title-group {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .gemini-sparkle {
@@ -1492,7 +1489,39 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
 }
+
+.gemini-offline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid #415579;
+  border-radius: 5px;
+  background: #182238;
+  color: #c6d5f3;
+  font: 11px 'Minecraft', monospace;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gemini-offline-toggle:hover { border-color: #70b5ff; }
+.gemini-offline-toggle:focus-visible, .gemini-icon-btn:focus-visible {
+  outline: 2px solid #70b5ff;
+  outline-offset: 3px;
+}
+.gemini-offline-track { position: relative; width: 29px; height: 16px; border-radius: 10px; background: #46536b; }
+.gemini-offline-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 10px; height: 10px; border-radius: 50%; background: #eef4ff;
+  transition: transform .15s ease;
+}
+.gemini-offline-toggle[aria-checked="true"] { border-color: #bb792f; color: #ffd8a3; background: #382819; }
+.gemini-offline-toggle[aria-checked="true"] .gemini-offline-track { background: #ce8c37; }
+.gemini-offline-toggle[aria-checked="true"] .gemini-offline-track::after { transform: translateX(13px); }
+.gemini-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+.gemini-icon-btn:disabled:hover { background: rgba(255,255,255,.08); color: #bbb; }
 
 .gemini-icon-btn {
   background: rgba(255, 255, 255, 0.08);
@@ -1535,6 +1564,8 @@ html, body {
 
 /* Optional API Key Drawer */
 .gemini-key-drawer {
+  margin: 0;
+  min-width: 0;
   background: rgba(18, 25, 45, 0.8);
   border: 1px solid rgba(66, 133, 244, 0.3);
   border-radius: 6px;
@@ -1559,6 +1590,30 @@ html, body {
 .gemini-key-row {
   display: flex;
   gap: 8px;
+}
+
+/* Refresh / custom id / follow-newest, under the model picker. */
+.gemini-model-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.gemini-model-tools input[type="text"] {
+  flex: 1 1 140px;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #445577;
+  color: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.gemini-model-tools .gemini-vendor-hint {
+  flex-basis: 100%;
 }
 
 .gemini-key-row input {
@@ -2099,8 +2154,8 @@ html, body {
   color: #ffffff;
 }
 
-/* World settings inside the Agent Terminal's drawer. */
-.gemini-world-settings {
+/* Data pack management lives in the pause menu, outside AI configuration. */
+.datapack-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2108,6 +2163,12 @@ html, body {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   margin-top: 8px;
 }
+.pause-datapacks { width: 380px; max-width: 85vw; }
+.pause-datapacks > summary { list-style: none; text-align: center; box-sizing: border-box; }
+.pause-datapacks > summary::-webkit-details-marker { display: none; }
+.pause-datapacks-body { margin-top: 8px; padding: 12px; background: #111827; border-radius: 5px; max-height: 35vh; overflow-y: auto; color: #d7e3fc; }
+.pause-datapacks .datapack-section { padding: 0; margin: 0; border: 0; }
+.mc-menu-card:has(#pause-datapacks) { max-height: 90vh; overflow-y: auto; }
 
 .gemini-world-row {
   display: flex;
@@ -2771,29 +2832,6 @@ html, body {
   width: 200px;
 }
 
-/* ========================================================
-   DRAGON BALL WORLD MARTIAL ARTS TOURNAMENT UI
-   ======================================================== */
-
-/* Boss Health Bar */
-#boss-bar-container {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  z-index: 1000;
-  pointer-events: none;
-  animation: dropIn 0.4s ease-out;
-}
-
-#boss-bar-container.hidden {
-  display: none !important;
-}
-
 .boss-bar-title {
   color: #f3e8ff;
   font-family: 'Minecraft', sans-serif;
@@ -2821,97 +2859,62 @@ html, body {
   transition: width 0.15s ease-out;
 }
 
-/* Announcer Dialogue Banner */
-#announcer-dialogue {
-  position: fixed;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1100;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-
-#announcer-dialogue.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-#announcer-dialogue.hidden {
-  display: none !important;
-}
-
-.announcer-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: rgba(18, 18, 24, 0.92);
-  border: 3px solid #f59e0b;
-  border-radius: 8px;
-  padding: 12px 20px;
-  max-width: 640px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75), 0 0 16px rgba(245, 158, 11, 0.35);
-  backdrop-filter: blur(8px);
-}
-
-.announcer-badge {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
-  color: #111111;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  padding: 6px 10px;
-  border-radius: 4px;
-  letter-spacing: 1px;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-
-.announcer-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.announcer-title {
-  color: #fcd34d;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.announcer-text {
-  color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 15px;
-  line-height: 1.35;
-  text-shadow: 1px 1px 2px #000000;
-}
-
-/* World Champion Victory Overlay */
-#champion-overlay {
+/* Minecraft death screen */
+#death-overlay {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.75) 100%);
+  background: linear-gradient(rgba(80, 0, 0, 0.55), rgba(160, 0, 0, 0.7));
   z-index: 2000;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.5s ease;
 }
 
-#champion-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-#champion-overlay.hidden {
+#death-overlay.hidden {
   display: none !important;
+}
+
+.death-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 320px;
+}
+
+.death-title {
+  color: #fff;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 40px;
+  margin: 0 0 4px 0;
+  text-shadow: 3px 3px 0 #3f3f3f;
+}
+
+.death-score {
+  color: #fff;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 18px;
+  margin-bottom: 14px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.death-score span {
+  color: #ffff55;
+}
+
+.death-cause {
+  color: #fff;
+  font-family: 'Minecraft', sans-serif;
+  font-size: 16px;
+}
+
+.death-cause:empty {
+  display: none;
+}
+
+#death-overlay .mc-btn {
+  width: 100%;
+  pointer-events: auto;
 }
 
 /* World Tournament Defeat Overlay */
@@ -2973,74 +2976,6 @@ html, body {
   text-shadow: 1px 1px 0 #000;
 }
 
-.champion-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  background: rgba(15, 15, 20, 0.85);
-  border: 4px solid #fbbf24;
-  border-radius: 12px;
-  padding: 36px 48px;
-  box-shadow: 0 0 50px rgba(251, 191, 36, 0.6), inset 0 0 30px rgba(251, 191, 36, 0.15);
-  animation: championEntrance 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
-}
-
-.champion-trophy {
-  font-size: 56px;
-  filter: drop-shadow(0 0 16px #fbbf24);
-  animation: trophyFloat 2s ease-in-out infinite alternate;
-}
-
-.champion-stars {
-  color: #facc15;
-  font-size: 20px;
-  letter-spacing: 8px;
-  margin: 6px 0;
-  text-shadow: 0 0 8px #f59e0b;
-}
-
-.champion-title {
-  color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 38px;
-  font-weight: 900;
-  letter-spacing: 3px;
-  margin: 4px 0;
-  text-shadow: 3px 3px 0 #000, 0 0 20px #eab308;
-}
-
-.champion-subtitle {
-  color: #f59e0b;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 18px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
-
-.champion-quote {
-  color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 16px;
-  font-style: italic;
-  max-width: 480px;
-  line-height: 1.4;
-  margin-bottom: 16px;
-  text-shadow: 1px 1px 2px #000;
-}
-
-.champion-firework-text {
-  color: #a855f7;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  text-shadow: 0 0 8px #ec4899;
-  animation: pulseFireworkText 1.5s infinite alternate;
-}
-
 @keyframes championEntrance {
   0% {
     transform: scale(0.6) translateY(40px);
@@ -3067,92 +3002,6 @@ html, body {
   100% { transform: translate(-50%, 0); opacity: 1; }
 }
 
-/* ========================================================
-   DRAGON BALL KI CHARGE HUD & ABILITY BARS
-   ======================================================== */
-#ki-charge-container {
-  position: fixed;
-  bottom: 125px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 85;
-  pointer-events: none;
-  background: rgba(10, 25, 45, 0.88);
-  border: 2px solid #00f0ff;
-  border-radius: 8px;
-  padding: 8px 18px 10px 18px;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.45), inset 0 0 12px rgba(0, 240, 255, 0.2);
-  backdrop-filter: blur(6px);
-  animation: kiPulse 1.2s infinite alternate ease-in-out;
-  min-width: 320px;
-}
-
-#ki-charge-container.hidden {
-  display: none !important;
-}
-
-.ki-charge-header {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.ki-charge-title {
-  font-family: 'Minecraft', sans-serif;
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 1.5px;
-  text-shadow: 0 0 8px currentColor, 1px 1px 0 #000;
-}
-
-.ki-charge-level {
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-  font-weight: bold;
-  color: #fef08a;
-  text-shadow: 0 0 6px #eab308, 1px 1px 0 #000;
-}
-
-.ki-charge-frame {
-  width: 100%;
-  height: 16px;
-  background: #0f172a;
-  border: 2px solid #0284c7;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
-  position: relative;
-}
-
-.ki-charge-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #0284c7, #00f0ff 60%, #ffffff);
-  box-shadow: 0 0 10px #00f0ff, 0 0 20px rgba(255, 255, 255, 0.8);
-  transition: width 0.05s ease-out;
-  position: relative;
-}
-
-.ki-charge-bar::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  animation: kiBarSweep 0.8s infinite linear;
-}
-
-.ki-charge-hint {
-  font-family: 'Minecraft', sans-serif;
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 5px;
-  text-shadow: 1px 1px 0 #000;
-}
-
 @keyframes kiPulse {
   from {
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.3), inset 0 0 8px rgba(0, 240, 255, 0.15);
@@ -3169,383 +3018,9 @@ html, body {
   100% { transform: translateX(100%); }
 }
 
-/* ========================================================
-   MINECRAFT DUNGEONS TOP-DOWN COMBAT MODE HUD
-   ======================================================== */
-#dungeon-mode-hud {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 90;
-  pointer-events: none;
-  animation: dropIn 0.35s ease-out;
-}
-
-#dungeon-mode-hud.hidden {
-  display: none !important;
-}
-
-.dungeon-banner {
-  background: rgba(18, 18, 24, 0.92);
-  border: 2px solid #f59e0b;
-  border-top-color: #fde047;
-  border-radius: 6px;
-  padding: 8px 18px 10px 18px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.75), 0 0 16px rgba(245, 158, 11, 0.35);
-  backdrop-filter: blur(8px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-.dungeon-header-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.dungeon-badge {
-  background: linear-gradient(135deg, #b45309, #d97706);
-  color: #fff;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  padding: 2px 7px;
-  border-radius: 3px;
-  letter-spacing: 1px;
-  text-shadow: 1px 1px 0 #000;
-  box-shadow: 0 0 8px rgba(217, 119, 6, 0.5);
-}
-
-.dungeon-zone-title {
-  color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  text-shadow: 2px 2px 0 #000;
-}
-
-.dungeon-enemies-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-}
-
-.dungeon-enemy-label {
-  color: #d1d5db;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.dungeon-enemy-count {
-  color: #ef4444;
-  font-size: 15px;
-  font-weight: 900;
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid #ef4444;
-  padding: 1px 6px;
-  border-radius: 4px;
-  text-shadow: 0 0 6px #ef4444;
-}
-
-.dungeon-controls-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 3px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.dungeon-ctrl-item {
-  color: #cbd5e1;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.dungeon-key {
-  background: #334155;
-  color: #f8fafc;
-  border: 1px solid #64748b;
-  border-bottom: 2px solid #1e293b;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: bold;
-}
-
-.dungeon-key.db-key {
-  background: #0369a1;
-  border-color: #38bdf8;
-  color: #e0f2fe;
-}
-
-.dungeon-cd-badge {
-  font-size: 10px;
-  font-weight: bold;
-  padding: 1px 4px;
-  border: 1px solid #16a34a;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.4);
-}
-
-/* Dungeon Cleared Victory Banner */
-#dungeon-cleared-banner {
-  position: fixed;
-  top: 15%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 95;
-  pointer-events: none;
-  animation: clearedBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-#dungeon-cleared-banner.hidden {
-  display: none !important;
-}
-
-.dungeon-cleared-card {
-  background: rgba(15, 23, 42, 0.95);
-  border: 3px solid #eab308;
-  border-radius: 8px;
-  padding: 16px 36px;
-  text-align: center;
-  box-shadow: 0 0 30px rgba(234, 179, 8, 0.6);
-  backdrop-filter: blur(10px);
-}
-
-.dungeon-cleared-stars {
-  color: #facc15;
-  font-size: 24px;
-  letter-spacing: 6px;
-  text-shadow: 0 0 10px #f59e0b;
-}
-
-.dungeon-cleared-title {
-  color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 32px;
-  font-weight: 900;
-  letter-spacing: 2px;
-  margin: 4px 0;
-  text-shadow: 2px 2px 0 #000, 0 0 15px #eab308;
-}
-
-.dungeon-cleared-sub {
-  color: #94a3b8;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 14px;
-  text-shadow: 1px 1px 0 #000;
-}
-
 @keyframes clearedBounce {
   0% { transform: translate(-50%, -80px) scale(0.6); opacity: 0; }
   100% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
-}
-
-/* ============================================================
-   PLAYER 2 (JACKIE CHUN) HUD - TWO PLAYER LOCAL PVP MODE
-   ============================================================ */
-#player2-hud {
-  position: fixed;
-  top: 18px;
-  right: 24px;
-  z-index: 1000;
-  pointer-events: none;
-  animation: dropIn 0.35s ease-out;
-}
-
-#player2-hud.hidden {
-  display: none !important;
-}
-
-.p2-card {
-  background: rgba(15, 23, 42, 0.92);
-  border: 2px solid #f59e0b;
-  border-radius: 8px;
-  padding: 10px 16px;
-  width: 270px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(245, 158, 11, 0.35);
-  backdrop-filter: blur(8px);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.p2-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.p2-badge {
-  background: linear-gradient(135deg, #ea580c, #f59e0b);
-  color: #111111;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 10px;
-  font-weight: 900;
-  padding: 2px 7px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-}
-
-.p2-name {
-  color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-  font-weight: bold;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.p2-health-frame {
-  width: 100%;
-  height: 12px;
-  background: #1e112a;
-  border: 1px solid #7c2d12;
-  border-radius: 3px;
-  overflow: hidden;
-  box-shadow: inset 0 0 4px #000;
-}
-
-.p2-health-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #ea580c, #f97316, #eab308);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: width 0.15s ease-out;
-}
-
-.p2-stats-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 11px;
-}
-
-#p2-hp-text {
-  color: #fed7aa;
-  font-weight: bold;
-}
-
-.p2-badge-ready {
-  color: #4ade80;
-  text-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
-}
-
-.p2-badge-cooldown {
-  color: #facc15;
-}
-
-.p2-controls-hint {
-  font-size: 10px;
-  color: #94a3b8;
-  font-family: sans-serif;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 4px;
-  margin-top: 2px;
-  text-align: center;
-}
-
-/* ============================================================
-   WORLD TOURNAMENT MATCH SETUP MODAL
-   ============================================================ */
-#tournament-setup-modal .tournament-modal-card {
-  background: #111827;
-  border: 3px solid #f59e0b;
-  border-radius: 12px;
-  padding: 24px;
-  width: 580px;
-  max-width: 95vw;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.9), 0 0 24px rgba(245, 158, 11, 0.4);
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tournament-modal-header {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  border-bottom: 2px solid rgba(245, 158, 11, 0.3);
-  padding-bottom: 12px;
-}
-
-.tournament-crest-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 3px solid #dc2626;
-  color: #dc2626;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  font-weight: 900;
-  box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
-  margin-bottom: 4px;
-}
-
-.tournament-modal-subtitle {
-  color: #cbd5e1;
-  font-size: 13px;
-  font-family: sans-serif;
-}
-
-.tournament-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tournament-section-title {
-  color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
-}
-
-.tournament-btn-group {
-  display: flex;
-  gap: 10px;
-}
-
-.tournament-opt-btn {
-  flex: 1;
-  background: #1e293b;
-  border: 2px solid #334155;
-  border-radius: 6px;
-  padding: 10px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: all 0.2s ease;
-  color: #f8fafc;
-  text-align: left;
-}
-
-.tournament-opt-btn:hover {
-  background: #334155;
-  border-color: #64748b;
-  transform: translateY(-1px);
-}
-
-.tournament-opt-btn.active {
-  background: #1e1b4b;
-  border-color: #f59e0b;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
 }
 
 .opt-icon {
@@ -3567,22 +3042,6 @@ html, body {
 .opt-desc {
   font-size: 11px;
   color: #94a3b8;
-}
-
-.tournament-controls-card {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid #334155;
-  border-radius: 6px;
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tournament-control-block {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .control-tag {
@@ -3708,7 +3167,7 @@ html, body {
 }
 
 /* ==========================================================================
-   Structure Studio (Parametric CAD Studio)
+   Building Studio (Parametric CAD Studio)
    ========================================================================== */
 .mc-btn-studio {
   background: linear-gradient(180deg, #0284c7, #0369a1);
@@ -3733,13 +3192,13 @@ html, body {
   max-height: 90vh;
 }
 
-/* Hide Quick Prompts & Ideas in Structure Studio Mode */
+/* Hide Quick Prompts & Ideas in Building Studio Mode */
 .studio-mode .gemini-chips-container {
   display: none !important;
 }
 
-/* Structure Studio Parameter Panel */
-.structure-parameter-panel {
+/* Building Studio Parameter Panel */
+.building-parameter-panel {
   width: 320px;
   background: rgba(12, 16, 28, 0.94);
   backdrop-filter: blur(18px);
@@ -3756,7 +3215,7 @@ html, body {
   animation: geminiFadeIn 0.22s ease-out;
 }
 
-.structure-parameter-panel.hidden {
+.building-parameter-panel.hidden {
   display: none !important;
 }
 
@@ -3785,7 +3244,7 @@ html, body {
   letter-spacing: 0.5px;
 }
 
-.studio-structure-badge {
+.studio-building-badge {
   background: #0369a1;
   color: #e0f2fe;
   padding: 3px 8px;

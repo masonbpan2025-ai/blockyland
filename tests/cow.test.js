@@ -219,6 +219,7 @@ test('Cow death loot: Adult drops beef and leather; calf drops nothing', () => {
 
   // 1. Adult cow death
   const adult = manager.spawnCow(5, 1, 5);
+  adult.playerDamaged = true; // wiki: experience drops only when a player or tamed wolf kills it
   adult.health = 0;
   adult.dying = false;
   manager.updateDeath(adult, 0.7);

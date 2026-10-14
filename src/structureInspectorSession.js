@@ -102,7 +102,7 @@ export function inspectorStructures(registry = STRUCTURES) {
         terrainAdaptation: entry.terrainAdaptation || 'none',
         implemented: Boolean(entry.implementation),
         biomes: entry.biomes || [],
-        defaultBiome: (entry.biomes && entry.biomes[0]) || 'plains',
+        defaultBiome: (entry.biomes && entry.biomes[0]) || ({ nether: 'nether_wastes', the_end: 'the_end' }[entry.dimension]) || 'plains',
         set: set ? set.name : null,
         placement: set
           ? (set.type === 'concentric_rings'
@@ -132,7 +132,7 @@ export function createStructureInspectorSession(options = {}) {
 
   const state = {
     seed: options.seed ?? 4242,
-    structureId: options.structureId ?? 'buried_treasure',
+    structureId: options.structureId ?? 'swamp_hut',
     chunkX: options.chunkX ?? 0,
     chunkZ: options.chunkZ ?? 0,
     biomeOverride: null,

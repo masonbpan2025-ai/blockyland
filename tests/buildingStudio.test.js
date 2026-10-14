@@ -9,7 +9,7 @@ import { CREATIVE_TABS, buildCreativeCatalog } from '../src/creativeCatalog.js';
 import { BLOCKS } from '../src/blocks.js';
 import { World } from '../src/world.js';
 
-describe('Structure Studio and Structure Library System', () => {
+describe('Building Studio and Structure Library System', () => {
   beforeEach(() => {
     // Reset custom structures before each test
     if (typeof localStorage !== 'undefined') {
@@ -115,7 +115,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
   });
 
-  describe('Prompt Parsing in Structure Studio', () => {
+  describe('Prompt Parsing in Building Studio', () => {
     it('parses explicit parameter prompts: "build a stair with a height parameter"', () => {
       const manager = new BuildingStudioManager({});
       const parsed = manager.parsePromptParameters('build a stair with a height parameter');
@@ -143,17 +143,17 @@ describe('Structure Studio and Structure Library System', () => {
     });
   });
 
-  describe('Creative Inventory Structure Tab', () => {
-    it('includes "building" category in CREATIVE_TABS', () => {
-      const structTab = CREATIVE_TABS.find(t => t.id === 'building');
-      assert.ok(structTab, 'Expected "building" tab in CREATIVE_TABS');
-      assert.strictEqual(structTab.name, 'Structures');
-      assert.ok(structTab.icon.startsWith('/assets/'), 'Icon should have asset path');
+  describe('Creative Inventory Buildings Tab', () => {
+    it('includes the "Buildings" tab in CREATIVE_TABS', () => {
+      const tab = CREATIVE_TABS.find(t => t.id === 'building');
+      assert.ok(tab, 'Expected "building" tab in CREATIVE_TABS');
+      assert.strictEqual(tab.name, 'Buildings');
+      assert.ok(tab.icon.startsWith('/assets/'), 'Icon should have asset path');
     });
 
-    it('lists all structures with icons and names in creative catalog', () => {
+    it('lists all buildings with icons and names in creative catalog', () => {
       const catalog = buildCreativeCatalog();
-      const buildingItems = catalog.filter(it => it.category === 'structure');
+      const buildingItems = catalog.filter(it => it.category === 'building');
       assert.ok(buildingItems.length >= 9, 'Should have all built-in structures in catalog');
 
       for (const item of buildingItems) {
@@ -165,18 +165,29 @@ describe('Structure Studio and Structure Library System', () => {
     });
   });
 
-  describe('HTML Layout Elements for Structure Studio', () => {
-    it('has the Structure Studio button and modals in index.html', () => {
+  describe('HTML Layout Elements for Building Studio', () => {
+    it('has the Building Studio button and modals in index.html', () => {
       const htmlPath = resolve(process.cwd(), 'index.html');
       const html = readFileSync(htmlPath, 'utf8');
 
-      assert.ok(html.includes('id="btn-start-structure-studio"'), 'Missing btn-start-structure-studio');
-      assert.ok(html.includes('Structure Studio'), 'Missing "Structure Studio" text in button');
-      assert.ok(html.includes('id="structure-parameter-panel"'), 'Missing structure-parameter-panel');
+      assert.ok(html.includes('id="btn-start-building-studio"'), 'Missing btn-start-building-studio');
+      assert.ok(html.includes('Building Studio'), 'Missing "Building Studio" text in button');
+      assert.ok(html.includes('id="building-parameter-panel"'), 'Missing building-parameter-panel');
       assert.ok(html.includes('id="btn-studio-save"'), 'Missing btn-studio-save');
       assert.ok(html.includes('id="btn-studio-open"'), 'Missing btn-studio-open');
-      assert.ok(html.includes('id="modal-save-structure"'), 'Missing modal-save-structure');
-      assert.ok(html.includes('id="modal-open-structure"'), 'Missing modal-open-structure');
+      assert.ok(html.includes('id="modal-save-building"'), 'Missing modal-save-building');
+      assert.ok(html.includes('id="modal-open-building"'), 'Missing modal-open-building');
+    });
+
+    it('every element buildingStudio.js looks up exists in index.html', () => {
+      // The page was renamed to structure-* ids while the studio still asked for building-* ones, so the
+      // parameter panel, Save and Open were all null and silently did nothing.
+      const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+      const source = readFileSync(resolve(process.cwd(), 'src/buildingStudio.js'), 'utf8');
+      const ids = [...source.matchAll(/getElementById\('([^']+)'\)/g)].map(m => m[1]);
+      assert.ok(ids.length >= 10);
+      const missing = ids.filter(id => !html.includes(`id="${id}"`));
+      assert.deepStrictEqual(missing, []);
     });
   });
 
@@ -213,7 +224,7 @@ describe('Structure Studio and Structure Library System', () => {
     });
   });
 
-  describe('Overwrite, Rename, and Delete in Structure Studio', () => {
+  describe('Overwrite, Rename, and Delete in Building Studio', () => {
     it('prompts and overwrites custom structure when overwrite is true, rejects without overwrite', () => {
       const initial = BuildingLibrary.saveBuilding({
         name: 'Fortress',

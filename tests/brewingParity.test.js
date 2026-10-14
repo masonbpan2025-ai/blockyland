@@ -1,4 +1,4 @@
-﻿// Brewing parity against https://minecraft.wiki/w/Brewing, the Brewing Stand article and
+// Brewing parity against https://minecraft.wiki/w/Brewing, the Brewing Stand article and
 // https://minecraft.wiki/w/Potion.
 //
 // This file pins the whole ruleset rather than a sample, because every failure mode here is silent: a
@@ -22,7 +22,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BrewingStand, BrewingManager, BREW_DURATION, MAX_FUEL, BOTTLE_SLOTS,
-  BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult, potionDataFor,
+  BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult, potionDataFor, potionCoreFor,
 } from '../src/brewing.js';
 import { EFFECTS, effectsFor, compoundEffects, isKnownEffect } from '../src/statusEffects.js';
 import { INSTANT_EFFECTS } from '../src/potionUse.js';
@@ -212,10 +212,36 @@ test('a corrupted or extended potion keeps its modifier', () => {
 });
 
 test('the enhanced Swiftness and Leaping are the two corruptions vanilla refuses', () => {
-  // "The only exception to this is the enhanced potion of Slowness, which cannot be brewed by corrupting
-  // an enhanced potion of Swiftness or Leaping." Both still corrupt, to the *base* Slowness.
-  assert.equal(getBrewingResult('potion_of_swiftness_2', 'fermented_spider_eye'), 'potion_of_slowness');
-  assert.equal(getBrewingResult('potion_of_leaping_2', 'fermented_spider_eye'), 'potion_of_slowness');
+  // "Enhanced potions of Leaping or Swiftness cannot be corrupted." The Potion of Slowness page agrees
+  // from the other side: its brewing ingredients list only the regular and extended Swiftness and Leaping,
+  // with no enhanced form. The table used to carry rows corrupting both into a plain Slowness, which brewed
+  // the one potion vanilla refuses to make this way and gave Slowness IV a second source.
+  assert.equal(getBrewingResult('potion_of_swiftness_2', 'fermented_spider_eye'), null);
+  assert.equal(getBrewingResult('potion_of_leaping_2', 'fermented_spider_eye'), null);
+  // The forms vanilla does allow still corrupt, and keep their modifier.
+  assert.equal(getBrewingResult('potion_of_swiftness', 'fermented_spider_eye'), 'potion_of_slowness');
+  assert.equal(getBrewingResult('potion_of_swiftness_long', 'fermented_spider_eye'), 'potion_of_slowness_long');
+  assert.equal(getBrewingResult('potion_of_leaping', 'fermented_spider_eye'), 'potion_of_slowness');
+  assert.equal(getBrewingResult('potion_of_leaping_long', 'fermented_spider_eye'), 'potion_of_slowness_long');
+  // Slowness IV's one source is glowstone on Slowness, which is what vanilla brews.
+  assert.equal(getBrewingResult('potion_of_slowness', 'glowstone_dust'), 'potion_of_slowness_2');
+});
+
+test('a generic splash or lingering water potion keeps its form through a base ingredient', () => {
+  // "a splash water bottle can be brewed with any of the base ingredients; the result remains a splash
+  // potion". Vanilla's generic splash and lingering potions ARE the water ones, and their ids are
+  // `splash_potion` / `lingering_potion` -- which strip to the meaningless `potion`, so the base-ingredient
+  // lookup used to find no recipe and these brewed nothing.
+  assert.equal(getBrewingResult('splash_potion', 'nether_wart'), 'splash_awkward_potion');
+  assert.equal(getBrewingResult('lingering_potion', 'nether_wart'), 'lingering_awkward_potion');
+  assert.equal(getBrewingResult('splash_potion', 'glowstone_dust'), 'splash_thick_potion');
+  assert.equal(getBrewingResult('lingering_potion', 'fermented_spider_eye'), 'lingering_potion_of_weakness');
+  // And the derived forms still brew on from there, keeping the prefix.
+  assert.equal(getBrewingResult('splash_awkward_potion', 'sugar'), 'splash_potion_of_swiftness');
+  assert.equal(getBrewingResult('lingering_awkward_potion', 'sugar'), 'lingering_potion_of_swiftness');
+  // The generic ids are still recognised as potions by the accessors.
+  assert.equal(potionCoreFor('splash_potion'), 'water_bottle');
+  assert.equal(potionCoreFor('lingering_potion'), 'water_bottle');
 });
 
 test('the corruptions vanilla does not have are absent', () => {

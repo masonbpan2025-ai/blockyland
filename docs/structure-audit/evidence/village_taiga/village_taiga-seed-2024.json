@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "structure": "village_taiga",
+  "seed": "2024",
+  "chunk": [
+    20,
+    21
+  ],
+  "biome": "taiga",
+  "box": {
+    "minX": 296,
+    "minY": 17,
+    "minZ": 272,
+    "maxX": 379,
+    "maxY": 52,
+    "maxZ": 399
+  },
+  "pieces": 34,
+  "blocks": {
+    "Stone": 70714,
+    "Dirt": 35613,
+    "Spruce Leaves": 20728,
+    "Grass Block": 10621,
+    "Spruce Log": 3551,
+    "Coal Ore": 2747,
+    "Iron Ore": 2422,
+    "Gold Ore": 2390,
+    "Cobblestone": 720,
+    "Dirt Path": 483,
+    "Redstone Ore": 240,
+    "Spruce Planks": 154,
+    "Spruce Trapdoor": 114,
+    "Water": 95,
+    "Cobblestone Stairs": 46,
+    "Spruce Stairs": 43,
+    "Wall Torch": 40,
+    "Glass Pane": 37,
+    "Cobblestone Wall": 36,
+    "Gravel": 32,
+    "Moist Farmland": 31,
+    "Large Fern": 30,
+    "Torch": 15,
+    "Spruce Door": 15,
+    "Spruce Door Top": 15,
+    "Fern": 14,
+    "Wheat Crops": 12,
+    "Spruce Fence": 11,
+    "Pumpkin Stem": 11,
+    "Purple Bed Head": 8,
+    "Purple Bed": 8,
+    "Poppy": 8,
+    "Potatoes": 8,
+    "Smooth Stone Slab": 8,
+    "Chest": 7,
+    "Pumpkin": 7,
+    "Blue Bed": 4,
+    "Blue Bed Head": 4,
+    "Campfire": 4,
+    "Crafting Table": 3,
+    "Grindstone": 3,
+    "Spruce Wall Sign": 2,
+    "Smooth Stone": 2,
+    "Spruce Slab": 2,
+    "Bell": 1,
+    "Composter": 1,
+    "Furnace": 1,
+    "Smoker": 1,
+    "Spruce Pressure Plate": 1
+  },
+  "loot": {
+    "chests": 7,
+    "empty": 1,
+    "totals": [
+      {
+        "name": "wheat_seeds",
+        "count": 19
+      },
+      {
+        "name": "potato",
+        "count": 16
+      },
+      {
+        "name": "wheat",
+        "count": 8
+      },
+      {
+        "name": "apple",
+        "count": 7
+      },
+      {
+        "name": "pumpkin_seeds",
+        "count": 7
+      },
+      {
+        "name": "sweet_berries",
+        "count": 5
+      },
+      {
+        "name": "bone",
+        "count": 3
+      },
+      {
+        "name": "bread",
+        "count": 3
+      },
+      {
+        "name": "carrot",
+        "count": 3
+      },
+      {
+        "name": "fern",
+        "count": 2
+      },
+      {
+        "name": "gold_nugget",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 7,
+    "door": 15,
+    "bed": 12,
+    "mob": 16
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

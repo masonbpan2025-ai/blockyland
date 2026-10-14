@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { MobManager } from './mobs.js';
 import { BLOCKS } from './blocks.js';
 
-export const DEBUG_MOBS = 'blaze magma_cube ghast piglin zombified_piglin hoglin zoglin strider wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite rabbit bat fox bee goat llama turtle frog tadpole parrot armadillo husk stray bogged breeze sniffer allay wandering_trader trader_llama camel parched creaking killer_bunny snow_golem illusioner skeleton_horse zombie_horse pufferfish tropical_fish giant piglin_brute camel_husk copper_golem happy_ghast pig cow sheep chicken horse donkey mule wolf cat ocelot villager iron_golem pillager ravager witch slime enderman shulker guardian elder_guardian drowned cod salmon squid glow_squid dolphin axolotl mooshroom polar_bear panda warden phantom vindicator evoker vex ender_dragon wither tournament_host site_manager jackie_chun zombie_villager'.split(' ');
+export const DEBUG_MOBS = 'blaze magma_cube ghast piglin zombified_piglin hoglin zoglin strider wither_skeleton zombie skeleton creeper spider cave_spider silverfish endermite rabbit bat fox bee goat llama turtle frog tadpole parrot armadillo husk stray bogged breeze sniffer allay wandering_trader trader_llama camel parched creaking killer_bunny snow_golem illusioner skeleton_horse zombie_horse pufferfish tropical_fish giant piglin_brute camel_husk copper_golem happy_ghast pig cow sheep chicken horse donkey mule wolf cat ocelot villager iron_golem pillager ravager witch slime enderman shulker guardian elder_guardian drowned cod salmon squid glow_squid dolphin axolotl mooshroom polar_bear panda warden phantom vindicator evoker vex ender_dragon wither zombie_villager'.split(' ');
 
 // An infinite flat floor and sparse edits: no chunks, map generator or saved worlds.
 export function createDebugWorld() {
@@ -16,7 +16,7 @@ export function createDebugWorld() {
     edits, dimension:'nether', selectedBiome:'nether', fluid:BLOCKS.AIR,
     getVoxel(x,y,z) { x=Math.floor(x);y=Math.floor(y);z=Math.floor(z);return edits.get(`${x},${y},${z}`) ?? (y<0?BLOCKS.STONE:(y<3?this.fluid:BLOCKS.AIR)); },
     setVoxel(x,y,z,id) { edits.set(`${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`,id); },
-    getHeightAt(){return 0;}, getBiome(){return 'nether';}, reset(){edits.clear();}
+    getHeightAt(){return 0;}, getBiome(){return this.dimension==='overworld'?(this.selectedBiome==='nether'?'plains':this.selectedBiome):'nether';}, reset(){edits.clear();}
   };
 }
 
@@ -29,7 +29,7 @@ export function createMobDebugSession(scene, onEvent=()=>{}) {
     consumeActiveItem(n=1){if(this.active)this.active.count-=n;},
     addItem(id,isBlock,count=1){this.storage.push({id,isBlock,count});onEvent(`Received: ${count} x ${id}`);return true;},
     updateUI(){},updateHotbar(){}};
-  const player={position:new THREE.Vector3(0,0,6),velocity:new THREE.Vector3(),width:.6,height:1.8,health:100,gamemode:'spectator',yaw:0,inventory,
+  const player={type:'player',position:new THREE.Vector3(0,0,6),velocity:new THREE.Vector3(),width:.6,height:1.8,health:100,gamemode:'spectator',yaw:0,inventory,
     // Counted so a scenario can tell that damage landed even if the target healed
     // afterwards, which would otherwise look like nothing happened.
     damageEvents:0,statusEffects:{},isBlocking:false,
@@ -47,7 +47,7 @@ export function createMobDebugSession(scene, onEvent=()=>{}) {
       manager.clearMobs();mats.forEach(m=>m.dispose());
       for(const p of manager.snowballs || []){p.mesh.removeFromParent();p.mesh.geometry.dispose();p.mesh.material.dispose();}manager.snowballs=[];
       manager.animalBehaviors.dismount(player);manager.game.controls={};inventory.active=null;inventory.storage=[];inventory.hotbar=[];
-      entities.drops=[];entities.xp=0;player.statusEffects={};player.isBlocking=false;player.isOnFire=false;player.fireTicks=0;manager.game.difficulty='normal';manager.game.isDaytime=false;manager.random=()=>.5;
+      entities.drops=[];entities.xp=0;player.statusEffects={};player.isBlocking=false;player.isOnFire=false;player.fireTicks=0;manager.game.difficulty='normal';manager.game.isDaytime=false;delete manager.game.worldTime;manager.random=()=>.5;
       manager.game.weather.weatherType='clear';
       world.reset();world.fluid=BLOCKS.AIR;world.dimension='nether';player.damageEvents=0;player.gamemode='spectator';player.health=100;player.keys={};player.position.set(0,0,6);player.velocity.set(0,0,0);time=0;
       mob=typeof type==='object'?(type.type?manager.spawnMob(type.type,0,0,0,type):manager.spawnCustomMob(type,0,0,0)):manager.spawnMob(type,0,0,0,type==='wandering_trader'?{withLlamas:false}:undefined);mob.yaw=0;mob.mesh.rotation.y=0;

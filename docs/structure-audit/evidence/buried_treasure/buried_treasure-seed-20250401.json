@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "structure": "buried_treasure",
+  "seed": "20250401",
+  "chunk": [
+    6,
+    -7
+  ],
+  "biome": "beach",
+  "box": {
+    "minX": 105,
+    "minY": 23,
+    "minZ": -103,
+    "maxX": 105,
+    "maxY": 23,
+    "maxZ": -103
+  },
+  "pieces": 1,
+  "blocks": {
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "iron_ingot",
+        "count": 12
+      },
+      {
+        "name": "prismarine_crystals",
+        "count": 7
+      },
+      {
+        "name": "emerald",
+        "count": 5
+      },
+      {
+        "name": "cooked_cod",
+        "count": 4
+      },
+      {
+        "name": "cooked_salmon",
+        "count": 4
+      },
+      {
+        "name": "gold_ingot",
+        "count": 2
+      },
+      {
+        "name": "potion_of_water_breathing",
+        "count": 2
+      },
+      {
+        "name": "heart_of_the_sea",
+        "count": 1
+      },
+      {
+        "name": "iron_sword",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

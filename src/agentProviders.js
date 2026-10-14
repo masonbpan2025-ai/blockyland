@@ -102,8 +102,39 @@ export const VENDORS = {
     envVar: 'VITE_OPENAI_MODEL',
     supportsEffort: true,
     supportsImages: true
+  },
+  // Anthropic's Messages API. Browsers may call it directly when the request carries
+  // `anthropic-dangerous-direct-browser-access`, which is how a player's own key is used here.
+  claude: {
+    id: 'claude',
+    label: 'Claude',
+    vendorName: 'Anthropic Claude',
+    docsLabel: 'console.anthropic.com',
+    docsUrl: 'https://console.anthropic.com/settings/keys',
+    billingUrl: 'https://console.anthropic.com/settings/billing',
+    keyPlaceholder: 'sk-ant-...',
+    keyHint: 'Create a key in the Anthropic Console.',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    apiVersion: '2023-06-01',
+    models: [
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', note: 'Default. Fast and strong at building and spatial reasoning.' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', note: 'Most capable, for large or intricate builds. Slower.' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', note: 'Fastest and cheapest, good for quick questions.' },
+      { id: 'claude-fable-5-1', label: 'Claude Fable 5.1', note: 'Creative writing and storytelling.' }
+    ],
+    defaultModel: 'claude-sonnet-5-5',
+    defaultEffort: 'medium',
+    envVar: 'VITE_CLAUDE_MODEL',
+    supportsEffort: true,
+    supportsImages: true
   }
 };
+
+/** Claude's effort levels; the terminal's "minimal" is Claude's "low". */
+export function claudeEffort(effort) {
+  const value = normalizeEffort(effort, 'medium');
+  return value === 'minimal' ? 'low' : value;
+}
 
 export const VENDOR_IDS = Object.keys(VENDORS);
 
@@ -152,6 +183,11 @@ export function resolveModel(vendorId, storedModel) {
     return vendor.defaultModel;
   }
   if (isKnownVendorModel(vendorId, storedModel)) return storedModel;
+  // A model the built-in list does not know is still the player's choice: one picked from the vendor's live list
+  // (newer than this file) or typed as a custom id. It used to be discarded on reload. If the vendor has retired
+  // it, the agent replaces it on the first failed request (agentModelCatalog.js).
+  const stored = String(storedModel || '').trim();
+  if (stored && /^[\w.:/-]{2,128}$/.test(stored)) return stored;
   const override = readEnv(vendor.envVar);
   if (override) return override;
   return vendor.defaultModel;
@@ -198,6 +234,28 @@ export class AgentSettings {
 
   keyFor(vendorId = this.vendor) {
     return this.keys[vendorId] || '';
+  }
+
+  /** Whether to move to a newer model of the chosen family as soon as the vendor lists one. Off by default. */
+  autoUpgradeFor(vendorId = this.vendor) {
+    if (this.autoUpgrade && vendorId in this.autoUpgrade) return this.autoUpgrade[vendorId];
+    try {
+      return this.store?.getItem(`${STORAGE_PREFIX}autoupgrade_${vendorId}`) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  setAutoUpgrade(vendorId, enabled) {
+    if (!VENDORS[vendorId]) return false;
+    (this.autoUpgrade ||= {})[vendorId] = !!enabled;
+    try {
+      if (enabled) this.store?.setItem(`${STORAGE_PREFIX}autoupgrade_${vendorId}`, '1');
+      else this.store?.removeItem(`${STORAGE_PREFIX}autoupgrade_${vendorId}`);
+    } catch {
+      // Unavailable storage: the preference lasts for this session only.
+    }
+    return !!enabled;
   }
 
   setVendor(vendorId) {
@@ -253,11 +311,20 @@ export const DEFAULT_VIEW_PROMPT = 'This is a live screenshot of the player\'s c
 // DeepSeek's own default is 64K in thinking mode; the cap there is 384K.
 export const MAX_OUTPUT_TOKENS = Object.freeze({
   chatgpt: 32768,
-  deepseek: 65536
+  deepseek: 65536,
+  // Claude 5 models write up to 64K tokens in a streamed reply, and a large build needs it: a medieval town
+  // spent all of a 16K budget before its plan arrived. A model with a lower ceiling says so, and the agent
+  // retries at that ceiling (worldAgent.js).
+  claude: 64000
 });
+
+/** Claude's budget with thinking off: the whole budget goes to the plan itself. */
+export const CLAUDE_PLAIN_OUTPUT_TOKENS = 32000;
 
 /** Token budget used for a vendor/model/thinking combination. */
 export function getMaxOutputTokens(vendorId, { thinking = false } = {}) {
+  // Claude's thinking tokens count against max_tokens too, so it gets the larger budget only while thinking.
+  if (vendorId === 'claude') return thinking ? MAX_OUTPUT_TOKENS.claude : CLAUDE_PLAIN_OUTPUT_TOKENS;
   if (vendorId !== 'deepseek') return MAX_OUTPUT_TOKENS[vendorId] || 16384;
   // 8K when thinking is off, 64K (DeepSeek's documented default) when it is on.
   return thinking ? MAX_OUTPUT_TOKENS.deepseek : 8192;
@@ -336,6 +403,37 @@ function buildChatMessages(history, turn) {
 }
 
 /**
+ * Claude's message list. The Messages API takes the system prompt separately, wants the conversation to open
+ * with a user turn, and expects roles to alternate, so earlier turns are merged where the history has two of
+ * the same role in a row (a failed turn is stored as user + assistant, but an interrupted one may not be).
+ */
+function buildClaudeMessages(history, turn) {
+  const messages = [];
+  const push = (role, content) => {
+    const last = messages.at(-1);
+    if (last && last.role === role) {
+      last.content = [...last.content, ...content];
+    } else {
+      messages.push({ role, content });
+    }
+  };
+  for (const item of history) {
+    if (!item || !item.text) continue;
+    const role = item.role === 'user' ? 'user' : 'assistant';
+    if (!messages.length && role === 'assistant') continue;
+    push(role, [{ type: 'text', text: item.text }]);
+  }
+  const blocks = [];
+  for (const attachment of turn.images) {
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: attachment.mimeType || 'image/png', data: attachment.base64 } });
+    if (attachment.caption) blocks.push({ type: 'text', text: attachment.caption });
+  }
+  blocks.push({ type: 'text', text: turn.prompt });
+  push('user', blocks);
+  return messages;
+}
+
+/**
  * Build the HTTP request descriptor for one agent turn.
  *
  * `maxOutputTokens` overrides the per-vendor budget, which exists so a retry
@@ -384,6 +482,37 @@ export function buildAgentRequest({
     };
   }
 
+  if (vendorId === 'claude') {
+    // Claude thinks when asked to: adaptive thinking lets the model decide how much, and the effort level sets how
+    // hard it works overall. The thinking toggle in Settings defaults to on for Claude, as it does for DeepSeek.
+    const claudeThinking = typeof thinking === 'boolean' ? thinking : true;
+    const body = {
+      model,
+      max_tokens: maxOutputTokens || getMaxOutputTokens('claude', { thinking: claudeThinking }),
+      system: systemPrompt,
+      messages: buildClaudeMessages(history, turn),
+      stream
+    };
+    // Off must be said, not implied: with the field left out a model may still think, and the "no thinking"
+    // retry for the medieval town spent its whole budget reasoning anyway.
+    body.thinking = claudeThinking ? { type: 'adaptive' } : { type: 'disabled' };
+    if (activeEffort) body.output_config = { effort: claudeEffort(activeEffort) };
+    return {
+      vendor: vendorId,
+      model,
+      effort: activeEffort ? claudeEffort(activeEffort) : '',
+      stream,
+      url: config.endpoint,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey || '',
+        'anthropic-version': config.apiVersion,
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body
+    };
+  }
+
   const budget = maxOutputTokens || getMaxOutputTokens(vendorId, { thinking: thinkingEnabled });
   const body = {
     model,
@@ -422,6 +551,16 @@ export function buildAgentRequest({
 export function extractAgentText(vendor, data) {
   const vendorId = normalizeVendor(vendor);
 
+  if (vendorId === 'claude') {
+    const blocks = Array.isArray(data?.content) ? data.content : [];
+    return {
+      text: blocks.filter(b => b?.type === 'text').map(b => b.text || '').join(''),
+      reasoning: blocks.filter(b => b?.type === 'thinking').map(b => b.thinking || '').join('\n'),
+      finishReason: data?.stop_reason || '',
+      usage: data?.usage || null
+    };
+  }
+
   if (vendorId === 'gemini') {
     const candidate = data?.candidates?.[0];
     const parts = candidate?.content?.parts || [];
@@ -458,6 +597,22 @@ export function extractStreamDelta(vendor, data, side = {}) {
   const vendorId = normalizeVendor(vendor);
   let reasoning = '';
   let content = '';
+
+  if (vendorId === 'claude') {
+    // Server-sent events: content_block_delta carries text or thinking, message_delta the stop reason and the
+    // output token count, and an `error` event reports an overload or failure mid-stream.
+    if (data?.type === 'content_block_delta') {
+      if (data.delta?.type === 'text_delta') content = data.delta.text || '';
+      else if (data.delta?.type === 'thinking_delta') reasoning = data.delta.thinking || '';
+    }
+    return {
+      reasoning,
+      content,
+      finishReason: data?.type === 'message_delta' ? (data.delta?.stop_reason || '') : '',
+      usage: data?.type === 'message_delta' ? (data.usage || null) : data?.type === 'message_start' ? (data.message?.usage || null) : null,
+      error: data?.type === 'error' ? (data.error?.message || data.error?.type || 'stream error') : null
+    };
+  }
 
   if (vendorId === 'gemini') {
     const candidate = data?.candidates?.[0];
@@ -503,7 +658,7 @@ export function extractStreamDelta(vendor, data, side = {}) {
  * thought and its `content` never arrives.
  */
 export function isTokenExhausted({ finishReason, usage } = {}) {
-  if (finishReason === 'length' || finishReason === 'MAX_TOKENS') return true;
+  if (finishReason === 'length' || finishReason === 'MAX_TOKENS' || finishReason === 'max_tokens') return true;
   if (finishReason === 'incomplete') return true;
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
   const generated = usage?.completion_tokens;

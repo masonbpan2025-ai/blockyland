@@ -190,6 +190,9 @@ export const SPAWN_SETS = Object.freeze({
   },
 });
 
+/** Structures whose every block lies below this game's 64-block world, so enabling them places nothing visible. */
+export const INVISIBLE_IN_SHORT_WORLD = new Set(['ancient_city', 'trial_chambers']);
+
 /** The structure sets the presets draw on, all of them validated against what the engine can build. */
 export const STRUCTURE_SETS = Object.freeze({
   /** The engine's own default three. */
@@ -210,8 +213,15 @@ export const STRUCTURE_SETS = Object.freeze({
   maritime: [
     'shipwreck', 'shipwreck_beached', 'ocean_ruin_cold', 'ocean_ruin_warm', 'monument', 'buried_treasure',
   ],
-  /** Almost everything buildable, for the "as much as possible" preset. */
-  everything: [...BUILDABLE],
+  /**
+   * Almost everything buildable, for the "as much as possible" preset.
+   *
+   * Minus the structures that write NOTHING in this game: the world is 64 blocks tall and these sit entirely
+   * below it (ancient city at Y -51, trial chambers at Y -15), so enabling them only spends placement slots on
+   * structures nobody can find and inflates `/locate`'s totals. They return when the world gets taller; the
+   * structure audit plan (docs/STRUCTURE_AUDIT_PLAN.md) tracks that as the world-height blocker.
+   */
+  everything: [...BUILDABLE].filter(id => !INVISIBLE_IN_SHORT_WORLD.has(id)),
   /** Deliberately empty: a world with no structures at all. */
   none: [],
 });
@@ -240,8 +250,7 @@ export const GENERATION_PRESETS = Object.freeze([
     // The pack for "structures are still hard to find". Two things make a structure easy to reach: variety and
     // proximity. This takes the variety -- every land biome, and every structure the engine can generate
     // (`everything`, which was defined for exactly this and wired to nothing). Proximity stays vanilla's
-    // spacing (16 to 34 chunks between placement attempts), so this widens what you can find rather than
-    // moving it closer; `worldStructures.js` holds the spacing model if that is the half you want next.
+    // spacing, which `structureSpacingScale` divides by six, with villages pinned to a 7-chunk grid.
     id: 'structure_hunter',
     name: 'Structure Hunter',
     emoji: '🏛️',
@@ -254,6 +263,10 @@ export const GENERATION_PRESETS = Object.freeze([
     surface: 'minecraft:grass_block',
     spawners: ['creatureAbundant', 'hostileSparse'],
     structures: STRUCTURE_SETS.everything,
+    structureSpacingScale: 6,
+    // Villages: a start every 5 chunks, never closer than 3 (48 blocks), so
+    // roughly one village per 100 blocks of walking.
+    structureSpacingOverrides: { villages: { spacing: 5, separation: 2 } },
   },
   {
     id: 'pollinator_meadows', name: 'Pollinator Meadows', emoji: '🐝',
@@ -529,6 +542,16 @@ export function buildPresetPack(id) {
   // It carries a real `placement` block rather than just `structures: []`, because a vanilla structure set
   // requires one and the loader's validator says so: a file that is not a valid structure set is skipped
   // before any of this can read it, which is how the first version of this silently did nothing.
+  // A density boost: `spacing_scale` divides the grid structures are placed on, so the world has scale^2 times
+  // as many candidate sites. The list is non-empty on purpose -- an empty one means "no structures".
+  if (preset.structureSpacingScale > 1) {
+    files[`data/${namespace}/worldgen/structure_set/density.json`] = {
+      structures: (preset.structures ?? []).filter(s => BUILDABLE.has(s)).map(structure => ({ structure: `${namespace}:${structure}`, weight: 1 })),
+      placement: { type: 'minecraft:random_spread', spacing: 32, separation: 8, salt: 1 },
+      spacing_scale: preset.structureSpacingScale,
+      ...(preset.structureSpacingOverrides ? { spacing_overrides: preset.structureSpacingOverrides } : {}),
+    };
+  }
   if (preset.noStructures) {
     files[`data/${namespace}/worldgen/structure_set/none.json`] = {
       structures: [],

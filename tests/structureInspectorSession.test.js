@@ -70,7 +70,7 @@ test('locating and realizing buried treasure fills the preview with a chest', ()
   const [key] = [...session.world.blocks.keys()];
   const [x, y, z] = key.split(',').map(Number);
   assert.equal(session.world.getBlock(x, y, z), BLOCKS.CHEST);
-  assert.equal(session.world.getBlockMeta(x, y, z)?.lootTable, 'chests/buried_treasure');
+  assert.equal(session.world.getBlockMeta(x, y, z)?.lootTable, 'minecraft:chests/buried_treasure');
   assert.equal(session.world.getBlockMeta(x, y, z)?.facing, 'east');
 });
 

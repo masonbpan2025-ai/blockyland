@@ -30,15 +30,15 @@ test('each picker choice opens the Inspector that owns it', () => {
     openMobInspector: () => { opened.push('mob'); return '/mob-debug.html'; },
     openResourceInspector: ({ kind = null } = {}) => {
       opened.push(`resource:${kind}`);
-      return `/resource-debug.html?kind=${kind}`;
+      return kind === 'block' ? '/block-debug.html' : '/item-debug.html';
     },
   };
   const openInspector = methodFor('openInspector(choice) {');
 
   assert.equal(openInspector.call(stub, 'structure'), '/structure-inspector.html');
   assert.equal(openInspector.call(stub, 'mob'), '/mob-debug.html');
-  assert.equal(openInspector.call(stub, 'item'), '/resource-debug.html?kind=item');
-  assert.equal(openInspector.call(stub, 'block'), '/resource-debug.html?kind=block');
+  assert.equal(openInspector.call(stub, 'item'), '/item-debug.html');
+  assert.equal(openInspector.call(stub, 'block'), '/block-debug.html');
   // Case should not matter: the picker's ids are lower case, the method is called by hand too.
   assert.equal(openInspector.call(stub, 'MOB'), '/mob-debug.html');
   assert.equal(openInspector.call(stub, 'nonsense'), null, 'an unknown choice opens nothing');
@@ -77,9 +77,9 @@ test('the picker markup offers the four choices in the order the request named t
   }
 });
 
-test('the resource page preselects the Kind the picker asked for', () => {
+test('each Inspector page locks its list to the kind its own page declares', () => {
   const pageJs = readFileSync(join(process.cwd(), 'src/resourceDebug.js'), 'utf8');
-  assert.match(pageJs, /PAGE_PARAMS\.get\('kind'\)/, 'it reads ?kind=');
-  assert.match(pageJs, /PAGE_KIND === 'item' \|\| PAGE_KIND === 'block'/, 'and only accepts the two it knows');
-  assert.match(pageJs, /pageKindApplied/, 'applying it once, so the selector stays in the driver\'s hands');
+  assert.match(pageJs, /const PAGE_KIND = document\.body\.dataset\.kind/, 'the kind comes from the page, not the query string');
+  assert.match(pageJs, /searchResources\(\$\('search'\)\.value, \{ kind: PAGE_KIND/, 'and the list is filtered by it');
+  assert.doesNotMatch(pageJs, /\$\('kind'\)/, 'there is no Kind selector to read');
 });

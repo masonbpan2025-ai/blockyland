@@ -508,6 +508,9 @@ test('Rain hydrates exposed farmland but not farmland under a roof', () => {
   world.setVoxel(8, 13, 0, BLOCKS.STONE); // roof, three blocks up
   farmingManager.registerFarmland(0, 10, 0);
   farmingManager.registerFarmland(8, 10, 0);
+  // Dry farmland with nothing planted turns to dirt on a random roll (8% a tick). This test is about WATER, so
+  // the roll is pinned to "no": unpinned it failed about one run in forty, whenever the dry plot happened to roll.
+  farmingManager.random = () => 0.99;
 
   fakeGame.weather = { weatherType: 'clear' };
   assert.equal(isWaterNearby(world, 0, 10, 0, fakeGame), false);

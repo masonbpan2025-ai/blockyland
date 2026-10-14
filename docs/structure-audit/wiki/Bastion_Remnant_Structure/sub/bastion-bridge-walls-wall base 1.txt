@@ -1,0 +1,477 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/walls/wall_base_1</code> ===
+[[File:Bastion Remnant wall_base_1.png|thumb|200px|<code>bastion/bridge/walls/wall_base_1</code>]]
+The lower half of one side of the rampart.
+
+{{layered blueprint
+|name=bridge-walls-wall base 1
+|default=Layer 24
+|b=blackstone-top
+|A=Cracked Polished Blackstone Bricks
+|a=Polished Blackstone Bricks
+|G=Block of Gold
+|C=Chiseled Polished Blackstone
+|I=Lantern
+|z=jigsaw-top -rot90
+|u=jigsaw-top -rot-90
+|y=jigsaw-top -rot180
+|x=jigsaw-top
+|Z=jigsaw-bottom
+|w=jigsaw-lock -rot-90
+|W=jigsaw-lock -rot180
+|v=jigsaw-lock -rot90
+|V=jigsaw-lock
+|----Layer 1|
+Vbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+abbbbbbbbbbbbbbb
+|----Layer 2|
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+|----Layer 3|
+bbbAbbbAAbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbb
+  bbbbbbbbbbb
+bbbbbbbbbbbb
+bbbbbbbbbbbbb  b
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbAAbbA
+|----Layer 4|
+ bAbbbAAAAbbbbbb
+ bbbbbb  bbbbbbb
+ bbbbbb  bbbbbbb
+ bbbbbb   bbbbbb
+ Abbbbb   bbb  b
+  bbbbb    b
+  bbbbbbb
+bbbbbbbbbb     b
+Abbbbbbbbbb   bb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbA
+ bbbbbbbbbAAAbb
+|----Layer 5|
+  bbbAbAAAbbbbbb
+ bbbbbb  bbbbbbb
+ bbbbbb  bbbbbbb
+ bbbbbb   bbbbbb
+  bbbbb   bbbbbb
+  bbbbbb   b   b
+ bbbbbbbb      b
+ bbbbbbbbb     b
+ Abbbbbbbbb   bb
+ Abbbbbbbb   bbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbAAAbb
+|----Layer 6|
+  bbbbbAAAbbAAbb
+  bbbbbbAbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbb  bbA
+ bbbbbbbbbb   bb
+ bbbbbbbbbb   bb
+ bbbbbbbbb   bbb
+ bbbbbbbbb  bbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+|----Layer 7|
+   bbbbbbbbbAbbb
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbb  bbb
+bbbbbbbbbb   bbb
+bbbbbbbbb   bbbb
+Abbbbbbbb   bbbb
+ bbbbbbbbA bbbbb
+ bbbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+    bbbbbbbbbbbb
+|----Layer 8|
+   bbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbb bbbA
+ bbbbbbbbb  bbbb
+Abbbbbbbb   bbbb
+Abbbbbbbb   bbbb
+ bbbbbbbA  bbbbb
+  bbbbbbA bbbbbb
+      bbbbbbbbbb
+      bbbbbbAbbb
+|----Layer 9|
+  bbbbbbbbbAbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbA
+A AAbbbbbbbbbbbA
+AbbbbbbbbbbbbbbA
+AbbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+bbbbbbbbbbbbbbbb
+bbbbbbbbbb  bbbb
+Abbbbbbb    bbbb
+ bbbbbbA   bbbbb
+       A  bbbbbb
+       bbbbbbbbb
+       bbbbAAAbb
+|----Layer 10|
+  bbbbAAbbbbAbb
+  bbbbbbbbbbbbb
+   Abbbbbbbbbbbb
+   A bbbbbbbbbbb
+     bbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbb  bbbbb
+ bbb      Ibbbbb
+  b       bbbbbb
+       bbbbbbbbb
+       bbbbAAbbb
+|----Layer 11|
+  AbAbAbAbbbbb
+  Abbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+     bbbbbbbbbbb
+      bbbbbbbbbb
+  b   bbbbbbbbbb
+  Abbbbbbbbbbbbb
+  bbbbbbbbbbbbbA
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbb  bbbbbbb
+ bb      bbbbbbb
+ b       bbbbbbb
+        bbbbbbbb
+       bbbbbbbbb
+|----Layer 12|
+  Abbbbbbbbbbb
+ AbAbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Ab   bbbbbbbbbb
+  b    bbbbbbbbb
+  bb   bbbbbbbbb
+ Abb   bbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbA
+Abbbbbb bbbb  A
+Abbbbb       bb
+ bbb       bbbb
+  b       bbbbbb
+ bb     bbbbbbbb
+       bbbbbbbbb
+|----Layer 13|
+  AbbAbbbAAbbbb
+ AAbbbbbbbbbbbbb
+ A bbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+  bb  bbbbbbbbbb
+  bb   bbbbbbbbb
+ Abbb   bbbbbbbb
+ bbbbb  bbbbbbbA
+bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbb    bb
+bbbbbb     b bA
+ bbbb      bbbbb
+  bbbbb   bbbbbb
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+|----Layer 14|
+ AAbAAAbbAAbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbb bbbbbbbbb
+ bbbb   bbbbbbbb
+ bbbbb   bbbbbbb
+bbbbbbb   bbbbbA
+bbbbbbbb     bbA
+ bbbbbb     bbbA
+ bbbbbb    bbbbA
+ bbbbbbb  bbbbbA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbAA
+ bbbbbbbbbbbbbA
+|----Layer 15|
+ AbbbAbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbb bbbbbbbb
+ bbbbb   bbbbbbb
+ bbbbbb      bbb
+ bbbbbbb     bbb
+ bbbbbbbb   bbbA
+ bbbbbbbb  bbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbAA
+  bbbbbbbbbbbbA
+|----Layer 16|
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbb   bbb
+ bbbbbbbbb   bbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbAA
+  bbbbbbbbbbbbA
+|----Layer 17|
+bbbbbbbbbbbbAb
+bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbA
+bbbbbbbbbbb bbbb
+ bbbbbbbbbb  bbA
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb  bbA
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbAA
+  bbbAbbbbbAbbA
+|----Layer 18|
+bbbbb AAbbbbbb
+bbbbbAAAbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbb bbb
+Abbbbbbbbbb  bbb
+bbbbbbbbbbb  bbb
+ bbbbbbbbbb  bbb
+Abbbbbbbbbb  bbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbAA
+ bbbbbAbbbbbbbA
+|----Layer 19|
+bbbbb  AAbAbbbb
+ bbbbAAAbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb  bbb
+bbbbbbbbbbb  bbb
+bbbbbbbbbbb  bbb
+Abbbbbbbbbb  bbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+AbbbbbbbbbbbbbbA
+|----Layer 20|
+ bbbb AAAbbbbAbb
+ bbbbAbbbbbbbbbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb
+ bbbbbbbbbb
+ bbbbbbbbbb  bb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbAAbbb
+|----Layer 21|
+ bbbbbAAbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbI bbb
+ bbbbbbbbbb
+ bbbbbbbbbb
+ bbbbbbbbbb  b
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbAAAbbb
+|----Layer 22|
+bbbbbbbbbbbbbAbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbb
+bbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+Abbbbbbbbbbbbb
+Abbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+Abbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbAbbbbb
+ bAAbbb     bbbb
+|----Layer 23|
+bbbb b bbbAbbbbb
+bbbb b bbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+bbbbbbbbbbbbbA
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbb  bbbbbb
+ bbbbbbb   bbbbb
+bbbAbbb     bbbb
+|----Layer 24|
+ubb      bbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbb  bbbb
+bbbbbbb    bbbb
+bbbbbb      bbbb
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 24 || {{BlockLink|Blackstone}} || - || bastion/bridge/ramparts || ramparts || Aligned
+|-
+| Layer 1 || {{BlockLink|Blackstone}} || wall_base_connector_left || - || - || -
+|-
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Blackstone}}
+| 5034
+| 78 + 42 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 213
+| 3 + 21 blocks
+|-
+| {{BlockLink|Chiseled Polished Blackstone}}
+| 2
+| 
+|-
+| {{BlockLink|Lantern}}
+| 2
+| 
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 1
+| 
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

@@ -1,0 +1,69 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/large_stables/inner_3</code> ===
+Large stables for hoglins.
+[[File:large_stables_inner_3.png|thumb|200px|<code>bastion/hoglin_stable/large_stables/inner_3</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 246
+| 3 + 54 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 33
+|
+|-
+| {{BlockLink|Basalt}}
+| 32
+|
+|-
+| {{BlockLink|Gilded Blackstone}}
+| 7
+|
+|-
+| {{BlockLink|Lantern}}
+| 3
+|
+|-
+| {{BlockLink|Blackstone Wall}}
+| 2
+|
+|-
+| {{BlockLink|Lava}}
+| 2
+|
+|-
+| {{BlockLink|Blackstone}}
+| 1
+|
+|-
+| Loot {{BlockLink|Chest}} (Hoglin Stable)
+| 1
+|
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 2
+|
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

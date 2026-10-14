@@ -34,36 +34,11 @@ import {
 //
 // `manifest.js` is the same object in a form both the bundler and Node load. `mod.json` stays canonical, and a
 // test asserts the two are identical.
-import dragonballTournamentManifest from './dragonball-tournament/manifest.js';
-
-/** Where mods live. One directory per mod, each with a `mod.json`. */
-export const MODS_DIRECTORY = 'src/mods';
-
-/** The manifest every mod directory must contain. */
-export const MANIFEST_FILE = 'mod.json';
-
-/**
- * Every mod this build ships.
- *
- * A table rather than a directory scan at runtime, because the browser build has no filesystem. Each entry
- * carries three things:
- *
- *   * `manifestPath`, so the CLI and the tests can read the same manifest from disk and check the two agree;
- *   * `manifest`, the data itself, so the browser needs no file access;
- *   * `load()`, a STATIC `import()` of the entrypoint. A literal specifier is what lets the bundler include
- *     the mod; a variable one with `@vite-ignore` is left out of the bundle and fails only at runtime, in the
- *     browser, which is the worst place to find out.
- *
- * This is what a mod loader's mod list is. The loader reads it; the game does not.
- */
-export const BUILTIN_MODS = Object.freeze([
-  Object.freeze({
-    id: 'dragonball_tournament',
-    manifestPath: `${MODS_DIRECTORY}/dragonball-tournament/${MANIFEST_FILE}`,
-    manifest: dragonballTournamentManifest,
-    load: () => import('./dragonball-tournament/index.js'),
-  }),
-]);
+import { resolvePackages } from './compatibility.js';
+import { BUILTIN_MODS } from './catalog.generated.js';
+export { BUILTIN_MODS } from './catalog.generated.js';
+export { MODS_DIRECTORY, MANIFEST_FILE } from './paths.js';
+import { MODS_DIRECTORY, MANIFEST_FILE } from './paths.js';
 
 /**
  * Read every built-in mod's manifest.
@@ -104,6 +79,7 @@ export function discoverMods({ mods = BUILTIN_MODS, readManifest = null, fromDis
       raw = normalised.manifest;
     }
     found.push({
+      mapUrls: entry.mapUrls ?? {},
       ...raw,
       manifestPath: entry.manifestPath,
       directory: entry.manifestPath.replace(/\/[^/]+$/, ''),
@@ -141,6 +117,66 @@ export class ModApi {
     this.log = log;
     /** What this mod registered, so it can be withdrawn without affecting anyone else. */
     this.registered = [];
+    this.disposers = [];
+    this.timers = new Set();
+  }
+
+  onDispose(callback) { this.disposers.push(callback); }
+
+  schedule(callback, delay) {
+    const timer = setTimeout(() => { this.timers.delete(timer); callback(); }, delay);
+    this.timers.add(timer);
+    return timer;
+  }
+
+  dispose() {
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
+    for (const callback of this.disposers.splice(0).reverse()) {
+      try { callback(); } catch (error) { this.log(`  ${this.modId}: cleanup failed: ${error.message}`); }
+    }
+    return this.registry.unregisterMod(this.modId);
+  }
+
+  /** Instance extensions are withdrawn on unload; shared prototypes are never modified. */
+  extend(target, fields) {
+    for (const [key, value] of Object.entries(fields)) {
+      const previous = Object.getOwnPropertyDescriptor(target, key);
+      Object.defineProperty(target, key, { value, writable: true, configurable: true, enumerable: true });
+      this.onDispose(() => {
+        if (previous) Object.defineProperty(target, key, previous);
+        else delete target[key];
+      });
+    }
+  }
+
+  registerMobProvider(path, provider) {
+    const manager = this.game?.mobs;
+    if (!manager) return;
+    manager.mobProviders ??= new Map();
+    const name = `${this.modId}:${path}`;
+    if (manager.mobProviders.has(name)) throw new Error(`Mob provider collision: ${name}`);
+    manager.mobProviders.set(name, provider);
+    this.onDispose(() => manager.mobProviders.delete(name));
+    this.extend(manager, { activeMobModId: this.modId });
+    this.onDispose(() => {
+      for (const mob of [...manager.mobs]) {
+        if (mob.contentId !== name && !(mob.modId === this.modId && mob.type === path)) continue;
+        manager.scene.remove(mob.mesh);
+        manager.removeDebugLabel?.(mob);
+        manager.mobs.splice(manager.mobs.indexOf(mob), 1);
+        mob.mesh?.traverse(object => {
+          object.geometry?.dispose();
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) material?.dispose();
+        });
+      }
+    });
+    const spawn = provider.spawn;
+    provider.spawn = function (...args) {
+      const mob = spawn.apply(this, args);
+      if (mob) { mob.contentId = name; mob.modId = name.split(':')[0]; }
+      return mob;
+    };
   }
 
   /** Register one thing into the mod's own namespace. A mod supplies the path, never the namespace. */
@@ -152,6 +188,26 @@ export class ModApi {
     }
     this.registered.push({ kind, name: result.name });
     return result.name;
+  }
+
+  /** Mount an authoritative game through the engine's standard client adapter. */
+  registerGame(definition) {
+    if (!definition || typeof definition.createView !== 'function') throw new Error('registerGame requires createView(api, mapData)');
+    let view;
+    const disposeView = () => { view?.dispose?.(); view = null; };
+    this.onDispose(disposeView);
+    return this.registerMechanism(this.modId, {
+      id: this.modId, name: definition.name ?? this.modId, modId: this.modId,
+      features: { allowCreativeFlight: false, hasOverheadHealthBars: false, ...definition.features },
+      activate: (game, mapData) => {
+        disposeView();
+        if (game.isInspector) return;
+        view = definition.createView(this, mapData);
+        if (!view?.exclusiveSimulation) throw new Error('An authoritative game requires the engine simulation view');
+        this.attach('modRuntime', view);
+      },
+      deactivate: disposeView,
+    });
   }
 
   registerBlock(path, data) { return this.register(KIND.BLOCK, path, data); }
@@ -170,6 +226,10 @@ export class ModApi {
     const manager = this.game?.mechanisms;
     if (manager?.registerMechanism) manager.registerMechanism(id, def);
     else this.loader.mechanisms.set(id, def);
+    this.onDispose(() => {
+      if (manager?.currentMechanismId === id) manager.setMechanism('default', this.game);
+      (manager?.mechanisms ?? this.loader.mechanisms).delete(id);
+    });
     this.registered.push({ kind: KIND.MECHANISM, name: id });
     return id;
   }
@@ -184,6 +244,10 @@ export class ModApi {
     const manager = this.game?.mechanisms;
     if (manager?.registerWorldCleanup) {
       manager.registerWorldCleanup(cleanup);
+      this.onDispose(() => {
+        const hooks = manager.mechanisms?.get('default')?.onLeaveModWorlds;
+        if (hooks?.includes(cleanup)) hooks.splice(hooks.indexOf(cleanup), 1);
+      });
       this.registered.push({ kind: 'world_cleanup', name: this.modId });
       return true;
     }
@@ -198,7 +262,7 @@ export class ModApi {
    */
   attach(name, value) {
     if (!this.game) return false;
-    this.game[name] = value;
+    this.extend(this.game, { [name]: value });
     this.registered.push({ kind: 'attachment', name });
     return true;
   }
@@ -283,10 +347,29 @@ export class ModLoader {
    * `importModule` may be synchronous or async; both are awaited, so a browser dynamic import and a test's
    * plain function behave the same.
    */
-  async load(modId, { game = null } = {}) {
+  async load(modId, options = {}) {
+    const before = new Set([...this.mods.values()].filter(r=>r.status==='loaded').map(r=>r.manifest.id));
+    const result = await this.loadPackage(modId, options);
+    if (!result.ok) {
+      let ordered=[];
+      try { ordered=resolvePackages(this.get(modId)?.manifest.id ?? modId, this.available); } catch {}
+      for (const manifest of ordered.reverse()) if (!before.has(manifest.id)) this.unload(manifest.id);
+    }
+    return result;
+  }
+
+  async loadPackage(modId, { game = null } = {}) {
     const record = this.get(modId);
     if (!record) return { ok: false, reason: `no mod '${modId}'` };
     if (record.status === 'loaded') return { ok: true, already: true };
+
+    let packages;
+    try { packages = resolvePackages(record.manifest.id, this.available); }
+    catch (error) { return { ok: false, reason: error.message }; }
+    for (const dependency of packages.slice(0, -1)) {
+      const result = await this.loadPackage(dependency.id, { game });
+      if (!result.ok) return result;
+    }
 
     const { manifest } = record;
     const specifier = `${manifest.directory ?? `${MODS_DIRECTORY}/${manifest.id}`}/${manifest.entrypoint.replace(/^\.\//, '')}`;
@@ -322,6 +405,7 @@ export class ModLoader {
       await module.register(api, { game, manifest, registry: this.registry });
     } catch (error) {
       record.status = 'failed';
+      api.dispose();
       record.error = `register(api) threw: ${error.message}`;
       this.log(`  ${manifest.id}: ${record.error}`);
       return { ok: false, reason: record.error };
@@ -344,16 +428,10 @@ export class ModLoader {
   unload(modId) {
     const record = this.get(modId);
     if (!record || record.status !== 'loaded') return { ok: false, reason: 'not loaded' };
+    const removed = record.api?.dispose() ?? this.registry.unregisterMod(record.manifest.id);
     for (const { kind, name } of record.api?.registered ?? []) {
       if (kind === KIND.MECHANISM) this.mechanisms.delete(name);
     }
-    for (const { kind, name } of record.api?.registered ?? []) {
-      if (kind === 'attachment') {
-        const game = record.api.game;
-        if (game && Object.prototype.hasOwnProperty.call(game, name)) delete game[name];
-      }
-    }
-    const removed = this.registry.unregisterMod(record.manifest.id);
     record.api = null;
     record.entrypoint = null;
     record.status = 'available';
@@ -375,14 +453,19 @@ export class ModLoader {
       this.closeWorld();
       return { ok: true, mod: null };
     }
+    if (this.activeModId && this.activeModId !== manifest.id) this.closeWorld();
     const result = await this.load(manifest.id, { game });
-    if (result.ok) this.activeModId = manifest.id;
+    if (result.ok) {
+      this.activeModId = manifest.id;
+      this.worldPackages = resolvePackages(manifest.id, this.available).map(m => m.id);
+    }
     return { ...result, mod: manifest };
   }
 
   /** Close the open world's mod, if any. */
   closeWorld() {
-    if (this.activeModId) this.unload(this.activeModId);
+    for (const id of [...(this.worldPackages ?? (this.activeModId ? [this.activeModId] : []))].reverse()) this.unload(id);
+    this.worldPackages = [];
     this.activeModId = null;
     return { ok: true };
   }
@@ -390,11 +473,11 @@ export class ModLoader {
   /**
    * The scope the Inspector should be looking at.
    *
-   * `core` unless a designed world is open, and then that mod's id. The default is the whole point of the
+   * `core` unless the Inspector explicitly selects a mod. The default is the whole point of the
    * request: an Inspector that has not been told otherwise shows the game's own content and nothing else.
    */
-  inspectorScope() {
-    return this.activeModId ? { scope: SCOPE.MOD, modId: this.activeModId } : { scope: SCOPE.CORE, modId: null };
+  inspectorScope(modId = null) {
+    return modId && this.get(modId) ? { scope: SCOPE.MOD, modId } : { scope: SCOPE.CORE, modId: null };
   }
 
   /** Which mod owns a piece of content, or 'minecraft' for core. `kind` may be omitted to ask any kind. */

@@ -48,10 +48,6 @@ export class WorldMechanismManager {
       name: 'Default (Vanilla)',
       description: 'Standard Minecraft survival and creative gameplay mechanics with no custom combat skills or tournament overlays.',
       features: {
-        hasDragonBallSkills: false,
-        hasTournamentAnnouncer: false,
-        hasTrainingSites: false,
-        hasDungeonCombatMode: false,
         hasOverheadHealthBars: false,
         allowCreativeFlight: true,
         allowFistPunchAttack: false,

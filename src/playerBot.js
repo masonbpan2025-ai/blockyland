@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import AStar from './vendor/mineflayer-pathfinder/astar.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { harvestsNothing, breakTimeSeconds } from './miningRules.js';
@@ -9,6 +9,9 @@ import { buildCommandContext, runCommand, permissionRefusal } from './commandRun
 const key = p => `${p.x},${p.y},${p.z}`;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const cell = (x, y, z, cost = 1, dig = []) => ({ x, y, z, cost, dig, hash: `${x},${y},${z}` });
+
+/** The bot's own controls, which are not game commands and must never reach the game dispatcher. */
+const BOT_CONTROL = /^\/(?:stop|cancel|status)(?:\s|$)/i;
 
 // Mineflayer-style controls and goals over the browser game's existing player.
 // Navigation uses PrismarineJS's actual A* implementation; physics and harvesting
@@ -23,7 +26,7 @@ export function parsePlayerCommand(prompt) {
   // Explicit or prefixed game command (e.g. /give, /setblock, /time, /weather, /gamemode, /summon, /help, /clear, etc.)
   const cmdMatch = text.match(/^(?:run\s+|execute\s+)?(?:command\s+)?(\/[a-z_]+(?:\s+.*)?)$/i) ||
                    text.match(/^(?:run\s+|execute\s+)?command\s+([a-z_]+(?:\s+.*)?)$/i) ||
-                   text.match(/^(give\s+[@\w]+(?!\s+to\b).*|setblock\s+.*|time\s+set.*|weather\s+.*|gamemode\s+.*|summon\s+.*|locate\s+.*|show_mobs(?:\s+.*)?|help(?:\s+.*)?|clear(?:\s+.*)?)$/i);
+                   text.match(/^(give\s+(?:@[pares](?:\[[^\]]*\])?|\w+)\s+[\w:]+(?:\[.*\])?(?:\s+\d+)?|setblock\s+.*|time\s+set.*|weather\s+.*|gamemode\s+.*|summon\s+.*|locate\s+.*|show_mobs(?:\s+.*)?|help(?:\s+.*)?|clear(?:\s+.*)?)$/i);
   if (cmdMatch) {
     let cmdStr = cmdMatch[1].trim();
     if (!cmdStr.startsWith('/')) cmdStr = '/' + cmdStr;
@@ -36,6 +39,10 @@ export function parsePlayerCommand(prompt) {
   if (tillMatch) return { type: 'till', position: [Number(tillMatch[1]), Number(tillMatch[2]), Number(tillMatch[3])] };
   let brewMatch = text.match(/^brew\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+into\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?))?\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (brewMatch) return { type: 'brew', count: Number(brewMatch[1] || 1), item: brewMatch[2].trim().replace(/\s+/g, '_'), bottleCount: Number(brewMatch[3] || 3), bottle: (brewMatch[4] || 'water_bottle').trim().replace(/\s+/g, '_'), position: [Number(brewMatch[5]), Number(brewMatch[6]), Number(brewMatch[7])] };
+  // `smith <template> on <gear> with <material> at x y z`, every name as its item id with spaces as underscores:
+  // `smith netherite upgrade on diamond_chestplate with netherite_ingot at 1 64 1`.
+  let smithMatch = text.match(/^smith\s+(.+?)\s+on\s+(.+?)\s+with\s+(.+?)\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
+  if (smithMatch) return { type: 'smith', template: smithMatch[1].trim().replace(/\s+/g, '_'), base: smithMatch[2].trim().replace(/\s+/g, '_'), addition: smithMatch[3].trim().replace(/\s+/g, '_'), position: [Number(smithMatch[4]), Number(smithMatch[5]), Number(smithMatch[6])] };
   let enchantMatch = text.match(/^enchant\s+(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+(?:slot\s+)?([012]))?\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (enchantMatch) return { type: 'enchant', item: enchantMatch[1].trim().replace(/\s+/g, '_'), slot: enchantMatch[2] !== undefined ? Number(enchantMatch[2]) : 2, position: [Number(enchantMatch[3]), Number(enchantMatch[4]), Number(enchantMatch[5])] };
   let tradeMatch = text.match(/^trade\s+(?:(\d+)\s+)?(?:(?:a\s+|an\s+|the\s+)?(.+?)\s+)?with\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
@@ -63,6 +70,14 @@ export function parsePlayerCommand(prompt) {
 
 export function validatePlayerCommand(command) {
   if (typeof command === 'string') command = parsePlayerCommand(command);
+  // The bot's own controls, in their slashed spelling. `parsePlayerCommand` matches `/stop` as a control
+  // but sends `/status` down the game-command path, and `/stop`/`/status` typed as a command action would
+  // otherwise reach the game dispatcher, which has no such command. They are normalised to their own types
+  // here because this is the one place every entry point passes through.
+  if (command?.type === 'command' && BOT_CONTROL.test(String(command.command ?? '').trim())) {
+    const control = String(command.command).trim().replace(/^\//, '').split(/\s+/)[0].toLowerCase();
+    command = { type: control === 'cancel' ? 'stop' : control };
+  }
   if (!command || !['mine','goto','jump','equip','follow','attack','look','feed','test','stop','status','command',...SURVIVAL_ACTIONS].includes(command.type)) throw new Error('Unknown player command. Try "mine some iron ore", "go to 10 64 10", or "test movement".');
   if (command.type === 'command') {
     if (typeof command.command !== 'string' || !command.command.trim()) throw new Error('Command action needs a command string.');
@@ -99,14 +114,60 @@ export class PlayerBot {
   finish(ok, message) {
     const task = this.task;
     this.release(); this.task = null;
-    this.lastResult = { ok, message, mined: task?.mined || 0, elapsed: task?.elapsed || 0, collected: task?.dropIds ? Object.fromEntries([...task.dropIds].map(id => [id, Math.max(0, this.itemCount(id) - (task.inventoryBefore[id] || 0))])) : {} };
-    this.log(message, ok ? 'success' : 'warning');
+    this.settle({ ok, message, mined: task?.mined || 0, elapsed: task?.elapsed || 0, collected: task?.dropIds ? Object.fromEntries([...task.dropIds].map(id => [id, Math.max(0, this.itemCount(id) - (task.inventoryBefore[id] || 0))])) : {} });
+    // A task is asynchronous, so its caller is holding a promise the run() call returned.
     task?.resolve(this.lastResult);
+  }
+  /** Record and log an immediate result. A command action resolves straight away, with no task and no promise. */
+  settle(result) {
+    this.lastResult = result;
+    this.log(result.message, result.ok ? 'success' : 'warning');
+    return result;
+  }
+  /**
+   * True for the bot's own `/stop` and `/status` controls, which the game does not implement.
+   *
+   * `parsePlayerCommand` splits them from a game command line before the slash is considered, so the two
+   * have to be told apart here as well rather than being handed to a dispatcher that would report them as
+   * unknown commands.
+   */
+  isBotControl(command) {
+    return BOT_CONTROL.test(String(command ?? '').trim());
+  }
+  /**
+   * Run a game command through the game's own chat-command handler.
+   *
+   * The bot is a second caller of `/give`, not a second implementation of it: this delegates to
+   * `Game.handleCommand` so the cheats gate, the command table and the one dispatcher all stay in charge.
+   *
+   * Success is reported from what `handleCommand` returns, not assumed: a dispatcher that answers `false`
+   * refused the command (an unknown name, a malformed argument, a missing permission), and reporting that
+   * as an accepted command is exactly the "trust the success string" failure the guide forbids. `Game`'s own
+   * `handleCommand` returns nothing, so `undefined` is read as handled.
+   */
+  runGameCommand(command) {
+    if (typeof this.game.handleCommand !== 'function') {
+      return this.settle({ ok: false, message: 'This game cannot run chat commands.' });
+    }
+    let handled;
+    try {
+      handled = this.game.handleCommand(command);
+    } catch (error) {
+      return this.settle({ ok: false, message: error?.message ?? String(error) });
+    }
+    return handled === false
+      ? this.settle({ ok: false, message: `Not a command this world can run: ${command}` })
+      : this.settle({ ok: true, message: `Ran ${command}.`, command });
   }
   run(command) {
     try { command = validatePlayerCommand(command); } catch (error) { return Promise.reject(error); }
     if (command.type === 'stop') { this.stop(); return Promise.resolve(this.lastResult); }
     if (command.type === 'status') return Promise.resolve({ ok: true, message: JSON.stringify(this.snapshot()) });
+    // A command action is handled by the game's dispatcher, so it never becomes a task and nothing drives
+    // the player afterwards. `stop` and `status` stay the bot's own controls.
+    if (command.type === 'command' && !this.isBotControl(command.command)) {
+      return Promise.resolve(this.runGameCommand(command.command));
+    }
     if (this.active) return Promise.reject(new Error('The player bot is busy. Type "stop bot" to cancel it.'));
     if (!this.game.player || !this.game.world || this.game.worldReady === false) return Promise.reject(new Error('Load a world before controlling the player.'));
     if (this.game.player.gamemode === 'spectator' || this.game.player.isDead || this.game.player.isSleeping || this.game.riding || this.game.player.isDungeonMode) return Promise.reject(new Error('The player must be alive, awake, unmounted, and in the first-person voxel game.'));
@@ -243,6 +304,21 @@ export class PlayerBot {
         const mob = this.game.mobs?.mobs?.filter(m => m.type === t.command.mob && m.health > 0).sort((a,b) => distance(a.mesh.position,p.position)-distance(b.mesh.position,p.position))[0];
         if (!mob) {
           if (t.command.type === 'attack' && t.hadMob) {
+            // Let the killing blow finish before declaring victory.
+            //
+            // A mob's drops and its experience are spawned by the DEATH ANIMATION, not by the blow: the game
+            // rolls them once `deathTime` passes 0.65 in `updateDeath`. Resolving on the tick a mob's health
+            // reaches zero therefore skipped them entirely -- the bot walked away from every kill with nothing
+            // on the ground, which is exactly what a drowned farm exists to collect. This waits for the corpse
+            // the bot itself killed to leave the mob list, which is where `updateDeath` puts it.
+            // Bounded: a harness that never ticks the mob manager leaves the corpse in the list forever, so an
+            // unbounded wait would hang the command instead of reporting the kill. 2 s is well past the 0.95 s
+            // the animation takes at any frame rate the game runs at.
+            const corpse = t.killedMob;
+            if (corpse && this.game.mobs?.mobs?.includes(corpse) && corpse.lootDropped !== true && (corpse.deathTime ?? 0) < 0.65) {
+              t.deathWait = (t.deathWait || 0) + dt;
+              if (t.deathWait < 2.0) return;
+            }
             // Sweep up what the kill dropped before declaring victory. Attacking had no collection phase --
             // mining has one -- so wool and meat stayed on the ground: the survival fixture finished with one
             // wool out of three sheep and could not craft a bed from it.
@@ -262,6 +338,8 @@ export class PlayerBot {
           return;
         }
         t.hadMob = true;
+        // Remember the target while it is still alive, so its death animation can be awaited after the blow.
+        t.killedMob = mob;
         this.lookAt({ ...mob.mesh.position, y: mob.mesh.position.y + (mob.height || 1.5) * .6 });
         if (t.command.type === 'look') { this.finish(true, `Looking at ${t.command.mob}.`); return; }
         const range = distance(mob.mesh.position, p.position);
@@ -395,7 +473,7 @@ export class PlayerBot {
   inventoryCount() { return [...(this.game.inventory?.hotbar || []),...(this.game.inventory?.storage || [])].reduce((sum,i)=>sum+(i?.count || 0),0); }
   itemCount(id) { return [...(this.game.inventory?.hotbar || []),...(this.game.inventory?.storage || [])].reduce((sum,i)=>sum+((i && (i.id===id || this.survival?.sameItem(i.id, id)))?i.count:0),0); }
   async runScenario({commands, assertions=[]}) {
-    if(!Array.isArray(commands)||!commands.length||commands.length>32) throw new Error('A scenario needs 1–32 commands.');
+    if(!Array.isArray(commands)||!commands.length||commands.length>32) throw new Error('A scenario needs 1â€“32 commands.');
     commands=commands.map(validatePlayerCommand);
     const results=[];
     for(const command of commands) {
@@ -412,3 +490,5 @@ export class PlayerBot {
     return {ok:results.every(r=>r.ok)&&checks.every(c=>c.ok),results,checks};
   }
 }
+
+

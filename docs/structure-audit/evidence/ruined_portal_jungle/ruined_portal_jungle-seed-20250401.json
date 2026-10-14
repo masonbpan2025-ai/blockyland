@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "structure": "ruined_portal_jungle",
+  "seed": "20250401",
+  "chunk": [
+    10,
+    -33
+  ],
+  "biome": "jungle",
+  "box": {
+    "minX": 164,
+    "minY": 29,
+    "minZ": -524,
+    "maxX": 170,
+    "maxY": 35,
+    "maxZ": -518
+  },
+  "pieces": 1,
+  "blocks": {
+    "Dirt": 56,
+    "Netherrack": 40,
+    "Obsidian": 14,
+    "Jungle Leaves": 12,
+    "Vine": 11,
+    "Mossy Stone Brick Slab": 3,
+    "Stone Brick Stairs": 2,
+    "Crying Obsidian": 2,
+    "Magma Block": 1,
+    "Stone Brick Slab": 1,
+    "Chest": 1,
+    "Grass Block": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

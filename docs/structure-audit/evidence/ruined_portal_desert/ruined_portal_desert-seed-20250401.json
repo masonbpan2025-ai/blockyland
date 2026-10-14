@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "structure": "ruined_portal_desert",
+  "seed": "20250401",
+  "chunk": [
+    10,
+    -33
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": 164,
+    "minY": 23,
+    "minZ": -524,
+    "maxX": 170,
+    "maxY": 29,
+    "maxZ": -518
+  },
+  "pieces": 1,
+  "blocks": {
+    "Sandstone": 65,
+    "Netherrack": 40,
+    "Sand": 38,
+    "Obsidian": 14,
+    "Stone Brick Slab": 4,
+    "Stone Brick Stairs": 2,
+    "Crying Obsidian": 2,
+    "Magma Block": 1,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

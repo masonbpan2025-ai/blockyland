@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "structure": "shipwreck_beached",
+  "seed": "20250401",
+  "chunk": [
+    12,
+    14
+  ],
+  "biome": "beach",
+  "box": {
+    "minX": 192,
+    "minY": 23,
+    "minZ": 224,
+    "maxX": 215,
+    "maxY": 31,
+    "maxZ": 232
+  },
+  "pieces": 1,
+  "blocks": {
+    "Sand": 172,
+    "Oak Planks": 128,
+    "Oak Stairs": 108,
+    "Spruce Planks": 59,
+    "Sandstone": 26,
+    "Spruce Stairs": 20,
+    "Spruce Fence": 18,
+    "Oak Trapdoor": 11,
+    "Oak Log": 8,
+    "Oak Door": 2,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "rotten_flesh",
+        "count": 19
+      },
+      {
+        "name": "Moss Block",
+        "count": 1
+      },
+      {
+        "name": "suspicious_stew",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1,
+    "door": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

@@ -1,9 +1,26 @@
+import { trackFall } from './mobEnvironment.js';
 import { isPackEquine } from './packEquineModel.js';
 import { isEquine } from './horseBehavior.js';
 import * as THREE from 'three';
 import { applyHeat } from './heat.js';
 import { BLOCKS } from './blocks.js';
 import { isLethalStep, hazardKind, isFireImmune } from './hazards.js';
+
+/**
+ * A knockback as a Vector3.
+ *
+ * Writers have stored a plain `{x, z}` as well as a Vector3, and the motion code calls `lengthSq` and
+ * `multiplyScalar` on it. A polar bear struck by a goat's ram threw "knockback.lengthSq is not a function" every
+ * frame and stopped updating. Anything with the Vector3 methods is kept as it is; anything else is converted once.
+ *
+ * @param {object|null|undefined} raw
+ * @returns {THREE.Vector3}
+ */
+export function knockbackVector(raw) {
+  if (raw && typeof raw.lengthSq === 'function') return raw;
+  return new THREE.Vector3(Number(raw?.x) || 0, 0, Number(raw?.z) || 0);
+}
+
 
 export function wanderMob(manager, mob, dt, speed, random = null) {
   // The manager's own generator is preferred over Math.random when the caller does not name one. Nearly every
@@ -219,6 +236,8 @@ export function moveGroundMob(manager, mob, dt) {
   mob.escapeTime = Math.max(0, (mob.escapeTime || 0) - dt);
   if (mob.escapeTarget && mob.escapeTime <= 0) mob.escapeTarget = null;
   // Escaping excuses the floor rule only while the window is live.
+  if (mob.knockback) mob.knockbackConsumed = true;
+  if (mob.knockback) mob.knockback = knockbackVector(mob.knockback);
   const knockback = mob.knockback || new THREE.Vector3();
 
   // Standing in something harmful: get out before anything else, whichever way is safe.
@@ -328,11 +347,13 @@ export function moveGroundMob(manager, mob, dt) {
     mob.avoidYaw = mob.yaw + (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2;
     mob.avoidTime = 1.2;
   }
+  // Wiki: every mob but the fall-immune ones takes damage after a drop of more than 3 blocks. Horses have their own rule below.
+  if(!isEquine(mob))trackFall(manager,mob,start,pos);
   if(isEquine(mob) && !mob.dying){
     if(!mob.onGround)mob.horseFallPeak=Math.max(mob.horseFallPeak ?? start.y,pos.y);
     else if(mob.horseFallPeak!==undefined){const fall=mob.horseFallPeak-pos.y;delete mob.horseFallPeak;
-      const damage=isPackEquine(mob)?Math.max(0,Math.ceil((fall-6-.025)*.5)):Math.max(0,Math.floor((fall-7)*.5));
-      if(damage>0){manager.damageMob(mob,damage,null,false,null,true);mob.rider?.takeDamage?.(isPackEquine(mob)?damage:Math.floor(fall-3),null,'fall');}}
+      const damage=(isPackEquine(mob)||mob.type==='zombie_horse'||mob.type==='skeleton_horse')?Math.max(0,Math.ceil((fall-6-.025)*.5)):Math.max(0,Math.floor((fall-7)*.5));
+      if(damage>0){manager.damageMob(mob,damage,null,false,null,true);mob.rider?.takeDamage?.((isPackEquine(mob)||mob.type==='zombie_horse'||mob.type==='skeleton_horse')?damage:Math.floor(fall-3),null,'fall');}}
   }
   const turn = Math.atan2(Math.sin(mob.yaw - mob.mesh.rotation.y), Math.cos(mob.yaw - mob.mesh.rotation.y));
   mob.mesh.rotation.y += turn * (1 - Math.exp(-7 * dt));
@@ -352,6 +373,8 @@ export function moveFlyingMob(manager, mob, dt) {
     }
   }
 
+  if (mob.knockback) mob.knockbackConsumed = true;
+  if (mob.knockback) mob.knockback = knockbackVector(mob.knockback);
   const knockback = mob.knockback || new THREE.Vector3();
   const vx = mob.velocity.x + knockback.x;
   const vy = mob.velocity.y + knockback.y;

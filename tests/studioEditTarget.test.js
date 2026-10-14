@@ -1,4 +1,4 @@
-// An edit must resolve to the structure open in Structure Studio.
+// An edit must resolve to the structure open in Building Studio.
 //
 // Regression guard: the studio edits a library structure directly and never
 // records it in builtStructures, so the model had no valid edit target. Asked to

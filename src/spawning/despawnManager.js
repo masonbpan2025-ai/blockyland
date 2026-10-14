@@ -38,6 +38,7 @@ import {
   categoryOf,
 } from './mobCategories.js';
 import { Difficulty, difficultyRank } from './spawnValidation.js';
+import { isPiglinBrute } from '../piglinBruteBehavior.js';
 
 /**
  * `MobCategory.getNoDespawnDistance()`: the radius inside which `noActionTime` resets.
@@ -209,7 +210,8 @@ export class DespawnManager {
    */
   checkDespawn(mob, players, { peaceful, random }) {
     // 1. Peaceful. This fires regardless of distance and regardless of persistence.
-    if (peaceful && !SURVIVES_PEACEFUL.has(mob.type) && !this.manager.shouldSurvivePeaceful(mob)) {
+    // A piglin brute keeps `type: 'piglin'` but is not exempt: only the piglin itself survives Peaceful.
+    if (peaceful && !(SURVIVES_PEACEFUL.has(mob.type) && !isPiglinBrute(mob)) && !this.manager.shouldSurvivePeaceful(mob)) {
       return 'peaceful';
     }
 

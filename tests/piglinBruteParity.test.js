@@ -252,7 +252,7 @@ test('it drops its golden axe on an 8.5% roll and gives 5 XP', () => {
   brute.playerDamaged = true;
   assert.deepEqual(piglinBruteDrops(brute, () => 0.01), [['golden_axe', false, 1, 1]], 'a low roll drops the axe');
   assert.deepEqual(piglinBruteDrops(brute, () => 0.5), [], 'a high roll drops nothing');
-  assert.equal(piglinBruteXp(brute), 5, 'wiki: worth 5 XP with credit');
+  assert.equal(piglinBruteXp(brute), 20, 'wiki: worth 20 XP with credit');
   // Through the manager's own loot path the axe appears too, and only for a brute.
   const viaManager = manager.getMobDeathDrops(brute, () => 0.01);
   assert.equal(viaManager.some(r => r[0] === 'golden_axe'), true);

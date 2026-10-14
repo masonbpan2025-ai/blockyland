@@ -6,12 +6,9 @@
 // furniture. All thirty-nine potions, splash and lingering alike, were unreachable in survival, and the
 // Resource Inspector showed it as a single line: `water_bottle` with no source.
 //
-// Vanilla fills a bottle from a water source block or from a water cauldron. Only the first is implemented
-// here: this game has a cauldron *block* but no water-cauldron state to fill from, so a cauldron is refused
-// with that reason rather than silently doing nothing. Unlike a bucket, a bottle does not take the source
-// with it -- a bottle of water from an ocean does not drain the ocean -- which is the one place this differs
-// from `buckets.js` and the reason it is not simply reused.
+// Bottles leave water sources intact and consume one level of a water cauldron.
 import { BLOCKS } from './blocks.js';
+import { cauldronLevel, setCauldronLevel } from './cauldrons.js';
 
 /** The item that can be filled. A bottle already holding something is not one of these. */
 export const isGlassBottle = (item) => Boolean(item) && !item.isBlock && item.id === 'glass_bottle';
@@ -35,11 +32,10 @@ export function useGlassBottle(world, inventory, mode, hit, overflow = () => {})
 
   const { x, y, z } = hit;
   const id = hit.blockId ?? world.getVoxel(x, y, z);
-  if (id !== BLOCKS.WATER) return false;
+  if (id !== BLOCKS.WATER && id !== BLOCKS.WATER_CAULDRON) return false;
   // Only a source block: dipping a bottle into flowing water gives nothing in vanilla.
-  if (typeof world.getWaterLevel === 'function' && world.getWaterLevel(x, y, z) !== 0) return false;
-  // A cauldron is deliberately not supported yet, and is named so the refusal is not a mystery.
-  if (id === BLOCKS.CAULDRON) return false;
+  if (id===BLOCKS.WATER && typeof world.getWaterLevel === 'function' && world.getWaterLevel(x, y, z) !== 0) return false;
+  if (id===BLOCKS.WATER_CAULDRON && mode!=='creative')setCauldronLevel(world,x,y,z,id,cauldronLevel(world,x,y,z)-1);
 
   // The water stays where it is. This is the difference from a bucket, and it is what makes a bottle
   // renewable rather than a way to drain a lake one block at a time.

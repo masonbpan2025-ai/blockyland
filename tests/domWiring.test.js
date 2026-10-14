@@ -11,10 +11,11 @@ const root = process.cwd();
  * Ids the front-end creates and removes at runtime, so they are deliberately absent from index.html and
  * cannot be validated against the markup: `renderHorseInventory` appends the horse equipment panel when
  * a tamed horse is ridden, and `toggleInventory` removes it again. Everything else the UI looks up must
- * exist in the markup, which is what caught the Structure Studio button being wired to an id that no
+ * exist in the markup, which is what caught the Building Studio button being wired to an id that no
  * longer existed.
  */
 const RUNTIME_CREATED_IDS = new Set(['horse-equipment']);
+const RUNTIME_CREATED_CLASSES = new Set(['boss-bar-title', 'boss-bar-fill']); // updateBossBar creates these.
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -35,7 +36,7 @@ test('every element the front-end looks up exists in index.html', () => {
         if (!htmlIds.has(match[1]) && !RUNTIME_CREATED_IDS.has(match[1])) missing.push(`${source}:${index + 1} #${match[1]}`);
       }
       for (const match of line.matchAll(/querySelector(?:All)?\(\s*'\.([a-zA-Z0-9_-]+)'/g)) {
-        if (!htmlClasses.has(match[1])) missing.push(`${source}:${index + 1} .${match[1]}`);
+        if (!htmlClasses.has(match[1]) && !RUNTIME_CREATED_CLASSES.has(match[1])) missing.push(`${source}:${index + 1} .${match[1]}`);
       }
     });
   }
@@ -58,7 +59,7 @@ test('the agent terminal exposes the multi-vendor controls', () => {
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
   }
-  for (const vendor of ['gemini', 'deepseek', 'chatgpt']) {
+  for (const vendor of ['gemini', 'deepseek', 'chatgpt', 'claude']) {
     assert.match(html, new RegExp(`data-vendor="${vendor}"`), `missing vendor button ${vendor}`);
   }
   // The player's view is capture-gated by a checkbox that starts checked.

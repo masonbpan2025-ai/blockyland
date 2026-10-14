@@ -7,6 +7,7 @@
  * light level immediately around it is 11 or less, and returns to neutral when it moves into
  * brighter light — but it keeps pursuing anything that attacked it, regardless of light.
  */
+import { meleeDamage } from './mobEnvironment.js';
 import { moveGroundMob } from './mobMotion.js';
 
 /** Wiki: spiders have 16 HP (reduced from 20 in Beta 1.9-pre2). */
@@ -302,7 +303,7 @@ export function updateSpiderHunt(manager, mob, dt, player) {
       const difficulty = manager?.game?.difficulty ?? 'normal';
       const damage = isCaveSpider(mob)
         ? caveSpiderMeleeFor(difficulty)
-        : 2;
+        : meleeDamage('spider', difficulty, 2);
       if (damage > 0) player.takeDamage?.(damage, mob.mesh.position, mob.type);
       // Wiki: cave spiders poison on Normal and Hard only.
       applyCaveSpiderPoison(manager, mob, player, difficulty);

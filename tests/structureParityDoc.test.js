@@ -41,7 +41,7 @@ test('every structure set has a home in the matrix', () => {
   const doc = readFileSync(DOC, 'utf8');
   assert.match(doc, /Random-spread and concentric-rings placement/,
     'the document must describe the placement infrastructure that already exists');
-  assert.equal(STRUCTURE_SETS.length, 20, 'the registry is expected to carry the 20 vanilla sets');
+  assert.equal(STRUCTURE_SETS.filter((set) => !set.feature).length, 20, 'the registry is expected to carry the 20 vanilla sets');
 });
 
 test('the document states the target version and does not claim unverified parity', () => {

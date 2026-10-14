@@ -1,0 +1,613 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/starting_pieces/entrance_face</code> ===
+[[File:Bastion Remnant entrance_face.png|thumb|200px|<code>bastion/bridge/starting_pieces/entrance_face</code>]]
+Structure in front of the rampart resembling a face.
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-starting_pieces-entrance_face
+|default=Layer 24
+|a=Polished Blackstone Bricks
+|b=blackstone-top
+|e=basalt-top
+|E=polished-basalt-top
+|n=Netherrack
+|v=jigsaw-lock -rot90
+|----Layer 1|
+    v
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   EE
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    E
+    E
+|----Layer 2|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   EE
+ 
+  E
+  E E
+    E
+ 
+ 
+ 
+ 
+    E
+    E
+|----Layer 3|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aaaaa
+aaaaa
+aaaaa
+eaaaa
+aaaaa
+aaaaa
+aaaaa
+ baaa
+aaaaa
+aaaaa
+aaaaa
+aaaaa
+aaaaa
+ aaaa
+   aa
+  aaa
+|----Layer 4|
+ 
+ 
+ 
+ 
+ 
+    a
+ 
+ 
+aaaaa
+aaaaa
+aaana
+eeana
+aeena
+aeena
+bbbna
+  b a
+ baaa
+ aaaa
+aeaaa
+eeaaa
+aaaaa
+aaaaa
+ aaaa
+ aaaa
+|----Layer 5|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aaaaa
+aaaaa
+aaana
+ eeea
+eeeea
+aeeea
+bbana
+ baaa
+ aaaa
+aaaaa
+eeeaa
+eeeaa
+eeaaa
+aaaaa
+aaaaa
+aaaaa
+|----Layer 6|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aaaaa
+aaaaa
+ aaaa
+ eeaa
+ eeaa
+eeeaa
+aaaaa
+aaaaa
+   aa
+ 
+ 
+ 
+ 
+aaa a
+aaaaa
+aaaaa
+|----Layer 7|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aaaaa
+aaaaa
+ aaaa
+ 
+ 
+ 
+aaaaa
+aaaaa
+ 
+ 
+ 
+ 
+ 
+aaa a
+aaaaa
+aaaaa
+|----Layer 8|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+aeaae
+aaaaa
+ aaaa
+ 
+ 
+ 
+aaaaa
+aaaaa
+aaaaa
+ 
+ 
+ 
+ 
+aaa a
+aaaaa
+aaa
+|----Layer 9|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  aee
+ eaaa
+eaaaa
+ 
+ 
+ 
+eaaaa
+aaaaa
+aeaaa
+    a
+ 
+ 
+aaaaa
+a aaa
+a  aa
+eea
+|----Layer 10|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ee
+   aa
+   aa
+ 
+ 
+ 
+eaaaa
+eaaaa
+aeaaa
+eaana
+aaaaa
+aaaaa
+aaaaa
+  aaa
+  aaa
+ ee
+|----Layer 11|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ee
+    a
+   aa
+aaaaa
+aaaaa
+aaa a
+eaaaa
+eaaaa
+eeaaa
+eeana
+eeana
+eaana
+aaana
+ eaaa
+  aaa
+|----Layer 12|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ee
+   ee
+   be
+eb bb
+ebbaa
+ebaaa
+ebbba
+ebbaa
+eeeaa
+eeeaa
+eeebb
+ ebbb
+  eba
+  eea
+  eea
+|----Layer 13|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    b
+ 
+ 
+    a
+   ba
+   aa
+   bb
+|----Layer 14|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    a
+   aa
+   ba
+   b
+|----Layer 15|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   a
+   aa
+   aa
+   aa
+|----Layer 16|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   aa
+   aa
+   ba
+   ba
+|----Layer 17|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ea
+   aa
+   bb
+|----Layer 18|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ea
+   aa
+   aa
+    b
+|----Layer 19|
+    a
+    a
+    a
+ 
+ 
+ 
+ 
+ 
+ 
+    a
+    a
+    a
+    a
+    a
+   ea
+   aa
+   aa
+    a
+    a
+    a
+    a
+    a
+    a
+    a
+    a
+    e
+|----Layer 20|
+    b
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    a
+    a
+    a
+    e
+    e
+   ea
+   aa
+   aa
+   aa
+    a
+    b
+ 
+    b
+    b
+    e
+    b
+    e
+|----Layer 21|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    a
+    e
+    a
+    e
+    e
+   ea
+   aa
+   ea
+   aa
+    b
+    e
+    b
+    b
+    e
+    E
+    e
+    e
+|----Layer 22|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    e
+    a
+    e
+    e
+    e
+    e
+   ea
+   aa
+   ea
+   ea
+    e
+    e
+    e
+    e
+    e
+    e
+    e
+|----Layer 23|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    e
+    e
+ 
+ 
+ 
+   ee
+   ea
+   ea
+   ea
+ 
+ 
+ 
+    e
+    e
+|----Layer 24|
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+   ee
+   eb
+   eb
+   ba
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 1 || {{BlockLink|Air}} || entrance_face || - || - || -
+|-
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 517
+| 8 + 5 blocks
+|-
+| {{BlockLink|Basalt}}
+| 136
+| 2 + 8 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 49
+| 
+|-
+| {{BlockLink|Polished Basalt}}
+| 13
+| 
+|-
+| {{BlockLink|Netherrack}}
+| 12
+| 
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

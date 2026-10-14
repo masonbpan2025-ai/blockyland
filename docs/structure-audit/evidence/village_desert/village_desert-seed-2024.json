@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "structure": "village_desert",
+  "seed": "2024",
+  "chunk": [
+    40,
+    4
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": 576,
+    "minY": 10,
+    "minZ": 31,
+    "maxX": 679,
+    "maxY": 51,
+    "maxZ": 142
+  },
+  "pieces": 35,
+  "blocks": {
+    "Stone": 105744,
+    "Sandstone": 18518,
+    "Dirt": 16016,
+    "Sand": 6158,
+    "Grass Block": 5299,
+    "Oak Leaves": 4355,
+    "Coal Ore": 4182,
+    "Birch Leaves": 3574,
+    "Iron Ore": 3465,
+    "Water": 2228,
+    "Gold Ore": 1920,
+    "Redstone Ore": 1473,
+    "Smooth Sandstone": 1005,
+    "Spruce Leaves": 929,
+    "Dark Oak Leaves": 657,
+    "Diamond Ore": 596,
+    "Oak Log": 440,
+    "Cut Sandstone": 431,
+    "Birch Log": 298,
+    "Dandelion": 161,
+    "Poppy": 147,
+    "Smooth Sandstone Slab": 144,
+    "Cactus": 129,
+    "Smooth Sandstone Stairs": 121,
+    "Spruce Log": 112,
+    "Sandstone Wall": 108,
+    "Dark Oak Log": 98,
+    "Moist Farmland": 80,
+    "Snow Block": 60,
+    "Sandstone Slab": 40,
+    "Melon Stem": 30,
+    "Beetroots": 27,
+    "Terracotta": 25,
+    "Wheat Crops": 23,
+    "Wall Torch": 21,
+    "Hay Block": 20,
+    "Jungle Button": 9,
+    "Torch": 8,
+    "Jungle Door": 7,
+    "Jungle Door Top": 7,
+    "Composter": 7,
+    "Potted Cactus": 7,
+    "Jungle Fence Gate": 6,
+    "Lime Bed": 6,
+    "Lime Bed Head": 6,
+    "Chest": 4,
+    "Green Bed Head": 2,
+    "Green Bed": 2,
+    "Crafting Table": 2,
+    "Potted Dead Bush": 1,
+    "Cyan Bed": 1,
+    "Cyan Bed Head": 1,
+    "Bell": 1
+  },
+  "loot": {
+    "chests": 4,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "potato",
+        "count": 23
+      },
+      {
+        "name": "apple",
+        "count": 11
+      },
+      {
+        "name": "bone",
+        "count": 8
+      },
+      {
+        "name": "cactus",
+        "count": 5
+      },
+      {
+        "name": "carrot",
+        "count": 5
+      },
+      {
+        "name": "iron_ingot",
+        "count": 2
+      },
+      {
+        "name": "wheat",
+        "count": 2
+      },
+      {
+        "name": "wheat_seeds",
+        "count": 2
+      },
+      {
+        "name": "bread",
+        "count": 1
+      },
+      {
+        "name": "melon_seeds",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 4,
+    "door": 7,
+    "bed": 9,
+    "mob": 19
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

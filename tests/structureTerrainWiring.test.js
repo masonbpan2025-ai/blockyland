@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import { createStructureEngine, GENERATORS } from '../src/worldgen/index.js';
 import { generateDesertPyramid } from '../src/worldgen/generators/desertPyramid.js';
+import { generatePillagerOutpost } from '../src/worldgen/generators/pillagerOutpost.js';
 import { generateSwampHut } from '../src/worldgen/generators/swampHut.js';
 import { createBlockIdResolver } from '../src/worldgen/blockIds.js';
 import { BLOCKS } from '../src/blocks.js';
@@ -30,10 +31,10 @@ function collect(engine, start, options) {
 
 test('the registry now marks the surface structures that vanilla adapts', () => {
   const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, biomeAt: () => 'desert', surfaceY: () => 70 });
-  // `beard_thin` is what the wiki gives the desert pyramid and the swamp hut, and it is now data rather than
-  // a note in a document.
+  // `beard_thin` is the desert pyramid's, and it is now data rather than a note in a document. The swamp hut is
+  // NOT shaped: the wiki describes pillars reaching the ground, and a beard would bury its stilts (audit H2).
   assert.equal(engine.registry.desert_pyramid.terrainAdaptation, 'beard_thin');
-  assert.equal(engine.registry.swamp_hut.terrainAdaptation, 'beard_thin');
+  assert.equal(engine.registry.swamp_hut.terrainAdaptation, 'none');
   assert.equal(TerrainAdaptation.inflate('beard_thin'), 12, 'the box inflation rule is unchanged');
 });
 
@@ -52,8 +53,11 @@ test('without terrain the behaviour is exactly as before, so old callers are una
 });
 
 test('a sloped site gets foundation under the structure and shaving beside it', () => {
-  const engine = createStructureEngine({ seed: 5, blockIds: BLOCKS, biomeAt: () => 'desert', surfaceY: slope });
-  const start = generateDesertPyramid({ seed: 5, chunkX: 2, chunkZ: 2, context: { biomeAt: () => 'desert', surfaceY: () => 70 } });
+  // The outpost stands on the surface (the blueprint pyramid reaches 14 blocks underground, so a slope never leaves
+  // it needing foundation).
+  const engine = createStructureEngine({ seed: 5, blockIds: BLOCKS, biomeAt: () => 'plains', surfaceY: slope });
+  // Planned mid-slope (the slope runs 64-68), so part of it is above the ground and part below.
+  const start = generatePillagerOutpost({ seed: 5, chunkX: 2, chunkZ: 2, context: { biomeAt: () => 'plains', surfaceY: () => 66 } });
 
   const { writes, report } = collect(engine, start, { surfaceY: slope, foundationBlock: SANDSTONE, airBlock: AIR });
   assert.equal(report.adaptation.applied, true);
@@ -62,7 +66,7 @@ test('a sloped site gets foundation under the structure and shaving beside it', 
   const adaptationWrites = writes.filter((write) => write.meta?.terrainAdaptation);
   assert.ok(adaptationWrites.length > 0);
   for (const write of adaptationWrites) assert.equal(write.meta.terrainAdaptation, 'beard_thin');
-  // Both directions must appear: the pyramid is 21 blocks wide, so the slope crosses its whole footprint.
+  // Both directions must appear: the outpost is over 20 blocks wide, so the slope crosses its whole footprint.
   assert.ok(report.adaptation.counts.shaved > 0, `expected shaving, got ${JSON.stringify(report.adaptation.counts)}`);
   assert.ok(report.adaptation.counts.foundation > 0, `expected foundation, got ${JSON.stringify(report.adaptation.counts)}`);
 });
@@ -71,7 +75,8 @@ test('terrain never overwrites the structure it is adapting around', () => {
   const engine = createStructureEngine({ seed: 9, blockIds: BLOCKS, biomeAt: () => 'swamp', surfaceY: slope });
   const start = generateSwampHut({ seed: 9, chunkX: 3, chunkZ: 3, context: { biomeAt: () => 'swamp', surfaceY: () => 68 } });
 
-  const { writes, report } = collect(engine, start, { surfaceY: slope, foundationBlock: SANDSTONE, airBlock: AIR });
+  // The hut is not adapted by default, so ask for it: this test is about the overwrite guarantee.
+  const { writes, report } = collect(engine, start, { surfaceY: slope, foundationBlock: SANDSTONE, airBlock: AIR, adaptation: 'beard_thin' });
   assert.equal(report.adaptation.applied, true);
   const structureAt = new Set(writes.filter((write) => !write.meta?.terrainAdaptation).map((write) => `${write.x},${write.y},${write.z}`));
   for (const write of writes.filter((entry) => entry.meta?.terrainAdaptation)) {

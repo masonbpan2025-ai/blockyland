@@ -1,123 +1,74 @@
-// Jungle pyramid tests.
-//
-// The TRAP is this structure's point. A jungle pyramid whose treasure room has chests but no armed dispenser is
-// a mossy box, so the assertions check the wire is COMPLETE -- two dispensers facing each other across the
-// room, a tripwire hook at each end of a tripwire line, and a lever with a sticky piston -- rather than merely
-// that each kind of block appears somewhere in the plan.
+// Jungle pyramid: the wiki's /Structure blueprint block for block, with its Blueprint table's facings. The full fact
+// card (J1-J6 + W1) is in src/structureAuditCards.js and runs in tests/structureWikiCards.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  generateJunglePyramid, realizeJunglePyramid, buildJunglePyramid, JUNGLE_MATERIALS,
-  JUNGLE_BASE, JUNGLE_FLOORS, JUNGLE_DEPTH
+  generateJunglePyramid, realizeJunglePyramid, buildJunglePyramid, JUNGLE_MATERIALS, JUNGLE_CHEST_LOOT, JUNGLE_DISPENSER_LOOT, JUNGLE_GROUND
 } from '../src/worldgen/generators/junglePyramid.js';
 import { createStructureEngine, GENERATORS, generatorCoverage } from '../src/worldgen/index.js';
 import { StructureTemplate } from '../src/worldgen/template.js';
+import { STRUCTURE_AUDIT_CARDS } from '../src/structureAuditCards.js';
 import { BLOCKS } from '../src/blocks.js';
 
 const jungle = { biomeAt: () => 'jungle', surfaceY: () => 70 };
+const counts = (template) => {
+  const out = {};
+  for (const block of template.blocks) { const n = template.palette[block.state].name.replace('minecraft:', ''); out[n] = (out[n] ?? 0) + 1; }
+  return out;
+};
 
-test('the jungle pyramid is registered in the jungle, and is a hardcoded-family structure', () => {
+test('the jungle pyramid is registered in jungles and bamboo jungles', () => {
   assert.ok(generatorCoverage().implemented.includes('jungle_pyramid'));
   assert.ok(GENERATORS.junglePyramid.realize);
   const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, ...jungle });
-  const entry = engine.registry.jungle_pyramid;
-  assert.ok(entry.biomes.includes('jungle'));
-  assert.ok(entry.biomes.includes('bamboo_jungle'));
-  assert.equal(entry.family, 'hardcoded');
+  assert.deepEqual([...engine.registry.jungle_pyramid.biomes].sort(), ['bamboo_jungle', 'jungle']);
 });
 
-test('the plan is well formed, inside its size, and built only from jungle pyramid materials', () => {
-  const template = new StructureTemplate(buildJunglePyramid({ seed: 5 }), 'pyramid');
-  const allowed = new Set(['minecraft:air', 'minecraft:jigsaw', ...Object.values(JUNGLE_MATERIALS)]);
-  assert.deepEqual(template.size.slice(0, 1), [JUNGLE_BASE]);
-  for (const block of template.blocks) {
-    const [x, y, z] = block.pos;
-    const [sx, sy, sz] = template.size;
-    assert.ok(x >= 0 && x < sx && y >= 0 && y < sy && z >= 0 && z < sz,
-      'block ' + block.pos + ' is outside ' + template.size);
+test('the template is the materials table, exactly, with a different cobblestone mix per pyramid', () => {
+  const mixes = new Set();
+  for (let seed = 1; seed <= 8; seed++) {
+    const n = counts(new StructureTemplate(buildJunglePyramid({ seed }), 'pyramid'));
+    const { cobblestone, ...fixed } = JUNGLE_MATERIALS;
+    for (const [name, count] of Object.entries(fixed)) assert.equal(n[name], count, `${name}`);
+    assert.equal(n.cobblestone + n.mossy_cobblestone, cobblestone);
+    for (const placeholder of ['trapped_chest', 'piston', 'redstone_dust', 'vines', 'redstone_repeater']) assert.equal(n[placeholder], undefined, placeholder);
+    mixes.add(n.mossy_cobblestone);
   }
-  for (const entry of template.palette) {
-    assert.ok(allowed.has(entry.name), 'used ' + entry.name + ', which is not a pyramid material');
-  }
-  // THREE floors: each level's shell must be narrower than the one below, which is what makes it a pyramid
-  // rather than a stack of boxes.
-  const widths = [];
-  for (let floor = 0; floor < JUNGLE_FLOORS; floor++) {
-    const y = JUNGLE_DEPTH + floor;
-    const at = template.blocks.filter((block) => block.pos[1] === y);
-    if (!at.length) continue;
-    const xs = at.map((block) => block.pos[0]);
-    widths.push(Math.max.apply(null, xs) - Math.min.apply(null, xs) + 1);
-  }
-  assert.equal(widths.length, JUNGLE_FLOORS, 'expected three floors, got ' + widths.length);
-  for (let i = 1; i < widths.length; i++) {
-    assert.ok(widths[i] < widths[i - 1], 'floor ' + i + ' is not narrower than floor ' + (i - 1));
-  }
+  assert.ok(mixes.size > 1, 'the mossy cobblestone is not the same on every pyramid');
 });
 
-test('the trap is COMPLETE and armed, and its dispensers face each other', () => {
-  const start = generateJunglePyramid({ seed: 17, chunkX: 1, chunkZ: 1, context: jungle });
+test('the Blueprint table facings: chests, stairs and the piston that faces up', () => {
+  const template = new StructureTemplate(buildJunglePyramid({ seed: 3 }), 'pyramid');
+  const of = (name) => template.blocks.filter((b) => template.palette[b.state].name === `minecraft:${name}`).map((b) => ({ pos: b.pos, ...template.palette[b.state].properties, nbt: b.nbt }));
+  assert.deepEqual(of('chest').map((c) => c.facing).sort(), ['east', 'north']);
+  for (const c of of('chest')) assert.equal(c.nbt.LootTable, JUNGLE_CHEST_LOOT);
+  for (const d of of('dispenser')) assert.equal(d.nbt.LootTable, JUNGLE_DISPENSER_LOOT);
+  assert.deepEqual(of('sticky_piston').map((p) => p.facing).sort(), ['north', 'north', 'up']);
+  const stairs = of('cobblestone_stairs');
+  const byFacing = (f) => stairs.filter((s) => s.facing === f).length;
+  assert.deepEqual([byFacing('east'), byFacing('west'), byFacing('north'), byFacing('south')], [10, 12, 1, 1]);
+  // Layer 5 (the roof landing): "10x 5y North", "10x 8y South".
+  const landing = stairs.filter((s) => s.pos[1] === JUNGLE_GROUND + 5);
+  assert.deepEqual(landing.map((s) => `${s.pos[2]}:${s.facing}`).sort(), ['4:north', '7:south']);
+});
+
+test('the ground layer sits on the surface, and realization is deterministic and complete', () => {
+  const start = generateJunglePyramid({ seed: 8, chunkX: 5, chunkZ: 1, structureId: 'jungle_pyramid', context: jungle });
+  assert.equal(start.meta.y + JUNGLE_GROUND, 70);
+  const collect = () => { const out = []; realizeJunglePyramid(start, (x, y, z, id) => { out.push(`${x},${y},${z},${id}`); return true; }, BLOCKS); return out; };
+  assert.deepEqual(collect(), collect());
   const report = realizeJunglePyramid(start, () => true, BLOCKS);
-  assert.equal(report.trap.dispensers.length, 2, 'two dispensers');
-  assert.equal(report.trap.hooks.length, 2, 'a hook at each end of the wire');
-  assert.equal(report.trap.pistons.length, 1, 'one sticky piston');
-  assert.equal(report.trap.levers.length, 1, 'one lever');
-  assert.ok(report.trap.wire > 0, 'the tripwire line must be laid');
-  assert.equal(report.armed, true, 'a pyramid whose trap is not armed is not parity');
-  // The dispensers must FACE EACH OTHER across the room, which is what makes the arrows cross it.
-  const [a, b] = report.trap.dispensers.sort((first, second) => first.x - second.x);
-  assert.equal(a.facing, 'east', 'the western dispenser must face east');
-  assert.equal(b.facing, 'west', 'the eastern dispenser must face west');
-  assert.equal(a.z, b.z, 'the two dispensers must be on the same line');
-  // The hooks must sit at the ends of that line, not somewhere else in the room.
-  const zs = report.trap.hooks.map((hook) => hook.z);
-  assert.deepEqual(zs, [a.z, a.z], 'both hooks must be on the dispensers line');
-  const hookXs = report.trap.hooks.map((hook) => hook.x).sort((first, second) => first - second);
-  assert.equal(hookXs[0], a.x, 'one hook must be at the western dispenser');
-  assert.equal(hookXs[1], b.x, 'and one at the eastern dispenser');
+  assert.deepEqual(report.missingBlocks, []);
+  assert.deepEqual(report.chests.sort(), [JUNGLE_CHEST_LOOT, JUNGLE_CHEST_LOOT, JUNGLE_DISPENSER_LOOT, JUNGLE_DISPENSER_LOOT].sort());
 });
 
-test('realization writes the pyramid, its chests, and resolves every id', () => {
-  const start = generateJunglePyramid({ seed: 17, chunkX: 1, chunkZ: 1, context: jungle });
-  const writes = [];
-  const report = realizeJunglePyramid(start, (x, y, z, blockId, meta) => { writes.push({ x, y, z, id: blockId, meta }); return true; }, BLOCKS);
-  assert.ok(report.written > 120, 'expected a pyramid, wrote ' + report.written);
-  assert.deepEqual(report.missingBlocks, [], 'could not resolve: ' + report.missingBlocks);
-  assert.equal(report.chests, 3, 'the treasure room holds three chests');
-  for (const loot of report.chestLoot) assert.equal(loot, JUNGLE_MATERIALS.loot);
-  // The dispensers carry their own table, which is the one block entity worth distinguishing.
-  const dispenser = writes.find((write) => write.meta?.lootTable === JUNGLE_MATERIALS.dispenserLoot);
-  assert.ok(dispenser, 'a dispenser must carry the dispenser loot table');
-  for (const write of writes) {
-    assert.ok(start.pieces.some((piece) => piece.box.contains(write.x, write.y, write.z)),
-      'block ' + write.x + ',' + write.y + ',' + write.z + ' is outside the piece box');
-  }
-  assert.match(report.note, /depth is an approximation/);
-});
-
-test('the pyramid sits on the surface with its treasure room below, and generation is deterministic', () => {
-  const start = generateJunglePyramid({ seed: 8, chunkX: 5, chunkZ: 1, context: jungle });
-  // The pyramid's base must land on the surface with the treasure room beneath it.
-  assert.equal(start.meta.y + JUNGLE_DEPTH, 70, 'the pyramid base must land on the surface');
-  assert.ok(start.meta.treasureY < 70, 'the treasure room is below the base');
-  assert.equal(start.pieces[0].family, 'hardcoded');
-
-  const again = generateJunglePyramid({ seed: 8, chunkX: 5, chunkZ: 1, context: jungle });
-  assert.deepEqual(again.pieces[0].box.toArray(), start.pieces[0].box.toArray());
-  assert.equal(again.meta.rotation, start.meta.rotation);
-
-  const collect = () => {
-    const out = [];
-    realizeJunglePyramid(start, (x, y, z, id) => { out.push(x + ',' + y + ',' + z + ',' + id); return true; }, BLOCKS);
-    return out;
-  };
-  assert.deepEqual(collect(), collect(), 'two realizations of one plan must be identical');
-
-  const engine = createStructureEngine({ seed: 31337, blockIds: BLOCKS, ...jungle });
-  const located = engine.locate('jungle_pyramid', 0, 0, { maxRadiusChunks: 4096 });
-  assert.ok(located && located.start, 'a pyramid must be findable through the real locate path');
-  let written = 0;
-  engine.realize(located.start, () => { written++; return true; }, { chunkX: located.start.chunkX, chunkZ: located.start.chunkZ });
-  assert.ok(written > 0, 'the engine must realize the pyramid it located');
+test('the card notices a pyramid whose dispensers do not face their vines', () => {
+  const j4 = STRUCTURE_AUDIT_CARDS.jungle_pyramid.facts.find((f) => f.id === 'J4');
+  const writes = [
+    { name: 'dispenser', x: 0, y: 0, z: 0, props: { facing: 'east' }, lootTable: JUNGLE_DISPENSER_LOOT },
+    { name: 'dispenser', x: 5, y: 0, z: 0, props: { facing: 'west' }, lootTable: JUNGLE_DISPENSER_LOOT },
+    { name: 'vine', x: 0, y: 0, z: 1 }, { name: 'vine', x: 4, y: 0, z: 0 }
+  ];
+  assert.equal(j4.check({ writes }).ok, false);
 });

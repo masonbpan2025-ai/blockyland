@@ -402,7 +402,8 @@ test('it drops nothing, which the wiki page states by omission', () => {
   ghast.playerDamaged = true;
   assert.deepEqual(happyGhastDrops(ghast), []);
   assert.deepEqual(manager.getMobDeathDrops(ghast, () => 0.01), [], 'nothing through the manager either');
-  assert.equal(happyGhastXp(ghast), 0);
+  const xp = happyGhastXp(ghast);
+  assert.ok(xp >= 1 && xp <= 3, 'wiki: a happy ghast drops 1-3 XP');
   assert.deepEqual(happyGhastDrops(manager.spawnCow(0, 1, 0)), []);
 });
 

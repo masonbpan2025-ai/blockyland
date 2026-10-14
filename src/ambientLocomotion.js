@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { meleeDamage } from './mobEnvironment.js';
 
 /**
  * Ambient locomotion for mobs that have no dedicated AI branch.
@@ -193,7 +194,8 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
     }
 
     if (spec.damage > 0 && dist < spec.attackReach && (mob.hitCooldown ?? 0) <= 0) {
-      player.takeDamage?.(spec.damage, mob.mesh.position, mob.type);
+      // Wiki: melee damage is stated per difficulty; the table's flat figure is only the fallback.
+      player.takeDamage?.(meleeDamage(mob.type, manager?.game?.difficulty, spec.damage), mob.mesh.position, mob.type);
       mob.hitCooldown = 1.0;
     }
     mob.state = 'chase';

@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "structure": "ocean_ruin_cold",
+  "seed": "20250401",
+  "chunk": [
+    0,
+    5
+  ],
+  "biome": "frozen_ocean",
+  "box": {
+    "minX": 0,
+    "minY": 16,
+    "minZ": 80,
+    "maxX": 15,
+    "maxY": 28,
+    "maxZ": 95
+  },
+  "pieces": 1,
+  "blocks": {
+    "Water": 1152,
+    "Ice": 225,
+    "Mossy Stone Bricks": 153,
+    "Gravel": 146,
+    "Sand": 112,
+    "Chiseled Stone Bricks": 34,
+    "Polished Granite": 5,
+    "Bricks": 4,
+    "Suspicious Gravel": 3,
+    "Magma Block": 2,
+    "Chest": 1,
+    "Sea Lantern": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "coal",
+        "count": 4
+      },
+      {
+        "name": "gold_nugget",
+        "count": 3
+      },
+      {
+        "name": "leather_chestplate",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1,
+    "mob": 2
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 16,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

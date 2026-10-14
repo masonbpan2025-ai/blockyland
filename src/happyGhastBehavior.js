@@ -473,9 +473,9 @@ export function happyGhastDrops(mob) {
   return [];
 }
 
-/** Wiki: no experience value is given, so it is zero rather than a guess. */
-export function happyGhastXp() {
-  return 0;
+/** Wiki: a happy ghast drops 1-3 experience points (a ghastling drops none). */
+export function happyGhastXp(mob, random = Math.random) {
+  return isHappyGhast(mob) && !mob.isBaby ? 1 + Math.floor(random() * 3) : 0;
 }
 
 /**

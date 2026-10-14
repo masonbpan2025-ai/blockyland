@@ -9,6 +9,8 @@ import { createMobDebugSession, DEBUG_MOBS } from './mobDebugSession.js';
 import { BLOCKS } from './blocks.js';
 import { MobShowcase, mobScenarios } from './mobShowcase.js';
 import { flushPendingSkinBindings } from './mobVisuals/modelBuilder.js';
+import { ModLoader } from './mods/loader.js';
+import { inspectorContent, fillInspectorSource } from './mods/inspectorSelector.js';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#233044');
 const camera=new THREE.PerspectiveCamera(42,1,.05,200);camera.position.set(3,2.5,6);
@@ -24,6 +26,10 @@ const fluidMesh=new THREE.Mesh(new THREE.BoxGeometry(16,3,16),new THREE.MeshBasi
 const events=[];
 function log(message){events.unshift(message);events.length=Math.min(30,events.length);$('events').textContent=events.join('\n');$('events').style.whiteSpace='pre-wrap';}
 const session=createMobDebugSession(scene,log);
+const modLoader = new ModLoader();
+const inspectorGame = { ...session.manager.game, mobs: session.manager, scene, isInspector: true };
+session.manager.game = inspectorGame;
+let selectedMod = fillInspectorSource($('content-source'), new URLSearchParams(location.search).get('mod'));
 window.__debugSession = session;
 window.__mobInspectDump = () => {
   const mob = session.mob;
@@ -96,8 +102,14 @@ function onShowcaseReport(report){
 }
 
 let paused=true,selected='blaze',last=performance.now(),accumulator=0,refresh=0;
-for(const id of DEBUG_MOBS){const o=document.createElement('option');o.value=id;o.textContent=id.replaceAll('_',' ');$('mob').append(o);}
-const requested=new URLSearchParams(location.search).get('mob');if(DEBUG_MOBS.includes(requested))selected=requested;$('mob').value=selected;
+function fillMobs(requested = null) {
+  const view = inspectorContent('mob', DEBUG_MOBS.map(id => ({name:id, data:{name:id.replaceAll('_',' ')}})), selectedMod);
+  $('mob').replaceChildren(...view.content.map(entry => new Option(entry.data.name, entry.name)));
+  const ids = view.content.map(entry => entry.name);
+  selected = ids.includes(requested) ? requested : ids[0];
+  $('mob').value = selected ?? '';
+}
+fillMobs(new URLSearchParams(location.search).get('mob'));
 const checklists={
   donkey:['Gray coat, long ears, flat mane, pale muzzle and tufted tail.','Taming, saddles, charged jumping and permanent 15-slot chest storage.','Golden foods breed donkeys; horse + donkey produces a sterile mule.','Foals grow in 20 minutes; food speeds growth, golden dandelions pause it.','Ridden animals float; submerged mounts dismount the rider.'],mule:['Brown coat, long ears, visible eyes and paired chests.','Tame adults to equip a saddle and a permanent 15-slot chest.','Sterile: golden foods heal but never enable breeding.','Created by horse + donkey; offspring inherit health, speed and jumping.','Shears remove saddles; death returns equipment and every stored stack.'],
   wither_skeleton:['20 HP; 2.4 blocks tall, skull face, ribs, thin limbs and stone sword.','Java melee: 5/8/12 damage; Wither I for 10 seconds.','Fire and Wither immunity; sinks without drowning.','Hunts players, golems and piglins; flees wolves; ignores villagers.','Rare skull drops, equipment pickup and command-equipped flaming bow.'],squid:['10 HP; eight pulsing tentacles, side eyes and an underside mouth.','Swims freely in 3D; passive and cannot breed, ride or be bucketed.','Ink and escape when hurt; stationary on land and suffocates after 15 seconds.','Babies grow in 20 minutes; golden dandelions lock growth.','Leads and naming work; guardians and axolotls hunt it.'],glow_squid:['10 HP; eight pulsing tentacles, side eyes and an underside mouth.','Swims freely in 3D; passive and cannot breed, ride or be bucketed.','Ink and escape when hurt; stationary on land and suffocates after 15 seconds.','Babies grow in 20 minutes; golden dandelions lock growth.','Leads and naming work; guardians and axolotls hunt it.'].concat(['Emissive aqua pixels and crystalline particles; emits no block light.','Hurt glow squid darkens for five seconds, then recovers.']),zombified_piglin:['Asymmetric exposed skull and ribs, torn ear, one tusk and jointed limbs.','Neutral undead: gold, villagers and ordinary piglins do not provoke it.','Retaliates against its attacker and recruits nearby zombified piglins.','Visible targets freeze anger; lost targets are forgiven after 20–55 seconds.','Babies stay small; retained crossbows are used only in melee.','Equipment upgrades, player-credit loot and save/load use the gameplay code.'],strider:['20 HP; a red cube with pale side bristles and two hip-pivot legs.','Lava warms and floats it; dry ground turns it purple and slows its gait.','Saddle adults; hold fungus stick to steer automatically and boost.','Warped fungus breeds and accelerates 20-minute baby growth.','Shears remove saddles; golden dandelions pause baby growth.'],horse:['Seven coats × five markings; articulated head, mane, tail and hooves.','Temper 0–100; adults must be tamed before equipment or breeding.','Golden foods breed; ordinary foods heal and accelerate 20-minute foal growth.','Saddle required for WASD steering and charged jumping; Shift dismounts.','Horse + donkey produces a sterile mule; offspring inherit stats.'],blaze:['20 HP; a golden cubical head and 12 rods in three rotating rings.','Idle: smoke and slow descent. Flames appear during attacks, not continuously.','Combat: 3-second charge, three fireballs, then a 5-second cooldown.','Water harms it; fire and lava do not. Snowballs deal 3 damage.'],magma_cube:['Eight crust segments expand during jumps around a glowing core.','Sizes 1/2/4: health 1/4/16 and armor 3/6/12.','Hops start on the ground. Even the smallest cube deals contact damage.','Kill a large cube: 2–4 half-size children. Tiny cubes do not split or drop cream.']};
@@ -144,7 +156,7 @@ const angleView=document.createElement('button');angleView.textContent='3/4 view
 angleView.onclick=()=>{const h=session.mob?.height||session.manager.getMobDimensions(selected).height;fitCamera(new THREE.Vector3(1,Math.min(0.5,h*0.22),1.25));};
 const topView=document.createElement('button');topView.textContent='Top view';angleView.after(topView);
 topView.onclick=()=>{fitCamera(new THREE.Vector3(0.01,2.5,0.4));};
-function reset(){paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';const coatParam=new URLSearchParams(location.search).get('coat');session.reset(coatParam?{type:selected,coat:coatParam}:selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',coatParam?`?mob=${selected}&coat=${coatParam}`:`?mob=${selected}`);updateReadout();}
+function reset(){if (!$('mob').value) { paused=true;session.manager.clearMobs();return; }paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';const coatParam=new URLSearchParams(location.search).get('coat');session.reset(coatParam?{type:selected,coat:coatParam}:selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',(selectedMod ? `?mod=${encodeURIComponent(selectedMod)}&` : '?') + (coatParam?`mob=${encodeURIComponent(selected)}&coat=${coatParam}`:`mob=${encodeURIComponent(selected)}`));updateReadout();}
 function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
 $('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;
 $('showcase').onclick=runShowcase;$('showcase-stop').onclick=()=>stopShowcase(true);
@@ -158,7 +170,26 @@ $('lighting').onchange=()=>{const nether=$('lighting').value==='nether';ambient.
 $('fluid').onchange=()=>{session.world.fluid=({air:BLOCKS.AIR,water:BLOCKS.WATER,lava:BLOCKS.LAVA})[$('fluid').value];fluidMesh.visible=$('fluid').value!=='air';fluidMesh.material.color.set($('fluid').value==='lava'?0xff7700:0x2786cb);};
 function fail(e){paused=true;$('pause').textContent='Play';$('error').textContent=e.stack || e.message;}
 const resize=new ResizeObserver(()=>{const w=$('view').clientWidth,h=$('view').clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe($('view'));
+if (selectedMod) {
+  const result = await modLoader.load(selectedMod, {game: inspectorGame});
+  if (!result.ok) { selectedMod = null; $('content-source').value = ''; fillMobs(); log(result.reason); }
+}
 reset();
+$('content-source').onchange = async () => {
+  stopShowcase(); paused = true;
+  $('content-source').disabled = true;
+  try {
+    if (selectedMod) modLoader.unload(selectedMod);
+    selectedMod = $('content-source').value || null;
+    if (selectedMod) {
+      const result = await modLoader.load(selectedMod, {game: inspectorGame});
+      if (!result.ok) throw new Error(result.reason);
+    }
+    fillMobs(); reset();
+  } catch (error) {
+    selectedMod = null; $('content-source').value = ''; fillMobs(); reset(); fail(error);
+  } finally { $('content-source').disabled = false; }
+};
 installHorseInspector(session,log);
 installSquidInspector(session,log);
 installWitherSkeletonInspector(session,log);

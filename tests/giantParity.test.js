@@ -214,14 +214,14 @@ test('the attack exists but is unreachable unless it is ridden', () => {
   assert.equal(giantAttack(giant, null, { ridden: true }), null);
 });
 
-test('it drops nothing and gives no experience', () => {
-  // Wiki: the giant's page gives no drop table and no XP value.
+test('it drops nothing and gives 5 experience', () => {
+  // Wiki: no drop table, but "a giant drops 5 experience points when killed".
   const { manager } = fixture();
   const giant = manager.spawnMob('giant', 0, 1, 0);
   giant.playerDamaged = true;
   assert.deepEqual(giantDrops(), []);
   assert.deepEqual(manager.getMobDeathDrops(giant, () => 0.5), [], 'nothing through the manager either');
-  assert.equal(giantXp(), 0);
+  assert.equal(giantXp(), 5);
 });
 
 test('it survives the real update loop under several world states', () => {
@@ -291,7 +291,7 @@ test('the helpers are safe on non-giants and malformed input', () => {
   assert.equal(isGiant(cow), false);
   assert.equal(giantAttack(cow, { position: new THREE.Vector3() }, { ridden: true }), null);
   assert.deepEqual(giantDrops(), []);
-  assert.equal(giantXp(), 0);
+  assert.equal(giantXp(), 5);
   assert.deepEqual(giantDimensions(), { width: 3.6, height: 12 });
   assert.equal(giantDamageFor(undefined), 50);
   assert.equal(giantAcceptsEffect(null), true);

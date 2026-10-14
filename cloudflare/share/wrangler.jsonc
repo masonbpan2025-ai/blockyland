@@ -1,0 +1,19 @@
+{
+  "name": "blockyland-share",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-12",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SHARE_ROOMS",
+        "class_name": "ShareRendezvous"
+      }
+    ]
+  },
+  "exports": {
+    "ShareRendezvous": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
+}

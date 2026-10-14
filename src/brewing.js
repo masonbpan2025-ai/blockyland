@@ -104,10 +104,13 @@ export const BASE_BREWING_RECIPES = [
   // potion was unobtainable even though the data table now defines it.
   { bottle: 'potion_of_swiftness', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
   { bottle: 'potion_of_swiftness_long', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness_long' },
-  { bottle: 'potion_of_swiftness_2', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
   { bottle: 'potion_of_leaping', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
   { bottle: 'potion_of_leaping_long', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness_long' },
-  { bottle: 'potion_of_leaping_2', ingredient: 'fermented_spider_eye', result: 'potion_of_slowness' },
+  // The enhanced Swiftness II and Leaping II rows used to be here, and they were wrong. The Brewing page's
+  // rule is "Enhanced potions of Leaping or Swiftness cannot be corrupted", and the Potion of Slowness page
+  // lists only the regular and extended Swiftness and Leaping among its brewing ingredients -- no enhanced
+  // form. With those rows present, the one potion vanilla refuses to make by corruption was brewed by it,
+  // and the Slowness IV that vanilla reaches with glowstone on Slowness was reachable a second way.
 
   // Redstone Extension (Extended Duration)
   { bottle: 'potion_of_regeneration', ingredient: 'redstone', result: 'potion_of_regeneration_long' },
@@ -213,15 +216,26 @@ export function getBrewingResult(bottleId, ingredientId) {
     return null;
   }
 
-  // Check prefix for splash and lingering
+  // Check prefix for splash and lingering.
+  //
+  // The generic forms are resolved FIRST, from the whole id: vanilla's generic splash and lingering
+  // potions are the water ones and their ids are `splash_potion` / `lingering_potion`, not
+  // `splash_water_bottle`. Stripping the prefix turns them into the meaningless `potion`, so this has to
+  // happen before the strip. Without it these resolved to no recipe at all, and the wiki's rule that "a
+  // splash water bottle can be brewed with any of the base ingredients; the result remains a splash
+  // potion" could not happen -- `splash_potion + nether_wart` brewed nothing.
   let prefix = '';
-  let coreBottle = bottleId;
-  if (bottleId.startsWith('splash_')) {
-    prefix = 'splash_';
-    coreBottle = bottleId.replace(/^splash_/, '');
-  } else if (bottleId.startsWith('lingering_')) {
-    prefix = 'lingering_';
-    coreBottle = bottleId.replace(/^lingering_/, '');
+  let coreBottle = CORE_FOR_GENERIC_FORM[bottleId] ?? bottleId;
+  if (!CORE_FOR_GENERIC_FORM[bottleId]) {
+    if (bottleId.startsWith('splash_')) {
+      prefix = 'splash_';
+      coreBottle = bottleId.replace(/^splash_/, '');
+    } else if (bottleId.startsWith('lingering_')) {
+      prefix = 'lingering_';
+      coreBottle = bottleId.replace(/^lingering_/, '');
+    }
+  } else {
+    prefix = bottleId.startsWith('lingering_') ? 'lingering_' : 'splash_';
   }
 
   const recipe = BASE_BREWING_RECIPES.find(r => r.bottle === coreBottle && r.ingredient === ingredientId);

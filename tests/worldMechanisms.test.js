@@ -49,11 +49,11 @@ test('Start screen has Generate New World, Load Designed World, and Load Saved W
   assert.ok(!mapModalSection.includes('tab-designed-worlds'), 'Map modal has NO designed worlds tab');
 });
 
-test('World tournament map is located exclusively in designed_worlds, NOT in saves directory', () => {
-  const designedMapPath = path.join(root, 'designed_worlds', 'World_Martial_Arts_Tournament.json');
+test('World tournament map is located inside its mod directory, NOT in saves directory', () => {
+  const designedMapPath = path.join(root, 'src/mods/dragonball-tournament/maps', 'World_Martial_Arts_Tournament.json');
   const savesMapPath = path.join(root, 'saves', 'World_Martial_Arts_Tournament.json');
 
-  assert.ok(fs.existsSync(designedMapPath), 'Tournament map exists in designed_worlds directory');
+  assert.ok(fs.existsSync(designedMapPath), 'Tournament map exists in its mod directory');
   assert.ok(!fs.existsSync(savesMapPath), 'Tournament map does NOT exist in saves directory');
 
   const mapData = JSON.parse(fs.readFileSync(designedMapPath, 'utf-8'));

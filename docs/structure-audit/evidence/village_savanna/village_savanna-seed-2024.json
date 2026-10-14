@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "structure": "village_savanna",
+  "seed": "2024",
+  "chunk": [
+    20,
+    21
+  ],
+  "biome": "savanna",
+  "box": {
+    "minX": 256,
+    "minY": 16,
+    "minZ": 303,
+    "maxX": 363,
+    "maxY": 49,
+    "maxZ": 377
+  },
+  "pieces": 25,
+  "blocks": {
+    "Stone": 50460,
+    "Dirt": 24587,
+    "Grass Block": 8135,
+    "Acacia Leaves": 3101,
+    "Coal Ore": 1943,
+    "Iron Ore": 1699,
+    "Gold Ore": 1543,
+    "Acacia Log": 891,
+    "Dirt Path": 398,
+    "Redstone Ore": 373,
+    "Acacia Stairs": 268,
+    "Acacia Fence": 205,
+    "Water": 176,
+    "Acacia Planks": 175,
+    "Yellow Terracotta": 158,
+    "Acacia Slab": 152,
+    "Short Grass": 125,
+    "Acacia Wood": 33,
+    "Glass Pane": 20,
+    "Brown Wall Banner": 17,
+    "Wall Torch": 16,
+    "Torch": 9,
+    "Acacia Door": 8,
+    "Acacia Door Top": 8,
+    "Tall Grass": 8,
+    "Orange Bed": 7,
+    "Orange Bed Head": 7,
+    "Acacia Pressure Plate": 5,
+    "Hay Block": 4,
+    "Moist Farmland": 3,
+    "Melon Stem": 3,
+    "Melon": 3,
+    "Chest": 2,
+    "Acacia Fence Gate": 1,
+    "Bell": 1
+  },
+  "loot": {
+    "chests": 2,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "bread",
+        "count": 8
+      },
+      {
+        "name": "bone",
+        "count": 5
+      },
+      {
+        "name": "acacia_sapling",
+        "count": 3
+      },
+      {
+        "name": "carrot",
+        "count": 2
+      },
+      {
+        "name": "emerald",
+        "count": 2
+      },
+      {
+        "name": "wheat",
+        "count": 2
+      }
+    ]
+  },
+  "entities": {
+    "chest": 2,
+    "door": 8,
+    "bed": 7,
+    "mob": 11
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

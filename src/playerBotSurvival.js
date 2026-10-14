@@ -7,8 +7,9 @@ import { insertEye, tryActivateAround } from './endPortal.js';
 import { calculateBookshelfCount, generateEnchantmentOffers, applyEnchantment } from './enchanting.js';
 import { executeTrade } from './villagerEconomy.js';
 import { BrewingManager } from './brewing.js';
+import { calculateSmithingResult, resolveSmithingTemplate } from './smithing.js';
 
-export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use', 'brew', 'enchant', 'trade'];
+export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use', 'brew', 'enchant', 'smith', 'trade'];
 export function itemId(name) {
   if (typeof name === 'number' && BLOCK_DEFS[name]) return name;
   if (typeof name !== 'string') throw new Error('Specify an item name or block ID.');
@@ -29,15 +30,20 @@ export function itemId(name) {
 }
 export function validateSurvivalAction(c) {
   if (!SURVIVAL_ACTIONS.includes(c.type)) return c;
-  if (c.type !== 'sleep' && c.type !== 'till' && c.type !== 'trade') itemId(c.item);
-  if (['place', 'cook', 'sleep', 'till', 'use', 'brew', 'enchant'].includes(c.type)) {
+  if (c.type !== 'sleep' && c.type !== 'till' && c.type !== 'trade' && c.type !== 'smith') itemId(c.item);
+  if (c.type === 'smith') {
+    if (!resolveSmithingTemplate(c.template)) throw new Error(`Unknown smithing template: ${c.template}`);
+    itemId(c.base);
+    itemId(c.addition);
+  }
+  if (['place', 'cook', 'sleep', 'till', 'use', 'brew', 'enchant', 'smith'].includes(c.type)) {
     if (!Array.isArray(c.position) || c.position.length !== 3 || c.position.some(n => !Number.isInteger(n) || Math.abs(n) > 30000000)) throw new Error('Action needs three integer world coordinates.');
   }
   if (c.type === 'cook') itemId(c.fuel);
   if (c.type === 'brew' && c.bottle) itemId(c.bottle);
   if (c.type === 'trade' && !c.mob) throw new Error('Trade needs a merchant mob name.');
   for (const value of [c.count ?? 1, c.fuelCount ?? 1, c.bottleCount ?? 1]) if (!Number.isInteger(value) || value < 1 || value > 64) throw new Error('Use a count from 1 to 64.');
-  if (['place','eat','sleep','till','use','enchant'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling, item use and enchanting act once per command.');
+  if (['place','eat','sleep','till','use','enchant','smith'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling, item use, enchanting and smithing act once per command.');
   return c;
 }
 
@@ -373,6 +379,63 @@ export class BotSurvival {
       this.inventory.updateHotbar?.();
       const enchNames = [chosenOffer.primary, ...(chosenOffer.additional || [])].map(e => `${e.name} ${e.level}`).join(', ');
       this.bot.finish(true, `Enchanted ${stack.id} with ${enchNames}.`);
+      return;
+    } else if (c.type === 'smith') {
+      // The table's own slots and its own take-output rule, so the bot cannot produce a result the player's
+      // clicks could not. The inputs are moved out of the inventory first, as a click moves them into a slot,
+      // and put back on any refusal so a failed smith leaves the inventory as it was.
+      this.requireReach(c.position, [BLOCKS.SMITHING_TABLE]);
+      const ui = this.game.ui;
+      if (!ui || typeof ui.takeSmithingOutput !== 'function') throw new Error('The smithing table has no interface to use.');
+      if (this.inventory.cursorItem) throw new Error('Empty the cursor before smithing.');
+      if (ui.smithingTemplateItem || ui.smithingBaseItem || ui.smithingAdditionItem) throw new Error('The smithing table already has items in it.');
+      const templateId = resolveSmithingTemplate(c.template);
+      if (!templateId) throw new Error(`Unknown smithing template: ${c.template}`);
+      const isCreative = p.gamemode === 'creative';
+      const freeSlots = () => this.slots().flat().filter(s => !s).length;
+      const stow = (stack) => {
+        const list = this.slots().find(l => l.some(s => !s));
+        if (!list) return false;
+        list[list.findIndex(s => !s)] = stack;
+        return true;
+      };
+      const fetch = (name) => {
+        const id = itemId(name);
+        if (isCreative && this.count(id) === 0) this.inventory.addItem(id, typeof id === 'number', 1);
+        const one = this.remove(id, 1);
+        if (!one) throw new Error(`You do not have ${name}.`);
+        return one;
+      };
+
+      const taken = [];
+      const giveBack = () => { for (const s of taken) if (s) stow(s); taken.length = 0; };
+      try {
+        const template = fetch(templateId); taken.push(template);
+        const base = fetch(c.base); taken.push(base);
+        const addition = fetch(c.addition); taken.push(addition);
+
+        const calc = calculateSmithingResult(template, base, addition);
+        if (!calc.valid) throw new Error(calc.reason);
+        // The result needs a slot, and an upgrade's surviving template needs another. Checked before the table
+        // consumes anything, so a full inventory refuses rather than losing the result.
+        if (freeSlots() < (calc.templateSurvives ? 2 : 1)) throw new Error('Make room in the inventory for the smithing result.');
+
+        ui.smithingTemplateItem = template; ui.smithingBaseItem = base; ui.smithingAdditionItem = addition;
+        ui.takeSmithingOutput(calc);
+        const result = this.inventory.cursorItem;
+        this.inventory.cursorItem = null;
+        taken.length = 0;
+        // An upgrade keeps its template: the table leaves it in its slot, so it goes back to the inventory here.
+        if (ui.smithingTemplateItem) { stow(ui.smithingTemplateItem); ui.smithingTemplateItem = null; }
+        if (!result || !stow(result)) throw new Error('The smithing result could not be stored.');
+        ui.renderSmithingGUI?.();
+        this.inventory.updateHotbar?.();
+        this.bot.finish(true, `Smithed ${result.id}${result.trim ? ` with a ${result.trim.name} trim` : ''}.`);
+      } catch (error) {
+        giveBack();
+        ui.smithingTemplateItem = null; ui.smithingBaseItem = null; ui.smithingAdditionItem = null;
+        throw error;
+      }
       return;
     } else if (c.type === 'trade') {
       const isCreative = p.gamemode === 'creative';

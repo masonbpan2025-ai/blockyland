@@ -1,4 +1,4 @@
-// Registry integrity: the invariants that make a batch of added blocks actually usable.
+﻿// Registry integrity: the invariants that make a batch of added blocks actually usable.
 //
 // The ores, saplings and infested blocks were each added as data, and the same four things have to be
 // true of every one of them: the id is unique and round-trips, the definition resolves to a texture
@@ -712,7 +712,7 @@ test('the twenty-second batch blocks exist with their own art and the right drop
   // crops dropping seeds, a fire, two blocks that drop NOTHING, and a building block.
   const CASES = [
     // key,            texture,                    drop (item string or block key or null), behaviour
-    ['BEETROOTS', 'beetroots_stage3.png', 'beetroot_seeds'],
+    ['BEETROOTS_STAGE_3', 'beetroots_stage3.png', 'beetroot_seeds'],
     ['COCOA', 'cocoa_stage2.png', 'cocoa_beans'],
     ['PITCHER_CROP', 'pitcher_crop_top.png', 'pitcher_pod'],
     ['TORCHFLOWER_CROP', 'torchflower_crop_stage0.png', 'torchflower_seeds'],
@@ -1470,3 +1470,4 @@ test('every breakable block resolves a blast resistance', () => {
   }
   assert.deepEqual(bad, [], `blocks that are neither breakable nor marked unbreakable:\n  ${bad.join('\n  ')}`);
 });
+

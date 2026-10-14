@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { exposedToRain } from './weatherRules.js';
 import { poseStrider } from './striderModel.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
 import { BABY_GROWTH_SECONDS, accelerateBabyGrowth } from './babyGrowth.js';
@@ -70,11 +71,8 @@ export function striderEnvironment(manager,m){
   m.isCold=!m.inLava&&!m.vehicle?.inLava;
 }
 function rainHits(manager,m){
-  if(manager.world.dimension==='nether'||!['rain','thunder'].includes(manager.game?.weather?.weatherType))return false;
-  const p=m.mesh.position,biome=manager.world.getBiome?.(p.x,p.z);
-  if(/snow|frozen|ice|desert|badlands/i.test(typeof biome==='string'?biome:biome?.id||biome?.name||''))return false;
-  for(let y=Math.floor(p.y)+(m.isBaby?1:2);y<256;y++)if(manager.isBlockSolid(p.x,y,p.z))return false;
-  return true;
+  const p=m.mesh.position;
+  return exposedToRain(manager.game?.weather,manager.world,{x:p.x,y:p.y+(m.isBaby?.85:1.7),z:p.z});
 }
 export function splashStriderWater(manager,position,radius=4){
   for(const m of manager.mobs)if(m.type==='strider'&&m.health>0&&m.mesh.position.distanceTo(position)<=radius)manager.damageMob(m,1,null,false,null,true);

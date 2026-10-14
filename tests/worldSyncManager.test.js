@@ -1,211 +1,467 @@
+// The game's side of sharing: the dialogs, joining from a link, and keeping two worlds in step.
+//
+// Two WorldSyncManagers run against mock games and a mock page, joined by the in-memory network from
+// helpers/shareFakes.js. What a real browser adds -- WebRTC, a real page, real worlds -- is covered by e2e/share.pw.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
-import { WebSocket } from 'ws';
 import * as THREE from 'three';
-import { createWorldRelay } from '../server/worldRelay.js';
-import { WorldSyncManager } from '../src/multiplayer/worldSyncManager.js';
+import { WorldSyncManager, describeShareError } from '../src/multiplayer/worldSyncManager.js';
+import { ShareSession } from '../src/multiplayer/shareSession.js';
+import { ShareError } from '../src/multiplayer/signaling.js';
 import { BLOCKS } from '../src/blocks.js';
+import { createFakeNetwork, nextEvent, settle } from './helpers/shareFakes.js';
 
-if (typeof globalThis.WebSocket === 'undefined') {
-  globalThis.WebSocket = WebSocket;
-}
-
-// Minimal DOM mock for Node test environment
-function setupMockDom() {
+/** A small page: every element the manager looks up exists, and text, classes and children can be read back. */
+function setupMockDom(t) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else delete globalThis.document;
+  });
   const elements = new Map();
-  const getOrCreate = (id) => {
-    if (!elements.has(id)) {
-      elements.set(id, {
-        id,
-        textContent: '',
-        value: '',
-        style: {},
-        classList: {
-          classes: new Set(['hidden']),
-          add(c) { this.classes.add(c); },
-          remove(c) { this.classes.delete(c); },
-          contains(c) { return this.classes.has(c); }
-        },
-        children: [],
-        innerHTML: '',
-        appendChild(child) { this.children.push(child); },
-        addEventListener() {},
-        removeEventListener() {}
-      });
-    }
+  const make = (tag, id = null) => {
+    const el = {
+      tagName: tag, id, textContent: '', value: '', style: {}, children: [], onclick: null, title: '', className: '',
+      classList: {
+        classes: new Set(),
+        add(c) { this.classes.add(c); },
+        remove(c) { this.classes.delete(c); },
+        contains(c) { return this.classes.has(c); },
+        toggle(c, on) { if (on) this.classes.add(c); else this.classes.delete(c); },
+      },
+      appendChild(child) { this.children.push(child); return child; },
+      append(...nodes) { this.children.push(...nodes); },
+      replaceChildren(...nodes) { this.children = [...nodes]; },
+      addEventListener() {}, removeEventListener() {}, remove() {}, select() {},
+      // A drawing surface that accepts every call: the nametag above an avatar is drawn on a canvas.
+      getContext: () => new Proxy({}, { get: (_, key) => (key === 'measureText' ? () => ({ width: 10 }) : () => {}), set: () => true }),
+    };
+    return el;
+  };
+  const get = (id) => {
+    if (!elements.has(id)) elements.set(id, make('div', id));
     return elements.get(id);
   };
-
-  globalThis.document = {
-    getElementById: (id) => getOrCreate(id),
-    createElement: (tag) => {
-      const el = {
-        tagName: tag,
-        style: {},
-        innerHTML: '',
-        children: [],
-        appendChild(c) { this.children.push(c); },
-        getContext: () => ({
-          beginPath() {},
-          moveTo() {},
-          lineTo() {},
-          quadraticCurveTo() {},
-          closePath() {},
-          fill() {},
-          stroke() {},
-          fillText() {}
-        })
-      };
-      return el;
-    }
-  };
+  globalThis.document = { getElementById: get, createElement: (tag) => make(tag), body: make('body'), execCommand() {} };
+  return { get, elements };
 }
 
-// Minimal Game Mock
-function createMockGame() {
-  const scene = new THREE.Scene();
-  const world = {
-    seed: 42,
-    voxels: new Map(),
-    getVoxel(x, y, z) {
-      return this.voxels.get(`${x},${y},${z}`) || BLOCKS.AIR;
-    },
-    setVoxel(x, y, z, blockId) {
-      this.voxels.set(`${x},${y},${z}`, blockId);
-    },
-    getChunk() {
-      return { cx: 0, cz: 0 };
-    },
-    chunks: new Map()
-  };
-
-  const player = {
-    position: new THREE.Vector3(10, 64, 10),
-    velocity: new THREE.Vector3(0, 0, 0),
-    yaw: 0,
-    pitch: 0,
-    isSneaking: false,
-    isSprinting: false
-  };
-
+/** A game with a world of voxels, a player, a chat log and the hooks the manager calls. */
+function mockGame({ name = 'game' } = {}) {
+  const voxels = new Map();
   const chatLog = [];
-  const ui = {
-    addChatMessage(msg) { chatLog.push(msg); },
-    closeAllModals() {}
-  };
-
+  const rebuilt = [];
   return {
-    scene,
-    world,
-    player,
-    ui,
-    chatLog,
-    worldGenerated: true,
-    worldReady: true,
-    worldTime: 1000,
-    rebuildChunkMesh() {},
-    generateNewWorld: async () => {}
+    name,
+    scene: new THREE.Scene(),
+    world: {
+      seed: 42,
+      getVoxel: (x, y, z) => voxels.get(`${x},${y},${z}`) ?? BLOCKS.AIR,
+      setVoxel: (x, y, z, id) => voxels.set(`${x},${y},${z}`, id),
+      getChunk: (cx, cz) => ({ cx, cz }),
+      chunks: new Map(),
+      voxels,
+    },
+    player: { position: new THREE.Vector3(10, 64, 10), yaw: 0, pitch: 0, isSneaking: false, isSprinting: false },
+    inventory: { getActiveItem: () => ({ id: 'stick' }) },
+    ui: { addChatMessage: (msg) => chatLog.push(msg), closeAllModals() {} },
+    chatLog, rebuilt,
+    worldGenerated: true, worldReady: true, worldTime: 1000, isMouseDown: false,
+    rebuildChunkMesh: (chunk) => rebuilt.push(`${chunk.cx},${chunk.cz}`),
+    generateNewWorld: async () => {},
   };
 }
 
-async function setupRelayFixture(t) {
-  const relay = createWorldRelay({ path: '/ws/world-relay' });
-  const server = http.createServer();
-  server.on('upgrade', (req, socket, head) => {
-    relay.handleUpgrade(req, socket, head);
+const LOCATION = { href: 'https://game.example/', protocol: 'https:', host: 'game.example', search: '' };
+
+function managerOn(network, { game = mockGame(), location = LOCATION, ...options } = {}) {
+  const session = new ShareSession({
+    signalingFactory: network.signalingFactory, peerFactory: network.peerFactory, location,
+    timeouts: { connectMs: 400, heartbeatMs: 40, silenceMs: 400, resignalMs: 30 },
   });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = server.address().port;
-  t.after(async () => {
-    await relay.close();
-    await new Promise((resolve) => server.close(resolve));
-  });
-  return { relay, port, wsUrl: `ws://127.0.0.1:${port}/ws/world-relay` };
+  // A world "file" is just the voxels, so the guest ends up with the host's blocks.
+  const serialize = (g) => ({ voxels: [...g.world.voxels.entries()], tag: 'world' });
+  const deserialize = async (g, data) => { for (const [k, v] of data.voxels) g.world.voxels.set(k, v); };
+  const manager = new WorldSyncManager(game, { session, serialize, deserialize, ...options });
+  manager.playerName = () => options.name ?? 'Tester';
+  return { manager, game, session };
 }
 
-test('WorldSyncManager hosts world, updates DOM, and accepts joining guests', async (t) => {
-  setupMockDom();
-  const { wsUrl } = await setupRelayFixture(t);
+// --- hosting --------------------------------------------------------------------------
 
-  const hostGame = createMockGame();
-  const hostSync = new WorldSyncManager(hostGame);
-  hostSync.client.wsUrl = wsUrl;
-  t.after(() => hostSync.client.disconnect());
-
-  await hostSync.hostWorld('HostPlayer');
-  assert.equal(hostSync.isHosting, true);
-  assert.ok(hostSync.roomId);
-  assert.equal(hostSync.hostRoomIdBadge.textContent, hostSync.roomId);
-  assert.match(hostSync.hostShareLinkInput.value, /\?join=/);
-
-  // Guest connects
-  const guestGame = createMockGame();
-  const guestSync = new WorldSyncManager(guestGame);
-  guestSync.client.wsUrl = wsUrl;
-  t.after(() => guestSync.client.disconnect());
-
-  await guestSync.client.joinRoom(hostSync.roomId, 'GuestPlayer');
-  assert.equal(guestSync.client.connected, true);
-
-  await new Promise((r) => setTimeout(r, 60));
-  assert.ok(hostSync.client.peers.size >= 2);
+test('hosting shows the link, the code and who is here, and the link opens the world', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const { manager, session } = managerOn(network);
+  t.after(() => session.disconnect(true));
+  await manager.hostWorld();
+  assert.equal(manager.isHosting, true);
+  assert.match(dom.get('host-share-link-input').value, /^https:\/\/game\.example\/\?join=[0-9a-z]{8}$/);
+  assert.equal(dom.get('host-room-id-badge').textContent, manager.roomId);
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), false, 'the dialog is open');
+  assert.equal(dom.get('host-local-warning').classList.contains('hidden'), true, 'a public address needs no warning');
+  assert.equal(dom.get('hud-multiplayer-badge').classList.contains('hidden'), false);
+  assert.match(dom.get('hud-multiplayer-text').textContent, /Sharing: 1 player$/);
+  const rows = dom.get('host-connected-players-list').children;
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].children[0].textContent, /You \(Host\)/);
 });
 
-test('WorldSyncManager syncs block breaking and placement bidirectionally', async (t) => {
-  setupMockDom();
-  const { wsUrl } = await setupRelayFixture(t);
-
-  const hostGame = createMockGame();
-  const hostSync = new WorldSyncManager(hostGame);
-  hostSync.client.wsUrl = wsUrl;
-  t.after(() => hostSync.client.disconnect());
-
-  await hostSync.hostWorld('Host1');
-
-  const guestGame = createMockGame();
-  const guestSync = new WorldSyncManager(guestGame);
-  guestSync.client.wsUrl = wsUrl;
-  t.after(() => guestSync.client.disconnect());
-
-  await guestSync.client.joinRoom(hostSync.roomId, 'Guest1');
-  await new Promise((r) => setTimeout(r, 60));
-
-  // 1. Guest places a block
-  guestSync.onBlockPlaced(5, 70, 5, BLOCKS.DIAMOND_BLOCK);
-  await new Promise((r) => setTimeout(r, 80));
-
-  assert.equal(hostGame.world.getVoxel(5, 70, 5), BLOCKS.DIAMOND_BLOCK);
-
-  // 2. Host breaks a block
-  hostSync.onBlockBroken(5, 70, 5);
-  await new Promise((r) => setTimeout(r, 80));
-
-  assert.equal(guestGame.world.getVoxel(5, 70, 5), BLOCKS.AIR);
+test('a link on localhost warns that only this computer can open it', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const local = { href: 'http://localhost:3000/', protocol: 'http:', host: 'localhost:3000', search: '' };
+  const { manager, session } = managerOn(network, { location: local });
+  t.after(() => session.disconnect(true));
+  const fetched = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { fetched.push(url); return { ok: true, json: async () => ({ lan: [{ address: '192.168.1.9', url: 'http://192.168.1.9:3000/', name: 'wifi' }] }) }; };
+  t.after(() => { globalThis.fetch = realFetch; });
+  await manager.hostWorld();
+  await settle(10);
+  assert.equal(dom.get('host-local-warning').classList.contains('hidden'), false);
+  assert.deepEqual(fetched, ['/api/share/info']);
+  const lan = dom.get('host-lan-links').children;
+  const inputs = lan.flatMap((row) => row.children ?? []).filter((c) => c.tagName === 'input');
+  assert.equal(inputs.length, 1);
+  assert.equal(inputs[0].value, `http://192.168.1.9:3000/?join=${manager.roomId}`, 'a ready link on the network address');
 });
 
-test('WorldSyncManager syncs chat messages between players', async (t) => {
-  setupMockDom();
-  const { wsUrl } = await setupRelayFixture(t);
+test('sharing again just shows the link, and does not start a second room', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const { manager, session } = managerOn(network);
+  t.after(() => session.disconnect(true));
+  await manager.hostWorld();
+  const code = manager.roomId;
+  dom.get('host-world-modal').classList.add('hidden');
+  await manager.hostWorld();
+  assert.equal(manager.roomId, code, 'the same room');
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), false, 'the dialog is back');
+  assert.equal(network.rooms.size, 1);
+});
 
-  const hostGame = createMockGame();
-  const hostSync = new WorldSyncManager(hostGame);
-  hostSync.client.wsUrl = wsUrl;
-  t.after(() => hostSync.client.disconnect());
+test('when sharing cannot start, the dialog says why, in words, instead of alerting', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  network.signalingReachable = false;
+  const { manager } = managerOn(network);
+  await manager.hostWorld();
+  assert.equal(manager.isHosting, false);
+  const error = dom.get('host-error');
+  assert.equal(error.classList.contains('hidden'), false);
+  assert.match(error.textContent, /Could not reach the sharing service/);
+  assert.equal(dom.get('host-link-section').classList.contains('hidden'), true, 'no link is offered that would not work');
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), false);
+});
 
-  await hostSync.hostWorld('Alice');
+test('stopping sharing closes the room, clears the screen and tells the guests', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  await settle(20);
+  host.manager.leave();
+  await settle(100);
+  assert.equal(host.manager.isHosting, false);
+  assert.equal(network.rooms.size, 0, 'the room is gone');
+  assert.equal(dom.get('hud-multiplayer-badge').classList.contains('hidden'), true);
+  assert.match(dom.get('join-status-text').textContent, /closed/i, 'the guest is told the world closed');
+});
 
-  const guestGame = createMockGame();
-  const guestSync = new WorldSyncManager(guestGame);
-  guestSync.client.wsUrl = wsUrl;
-  t.after(() => guestSync.client.disconnect());
+test('the Stop Sharing button stops sharing and closes the dialog', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const { manager, session } = managerOn(network);
+  t.after(() => session.disconnect(true));
+  await manager.hostWorld();
+  dom.get('btn-stop-sharing').onclick();
+  assert.equal(manager.isHosting, false);
+  assert.equal(network.rooms.size, 0);
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), true);
+});
 
-  await guestSync.client.joinRoom(hostSync.roomId, 'Bob');
-  await new Promise((r) => setTimeout(r, 60));
+test('the Done and close buttons close the dialog but keep sharing', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const { manager, session } = managerOn(network);
+  t.after(() => session.disconnect(true));
+  await manager.hostWorld();
+  for (const id of ['btn-dismiss-host-modal', 'btn-close-host-world']) {
+    dom.get('host-world-modal').classList.remove('hidden');
+    dom.get(id).onclick();
+    assert.equal(dom.get('host-world-modal').classList.contains('hidden'), true, id);
+  }
+  assert.equal(manager.isHosting, true);
+  assert.equal(network.rooms.size, 1);
+});
 
-  guestSync.onChatSent('Hi Alice!');
-  await new Promise((r) => setTimeout(r, 80));
+test('clicking the player badge while sharing brings the link back', async (t) => {
+  const dom = setupMockDom(t);
+  const { manager, session } = managerOn(createFakeNetwork());
+  t.after(() => session.disconnect(true));
+  await manager.hostWorld();
+  dom.get('host-world-modal').classList.add('hidden');
+  dom.get('hud-multiplayer-badge').onclick();
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), false);
+});
 
-  const foundMsg = hostGame.chatLog.some((m) => m.includes('Bob') && m.includes('Hi Alice!'));
-  assert.ok(foundMsg, 'Host should have received Bob\'s chat message');
+// --- joining --------------------------------------------------------------------------
+
+test('a guest who opens the link ends up in the host\'s world with the host\'s blocks', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  host.game.world.setVoxel(3, 4, 5, BLOCKS.DIAMOND_BLOCK);
+  host.game.player.position.set(100, 70, 200);
+  await host.manager.hostWorld();
+
+  await guest.manager.joinWorld(host.manager.roomId);
+  assert.equal(guest.game.world.getVoxel(3, 4, 5), BLOCKS.DIAMOND_BLOCK, 'the world arrived');
+  assert.ok(Math.abs(guest.game.player.position.x - 101.2) < 1e-6, 'the guest appears next to the host');
+  assert.equal(guest.manager.isJoined, true);
+  assert.equal(guest.game.worldReady, true);
+  assert.equal(dom.get('join-connecting-overlay').classList.contains('hidden'), true, 'the joining screen is gone');
+  assert.ok(guest.manager.remotePlayers.remotePlayers.has('host'), 'the host is visible');
+  assert.ok(guest.game.chatLog.some((m) => m.includes('Welcome')));
+  assert.ok(host.game.chatLog.some((m) => m.includes('Gus') && m.includes('joined')));
+});
+
+test('a guest sees every player already in the world, not only the host', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const first = managerOn(network, { name: 'Ann' });
+  const second = managerOn(network, { name: 'Bob' });
+  t.after(() => { host.session.disconnect(true); first.session.disconnect(true); second.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await first.manager.joinWorld(host.manager.roomId);
+  await second.manager.joinWorld(host.manager.roomId);
+  const seen = [...second.manager.remotePlayers.remotePlayers.values()].map((p) => p.name).sort();
+  assert.deepEqual(seen, ['Ann', 'Hana']);
+});
+
+test('each way joining can fail is explained, and the guest is offered the way back', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const guest = managerOn(network);
+  await guest.manager.joinWorld('zzzzzzzz');
+  assert.match(dom.get('join-status-text').textContent, /not being shared right now/);
+  assert.equal(dom.get('join-progress-fill').style.background, '#ef4444');
+  const back = dom.get('btn-join-cancel');
+  assert.equal(back.classList.contains('hidden'), false, 'a way out is offered');
+  assert.equal(back.textContent, 'Back to Main');
+  assert.equal(guest.manager.isJoined, false);
+});
+
+test('a link with no usable code says so, rather than doing nothing', async (t) => {
+  const dom = setupMockDom(t);
+  const guest = managerOn(createFakeNetwork());
+  await guest.manager.joinFromLink('?join=oops');
+  assert.match(dom.get('join-status-text').textContent, /does not contain a valid world code/);
+  await guest.manager.joinFromLink('?join=');
+  assert.match(dom.get('join-status-text').textContent, /valid world code/);
+});
+
+test('a link\'s code is read from the address and joined', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinFromLink(`?x=1&join=${host.manager.roomId.toUpperCase()}`);
+  assert.equal(guest.manager.isJoined, true);
+});
+
+test('the guest is told when the host closes the world, and can go back', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => guest.session.disconnect(true));
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  const gone = nextEvent(guest.session, 'host_disconnected');
+  host.manager.leave();
+  await gone;
+  assert.match(dom.get('join-overlay-title').textContent, /closed/i);
+  assert.equal(guest.manager.isJoined, false);
+  assert.equal(guest.manager.remotePlayers.remotePlayers.size, 0, 'the host\'s avatar is gone');
+  assert.equal(dom.get('btn-join-cancel').classList.contains('hidden'), false);
+});
+
+// --- keeping the worlds in step ---------------------------------------------------------------
+
+test('block edits flow both ways and redraw the chunk, and its neighbour on an edge', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  await settle(20);
+
+  guest.manager.onBlockPlaced(5, 70 - 10, 5, BLOCKS.DIAMOND_BLOCK);
+  await settle(30);
+  assert.equal(host.game.world.getVoxel(5, 60, 5), BLOCKS.DIAMOND_BLOCK, 'the guest\'s block reached the host');
+
+  host.manager.onBlockBroken(5, 60, 5);
+  await settle(30);
+  assert.equal(guest.game.world.getVoxel(5, 60, 5), BLOCKS.AIR, 'the host\'s break reached the guest');
+
+  guest.game.rebuilt.length = 0;
+  host.manager.onBlockPlaced(16, 10, 5, BLOCKS.STONE); // on a chunk's west edge: x & 15 === 0
+  await settle(30);
+  assert.ok(guest.game.rebuilt.length >= 2, `the edge touches a neighbour: ${guest.game.rebuilt}`);
+});
+
+test('a guest is never sent its own edit back', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  guest.game.rebuilt.length = 0;
+  guest.manager.onBlockPlaced(1, 2, 3, BLOCKS.STONE);
+  await settle(30);
+  assert.equal(guest.game.rebuilt.length, 0, 'no echo to redraw');
+});
+
+test('chat appears for everyone, with the sender\'s name, and nothing in it can become markup', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  await settle(20);
+  guest.manager.onChatSent('<img src=x onerror=alert(1)> hello & goodbye');
+  await settle(30);
+  const line = host.game.chatLog.find((m) => m.includes('Gus') && m.includes('hello'));
+  assert.ok(line, 'the host saw it');
+  assert.ok(!line.includes('<img'), `escaped: ${line}`);
+  assert.ok(line.includes('&lt;img src=x onerror=alert(1)&gt; hello &amp; goodbye'));
+});
+
+test('a name with markup in it is shown as text in the list and in the join message', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  t.after(() => host.session.disconnect(true));
+  await host.manager.hostWorld();
+  // A guest that bypasses the manager and joins with a hostile name.
+  const hostile = new ShareSession({ signalingFactory: network.signalingFactory, peerFactory: network.peerFactory, location: LOCATION, timeouts: { connectMs: 400, heartbeatMs: 40, silenceMs: 400 } });
+  t.after(() => hostile.disconnect(true));
+  await hostile.joinRoom(host.manager.roomId, 'Mallory<script>alert(1)</script>');
+  await settle(20);
+  const rows = dom.get('host-connected-players-list').children;
+  const labels = rows.map((r) => r.children[0].textContent);
+  assert.ok(labels.some((l) => l.includes('Mallory')));
+  assert.ok(labels.every((l) => !/[<>]/.test(l)), JSON.stringify(labels));
+  assert.ok(host.game.chatLog.every((m) => !m.includes('<script')), 'and the join message is escaped');
+});
+
+test('movement is sent to others about 25 times a second, and not at all when alone', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  const sent = [];
+  const original = host.session.sendPlayerState.bind(host.session);
+  host.session.sendPlayerState = (s) => { sent.push(s); original(s); };
+  for (let i = 0; i < 50; i++) host.manager.update(0.02);
+  assert.equal(sent.length, 0, 'nobody else is here');
+  await guest.manager.joinWorld(host.manager.roomId);
+  for (let i = 0; i < 50; i++) host.manager.update(0.02); // one second of frames
+  assert.ok(sent.length >= 22 && sent.length <= 27, `${sent.length} updates in a second`);
+  assert.equal(sent[0].activeItem, 'stick');
+  assert.equal(sent[0].x, 10);
+});
+
+test('another player\'s movement moves their avatar', async (t) => {
+  setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  await settle(20);
+  guest.game.player.position.set(33, 64, -7);
+  for (let i = 0; i < 5; i++) guest.manager.update(0.05);
+  await settle(30);
+  const avatar = [...host.manager.remotePlayers.remotePlayers.values()].find((p) => p.name === 'Gus');
+  assert.ok(avatar, 'the guest has an avatar on the host');
+  assert.equal(avatar.targetPos.x, 33);
+  assert.equal(avatar.targetPos.z, -7);
+});
+
+// --- leaving ----------------------------------------------------------------------------------------
+
+test('leaving forgets the room, the players and the dialog, and the manager can host again', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  const guest = managerOn(network, { name: 'Gus' });
+  t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
+  await host.manager.hostWorld();
+  await guest.manager.joinWorld(host.manager.roomId);
+  const firstCode = host.manager.roomId;
+  host.manager.leave();
+  assert.equal(host.manager.isHosting, false);
+  assert.equal(host.manager.roomId, null);
+  assert.equal(host.manager.remotePlayers.remotePlayers.size, 0);
+  assert.equal(dom.get('host-world-modal').classList.contains('hidden'), true);
+  await host.manager.hostWorld();
+  assert.notEqual(host.manager.roomId, firstCode, 'a new room, with a new code');
+});
+
+test('leaving is safe when nothing was shared', async (t) => {
+  setupMockDom(t);
+  const { manager } = managerOn(createFakeNetwork());
+  assert.doesNotThrow(() => manager.leave());
+  assert.doesNotThrow(() => manager.leave());
+});
+
+test('the name a player goes by is remembered, and cleaned', async (t) => {
+  setupMockDom(t);
+  const store = new Map();
+  const real = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) } });
+  t.after(() => { if (real) Object.defineProperty(globalThis, 'localStorage', real); else delete globalThis.localStorage; });
+  const manager = new WorldSyncManager(mockGame(), { session: new ShareSession({ signalingFactory: createFakeNetwork().signalingFactory, location: LOCATION }) });
+  const first = manager.playerName();
+  assert.match(first, /^Player-\d{4}$/);
+  assert.equal(manager.playerName(), first, 'the same name next time');
+  store.set('mc-player-name', '<b>Alex</b>');
+  assert.equal(manager.playerName(), 'bAlex/b', 'a stored name is cleaned before use');
+});
+
+// --- the words ------------------------------------------------------------------------------------
+
+test('every kind of failure has a sentence a person can act on', () => {
+  const codes = {
+    room_not_found: /not being shared right now/, bad_code: /valid world code/, room_full: /full/, room_busy: /try again/i,
+    version_mismatch: /different version/, signalling_unreachable: /sharing service/, connect_timeout: /block peer-to-peer/,
+  };
+  for (const [code, pattern] of Object.entries(codes)) {
+    const text = describeShareError(new ShareError(code, 'x'));
+    assert.match(text, pattern, code);
+    assert.ok(text.length > 20 && !/undefined|\[object/.test(text), code);
+  }
+  assert.equal(describeShareError(new ShareError('connect_failed', 'Custom words.')), 'Custom words.');
+  assert.match(describeShareError(new Error('plain')), /plain/);
+  assert.match(describeShareError(null), /Something went wrong/);
 });

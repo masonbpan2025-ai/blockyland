@@ -1,3 +1,5 @@
+import { makeFrogPregnant } from './frogspawn.js';
+import { IRON_INGOT_REPAIR } from './mobEnvironment.js';
 import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squidBehavior.js';
 import { canInteractStrider, interactStrider, boostStrider, steerStrider, safeStriderDismount } from './striderBehavior.js';
 import { isPackEquine, syncPackEquineAppearance } from './packEquineModel.js';
@@ -224,6 +226,15 @@ export class AnimalBehaviors {
     // Same split as `canInteract`: string tests read the name form, which is empty for a held block,
     // so right-clicking a sheep or a wolf while holding one no longer throws before it is handled.
     const itemName = typeof itemId === 'string' ? itemId : '';
+
+    // --- Iron golems -------------------------------------------------------------
+    // Wiki: an iron ingot heals a damaged iron golem by 25 HP (one deterioration level) and is consumed.
+    if (mob.type === 'iron_golem' && itemId === 'iron_ingot' && mob.health > 0) {
+      if (mob.health >= mob.maxHealth) return false;
+      mob.health = Math.min(mob.maxHealth, mob.health + IRON_INGOT_REPAIR);
+      if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
+      return true;
+    }
 
     // --- Parrots ---------------------------------------------------------------
     // Wiki: tamed with any seed at a 1-in-10 chance, sitting toggled by interacting with a tamed
@@ -1485,6 +1496,16 @@ export class AnimalBehaviors {
 
             // Spawn baby
             const babyPos = mob.mesh.position.clone().lerp(other.mesh.position, 0.5);
+            // Wiki: breeding frogs produces no baby. One of the pair becomes pregnant and lays frogspawn on water, which
+            // hatches into tadpoles; the pair still earns 1-7 experience.
+            if (mob.type === 'frog') {
+              makeFrogPregnant(mob);
+              const frogXpGain = 1 + Math.floor(Math.random() * 7);
+              if (this.mobManager.spawnXpOrbs) this.mobManager.spawnXpOrbs(babyPos, frogXpGain);
+              else this.entities?.spawnXpOrbs?.(babyPos, frogXpGain);
+              this.spawnHeartParticles(babyPos);
+              break;
+            }
             // Wiki: "Breeding two sniffers now causes a sniffer egg to drop as an item." A sniffer pair
         // therefore produces an egg rather than a baby, which is the only way a sniffer is ever created.
         if (mob.type === 'sniffer') {

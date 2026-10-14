@@ -12,7 +12,7 @@
 // the tests use it; the game does not.
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { normaliseManifest } from './registry.js';
-import { MANIFEST_FILE, MODS_DIRECTORY, discoverMods } from './loader.js';
+import { MANIFEST_FILE, MODS_DIRECTORY } from './paths.js';
 
 /**
  * Load and validate a mod manifest from a `mod.json` on disk.
@@ -36,5 +36,12 @@ export function loadModTable({ directory = MODS_DIRECTORY } = {}) {
   const entries = readdirSync(directory, { withFileTypes: true })
     .filter(d => d.isDirectory() && existsSync(`${directory}/${d.name}/${MANIFEST_FILE}`))
     .map(d => ({ id: d.name.replace(/-/g, '_'), manifestPath: `${directory}/${d.name}/${MANIFEST_FILE}` }));
-  return discoverMods({ mods: entries, readManifest: readModManifest, fromDisk: true });
+  const mods = [], rejected = [];
+  for (const entry of entries) {
+    const result = readModManifest(entry.manifestPath);
+    if (!result.ok) rejected.push({id: entry.id, reason: result.reason});
+    else mods.push({...result.manifest, manifestPath: entry.manifestPath,
+      directory: entry.manifestPath.replace(/\/[^/]+$/, ''), mapUrls: {}, load: null});
+  }
+  return {mods, rejected};
 }

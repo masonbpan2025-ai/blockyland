@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "structure": "pillager_outpost",
+  "seed": "2024",
+  "chunk": [
+    -29,
+    36
+  ],
+  "biome": "snowy_slopes",
+  "box": {
+    "minX": -476,
+    "minY": 31,
+    "minZ": 564,
+    "maxX": -421,
+    "maxY": 75,
+    "maxZ": 619
+  },
+  "pieces": 5,
+  "blocks": {
+    "Stone": 8782,
+    "Snow Block": 5913,
+    "Packed Ice": 5659,
+    "Dirt": 5318,
+    "Snow": 856,
+    "Powder Snow": 850,
+    "Iron Ore": 536,
+    "Spruce Leaves": 532,
+    "Dark Oak Planks": 393,
+    "Coal Ore": 267,
+    "Birch Planks": 244,
+    "Cobblestone": 208,
+    "Dark Oak Log": 156,
+    "Dark Oak Fence": 98,
+    "Spruce Log": 64,
+    "Dark Oak Slab": 49,
+    "Cobblestone Stairs": 33,
+    "Dark Oak Stairs": 24,
+    "White Wool": 20,
+    "Ice": 19,
+    "White Wall Banner": 8,
+    "Cobblestone Wall": 8,
+    "Cobblestone Slab": 4,
+    "Hay Block": 4,
+    "Carved Pumpkin": 4,
+    "Torch": 2,
+    "Wall Torch": 2,
+    "Chest": 1,
+    "Crafting Table": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1,
+    "mob": 10
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 17,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

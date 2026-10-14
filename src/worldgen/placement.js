@@ -413,7 +413,11 @@ export class StructurePlacementEngine {
    */
   planChunk(chunkX, chunkZ) {
     this.stats.chunksAsked++;
-    for (const [setName, set] of this.setsForChunk(chunkX, chunkZ)) {
+    // Structures before features: a feature (a monster room, a desert well) is placed in vanilla by a later step and
+    // never stops a structure from starting in its chunk.
+    const isFeature = (set) => set.structures.every((entry) => this.structureInfo?.(entry.structureId)?.family === 'feature');
+    const ordered = [...this.setsForChunk(chunkX, chunkZ)].sort((a, b) => Number(isFeature(a[1])) - Number(isFeature(b[1])));
+    for (const [setName, set] of ordered) {
       const selection = this.selectStructureForChunk(chunkX, chunkZ, setName, set);
       let pool = selection.pool;
       let total = selection.total;
@@ -477,8 +481,10 @@ export class StructurePlacementEngine {
         );
         for (const [chunkX, chunkZ] of candidates) {
           // Shell only: interior cells were examined at a smaller radius.
+          // (Either coordinate on the shell: requiring both kept only the shell's corners, so a structure due north
+          // of the search centre was never found.)
           const onShell = Math.abs(chunkX - centreChunkX) >= radius - step
-            && Math.abs(chunkZ - centreChunkZ) >= radius - step;
+            || Math.abs(chunkZ - centreChunkZ) >= radius - step;
           if (radius > 0 && !onShell) continue;
           if (!placement.isStructureChunk(this.context, chunkX, chunkZ, setName)) continue;
           const plan = this.planChunk(chunkX, chunkZ);

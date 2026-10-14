@@ -192,9 +192,9 @@ export function giantDrops() {
   return [];
 }
 
-/** Wiki: no experience is given on the page, so it is zero rather than a guess. */
+/** Wiki: "A giant drops 5 experience points when killed". */
 export function giantXp() {
-  return 0;
+  return 5;
 }
 
 /**

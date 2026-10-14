@@ -1143,9 +1143,18 @@ for (const [id, def] of Object.entries(BLOCK_DEFS)) {
   IDS_BY_NAME.get(key).push(Number(id));
 }
 
+/**
+ * Rows whose vanilla name is not the name of the block constant of the same spelling.
+ *
+ * Vanilla's `snow` is the thin snow LAYER and `snow_block` is the cube. This game's constant `SNOW` is the
+ * cube, so `BLOCKS['SNOW']` attached the layer's row to the cube (where the `snow_block` row then replaced it)
+ * and the real layer, `SNOW_LAYER`, had no row at all.
+ */
+const ROW_BLOCK_OVERRIDES = { snow: BLOCKS.SNOW_LAYER };
+
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
+  const id = ROW_BLOCK_OVERRIDES[name] ?? BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 

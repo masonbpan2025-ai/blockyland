@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "structure": "village_savanna",
+  "seed": "20250401",
+  "chunk": [
+    11,
+    18
+  ],
+  "biome": "savanna",
+  "box": {
+    "minX": 154,
+    "minY": 16,
+    "minZ": 224,
+    "maxX": 225,
+    "maxY": 49,
+    "maxZ": 346
+  },
+  "pieces": 28,
+  "blocks": {
+    "Stone": 53073,
+    "Dirt": 28000,
+    "Grass Block": 9031,
+    "Acacia Leaves": 3389,
+    "Coal Ore": 2052,
+    "Iron Ore": 1764,
+    "Gold Ore": 1620,
+    "Acacia Log": 979,
+    "Redstone Ore": 420,
+    "Dirt Path": 402,
+    "Acacia Stairs": 328,
+    "Acacia Planks": 252,
+    "Water": 187,
+    "Moist Farmland": 114,
+    "Acacia Fence": 102,
+    "Yellow Terracotta": 94,
+    "Short Grass": 87,
+    "Acacia Slab": 62,
+    "Melon Stem": 58,
+    "Wheat Crops": 56,
+    "Acacia Wood": 32,
+    "Red Terracotta": 31,
+    "Tall Grass": 30,
+    "Glass Pane": 19,
+    "Wall Torch": 18,
+    "Brown Wall Banner": 15,
+    "Acacia Door": 11,
+    "Acacia Door Top": 11,
+    "Torch": 9,
+    "Orange Terracotta": 9,
+    "Orange Bed Head": 7,
+    "Orange Bed": 7,
+    "Melon": 4,
+    "Composter": 4,
+    "Hay Block": 4,
+    "Chest": 3,
+    "Acacia Pressure Plate": 2,
+    "Bell": 2,
+    "Crafting Table": 1,
+    "Red Bed Head": 1,
+    "Red Bed": 1,
+    "Acacia Fence Gate": 1
+  },
+  "loot": {
+    "chests": 3,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "bread",
+        "count": 14
+      },
+      {
+        "name": "apple",
+        "count": 8
+      },
+      {
+        "name": "melon_seeds",
+        "count": 7
+      },
+      {
+        "name": "wheat",
+        "count": 6
+      },
+      {
+        "name": "wheat_seeds",
+        "count": 5
+      },
+      {
+        "name": "carrot",
+        "count": 4
+      },
+      {
+        "name": "acacia_sapling",
+        "count": 1
+      },
+      {
+        "name": "tall_grass",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 3,
+    "door": 11,
+    "bed": 8,
+    "mob": 13
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

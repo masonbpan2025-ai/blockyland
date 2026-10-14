@@ -1,6 +1,7 @@
 ﻿import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { spendDurability } from './durability.js';
+import { exposedToRain } from './weatherRules.js';
 
 /**
  * The rest of the wiki's fertilizer table, as one block in and one block out.
@@ -147,8 +148,7 @@ export function getCropInfo(blockId) {
 export function isWaterNearby(world, x, y, z, game = null) {
   if (!world) return false;
   // Wiki (Farmland): "Rain also hydrates farmland" -- when nothing covers its top surface.
-  const raining = game?.weather?.weatherType === 'rain' || game?.weather?.weatherType === 'thunder';
-  if (raining && isSkyExposed(world, x, y + 1, z)) return true;
+  if (exposedToRain(game?.weather,world,{x,y:y+1,z})) return true;
   for (let dx = -4; dx <= 4; dx++) {
     for (let dz = -4; dz <= 4; dz++) {
       for (let dy = 0; dy <= 1; dy++) {
@@ -585,7 +585,7 @@ export class FarmingManager {
       } else if (!hydrated && current === BLOCKS.FARMLAND) {
         // If unplanted and dry, chance to revert to dirt
         const above = this.world.getVoxel(pos.x, pos.y + 1, pos.z);
-        if (above === BLOCKS.AIR && Math.random() < 0.08) {
+        if (above === BLOCKS.AIR && this.random() < 0.08) {
           this.world.setVoxel(pos.x, pos.y, pos.z, BLOCKS.DIRT);
           this.farmlands.delete(key);
           dirtyChunks.add(`${Math.floor(pos.x / 16)},${Math.floor(pos.z / 16)}`);

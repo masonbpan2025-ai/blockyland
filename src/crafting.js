@@ -1,4 +1,4 @@
-import { BLOCKS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 // Vanilla recipes transcribed from minecraft-data. Generated, and merged at the END of RECIPES_3X3
 // below so that a hand-written recipe always wins a tie -- several hand-written redstone recipes
 // deliberately differ from vanilla, and silently losing them to a generated duplicate would be a
@@ -21,6 +21,12 @@ export const RECIPES_2X2 = [
     ],
     result: { id: BLOCKS.CRAFTING_TABLE, isBlock: true, count: 1 }
   },
+  // A 2x2 of planks used to be listed here as "4 Planks -> 4 Planks". That is not a vanilla recipe -- it
+  // consumes four planks to produce the same four -- and because `findMatchingRecipe` returns the first
+  // match and `RECIPES_3X3` spreads this list near its start, it won every tie against every other recipe
+  // that fits a 2x2 block of one ingredient. The only one in the table was the oak trapdoor entry below, so
+  // a player who laid out four planks to make trapdoors got their planks back. The vanilla trapdoor is 3x2
+  // planks -> 2 trapdoors, and the generated table already carries it correctly.
   // 2 Planks -> 4 Sticks
   {
     pattern: [
@@ -290,21 +296,131 @@ import { PROFESSION_TRADES } from './villagerEconomy.js';
 export const VILLAGER_TRADES = PROFESSION_TRADES.farmer.slice(0, 5);
 
 /**
- * The value a recipe slot holds for a grid cell: a block id, or an item name.
+ * The two key spaces a crafting comparison uses, and why they must stay apart.
  *
- * An item that places a block is carried by that block's id, but a caller can hand it over *by name* -- the
- * creative catalogue, a villager trade, a hand-written recipe, or a test. Comparing the raw value made such a
- * grid match nothing, which is how a name-keyed hay block failed to uncraft. Both spellings mean the same
- * item, so both are normalised to the id the recipes are written against.
+ * A block's id and an item's id live in the same number space, and in one case they genuinely collide: the
+ * number **171** is both the `wheat` ITEM and the fully-grown Wheat Crops BLOCK. Comparing the raw number
+ * therefore made nine crop blocks craft a hay block, which is what `tests/recipeIngredients.test.js` asserts
+ * against. So there are two tagged key spaces, and a caller's `isBlock` flag is what chooses between them:
+ *
+ *   - **item space** -- `item:<name>` for something held as an item, whether the caller passed the item name
+ *     or the item's numeric id.
+ *   - **block space** -- `<block_key>` for something placed as a block, whether the caller passed the block
+ *     constant (BLOCKS.OAK_PLANKS is the number 10) or its name.
+ *
+ * They cannot collide, because the item space is always prefixed. Both sides of a match then meet in one
+ * language: nine wheat ITEMS are nine `item:wheat` and match the hay recipe, and nine Wheat Crops BLOCKS are
+ * nine `wheat_crops` and match nothing.
+ *
+ * A recipe writes its ingredient as a name (usually) or as a block constant (when it means a block), so a
+ * recipe number is read as a block and a recipe string through the same resolver a cell uses.
+ */
+function canonicalSlotValue(id, isBlock) {
+  if (typeof id === 'number') return isBlock ? (blockKeyFor(id) ?? id) : itemKeyFor(id);
+  const item = ITEMS[id];
+  if (item) {
+    // A string naming an item is that item. The previous version fell through to a
+    // `BLOCKS[name.toUpperCase()]` lookup whenever the item carried no `blockId`, and `BLOCKS['WHEAT']` is
+    // 171 -- so the plain string `'wheat'` was silently turned into the crop block: the same defect from
+    // the other direction.
+    if (typeof item.blockId === 'number') return blockKeyFor(item.blockId) ?? item.blockId;
+    return itemKeyFor(id);
+  }
+  if (typeof BLOCKS[id.toUpperCase()] === 'number') return blockKeyFor(BLOCKS[id.toUpperCase()]) ?? BLOCKS[id.toUpperCase()];
+  return isBlock ? `block:${id}` : `item:${id}`;
+}
+
+/** `item:<name>` for an item given by name or by its numeric id. */
+let ID_TO_ITEM_NAME = null;
+function itemKeyFor(value) {
+  if (typeof value === 'string') return `item:${value}`;
+  if (ID_TO_ITEM_NAME === null) {
+    ID_TO_ITEM_NAME = new Map();
+    for (const name of Object.keys(ITEMS)) {
+      const def = ITEMS[name];
+      if (def && typeof def.blockId === 'number') continue; // carried as a block, so not an item id
+      if (typeof def?.id === 'number' && !ID_TO_ITEM_NAME.has(def.id)) ID_TO_ITEM_NAME.set(def.id, name);
+    }
+  }
+  return ID_TO_ITEM_NAME.has(value) ? `item:${ID_TO_ITEM_NAME.get(value)}` : `item:${value}`;
+}
+
+/** A block id's catalogue key, so a grid and a recipe can be written the same way. Built once. */
+let ID_TO_BLOCK_KEY = null;
+function blockKeyFor(blockId) {
+  if (ID_TO_BLOCK_KEY === null) {
+    ID_TO_BLOCK_KEY = new Map();
+    for (const key of Object.keys(BLOCKS).sort()) {
+      const value = BLOCKS[key];
+      if (typeof value !== 'number') continue;
+      const name = BLOCK_DEFS[value]?.name;
+      if (!name) continue;
+      // Normalised the same way `blockHarvestData` normalises a block's name, so one block has one key
+      // everywhere: "Oak Planks" and `'oak_planks'` are the same thing.
+      const normalised = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      if (!ID_TO_BLOCK_KEY.has(value)) ID_TO_BLOCK_KEY.set(value, normalised);
+    }
+  }
+  return ID_TO_BLOCK_KEY.get(blockId);
+}
+/**
+ * The value `gridMultiset` reports for a cell: the block id for a block carried by id, otherwise the caller's
+ * own value. This is the PUBLIC shape of the multiset, used by tests and by the bot, so it stays in the
+ * caller's terms rather than in the tagged comparison space below.
  */
 function slotValue(cell) {
   if (!cell || !(cell.count > 0)) return null;
   const def = typeof cell.id === 'string' ? ITEMS[cell.id] : undefined;
   if (def && typeof def.blockId === 'number') return def.blockId;
-  if (typeof cell.id === 'string' && typeof BLOCKS[cell.id.toUpperCase()] === 'number') {
-    return BLOCKS[cell.id.toUpperCase()];
-  }
   return cell.id;
+}
+
+/** The tagged comparison key for a grid cell. */
+function matchValue(cell) {
+  if (!cell || !(cell.count > 0)) return null;
+  return canonicalSlotValue(cell.id, cellHoldsBlock(cell));
+}
+
+/**
+ * Does this cell hold a BLOCK rather than an item?
+ *
+ * An explicit `isBlock` decides when it is present, and that is the only way to be *sure*: the number 171 is
+ * both the `wheat` item and the Wheat Crops block, and no amount of inspection can tell those apart.
+ *
+ * When the flag is absent the id decides, in this order:
+ *
+ *   1. a **number** that is a registered block is a block. This is what the real inventory does -- a stack's
+ *      `isBlock` is set for block items -- and a caller that passes a numeric block id without the flag means
+ *      the block. Treating it as an item made every recipe unreachable for such a caller.
+ *   2. a **string** naming an `ITEMS` entry is that item (this is what keeps `'wheat'` from becoming the crop
+ *      through `BLOCKS['WHEAT']`, which is 171).
+ *   3. otherwise the `BLOCKS` lookup decides, which is what lets a recipe or grid write `'torch'` and mean the
+ *      block.
+ */
+function cellHoldsBlock(cell) {
+  if (cell.isBlock !== undefined) return Boolean(cell.isBlock);
+  if (typeof cell.id === 'number') return Boolean(BLOCK_DEFS[cell.id]);
+  if (ITEMS[cell.id]) return false;
+  return typeof BLOCKS[String(cell.id).toUpperCase()] === 'number';
+}
+
+/** The tagged comparison key for a recipe's own ingredient. */
+function ingredientValue(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'number') return canonicalSlotValue(value, true);
+  return canonicalSlotValue(value, false);
+}
+
+/** The grid as tagged comparison keys in sort order, for the shapeless match. */
+function matchMultiset(grid, width, height) {
+  const values = [];
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const v = matchValue(grid[r * width + c]);
+      if (v !== null) values.push(v);
+    }
+  }
+  return values.sort();
 }
 
 /**
@@ -374,8 +490,11 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
       // A shapeless recipe cannot need more items than the grid holds.
       const cells = width * height;
       if (ingredients.length > cells) continue;
-      if (multiset === null) multiset = gridMultiset(grid, width, height);
-      const normIng = ingredients.map(i => typeof i === 'string' && typeof BLOCKS[i.toUpperCase()] === 'number' ? BLOCKS[i.toUpperCase()] : i);
+      // The TAGGED keys, not the public multiset: the tagged space is what keeps an item id apart from a
+      // block id that happens to share the number.
+      if (multiset === null) multiset = matchMultiset(grid, width, height);
+      // The same normaliser the grid went through, so both sides speak one language.
+      const normIng = ingredients.map(ingredientValue);
       if (sameMultiset(multiset, [...normIng].sort())) return recipe.result;
       continue;
     }
@@ -387,34 +506,40 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
 
     if (patH !== shapeH || patW !== shapeW) continue;
 
-    let match = true;
-    for (let pr = 0; pr < patH; pr++) {
-      for (let pc = 0; pc < patW; pc++) {
-        const expected = pat[pr][pc];
-        const actualId = slotValue(grid[(minR + pr) * width + (minC + pc)]);
+    // Shaped recipes are matched in either orientation. The wiki: shaped recipes "can be made using the top,
+    // middle, or bottom row", and "can also be flipped horizontally, but not vertically." The trim above
+    // gives the first half of that; this gives the second. Without it the bow -- whose recipe is
+    // [null, stick, string] / [stick, null, string] / [null, stick, string] -- could not be made with the
+    // strings on the left, and 110 of the 1,230 multi-column shaped recipes were in the same position.
+    for (const mirrored of patW > 1 ? [false, true] : [false]) {
+      let match = true;
+      for (let pr = 0; pr < patH && match; pr++) {
+        for (let pc = 0; pc < patW; pc++) {
+          const expected = pat[pr][mirrored ? patW - 1 - pc : pc];
+          const actualId = matchValue(grid[(minR + pr) * width + (minC + pc)]);
 
-        if (expected === null && actualId !== null) {
-          match = false; break;
-        }
-        if (expected !== null) {
-          const expNorm = typeof expected === 'string' && typeof BLOCKS[expected.toUpperCase()] === 'number'
-            ? BLOCKS[expected.toUpperCase()] : expected;
-          if (actualId !== expNorm) {
-            match = false; break;
+          if (expected === null && actualId !== null) { match = false; break; }
+          if (expected !== null) {
+            const expNorm = ingredientValue(expected);
+            if (actualId !== expNorm) { match = false; break; }
           }
         }
       }
-      if (!match) break;
+      if (match) return recipe.result;
     }
-
-    if (match) return recipe.result;
   }
 
   return null;
 }
 
 // Core redstone recipes. Numeric entries are blocks; strings are inventory items.
-RECIPES_2X2.push({pattern:[['stick'],[BLOCKS.COBBLESTONE]],result:{id:BLOCKS.LEVER,isBlock:true,count:1}},{pattern:[['redstone'],['stick']],result:{id:BLOCKS.REDSTONE_TORCH,isBlock:true,count:1}},{pattern:[[BLOCKS.STONE]],result:{id:BLOCKS.STONE_BUTTON,isBlock:true,count:1}},{pattern:[[BLOCKS.STONE,BLOCKS.STONE]],result:{id:BLOCKS.PRESSURE_PLATE,isBlock:true,count:1}});
+//
+// The pressure plate was `[[BLOCKS.STONE, BLOCKS.STONE]] -> BLOCKS.PRESSURE_PLATE`, and `PRESSURE_PLATE` (69)
+// is a different block from `STONE_PRESSURE_PLATE` (446). Because `findMatchingRecipe` returns the FIRST
+// match and this list is spread near the start of `RECIPES_3X3`, two stone in a row produced the wrong block
+// and the correct stone pressure plate -- which the generated table already carries, with the same pattern
+// -- could never be crafted at all. The entry is gone and the generated one is what answers.
+RECIPES_2X2.push({pattern:[['stick'],[BLOCKS.COBBLESTONE]],result:{id:BLOCKS.LEVER,isBlock:true,count:1}},{pattern:[['redstone'],['stick']],result:{id:BLOCKS.REDSTONE_TORCH,isBlock:true,count:1}},{pattern:[[BLOCKS.STONE]],result:{id:BLOCKS.STONE_BUTTON,isBlock:true,count:1}});
 RECIPES_3X3.push(...RECIPES_2X2.slice(-4),{pattern:[[BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS,BLOCKS.OAK_PLANKS],[BLOCKS.COBBLESTONE,'iron_ingot',BLOCKS.COBBLESTONE],[BLOCKS.COBBLESTONE,'redstone',BLOCKS.COBBLESTONE]],result:{id:BLOCKS.PISTON,isBlock:true,count:1}},{pattern:[['slime_ball'],[BLOCKS.PISTON]],result:{id:BLOCKS.STICKY_PISTON,isBlock:true,count:1}},{pattern:[[BLOCKS.REDSTONE_TORCH,'redstone',BLOCKS.REDSTONE_TORCH],[BLOCKS.STONE,BLOCKS.STONE,BLOCKS.STONE]],result:{id:BLOCKS.REPEATER,isBlock:true,count:1}},{pattern:[['redstone','redstone','redstone'],['redstone','redstone','redstone'],['redstone','redstone','redstone']],result:{id:BLOCKS.REDSTONE_BLOCK,isBlock:true,count:1}});
 
 // Dyeing a bundle, vanilla's sixteen recipes. The plain bundle itself is in the generated table -- it is
@@ -440,7 +565,13 @@ RECIPES_2X2.push(
 // boat is planks in a shallow V. Powered rail adds redstone, as it does in
 // Minecraft, so a station can be built from scratch.
 RECIPES_3X3.push(
-  {pattern:[['iron_ingot',null,null],['iron_ingot','stick',null],['iron_ingot',null,null]],result:{id:'minecart',isBlock:false,count:1}},
+  // A second, unreachable "minecart" entry used to sit here:
+  //   [['iron_ingot', null, null], ['iron_ingot', 'stick', null], ['iron_ingot', null, null]]
+  // The `null` at row 1 column 2 makes the shape asymmetric by one cell, and the grid matcher trims to the
+  // bounding box -- so this keyed a 3x3 shape whose grid could never be laid out. The vanilla recipe is
+  // `[[iron_ingot, null, iron_ingot], [iron_ingot, iron_ingot, iron_ingot]]`, which the generated table
+  // already carries correctly. Nothing used the dead one, and a recipe that can never match is a claim that
+  // a player can craft something they cannot.
   {pattern:[[BLOCKS.CHEST],['minecart']],result:{id:'chest_minecart',isBlock:false,count:1}},
   {pattern:[[BLOCKS.FURNACE],['minecart']],result:{id:'furnace_minecart',isBlock:false,count:1}},
   {pattern:[[BLOCKS.HOPPER],['minecart']],result:{id:'hopper_minecart',isBlock:false,count:1}},
@@ -489,3 +620,5 @@ for (const recipe of EXTRA_RECIPES) {
 
 /** How many generated vanilla recipes were merged, for tests and reporting. */
 export const GENERATED_RECIPE_COUNT = EXTRA_RECIPES.length;
+
+

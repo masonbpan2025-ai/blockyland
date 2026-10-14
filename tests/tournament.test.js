@@ -1,3 +1,4 @@
+import { installTournamentProviders } from './helpers/tournamentProviders.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -67,6 +68,8 @@ function fixture() {
   };
   mobs.game = game;
 
+  installTournamentProviders(game);
+  mobs.game = game;
   return { game, mobs, entities, player, sounds };
 }
 
@@ -320,7 +323,7 @@ test('World Martial Arts Tournament map is Survival mode only and contains acces
   const path = await import('path');
   const { fileURLToPath } = await import('url');
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const savePath = path.resolve(__dirname, '..', 'designed_worlds', 'World_Martial_Arts_Tournament.json');
+  const savePath = path.resolve(__dirname, '..', 'src/mods/dragonball-tournament/maps', 'World_Martial_Arts_Tournament.json');
 
   assert.ok(fs.existsSync(savePath), 'Tournament map JSON should exist');
   const content = JSON.parse(fs.readFileSync(savePath, 'utf8'));
@@ -351,7 +354,7 @@ test('Player starts with fist in hand (no sword in hand) in both new world and t
   assert.equal(inv.storage.filter(Boolean).length, 0, 'and no storage slots are prefilled');
 
   // 2. Tournament Map
-  const savePath = path.resolve(__dirname, '..', 'designed_worlds', 'World_Martial_Arts_Tournament.json');
+  const savePath = path.resolve(__dirname, '..', 'src/mods/dragonball-tournament/maps', 'World_Martial_Arts_Tournament.json');
   const content = JSON.parse(fs.readFileSync(savePath, 'utf8'));
   assert.equal(content.inventory.activeSlot, 0, 'Tournament activeSlot must be 0');
   assert.equal(content.inventory.hotbar[0], null, 'Tournament hotbar slot 0 must be empty so player starts with fist');

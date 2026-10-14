@@ -118,7 +118,7 @@ test('Fire Shader: Injects procedural flame animation, color grading, and discar
 
   assert.ok(material.defaultAttributeValues.flame, 'Default attribute flame defined');
   assert.ok(material.defaultAttributeValues.flameUv, 'Default attribute flameUv defined');
-  assert.equal(material.customProgramCacheKey(), 'voxel-emission-wind-fire-v4');
+  assert.equal(material.customProgramCacheKey(), 'voxel-emission-wind-fire-snow-stable-shadows-v7');
 
   const shader = {
     uniforms: {},

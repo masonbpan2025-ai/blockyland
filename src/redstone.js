@@ -121,12 +121,16 @@ export class Redstone {
     this.mark(pos);
     for(const d of DIRECTIONS)this.mark(add(pos,d));
   }
+  strikeRod(p){
+    const s=this.state(p);if(s?.id!==B.LIGHTNING_ROD)return false;
+    s.until=this.tickNumber+4;s.output=15;this.mark(p);return true;
+  }
   tick(actors=[]){
     this.tickNumber++;const list=[...this.states.values()];
     for(const s of list){const old=s.output;
       if(s.id===B.LEVER)s.output=s.on?15:0;
       if(s.id===B.REDSTONE_BLOCK)s.output=15;
-      if(s.id===B.STONE_BUTTON||s.id===B.OBSERVER)s.output=(s.until||0)>this.tickNumber?15:0;
+      if(s.id===B.STONE_BUTTON||s.id===B.OBSERVER||s.id===B.LIGHTNING_ROD)s.output=(s.until||0)>this.tickNumber?15:0;
       if(s.id===B.TARGET_BLOCK)s.output=(s.until||0)>this.tickNumber?(s.hitPower||15):0;
       if(s.id===B.PRESSURE_PLATE)s.output=actors.some(a=>{const p=a.position||a.mesh?.position;return p&&Math.abs(p.x-s.p[0]-.5)<.7&&Math.abs(p.z-s.p[2]-.5)<.7&&p.y>=s.p[1]&&p.y<s.p[1]+.4;})?15:0;
       if(s.id===B.TRIPWIRE_HOOK){

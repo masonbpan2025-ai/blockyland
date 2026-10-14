@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "structure": "ruined_portal",
+  "seed": "20250401",
+  "chunk": [
+    10,
+    21
+  ],
+  "biome": "snowy_plains",
+  "box": {
+    "minX": 164,
+    "minY": 23,
+    "minZ": 340,
+    "maxX": 176,
+    "maxY": 29,
+    "maxZ": 353
+  },
+  "pieces": 1,
+  "blocks": {
+    "Dirt": 221,
+    "Netherrack": 170,
+    "Snow Block": 168,
+    "Obsidian": 14,
+    "Stone Bricks": 6,
+    "Cracked Stone Bricks": 6,
+    "Stone Brick Stairs": 5,
+    "Stone Brick Wall": 4,
+    "Crying Obsidian": 3,
+    "Stone Brick Slab": 2,
+    "Stone Slab": 2,
+    "Chiseled Stone Bricks": 2,
+    "Stone": 2,
+    "Chest": 1,
+    "Block of Gold": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

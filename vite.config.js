@@ -1,50 +1,35 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
-import { multiplayerPlugin } from './server/multiplayerVite.js';
-import { createWorldRelay } from './server/worldRelay.js';
+import { sharePlugin } from './server/shareVite.js';
+import { loadModTable } from './src/mods/manifestFile.js';
+import { modGamesPlugin } from './server/modGames.js';
 
-export function worldRelayPlugin() {
-  const relay = createWorldRelay({ path: '/ws/world-relay' });
-  const attach = (server) => {
-    if (server.httpServer) {
-      server.httpServer.on('upgrade', (req, socket, head) => {
-        relay.handleUpgrade(req, socket, head);
-      });
-      server.httpServer.once('close', () => {
-        relay.close();
-      });
+export function designedWorldFiles() {
+  const files = new Map();
+  const { mods } = loadModTable();
+  for (const mod of mods) {
+    for (const filename of mod.maps) {
+      const fullPath = path.resolve(mod.directory, 'maps', path.basename(filename));
+      if (fs.existsSync(fullPath)) files.set(filename, { fullPath, mod });
     }
-    server.middlewares.use((req, res, next) => {
-      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      if (url.pathname === '/api/world-relay/rooms' && req.method === 'GET') {
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ rooms: relay.getRooms() }));
-        return;
-      }
-      if (url.pathname.startsWith('/api/world-relay/room/') && req.method === 'GET') {
-        const roomId = url.pathname.slice('/api/world-relay/room/'.length).trim().toLowerCase();
-        const exists = relay.rooms.has(roomId);
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ exists, roomId, playerCount: exists ? relay.rooms.get(roomId).clients.size : 0 }));
-        return;
-      }
-      next();
-    });
-  };
-  return {
-    name: 'world-relay-server',
-    configureServer: attach,
-    configurePreviewServer: attach,
-  };
+  }
+  const legacyDir = path.resolve('designed_worlds');
+  if (fs.existsSync(legacyDir)) {
+    for (const filename of fs.readdirSync(legacyDir)) {
+      if (/\.(json|mcworld)$/.test(filename) && !files.has(filename)) files.set(filename, {fullPath: path.join(legacyDir, filename), mod: null});
+    }
+  }
+  return files;
 }
 
-
 export default defineConfig({
-  // The separately hosted multiplayer distribution contains its own HTML and
-  // prebuilt bundles. Keep Vite's dependency scanner on this game's entries.
+  // Test servers set VITE_CACHE_DIR so they do not share one dependency cache with a developer's own dev server: two Vite
+  // servers optimising into the same folder at once leave half-built `deps_temp_*` folders, and pages then hang waiting.
+  cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
+  // Keep Vite's dependency scanner on this game's entries.
   optimizeDeps: {
-    entries: ['index.html', 'multiplayer.html', 'mob-debug.html', 'resource-debug.html', 'structure-inspector.html']
+    entries: ['index.html', 'mob-debug.html', 'item-debug.html', 'block-debug.html', 'structure-inspector.html']
   },
   server: {
     host: '0.0.0.0',
@@ -52,8 +37,8 @@ export default defineConfig({
     open: false
   },
   plugins: [
-    multiplayerPlugin(),
-    worldRelayPlugin(),
+    sharePlugin(),
+    modGamesPlugin(),
     {
       name: 'map-storage-server',
       configureServer(server) {
@@ -75,11 +60,10 @@ export default defineConfig({
               if (!fs.existsSync(designedWorldsDir)) {
                 fs.mkdirSync(designedWorldsDir, { recursive: true });
               }
-              const files = fs.readdirSync(designedWorldsDir);
+              const files = designedWorldFiles();
               const worlds = [];
-              for (const file of files) {
+              for (const [file, {fullPath, mod}] of files) {
                 if (file.endsWith('.json') || file.endsWith('.mcworld')) {
-                  const fullPath = path.join(designedWorldsDir, file);
                   const stat = fs.statSync(fullPath);
                   let meta = {
                     name: file.replace(/\.(json|mcworld)$/, ''),
@@ -96,9 +80,10 @@ export default defineConfig({
                     meta = {
                       ...meta,
                       name: parsed.name || meta.name,
-                      description: parsed.description || (parsed.name === 'World Martial Arts Tournament' ? 'Authentic Tenkaichi Budokai arena with 4 training sites, Goku Ki skills (Kamehameha/Genki Dama), and top-down dungeon battle mode.' : ''),
-                      mechanism: parsed.mechanism || (parsed.name?.includes('Tournament') ? 'dragonball_tournament' : 'default'),
-                      mechanismName: parsed.mechanismName || (parsed.mechanism === 'dragonball_tournament' ? 'Dragon Ball World Tournament' : 'Custom Mechanism'),
+                      description: parsed.description || mod?.description || '',
+                      mechanism: parsed.mechanism || mod?.mechanism || 'default',
+                      mechanismName: parsed.mechanismName || mod?.name || 'Custom Mechanism',
+                      modId: mod?.id ?? null,
                       gamemode: parsed.player?.gamemode || 'survival',
                       chunkCount: parsed.chunks ? (Array.isArray(parsed.chunks) ? parsed.chunks.length : Object.keys(parsed.chunks).length) : 0,
                       structuresCount: parsed.gemini?.builtStructures?.length || 0
@@ -122,8 +107,8 @@ export default defineConfig({
           // 0b. Get single designed world file
           if (url.pathname.startsWith('/api/designed-worlds/') && req.method === 'GET') {
             const filename = decodeURIComponent(url.pathname.slice('/api/designed-worlds/'.length));
-            const fullPath = path.join(designedWorldsDir, path.basename(filename));
-            if (!fs.existsSync(fullPath)) {
+            const fullPath = designedWorldFiles().get(path.basename(filename))?.fullPath;
+            if (!fullPath || !fs.existsSync(fullPath)) {
               res.statusCode = 404;
               res.end(JSON.stringify({ error: 'Designed world not found' }));
               return;
@@ -269,9 +254,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         game: path.resolve('index.html'),
-        multiplayer: path.resolve('multiplayer.html'),
         mobDebug: path.resolve('mob-debug.html'),
-        resourceDebug: path.resolve('resource-debug.html'),
+        itemDebug: path.resolve('item-debug.html'),
+        blockDebug: path.resolve('block-debug.html'),
         structureInspector: path.resolve('structure-inspector.html')
       }
     },

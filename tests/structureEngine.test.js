@@ -266,7 +266,7 @@ test('the 1.21.4 registry validates against this game biome registry and the for
 });
 
 test('the registry carries the 20 vanilla structure sets with the wiki numbers', () => {
-  assert.equal(STRUCTURE_SETS.length, 20);
+  assert.equal(STRUCTURE_SETS.filter((set) => !set.feature).length, 20);
   const byName = Object.fromEntries(STRUCTURE_SETS.map((set) => [set.name, set]));
   // Spot-check the values that are easiest to get wrong and most damaging if wrong.
   assert.deepEqual(
@@ -334,11 +334,11 @@ function beachAdapter({ biome = 'beach', surface = 64 } = {}) {
   };
 }
 
-test('buried treasure generates at chunk-local 9,9 on the ocean floor', () => {
+test('buried treasure generates at chunk-local 9,9, buried one block under the ocean floor', () => {
   const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, ...beachAdapter() });
   const start = GENERATORS.buriedTreasure.generate({ seed: 1, chunkX: 3, chunkZ: -2, context: { surfaceY: () => 64 } });
   assert.equal(start.pieces.length, 1);
-  assert.deepEqual(start.pieces[0].box.toArray(), [3 * 16 + 9, 64, -2 * 16 + 9, 3 * 16 + 9, 64, -2 * 16 + 9]);
+  assert.deepEqual(start.pieces[0].box.toArray(), [3 * 16 + 9, 63, -2 * 16 + 9, 3 * 16 + 9, 63, -2 * 16 + 9]);
   assert.equal(start.pieces[0].meta.facing, 'east');
   assert.equal(engine, engine, 'engine construction must not throw');
 });
@@ -383,7 +383,9 @@ test('planning is deterministic and independent of the order chunks are asked ab
   }
   const planned = [...forwardHashes.values()].filter((hash) => hash !== null);
   assert.ok(planned.length > 0, 'the sample must contain at least one structure');
-  assert.ok(planned.length < 60, `expected roughly 1% of 600 chunks, got ${planned.length}`);
+  // Buried treasure is 1%; features of any biome (geodes, 1 in 24) also start in some of these chunks.
+  const treasure = chunks.filter((chunk) => forward.planChunk(chunk, 0)?.structureId === 'buried_treasure').length;
+  assert.ok(treasure < 20, `expected roughly 1% of 600 chunks to hold buried treasure, got ${treasure}`);
 });
 
 test('a different seed moves the placement candidates', () => {
@@ -420,7 +422,7 @@ test('realization writes the chest only into the requested chunk', () => {
   engine.realize(start, setBlock);
   assert.equal(written.length, 1);
   assert.equal(written[0].id, BLOCKS.CHEST);
-  assert.equal(written[0].meta.lootTable, 'chests/buried_treasure');
+  assert.equal(written[0].meta.lootTable, 'minecraft:chests/buried_treasure');
 
   // Clipped to a neighbouring chunk, the same start writes nothing.
   const clipped = [];

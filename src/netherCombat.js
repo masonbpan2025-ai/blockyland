@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { igniteActor } from './heat.js';
+import { exposedToRain } from './weatherRules.js';
 import { applyCubeSize } from './cubeMobBehavior.js';
 
 function attackDamage(manager, base) {
@@ -77,9 +78,7 @@ export function updateBlaze(manager, mob, player, dt) {
   mob.wetTimer=(mob.wetTimer || 0)-dt;
   const x=Math.floor(pos.x),z=Math.floor(pos.z);
   const water=[.1,.9,1.7].some(h=>world.getVoxel(x,Math.floor(pos.y+h),z)===BLOCKS.WATER);
-  const weather=manager.game?.weather?.weatherType;
-  let rain=world.dimension!=='nether' && ['rain','thunder'].includes(weather);
-  if(rain)for(let y=Math.ceil(pos.y+1.8);y<128;y++)if(manager.isBlockSolid(x,y,z)){rain=false;break;}
+  const rain=exposedToRain(manager.game?.weather,world,{x:pos.x,y:pos.y+1.8,z:pos.z});
   if((water||rain)&&mob.wetTimer<=0){manager.damageMob(mob,1,null,false,null,true);mob.wetTimer=.5;}
   const powder=world.getVoxel(x,Math.floor(pos.y+.2),z)===BLOCKS.POWDER_SNOW;
   mob.freezeTime=powder?(mob.freezeTime || 0)+dt:Math.max(0,(mob.freezeTime||0)-dt*2);

@@ -1,154 +1,125 @@
-// Pillager outpost tests: the first structure driven by the jigsaw engine.
-//
-// What matters here is the POOL GRAPH, not the tower's dimensions: that the base plate offers connectors, the
-// engine joins a watchtower to one and features to the others, every piece is connected, and the pieces do
-// not overlap. A structure built by an engine with a joining bug looks like a pile of unrelated parts.
+// Pillager outpost: the wiki's watchtower and feature blueprints on the jigsaw engine. The fact card (O1-O7 + W1) is
+// in src/structureAuditCards.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  generatePillagerOutpost, realizePillagerOutpost, buildOutpostPart, createOutpostPools, OUTPOST_POOLS
+  generatePillagerOutpost, realizePillagerOutpost, buildOutpostPart, createOutpostPools, OUTPOST_POOLS, FEATURES,
+  MAX_FEATURES, OUTPOST_PILLAGERS
 } from '../src/worldgen/generators/pillagerOutpost.js';
 import { createStructureEngine, GENERATORS, generatorCoverage } from '../src/worldgen/index.js';
 import { StructureTemplate } from '../src/worldgen/template.js';
+import { BlockBox } from '../src/worldgen/geometry.js';
+import { auditStructure } from '../src/structureAudit.js';
+import { STRUCTURE_AUDIT_CARDS } from '../src/structureAuditCards.js';
 import { BLOCKS } from '../src/blocks.js';
-import { createBlockIdResolver } from '../src/worldgen/blockIds.js';
 
-const plains = { biomeAt: () => 'plains', surfaceY: () => 70 };
+const plains = { biomeAt: () => 'plains', surfaceY: () => 40 };
+const counts = (data) => {
+  const out = {};
+  for (const b of data.blocks) { const n = data.palette[b.state].Name.replace('minecraft:', ''); out[n] = (out[n] ?? 0) + 1; }
+  return out;
+};
 
-test('the outpost is registered, and its pool graph is complete', () => {
+test('the outpost is registered as a jigsaw structure with a tower pool and a 1-in-13 feature pool', () => {
   assert.ok(generatorCoverage().implemented.includes('pillager_outpost'));
   assert.ok(GENERATORS.pillagerOutpost.realize);
-  const engine = createStructureEngine({ seed: 1, blockIds: BLOCKS, ...plains });
-  assert.equal(engine.registry.pillager_outpost.terrainAdaptation, 'beard_thin');
-  assert.equal(engine.registry.pillager_outpost.family, 'jigsaw');
-
   const pools = createOutpostPools();
-  for (const id of Object.values(OUTPOST_POOLS)) assert.ok(pools.resolve(id), `${id} is missing from the graph`);
-  // The base plate must point at both other pools, or the structure can never grow past its plate.
-  const base = buildOutpostPart('base_plate');
-  const basePools = new Set(base.blocks.filter((block) => block.nbt?.pool).map((block) => block.nbt.pool));
-  assert.ok(basePools.has(OUTPOST_POOLS.tower), 'the plate must accept a watchtower');
-  assert.ok(basePools.has(OUTPOST_POOLS.features), 'the plate must accept features');
+  assert.equal(pools.resolve(OUTPOST_POOLS.tower).elements.length, 1);
+  const features = pools.resolve(OUTPOST_POOLS.features);
+  assert.equal(features.elements.reduce((s, e) => s + e.weight, 0), 13);
+  assert.deepEqual(features.elements.filter((e) => !e.isEmpty).map((e) => e.name).sort(), Object.keys(FEATURES).sort());
 });
 
-test('every part is well formed inside its own size', () => {
-  for (const part of ['base_plate', 'watchtower', 'cage', 'cage_golem', 'tent', 'log']) {
-    const template = new StructureTemplate(buildOutpostPart(part), part);
-    assert.ok(template.blockCount > 0, `${part} has no blocks`);
-    for (const block of template.blocks) {
-      const [x, y, z] = block.pos;
-      const [sx, sy, sz] = template.size;
-      assert.ok(x >= 0 && x < sx && y >= 0 && y < sy && z >= 0 && z < sz,
-        `${part}: block ${block.pos} is outside ${template.size}`);
-    }
-    // Every part except the plate must offer a connector, or it can never be joined.
-    if (part !== 'base_plate') {
-      assert.ok(template.jigsaws().length > 0, `${part} has no jigsaw connector`);
-    }
-  }
-  assert.throws(() => buildOutpostPart('not_a_part'), /unknown pillager outpost part/);
+test('the watchtower is the wiki blueprint (its materials table), with 15 feature connectors', () => {
+  const tower = buildOutpostPart('watchtower');
+  const n = counts(tower);
+  assert.deepEqual([n.dark_oak_log, n.birch_planks, n.dark_oak_fence, n.dark_oak_slab, n.cobblestone_stairs, n.dark_oak_stairs, n.cobblestone_wall, n.cobblestone_slab, n.white_wall_banner, n.chest],
+    [144, 244, 48, 45, 33, 16, 8, 4, 8, 1]);
+  assert.equal((n.torch ?? 0) + (n.wall_torch ?? 0), 4);
+  // Where the drawing and the table differ, the drawing is followed (pinned so a wiki edit shows up here).
+  assert.equal(n.dark_oak_planks, 393, 'the table says 347');
+  assert.equal(n.cobblestone, 208, 'the table says 207');
+  assert.equal(new StructureTemplate(tower, 'tower').jigsaws().length, 15);
+  assert.equal(tower.entities.length, OUTPOST_PILLAGERS);
+  assert.equal(tower.entities.filter((e) => e.nbt.patrolLeader).length, 1);
 });
 
-test('the engine joins a tower and features onto the plate, and everything is connected', () => {
-  const start = generatePillagerOutpost({ seed: 4242, chunkX: 2, chunkZ: 2, context: plains });
-  assert.ok(start.pieces.length >= 3, `expected a plate plus joins, got ${start.pieces.length} pieces`);
-  assert.equal(start.meta.connected, true, 'a disconnected outpost is a pile of parts, not a structure');
-  // The plate is first, and it is the root of every other piece.
-  assert.equal(start.pieces[0].meta.element, 'base_plate');
-  for (const piece of start.pieces.slice(1)) {
-    assert.equal(piece.parentIndex, start.pieces[0].index, `${piece.meta.element} is not joined to the plate`);
-    assert.equal(piece.isJigsaw, true);
-  }
-  // The tower must have been chosen for the tower connector, not left out.
-  assert.ok(start.meta.partMix.includes('watchtower'), `parts were ${start.meta.partMix.join(',')}`);
-  // No two pieces may overlap: the joining maths is what keeps them apart.
-  for (const piece of start.pieces) {
-    for (const other of start.pieces) {
-      if (piece === other) continue;
-      assert.equal(piece.box.intersects(other.box), false, `${piece.meta.element} overlaps ${other.meta.element}`);
-    }
-  }
-});
-
-test('the outpost is deterministic and its parts vary with the seed', () => {
-  const first = generatePillagerOutpost({ seed: 77, chunkX: 5, chunkZ: -5, context: plains });
-  const again = generatePillagerOutpost({ seed: 77, chunkX: 5, chunkZ: -5, context: plains });
-  assert.deepEqual(first.pieces.map((piece) => piece.box.toArray()), again.pieces.map((piece) => piece.box.toArray()));
-  assert.deepEqual(first.meta.partMix, again.meta.partMix);
-
-  // The feature pool is WEIGHTED, so the mix must vary across seeds. This assertion previously FAILED, and
-  // the cause was my base plate being too small: at 9x9 the 5x5 tower left two blocks of margin, so every
-  // cage and tent candidate was rejected as a collision and only the 1x1 log ever fit -- which looked exactly
-  // like a broken weighted draw. The engine's try-and-retry was correct throughout. The plate is now 15x15
-  // and variety is real, so this is asserted again rather than weakened.
-  const allowed = new Set(['base_plate', 'watchtower', 'cage', 'cage_golem', 'tent', 'log']);
-  const mixes = new Set();
-  let sawFeatureVariety = false;
-  for (let chunkX = 0; chunkX < 60; chunkX++) {
-    const start = generatePillagerOutpost({ seed: 9, chunkX, chunkZ: 0, context: plains });
-    for (const part of start.meta.partMix) assert.ok(allowed.has(part), `unexpected outpost part "${part}"`);
-    mixes.add(start.meta.partMix.join('|'));
-    // At least one feature must be something other than the highest-weight log, or the weighting is inert.
-    if (start.meta.partMix.some((part) => part === 'cage' || part === 'cage_golem' || part === 'tent')) sawFeatureVariety = true;
-    // A plate wide enough for its features means nothing has to be rejected.
-    assert.equal(start.meta.diagnostics.rejectedByCollision, 0,
-      `chunk ${chunkX} needed a collision rejection, so the plate is too small for its features`);
-  }
-  assert.ok(mixes.size > 1, 'the feature pool is weighted, so different seeds must produce different mixes');
-  assert.ok(sawFeatureVariety, 'the weighted draw must sometimes pick something other than the heaviest element');
-});
-
-test('realization writes every piece, spawns the tower occupants, and resolves all ids', () => {
-  const start = generatePillagerOutpost({ seed: 11, chunkX: 3, chunkZ: 3, context: plains });
-  const writes = [];
-  const spawned = [];
-  const report = realizePillagerOutpost(start, (x, y, z, id, meta) => { writes.push({ x, y, z, id, meta }); return true; }, BLOCKS, {
-    spawnMob: (type, x, y, z) => { spawned.push({ type, x, y, z }); return true; }
-  });
-
-  assert.ok(report.written > 100, `expected an outpost's worth of blocks, wrote ${report.written}`);
-  assert.equal(report.pieces, start.pieces.length);
-  assert.deepEqual(report.missingBlocks, [], `unresolved: ${report.missingBlocks}`);
-  assert.ok(writes.every((write) => typeof write.id === 'number'));
-
-  // The tower's pillager and any caged golem are entities, not blocks.
-  assert.ok(spawned.some((entry) => entry.type === 'pillager'), 'the watchtower holds a pillager');
-  assert.ok(spawned.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.y) && Number.isFinite(entry.z)));
-  assert.match(report.note, /area-spawns pillagers/);
-
-  // The chest must carry its loot table, as in every other structure with loot.
-  const chestId = createBlockIdResolver(BLOCKS).resolve('minecraft:chest');
-  assert.ok(writes.some((write) => write.id === chestId), 'the tower platform holds a chest');
-});
-
-test('realization is deterministic and each piece writes inside its own box', () => {
-  const start = generatePillagerOutpost({ seed: 21, chunkX: -3, chunkZ: 2, context: plains });
-  const collect = () => {
-    const out = [];
-    realizePillagerOutpost(start, (x, y, z, id) => { out.push(`${x},${y},${z},${id}`); return true; }, BLOCKS);
-    return out;
+test('every feature is its blueprint, well formed, with one connector; cages hold their mobs', () => {
+  const want = {
+    feature_cage: { dark_oak_log: 12, dark_oak_fence: 24, dark_oak_slab: 4, dark_oak_stairs: 8 },
+    feature_cage_allay: { dark_oak_log: 12, dark_oak_fence: 28, dark_oak_slab: 4, dark_oak_stairs: 8 },
+    feature_logs: { dark_oak_log: 21 }
   };
-  assert.deepEqual(collect(), collect());
+  for (const name of Object.keys(FEATURES)) {
+    const data = buildOutpostPart(name);
+    const template = new StructureTemplate(data, name);
+    assert.equal(template.jigsaws().length, 1, name);
+    for (const b of template.blocks) {
+      const [x, y, z] = b.pos;
+      assert.ok(x >= 0 && y >= 0 && z >= 0 && x < template.size[0] && y < template.size[1] && z < template.size[2], `${name}: ${b.pos}`);
+    }
+    if (want[name]) { const n = counts(data); for (const [block, c] of Object.entries(want[name])) assert.equal(n[block], c, `${name} ${block}`); }
+  }
+  assert.deepEqual(buildOutpostPart('feature_cage').entities.map((e) => e.nbt.type), ['iron_golem']);
+  assert.deepEqual(buildOutpostPart('feature_cage_allay').entities.map((e) => e.nbt.type), ['allay', 'allay']);
+  assert.throws(() => buildOutpostPart('base_plate'), /unknown pillager outpost part/);
+});
 
-  const writes = [];
-  realizePillagerOutpost(start, (x, y, z, id) => { writes.push({ x, y, z }); return true; }, BLOCKS);
-  for (const write of writes) {
-    assert.ok(start.pieces.some((piece) => piece.box.contains(write.x, write.y, write.z)),
-      `block ${write.x},${write.y},${write.z} is outside every piece box`);
+test('a tower always, at most four features, none overlapping', () => {
+  const featureCounts = new Set();
+  for (let seed = 1; seed <= 80; seed++) {
+    const start = generatePillagerOutpost({ seed, chunkX: seed * 5, chunkZ: -seed, context: plains });
+    assert.equal(start.meta.partMix[0], 'watchtower');
+    assert.ok(start.meta.features <= MAX_FEATURES);
+    featureCounts.add(start.meta.features);
+    for (const a of start.pieces) for (const b of start.pieces) if (a !== b) assert.equal(a.box.intersects(b.box), false);
+  }
+  assert.ok(featureCounts.size >= 2, `feature counts vary: ${[...featureCounts]}`);
+});
+
+test('realization writes every piece, resolves every block, spawns once per mob even chunk by chunk', () => {
+  const start = generatePillagerOutpost({ seed: 9, chunkX: 4, chunkZ: 4, context: plains });
+  const whole = realizePillagerOutpost(start, () => true, BLOCKS);
+  assert.deepEqual(whole.missingBlocks, []);
+  assert.equal(whole.spawned.filter((s) => s.type === 'pillager').length, 8);
+  const perChunk = [];
+  for (let cx = Math.floor(start.box.minX / 16); cx <= Math.floor(start.box.maxX / 16); cx++) {
+    for (let cz = Math.floor(start.box.minZ / 16); cz <= Math.floor(start.box.maxZ / 16); cz++) {
+      realizePillagerOutpost(start, () => true, BLOCKS, { clip: BlockBox.columnOfChunk(cx, cz, -64, 320), spawnMob: (t, x, y, z) => perChunk.push(`${t}@${x},${y},${z}`) });
+    }
+  }
+  assert.equal(perChunk.length, whole.spawned.length);
+  assert.equal(new Set(perChunk).size, perChunk.length);
+});
+
+test('every fact on the card passes, in flat and real-world mode', async () => {
+  for (const [mode, seed] of [['flat', 20250401], ['world', 2024], ['world', 7]]) {
+    const result = await auditStructure('pillager_outpost', { mode, seed });
+    assert.deepEqual(result.rows.filter((r) => r.status === 'fail').map((r) => `${r.id}: ${r.detail}`), [], `${mode} ${seed}`);
   }
 });
 
-test('the engine plans an outpost through the real placement path', () => {
-  const engine = createStructureEngine({ seed: 4242, blockIds: BLOCKS, ...plains });
+test('SENSITIVITY: a missing captain, a missing caged golem or an extra feature fail the card', async () => {
+  const card = STRUCTURE_AUDIT_CARDS.pillager_outpost;
+  const fact = (id) => card.facts.find((f) => f.id === id);
+  const o = (await auditStructure('pillager_outpost', { mode: 'flat', seed: 20250401 })).observation;
+  const noCaptain = { ...o, spawnsOf: (t) => o.spawnsOf(t).map((s) => ({ ...s, options: { ...s.options, patrolLeader: false } })) };
+  assert.equal(fact('O6').check(noCaptain).ok, false);
+  const extraCage = { ...o, start: { ...o.start, meta: { ...o.start.meta, partMix: [...o.start.meta.partMix, 'feature_cage'] } } };
+  assert.equal(fact('O5').check(extraCage).ok, false);
+  assert.equal((await fact('O3').check({ ...extraCage, start: { ...o.start, meta: { ...o.start.meta, partMix: ['watchtower', 'a', 'b', 'c', 'd', 'e'] } } })).ok, false);
+});
+
+test('generation is deterministic and the engine plans an outpost through the real placement path', () => {
+  const a = generatePillagerOutpost({ seed: 31, chunkX: 2, chunkZ: 7, context: plains });
+  const b = generatePillagerOutpost({ seed: 31, chunkX: 2, chunkZ: 7, context: plains });
+  assert.deepEqual(a.pieces.map((p) => p.box.toArray()), b.pieces.map((p) => p.box.toArray()));
+  const engine = createStructureEngine({ seed: 31337, blockIds: BLOCKS, ...plains });
   let plan = null;
   for (let chunkX = 0; chunkX < 3000 && !plan; chunkX++) {
     const candidate = engine.planChunk(chunkX, 0);
-    if (candidate && candidate.structureId === 'pillager_outpost') plan = candidate;
+    if (candidate?.structureId === 'pillager_outpost') plan = candidate;
   }
-  assert.ok(plan, 'spacing 32 must yield an outpost within 3000 chunks');
-  assert.equal(plan.set, 'pillager_outposts');
-  let written = 0;
-  engine.realize(plan.start, () => { written++; return true; }, { chunkX: plan.start.chunkX, chunkZ: plan.start.chunkZ });
-  assert.ok(written > 0, 'the engine must realize the outpost it planned');
+  assert.ok(plan);
 });

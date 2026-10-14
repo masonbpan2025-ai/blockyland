@@ -178,6 +178,28 @@ export function camelStand(mob, clearance = Infinity) {
  *
  * Returns 'sat', 'stood', 'blocked' or null.
  */
+/**
+ * The horizontal velocity of a camel running away from the blow that harmed it.
+ *
+ * Wiki: a camel "immediately flee[s] after being harmed, even when sitting". The hurt code records where the blow
+ * came from (`fleeFrom`) and how long to run (`fleeTime`); this turns the first into a direction, at sprint speed.
+ * The wiki gives no flight speed, so the sprint speed is used.
+ *
+ * @param {{x:number,z:number}} position the camel
+ * @param {{x:number,z:number}} fleeFrom where the harm came from
+ * @param {number} speed blocks per second
+ * @returns {{x:number,z:number}|null} null when there is nowhere to run from
+ */
+export function camelFleeVelocity(position, fleeFrom, speed = CAMEL_SPEED.sprint) {
+  if (!position || !fleeFrom) return null;
+  const dx = position.x - fleeFrom.x;
+  const dz = position.z - fleeFrom.z;
+  const length = Math.hypot(dx, dz);
+  // Directly on top of the blow there is no "away", so it runs along +x rather than standing still.
+  if (length < 1e-6) return { x: speed, z: 0 };
+  return { x: (dx / length) * speed, z: (dz / length) * speed };
+}
+
 export function updateCamelSitting(mob, dt, {
   clearance = Infinity, random = Math.random, alerted = false, fleeing = false, tempted = false
 } = {}) {

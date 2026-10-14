@@ -273,7 +273,7 @@ export class FishingController {
     const bx = Math.floor(this.bobber.position.x);
     const by = Math.floor(this.bobber.position.y);
     const bz = Math.floor(this.bobber.position.z);
-    return { exposedToSky: this.exposedToSky(bx, by, bz), raining: this.rainingAt(bx, bz) };
+    return { exposedToSky: this.exposedToSky(bx, by, bz), raining: this.rainingAt(bx, bz, this.bobber.position.y) };
   }
 
   /** Walk up from the bobber; anything opaque to sky light ends direct exposure. */
@@ -291,8 +291,9 @@ export class FishingController {
     return true;
   }
 
-  rainingAt(bx, bz) {
+  rainingAt(bx, bz, y=this.bobber?.position.y??22) {
     const weather = this.game.weather;
+    if(weather?.isRainingAt)return weather.isRainingAt(bx,y,bz);
     if (!weather?.isRaining?.()) return false;
     // Wiki: the bobber must be "located in a biome where it is currently raining".
     const biome = this.game.world.getBiome?.(bx, bz);

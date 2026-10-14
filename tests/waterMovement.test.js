@@ -45,22 +45,38 @@ test('the ladder keeps its precedence', () => {
   assert.equal(mover({ blocking: true, sprinting: true }).selectBaseSpeed(), 1.3, 'blocking wins over sprinting');
 });
 
-test('water applies the 0.65 penalty', () => {
-  const expected = 4.3 * 0.65;
-  assert.ok(Math.abs(mover({ inWater: true }).selectBaseSpeed() - expected) < 1e-9,
-    'expected ' + expected);
+// Swimming article: "Surface of still water: 2.20" blocks/s, "Partially submerged: 1.97". These replace the old
+// flat 0.65 x walking penalty (2.8 blocks/s), which made swimming faster than the wiki says.
+test('swimming speed is the wiki figure: 2.20 at the surface, 1.97 with the head under', () => {
+  assert.equal(mover({ inWater: true }).selectBaseSpeed(), 2.2, 'surface');
+  const under = mover({ inWater: true });
+  under.headInWater = true;
+  assert.equal(under.selectBaseSpeed(), 1.97, 'submerged');
 });
 
-test('depth strider reduces the water penalty, per level', () => {
+test('sprinting at the surface does not outrun swimming: the land sprint speed is not used in water', () => {
+  assert.equal(mover({ inWater: true, sprinting: true }).selectBaseSpeed(), 2.2);
+});
+
+test('sprint-swimming is 3.918 m/s, and 5.305 with Depth Strider III', () => {
+  const swimmer = mover({ inWater: true });
+  swimmer.isSwimming = true;
+  assert.ok(Math.abs(swimmer.selectBaseSpeed() - 3.918) < 1e-9, 'plain sprint-swim');
+  const strider = mover({ inWater: true, armor: boots(3) });
+  strider.isSwimming = true;
+  assert.ok(Math.abs(strider.selectBaseSpeed() - 5.305) < 1e-9, 'with Depth Strider III');
+});
+
+test('depth strider adds a third of the gap to walking speed per level', () => {
+  // Water: Depth Strider "increases water movement efficiency by 1/3". At III the gap is closed.
   for (const level of [1, 2, 3]) {
     const p = mover({ inWater: true, armor: boots(level) });
-    const expected = 4.3 * 0.65 * depthStriderMultiplier(level);
+    const expected = 2.2 + (4.3 - 2.2) * (level / 3);
     assert.ok(Math.abs(p.selectBaseSpeed() - expected) < 1e-9,
       'level ' + level + ': expected ' + expected + ', got ' + p.selectBaseSpeed());
   }
-  // Level III is where the penalty is gone: the water speed exceeds the land speed.
   const three = mover({ inWater: true, armor: boots(3) }).selectBaseSpeed();
-  assert.ok(three > 4.3, 'level III should be faster than walking, got ' + three);
+  assert.ok(Math.abs(three - 4.3) < 1e-9, 'level III swims at walking speed, got ' + three);
 });
 
 test('depth strider is clamped above level III', () => {
@@ -79,7 +95,7 @@ test('depth strider changes nothing on land or in the air', () => {
 test('dolphins grace multiplies the water speed and stacks with depth strider', () => {
   const grace = new Map([['dolphins_grace', { duration: 10 }]]);
   const plain = mover({ inWater: true, effects: grace }).selectBaseSpeed();
-  assert.ok(Math.abs(plain - 4.3 * 0.65 * 2.2) < 1e-9, 'expected ' + (4.3 * 0.65 * 2.2));
+  assert.ok(Math.abs(plain - 2.2 * 2.2) < 1e-9, 'expected ' + (2.2 * 2.2));
   const both = mover({ inWater: true, effects: grace, armor: boots(3) }).selectBaseSpeed();
   assert.ok(both > plain, 'the two effects should add up');
 });
@@ -102,7 +118,7 @@ test('malformed armour does not break the speed calculation', () => {
   for (const armor of [null, {}, { feet: null }, { feet: {} }, { feet: { enchantments: null } },
     { feet: { enchantments: [null, {}] } }]) {
     const p = mover({ inWater: true, armor });
-    assert.equal(p.selectBaseSpeed(), 4.3 * 0.65,
+    assert.equal(p.selectBaseSpeed(), 2.2,
       'armour ' + JSON.stringify(armor) + ' should behave like no depth strider');
   }
 });

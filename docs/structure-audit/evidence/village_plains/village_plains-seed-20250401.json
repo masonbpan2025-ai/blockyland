@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "structure": "village_plains",
+  "seed": "20250401",
+  "chunk": [
+    11,
+    18
+  ],
+  "biome": "plains",
+  "box": {
+    "minX": 152,
+    "minY": 15,
+    "minZ": 271,
+    "maxX": 225,
+    "maxY": 50,
+    "maxZ": 368
+  },
+  "pieces": 23,
+  "blocks": {
+    "Stone": 45233,
+    "Dirt": 23600,
+    "Grass Block": 7364,
+    "Coal Ore": 1748,
+    "Oak Leaves": 1499,
+    "Iron Ore": 1465,
+    "Gold Ore": 1260,
+    "Redstone Ore": 509,
+    "Oak Planks": 479,
+    "Oak Log": 444,
+    "Cobblestone": 435,
+    "Oak Stairs": 405,
+    "Dirt Path": 324,
+    "Water": 89,
+    "White Terracotta": 84,
+    "Poppy": 79,
+    "Dandelion": 78,
+    "Oak Fence": 77,
+    "Moist Farmland": 54,
+    "Wall Torch": 47,
+    "Glass Pane": 37,
+    "Stripped Oak Log": 28,
+    "Oak Door": 20,
+    "Smooth Stone Slab": 20,
+    "Cobblestone Stairs": 18,
+    "Wheat Crops": 16,
+    "Short Grass": 15,
+    "Carrots": 14,
+    "Potatoes": 12,
+    "Beetroots": 12,
+    "Cobblestone Wall": 6,
+    "Hay Block": 5,
+    "Oak Slab": 5,
+    "White Bed": 5,
+    "White Bed Head": 5,
+    "Oak Trapdoor": 4,
+    "Torch": 4,
+    "Stripped Oak Wood": 3,
+    "Composter": 2,
+    "Bell": 2,
+    "Chest": 2,
+    "Loom": 2,
+    "Yellow Wool": 2,
+    "Furnace": 2,
+    "Lava": 2,
+    "Iron Bars": 2,
+    "Yellow Bed": 1,
+    "Yellow Bed Head": 1,
+    "Oak Pressure Plate": 1,
+    "Smithing Table": 1,
+    "Tall Grass": 1,
+    "White Carpet": 1,
+    "Yellow Carpet": 1,
+    "Grindstone": 1,
+    "Smooth Stone": 1,
+    "Smoker": 1
+  },
+  "loot": {
+    "chests": 2,
+    "empty": 1,
+    "totals": [
+      {
+        "name": "potato",
+        "count": 5
+      },
+      {
+        "name": "carrot",
+        "count": 4
+      },
+      {
+        "name": "oak_sapling",
+        "count": 3
+      },
+      {
+        "name": "wheat_seeds",
+        "count": 2
+      }
+    ]
+  },
+  "entities": {
+    "chest": 2,
+    "door": 10,
+    "bed": 6,
+    "mob": 12
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

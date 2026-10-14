@@ -1,123 +1,81 @@
-// Clean-room igloo templates.
+// The igloo's two templates, from the wiki's blueprint (https://minecraft.wiki/w/Igloo/Structure, converted by
+// scripts/generate-structure-blueprints.mjs): `igloo/top` is the drawing's layers 0 to 4 (the snow dome on the
+// ground), `igloo/bottom` its layers -23 to -1 (the ladder shaft and the stone-brick basement).
 //
-// PROVENANCE, which matters here: this repository ships no Minecraft assets, so these are NOT vanilla's
-// `igloo/top`, `igloo/middle` and `igloo/bottom` files. They are independently built from the layout the
-// wiki describes (a snow dome a few blocks across with a trapdoor, and, half the time, a stone-brick
-// basement holding a villager and a zombie villager behind iron bars with the makings of a cure). Every
-// dimension here is an approximation of the described structure, and STRUCTURE_PARITY.md records the igloo
-// as `PARTIAL` for exactly this reason: it generates, deterministically and in the right biome, with the
-// right contents, but its geometry is not block-for-block vanilla.
+// Both templates use the full drawing's x/z frame (7 x 10), so the two line up when placed at the same x/z with the
+// same rotation: the ladder comes down exactly under the trapdoor.
 //
-// The templates are BUILT BY CODE rather than typed as literal block lists. Two reasons: a 7x5x7 dome is
-// ~40 blocks and a basement is ~120, so literals would be a wall of numbers nobody can review; and the
-// shapes are regular enough that a loop states the intent more clearly than the data would.
+// From the pages:
+//   * igloos without a basement have "a snow block in place of the trapdoor" (95 snow blocks instead of 94);
+//   * the basement's cauldron is "two-thirds full of water" (water cauldron, level 2);
+//   * some stone bricks are infested (2 chiseled, 1 mossy, 6 plain: the materials table). The drawing does not mark
+//     which, so they are chosen at random per igloo;
+//   * a villager and a zombie villager, both clerics, are confined behind iron bars.
 
-/**
- * The snow dome: a 7x5x7 shell with a doorway, a hollow interior and a torch.
- *
- * Palette indices are local to each template, as they are in vanilla: index 0 is the first entry.
- */
-export function buildIglooTop() {
-  const size = [7, 5, 7];
-  const palette = [
-    { Name: 'minecraft:air' },
-    { Name: 'minecraft:snow_block' },
-    { Name: 'minecraft:oak_trapdoor', Properties: { facing: 'north', half: 'bottom', open: 'false', powered: 'false', waterlogged: 'false' } },
-    { Name: 'minecraft:torch' }
-  ];
-  const blocks = [];
-  const set = (x, y, z, state) => { if (x >= 0 && x < 7 && y >= 0 && y < 5 && z >= 0 && z < 7) blocks.push({ pos: [x, y, z], state }); };
+import { STRUCTURE_BLUEPRINTS } from '../generators/structureBlueprintData.js';
+import { LegacyRandom } from '../random.js';
 
-  // Floor.
-  for (let x = 0; x < 7; x++) for (let z = 0; z < 7; z++) set(x, 0, z, 1);
+const BLUEPRINT = STRUCTURE_BLUEPRINTS.igloo;
+const GROUND = -BLUEPRINT.minLayer; // the drawing's layer 0 (ground) as a y in the full drawing
+export const IGLOO_BASEMENT_DEPTH = GROUND;
+/** The infested blocks the materials table counts, by the block they disguise. */
+export const IGLOO_INFESTED = { 'minecraft:chiseled_stone_bricks': ['minecraft:infested_chiseled_stone_bricks', 2], 'minecraft:mossy_stone_bricks': ['minecraft:infested_mossy_stone_bricks', 1], 'minecraft:stone_bricks': ['minecraft:infested_stone_bricks', 6] };
 
-  // Shell: the radius shrinks with height, which is what makes it read as a dome rather than a box.
-  const radiusAt = [3, 3, 2, 1, 0];
-  for (let y = 1; y < 5; y++) {
-    const r = radiusAt[y];
-    for (let x = 3 - r; x <= 3 + r; x++) {
-      for (let z = 3 - r; z <= 3 + r; z++) {
-        const edge = x === 3 - r || x === 3 + r || z === 3 - r || z === 3 + r;
-        set(x, y, z, edge ? 1 : 0);
-      }
-    }
-    // An opening in the south wall at walking height, with a trapdoor above it.
-    if (y <= 2) set(3, y, 0, 0);
-  }
-  set(3, 3, 0, 2);
-  set(3, 1, 3, 3);
-  return { size, palette, blocks, entities: [] };
-}
+const cells = () => BLUEPRINT.blocks.split(';').map((r) => r.split(',').map(Number)).map(([x, y, z, p]) => ({ x, y, z, state: BLUEPRINT.palette[p] }));
 
-/**
- * The basement: a 9x4x11 stone-brick room with an iron-bar cell, the cure ingredients, and a chest.
- *
- * Vanilla's basement is a separate pair of templates (middle + bottom) reached by a trapdoor; here the
- * room and its ceiling are one template, because the split is an artefact of how vanilla stores the files
- * and nothing in this engine needs to reproduce it.
- */
-export function buildIglooBasement() {
-  const size = [9, 4, 11];
-  const palette = [
-    { Name: 'minecraft:air' },
-    { Name: 'minecraft:stone_bricks' },
-    { Name: 'minecraft:cobblestone' },
-    { Name: 'minecraft:iron_bars' },
-    { Name: 'minecraft:chest', Properties: { facing: 'north', waterlogged: 'false' } },
-    { Name: 'minecraft:brewing_stand', Properties: { has_bottle_0: 'true', has_bottle_1: 'true', has_bottle_2: 'false' } },
-    { Name: 'minecraft:oak_trapdoor', Properties: { facing: 'north', half: 'top', open: 'false', powered: 'false', waterlogged: 'false' } },
-    { Name: 'minecraft:red_carpet' },
-    { Name: 'minecraft:ladder', Properties: { facing: 'south', waterlogged: 'false' } }
-  ];
-  const blocks = [];
-  const set = (x, y, z, state) => { if (x >= 0 && x < 9 && y >= 0 && y < 4 && z >= 0 && z < 11) blocks.push({ pos: [x, y, z], state }); };
-
-  for (let x = 0; x < 9; x++) {
-    for (let z = 0; z < 11; z++) set(x, 0, z, 2);                    // cobblestone floor
-    set(x, 3, 0, 1); set(x, 3, 10, 1); set(x, 3, 1, 1); set(x, 3, 9, 1);
-  }
-  for (let z = 0; z < 11; z++) {
-    for (let y = 1; y <= 2; y++) {
-      set(0, y, z, 1);
-      set(8, y, z, 1);
-      if (z <= 1 || z >= 9) { set(1, y, z, 1); set(7, y, z, 1); }
-    }
-    set(0, 3, z, 1);
-    set(8, 3, z, 1);
-  }
-  // Ceiling over the whole room, with the trapdoor entrance above the middle.
-  for (let x = 1; x <= 7; x++) for (let z = 2; z <= 8; z++) set(x, 3, z, 1);
-  set(4, 3, 5, 6);
-  for (let y = 1; y <= 3; y++) set(4, y, 6, 8);                       // ladder down to the room
-
-  // The cell: iron bars on two sides, the rest stone, holding the zombie villager in vanilla. The
-  // villager and the zombie villager are placed as entities, not blocks, so they are not in this list.
-  for (let x = 1; x <= 3; x++) { set(x, 1, 7, 3); set(x, 2, 7, 3); }
-  set(3, 1, 8, 3); set(3, 2, 8, 3);
-  set(1, 1, 8, 1); set(2, 1, 8, 1);
-  set(1, 2, 8, 1); set(2, 2, 8, 1);
-
-  // The cure setup and the loot, with a carpet so "the third carpet from the doorway" is meaningful to a
-  // future reader comparing against the wiki description.
-  set(6, 1, 2, 5);
-  set(5, 1, 2, 4);
-  set(7, 1, 3, 7);
-  return {
-    size,
-    palette,
-    blocks,
-    entities: [
-      { pos: [2.5, 1, 8.5], blockPos: [2, 1, 8], nbt: { id: 'minecraft:villager', VillagerData: { profession: 'minecraft:cleric', level: 1 } } },
-      { pos: [2.5, 1, 9.5], blockPos: [2, 1, 9], nbt: { id: 'minecraft:zombie_villager', VillagerData: { profession: 'minecraft:cleric', level: 1 } } }
-    ]
+function template(filter, shiftY, size, edit = (c) => c) {
+  const palette = [{ Name: 'minecraft:air' }];
+  const index = new Map([['minecraft:air{}', 0]]);
+  const state = (s) => {
+    const key = s.Name + JSON.stringify(s.Properties ?? {});
+    if (!index.has(key)) { index.set(key, palette.length); palette.push(s); }
+    return index.get(key);
   };
+  const blocks = [];
+  for (const c of cells().filter(filter)) {
+    const e = edit(c);
+    if (!e) continue;
+    const block = { pos: [c.x, c.y - shiftY, c.z], state: state(e.state) };
+    if (e.nbt) block.nbt = e.nbt;
+    blocks.push(block);
+  }
+  return { size, palette, blocks };
 }
 
-/** Both basement templates vanilla keeps separate, and the marker a caller can key on. */
-export const IGLOO_TEMPLATES = {
-  'minecraft:igloo/top': buildIglooTop,
-  'minecraft:igloo/bottom': buildIglooBasement
-};
+/** The dome: layers 0-4. Without a basement the trapdoor becomes a snow block. */
+export function buildIglooTop({ hasBasement = true } = {}) {
+  const t = template((c) => c.y >= GROUND, GROUND, [BLUEPRINT.size[0], BLUEPRINT.size[1] - GROUND, BLUEPRINT.size[2]], (c) => (
+    !hasBasement && c.state.Name === 'minecraft:oak_trapdoor' ? { state: { Name: 'minecraft:snow_block' } } : c
+  ));
+  return { ...t, entities: [] };
+}
+
+/** The shaft and basement: layers -23 to -1, with its infested bricks chosen from `seed`. */
+export function buildIglooBasement({ seed = 0 } = {}) {
+  const random = new LegacyRandom(BigInt(seed) * 6364136223846793005n + 1442695040888963407n);
+  const chosen = new Set();
+  const all = cells().filter((c) => c.y < GROUND);
+  for (const [name, [, count]] of Object.entries(IGLOO_INFESTED)) {
+    const pool = all.filter((c) => c.state.Name === name);
+    for (let i = 0; i < count && pool.length; i++) chosen.add(pool.splice(random.nextIntBound(pool.length), 1)[0]);
+  }
+  const t = template((c) => c.y < GROUND, 0, [BLUEPRINT.size[0], GROUND, BLUEPRINT.size[2]], (c) => {
+    const found = all.find((a) => a.x === c.x && a.y === c.y && a.z === c.z);
+    if (chosen.has(found)) return { state: { Name: IGLOO_INFESTED[c.state.Name][0] } };
+    if (c.state.Name === 'minecraft:cauldron') return { state: { Name: 'minecraft:water_cauldron', Properties: { level: '2' } } };
+    if (c.state.Name === 'minecraft:chest') return { state: c.state, nbt: { id: 'minecraft:chest', LootTable: 'minecraft:chests/igloo_chest' } };
+    if (c.state.Name === 'minecraft:brewing_stand') return { state: c.state, nbt: { id: 'minecraft:brewing_stand', Items: [{ Slot: 0, id: 'minecraft:splash_potion', potion: 'minecraft:weakness' }] } };
+    return c;
+  });
+  const entities = BLUEPRINT.entities.map((e) => ({
+    pos: [e.pos[0] + 0.5, e.pos[1], e.pos[2] + 0.5],
+    blockPos: [e.pos[0], e.pos[1], e.pos[2]],
+    nbt: { id: 'minecraft:' + e.type, VillagerData: { profession: 'minecraft:cleric', type: 'minecraft:plains' }, PersistenceRequired: 1 }
+  }));
+  return { ...t, entities };
+}
+
+export const IGLOO_TEMPLATES = { top: buildIglooTop, bottom: buildIglooBasement };
 
 /** The two entities an igloo can contain, by the id this game's mob manager uses. */
 export const IGLOO_ENTITIES = ['villager', 'zombie_villager'];

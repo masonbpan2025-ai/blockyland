@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "structure": "shipwreck",
+  "seed": "20250401",
+  "chunk": [
+    12,
+    14
+  ],
+  "biome": "ocean",
+  "box": {
+    "minX": 192,
+    "minY": 14,
+    "minZ": 224,
+    "maxX": 200,
+    "maxY": 22,
+    "maxZ": 246
+  },
+  "pieces": 1,
+  "blocks": {
+    "Water": 1176,
+    "Sand": 174,
+    "Oak Planks": 117,
+    "Oak Stairs": 104,
+    "Kelp Plant": 69,
+    "Spruce Planks": 60,
+    "Gravel": 59,
+    "Kelp": 24,
+    "Tall Seagrass": 21,
+    "Seagrass": 20,
+    "Spruce Stairs": 13,
+    "Spruce Fence": 11,
+    "Oak Log": 7,
+    "Oak Trapdoor": 7,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "paper",
+        "count": 26
+      },
+      {
+        "name": "coast_armor_trim_smithing_template",
+        "count": 2
+      },
+      {
+        "name": "Moss Block",
+        "count": 2
+      },
+      {
+        "name": "suspicious_stew",
+        "count": 2
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

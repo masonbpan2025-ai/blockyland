@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "structure": "desert_well",
+  "seed": "20250401",
+  "chunk": [
+    -45,
+    46
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": -716,
+    "minY": 21,
+    "minZ": 740,
+    "maxX": -712,
+    "maxY": 27,
+    "maxZ": 744
+  },
+  "pieces": 1,
+  "blocks": {
+    "Sandstone": 89,
+    "Sandstone Slab": 12,
+    "Sand": 6,
+    "Water": 5,
+    "Suspicious Sand": 2
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {},
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 13,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

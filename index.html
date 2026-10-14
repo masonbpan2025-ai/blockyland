@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minecraft Web Edition - 3D Browser Replica</title>
+  <title>BlockyLand</title>
   <meta name="description" content="High performance Minecraft replica in browser featuring 3D voxel terrain, procedural generation, mobs like villagers, iron golems, and pillagers, authentic physics, and crafting.">
   <link rel="stylesheet" href="/src/style.css">
   <link rel="icon" type="image/png" href="/assets/blocks/grass_block_side.png">
@@ -13,100 +13,9 @@
   <div id="underwater-overlay"></div>
   <div id="crosshair"></div>
 
-  <!-- Boss Health Bar -->
-  <div id="boss-bar-container" class="hidden">
-    <div class="boss-bar-title" id="boss-bar-name">World Martial Arts Challenger: Jackie Chun</div>
-    <div class="boss-bar-frame">
-      <div class="boss-bar-fill" id="boss-bar-fill" style="width: 100%;"></div>
-    </div>
-  </div>
-
-  <!-- Player 2 (Jackie Chun) HUD for Two-Player Mode -->
-  <div id="player2-hud" class="hidden">
-    <div class="p2-card">
-      <div class="p2-header-row">
-        <span class="p2-badge">🎮 PLAYER 2</span>
-        <span class="p2-name">Jackie Chun</span>
-      </div>
-      <div class="p2-health-frame">
-        <div id="p2-health-bar" class="p2-health-fill" style="width: 100%;"></div>
-      </div>
-      <div class="p2-stats-row">
-        <span id="p2-hp-text">HP: 100/100</span>
-        <span id="p2-teleport-badge" class="p2-badge-ready">TELEPORT [Backspace]: READY</span>
-      </div>
-      <div class="p2-controls-hint">
-        [↑↓←→] Move &bull; [\] Punch &bull; [Enter] Kamehameha &bull; [Backspace] Teleport
-      </div>
-    </div>
-  </div>
-
-  <!-- Minecraft Dungeons Style Combat Overlay -->
-  <div id="dungeon-mode-hud" class="hidden">
-    <div class="dungeon-banner">
-      <div class="dungeon-header-row">
-        <span class="dungeon-badge">⚔️ DUNGEON COMBAT MODE</span>
-        <span class="dungeon-zone-title" id="dungeon-zone-title">Punching Combat Yard</span>
-      </div>
-      <div class="dungeon-enemies-row">
-        <span class="dungeon-enemy-icon">👹</span>
-        <span class="dungeon-enemy-label">Enemies Remaining:</span>
-        <span class="dungeon-enemy-count" id="dungeon-enemy-count">0</span>
-      </div>
-      <div class="dungeon-controls-bar">
-        <div class="dungeon-ctrl-item"><span class="dungeon-key">WASD</span> Move</div>
-        <div class="dungeon-ctrl-item"><span class="dungeon-key">U</span> Punch</div>
-        <div class="dungeon-ctrl-item"><span class="dungeon-key">N</span> Dodge Roll <span id="dungeon-roll-cd" class="dungeon-cd-badge">READY</span></div>
-        <div class="dungeon-ctrl-item"><span class="dungeon-key db-key">J</span> Kamehameha</div>
-        <div class="dungeon-ctrl-item"><span class="dungeon-key db-key">K</span> Genki Dama</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Dungeon Cleared Banner -->
-  <div id="dungeon-cleared-banner" class="hidden">
-    <div class="dungeon-cleared-card">
-      <div class="dungeon-cleared-stars">★ ★ ★</div>
-      <div class="dungeon-cleared-title">AREA CLEARED!</div>
-      <div class="dungeon-cleared-sub" id="dungeon-cleared-sub">All Enemies Defeated — Exiting Dungeon Mode</div>
-    </div>
-  </div>
-
-  <!-- Ki Energy Charge Meter (Kamehameha / Genki Dama) -->
-  <div id="ki-charge-container" class="hidden">
-    <div class="ki-charge-header">
-      <span class="ki-charge-title" id="ki-charge-title">⚡ KAMEHAMEHA</span>
-      <span class="ki-charge-level" id="ki-charge-level">0%</span>
-    </div>
-    <div class="ki-charge-frame">
-      <div class="ki-charge-bar" id="ki-charge-bar" style="width: 0%;"></div>
-    </div>
-    <div class="ki-charge-hint">⚡ Release key to unleash! Taking damage cancels skill & inflicts 1.5x damage!</div>
-  </div>
-
-  <!-- Tournament Announcer Dialogue Banner -->
-  <div id="announcer-dialogue" class="hidden">
-    <div class="announcer-card">
-      <div class="announcer-badge">🎤 ANNOUNCER</div>
-      <div class="announcer-body">
-        <div class="announcer-title">World Martial Arts Tournament Host</div>
-        <div class="announcer-text" id="announcer-text">"Welcome to the World Martial Arts Tournament! If you defeat the enderman, you will be the world champion!"</div>
-      </div>
-    </div>
-  </div>
 
   <!-- World Martial Arts Tournament Victory Overlay -->
-  <div id="champion-overlay" class="hidden">
-    <div class="champion-content">
-      <div class="champion-trophy">🏆</div>
-      <div class="champion-stars">★ ★ ★ ★ ★</div>
-      <h1 class="champion-title">WORLD CHAMPION!</h1>
-      <div class="champion-subtitle">Tenkaichi Budokai Victor</div>
-      <div class="champion-quote" id="champion-quote">"LADIES AND GENTLEMEN, WE HAVE A NEW WORLD CHAMPION!"</div>
-      <div class="champion-firework-text">🎆 CELEBRATORY FIREWORKS IN THE SKY 🎆</div>
-      <button type="button" class="mc-btn mc-btn-large" id="btn-close-champion" style="margin-top: 18px; pointer-events: auto;">Return to Normal Arena</button>
-    </div>
-  </div>
+
 
   <!-- World Martial Arts Tournament Defeat Overlay -->
   <div id="defeat-overlay" class="hidden">
@@ -115,6 +24,17 @@
       <h1 class="defeat-title">MATCH DEFEAT</h1>
       <div class="defeat-message" id="defeat-message">You lost, please try again.</div>
       <button type="button" class="mc-btn mc-btn-large mc-btn-red" id="btn-defeat-retry" style="margin-top: 18px; pointer-events: auto;">Try Again</button>
+    </div>
+  </div>
+
+  <!-- Minecraft death screen: "You died!", the score, Respawn and Title Screen -->
+  <div id="death-overlay" class="hidden">
+    <div class="death-content">
+      <h1 class="death-title">You died!</h1>
+      <div class="death-cause" id="death-cause"></div>
+      <div class="death-score">Score: <span id="death-score">0</span></div>
+      <button type="button" class="mc-btn mc-btn-large" id="btn-death-respawn">Respawn</button>
+      <button type="button" class="mc-btn mc-btn-large" id="btn-death-title">Title Screen</button>
     </div>
   </div>
 
@@ -663,87 +583,54 @@
         command, and there was no way to turn it on except by creating a Creative world.
       -->
       <button class="mc-btn" id="btn-cheats" aria-pressed="false" title="Allow the Agent Terminal and commands like /give in any game mode">Cheats: OFF</button>
-      <button class="mc-btn mc-btn-designed" id="btn-host-world">🌐 Host & Share World</button>
+      <button class="mc-btn mc-btn-designed" id="btn-host-world">🌐 Share This World</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
       <button class="mc-btn" id="btn-shader" aria-pressed="false" title="Lightweight lighting, bloom, water and atmosphere">Lightweight Shader: OFF</button>
       <button class="mc-btn" id="btn-mob-debug" aria-pressed="false" title="Show each mob's name and current health above its head">Mob Debug Labels: OFF</button>
       <button class="mc-btn" id="btn-distance">Render Distance: 4 Chunks</button>
+      <details id="pause-datapacks" class="pause-datapacks hidden">
+        <summary class="mc-btn">Data Packs</summary>
+        <div class="pause-datapacks-body">
+            <div class="datapack-section" id="gemini-datapack-section">
+              <div class="gemini-world-row">
+                <span class="gemini-world-label">Data Packs</span>
+              </div>
+              <div id="datapack-list" class="datapack-list"></div>
+              <div class="gemini-rule-row">
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-add-bundled">Add Vanilla Pack</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-open">Paste JSON…</button>
+                <label class="mc-btn gemini-rule-btn datapack-upload" for="datapack-file-input">Upload…</label>
+                <input type="file" id="datapack-file-input" accept=".json,.mcmeta" multiple hidden>
+              </div>
+              <div class="gemini-rule-row">
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-apply">Apply to World</button>
+                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-revert">Remove from World</button>
+              </div>
+              <div id="datapack-paste-area" class="datapack-paste hidden">
+                <div class="gemini-rule-row">
+                  <select id="datapack-paste-type" class="datapack-select"></select>
+                  <input type="text" id="datapack-paste-id" class="datapack-input" placeholder="id, e.g. my_plains">
+                </div>
+                <textarea id="datapack-paste-text" class="datapack-textarea" rows="5"
+                  placeholder="Paste a generator's JSON here — one file, or a whole data pack as a map of path to JSON."></textarea>
+                <div class="gemini-rule-row">
+                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-load">Load</button>
+                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-cancel">Cancel</button>
+                </div>
+                <span class="gemini-vendor-hint datapack-error" id="datapack-paste-error"></span>
+              </div>
+              <span class="gemini-vendor-hint datapack-warning hidden" id="datapack-warning"></span>
+              <span class="gemini-vendor-hint" id="datapack-status"></span>
+            </div>
+        </div>
+      </details>
       <button class="mc-btn" id="btn-reset">Regenerate World</button>
       <button class="mc-btn mc-btn-red" id="btn-title-screen">Back to Main</button>
     </div>
   </div>
 
   <!-- World Martial Arts Tournament Match Setup Modal -->
-  <div id="tournament-setup-modal" class="game-modal hidden">
-    <div class="tournament-modal-card">
-      <div class="tournament-modal-header">
-        <div class="tournament-crest-badge">武</div>
-        <div class="mc-title">World Martial Arts Tournament</div>
-        <div class="tournament-modal-subtitle">Challenger: The Mysterious Jackie Chun</div>
-      </div>
 
-      <div class="tournament-section">
-        <label class="tournament-section-title">Select Match Mode:</label>
-        <div class="tournament-btn-group" id="tournament-mode-group">
-          <button type="button" class="tournament-opt-btn active" id="btn-mode-1p" data-mode="1p">
-            <span class="opt-icon">👤</span>
-            <div class="opt-text">
-              <span class="opt-name">1 Player</span>
-              <span class="opt-desc">Player (Goku) vs Jackie Chun AI</span>
-            </div>
-          </button>
-          <button type="button" class="tournament-opt-btn" id="btn-mode-2p" data-mode="2p">
-            <span class="opt-icon">👥</span>
-            <div class="opt-text">
-              <span class="opt-name">2 Players</span>
-              <span class="opt-desc">Local 1v1: Player 1 vs Player 2</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div class="tournament-section">
-        <label class="tournament-section-title">Select Difficulty Level:</label>
-        <div class="tournament-btn-group" id="tournament-difficulty-group">
-          <button type="button" class="tournament-opt-btn" id="btn-diff-easy" data-diff="easy">
-            <div class="opt-text">
-              <span class="opt-name" style="color: #4ade80;">Easy</span>
-              <span class="opt-desc">60 HP &bull; Lower Damage &bull; Slower Jutsu</span>
-            </div>
-          </button>
-          <button type="button" class="tournament-opt-btn active" id="btn-diff-normal" data-diff="normal">
-            <div class="opt-text">
-              <span class="opt-name" style="color: #fbbf24;">Normal</span>
-              <span class="opt-desc">100 HP &bull; Standard Agility &bull; Regular Skills</span>
-            </div>
-          </button>
-          <button type="button" class="tournament-opt-btn" id="btn-diff-hard" data-diff="hard">
-            <div class="opt-text">
-              <span class="opt-name" style="color: #f87171;">Hard</span>
-              <span class="opt-desc">160 HP &bull; High Damage &bull; Frequent Jutsu</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <!-- Controls Explainer Banner -->
-      <div class="tournament-controls-card">
-        <div class="tournament-control-block">
-          <span class="control-tag tag-p1">PLAYER 1 (Goku)</span>
-          <span class="control-text">WASD: Move &bull; Space: Jump &bull; U: Punch &bull; J: Kamehameha &bull; K: Genki Dama &bull; N: Roll</span>
-        </div>
-        <div class="tournament-control-block" id="tournament-p2-hint">
-          <span class="control-tag tag-p2">PLAYER 2 (Jackie Chun)</span>
-          <span class="control-text">[↑↓←→]: Move &bull; [\]: Punch &bull; [Enter]: Kamehameha &bull; [Backspace]: Sudden Move</span>
-        </div>
-      </div>
-
-      <div class="map-modal-footer" style="margin-top: 14px;">
-        <button type="button" class="mc-btn mc-btn-large mc-btn-start-fight" id="btn-confirm-start-fight">Get into Arena</button>
-        <button type="button" class="mc-btn" id="btn-close-tournament-modal">Cancel</button>
-      </div>
-    </div>
-  </div>
 
   <!-- World Generation / Biome Selection Modal -->
   <div id="world-biome-modal" class="game-modal hidden">
@@ -801,6 +688,9 @@
               <option value="frozen_river">Frozen River</option>
               <option value="swamp">Swamp</option>
               <option value="mangrove_swamp">Mangrove Swamp</option>
+              <option value="beach">Beach</option>
+              <option value="snowy_beach">Snowy Beach</option>
+              <option value="stony_shore">Stony Shore</option>
             </optgroup>
             <optgroup label="🌾 Flatland & Plains Biomes">
               <option value="plains">Plains</option>
@@ -816,9 +706,6 @@
               <option value="badlands">Badlands</option>
               <option value="wooded_badlands">Wooded Badlands</option>
               <option value="eroded_badlands">Eroded Badlands</option>
-              <option value="beach">Beach</option>
-              <option value="snowy_beach">Snowy Beach</option>
-              <option value="stony_shore">Stony Shore</option>
             </optgroup>
             <optgroup label="🕳️ Cave & Subterranean Biomes">
               <option value="deep_dark">Deep Dark</option>
@@ -1026,24 +913,24 @@
   </div>
 
 
-  <!-- AI World Agent Terminal Modal (C) & Structure Studio Parameter Panel -->
+  <!-- AI World Agent Terminal Modal (C) & Building Studio Parameter Panel -->
   <div id="gemini-modal" class="game-modal hidden">
     <div class="studio-workspace-wrapper">
-      <!-- Structure Studio Parameter Panel (Left Side) -->
-      <div id="structure-parameter-panel" class="structure-parameter-panel hidden">
+      <!-- Building Studio Parameter Panel (Left Side) -->
+      <div id="building-parameter-panel" class="building-parameter-panel hidden">
         <div class="studio-panel-header">
           <div class="studio-panel-title-group">
             <span class="studio-panel-icon">📐</span>
-            <span class="studio-panel-title">Structure Studio</span>
+            <span class="studio-panel-title">Building Studio</span>
           </div>
-          <span class="studio-structure-badge" id="studio-current-structure-name">No Structure</span>
+          <span class="studio-building-badge" id="studio-current-building-name">No Building</span>
         </div>
 
         <div class="studio-panel-body" id="studio-parameter-controls">
           <div class="studio-empty-params" id="studio-empty-params">
             <span class="studio-empty-icon">✦</span>
             <p>No parameters yet.</p>
-            <small>Ask the Agent on the right to build a structure with parameters, e.g.:<br>
+            <small>Ask the Agent on the right to build a building with parameters, e.g.:<br>
               <em>"build a stair with a height parameter"</em><br>
               <em>"build a stair with a height H"</em><br>
               <em>"build an aquarium with width 14 and height 8"</em>
@@ -1069,13 +956,16 @@
             </span>
           </div>
           <div class="gemini-header-actions">
-            <button class="gemini-icon-btn" id="gemini-toggle-key" title="Choose vendor, model and API key">⚙️ Settings</button>
+            <button type="button" class="gemini-offline-toggle" id="gemini-offline-btn" role="switch" aria-checked="false" title="Use built-in offline presets; saved vendor keys are kept.">
+              <span>Offline Mode</span><span class="gemini-offline-track" aria-hidden="true"></span><span id="gemini-offline-state">OFF</span>
+            </button>
+            <button type="button" class="gemini-icon-btn" id="gemini-toggle-key" aria-controls="gemini-key-drawer" aria-expanded="false" title="Choose vendor, model and API key">⚙️ AI Settings</button>
             <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
           </div>
         </div>
 
         <!-- Vendor / model / key / view settings drawer -->
-        <div id="gemini-key-drawer" class="gemini-key-drawer hidden">
+        <fieldset id="gemini-key-drawer" class="gemini-key-drawer hidden">
           <div class="gemini-key-desc">
             <span>AI Vendor</span>
             <small>Pick one vendor and model. The agent sends your prompt, the conversation, the world state and a live screenshot of your view.</small>
@@ -1092,6 +982,10 @@
             <button type="button" class="gemini-vendor-btn" data-vendor="chatgpt">
               <span class="gemini-vendor-name">ChatGPT</span>
               <span class="gemini-vendor-key-state" data-key-state="chatgpt">key needed</span>
+            </button>
+            <button type="button" class="gemini-vendor-btn" data-vendor="claude">
+              <span class="gemini-vendor-name">Claude</span>
+              <span class="gemini-vendor-key-state" data-key-state="claude">key needed</span>
             </button>
           </div>
           <div class="gemini-controls-row">
@@ -1110,11 +1004,22 @@
               </select>
             </label>
           </div>
+          <!-- The model list comes from the vendor itself when a key is saved, so new models appear without an
+               update; a model id can also be typed, and the newest of a family can be followed automatically. -->
+          <div class="gemini-model-tools">
+            <button type="button" class="gemini-btn-sm" id="gemini-refresh-models-btn" title="Ask the vendor which models this key can use">↻ Refresh list</button>
+            <input type="text" id="gemini-custom-model-input" placeholder="or type a model id…" autocomplete="off" spellcheck="false">
+            <button type="button" class="gemini-btn-sm" id="gemini-custom-model-btn">Use</button>
+            <label class="gemini-check" for="gemini-autoupgrade-toggle">
+              <input type="checkbox" id="gemini-autoupgrade-toggle">
+              <span>Always use the newest in this family</span>
+            </label>
+            <span class="gemini-vendor-hint" id="gemini-model-source"></span>
+          </div>
           <div class="gemini-key-row">
             <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
             <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
             <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
-            <button type="button" class="gemini-btn-sm" id="gemini-offline-btn" title="Stop sending requests and use the built-in offline presets. Your key is kept.">Offline Mode</button>
           </div>
           <div class="gemini-view-row">
             <label class="gemini-check" for="gemini-view-toggle">
@@ -1128,83 +1033,14 @@
             <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
           </div>
 
-          <!-- World settings.
-               Difficulty, the game mode and the rule switches live here rather than in the pause menu, because
-               the terminal IS the cheats surface: it opens only when cheats are on, so an ordinary Survival
-               player cannot reach these and Creative can. -->
-          <div class="gemini-world-settings" id="gemini-world-settings">
-            <div class="gemini-field-label" style="margin-bottom: 4px;">World Settings</div>
-            <div class="gemini-world-row">
-              <span class="gemini-world-label">Difficulty</span>
-              <div class="world-mode-row" id="terminal-difficulty-row">
-                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-peaceful" data-difficulty="peaceful">Peaceful</button>
-                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-easy" data-difficulty="easy">Easy</button>
-                <button type="button" class="mc-btn world-diff-btn active" id="terminal-difficulty-normal" data-difficulty="normal">Normal</button>
-                <button type="button" class="mc-btn world-diff-btn" id="terminal-difficulty-hard" data-difficulty="hard">Hard</button>
-              </div>
-            </div>
-            <div class="gemini-world-row">
-              <span class="gemini-world-label">Game Mode</span>
-              <div class="world-mode-row" id="terminal-mode-row">
-                <button type="button" class="mc-btn world-mode-btn active" id="terminal-mode-survival" data-mode="survival">⚔️ Survival</button>
-                <button type="button" class="mc-btn world-mode-btn" id="terminal-mode-creative" data-mode="creative">🧱 Creative</button>
-              </div>
-            </div>
-            <div class="gemini-world-row">
-              <span class="gemini-world-label">Rules</span>
-              <div class="gemini-rule-row" id="terminal-rule-row">
-                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-doMobSpawning" data-rule="doMobSpawning">Mob spawning</button>
-                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-doDaylightCycle" data-rule="doDaylightCycle">Daylight cycle</button>
-                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-naturalRegeneration" data-rule="naturalRegeneration">Natural regen</button>
-                <button type="button" class="mc-btn gemini-rule-btn" id="terminal-rule-keepInventory" data-rule="keepInventory">Keep inventory</button>
-              </div>
-            </div>
-            <span class="gemini-vendor-hint" id="terminal-settings-hint"></span>
 
-            <!--
-              Data packs. The world settings above are cheat switches; this is content, and it lives here for
-              the same reason -- the terminal is the configuration surface, and it is only reachable with
-              cheats on, so an ordinary Survival world does not get a content editor in its pause menu.
-            -->
-            <div class="gemini-world-settings" id="gemini-datapack-section">
-              <div class="gemini-world-row">
-                <span class="gemini-world-label">Data Packs</span>
-              </div>
-              <div id="datapack-list" class="datapack-list"></div>
-              <div class="gemini-rule-row">
-                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-add-bundled">Add Vanilla Pack</button>
-                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-open">Paste JSON…</button>
-                <label class="mc-btn gemini-rule-btn datapack-upload" for="datapack-file-input">Upload…</label>
-                <input type="file" id="datapack-file-input" accept=".json,.mcmeta" multiple hidden>
-              </div>
-              <div class="gemini-rule-row">
-                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-apply">Apply to World</button>
-                <button type="button" class="mc-btn gemini-rule-btn" id="datapack-revert">Remove from World</button>
-              </div>
-              <div id="datapack-paste-area" class="datapack-paste hidden">
-                <div class="gemini-rule-row">
-                  <select id="datapack-paste-type" class="datapack-select"></select>
-                  <input type="text" id="datapack-paste-id" class="datapack-input" placeholder="id, e.g. my_plains">
-                </div>
-                <textarea id="datapack-paste-text" class="datapack-textarea" rows="5"
-                  placeholder="Paste a generator's JSON here — one file, or a whole data pack as a map of path to JSON."></textarea>
-                <div class="gemini-rule-row">
-                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-load">Load</button>
-                  <button type="button" class="mc-btn gemini-rule-btn" id="datapack-paste-cancel">Cancel</button>
-                </div>
-                <span class="gemini-vendor-hint datapack-error" id="datapack-paste-error"></span>
-              </div>
-              <span class="gemini-vendor-hint datapack-warning hidden" id="datapack-warning"></span>
-              <span class="gemini-vendor-hint" id="datapack-status"></span>
-            </div>
-          </div>
-        </div>
+        </fieldset>
 
         <!-- Console / Terminal Feed -->
         <div class="gemini-terminal-body" id="gemini-log-feed">
-          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Configure a vendor API key in ⚙️ Settings for free-form prompts; otherwise the terminal uses offline presets.</div>
+          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Switch Offline Mode off and configure a vendor API key in ⚙️ AI Settings for free-form prompts.</div>
           <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
-          <div class="gemini-log-entry hint">📷 The agent receives your world state and a screenshot of your current view, so "build a bridge over that water" works. You can also paste (Ctrl+V) or upload a reference image.</div>
+          <div class="gemini-log-entry hint">📷 The agent sees what you see: the room you are standing in, the buildings and creatures around you, and a screenshot of your view. Talk naturally, e.g. "decorate the house with some paintings" while inside it, or "build a bridge over that water". You can also paste (Ctrl+V) or upload a reference image.</div>
         </div>
 
         <!-- Attached Image Preview Container -->
@@ -1228,11 +1064,11 @@
           <div class="gemini-prompt-prefix">✦</div>
           <button type="button" class="gemini-attach-btn" id="gemini-attach-btn" title="Paste (Ctrl+V) or click to upload screenshot/image">📷</button>
           <input type="file" id="gemini-file-input" accept="image/*" style="display: none;">
-          <input 
-            type="text" 
-            id="gemini-prompt-input" 
-            placeholder="Ask the agent to build anything on the fly, paste a screenshot (Ctrl+V)..." 
-            autocomplete="off" 
+          <input
+            type="text"
+            id="gemini-prompt-input"
+            placeholder="Ask the agent to build anything on the fly, paste a screenshot (Ctrl+V)..."
+            autocomplete="off"
             spellcheck="false"
           >
           <button type="submit" class="gemini-exec-btn" id="gemini-exec-btn">
@@ -1244,36 +1080,36 @@
     </div>
   </div>
 
-  <!-- Save Structure Modal -->
-  <div id="modal-save-structure" class="game-modal hidden">
+  <!-- Save Building Modal -->
+  <div id="modal-save-building" class="game-modal hidden">
     <div class="mc-dialog-card">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">💾 Save to Structure Library</span>
-        <button class="gemini-close-btn" id="btn-cancel-save-structure">✕</button>
+        <span class="mc-dialog-title">💾 Save to Building Library</span>
+        <button class="gemini-close-btn" id="btn-cancel-save-building">✕</button>
       </div>
       <div class="mc-dialog-body">
-        <label class="mc-dialog-label" for="input-save-structure-name">Structure Name:</label>
-        <input type="text" id="input-save-structure-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
-        <div id="save-structure-conflict-msg" class="mc-dialog-error hidden"></div>
+        <label class="mc-dialog-label" for="input-save-building-name">Building Name:</label>
+        <input type="text" id="input-save-building-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
+        <div id="save-building-conflict-msg" class="mc-dialog-error hidden"></div>
       </div>
       <div class="mc-dialog-footer">
-        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-structure">Save Structure</button>
+        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-building">Save Building</button>
       </div>
     </div>
   </div>
 
-  <!-- Open Structure Modal -->
-  <div id="modal-open-structure" class="game-modal hidden">
+  <!-- Open Building Modal -->
+  <div id="modal-open-building" class="game-modal hidden">
     <div class="mc-dialog-card mc-dialog-large">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">📂 Structure Library</span>
-        <button class="gemini-close-btn" id="btn-close-open-structure">✕</button>
+        <span class="mc-dialog-title">📂 Building Library</span>
+        <button class="gemini-close-btn" id="btn-close-open-building">✕</button>
       </div>
       <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="input-search-open-structure" class="mc-input-text" placeholder="Search structures..." autocomplete="off" style="flex: 1;">
-        <button id="btn-restore-default-structures" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in structures">Reset Defaults</button>
+        <input type="text" id="input-search-open-building" class="mc-input-text" placeholder="Search buildings..." autocomplete="off" style="flex: 1;">
+        <button id="btn-restore-default-buildings" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in buildings">Reset Defaults</button>
       </div>
-      <div class="studio-open-list" id="studio-open-structure-list"></div>
+      <div class="studio-open-list" id="studio-open-building-list"></div>
     </div>
   </div>
 
@@ -1319,13 +1155,12 @@
 
   <!-- Start Overlay -->
   <div id="start-overlay">
-    <div class="mc-logo">MINECRAFT</div>
-    <div class="mc-subtitle">Browser WebGL Edition!</div>
+    <div class="mc-logo">BLOCKYLAND</div>
     <div class="start-actions-row">
       <button class="mc-btn mc-btn-large" id="btn-start-new-world">Generate New World</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
-      <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-structure-studio">Structure Studio</button>
+      <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-building-studio">Building Studio</button>
       <button class="mc-btn mc-btn-large mc-btn-inspector" id="btn-start-inspector">Inspector</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-host-world">🌐 Host World & Share</button>
     </div>
@@ -1335,48 +1170,52 @@
         <div class="mc-title">Inspector</div>
         <div class="biome-modal-subtitle">What would you like to inspect?</div>
         <div class="inspector-picker-options">
-          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-structure">Structure</button>
-          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-item">Item</button>
-          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-block">Block</button>
-          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-mob">Mob</button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-structure">Structure<span class="inspector-picker-note">Plan and realize structures</span></button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-item">Item<span class="inspector-picker-note">Stats, recipes and drops</span></button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-block">Block<span class="inspector-picker-note">Blocks with no item form</span></button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-mob">Mob<span class="inspector-picker-note">Models and behaviour</span></button>
         </div>
         <button class="mc-btn" id="btn-close-inspector-picker">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Host World & Share Link Modal -->
+  <!-- Share This World: the link a host sends, who is here, and a way to stop -->
   <div id="host-world-modal" class="game-modal hidden" style="z-index: 10005;">
-    <div class="mc-dialog-card" style="max-width: 520px;">
+    <div class="mc-dialog-card" style="max-width: 540px;">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">🌐 Host World & Share</span>
+        <span class="mc-dialog-title">🌐 Share This World</span>
         <button class="gemini-close-btn" id="btn-close-host-world">✕</button>
       </div>
       <div class="mc-dialog-body" style="padding: 18px 24px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <span style="font-size: 13px; color: #94a3b8;">Room Code:</span>
-          <span id="host-room-id-badge" style="font-family: monospace; font-size: 15px; font-weight: bold; background: #0f172a; padding: 4px 10px; border-radius: 4px; border: 1px solid #38bdf8; color: #38bdf8;">Loading...</span>
-        </div>
-        <label class="mc-dialog-label" for="host-share-link-input" style="margin-bottom: 6px;">Shareable Link (Send to friends to join):</label>
-        <div style="margin-bottom: 16px;">
-          <input type="text" id="host-share-link-input" class="mc-input-text" readonly style="width: 100%; box-sizing: border-box; font-family: monospace; font-size: 13px; background: #090d16; padding: 8px 10px; margin-bottom: 8px;" value="">
-          <button type="button" class="mc-btn mc-btn-primary" id="btn-copy-share-link" style="width: 100%; padding: 8px 14px; font-size: 13px;">📋 Copy Link</button>
-        </div>
-        <div id="host-status-notice" style="font-size: 12px; color: #10b981; margin-bottom: 14px; display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
-          <span>Room is live! Anyone opening this link will enter your world in real-time.</span>
-        </div>
-        <div style="border-top: 1px solid #334155; padding-top: 12px;">
-          <div style="font-size: 13px; font-weight: bold; color: #f1f5f9; margin-bottom: 8px;">Connected Players:</div>
-          <div id="host-connected-players-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto;">
-            <div style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px;">
-              <span>★ You (Host)</span>
-              <span style="color: #38bdf8; font-size: 11px;">Host</span>
-            </div>
+        <div id="host-error" class="hidden" role="alert" style="font-size: 13px; color: #fecaca; background: rgba(127, 29, 29, 0.55); border: 1px solid #ef4444; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;"></div>
+        <div id="host-link-section">
+          <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 12px; line-height: 1.5;">Send this link to friends. They click it and they are in your world, with nothing to install or sign in to. Your computer is the server, so keep this tab open while they play.</p>
+          <label class="mc-dialog-label" for="host-share-link-input" style="margin-bottom: 6px;">Link to send:</label>
+          <div style="margin-bottom: 12px;">
+            <input type="text" id="host-share-link-input" class="mc-input-text" readonly style="width: 100%; box-sizing: border-box; font-family: monospace; font-size: 13px; background: #090d16; padding: 8px 10px; margin-bottom: 8px;" value="">
+            <button type="button" class="mc-btn mc-btn-primary" id="btn-copy-share-link" style="width: 100%; padding: 8px 14px; font-size: 13px;">📋 Copy Link</button>
+          </div>
+          <div id="host-local-warning" class="hidden" style="font-size: 12px; color: #fde68a; background: rgba(120, 53, 15, 0.5); border: 1px solid #f59e0b; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; line-height: 1.45;">
+            This link starts with <b>localhost</b>, which only works on this computer. Friends on your Wi-Fi can use the network links below. For friends anywhere else, open the game from a public address first (see "Sharing" in the README), then share again.
+          </div>
+          <div id="host-lan-links"></div>
+          <div id="host-status-notice" style="font-size: 12px; color: #10b981; margin: 4px 0 14px; display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 8px; height: 8px; background: currentColor; border-radius: 50%;"></span>
+            <span id="host-status-text">Your world is live. Anyone opening the link will join it.</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <span style="font-size: 12px; color: #94a3b8;">World code (the link is easier):</span>
+            <span id="host-room-id-badge" style="font-family: monospace; font-size: 14px; font-weight: bold; background: #0f172a; padding: 3px 9px; border-radius: 4px; border: 1px solid #38bdf8; color: #38bdf8; letter-spacing: 1px;">…</span>
+          </div>
+          <div style="border-top: 1px solid #334155; padding-top: 12px;">
+            <div style="font-size: 13px; font-weight: bold; color: #f1f5f9; margin-bottom: 8px;">In this world:</div>
+            <div id="host-connected-players-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;"></div>
           </div>
         </div>
       </div>
-      <div class="mc-dialog-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+      <div class="mc-dialog-footer" style="display: flex; justify-content: space-between; gap: 10px;">
+        <button type="button" class="mc-btn mc-btn-red" id="btn-stop-sharing">Stop Sharing</button>
         <button type="button" class="mc-btn" id="btn-dismiss-host-modal">Done</button>
       </div>
     </div>
@@ -1402,7 +1241,7 @@
   <!-- HUD Multiplayer Status Badge -->
   <div id="hud-multiplayer-badge" class="hidden" style="position: fixed; top: 12px; right: 12px; z-index: 999; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.5); padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #38bdf8; display: flex; align-items: center; gap: 8px; font-family: monospace; pointer-events: none;">
     <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
-    <span id="hud-multiplayer-text">Multiplayer: 1 Player</span>
+    <span id="hud-multiplayer-text">Sharing: 1 player</span>
   </div>
 
   <!-- Sleeping Overlay (Minecraft authentic bed sleep screen) -->

@@ -1,216 +1,126 @@
-// Ocean ruins: the first structure that is a CLUSTER rather than a single template.
+// Ocean ruins, from the wiki (https://minecraft.wiki/w/Cold_Ocean_Ruins, /Warm_Ocean_Ruins and their /Structure pages).
 //
-// From the wiki (`Ocean Ruins`, 1.21.4 revision):
-//   * two ids: `ocean_ruin_cold` (cold, frozen, normal and deep oceans) and `ocean_ruin_warm` (warm ocean);
-//   * "30% of ocean ruins generate as a large ruin", which is 4 to 8 ruins clustered together; the rest are
-//     a single ruin;
-//   * cold ruins are built from stone bricks and cobblestone, warm ones from sandstone, with coral fans and
-//     sea pickles on the warm ones;
-//   * suspicious sand and gravel hold the archaeology loot.
+// From the pages:
+//   * cold ruins in "normal, cold, and frozen ocean biomes or in their deep variants"; warm ruins in "warm, lukewarm,
+//     and deep lukewarm ocean biomes";
+//   * "30% of ocean ruins generate as large ocean ruins; the other 70% generate as small ruins. If the ocean ruin is
+//     large, there is a 90% chance for 4-8 (inclusive) small ocean ruins to generate around it in a cluster";
+//   * integrity: cold "brick" 0.9 if large and 0.8 if small, "cracked" 0.7, "mossy" 0.5; warm 0.9 large, 0.8 small;
+//   * "Suspicious gravel randomly replaces normal gravel" (cold) and suspicious sand replaces sand (warm), with the
+//     ocean ruin archaeology loot; "all air blocks and structure blocks act as structure voids" (only the drawn
+//     blocks are placed, the sea and the sea floor stay where the drawing is empty);
+//   * one chest in all but two designs, with the big or small underwater ruin loot;
+//   * drowned per design (the Types tables), persistent; "Reduced structure integrity may also remove drowned".
 //
-// The wiki does NOT publish the `ocean_ruin` configuration fields (recorded in STRUCTURE_REFERENCES.md), so
-// the cluster radius, the exact ruin footprints and the material mix below are a clean-room approximation of
-// the described structure. The 30% large chance, the 4-to-8 range and the per-variant materials are the
-// published facts and are the ones the tests pin.
+// The drawings: the /Structure pages draw all 12 cold designs in their brick, cracked and mossy forms and all 12
+// warm designs. Warm ruin_2 and _6's blue terracotta is the table's light blue terracotta.
 //
-// PROVENANCE: no Minecraft assets are used. Every ruin is built by code.
+// Not on the wiki, so ours: the odds of each design and of brick/cracked/mossy (equal); how often gravel and sand turn
+// suspicious (1 in 25); where in a cluster the small ruins go (within 24 blocks of the big one); where the drowned
+// stand (on open floor inside the ruin). Zombie nautiluses are newer than this game.
 
-import { StructurePiece, StructureStart } from '../start.js';
-import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
-import { placeTemplate } from '../templatePlacement.js';
-import { StructureTemplate } from '../template.js';
-import { createBlockIdResolver } from '../blockIds.js';
+import { defineBlueprintStructure, cellsOf, templateFrom, cellChance } from '../blueprintStructure.js';
+import { LegacyRandom } from '../random.js';
+import { BLUEPRINTS as COLD } from './blueprints/cold_ocean_ruins.js';
+import { BLUEPRINTS as WARM } from './blueprints/warm_ocean_ruins.js';
 
-/** The published large-ruin chance, and the published cluster size range. */
 export const LARGE_RUIN_CHANCE = 0.3;
+export const CLUSTER_CHANCE = 0.9;
 export const CLUSTER_SIZE_RANGE = [4, 8];
+export const SUSPICIOUS_CHANCE = 1 / 25;
+export const RUIN_LOOT = { big: 'minecraft:chests/underwater_ruin_big', small: 'minecraft:chests/underwater_ruin_small' };
+export const RUIN_ARCHAEOLOGY = { cold: 'minecraft:archaeology/ocean_ruin_cold', warm: 'minecraft:archaeology/ocean_ruin_warm' };
 
-/** The two variants' materials, from the wiki's description of each. */
-export const OCEAN_RUIN_VARIANTS = {
-  cold: {
-    blocks: ['minecraft:stone_bricks', 'minecraft:cracked_stone_bricks', 'minecraft:mossy_stone_bricks', 'minecraft:cobblestone', 'minecraft:mossy_cobblestone'],
-    accent: 'minecraft:stone_brick_slab',
-    archaeology: 'minecraft:archaeology/ocean_ruin_cold',
-    suspicious: 'minecraft:suspicious_gravel',
-    coral: []
-  },
-  warm: {
-    blocks: ['minecraft:sandstone', 'minecraft:chiseled_sandstone', 'minecraft:cut_sandstone', 'minecraft:smooth_sandstone'],
-    accent: 'minecraft:sandstone_slab',
-    archaeology: 'minecraft:archaeology/ocean_ruin_warm',
-    suspicious: 'minecraft:suspicious_sand',
-    coral: ['minecraft:tube_coral_fan', 'minecraft:brain_coral_fan', 'minecraft:sea_pickle']
-  }
+/** The designs, as drawing keys: cold `[big|small][n]` with a material, warm by name. */
+export const COLD_BIG = ['big_ruin1', 'big_ruin2', 'big_ruin3', 'big_ruin8'];
+export const COLD_SMALL = ['ruin1', 'ruin2', 'ruin3', 'ruin4', 'ruin5', 'ruin6', 'ruin7', 'ruin8'];
+export const COLD_MATERIALS = ['brick', 'cracked', 'mossy'];
+export const WARM_BIG = ['big_ruin_warm4', 'big_ruin_warm5', 'big_ruin_warm6', 'big_ruin_warm7'];
+export const WARM_SMALL = ['ruin_warm1', 'ruin_warm2', 'ruin_warm3', 'ruin_warm4', 'ruin_warm5', 'ruin_warm6', 'ruin_warm7', 'ruin_warm8'];
+
+/** Drowned per design, [min, max], from the Types tables. */
+export const RUIN_DROWNED = {
+  big_ruin1: [1, 2], big_ruin2: [1, 2], big_ruin3: [1, 3], big_ruin8: [1, 2],
+  ruin1: [0, 1], ruin2: [0, 2], ruin3: [0, 0], ruin4: [0, 2], ruin5: [0, 1], ruin6: [0, 4], ruin7: [0, 1], ruin8: [0, 1],
+  big_ruin_warm4: [2, 2], big_ruin_warm5: [4, 4], big_ruin_warm6: [2, 2], big_ruin_warm7: [2, 2],
+  ruin_warm1: [0, 0], ruin_warm2: [2, 2], ruin_warm3: [1, 1], ruin_warm4: [1, 1], ruin_warm5: [1, 1], ruin_warm6: [0, 0], ruin_warm7: [0, 0], ruin_warm8: [1, 1]
 };
 
-/**
- * Build one ruin: a broken walled box with a floor, holes where it collapsed, and the variant's extras.
- *
- * @param {object} options
- * @param {'cold'|'warm'} options.variant
- * @param {number} options.seed       makes the collapse deterministic per ruin
- */
-export function buildOceanRuin({ variant = 'cold', seed = 0 } = {}) {
-  const spec = OCEAN_RUIN_VARIANTS[variant];
-  if (!spec) throw new Error(`unknown ocean ruin variant "${variant}"`);
+export function integrityOf({ climate, big, material }) {
+  if (climate === 'warm' || material === 'brick') return big ? 0.9 : 0.8;
+  return material === 'cracked' ? 0.7 : 0.5;
+}
+
+export function ruinDrawing({ climate, design, material }) {
+  return climate === 'warm' ? WARM[design] : COLD[`${design}_${material}`];
+}
+
+export function buildOceanRuin({ climate = 'cold', design = 'ruin1', material = 'brick', seed = 0 } = {}) {
+  const data = ruinDrawing({ climate, design, material });
+  const big = /^big/.test(design);
+  const integrity = integrityOf({ climate, big, material });
   const random = new LegacyRandom(BigInt(seed) * 6364136223846793005n + 1442695040888963407n);
-
-  // Footprint and height vary, which is what makes a cluster look like several ruins rather than one shape
-  // repeated 4 to 8 times.
-  const size = [3 + random.nextIntBound(4), 2 + random.nextIntBound(3), 3 + random.nextIntBound(4)];
-  const [sx, sy, sz] = size;
-  const palette = [
-    { Name: 'minecraft:air' },
-    ...spec.blocks.map((Name) => ({ Name })),
-    { Name: spec.accent },
-    { Name: spec.suspicious },
-    ...spec.coral.map((Name) => ({ Name }))
-  ];
-  const MAIN = 1;
-  const ACCENT = 1 + spec.blocks.length;
-  const SUSPICIOUS = ACCENT + 1;
-  const CORAL = SUSPICIOUS + 1;
-  const blocks = [];
-  const set = (x, y, z, state) => {
-    if (x >= 0 && x < sx && y >= 0 && y < sy && z >= 0 && z < sz) blocks.push({ pos: [x, y, z], state });
-  };
-  const material = () => MAIN + random.nextIntBound(spec.blocks.length);
-
-  // Floor, then the walls, with each block having a chance of having collapsed.
-  for (let x = 0; x < sx; x++) {
-    for (let z = 0; z < sz; z++) if (random.nextFloat() < 0.85) set(x, 0, z, material());
+  const cells = cellsOf(data);
+  const kept = cells.filter((c) => c.name === 'chest' || cellChance(seed, c.x, c.y, c.z, 1) < integrity);
+  // Drowned on open floor inside the ruin: a kept block with two empty blocks above it, not at the edge.
+  const filled = new Set(kept.map((c) => `${c.x},${c.y},${c.z}`));
+  const floors = kept.filter((c) => !filled.has(`${c.x},${c.y + 1},${c.z}`) && !filled.has(`${c.x},${c.y + 2},${c.z}`)
+    && c.x > 0 && c.z > 0 && c.x < data.size[0] - 1 && c.z < data.size[2] - 1 && c.name !== 'chest');
+  const [lo, hi] = RUIN_DROWNED[design] ?? [0, 0];
+  const count = lo + random.nextIntBound(hi - lo + 1);
+  const entities = [];
+  for (let i = 0; i < count && floors.length; i++) {
+    const f = floors.splice(random.nextIntBound(floors.length), 1)[0];
+    // "Reduced structure integrity may also remove drowned": the ones that "always generate" keep at least one.
+    if (i >= lo && random.nextFloat() >= integrity) continue;
+    entities.push({ pos: [f.x + 0.5, f.y + 1, f.z + 0.5], blockPos: [f.x, f.y + 1, f.z], nbt: { type: 'drowned', options: { persistent: true } } });
   }
-  for (let y = 1; y < sy; y++) {
-    for (let x = 0; x < sx; x++) {
-      for (let z = 0; z < sz; z++) {
-        const edge = x === 0 || x === sx - 1 || z === 0 || z === sz - 1;
-        if (!edge) continue;
-        // A third of the wall is simply gone: ocean ruins are ruins, not buildings.
-        if (random.nextFloat() < 0.33) continue;
-        set(x, y, z, material());
+  const archaeology = RUIN_ARCHAEOLOGY[climate];
+  return templateFrom(kept, data.size, {
+    entities,
+    edit: (c) => {
+      if (c.name === 'chest') return { name: 'chest', props: c.props ?? { facing: 'north' }, nbt: { id: 'minecraft:chest', LootTable: big ? RUIN_LOOT.big : RUIN_LOOT.small } };
+      if ((c.name === 'gravel' && climate === 'cold') || (c.name === 'sand' && climate === 'warm')) {
+        if (cellChance(seed, c.x, c.y, c.z, 2) < SUSPICIOUS_CHANCE) return { name: `suspicious_${c.name}`, nbt: { id: 'minecraft:brushable_block', LootTable: archaeology } };
       }
+      if (c.name === 'blue_terracotta' && climate === 'warm') return { name: 'light_blue_terracotta' };
+      return c;
     }
-  }
-  // A surviving lintel or slab line, so the shape reads as architecture.
-  const accentY = Math.min(sy - 1, 1);
-  for (let z = 0; z < sz; z++) if (random.nextFloat() < 0.5) set(0, accentY, z, ACCENT);
-
-  // One suspicious block per ruin, carrying its archaeology loot table as a block entity.
-  const sxPos = random.nextIntBound(sx);
-  const szPos = random.nextIntBound(sz);
-  blocks.push({
-    pos: [sxPos, 0, szPos],
-    state: SUSPICIOUS,
-    nbt: { id: spec.suspicious, LootTable: spec.archaeology }
   });
+}
 
-  // Coral only on the warm variant, and only on top of something solid.
-  if (spec.coral.length) {
-    for (let i = 0; i < 1 + random.nextIntBound(3); i++) {
-      const x = random.nextIntBound(sx);
-      const z = random.nextIntBound(sz);
-      const y = 0;
-      if (blocks.some((block) => block.pos[0] === x && block.pos[1] === y && block.pos[2] === z)) {
-        blocks.push({ pos: [x, y + 1, z], state: CORAL + random.nextIntBound(spec.coral.length) });
-      }
+function pickRuin(random, climate, big) {
+  const list = climate === 'warm' ? (big ? WARM_BIG : WARM_SMALL) : (big ? COLD_BIG : COLD_SMALL);
+  const design = list[random.nextIntBound(list.length)];
+  const material = climate === 'warm' ? null : COLD_MATERIALS[random.nextIntBound(3)];
+  return { climate, design, material, seed: random.nextInt() };
+}
+
+const climateOf = (ctx) => (ctx.structureId === 'ocean_ruin_warm' ? 'warm' : 'cold');
+const floorAt = (ctx, x, z) => (ctx.context.surfaceY ? ctx.context.surfaceY(x, z, 'ocean_floor_wg') : 40);
+
+const ruin = defineBlueprintStructure({
+  name: 'minecraft:underwater_ruin',
+  choose: (random, ctx) => pickRuin(random, climateOf(ctx), random.nextFloat() < LARGE_RUIN_CHANCE),
+  build: buildOceanRuin,
+  // The drawing's bottom layer is the sea floor's top block.
+  baseY: (ctx) => floorAt(ctx, ctx.centreX, ctx.centreZ),
+  extraPieces: (random, ctx) => {
+    if (!/^big/.test(ctx.params.design) || random.nextFloat() >= CLUSTER_CHANCE) return [];
+    const [lo, hi] = CLUSTER_SIZE_RANGE;
+    const n = lo + random.nextIntBound(hi - lo + 1);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const angle = random.nextFloat() * Math.PI * 2;
+      const dist = 12 + random.nextIntBound(13);
+      out.push({ params: pickRuin(random, ctx.params.climate, false), x: Math.round(ctx.centreX + Math.cos(angle) * dist) - 3, z: Math.round(ctx.centreZ + Math.sin(angle) * dist) - 3, rotation: random.nextIntBound(4) });
     }
-  }
+    return out;
+  },
+  extraY: (ctx) => floorAt(ctx, ctx.centreX, ctx.centreZ),
+  offset: 0,
+  meta: (start, ctx) => ({ climate: ctx.params.climate, design: ctx.params.design, material: ctx.params.material, big: /^big/.test(ctx.params.design), cluster: start.pieces.length - 1 })
+});
 
-  return { size, palette, blocks, entities: [], meta: { variant, seed } };
-}
-
-/** How many ruins this cluster has, and where each sits relative to the origin. */
-export function planCluster({ seed, chunkX, chunkZ }) {
-  const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
-  const large = random.nextFloat() < LARGE_RUIN_CHANCE;
-  const [minRuins, maxRuins] = CLUSTER_SIZE_RANGE;
-  const count = large ? minRuins + random.nextIntBound(maxRuins - minRuins + 1) : 1;
-  const offsets = [];
-  for (let i = 0; i < count; i++) {
-    // Large clusters spread out; a lone ruin sits at the origin.
-    const spread = large ? 10 : 0;
-    offsets.push({
-      x: spread ? random.nextIntBound(spread * 2 + 1) - spread : 0,
-      z: spread ? random.nextIntBound(spread * 2 + 1) - spread : 0,
-      ruinSeed: random.nextInt()
-    });
-  }
-  return { large, count, offsets };
-}
-
-export function generateOceanRuin({ seed, chunkX, chunkZ, structureId, context }) {
-  const variant = structureId === 'ocean_ruin_warm' ? 'warm' : 'cold';
-  const originX = chunkX * 16 + 8;
-  const originZ = chunkZ * 16 + 8;
-  const floor = context.surfaceY ? context.surfaceY(originX, originZ, 'ocean_floor_wg') : 40;
-
-  const { large, count, offsets } = planCluster({ seed, chunkX, chunkZ });
-  const pieces = offsets.map((offset, index) => {
-    const params = { variant, seed: offset.ruinSeed };
-    const template = new StructureTemplate(buildOceanRuin(params), `minecraft:ocean_ruin/${variant}`);
-    const origin = { x: originX + offset.x, y: floor, z: originZ + offset.z };
-    return new StructurePiece({
-      id: template.name,
-      index,
-      type: 'template',
-      family: 'template',
-      template: template.name,
-      box: template.boundingBox(origin, 0),
-      meta: { origin, params, archaeology: OCEAN_RUIN_VARIANTS[variant].archaeology }
-    });
-  });
-
-  const start = new StructureStart({
-    structureId,
-    chunkX,
-    chunkZ,
-    pieces,
-    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null,
-    seed
-  });
-  start.meta = { variant, large, ruinCount: count, y: floor };
-  return start;
-}
-
-export function realizeOceanRuin(start, setBlock, blockIds) {
-  const resolver = createBlockIdResolver(blockIds || undefined);
-  const missingBlocks = new Set();
-  const suspicious = [];
-  let written = 0;
-  let piecesWritten = 0;
-
-  for (const piece of start.pieces) {
-    const template = new StructureTemplate(buildOceanRuin(piece.meta.params), piece.template);
-    const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
-    const placement = placeTemplate({
-      template,
-      origin: piece.meta.origin,
-      rotation: piece.rotation,
-      mirror: piece.mirror,
-      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] },
-      random,
-      world: null
-    });
-    let wrote = 0;
-    for (const block of placement.blocks) {
-      const id = resolver.resolveState(block.state);
-      if (id === null) { missingBlocks.add(block.state.name); continue; }
-      const lootTable = block.nbt?.LootTable ?? null;
-      if (lootTable) suspicious.push({ x: block.x, y: block.y, z: block.z, lootTable, block: block.state.name });
-      if (setBlock(block.x, block.y, block.z, id, { state: block.state, ...(lootTable ? { lootTable } : {}) })) {
-        written++;
-        wrote++;
-      }
-    }
-    if (wrote > 0) piecesWritten++;
-  }
-
-  return {
-    written,
-    piecesWritten,
-    pieces: start.pieces.length,
-    suspicious,
-    missingBlocks: [...missingBlocks].sort(),
-    note: 'clean-room ruins; the config fields the wiki omits make the footprints approximate'
-  };
-}
+export const generateOceanRuin = ruin.generate;
+export const realizeOceanRuin = ruin.realize;

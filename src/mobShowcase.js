@@ -10,6 +10,8 @@ import { DEBUG_MOBS } from './mobDebugSession.js';
 import { BREEDING_FOODS } from './animalBehaviors.js';
 import { executeTrade, unlockTradesForLevel } from './villagerEconomy.js';
 import { BLOCKS } from './blocks.js';
+import { universalScenarios } from './mobBehaviorScenarios.js';
+import { specificScenarios } from './mobSpecificScenarios.js';
 
 export function studioCatalog(library) {
   const existing=library.getAllMobs();
@@ -91,7 +93,7 @@ function locomotionRunning(s) {
   return false;
 }
 
-export function mobScenarios(type,definition=null) {
+function baseScenarios(type,definition=null) {
   if(type==='wither_skeleton')return witherSkeletonScenarios();
   if(isSquid(type))return squidScenarios(type);
   if(type==='blaze')return blazeScenarios();
@@ -105,6 +107,8 @@ export function mobScenarios(type,definition=null) {
     const mode=isCustom?'melee':ATTACK_AI[type];
     add('attack','Targeting and attack',mode==='ranged'?12:10,s=>{
       s.player.gamemode='survival';s.player.health=100;
+      // Hostile mobs are tested at night: the spider is neutral in daylight, and a zombie would burn.
+      s.manager.game.worldTime=18000;s.manager.game.isDaytime=false;
       // A ranged attacker needs distance: inside its reach it backs off or cannot fire.
       const gap=mode==='ranged'?6:MELEE_REACH;
       s.player.position.set(0,0,gap);
@@ -132,7 +136,22 @@ export function mobScenarios(type,definition=null) {
       return false;
     });
   }
-  if(type!=='strider'&&BREEDING_FOODS[type])add('breeding','Feeding, courtship and baby',8,s=>{const mate=s.manager.spawnMob(type,.8,0,0);if(!mate)throw new Error(`cannot spawn a mate of type ${type}`);s.player.gamemode='creative';s.mob.isTamed=mate.isTamed=true;interact(s,BREEDING_FOODS[type][0]);interact(s,BREEDING_FOODS[type][0],mate);},s=>s.manager.mobs.some(m=>m.isBaby));
+  if(type!=='strider'&&BREEDING_FOODS[type]){
+    // What breeding produces differs by species (wiki): most give a baby, a sniffer pair drops an egg item, and a frog pair
+    // makes one frog pregnant, which then lays frogspawn on water.
+    const label=type==='sniffer'?'Feeding, courtship and a sniffer egg':type==='frog'?'Feeding, courtship and frogspawn laid on water':'Feeding, courtship and baby';
+    add('breeding',label,type==='frog'?16:8,s=>{
+      const mate=s.manager.spawnMob(type,.8,0,0);if(!mate)throw new Error(`cannot spawn a mate of type ${type}`);s.player.gamemode='creative';s.mob.isTamed=mate.isTamed=true;
+      // Wiki: pandas breed only with a bamboo plant within a 7x7x3 area.
+      if(type==='panda')s.world.setVoxel(2,0,2,BLOCKS.BAMBOO);
+      if(type==='frog'){s.world.dimension='overworld';for(let x=3;x<=5;x++)for(let z=-1;z<=1;z++)s.world.setVoxel(x,-1,z,BLOCKS.WATER);}
+      interact(s,BREEDING_FOODS[type][0]);interact(s,BREEDING_FOODS[type][0],mate);
+    },s=>{
+      if(type==='sniffer')return s.entities.drops.some(d=>/sniffer_egg/.test(String(d.id)));
+      if(type==='frog'){for(let x=2;x<=6;x++)for(let z=-2;z<=2;z++)for(let y=-1;y<=1;y++)if(s.world.getVoxel(x,y,z)===BLOCKS.FROGSPAWN)return true;return false;}
+      return s.manager.mobs.some(m=>m.isBaby);
+    });
+  }
   if(type==='piglin'){
     add('barter','Gold ingot admiration and barter',8,s=>{s.player.gamemode='creative';equip(s,'gold_ingot');s.actionAccepted=s.manager.hostileBehaviors.interactPiglin(s.mob,s.player,s.inventory);},s=>s.actionAccepted&&!s.mob.isBartering);
     add('gold_armor','Gold armor neutrality',3,s=>{s.player.gamemode='survival';s.inventory.armor.helmet={id:'golden_helmet'};s.player.position.set(0,0,3);},s=>s.mob.combatTarget!==s.player && !s.mob.aggroToPlayer);
@@ -158,6 +177,25 @@ export function mobScenarios(type,definition=null) {
   return cases;
 }
 
+/**
+ * Every scenario for a mob: the mob's own, then the wiki-driven cross-mob ones (see mobBehaviorScenarios.js).
+ * A scenario id appears once, so a mob that already tests something itself keeps its own version.
+ */
+const CURATED=new Set('wither_skeleton squid glow_squid blaze strider horse donkey mule zombified_piglin zombie_pigman'.split(' '));
+export function mobScenarios(type,definition=null) {
+  const own=baseScenarios(type,definition);
+  if(typeof type!=='string')return own;
+  // Mobs with a hand-built suite keep exactly that suite: each of those is already 20-37 scenarios, all green.
+  if(CURATED.has(type))return own;
+  const taken=new Set(own.map(c=>c.id));
+  const specific=specificScenarios(type).filter(c=>!taken.has(c.id));
+  specific.forEach(c=>taken.add(c.id));
+  const wiki=[...specific,...universalScenarios(type,SCENARIO_SKIP).filter(c=>!taken.has(c.id))];
+  // Damage and death stay last: they end the mob's life, so anything after them would observe a corpse.
+  const last=['damage','death'];
+  return [...own.filter(c=>!last.includes(c.id)),...wiki,...own.filter(c=>last.includes(c.id))];
+}
+
 export class MobShowcase {
   constructor(session,report=()=>{}) {this.session=session;this.report=report;this.running=false;this.results=[];}
   start(selection,scenarioId=null) {this.selection=selection;this.cases=mobScenarios(typeof selection==='string'?selection:'custom',typeof selection==='object'?selection:null);if(scenarioId)this.cases=this.cases.filter(c=>c.id===scenarioId);this.results=[];this.index=-1;this.running=true;this.next();}
@@ -166,8 +204,10 @@ export class MobShowcase {
     // frozen while you look at it, and `reset` can carry that flag onto the fresh instance,
     // so clear it here — per scenario, since each one spawns a new mob.
     if(s.mob)s.mob.frozen=false;
+    // Every scenario starts at night, so a stray does not burn while its fall is being measured; the ones about daylight set the clock themselves.
+    s.manager.game.worldTime=18000;s.manager.game.isDaytime=false;
     this.elapsed=0;const c=this.cases[this.index];try{c.setup(s);}catch(e){this.finish('error',e.message);return;}this.report({id:c.id,label:c.label,index:this.index,total:this.cases.length,results:this.results});}
-  tick(dt){if(!this.running)return;try{this.cases[this.index].update?.(this.session,this.elapsed,dt);this.session.tick(dt);this.elapsed+=dt;if(this.elapsed>=this.cases[this.index].duration){const ok=this.cases[this.index].check(this.session);this.finish(ok===SCENARIO_SKIP?'unsupported':(ok?'observed':'not observed'));}}catch(e){this.finish('error',e.message);}}
+  tick(dt){if(!this.running)return;try{this.cases[this.index].update?.(this.session,this.elapsed,dt);this.session.tick(dt);this.elapsed+=dt;if(this.elapsed>=this.cases[this.index].duration){this.session.checkDetail='';const ok=this.cases[this.index].check(this.session),detail=this.session.checkDetail||'';this.finish(ok===SCENARIO_SKIP?'unsupported':(ok?'observed':'not observed'),ok?'':detail);}}catch(e){this.finish('error',e.message);}}
   finish(status,detail=''){const c=this.cases[this.index];this.results.push({id:c.id,label:c.label,status,detail});this.next();}
   stop(cancelled=true){this.running=false;if(this.selection)this.session.reset(this.selection);if(cancelled)this.report({cancelled:true,results:this.results});}
 }

@@ -144,10 +144,18 @@ export function rotateBlockState(state, rotation = 0, mirror = Mirror.NONE) {
       continue;
     }
 
-    // Jigsaw orientation, e.g. `up_north`: the top is unchanged by a yaw, the front rotates.
+    // Jigsaw orientation, vanilla's FrontAndTop: `<front>_<top>`. A vertical connector (`up_north`: front up,
+    // top north) keeps its front and turns its top; a horizontal one (`west_up`: front west, top up) turns its
+    // front. Only the first case used to be handled, so a rotated street's side connectors kept pointing their
+    // original way and every building joined to them was placed back over the street and rejected.
     if (key === 'orientation' && /^(up|down)_(north|south|east|west)$/.test(value)) {
-      const [top, front] = value.split('_');
-      properties[key] = `${top}_${transformDirection(front, rotation, mirror)}`;
+      const [front, top] = value.split('_');
+      properties[key] = `${front}_${transformDirection(top, rotation, mirror)}`;
+      continue;
+    }
+    if (key === 'orientation' && /^(north|south|east|west)_(up|down)$/.test(value)) {
+      const [front, top] = value.split('_');
+      properties[key] = `${transformDirection(front, rotation, mirror)}_${top}`;
       continue;
     }
 

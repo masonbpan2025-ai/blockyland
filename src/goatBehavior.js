@@ -365,7 +365,8 @@ function finishGoatRam(manager, mob, { move = null } = {}) {
         target.velocity.x -= dir.x * knockback;
         target.velocity.z -= dir.z * knockback;
       }
-      target.knockback = { x: -dir.x * knockback, z: -dir.z * knockback };
+      // A Vector3, like every other knockback: the motion code calls Vector3 methods on it.
+      target.knockback = new THREE.Vector3(-dir.x * knockback, 0, -dir.z * knockback);
     }
   }
   move?.(manager, mob, 0);

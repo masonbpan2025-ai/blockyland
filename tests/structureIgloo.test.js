@@ -30,14 +30,14 @@ test('the igloo is registered, gated on the right biomes and now has a generator
 
 test('the templates are well formed and use the documented palette', () => {
   const top = new StructureTemplate(buildIglooTop(), 'minecraft:igloo/top');
-  assert.deepEqual(top.size, [7, 5, 7]);
+  assert.deepEqual(top.size, [7, 5, 10]);
   assert.ok(top.blockCount > 40, `the dome needs a shell, a floor and a door, got ${top.blockCount} blocks`);
   const topNames = new Set(top.palette.map((entry) => entry.name));
   assert.ok(topNames.has('minecraft:snow_block'));
   assert.ok(topNames.has('minecraft:oak_trapdoor'), 'the entrance is a trapdoor in the vanilla structure');
 
   const basement = new StructureTemplate(buildIglooBasement(), 'minecraft:igloo/bottom');
-  assert.deepEqual(basement.size, [9, 4, 11]);
+  assert.deepEqual(basement.size, [7, 23, 10]);
   const basementNames = new Set(basement.palette.map((entry) => entry.name));
   assert.ok(basementNames.has('minecraft:iron_bars'), 'the villager is held behind bars');
   assert.ok(basementNames.has('minecraft:brewing_stand'), 'the cure needs a brewing stand');
@@ -202,4 +202,39 @@ test('realization is deterministic and chunk-clipping does not disturb other chu
   const near = [];
   engine.realize(start, (x, y, z, id) => { near.push({ x, z, id }); return true; }, { chunkX: 2, chunkZ: 2 });
   assert.ok(near.length > 0, 'the structure writes into its own chunk');
+});
+
+// ---- Wiki parity: the blueprint and the fact card ----------------------------------------------------------------
+
+test('the igloo is the wiki blueprint: the dome and basement counts match the materials table', async () => {
+  const { buildIglooTop: top, buildIglooBasement: bottom } = await import('../src/worldgen/templates/igloo.js');
+  const count = (data) => {
+    const out = {};
+    for (const b of data.blocks) { const n = data.palette[b.state].Name.replace('minecraft:', ''); out[n] = (out[n] ?? 0) + 1; }
+    return out;
+  };
+  const dome = count(top({ hasBasement: true }));
+  assert.deepEqual([dome.snow_block, dome.white_carpet, dome.light_gray_carpet, dome.ice, dome.furnace, dome.crafting_table, dome.redstone_torch, dome.oak_trapdoor],
+    [94, 9, 3, 2, 1, 1, 1, 1]);
+  const plain = count(top({ hasBasement: false }));
+  assert.equal(plain.snow_block, 95, 'without a basement the trapdoor is a snow block');
+  assert.equal(plain.oak_trapdoor, undefined);
+  const cellar = count(bottom({ seed: 4 }));
+  assert.deepEqual([cellar.chiseled_stone_bricks, cellar.infested_chiseled_stone_bricks, cellar.mossy_stone_bricks, cellar.infested_mossy_stone_bricks,
+    cellar.infested_stone_bricks, cellar.cracked_stone_bricks, cellar.stone, cellar.iron_bars, cellar.water_cauldron, cellar.brewing_stand, cellar.potted_cactus, cellar.chest],
+  [7, 2, 17, 1, 6, 8, 11, 4, 1, 1, 1, 1]);
+  // Where the drawing and the table differ, the drawing is followed; pinned so a wiki edit shows up here.
+  assert.equal(cellar.stone_bricks, 172, 'the table says 176');
+  assert.equal(cellar.ladder, 21, 'the table says 22');
+});
+
+test('every igloo fact passes, with and without a basement, in flat and real-world mode', async () => {
+  const { auditStructure } = await import('../src/structureAudit.js');
+  const seen = new Set();
+  for (const [mode, seed] of [['flat', 20250401], ['flat', 3], ['world', 2024], ['world', 7]]) {
+    const result = await auditStructure('igloo', { mode, seed });
+    seen.add(result.observation.start.meta.hasBasement);
+    assert.deepEqual(result.rows.filter((r) => r.status === 'fail').map((r) => `${r.id}: ${r.detail}`), [], `${mode} ${seed}`);
+  }
+  assert.equal(seen.size, 2, 'both variants were checked');
 });

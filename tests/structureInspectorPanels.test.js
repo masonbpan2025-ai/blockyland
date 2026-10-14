@@ -40,10 +40,10 @@ test('the piece graph shows the joining of a jigsaw structure, not just its boxe
     assert.notEqual(piece.parentOrdinal, piece.ordinal, 'a piece cannot be its own parent');
   }
   assert.ok(view.roots.length >= 1, 'a plan needs a root');
-  // The plate is the root and the tower is a child of it, which is the whole point of the graph view.
+  // The watchtower is the root (as in vanilla) and the features are its children, which is the point of the graph view.
   const root = view.pieces[view.roots[0]];
-  assert.equal(root.element, 'base_plate');
-  assert.ok(view.pieces.some((piece) => piece.element === 'watchtower' && piece.parentOrdinal === root.ordinal));
+  assert.equal(root.element, 'watchtower');
+  assert.ok(view.pieces.some((piece) => /^feature_/.test(piece.element) && piece.parentOrdinal === root.ordinal));
   // Connectors must be reported, since a connector with no pool is where expansion stops.
   assert.ok(view.connectorCount > 0);
   assert.ok(view.pieces.some((piece) => piece.connectors.some((connector) => connector.pool)));

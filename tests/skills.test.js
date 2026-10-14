@@ -9,6 +9,7 @@ import { TrainingSitesManager } from '../src/mods/dragonball-tournament/training
 import { MobManager } from '../src/mobs.js';
 import { Player } from '../src/player.js';
 import { BLOCKS } from '../src/blocks.js';
+import { installTournamentProviders } from './helpers/tournamentProviders.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,7 @@ function createMockGame() {
     tournament
   };
 
+  installTournamentProviders(game);
   return { game, player, camera, mobs, sounds, chatMessages, tournament };
 }
 
@@ -232,7 +234,7 @@ test('TrainingSitesManager defines 4 cardinal sites and introduces managers when
 });
 
 test('Designed Tournament Map JSON includes all 4 training sites, host, site managers and training mobs', () => {
-  const mapPath = path.resolve(__dirname, '..', 'designed_worlds', 'World_Martial_Arts_Tournament.json');
+  const mapPath = path.resolve(__dirname, '..', 'src/mods/dragonball-tournament/maps', 'World_Martial_Arts_Tournament.json');
   assert.ok(fs.existsSync(mapPath), 'World_Martial_Arts_Tournament.json exists in designed_worlds/');
 
   const mapData = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));

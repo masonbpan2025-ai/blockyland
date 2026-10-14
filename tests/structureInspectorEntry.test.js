@@ -30,7 +30,7 @@ test('the start screen reaches the Structure Inspector through the picker', () =
 });
 
 test('adding it left the other start-screen entries alone', () => {
-  for (const id of ['btn-start-inspector', 'btn-start-structure-studio', 'btn-start-new-world']) {
+  for (const id of ['btn-start-inspector', 'btn-start-building-studio', 'btn-start-new-world']) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} must survive`);
   }
   assert.ok(existsSync(join(process.cwd(), 'structure-inspector.html')), 'the page exists');
@@ -133,12 +133,15 @@ test('the page compares against the PREVIOUS plan and renders the answer', () =>
   assert.match(inspectorJs, /previous: lastSummary/, 'and passes it to the renderer');
 });
 
-test('the page applies the seed on change, and can roll one', () => {
-  // Flipping seeds must be ONE interaction rather than a text edit followed by a button press, and a reader
-  // with no seed in mind needs a way to get one.
+test('the page applies the seed on change, and can regenerate from the seed in the box', () => {
+  // Flipping seeds must be ONE interaction rather than a text edit followed by a button press, and Regenerate
+  // rebuilds the structure from whatever seed is typed.
   assert.match(inspectorJs, /\$\('seed'\)\.onchange =/, 'the seed is applied when it changes');
-  assert.match(inspectorJs, /btn-random-seed/, 'there is a Random seed button');
-  assert.match(inspectorHtml, /id="btn-random-seed"/, 'and it exists on the page');
+  assert.match(inspectorJs, /btn-regenerate/, 'there is a Regenerate button');
+  assert.match(inspectorHtml, /id="btn-regenerate"/, 'and it exists on the page');
+  for (const gone of ['btn-random-seed', 'btn-nearest', 'btn-chunk', 'btn-realize', 'btn-determinism']) {
+    assert.equal(inspectorHtml.includes(`id="${gone}"`), false, `${gone} was removed`);
+  }
 });
 
 test('selecting another structure plans it rather than leaving the old plan on screen', () => {
@@ -149,7 +152,7 @@ test('selecting another structure plans it rather than leaving the old plan on s
   // a CRLF checkout added one character per line and pushed the call just outside the window: a test that
   // depends on how many characters of comment precede the thing it checks is testing the comment.
   const onChange = inspectorJs.slice(inspectorJs.indexOf("$('structure').onchange"));
-  const handler = onChange.slice(0, onChange.indexOf("$('btn-nearest')"));
+  const handler = onChange.slice(0, onChange.indexOf("$('btn-reset-view')"));
   assert.match(handler, /session\.setStructure\(/, 'the picker selects the structure');
   assert.match(handler, /planNearestAndRefresh\(\)/, 'and plans it through the shared path');
 });
@@ -164,7 +167,7 @@ test('every element the page looks up exists on the page', () => {
   }
   const missing = [...ids].filter((id) => !new RegExp(`id="${id}"`).test(inspectorHtml));
   assert.deepEqual(missing, [], 'these ids are looked up but absent from the page: ' + missing.join(', '));
-  for (const id of ['seed-diff', 'plan-summary', 'piece-graph', 'adaptation-info', 'btn-random-seed']) {
+  for (const id of ['seed-diff', 'plan-summary', 'piece-graph', 'adaptation-info', 'btn-regenerate']) {
     assert.ok(ids.has(id), `${id} should be looked up by the page or its panel renderer`);
   }
 });

@@ -106,3 +106,20 @@ test('each new block has an item, so its recipe has a destination', () => {
     assert.ok(BLOCK_DEFS[id].textures?.all, key + ' should have a texture');
   }
 });
+
+test('a potted plant is a pot with the plant standing in it, rising out of the top of the pot', () => {
+  const def = BLOCK_DEFS[BLOCKS.POTTED_RED_MUSHROOM];
+  assert.equal(def.flowerPot, true);
+  // A texture manager that knows the plant sprite and the pot sprite, as the game's atlas does.
+  const atlas = {
+    tileCoords: { 'red_mushroom.png': {}, 'flower_pot.png': {}, 'potted_red_mushroom.png': {} },
+    getFaceUVs: () => ({ u0: 0.25, v0: 0.25, u1: 0.3, v1: 0.3 })
+  };
+  const b = box(createFlowerPotGeometry(def, atlas));
+  assert.equal(b.minY, 0, 'it sits on the floor');
+  assert.equal(b.maxY, 1, 'and the plant rises to the top of the block, above the 6/16 pot (it was a 6/16 cube before)');
+  assert.ok(b.w > 0.8, 'with sprites crossing wider than the pot, measured ' + b.w);
+  // Without a plant sprite in the atlas it falls back to the old single box rather than disappearing.
+  const fallback = box(createFlowerPotGeometry(def, textures));
+  assert.ok(Math.abs(fallback.h - 6 / 16) < 1e-6);
+});

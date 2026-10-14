@@ -2,6 +2,23 @@ import * as THREE from 'three';
 
 export const MAX_BLOCK_LIGHTS = 8;
 
+// Skylight gives upward snow faces a cool fill and sides softer reflected light.
+// The old low, uniform ambient made unlit white faces grey.
+export function createEnvironmentLight() {
+  return new THREE.HemisphereLight(0xddeeff, 0x9eafc5, 1.75);
+}
+
+export function updateOutdoorLighting(ambient, sun, moon, sky, enhanced = false, rain = 0) {
+  const day = sky.uniforms.uDay.value;
+  const sunHeight = sky.sunDirection.y;
+  ambient.color.setHex(0xddeeff);
+  ambient.groundColor?.setHex(0x9eafc5);
+  ambient.intensity = 0.10 + day * (enhanced ? 1.55 : 1.65);
+  sun.intensity = (enhanced ? 2.35 : 2.15) * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
+  sun.color.setRGB(1, 0.65 + 0.32 * day, 0.28 + 0.64 * day);
+  moon.intensity = 0.17 * Math.max(0, -sunHeight) * (1 - rain * 0.8);
+}
+
 export function configureSunShadows(light, scene) {
   light.castShadow = true;
   light.shadow.mapSize.set(2048, 2048);
@@ -23,6 +40,16 @@ export function followSun(light, direction, position) {
   center.addScaledVector(up, Math.round(position.dot(up) / texel) * texel - position.dot(up));
   light.target.position.copy(center);
   light.position.copy(center).addScaledVector(direction, 90);
+}
+
+/**
+ * How many light slots to keep in the scene for `sources` lamps: rounded up to a multiple of four, at most `max`.
+ * @param {number} sources
+ * @param {number} max
+ */
+export function activeLightSlots(sources, max = MAX_BLOCK_LIGHTS) {
+  if (sources <= 0) return 0;
+  return Math.min(max, Math.ceil(sources / 4) * 4);
 }
 
 export class BlockLighting {
@@ -60,8 +87,14 @@ export class BlockLighting {
       if (distance < 40 * 40) candidates.push({ source, distance });
     }
     candidates.sort((a, b) => a.distance - b.distance);
+    // Only as many lights are in the scene as there are lamps to show, in steps of four. Three.js loops over
+    // every point light in the scene for every lit pixel, whether its intensity is zero or not, so eight idle
+    // lights in a lamp-less valley were eight wasted light evaluations per pixel. The steps keep the number of
+    // shader variants to three (no lights, four, eight), so moving between lamps does not recompile shaders.
+    const active = activeLightSlots(Math.min(candidates.length, this.lights.length), this.lights.length);
     for (let i = 0; i < this.lights.length; i++) {
       const light = this.lights[i], source = candidates[i]?.source;
+      light.visible = i < active;
       light.intensity = source ? 3.8 * source.level / 15 : 0;
       if (!source) continue;
       light.position.copy(source.position);

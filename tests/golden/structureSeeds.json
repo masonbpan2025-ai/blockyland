@@ -9,18 +9,18 @@
       "biome": "beach",
       "chunkX": 36,
       "chunkZ": 0,
-      "planHash": 1021139254,
+      "planHash": 1938461466,
       "pieces": 1,
       "box": [
         585,
-        70,
+        69,
         9,
         585,
-        70,
+        69,
         9
       ],
       "blockCount": 1,
-      "contentHash": 779230037
+      "contentHash": 2536054845
     },
     {
       "id": "igloo",
@@ -29,7 +29,7 @@
       "biome": "snowy_taiga",
       "chunkX": 192,
       "chunkZ": 0,
-      "planHash": 4269294473,
+      "planHash": 4253474748,
       "pieces": 1,
       "box": [
         3076,
@@ -37,10 +37,10 @@
         4,
         3082,
         74,
-        10
+        13
       ],
-      "blockCount": 137,
-      "contentHash": 1173137710
+      "blockCount": 114,
+      "contentHash": 2020817749
     },
     {
       "id": "nether_fossil",
@@ -69,18 +69,18 @@
       "biome": "desert",
       "chunkX": 206,
       "chunkZ": 0,
-      "planHash": 1110341088,
+      "planHash": 126280528,
       "pieces": 1,
       "box": [
-        3287,
-        54,
-        -9,
-        3331,
-        86,
-        35
+        3284,
+        44,
+        -12,
+        3328,
+        92,
+        32
       ],
-      "blockCount": 380,
-      "contentHash": 3031511973
+      "blockCount": 2104,
+      "contentHash": 748905103
     },
     {
       "id": "swamp_hut",
@@ -89,18 +89,18 @@
       "biome": "swamp",
       "chunkX": 804,
       "chunkZ": 0,
-      "planHash": 186066753,
+      "planHash": 512090771,
       "pieces": 1,
       "box": [
-        12856,
-        58,
-        -8,
-        12886,
-        88,
-        22
+        12864,
+        72,
+        0,
+        12872,
+        78,
+        6
       ],
-      "blockCount": 135,
-      "contentHash": 4076485041
+      "blockCount": 174,
+      "contentHash": 3325802625
     },
     {
       "id": "pillager_outpost",
@@ -109,18 +109,38 @@
       "biome": "desert",
       "chunkX": 610,
       "chunkZ": 0,
-      "planHash": 2859816631,
-      "pieces": 6,
+      "planHash": 808998913,
+      "pieces": 5,
       "box": [
-        9748,
+        9746,
         58,
-        -12,
-        9786,
-        92,
-        26
+        -17,
+        9798,
+        102,
+        38
       ],
-      "blockCount": 443,
-      "contentHash": 1652008863
+      "blockCount": 541,
+      "contentHash": 3644011754
+    },
+    {
+      "id": "amethyst_geode",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 4,
+      "chunkZ": 0,
+      "planHash": 237074211,
+      "pieces": 1,
+      "box": [
+        69,
+        24,
+        -5,
+        84,
+        39,
+        10
+      ],
+      "blockCount": 1178,
+      "contentHash": 2463518220
     },
     {
       "id": "ancient_city",
@@ -129,18 +149,18 @@
       "biome": "deep_dark",
       "chunkX": 561,
       "chunkZ": 0,
-      "planHash": 384727853,
-      "pieces": 6,
+      "planHash": 2110179289,
+      "pieces": 21,
       "box": [
-        8963,
+        8936,
         -63,
-        -13,
-        9012,
-        -34,
-        43
+        -28,
+        9032,
+        -31,
+        41
       ],
-      "blockCount": 594,
-      "contentHash": 4010052655
+      "blockCount": 891,
+      "contentHash": 2434847345
     },
     {
       "id": "bastion_remnant",
@@ -149,18 +169,38 @@
       "biome": "nether_wastes",
       "chunkX": 465,
       "chunkZ": 0,
-      "planHash": 2870796750,
-      "pieces": 13,
+      "planHash": 2786738214,
+      "pieces": 21,
       "box": [
-        7437,
+        7439,
         57,
-        -3,
-        7457,
+        -39,
+        7459,
         62,
         63
       ],
-      "blockCount": 413,
-      "contentHash": 1144357234
+      "blockCount": 538,
+      "contentHash": 2301914089
+    },
+    {
+      "id": "desert_well",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 761,
+      "chunkZ": 0,
+      "planHash": 1527042855,
+      "pieces": 1,
+      "box": [
+        12180,
+        68,
+        4,
+        12184,
+        74,
+        8
+      ],
+      "blockCount": 112,
+      "contentHash": 1856584226
     },
     {
       "id": "end_city",
@@ -183,24 +223,44 @@
       "contentHash": 795548258
     },
     {
+      "id": "fossil",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "desert",
+      "chunkX": 48,
+      "chunkZ": 0,
+      "planHash": 1850390262,
+      "pieces": 1,
+      "box": [
+        768,
+        2,
+        0,
+        772,
+        6,
+        6
+      ],
+      "blockCount": 70,
+      "contentHash": 961220071
+    },
+    {
       "id": "jungle_pyramid",
       "seed": 20250401,
       "dimension": "overworld",
       "biome": "jungle",
       "chunkX": 298,
       "chunkZ": 0,
-      "planHash": 945918024,
+      "planHash": 3830585247,
       "pieces": 1,
       "box": [
-        4771,
-        66,
-        3,
+        4768,
+        67,
+        0,
         4779,
-        74,
-        11
+        80,
+        14
       ],
-      "blockCount": 285,
-      "contentHash": 1178865750
+      "blockCount": 1222,
+      "contentHash": 2099497381
     },
     {
       "id": "mansion",
@@ -223,24 +283,84 @@
       "contentHash": 4267594902
     },
     {
+      "id": "mineshaft",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 309,
+      "chunkZ": 0,
+      "planHash": 2639977167,
+      "pieces": 36,
+      "box": [
+        4879,
+        27,
+        -60,
+        4995,
+        34,
+        78
+      ],
+      "blockCount": 628,
+      "contentHash": 2999720597
+    },
+    {
+      "id": "mineshaft_mesa",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "badlands",
+      "chunkX": 309,
+      "chunkZ": 0,
+      "planHash": 2869766473,
+      "pieces": 70,
+      "box": [
+        4880,
+        51,
+        -38,
+        5030,
+        68,
+        76
+      ],
+      "blockCount": 664,
+      "contentHash": 2098464079
+    },
+    {
+      "id": "monster_room",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 6,
+      "chunkZ": 0,
+      "planHash": 1105375541,
+      "pieces": 1,
+      "box": [
+        103,
+        29,
+        5,
+        111,
+        33,
+        13
+      ],
+      "blockCount": 397,
+      "contentHash": 3067253411
+    },
+    {
       "id": "monument",
       "seed": 20250401,
       "dimension": "overworld",
       "biome": "deep_ocean",
       "chunkX": 3754,
       "chunkZ": 0,
-      "planHash": 280655593,
+      "planHash": 1238585015,
       "pieces": 1,
       "box": [
-        60070,
-        70,
-        6,
-        60092,
-        82,
-        28
+        60064,
+        3,
+        0,
+        60121,
+        25,
+        57
       ],
-      "blockCount": 1291,
-      "contentHash": 483256804
+      "blockCount": 5888,
+      "contentHash": 2526054534
     },
     {
       "id": "ocean_ruin_cold",
@@ -249,18 +369,18 @@
       "biome": "frozen_ocean",
       "chunkX": 125,
       "chunkZ": 0,
-      "planHash": 2781686248,
-      "pieces": 7,
+      "planHash": 425399724,
+      "pieces": 6,
       "box": [
-        2009,
+        1984,
         70,
-        3,
-        2021,
-        73,
-        18
+        -17,
+        2028,
+        76,
+        23
       ],
-      "blockCount": 132,
-      "contentHash": 1841315827
+      "blockCount": 240,
+      "contentHash": 190373911
     },
     {
       "id": "ocean_ruin_warm",
@@ -269,18 +389,18 @@
       "biome": "lukewarm_ocean",
       "chunkX": 125,
       "chunkZ": 0,
-      "planHash": 2781686248,
-      "pieces": 7,
+      "planHash": 2347417950,
+      "pieces": 5,
       "box": [
-        2009,
+        1982,
         70,
-        3,
-        2021,
-        73,
-        18
+        -13,
+        2024,
+        79,
+        16
       ],
-      "blockCount": 137,
-      "contentHash": 3482412524
+      "blockCount": 408,
+      "contentHash": 24301249
     },
     {
       "id": "ruined_portal",
@@ -289,18 +409,18 @@
       "biome": "plains",
       "chunkX": 172,
       "chunkZ": 0,
-      "planHash": 2637258028,
+      "planHash": 674408950,
       "pieces": 1,
       "box": [
-        2758,
-        70,
-        6,
-        2762,
-        75,
-        10
+        2756,
+        42,
+        4,
+        2769,
+        47,
+        17
       ],
-      "blockCount": 22,
-      "contentHash": 227729018
+      "blockCount": 826,
+      "contentHash": 1337714601
     },
     {
       "id": "ruined_portal_desert",
@@ -309,18 +429,18 @@
       "biome": "desert",
       "chunkX": 1527,
       "chunkZ": 0,
-      "planHash": 2723419718,
+      "planHash": 728660436,
       "pieces": 1,
       "box": [
-        24438,
-        67,
-        6,
-        24442,
-        72,
-        10
+        24436,
+        68,
+        4,
+        24441,
+        76,
+        9
       ],
-      "blockCount": 27,
-      "contentHash": 958711843
+      "blockCount": 128,
+      "contentHash": 1897007891
     },
     {
       "id": "ruined_portal_jungle",
@@ -329,18 +449,18 @@
       "biome": "jungle",
       "chunkX": 2164,
       "chunkZ": 1,
-      "planHash": 346990697,
+      "planHash": 2902289754,
       "pieces": 1,
       "box": [
-        34630,
-        70,
-        22,
-        34634,
-        75,
-        26
+        34628,
+        69,
+        20,
+        34641,
+        74,
+        33
       ],
-      "blockCount": 32,
-      "contentHash": 3720951727
+      "blockCount": 191,
+      "contentHash": 3970089608
     },
     {
       "id": "ruined_portal_mountain",
@@ -349,18 +469,18 @@
       "biome": "windswept_hills",
       "chunkX": 575,
       "chunkZ": 0,
-      "planHash": 781157541,
+      "planHash": 2162612756,
       "pieces": 1,
       "box": [
-        9206,
-        70,
-        6,
-        9210,
-        75,
-        10
+        9204,
+        63,
+        4,
+        9212,
+        69,
+        13
       ],
-      "blockCount": 23,
-      "contentHash": 3243512470
+      "blockCount": 608,
+      "contentHash": 4005549737
     },
     {
       "id": "ruined_portal_nether",
@@ -369,18 +489,18 @@
       "biome": "plains",
       "chunkX": 172,
       "chunkZ": 0,
-      "planHash": 1380976666,
+      "planHash": 1859349700,
       "pieces": 1,
       "box": [
-        2758,
-        29,
-        6,
-        2762,
-        34,
-        10
+        2756,
+        79,
+        4,
+        2769,
+        84,
+        17
       ],
-      "blockCount": 22,
-      "contentHash": 482045257
+      "blockCount": 712,
+      "contentHash": 1554275668
     },
     {
       "id": "ruined_portal_ocean",
@@ -389,18 +509,18 @@
       "biome": "ocean",
       "chunkX": 172,
       "chunkZ": 0,
-      "planHash": 2637258028,
+      "planHash": 3901980392,
       "pieces": 1,
       "box": [
-        2758,
-        70,
-        6,
-        2762,
-        75,
-        10
+        2756,
+        69,
+        4,
+        2769,
+        74,
+        17
       ],
-      "blockCount": 22,
-      "contentHash": 3620282970
+      "blockCount": 156,
+      "contentHash": 164337160
     },
     {
       "id": "ruined_portal_swamp",
@@ -409,18 +529,18 @@
       "biome": "swamp",
       "chunkX": 172,
       "chunkZ": 0,
-      "planHash": 2637258028,
+      "planHash": 3901980392,
       "pieces": 1,
       "box": [
-        2758,
-        70,
-        6,
-        2762,
-        75,
-        10
+        2756,
+        69,
+        4,
+        2769,
+        74,
+        17
       ],
-      "blockCount": 22,
-      "contentHash": 314312007
+      "blockCount": 166,
+      "contentHash": 2183868270
     },
     {
       "id": "shipwreck",
@@ -429,18 +549,18 @@
       "biome": "ocean",
       "chunkX": 88,
       "chunkZ": 0,
-      "planHash": 1384704885,
+      "planHash": 3333891014,
       "pieces": 1,
       "box": [
-        1410,
-        68,
-        2,
-        1412,
-        71,
-        17
+        1408,
+        69,
+        0,
+        1416,
+        77,
+        27
       ],
-      "blockCount": 95,
-      "contentHash": 936617933
+      "blockCount": 424,
+      "contentHash": 3814022712
     },
     {
       "id": "shipwreck_beached",
@@ -449,18 +569,18 @@
       "biome": "beach",
       "chunkX": 88,
       "chunkZ": 0,
-      "planHash": 195964901,
+      "planHash": 766590188,
       "pieces": 1,
       "box": [
-        1410,
+        1408,
         70,
-        2,
-        1412,
-        73,
-        17
+        0,
+        1416,
+        76,
+        19
       ],
-      "blockCount": 95,
-      "contentHash": 4025683444
+      "blockCount": 258,
+      "contentHash": 104280622
     },
     {
       "id": "trail_ruins",
@@ -469,18 +589,18 @@
       "biome": "taiga",
       "chunkX": 886,
       "chunkZ": 0,
-      "planHash": 279778121,
-      "pieces": 4,
+      "planHash": 2277491674,
+      "pieces": 9,
       "box": [
         14165,
         56,
-        -17,
+        -4,
         14209,
         83,
-        30
+        69
       ],
-      "blockCount": 207,
-      "contentHash": 3222783537
+      "blockCount": 162,
+      "contentHash": 2151653413
     },
     {
       "id": "trial_chambers",
@@ -489,18 +609,18 @@
       "biome": "plains",
       "chunkX": 1991,
       "chunkZ": 0,
-      "planHash": 1355536956,
-      "pieces": 17,
+      "planHash": 3291291358,
+      "pieces": 23,
       "box": [
-        31837,
+        31820,
         -22,
-        -13,
-        31895,
+        -17,
+        31906,
         10,
-        81
+        60
       ],
-      "blockCount": 584,
-      "contentHash": 1788742250
+      "blockCount": 754,
+      "contentHash": 3598166671
     },
     {
       "id": "village_desert",
@@ -509,18 +629,18 @@
       "biome": "desert",
       "chunkX": 467,
       "chunkZ": 0,
-      "planHash": 1847312475,
-      "pieces": 20,
+      "planHash": 1191345460,
+      "pieces": 33,
       "box": [
-        7453,
+        7439,
         58,
-        -19,
-        7501,
-        86,
-        74
+        -42,
+        7511,
+        99,
+        65
       ],
-      "blockCount": 229,
-      "contentHash": 3465653140
+      "blockCount": 228,
+      "contentHash": 84440448
     },
     {
       "id": "village_plains",
@@ -529,18 +649,18 @@
       "biome": "plains",
       "chunkX": 467,
       "chunkZ": 0,
-      "planHash": 1847312475,
-      "pieces": 20,
+      "planHash": 2614154541,
+      "pieces": 35,
       "box": [
-        7453,
-        58,
-        -19,
-        7501,
-        86,
-        74
+        7408,
+        57,
+        -24,
+        7519,
+        93,
+        78
       ],
-      "blockCount": 229,
-      "contentHash": 2466008140
+      "blockCount": 272,
+      "contentHash": 1929632154
     },
     {
       "id": "village_savanna",
@@ -549,18 +669,18 @@
       "biome": "savanna",
       "chunkX": 467,
       "chunkZ": 0,
-      "planHash": 1847312475,
-      "pieces": 20,
+      "planHash": 3603348346,
+      "pieces": 39,
       "box": [
-        7453,
-        58,
-        -19,
-        7501,
-        86,
-        74
+        7408,
+        53,
+        -33,
+        7551,
+        88,
+        59
       ],
-      "blockCount": 229,
-      "contentHash": 365569911
+      "blockCount": 323,
+      "contentHash": 3812672937
     },
     {
       "id": "village_snowy",
@@ -569,18 +689,18 @@
       "biome": "snowy_plains",
       "chunkX": 467,
       "chunkZ": 0,
-      "planHash": 1847312475,
-      "pieces": 20,
+      "planHash": 99937196,
+      "pieces": 49,
       "box": [
-        7453,
+        7421,
         58,
-        -19,
-        7501,
-        86,
-        74
+        -64,
+        7536,
+        91,
+        77
       ],
-      "blockCount": 229,
-      "contentHash": 1695024768
+      "blockCount": 320,
+      "contentHash": 2358751063
     },
     {
       "id": "village_taiga",
@@ -589,19 +709,21 @@
       "biome": "taiga",
       "chunkX": 467,
       "chunkZ": 0,
-      "planHash": 1847312475,
-      "pieces": 20,
+      "planHash": 3167215995,
+      "pieces": 26,
       "box": [
-        7453,
+        7430,
         58,
-        -19,
-        7501,
-        86,
-        74
+        -51,
+        7513,
+        91,
+        36
       ],
-      "blockCount": 229,
-      "contentHash": 2469936604
+      "blockCount": 195,
+      "contentHash": 3226936095
     }
   ],
-  "unfound": []
+  "unfound": [
+    "stronghold"
+  ]
 }

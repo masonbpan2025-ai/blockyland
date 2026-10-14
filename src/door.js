@@ -212,6 +212,32 @@ export class DoorManager {
     return { success: true, door };
   }
 
+  /**
+   * Register a door that is ALREADY in the world -- one a structure wrote -- with the facing it was built with.
+   * `placeDoor` is for the player and writes the blocks itself; a village writes them through chunk generation,
+   * so this only records the state (facing, hinge, which blocks it cycles through) the mesher and `toggleDoor`
+   * read. Without it a village door fell back to facing north whatever way its house turned.
+   */
+  adoptDoor(bottomPos, facing = 3, hinge = 'left') {
+    const [x, y, z] = bottomPos.map(Math.floor);
+    const world = this.game?.world;
+    const def = BLOCK_DEFS[world?.getVoxel(x, y, z)];
+    if (!def?.door) return null;
+    const door = {
+      bottomPos: [x, y, z],
+      topPos: [x, y + 1, z],
+      facing,
+      open: false,
+      manualOpen: false,
+      isIron: Boolean(def.isIron),
+      ids: doorIdSet(def),
+      hinge
+    };
+    this.doors.set(this.getKey(x, y, z), door);
+    this.doors.set(this.getKey(x, y + 1, z), door);
+    return door;
+  }
+
   toggleDoor(x, y, z, forceRedstone = false) {
     const key = this.getKey(x, y, z);
     let door = this.doors.get(key);

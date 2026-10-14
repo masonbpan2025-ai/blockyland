@@ -1,4 +1,6 @@
 import { renderHorseInventory } from './horseInventory.js';
+import { syncAgentTerminalControls } from './agentTerminalControls.js';
+import { allowsAgentTerminal } from './sessionSettings.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
@@ -7,7 +9,6 @@ import { PROFESSIONS, VILLAGER_LEVELS, calculateTradeCost, executeTrade, DEFAULT
 import { isWanderingTrader } from './wanderingTraderBehavior.js';
 import { CREATIVE_TABS, ALL_CREATIVE_ITEMS, getCreativeItemsByTab, searchCreativeItems, refreshCreativeCatalog } from './creativeCatalog.js';
 import { getSmeltingRecipe, getFuelBurnTime } from './furnace.js';
-import { normaliseGamerules, gameruleFor } from './sessionSettings.js';
 import { generationPresetList } from './dataPackPresets.js';
 import { bindDataPackPanel } from './dataPackPanel.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
@@ -36,6 +37,10 @@ import { BrewingManager, getBrewingResult, POTION_DATA } from './brewing.js';
 import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
 import { calculateSmithingResult } from './smithing.js';
+import { teardownWorld } from './worldTeardown.js';
+import { escapeHtml } from './multiplayer/shareProtocol.js';
+import { decorateTrimIcon } from './trimIcon.js';
+import { trimTooltipLine } from './trimVisuals.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 
 /**
@@ -249,11 +254,17 @@ export class UIManager {
     this.geminiSaveKeyBtn = document.getElementById('gemini-save-key-btn');
     this.geminiClearKeyBtn = document.getElementById('gemini-clear-key-btn');
     this.geminiOfflineBtn = document.getElementById('gemini-offline-btn');
+    this.geminiOfflineState = document.getElementById('gemini-offline-state');
     this.geminiToggleKeyBtn = document.getElementById('gemini-toggle-key');
     this.geminiCloseBtn = document.getElementById('gemini-close-btn');
     this.geminiVendorRow = document.getElementById('gemini-vendor-row');
     this.geminiVendorButtons = Array.from(document.querySelectorAll('.gemini-vendor-btn'));
     this.geminiModelSelect = document.getElementById('gemini-model-select');
+    this.geminiRefreshModelsBtn = document.getElementById('gemini-refresh-models-btn');
+    this.geminiCustomModelInput = document.getElementById('gemini-custom-model-input');
+    this.geminiCustomModelBtn = document.getElementById('gemini-custom-model-btn');
+    this.geminiAutoUpgradeToggle = document.getElementById('gemini-autoupgrade-toggle');
+    this.geminiModelSource = document.getElementById('gemini-model-source');
     this.geminiEffortField = document.getElementById('gemini-effort-field');
     this.geminiEffortSelect = document.getElementById('gemini-effort-select');
     this.geminiViewToggle = document.getElementById('gemini-view-toggle');
@@ -375,7 +386,7 @@ export class UIManager {
     this.bindBiomeModalEvents();
     this.bindWorldModeControls();
     this.bindDataPackPresetSelect();
-    this.bindTerminalWorldSettings();
+
     this.bindDataPackPanel();
     this.bindChatEvents();
     this.bindFloatingCursor();
@@ -497,6 +508,9 @@ export class UIManager {
           this.closeGeminiTerminal();
         } else if (this.isModalOpen()) {
           this.closeAllModals();
+        } else if (document.pointerLockElement) {
+          // Mouse attached: this Escape only detaches it (browsers that deliver the keydown too).
+          document.exitPointerLock();
         } else {
           this.togglePauseMenu();
         }
@@ -557,9 +571,12 @@ export class UIManager {
   }
 
   isModalOpen() {
+    if (this.game?.modRuntime?.exclusiveSimulation || this.game?.modRuntime?.isModalOpen?.()) return true;
     const defeatOverlay = typeof document !== 'undefined' ? document.getElementById('defeat-overlay') : null;
 
     const isDefeatOpen = defeatOverlay && !defeatOverlay.classList.contains('hidden') && defeatOverlay.classList.contains('visible');
+    const deathOverlay = typeof document !== 'undefined' ? document.getElementById('death-overlay') : null;
+    if (deathOverlay && !deathOverlay.classList.contains('hidden')) return true;
 
     if (typeof document !== 'undefined') {
       const anyGameModal = document.querySelector('.game-modal:not(.hidden)');
@@ -631,7 +648,7 @@ export class UIManager {
     }
     if (this.player) {
       this.player.keys = {};
-      this.player.controlsDisabled = false;
+      this.player.controlsDisabled = Boolean(this.game?.modRuntime?.exclusiveSimulation);
       this.player.isSleeping = false;
     }
     this.hideTooltip();
@@ -647,6 +664,7 @@ export class UIManager {
   }
 
   requestGamePointerLock() {
+    if (this.game?.modRuntime?.exclusiveSimulation) return;
     const el = this.game?.renderer?.domElement || (typeof document !== 'undefined' ? document.getElementById('canvas-container') : null);
     if (el && typeof el.requestPointerLock === 'function') {
       try {
@@ -701,6 +719,7 @@ export class UIManager {
           img.src = resolveItemIcon(meta.icon, meta.name);
           // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
           img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
+          decorateTrimIcon(img, item);
           slot.appendChild(img);
 
           if (meta.count > 1) {
@@ -1274,6 +1293,8 @@ export class UIManager {
         slot.onmouseenter = (e) => {
           let desc = `Armor: +${meta.armor || 0}`;
           if (meta.toughness) desc += ` | Toughness: +${meta.toughness}`;
+          const trimLine = trimTooltipLine(item);
+          if (trimLine) desc += ` · ${trimLine}`;
           this.showTooltip(e.clientX, e.clientY, meta.name, desc);
         };
         slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
@@ -1450,6 +1471,12 @@ export class UIManager {
   /** Paint the pause menu's state readouts from the game, not from the last click. */
   refreshPauseMenuLabels() {
     const cheatsOn = this.game?.settings?.cheats === true;
+    const dataPacks=document.getElementById('pause-datapacks');
+    if(dataPacks?.classList?.toggle){
+      const allowed=allowsAgentTerminal(this.game?.settings);
+      dataPacks.classList.toggle('hidden',!allowed);
+      if(!allowed)dataPacks.open=false;
+    }
     const btnCheats = document.getElementById('btn-cheats');
     if (btnCheats) {
       btnCheats.textContent = `Cheats: ${cheatsOn ? 'ON' : 'OFF'}`;
@@ -1552,6 +1579,8 @@ export class UIManager {
           slot.onmouseenter = (e) => {
             let desc = `Armor: +${meta.armor || 0}`;
             if (meta.toughness) desc += ` | Toughness: +${meta.toughness}`;
+            const trimLine = trimTooltipLine(item);
+            if (trimLine) desc += ` · ${trimLine}`;
             this.showTooltip(e.clientX, e.clientY, meta.name, desc);
           };
           slot.onmousemove = (e) => this.positionTooltip(e.clientX, e.clientY);
@@ -3360,6 +3389,8 @@ export class UIManager {
     img.src = resolveItemIcon(meta.icon, meta.name);
     // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
     img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
+    // A trimmed armour piece shows its trim on the icon, wherever the piece is drawn.
+    decorateTrimIcon(img, item);
     slotEl.appendChild(img);
 
     if (meta.count > 1) {
@@ -3412,6 +3443,8 @@ export class UIManager {
     if (icon) {
       icon.src = meta.icon || '';
       icon.alt = meta.name || '';
+      delete icon.dataset.trimKey;
+      if (icon.src) decorateTrimIcon(icon, this.inv.cursorItem);
       if (!icon.src) {
         this.floatingItem.classList.add('hidden');
         return;
@@ -3686,51 +3719,31 @@ export class UIManager {
       window.location.reload();
     };
 
+    // The death screen's buttons, as in vanilla: Respawn returns to play, Title Screen leaves the world.
+    const btnDeathRespawn = document.getElementById('btn-death-respawn');
+    if (btnDeathRespawn) {
+      btnDeathRespawn.onclick = () => {
+        this.playPopSound();
+        this.player.respawn();
+        this.requestGamePointerLock();
+      };
+    }
+    const btnDeathTitle = document.getElementById('btn-death-title');
+    if (btnDeathTitle) {
+      btnDeathTitle.onclick = () => {
+        document.getElementById('death-overlay')?.classList.add('hidden');
+        document.getElementById('btn-title-screen')?.click();
+      };
+    }
+
     const btnTitle = document.getElementById('btn-title-screen');
     if (btnTitle) {
       btnTitle.onclick = () => {
         document.exitPointerLock();
         this.closeAllModals();
         this.playPopSound();
-        if (this.game) {
-          this.game.worldGenerated = false;
-          for (const chunk of this.game.world.chunks.values()) {
-            for (const key of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
-              if (chunk[key]) {
-                this.game.scene.remove(chunk[key]);
-                chunk[key].geometry.dispose();
-                chunk[key] = null;
-              }
-            }
-          }
-          this.game.world.chunks.clear();
-          this.game.world.water?.reset();
-          if (this.game.blockLighting?.chunks) {
-            this.game.blockLighting.chunks.clear();
-            this.game.blockLighting.dirty = true;
-          }
-          if (this.game.mobs?.clearMobs) this.game.mobs.clearMobs();
-          this.game.modLoader?.closeWorld();
-          if (this.game.buildingStudio) {
-            this.game.buildingStudio.exitStudio();
-          }
-          if (this.game.world) {
-            this.game.world.isFlatWorld = false;
-          }
-          if (this.game.mechanisms) {
-            this.game.mechanisms.setMechanism('default', this.game);
-          }
-          if (this.game.targetBoxMesh) this.game.targetBoxMesh.visible = false;
-          if (this.game.breakOverlayMesh) this.game.breakOverlayMesh.visible = false;
-          this.game.targetBlock = null;
-          this.game.targetMob = null;
-          this.game.isMouseDown = false;
-          this.game.miningTime = 0;
-          if (this.game.player) {
-            this.game.player.position.set(0, 26, 0);
-            this.game.player.velocity.set(0, 0, 0);
-          }
-        }
+        // One place releases everything the world owns, so the next world starts from nothing (worldTeardown.js).
+        if (this.game) teardownWorld(this.game);
         if (this.startOverlay) this.startOverlay.style.display = 'flex';
       };
     }
@@ -3751,6 +3764,7 @@ export class UIManager {
         const next = !on;
         // Through `applyWorldSettings`, so the setting, the terminal and every command read one value.
         this.game.applyWorldSettings?.({ cheats: next });
+        this.refreshPauseMenuLabels();
         if (btnCheats) {
           btnCheats.textContent = `Cheats: ${next ? 'ON' : 'OFF'}`;
           btnCheats.setAttribute?.('aria-pressed', String(next));
@@ -3879,66 +3893,6 @@ export class UIManager {
   }
 
   /**
-   * The world settings inside the Agent Terminal.
-   *
-   * Difficulty, the game mode and the rule switches live here rather than in the pause menu. The terminal IS
-   * the cheats surface -- it opens only when cheats are on -- so an ordinary Survival player cannot reach
-   * these and Creative can, which is the plan's rule that mode and rule changes follow the cheats policy.
-   */
-  bindTerminalWorldSettings() {
-    const difficulties = ['peaceful', 'easy', 'normal', 'hard'];
-    const modes = ['survival', 'creative'];
-    const diffButtons = difficulties.map(d => document.getElementById(`terminal-difficulty-${d}`));
-    const modeButtons = modes.map(m => document.getElementById(`terminal-mode-${m}`));
-    const ruleButtons = ['doMobSpawning', 'doDaylightCycle', 'naturalRegeneration', 'keepInventory']
-      .map(r => document.getElementById(`terminal-rule-${r}`));
-    const hint = document.getElementById('terminal-settings-hint');
-
-    const setActive = (el, on) => { if (el?.classList?.toggle) el.classList.toggle('active', on); };
-
-    const paint = () => {
-      const game = this.game;
-      if (!game) return;
-      const difficulty = game.player?.difficultyLevel ?? game.difficulty ?? 'normal';
-      difficulties.forEach((d, i) => setActive(diffButtons[i], d === difficulty));
-      const mode = game.player?.gamemode ?? 'survival';
-      modes.forEach((m, i) => setActive(modeButtons[i], m === mode));
-      for (const btn of ruleButtons) setActive(btn, gameruleFor(game, btn?.dataset?.rule) === true);
-      if (hint) {
-        hint.textContent = `Difficulty ${difficulty} · ${mode} mode.`
-          + ' These are cheat controls, so they are only reachable with cheats on.';
-      }
-    };
-
-    difficulties.forEach((d, i) => diffButtons[i]?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Through `applyWorldSettings`, so the game and the player cannot disagree -- the single-authority rule.
-      this.game?.applyWorldSettings?.({ difficulty: d });
-      paint();
-    }));
-    modes.forEach((m, i) => modeButtons[i]?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.game?.applyWorldSettings?.({ gameMode: m });
-      paint();
-    }));
-    for (const btn of ruleButtons) {
-      btn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const game = this.game;
-        if (!game) return;
-        const name = btn.dataset.rule;
-        const next = !(gameruleFor(game, name) === true);
-        game.gamerules = { ...normaliseGamerules(game.gamerules), [name]: next };
-        paint();
-      });
-    }
-
-    // Refreshed whenever the terminal opens, so it reflects the world it is looking at.
-    this.refreshTerminalWorldSettings = paint;
-    paint();
-  }
-
-  /**
    * The Data Packs panel.
    *
    * This is the only place the loader meets a player. The hooks below are the whole interface between the UI
@@ -3947,7 +3901,7 @@ export class UIManager {
    */
   bindDataPackPanel() {
     if (!this.game) return null;
-    return bindDataPackPanel(this, {
+    const panel=bindDataPackPanel(this, {
       getStore: () => this.game.dataPacks,
       installBundled: async () => {
         const result = await installBundledPack(this.game.dataPacks, { name: BUNDLED_PACK_NAME });
@@ -3968,6 +3922,10 @@ export class UIManager {
       uploadName: () => 'Uploaded pack',
       notify: (message) => console.log('[DataPacks]', message),
     });
+    document.getElementById('pause-datapacks')?.addEventListener('toggle',event=>{
+      if(event.currentTarget.open)panel?.refresh();
+    });
+    return panel;
   }
 
   // Biome Selection Modal Management
@@ -4032,6 +3990,8 @@ export class UIManager {
           this.game.applyWorldSettings?.({
             gameMode: chosenMode,
             difficulty: chosenDifficulty,
+            // A new world starts with cheats ON in Creative and OFF in Survival, whatever the last world had.
+            cheats: chosenMode === 'creative',
             preset: 'ordinary',
             biome: biomeId,
             seed: seedNum,
@@ -4624,7 +4584,8 @@ export class UIManager {
             if (this.onCommand) this.onCommand(val);
           } else {
             const myName = this.game?.worldSync?.client?.playerName || 'Player';
-            this.addChatMessage(`<${myName}> ${val}`);
+            // The name and the text are plain text: escaped, so what a player types can never be read as markup.
+            this.addChatMessage(`<span style="color:#38bdf8;font-weight:bold;">&lt;${escapeHtml(myName)}&gt;</span> ${escapeHtml(val)}`);
             this.game?.worldSync?.onChatSent(val);
           }
         }
@@ -4694,9 +4655,13 @@ export class UIManager {
   }
 
   /** The F3+H lines for a slot, empty unless advanced tooltips are on. */
+  /**
+   * The extra tooltip text for an item: its armour trim, then the advanced lines when they are switched on.
+   * The trim is shown whether or not advanced tooltips are on, because it is part of what the piece is.
+   */
   advancedTooltipSuffix(item) {
-    if (!this.advancedTooltips) return '';
-    return advancedTooltipLines(item).join(' · ');
+    const advanced = this.advancedTooltips ? advancedTooltipLines(item).join(' · ') : '';
+    return [trimTooltipLine(item), advanced].filter(Boolean).join(' · ');
   }
 
   addChatMessage(msg, type = 'normal') {
@@ -4741,14 +4706,14 @@ export class UIManager {
     }
     if (this.geminiModal) {
       this.geminiModal.classList.remove('hidden');
-      // Repaint the world settings, so the panel shows the world it is looking at rather than whatever it
-      // showed last time.
-      this.refreshTerminalWorldSettings?.();
-      if (options.showSettings && this.geminiKeyDrawer) {
+      this.refreshAgentControls?.();
+      const showSettings=options.showSettings&&!this.geminiAgent?.offlineMode;
+      if (showSettings && this.geminiKeyDrawer) {
         this.geminiKeyDrawer.classList.remove('hidden');
+        this.geminiToggleKeyBtn?.setAttribute('aria-expanded','true');
       }
       setTimeout(() => {
-        if (options.showSettings && this.geminiKeyInput) {
+        if (showSettings && this.geminiKeyInput) {
           this.geminiKeyInput.focus();
         } else if (this.geminiPromptInput) {
           this.geminiPromptInput.focus();
@@ -4757,7 +4722,7 @@ export class UIManager {
     }
   }
 
-  /** Terminal + settings drawer in one step, for quick offline/API switching. */
+  /** Open the terminal; AI settings remain locked while Offline Mode is on. */
   openAgentSettings() {
     this.openGeminiTerminal({ showSettings: true });
   }
@@ -4803,27 +4768,56 @@ export class UIManager {
       for (const model of models) {
         const option = document.createElement('option');
         option.value = model.id;
-        option.textContent = model.note ? `${model.label} — ${model.note}` : model.label;
+        const label = `${model.isNew ? '✦ ' : ''}${model.label || model.id}`;
+        option.textContent = model.note ? `${label} — ${model.note}` : model.isNew ? `${label} — new from ${vendorLabel()}` : label;
         this.geminiModelSelect.appendChild(option);
       }
-      // A custom model id (env override or hand-edited storage) must stay selectable,
-      // but migrate fictional gemini-3.x models to the valid default.
+      // The chosen model stays selectable even when it is not listed: a typed custom id, an env override, or a
+      // model the live list no longer shows (the agent replaces a retired one on its first failed request).
       if (active && !models.some(model => model.id === active)) {
-        if (/^gemini-3\./i.test(active)) {
-          const fallback = models[0]?.id || 'gemini-2.5-flash';
-          geminiAgent.model = fallback;
-          this.geminiModelSelect.value = fallback;
+        const option = document.createElement('option');
+        option.value = active;
+        option.textContent = `${active} (custom)`;
+        this.geminiModelSelect.appendChild(option);
+      }
+      this.geminiModelSelect.value = active;
+      if (this.geminiAutoUpgradeToggle) this.geminiAutoUpgradeToggle.checked = !!geminiAgent.autoUpgrade;
+      if (this.geminiModelSource) {
+        const info = geminiAgent.modelListInfo?.() || { source: 'built-in' };
+        if (info.source === 'live') {
+          const minutes = Math.max(0, Math.round((Date.now() - info.fetchedAt) / 60000));
+          const age = minutes < 1 ? 'just now' : minutes < 120 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
+          this.geminiModelSource.textContent = `${info.count} models from ${vendorLabel()}'s live list (updated ${age}).`;
         } else {
-          const option = document.createElement('option');
-          option.value = active;
-          option.textContent = `${active} (custom)`;
-          this.geminiModelSelect.appendChild(option);
-          this.geminiModelSelect.value = active;
+          this.geminiModelSource.textContent = geminiAgent.apiKey
+            ? `Built-in list. Press ↻ Refresh list to fetch ${vendorLabel()}'s current models.`
+            : `Built-in list. Save a key to see ${vendorLabel()}'s current models.`;
         }
-      } else {
-        this.geminiModelSelect.value = active;
       }
     };
+
+    // Fetch the vendor's live list (cached for a day) and repaint. Quiet unless asked, or unless something changed.
+    const refreshLiveModels = async ({ force = false, announce = false } = {}) => {
+      if (geminiAgent.offlineMode || !geminiAgent.apiKey || typeof geminiAgent.refreshModels !== 'function') {
+        refreshModelOptions();
+        return null;
+      }
+      if (this.geminiRefreshModelsBtn) this.geminiRefreshModelsBtn.disabled = true;
+      try {
+        const result = await geminiAgent.refreshModels({ force });
+        refreshModelOptions();
+        refreshAgentStatus();
+        if (announce) {
+          this.addGeminiLog(result.error
+            ? `Could not fetch ${vendorLabel()}'s model list (${result.error}); using the ${result.source === 'live' ? 'last fetched' : 'built-in'} list.`
+            : `${vendorLabel()} lists ${result.models.length} models for this key.`, result.error ? 'warning' : 'info');
+        }
+        return result;
+      } finally {
+        syncAgentTerminalControls(this,geminiAgent);
+      }
+    };
+    this.refreshLiveModels = refreshLiveModels;
 
     const refreshEffortOptions = () => {
       const supported = geminiAgent.constructor.supportsEffort(geminiAgent.vendor);
@@ -4872,16 +4866,9 @@ export class UIManager {
       }
     };
 
-    // The offline button reflects state: it offers to leave offline mode when
-    // offline, and to enter it when a key is ready to be used.
+    // The header switch controls all vendors together and locks the AI drawer.
     const refreshOfflineButton = () => {
-      if (!this.geminiOfflineBtn) return;
-      const offline = geminiAgent.offlineMode;
-      this.geminiOfflineBtn.textContent = offline ? '✓ Offline Mode' : 'Offline Mode';
-      this.geminiOfflineBtn.classList.toggle('active', offline);
-      this.geminiOfflineBtn.title = offline
-        ? 'Offline mode is ON: built-in presets only. Click to use the API again (key is still saved).'
-        : 'Stop sending requests and use the built-in offline presets. Your key is kept.';
+      syncAgentTerminalControls(this,geminiAgent);
     };
 
     const refreshAgentControls = () => {
@@ -4893,18 +4880,21 @@ export class UIManager {
     };
 
     const applyVendor = (vendorId) => {
-      if (!vendorId || vendorId === geminiAgent.vendor) return;
+      if (geminiAgent.offlineMode || !vendorId || vendorId === geminiAgent.vendor) return;
       geminiAgent.setVendor(vendorId);
       refreshAgentControls();
       this.addGeminiLog(`Vendor switched to ${vendorLabel()} (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}).`, 'info');
+      refreshLiveModels().catch(() => {});
     };
 
+    this.refreshAgentControls=refreshAgentControls;
+    geminiAgent.onSettingsChanged=refreshAgentControls;
     refreshAgentControls();
 
     // Explain a forced-offline start, so a saved key does not look broken.
     if (geminiAgent.offlineMode) {
       this.addGeminiLog(
-        `Offline mode is ON: the terminal uses built-in presets and will not call ${vendorLabel()}. Click "✓ Offline Mode" in ⚙️ Settings (or type /offline) to switch back.`,
+        `Offline mode is ON: the terminal uses built-in presets. Switch Offline Mode off in the header to enable AI Settings.`,
         'info'
       );
     }
@@ -5008,8 +4998,12 @@ export class UIManager {
     // Toggle the settings drawer
     if (this.geminiToggleKeyBtn) {
       this.geminiToggleKeyBtn.onclick = () => {
+        if(geminiAgent.offlineMode)return;
         if (this.geminiKeyDrawer) {
           this.geminiKeyDrawer.classList.toggle('hidden');
+          syncAgentTerminalControls(this,geminiAgent);
+          // Opening Settings brings the model list up to date (a cached list younger than a day is reused).
+          if (!this.geminiKeyDrawer.classList.contains('hidden')) refreshLiveModels().catch(() => {});
         }
       };
     }
@@ -5022,6 +5016,7 @@ export class UIManager {
     // Model picker (applies and persists immediately)
     if (this.geminiModelSelect) {
       this.geminiModelSelect.onchange = () => {
+        if(geminiAgent.offlineMode)return;
         geminiAgent.setModel(this.geminiModelSelect.value);
         geminiAgent.lastError = null;
         refreshAgentStatus();
@@ -5029,9 +5024,59 @@ export class UIManager {
       };
     }
 
+    // Ask the vendor for its current models now, ignoring the day-long cache.
+    if (this.geminiRefreshModelsBtn) {
+      this.geminiRefreshModelsBtn.onclick = () => {
+        if (!geminiAgent.apiKey) {
+          this.addGeminiLog(`Save a ${vendorLabel()} key first: the model list is fetched with it.`, 'warning');
+          return;
+        }
+        refreshLiveModels({ force: true, announce: true }).catch(() => {});
+      };
+    }
+
+    // Any model id, for one too new to be listed or a private one.
+    const useCustomModel = () => {
+      if(geminiAgent.offlineMode)return;
+      const id = (this.geminiCustomModelInput?.value || '').trim();
+      if (!id) return;
+      if (!/^[\w.:/-]{2,128}$/.test(id)) {
+        this.addGeminiLog(`"${id}" does not look like a model id (letters, digits, dots, dashes).`, 'warning');
+        return;
+      }
+      geminiAgent.setModel(id);
+      geminiAgent.lastError = null;
+      this.geminiCustomModelInput.value = '';
+      refreshModelOptions();
+      refreshAgentStatus();
+      this.addGeminiLog(`Model set to ${id} for ${vendorLabel()}. If ${vendorLabel()} does not serve it, the next request says so.`, 'info');
+    };
+    if (this.geminiCustomModelBtn) this.geminiCustomModelBtn.onclick = useCustomModel;
+    if (this.geminiCustomModelInput) {
+      this.geminiCustomModelInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); useCustomModel(); }
+      });
+    }
+
+    // Follow the newest model of the chosen family as the vendor releases them.
+    if (this.geminiAutoUpgradeToggle) {
+      this.geminiAutoUpgradeToggle.onchange = () => {
+        if(geminiAgent.offlineMode)return;
+        const before = geminiAgent.model;
+        geminiAgent.setAutoUpgrade(this.geminiAutoUpgradeToggle.checked);
+        refreshModelOptions();
+        this.addGeminiLog(this.geminiAutoUpgradeToggle.checked
+          ? `Will switch to the newest ${vendorLabel()} model of this family as soon as it is listed${geminiAgent.model !== before ? ` (now ${geminiAgent.model})` : ''}.`
+          : `Staying on ${geminiAgent.model} until you choose another.`, 'info');
+        if (this.geminiAutoUpgradeToggle.checked) refreshLiveModels().catch(() => {});
+      };
+    }
+
     // Reasoning effort picker
     if (this.geminiEffortSelect) {
       this.geminiEffortSelect.onchange = () => {
+        if(geminiAgent.offlineMode)return;
         geminiAgent.setEffort(this.geminiEffortSelect.value);
         this.addGeminiLog(`Reasoning effort set to ${geminiAgent.effort} for ${vendorLabel()}.`, 'info');
       };
@@ -5041,6 +5086,7 @@ export class UIManager {
     if (this.geminiViewToggle) {
       this.geminiViewToggle.checked = this.isViewCaptureEnabled();
       this.geminiViewToggle.onchange = () => {
+        if(geminiAgent.offlineMode)return;
         this.viewCaptureEnabled = this.geminiViewToggle.checked;
         try {
           localStorage.setItem('mc_agent_capture_view', this.viewCaptureEnabled ? '1' : '0');
@@ -5061,6 +5107,7 @@ export class UIManager {
       geminiAgent.thinkingEnabled = this.isThinkingDisplayEnabled();
       this.geminiThinkingToggle.checked = geminiAgent.thinkingEnabled;
       this.geminiThinkingToggle.onchange = () => {
+        if(geminiAgent.offlineMode)return;
         geminiAgent.thinkingEnabled = this.geminiThinkingToggle.checked;
         try {
           localStorage.setItem('mc_agent_show_thinking', geminiAgent.thinkingEnabled ? '1' : '0');
@@ -5086,6 +5133,7 @@ export class UIManager {
     // Save settings for the active vendor
     if (this.geminiSaveKeyBtn) {
       this.geminiSaveKeyBtn.onclick = () => {
+        if(geminiAgent.offlineMode)return;
         const key = (this.geminiKeyInput?.value || '').trim();
         if (key) geminiAgent.setApiKey(key);
         geminiAgent.lastError = null;
@@ -5097,12 +5145,16 @@ export class UIManager {
           geminiAgent.apiKey ? 'success' : 'warning'
         );
         if (this.geminiKeyDrawer) this.geminiKeyDrawer.classList.add('hidden');
+        syncAgentTerminalControls(this,geminiAgent);
+        // A new key may see different models; fetch its list.
+        if (key) refreshLiveModels({ force: true }).catch(() => {});
       };
     }
 
     // Clear the stored key for the active vendor only
     if (this.geminiClearKeyBtn) {
       this.geminiClearKeyBtn.onclick = () => {
+        if(geminiAgent.offlineMode)return;
         if (this.geminiKeyInput) this.geminiKeyInput.value = '';
         geminiAgent.setApiKey('');
         geminiAgent.lastError = null;
@@ -5118,7 +5170,7 @@ export class UIManager {
         geminiAgent.setOfflineMode(offline);
         refreshAgentControls();
         if (!offline && !geminiAgent.apiKey) {
-          this.addGeminiLog(`${vendorLabel()} enabled again, but no API key is saved yet — the terminal stays offline until you add one.`, 'warning');
+          this.addGeminiLog(`Offline Mode OFF. Open AI Settings to add a ${vendorLabel()} API key.`, 'warning');
         } else if (offline) {
           this.addGeminiLog(
             `Offline mode ON. Requests go to the built-in presets; your ${vendorLabel()} key is kept. Type /offline to jump back here.`,

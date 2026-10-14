@@ -393,6 +393,67 @@ export class Inventory {
   }
 
   /**
+   * How many of an item `addItem` would place right now, without touching anything.
+   *
+   * `addItem` is not a dry run: it fills every compatible partial stack it can find and then every empty
+   * slot, and only reports `false` when it could not place the whole request. A caller that treats `false`
+   * as "nothing happened" -- `/give` did, once per bisection probe -- therefore duplicates whatever the
+   * failed call managed to insert before giving up. This answers the placement question instead, so a caller
+   * can ask first and insert once.
+   *
+   * It deliberately mirrors `addItem` step by step: merge into compatible unenchanted stacks, then open new
+   * stacks capped at the item's limit, then try a bundle. `addItem` steps 1 and 2 are consulted rather than
+   * restated where possible, because a second copy of the stacking rules would drift from the first.
+   *
+   * @param {string|number} itemId
+   * @param {boolean} [isBlock]
+   * @param {number} [count]  the amount the caller wants to place
+   * @param {object|null} [enchantments]
+   * @returns {number} how much of `count` would be placed; the rest would have to be dropped
+   */
+  countRoomFor(itemId, isBlock = true, count = 1, enchantments = null) {
+    if (typeof itemId === 'object' && itemId !== null) {
+      // A cargo pickup carries names, durability and enchantments, and only identical stacks merge -- which
+      // is the branch of `addItem` that checks capacity up front rather than partially filling.
+      const incoming = itemId;
+      const limit = stackLimitFor(incoming.id);
+      const compatible = (s) => s && JSON.stringify({ ...s, count: 0 }) === JSON.stringify({ ...incoming, count: 0 });
+      const room = [...this.hotbar, ...this.storage]
+        .reduce((n, s) => n + (!s ? limit : compatible(s) ? Math.max(0, limit - s.count) : 0), 0);
+      return Math.min(count ?? incoming.count ?? 1, room);
+    }
+    const limit = stackLimitFor(itemId);
+    const wanted = Math.max(0, count ?? 1);
+    if (wanted === 0 || limit <= 0) return 0;
+
+    let room = 0;
+    // 1. Partial stacks `addItem` would top up. Only unenchanted stacks merge, and only when the incoming
+    //    item is unenchanted too.
+    if (!enchantments) {
+      for (const slot of [...this.hotbar, ...this.storage]) {
+        if (slot && slot.id === itemId && slot.isBlock === isBlock && !slot.enchantments && slot.count < limit) {
+          room += limit - slot.count;
+        }
+      }
+    }
+    // 2. Empty slots, each taking a fresh stack of at most `limit`.
+    const empty = [...this.hotbar, ...this.storage].filter((s) => !s).length;
+    room += empty * limit;
+    if (room >= wanted) return wanted;
+    // 3. A held bundle, which `addItem` only reaches once every slot is exhausted. Ask it rather than
+    //    reimplement the bundle rules: `fillHeldBundle` reports what it would move as a return value.
+    for (const list of [this.hotbar, this.storage]) {
+      for (const slot of list) {
+        if (!isBundle(slot)) continue;
+        const taken = addToBundle({ ...slot, contents: Array.isArray(slot.contents) ? slot.contents.map((c) => ({ ...c })) : slot.contents }, { id: itemId, isBlock, count: wanted - room });
+        if (taken) { room += taken.moved; break; }
+      }
+      if (room >= wanted) break;
+    }
+    return Math.min(wanted, room);
+  }
+
+  /**
    * Put a stack into a bundle this inventory holds, if one has room.
    *
    * @param {{id: (string|number), isBlock: boolean, count: number}} stack

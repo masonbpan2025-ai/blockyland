@@ -28,10 +28,10 @@ test('the start screen offers one Inspector button, and no Mob Studio button', (
   assert.doesNotMatch(html, />\s*Mob Studio\s*</, 'and so is its label');
 });
 
-test('the Structure Studio button is left alone', () => {
+test('the Building Studio button is left alone', () => {
   // The two studios were separate features and shared styling; only Mob Studio was removed.
-  assert.match(html, /id="btn-start-structure-studio"/, 'Structure Studio keeps its button');
-  assert.match(html, /id="structure-parameter-panel"/, 'and its panel');
+  assert.match(html, /id="btn-start-building-studio"/, 'Building Studio keeps its button');
+  assert.match(html, /id="building-parameter-panel"/, 'and its panel');
 });
 
 test('clicking the button leads to the Inspector page', () => {
@@ -90,7 +90,7 @@ test('the Mob Studio panel and its modals are gone from the markup', () => {
   }
 });
 
-test('the Mob Studio stylesheet rules are gone but Structure Studio keeps its own', () => {
+test('the Mob Studio stylesheet rules are gone but Building Studio keeps its own', () => {
   const css = read('src/style.css');
   for (const sel of ['.mob-parameter-panel', '.mob-view-info', '.mob-showcase-status',
     '.mc-btn-mob-studio', '.studio-btn-test', '.studio-btn-debug']) {
@@ -98,7 +98,7 @@ test('the Mob Studio stylesheet rules are gone but Structure Studio keeps its ow
   }
   for (const sel of ['.studio-panel-header', '.studio-panel-body', '.studio-panel-footer',
     '.studio-btn-save', '.studio-btn-open']) {
-    assert.ok(css.includes(sel), `${sel} is still used by Structure Studio`);
+    assert.ok(css.includes(sel), `${sel} is still used by Building Studio`);
   }
 });
 

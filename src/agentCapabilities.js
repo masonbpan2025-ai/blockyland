@@ -18,7 +18,7 @@ export const CAPABILITIES = {
     summary: 'Anything you have built I can change in place: add to it, trim it, swap the blocks, or bolt on stairs and ladders.',
     alternatives: [
       'name the build you mean, or just say "the one I just made"',
-      'open it in Structure Studio and drag the sliders to reshape it'
+      'open it in Building Studio and drag the sliders to reshape it'
     ]
   },
   fluids: {
@@ -65,7 +65,7 @@ export const CAPABILITIES = {
     ]
   },
   agentLimits: {
-    summary: 'This is a single-player voxel game in your browser. There is no scripting, no multiplayer, and the world generator itself is fixed.',
+    summary: 'This is a voxel game in your browser. You can share a world with a few friends through a link, but there is no scripting, no game servers to join, and the world generator itself is fixed.',
     alternatives: [
       'tell me what you are actually after and I will find the closest thing that works',
       'build a visual version — most ideas look great even without the mechanics'
@@ -85,7 +85,7 @@ const IMPOSSIBLE_PATTERNS = [
     match: /API HTTP (401|403)/i,
     summary: 'The key was turned down, so nothing was ever sent. That is a settings thing, not something you did.',
     alternatives: [
-      're-enter the key in ⚙️ Settings',
+      're-enter the key in ⚙️ AI Settings',
       'or switch to another vendor whose key already works'
     ]
   },
@@ -94,8 +94,8 @@ const IMPOSSIBLE_PATTERNS = [
     summary: 'The account has run out of credit, so the request never went through.',
     alternatives: [
       'top up your credit balance with the vendor and ask me again',
-      'switch to Google Gemini in Settings (Google AI Studio provides a free tier without a credit card)',
-      'or flip on Offline Mode in Settings and I will build from my built-in rules instead'
+      'switch to Google Gemini in AI Settings (Google AI Studio provides a free tier without a credit card)',
+      'or switch on Offline Mode in the terminal header and I will build from my built-in rules instead'
     ]
   },
   {
@@ -103,16 +103,16 @@ const IMPOSSIBLE_PATTERNS = [
     summary: 'The vendor is asking us to slow down — that is a temporary limit, or an account with no credit balance.',
     alternatives: [
       'if using OpenAI, make sure your account has a positive credit balance in Billing',
-      'switch to Google Gemini in Settings (it includes a free tier with no payment needed)',
+      'switch to Google Gemini in AI Settings (it includes a free tier with no payment needed)',
       'give it a few seconds and ask again',
-      'lower the reasoning effort in Settings so each request costs less'
+      'lower the reasoning effort in AI Settings so each request costs less'
     ]
   },
   {
     match: /API HTTP (400|404)/i,
-    summary: 'The vendor refused the request or the model was not found. Most of the time that means the model selected in Settings is not available on this key.',
+    summary: 'The vendor refused the request or the model was not found. Most of the time that means the model selected in AI Settings is not available on this key.',
     alternatives: [
-      'pick a different model in Settings (such as Gemini 2.5 Flash)',
+      'pick a different model in AI Settings (such as Gemini 2.5 Flash)',
       'or switch vendor'
     ]
   },
@@ -131,15 +131,15 @@ const IMPOSSIBLE_PATTERNS = [
     alternatives: [
       'ask again — this is almost always a one-off',
       'say it in fewer words, which gives the model less to trip over',
-      'or change the reasoning effort in Settings'
+      'or change the reasoning effort in AI Settings'
     ]
   },
   {
     match: /\b(multiplayer|multi-player|another player|other players|with (my )?friends?|play together|play with me|co-?op|pvp|lan|join (my|a) (friend|server)|server)\b/i,
-    summary: 'I have to be straight with you: there is no multiplayer here. Each browser tab is its own single-player world, so nobody can drop in.',
+    summary: 'You can play together here, just not on servers: open the pause menu and choose Share This World to get a link. Friends who click it join your world straight from their browser (up to 8 players). Your computer is the server, so keep your tab open, and there are no public servers to join.',
     alternatives: [
-      'save the world with /save and pass the file to a friend so they can have a look',
-      'or build the arena anyway — it will be ready if that ever changes'
+      'share the world with a link and build the arena together',
+      'or save the world with /save and pass the file to a friend'
     ]
   },
   {
@@ -188,7 +188,7 @@ const IMPOSSIBLE_PATTERNS = [
     summary: 'I have lost track of that build — it is not one I made this session, so I cannot safely change it.',
     alternatives: [
       'name a structure I built while we have been playing',
-      'open it in Structure Studio, where I can see and edit it properly',
+      'open it in Building Studio, where I can see and edit it properly',
       'or build it again and I will take it from there'
     ]
   },

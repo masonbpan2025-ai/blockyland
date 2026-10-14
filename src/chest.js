@@ -231,6 +231,26 @@ export class ChestManager {
     return chest;
   }
 
+  /**
+   * Register a chest a structure already wrote, with its facing and its starting items. `placeChest` is the
+   * player's path and writes the block itself; a village chest arrives through chunk generation, so this only
+   * records the state: which way it faces and what is inside.
+   */
+  adoptChest(pos, facing = 0, items = []) {
+    const [x, y, z] = pos.map(Math.floor);
+    const chest = {
+      x, y, z,
+      facing,
+      items: new Array(27).fill(null),
+      isDouble: false,
+      partnerPos: null,
+      isLeft: false
+    };
+    items.slice(0, 27).forEach((item, slot) => { chest.items[slot] = item ? { ...item } : null; });
+    this.chests.set(this.getKey(x, y, z), chest);
+    return chest;
+  }
+
   // Check if chest is obstructed from opening
   // In Minecraft, chest cannot open if an opaque solid block is directly above
   isObstructed(x, y, z, world = this.game.world) {

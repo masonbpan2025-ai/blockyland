@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "structure": "ruined_portal_swamp",
+  "seed": "20250401",
+  "chunk": [
+    -29,
+    11
+  ],
+  "biome": "swamp",
+  "box": {
+    "minX": -460,
+    "minY": 20,
+    "minZ": 180,
+    "maxX": -454,
+    "maxY": 26,
+    "maxZ": 186
+  },
+  "pieces": 1,
+  "blocks": {
+    "Water": 56,
+    "Dirt": 53,
+    "Netherrack": 38,
+    "Grass Block": 23,
+    "Vine": 17,
+    "Obsidian": 13,
+    "Magma Block": 3,
+    "Crying Obsidian": 3,
+    "Stone Brick Slab": 3,
+    "Block of Gold": 1,
+    "Chest": 1,
+    "Mossy Stone Brick Slab": 1,
+    "Stone Slab": 1,
+    "Stone Brick Stairs": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

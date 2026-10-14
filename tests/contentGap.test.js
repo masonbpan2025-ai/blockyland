@@ -92,19 +92,17 @@ test('the texture candidates are the reuses the existing families actually perfo
 test('the item gap is art-gated for the same reason the block gap is', (t) => {
   if (!ITEMS_CACHE_PRESENT) { t.skip('item cache absent'); return; }
   const i = measureItemGap();
-  // A floor only to catch a broken measurement, deliberately far below the real figure. It was 150 and
-  // the gap reached exactly 150, which is the wrong reason to fail: closing the gap is the objective, so
-  // this must not creep down behind the work. See the block-side note above for the same reasoning.
-  // The floor moves with the work, deliberately: it was 150, then 50, then 30, and the gap has now reached
-  // 30 exactly -- the pottery sherds, the corals, nether wart and the dirt path all landed together. Its job
-  // is to catch a broken measurement, not to freeze progress.
-  assert.ok(i.missing > 20, 'the measurement looks broken rather than the gap closed, got ' + i.missing);
+  // Content additions should close the gap. Check accounting, rather than requiring
+  // a minimum number of missing items (which fails whenever coverage improves).
+  assert.ok(i.missing >= 0);
+  assert.equal(i.total, i.present + i.missing);
+  assert.equal(i.missing, i.needsArt.length + i.reusable.length);
   // `tests/item_icons.test.js` requires a non-empty PNG per item, so an item with no icon cannot be added.
   assert.equal(i.ownIcon, 0,
     'a missing item now has its own icon, so it is a code gap that could be closed -- update '
     + 'docs/survival-parity-rules.md section 4.1.1. The first such item is: '
     + i.reusable.filter(x => x.own).map(x => x.name).join(', '));
-  assert.ok(i.needsArt.length / i.missing > 0.9,
+  assert.ok(i.missing === 0 || i.needsArt.length / i.missing > 0.9,
     'expected over 90% of the item gap to need new art, got ' + i.needsArt.length + '/' + i.missing);
   assert.ok(i.present / i.iconCount > 1,
     'items should outnumber icons, got ' + i.present + '/' + i.iconCount);

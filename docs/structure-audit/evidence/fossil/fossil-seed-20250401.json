@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "structure": "fossil",
+  "seed": "20250401",
+  "chunk": [
+    -2,
+    -3
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": -32,
+    "minY": 14,
+    "minZ": -48,
+    "maxX": -26,
+    "maxY": 18,
+    "maxZ": -43
+  },
+  "pieces": 1,
+  "blocks": {
+    "Stone": 121,
+    "Bone Block": 70,
+    "Coal Ore": 13,
+    "Iron Ore": 4,
+    "Gold Ore": 2
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {},
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

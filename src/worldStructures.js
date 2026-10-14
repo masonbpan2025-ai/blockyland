@@ -106,11 +106,11 @@ export function packStructureIds() {
 /**
  * How far away a structure's START may be and still overlap this chunk.
  *
- * Four chunks is 64 blocks, comfortably more than the horizontal extent of every structure enabled above (the
- * largest, a plains village, spans about 50). It is also the only thing that costs work per chunk, so it is a
+ * Eight chunks is 128 blocks: a stronghold reaches 112 blocks from its start ("within a horizontal radius of 112
+ * blocks") and a mineshaft 85; a village about 56 from its meeting point. It is also the only thing that costs work per chunk, so it is a
  * constant rather than a scan of the world.
  */
-export const STRUCTURE_SEARCH_RADIUS_CHUNKS = 4;
+export const STRUCTURE_SEARCH_RADIUS_CHUNKS = 8;
 
 /** A stable identity for one start, used to write it into a chunk at most once. */
 function startKey(start) {
@@ -133,7 +133,11 @@ export function createWorldStructures({
   blockIds = BLOCKS,
   radiusChunks = STRUCTURE_SEARCH_RADIUS_CHUNKS,
   foundationBlock = BLOCKS.DIRT,
-  adapt = true
+  adapt = true,
+  spacingScale = 1,
+  spacingOverrides = null,
+  onSpawn = null,
+  onOrientation = null
 } = {}) {
   if (!world || typeof world.getBiome !== 'function' || typeof world.surfaceHeightAt !== 'function') {
     throw new Error('createWorldStructures needs a world exposing getBiome and surfaceHeightAt');
@@ -154,12 +158,27 @@ export function createWorldStructures({
     if (set && set.name) enabledSets.add(set.name);
   }
 
-  const engine = createStructureEngine({
-    seed,
-    blockIds,
-    biomeAt: (x, z) => world.getBiome(x, z),
-    surfaceY: (x, z) => world.surfaceHeightAt(x, z)
-  });
+  // One engine per dimension, made when that dimension first generates a chunk: the Nether and the End have their
+  // own structure sets (fortresses, bastions, Nether fossils, End cities), and the world says which dimension a
+  // chunk belongs to through `world.dimension`.
+  const engines = new Map();
+  const engineFor = (dimension) => {
+    if (!engines.has(dimension)) {
+      engines.set(dimension, createStructureEngine({
+        seed,
+        dimension,
+        blockIds,
+        biomeAt: (x, z) => world.getBiome(x, z),
+        surfaceY: (x, z) => world.surfaceHeightAt(x, z),
+        solidAt: typeof world.solidAtGen === 'function' ? (x, y, z) => world.solidAtGen(x, y, z) : null,
+        seaLevel: world.seaLevel ?? null,
+        spacingScale,
+        spacingOverrides
+      }));
+    }
+    return engines.get(dimension);
+  };
+  const dimensionNow = () => ({ nether: 'nether', the_end: 'the_end', end: 'the_end' }[world.dimension] ?? 'overworld');
 
   // One entry per chunk ever considered: a start, or null for "nothing here". Memoised because the scan
   // reaches the same neighbour chunk from many directions and planning is the expensive half.
@@ -168,12 +187,43 @@ export function createWorldStructures({
   // (the world registers a chunk before generating it, and callers re-enter), so this keeps writes idempotent.
   const applied = new Set();
   const loot = [];
-  const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0 };
+  const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0, mobs: 0, spawned: 0, oriented: 0 };
+  // Things a structure hands to the GAME rather than to the voxels: mobs (a village's villagers, golem and pen
+  // animals) and block orientation (which way a door, bed, chest or stair faces -- the voxel world stores only
+  // block ids). Each is requested exactly once, by the chunk that contains it. `onSpawn` / `onOrientation` put
+  // one into the game and return true; when the game cannot take it yet (its managers are not up while the
+  // first chunks generate) it waits in `pendingSpawns` and `flushSpawns` retries it, a few times at most so an
+  // unsupported request cannot be retried forever.
+  const spawns = [];
+  const orientations = [];
+  const pendingSpawns = [];
+  function deliver(entry) {
+    return entry.kind === 'spawn' ? (onSpawn ? onSpawn(entry.request) === true : false)
+      : (onOrientation ? onOrientation(entry.request) === true : false);
+  }
+  function dispatch(kind, request) {
+    const entry = { kind, request, attempts: 1 };
+    if (deliver(entry)) { if (kind === 'spawn') stats.spawned++; else stats.oriented++; return; }
+    pendingSpawns.push(entry);
+  }
+  function flushSpawns() {
+    if (pendingSpawns.length === 0) return 0;
+    let done = 0;
+    for (let i = pendingSpawns.length - 1; i >= 0; i--) {
+      const entry = pendingSpawns[i];
+      if (deliver(entry)) {
+        if (entry.kind === 'spawn') stats.spawned++; else stats.oriented++;
+        done++; pendingSpawns.splice(i, 1);
+      } else if (++entry.attempts > 5) pendingSpawns.splice(i, 1);
+    }
+    return done;
+  }
 
   /** The start whose origin is this chunk, if it is one this world places. */
-  function planAt(chunkX, chunkZ) {
-    const key = `${chunkX},${chunkZ}`;
+  function planAt(chunkX, chunkZ, dimension = dimensionNow()) {
+    const key = `${dimension}|${chunkX},${chunkZ}`;
     if (plans.has(key)) return plans.get(key);
+    const engine = engineFor(dimension);
     let start = null;
     const candidates = engine.candidatesForChunk(chunkX, chunkZ);
     if (candidates.some((set) => enabledSets.has(set))) {
@@ -190,6 +240,34 @@ export function createWorldStructures({
   }
 
   /**
+   * Which structure, if any, has a piece covering this block.
+   *
+   * This is what makes a structure's spawn override work: the spawner asks "what structure is here?" and a swamp
+   * hut answers for its 7 x 7 x 9 box, so witches spawn there. Before this existed the game's `structureAt` hook
+   * had nothing behind it, and no structure's spawn override ever applied in a running world.
+   *
+   * Reads the same memoised plans chunk generation uses, so it never generates a chunk.
+   * @returns {string|null} a structure id
+   */
+  function structureIdAt(x, y, z) {
+    const bx = Math.floor(x);
+    const by = Math.floor(y);
+    const bz = Math.floor(z);
+    const cx = Math.floor(bx / sizes.x);
+    const cz = Math.floor(bz / sizes.z);
+    for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
+      for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
+        const start = planAt(cx + dx, cz + dz);
+        if (!start) continue;
+        for (const piece of start.pieces) {
+          if (piece.box.contains(bx, by, bz)) return start.structureId;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * Write every structure that overlaps this chunk, clipped to it.
    *
    * @returns {object} the running stats, for tests and for a caller that wants to report them
@@ -202,16 +280,18 @@ export function createWorldStructures({
     const maxX = baseX + sizes.x - 1;
     const maxZ = baseZ + sizes.z - 1;
 
+    const dimension = dimensionNow();
+    const engine = engineFor(dimension);
     for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
       for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
-        const start = planAt(chunk.cx + dx, chunk.cz + dz);
+        const start = planAt(chunk.cx + dx, chunk.cz + dz, dimension);
         if (!start) continue;
         const box = start.box;
         // Overlap in the horizontal plane only: a structure's Y band can lie entirely outside this world's
         // height, and that is a separate case reported through `outOfWorld` rather than by skipping it here.
         if (box.maxX < baseX || box.minX > maxX || box.maxZ < baseZ || box.minZ > maxZ) continue;
 
-        const key = `${chunk.cx},${chunk.cz}|${startKey(start)}`;
+        const key = `${dimension}|${chunk.cx},${chunk.cz}|${startKey(start)}`;
         if (applied.has(key)) continue;
         applied.add(key);
 
@@ -225,10 +305,31 @@ export function createWorldStructures({
             stats.outOfWorld++;
             return false;
           }
+          // A village path over water becomes planks (the generator says which, through `ifWater`).
+          if (meta && meta.ifWater !== undefined && chunk.getVoxel(lx, y, lz) === blockIds.WATER) id = meta.ifWater;
           chunk.setVoxel(lx, y, lz, id);
           if (meta && meta.lootTable) loot.push({ x, y, z, lootTable: meta.lootTable });
+          // A block that has a way of facing (a door, bed, chest or stair): tell the game which way, since the
+          // chunk holds only its id.
+          const props = meta?.state?.properties;
+          // A top slab has no facing but must still be remembered, or it renders as a bottom slab.
+          if ((props && (props.facing || props.type === 'top')) || meta?.spawner) {
+            const request = { x, y, z, id, name: meta.state?.name ?? null, facing: props?.facing ?? null, half: props?.half ?? null,
+              hinge: props?.hinge ?? null, lootTable: meta.lootTable ?? null, slabType: props?.type === 'top' ? 'top' : null,
+              ...(meta?.spawner ? { spawner: meta.spawner } : {}) };
+            orientations.push(request);
+            dispatch('orient', request);
+          }
           return true;
         }, {
+          spawnMob: (type, x, y, z, options) => {
+            // `y` is the floor block's top; a hair above it so the mob does not start inside the floor.
+            const request = { type, x, y: y + 0.01, z, options };
+            spawns.push(request);
+            stats.mobs++;
+            dispatch('spawn', request);
+            return true;
+          },
           chunkX: chunk.cx,
           chunkZ: chunk.cz,
           surfaceY: (x, z) => world.surfaceHeightAt(x, z),
@@ -246,12 +347,56 @@ export function createWorldStructures({
   return {
     applyToChunk,
     planAt,
+    structureIdAt,
     stats,
     loot,
-    engine,
+    spawns,
+    orientations,
+    pendingSpawns,
+    flushSpawns,
+    /** The engine for the dimension the world is in now. */
+    get engine() { return engineFor(dimensionNow()); },
+    engineFor,
     enabledIds: [...enabled],
     enabledSets: [...enabledSets]
   };
+}
+
+/**
+ * How many structures this world places within `radiusChunks` of a point, by type.
+ *
+ * Reads the same plans chunk generation uses, so the number is what a player will actually find, not an
+ * estimate from the spacing. It walks each enabled set's candidate grid (one candidate per spacing x spacing
+ * region) instead of every chunk, which is what keeps `/locate` instant. Chance-driven sets with no grid
+ * (spacing 1-2: buried treasure, mineshafts, nether fossils) are left out of the count. `/locate` prints it, so "is the pack working" has a number instead of a feeling.
+ *
+ * @returns {{total:number, byType:Object<string,number>, radiusChunks:number}}
+ */
+export function countStructures(world, blockX, blockZ, { radiusChunks = 64 } = {}) {
+  const integration = world && world.structures;
+  if (!integration) throw new Error('this world does not generate structures');
+  const cx = Math.floor(blockX / 16);
+  const cz = Math.floor(blockZ / 16);
+  const byType = {};
+  let total = 0;
+  const seen = new Set();
+  for (const name of integration.enabledSets) {
+    const placement = integration.engine.sets.get(name)?.placement;
+    if (!placement || !(placement.spacing > 2) || typeof placement.getPotentialStructureChunks !== 'function') continue;
+    const candidates = placement.getPotentialStructureChunks(
+      integration.engine.seed, cx - radiusChunks, cz - radiusChunks, cx + radiusChunks, cz + radiusChunks);
+    for (const [x, z] of candidates) {
+      if (x < cx - radiusChunks || x > cx + radiusChunks || z < cz - radiusChunks || z > cz + radiusChunks) continue;
+      const key = x + ',' + z;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const start = integration.planAt(x, z);
+      if (!start) continue;
+      byType[start.structureId] = (byType[start.structureId] || 0) + 1;
+      total++;
+    }
+  }
+  return { total, byType, radiusChunks };
 }
 
 /**

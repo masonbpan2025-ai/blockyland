@@ -39,6 +39,8 @@ export const BLOCKS = {
   BOOKSHELF: 26,
   CACTUS: 27,
   SNOW: 28,
+  SNOW_LAYER: 1219,
+  FIREFLY_BUSH: 1220,
   ICE: 29,
   POPPY: 30,
   DANDELION: 31,
@@ -1243,11 +1245,8 @@ export const BLOCK_DEFS = {
   // ALL THREE DROP AN EMPTY CAULDRON, not themselves and not their fluid, which is what the generated
   // harvest table says for every one of them. So they use `drop: BLOCKS.CAULDRON` rather than a self-drop.
   //
-  // WHAT IS NOT MODELLED, and it is the point of a cauldron: none of them holds anything. Vanilla lets you
-  // dip a bottle or bucket in, extinguish yourself in water, sink in powder snow and take fire damage from
-  // lava. This engine has no fluid-container interaction, so these are cauldrons whose CONTENTS are
-  // decoration. The bottle-filling code notes the same gap from its side, refusing a cauldron explicitly
-  // rather than silently doing nothing.
+  // Precipitation fills water/powder snow in three levels; buckets collect full
+  // cauldrons and bottles consume one water level (cauldrons.js/weatherGameplay.js).
   //
   // Fixing the base cauldron's texture is part of this batch: it pointed at blackstone.png, which is not a
   // cauldron, while the real cauldron_top/side/bottom art sat unused. Same class of mistake as the flower
@@ -1319,6 +1318,10 @@ export const BLOCK_DEFS = {
     textures: {
       all: 'snow.png'
     }
+  },
+  [BLOCKS.SNOW_LAYER]: {
+    name: 'Snow', hardness: 0.1, sound: 'snow', solid: false, transparent: true,
+    carpet: true, carpetHeight: 1 / 8, snowLayer: true, drop: 'snowball', dropItem: 'snowball', textures: { all: 'snow.png' }
   },
   [BLOCKS.ICE]: {
     name: 'Ice',
@@ -2269,6 +2272,8 @@ for (const [key, id] of Object.entries(EXTRA_BLOCK_IDS)) {
   BLOCKS[key] = id;
 }
 Object.assign(BLOCK_DEFS, EXTRA_BLOCK_DEFS);
+BLOCK_DEFS[BLOCKS.FIREFLY_BUSH]={name:'Firefly Bush',hardness:0,sound:'grass',solid:false,transparent:true,plant:true,light:2,drop:BLOCKS.FIREFLY_BUSH,textures:{all:'firefly_bush.svg'},icon:'/assets/blocks/firefly_bush.svg'};
+BLOCK_DEFS[BLOCKS.LIGHTNING_ROD].redstone = true;
 
 export const WATER_PLANT_BLOCK_IDS = new Set([
   BLOCKS.SEAGRASS, BLOCKS.TALL_SEAGRASS, BLOCKS.KELP, BLOCKS.KELP_PLANT, BLOCKS.SEA_PICKLE,
@@ -3172,6 +3177,8 @@ BLOCK_DEFS[BLOCKS.NETHER_PORTAL] = {
 // Items added by this branch live in their own file, which commits that have never heard of them cannot
 // rewrite. See the note there: two of them have deleted these definitions out of this table already.
 Object.assign(ITEMS, addedItems());
+ITEMS.powder_snow_bucket = {...ITEMS.powder_snow_bucket,isBlock:false,type:'tool',stackSize:1};
+ITEMS.firefly_bush={name:'Firefly Bush',isBlock:true,blockId:BLOCKS.FIREFLY_BUSH,type:'block',icon:'/assets/blocks/firefly_bush.svg'};
 
 for (const id of WATER_PLANT_BLOCK_IDS) {
   if (BLOCK_DEFS[id]) BLOCK_DEFS[id].waterPlant = true;

@@ -1,0 +1,69 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/small_stables/outer_1</code> ===
+Small stables for hoglin.
+[[File:small_stables_outer_1.png|thumb|200px|<code>bastion/hoglin_stable/small_stables/outer_1</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 90
+| 1 + 26 blocks
+|-
+| {{BlockLink|Basalt}}
+| 43
+| 
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 17
+|
+|-
+| {{BlockLink|Blackstone Slab}}
+| 14
+|
+|-
+| {{BlockLink|Blackstone}}
+| 10
+|
+|-
+| {{BlockLink|Blackstone Wall}}
+| 4
+|
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 3
+|
+|-
+| {{BlockLink|Block of Gold}}<ref group="n" name="gold group">This gold block has only a 25% chance of appearing. Otherwise, air is generated in its place.</ref>
+| 1
+|
+|-
+| {{BlockLink|Lantern}}
+| 1
+|
+|-
+| {{EntityLink|Hoglin}}<ref group="n" name="hoglin group">This hoglin has a {{frac|1|3}} chance of not spawning.</ref>
+| 1
+|
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

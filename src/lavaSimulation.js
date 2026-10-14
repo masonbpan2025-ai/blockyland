@@ -1,4 +1,5 @@
 import { BLOCKS } from './blocks.js';
+import { exposedToRain } from './weatherRules.js';
 import { WaterSimulation, waterReplaceable } from './waterSimulation.js';
 const SIDES=[[1,0],[-1,0],[0,1],[0,-1]];
 const NEIGHBORS=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
@@ -58,6 +59,7 @@ export class LavaSimulation extends WaterSimulation {
     this.world.setVoxel(x,y,z,BLOCKS.FIRE);return true;
   }
   updateFire(dt){
+    if(this.world.game?.gamerules?.doFireTick===false)return;
     this.fireTime+=dt;if(this.fireTime<1)return;this.fireTime-=1;
     const cells=[...this.lavaCells.values()];
     for(let i=0;i<Math.min(128,cells.length);i++){
@@ -85,13 +87,8 @@ export class LavaSimulation extends WaterSimulation {
       }
       for(const [dx,dy,dz]of NEIGHBORS)if(this.random()<.12)this.ignite(x+dx,y+dy,z+dz);
       const eternal = this.world.getVoxel(x, y - 1, z) === BLOCKS.NETHERRACK || this.world.getVoxel(x, y - 1, z) === BLOCKS.MAGMA_BLOCK;
-      const isRaining = Boolean(this.world.game?.weather?.isRaining?.() || this.world.weather?.isRaining?.());
-      if (!eternal && isRaining && this.world.getHighestSolidY) {
-        const topY = this.world.getHighestSolidY(x, z);
-        if (y >= topY) {
-          this.world.setVoxel(x, y, z, BLOCKS.AIR);
-          continue;
-        }
+      if (!eternal && exposedToRain(this.world.game?.weather??this.world.weather,this.world,{x,y:y+.5,z})) {
+        this.world.setVoxel(x,y,z,BLOCKS.AIR);continue;
       }
       if (!eternal && (!fuel || fire.age > 20) && this.random() < 0.35) this.world.setVoxel(x, y, z, BLOCKS.AIR);
     }

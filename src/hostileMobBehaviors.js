@@ -393,9 +393,10 @@ export class HostileMobBehaviors {
 
   throwWitchPotion(witch, player) {
     if (!this.mobManager.customProjectiles) this.mobManager.customProjectiles = [];
-    const dir = player.position.clone().sub(witch.mesh.position);
-    dir.y += 1.2;
-    dir.normalize();
+    // Aim at the player's body from the witch's hand. The old aim added the throw height on top of the target's, so the
+    // potion flew a block and a half over the player's head and never landed (the projectile has no gravity).
+    const origin = witch.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    const dir = player.position.clone().add(new THREE.Vector3(0, 1, 0)).sub(origin).normalize();
 
     const types = ['harm', 'poison', 'slowness'];
     const pType = types[Math.floor(Math.random() * types.length)];

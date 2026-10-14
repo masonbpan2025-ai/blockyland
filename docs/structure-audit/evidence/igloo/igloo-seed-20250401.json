@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "structure": "igloo",
+  "seed": "20250401",
+  "chunk": [
+    54,
+    -9
+  ],
+  "biome": "snowy_plains",
+  "box": {
+    "minX": 868,
+    "minY": 0,
+    "minZ": -140,
+    "maxX": 877,
+    "maxY": 27,
+    "maxZ": -134
+  },
+  "pieces": 2,
+  "blocks": {
+    "Stone": 1032,
+    "Dirt": 185,
+    "Stone Bricks": 172,
+    "Snow Block": 124,
+    "Coal Ore": 40,
+    "Iron Ore": 33,
+    "Bedrock": 30,
+    "Ladder": 21,
+    "Mossy Stone Bricks": 17,
+    "Gold Ore": 15,
+    "Redstone Ore": 15,
+    "White Carpet": 9,
+    "Diamond Ore": 8,
+    "Cracked Stone Bricks": 8,
+    "Chiseled Stone Bricks": 7,
+    "Infested Stone Bricks": 6,
+    "Iron Bars": 4,
+    "Light Gray Carpet": 3,
+    "Wall Torch": 3,
+    "Infested Chiseled Stone Bricks": 2,
+    "Spruce Stairs": 2,
+    "Ice": 2,
+    "Red Carpet": 2,
+    "Potted Cactus": 1,
+    "Oak Trapdoor": 1,
+    "Crafting Table": 1,
+    "Red Bed Head": 1,
+    "Infested Mossy Stone Bricks": 1,
+    "Chest": 1,
+    "Spruce Slab": 1,
+    "Brewing Stand": 1,
+    "Redstone Torch": 1,
+    "Red Bed": 1,
+    "Furnace": 1,
+    "Water Cauldron": 1,
+    "Polished Andesite": 1,
+    "Oak Wall Sign": 1,
+    "Cobweb": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1,
+    "bed": 1,
+    "mob": 2
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 16,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

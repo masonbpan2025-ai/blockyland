@@ -250,7 +250,7 @@ test('unloading a mod removes its content, its mechanism AND the fields it attac
 
   loader.unload('test_mod');
   assert.equal(registry.has(KIND.MOB, 'test_mod:m'), false, 'content withdrawn');
-  assert.equal('tournament' in game, false, 'and the attachment is gone, not stale');
+  assert.equal(game.tournament, undefined, 'the original attachment value is restored');
   assert.equal(loader.isLoaded('test_mod'), false);
 });
 
@@ -573,7 +573,7 @@ test('the Inspector defaults to the base game and shows no mod content', () => {
   assert.equal(scope.label, 'Base game');
   assert.deepEqual(scope.entries, [], 'nothing from a mod is visible until one is selected');
   // But the mods are OFFERED, because the player has to be able to select one.
-  assert.deepEqual(scope.availableMods.map(m => m.id), ['dragonball_tournament']);
+  assert.deepEqual(scope.availableMods.map(m => m.id), BUILTIN_MODS.map(m=>m.id));
 });
 
 test('selecting a designed world shows that world content and only that world content', () => {
@@ -591,11 +591,12 @@ test('selecting a designed world shows that world content and only that world co
   assert.ok(scope.entries.some(e => e.kind === KIND.MOB && e.path === 'jackie_chun'));
 });
 
-test('the loader active world drives the Inspector scope, so the two cannot disagree', () => {
+test('the Inspector defaults to core even while a mod world is active', () => {
   const loader = { activeModId: null };
   assert.equal(inspectorScope({ loader, manifests: discoverMods().mods }).scope, SCOPE.CORE);
   loader.activeModId = 'dragonball_tournament';
-  const selected = inspectorScope({ loader, manifests: discoverMods().mods });
+  assert.equal(inspectorScope({ loader, manifests: discoverMods().mods }).scope, SCOPE.CORE);
+  const selected = inspectorScope({ loader, modId: 'dragonball_tournament', manifests: discoverMods().mods });
   assert.equal(selected.scope, SCOPE.MOD);
   assert.equal(selected.modId, 'dragonball_tournament');
   // An explicit selection wins over the loader, so the Inspector can browse without opening a world.
@@ -619,7 +620,7 @@ test('manifest content is read without loading the mod', () => {
     assert.match(entry.name, /^dragonball_tournament:/);
     assert.ok(typeof entry.data?.name === 'string', 'a manifest declares a display name');
   }
-  assert.equal(allModContent(mods).length, content.length, 'one mod, so the totals agree');
+  assert.equal(allModContent(mods).length, mods.reduce((total,m)=>total+manifestContent(m).length,0), 'every package contributes its own definitions');
 });
 
 test('inspectorSources carries no mod content at all when nothing is selected', () => {

@@ -1,3 +1,5 @@
+import { mountainHeight, mountainColumn } from './worldgen/mountainTerrain.js';
+import { plantFireflyBushes } from './worldgen/fireflyBushes.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
@@ -6,6 +8,10 @@ import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
 import { createWorldStructures, enabledStructureIds } from './worldStructures.js';
+import { winningSpacingScale, winningSpacingOverrides } from './dataPackRuntime.js';
+import { lootSeedFor } from './villageLoot.js';
+import { rollStructureLoot } from './structureLoot.js';
+import { BED_DIRECTIONS } from './bed.js';
 
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
@@ -216,6 +222,8 @@ export class Chunk {
     }
     const index = this.getIndex(lx, ly, lz);
     this.voxels[index] = blockId;
+    // Weather column caches must notice roof placement/removal immediately.
+    this.weatherRevision = (this.weatherRevision || 0) + 1;
     this.waterLevels[index] = 0;
     this.dirty = true;
   }
@@ -426,6 +434,11 @@ export class World {
     this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
     this.seaLevel = 22;
     this.isFlatWorld = false;
+    // Authored maps own their terrain; missing chunks are empty, never biome terrain.
+    this.generationMode = 'procedural';
+    // Building Studio's invisible ground: every cell below this height reads as solid (a barrier) without being
+    // stored or drawn, and nothing can be placed there. -Infinity everywhere else, which disables it.
+    this.floorY = -Infinity;
     /** Direct-mapped lookup cache; see CHUNK_CACHE_* above. Not authoritative -- the Map is. */
     this.chunkCache = new Array(CHUNK_CACHE_SIZE).fill(null);
     this.chunkCacheHits = 0;
@@ -465,7 +478,128 @@ export class World {
     return this.lightByDimension[this.currentDimension] || this.lightByDimension.overworld;
   }
 
+  /**
+   * (Re)create the structure engine from the CURRENT seed and the data packs applied right now.
+   *
+   * `reseed` calls this, and so does `generateNewWorld` once it has applied the packs. Both are needed: the
+   * setup screen reseeds BEFORE the packs are applied, so an engine built only in `reseed` captured the
+   * default three structures and vanilla spacing and never saw the chosen preset (Structure Hunter generated
+   * three structures, 400+ blocks apart).
+   */
+  rebuildStructures({ enabledIds = enabledStructureIds() } = {}) {
+    this.structures = createWorldStructures({
+      seed: this.seed,
+      world: this,
+      sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z },
+      enabledIds,
+      // A pack can ask for denser structures (Structure Hunter); 1 is vanilla spacing.
+      spacingScale: winningSpacingScale(),
+      spacingOverrides: winningSpacingOverrides(),
+      onOrientation: (request) => this.applyStructureOrientation(request),
+      // Villagers, the iron golem and the pen animals of a generated village.
+      onSpawn: (request) => {
+        const mobs = this.game?.mobs;
+        if (!mobs || typeof mobs.spawnMob !== 'function') return false;
+        // A swamp hut's witch does not spawn on Peaceful (the wiki says so); it is dropped, not retried.
+        if ((request.type === 'witch' || request.type === 'zombie_villager') && this.game.difficulty === 'peaceful') return true;
+        // A mineshaft's chest is a minecart with a chest, standing on its rail.
+        if (request.type === 'chest_minecart') {
+          const rails = this.game?.railSystem;
+          if (!rails) return false;
+          const cart = rails.spawnCart([request.x, request.y, request.z], { subType: 'chest_minecart' });
+          if (cart && request.options?.lootTable) cart.items = rollStructureLoot(request.options.lootTable, lootSeedFor(Math.floor(request.x), Math.floor(request.y), Math.floor(request.z), this.seed));
+          return true;
+        }
+        const mob = mobs.spawnMob(request.type, request.x, request.y, request.z, request.options);
+        if (!mob) return false;
+        // Structure mobs do not despawn by distance (the wiki, for the hut's witch and cat, and the same rule
+        // holds for a village's golem and animals): the despawn pass reads this flag.
+        if (request.options?.persistent && typeof mob === 'object') mob.persistenceRequired = true;
+        return true;
+      },
+    });
+    return this.structures;
+  }
+
+  /**
+   * Which way a structure's door, bed, chest or stair faces.
+   *
+   * The voxel world stores block ids only, so orientation lives with the managers that already own it: the door
+   * manager (facing, hinge), the bed manager (the foot-to-head direction), the chest manager (facing and
+   * contents) and, for stairs, `structureOrientations`, which the mesher reads. Returns false when a manager is
+   * not up yet, so the request waits and is retried (`flushSpawns`).
+   *
+   * Everything applied is remembered in `structureOrientations` so a save can write it down and a load can apply
+   * it again; breaking the block forgets it (see `setVoxel`).
+   */
+  applyStructureOrientation(request) {
+    const key0 = `${request.x},${request.y},${request.z}`;
+    // A monster spawner: the mob it spawns lives with the block's other structure data (and is saved with it).
+    if (request.spawner) {
+      this.structureOrientations.set(key0, { ...request });
+      return true;
+    }
+    if (request.slabType === 'top' && BLOCK_DEFS[request.id]?.slab) {
+      this.structureOrientations.set(key0, { ...request });
+      return true;
+    }
+    const index = { east: 0, west: 1, south: 2, north: 3 }[request.facing];
+    if (index === undefined) return true;
+    const def = BLOCK_DEFS[request.id];
+    const key = `${request.x},${request.y},${request.z}`;
+    if (def?.door) {
+      if (request.half === 'upper') return true; // the lower half registers both
+      const doors = this.game?.doorManager || this.doorManager;
+      if (!doors) return false;
+      doors.adoptDoor([request.x, request.y, request.z], index, request.hinge || 'left');
+    } else if (def?.bed && !def.isHead && request.half !== 'head' && !/_head$/.test(request.name ?? '')) {
+      const beds = this.game?.bedManager;
+      if (!beds) return false;
+      const offset = BED_DIRECTIONS[index];
+      beds.registerBed([request.x, request.y, request.z], [request.x + offset[0], request.y, request.z + offset[2]], index);
+    } else if (request.id === BLOCKS.CHEST) {
+      const chests = this.game?.chestManager || this.chestManager;
+      if (!chests) return false;
+      // Chest facing uses its own order: 0 south, 1 west, 2 north, 3 east.
+      const chestFacing = { south: 0, west: 1, north: 2, east: 3 }[request.facing];
+      const items = request.lootTable ? rollStructureLoot(request.lootTable, lootSeedFor(request.x, request.y, request.z, this.seed)) : [];
+      const existing = chests.getChest(request.x, request.y, request.z);
+      if (!existing) chests.adoptChest([request.x, request.y, request.z], chestFacing, items);
+    } else if (def?.stair) {
+      this.structureOrientations.set(key, { ...request, dir: index, isTop: request.half === 'top' });
+      return true;
+    } else {
+      return true;
+    }
+    this.structureOrientations.set(key, { ...request, dir: index });
+    return true;
+  }
+
+  /** The orientations to write into a save: plain data, enough to apply each one again on load. */
+  /** The monster spawners structures placed: `[{ x, y, z, mob }]`. */
+  spawners() {
+    const out = [];
+    for (const o of this.structureOrientations.values()) if (o.spawner) out.push({ x: o.x, y: o.y, z: o.z, mob: o.spawner });
+    return out;
+  }
+
+  serializeOrientations() {
+    return [...this.structureOrientations.values()].map((o) => ({
+      x: o.x, y: o.y, z: o.z, id: o.id, name: o.name, facing: o.facing, half: o.half, hinge: o.hinge, lootTable: o.lootTable, slabType: o.slabType ?? null,
+      ...(o.spawner ? { spawner: o.spawner } : {})
+    }));
+  }
+
+  /** Apply saved orientations. A chest keeps the contents it was saved with, so its loot is not rolled again. */
+  restoreOrientations(list) {
+    for (const o of Array.isArray(list) ? list : []) {
+      if (this.getVoxel(o.x, o.y, o.z) !== o.id) continue; // the block was changed since: nothing to restore
+      this.applyStructureOrientation({ ...o, lootTable: o.id === BLOCKS.CHEST ? null : o.lootTable });
+    }
+  }
+
   reseed(seed = 4289, selectedBiome = this.selectedBiome) {
+    this.structureOrientations = new Map();
     this.seed = seed;
     this.selectedBiome = selectedBiome || 'all';
     this.noise = new FastNoise(seed);
@@ -484,16 +618,9 @@ export class World {
      * Before this existed, a generated world contained exactly one structure -- the starting village in the
      * spawn chunk -- and none of the thirty structures in `src/worldgen/` ever appeared in game.
      */
-    this.structures = createWorldStructures({
-      seed,
-      world: this,
-      sizes: { x: CHUNK_SIZE_X, height: CHUNK_HEIGHT, z: CHUNK_SIZE_Z },
-      // Which structures to place follows the loaded data packs. This runs per new world, AFTER
-      // `generateNewWorld` has applied them, so a pack's structures are in place by the time the engine
-      // captures its enabled set.
-      enabledIds: enabledStructureIds(),
-    });
+    this.rebuildStructures();
     this.chunks.clear();
+    this.genColumns = null; // the terrain columns structures asked about belong to the old seed
     // The Map is now empty, so any cached slot would answer for a chunk that no longer exists.
     this.invalidateChunkCache();
     // Light is stored per chunk, so every engine must forget its chunks too -- otherwise a reseed
@@ -588,7 +715,7 @@ export class World {
     // creating another copy of it.
     this.chunks.set(`${cx},${cz}`, chunk);
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
-    this.generateChunkTerrain(chunk);
+    if (this.generationMode !== 'authored') this.generateChunkTerrain(chunk);
     this.water.initChunk(chunk);
     // Allocate lighting; initChunk queues propagation and its arrays initially contain zeroes.
     this.light.initChunk(cx, cz);
@@ -599,7 +726,7 @@ export class World {
     // terrain that skipped population would be a visible hole in the animal distribution. The
     // generator is idempotent per chunk, so a chunk created twice is still populated once.
     const generationSpawner = this.game?.spawnManager?.chunkGenerationSpawner;
-    if (generationSpawner?.onChunkGenerated) {
+    if (this.generationMode !== 'authored' && generationSpawner?.onChunkGenerated) {
       // Population is a one-shot pass. Waiting for the frame's budgeted light update would make
       // every animal see light 0 here, fail its predicate, and never get another generation attempt.
       this.light.relightChunk(cx, cz);
@@ -668,6 +795,12 @@ export class World {
       return 'stony_peaks';
     }
 
+    // Cold mountain foothills transition through slopes and spruce groves,
+    // rather than jumping directly from an icy summit into ordinary plains.
+    if (elev > 0.25 && temp < -0.08) {
+      return elev > 0.34 ? 'snowy_slopes' : 'grove';
+    }
+
     if (elev < -0.38) {
       if (temp < -0.25) return 'frozen_ocean';
       if (temp > 0.35) return 'warm_ocean';
@@ -700,12 +833,37 @@ export class World {
    * They did not: terrain clamps to `CHUNK_HEIGHT - 6`, while tree placement used the raw height, so
    * near the ceiling a trunk started above the ground and floated.
    */
+  /**
+   * Whether terrain generation leaves a solid block at a point (Overworld): below the surface and not carved by a
+   * cave. Pure noise, like `surfaceHeightAt`, so a structure can test the ground it will stand in (a monster room
+   * needs solid floor and ceiling and a cave beside it) without generating a chunk.
+   */
+  solidAtGen(wx, wy, wz) {
+    if (wy <= 0) return true;
+    // The column's biome and height, kept for the last few thousand columns: a structure asks about many blocks of
+    // the same few columns.
+    this.genColumns ??= new Map();
+    const ck = `${wx},${wz}`;
+    let column = this.genColumns.get(ck);
+    if (!column) {
+      const bId = this.getBiome(wx, wz);
+      column = { def: getBiomeDef(bId), height: this.surfaceHeightAt(wx, wz, bId) };
+      if (this.genColumns.size > 4096) this.genColumns.clear();
+      this.genColumns.set(ck, column);
+    }
+    const { def, height } = column;
+    if (wy > height) return false;
+    const isCave = !def.isCavern && wy < height - 6 && wy > 3 && this.caveNoise.noise3D(wx * 0.05, wy * 0.07, wz * 0.05) > 0.58;
+    return !isCave;
+  }
+
   surfaceHeightAt(wx, wz, biomeId = this.getBiome(wx, wz)) {
     return Math.min(CHUNK_HEIGHT - 6, Math.max(4, this.getHeight(wx, wz, biomeId)));
   }
 
   getHeight(wx, wz, biomeId) {
     const def = getBiomeDef(biomeId);
+    if(def.mountainProfile)return mountainHeight(this,wx,wz,def.mountainProfile);
     const base = this.noise.noise2D(wx * 0.012, wz * 0.012);
     const detail = this.detailNoise.noise2D(wx * 0.04, wz * 0.04) * 0.35;
 
@@ -846,6 +1004,8 @@ export class World {
         }
         chunk.setVoxel(8, 47, 8, BLOCKS.SEA_LANTERN);
       }
+      // End structures (End cities, gateways), clipped to this chunk as in the Overworld.
+      this.structures?.applyToChunk(chunk);
       return;
     }
 
@@ -971,6 +1131,8 @@ export class World {
           }
         }
       }
+      // Nether structures (fortresses, bastions, Nether fossils, ruined portals), clipped to this chunk.
+      this.structures?.applyToChunk(chunk);
       return;
     }
 
@@ -983,6 +1145,7 @@ export class World {
         const bId = this.getBiome(wx, wz);
         const def = getBiomeDef(bId);
         const height = this.surfaceHeightAt(wx, wz, bId);
+        const mountain = mountainColumn(this,wx,wz,def,height);
 
         // Bedrock layer
         chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
@@ -993,11 +1156,13 @@ export class World {
           const isCave = !def.isCavern && y < height - 6 && y > 3 && this.caveNoise.noise3D(wx * 0.05, y * 0.07, wz * 0.05) > 0.58;
           if (isCave) continue;
 
-          if (y === height) {
+          const mountainBlock=mountain?.blockAt(y);
+          if(mountainBlock!==null && mountainBlock!==undefined){
+            chunk.setVoxel(lx,y,lz,mountainBlock);
+          } else if (y === height) {
             // Surface block
             let surf = def.surfaceBlock || BLOCKS.GRASS;
-            if (def.isJagged && y > 42) surf = BLOCKS.SNOW;
-            else if (height <= this.seaLevel + 1 && def.category === 'offshore') surf = BLOCKS.SAND;
+            if (height <= this.seaLevel + 1 && def.category === 'offshore') surf = BLOCKS.SAND;
             chunk.setVoxel(lx, y, lz, surf);
           } else if (y > height - 4) {
             // Subsurface layer
@@ -1026,6 +1191,8 @@ export class World {
             chunk.setVoxel(lx, y, lz, block);
           }
         }
+
+        if(mountain?.layer)chunk.setVoxel(lx,height+1,lz,BLOCKS.SNOW_LAYER);
 
         // Water in oceans / rivers below seaLevel
         if (height < this.seaLevel) {
@@ -1067,6 +1234,7 @@ export class World {
 
     // --- 5. BIOME TREES & GIANT VEGETATION ---
     this.plantTreesForChunk(chunk, cx, cz);
+    plantFireflyBushes(this,chunk);
 
     // --- 5.5 CORAL REEFS IN WARM OCEANS ---
     this.generateCoralReefsForChunk(chunk, cx, cz);
@@ -1302,12 +1470,23 @@ export class World {
           if (x >= 0 && x < CHUNK_SIZE_X && z >= 0 && z < CHUNK_SIZE_Z && y < CHUNK_HEIGHT) {
             if (chunk.getVoxel(x, y, z) === BLOCKS.AIR) {
               chunk.setVoxel(x, y, z, BLOCKS.SPRUCE_LEAVES);
-              if (isSnowy && y + 1 < CHUNK_HEIGHT) chunk.setVoxel(x, y + 1, z, BLOCKS.SNOW);
             }
           }
         }
       }
     }
+    // Finish the canopy first. Snow placed during the leaf loop occupied the
+    // next row and prevented leaves from being generated, making striped trees.
+    if(isSnowy){
+      const radius=Math.floor((trunkHeight-1)*.45);
+      for(let dx=-radius;dx<=radius;dx++)for(let dz=-radius;dz<=radius;dz++){
+        const x=lx+dx,z=lz+dz;
+        for(let y=baseY+2;y<=Math.min(CHUNK_HEIGHT-2,baseY+trunkHeight+1);y++){
+          if(chunk.getVoxel(x,y,z)===BLOCKS.SPRUCE_LEAVES && chunk.getVoxel(x,y+1,z)===BLOCKS.AIR)chunk.setVoxel(x,y+1,z,BLOCKS.SNOW_LAYER);
+        }
+      }
+    }
+
   }
 
   generateJungleTree(chunk, lx, baseY, lz) {
@@ -1560,6 +1739,7 @@ export class World {
 
   getVoxel(wx, wy, wz) {
     if (wy < 0 || wy >= CHUNK_HEIGHT) return BLOCKS.AIR;
+    if (wy < this.floorY) return BLOCKS.BARRIER;
     // Math.floor, not truncation: wx = -1 must be chunk -1, not chunk 0. The old code used
     // Math.floor here and the correctness of every negative coordinate depends on it.
     const cx = Math.floor(wx / CHUNK_SIZE_X);
@@ -1650,6 +1830,8 @@ export class World {
 
   setVoxel(wx, wy, wz, blockId, waterLevel = 0, fluidUpdate = false) {
     if (wy < 0 || wy >= CHUNK_HEIGHT) return;
+    // Nothing is built into Building Studio's ground; everything stands on it.
+    if (wy < this.floorY) return;
     const cx = Math.floor(wx / CHUNK_SIZE_X);
     const cz = Math.floor(wz / CHUNK_SIZE_Z);
     const chunk = this.getOrCreateChunk(cx, cz);
@@ -1660,7 +1842,9 @@ export class World {
     const index = chunk.getIndex(lx, wy, lz);
     if (chunk.voxels[index] === blockId && chunk.waterLevels[index] === level) return;
     chunk.setVoxel(lx, wy, lz, blockId);
+    this.cauldronLevels?.delete(`${wx},${wy},${wz}`);
     chunk.waterLevels[index] = level;
+    if (this.structureOrientations.size > 0) this.structureOrientations.delete(`${wx},${wy},${wz}`);
     this.water.notify(wx, wy, wz, !fluidUpdate);
     this.lava.notify(wx, wy, wz, !fluidUpdate);
     this.redstone.notify(wx, wy, wz);

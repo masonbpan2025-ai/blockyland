@@ -83,7 +83,7 @@ test('an external failure is distinguishable from the player asking the impossib
 
 test('a request naming something the engine lacks is explained, not just refused', () => {
   const cases = [
-    ['can we play together?', /no multiplayer/i],
+    ['can we play together?', /share this world/i],
     ['make a redstone logic circuit that counts', /does not think/i],
     ['install a shaderpack', /cannot run code/i],
     ['build a nether portal to another dimension', /one world here/i],

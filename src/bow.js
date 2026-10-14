@@ -13,7 +13,7 @@ export class BowController {
   // before the id check, which reads `i.count` on a null slot and throws -- the previous form happened to be
   // safe only because `includes(i?.id)` short-circuited first.
   ammo(){return [...this.game.inventory.hotbar,...this.game.inventory.storage].find(i=>i&&!i.isBlock&&i.count>0&&(i.id==='arrow'||i.id==='spectral_arrow'||isTippedArrow(i.id)));}
-  canUse(){const g=this.game;const isLocked=document.pointerLockElement&&(document.pointerLockElement===g.renderer?.domElement||document.pointerLockElement===g.renderer?.domElement?.parentElement);return !g.player.isDead&&!g.dungeonMode?.isActive&&!g.ui.isModalOpen()&&!g.ui.isChatOpen&&isLocked;}
+  canUse(){const g=this.game;const isLocked=document.pointerLockElement&&(document.pointerLockElement===g.renderer?.domElement||document.pointerLockElement===g.renderer?.domElement?.parentElement);return !g.player.isDead&&!g.player.isDungeonMode&&!g.ui.isModalOpen()&&!g.ui.isChatOpen&&isLocked;}
   start(){const g=this.game,item=g.inventory.getActiveItem();if(item?.isBlock||item?.id!=='bow')return false;if(!this.canUse()||g.player.gamemode!=='creative'&&!this.ammo())return true;this.item=item;this.slot=g.inventory.activeSlot;this.time=0;this.drawing=true;return true;}
   cancel(){this.drawing=false;this.time=0;if(this.game.player)this.game.player.bowDraw=0;}
   update(dt){if(!this.drawing)return;const g=this.game;if(!this.canUse()||g.inventory.getActiveItem()!==this.item||g.inventory.activeSlot!==this.slot){this.cancel();return;}this.time=Math.min(1,this.time+Math.max(0,dt));g.player.bowDraw=this.time;}

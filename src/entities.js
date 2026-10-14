@@ -6,6 +6,7 @@ import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { isDestroyedByExplosion, TNT_EXPLOSION_POWER } from './blockHarvestData.js';
 import { addPlayerExperience } from './experience.js';
+import { isFireproof } from './smithing.js';
 
 export class EntityManager {
   constructor(scene, world, sounds, textures = null) {
@@ -16,6 +17,8 @@ export class EntityManager {
     this.itemVisuals = new ItemVisuals(textures);
     if(world.lava)world.lava.onIgniteTNT=(x,y,z)=>this.spawnPrimedTNT(new THREE.Vector3(x,y,z));
     this.blastLight = new THREE.PointLight(0xffb351, 0, 16, 1);
+    // Out of the scene's light list until something explodes: an idle light still costs every lit pixel.
+    this.blastLight.visible = false;
     this.scene.add(this.blastLight);
     this.blastLife = 0;
     this.droppedItems = [];
@@ -109,29 +112,7 @@ export class EntityManager {
   }
 
   // Launch a celebratory volley of tournament fireworks across the arena
-  launchTournamentFireworks(centerPos = new THREE.Vector3(0, 24, 0), count = 6) {
-    const arenaColors = [
-      [0xff0044, 0xffd700, 0xffffff],
-      [0x00ffff, 0x3b82f6, 0x60a5fa],
-      [0xa855f7, 0xec4899, 0xf43f5e],
-      [0x22c55e, 0x10b981, 0xfacc15],
-      [0xf97316, 0xeab308, 0xffffff]
-    ];
 
-    for (let i = 0; i < count; i++) {
-      setTimeout(() => {
-        const offset = new THREE.Vector3(
-          (Math.random() - 0.5) * 22,
-          0,
-          (Math.random() - 0.5) * 22
-        );
-        const startPos = centerPos.clone().add(offset);
-        const burstHeight = startPos.y + 24 + Math.random() * 16;
-        const colorSet = arenaColors[Math.floor(Math.random() * arenaColors.length)];
-        this.spawnFireworkRocket(startPos, burstHeight, colorSet);
-      }, i * 220 + Math.random() * 100);
-    }
-  }
 
   // Spawn spinning dropped item in 3D world
   spawnDroppedItem(pos, itemType, isBlock = true, count = 1, options = {}) {
@@ -335,6 +316,7 @@ export class EntityManager {
     this.blastLight.position.copy(center);
     this.blastLife = 0.3;
     this.blastLight.intensity = 12;
+    this.blastLight.visible = true;
     // A brief hot core, expanding pressure ring, then rising billows and sparks.
     for (const ring of [false, true]) {
       const mesh = new THREE.Mesh(ring ? new THREE.RingGeometry(0.85, 1, 48) : new THREE.IcosahedronGeometry(0.7, 2),
@@ -365,13 +347,15 @@ export class EntityManager {
     dt = Math.min(dt, 0.1);
     this.blastLife = Math.max(0, this.blastLife - dt);
     this.blastLight.intensity = 12 * (this.blastLife / 0.3) ** 2;
+    this.blastLight.visible = this.blastLife > 0;
     this.updateHeat(dt,player);
     // 1. Update Dropped Items
     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
       const item = this.droppedItems[i];
       item.age += dt;
       const contact=this.world.getVoxel(Math.floor(item.group.position.x),Math.floor(item.group.position.y),Math.floor(item.group.position.z));
-      if(contact===BLOCKS.LAVA||contact===BLOCKS.FIRE){this.itemVisuals.release(item.group);this.droppedItems.splice(i,1);continue;}
+      // Netherite survives lava and fire, as the wiki's netherite upgrade describes; everything else burns up.
+      if((contact===BLOCKS.LAVA||contact===BLOCKS.FIRE)&&!isFireproof(item.itemType)){this.itemVisuals.release(item.group);this.droppedItems.splice(i,1);continue;}
 
       // Small steps keep loot from tunneling through the ground or a wall.
       const steps = Math.max(1, Math.ceil(dt / 0.016));

@@ -1,126 +1,97 @@
-# Mods
+# Designed-world mods
 
-A **designed world** is a mod. It lives in one directory under `src/mods/`, with a manifest and an entrypoint,
-and it contains its own content and its own game logic. The core does not import it.
+Start with the current [system design](../../docs/mod-system.md), [API reference](../../docs/mod-api.md),
+and [authoring guide](../../docs/creating-mods.md). Rescue Adventure is the authoritative game reference.
 
-The structure is taken from the two reference mod loaders, because the problem and the answer are the same:
 
-* [Fabric's project structure](https://docs.fabricmc.net/develop/getting-started/project-structure) — a
-  `fabric.mod.json` naming an `id` and an `entrypoints`, and a loader that calls them. "Mods are not
-  automatically classloaded by Minecraft, and thus workarounds are needed."
-* [NeoForge's registries](https://docs.neoforged.net/docs/concepts/registries/) — every registered object has a
-  unique `namespace:path` name, vanilla's namespace is `minecraft`, and a registry is a map of those names to
-  singletons.
+A designed world owns its map, content, rules and UI in one directory. The base game provides rendering,
+physics, inventory and loader APIs. Mod entrypoints load on demand; core game modules never import a
+world implementation. The browser generated catalog is the integration point for shipped mods.
 
-## Why this exists
+## Research and conventions
 
-Before, one designed world was spread through the core: `worldMechanisms.js` registered its mechanism by name,
-`mapManager.js` compared against `'dragonball_tournament'` in six places, `main.js` imported its four managers
-and named its fields in a dozen more, and two of its mobs were wired into eight switches inside `mobs.js`.
+This architecture applies patterns from two established open source ecosystems:
 
-That worked, and it meant the core could not be read, built or reasoned about without one particular world —
-and a second world would have edited every one of those files.
+- [Fabric project structure](https://docs.fabricmc.net/develop/getting-started/project-structure): a manifest,
+  an entrypoint and mod-owned assets and data.
+- [Fabric registries](https://wiki.fabricmc.net/tutorial:registry): identity is `namespace:path`; mods own
+  their namespaces, and different content kinds have separate registries.
+- [Luanti mods](https://api.luanti.org/mods/): one directory per mod, a loader-controlled entrypoint,
+  dependencies declared as metadata, and mod-prefixed content names.
 
-## The layout
+These patterns are adapted to a browser game with a selected-world lifetime. This is an extension boundary
+for trusted bundled JavaScript, not a security sandbox for arbitrary downloaded code.
 
-```
-src/mods/
-  registry.js          the content registry (core infrastructure)
-  loader.js            discovery, manifests, entrypoints (core infrastructure)
-  inspectorScope.js    which content the Inspector may show (core infrastructure)
-  README.md
-  dragonball-tournament/
-    mod.json           the manifest
-    index.js           the entrypoint: export function register(api)
-    tournament.js      the world's own modules
-    dragonballSkills.js
-    trainingSites.js
-    dungeonMode.js
-```
+## Layout and responsibilities
 
-A mod's directory is self-contained. Its modules may import `three` and each other, and nothing else — a test
-asserts that.
+`src/mods/dragonball-tournament/` contains the manifest, entrypoint, `maps/`, mob models and procedural
+textures (`mobs.js`), sounds (`audio.js`), arena fireworks (`fireworks.js`), world policies (`runtime.js`),
+HUD/modal markup (`ui.js`), styling (`style.css`), tournament, training sites, Ki skills and dungeon combat.
+The map generator is also part of the mod directory.
 
-## Writing one
+Shared infrastructure lives directly under `src/mods`: `registry.js`, `loader.js`, `paths.js`,
+`manifestFile.js` (Node-only filesystem discovery), `inspectorScope.js` and `inspectorSelector.js`.
+Filesystem discovery does not import the browser catalog or executable mod code.
 
-**1. `mod.json`**
+## Registration and lifetime
 
-```json
-{
-  "id": "my_world",
-  "name": "My Designed World",
-  "version": "1.0.0",
-  "entrypoint": "./index.js",
-  "mechanism": "my_world",
-  "maps": ["My_World_Map.json"],
-  "provides": {
-    "mobs": [{ "id": "my_mob", "name": "My Mob" }]
-  }
-}
-```
+`ModApi.registerMob`, `registerBlock`, `registerItem` and `registerMap` register owned metadata.
+`registerMobProvider(path, {spawn, dimensions, update, hurt, interact})` supplies executable mob behavior.
+Providers are stored only under namespaced identities. Bare types in old map files resolve against the
+manager's active mod namespace; no global alias is installed. Spawned entities carry `contentId` and
+`modId`, while `type` preserves compatibility with saved maps and species behavior.
 
-`id` is the mod's namespace. `maps` is what makes a map file open *this* mod — the core asks the mod table
-which world owns a map rather than comparing filenames. `provides` is what the Inspector reads, so a mod's
-content can be listed **without importing its code**; that is the same reason `fabric.mod.json` exists.
+`extend(target, fields)` changes an instance and records its original property descriptors for restoration.
+`attach(name, manager)` uses the same lifetime mechanism for game subsystems. Never modify shared
+prototypes. Register cleanup with `onDispose`; DOM listeners use abort signals. Closing a mod removes its
+registry content, mechanism, providers, live mobs, textures, DOM, listeners and player callbacks. Failed
+registration uses the same rollback path. Opening a different world closes the previous world's mod first.
 
-**2. `index.js`**
+The core calls generic `game.modRuntime` hooks and mob providers rather than naming tournament managers.
+Shared player locomotion and animation remain engine facilities that world rules can use.
 
-```js
-export function register(api, { game }) {
-  api.registerMob('my_mob', { name: 'My Mob', health: 20 });
-  api.registerMechanism('my_world', { id: 'my_world', features: { allowDodgeRoll: true } });
-  api.onLeaveWorld((g) => g.myWorld?.cleanup?.());
-  if (game) api.attach('myWorld', new MyWorldManager(game));
-}
-```
+## Inspector contract
 
-**3. Add it to the table.** `BUILTIN_MODS` in `loader.js`. A test asserts that table and the directories on
-disk agree, so a mod that is present but unlisted fails rather than silently never loading.
+Mob, Resource (blocks/items), and Structure Inspectors have a **World / mod** dropdown. Each opens on
+**Base game** unless its URL explicitly selects a valid `mod`. A mob/resource query alone cannot select a
+mod. Inspector selection is independent of the active gameplay world.
 
-## The rules the registry enforces
+- Base game lists only engine content.
+- Selecting a mod lists only that mod's declared content of the requested kind.
+- An unknown mod falls back to the base game.
+- A mod with no entries of that kind shows an empty list and clears previous previews and details.
+- Resource views retain `allEntries` for cross-reference resolution; `entries` controls visibility.
+  Mob/map declarations cannot be coerced into item entries.
 
-* Ids are `namespace:path`. Core content is `minecraft:`; a mod's content is `<mod_id>:`.
-* **A mod may not register into the core namespace.** That is what stops a mod shadowing the game's own
-  content.
-* A block and an item may share a name — vanilla's `minecraft:stone` is in both registries — so they are
-  separate maps.
-* The same name twice, in the same kind, is refused with a reason rather than silently replacing.
-* Unloading a mod withdraws its content, its mechanism, and any field it attached to the game.
+The tournament currently declares three mobs and its map. It adds no blocks, items or registry structures,
+so its Resource and Structure Inspector selections are intentionally empty.
 
-## The Inspector
+## Authored terrain and loading
 
-Content is tagged `core` or `mod`, and a view is narrowed to one scope. **The default is core**, which is the
-point: an Inspector that has not been told which world is open shows the game's own blocks and items, so a
-designed world's content cannot be mistaken for vanilla's.
+Designed maps use `world.generationMode = 'authored'`: missing chunks contain air, and neither biome
+generation nor natural mob population runs in them. Streaming releases distant geometry while retaining
+authored voxel data, so returning to an arena cannot replace it with procedural terrain. Generated worlds
+restore their procedural (or flat) generation mode; saves carry this setting.
 
-The scope is three-state:
+Map replacement pauses simulation before awaiting mod loading, resets pending streaming and mesh work,
+and publishes `ready` only after terrain, entities, mechanisms and controls are restored. This also prevents
+collision lookups from caching generated chunks while authored chunks are still being decoded.
 
-| `modId` | shows |
-| --- | --- |
-| omitted | whatever world is open |
-| `null` | the base game, even while a world is open |
-| a string | that mod |
+With a dev server on port 3100, `node scripts/test-tournament-world.mjs` compares every authored voxel after
+loading and streaming, checks player movement, and switches back to a generated world.
 
-A scoped view keeps the full entry map on `allEntries`, so a cross-reference to content outside the view still
-resolves — checking a mod's recipe against a core ingredient needs both.
+## Adding a bundled world
 
-## What is not finished
+1. Create a directory with `mod.json`, `manifest.js`, `index.js`, and its maps/assets/code.
+2. Declare every Inspector-visible contribution under `provides`; keep manifest copies equivalent.
+3. Add one catalog entry to `BUILTIN_MODS`, including its lazy entrypoint and map URLs.
+4. Register code through `ModApi`, and record side effects for disposal.
+5. Verify base-game and mod visibility, unload/reload and failed-load rollback.
 
-**The designed world's mobs are still implemented in the core's `mobs.js`.**
+The dev map API discovers mod directories from manifests. Production map URLs are emitted by Vite from
+catalog `new URL(..., import.meta.url)` references. `designed_worlds` remains an optional import location
+for old user-authored maps; the shipped tournament map lives in its mod directory.
 
-`tournament_host` and `jackie_chun` are *declared* by the manifest and *registered* as namespaced content, so
-the Inspector attributes and scopes them correctly. But their factories, textures, hitboxes, AI and XP hooks
-are still six branches inside the shared `MobManager`, because `mobs.js` is 670KB and was being edited by
-another agent while this was built.
-
-Finishing it means a provider seam on `MobManager`:
-
-```js
-mobManager.registerMobProvider('dragonball_tournament:tournament_host', {
-  spawn, dimensions, update, onDamage, xp, texture,
-});
-```
-
-with each of those six switches consulting the provider table for a type it does not recognise. That is a
-mechanical change once `mobs.js` is quiet, and it is the last thing standing between the core and a genuinely
-empty dependency on every designed world.
+Run scope/lifecycle tests with `node --test --test-isolation=none tests/modInspectorIsolation.test.js
+tests/modStructure.test.js`. With a dev server at port 3100, run `node scripts/test-mod-inspectors.mjs` for
+browser checks (installed Edge by default; `MOD_BROWSER_CHANNEL` and `MOD_INSPECTOR_URL` override defaults).

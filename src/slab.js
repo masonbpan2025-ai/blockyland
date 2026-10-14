@@ -11,6 +11,7 @@ import { DYE_COLOURS as BANNER_TINTS } from './colourPalette.js';
 // BoxGeometry's 0..1 per-face UVs into the target atlas tile. This follows it exactly so shaders and
 // the light system need no changes for any shape here.
 import * as THREE from 'three';
+import { snowFaceTint } from './snowShading.js';
 
 /** Which texture each box face should sample, defaulting to the block's `all` texture. */
 function faceTexture(def, face) {
@@ -206,7 +207,15 @@ export function createPaneGeometry(def, tm) {
  * would stretch the texture across the thickness instead of showing a slice of it.
  */
 export function createCarpetGeometry(def, tm) {
-  return buildBox({ x: 1, y: 1 / 16, z: 1 }, { x: 0, y: 0, z: 0 }, def, tm);
+  const geometry = buildBox({ x: 1, y: def?.carpetHeight ?? 1 / 16, z: 1 }, { x: 0, y: 0, z: 0 }, def, tm);
+  if (def?.snowLayer) {
+    const normals = geometry.attributes.normal, colors = geometry.attributes.color;
+    for (let i = 0; i < normals.count; i++) {
+      const tint = snowFaceTint(normals.getX(i), normals.getY(i), normals.getZ(i));
+      colors.setXYZ(i, ...tint);
+    }
+  }
+  return geometry;
 }
 
 /**
@@ -476,7 +485,61 @@ export function createFlowerPotGeometry(def, tm) {
   const w = 6 / 16;
   const h = 6 / 16;
   const min = (1 - w) / 2;
-  return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
+  const plant = pottedPlantTexture(def, tm);
+  // No separate plant sprite in the atlas (the empty pot, or a plant whose sprite is not loaded): the single box
+  // carrying the composed texture, as before.
+  if (!plant) return buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, def, tm);
+  // The pot, and the plant standing IN it: two crossing sprites rising from just inside the rim to the top of the
+  // block, as vanilla's flower_pot_cross model does. Painting the plant onto the pot's faces (the composed
+  // texture) squeezed it into a 6/16 cube and it never rose out of the pot.
+  const pot = buildBox({ x: w, y: h, z: w }, { x: min, y: 0, z: min }, { textures: { all: 'flower_pot.png' } }, tm);
+  const cross = buildCrossSprites(plant, tm, { x0: 0.05, x1: 0.95, y0: 4 / 16, y1: 1 });
+  const merged = mergeBoxes([pot, cross]);
+  pot.dispose();
+  cross.dispose();
+  return merged;
+}
+
+/** The plant sprite for a `potted_*` block, when the atlas has both it and the pot sprite; otherwise null. */
+function pottedPlantTexture(def, tm) {
+  const composed = def?.textures?.all;
+  if (!composed || !composed.startsWith('potted_') || !tm?.tileCoords) return null;
+  const plant = composed.replace(/^potted_/, '');
+  const known = (name) => Boolean(tm.tileCoords[name]);
+  if (known(plant) && known('flower_pot.png')) return plant;
+  return null;
+}
+
+/**
+ * Two upright sprites crossing at the middle of the block (an X seen from above), drawn with the same attribute set
+ * as the boxes so they merge with them. The normals point up, as plants' do, so they are lit like plants.
+ */
+function buildCrossSprites(texName, tm, { x0, x1, y0, y1 }) {
+  const tile = tm?.getFaceUVs ? tm.getFaceUVs(texName, 'all') : { u0: 0, v0: 0, u1: 1, v1: 1 };
+  const inset = (tile.u1 - tile.u0) * (0.5 / 16);
+  const u0 = tile.u0 + inset; const u1 = tile.u1 - inset;
+  const v0 = tile.v0 + inset; const v1 = tile.v1 - inset;
+  const positions = [];
+  const uvs = [];
+  const index = [];
+  const quad = (a, b) => {
+    const base = positions.length / 3;
+    positions.push(a[0], y0, a[1], b[0], y0, b[1], b[0], y1, b[1], a[0], y1, a[1]);
+    uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+    index.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  quad([x0, 0.5], [x1, 0.5]);
+  quad([0.5, x0], [0.5, x1]);
+  const count = positions.length / 3;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => [0, 1, 0]).flat(), 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(count), 1));
+  geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(count), 1));
+  geo.setIndex(index);
+  return geo;
 }
 
 /**

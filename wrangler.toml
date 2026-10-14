@@ -1,0 +1,8 @@
+name = "blockyland"
+compatibility_date = "2026-10-12"
+pages_build_output_dir = "./dist"
+
+[[durable_objects.bindings]]
+name = "SHARE_ROOMS"
+class_name = "ShareRendezvous"
+script_name = "blockyland-share"

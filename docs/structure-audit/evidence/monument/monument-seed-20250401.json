@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "structure": "monument",
+  "seed": "20250401",
+  "chunk": [
+    6,
+    18
+  ],
+  "biome": "deep_ocean",
+  "box": {
+    "minX": 96,
+    "minY": 3,
+    "minZ": 288,
+    "maxX": 153,
+    "maxY": 25,
+    "maxZ": 345
+  },
+  "pieces": 1,
+  "blocks": {
+    "Water": 61550,
+    "Prismarine Bricks": 7895,
+    "Prismarine": 7273,
+    "Dark Prismarine": 376,
+    "Sea Lantern": 137,
+    "Wet Sponge": 133,
+    "Block of Gold": 8
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {
+    "mob": 3
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 16,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

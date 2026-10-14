@@ -21,7 +21,7 @@ import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
 import { placeTemplate } from '../templatePlacement.js';
 import { StructureTemplate } from '../template.js';
 import { createBlockIdResolver } from '../blockIds.js';
-import { buildIglooTop, buildIglooBasement } from '../templates/igloo.js';
+import { buildIglooTop, buildIglooBasement, IGLOO_BASEMENT_DEPTH } from '../templates/igloo.js';
 
 /** Vanilla's basement chance. Published as "half of all igloos". */
 export const IGLOO_BASEMENT_CHANCE = 0.5;
@@ -37,53 +37,41 @@ const IGLOO_PROCESSORS = {
 export function generateIgloo({ seed, chunkX, chunkZ, context }) {
   const originX = chunkX * 16 + 4;
   const originZ = chunkZ * 16 + 4;
-  const surface = context.surfaceY ? context.surfaceY(originX, originZ, 'world_surface_wg') : 70;
+  const surface = context.surfaceY ? context.surfaceY(originX + 3, originZ + 3, 'world_surface_wg') : 70;
 
   // The basement roll comes from the chunk's large-feature stream, which is the same derivation vanilla
   // uses for per-chunk structure decisions. It is drawn FIRST so that adding the basement later cannot
   // shift any other draw.
-  const roll = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ).nextFloat();
+  const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
+  const roll = random.nextFloat();
   const hasBasement = roll < IGLOO_BASEMENT_CHANCE;
+  const rotation = random.nextIntBound(4);
+  const basementSeed = random.nextInt();
 
-  const top = new StructureTemplate(buildIglooTop(), 'minecraft:igloo/top');
+  // The dome's ground layer (the drawing's layer 0) sits at the surface; the basement is directly beneath it in the
+  // same x/z frame, so the ladder lands under the trapdoor whatever the rotation.
+  const topOrigin = { x: originX, y: surface, z: originZ };
+  const top = new StructureTemplate(buildIglooTop({ hasBasement }), 'minecraft:igloo/top');
   const pieces = [new StructurePiece({
-    id: 'minecraft:igloo/top',
-    index: 0,
-    type: 'template',
-    family: 'template',
-    template: 'minecraft:igloo/top',
-    box: top.boundingBox({ x: originX, y: surface, z: originZ }, 0),
-    meta: { processors: IGLOO_PROCESSORS }
+    id: 'minecraft:igloo/top', index: 0, type: 'template', family: 'template', template: 'minecraft:igloo/top', rotation,
+    box: top.boundingBox(topOrigin, rotation),
+    meta: { processors: IGLOO_PROCESSORS, origin: topOrigin, hasBasement }
   })];
-
   if (hasBasement) {
-    // Vanilla places the basement below the dome, offset so the ladder lines up with the trapdoor. The
-    // offset is an approximation of the vanilla geometry; the DEPTH (a room whose ceiling is one block
-    // under the dome floor) is what matters for it to be reachable.
-    const basementY = surface - 5;
-    const basement = new StructureTemplate(buildIglooBasement(), 'minecraft:igloo/bottom');
-    const basementOrigin = { x: originX - 1, y: basementY, z: originZ - 2 };
+    const basementOrigin = { x: originX, y: surface - IGLOO_BASEMENT_DEPTH, z: originZ };
+    const basement = new StructureTemplate(buildIglooBasement({ seed: basementSeed }), 'minecraft:igloo/bottom');
     pieces.push(new StructurePiece({
-      id: 'minecraft:igloo/bottom',
-
-      index: 1,
-      type: 'template',
-      family: 'template',
-      template: 'minecraft:igloo/bottom',
-      box: basement.boundingBox(basementOrigin, 0),
-      meta: { processors: IGLOO_PROCESSORS, entities: basement.entities, origin: basementOrigin }
+      id: 'minecraft:igloo/bottom', index: 1, type: 'template', family: 'template', template: 'minecraft:igloo/bottom', rotation,
+      box: basement.boundingBox(basementOrigin, rotation),
+      meta: { processors: IGLOO_PROCESSORS, entities: basement.entities, origin: basementOrigin, basementSeed }
     }));
   }
 
   const start = new StructureStart({
-    structureId: 'igloo',
-    chunkX,
-    chunkZ,
-    pieces,
-    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null,
-    seed
+    structureId: 'igloo', chunkX, chunkZ, pieces,
+    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null, seed
   });
-  start.meta = { hasBasement, basementRoll: roll, surface };
+  start.meta = { hasBasement, basementRoll: roll, surface, rotation };
   return start;
 }
 
@@ -102,8 +90,8 @@ export function realizeIgloo(start, setBlock, blockIds, { spawnMob = null } = {}
 
   for (const piece of start.pieces) {
     const template = piece.template === 'minecraft:igloo/top'
-      ? new StructureTemplate(buildIglooTop(), piece.template)
-      : new StructureTemplate(buildIglooBasement(), piece.template);
+      ? new StructureTemplate(buildIglooTop({ hasBasement: piece.meta?.hasBasement ?? start.meta?.hasBasement ?? true }), piece.template)
+      : new StructureTemplate(buildIglooBasement({ seed: piece.meta?.basementSeed ?? 0 }), piece.template);
     const origin = piece.meta?.origin
       || { x: piece.box.minX, y: piece.box.minY, z: piece.box.minZ };
     // A per-piece random derived from the start keeps realization reproducible and independent of how many
@@ -126,7 +114,8 @@ export function realizeIgloo(start, setBlock, blockIds, { spawnMob = null } = {}
         missingBlocks.add(block.state.name);
         continue;
       }
-      if (setBlock(block.x, block.y, block.z, id, block.nbt ? { nbt: block.nbt, state: block.state } : { state: block.state })) {
+      const meta = block.nbt ? { nbt: block.nbt, state: block.state, ...(block.nbt.LootTable ? { lootTable: block.nbt.LootTable } : {}) } : { state: block.state };
+      if (setBlock(block.x, block.y, block.z, id, meta)) {
         written++;
       }
     }
@@ -134,7 +123,8 @@ export function realizeIgloo(start, setBlock, blockIds, { spawnMob = null } = {}
     for (const entity of template.entitiesTransformed(piece.rotation, piece.mirror)) {
       const mobType = String(entity.nbt?.id || '').replace('minecraft:', '');
       if (!spawnMob) continue;
-      const placed = spawnMob(mobType, origin.x + entity.local.x, origin.y + entity.local.y, origin.z + entity.local.z);
+      // Both are clerics and never despawn (they are part of the structure).
+      const placed = spawnMob(mobType, origin.x + entity.local.x, origin.y + entity.local.y, origin.z + entity.local.z, { persistent: true, profession: 'cleric' });
       if (placed) spawned.push(mobType);
     }
   }
@@ -144,6 +134,6 @@ export function realizeIgloo(start, setBlock, blockIds, { spawnMob = null } = {}
     spawned,
     missingBlocks: [...missingBlocks].sort(),
     requirements: [...requirements].sort(),
-    note: 'geometry is a clean-room approximation of the wiki description'
+    note: "the wiki's blueprint, block for block; the infested bricks are placed at random up to the materials table's counts"
   };
 }

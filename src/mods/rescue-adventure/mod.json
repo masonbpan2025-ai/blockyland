@@ -1,0 +1,142 @@
+{
+  "formatVersion": 1,
+  "id": "rescue_adventure",
+  "name": "Rescue Adventure",
+  "version": "1.0.0",
+  "type": "game",
+  "engineApi": "^1.0.0",
+  "protocolVersion": 1,
+  "requires": [
+    "voxel_world",
+    "scene_definitions",
+    "local_coop",
+    "authoritative_sessions"
+  ],
+  "dependencies": {},
+  "entrypoint": "./index.js",
+  "serverEntrypoint": "./server/game.js",
+  "mechanism": "rescue_adventure",
+  "maps": [
+    "Rescue_Adventure.json"
+  ],
+  "saveSchemaVersion": 1,
+  "description": "Rescue Suki through five realms: solo or co-op, bridge guardians, elemental weapons and food-only healing.",
+  "provides": {
+    "mobs": [
+      {
+        "id": "ancient",
+        "name": "Ancient",
+        "health": 420
+      },
+      {
+        "id": "golem",
+        "name": "Golem",
+        "health": 540
+      },
+      {
+        "id": "wraith",
+        "name": "Wraith",
+        "health": 620
+      },
+      {
+        "id": "frost",
+        "name": "Frost",
+        "health": 720
+      },
+      {
+        "id": "king",
+        "name": "King",
+        "health": 1200
+      },
+      {
+        "id": "zombie",
+        "name": "Zombie",
+        "health": 65
+      },
+      {
+        "id": "skeleton",
+        "name": "Skeleton",
+        "health": 48
+      },
+      {
+        "id": "creeper",
+        "name": "Creeper",
+        "health": 46
+      },
+      {
+        "id": "vindicator",
+        "name": "Vindicator",
+        "health": 110
+      },
+      {
+        "id": "pillager",
+        "name": "Pillager",
+        "health": 85
+      },
+      {
+        "id": "armored_zombie",
+        "name": "Armored Zombie",
+        "health": 180
+      },
+      {
+        "id": "geomancer",
+        "name": "Geomancer",
+        "health": 155
+      },
+      {
+        "id": "necromancer",
+        "name": "Necromancer",
+        "health": 210
+      },
+      {
+        "id": "royal_guard",
+        "name": "Royal Guard",
+        "health": 260
+      },
+      {
+        "id": "spider",
+        "name": "Rescue Spider",
+        "health": 42
+      },
+      {
+        "id": "brute",
+        "name": "Brute",
+        "health": 145
+      }
+    ],
+    "items": [
+      {
+        "id": "inferno_sword",
+        "name": "Inferno Sword"
+      },
+      {
+        "id": "stormfire_sword",
+        "name": "Stormfire Sword"
+      },
+      {
+        "id": "cataclysm_sword",
+        "name": "Cataclysm Sword"
+      },
+      {
+        "id": "woodland_armor",
+        "name": "Woodland Armor"
+      },
+      {
+        "id": "redstone_armor",
+        "name": "Redstone Armor"
+      },
+      {
+        "id": "wraith_armor",
+        "name": "Wraith Armor"
+      },
+      {
+        "id": "frost_armor",
+        "name": "Frost Armor"
+      },
+      {
+        "id": "obsidian_armor",
+        "name": "Obsidian Armor"
+      }
+    ]
+  }
+}

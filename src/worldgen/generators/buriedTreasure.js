@@ -1,44 +1,38 @@
-// Buried treasure: the first implemented structure, chosen because vanilla implements it with code
-// rather than templates, so it needs no structure-NBT data to be complete.
+// Buried treasure, from the wiki (https://minecraft.wiki/w/Buried_Treasure).
 //
-// Vanilla `BuriedTreasureStructure` / `BuriedTreasurePiece`:
-//   * one piece, a single chest;
-//   * at chunk-local x=9, z=9 (so the chest is never on a chunk edge, which keeps it clear of the
-//     chunk-border rules that would otherwise move it);
-//   * at the OCEAN_FLOOR_WG height -- the beach surface, not the world surface, which is why a portal
-//     or a tree above the beach does not push the chest upward;
-//   * facing east;
-//   * waterlogged if the block it replaces was water, which the realization step handles by reading the
-//     block it overwrites rather than assuming air.
+// From the page:
+//   * beaches and snowy beaches (Java; stony shore and mushroom field shore are Bedrock only);
+//   * one chest, "always facing east", "at chunk section relative 9 (out of 0 through 15) on both the X and Z axis";
+//   * "The treasure chest is almost always buried by some material ... a sand or gravel block covering it": the chest
+//     goes one block under the top of the ground (the ocean floor, when underwater), so the ground block covers it;
+//   * loot: the buried treasure table ("A heart of the sea is always present").
 //
-// Sources: wiki `Buried Treasure` (1.21.4). The 1% frequency lives in the structure set
-// (`buried_treasures`, `frequency: 0.01`), not here -- the generator only runs once placement has
-// already accepted the chunk, which is the same split vanilla uses.
+// Not modelled: "If the chest is exposed to water, it generates waterlogged" (this game has no waterlogging).
+//
+// The 1% per-chunk chance lives in the structure set (`buried_treasures`, `frequency: 0.01`).
 
 import { BlockBox } from '../geometry.js';
 import { StructurePiece, StructureStart } from '../start.js';
 
 export const BURIED_TREASURE_OFFSET = { x: 9, z: 9 };
+export const BURIED_TREASURE_LOOT = 'minecraft:chests/buried_treasure';
 
 export function generateBuriedTreasure({ seed, chunkX, chunkZ, context }) {
   const x = chunkX * 16 + BURIED_TREASURE_OFFSET.x;
   const z = chunkZ * 16 + BURIED_TREASURE_OFFSET.z;
-  const y = context.surfaceY ? context.surfaceY(x, z, 'ocean_floor') : 63;
+  // The top of the ground (the sea floor under water); the chest is buried one below it.
+  const ground = context.surfaceY ? context.surfaceY(x, z, 'ocean_floor') : 63;
+  const y = ground - 1;
 
   const piece = new StructurePiece({
     id: 'minecraft:buried_treasure',
     type: 'hardcoded',
     family: 'hardcoded',
     box: new BlockBox(x, y, z, x, y, z),
-    meta: {
-      lootTable: 'chests/buried_treasure',
-      facing: 'east',
-      block: 'chest',
-      waterloggable: true
-    }
+    meta: { lootTable: BURIED_TREASURE_LOOT, facing: 'east', block: 'chest', waterloggable: true }
   });
 
-  return new StructureStart({
+  const start = new StructureStart({
     structureId: 'buried_treasure',
     chunkX,
     chunkZ,
@@ -46,20 +40,20 @@ export function generateBuriedTreasure({ seed, chunkX, chunkZ, context }) {
     biome: context.biomeAt ? context.biomeAt(x, z) : null,
     seed
   });
+  start.meta = { ground, y };
+  return start;
 }
 
 /**
- * Realise the chest into a voxel setter.
- *
- * `setBlock(x, y, z, blockId, meta)` is the caller's writer; the generator deliberately does not know
- * whether that is a chunk, a preview grid or a test double. Returns the number of blocks written so the
- * Inspector can report it and tests can assert the piece was not skipped.
+ * Realise the chest into a voxel setter. `setBlock(x, y, z, blockId, meta)` is the caller's writer. Returns the
+ * number of blocks written.
  */
 export function realizeBuriedTreasure(start, setBlock, blockIds) {
   let written = 0;
   for (const piece of start.pieces) {
     const { x, y, z } = { x: piece.box.minX, y: piece.box.minY, z: piece.box.minZ };
-    if (setBlock(x, y, z, blockIds.CHEST, { facing: 'east', lootTable: piece.meta.lootTable })) written++;
+    const state = { name: 'minecraft:chest', properties: { facing: 'east' } };
+    if (setBlock(x, y, z, blockIds.CHEST, { state, facing: 'east', lootTable: piece.meta.lootTable })) written++;
   }
   return written;
 }

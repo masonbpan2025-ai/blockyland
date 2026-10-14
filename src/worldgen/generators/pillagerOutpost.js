@@ -1,20 +1,24 @@
-// Pillager outpost: the first structure built on the jigsaw engine.
+// Pillager outpost, built from the wiki's blueprints on the jigsaw engine.
 //
-// From the wiki (`Pillager Outpost`, 1.21.4 revision):
-//   * a watchtower on a base plate, with surrounding FEATURES: cages (some holding an iron golem), tents and
-//     logs, joined by jigsaw connectors;
-//   * the pool graph is the smallest of the jigsaw structures, which is exactly why it is the first one:
-//     `pillager_outpost/base_plates`, `.../watchtower` and `.../features`;
-//   * it spawns pillagers, and its `terrain_adaptation` is `beard_thin`.
+// Sources (saved under docs/structure-audit/wiki/): https://minecraft.wiki/w/Pillager_Outpost and its /Structure page,
+// whose blueprints of the watchtower and of the five features (cage, logs, target, two tents) are converted by
+// scripts/generate-structure-blueprints.mjs.
 //
-// PROVENANCE: no Minecraft assets. Every template here is built by code and is a clean-room approximation of
-// the described parts, so the structure's SHAPE is approximate while its POOL GRAPH, connector joining,
-// placement and adaptation are the engine's real behaviour.
+// From the pages:
+//   * "The outpost tower always generates, while up to 4 other smaller structures may spawn around the periphery";
+//     "there are 15 jigsaw blocks that can generate the structures around the tower. Each structure has a 1 in 13
+//     chance of being generated, including allay and iron golem cages" -- so a feature pool of six structures at
+//     weight 1 and an empty element at 7, drawn at 15 spots, keeping the first four;
+//   * "iron golem cages spawn one golem, and allay cages spawn two allays" (the allay cage is the variant whose roof is
+//     fenced in);
+//   * "A total of eight pillagers, including the pillager captain, spawns in a pillager outpost";
+//   * the watchtower's blueprint notes: layer-6 cobblestone stairs face inside and are upside down, and the dark oak
+//     slabs on layers 6 and 9 are top slabs; the tower's chest uses the pillager outpost loot table.
 //
-// DEVIATIONS: the tower's dimensions and the feature mix are clean-room; vanilla's outpost pillager spawning
-// is an area effect around the structure rather than a fixed set of entities, so only the watchtower's
-// occupant is placed here and the area spawning is left to the mob system, which is recorded rather than
-// faked with extra entities.
+// Not modelled, and why: the ominous banner's pattern (a plain white wall banner stands in for it -- the game has no
+// banner patterns); the 15 jigsaw spots' exact positions (the blueprints omit jigsaws, so the spots are spaced evenly
+// round the tower); MC-139711's eight trench holes (a bug); the pillager captain's banner (no captain variant exists
+// in the mob code yet, the spawn request carries `patrolLeader`).
 
 import { StructureStart } from '../start.js';
 import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
@@ -22,277 +26,214 @@ import { TemplatePool, TemplatePoolRegistry, PoolElement, addPieces } from '../j
 import { StructureTemplate } from '../template.js';
 import { placeTemplate } from '../templatePlacement.js';
 import { createBlockIdResolver } from '../blockIds.js';
+import { STRUCTURE_BLUEPRINTS } from './structureBlueprintData.js';
 
-export const OUTPOST_POOLS = {
-  base: 'pillager_outpost/base_plates',
-  tower: 'pillager_outpost/watchtower',
-  features: 'pillager_outpost/features'
+export const OUTPOST_POOLS = { tower: 'pillager_outpost/watchtower', features: 'pillager_outpost/features' };
+const FEATURE_SLOT = 'pillager_outpost/feature';
+/** The wiki: 15 jigsaw spots, each structure 1 in 13, at most 4 smaller structures. */
+export const FEATURE_SPOTS = 15;
+export const FEATURE_ODDS = 13;
+export const MAX_FEATURES = 4;
+export const OUTPOST_PILLAGERS = 8;
+export const OUTPOST_CHEST_LOOT = 'minecraft:chests/pillager_outpost';
+/** Empty ground kept round the tower so the features stand on the periphery, not against its walls. */
+const MARGIN = 6;
+
+export const FEATURES = {
+  feature_cage: { mobs: [['iron_golem', 1]] },
+  feature_cage_allay: { mobs: [['allay', 2]] },
+  feature_logs: {},
+  feature_targets: {},
+  feature_tent1: {},
+  feature_tent2: {}
 };
+/** Kept for callers that list the parts. */
+export const BASE_PLATE_CONNECTORS = FEATURE_SPOTS;
 
-/** How many feature connectors a base plate offers. */
-export const BASE_PLATE_CONNECTORS = 4;
-
-const PALETTE_MATERIALS = {
-  'minecraft:dark_oak_log': { Name: 'minecraft:dark_oak_log', Properties: { axis: 'y' } },
-  'minecraft:dark_oak_planks': { Name: 'minecraft:dark_oak_planks' },
-  'minecraft:cobblestone': { Name: 'minecraft:cobblestone' },
-  'minecraft:oak_fence': { Name: 'minecraft:oak_fence' },
-  'minecraft:iron_bars': { Name: 'minecraft:iron_bars' },
-  'minecraft:white_wool': { Name: 'minecraft:white_wool' },
-  'minecraft:chest': { Name: 'minecraft:chest', Properties: { facing: 'north', waterlogged: 'false' } }
-};
-
-/** A jigsaw block whose `pool` points at the feature pool, so the engine can grow the structure. */
-function jigsawBlock(name, pool, orientation, finalState = 'minecraft:air', target = 'minecraft:empty') {
-  return { name, pool, orientation, finalState, target, joint: 'aligned' };
-}
-
-/**
- * Build one part. Returns a pseudo-template whose `entities` may carry the tower's occupant and whose
- * connectors are exposed through real jigsaw blocks, so the SAME machinery the template loader uses drives
- * the joining.
- */
-export function buildOutpostPart(part) {
+function canvas() {
   const palette = [{ Name: 'minecraft:air' }];
-  const index = new Map(palette.map((entry, i) => [entry.Name, i]));
-  const blocks = [];
-  const materials = [];
-  const materialIndex = (name) => {
-    if (!index.has(name)) { index.set(name, palette.length); palette.push(PALETTE_MATERIALS[name]); }
-    return index.get(name);
-  };
-  // A jigsaw block's orientation is a STATE property, and a single shared palette entry made every
-  // connector report the same facing -- so the joining maths could never turn a child to face its parent.
-  const jigsawIndexFor = (orientation) => {
-    const key = 'jigsaw:' + orientation;
-    if (!index.has(key)) { index.set(key, palette.length); palette.push({ Name: 'minecraft:jigsaw', Properties: { orientation } }); }
+  const index = new Map([['minecraft:air{}', 0]]);
+  const state = (name, props = null) => {
+    const key = name + JSON.stringify(props ?? {});
+    if (!index.has(key)) { index.set(key, palette.length); palette.push(props ? { Name: name, Properties: props } : { Name: name }); }
     return index.get(key);
   };
+  return { palette, state, blocks: [], entities: [] };
+}
+const jigsaw = (c, x, y, z, front, pool) => c.blocks.push({
+  pos: [x, y, z], state: c.state('minecraft:jigsaw', { orientation: front + '_up' }),
+  nbt: { name: FEATURE_SLOT, pool, orientation: front + '_up', joint: 'rigid', target: 'minecraft:empty', final_state: 'minecraft:structure_void' }
+});
+const cellsOf = (bp) => bp.blocks.split(';').map((r) => r.split(',').map(Number)).map(([x, y, z, p]) => ({ x, y, z, entry: bp.palette[p] }));
 
-  if (part === 'base_plate') {
-    // The plate must be WIDE ENOUGH FOR ITS FEATURES, not just for the tower. A 9x9 plate leaves two blocks
-    // of margin around the 5x5 tower, so every 3x3 cage and 5x5 tent candidate was rejected as a collision
-    // and only the 1x1 log could ever fit -- which looked exactly like a broken weighted draw. This is a
-    // geometry bug, not an engine bug: the engine's try-and-retry is the correct vanilla behaviour.
-    const width = 15;
-    const centre = Math.floor(width / 2);
-    const size = [width, 1, width];
-    for (let x = 0; x < width; x++) {
-      for (let z = 0; z < width; z++) blocks.push({ pos: [x, 0, z], state: materialIndex('minecraft:cobblestone') });
+/** The watchtower inside its margin, with the 15 feature connectors on the margin's edge facing outward. */
+function buildWatchtower() {
+  const bp = STRUCTURE_BLUEPRINTS['pillager_outpost/watchtower'];
+  const [w, h, d] = bp.size;
+  const c = canvas();
+  const size = [w + 2 * MARGIN, h, d + 2 * MARGIN];
+  const cx = (w - 1) / 2; const cz = (d - 1) / 2;
+  for (const cell of cellsOf(bp)) {
+    let name = cell.entry.Name;
+    let props = cell.entry.Properties ?? null;
+    const layer = cell.y + bp.minLayer;
+    if (name === 'minecraft:ominous_wall_banner') name = 'minecraft:white_wall_banner';
+    if (name === 'minecraft:cobblestone_stairs' && layer === 6) {
+      // "Layer 6 - Cobblestone stair face inside and upside down."
+      const dx = cx - cell.x; const dz = cz - cell.z;
+      const facing = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'east' : 'west') : (dz > 0 ? 'south' : 'north');
+      props = { facing, half: 'top' };
     }
-    // The centre connector takes the watchtower; the corners offer features with clearance for the largest
-    // of them (a 5x5 tent reaches three blocks in from a corner connector, and the tower starts nine).
-    blocks.push({
-      pos: [centre, 0, centre], state: jigsawIndexFor('up_north'),
-      nbt: jigsawBlock('pillager_outpost/tower', OUTPOST_POOLS.tower, 'up_north')
-    });
-    for (const [x, z] of [[2, 2], [2, 12], [12, 2], [12, 12]]) {
-      blocks.push({
-        pos: [x, 0, z], state: jigsawIndexFor('up_north'),
-        nbt: jigsawBlock('pillager_outpost/feature', OUTPOST_POOLS.features, 'up_north')
-      });
+    if (/_slab$/.test(name) && (layer === 6 || layer === 9)) props = { type: 'top' }; // "Slabs = top"
+    const pos = [cell.x + MARGIN, cell.y, cell.z + MARGIN];
+    if (name === 'minecraft:chest') c.blocks.push({ pos, state: c.state(name, props), nbt: { id: 'minecraft:chest', LootTable: OUTPOST_CHEST_LOOT } });
+    else c.blocks.push({ pos, state: c.state(name, props) });
+  }
+  // Eight pillagers, one of them the captain, on the tower's floors: top platform first, then down.
+  const occupied = new Set(c.blocks.map((b) => b.pos.join(',')));
+  const solid = (x, y, z) => occupied.has(`${x},${y},${z}`);
+  const spots = [];
+  for (let y = h - 1; y >= 1 && spots.length < OUTPOST_PILLAGERS * 3; y--) {
+    for (let z = MARGIN; z < MARGIN + d; z++) for (let x = MARGIN; x < MARGIN + w; x++) {
+      if (solid(x, y - 1, z) && !solid(x, y, z) && !solid(x, y + 1, z)) spots.push([x, y, z]);
     }
-    return { size, palette, blocks, entities: [] };
   }
-
-  if (part === 'watchtower') {
-    const width = 5;
-    const height = 10;
-    const size = [width, height, width];
-    for (let y = 1; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        for (let z = 0; z < width; z++) {
-          const edge = x === 0 || x === width - 1 || z === 0 || z === width - 1;
-          const corner = (x === 0 || x === width - 1) && (z === 0 || z === width - 1);
-          if (corner && y < height - 1) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:dark_oak_log') });
-          // Solid below the platform, open above it so the tower has a usable top floor.
-          else if (edge && y <= 4) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:dark_oak_planks') });
-          else if (edge && y >= 7) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:dark_oak_planks') });
-        }
-      }
-      if (y === 5) for (let x = 0; x < width; x++) for (let z = 0; z < width; z++) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:dark_oak_planks') });
+  const step = Math.max(1, Math.floor(spots.length / OUTPOST_PILLAGERS));
+  for (let i = 0; i < OUTPOST_PILLAGERS && i * step < spots.length; i++) {
+    c.entities.push({ pos: spots[i * step], nbt: { type: 'pillager', ...(i === 0 ? { patrolLeader: true } : {}) } });
+  }
+  // 15 feature spots on the margin's edge: four on three sides, three on the fourth.
+  const perSide = [4, 4, 4, 3];
+  const sides = [
+    (t) => [Math.round(t * (size[0] - 1)), 0, 'north'],
+    (t) => [size[0] - 1, Math.round(t * (size[2] - 1)), 'east'],
+    (t) => [Math.round((1 - t) * (size[0] - 1)), size[2] - 1, 'south'],
+    (t) => [0, Math.round((1 - t) * (size[2] - 1)), 'west']
+  ];
+  sides.forEach((side, s) => {
+    for (let i = 0; i < perSide[s]; i++) {
+      const [x, z, front] = side((i + 1) / (perSide[s] + 1));
+      const [jx, jz] = front === 'north' ? [x, 0] : front === 'south' ? [x, size[2] - 1] : front === 'west' ? [0, z] : [size[0] - 1, z];
+      jigsaw(c, jx, 0, jz, front, OUTPOST_POOLS.features);
     }
-    // Roof and a chest on the platform, which is what vanilla's vault-less outpost actually holds.
-    for (let x = 0; x < width; x++) for (let z = 0; z < width; z++) blocks.push({ pos: [x, height - 1, z], state: materialIndex('minecraft:dark_oak_planks') });
-    blocks.push({ pos: [1, 6, 1], state: materialIndex('minecraft:chest'), nbt: { id: 'minecraft:chest', LootTable: 'minecraft:chests/pillager_outpost' } });
-    // The connector that joined this tower to its base plate, now a finished block.
-    blocks.push({ pos: [2, 0, 2], state: jigsawIndexFor('down_north'), nbt: jigsawBlock('pillager_outpost/tower', null, 'down_north', 'minecraft:dark_oak_planks') });
-    return { size, palette, blocks, entities: [{ pos: [2.5, 7, 2.5], blockPos: [2, 7, 2], nbt: { id: 'minecraft:pillager', PersistenceRequired: 1 } }] };
-  }
+  });
+  return { size, palette: c.palette, blocks: c.blocks, entities: c.entities };
+}
 
-  if (part === 'cage' || part === 'cage_golem') {
-    const size = [3, 3, 3];
-    for (let y = 0; y < 3; y++) {
-      for (let x = 0; x < 3; x++) {
-        for (let z = 0; z < 3; z++) {
-          const edge = x === 0 || x === 2 || z === 0 || z === 2;
-          if (edge && y < 2) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:iron_bars') });
-          else if (y === 2) blocks.push({ pos: [x, y, z], state: materialIndex('minecraft:dark_oak_planks') });
-        }
-      }
-    }
-    blocks.push({ pos: [1, 0, 1], state: jigsawIndexFor('down_north'), nbt: jigsawBlock('pillager_outpost/feature', null, 'down_north', 'minecraft:cobblestone') });
-    return {
-      size, palette, blocks,
-      entities: part === 'cage_golem'
-        ? [{ pos: [1.5, 0, 1.5], blockPos: [1, 0, 1], nbt: { id: 'minecraft:iron_golem', PersistenceRequired: 1 } }]
-        : []
-    };
+/** A feature, one row longer in front for its connector (facing north, back toward the tower). */
+function buildFeature(key) {
+  const bp = STRUCTURE_BLUEPRINTS[`pillager_outpost/${key}`];
+  const [w, h, d] = bp.size;
+  const c = canvas();
+  for (const cell of cellsOf(bp)) c.blocks.push({ pos: [cell.x, cell.y, cell.z + 1], state: c.state(cell.entry.Name, cell.entry.Properties ?? null) });
+  for (const [type, n] of FEATURES[key].mobs ?? []) {
+    for (let i = 0; i < n; i++) c.entities.push({ pos: [Math.floor(w / 2) - (i % 2), 0, 1 + Math.floor(d / 2)], nbt: { type } });
   }
+  jigsaw(c, Math.floor(w / 2), 0, 0, 'north', null);
+  return { size: [w, h, d + 1], palette: c.palette, blocks: c.blocks, entities: c.entities };
+}
 
-  if (part === 'tent') {
-    const size = [5, 3, 5];
-    for (let x = 0; x < 5; x++) {
-      for (let z = 0; z < 5; z++) {
-        const edge = x === 0 || x === 4 || z === 0 || z === 4;
-        if (edge) blocks.push({ pos: [x, 2, z], state: materialIndex('minecraft:white_wool') });
-      }
-    }
-    for (const [x, z] of [[0, 0], [0, 4], [4, 0], [4, 4]]) blocks.push({ pos: [x, 0, z], state: materialIndex('minecraft:oak_fence') });
-    blocks.push({ pos: [2, 0, 2], state: jigsawIndexFor('down_north'), nbt: jigsawBlock('pillager_outpost/feature', null, 'down_north', 'minecraft:white_wool') });
-    return { size, palette, blocks, entities: [] };
-  }
+const TEMPLATES = new Map();
+function templateFor(name) {
+  if (!TEMPLATES.has(name)) TEMPLATES.set(name, new StructureTemplate(name === 'watchtower' ? buildWatchtower() : buildFeature(name), `minecraft:pillager_outpost/${name}`));
+  return TEMPLATES.get(name);
+}
 
-  if (part === 'log') {
-    const size = [1, 4, 1];
-    for (let y = 0; y < 4; y++) blocks.push({ pos: [0, y, 0], state: materialIndex('minecraft:dark_oak_log') });
-    blocks.push({ pos: [0, 0, 0], state: jigsawIndexFor('down_north'), nbt: jigsawBlock('pillager_outpost/feature', null, 'down_north', 'minecraft:dark_oak_log') });
-    return { size, palette, blocks, entities: [] };
-  }
-
+/** The template data of a part (for tests and the Inspector). */
+export function buildOutpostPart(part) {
+  if (part === 'watchtower') return buildWatchtower();
+  if (FEATURES[part]) return buildFeature(part);
   throw new Error(`unknown pillager outpost part "${part}"`);
 }
 
-/** The three pools of the outpost graph. */
 export function createOutpostPools() {
   const pools = new TemplatePoolRegistry();
-  const connectorsOf = (part) => {
-    const json = buildOutpostPart(part);
-    return json.blocks
-      .filter((block) => block.nbt && block.nbt.pool !== undefined)
-      .map((block) => ({
-        name: block.nbt.name,
-        pool: block.nbt.pool,
-        orientation: block.nbt.orientation,
-        joint: block.nbt.joint,
-        finalState: block.nbt.final_state ?? block.nbt.finalState,
-        local: { x: block.pos[0], y: block.pos[1], z: block.pos[2] }
-      }));
-  };
-  const element = (part, weight) => new PoolElement({
-    name: part,
-    weight,
-    build: () => ({ connectors: connectorsOf(part) })
+  const element = (name, weight) => new PoolElement({
+    name, weight,
+    build: () => ({
+      connectors: templateFor(name).blocks.filter((b) => b.nbt && Object.prototype.hasOwnProperty.call(b.nbt, 'pool')).map((b) => ({
+        name: b.nbt.name, pool: b.nbt.pool, orientation: b.nbt.orientation, joint: b.nbt.joint, finalState: b.nbt.final_state,
+        local: { x: b.pos[0], y: b.pos[1], z: b.pos[2] }
+      }))
+    })
   });
-
-  pools.register(new TemplatePool({ id: OUTPOST_POOLS.base, elements: [element('base_plate', 1)] }));
   pools.register(new TemplatePool({ id: OUTPOST_POOLS.tower, elements: [element('watchtower', 1)] }));
+  const features = Object.keys(FEATURES).map((name) => element(name, 1));
   pools.register(new TemplatePool({
     id: OUTPOST_POOLS.features,
-    elements: [element('cage', 3), element('cage_golem', 1), element('tent', 2), element('log', 4)]
+    elements: [...features, new PoolElement({ type: 'minecraft:empty_pool_element', name: 'empty', weight: FEATURE_ODDS - features.length })]
   }));
   return pools;
 }
 
-/** Build a piece's box and world-space connectors, which is what the engine joins on. */
 function buildJigsawPiece(element, rotation, mirror, at) {
-  const json = buildOutpostPart(element.name);
-  const template = new StructureTemplate(json, `minecraft:pillager_outpost/${element.name}`);
+  const template = templateFor(element.name);
   const box = template.boundingBox(at, rotation, mirror);
-  // The template's own jigsaw extraction gives local positions already transformed, so world space is a
-  // translation -- no second geometry path that could disagree with the block placement.
-  const jigsaws = template.jigsaws(rotation, mirror);
-  const connectors = jigsaws.map((jigsaw) => ({
-    name: jigsaw.name,
-    pool: jigsaw.pool,
-    orientation: jigsaw.orientation,
-    joint: jigsaw.joint,
-    finalState: jigsaw.finalState,
-    position: { x: at.x + jigsaw.local.x, y: at.y + jigsaw.local.y, z: at.z + jigsaw.local.z }
+  const connectors = template.jigsaws(rotation, mirror).map((j) => ({
+    name: j.name, pool: j.pool, orientation: j.orientation, joint: j.joint, finalState: j.finalState,
+    position: { x: at.x + j.local.x, y: at.y + j.local.y, z: at.z + j.local.z }
   }));
-  const connectorPositions = {};
-  for (const connector of connectors) connectorPositions[connector.name] = connector.position;
-  return { box, connectors, connectorPositions };
+  return { box, connectors };
 }
 
 export function generatePillagerOutpost({ seed, chunkX, chunkZ, context }) {
-  const originX = chunkX * 16 + 4;
-  const originZ = chunkZ * 16 + 4;
-  const surface = context.surfaceY ? context.surfaceY(originX, originZ, 'world_surface_wg') : 70;
+  const originX = chunkX * 16;
+  const originZ = chunkZ * 16;
+  const tower = STRUCTURE_BLUEPRINTS['pillager_outpost/watchtower'];
+  const centreX = originX + MARGIN + Math.floor(tower.size[0] / 2);
+  const centreZ = originZ + MARGIN + Math.floor(tower.size[2] / 2);
+  const surface = context.surfaceY ? context.surfaceY(centreX, centreZ, 'world_surface_wg') : 70;
   const random = legacyFromLargeFeatureSeed(seed, chunkX, chunkZ);
   const pools = createOutpostPools();
-  const origin = { x: originX - 4, y: surface, z: originZ - 4 };
-
   const result = addPieces({
-    random,
-    startPool: pools.resolve(OUTPOST_POOLS.base),
-    pools,
-    buildPiece: buildJigsawPiece,
-    maxDepth: 2,
-    origin,
-    maxDistanceFromCentre: 48
+    random, startPool: pools.resolve(OUTPOST_POOLS.tower), pools, buildPiece: buildJigsawPiece,
+    maxDepth: 1, origin: { x: originX, y: surface, z: originZ }, maxDistanceFromCentre: 80
   });
-
+  // "up to 4 other smaller structures": the first four drawn stand, the rest are dropped.
+  const pieces = result.pieces.filter((piece, i) => i === 0 || result.pieces.slice(1, i).length < MAX_FEATURES);
   const start = new StructureStart({
-    structureId: 'pillager_outpost',
-    chunkX,
-    chunkZ,
-    pieces: result.pieces,
-    biome: context.biomeAt ? context.biomeAt(originX, originZ) : null,
-    seed
+    structureId: 'pillager_outpost', chunkX, chunkZ, pieces,
+    biome: context.biomeAt ? context.biomeAt(centreX, centreZ) : null, seed
   });
   start.meta = {
-    pieces: result.pieces.length,
-    diagnostics: result.diagnostics,
-    connected: result.isConnected(),
-    surface,
-    partMix: result.pieces.map((piece) => piece.meta.element)
+    pieces: pieces.length, diagnostics: result.diagnostics, connected: true, surface,
+    partMix: pieces.map((piece) => piece.meta.element), features: pieces.length - 1
   };
   return start;
 }
 
-export function realizePillagerOutpost(start, setBlock, blockIds, { spawnMob = null } = {}) {
+export function realizePillagerOutpost(start, setBlock, blockIds, { spawnMob = null, clip = null } = {}) {
   const resolver = createBlockIdResolver(blockIds || undefined);
   const missingBlocks = new Set();
   const spawned = [];
   let written = 0;
-
   for (const piece of start.pieces) {
     const part = piece.meta.element;
-    const template = new StructureTemplate(buildOutpostPart(part), piece.template ?? `minecraft:pillager_outpost/${part}`);
+    if (clip && !piece.box.intersects(clip)) continue;
+    const template = templateFor(part);
     const origin = { x: piece.box.minX, y: piece.box.minY, z: piece.box.minZ };
-    // For a rigid, unmirrored part the box's min corner IS the origin, which keeps realization independent
-    // of the planning maths: if the two disagreed, pieces would visibly detach from each other.
     const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
     const placement = placeTemplate({
-      template,
-      origin,
-      rotation: piece.rotation,
-      mirror: piece.mirror,
-      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] },
-      random,
-      world: null
+      template, origin, rotation: piece.rotation, mirror: piece.mirror,
+      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] }, random, world: null
     });
     for (const block of placement.blocks) {
       const id = resolver.resolveState(block.state);
       if (id === null) { missingBlocks.add(block.state.name); continue; }
-      if (setBlock(block.x, block.y, block.z, id, { state: block.state })) written++;
+      if (setBlock(block.x, block.y, block.z, id, { state: block.state, ...(block.nbt?.LootTable ? { lootTable: block.nbt.LootTable } : {}) })) written++;
     }
-    if (spawnMob) {
-      for (const entity of template.entitiesTransformed(piece.rotation, piece.mirror)) {
-        const type = String(entity.nbt?.id || '').replace('minecraft:', '');
-        if (spawnMob(type, origin.x + entity.local.x, origin.y + entity.local.y, origin.z + entity.local.z, { persistent: true })) {
-          spawned.push(type);
-        }
-      }
+    for (const entity of template.entitiesTransformed(piece.rotation, piece.mirror)) {
+      const type = entity.nbt?.type;
+      if (!type) continue;
+      const x = origin.x + entity.local.x; const y = origin.y + entity.local.y; const z = origin.z + entity.local.z;
+      if (clip && !clip.contains(x, y, z)) continue;
+      const options = { persistent: true, ...(entity.nbt.patrolLeader ? { patrolLeader: true } : {}) };
+      spawned.push({ type, x, y, z, options });
+      if (spawnMob) spawnMob(type, x + 0.5, y, z + 0.5, options);
     }
   }
-
   return {
-    written,
-    pieces: start.pieces.length,
-    spawned,
-    missingBlocks: [...missingBlocks].sort(),
-    note: 'clean-room outpost parts; vanilla area-spawns pillagers around the outpost, which is not reproduced here'
+    written, pieces: start.pieces.length, spawned, spawns: spawned, missingBlocks: [...missingBlocks].sort(),
+    note: "the wiki's blueprints of the watchtower and its five features, joined on the jigsaw engine"
   };
 }

@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "structure": "monster_room",
+  "seed": "20250401",
+  "chunk": [
+    0,
+    0
+  ],
+  "biome": "ocean",
+  "box": {
+    "minX": 10,
+    "minY": 5,
+    "minZ": 12,
+    "maxX": 16,
+    "maxY": 9,
+    "maxZ": 18
+  },
+  "pieces": 1,
+  "blocks": {
+    "Cobblestone": 104,
+    "Mossy Cobblestone": 34,
+    "Chest": 2,
+    "Monster Spawner": 1
+  },
+  "loot": {
+    "chests": 7,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "bone",
+        "count": 39
+      },
+      {
+        "name": "string",
+        "count": 27
+      },
+      {
+        "name": "gunpowder",
+        "count": 16
+      },
+      {
+        "name": "rotten_flesh",
+        "count": 13
+      },
+      {
+        "name": "beetroot_seeds",
+        "count": 9
+      },
+      {
+        "name": "iron_ingot",
+        "count": 7
+      },
+      {
+        "name": "pumpkin_seeds",
+        "count": 6
+      },
+      {
+        "name": "coal",
+        "count": 5
+      },
+      {
+        "name": "wheat",
+        "count": 5
+      },
+      {
+        "name": "iron_horse_armor",
+        "count": 4
+      },
+      {
+        "name": "bread",
+        "count": 2
+      },
+      {
+        "name": "bucket",
+        "count": 2
+      },
+      {
+        "name": "gold_ingot",
+        "count": 2
+      },
+      {
+        "name": "melon_seeds",
+        "count": 2
+      },
+      {
+        "name": "redstone",
+        "count": 2
+      },
+      {
+        "name": "enchanted_golden_apple",
+        "count": 1
+      },
+      {
+        "name": "golden_apple",
+        "count": 1
+      },
+      {
+        "name": "leather",
+        "count": 1
+      },
+      {
+        "name": "name_tag",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 7
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

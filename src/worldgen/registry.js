@@ -65,28 +65,48 @@ export const STRUCTURES = {
     biomeTag: 'has_structure/jungle_temple', biomes: ['jungle', 'bamboo_jungle'], implementation: 'junglePyramid',
     notes: 'Three floors, lever puzzle with a sticky piston, two dispensers firing arrows.'
   },
+  desert_well: {
+    type: 'desert_well', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
+    implementation: 'desertWell', terrainAdaptation: 'none', biomes: ['desert'],
+    notes: 'A feature, not a structure: 1/1000 chance per desert chunk; two suspicious sand under the water.'
+  },
+  amethyst_geode: {
+    type: 'amethyst_geode', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
+    implementation: 'geode', terrainAdaptation: 'none', biomes: [], step: 'underground_structures',
+    notes: 'A feature: 1/24 per chunk; smooth basalt, calcite and amethyst shells round a hollow, 95% cracked.'
+  },
+  fossil: {
+    type: 'fossil', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
+    implementation: 'fossil', terrainAdaptation: 'none', biomes: ['desert', 'swamp', 'mangrove_swamp'], step: 'underground_structures',
+    notes: 'A feature: two attempts per chunk at 1/64, bone at integrity 0.9, coal or diamond ore at 0.1.'
+  },
+  monster_room: {
+    type: 'monster_room', dimension: OVERWORLD, family: GeneratorFamily.FEATURE,
+    implementation: 'monsterRoom', terrainAdaptation: 'none', biomes: [], step: 'underground_structures',
+    notes: 'A feature, not a structure: 14 attempts per chunk, each needing solid floor and ceiling and 1-5 wall openings.'
+  },
   swamp_hut: {
     type: 'swamp_hut', dimension: OVERWORLD, family: GeneratorFamily.HARDCODED,
-    biomeTag: 'has_structure/swamp_hut', implementation: 'swampHut', terrainAdaptation: 'beard_thin', biomes: ['swamp'],
+    biomeTag: 'has_structure/swamp_hut', implementation: 'swampHut', terrainAdaptation: 'none', biomes: ['swamp'],
     notes: 'Stilt hut; one witch and one black cat spawn with it and do not despawn.'
   },
   minecraft_special: null, // placeholder removed below; kept out of the registry on purpose
   // --- Procedural piece graphs ----------------------------------------------------------------
   mineshaft: {
     type: 'mineshaft', dimension: OVERWORLD, family: GeneratorFamily.PROCEDURAL,
-    step: 'underground_structures', biomeTag: 'has_structure/mineshaft',
-    biomes: [], biomeTagExcludes: ['deep_dark'],
+    step: 'underground_structures', biomeTag: 'has_structure/mineshaft', implementation: 'mineshaft',
+    biomes: [], biomeTagExcludes: ['deep_dark', 'badlands', 'eroded_badlands', 'wooded_badlands'],
     notes: 'Corridor maze with rails, cave spider spawners and cobwebs.'
   },
   mineshaft_mesa: {
     type: 'mineshaft', dimension: OVERWORLD, family: GeneratorFamily.PROCEDURAL,
-    step: 'underground_structures', biomeTag: 'has_structure/mineshaft_mesa',
+    step: 'underground_structures', biomeTag: 'has_structure/mineshaft_mesa', implementation: 'mineshaft',
     biomes: ['badlands', 'eroded_badlands', 'wooded_badlands'],
     notes: 'Badlands variant: dark oak planks and fences, may breach the surface.'
   },
   stronghold: {
     type: 'stronghold', dimension: OVERWORLD, family: GeneratorFamily.PROCEDURAL,
-    terrainAdaptation: TerrainAdaptation.BURY, biomeTag: 'has_structure/stronghold',
+    terrainAdaptation: TerrainAdaptation.BURY, biomeTag: 'has_structure/stronghold', implementation: 'stronghold',
     biomes: [], // "all overworld biomes", biased to land by the ring biome search
     notes: 'Recursive piece maze ending in the End portal room; placed as concentric rings.'
   },
@@ -210,6 +230,12 @@ delete STRUCTURES.minecraft_special; // guard: the placeholder above must never 
 export const STRUCTURE_SETS = [
   { name: 'ancient_cities', structures: [['ancient_city', 1]], spacing: 24, separation: 8, salt: 20083232 },
   { name: 'buried_treasures', structures: [['buried_treasure', 1]], spacing: 1, separation: 0, salt: 0, frequency: 0.01, locateOffset: { x: 9, y: 0, z: 9 } },
+  // Features are placed by the decoration step in vanilla, not by structure sets; a per-chunk chance with spacing 1
+  // reproduces "1/1000 chance per chunk" and lets /locate and the audit find them. The salt is ours.
+  { name: 'amethyst_geodes', structures: [['amethyst_geode', 1]], spacing: 1, separation: 0, salt: 20000002, frequency: 1, feature: true },
+  { name: 'fossils', structures: [['fossil', 1]], spacing: 1, separation: 0, salt: 14638191, frequency: 1, feature: true },
+  { name: 'monster_rooms', structures: [['monster_room', 1]], spacing: 1, separation: 0, salt: 10387319, frequency: 1, feature: true },
+  { name: 'desert_wells', structures: [['desert_well', 1]], spacing: 1, separation: 0, salt: 40552791, frequency: 1 / 1000, feature: true },
   { name: 'desert_pyramids', structures: [['desert_pyramid', 1]], spacing: 32, separation: 8, salt: 14357617 },
   { name: 'end_cities', structures: [['end_city', 1]], spacing: 20, separation: 11, salt: 10387313 },
   { name: 'igloos', structures: [['igloo', 1]], spacing: 32, separation: 8, salt: 14357618 },
@@ -305,14 +331,27 @@ export function buildSetData({ dimension = OVERWORLD } = {}) {
 }
 
 /** Sort sets/structures into engine objects, wiring exclusion zones through a name lookup. */
-export function createSets({ dimension = OVERWORLD } = {}) {
+export function createSets({ dimension = OVERWORLD, spacingScale = 1, spacingOverrides = null } = {}) {
   const data = buildSetData({ dimension });
   const sets = new Map();
   for (const set of data) {
+    // A density boost (Structure Hunter) divides the grid a start is drawn from, so there are scale^2 times
+    // as many candidates. Frequency-driven sets (spacing 1 or 2) are left alone: they are not grid-limited.
+    let { spacing, separation } = set;
+    if (spacingScale > 1 && (set.type || 'random_spread') === 'random_spread' && spacing > 2) {
+      spacing = Math.max(3, Math.round(spacing / spacingScale));
+      separation = Math.min(Math.round(separation / spacingScale), spacing - 1);
+    }
+    // A pack can pin one set's grid outright (Structure Hunter does this for villages).
+    const pinned = spacingOverrides?.[set.name];
+    if (pinned && pinned.spacing > 1) {
+      spacing = pinned.spacing | 0;
+      separation = Math.min(pinned.separation | 0, spacing - 1);
+    }
     const placement = placementFromData({
       type: set.type || 'random_spread',
-      spacing: set.spacing,
-      separation: set.separation,
+      spacing,
+      separation,
       salt: set.salt,
       spreadType: set.spreadType,
       frequency: set.frequency ?? 1,

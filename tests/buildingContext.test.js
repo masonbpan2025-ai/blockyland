@@ -1,7 +1,7 @@
-// The agent must know the geometry of the structure open in Structure Studio.
+// The agent must know the geometry of the structure open in Building Studio.
 //
 // Regression guard: the system prompt described only structures the agent had
-// built itself. In Structure Studio the open structure lives in the studio's own
+// built itself. In Building Studio the open structure lives in the studio's own
 // state, so asked to "add a bridge to the entrance of the castle" the model had no
 // idea where the castle was or which way its gate faced, and attached the bridge
 // to the wrong side.
@@ -75,7 +75,7 @@ test('the structure description reaches the model prompt', () => {
   const agent = new WorldAgent(game);
   const prompt = agent.buildSystemPrompt();
 
-  assert.match(prompt, /STRUCTURE STUDIO/, 'the prompt must carry a studio section');
+  assert.match(prompt, /BUILDING STUDIO/, 'the prompt must carry a studio section');
   assert.match(prompt, /"Castle" \(id: studio_castle\)/, 'it names the open structure and its editable id');
   assert.match(prompt, /NEVER invent a structure id/, 'and warns against inventing one');
   assert.match(prompt, /Local coordinate frame: local \(0,0,0\) is world/, 'it gives the coordinate frame');
@@ -83,7 +83,7 @@ test('the structure description reaches the model prompt', () => {
   assert.match(prompt, /faces south/, 'and the direction the entrance faces');
 });
 
-test('outside Structure Studio no studio section is added', () => {
+test('outside Building Studio no studio section is added', () => {
   const game = {
     world: {
       getVoxel: () => BLOCKS.AIR, setVoxel() {},
@@ -94,7 +94,7 @@ test('outside Structure Studio no studio section is added', () => {
     // no structureStudio at all
   };
   const agent = new WorldAgent(game);
-  assert.doesNotMatch(agent.buildSystemPrompt(), /STRUCTURE STUDIO/);
+  assert.doesNotMatch(agent.buildSystemPrompt(), /BUILDING STUDIO/);
 });
 
 // --- direction naming -------------------------------------------------------

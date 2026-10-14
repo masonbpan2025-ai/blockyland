@@ -1,0 +1,67 @@
+// Original engraving glyphs designed for this game, not Mojang texture copies.
+export const TRIM_MOTIFS = {
+  bolt: ['...#.','..##.','.###.','..#..','.#...'],
+  coast: ['.##..','#..#.','...##','.##..','#..#.'],
+  dune: ['...#.','..#.#','.#...','#..#.','#####'],
+  eye: ['.....','.###.','#.#.#','.###.','.....'],
+  flow: ['.###.','#...#','#.###','#.#..','.##..'],
+  host: ['#...#','#####','#.#.#','#...#','.###.'],
+  raiser: ['.####','.#..#','.#.##','.#...','###..'],
+  rib: ['#.#.#','#####','..#..','#####','#.#.#'],
+  sentry: ['..#..','.###.','#.#.#','#...#','.###.'],
+  shaper: ['###..','#..#.','#...#','.#..#','..###'],
+  silence: ['.#.#.','#...#','#.#.#','#...#','.#.#.'],
+  snout: ['.....','.###.','#####','#.#.#','#####'],
+  spire: ['..#..','..#..','..#..','.#.#.','#####'],
+  tide: ['#.#.#','#.#.#','#####','..#..','..#..'],
+  vex: ['.###.','#...#','#.#.#','#...#','##.#.'],
+  ward: ['#####','#...#','#.#.#','.###.','..#..'],
+  wayfinder: ['..#..','.##..','#####','..##.','..#..'],
+  wild: ['..###','.#.##','#.#.#','.##..','.#...'],
+};
+export const TRIM_DESCRIPTIONS = {
+  bolt:'A bent lightning stroke with a sharp lower tip.',
+  coast:'Two staggered wave crests breaking toward the shore.',
+  dune:'Unequal dune peaks above a continuous sand ridge.',
+  eye:'An almond eye enclosing a central pupil.',
+  flow:'A curling current spiralling inward.',
+  host:'A horned ceremonial mask with a narrow nose.',
+  raiser:'A raised flag on a mast and grounded pedestal.',
+  rib:'A spine joining two rib bars and their hooked ends.',
+  sentry:'A guard helmet with a lookout slit and crest.',
+  shaper:'An angled geometric frame with stepped corners.',
+  silence:'A deep void framed by disconnected, muffled echoes.',
+  snout:'A broad piglin-inspired snout with two nostril cutouts.',
+  spire:'A needle tower widening into a stone base.',
+  tide:'A three-pronged tidal trident.',
+  vex:'A hollow-faced ghost with an uneven trailing hem.',
+  ward:'A pointed shield protecting a central warding mark.',
+  wayfinder:'A compass cross with offset directional barbs.',
+  wild:'A diagonal leaf with vein gaps and a trailing stem.',
+};
+// Purpose-drawn summaries, not slices of the icon motif.
+const COMPACT = {
+  bolt:['..##.','.###.','.#...'], coast:['.##..','#..##','##...'],
+  dune:['...#.','.#..#','#####'], eye:['.###.','#.#.#','.###.'],
+  flow:['.####','#.#..','###..'], host:['#...#','##.##','.###.'],
+  raiser:['.####','.#.##','###..'], rib:['#####','..#..','#####'],
+  sentry:['..#..','##.##','.###.'], shaper:['###..','#...#','..###'],
+  silence:['.#.#.','#.#.#','.#.#.'], snout:['#####','#.#.#','#####'],
+  spire:['..#..','.###.','#####'], tide:['#.#.#','#####','..#..'],
+  vex:['.###.','#...#','##.#.'], ward:['#####','#.#.#','.###.'],
+  wayfinder:['..#..','#####','..##.'], wild:['..###','.###.','.#...'],
+};
+const BOOT = {
+  bolt:['..##','.##.','##..'], coast:['.##.','#..#','##..'],
+  dune:['..#.','.#.#','####'], eye:['.##.','#.##','.##.'],
+  flow:['.###','#.#.','##..'], host:['#..#','####','.##.'],
+  raiser:['.###','.#.#','##..'], rib:['####','.#..','####'],
+  sentry:['.##.','#..#','####'], shaper:['##..','#..#','..##'],
+  silence:['#..#','.#..','#..#'], snout:['####','#..#','####'],
+  spire:['.#..','.##.','####'], tide:['##.#','####','.#..'],
+  vex:['.##.','#..#','##.#'], ward:['####','#.#.','.##.'],
+  wayfinder:['.#..','####','..#.'], wild:['..##','.###','.#..'],
+};
+export const TRIM_DOLL_MOTIFS = {
+  head: {...COMPACT}, chest: {...TRIM_MOTIFS}, legs: {...COMPACT}, feet: {...BOOT},
+};

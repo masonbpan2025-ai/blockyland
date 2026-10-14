@@ -1,0 +1,56 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/large_stables/outer_3</code> ===
+Large stables for hoglins.
+[[File:large_stables_outer_3.png|thumb|200px|<code>bastion/hoglin_stable/large_stables/outer_3</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 252
+| 3 + 60 blocks
+|-
+| {{BlockLink|Basalt}}
+| 33
+|
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 32
+|
+|-
+| {{BlockLink|Blackstone Wall}}
+| 5
+|
+|-
+| {{BlockLink|Blackstone}}
+| 4
+|
+|-
+| {{BlockLink|Lantern}}
+| 1
+|
+|-
+| {{BlockLink|Lava}} (source block)
+| 1
+|
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

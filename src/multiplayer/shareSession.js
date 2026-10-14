@@ -1,0 +1,595 @@
+// A shared world: one host, a few guests, and no server in between.
+//
+// The host's browser IS the server. It holds the world, accepts guests, assigns each an identity, checks what they send,
+// and passes it on to the others. Guests connect only to the host, never to each other, so there is exactly one
+// authority and one set of rules. The two sides talk over a direct WebRTC data channel; the introduction service
+// (server/shareRendezvous.js) is used once, to set the connection up, and is not involved after that.
+//
+//   guest                      introduction service                 host
+//     | -- join(room) ----------------> |                             |
+//     | -- offer ---------------------> | ------------------------->  |
+//     | <------------------ answer ---- | <---------------------------|
+//     | <================ direct data channel ========================> |
+//     | -- hello ------------------------------------------------->   |
+//     | <---------------------------------------- welcome, snapshot -- |
+//
+// Events (same names the game already listened for): room_hosted, room_joined, peer_joined, peer_left, request_snapshot,
+// world_snapshot, player_state, block_update, chat, host_disconnected, signalling_lost, error, disconnect.
+import { ShareError, SignalingClient, resolveSignalingUrl } from './signaling.js';
+import { PeerLink } from './peerLink.js';
+import { generateRoomCode, normalizeRoomCode, isValidRoomCode, buildShareUrl } from './shareCode.js';
+import {
+  PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
+  packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
+} from './shareProtocol.js';
+
+const HOST_ID = 'host';
+
+export const DEFAULT_TIMEOUTS = Object.freeze({
+  /** A guest has this long to get from "joined the room" to "talking to the host". */
+  connectMs: 25_000,
+  heartbeatMs: 5_000,
+  /** A peer that has said nothing for this long is gone. */
+  silenceMs: 20_000,
+  /** Retry delay when the introduction service drops while hosting. */
+  resignalMs: 3_000,
+});
+
+export class ShareSession {
+  /**
+   * @param {object} [options]
+   * @param {object} [options.timeouts]
+   * @param {(url: string) => object} [options.signalingFactory]
+   * @param {(options: object) => object} [options.peerFactory]
+   * @param {(id: number) => boolean} [options.isBlockId] whether a block id exists; the game passes its own table
+   * @param {() => number} [options.now]
+   * @param {RTCIceServer[]} [options.iceServers]
+   * @param {{href: string, protocol: string, host: string, search: string}} [options.location]
+   */
+  constructor(options = {}) {
+    this.options = options;
+    this.timeouts = { ...DEFAULT_TIMEOUTS, ...(options.timeouts ?? {}) };
+    this.now = options.now ?? (() => Date.now());
+    this.listeners = new Map();
+    this.signalingFactory = options.signalingFactory ?? ((url) => new SignalingClient({ url }));
+    this.peerFactory = options.peerFactory ?? ((o) => new PeerLink({ ...o, ...(options.iceServers ? { iceServers: options.iceServers } : {}) }));
+    this.resetState();
+  }
+
+  resetState() {
+    this.roomId = null;
+    this.clientId = null;
+    this.hostId = null;
+    this.playerName = 'Player';
+    this.isHost = false;
+    this.connected = false;
+    this.peers = new Map(); // id -> { id, name, isHost }
+    this.signaling = null;
+    this.worldInfo = {};
+    // host side
+    this.links = new Map(); // signalId -> entry (pending and ready)
+    this.guests = new Map(); // peerId -> entry (ready)
+    this.peerSeq = 0;
+    // guest side
+    this.hostLink = null;
+    this.hostFrames = null;
+    this.hostLastSeen = 0;
+    this.heartbeat = null;
+    this.resignalTimer = null;
+    this.stopping = false;
+  }
+
+  // --- events ------------------------------------------------------------------------------
+
+  on(event, handler) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event).add(handler);
+    return () => this.off(event, handler);
+  }
+
+  off(event, handler) {
+    this.listeners.get(event)?.delete(handler);
+  }
+
+  emit(event, data) {
+    for (const handler of this.listeners.get(event) ?? []) {
+      try { handler(data); } catch (error) { console.error(`[share] listener for ${event} failed`, error); }
+    }
+  }
+
+  get location() {
+    return this.options.location ?? (typeof window !== 'undefined' ? window.location : { href: 'http://localhost:3000/', protocol: 'http:', host: 'localhost:3000', search: '' });
+  }
+
+  /** The link a host sends to friends. */
+  getShareUrl(roomId = this.roomId) {
+    const loc = this.location;
+    // A custom introduction service chosen with ?signal= travels with the link, so guests use the same one.
+    const signal = new URLSearchParams(loc.search ?? '').get('signal');
+    return buildShareUrl(loc.href, roomId, signal ? { signal } : {});
+  }
+
+  signalUrl() {
+    return resolveSignalingUrl(this.location);
+  }
+
+  // --- sending helpers ---------------------------------------------------------------------
+
+  /** Send one message over a link, in frames when it is long. Resolves false if the link is not open. */
+  async sendText(link, text) {
+    const frames = encodeFrames(text);
+    for (const frame of frames) {
+      if (!link.send(frame)) return false;
+      if (frames.length > 1) await link.drain();
+    }
+    return true;
+  }
+
+  send(link, message) {
+    return this.sendText(link, JSON.stringify(message));
+  }
+
+  broadcast(message, exceptPeerId = null) {
+    const text = JSON.stringify(message);
+    for (const [peerId, entry] of this.guests) {
+      if (peerId !== exceptPeerId) void this.sendText(entry.link, text);
+    }
+  }
+
+  // ===========================================================================================
+  // Hosting
+  // ===========================================================================================
+
+  /**
+   * Start sharing the world: register a room and return its code and link.
+   * @returns {Promise<{roomId: string, clientId: string, shareUrl: string}>}
+   */
+  async hostRoom(playerName = 'Host', worldInfo = {}) {
+    this.disconnect(true);
+    this.resetState();
+    this.isHost = true;
+    this.playerName = sanitizeName(playerName, 'Host');
+    this.worldInfo = worldInfo;
+    const roomId = generateRoomCode(this.options.fillRandom);
+    await this.registerRoom(roomId);
+    this.roomId = roomId;
+    this.clientId = HOST_ID;
+    this.hostId = HOST_ID;
+    this.connected = true;
+    this.peers.set(HOST_ID, { id: HOST_ID, name: this.playerName, isHost: true });
+    this.startHeartbeat();
+    const data = { roomId, clientId: HOST_ID, shareUrl: this.getShareUrl(roomId) };
+    this.emit('room_hosted', data);
+    return data;
+  }
+
+  async registerRoom(roomId) {
+    const signaling = this.signalingFactory(this.signalUrl());
+    await signaling.connect();
+    await signaling.host(roomId);
+    this.signaling = signaling;
+    signaling.on('signal', ({ from, data }) => this.onGuestSignal(from, data));
+    signaling.on('guest_left', ({ guestId }) => {
+      // A guest that never finished connecting is simply dropped; one that did is handled by its link closing.
+      const entry = this.links.get(guestId);
+      if (entry && !entry.ready) this.dropGuest(entry, 'left');
+    });
+    signaling.on('close', () => this.onSignalingClosed(roomId));
+  }
+
+  /**
+   * The introduction service dropped. Guests already connected are unaffected -- they talk to the host directly -- but
+   * nobody new can join until the room is registered again, so try that.
+   */
+  onSignalingClosed(roomId) {
+    if (this.stopping || !this.isHost || !this.connected) return;
+    this.signaling = null;
+    this.emit('signalling_lost', { roomId });
+    const attempt = async (left) => {
+      if (this.stopping || !this.connected) return;
+      try {
+        await this.registerRoom(roomId);
+        this.emit('signalling_restored', { roomId });
+      } catch {
+        if (left > 1) {
+          this.resignalTimer = setTimeout(() => attempt(left - 1), this.timeouts.resignalMs);
+          this.resignalTimer.unref?.();
+        }
+      }
+    };
+    this.resignalTimer = setTimeout(() => attempt(5), this.timeouts.resignalMs);
+    this.resignalTimer.unref?.();
+  }
+
+  onGuestSignal(signalId, data) {
+    if (this.stopping || !data || typeof data !== 'object') return;
+    let entry = this.links.get(signalId);
+    if (!entry) {
+      if (data.kind !== 'offer') return;
+      if (this.peers.size + this.links.size - this.guests.size >= MAX_PLAYERS) {
+        this.signaling?.signal({ kind: 'reject', code: 'room_full' }, signalId);
+        return;
+      }
+      entry = this.createGuestEntry(signalId);
+    }
+    entry.link.handleSignal(data).catch(() => this.dropGuest(entry, 'bad_signal'));
+  }
+
+  createGuestEntry(signalId) {
+    const entry = {
+      signalId, peerId: null, name: null, ready: false, strikes: 0,
+      limiters: guestLimiters(this.now), frames: new FrameReassembler(), lastSeen: this.now(), timer: null,
+      link: this.peerFactory({ initiator: false, onSignal: (data) => this.signaling?.signal(data, signalId) }),
+    };
+    entry.link.onmessage = (frame) => this.onGuestFrame(entry, frame);
+    entry.link.onclose = (reason) => this.dropGuest(entry, reason);
+    // A connection that never gets as far as saying hello is dropped, so strangers cannot hold places.
+    entry.timer = setTimeout(() => { if (!entry.ready) this.dropGuest(entry, 'handshake_timeout'); }, this.timeouts.connectMs);
+    entry.timer.unref?.();
+    this.links.set(signalId, entry);
+    return entry;
+  }
+
+  strike(entry) {
+    if (++entry.strikes > 20) this.dropGuest(entry, 'misbehaving');
+  }
+
+  onGuestFrame(entry, frame) {
+    let text;
+    try { text = entry.frames.push(frame); } catch (error) { if (error instanceof ProtocolError) this.dropGuest(entry, 'protocol'); return; }
+    if (text === null) return;
+    entry.lastSeen = this.now();
+    if (!entry.limiters.any.take()) return;
+    let msg;
+    try { msg = JSON.parse(text); } catch { this.strike(entry); return; }
+    if (!msg || typeof msg !== 'object' || !GUEST_TO_HOST.includes(msg.t)) { this.strike(entry); return; }
+
+    if (!entry.ready) {
+      if (msg.t === 'hello') this.acceptHello(entry, msg);
+      else this.strike(entry);
+      return;
+    }
+
+    switch (msg.t) {
+      case 'ping': void this.send(entry.link, { t: 'pong' }); break;
+      case 'pong': break;
+      case 'hello': this.strike(entry); break;
+      case 'player_state': {
+        if (!entry.limiters.state.take()) break;
+        const state = sanitizePlayerState(msg.state);
+        if (!state) { this.strike(entry); break; }
+        this.emit('player_state', { peerId: entry.peerId, state });
+        this.broadcast({ t: 'player_state', peerId: entry.peerId, state }, entry.peerId);
+        break;
+      }
+      case 'block_update': {
+        if (!entry.limiters.block.take()) break;
+        const block = sanitizeBlockUpdate(msg, { isBlockId: this.options.isBlockId });
+        if (!block) { this.strike(entry); break; }
+        this.emit('block_update', { peerId: entry.peerId, ...block, playerName: entry.name });
+        this.broadcast({ t: 'block_update', peerId: entry.peerId, ...block }, entry.peerId);
+        break;
+      }
+      case 'chat': {
+        if (!entry.limiters.chat.take()) break;
+        const text = sanitizeChat(msg.text);
+        if (text === null) break;
+        // The sender is who the host knows this guest to be, never a name the guest claims for itself.
+        this.emit('chat', { peerId: entry.peerId, sender: entry.name, text });
+        this.broadcast({ t: 'chat', peerId: entry.peerId, sender: entry.name, text }, entry.peerId);
+        break;
+      }
+      default: break;
+    }
+  }
+
+  uniqueName(wanted) {
+    const taken = new Set([...this.peers.values()].map((p) => p.name.toLowerCase()));
+    if (!taken.has(wanted.toLowerCase())) return wanted;
+    for (let n = 2; n < 100; n++) {
+      const candidate = `${wanted.slice(0, 20)} (${n})`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${wanted.slice(0, 16)} ${this.peerSeq + 1}`;
+  }
+
+  acceptHello(entry, msg) {
+    if (msg.protocol !== PROTOCOL_VERSION) {
+      void this.send(entry.link, { t: 'error', code: 'version_mismatch', message: 'This world was shared from a different version of the game. Ask for a fresh link.' })
+        .then(() => this.dropGuest(entry, 'version_mismatch'));
+      return;
+    }
+    if (this.peers.size >= MAX_PLAYERS) {
+      void this.send(entry.link, { t: 'error', code: 'room_full', message: 'This world is full.' }).then(() => this.dropGuest(entry, 'room_full'));
+      return;
+    }
+    clearTimeout(entry.timer);
+    entry.name = this.uniqueName(sanitizeName(msg.name, 'Guest'));
+    entry.peerId = `p${++this.peerSeq}`;
+    entry.ready = true;
+    this.guests.set(entry.peerId, entry);
+    this.peers.set(entry.peerId, { id: entry.peerId, name: entry.name, isHost: false });
+    void this.send(entry.link, {
+      t: 'welcome', protocol: PROTOCOL_VERSION, roomId: this.roomId,
+      you: { id: entry.peerId, name: entry.name },
+      host: { id: HOST_ID, name: this.playerName },
+      peers: [...this.peers.values()],
+      worldInfo: this.worldInfo,
+    });
+    this.broadcast({ t: 'peer_joined', peerId: entry.peerId, peerName: entry.name }, entry.peerId);
+    this.emit('peer_joined', { peerId: entry.peerId, peerName: entry.name, isHost: false });
+    this.emit('request_snapshot', { targetPeerId: entry.peerId, peerName: entry.name });
+  }
+
+  dropGuest(entry, reason = 'closed') {
+    if (entry.dropped) return;
+    entry.dropped = true;
+    clearTimeout(entry.timer);
+    this.links.delete(entry.signalId);
+    try { entry.link.close(reason); } catch { /* already closed */ }
+    if (!entry.ready) return;
+    this.guests.delete(entry.peerId);
+    this.peers.delete(entry.peerId);
+    this.broadcast({ t: 'peer_left', peerId: entry.peerId, peerName: entry.name });
+    this.emit('peer_left', { peerId: entry.peerId, peerName: entry.name, reason });
+  }
+
+  /** Host: send the world to one guest. The snapshot is compressed, then sent in frames. */
+  async sendWorldSnapshot(targetPeerId, snapshot) {
+    const entry = this.guests.get(targetPeerId);
+    if (!entry) return false;
+    const packed = await packSnapshot(snapshot);
+    return this.send(entry.link, { t: 'snapshot', packed });
+  }
+
+  // ===========================================================================================
+  // Joining
+  // ===========================================================================================
+
+  /**
+   * Join a shared world by its code.
+   * @returns {Promise<{roomId: string, clientId: string, hostId: string, peers: object[]}>}
+   * @throws {ShareError} with a `code` the interface turns into a sentence
+   */
+  async joinRoom(code, playerName = 'Player') {
+    const room = normalizeRoomCode(code);
+    if (!isValidRoomCode(room)) throw new ShareError('bad_code', 'That link does not contain a valid world code.');
+    this.disconnect(true);
+    this.resetState();
+    this.isHost = false;
+    this.playerName = sanitizeName(playerName, 'Player');
+    this.roomId = room;
+
+    const signaling = this.signalingFactory(this.signalUrl());
+    this.signaling = signaling;
+    let fail;
+    const failed = new Promise((_, reject) => { fail = reject; });
+    failed.catch(() => {}); // a rejection nobody raced against is not an unhandled one
+
+    try {
+      await signaling.connect();
+      await signaling.join(room);
+      const link = this.peerFactory({ initiator: true, onSignal: (data) => signaling.signal(data) });
+      this.hostLink = link;
+      this.hostFrames = new FrameReassembler();
+
+      let welcomed;
+      const welcome = new Promise((resolve) => { welcomed = resolve; });
+      this.welcomed = welcomed;
+
+      signaling.on('signal', ({ data }) => {
+        if (data?.kind === 'reject') fail(new ShareError(data.code ?? 'rejected', data.code === 'room_full' ? 'This world is full.' : 'The host did not accept the connection.'));
+        else link.handleSignal(data).catch(() => fail(new ShareError('connect_failed', 'The connection to the host could not be set up.')));
+      });
+      signaling.on('host_left', () => { if (!this.connected) fail(new ShareError('room_not_found', 'The host closed the world before you could join.')); });
+      signaling.on('close', () => { if (!this.connected) fail(new ShareError('signalling_unreachable', 'The connection to the sharing service was lost.')); });
+      link.onmessage = (frame) => this.onHostFrame(frame, fail);
+      link.onopen = () => { void this.send(link, { t: 'hello', protocol: PROTOCOL_VERSION, name: this.playerName }); };
+      link.onclose = (reason) => {
+        if (!this.connected) fail(new ShareError('connect_failed', reason === 'ice_failed'
+          ? 'A direct connection to the host could not be made. Some networks block peer-to-peer connections.'
+          : 'The connection to the host closed before it was ready.'));
+        else this.hostGone('Lost the connection to the host.');
+      };
+
+      const timer = setTimeout(() => fail(new ShareError('connect_timeout',
+        'Could not make a direct connection to the host. Some networks block peer-to-peer connections; trying another network can help.')), this.timeouts.connectMs);
+      timer.unref?.();
+      try {
+        await link.start();
+        const data = await Promise.race([welcome, failed]);
+        // From here the two browsers talk directly; the introduction service is not needed any more.
+        signaling.close();
+        this.signaling = null;
+        this.startHeartbeat();
+        return data;
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (error) {
+      this.cleanupFailedJoin();
+      throw error instanceof ShareError ? error : new ShareError('connect_failed', error?.message ?? 'Could not join that world.');
+    }
+  }
+
+  cleanupFailedJoin() {
+    try { this.hostLink?.close('join_failed'); } catch { /* closed */ }
+    try { this.signaling?.close(); } catch { /* closed */ }
+    this.hostLink = null;
+    this.signaling = null;
+    this.connected = false;
+  }
+
+  onHostFrame(frame, fail) {
+    let text;
+    try { text = this.hostFrames.push(frame); } catch { this.hostGone('The host sent something this version cannot read.'); return; }
+    if (text === null) return;
+    this.hostLastSeen = this.now();
+    let msg;
+    try { msg = JSON.parse(text); } catch { return; }
+    if (!msg || typeof msg.t !== 'string' || !HOST_TO_GUEST.includes(msg.t)) return;
+
+    switch (msg.t) {
+      case 'welcome': {
+        if (this.connected) break;
+        if (msg.protocol !== PROTOCOL_VERSION) { fail(new ShareError('version_mismatch', 'This world was shared from a different version of the game. Ask for a fresh link.')); break; }
+        this.clientId = String(msg.you?.id ?? '');
+        this.hostId = String(msg.host?.id ?? HOST_ID);
+        this.peers.clear();
+        for (const p of Array.isArray(msg.peers) ? msg.peers.slice(0, MAX_PLAYERS) : []) {
+          if (p && typeof p.id === 'string') this.peers.set(p.id, { id: p.id, name: sanitizeName(p.name), isHost: p.id === this.hostId });
+        }
+        this.peers.set(this.clientId, { id: this.clientId, name: sanitizeName(msg.you?.name, this.playerName), isHost: false });
+        this.playerName = this.peers.get(this.clientId).name;
+        this.connected = true;
+        this.worldInfo = msg.worldInfo && typeof msg.worldInfo === 'object' ? msg.worldInfo : {};
+        const data = { roomId: this.roomId, clientId: this.clientId, hostId: this.hostId, peers: [...this.peers.values()] };
+        this.emit('room_joined', data);
+        this.welcomed?.(data);
+        break;
+      }
+      case 'error':
+        if (!this.connected) fail(new ShareError(String(msg.code ?? 'error'), String(msg.message ?? 'The host refused the connection.')));
+        else this.emit('error', { message: String(msg.message ?? 'Error from the host.') });
+        break;
+      case 'snapshot':
+        unpackSnapshot(msg.packed).then(
+          (snapshot) => this.emit('world_snapshot', { snapshot, fromPeerId: this.hostId, bytes: msg.packed?.data?.length ?? 0 }),
+          () => this.emit('error', { message: 'The world the host sent could not be read.' }),
+        );
+        break;
+      case 'peer_joined': {
+        if (!this.connected || typeof msg.peerId !== 'string') break;
+        const peerName = sanitizeName(msg.peerName);
+        this.peers.set(msg.peerId, { id: msg.peerId, name: peerName, isHost: false });
+        this.emit('peer_joined', { peerId: msg.peerId, peerName, isHost: false });
+        break;
+      }
+      case 'peer_left': {
+        if (typeof msg.peerId !== 'string') break;
+        const known = this.peers.get(msg.peerId);
+        this.peers.delete(msg.peerId);
+        this.emit('peer_left', { peerId: msg.peerId, peerName: known?.name ?? sanitizeName(msg.peerName) });
+        break;
+      }
+      case 'player_state': {
+        const state = sanitizePlayerState(msg.state);
+        if (state && typeof msg.peerId === 'string') this.emit('player_state', { peerId: msg.peerId, state });
+        break;
+      }
+      case 'block_update': {
+        const block = sanitizeBlockUpdate(msg, { isBlockId: this.options.isBlockId });
+        if (block && typeof msg.peerId === 'string') this.emit('block_update', { peerId: msg.peerId, ...block, playerName: this.peers.get(msg.peerId)?.name });
+        break;
+      }
+      case 'chat': {
+        const text = sanitizeChat(msg.text);
+        if (text !== null && typeof msg.peerId === 'string') this.emit('chat', { peerId: msg.peerId, sender: sanitizeName(msg.sender), text });
+        break;
+      }
+      case 'ping': if (this.hostLink) void this.send(this.hostLink, { t: 'pong' }); break;
+      case 'host_closing': this.hostGone('The host closed the world.'); break;
+      default: break;
+    }
+  }
+
+  /** Guest: the host is no longer there. */
+  hostGone(message) {
+    if (!this.connected || this.stopping) return;
+    this.connected = false;
+    this.stopHeartbeat();
+    try { this.hostLink?.close('host_gone'); } catch { /* closed */ }
+    this.hostLink = null;
+    this.peers.clear();
+    this.emit('host_disconnected', { message });
+  }
+
+  // ===========================================================================================
+  // Keeping everyone in step
+  // ===========================================================================================
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.hostLastSeen = this.now();
+    this.heartbeat = setInterval(() => this.beat(), this.timeouts.heartbeatMs);
+    this.heartbeat.unref?.();
+  }
+
+  stopHeartbeat() {
+    clearInterval(this.heartbeat);
+    this.heartbeat = null;
+  }
+
+  beat() {
+    const now = this.now();
+    if (this.isHost) {
+      this.broadcast({ t: 'ping' });
+      for (const entry of [...this.guests.values()]) {
+        if (now - entry.lastSeen > this.timeouts.silenceMs) this.dropGuest(entry, 'timeout');
+      }
+    } else if (this.hostLink) {
+      void this.send(this.hostLink, { t: 'ping' });
+      if (now - this.hostLastSeen > this.timeouts.silenceMs) this.hostGone('Lost the connection to the host.');
+    }
+  }
+
+  // ===========================================================================================
+  // What the game sends
+  // ===========================================================================================
+
+  /** Share this player's pose and held item. */
+  sendPlayerState(state) {
+    if (!this.connected) return;
+    if (this.isHost) this.broadcast({ t: 'player_state', peerId: HOST_ID, state });
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'player_state', state });
+  }
+
+  /** Share a placed or broken block. */
+  sendBlockUpdate(x, y, z, blockId) {
+    if (!this.connected) return;
+    if (this.isHost) this.broadcast({ t: 'block_update', peerId: HOST_ID, x, y, z, blockId });
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'block_update', x, y, z, blockId });
+  }
+
+  /** Say something to everyone. */
+  sendChat(text) {
+    if (!this.connected) return;
+    const clean = sanitizeChat(text);
+    if (clean === null) return;
+    if (this.isHost) this.broadcast({ t: 'chat', peerId: HOST_ID, sender: this.playerName, text: clean });
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'chat', text: clean });
+  }
+
+  /**
+   * Stop sharing, or leave a world you joined.
+   * @param {boolean} [quiet] do not announce it (used when starting a new session over an old one)
+   */
+  disconnect(quiet = false) {
+    const wasActive = this.connected || this.signaling || this.hostLink || this.guests.size;
+    if (!wasActive) return;
+    this.stopping = true;
+    // Cleared first: closing the host link fires its close handler, which must not announce a host that we left.
+    this.connected = false;
+    this.stopHeartbeat();
+    clearTimeout(this.resignalTimer);
+    if (this.isHost) {
+      this.broadcast({ t: 'host_closing' });
+      for (const entry of [...this.links.values()]) {
+        entry.dropped = true;
+        clearTimeout(entry.timer);
+        // Give the goodbye a moment to leave before the channel closes.
+        setTimeout(() => { try { entry.link.close('host_closed'); } catch { /* closed */ } }, 50).unref?.();
+      }
+    }
+    try { this.hostLink?.close('left'); } catch { /* closed */ }
+    try { this.signaling?.close(); } catch { /* closed */ }
+    this.links.clear();
+    this.guests.clear();
+    this.peers.clear();
+    this.hostLink = null;
+    this.signaling = null;
+    this.roomId = null;
+    this.stopping = false;
+    if (!quiet) this.emit('disconnect', { reason: 'left' });
+  }
+}

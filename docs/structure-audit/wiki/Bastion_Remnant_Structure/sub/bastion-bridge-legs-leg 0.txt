@@ -1,0 +1,102 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/legs/leg_0</code> ===
+[[File:Bastion Remnant leg_0.png|thumb|100px|<code>bastion/bridge/legs/leg_0</code>]]
+A pillar under the bridge.
+
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-legs-leg_0
+|default=Layer 22
+|a=Polished Blackstone Bricks
+|b=blackstone-top
+|z=jigsaw-top
+|----Layer 1-8|
+aaa
+aaa
+aaa
+|----Layer 9|
+aaa
+aa
+aab
+|----Layer 10|
+aab
+aaa
+ b
+|----Layer 11|
+abb
+abb
+abb
+|----Layer 12|
+bb
+ab
+ab
+|----Layer 13|
+bbb
+bbb
+ab
+|----Layer 14|
+abb
+bbb
+ b
+|----Layer 15|
+abb
+bb
+b
+|----Layer 16|
+ab
+bb
+b
+|----Layer 17|
+ 
+bb
+|----Layer 18|
+a
+b
+|----Layer 19|
+b
+ba
+|----Layer 20|
+ 
+aaa
+  a
+|----Layer 21|
+aa
+aaa
+aaa
+|----Layer 22|
+aaa
+zaa
+aaa
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 22 || {{BlockLink|Air}} || leg_connector || - || - || Aligned
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 115
+| 1 + 51 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 40
+| 
+|-
+|}
+
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

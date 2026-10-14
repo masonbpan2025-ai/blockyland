@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-.multiplayer-client/
 .npm-cache/
 test-results/
 playwright-report/
@@ -64,3 +63,6 @@ biome-pack-menu-validation.jpg
 extract/
 pages/
 sections_structure.json
+
+# Authoritative campaign save journals
+saves/mod-games/

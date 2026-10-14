@@ -1,0 +1,50 @@
+{{Structure info}}
+{{Update|Suspicious sand now generate in warm ocean ruins.}}
+
+== Large ruins ==
+The structure below is called “big_ruin_warm?”.
+
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin ?|'''Big Ruin ?'''|p}}
+
+The structure below is called “big_ruin_warm4”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 4|'''Big Ruin 4'''|p}}
+
+The structure below is called “big_ruin_warm5”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 5|'''Big Ruin 5'''|p}}
+
+The structure below is called “big_ruin_warm6”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 6|'''Big Ruin 6'''|p}}
+
+The structure below is called “big_ruin_warm7”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 7|'''Big Ruin 7'''|p}}
+
+== Small ruins ==
+The structure below is called “ruin_warm1”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 1|'''Ruin 1'''|p}}
+
+The structure below is called “ruin_warm2”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 2|'''Ruin 2'''|p}}
+
+The structure below is called “ruin_warm3”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 3|'''Ruin 3'''|p}}
+
+The structure below is called “ruin_warm4”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 4|'''Ruin 4'''|p}}
+
+The structure below is called “ruin_warm5”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 5|'''Ruin 5'''|p}}
+
+The structure below is called “ruin_warm6”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 6|'''Ruin 6'''|p}}
+
+The structure below is called “ruin_warm7”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 7|'''Ruin 7'''|p}}
+
+The structure below is called “ruin_warm8”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 8|'''Ruin 8'''|p}}
+
+[[Category:Structure blueprints]]
+
+[[fr:Ruines océaniques/Structure]]
+[[ja:海底遺跡/構造]]
+[[zh:海底废墟/结构]]

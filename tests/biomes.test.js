@@ -48,6 +48,20 @@ test('Biome catalog includes all 68 Minecraft Wiki biomes + "all" dynamic option
   assert.ok(BIOMES.all, '"all" dynamic multi-biome option must exist');
 });
 
+test('Wiki parity: shore biomes sit under Wetland, and the colours the wiki states are in the catalog', () => {
+  const wetland = BIOME_CATEGORIES.find(c => c.id === 'wetland').biomes;
+  for (const id of ['beach', 'snowy_beach', 'stony_shore']) {
+    assert.ok(wetland.includes(id), `${id} is a Wetland biome on minecraft.wiki`);
+    assert.equal(BIOMES[id].category, 'wetland');
+  }
+  // Values copied from the wiki's Java biome data, so a later edit that drifts from it fails here.
+  assert.equal(BIOMES.pale_garden.skyColor, 0xb9b9b9);
+  assert.equal(BIOMES.pale_garden.fogColor, 0x817770);
+  assert.equal(BIOMES.sulfur_caves.fogColor, 0x8cb831);
+  assert.equal(BIOMES.nether_wastes.fogColor, 0x330808);
+  assert.equal(BIOMES.savanna.skyColor, 0x6eb1ff);
+});
+
 test('index.html contains the World Generation Biome Selection Modal with all biomes and controls', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf-8');
 

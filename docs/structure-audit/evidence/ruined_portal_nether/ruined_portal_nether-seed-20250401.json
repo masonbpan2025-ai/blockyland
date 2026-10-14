@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "structure": "ruined_portal_nether",
+  "seed": "20250401",
+  "chunk": [
+    10,
+    21
+  ],
+  "biome": "nether_wastes",
+  "box": {
+    "minX": 164,
+    "minY": 28,
+    "minZ": 340,
+    "maxX": 176,
+    "maxY": 34,
+    "maxZ": 353
+  },
+  "pieces": 1,
+  "blocks": {
+    "Netherrack": 137,
+    "Lava": 35,
+    "Obsidian": 14,
+    "Magma Block": 10,
+    "Polished Blackstone Bricks": 6,
+    "Cracked Polished Blackstone Bricks": 6,
+    "Polished Blackstone Brick Stairs": 5,
+    "Polished Blackstone Brick Wall": 4,
+    "Crying Obsidian": 3,
+    "Polished Blackstone Brick Slab": 2,
+    "Polished Blackstone Slab": 2,
+    "Chiseled Polished Blackstone": 2,
+    "Chest": 1,
+    "Block of Gold": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

@@ -81,8 +81,16 @@ test('turning around changes what is reported ahead', () => {
 });
 
 test('pitches upward finds only sky', () => {
-  const ahead = agentWith(wallWorld({ wallAtZ: -6 }), { pitch: -1.4 }).describeForwardView();
+  // Positive pitch looks up (player.js raises it as the mouse moves up). This test used -1.4, which is looking
+  // down, and passed only because the raycast had the sign backwards too.
+  const ahead = agentWith(wallWorld({ wallAtZ: -6 }), { pitch: 1.4 }).describeForwardView();
   assert.equal(ahead.openAir, true, 'looking up at the sky hits nothing');
+});
+
+test('pitching downward finds the ground', () => {
+  const ahead = agentWith(wallWorld({ wallAtZ: -6 }), { pitch: -1.4 }).describeForwardView();
+  assert.equal(ahead.openAir, false);
+  assert.ok(ahead.firstHit.y <= 10, `looking down should hit the ground, hit y=${ahead.firstHit.y}`);
 });
 
 test('describeForwardView declines cleanly without a world or player', () => {

@@ -7,8 +7,8 @@
 // timings here are not meaningful -- this checkout is shared and other work skews them -- so the
 // assertion is only that the current mesher is not materially slower.
 //
-// Parity is asserted exactly, not approximately: a performance change that alters the vertex
-// stream is a regression no matter how fast it is.
+// Parity is asserted exactly, allowing only the intentional snow-face tint
+// introduced by the snow lighting fix. Positions, normals, indices and all other colours still match.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World, Chunk, CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from '../src/world.js';
@@ -24,17 +24,36 @@ function generatedWorld(seed, radius = 2) {
   for (let cx = -radius; cx <= radius; cx++) {
     for (let cz = -radius; cz <= radius; cz++) world.getOrCreateChunk(cx, cz);
   }
+  // The historical reference has no partial-cube path and draws new snow layers
+  // as full cubes. Exclude that new block from this legacy parity/performance
+  // fixture; snowLighting/mountainTerrain tests verify its real thin geometry.
+  for(const chunk of world.chunks.values())for(let i=0;i<chunk.voxels.length;i++){
+    if(chunk.voxels[i]===BLOCKS.SNOW_LAYER)chunk.voxels[i]=BLOCKS.AIR;
+  }
   return world;
 }
 
 /** Every attribute of every geometry, flattened, for exact comparison. */
-function geometrySnapshot(group) {
+function geometrySnapshot(group, world = null) {
   const out = {};
   for (const [name, geo] of Object.entries(group)) {
     if (!geo) { out[name] = null; continue; }
     const attrs = {};
     for (const [attr, value] of Object.entries(geo.attributes)) {
+      // New environmental sky-fill data is checked by snowLighting.test.js.
+      if(attr==='snowExposure')continue;
       attrs[attr] = Array.from(value.array).map(n => Number(n.toFixed(6)));
+      if (attr === 'color' && world && (name === 'opaqueGeo' || name === 'transparentGeo')) {
+        const positions=geo.attributes.position,normals=geo.attributes.normal;
+        for(let i=0;i<positions.count;i+=4){
+          let x=0,y=0,z=0;for(let v=i;v<i+4;v++){x+=positions.getX(v)/4;y+=positions.getY(v)/4;z+=positions.getZ(v)/4;}
+          const nx=normals.getX(i),ny=normals.getY(i),nz=normals.getZ(i);
+          const id=world.getVoxel(Math.floor(x-nx*.001),Math.floor(y-ny*.001),Math.floor(z-nz*.001));
+          if(id!==BLOCKS.SNOW && id!==BLOCKS.POWDER_SNOW)continue;
+          const tint=ny>.5?[1,1,1]:ny<-.5?[.25,.28,.32]:Math.abs(nx)>.5?[.32,.40,.52]:[.50,.58,.70];
+          for(let v=i;v<i+4;v++)for(let c=0;c<3;c++)attrs.color[v*3+c]=Number((value.array[v*3+c]*tint[c]).toFixed(6));
+        }
+      }
     }
     out[name] = { attrs, index: geo.index ? Array.from(geo.index.array) : null };
   }
@@ -43,12 +62,13 @@ function geometrySnapshot(group) {
 
 // --- parity ------------------------------------------------------------------
 
-test('the current mesher produces byte-identical geometry to the previous one', () => {
-  // Same world, two meshers: every attribute and every index must match exactly.
+test('the current mesher matches the reference apart from the intended snow tint', () => {
+  // Same world, two meshers: apply the explicit snow tint to the expected
+  // colours, then every attribute and every index must match exactly.
   for (const seed of [1234, 77, 909]) {
     const world = generatedWorld(seed, 2);
     const chunk = world.getChunk(0, 0);
-    const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world));
+    const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world), world);
     const after = geometrySnapshot(new ChunkMesher(texStub).meshChunk(chunk, world));
     assert.deepEqual(after, before, `seed ${seed}: geometry changed`);
   }
@@ -59,7 +79,7 @@ test('parity holds for every chunk in a generated world, not just one', () => {
   for (let cx = -1; cx <= 1; cx++) {
     for (let cz = -1; cz <= 1; cz++) {
       const chunk = world.getChunk(cx, cz);
-      const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world));
+      const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world), world);
       const after = geometrySnapshot(new ChunkMesher(texStub).meshChunk(chunk, world));
       assert.deepEqual(after, before, `chunk ${cx},${cz} changed`);
     }
@@ -73,7 +93,7 @@ test('parity holds for water, where the previous code had subtle corner handling
   for (let cx = -1; cx <= 1; cx++) {
     for (let cz = -1; cz <= 1; cz++) {
       const chunk = world.getChunk(cx, cz);
-      const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world));
+      const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world), world);
       const after = geometrySnapshot(new ChunkMesher(texStub).meshChunk(chunk, world));
       assert.deepEqual(after.waterGeo, before.waterGeo, `chunk ${cx},${cz} water changed`);
     }
@@ -91,7 +111,7 @@ test('parity holds where a block touches a chunk border', () => {
     chunk.setVoxel(8, y, 0, BLOCKS.GLASS);
     chunk.setVoxel(8, y, CHUNK_SIZE_Z - 1, BLOCKS.GLASS);
   }
-  const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world));
+  const before = geometrySnapshot(new ChunkMesherBefore(texStub).meshChunk(chunk, world), world);
   const after = geometrySnapshot(new ChunkMesher(texStub).meshChunk(chunk, world));
   assert.deepEqual(after, before);
 });

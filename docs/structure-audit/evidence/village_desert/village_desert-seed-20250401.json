@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "structure": "village_desert",
+  "seed": "20250401",
+  "chunk": [
+    11,
+    18
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": 134,
+    "minY": 12,
+    "minZ": 224,
+    "maxX": 206,
+    "maxY": 55,
+    "maxZ": 366
+  },
+  "pieces": 36,
+  "blocks": {
+    "Stone": 78320,
+    "Sandstone": 31260,
+    "Sand": 10781,
+    "Coal Ore": 3064,
+    "Iron Ore": 2501,
+    "Dirt": 1724,
+    "Gold Ore": 1659,
+    "Smooth Sandstone": 1480,
+    "Redstone Ore": 1145,
+    "Water": 985,
+    "Cut Sandstone": 332,
+    "Diamond Ore": 258,
+    "Cactus": 182,
+    "Smooth Sandstone Slab": 126,
+    "Smooth Sandstone Stairs": 118,
+    "Terracotta": 66,
+    "Moist Farmland": 64,
+    "Sandstone Slab": 55,
+    "Wall Torch": 35,
+    "Hay Block": 28,
+    "Melon Stem": 24,
+    "Beetroots": 21,
+    "Wheat Crops": 19,
+    "Jungle Door": 17,
+    "Jungle Door Top": 17,
+    "Jungle Button": 15,
+    "Light Blue Glazed Terracotta": 12,
+    "Potted Cactus": 10,
+    "Torch": 8,
+    "Chest": 6,
+    "Cyan Bed": 6,
+    "Cyan Bed Head": 6,
+    "Barrel": 6,
+    "Composter": 5,
+    "Potted Dead Bush": 3,
+    "Green Bed Head": 2,
+    "Green Bed": 2,
+    "Smithing Table": 1,
+    "Water Cauldron": 1,
+    "Bell": 1,
+    "Crafting Table": 1,
+    "Lime Bed": 1,
+    "Lime Bed Head": 1
+  },
+  "loot": {
+    "chests": 6,
+    "empty": 1,
+    "totals": [
+      {
+        "name": "wheat",
+        "count": 11
+      },
+      {
+        "name": "carrot",
+        "count": 10
+      },
+      {
+        "name": "potato",
+        "count": 7
+      },
+      {
+        "name": "apple",
+        "count": 6
+      },
+      {
+        "name": "dead_bush",
+        "count": 6
+      },
+      {
+        "name": "iron_ingot",
+        "count": 5
+      },
+      {
+        "name": "wheat_seeds",
+        "count": 4
+      },
+      {
+        "name": "bread",
+        "count": 3
+      },
+      {
+        "name": "cactus",
+        "count": 3
+      },
+      {
+        "name": "emerald",
+        "count": 2
+      }
+    ]
+  },
+  "entities": {
+    "chest": 6,
+    "door": 17,
+    "bed": 9,
+    "mob": 13
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

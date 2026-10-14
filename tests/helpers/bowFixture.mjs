@@ -4,7 +4,17 @@
 // `mobs.spawnArrow`, `ui.updateHotbar` and `heldItemRenderer.recoil`. Stubbing exactly those keeps the test
 // on the real code path rather than on a reimplementation of it.
 import * as THREE from 'three';
+import { afterEach } from 'node:test';
 import { BowController } from '../../src/bow.js';
+
+let documentDescriptor;
+let installedDocument = false;
+afterEach(() => {
+  if (!installedDocument) return;
+  if (documentDescriptor) Object.defineProperty(globalThis, 'document', documentDescriptor);
+  else delete globalThis.document;
+  installedDocument = false;
+});
 
 /** Build a controller whose ammo slots and fired options can be inspected. */
 export function makeBowFixture() {
@@ -36,6 +46,8 @@ export function makeBowFixture() {
     dungeonMode: { isActive: false },
   };
   // `canUse` also requires the pointer to be locked to the canvas, which cannot happen headless.
+  if (!installedDocument) documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  installedDocument = true;
   Object.defineProperty(globalThis, 'document', {
     value: { pointerLockElement: game.renderer.domElement }, configurable: true, writable: true,
   });

@@ -1,4 +1,4 @@
-// Structure Studio must not swallow prompts that belong to the language model,
+// Building Studio must not swallow prompts that belong to the language model,
 // and must hand AI-built structures to its parameter panel.
 //
 // Regression guard: the prompt parser used to fall back to `stairs` for anything
@@ -239,7 +239,7 @@ test('the quick prompt chips are gone from the agent terminal', () => {
   assert.doesNotMatch(ui, /querySelectorAll\('\.gemini-chip'\)/, 'the dead chip handler should be removed');
 });
 
-test('every library structure is offered in the creative Structures tab', () => {
+test('every library building is offered in the creative Buildings tab', () => {
   const all = BuildingLibrary.getAllBuildings();
   assert.ok(all.length >= 9);
   for (const st of all) {

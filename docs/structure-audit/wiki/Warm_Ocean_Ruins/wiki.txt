@@ -1,0 +1,358 @@
+{{For|the cold variant|Cold Ocean Ruins}}
+{{Infobox structure
+| defaultimagesize = 275px
+| image = underwater ruin warm.png
+| biome =
+* {{BiomeLink|Lukewarm Ocean}}
+* {{BiomeLink|Warm Ocean}}
+* {{BiomeLink|Deep Lukewarm Ocean}}
+| mobs = {{EntityLink|Drowned}}<br>{{EntityLink|Zombie Nautilus}}
+| blocks =
+* {{BlockLink|Chest}} (random loot)
+* {{BlockLink|Chiseled Sandstone}}
+* {{BlockLink|Cut Sandstone}}
+* {{BlockLink|Gravel}}
+* {{BlockLink|Kelp}}
+* {{BlockLink|Kelp Plant}}
+* {{BlockLink|Light Blue Terracotta}}
+* {{BlockLink|Magma Block}}
+* {{BlockLink|Polished Diorite}}
+* {{BlockLink|Polished Granite}}
+* {{BlockLink|Sand}}
+* {{BlockLink|Sandstone}}
+* {{BlockLink|Sandstone Stairs}}
+* {{BlockLink|Sea Lantern}}
+* {{BlockLink|Seagrass}}
+* {{BlockLink|Suspicious Sand}}
+* {{BlockLink|Tall Seagrass}}
+* {{BlockLink|Water}}
+| canspawn = No
+}}
+'''Warm ocean ruins''' are variants of [[ocean ruins]]. They are underwater [[structure]]s primarily composed of [[sandstone]]. They are found in [[ocean]] biomes and rarely on [[beach]]es, and are inhabited by [[drowned]] and sometimes [[zombie nautilus]]es alongside them. They contain [[chest]]s and [[suspicious sand]] that contain a variety of [[loot]], most notably buried [[treasure map]]s, exclusive [[pottery sherd]]s, [[nautilus armor]], [[emerald]]s, and [[sniffer egg]]s.
+
+== Generation ==
+Warm ocean ruins generate in warm, lukewarm, and deep lukewarm ocean biomes, and are composed of sandstone and stone materials as well as having some blocks of [[suspicious sand]] within them. 
+
+Ocean ruins may at times be at least partially buried, including with their airspaces. During generation, all air blocks and structure blocks act as [[Structure void|structure voids]]. This means that their associated suspicious blocks are also located under layers of usual [[sand]], [[gravel]], and even stone. Suspicious sand randomly replaces sand respectively during generation, and are not part of the [[structure definition]].
+
+Although most ocean ruins generate underwater, they sometimes generate on land, bordering a [[beach]] or another seaside [[biome]].
+
+30% of ocean ruins generate as large ocean ruins; the other 70% generate as small ruins. If the ocean ruin is large, there is a 90% chance for 4-8 (inclusive) small ocean ruins to generate around it in a cluster. Large warm ocean ruins generate with a [[structure integrity]] of 0.9 and small warm ocean ruins generate with a structure integrity of 0.8. Reduced structure integrity may also remove [[drowned]] and [[Zombie nautilus|zombie nautiluses]] from the structures.
+
+Warm ocean ruins can be located with warm ocean ruins [[explorer map]]s, which are found in secret chests in [[abandoned camp]]s.
+
+== Structure ==
+{{main|/Structure}}
+The shape and size of warm ocean ruins varies greatly, and they often generate together in groups to create ruined villages.
+
+All but two of the structures contain a loot [[chest]] with loot inside. The chest contains loot for specifically either a small or large sized ocean ruin structure and may be buried under blocks such as [[sand]].
+
+Warm ocean ruins are primarily composed of [[sand]], [[sandstone]], and [[suspicious sand]], and they also contain [[polished granite]], [[polished diorite]], [[sea lantern]]s, [[magma block]]s, [[gravel]], [[terracotta]], [[sandstone stairs]], or a loot [[chest]].
+
+Natural warm ocean ruins generate following the rules above and may not exactly match the stored structures.
+
+The structures below are located in the folder <code>[[client.jar]]/data/minecraft/structures/underwater_ruin</code>. The following is a complete table of the structures with their filenames, descriptions and what they consist of.
+
+Each {{BlockLink|Structure Block|structure block}} indicates either a chest with random loot or the spawn location of a drowned/zombie nautilus [[mob]].
+
+=== Mobs ===
+{| style="text-align:center"
+|-
+| scope="col" style="width:70px" | [[File:DrownedFace.png|link=Drowned]]
+| scope="col" style="width:70px" | {{animate|ZombieNautilusBody.png;CoralZombieNautilusBody.png|class=pixel-image|link=Zombie Nautilus}}
+|-
+| style="vertical-align:top" | [[Drowned]]
+| style="vertical-align:top" | [[Zombie Nautilus]]
+|}
+
+Upon world generation, many of the structures spawn with [[drowned]] (usually one or two, though a few structures have three or four). These drowned are persistent, and do not despawn. Adult drowned wielding tridents may also also spawn riding a [[zombie nautilus]] as a zombie nautilus jockey.
+
+Zombie nautiluses spawned from ruins are also persistent. They even spawn on [[Peaceful]] difficulty despite being [[monster]]s, because they count as part of the structure and ignore conventional spawning mechanics.<ref>{{bug|MC-304858||Zombie nautiluses can spawn on peaceful by themselves, unlike skeleton/zombie horses and camel husks}}.</ref>
+
+=== Types ===
+
+{| class="wikitable collapsible"
+! scope="col" style="width: 200px" | Structure name
+! scope="col" style="width: 300px" | Description
+! scope="col" style="width: 250px" | Consists of
+! scope="col" style="width: 250px" | Images
+|-
+|<code>underwater_ruin/big_warm_4</code>
+|A chunk-sized structure featuring a large [[sandstone]] arch. 2 Drowned always generate here.
+|
+220 {{BlockLink|Sand}}<br>
+152 {{BlockLink|Cut Sandstone}}<br>
+24 {{BlockLink|Polished Granite}}<br>
+18 {{BlockLink|Chiseled Sandstone}}<br>
+4 {{BlockLink|Sea Lantern}}<br>
+3 {{BlockLink|Magma Block}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+2 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Big_Warm_4.png|center|220px]]
+|-
+|<code>underwater_ruin/big_warm_5</code>
+|A chunk-sized structure with a tall tower in the center. It looks similar to a fountain. 4 Drowned always generate here.
+|
+222 {{BlockLink|Sand}}<br>
+43 {{BlockLink|Cut Sandstone}}<br>
+12 {{BlockLink|Sandstone}}<br>
+8 {{BlockLink|Polished Granite}}<br>
+5 {{BlockLink|Magma Block}}<br>
+4 {{BlockLink|Polished Diorite}}<br>
+2 {{BlockLink|Sea Lantern}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+4 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Big_Warm_5.png|center|220px]]
+|-
+|<code>underwater_ruin/big_warm_6</code>
+|A chunk-sized structure featuring 4 sandstone arches. 2 Drowned always generate here.
+|
+219 {{BlockLink|Sand}}<br>
+129 {{BlockLink|Cut Sandstone}}<br>
+4 {{BlockLink|Chiseled Sandstone}}<br>
+4 {{BlockLink|Magma Block}}<br>
+2 {{BlockLink|Sandstone}}<br>
+2 {{BlockLink|Sea Lantern}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+2 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Big_Warm_6.png|center|220px]]
+|-
+|<code>underwater_ruin/big_warm_7</code>
+|A chunk-sized structure with an open sandstone dome. 2 Drowned always generate here.
+|
+202 {{BlockLink|Sand}}<br>
+100 {{BlockLink|Cut Sandstone}}<br>
+24 {{BlockLink|Gravel}}<br>
+8 {{BlockLink|Chiseled Sandstone}}<br>
+4 {{BlockLink|Polished Granite}}<br>
+2 {{BlockLink|Magma Block}}<br>
+2 {{BlockLink|Sandstone}}<br>
+1 {{BlockLink|Sea Lantern}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+2 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Big_Warm_7.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_1</code>
+|A small structure with an open dome. Looks like a smaller version of big_warm_7.
+|
+75 {{BlockLink|Cut Sandstone}}<br>
+47 {{BlockLink|Sand}}<br>
+7 {{BlockLink|Polished Granite}}<br>
+1 {{BlockLink|Chest}} (random loot)
+|
+[[File:Ruin_Warm_1.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_2</code>
+|A small hut with a large opening in the front. 2 Drowned always generate here.
+|
+42 {{BlockLink|Sand}}<br>
+36 {{BlockLink|Cut Sandstone}}<br>
+2 {{BlockLink|Light Blue Terracotta}}<br>
+2 {{BlockLink|Polished Granite}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+2 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Warm_2.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_3</code>
+|A small hut that has an entrance on all sides. A Drowned always generates here.
+|
+36 {{BlockLink|Sand}}<br>
+24 {{BlockLink|Cut Sandstone}}<br>
+13 {{BlockLink|Polished Granite}}<br>
+2 {{BlockLink|Magma Block}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+1 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Warm_3.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_4</code>
+|A small structure featuring two small arches. A Drowned always generates here.
+|
+42 {{BlockLink|Sand}}<br>
+28 {{BlockLink|Cut Sandstone}}<br>
+10 {{BlockLink|Sandstone Stairs}}<br>
+2 {{BlockLink|Chiseled Sandstone}}<br>
+1 {{BlockLink|Magma Block}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+1 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Warm_4.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_5</code>
+|A small structure that is essentially a roof with multiple supports. A Drowned always generates here.
+|
+37 {{BlockLink|Sand}}<br>
+34 {{BlockLink|Cut Sandstone}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+1 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Warm_5.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_6</code>
+|A small hut that looks similar to the ruin5 series, although made of sand materials. It is filled with sand and the entrance is blocked off.
+|
+48 {{BlockLink|Sand}}<br>
+39 {{BlockLink|Cut Sandstone}}<br>
+4 {{BlockLink|Light Blue Terracotta}}<br>
+1 {{BlockLink|Magma Block}}<br>
+1 {{BlockLink|Chest}} (random loot)
+|
+[[File:Ruin_Warm_6.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_7</code>
+|A small structure that looks similar to the ruin2 series, although made of sand materials.
+|
+34 {{BlockLink|Sand}}<br>
+6 {{BlockLink|Cut Sandstone}}<br>
+3 {{BlockLink|Polished Granite}}<br>
+1 {{BlockLink|Chest}} (random loot)
+|
+[[File:Ruin_Warm_7.png|center|220px]]
+|-
+|<code>underwater_ruin/warm_8</code>
+|A thin wall with multiple "windows". Appears to be a miniature cross section of big_warm_4. A Drowned always generates here.
+|
+56 {{BlockLink|Sand}}<br>
+19 {{BlockLink|Cut Sandstone}}<br>
+5 {{BlockLink|Magma Block}}<br>
+4 {{BlockLink|Sandstone Stairs}}<br>
+1 {{BlockLink|Chest}} (random loot)<br>
+1 {{EntityLink|Drowned}}
+*{{EntityLink|Zombie Nautilus}} - Has a chance of spawning alongside a trident-wielding Drowned
+|
+[[File:Ruin_Warm_8.png|center|220px]]
+|}
+
+== Loot ==
+{{LootChest|underwater-ruin-big}}
+{{LootChest|underwater-ruin-small}}
+
+=== Suspicious blocks ===
+{{LootChest|brushable-warm-ocean-ruins}}
+
+== Data values ==
+{{el|je}}:
+{{ID table
+|edition=java
+|firstcolumnname=Structure type
+|displayname=Ocean Ruin
+|spritetype=env
+|nameid=ocean_ruin
+|foot=1}}
+{{ID table
+|edition=java
+|firstcolumnname=Structure
+|displayname=Warm Ocean Ruin
+|spritename=warm-ocean-ruins
+|spritetype=env
+|nameid=ocean_ruin_warm
+|foot=1}}
+
+{{el|be}}:
+{{ID table
+|edition=bedrock
+|firstcolumnname=Structure
+|generatetranslationkeys=y
+|displayname=Ocean Ruins
+|spritetype=env
+|nameid=ruins
+|translationkey=feature.ruins
+|foot=1}}
+
+== Achievements ==
+{{load achievements|Atlantis?}}
+
+== History ==
+[[File:Turtle first screenshot.jpg|thumb|The first official image of underwater ruins.]]
+[[File:Turtle Structure.png|thumb|The same image, brightened for clarity.]]
+=== Teaser ===
+{{HistoryTable
+|{{HistoryLine||December 27, 2017|link=https://minecraft.net/article/new-mob-approaches|A picture was released on Minecraft.net, which shows a faint underwater ruins structure in the top right corner, more visible when the image is brightened.}}
+|{{HistoryLine||February 15, 2018|link=https://www.instagram.com/p/BfOVzs6D5gw|Minecraft's [[wikipedia:Instagram|Instagram]] account posted a video clip showing the underwater ruins that were to be added in the [[Update Aquatic]].}}
+}}
+
+=== ''Java Edition'' ===
+{{HistoryTable
+|{{HistoryLine|java}}
+|{{HistoryLine||1.13|dev=18w09a|Added underwater ruins. They are found commonly.}}
+|{{HistoryLine|||dev=18w10a|[[Buried treasure explorer map]]s now generate in the chests of underwater ruins.}}
+|{{HistoryLine|||dev=18w16a|[[Drowned]] now spawn within underwater ruins.}}
+|{{HistoryLine||1.16|dev=20w06a|Underwater ruins are now much less common.}}
+|{{HistoryLine||1.20|dev=23w12a|Warm underwater ruins now generate with [[suspicious sand]].}}
+|{{HistoryLine||1.21.11|dev=25w41a|Added [[zombie nautilus]]es, which can spawn on underwater ruins.|Ocean ruin chests can now contain stone [[spear]]s.|Ocean ruin chests can now contain copper, iron, golden and diamond [[nautilus armor]].}}
+|{{HistoryLine||26.3|dev=snap7|Added [[explorer map]]s leading to warm ocean ruins, which are found in [[abandoned camp]] secret chests.}}
+}}
+
+=== ''Bedrock Edition'' ===
+{{HistoryTable
+|{{HistoryLine|bedrock}}
+|{{HistoryLine||1.4.0|dev=beta 1.2.20.1|Added underwater ruins.}}
+|{{HistoryLine||1.19.80|exp=Next Major Update|dev=Preview 1.19.80.21|Warm underwater ruins now generate with [[suspicious sand]].}}
+|{{HistoryLine||1.21.130|dev=Preview 1.21.130.20|Added [[zombie nautilus]]es, which can spawn on underwater ruins.}}
+|{{HistoryLine||26.50|dev=Preview 26.50.24|Added [[explorer map]]s leading to warm ocean ruins, which are found in [[abandoned camp]] secret chests.}}
+}}
+
+=== Legacy Console Edition ===
+{{HistoryTable
+|{{HistoryLine|console}}
+|{{HistoryLine||xbox=TU69|ps3=1.76|psvita=1.76|ps4=1.76|wiiu=Patch 38|Added underwater ruins.}}
+}}
+
+=== ''Minecraft Education'' ===
+{{HistoryTable
+|{{HistoryLine|education}}
+|{{HistoryLine||1.4.0|Added underwater ruins.}}
+}}
+
+== Issues ==
+{{Issue list}}
+
+== Trivia ==
+[[File:Land ruin.png|thumb|An ocean ruin {{in|be}} that generated completely on land. The [[water]] block above it that has not been updated.]]
+[[File:Land ruin Java.png|thumb|An ocean ruin {{in|je}} that also generated completely on land. The loot chest is not waterlogged and does not have a water block on top of it.]]
+* {{IN|be}}, ocean ruins generate with approximately equal spacing in the X and Z directions.
+* {{IN|be}}, the loot chest of ocean ruins generates with a water block above it.<ref>{{bug|MCPE-179473||Ocean ruins generated on land have a water source above the chest}}</ref> This can be seen in the first image. {{IN|je}}, this is not the case, according to the second picture.<ref>{{bug|MC-136156|||Invalid}}</ref>
+
+{{-}}
+
+== Gallery ==
+<gallery>
+File:Coral reef and warm underwater ruins..png|A warm ocean ruins that generated with a [[coral reef]]
+File:Fossil underwater near ocean ruins.jpg|A warm ocean ruins that generated with a [[fossil]]
+File:Ocean Ruins Vibrant Visuals.png|Warm ocean ruins
+File:Ruins in village.png|Warm ocean ruins that generated with a [[Village|desert village]]
+File:Underwater ruins Lukewarm Ocean.png|Warm ocean ruins that generated in a [[lukewarm ocean]]
+</gallery>
+
+== References ==
+{{Reflist}}
+
+== External links ==
+* "[https://www.minecraft.net/en-us/article/ocean-ruins Building Blocks: Ocean Ruins]" by [[Duncan Geere]] – [[Minecraft.net]], August 14, 2025.
+
+== Navigation ==
+{{Navbox ocean}}{{Navbox generated structures}}
+
+[[de:Ozeanruine]]
+[[es:Ruinas oceánicas]]
+[[fr:Ruines océaniques chaudes]]
+[[it:Rovine oceaniche]]
+[[ja:海底遺跡]]
+[[ko:바다 폐허]]
+[[pt:Ruínas Oceânicas]]
+[[ru:Подводные руины]]
+[[uk:Теплі підводні руїни]]
+[[zh:海底废墟]]

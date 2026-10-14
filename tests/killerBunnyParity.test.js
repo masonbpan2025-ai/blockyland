@@ -145,10 +145,18 @@ test('it hunts a wolf when no player is in range', () => {
   player.position.set(500, 1, 500);
   const bunny = manager.spawnMob('killer_bunny', 0, 1, 0);
   const wolf = manager.spawnMob('wolf', 6, 1, 0);
+  // Hold the prey still: random wolf wandering (and fleeing after damage) can
+  // increase the final distance even when the bunny correctly hunted it.
+  wolf.frozen = true;
+  const health = wolf.health;
   const start = bunny.mesh.position.distanceTo(wolf.mesh.position);
-  for (let i = 0; i < 300; i++) manager.update(1 / 60, player);
-  const end = bunny.mesh.position.distanceTo(wolf.mesh.position);
-  assert.ok(end < start, `it approached the wolf, ${start.toFixed(2)} -> ${end.toFixed(2)}`);
+  let nearest = start;
+  for (let i = 0; i < 300 && wolf.health === health; i++) {
+    manager.update(1 / 60, player);
+    nearest = Math.min(nearest, bunny.mesh.position.distanceTo(wolf.mesh.position));
+  }
+  assert.ok(nearest < start, `it approached the wolf, ${start.toFixed(2)} -> ${nearest.toFixed(2)}`);
+  assert.ok(wolf.health < health, 'it actually attacked the wolf');
 });
 
 test('it retreats briefly when struck', () => {

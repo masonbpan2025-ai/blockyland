@@ -64,11 +64,12 @@ test('the rule does not switch off Peaceful\'s heal', () => {
 
 test('the defaults are Java\'s, and cover the rules the game implements', () => {
   assert.deepEqual([...GAMERULES].sort(),
-    ['doDaylightCycle', 'doImmediateRespawn', 'doMobSpawning', 'doWeatherCycle', 'keepInventory',
+    ['doDaylightCycle', 'doFireTick', 'doImmediateRespawn', 'doMobSpawning', 'doWeatherCycle', 'keepInventory',
       'naturalRegeneration'].sort());
   assert.equal(GAMERULE_DEFAULTS.doMobSpawning, true);
   assert.equal(GAMERULE_DEFAULTS.doDaylightCycle, true);
   assert.equal(GAMERULE_DEFAULTS.doWeatherCycle, true);
+  assert.equal(GAMERULE_DEFAULTS.doFireTick, true);
   assert.equal(GAMERULE_DEFAULTS.keepInventory, false, 'Java defaults this off');
   assert.equal(GAMERULE_DEFAULTS.naturalRegeneration, true);
 });
@@ -124,39 +125,11 @@ test('the hunger model reads the option rather than hard-coding regeneration', (
 
 // --- where the switches live -------------------------------------------------------------------------
 
-test('the difficulty and rule switches live in the Agent Terminal, not the pause menu', () => {
-  // The terminal is the cheats surface: it opens only when cheats are on, so an ordinary Survival player
-  // cannot reach these and Creative can. The plan's rule is that mode and rule changes follow the cheats
-  // policy, and putting them behind the cheats-gated key is what enforces it.
+test('world settings and their event bindings are removed from the Agent Terminal', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /id="gemini-world-settings"/, 'the panel exists');
-  assert.match(html, /id="terminal-difficulty-row"/);
-  assert.match(html, /id="terminal-mode-row"/);
-  assert.match(html, /id="terminal-rule-row"/);
-  for (const rule of ['doMobSpawning', 'doDaylightCycle', 'naturalRegeneration', 'keepInventory']) {
-    assert.match(html, new RegExp(`id="terminal-rule-${rule}"`), rule + ' has a switch');
-  }
-  for (const d of ['peaceful', 'easy', 'normal', 'hard']) {
-    assert.match(html, new RegExp(`id="terminal-difficulty-${d}"`), d + ' has a button');
-  }
-  // And the panel sits inside the terminal's settings drawer rather than somewhere else in the page.
-  const panel = html.indexOf('id="gemini-world-settings"');
-  const drawer = html.indexOf('id="gemini-key-drawer"');
-  const feed = html.indexOf('id="gemini-log-feed"');
-  assert.ok(drawer < panel && panel < feed, 'the panel is inside the drawer, before the log feed');
-});
-
-test('the terminal panel is bound, repainted on open, and routes through the settings authority', () => {
   const ui = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
-  assert.match(ui, /bindTerminalWorldSettings\(\) \{/);
-  assert.match(ui, /this\.bindTerminalWorldSettings\(\);/, 'bound in the constructor');
-  assert.match(ui, /this\.refreshTerminalWorldSettings\?\.\(\);/, 'repainted when the terminal opens');
-  // A difficulty or mode change goes through `applyWorldSettings`, so the game and the player cannot
-  // disagree -- the same single-authority rule the hunger model follows.
-  assert.match(ui, /this\.game\?\.applyWorldSettings\?\.\(\{ difficulty: d \}\)/);
-  assert.match(ui, /this\.game\?\.applyWorldSettings\?\.\(\{ gameMode: m \}\)/);
-  // A rule toggle writes through the normaliser rather than poking the object directly.
-  assert.match(ui, /game\.gamerules = \{ \.\.\.normaliseGamerules\(game\.gamerules\), \[name\]: next \}/);
-  // And the panel must not crash on a minimal DOM, which is how the classList bug reached the suite.
-  assert.match(ui, /if \(el\?\.classList\?\.toggle\) el\.classList\.toggle\('active', on\)/);
+  assert.doesNotMatch(html, /id="gemini-world-settings"|id="terminal-(difficulty|mode|rule|settings)/);
+  assert.doesNotMatch(ui, /bindTerminalWorldSettings|refreshTerminalWorldSettings/);
+  assert.match(html, /id="world-difficulty-normal"/, 'world creation still has difficulty controls');
+  assert.match(html, /id="btn-gamemode"/, 'the pause menu still has game mode controls');
 });

@@ -1,0 +1,61 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/walls/side_wall_1</code> ===
+The lower half of a part of the rampart. 3 of these generate per bastion.
+[[File:hoglin stable side wall 1.png|thumb|200px|<code>bastion/hoglin_stable/walls/side_wall_1</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Blackstone}}
+| 4924
+| 76 + 60 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 173
+| 2 + 45 blocks
+|-
+| {{BlockLink|Chiseled Polished Blackstone}}
+| 26
+| 
+|-
+| {{BlockLink|Block of Gold}}
+| 12
+| 
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 7
+| 
+|-
+| {{BlockLink|Lantern}}
+| 2
+| 
+|-
+| {{BlockLink|Iron Chain}}
+| 1
+| 
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 5
+| 
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

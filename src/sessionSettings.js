@@ -97,6 +97,24 @@ export function normaliseSettings(raw = {}) {
   });
 }
 
+/**
+ * Settings after a change. Entering Creative turns cheats ON unless the same change says otherwise.
+ *
+ * `cheats` is always a boolean once a game exists (the start-up settings are Survival, so `false`), which meant
+ * the "default from the mode" rule above never ran: a world created in Creative, Building Studio and a switch to
+ * Creative all kept cheats OFF. Leaving Creative keeps whatever cheats were, as a vanilla world's cheats belong
+ * to the world rather than to the mode.
+ */
+export function settingsWith(current = {}, patch = {}) {
+  const before = normaliseSettings(current);
+  const next = normaliseSettings({ ...before, ...patch });
+  const enteringCreative = next.gameMode === 'creative' && before.gameMode !== 'creative';
+  if (enteringCreative && typeof patch?.cheats !== 'boolean' && !next.cheats) {
+    return normaliseSettings({ ...next, cheats: true });
+  }
+  return next;
+}
+
 export function isSurvival(settings) {
   return normaliseSettings(settings).gameMode === 'survival';
 }
@@ -164,6 +182,7 @@ export const GAMERULE_DEFAULTS = Object.freeze({
   doMobSpawning: true,
   doDaylightCycle: true,
   doWeatherCycle: true,
+    doFireTick: true,
   naturalRegeneration: true,
   keepInventory: false,
   doImmediateRespawn: false,

@@ -527,7 +527,9 @@ export class BedManager {
       this.game.sky?.setTime?.(morning);
 
       // 2. Clear weather
-      if (this.game.weather?.setWeather) {
+      if (this.game.weather?.resetAfterSleep) {
+        this.game.weather.resetAfterSleep();
+      } else if (this.game.weather?.setWeather && this.game.gamerules?.doWeatherCycle !== false) {
         this.game.weather.setWeather('clear');
       }
     }

@@ -26,7 +26,7 @@ node scripts/test.mjs --match riding
 | `agent` | terminal, vendors, plan parsing, world context | 9 |
 | `mob` | mobs, skins, hit feedback, studio, breeding, debug | 17 |
 | `redstone` | redstone, pistons, doors, rails, carts, boats | 8 |
-| `studio` | Structure Studio and its agent integration | 5 |
+| `studio` | Building Studio and its agent integration | 5 |
 | `world` | terrain, biomes, nether, fluids, fire | 13 |
 | `build` | inventory, chests, furnace, armour, enchanting | 9 |
 | `combat` | arrows, skills, tournament, dungeon, farming | 5 |

@@ -6,6 +6,7 @@
 // after it were skipped for anyone who had bound a bed: poison survived death if you slept.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createRuntime } from '../src/mods/dragonball-tournament/runtime.js';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { Player } from '../src/player.js';
@@ -142,6 +143,7 @@ test('the carried inventory is emptied and the result is reported', () => {
 test('the tournament never drops an inventory', () => {
   const p = makePlayer();
   p.game.tournament = { isTournamentMap: true };
+  p.game.modRuntime = createRuntime(p.game);
   p.inventory.hotbar[0] = { id: 'stone', isBlock: true, count: 64 };
   const result = p.dropInventoryOnDeath();
   assert.equal(result.kept, true);

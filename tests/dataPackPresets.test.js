@@ -378,3 +378,22 @@ test('the presets cover the land biomes and leave the special ones alone', (t) =
     assert.ok(!LAND_BIOMES.includes(excluded), excluded + ' is not a land biome');
   }
 });
+
+test('Structure Hunter packs structures six times closer, villages every 7 chunks; other presets keep vanilla spacing', async () => {
+  const { winningSpacingScale, winningSpacingOverrides } = await import('../src/dataPackRuntime.js');
+  const { createSets } = await import('../src/worldgen/registry.js');
+  const scaleOf = (id) => {
+    const built = buildPresetPack(id);
+    const applied = applyDataPack(mergePacks([createDataPack({ name: built.name, files: built.files })]), { name: built.name });
+    const scale = winningSpacingScale();
+    assert.deepEqual(winningSpacingOverrides(), id === 'structure_hunter' ? { villages: { spacing: 5, separation: 2 } } : null);
+    revertDataPack(applied);
+    return scale;
+  };
+  assert.equal(scaleOf('structure_hunter'), 6);
+  assert.equal(scaleOf('dungeon_rush'), 1);
+  assert.equal(winningSpacingScale(), 1, 'reverting the pack restores vanilla spacing');
+  assert.equal(createSets({ spacingScale: 6 }).get('villages').placement.spacing, 6);
+  assert.equal(createSets({ spacingScale: 6, spacingOverrides: { villages: { spacing: 5, separation: 2 } } }).get('villages').placement.spacing, 5);
+  assert.equal(createSets().get('villages').placement.spacing, 34);
+});

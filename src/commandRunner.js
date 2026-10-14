@@ -164,13 +164,14 @@ function cmdHelp(context) {
   say('/redstone demo <elevator|flyer> - Build a working redstone example; sneak-right-click components to rotate', 'help');
   say('/redstone game <name> - Build a playable redstone machine; /redstone list to see them', 'help');
   say('/locate [structure] [id] - Show the nearest generated structure and how far it is', 'help');
+  say('/teleport <x> <y> <z> - Move to coordinates (~ is relative); /teleport <structure> goes to the nearest one, e.g. /teleport swamp_hut', 'help');
   say('/show_mobs - What mobs exist, what the spawner is doing, and why you may see none (Creative)', 'help');
   say('Available Commands:', 'help');
   say('Press [C] for the AI World Agent terminal (build, weather, summon mobs!)', 'help');
   // Rendered from the command table so the help text and the parser cannot disagree about a command's
   // name or its arguments. The old hand-written list had already drifted: it advertised
   // `/give <item_name> [amount]`, which was neither vanilla's syntax nor the one the dispatcher took.
-  const blurbed = new Set(['redstone', 'locate', 'show_mobs']);
+  const blurbed = new Set(['redstone', 'locate', 'show_mobs', 'teleport']);
   for (const command of context.commands) {
     if (blurbed.has(command.name)) continue;
     const args = command.args ? ` ${command.args}` : '';
@@ -207,7 +208,12 @@ function cmdWeather(context, parts) {
     context.say(unavailable('The weather system'), 'error');
     return true;
   }
-  context.weather.setWeather(type);
+  const duration=parts[2]===undefined?null:Number(parts[2]);
+  if(parts.length>3||(duration!==null&&(!Number.isFinite(duration)||duration<=0||duration>1000000))){
+    context.say('Usage: /weather <clear|rain|thunder> [seconds: 1..1000000]', 'error');return true;
+  }
+  if(duration===null)context.weather.setWeather(type);
+  else context.weather.setWeather(type,duration);
   context.say(`Set weather to ${type}`);
   return true;
 }
@@ -297,7 +303,7 @@ export const HANDLED_HERE = Object.freeze([
   'give', 'help', 'time', 'weather', 'gamemode', 'setblock', 'clear', 'offline',
 ]);
 export const HANDLED_ELSEWHERE = Object.freeze([
-  'redstone', 'locate', 'show_mobs', 'save', 'load', 'maps', 'summon',
+  'redstone', 'locate', 'show_mobs', 'save', 'load', 'maps', 'summon', 'teleport',
 ]);
 
 // --- the dispatcher -----------------------------------------------------------------

@@ -1,3 +1,4 @@
+import { installTournamentProviders } from './helpers/tournamentProviders.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -66,6 +67,8 @@ function createMockGame() {
     dragonballSkills
   };
 
+  installTournamentProviders(game);
+  mobs.game = game;
   return { game, player, camera, mobs, sounds, chatMessages, tournament };
 }
 

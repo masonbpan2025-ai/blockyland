@@ -1,0 +1,77 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/hoglin_stable/ramparts/ramparts_1</code> ===
+The upper half of a part of the rampart. 3 of these generate per bastion.
+[[File:hoglin_stable_ramparts_1.png|thumb|200px|<code>bastion/hoglin_stable/ramparts/ramparts_1</code>]]
+
+==== Blueprint ====
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer || {{BlockLink|}} || - || - || - || -
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 4055
+| 63 + 23 blocks
+|-
+| {{BlockLink|Blackstone}}
+| 459
+| 7 + 11 blocks
+|-
+| {{BlockLink|Basalt}}
+| 346
+| 5 + 26 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 130
+| 2 + 2 blocks
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 40
+|
+|-
+| {{BlockLink|Gilded Blackstone}}
+| 9
+|
+|-
+| {{BlockLink|Block of Gold}}
+| 4
+|
+|-
+| {{BlockLink|Lantern}}
+| 4
+|
+|-
+| Loot {{BlockLink|Chest}} (Generic)
+| 3
+|
+|-
+| {{BlockLink|Chiseled Polished Blackstone}}
+| 3
+|
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 6
+|
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin melee group">There is a {{frac|5|6}} chance of spawning a piglin brute and a {{frac|1|6}} chance of spawning a piglin with a golden sword.</ref>
+| 2
+|
+|-
+|}
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

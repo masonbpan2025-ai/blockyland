@@ -97,6 +97,31 @@ export function winningStructureIds() {
 }
 
 /**
+ * How much denser than vanilla the winning pack wants structures (`spacing_scale` in a structure_set file).
+ * 1 means vanilla spacing.
+ */
+export function winningSpacingScale() {
+  const highest = structurePackStamp();
+  if (highest === 0) return 1;
+  let scale = 1;
+  for (const set of PACK_STRUCTURE_SETS.values()) {
+    if (set?.packStamp === highest && Number.isFinite(set.spacingScale) && set.spacingScale > scale) scale = set.spacingScale;
+  }
+  return scale;
+}
+
+/** Per-set grid overrides (`spacing_overrides`) from the winning pack, keyed by structure-set name. */
+export function winningSpacingOverrides() {
+  const highest = structurePackStamp();
+  if (highest === 0) return null;
+  let out = null;
+  for (const set of PACK_STRUCTURE_SETS.values()) {
+    if (set?.packStamp === highest && set.spacingOverrides && typeof set.spacingOverrides === 'object') out = { ...out, ...set.spacingOverrides };
+  }
+  return out;
+}
+
+/**
  * True when the WINNING pack's structure sets are all empty, i.e. it wants no structures.
  *
  * Precedence matters here too: the bundled vanilla pack carries no structure sets, so a preset saying
@@ -372,7 +397,7 @@ export function applyDataPack(resolved, options = {}) {
     if (!json || typeof json !== 'object') continue;
     // Only `structures` matters here: an EMPTY array is the pack saying "no structures at all", which is a
     // statement `enabledStructureIds` needs to be able to tell apart from silence.
-    const adapted = { structures: Array.isArray(json.structures) ? json.structures : [], packStamp: stamp };
+    const adapted = { structures: Array.isArray(json.structures) ? json.structures : [], packStamp: stamp, spacingScale: Number(json.spacing_scale) || 1, spacingOverrides: json.spacing_overrides ?? null };
     const previous = PACK_STRUCTURE_SETS.get(id) ?? null;
     PACK_STRUCTURE_SETS.set(id, adapted);
     applied.structureSets.push({ id, previous });

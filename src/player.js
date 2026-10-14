@@ -6,10 +6,13 @@ import { spendDurability } from './durability.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
+import { cameraTurnAllowed } from './pointerLock.js';
+import { SWIM_SPEED, CURRENT_PUSH, sprintSwimSpeed, canSprintSwim, SWIMMING_HEIGHT, SWIMMING_EYE_HEIGHT } from './waterRules.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
 import { normaliseSettings, normaliseGameMode, gameruleFor } from './sessionSettings.js';
 import { collectDeathDrops, xpLossFor, resolveRespawn, resetSurvivalState } from './deathAndRespawn.js';
+import { getTotalXpForLevel } from './experience.js';
 
 /**
  * How much of a fall the block landed on absorbs.
@@ -42,6 +45,8 @@ export class Player {
     this.width = 0.6;
     this.height = 1.8;
     this.eyeHeight = 1.62;
+    // Sprint-swimming lays the player flat: one block tall, which is what fits them through a one-block gap.
+    this.isSwimming = false;
 
     // State
     this.onGround = false;
@@ -52,12 +57,14 @@ export class Player {
     this.drownTimer = 0;
     this.isSneaking = false;
     this.isSprinting = false;
-    this.isFlying = false;
-    // Survival, not Creative.
+    this.isFlying = false;    // Survival, not Creative.
     //
     // This was hard-coded `'creative'`, so every player began able to fly, break anything and mint items,
     // and the only way into Survival was a later toggle that did not always clean up the abilities. The mode
     // is now whatever the world was created with; `setGameMode` is the one place that changes it.
+    // Mob AI identifies its target with `target.type === 'player'` (vindicator, evoker, fish, happy ghast, ...). The
+    // player had no type, so those checks were false for the real player and the illagers never attacked it.
+    this.type = 'player';
     this.gamemode = normaliseSettings(settings).gameMode;
     this.difficulty = normaliseSettings(settings).difficulty;
     this.perspective = 0; // 0: 1st person, 1: 3rd person back, 2: 3rd person front
@@ -207,15 +214,21 @@ export class Player {
       this.keys[e.code] = true;
 
       // Double tap space to toggle creative flight
-      if (e.code === 'Space') {
+      // Only a fresh press counts as a tap: holding Space auto-repeats keydown, and those repeats used to read
+      // as extra taps, switching flight off while the player was flying higher. Flight now changes only on a
+      // genuine second press, however long either press is held.
+      if (e.code === 'Space' && !e.repeat) {
         const now = performance.now();
         if (now - this.lastSpacePress < 280) {
           if (this.gamemode === 'creative') {
             this.isFlying = !this.isFlying;
             this.velocity.y = 0;
           }
+          // The pair is consumed, so a third quick press starts a new pair instead of toggling again.
+          this.lastSpacePress = 0;
+        } else {
+          this.lastSpacePress = now;
         }
-        this.lastSpacePress = now;
       }
 
       // Double tap W to sprint, as vanilla's secondary sprint binding does.
@@ -246,7 +259,7 @@ export class Player {
       // U: Punch Attack
       if ((e.code === 'KeyU' || e.key === 'u' || e.key === 'U') && !e.repeat) {
         if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
-          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') || this.game.mechanisms.isFeatureEnabled('allowFistPunchAttack')) {
+          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('allowFistPunchAttack')) {
             this.triggerPunch();
           }
         }
@@ -255,7 +268,7 @@ export class Player {
       // N: Dodge Roll
       if (e.code === 'KeyN' && !e.repeat) {
         if (!e.target?.tagName?.match(/INPUT|TEXTAREA/)) {
-          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('hasDragonBallSkills') || this.game.mechanisms.isFeatureEnabled('allowDodgeRoll')) {
+          if (!this.game?.mechanisms || this.game.mechanisms.isFeatureEnabled('allowDodgeRoll')) {
             this.triggerDodgeRoll();
           }
         }
@@ -310,13 +323,11 @@ export class Player {
         this._lastMouseY = e.clientY;
       } else {
         // Fallback when pointer lock is not active (test harness, iframe, background tab, or uncaptured cursor)
-        const target = e.target;
-        const isOverCanvas = target === this.domElement ||
-          target === this.domElement?.parentElement ||
-          (this.domElement && (this.domElement.contains?.(target) || this.domElement?.parentElement?.contains?.(target)));
+        // Without the lock the view turns only while a button is held to drag it. Hovering over the canvas used to
+        // turn it too, which is what kept the view moving after Escape released the pointer (see pointerLock.js).
         const isInteracting = this.isMouseDown || (e.buttons !== undefined && e.buttons > 0);
 
-        if (!isOverCanvas && !isInteracting) {
+        if (!cameraTurnAllowed({ locked: false, buttonHeld: isInteracting })) {
           this._lastMouseX = undefined;
           this._lastMouseY = undefined;
           return;
@@ -584,6 +595,7 @@ export class Player {
     // Check if player is standing in water
     const blockAtFeet = this.world.getVoxel(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
     this.inWater = blockAtFeet === BLOCKS.WATER && this.position.y % 1 < waterHeight(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
+    this.headInWater = this.isEyeInWater();
 
     // A bot owns only its synthetic controls; modal keyboard suppression still
     // applies to human input while the Agent Terminal stays open.
@@ -609,6 +621,10 @@ export class Player {
     const wantsSprint = !!this.keys['ControlLeft'] || this.sprintKeyToggled;
     const canSprint = this.gamemode === 'creative' || typeof this.hunger !== 'number' || this.hunger > 6;
     this.isSprinting = !controlsDisabled && wantsSprint && canSprint && !this.isSneaking && !this.isBlocking;
+
+    // Sprint-swimming (Swimming article): started by sprinting while moving forward with the head under water,
+    // refused at 6 hunger or below and under Blindness, and ended by the same conditions or by leaving the water.
+    this.updateSwimming(!controlsDisabled && wantsSprint && !this.isSneaking, !controlsDisabled && !!this.keys['KeyW']);
 
     // A mounted player is driven by AnimalBehaviors. Running normal player
     // gravity/collision here as well made the rider fight the mount every
@@ -684,8 +700,11 @@ export class Player {
     // Horizontal acceleration
     const accel = this.onGround ? 12.0 : 4.0;
     const current = this.inWater && !this.isFlying ? waterCurrent(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z)) : {x:0,y:0,z:0};
-    const targetVx = moveDir.x * targetSpeed + current.x * 0.65;
-    const targetVz = moveDir.z * targetSpeed + current.z * 0.65;
+    // A current pushes at about 1.39 m/s (Water: "25 blocks every 18 seconds"); it was 0.65.
+    // A swimmer moves along the look direction, so the level share of the speed shrinks as they look up or down.
+    const level = this.isSwimming ? Math.cos(this.pitch || 0) : 1;
+    const targetVx = moveDir.x * targetSpeed * level + current.x * CURRENT_PUSH;
+    const targetVz = moveDir.z * targetSpeed * level + current.z * CURRENT_PUSH;
 
     this.velocity.x += (targetVx - this.velocity.x) * Math.min(1.0, accel * dt);
     this.velocity.z += (targetVz - this.velocity.z) * Math.min(1.0, accel * dt);
@@ -700,10 +719,21 @@ export class Player {
         if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
       }
     } else if (this.inWater) {
-      this.velocity.y -= this.gravity * 0.2 * dt;
-      if (this.velocity.y < -3.0) this.velocity.y = -3.0;
-      if (!controlsDisabled && this.keys['Space']) {
-        this.velocity.y = 4.0; // swim upwards
+      if (this.isSwimming && moveForward > 0) {
+        // Sprint-swimming follows the look direction: looking straight down or up is the fastest way down or up.
+        const want = Math.sin(this.pitch || 0) * targetSpeed;
+        this.velocity.y += (want - this.velocity.y) * Math.min(1, 6 * dt);
+        if (!controlsDisabled && this.keys['Space']) this.velocity.y = Math.max(this.velocity.y, 2.0);
+      } else {
+        this.velocity.y -= this.gravity * 0.2 * dt;
+        if (this.velocity.y < -3.0) this.velocity.y = -3.0;
+        if (!controlsDisabled && this.keys['Space']) {
+          this.velocity.y = 4.0; // swim upwards
+        }
+      }
+      // "Crouching sinks faster" (Water): a steady push down while the sneak key is held.
+      if (!controlsDisabled && this.keys['ShiftLeft'] && !this.keys['Space']) {
+        this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.45 * dt, -4.5);
       }
     } else {
       // Normal Gravity
@@ -930,29 +960,7 @@ export class Player {
       }
     }
 
-    // Prevent player from leaving the battle stage during tournament combat
-    if (this.game?.tournament?.isTournamentMap && this.game.tournament.state === 'FIGHTING') {
-      const tm = this.game.tournament;
-      const minX = (tm.stageMinX ?? -8.5) + 0.35;
-      const maxX = (tm.stageMaxX ?? 8.5) - 0.35;
-      const minZ = (tm.stageMinZ ?? -8.5) + 0.35;
-      const maxZ = (tm.stageMaxZ ?? 8.5) - 0.35;
-      const minY = tm.stageMinY ?? 24.0;
-
-      if (newPos.x < minX) { newPos.x = minX; if (this.velocity.x < 0) this.velocity.x = 0; }
-      else if (newPos.x > maxX) { newPos.x = maxX; if (this.velocity.x > 0) this.velocity.x = 0; }
-
-      if (newPos.z < minZ) { newPos.z = minZ; if (this.velocity.z < 0) this.velocity.z = 0; }
-      else if (newPos.z > maxZ) { newPos.z = maxZ; if (this.velocity.z > 0) this.velocity.z = 0; }
-
-      if (newPos.y < minY) {
-        newPos.y = minY;
-        if (this.velocity.y < 0) {
-          this.velocity.y = 0;
-          this.onGround = true;
-        }
-      }
-    }
+    this.game?.modRuntime?.constrainMovement?.(this, newPos);
 
     this.position.copy(newPos);
   }
@@ -1038,18 +1046,83 @@ export class Player {
    * water branch -- can be asserted directly. Driving `update` to reach this line needs most of a game
    * engine stubbed, and an untestable branch is one that quietly stops being applied.
    */
+  /** True when the eye is inside water, below that block's surface. Water plants count: they are waterlogged. */
+  isEyeInWater() {
+    if (!this.world) return false;
+    const x = Math.floor(this.position.x), z = Math.floor(this.position.z);
+    const eyeY = this.position.y + (this.eyeHeight ?? 1.62);
+    const y = Math.floor(eyeY);
+    const id = this.world.getVoxel(x, y, z);
+    if (BLOCK_DEFS[id]?.waterPlant) return true;
+    return id === BLOCKS.WATER && eyeY - y < waterHeight(this.world, x, y, z);
+  }
+
+  /**
+   * Start, keep or end sprint-swimming, and lay the player flat or stand them up to match.
+   *
+   * Swimming article: sprint-swimming starts with the sprint key while moving, "is not possible at 6 hunger (3
+   * drumsticks) or below, or while Blindness is active", and ends when hunger drops to 6 or below. The start also
+   * needs the head under water (Water: "Sprinting while fully submerged enters swim mode"); keeping it only needs
+   * the player in water, so a swimmer at the surface does not flicker in and out of it.
+   */
+  updateSwimming(wantsSprint, movingForward) {
+    const allowed = this.inWater && !this.isFlying && canSprintSwim({
+      wantsSprint, movingForward,
+      hunger: this.hunger,
+      blind: Boolean(this.hasStatusEffect?.('blindness')),
+      creative: this.gamemode === 'creative',
+    });
+    if (!this.isSwimming && allowed && this.headInWater) this.isSwimming = true;
+    else if (this.isSwimming && !allowed) this.isSwimming = false;
+    this.applySwimPose();
+  }
+
+  /** One block tall while swimming; back to full height only where there is room to stand. */
+  applySwimPose() {
+    if (this.isSwimming) {
+      this.height = SWIMMING_HEIGHT;
+      this.eyeHeight = SWIMMING_EYE_HEIGHT;
+      return;
+    }
+    if (this.height >= 1.8) return;
+    if (this.hasHeadroom(1.8)) {
+      this.height = 1.8;
+      this.eyeHeight = 1.62;
+    }
+  }
+
+  /** Is there room for the player to be `height` tall where they are? */
+  hasHeadroom(height) {
+    const hw = (this.width ?? 0.6) / 2;
+    const top = Math.floor(this.position.y + height - 0.001);
+    for (let y = Math.floor(this.position.y + this.height); y <= top; y++) {
+      for (const [dx, dz] of [[-hw, -hw], [hw, -hw], [-hw, hw], [hw, hw]]) {
+        if (this.isBlockSolid(this.position.x + dx, y, this.position.z + dz)) return false;
+      }
+    }
+    return true;
+  }
+
   selectBaseSpeed() {
     if (this.isFlying) return this.flySpeed;
     if (this.isBlocking) return this.sneakSpeed;
-    if (this.isSprinting) return this.sprintSpeed;
-    if (this.isSneaking) return this.sneakSpeed;
-    if (this.inWater) {
-      let speed = this.walkSpeed * 0.65;
+    // Sprint-swimming, from the Swimming article: about 3.918 m/s, and 5.305 with Depth Strider III.
+    if (this.isSwimming) {
+      let speed = sprintSwimSpeed(this.armourEnchantmentLevel('depth_strider'));
       if (this.hasStatusEffect('dolphins_grace')) speed *= 2.2;
-      // Depth strider reduces the water penalty, reaching 1.75x at level III where the penalty is
-      // effectively gone. The multiplier is 1 at level 0, so a player without the enchantment is
-      // unaffected -- and `depthStriderMultiplier` clamps above level III, which is vanilla's cap.
-      speed *= depthStriderMultiplier(this.armourEnchantmentLevel('depth_strider'));
+      return speed;
+    }
+    if (this.isSprinting && !this.inWater) return this.sprintSpeed;
+    if (this.isSneaking && !this.inWater) return this.sneakSpeed;
+    if (this.inWater) {
+      // Swimming article: 2.20 blocks/s on the surface of still water, 1.97 partially submerged. Sprinting at the
+      // surface without swimming does not outrun this, which is why the old land sprint speed no longer applies.
+      let speed = this.headInWater ? SWIM_SPEED.submerged : SWIM_SPEED.surface;
+      // Depth Strider "increases water movement efficiency by 1/3" per level (Water), so at level III the water
+      // speed has caught up with walking. Capped at III, which is vanilla's maximum.
+      const strider = Math.min(3, Math.max(0, Math.floor(this.armourEnchantmentLevel('depth_strider') || 0)));
+      speed += (this.walkSpeed - speed) * (strider / 3);
+      if (this.hasStatusEffect('dolphins_grace')) speed *= 2.2;
       return speed;
     }
     return this.walkSpeed;
@@ -1150,7 +1223,13 @@ export class Player {
 
     if (this.gamemode === 'creative') return;
     if (this.isDead) return;
-    if (this.invulnerableTimer > 0) return;
+    // The invulnerability window is the one a MELEE or projectile hit opens, so that a mob swinging twice in
+    // one tick cannot hit twice. Vanilla's effect damage -- Wither, Instant Damage, Poison -- is not subject
+    // to it, and this gate used to swallow the whole of it: Wither III ticks every 2 s / 2^2 = 0.5 s, which is
+    // exactly the window a Wither hit opens, so a level III wither did no damage at all beyond its first
+    // tick, and the Wither boss's 0.5 s skull cadence was eaten the same way.
+    const effectDamage = damageType === 'wither' || damageType === 'magic';
+    if (this.invulnerableTimer > 0 && !effectDamage) return;
 
     if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn'].includes(damageType)) return;
 
@@ -1255,7 +1334,9 @@ export class Player {
     }
 
     this.health = Math.max(0, this.health - amount);
-    this.invulnerableTimer = 0.5;
+    // Effect damage does not open a window of its own: two wither ticks are two hits, and Wither III ticks
+    // every 0.5 s precisely because it is meant to hurt.
+    if (!effectDamage) this.invulnerableTimer = 0.5;
     if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0) {
       const push = this.position.clone().sub(sourcePos).setY(0).normalize();
       this.velocity.addScaledVector(push, 3);
@@ -1327,31 +1408,26 @@ export class Player {
     this.isGatheringKi = false;
     this.isRolling = false;
 
+    // Vanilla's "Score" is the experience the player held when they died, so it is read before the drop.
+    const score = getTotalXpForLevel(this.level || 0) + Math.floor(this.exp || 0);
     this.dropInventoryOnDeath();
 
-    // Exit dungeon mode to normal mode
-    if (this.game?.dungeonMode?.isActive) {
-      this.game.dungeonMode.exitDungeonMode(false);
-    }
+    const handled = this.game?.modRuntime?.onPlayerDeath?.(this);
     this.isDungeonMode = false;
+    if (handled) return;
 
-    if (this.game?.tournament?.isTournamentMap) {
-      this.game.tournament.handlePlayerDeath?.();
-    } else {
-      // Normal mode death: show defeat message and overlay
-      this.game?.ui?.addChatMessage?.(
-        '<span style="color:#ef4444;font-weight:bold;font-size:15px;">★ You lost, please try again. ★</span>'
-      );
-      if (typeof document !== 'undefined') {
-        const defeatOverlay = document.getElementById('defeat-overlay');
-        const defeatMsg = document.getElementById('defeat-message');
-        if (defeatMsg) defeatMsg.textContent = 'You lost, please try again.';
-        if (defeatOverlay) {
-          defeatOverlay.classList.remove('hidden');
-          defeatOverlay.classList.add('visible');
-        }
-        if (document.exitPointerLock) document.exitPointerLock();
-      }
+    // Vanilla: the "You died!" screen with the score, Respawn and Title Screen. The gamerule
+    // doImmediateRespawn skips the screen and respawns at once. (The tournament's "Match Defeat" overlay
+    // belongs to the tournament mod, which handles its own deaths above.)
+    if (this.game?.gamerules?.doImmediateRespawn === true) {
+      this.respawn();
+      return;
+    }
+    if (typeof document !== 'undefined') {
+      const scoreEl = document.getElementById('death-score');
+      if (scoreEl) scoreEl.textContent = String(score);
+      document.getElementById('death-overlay')?.classList.remove('hidden');
+      if (document.exitPointerLock) document.exitPointerLock();
     }
   }
 
@@ -1367,8 +1443,7 @@ export class Player {
     if (this.deathDropsDone) return null;
     this.deathDropsDone = true;
 
-    // The tournament resets its own arena and never used an inventory drop.
-    if (this.game?.tournament?.isTournamentMap) return { dropped: 0, xpPoints: 0, kept: true };
+    if (this.game?.modRuntime?.keepInventoryOnDeath?.()) return { dropped: 0, xpPoints: 0, kept: true };
 
     const keep = this.game?.gamerules?.keepInventory === true
       || this.game?.settings?.keepInventory === true;
@@ -1385,6 +1460,7 @@ export class Player {
     this.xpLevel = 0;
     this.level = 0;
     this.xp = 0;
+    this.exp = 0;
     if (loss.points > 0) {
       this.game?.entities?.spawnXpOrbs?.(origin, loss.points);
     }
@@ -1411,14 +1487,10 @@ export class Player {
         defeatOverlay.classList.remove('visible');
         defeatOverlay.classList.add('hidden');
       }
+      document.getElementById('death-overlay')?.classList.add('hidden');
     }
 
-    if (this.game?.tournament?.isTournamentMap) {
-      const targetPos = this.game.tournament.hostPosition || new THREE.Vector3(3.5, 24, 10.5);
-      this.position.copy(targetPos);
-      this.game.tournament.reset?.();
-      return;
-    }
+    if (this.game?.modRuntime?.respawn?.(this)) return;
 
     // Which anchor, revalidated now rather than trusted from when it was set: a spot that was safe before
     // death can be blocked afterwards.

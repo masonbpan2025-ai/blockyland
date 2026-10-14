@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TERRAIN_SHADOW_CHUNK } from './terrainShadowSampling.js';
 import { redstoneGeometry } from './redstoneGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
@@ -250,18 +251,24 @@ export function createBlockGeometry(id, textures, state = {}) {
 export function enableBlockEmission(material) {
   material.userData.animationTime = { value: 0 };
   material.userData.windStrength = { value: 0 };
+  material.userData.snowDaylight = { value: 0 };
   material.defaultAttributeValues = {
     ...(material.defaultAttributeValues || {}),
     flame: [0],
     flameUv: [0, 0],
-    wind: [0]
+    wind: [0],
+    snowExposure: [0]
   };
   material.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <shadowmap_pars_fragment>', TERRAIN_SHADOW_CHUNK);
     shader.uniforms.blockTime = material.userData.animationTime;
     shader.uniforms.windStrength = material.userData.windStrength;
+    shader.uniforms.snowDaylight = material.userData.snowDaylight;
 
     shader.vertexShader = [
       'attribute float wind;',
+      'attribute float snowExposure;',
+      'varying float vSnowExposure;',
       'uniform float windStrength;',
       'attribute float emission;',
       'attribute float flame;',
@@ -276,6 +283,7 @@ export function enableBlockEmission(material) {
     const vBeginReplacement = [
       '#include <begin_vertex>',
       'vBlockEmission = emission;',
+      'vSnowExposure = snowExposure;',
       'vFlame = flame;',
       'vFlameUv = flameUv;',
       'transformed.x += wind * windStrength * (sin(blockTime * 1.5 + position.x * 0.65 + position.z * 0.4) * 0.075);',
@@ -292,6 +300,8 @@ export function enableBlockEmission(material) {
 
     shader.fragmentShader = [
       'uniform float blockTime;',
+      'uniform float snowDaylight;',
+      'varying float vSnowExposure;',
       'varying float vBlockEmission;',
       'varying float vFlame;',
       'varying vec2 vFlameUv;',
@@ -325,6 +335,14 @@ export function enableBlockEmission(material) {
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', mapFragmentReplacement);
 
     const opaqueFragmentReplacement = [
+      // Environmental sky fill uses actual exposure; roofed/cave snow gets no
+      // floor. diffuseColor retains texture, face contrast and corner AO.
+      'vec3 snowSkyFill = diffuseColor.rgb * vec3(0.96, 0.98, 1.0) * snowDaylight;',
+      // Keep sunlit snow below clipping so fine texture and face shade survive.
+      // At night or beneath a roof the regular scene lighting is unchanged.
+      'float snowSkyMix = vSnowExposure * smoothstep(0.08, 0.4, snowDaylight);',
+      'vec3 snowLit = min(max(outgoingLight, snowSkyFill), diffuseColor.rgb * vec3(0.98, 1.0, 1.02));',
+      'outgoingLight = mix(outgoingLight, snowLit, snowSkyMix);',
       'if (vFlame > 0.5) {',
       '  outgoingLight = max(outgoingLight, diffuseColor.rgb * 1.35);',
       '} else {',
@@ -334,5 +352,5 @@ export function enableBlockEmission(material) {
     ].join('\n');
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', opaqueFragmentReplacement);
   };
-  material.customProgramCacheKey = () => 'voxel-emission-wind-fire-v4';
+  material.customProgramCacheKey = () => 'voxel-emission-wind-fire-snow-stable-shadows-v7';
 }

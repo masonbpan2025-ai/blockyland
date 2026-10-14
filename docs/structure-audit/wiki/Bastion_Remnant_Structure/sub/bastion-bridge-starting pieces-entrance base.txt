@@ -1,0 +1,1167 @@
+<noinclude>{{structure info}}</noinclude>
+
+=== <code>bastion/bridge/starting_pieces/entrance_base</code> ===
+[[File:Bastion Remnant entrance_base.png|thumb|200px|<code>bastion/bridge/starting_pieces/entrance_base</code>]]
+The lower half of the rampart. Only 1 generates per bastion.
+
+There's a Stairs block on the top layer with the orientation {{BlockSprite|magenta-glazed-terracotta-down}}.
+
+==== Blueprint ====
+
+{{layered blueprint
+|name=bridge-starting_pieces-entrance_base
+|default=Layer 32
+|a=Polished Blackstone Bricks
+|b=blackstone-top
+|e=basalt-top
+|S=Polished Blackstone Brick Stairs
+|L=lava-top
+|C=Chiseled Polished Blackstone
+|A=Cracked Polished Blackstone Bricks
+|G=Block of Gold
+|i=Iron Chain
+|I=Lantern
+|z=jigsaw-top -rot90
+|u=jigsaw-top -rot-90
+|y=jigsaw-top -rot180
+|x=jigsaw-top
+|Z=jigsaw-bottom
+|w=jigsaw-lock -rot-90
+|W=jigsaw-lock -rot180
+|v=jigsaw-lock -rot90
+|V=jigsaw-lock
+|----Layer 1|
+bbVbbbbbbbbAbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbWbbbbbbbbbbbbb
+|----Layer 2|
+bbbbbbbbbbbAbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+b  bbbbbbbbbbbbb
+    bbbbbbbbbbbb
+   bbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+|----Layer 3|
+bbbAbbAbbbbAAbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  b bbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+b   bbbbbbbbbbbb
+     bbbbbbbbbbb
+   bbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbb   bbb
+|----Layer 4|
+bAAAbbbAbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+    bbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+    bbbbbbbbbbbb
+     bbbbbbbbbbb
+     bbbbbbbbbbA
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbb    bbb
+|----Layer 5|
+bAAbbbAbbbbAbbbb
+bbAbbbbbbbbbbbbb
+ bAbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+   bbbbbbbbbbbbb
+    bbbbbbbbbbbb
+    bbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+AbbbbbbbbbbbbbbA
+AbbbbbbbbbbbbbAA
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbb
+Abbbbbbbbbbbb
+Abbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbb  bbbbbbbbbbb
+     bbbbbbbbbbb
+     bbbbbbbbbbA
+b   bbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbb   bbbb
+bbbbbbbbb    bbb
+|----Layer 6|
+ bAAbbbAbbbbbbbA
+ bbAbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bb bbbbbbbbbbbb
+ b  bbbbbbbbbbbb
+    bbbbbbbbbbbb
+    bbbbbbbbbbbb
+  bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ AbbbbbbbbbbbbbA
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbb
+Abbbbbbbbbbb
+Abbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bb    bbbbbbbbb
+ b     bbbbbbbbb
+     bbbbbbbbbbb
+    bbbbbbbbbbbb
+     bbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbb   bbbb
+ bbAbbbbb   bbbb
+|----Layer 7|
+ bAbb  bbbbbbbAA
+ bbbb  bbbbbbbbA
+ bbb   bbbbbbbbb
+ bb   bbbbbbbbbb
+ b   bbbbbbbbbbb
+     bbbbbbbbbbb
+    bbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbb
+ bbbbbbbbb
+ bbbbbbbbbb
+ bbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbb   bbbbbbbbA
+ bb     bbbbbbbb
+ b     bbbbbbbbb
+ b   bbbbbbbbbbb
+ b  bbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbb bbbbb
+ bbbbbbbb   bbbb
+ bbAbbbbb   bbbb
+|----Layer 8|
+bbAb    AbAAbb
+bbbbb  bbbbbbbb
+ bbb   bbbbbbbbb
+ bb    bbbbbbbbb
+bb    bbbbbbbbbb
+ b   bbbbbbbbbbb
+ b  bbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbb
+bbbbbbbbb
+bbbbbbbbbb    bb
+bbbbbbbbbbbb bbb
+bbbbbbbbbbbbbbbb
+AAbbbbbbbbbbbbbb
+ Ab     bbbbbbbA
+ Ab     bbbbbbbb
+bbb   bbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbb bbbb
+bbbbAAbbbb  bbb
+|----Layer 9|
+bAAA    bbbAbb
+ Abbb   bbbbbb
+ bbb   bbbbbb
+ bbb   bbbbb   b
+bbbb    bbbb  bb
+ bbbb  bbbbb bbb
+ bbbbbbbbbbbbbbb
+AAbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+AAbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbb    bb
+bbbbbbbb      bb
+Abbbbbbbb   bbbb
+bbbbbbbbbb  bbbb
+AAbbbbbbbbb bbbb
+AAbbbbbbbbbbbbbb
+ Ab    bbbbbbbbb
+ Ab    bbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbAbbbbbbbbb
+|----Layer 10|
+ AbbbAAAbbbAb
+ AbbbAAbbbbbb
+ bbbbb bbbbbb
+ bbbb  bbbbb   b
+Abbbb   bbb   bb
+ bbbb    bb  bbb
+ bbbbbb bbbb bbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+Abbbbbbbbb
+ Abbbbbbbb     b
+ Abbbbbbbbb bbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbb  bbbb
+bbbbbbbbb    bbb
+bbbbbbbbb   bbbb
+bbbbbbbbb  bbbbb
+AAbbbbbbb  bbbbb
+ Abbbbbbbbbbbbbb
+ AAbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbbbAbbbbb
+|----Layer 11|
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbb
+ bbbbbbbbbbbb
+ bbbbbbbbbbb   b
+ bbbbb  bbb   bb
+ bbbbb   bb  bbb
+ bbbbb   bb  bbb
+ bbbbbbbbbAbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbb
+ bbbbbbbbb
+ bbbbbbbbb     b
+ bbbbbbbbb  bbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbb  bbbb
+ bbbbbbbb  bbbbA
+ bbbbbbbb  bbbbb
+ bbbbbbbb  bbbbb
+ bbbbbbbb bbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbAbbbAbbbbbbb
+|----Layer 12|
+ bbbAbbAbAbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb  bbb
+ bbbbb   bb  bbb
+ bbbbb       bbb
+ bbbbbbb    bbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbb
+ bbbbbbbbb
+ bbbbbbbbb  b bb
+ bbbbbbbbb  bbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbb bbbbbb
+ bbbbbbbb  bbbbb
+ bbbbbbbb  bbbbb
+ bbbbbbbb  bbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb  bb
+ bbbbbbbbbb  bb
+ bbbbbbbbbb  bb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbAbbbbbbbbbb
+|----Layer 13|
+bAbAbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbb   bb  bbb
+ bbbbb       bbb
+bbbbbbbb    bbbb
+bbbbbbbbbb  bbb
+ Abbbbbbbbbbbb
+ Abbbbbbbbbbbb
+ Abbbbbbbbbbbb
+bbbbbbbbbb  bbb
+bbbbbbbbb    bbb
+bbbbbbbbb   bbbA
+bbbbbbbb  bbbbbA
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbb  bbbbb
+bbbbbbbbb  bbbbb
+bbbbbbbbb  bbbbb
+bbbbbbbbb    bbb
+bbbbbbbbbbb  bbb
+bbbbbbbbbb   bb
+ bbbbbbbbbb  bb
+ bbbbbbbbbb  bb
+bbbbbbbbbbb  bb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbAbbbbbbbbAbbb
+|----Layer 14|
+bbbbAbbbbbbbAbbA
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb bbbb
+bbbbbbbbbb  bbb
+ Abbbbbbb   bb
+ Abbbbbbb  bb
+ Abbbbbbbbbbbb
+ Abbbbbbbbbbbb
+bbbbbbbbbb  bbb
+bbbbbbbbb   bbbb
+bbbbbbbb    bbbA
+ bbbbbbb    bbbA
+ bbbbbbb   bbbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbb   bbbb
+bbbbbbbbb    bbb
+bbbbbbbbb    bbb
+bbbbbbbbb b  bbb
+bbbbbbbbbbb  bbb
+ bbbbbbbbbbb bb
+ bbbbbbbbbb  bb
+ Abbbbbbbbb  bbb
+bbbbbbbbbbb  bbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb bbbb
+ AbbbbbbbbbbAAbb
+bbbbbbbbbbbAAAbb
+|----Layer 15|
+bbAbbbbAbbbAbbbA
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+bbbbbbbbbb  bb
+ bbbbbbbb   bb
+ bbbbbbbb  bb
+ bbbbbbbb  bbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbb   bbbb
+ Abbbbbb    bbbb
+ Abbbbbb    bbbA
+ Abbbbbbb   bbbb
+bbbbbbbbbb  bbbb
+bbbbbbbbbb   bbb
+bbbbbbbbb    bbb
+bbbbbbbbb    bbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb bbbb
+ Abbbbbbbbb  bbb
+  bbbbbbbbb  bbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb  bbb
+ Abbbbbbbbb A bb
+bbbbbbbbbbbA  bb
+|----Layer 16|
+ bbAbbbbAAbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbb  bbb
+ bbbbbbbb  bbbb
+ bbbbbbbb  bbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbb  bbbbb
+ bbbbbbb    bbbb
+ bbbbbbbb     bb
+ bbbbbbb      bb
+ bbbbbbbbb   bbb
+ bbbbbbbbb   bbb
+ bbbbbbbbb   bbb
+ bbbbbbbbb  bbbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbb bbbb
+ bbbbbbbbbb  bbb
+ bbbbbbbbbb   bb
+ bbbbbbbbbbAA bb
+ bbbbbbbbbb   bb
+|----Layer 17|
+ bbbbbAbAAAbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbb  bbbb
+ bbbbbbbb  bbbbb
+ bbbbbbbb  bbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbb   bbb
+ bbbbbbbbb    bb
+ bbbbbbb      bb
+ bbbbbbbb     bb
+ bbbbbbbbb    bb
+ bbbbbbbbbb    b
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbAbbb
+ bbbbbbbbbbbAbbb
+ bbbbAAAbbbbbAbb
+|----Layer 18|
+bbbAbAAbAbbbbAAA
+bbbbbbbbbbbbbAAA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbb  bbbb
+Abbbbbbbb  bbbb
+ bbbbbbbb     bb
+ bbbbbbbbb    bb
+bbbbbbbbbb    bb
+bbbbbbbbbbb   bb
+ bbbbbbbbbbI  bb
+ bbbbbbbbbb   bb
+bbbbbbbbbbb    A
+bbbbbbbbbbb    A
+ Abbbbbbbbbbb bb
+ Abbbbbbbbbbbbbb
+ AAbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbAAAAAbbAbbb
+|----Layer 19|
+bbbbbbbbbbAbA
+bbbbbbbbbbbbA
+ bbbbbbbbbbbbAAA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+Abbbbbbbb  bbb
+Abbbbbbbb     b
+Abbbbbbbbb    bb
+bbbbbbbbbbb  bbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbibbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbb    b
+ bbbbbbbbbbb   A
+ Abbbbbbbbbb  A
+ AbbbbbbbbbbbAAA
+ AbbbbbbbbbbbbAA
+ bbbbbbbbbbbbbAA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbAbbbbbbbb
+bbbbbAAAAAbbbbbA
+|----Layer 20|
+bAbbbbAbbbbb
+bbbbbbbbbbbb
+ bbbbbbbbbb AA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+Abbbbbbbbbbbbb
+bbbbbbbbbbbbbb
+bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbb  bA
+bbbbbbbbbbb   bb
+ Abbbbbbbbb   A
+bbbbbbbbbbbbAA
+bbbbbbbbbbbb A
+ bbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbAAAbbbbbbb
+|----Layer 21|
+ bbbbbbbbbb
+ bbbbbbbbbbb
+ bbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ AbbbbbbbbbbbbbA
+ AbbbbbbbbbbbbbA
+ bbbbbbbbb   bbb
+ bbbbbbbbb   bA
+ Abbbbbbbbbb b
+ bbbbbbbbbbb
+ bbbbbbbbbbbbbA
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbAAA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbAAbbbbbbbA
+|----Layer 22|
+ bbAAbbAbbbb
+ bbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbA
+ bbbbbbbbbbbbbbA
+ bbbbbbbbb  bbbb
+ bbbbbbbbb  bbb
+ bbbbbbbbb bbb
+ bbbbbbbbbbbbbA
+ AbbbbbbbbbbbbA
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbAA
+ bbbbbbbbbbbbbbb
+ bbbbbbAbbbbbbbb
+|----Layer 23|
+ AAAAAAAAAbbb
+ bbbbbbbbbbbb
+ bbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbI bbbb
+ bbbbbbbbb  bbbA
+ bbbbbbbbb  bb
+ Abbbbbbbbbbbbb
+ AbbbbbbbbbbbbbA
+ Abbbbbbbbbbbbbb
+ Abbbbbbbbbbbbbb
+ bbbbbbbbbbbCbbb
+ bbbbbbbbbbbCCbb
+ bbbbbbbbbbbAAbb
+ bbbbbbbbbbbAAbb
+ bbbbbbbbbbAAAAA
+|----Layer 24|
+bbAAAAAAAAAbbb
+bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbb bbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+Abbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbb  bbbA
+bbbbbbbbbb   bbA
+bbbbbbbbbb   bbA
+ bbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+ bbbbbbbbbbbGGbb
+ bbbbbbbbbbbCCbb
+bbbbbbbbbbbbAAbb
+bbbbbbbbbbAACCAb
+|----Layer 25|
+aaaaaaaaaaaaaaa
+Aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaabb
+aaaaaaaaaaaaaaab
+aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+aaaaaaaaaaaaaaab
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaab
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaa aa aaaaaa
+aaaaa   aaaaaab
+aaaaaaaaaaaaaab
+aaaax aayaaaaaba
+aaaaaaaaaaaaaaaa
+aaaaauaaaaaaaaaa
+aauaaaa aaaaaaaa
+aaaaaaabaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaa   aa
+aaaaaaaaaaa   bb
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaab
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaa b
+ aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+|----Layer 26|
+AaaaaaaaAaaaaaaA
+Aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaab
+Aaaaaaaaaaaaaaab
+Aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+a  a  a  a  a  a
+a  a  a ba  a  a
+aaaaa      aa
+baaa      aaa
+baza  aaaaazb
+baaa  ua   aabb
+aaaaaaaa baaaaaa
+baaaa a baaaaaaa
+a  abbabaa  a  a
+a  a baaaa ba  a
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaa   b
+aaaaaaaaaaaa   b
+ aaaaaaaaaaaaabb
+ aaaaaaaaaaaaab
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+|----Layer 27|
+AaaAaaaaaaaaaAaa
+aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaab
+ aaaaaaaaaaaaaa
+Aaaaaaaaaaaaaa
+Aaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+aaaaaaaaaaaaaaab
+Aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+a  a  a  a  a  a
+ 
+ 
+ 
+aa     aa
+aa             v
+            b b
+      b b     bb
+    bbbbbb
+ab   babaa  a
+aaaaaaaaaaaaaA a
+ aaaaaaaaaaaa  b
+aaaaaaaaaaaaa
+ aaaaaaaaaaaaaa
+ aaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+abaaaaaaaaaaaaaa
+baaaaaAaaaaaaaaa
+|----Layer 28|
+AbaaAaaaAaaaaaaA
+Aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaaaa
+baaaaaaaaaaaaab
+Aaaaaaaaaaaaaa
+ aaaaaaaaaaaaab
+ aaaaaaaaaaaaab
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+a  a  a  a  a  a
+ 
+ 
+ 
+aa      a
+aa            ab
+ 
+ 
+ 
+ab     bba  a
+aaaaaa   aaaaA a
+aaaaaaaaaaaaa
+aaaaaaaaaaaaa
+ aaaaaaaaaaaaa
+  aaaaaaaaaaaaab
+b aaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+bb aaaaaaaaaaaaa
+  aaaaaaaaAaaaAa
+|----Layer 29|
+AbaaaaaaaaaAaaaa
+Aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaab
+baaaaaaaaaaaaa
+Aaaaaaaaaaaaaaa
+ aaaaaaaaaaaabb
+ aaaaaaaaaaaab
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaabaaaaaaa
+a  a  a  a  a  a
+ 
+ 
+ 
+aa     a      aa
+aa             a
+ 
+ 
+ 
+a           a
+aa aaaaaa aaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaa
+ aaaaaaaaaaaaaa
+baaaaaaaaaaaa ba
+baaaaaaaaaaaa  A
+ aaaaaaaaaaaabbb
+ aaaaaaaaaaaaaaa
+bbaaaaaaaaaaaaaa
+  aaaaaaaaaaaAAa
+|----Layer 30|
+bbaaaaaAaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaab
+baaaaaaaaaaaaab
+baaaaaaaaaaaaaa
+ aaaaaaaaaaaaa
+ aaaaaaaaaaaaa
+aaaaa aaaaaaaaae
+aaaaaaa baaaaaaa
+aaaaabaabbaaaaae
+a  a  a  a  a  a
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaa   aaaaab
+aaaaa       ab
+aa         ab
+aa        aaaa
+a           a  a
+aaa   aaa b aaaa
+aaaaa aaa a aaaa
+aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaab
+ aaaaaaaaaaaa bb
+baaaaaaaaaaa   b
+ aaaaaaaaaaab  A
+ aaaaaaaaaaaab A
+ aaaaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaAaaaaaAaa
+|----Layer 31|
+bbaaaaaaaaaaaAaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+baaaaaaaaaaaaaa
+baaaaaaaaaaaaab
+ aaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+A  ab a ba  a  e
+aA a ba b   a  e
+a  a  a  b  a  e
+a  a  a  a  a  a
+aaaaaaaaaaaaaaab
+aaaaaaaaaaaaaab
+aaaaaaaaaaaaaaab
+ aaaaaaaaaaaaaab
+aaaaaaaaaaaaabb
+aaaaaaa   aaab
+aaaaa      aaab
+aa  aa     aabb
+a           a  a
+a     abb   ab a
+aaaaaaaaaaaaaLLa
+aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaa  A
+ aaaaaaaaaaaa  A
+aaaaaaaaaaaaa  A
+baaaaaaaaaaa  LA
+ aaaaaaaaaaab AA
+ aaaaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+|----Layer 32|
+ubaaaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+baaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaa
+A a   a  a  a ee
+ALaaLLbLLaLLaLLe
+aL aLLabbaLLaLLe
+aLLaLLbLb LLaLLe
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaab
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaab
+aabaaaaaaaaaaaaa
+abbaaaaaaaab aaa
+bbbaaa   bab ab
+baaaaa    aaaaaa
+aL   aaa  abaaaa
+a     aLbLL a  a
+a  abbLb LbLa  a
+a LaLLaLLabbabLa
+aLLabba LaLLaL b
+ aaaaaaaaaaaaL b
+aaaaaaaaaaaaL  b
+aaaaaaaaaaaL L b
+ aaaaaaaaaaaabLS
+ aaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaa
+}}
+
+==== Blocks data ====
+{| class="wikitable"
+|+ {{BlockLink|Jigsaw Block}}
+|-
+! Position !! Turns into !! Name !! Target Pool !! Target name !! Joint type
+|-
+| Layer 32 || {{BlockLink|Blackstone}} || - || bastion/bridge/starting_pieces || entrance_base_connector || Aligned
+|-
+| Layer 27 || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/bridge/connectors || back_bridge_connector_bottom || -
+|-
+| Layer 26 (all 3) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 25 (all 4) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/mobs/piglin || mob_connector || Rollable
+|-
+| Layer 1 (top) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/bridge/walls || wall_base_connector_right || -
+|-
+| Layer 1 (bottom) || {{BlockLink|Polished Blackstone Bricks}} || - || bastion/bridge/walls || wall_base_connector_left || -
+|-
+|}
+
+==== Materials ====
+
+{| class="wikitable"
+|-
+! Name !! Total !! Stack
+|-
+| {{BlockLink|Blackstone}}
+| 10685
+| 166 + 61 blocks
+|-
+| {{BlockLink|Polished Blackstone Bricks}}
+| 2953
+| 46 * 9 blocks
+|-
+| {{BlockLink|Cracked Polished Blackstone Bricks}}
+| 396
+| 6 + 12 blocks
+|-
+| {{BlockLink|Lava}} (Source blocks)
+| 52
+| 
+|-
+| {{BlockLink|Basalt}}
+| 10
+| 
+|-
+| {{BlockLink|Chiseled Polished Blackstone}}
+| 7
+| 
+|-
+| {{BlockLink|Block of Gold}}
+| 2
+| 
+|-
+| {{BlockLink|Lantern}}
+| 2
+| 
+|-
+| {{BlockLink|Iron Chain}}
+| 1
+| 
+|-
+| {{BlockLink|Polished Blackstone Brick Stairs}}
+| 1
+| 
+|-
+| {{EntityLink|Piglin}} or {{EntityLink|Piglin brute}}<ref group="n" name="piglin group">There is a 10% chance of spawning a piglin brute, a 40% chance of spawning a piglin with a golden sword, a 40% of spawning a piglin with a crossbow, and a 10% chance of not spawning at all.</ref>
+| 7
+| 
+|-
+|}
+
+
+<references group="n" />
+<noinclude>
+[[Category:Bastion Remnant structure subpages]]
+</noinclude>

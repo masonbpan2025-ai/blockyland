@@ -112,6 +112,8 @@ test('deserializeWorldAsync emits progressive, monotonically increasing progress
 
   const yieldFn = async () => {
     yieldCount++;
+    assert.equal(game.worldReady, false, 'Simulation must remain paused at every loading yield');
+    assert.equal(game.lifecycle.phase, 'loading');
   };
 
   const progress = (percent, stage) => {
@@ -145,6 +147,34 @@ test('deserializeWorldAsync emits progressive, monotonically increasing progress
   assert.equal(game.worldReady, true);
   assert.equal(game.lifecycle.phase, 'ready');
   assert.equal(game.meshedChunks.length, 16);
+});
+
+test('map replacement pauses an already running world before awaiting its mod', async () => {
+  const game = createMockGame();
+  game.worldReady = true;
+  game.lifecycle.phase = 'ready';
+  let reset = false;
+  game.streamer = { reset() { reset = true; } };
+  game.openDesignedWorld = async () => {
+    assert.equal(game.worldReady, false);
+    assert.equal(game.lifecycle.phase, 'loading');
+    assert.ok(reset);
+    return { modId: 'test', mechanismId: 'test' };
+  };
+  await deserializeWorldAsync(game, { ...createDummyMapData(1), worldType: 'designed' }, { yieldFn: async () => {} });
+  assert.equal(game.world.generationMode, 'authored');
+  assert.equal(game.worldReady, true);
+  await deserializeWorldAsync(game, createDummyMapData(1), { yieldFn: async () => {} });
+  assert.equal(game.world.generationMode, 'procedural');
+});
+
+test('failed map loading never resumes a partially restored world', async () => {
+  const game = createMockGame();
+  await assert.rejects(deserializeWorldAsync(game, createDummyMapData(1), {
+    yieldFn: async () => { throw new Error('load interrupted'); },
+  }), /load interrupted/);
+  assert.equal(game.worldReady, false);
+  assert.equal(game.lifecycle.phase, 'failed');
 });
 
 test('deserializeWorld still runs synchronously when options.async is not passed', () => {
@@ -207,4 +237,14 @@ test('ProgressOverlay accurately reflects reported stages and percentages in DOM
 
   overlay.hide();
   assert.equal(elements['world-progress-overlay'].classList.contains('hidden'), true);
+});
+
+
+test('map restoration preserves an authoritative game control policy', async () => {
+  for (const asyncLoad of [false, true]) {
+    const game=createMockGame();game.modRuntime={exclusiveSimulation:true};
+    const map=createDummyMapData(1);
+    if(asyncLoad)await deserializeWorldAsync(game,map,{yieldFn:async()=>{}});else deserializeWorld(game,map);
+    assert.equal(game.player.controlsDisabled,true);
+  }
 });

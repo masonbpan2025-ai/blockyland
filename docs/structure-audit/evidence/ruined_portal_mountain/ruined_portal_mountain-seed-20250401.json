@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "structure": "ruined_portal_mountain",
+  "seed": "20250401",
+  "chunk": [
+    -29,
+    11
+  ],
+  "biome": "frozen_peaks",
+  "box": {
+    "minX": -460,
+    "minY": 33,
+    "minZ": 180,
+    "maxX": -454,
+    "maxY": 39,
+    "maxZ": 186
+  },
+  "pieces": 1,
+  "blocks": {
+    "Packed Ice": 56,
+    "Netherrack": 41,
+    "Obsidian": 13,
+    "Crying Obsidian": 3,
+    "Stone Brick Slab": 3,
+    "Block of Gold": 1,
+    "Chest": 1,
+    "Mossy Stone Brick Slab": 1,
+    "Snow Block": 1,
+    "Stone Slab": 1,
+    "Stone Brick Stairs": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 1,
+    "totals": []
+  },
+  "entities": {
+    "chest": 1
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

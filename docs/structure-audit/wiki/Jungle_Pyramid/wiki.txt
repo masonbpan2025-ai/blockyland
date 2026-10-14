@@ -1,0 +1,200 @@
+{{about||the {{MCD|mission}} {{in|Dungeons}}|MCD:Overgrown Temple}}
+{{Infobox structure
+| biome = {{BiomeLink|Jungle}}<br>{{BiomeLink|Bamboo Jungle}}{{Only|JE|short=1}}<br>{{BiomeLink|Jungle Hills}}{{Only|be|short=1}}
+| image = Jungle pyramid.png
+| imagesize = 250px
+| blocks = * {{BlockLink|Chest}}
+* {{BlockLink|Chiseled Stone Bricks}}
+* {{BlockLink|Cobblestone}}
+* {{BlockLink|Cobblestone Stairs}}
+* {{BlockLink|Dispenser}}
+* {{BlockLink|Lever}}
+* {{BlockLink|Mossy Cobblestone}}
+* {{BlockLink|Redstone Repeater}}
+* {{BlockLink|Redstone Dust}}
+* {{BlockLink|Sticky Piston}}
+* {{BlockLink|String}}
+* {{BlockLink|Tripwire Hook}}
+* {{BlockLink|Vines}}
+| canspawn = No
+}}
+{{relevant tutorial|Looting temples}}
+A '''jungle pyramid''',{{fn|<code>jungle_pyramid</code> is the in-game structure ID {{in|java}}.}} also known as a '''jungle temple''', is an above ground [[structure]] found in [[jungle]] biomes built mostly of [[cobblestone]] and [[mossy cobblestone]]. The jungle pyramid contains two loot [[chest]]s, one at the end of a hallway of [[arrow]] booby traps, and one hidden behind a [[lever]] puzzle.
+
+== Generation ==
+Jungle pyramids can generate in [[jungle]]s, but not [[sparse jungle]]s.<ref>{{bug|MC-238558|||WAI}}</ref> {{iN|JE}}, they can also generate in [[bamboo jungle]]s.
+
+Jungle pyramids can be located with jungle [[explorer map]]s, which are sold by [[desert]], [[savanna]] and [[swamp]] [[cartographer]]s.
+
+{{Calculator|chunkbase|pois=J|zoom=0.25}}
+
+== Structure ==
+{{main|/Structure}}
+Jungle pyramids consist of [[cobblestone]], [[mossy cobblestone]], and [[vines]]. There are 3 floors. 
+
+It is possible to find blocks that normally generate outside the pyramid (like [[leaves]]) appearing inside, possibly blocking the [[chest]]s or [[dispenser]]s, or interrupting the [[redstone]].
+
+=== Puzzle ===
+On the bottom floor, there is a puzzle consisting of 3 [[lever]]s on 3 [[chiseled stone bricks]] connected to a hidden [[piston]] mechanism. If the combination is entered correctly, a block on the main floor is pulled away, revealing a chest. The correct combination is as follows:
+
+# Flick the lever furthest away from the staircase.
+# Flick the lever closest to the staircase.
+# Return the lever closest to the staircase.
+# Return the lever furthest away from the staircase.
+
+=== Trap ===
+Down the hall from the puzzle, there is another chest. There are two [[tripwire]] lines connected to dispensers with 2–14 [[arrow]]s, hidden behind vines. The first tripwire is in the middle of the hallway and the second tripwire is around the corner in front of the chest. Walking over the tripwire triggers the dispenser attached to it. Breaking the tripwire with anything other than [[shears]] also triggers it.
+
+== Loot ==
+{{seealso|Chest loot}}
+
+=== Chests ===
+{{LootChest|jungle}}
+{{Notelist}}
+
+=== Dispensers ===
+{{LootChest|jungle-temple-dispenser}}
+
+== Data values ==
+=== ID ===
+{{el|je}}:
+{{ID table
+|edition=java
+|firstcolumnname=Structure type
+|displayname=Jungle Temple
+|spritename=jungle-pyramid
+|spritetype=env
+|nameid=jungle_temple
+|foot=1}}
+{{ID table
+|edition=java
+|firstcolumnname=Structure
+|displayname=Jungle Pyramid
+|spritetype=env
+|nameid=jungle_pyramid
+|foot=1}}
+
+{{el|be}}:
+{{ID table
+|edition=bedrock
+|firstcolumnname=Structure
+|generatetranslationkeys=y
+|displayname=Temple
+|spritename=jungle-pyramid
+|spritetype=env
+|nameid=temple
+|translationkey=feature.temple
+|foot=1}}
+
+=== Config ===
+{{el|java}}:
+<section begin="config" /><div class="treeview">
+*{{nbt|compound}} Structure configuration
+**{{nbt|string|type}}: {{cd|minecraft:jungle_temple}}
+** {{Nbt inherit/structure}}
+</div><section end="config" />
+
+== History ==
+=== ''Java Edition'' ===
+{{HistoryTable
+|{{HistoryLine|java}}
+|{{HistoryLine||1.3.1|dev=12w22a|Added jungle temples. They were the only places where [[chiseled stone bricks]] could be found naturally before [[Java Edition 1.8]], which added a crafting recipe.}}
+|{{HistoryLine||1.9.1|dev=pre1|[[Dispenser]]s in jungle temples now use [[loot table]]s.}}
+|{{HistoryLine||1.13|dev=18w06a|Jungle temples are renamed to jungle pyramids.
+|The structure ID of jungle pyramids have been changed from {{cd|temple}} to {{cd|jungle_pyramid}}, allowing them to be located independently via the {{cmd|locate}} command.
+|Changed generation locations of jungle pyramids.}}
+|{{HistoryLine||1.14|dev=18w43a|[[Chest]]s in jungle pyramids may contain [[bamboo]].}}
+|{{HistoryLine|||dev=19w06a|Jungle pyramids can now generate in [[bamboo jungle]]s.}}
+|{{HistoryLine||1.18|dev=experimental snapshot 4|Jungle pyramids are no longer able to generate on water.}}
+|{{HistoryLine||1.19.4|exp=Update 1.20|dev=23w04a|[[Wild armor trim]]s are now found in jungle pyramid chests.}}
+|{{HistoryLine|||dev=23w05a|Increased the chance of finding wild armor trims in jungle pyramid chests from 20% to 33%.
+|The wild armor trims now always generate two templates in a jungle pyramid chest when found.}}
+|{{HistoryLine||1.20.2|exp=[[Villager Trade Rebalance]]|dev=1.20.2 Pre-release 1|[[Unbreaking]] enchanted books now have a higher chance of generating in jungle pyramid chests.
+|Added jungle [[explorer map]]s, which lead to jungle pyramids, and are sold by desert, savanna and swamp [[cartographer]]s.}}
+|{{HistoryLine||1.21.5|dev=25w07a|The jungle explorer map and changes to jungle pyramid loot are no longer behind the "Villager Trade Rebalance" experimental toggle.}}
+|{{HistoryLine||1.21.6|dev=25w20a|Removed saddles from loot tables, replaced with 1–5 leather.}}
+|{{HistoryLine||1.21.9|dev=25w31a|[[Copper horse armor]] now generates in jungle pyramid chests.}}
+}}
+
+=== ''Bedrock Edition'' ===
+{{HistoryTable
+|{{HistoryLine|pocket alpha}}
+|{{HistoryLine||v0.15.0|dev=build 1|Added jungle pyramids.}}
+|{{HistoryLine|bedrock}}
+|{{HistoryLine||1.8.0|dev= beta 1.8.0.8|[[Chest]]s in jungle pyramids may contain [[bamboo]].}}
+|{{HistoryLine||1.19.80|exp=Next Major Update|dev=Preview 1.19.80.21|[[Wild armor trim]]s are now found in jungle pyramid chests.}}
+|{{HistoryLine||1.20.40|exp=[[Villager Trade Rebalancing]]|dev=Preview 1.20.40.20|[[Unbreaking]] enchanted books now have a higher chance of generating in jungle pyramid chests.}}
+}}
+=== ''New Nintendo 3DS Edition'' ===
+{{HistoryTable
+|{{HistoryLine|New Nintendo 3DS Edition}}
+|{{HistoryLine||0.1.0|Added jungle pyramids.}}
+}}
+
+=== Legacy Console Edition ===
+{{HistoryTable
+|{{HistoryLine|console}}
+|{{HistoryLine||xbox=TU14|xbone=CU1|ps3=1.04|psvita=1.00|ps4=1.00|wiiu=Patch 1|switch=1.0.1|Added jungle pyramids.}}
+|{{HistoryLine||xbox=none|xbone=none|ps3=none|psvita=none|ps4=1.83|wiiu=none|switch=none|[[Chest]]s in jungle pyramids may contain [[bamboo]].}}
+}}
+
+== Issues ==
+{{Issue list|Jungle pyramid|Jungle temple}}
+
+== Gallery ==
+=== Screenshots ===
+<gallery>
+File:Jungle Pyramid Vibrant Visuals.png|A jungle pyramid in a jungle
+File:Jungle pyramid entrance.png|The entrance of a jungle pyramid
+File:JT1.png|The lobby of the pyramid
+File:JT2.png|The puzzle
+File:JT3.png|The [[chest]] guarded by [[dispenser]] traps
+File:JT4.png|The secret door revealing the hidden chest in the chamber
+File:Jungle pyramid on mountain.png|A jungle pyramid high on a mountain
+File:Jungle pyramid on water.png|A jungle pyramid on water
+File:Jungle Temple Zombie.png|Hostile [[mob]]s can possibly spawn in the secret chamber of the pyramid, due to the lack of [[light]] inside.
+</gallery>
+
+=== Mojang screenshots ===
+<gallery>
+Jeb Jungle Temple.png|A jungle temple on the side of a hill
+Pocket Edition Jungle Temple 1.jpg|First image of a jungle temple {{in|Bedrock}}
+Pocket Edition Jungle Temple 2.jpg|Second image of a jungle temple in ''Bedrock Edition''
+Pocket Edition Jungle Temple 3.jpg|Third image of a jungle temple in ''Bedrock Edition''
+Pocket Edition Jungle Temple 4.jpg|Fourth image of a jungle temple in ''Bedrock Edition''
+Temple in the Jungle.jpg|A jungle pyramid
+</gallery>
+
+=== In other media ===
+<gallery>
+CatastrophicPandamonium screenshot 4.jpg|The jungle temple in [[Catastrophic Pandamonium]]; note the [[end rod]]s and [[skeleton skull]]s.
+Jungle Temple Exhibit.png|Exhibit of a jungle pyramid in [[15 Year Journey]]
+15 Year Journey Jungle Temple Sticker.png|Sticker of the structure from the same map
+LEGO Minecraft Prototype Jungle Pyramid.jpg|Prototype of a [[LEGO Minecraft|Lego]] jungle pyramid
+LEGO Minecraft Jungle Temple Boxed.png|Finalized jungle temple set
+</gallery>
+
+== Notes ==
+{{fnlist}}
+
+== References ==
+{{reflist}}
+
+== Navigation ==
+{{Navbox generated structures}}
+
+[[Category:Temples]]
+
+[[cs:Chrám v džungli]]
+[[de:Dschungeltempel]]
+[[es:Templo de jungla]]
+[[fr:Pyramide de la jungle]]
+[[it:Piramide della giungla]]
+[[ja:ジャングルの寺院]]
+[[ko:정글 피라미드]]
+[[nl:Oerwoudtempel]]
+[[pl:Dżunglowa świątynia]]
+[[pt:Templo da Selva]]
+[[ru:Храм в джунглях]]
+[[uk:Джунглева піраміда]]
+[[zh:丛林神庙]]

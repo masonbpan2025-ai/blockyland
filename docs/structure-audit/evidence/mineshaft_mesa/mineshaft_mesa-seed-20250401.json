@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "structure": "mineshaft_mesa",
+  "seed": "20250401",
+  "chunk": [
+    -37,
+    -37
+  ],
+  "biome": "badlands",
+  "box": {
+    "minX": -661,
+    "minY": 20,
+    "minZ": -659,
+    "maxX": -513,
+    "maxY": 33,
+    "maxZ": -540
+  },
+  "pieces": 48,
+  "blocks": {
+    "Stone": 99900,
+    "Orange Terracotta": 15344,
+    "Red Terracotta": 14431,
+    "Red Sand": 14178,
+    "Terracotta": 7704,
+    "Yellow Terracotta": 6053,
+    "White Terracotta": 4037,
+    "Coal Ore": 3808,
+    "Iron Ore": 3744,
+    "Gold Ore": 3405,
+    "Dark Oak Planks": 958,
+    "Dark Oak Fence": 916,
+    "Rail": 461,
+    "Cactus": 344,
+    "Cobweb": 236,
+    "Dirt": 94,
+    "Chain": 12,
+    "Monster Spawner": 2
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {},
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

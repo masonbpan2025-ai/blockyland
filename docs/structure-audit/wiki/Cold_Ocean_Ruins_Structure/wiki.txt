@@ -1,0 +1,118 @@
+{{Structure info}}
+{{Update|Suspicious gravel and now generate in cold ocean ruins.}}
+
+== Large ruins ==
+=== Stone brick ===
+The structure below is called “big_ruin1_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 1 Brick|'''Big Ruin 1 Brick'''|p}}
+  
+The structure below is called “big_ruin2_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 2 Brick|'''Big Ruin 2 Brick'''|p}}
+
+The structure below is called “big_ruin3_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 3 Brick|'''Big Ruin 3 Brick'''|p}}
+
+The structure below is called “big_ruin8_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 8 Brick|'''Big Ruin 8 Brick'''|p}}
+
+=== Mossy stone brick ===
+The structure below is called “big_ruin1_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 1 Mossy|'''Big Ruin 1 Mossy'''|p}}
+
+The structure below is called “big_ruin2_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 2 Mossy|'''Big Ruin 2 Mossy'''|p}}
+
+The structure below is called “big_ruin3_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 3 Mossy|'''Big Ruin 3 Mossy'''|p}}
+
+The structure below is called “big_ruin8_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 8 Mossy|'''Big Ruin 8 Mossy'''|p}}
+
+=== Cracked stone brick ===
+The structure below is called “big_ruin1_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 1 Cracked|'''Big Ruin 1 Cracked'''|p}}
+
+The structure below is called “big_ruin2_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 2 Cracked|'''Big Ruin 2 Cracked'''|p}}
+
+The structure below is called “big_ruin3_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 3 Cracked|'''Big Ruin 3 Cracked'''|p}}
+
+The structure below is called “big_ruin8_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Big Ruin 8 Cracked|'''Big Ruin 8 Cracked'''|p}}
+
+== Small ruins ==
+=== Stone brick ===
+The structure below is called “ruin1_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 1 Brick|'''Ruin 1 Brick'''|p}}
+
+The structure below is called “ruin2_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 2 Brick|'''Ruin 2 Brick'''|p}}
+
+The structure below is called “ruin3_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 3 Brick|'''Ruin 3 Brick'''|p}}
+
+The structure below is called “ruin4_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 4 Brick|'''Ruin 4 Brick'''|p}}
+
+The structure below is called “ruin5_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 5 Brick|'''Ruin 5 Brick'''|p}}
+
+The structure below is called “ruin6_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 6 Brick|'''Ruin 6 Brick'''|p}}
+
+The structure below is called “ruin7_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 7 Brick|'''Ruin 7 Brick'''|p}}
+
+The structure below is called “ruin8_brick”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 8 Brick|'''Ruin 8 Brick'''|p}}
+
+=== Mossy stone brick ===
+The structure below is called “ruin1_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 1 Mossy|'''Ruin 1 Mossy'''|p}}
+
+The structure below is called “ruin2_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 2 Mossy|'''Ruin 2 Mossy'''|p}}
+
+The structure below is called “ruin3_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 3 Mossy|'''Ruin 3 Mossy'''|p}}
+
+The structure below is called “ruin4_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 4 Mossy|'''Ruin 4 Mossy'''|p}}
+
+The structure below is called “ruin5_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 5 Mossy|'''Ruin 5 Mossy'''|p}}
+
+The structure below is called “ruin6_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 6 Mossy|'''Ruin 6 Mossy'''|p}}
+
+The structure below is called “ruin7_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 7 Mossy|'''Ruin 7 Mossy'''|p}}
+
+The structure below is called “ruin8_mossy”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 8 Mossy|'''Ruin 8 Mossy'''|p}}
+
+=== Cracked stone brick ===
+The structure below is called "ruin1_cracked".
+{{LoadPage|{{FULLPAGENAME}}/Ruin 1 Cracked|'''Ruin 1 Cracked'''|p}}
+
+The structure below is called “ruin2_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 2 Cracked|'''Ruin 2 Cracked'''|p}}
+
+The structure below is called “ruin3_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 3 Cracked|'''Ruin 3 Cracked'''|p}}
+
+The structure below is called “ruin4_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 4 Cracked|'''Ruin 4 Cracked'''|p}}
+
+The structure below is called “ruin5_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 5 Cracked|'''Ruin 5 Cracked'''|p}}
+
+The structure below is called “ruin6_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 6 Cracked|'''Ruin 6 Cracked'''|p}}
+
+The structure below is called “ruin7_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 7 Cracked|'''Ruin 7 Cracked'''|p}}
+
+The structure below is called “ruin8_cracked”.
+{{LoadPage|{{FULLPAGENAME}}/Ruin 8 Cracked|'''Ruin 8 Cracked'''|p}}

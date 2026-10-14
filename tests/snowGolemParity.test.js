@@ -296,7 +296,8 @@ test('it drops 0-15 snowballs and no experience', () => {
 });
 
 test('it throws through the real update loop without breaking it', () => {
-  const { manager, player } = fixture();
+  // Night: a zombie standing in daylight burns (wiki), which would be mistaken for snowball damage.
+  const { manager, player } = fixture({ worldTime: 18000 });
   const golem = manager.spawnMob('snow_golem', 0, 1, 0);
   const zombie = manager.spawnMob('zombie', 6, 1, 0);
   let sawSnowball = false;

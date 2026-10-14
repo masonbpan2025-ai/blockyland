@@ -15,7 +15,8 @@ import { join } from 'node:path';
 const read = (p) => readFileSync(join(process.cwd(), p), 'utf8');
 const html = read('index.html');
 const mainJs = read('src/main.js');
-const inspectorHtml = read('resource-debug.html');
+const itemHtml = read('item-debug.html');
+const blockHtml = read('block-debug.html');
 const inspectorJs = read('src/resourceDebug.js');
 const registryJs = read('src/resourceRegistry.js');
 const showcaseJs = read('src/resourceShowcase.js');
@@ -32,52 +33,64 @@ test('the start screen reaches the Resource Inspector through the picker', () =>
   assert.doesNotMatch(html, /id="btn-start-resource-inspector"/, 'the old Resource Inspector button is gone');
 });
 
-test('the picker left the Mob Inspector, Structure Inspector and Structure Studio alone', () => {
+test('the picker left the Mob Inspector, Structure Inspector and Building Studio alone', () => {
   assert.match(html, /id="btn-pick-inspector-mob"/, 'the Mob Inspector is still reachable');
   assert.match(html, /id="btn-pick-inspector-structure"/, 'and so is the Structure Inspector');
-  assert.match(html, /id="btn-start-structure-studio"/, 'and Structure Studio keeps its own button');
+  assert.match(html, /id="btn-start-building-studio"/, 'and Building Studio keeps its own button');
   assert.ok(existsSync(join(process.cwd(), 'mob-debug.html')), 'mob-debug.html is untouched');
   assert.ok(existsSync(join(process.cwd(), 'structure-inspector.html')), 'and structure-inspector.html');
 });
 
-test('choosing Item or Block leads to the Resource Inspector page with that Kind', () => {
+test('choosing Item or Block leads to its own Inspector page', () => {
   assert.match(mainJs, /getElementById\('btn-start-inspector'\)/, 'the button is looked up');
   assert.match(mainJs, /btnInspector\.addEventListener\('click'/, 'a click handler is bound');
   assert.match(mainJs, /this\.openInspectorPicker\(\)/, 'which opens the picker');
   assert.match(mainJs, /getElementById\('btn-pick-inspector-item'\)/, 'the Item choice is looked up');
   assert.match(mainJs, /getElementById\('btn-pick-inspector-block'\)/, 'and the Block choice');
-  assert.match(mainJs, /return this\.openResourceInspector\(\{ kind \}\)/, 'both open the Resource Inspector');
+  assert.match(mainJs, /return this\.openResourceInspector\(\{ kind \}\)/, 'both open the Item or Block Inspector');
   assert.match(mainJs, /openResourceInspector\(\{ resource = null, kind = null \} = \{\}\) \{/, 'the method takes a Kind');
 });
 
-test('openResourceInspector navigates to the standalone page and reports the URL', () => {
+test('openResourceInspector navigates to the page for its kind and reports the URL', () => {
   const source = mainJs.slice(mainJs.indexOf('openResourceInspector({ resource = null'));
   const body = source.slice(0, source.indexOf('\n  }'));
-  assert.match(body, /\/resource-debug\.html/, 'it targets the Inspector page');
+  assert.match(body, /kind === 'block' \? '\/block-debug\.html' : '\/item-debug\.html'/, 'a block goes to block-debug.html, anything else to item-debug.html');
   assert.match(body, /window\.location\.href\s*=/, 'by navigating, not by starting a world');
   assert.match(body, /return url;/, 'and it reports the URL it used');
-  // The Kind the picker chose travels in the query string, which the page reads and preselects.
-  assert.match(body, /params\.set\('kind', kind\)/, 'the Kind is carried');
-  assert.match(read('src/resourceDebug.js'), /PAGE_KIND/, 'and the page reads it');
+  assert.doesNotMatch(body, /resource-debug/, 'the combined page is gone');
 });
 
-test('the Inspector page is the file the button points at', () => {
-  assert.ok(existsSync(join(process.cwd(), 'resource-debug.html')), 'resource-debug.html exists');
-  assert.match(inspectorHtml, /<title>Resource Inspector<\/title>/, 'and titles itself Resource Inspector');
+test('each Inspector page is its own file, titled for its kind, and locks the list to that kind', () => {
+  assert.ok(existsSync(join(process.cwd(), 'item-debug.html')), 'item-debug.html exists');
+  assert.ok(existsSync(join(process.cwd(), 'block-debug.html')), 'block-debug.html exists');
+  assert.ok(!existsSync(join(process.cwd(), 'resource-debug.html')), 'the combined resource-debug.html is removed');
+  assert.match(itemHtml, /<title>Item Inspector<\/title>/, 'the item page titles itself Item Inspector');
+  assert.match(itemHtml, /<body data-kind="item">/, 'and is locked to items');
+  assert.match(blockHtml, /<title>Block Inspector<\/title>/, 'the block page titles itself Block Inspector');
+  assert.match(blockHtml, /<body data-kind="block">/, 'and is locked to blocks');
+  assert.match(inspectorJs, /document\.body\.dataset\.kind/, 'the shared script reads that lock');
+});
+
+test('each Inspector page offers a Back to Main link', () => {
+  for (const [name, page] of [['item-debug.html', itemHtml], ['block-debug.html', blockHtml], ['mob-debug.html', read('mob-debug.html')], ['structure-inspector.html', read('structure-inspector.html')]]) {
+    assert.match(page, /<a class="back" href="\/">&larr; Back to Main<\/a>/, `${name} links back to the main menu`);
+  }
 });
 
 // --- the page drives the shared core ----------------------------------------
 
-test('the Inspector page binds the controls its stylesheet and script expect', () => {
-  for (const id of ['search', 'kind', 'resource', 'rerun', 'group', 'check-status', 'checks', 'dangling', 'facts', 'badge', 'error', 'events']) {
-    assert.match(inspectorHtml, new RegExp(`id="${id}"`), `${id} should exist on the page`);
+test('the Inspector pages bind the controls their script expects', () => {
+  for (const page of [itemHtml, blockHtml]) {
+    for (const id of ['search', 'resource', 'rerun', 'group', 'check-status', 'checks', 'dangling', 'facts', 'badge', 'error', 'events']) {
+      assert.match(page, new RegExp(`id="${id}"`), `${id} should exist on the page`);
+    }
   }
 });
 
 test('the page renders from the same core the CLI and the tests use', () => {
   assert.match(inspectorJs, /from '\.\/resourceRegistry\.js'/, 'the page uses the shared registry');
   assert.match(inspectorJs, /from '\.\/resourceShowcase\.js'/, 'and the shared checks');
-  assert.match(inspectorJs, /buildRegistry\(\)/, 'it builds the registry');
+  assert.match(inspectorJs, /buildRegistry\(\{fresh: true, \.\.\.inspectorSources/, 'it builds the registry using the explicit Inspector scope');
   assert.match(inspectorJs, /new ResourceShowcase\(/, 'it builds a showcase');
   assert.match(inspectorJs, /showcase\.run\(/, 'and runs the checks for the selected resource');
   assert.match(inspectorJs, /danglingReferences\(/, 'it reports dangling references');

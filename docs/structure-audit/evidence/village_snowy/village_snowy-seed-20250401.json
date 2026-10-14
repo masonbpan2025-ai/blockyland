@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "structure": "village_snowy",
+  "seed": "20250401",
+  "chunk": [
+    11,
+    18
+  ],
+  "biome": "snowy_plains",
+  "box": {
+    "minX": 143,
+    "minY": 15,
+    "minZ": 264,
+    "maxX": 207,
+    "maxY": 48,
+    "maxZ": 369
+  },
+  "pieces": 24,
+  "blocks": {
+    "Stone": 42994,
+    "Dirt": 21692,
+    "Snow Block": 7126,
+    "Coal Ore": 1673,
+    "Iron Ore": 1417,
+    "Gold Ore": 1182,
+    "Redstone Ore": 494,
+    "Dirt Path": 334,
+    "Spruce Planks": 330,
+    "Stripped Spruce Wood": 166,
+    "Stripped Spruce Log": 144,
+    "Grass Block": 133,
+    "Spruce Fence": 78,
+    "Spruce Slab": 48,
+    "Packed Ice": 48,
+    "Spruce Stairs": 40,
+    "Blue Ice": 24,
+    "Glass Pane": 20,
+    "Lantern": 19,
+    "Moist Farmland": 18,
+    "Bookshelf": 11,
+    "Potatoes": 10,
+    "Wall Torch": 9,
+    "Spruce Door": 7,
+    "Spruce Door Top": 7,
+    "Cobblestone Wall": 5,
+    "Wheat Crops": 4,
+    "Carrots": 4,
+    "Furnace": 4,
+    "Blue Bed Head": 4,
+    "Blue Bed": 4,
+    "White Bed": 3,
+    "White Bed Head": 3,
+    "Water": 2,
+    "Short Grass": 2,
+    "Torch": 2,
+    "Composter": 1,
+    "Lectern": 1,
+    "Bell": 1,
+    "Spruce Fence Gate": 1,
+    "Cobblestone": 1,
+    "Chest": 1
+  },
+  "loot": {
+    "chests": 1,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "wheat",
+        "count": 6
+      },
+      {
+        "name": "apple",
+        "count": 3
+      },
+      {
+        "name": "potato",
+        "count": 2
+      },
+      {
+        "name": "blue_ice",
+        "count": 1
+      },
+      {
+        "name": "spruce_sapling",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 1,
+    "door": 7,
+    "bed": 7,
+    "mob": 9
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

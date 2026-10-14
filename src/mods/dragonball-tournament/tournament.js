@@ -10,6 +10,7 @@ export const TOURNAMENT_STATE = {
 export class TournamentManager {
   constructor(game) {
     this.game = game;
+    this.events = new AbortController();
     this.state = TOURNAMENT_STATE.WAITING_FOR_TALK;
     this.hostMob = null;
     this.bossMob = null;
@@ -250,14 +251,14 @@ export class TournamentManager {
       btn1P.classList.add('active');
       btn2P?.classList.remove('active');
       if (p2Hint) p2Hint.style.opacity = '0.5';
-    });
+    }, { signal: this.events.signal });
 
     btn2P?.addEventListener('click', () => {
       this.isTwoPlayer = true;
       btn2P.classList.add('active');
       btn1P?.classList.remove('active');
       if (p2Hint) p2Hint.style.opacity = '1.0';
-    });
+    }, { signal: this.events.signal });
 
     const diffButtons = {
       easy: document.getElementById('btn-diff-easy'),
@@ -270,7 +271,7 @@ export class TournamentManager {
         this.difficulty = diff;
         Object.values(diffButtons).forEach(b => b?.classList.remove('active'));
         btn.classList.add('active');
-      });
+      }, { signal: this.events.signal });
     });
 
     const btnConfirm = document.getElementById('btn-confirm-start-fight');
@@ -283,17 +284,17 @@ export class TournamentManager {
         if (this.game.player.velocity) this.game.player.velocity.set(0, 0, 0);
       }
       this.startFight(this.difficulty, this.isTwoPlayer);
-    });
+    }, { signal: this.events.signal });
 
     const btnClose = document.getElementById('btn-close-tournament-modal');
     btnClose?.addEventListener('click', () => {
       this.hideSetupModal();
-    });
+    }, { signal: this.events.signal });
 
     const btnDefeatRetry = document.getElementById('btn-defeat-retry');
     btnDefeatRetry?.addEventListener('click', () => {
       this.retryDefeat();
-    });
+    }, { signal: this.events.signal });
 
     const btnCloseChampion = document.getElementById('btn-close-champion');
     btnCloseChampion?.addEventListener('click', () => {
@@ -305,7 +306,7 @@ export class TournamentManager {
       if (this.game.player) {
         this.game.player.isDungeonMode = false;
       }
-    });
+    }, { signal: this.events.signal });
   }
 
   showSetupModal() {
@@ -433,7 +434,7 @@ export class TournamentManager {
           this.game.mobs.teleportJackieChun(this.bossMob);
         }
       }
-    });
+    }, { signal: this.events.signal });
 
     window.addEventListener('keyup', (e) => {
       if (e.code === 'ArrowUp') { this.p2Keys.up = false; }
@@ -445,7 +446,7 @@ export class TournamentManager {
           this.p2ReleaseKamehameha();
         }
       }
-    });
+    }, { signal: this.events.signal });
   }
 
   p2Punch() {

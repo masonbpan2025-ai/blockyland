@@ -1,0 +1,20 @@
+{
+  "format": "minecraft-web-map",
+  "version": 2,
+  "name": "Rescue Adventure",
+  "filename": "Rescue_Adventure.json",
+  "description": "Rescue Suki through five realms: solo or co-op, bridge guardians, elemental weapons and food-only healing.",
+  "worldType": "designed",
+  "mechanism": "rescue_adventure",
+  "seed": 2026,
+  "chunks": [],
+  "player": {
+    "position": {
+      "x": 19,
+      "y": 21,
+      "z": 21
+    },
+    "gamemode": "survival"
+  },
+  "modState": {}
+}

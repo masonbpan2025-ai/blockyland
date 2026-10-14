@@ -135,3 +135,48 @@ test('the Player methods are not shadowed by their own names', () => {
   assert.ok(Number.isFinite(p.damageTakenMultiplier()), 'and the other method is finite');
 });
 
+test('effect damage is not swallowed by the melee invulnerability window', () => {
+  // The 0.5 s window exists so a mob swinging twice in one tick cannot hit twice. Vanilla's effect damage
+  // is not subject to it, and applying it here made Wither III -- which ticks every 2 s / 2^2 = 0.5 s, the
+  // same 0.5 s -- deal exactly one tick of damage and then nothing, because each tick re-armed the window
+  // that blocked the next. The Wither boss's 0.5 s skull cadence was eaten the same way.
+  const make = () => {
+    const p = Object.create(Player.prototype);
+    Object.assign(p, {
+      health: 20, maxHealth: 20, gamemode: 'survival', isDead: false, invulnerableTimer: 0,
+      statusEffects: new Map(), absorption: 0, armor: null, position: { x: 0, y: 0, z: 0, clone: () => ({ x: 0, y: 0, z: 0, setY: () => ({ normalize: () => ({}) }), normalize: () => ({ addScaledVector: () => {} }) }) },
+      addExhaustion() {}, sounds: {}, wearArmour: () => [], ui: null, inventory: null,
+    });
+    return p;
+  };
+  // A melee hit still arms the window, and a second melee hit inside it is still ignored.
+  const melee = make();
+  melee.takeDamage(3, null, 'generic');
+  near(melee.health, 17, 'the first melee hit lands');
+  assert.ok(melee.invulnerableTimer > 0, 'and opens the window');
+  melee.takeDamage(3, null, 'generic');
+  near(melee.health, 17, 'a second melee hit inside the window is ignored');
+
+  // Wither damage does not arm the window, so consecutive ticks all land.
+  const wither = make();
+  wither.takeDamage(1, null, 'wither');
+  near(wither.health, 19, 'a wither tick lands');
+  near(wither.invulnerableTimer, 0, 'and does not open a window of its own');
+  wither.takeDamage(1, null, 'wither');
+  near(wither.health, 18, 'so the next wither tick lands too');
+
+  // Instant Damage is magic, and a wither tick must not shield the player from it either.
+  const mixed = make();
+  mixed.takeDamage(1, null, 'wither');
+  mixed.takeDamage(6, null, 'magic');
+  near(mixed.health, 13, 'magic damage lands through a wither tick');
+
+  // But a melee hit still protects against the next melee hit even after effect damage.
+  const guarded = make();
+  guarded.takeDamage(1, null, 'wither');
+  guarded.takeDamage(4, null, 'generic');
+  near(guarded.health, 15, 'the melee hit lands');
+  guarded.takeDamage(4, null, 'generic');
+  near(guarded.health, 15, 'and still opens its window');
+});
+

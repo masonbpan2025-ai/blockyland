@@ -71,7 +71,9 @@ export class Sky {
             sky=mix(uHorizon,vec3(.19,.43,.70)*uDay,pow(elevation,.6));
             float sunDisc=1.0-smoothstep(.040,.044,length(ray-uSun));
             float moonDisc=1.0-smoothstep(.017,.021,length(ray+uSun));
-            sky=mix(sky,vec3(1.0,.85,.35),sunDisc*(1.0-uRain));sky=mix(sky,vec3(.72,.78,.9),moonDisc*(1.0-uDay));
+            sky=mix(sky,vec3(1.0,.85,.35),sunDisc*(1.0-uRain));sky=mix(sky,vec3(.72,.78,.9),moonDisc*(1.0-uDay)*(1.0-uRain));
+            sky=mix(sky,vec3(.10,.12,.16)*(0.2+uDay*.8),uRain*.72);
+            sky=mix(sky,vec3(.85,.91,1.0),uFlash*.85);
             gl_FragColor=vec4(sky,1.0);
             #include <colorspace_fragment>
             return;
@@ -180,7 +182,7 @@ export class Sky {
     this.uniforms.uTime.value += dt;
     this.uniforms.uEye.value.copy(camera.position);
     this.uniforms.uRain.value = weather.rainIntensity;
-    this.uniforms.uFlash.value = weather.isFlashing && weather.weatherType === 'thunder' ? 1 : 0;
+    this.uniforms.uFlash.value = weather.flashIntensity ?? (weather.isFlashing ? 1 : 0);
     this.mesh.position.copy(camera.position);
     if (this.disabled) {
       this.mesh.visible = false;

@@ -40,6 +40,12 @@ import { generateMansion, realizeMansion } from './generators/mansion.js';
 import { generateTrailRuins, realizeTrailRuins } from './generators/trailRuins.js';
 import { generateJunglePyramid, realizeJunglePyramid } from './generators/junglePyramid.js';
 import { generateMonument, realizeMonument } from './generators/monument.js';
+import { generateDesertWell, realizeDesertWell } from './generators/desertWell.js';
+import { generateMonsterRoom, realizeMonsterRoom } from './generators/monsterRoom.js';
+import { generateFossil, realizeFossil } from './generators/fossil.js';
+import { generateGeode, realizeGeode } from './generators/geode.js';
+import { generateMineshaft, realizeMineshaft } from './generators/mineshaft.js';
+import { generateStronghold, realizeStronghold } from './generators/stronghold.js';
 import { StructureStart, StructurePiece, TerrainAdaptation, Projection, JointType, TERRAIN_ADJUSTMENT_INFLATE } from './start.js';
 
 /** Generators by registry `implementation` key. A structure with no entry cannot be planned yet. */
@@ -61,7 +67,13 @@ export const GENERATORS = {
   mansion: { generate: generateMansion, realize: realizeMansion },
   trailRuins: { generate: generateTrailRuins, realize: realizeTrailRuins },
   junglePyramid: { generate: generateJunglePyramid, realize: realizeJunglePyramid },
-  monument: { generate: generateMonument, realize: realizeMonument }
+  monument: { generate: generateMonument, realize: realizeMonument },
+  desertWell: { generate: generateDesertWell, realize: realizeDesertWell },
+  monsterRoom: { generate: generateMonsterRoom, realize: realizeMonsterRoom },
+  fossil: { generate: generateFossil, realize: realizeFossil },
+  geode: { generate: generateGeode, realize: realizeGeode },
+  mineshaft: { generate: generateMineshaft, realize: realizeMineshaft },
+  stronghold: { generate: generateStronghold, realize: realizeStronghold }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */
@@ -85,8 +97,8 @@ export function generatorCoverage() {
  * @param {(x: number, z: number, heightmap: string) => number} [options.surfaceY]
  * @param {object} [options.blockIds] block id table used by realization
  */
-export function createStructureEngine({ seed, dimension = 'overworld', biomeAt = null, surfaceY = null, blockIds = null }) {
-  const sets = createSets({ dimension });
+export function createStructureEngine({ seed, dimension = 'overworld', biomeAt = null, surfaceY = null, solidAt = null, seaLevel = null, blockIds = null, spacingScale = 1, spacingOverrides = null }) {
+  const sets = createSets({ dimension, spacingScale, spacingOverrides });
   const registry = Object.fromEntries(
     Object.entries(STRUCTURES)
       .filter(([, entry]) => entry && entry.dimension === dimension)
@@ -125,9 +137,15 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
         chunkX,
         chunkZ,
         structureId,
-        context: { biomeAt, surfaceY, info, set: context.set }
+        context: { biomeAt, surfaceY, solidAt, seaLevel, info, set: context.set }
       });
       if (!start) return null;
+      // Vanilla checks the biome at the structure's own start point; for a village that is its meeting point, and
+      // "the type of the village ... is determined by the biome at the village center or meeting point".
+      if (start.meta?.centre && info.biomes && info.biomes.length > 0 && biomeAt) {
+        const centreBiome = biomeAt(start.meta.centre.x, start.meta.centre.z);
+        if (!info.biomes.includes(centreBiome)) return null;
+      }
       start.set = context.set;
       start.terrainAdaptation = info.terrainAdaptation || TerrainAdaptation.NONE;
       start.generationStep = info.step || 'surface_structures';

@@ -440,34 +440,24 @@ export function buildRegistry(sources = {}) {
   // Content registered by MODS. Read through the content registry rather than from `BLOCKS`/`ITEMS`, because a
   // mod's blocks do not live in the core's tables -- that is the point of the namespacing.
   for (const entry of sources.modEntries ?? []) {
+    if (!['block', 'item'].includes(entry?.kind)) continue;
     if (!entry?.name) continue;
     const key = entry.name;
     if (entries.has(key)) continue;
-    entries.set(key, {
-      key,
-      kind: entry.kind === 'block' ? 'block' : 'item',
-      id: entry.path ?? entry.name,
-      def: entry.data ?? null,
-      name: entry.data?.name ?? entry.data?.display ?? entry.path ?? entry.name,
-      isBlock: entry.kind === 'block',
-      blockId: entry.data?.blockId ?? null,
-      blockDef: null,
-      blockAliases: [],
-      internal: false,
-      icon: entry.data?.icon ?? null,
-      type: entry.data?.type ?? null,
-      recipesAsResult: [], recipesAsIngredient: [], smeltingFrom: [], smeltedInto: [],
-      brewingFrom: [], brewingInto: [], lootFrom: [], droppedBy: [],
-      // The two fields the scope is read from.
-      scope: SCOPE.MOD,
-      modId: entry.modId ?? null,
-      namespacedName: entry.name,
+    const definition = entry.data ?? null;
+    const resource = makeEntry(key, entry.kind, entry.path ?? entry.name,
+      definition, definition?.blockId ?? null, null);
+    Object.assign(resource, {
+      name: definition?.name ?? definition?.display ?? entry.path ?? entry.name,
+      scope: SCOPE.MOD, modId: entry.modId ?? null, namespacedName: entry.name,
     });
+    entries.set(key, resource);
   }
 
   /** The entries one scope may see. */
   const visible = (all) => {
-    if (scopeRequest === 'all' || scopeRequest === SCOPE.MOD && !sources.modId) return [...all];
+    if (scopeRequest === 'all') return [...all];
+    if (scopeRequest === SCOPE.MOD && !sources.modId) return [...all].filter(e => e.scope === SCOPE.MOD);
     if (scopeRequest === SCOPE.CORE) return [...all].filter(e => e.scope === SCOPE.CORE);
     const wanted = sources.modId ?? (typeof scopeRequest === 'string' && scopeRequest.includes(':')
       ? scopeRequest.split(':').pop() : scopeRequest);

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "structure": "amethyst_geode",
+  "seed": "20250401",
+  "chunk": [
+    -2,
+    -3
+  ],
+  "biome": "meadow",
+  "box": {
+    "minX": -40,
+    "minY": 5,
+    "minZ": -47,
+    "maxX": -25,
+    "maxY": 20,
+    "maxZ": -32
+  },
+  "pieces": 1,
+  "blocks": {
+    "Stone": 1766,
+    "Smooth Basalt": 804,
+    "Calcite": 327,
+    "Amethyst Block": 231,
+    "Coal Ore": 63,
+    "Iron Ore": 60,
+    "Budding Amethyst": 25,
+    "Gold Ore": 23,
+    "Redstone Ore": 23,
+    "Diamond Ore": 18,
+    "Small Amethyst Bud": 10,
+    "Large Amethyst Bud": 6,
+    "Amethyst Cluster": 4,
+    "Medium Amethyst Bud": 2
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {},
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 15,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

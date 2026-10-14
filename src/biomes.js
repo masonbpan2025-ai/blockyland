@@ -69,7 +69,10 @@ export const BIOME_CATEGORIES = [
       'river',
       'frozen_river',
       'swamp',
-      'mangrove_swamp'
+      'mangrove_swamp',
+      'beach',
+      'snowy_beach',
+      'stony_shore'
     ]
   },
   {
@@ -94,10 +97,7 @@ export const BIOME_CATEGORIES = [
       'windswept_savanna',
       'badlands',
       'wooded_badlands',
-      'eroded_badlands',
-      'beach',
-      'snowy_beach',
-      'stony_shore'
+      'eroded_badlands'
     ]
   },
   {
@@ -168,9 +168,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'kelp',
     floraDensity: 0.12,
-    skyColor: 0x78a7ff,
-    fogColor: 0x4770b8,
-    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'dolphin', 'cod', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   deep_ocean: {
     id: 'deep_ocean',
@@ -189,9 +189,9 @@ export const BIOMES = {
     treeDensity: 0.02,
     floraType: 'kelp',
     floraDensity: 0.18,
-    skyColor: 0x709cee,
-    fogColor: 0x224488,
-    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned', 'guardian']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'dolphin', 'cod', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   warm_ocean: {
     id: 'warm_ocean',
@@ -210,9 +210,9 @@ export const BIOMES = {
     treeDensity: 0.15,
     floraType: 'sea_pickle',
     floraDensity: 0.08,
-    skyColor: 0x82b2ff,
-    fogColor: 0x438699,
-    mobs: ['dolphin', 'salmon', 'squid', 'drowned']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'dolphin', 'pufferfish', 'tropical_fish', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   lukewarm_ocean: {
     id: 'lukewarm_ocean',
@@ -231,9 +231,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'kelp',
     floraDensity: 0.1,
-    skyColor: 0x7faaff,
-    fogColor: 0x437cb0,
-    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'dolphin', 'cod', 'pufferfish', 'tropical_fish', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   deep_lukewarm_ocean: {
     id: 'deep_lukewarm_ocean',
@@ -252,9 +252,9 @@ export const BIOMES = {
     treeDensity: 0.02,
     floraType: 'kelp',
     floraDensity: 0.14,
-    skyColor: 0x7faaff,
-    fogColor: 0x316294,
-    mobs: ['cod', 'salmon', 'dolphin', 'squid', 'glow_squid', 'drowned', 'guardian']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'dolphin', 'cod', 'pufferfish', 'tropical_fish', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   cold_ocean: {
     id: 'cold_ocean',
@@ -273,9 +273,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'kelp',
     floraDensity: 0.08,
-    skyColor: 0x6e96eb,
-    fogColor: 0x27497d,
-    mobs: ['cod', 'salmon', 'squid', 'glow_squid', 'dolphin', 'drowned']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'cod', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   deep_cold_ocean: {
     id: 'deep_cold_ocean',
@@ -294,9 +294,9 @@ export const BIOMES = {
     treeDensity: 0.02,
     floraType: 'kelp',
     floraDensity: 0.12,
-    skyColor: 0x6890e0,
-    fogColor: 0x1f3c69,
-    mobs: ['cod', 'salmon', 'squid', 'glow_squid', 'dolphin', 'drowned', 'guardian']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'cod', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   frozen_ocean: {
     id: 'frozen_ocean',
@@ -316,9 +316,9 @@ export const BIOMES = {
     treeDensity: 0.08,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x93b4e6,
-    fogColor: 0xa8c4e0,
-    mobs: ['polar_bear', 'salmon', 'squid', 'glow_squid', 'drowned']
+    skyColor: 0x7fa1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['polar_bear', 'squid', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   deep_frozen_ocean: {
     id: 'deep_frozen_ocean',
@@ -338,9 +338,9 @@ export const BIOMES = {
     treeDensity: 0.12,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x90b0e0,
-    fogColor: 0xa0c0e0,
-    mobs: ['polar_bear', 'salmon', 'squid', 'glow_squid', 'drowned', 'guardian']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['polar_bear', 'squid', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   mushroom_fields: {
     id: 'mushroom_fields',
@@ -358,9 +358,9 @@ export const BIOMES = {
     treeDensity: 0.45,
     floraType: 'mushrooms',
     floraDensity: 0.1,
-    skyColor: 0x7faaff,
-    fogColor: 0x9e8cb0,
-    mobs: ['mooshroom']
+    skyColor: 0x77a8ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['mooshroom', 'glow_squid']
   },
 
   // --- HIGHLAND & MOUNTAIN BIOMES ---
@@ -380,9 +380,9 @@ export const BIOMES = {
     treeDensity: 0.08,
     floraType: 'wildflowers',
     floraDensity: 0.25,
-    skyColor: 0x78a7ff,
-    fogColor: 0x90c0ff,
-    mobs: ['sheep', 'cow', 'rabbit', 'villager']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['donkey', 'rabbit', 'sheep', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   cherry_grove: {
     id: 'cherry_grove',
@@ -400,11 +400,12 @@ export const BIOMES = {
     treeDensity: 0.55,
     floraType: 'cherry_petals',
     floraDensity: 0.3,
-    skyColor: 0x99bbff,
-    fogColor: 0xffd4e5,
-    mobs: ['sheep', 'pig', 'bee']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['pig', 'rabbit', 'sheep', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   grove: {
+    mountainProfile: 'grove',
     id: 'grove',
     name: 'Grove',
     category: 'highland',
@@ -416,15 +417,16 @@ export const BIOMES = {
     seaLevel: 22,
     baseHeight: 36,
     heightScale: 9,
-    treeType: 'spruce',
+    treeType: 'snowy_spruce',
     treeDensity: 0.4,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x82a8e8,
-    fogColor: 0xc8d8e8,
-    mobs: ['wolf', 'rabbit', 'sheep']
+    skyColor: 0x81a0ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['wolf', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   snowy_slopes: {
+    mountainProfile: 'slopes',
     id: 'snowy_slopes',
     name: 'Snowy Slopes',
     category: 'highland',
@@ -440,11 +442,12 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x8aaee8,
-    fogColor: 0xd8e8f8,
-    mobs: ['goat', 'rabbit', 'polar_bear']
+    skyColor: 0x829fff,
+    fogColor: 0xc0d8ff,
+    mobs: ['rabbit', 'goat', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   jagged_peaks: {
+    mountainProfile: 'jagged',
     id: 'jagged_peaks',
     name: 'Jagged Peaks',
     category: 'highland',
@@ -461,32 +464,33 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x84a6e0,
-    fogColor: 0xd0e0f0,
-    mobs: ['goat']
+    skyColor: 0x859dff,
+    fogColor: 0xc0d8ff,
+    mobs: ['goat', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   frozen_peaks: {
+    mountainProfile: 'frozen',
     id: 'frozen_peaks',
     name: 'Frozen Peaks',
     category: 'highland',
     dimension: 'overworld',
-    surfaceBlock: BLOCKS.PACKED_ICE,
-    subsurfaceBlock: BLOCKS.SNOW,
+    surfaceBlock: BLOCKS.SNOW,
+    subsurfaceBlock: BLOCKS.STONE,
     deepBlock: BLOCKS.STONE,
     waterBlock: BLOCKS.WATER,
     seaLevel: 22,
     baseHeight: 45,
     heightScale: 14,
-    isJagged: true,
     treeType: 'none',
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x86a8e2,
-    fogColor: 0xbed4e8,
-    mobs: ['goat']
+    skyColor: 0x859dff,
+    fogColor: 0xc0d8ff,
+    mobs: ['goat', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   stony_peaks: {
+    mountainProfile: 'stony',
     id: 'stony_peaks',
     name: 'Stony Peaks',
     category: 'highland',
@@ -503,9 +507,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x7ea3e6,
-    fogColor: 0xbac8d8,
-    mobs: ['sheep']
+    skyColor: 0x76a8ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   windswept_hills: {
     id: 'windswept_hills',
@@ -524,9 +528,9 @@ export const BIOMES = {
     treeDensity: 0.12,
     floraType: 'flowers',
     floraDensity: 0.05,
-    skyColor: 0x769ee8,
-    fogColor: 0x9ab8e4,
-    mobs: ['llama', 'sheep']
+    skyColor: 0x7da2ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'llama', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   windswept_gravelly_hills: {
     id: 'windswept_gravelly_hills',
@@ -545,9 +549,9 @@ export const BIOMES = {
     treeDensity: 0.05,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x749ce6,
-    fogColor: 0x90a8c8,
-    mobs: ['llama']
+    skyColor: 0x7da2ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'llama', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   windswept_forest: {
     id: 'windswept_forest',
@@ -566,9 +570,9 @@ export const BIOMES = {
     treeDensity: 0.35,
     floraType: 'flowers',
     floraDensity: 0.06,
-    skyColor: 0x769ee8,
-    fogColor: 0x98b4e0,
-    mobs: ['wolf', 'sheep']
+    skyColor: 0x7da2ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'llama', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
 
   // --- WOODLAND & FOREST BIOMES ---
@@ -588,9 +592,9 @@ export const BIOMES = {
     treeDensity: 0.65,
     floraType: 'flowers',
     floraDensity: 0.08,
-    skyColor: 0x78a7ff,
-    fogColor: 0xa4c6ff,
-    mobs: ['cow', 'pig', 'sheep', 'wolf']
+    skyColor: 0x79a6ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   flower_forest: {
     id: 'flower_forest',
@@ -608,9 +612,9 @@ export const BIOMES = {
     treeDensity: 0.45,
     floraType: 'dense_flowers',
     floraDensity: 0.45,
-    skyColor: 0x7aaaff,
-    fogColor: 0xb5d4ff,
-    mobs: ['rabbit', 'sheep', 'bee']
+    skyColor: 0x79a6ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'rabbit', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   birch_forest: {
     id: 'birch_forest',
@@ -628,9 +632,9 @@ export const BIOMES = {
     treeDensity: 0.65,
     floraType: 'flowers',
     floraDensity: 0.06,
-    skyColor: 0x78a7ff,
-    fogColor: 0xa8ccff,
-    mobs: ['cow', 'sheep', 'pig']
+    skyColor: 0x7aa5ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   old_growth_birch_forest: {
     id: 'old_growth_birch_forest',
@@ -648,9 +652,9 @@ export const BIOMES = {
     treeDensity: 0.7,
     floraType: 'flowers',
     floraDensity: 0.08,
-    skyColor: 0x78a7ff,
-    fogColor: 0xa8ccff,
-    mobs: ['cow', 'sheep']
+    skyColor: 0x7aa5ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   dark_forest: {
     id: 'dark_forest',
@@ -668,9 +672,9 @@ export const BIOMES = {
     treeDensity: 0.8,
     floraType: 'huge_mushroom',
     floraDensity: 0.15,
-    skyColor: 0x6280b0,
-    fogColor: 0x485a75,
-    mobs: ['zombie', 'skeleton', 'creeper']
+    skyColor: 0x79a6ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   pale_garden: {
     id: 'pale_garden',
@@ -688,9 +692,9 @@ export const BIOMES = {
     treeDensity: 0.65,
     floraType: 'pale_moss',
     floraDensity: 0.2,
-    skyColor: 0x8a9299,
-    fogColor: 0x7a8288,
-    mobs: ['creeper', 'enderman']
+    skyColor: 0xb9b9b9,
+    fogColor: 0x817770,
+    mobs: ['glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   taiga: {
     id: 'taiga',
@@ -708,9 +712,9 @@ export const BIOMES = {
     treeDensity: 0.65,
     floraType: 'sweet_berries',
     floraDensity: 0.06,
-    skyColor: 0x7298df,
-    fogColor: 0x90b0d8,
-    mobs: ['wolf', 'fox', 'rabbit']
+    skyColor: 0x7da3ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   old_growth_pine_taiga: {
     id: 'old_growth_pine_taiga',
@@ -728,9 +732,9 @@ export const BIOMES = {
     treeDensity: 0.6,
     floraType: 'mushrooms',
     floraDensity: 0.1,
-    skyColor: 0x7096dc,
-    fogColor: 0x8ca8d0,
-    mobs: ['wolf', 'fox']
+    skyColor: 0x7ca3ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   old_growth_spruce_taiga: {
     id: 'old_growth_spruce_taiga',
@@ -748,9 +752,9 @@ export const BIOMES = {
     treeDensity: 0.7,
     floraType: 'mushrooms',
     floraDensity: 0.1,
-    skyColor: 0x7096dc,
-    fogColor: 0x8ca8d0,
-    mobs: ['wolf', 'fox']
+    skyColor: 0x7da3ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   snowy_taiga: {
     id: 'snowy_taiga',
@@ -768,9 +772,9 @@ export const BIOMES = {
     treeDensity: 0.6,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x80a4e4,
-    fogColor: 0xb0cce8,
-    mobs: ['wolf', 'rabbit', 'polar_bear']
+    skyColor: 0x839eff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   jungle: {
     id: 'jungle',
@@ -788,9 +792,9 @@ export const BIOMES = {
     treeDensity: 0.75,
     floraType: 'vines',
     floraDensity: 0.2,
-    skyColor: 0x76aaed,
-    fogColor: 0x7cb885,
-    mobs: ['parrot', 'ocelot', 'panda']
+    skyColor: 0x77a8ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'parrot', 'panda', 'glow_squid', 'ocelot', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   sparse_jungle: {
     id: 'sparse_jungle',
@@ -808,9 +812,9 @@ export const BIOMES = {
     treeDensity: 0.3,
     floraType: 'flowers',
     floraDensity: 0.1,
-    skyColor: 0x76aaed,
-    fogColor: 0x85c490,
-    mobs: ['parrot', 'chicken', 'sheep']
+    skyColor: 0x77a8ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'wolf', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   bamboo_jungle: {
     id: 'bamboo_jungle',
@@ -828,9 +832,9 @@ export const BIOMES = {
     treeDensity: 0.85,
     floraType: 'bamboo',
     floraDensity: 0.6,
-    skyColor: 0x78abed,
-    fogColor: 0x82c28c,
-    mobs: ['panda', 'parrot']
+    skyColor: 0x77a8ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'parrot', 'panda', 'glow_squid', 'ocelot', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   dappled_forest: {
     id: 'dappled_forest',
@@ -848,9 +852,9 @@ export const BIOMES = {
     treeDensity: 0.5,
     floraType: 'flowers',
     floraDensity: 0.1,
-    skyColor: 0x78a7ff,
-    fogColor: 0xa4c6ff,
-    mobs: ['cow', 'sheep']
+    skyColor: 0x7ca3ff,
+    fogColor: 0xccd8e2,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'rabbit', 'fox', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
 
   // --- WETLAND & RIVER BIOMES ---
@@ -870,9 +874,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'seagrass',
     floraDensity: 0.15,
-    skyColor: 0x78a7ff,
-    fogColor: 0x84b2ff,
-    mobs: ['salmon', 'squid']
+    skyColor: 0x7ba4ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   frozen_river: {
     id: 'frozen_river',
@@ -891,9 +895,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x88acec,
-    fogColor: 0xb5d0f0,
-    mobs: ['polar_bear', 'salmon']
+    skyColor: 0x7fa1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['squid', 'salmon', 'glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   swamp: {
     id: 'swamp',
@@ -911,9 +915,9 @@ export const BIOMES = {
     treeDensity: 0.35,
     floraType: 'lily_pads',
     floraDensity: 0.2,
-    skyColor: 0x6e8e8e,
-    fogColor: 0x4a6552,
-    mobs: ['slime', 'frog', 'witch']
+    skyColor: 0x78a7ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'frog', 'glow_squid', 'bogged', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   mangrove_swamp: {
     id: 'mangrove_swamp',
@@ -931,9 +935,9 @@ export const BIOMES = {
     treeDensity: 0.7,
     floraType: 'mangrove_roots',
     floraDensity: 0.35,
-    skyColor: 0x6a8c7a,
-    fogColor: 0x46634c,
-    mobs: ['frog', 'slime']
+    skyColor: 0x78a7ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['frog', 'tropical_fish', 'glow_squid', 'bogged', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
 
   // --- FLATLAND & PLAINS BIOMES ---
@@ -954,8 +958,8 @@ export const BIOMES = {
     floraType: 'flowers',
     floraDensity: 0.12,
     skyColor: 0x78a7ff,
-    fogColor: 0xb5d4ff,
-    mobs: ['villager', 'iron_golem', 'cow', 'sheep', 'pig', 'chicken']
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'horse', 'donkey', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   sunflower_plains: {
     id: 'sunflower_plains',
@@ -974,8 +978,8 @@ export const BIOMES = {
     floraType: 'sunflowers',
     floraDensity: 0.45,
     skyColor: 0x78a7ff,
-    fogColor: 0xb5d4ff,
-    mobs: ['sheep', 'cow', 'pig']
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'horse', 'donkey', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   snowy_plains: {
     id: 'snowy_plains',
@@ -993,9 +997,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x88acec,
-    fogColor: 0xc4dcfa,
-    mobs: ['polar_bear', 'rabbit', 'stray']
+    skyColor: 0x7fa1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['rabbit', 'polar_bear', 'glow_squid', 'stray', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   ice_spikes: {
     id: 'ice_spikes',
@@ -1013,9 +1017,9 @@ export const BIOMES = {
     treeDensity: 0.4,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x88acec,
-    fogColor: 0xb0d0f8,
-    mobs: ['polar_bear']
+    skyColor: 0x7fa1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['rabbit', 'polar_bear', 'glow_squid', 'stray', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
 
   // --- ARID-LAND & DESERT BIOMES ---
@@ -1035,9 +1039,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'cactus',
     floraDensity: 0.08,
-    skyColor: 0x7da4ff,
-    fogColor: 0xedd6a4,
-    mobs: ['rabbit', 'husk', 'villager']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['rabbit', 'glow_squid', 'husk', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   savanna: {
     id: 'savanna',
@@ -1055,9 +1059,9 @@ export const BIOMES = {
     treeDensity: 0.25,
     floraType: 'tall_grass',
     floraDensity: 0.1,
-    skyColor: 0x769ee8,
-    fogColor: 0xcfd29b,
-    mobs: ['llama', 'horse', 'cow']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'horse', 'donkey', 'armadillo', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   savanna_plateau: {
     id: 'savanna_plateau',
@@ -1076,9 +1080,9 @@ export const BIOMES = {
     treeDensity: 0.2,
     floraType: 'tall_grass',
     floraDensity: 0.1,
-    skyColor: 0x769ee8,
-    fogColor: 0xc8cb94,
-    mobs: ['llama', 'horse']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'horse', 'donkey', 'armadillo', 'llama', 'wolf', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   windswept_savanna: {
     id: 'windswept_savanna',
@@ -1097,9 +1101,9 @@ export const BIOMES = {
     treeDensity: 0.15,
     floraType: 'tall_grass',
     floraDensity: 0.08,
-    skyColor: 0x749ce6,
-    fogColor: 0xc4c790,
-    mobs: ['llama']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'horse', 'donkey', 'armadillo', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   badlands: {
     id: 'badlands',
@@ -1119,9 +1123,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'cactus',
     floraDensity: 0.05,
-    skyColor: 0x7aa2f0,
-    fogColor: 0xd8885b,
-    mobs: ['skeleton', 'creeper']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'armadillo', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   wooded_badlands: {
     id: 'wooded_badlands',
@@ -1141,9 +1145,9 @@ export const BIOMES = {
     treeDensity: 0.25,
     floraType: 'cactus',
     floraDensity: 0.04,
-    skyColor: 0x7aa2f0,
-    fogColor: 0xd48458,
-    mobs: ['sheep']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'armadillo', 'wolf', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   eroded_badlands: {
     id: 'eroded_badlands',
@@ -1163,14 +1167,14 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x7aa2f0,
-    fogColor: 0xd8885b,
-    mobs: ['skeleton']
+    skyColor: 0x6eb1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['sheep', 'pig', 'chicken', 'cow', 'armadillo', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   beach: {
     id: 'beach',
     name: 'Beach',
-    category: 'arid',
+    category: 'wetland',
     dimension: 'overworld',
     surfaceBlock: BLOCKS.SAND,
     subsurfaceBlock: BLOCKS.SANDSTONE,
@@ -1184,13 +1188,13 @@ export const BIOMES = {
     floraType: 'none',
     floraDensity: 0,
     skyColor: 0x78a7ff,
-    fogColor: 0xa4c8ff,
-    mobs: ['turtle', 'seagull']
+    fogColor: 0xc0d8ff,
+    mobs: ['turtle', 'glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   snowy_beach: {
     id: 'snowy_beach',
     name: 'Snowy Beach',
-    category: 'arid',
+    category: 'wetland',
     dimension: 'overworld',
     surfaceBlock: BLOCKS.SNOW,
     subsurfaceBlock: BLOCKS.SAND,
@@ -1203,14 +1207,14 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x88acec,
-    fogColor: 0xb5d0f0,
-    mobs: ['polar_bear']
+    skyColor: 0x7fa1ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   stony_shore: {
     id: 'stony_shore',
     name: 'Stony Shore',
-    category: 'arid',
+    category: 'wetland',
     dimension: 'overworld',
     surfaceBlock: BLOCKS.STONE,
     subsurfaceBlock: BLOCKS.STONE,
@@ -1223,9 +1227,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x78a7ff,
-    fogColor: 0x98b4d8,
-    mobs: []
+    skyColor: 0x7da2ff,
+    fogColor: 0xc0d8ff,
+    mobs: ['glow_squid', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
 
   // --- CAVE & SUBTERRANEAN BIOMES ---
@@ -1246,7 +1250,7 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'sculk_sensors',
     floraDensity: 0.25,
-    skyColor: 0x050811,
+    skyColor: 0x78a7ff,
     fogColor: 0x030712,
     mobs: ['warden']
   },
@@ -1267,9 +1271,9 @@ export const BIOMES = {
     treeDensity: 0.35,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x14100c,
+    skyColor: 0x78a7ff,
     fogColor: 0x221810,
-    mobs: ['bat', 'creeper']
+    mobs: ['glow_squid', 'drowned', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   lush_caves: {
     id: 'lush_caves',
@@ -1288,9 +1292,9 @@ export const BIOMES = {
     treeDensity: 0.3,
     floraType: 'spore_blossom',
     floraDensity: 0.3,
-    skyColor: 0x0c1e14,
+    skyColor: 0x7ba4ff,
     fogColor: 0x143522,
-    mobs: ['axolotl', 'glow_squid']
+    mobs: ['tropical_fish', 'glow_squid', 'axolotl', 'spider', 'zombie', 'skeleton', 'creeper', 'slime', 'enderman', 'witch']
   },
   sulfur_caves: {
     id: 'sulfur_caves',
@@ -1309,9 +1313,9 @@ export const BIOMES = {
     treeDensity: 0,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x1f1a08,
-    fogColor: 0x3d320a,
-    mobs: ['magma_cube']
+    skyColor: 0x78a7ff,
+    fogColor: 0x8cb831,
+    mobs: ['creeper', 'skeleton', 'slime', 'zombie', 'enderman', 'witch']
   },
   ice_caves: {
     id: 'ice_caves',
@@ -1330,9 +1334,9 @@ export const BIOMES = {
     treeDensity: 0.3,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x0c1828,
-    fogColor: 0x182c44,
-    mobs: ['stray']
+    skyColor: 0x7fa1ff,
+    fogColor: 0x14559b,
+    mobs: ['glow_squid', 'stray', 'creeper', 'skeleton', 'slime', 'spider', 'zombie', 'enderman', 'witch']
   },
   the_void: {
     id: 'the_void',
@@ -1396,8 +1400,8 @@ export const BIOMES = {
     floraType: 'fire',
     floraDensity: 0.05,
     skyColor: 0x330808,
-    fogColor: 0x471010,
-    mobs: ['zombie_pigman', 'zombified_piglin', 'piglin', 'ghast', 'magma_cube', 'strider']
+    fogColor: 0x330808,
+    mobs: ['strider', 'ghast', 'zombified_piglin', 'magma_cube', 'piglin', 'enderman']
   },
   soul_sand_valley: {
     id: 'soul_sand_valley',
@@ -1417,8 +1421,8 @@ export const BIOMES = {
     floraType: 'soul_fire',
     floraDensity: 0.08,
     skyColor: 0x142028,
-    fogColor: 0x1b3542,
-    mobs: ['ghast', 'skeleton', 'strider', 'enderman']
+    fogColor: 0x1b4745,
+    mobs: ['strider', 'ghast', 'skeleton', 'enderman']
   },
   crimson_forest: {
     id: 'crimson_forest',
@@ -1438,8 +1442,8 @@ export const BIOMES = {
     floraType: 'crimson_roots',
     floraDensity: 0.25,
     skyColor: 0x400c14,
-    fogColor: 0x5a121c,
-    mobs: ['piglin', 'hoglin', 'zombie_pigman', 'zombified_piglin', 'strider']
+    fogColor: 0x330303,
+    mobs: ['strider', 'zombified_piglin', 'hoglin', 'piglin']
   },
   warped_forest: {
     id: 'warped_forest',
@@ -1459,8 +1463,8 @@ export const BIOMES = {
     floraType: 'warped_roots',
     floraDensity: 0.25,
     skyColor: 0x10282b,
-    fogColor: 0x173e44,
-    mobs: ['enderman', 'strider']
+    fogColor: 0x1a051a,
+    mobs: ['strider', 'enderman']
   },
   basalt_deltas: {
     id: 'basalt_deltas',
@@ -1480,8 +1484,8 @@ export const BIOMES = {
     floraType: 'magma',
     floraDensity: 0.2,
     skyColor: 0x2e272b,
-    fogColor: 0x42383e,
-    mobs: ['magma_cube', 'ghast', 'strider']
+    fogColor: 0x685f70,
+    mobs: ['strider', 'ghast', 'magma_cube']
   },
 
   // --- THE END BIOMES ---
@@ -1502,8 +1506,8 @@ export const BIOMES = {
     treeDensity: 0.05,
     floraType: 'none',
     floraDensity: 0,
-    skyColor: 0x090614,
-    fogColor: 0x140e2b,
+    skyColor: 0x000000,
+    fogColor: 0x181318,
     mobs: ['enderman', 'ender_dragon']
   },
   small_end_islands: {
@@ -1567,7 +1571,7 @@ export const BIOMES = {
     floraDensity: 0,
     skyColor: 0x090614,
     fogColor: 0x140e2b,
-    mobs: ['enderman', 'shulker']
+    mobs: ['enderman']
   },
   end_barrens: {
     id: 'end_barrens',

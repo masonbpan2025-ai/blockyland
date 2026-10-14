@@ -60,7 +60,7 @@ test('Ravager has a real skin atlas and modeled face details', () => {
 test('every built-in mob type produces a visible skinned or colored mesh', () => {
   const manager = managerFixture();
   const builtIns = [
-    'villager', 'tournament_host', 'site_manager', 'jackie_chun', 'enderman',
+    'villager', 'enderman',
     'iron_golem', 'pillager', 'zombie', 'zombie_villager', 'skeleton', 'creeper',
     'pig', 'cow', 'sheep', 'chicken', 'cod', 'salmon', 'dolphin', 'squid',
     'axolotl', 'mooshroom', 'polar_bear', 'panda', 'warden', 'blaze', 'piglin',

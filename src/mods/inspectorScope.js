@@ -56,7 +56,7 @@ export function allModContent(manifests, kind = null) {
  * What the Inspector should show.
  *
  * `modId` is three-state, deliberately:
- *   * omitted / `undefined` -- follow whatever world is open, which is the normal case;
+ *   * omitted / `undefined` -- base game, even while a mod world is open;
  *   * `null`                -- force the base game, which is how a "browse core content" button works while a
  *                              designed world is still open;
  *   * a string              -- force that mod, which is how a player inspects a world they have not opened.
@@ -65,17 +65,17 @@ export function allModContent(manifests, kind = null) {
  * given" and there was no way to ask for core while a world was open.
  *
  * @param {object} options
- * @param {object|null} [options.loader]      a `ModLoader`, whose `activeModId` is the selected world
+ * @param {object|null} [options.loader]      optional loader context; does not select Inspector content
  * @param {string|null} [options.modId]       an explicit selection; see the three states above
  * @param {object[]} [options.manifests]      the mod table; discovered from disk when absent
  * @returns {{scope: string, modId: string|null, label: string, entries: object[]}}
  */
 export function inspectorScope(options = {}) {
-  const { loader = null, manifests = null } = options;
+  const { manifests = null } = options;
   const mods = manifests ?? allManifests();
   const selected = Object.prototype.hasOwnProperty.call(options, 'modId')
     ? options.modId
-    : (loader?.activeModId ?? null);
+    : null;
 
   if (!selected) {
     // The default, and the point of the whole arrangement: core content only.

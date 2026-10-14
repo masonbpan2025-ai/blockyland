@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "structure": "desert_pyramid",
+  "seed": "20250401",
+  "chunk": [
+    21,
+    13
+  ],
+  "biome": "desert",
+  "box": {
+    "minX": 324,
+    "minY": -5,
+    "minZ": 196,
+    "maxX": 368,
+    "maxY": 43,
+    "maxZ": 240
+  },
+  "pieces": 1,
+  "blocks": {
+    "Stone": 29924,
+    "Sandstone": 7757,
+    "Bedrock": 2025,
+    "Sand": 1862,
+    "Coal Ore": 1128,
+    "Water": 1071,
+    "Iron Ore": 971,
+    "Gold Ore": 408,
+    "Redstone Ore": 404,
+    "Diamond Ore": 360,
+    "Cut Sandstone": 238,
+    "Orange Terracotta": 66,
+    "Chiseled Sandstone": 62,
+    "Sandstone Stairs": 17,
+    "TNT": 9,
+    "Suspicious Sand": 7,
+    "Chest": 4,
+    "Sandstone Slab": 2,
+    "Blue Terracotta": 2,
+    "Stone Pressure Plate": 1
+  },
+  "loot": {
+    "chests": 4,
+    "empty": 4,
+    "totals": []
+  },
+  "entities": {
+    "chest": 4
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 18,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

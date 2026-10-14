@@ -1,3 +1,4 @@
+import { MonsterSpawners } from './monsterSpawner.js';
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
@@ -14,13 +15,14 @@ import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
 import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, clampDelta } from './worldLifecycle.js';
+import { teardownWorld } from './worldTeardown.js';
 import { createPackStore, allPacks, addPack, removePack, PACK_SOURCES } from './dataPackStore.js';
 import { buildPresetPack } from './dataPackPresets.js';
 import { PREFERRED_PACK_FORMAT } from './dataPack.js';
 import { buildMobStatsReport } from './spawning/mobStatsReport.js';
 import { biomeSpawnsFor } from './spawning/biomeSpawnResolver.js';
 import { packBiomeSpawnSource } from './spawning/packBiomeSpawns.js';
-import { isCreative } from './sessionSettings.js';
+import { isCreative, settingsWith } from './sessionSettings.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { applyStore, revertAll } from './dataPackApply.js';
 import { revertDataPack } from './dataPackRuntime.js';
@@ -43,7 +45,9 @@ import { breakTimeSeconds, harvestsNothing, harvestRequirementText } from './min
 import { getBiomeDef } from './biomes.js';
 import { TextureManager } from './textures.js';
 import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
-import { locateNearestStructure } from './worldStructures.js';
+import { locateNearestStructure, countStructures } from './worldStructures.js';
+import { useOnArmorStand, armorStandPlacement } from './armorStand.js';
+import { parseTeleport, structureArrival } from './teleport.js';
 import { ChunkStreamer } from './chunkStreamer.js';
 import { installHotkeys } from './hotkeys.js';
 import { MobSpawnManager } from './spawning/mobSpawnManager.js';
@@ -76,7 +80,9 @@ import { takeFromBundle } from './bundles.js';
 import { brushSuspiciousBlock } from './archaeology.js';
 import { isGlassBottle, useGlassBottle } from './bottles.js';
 import { blockDrops } from './blockDrops.js';
-import { BlockLighting, configureSunShadows, followSun } from './lighting.js';
+import { BlockLighting, configureSunShadows, followSun, createEnvironmentLight, updateOutdoorLighting } from './lighting.js';
+import { overworldFogRange } from './atmosphere.js';
+import { snowDaylightStrength } from './snowShading.js';
 import { Sky } from './sky.js';
 import {
   saveMapToDefault,
@@ -94,6 +100,7 @@ import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
+import { PaintingManager, facingFromNormal } from './paintings.js';
 import { ChestManager } from './chest.js';
 import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
@@ -107,6 +114,8 @@ import { RaidManager } from './raids.js';
 import { DeepDarkWardenManager } from './deepDarkWarden.js';
 import { BossFightManager } from './bossFights.js';
 import { WorldSyncManager } from './multiplayer/worldSyncManager.js';
+import { markWater, markOverWater } from './waterPass.js';
+import { UNDERWATER_FOG_COLOR, underwaterVisibility, underwaterFogColor, underwaterMiningMultiplier } from './waterRules.js';
 
 
 /**
@@ -137,8 +146,6 @@ const SUMMONABLE_MOBS = {
   octopus: ['spawnSquid', 2, 'Squid'],
   axolotl: ['spawnAxolotl', 2, 'Axolotl'],
   polar_bear: ['spawnPolarBear', 2, 'Polar Bear'],
-  tournament_host: ['spawnTournamentHost', 2, 'Tournament Announcer Host'],
-  host: ['spawnTournamentHost', 2, 'Tournament Announcer Host'],
   enderman: ['spawnEnderman', 2, 'Enderman Challenger Boss'],
 };
 
@@ -157,13 +164,18 @@ class Game {
     this.normalFogNear = 45;
     this.normalFogFar = 95;
     this.normalBgColor = new THREE.Color(0x78a7ff);
-    // Minecraft underwater fog colors
-    this.underwaterFogColor = new THREE.Color(0x050e33);
+    // Underwater fog: the wiki's Java colour (#050533), dense on entering and clearing over 30 seconds
+    // (src/waterRules.js). `underwaterSeconds` counts how long the eye has been under.
+    this.underwaterFogColor = new THREE.Color(UNDERWATER_FOG_COLOR);
     this.underwaterFogNear = 0.1;
     this.underwaterFogFar = 24;
+    this.underwaterSeconds = 0;
+    this.underwaterSurfaceY = null;
 
     this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    // A stencil buffer, because the water pass marks where the surface is drawn so that leaves, glass and rain in
+    // front of it can be redrawn over it without tinting anything twice (src/waterPass.js).
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -173,7 +185,7 @@ class Game {
     this.container.appendChild(this.renderer.domElement);
 
     // Lighting & Celestial
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    this.ambientLight = createEnvironmentLight();
     this.scene.add(this.ambientLight);
 
     this.sunLight = new THREE.DirectionalLight(0xfffaed, 0.85);
@@ -217,6 +229,8 @@ class Game {
     // Subsystems
     this.sounds = new SoundEngine();
     this.textures = new TextureManager();
+    // The renderer, so an animated tile can be copied into the atlas on the GPU instead of re-uploading it all.
+    this.textures.renderer = this.renderer;
     this.world = new World();
     this.world.game = this;
     this.weather = new WeatherManager(this.scene, this.sounds);
@@ -229,7 +243,6 @@ class Game {
     this.inventory = null;
     this.ui = null;
     this.heldItemRenderer = null;
-    this.tournament = null;
     this.buildingStudio = null;
     this.portalManager = null;
     this.currentDimension = 'overworld';
@@ -354,6 +367,7 @@ class Game {
     // Structures may override the biome spawn table where they stand. The engine has a structure
     // index (see structureManager), so the override is wired when one is present rather than
     // assumed; with no index, `structureAt` stays null and no override applies.
+    this.structureIdAt = (x, y, z) => this.world?.structures?.structureIdAt?.(x, y, z) ?? null;
     this.spawnManager.structureAt = (x, y, z) => this.structureIdAt?.(x, y, z) ?? null;
 
     // Thorns reflects damage on to whoever struck the player. Wired here rather than inside the player,
@@ -424,6 +438,8 @@ class Game {
     this.buildingStudio = new BuildingStudioManager(this);
     this.furnaceManager = new FurnaceManager(this);
     this.bedManager = new BedManager(this);
+    // Wall paintings: placed from the painting item or by the Agent Terminal, saved with the world.
+    this.paintings = new PaintingManager(this);
     this.chestManager = new ChestManager(this);
     this.world.chestManager = this.chestManager;
     this.doorManager = new DoorManager(this);
@@ -464,11 +480,9 @@ class Game {
     // 8. Bind Mouse Interaction & Click-to-play
     this.bindEvents();
 
-    // 8b. Check if user is joining a hosted world via share link (?join=<roomId>)
-    const joinRoomId = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('join') : null;
-    if (joinRoomId) {
-      console.log('[Multiplayer] Joining world via shared link:', joinRoomId);
-      this.worldSync.joinWorld(joinRoomId);
+    // 8b. A shared-world link (?join=<code>) joins that world as soon as the page is ready: one click for the guest.
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('join')) {
+      this.worldSync.joinFromLink(window.location.search);
     }
 
     // 9. Start Animation Loop
@@ -486,32 +500,23 @@ class Game {
     // Apply the data packs BEFORE any terrain is built. Biomes and recipes are read while the world loads, so
     // applying afterwards would generate terrain from one content set and then claim another was in effect.
     await this.applyDataPacks();
+    // The packs are in force only now, and the structure engine captures them when it is built, so build it
+    // again. The setup screen reseeds before this point, which is too early to see the chosen preset.
+    this.world.rebuildStructures?.();
     this.worldGenerated = true;
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
+    this.world.generationMode = 'procedural';
     this.buildingStudio?.exitStudio();
+    this.paintings?.clear();
     // Catch a missing UI method up front: previously such a call threw late in
     // this method and silently aborted the start flow.
     const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
     if (missingUi.length) {
       console.warn(`[World] UIManager is missing: ${missingUi.join(', ')}. Skipping those updates.`);
     }
-    if (this.mechanisms) {
-      this.mechanisms.setMechanism('default', this);
-    } else {
-      if (this.tournament) {
-        this.tournament.isTournamentMap = false;
-        this.tournament.cleanup?.();
-        this.tournament.reset?.();
-      }
-      if (this.trainingSites) {
-        this.trainingSites.cleanup?.();
-        this.trainingSites.reset?.();
-      }
-      if (this.dungeonMode) {
-        this.dungeonMode.reset?.();
-      }
-    }
+    this.modLoader?.closeWorld();
+    if (this.mechanisms) this.mechanisms.setMechanism('default', this);
 
     // Apply atmospheric sky & fog colors matching the biome
     const def = getBiomeDef(this.world.selectedBiome);
@@ -553,6 +558,7 @@ class Game {
       if (this.dirLight) this.dirLight.intensity = 0.2;
       if (this.ambientLight) {
         this.ambientLight.color.setHex(def.fogColor || 0x330808);
+        this.ambientLight.groundColor.copy(this.ambientLight.color);
         this.ambientLight.intensity = 0.7;
       }
       if (this.sunLight) this.sunLight.intensity = 0;
@@ -562,11 +568,16 @@ class Game {
       if (this.sky.mesh) this.sky.mesh.visible = true;
     }
 
+    // The spawn point is chosen BEFORE the chunks are built. Building them first meant the spawn's own chunks were
+    // generated afterwards, by `placePlayerOnSurface`, and never meshed: the player started in a half-empty world
+    // that filled in over the first seconds. The overlay goes up first, because finding the surface generates terrain.
+    if (this.overlay) {
+      this.overlay.show('Generating World');
+      await yieldToBrowser();
+    }
+    const spawn = placePlayerOnSurface(this);
     await this.loadWorldProgressively();
 
-    // Terrain now exists, so put the player on its surface. Placing them before
-    // generation left them at a hardcoded height that could be inside rock.
-    const spawn = placePlayerOnSurface(this);
     if (spawn?.found) {
       console.log(`[World] Spawned the player on the surface at (${spawn.x}, ${spawn.y}, ${spawn.z}); ${spawn.reason}.`);
     } else {
@@ -587,6 +598,11 @@ class Game {
     //
     // `markReady` is what actually starts the simulation. Until this line the phase has been `loading`, and
     // `animate()` has been rendering only: no physics, no hazards, no mob AI, no spawning and no clock.
+    // The camera follows the player only inside the player's own update, which has not run yet. Until it does the
+    // view is taken from wherever the camera last was -- the origin, inside the ground, for a new world -- which is
+    // the odd half-empty first frames. Place the camera at the spawn now, so the first frame is the player's view.
+    this.player.updateCameraAndModel?.(0);
+    this.camera.updateMatrixWorld?.();
     markReady(this.lifecycle);
     this.worldReady = true;
   }
@@ -595,39 +611,32 @@ class Game {
     if (this._worldStartInFlight) return;
     this._worldStartInFlight = true;
     this.sounds.init();
-    const btnStudio = document.getElementById('btn-start-structure-studio');
+    const btnStudio = document.getElementById('btn-start-building-studio');
     if (btnStudio) btnStudio.disabled = true;
 
     try {
+      // Building Studio is not a world: no terrain is generated and nothing spawns. There is only an invisible
+      // ground marked by a grid (buildingStudio.js), and everything is built on or above it. Anything left over
+      // from a previous world is released first.
+      teardownWorld(this);
+      if (!beginLoading(this.lifecycle)) throw new Error('a world is already loading');
       this.worldGenerated = true;
       this.worldType = 'building_studio';
-      this.world.isFlatWorld = true;
+      this.world.isFlatWorld = false;
+      // 'authored' is the mode in which a missing chunk is empty air rather than generated terrain, chunks keep
+      // their blocks when streamed out, and natural spawning is off.
+      this.world.generationMode = 'authored';
+      this.paintings?.clear();
 
-      if (this.mechanisms) {
-        this.mechanisms.setMechanism('default', this);
-      } else {
-        if (this.tournament) {
-          this.tournament.isTournamentMap = false;
-          this.tournament.cleanup?.();
-          this.tournament.reset?.();
-        }
-        if (this.trainingSites) {
-          this.trainingSites.cleanup?.();
-          this.trainingSites.reset?.();
-        }
-        if (this.dungeonMode) {
-          this.dungeonMode.reset?.();
-        }
-      }
+      this.modLoader?.closeWorld();
+      if (this.mechanisms) this.mechanisms.setMechanism('default', this);
 
-      await this.loadWorldProgressively();
-
-      // Put player on surface in creative mode facing the build origin
-      this.player.position.set(0, 5, 0);
-      this.player.gamemode = 'creative';
-      this.player.yaw = 0; // facing +Z towards (0, 5, 8)
-      this.player.pitch = 0;
-      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
+      // Creative, so the player can fly; the ground (set by enterStudio below) is what they stand on.
+      // Creative, with cheats on, through the same settings path a Creative world uses.
+      this.applyWorldSettings({ gameMode: 'creative', cheats: true });
+      this.player.position.set(0.5, 5, 0.5);
+      this.loadChunksAroundPlayer?.();
+      markReady(this.lifecycle);
 
       const startOverlay = document.getElementById('start-overlay');
       if (startOverlay) startOverlay.style.display = 'none';
@@ -719,7 +728,7 @@ class Game {
       if (this.ui?.closeAllModals) this.ui.closeAllModals();
       if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
       if (this.player) {
-        this.player.controlsDisabled = false;
+        this.player.controlsDisabled = Boolean(this.modRuntime?.exclusiveSimulation);
         this.player.isSleeping = false;
         this.player.keys = {};
       }
@@ -754,7 +763,7 @@ class Game {
     if (this.ui?.closeAllModals) this.ui.closeAllModals();
     if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
     if (this.player) {
-      this.player.controlsDisabled = false;
+      this.player.controlsDisabled = Boolean(this.modRuntime?.exclusiveSimulation);
       this.player.isSleeping = false;
       this.player.keys = {};
     }
@@ -1030,6 +1039,7 @@ class Game {
       this.scene.fog.near = this.normalFogNear;
       this.scene.fog.far = this.normalFogFar;
       this.ambientLight.color.setHex(0x662222);
+      this.ambientLight.groundColor.copy(this.ambientLight.color);
       this.ambientLight.intensity = 0.55;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
@@ -1043,6 +1053,7 @@ class Game {
       this.scene.fog.near = this.normalFogNear;
       this.scene.fog.far = this.normalFogFar;
       this.ambientLight.color.setHex(0x3b1d54);
+      this.ambientLight.groundColor.copy(this.ambientLight.color);
       this.ambientLight.intensity = 0.45;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
@@ -1110,27 +1121,31 @@ class Game {
     }
 
     const { opaqueGeo, transparentGeo, waterGeo, lightGeo } = geometry;
+    // Chunk meshes sit at the origin and never move, so their matrices are computed once rather than recomposed
+    // on every frame's scene walk -- over a thousand of them in a normal view distance.
+    const settle = (mesh) => { mesh.matrixAutoUpdate = false; mesh.updateMatrix(); mesh.updateMatrixWorld(true); return mesh; };
 
     this.blockLighting.setChunk(chunk.cx, chunk.cz, lightGeo?.userData.sources || []);
     if (lightGeo) {
-      chunk.lightMesh = new THREE.Mesh(lightGeo, this.textures.lightMaterial);
+      chunk.lightMesh = settle(new THREE.Mesh(lightGeo, this.textures.lightMaterial));
       chunk.lightMesh.castShadow = chunk.lightMesh.receiveShadow = true;
       chunk.lightMesh.customDistanceMaterial = this.textures.lightDistanceMaterial;
       this.scene.add(chunk.lightMesh);
     }
     if (opaqueGeo) {
-      chunk.opaqueMesh = new THREE.Mesh(opaqueGeo, this.textures.opaqueMaterial);
+      chunk.opaqueMesh = settle(new THREE.Mesh(opaqueGeo, this.textures.opaqueMaterial));
       chunk.opaqueMesh.castShadow = chunk.opaqueMesh.receiveShadow = true;
       this.scene.add(chunk.opaqueMesh);
     }
     if (waterGeo) {
-      chunk.waterMesh = new THREE.Mesh(waterGeo, this.textures.waterMaterial);
+      chunk.waterMesh = markWater(settle(new THREE.Mesh(waterGeo, this.textures.waterMaterial)));
       chunk.waterMesh.renderOrder = 1;
       chunk.waterMesh.receiveShadow = true;
       this.scene.add(chunk.waterMesh);
     }
     if (transparentGeo) {
-      chunk.transparentMesh = new THREE.Mesh(transparentGeo, this.textures.transparentMaterial);
+      // Leaves, glass and plants: part of what the water refracts, and redrawn over it where they are in front.
+      chunk.transparentMesh = markOverWater(settle(new THREE.Mesh(transparentGeo, this.textures.transparentMaterial)));
       chunk.transparentMesh.renderOrder = 2;
       chunk.transparentMesh.castShadow = chunk.transparentMesh.receiveShadow = true;
       this.scene.add(chunk.transparentMesh);
@@ -1147,7 +1162,8 @@ class Game {
    * Creative player is built and then toggled, which is what used to happen and what left flight on.
    */
   applyWorldSettings(raw = {}) {
-    this.settings = normaliseSettings({ ...this.settings, ...raw });
+    // settingsWith: a Creative world starts with cheats ON unless the setup screen said otherwise.
+    this.settings = settingsWith(this.settings, raw);
     this.difficulty = this.settings.difficulty;
     this.player?.setGameMode?.(this.settings.gameMode);
     if (this.player) this.player.difficulty = this.settings.difficulty;
@@ -1466,7 +1482,7 @@ class Game {
       afterUi(e.currentTarget, () => this.ui?.openMapModal('load'));
     });
 
-    bind('btn-start-structure-studio', (e) => {
+    bind('btn-start-building-studio', (e) => {
       e.stopPropagation();
       afterUi(e.currentTarget, () => this.startBuildingStudio());
     });
@@ -1605,10 +1621,7 @@ class Game {
 
   /** F3+N: the game mode switcher. This build has Survival and Creative, so it alternates between them. */
   cycleGameMode() {
-    if (this.tournament?.isTournamentMap) {
-      this.ui?.addChatMessage('The World Martial Arts Tournament is survival mode only!', 'system');
-      return null;
-    }
+    if (this.modRuntime?.canChangeGameMode?.() === false) return null;
     const next = this.player?.gamemode === 'creative' ? 'survival' : 'creative';
     this.setGameMode(next);
     this.ui?.addChatMessage(`Set game mode to ${next === 'creative' ? 'Creative' : 'Survival'} Mode (F3+N)`, 'system');
@@ -1799,8 +1812,9 @@ class Game {
     // button with no listener and was dropped.
 
     const requestLockOnClick = () => {
+      if (this.modRuntime?.exclusiveSimulation) return;
       if (this.player?.isDead) return;
-      if (this.dungeonMode?.isActive) return;
+      if (this.player?.isDungeonMode) return;
       const isLocked = document.pointerLockElement && (
         document.pointerLockElement === this.renderer?.domElement ||
         document.pointerLockElement === this.container ||
@@ -1815,7 +1829,7 @@ class Game {
 
     this.renderer.domElement.addEventListener('click', (e) => {
       requestLockOnClick();
-      if (this.worldGenerated && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen) {
+      if (!this.modRuntime?.exclusiveSimulation && this.worldGenerated && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen) {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
       }
     });
@@ -1826,7 +1840,7 @@ class Game {
     // Mouse Down (Left click mine/attack, Right click place/interact)
     window.addEventListener('mousedown', (e) => {
       if (this.player?.isDead) return;
-      if (this.dungeonMode?.isActive) {
+      if (this.player?.isDungeonMode) {
         if (e.button === 0 && !this.ui.isModalOpen() && !this.ui.isChatOpen) {
           this.player.triggerPunch();
         }
@@ -1888,6 +1902,8 @@ class Game {
         // and no catch, matching the wiki's rule that abandoning the rod costs nothing.
         this.fishing?.cancel();
         this.player.isBlocking = false;
+        // Escape releases the lock without a keydown reaching the page. That first Escape only detaches the
+        // mouse; a second Escape (handled in ui.js) opens the pause menu, and a click re-attaches the mouse.
       }
     });
     window.addEventListener('mouseup', (e) => {
@@ -1975,22 +1991,22 @@ class Game {
   }
 
   /**
-   * Open the Resource Inspector, the block and item counterpart to the Mob Inspector.
+   * Open the Item or Block Inspector, the block and item counterparts to the Mob Inspector.
    *
-   * Like the Mob Inspector it is a separate page with its own preview, so this navigates rather than
-   * starting a world. Carries the item the player was examining when one is known, and the Kind filter the
-   * caller asked for (`item` or `block`) so the picker's two choices land on different lists.
+   * They are two separate pages with their own preview, so this navigates rather than starting a world.
+   * `kind` picks the page: `block` opens block-debug.html, anything else opens item-debug.html. Carries the
+   * resource the player was examining when one is known.
    *
-   * @param {{resource?: string|null, kind?: string|null}} [options]
+   * @param {{resource?: string|null, kind?: 'item'|'block'|null}} [options]
    * @returns {string} the URL that was navigated to, so it can be asserted in tests
    */
   openResourceInspector({ resource = null, kind = null } = {}) {
     const target = resource || this.resourceInspectorTarget || '';
+    const page = kind === 'block' ? '/block-debug.html' : '/item-debug.html';
     const params = new URLSearchParams();
     if (target) params.set('resource', target);
-    if (kind) params.set('kind', kind);
     const query = params.toString();
-    const url = query ? `/resource-debug.html?${query}` : '/resource-debug.html';
+    const url = query ? `${page}?${query}` : page;
     if (typeof window !== 'undefined') window.location.href = url;
     return url;
   }
@@ -2031,6 +2047,15 @@ class Game {
       return;
     }
 
+    // A painting breaks with one hit (the wiki: attack it), and is nearer than the wall it hangs on. Stop the
+    // press there, or holding the button would go on to mine the wall behind it.
+    const paintingHit = this.paintings?.raycast(this.camera.position, lookDir, 5.2);
+    if (paintingHit && (!this.targetMob || paintingHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
+      this.paintings.breakByPlayer(paintingHit.painting, this.player);
+      this.isMouseDown = false;
+      return;
+    }
+
     // Attack mob if target mob is looked at
     if (this.targetMob) {
       const activeItem = this.inventory.getActiveItem();
@@ -2068,24 +2093,8 @@ class Game {
   }
 
   handleRightClick() {
-    // Interacting with Tournament Host
-    if (this.targetMob && this.targetMob.type === 'tournament_host') {
-      if (this.tournament) {
-        this.tournament.talkToHost();
-      }
-      return;
-    }
-
-    // Interacting with Training Site Manager
-    if (this.targetMob && this.targetMob.type === 'site_manager') {
-      if (this.trainingSites) {
-        const site = this.trainingSites.sites.find(s => s.id === this.targetMob.siteId);
-        if (site) {
-          this.trainingSites.triggerSiteIntroduction(site);
-        }
-      }
-      return;
-    }
+    const interaction = this.mobs?.getMobProvider(this.targetMob)?.interact;
+    if (interaction) { interaction(this.targetMob); return; }
 
     // Piglin bartering
     if (this.targetMob && this.targetMob.type === 'piglin') {
@@ -2146,10 +2155,40 @@ class Game {
         this.sounds.playWater(); this.ui.updateHotbar();
         return;
       }
+      // Armour stands: put armour on, swap it, or take it back with an empty hand.
+      if (interactMob.type === 'armor_stand') {
+        if (useOnArmorStand(interactMob, this.inventory, this.player.gamemode === 'creative')) this.ui?.updateHotbar?.();
+        return;
+      }
       if (this.mobs?.animalBehaviors?.interact(interactMob, this.player)) {
         this.ui?.updateHotbar?.();
         return;
       }
+    }
+
+    // An armour stand goes on top of the block under the crosshair, turned to face the player.
+    const standItem = this.inventory.getActiveItem();
+    if (standItem && !standItem.isBlock && standItem.id === 'armor_stand' && this.targetBlock) {
+      const at = armorStandPlacement(this.targetBlock, this.player.position);
+      if (at) {
+        this.mobs.spawnMob('armor_stand', at.x, at.y, at.z, { yaw: at.yaw });
+        if (this.player.gamemode !== 'creative') { this.inventory.consumeActiveItem(1); this.ui.updateHotbar(); }
+        return;
+      }
+    }
+
+    // A painting goes on the side of the block under the crosshair, never on a floor or a ceiling, and picks the
+    // largest canvas that fits there (paintings.js). One that cannot hang is not consumed.
+    const paintingItem = this.inventory.getActiveItem();
+    if (paintingItem && !paintingItem.isBlock && paintingItem.id === 'painting' && this.targetBlock) {
+      const facing = facingFromNormal(this.targetBlock.normal);
+      const n = this.targetBlock.normal;
+      const hung = facing && this.paintings.place({ x: this.targetBlock.x + n.x, y: this.targetBlock.y, z: this.targetBlock.z + n.z }, facing);
+      if (hung && this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem(1);
+        this.ui.updateHotbar();
+      }
+      return;
     }
 
     // Active item action (throwing egg, boosting pig/strider with carrot/fungus on stick)
@@ -2269,9 +2308,15 @@ class Game {
       const direction = this.camera.getWorldDirection(new THREE.Vector3());
       const hit = traceBucket(this.world, this.camera.position, direction, bucketItem.id === 'bucket');
       const result = useBucket(this.world, this.inventory, this.player.gamemode, hit,
-        id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false));
+        id => this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0,1,0)), id, false),
+        { dimension: this.world?.isNether || this.currentDimension === 'nether' ? 'nether' : this.currentDimension });
       if (result) {
-        this.sounds.playWater(); this.ui.updateHotbar();
+        if (result.evaporated) {
+          // Water poured in the Nether boils away (Water: "disappears if placed there with a bucket").
+          this.sounds.playFizz?.() ?? this.sounds.playExtinguish?.();
+          this.ui.addChatMessage?.('The water evaporated.', 'system');
+        } else this.sounds.playWater();
+        this.ui.updateHotbar();
         this.refreshDirtyChunks();
       }
       return;
@@ -3042,7 +3087,9 @@ class Game {
   setGameMode(mode) {
     const next = normaliseGameMode(mode);
     const result = this.player.setGameMode?.(next) ?? { previous: this.player.gamemode, mode: next, changed: true };
-    this.settings = normaliseSettings({ ...this.settings, gameMode: next });
+    // Switching to Creative turns cheats on too (settingsWith); switching back leaves them as they are.
+    this.settings = settingsWith(this.settings, { gameMode: next });
+    this.ui?.refreshPauseMenuLabels?.();
     if (next === 'creative' && this.ui?.openCreativeInventory) this.ui.openCreativeInventory();
     return result;
   }
@@ -3101,6 +3148,8 @@ class Game {
     if (!this.targetBlock) return;
     const { x, y, z, blockId } = this.targetBlock;
     if (blockId === BLOCKS.AIR || blockId === BLOCKS.BEDROCK) return;
+    // Building Studio's invisible ground can be aimed at (to build on) but not broken.
+    if (y < this.world.floorY) return;
 
     // Mining a block costs 0.005 exhaustion in vanilla. Charged after the guards, so breaking air
     // or bedrock -- neither of which is a real break -- does not tire the player.
@@ -3435,7 +3484,16 @@ class Game {
     // player since it was written and nothing read it, so its curse -- the reason mining near an ocean
     // monument is hopeless in vanilla -- did nothing at all. At level III the multiplier is 0.027, which
     // turns a quarter-second block into ten seconds.
-    const effectMultiplier = miningSpeedMultiplier(this.player.statusEffects);
+    // Under water, mining is five times slower with the head submerged unless the helmet has Aqua Affinity, and
+    // five times slower again off the ground (Water: "5x slower ... on the ground and 25x slower when not on the
+    // ground"). The off-ground factor is applied only in water, which is where the wiki states it.
+    const inWater = this.player.inWater || this.player.headInWater;
+    const waterFactor = inWater ? underwaterMiningMultiplier({
+      headInWater: this.player.headInWater,
+      onGround: this.player.onGround || this.player.isFlying,
+      aquaAffinity: (this.player.armourEnchantmentLevel?.('aqua_affinity') ?? 0) > 0,
+    }) : 1;
+    const effectMultiplier = miningSpeedMultiplier(this.player.statusEffects) * waterFactor;
     const breakDuration = Math.max(0.05, breakTimeSeconds(blockIdOfTarget, heldDef, heldId, efficiencyLevel, effectMultiplier));
     this.miningTime += dt;
 
@@ -3465,8 +3523,22 @@ class Game {
   }
 
   updateDayNightCycle(dt) {
+    // The brighter overworld fill must not replace the End's purple atmosphere.
+    if (this.currentDimension === 'the_end' || this.world?.dimension === 'the_end') {
+      this.textures?.setSnowDaylight(0);
+      this.ambientLight.color.setHex(0x3b1d54);
+      this.ambientLight.groundColor.copy(this.ambientLight.color);
+      this.ambientLight.intensity = 0.45;
+      this.sunLight.intensity = this.moonLight.intensity = 0;
+      if (this.sky) {
+        this.sky.disabled = true;
+        this.sky.mesh.visible = false;
+      }
+      return;
+    }
     const isNether = this.currentDimension === 'nether' || this.world?.isNether;
     if (isNether) {
+      this.textures?.setSnowDaylight(0);
       const def = getBiomeDef(this.world?.selectedBiome);
       const bgHex = def?.skyColor !== undefined ? def.skyColor : 0x330808;
       const fogHex = def?.fogColor !== undefined ? def.fogColor : 0x471010;
@@ -3485,19 +3557,22 @@ class Game {
     // The day counter advances when the sky wraps, because several mechanics are counted in days rather than
     // in ticks -- a villager may restock "up to twice per day" -- and `worldTime` alone cannot express that,
     // since it resets to zero every 24000 ticks.
-    const advancedTime = this.worldTime + (24000 / this.dayLengthSeconds) * dt;
+    // doDaylightCycle stops the clock (Building Studio turns it off so the light holds). Nothing read the rule
+    // before, so the terminal's "Daylight cycle" switch did nothing.
+    const clockRuns = this.gamerules?.doDaylightCycle !== false;
+    const advancedTime = this.worldTime + (clockRuns ? (24000 / this.dayLengthSeconds) * dt : 0);
     if (advancedTime >= 24000) this.dayCount = (this.dayCount ?? 0) + Math.floor(advancedTime / 24000);
     this.worldTime = advancedTime % 24000;
+    this.sky.disabled = false;
     this.sky.setTime(this.worldTime);
     followSun(this.sunLight, this.sky.sunDirection, this.camera.position);
     this.moonLight.position.copy(this.sky.sunDirection).multiplyScalar(-100);
-    const sunHeight = this.sky.sunDirection.y;
-    const day = this.sky.uniforms.uDay.value;
     this.normalBgColor.copy(this.sky.horizonColor);
-    this.ambientLight.intensity = this.shader?.enabled ? 0.08 + day * 0.34 : 0.10 + day * 0.48;
-    this.sunLight.intensity = (this.shader?.enabled ? 1.12 : 0.85) * THREE.MathUtils.smoothstep(sunHeight, -0.025, 0.5);
-    this.sunLight.color.setRGB(1, 0.65 + 0.27 * day, 0.28 + 0.44 * day);
-    this.moonLight.intensity = 0.17 * Math.max(0, -sunHeight) * (1 - this.weather.rainIntensity * 0.8);
+    updateOutdoorLighting(this.ambientLight, this.sunLight, this.moonLight, this.sky, this.shader?.enabled, this.weather.rainIntensity);
+    this.textures.setSnowDaylight(snowDaylightStrength(this.sky.sunDirection.y, this.weather.rainIntensity));
+    const fogRange = overworldFogRange(this.renderDistance);
+    this.normalFogNear = fogRange.near;
+    this.normalFogFar = fogRange.far;
 
     // Apply fog based on underwater state
     if (!this.isUnderwater) {
@@ -3520,7 +3595,25 @@ class Game {
     this.isUnderwater = isWaterBlock && (BLOCK_DEFS[blockAtCamera]?.waterPlant || camPos.y % 1 < waterHeight(this.world, Math.floor(camPos.x), Math.floor(camPos.y), Math.floor(camPos.z)));
 
     if (this.isUnderwater) {
-      // Switch to Minecraft underwater fog: dense blue fog with short range
+      // The surface above the eye: the composite pass draws caustics and light shafts below it.
+      const cx = Math.floor(camPos.x), cz = Math.floor(camPos.z);
+      let top = Math.floor(camPos.y);
+      for (let i = 0; i < 48 && (this.world.getVoxel(cx, top + 1, cz) === BLOCKS.WATER || BLOCK_DEFS[this.world.getVoxel(cx, top + 1, cz)]?.waterPlant); i++) top++;
+      this.underwaterSurfaceY = top + waterHeight(this.world, cx, top, cz);
+
+      // Dense on entering, clearing over 30 seconds; Night Vision and Conduit Power clear it at once.
+      const now = performance.now();
+      const dt = this.lastUnderwaterCheck ? Math.min(0.25, (now - this.lastUnderwaterCheck) / 1000) : 0;
+      this.underwaterSeconds += dt;
+      const effects = this.player?.statusEffects;
+      const has = (name) => Boolean(effects && (effects instanceof Map ? effects.has(name) : effects[name]));
+      const view = underwaterVisibility(this.underwaterSeconds, { nightVision: has('night_vision'), conduitPower: has('conduit_power') });
+      const daylight = this.sky?.uniforms?.uDay?.value ?? 1;
+      const [r, g, b] = underwaterFogColor(daylight, this.underwaterSurfaceY - camPos.y);
+      this.underwaterFogColor.setRGB(r, g, b);
+      this.underwaterFogFar = view.far;
+      this.underwaterClarity = view.clarity;
+
       this.scene.background.copy(this.underwaterFogColor);
       this.scene.fog.color.copy(this.underwaterFogColor);
       this.scene.fog.near = this.underwaterFogNear;
@@ -3531,6 +3624,8 @@ class Game {
         this.underwaterOverlay.classList.add('active');
       }
     } else {
+      this.underwaterSeconds = 0;
+      this.underwaterSurfaceY = null;
       // Restore normal fog
       const isNether = this.currentDimension === 'nether' || this.world?.isNether;
       if (isNether) {
@@ -3553,6 +3648,8 @@ class Game {
         this.underwaterOverlay.classList.remove('active');
       }
     }
+
+    this.lastUnderwaterCheck = performance.now();
 
     // Update water shader uniform
     if (this.textures.waterUniforms) {
@@ -3668,6 +3765,8 @@ class Game {
     switch (root) {
       case '/redstone': return this.runRedstoneCommand(parts);
       case '/locate': return this.runLocateCommand(parts);
+      case '/teleport':
+      case '/tp': return this.runTeleportCommand(parts);
       case '/show_mobs': return this.runShowMobsCommand();
       case '/save': return this.runSaveCommand(parts);
       case '/load': return this.runLoadCommand(parts);
@@ -3676,6 +3775,15 @@ class Game {
         this.ui.openMapModal('load');
         return;
       case '/summon':
+        if(parts[1]?.replace('minecraft:','')==='lightning_bolt'){
+          const origin=this.player.position,values=parts.slice(2),position=origin.clone();
+          if(values.length&&values.length!==3){this.ui.addChatMessage('Usage: /summon lightning_bolt [x y z]','error');return;}
+          for(const [i,axis] of ['x','y','z'].entries())if(values[i]!==undefined){const raw=values[i];position[axis]=raw.startsWith('~')?origin[axis]+Number(raw.slice(1)||0):Number(raw);}
+          if(!position.toArray().every(Number.isFinite)){this.ui.addChatMessage('Invalid lightning coordinates','error');return;}
+          if(this.weather.triggerLightning(null,null,position))this.ui.addChatMessage('Summoned lightning bolt','system');
+          else this.ui.addChatMessage('Lightning is only available in the Overworld','error');
+          return;
+        }
         this.runSummonCommand(parts[1]);
         return;
       default:
@@ -3741,6 +3849,46 @@ class Game {
           this.ui.addChatMessage(id + ': ' + error.message, 'error');
         }
       }
+      // The count closes the listing: how many structures this world really has around the player.
+      const counted = countStructures(this.world, p.x, p.z, { radiusChunks: 32 });
+      const kinds = Object.entries(counted.byType).sort((a, b) => b[1] - a[1]).map(([type, n]) => type + ' ' + n).join(', ');
+      this.ui.addChatMessage(
+        'Total: ' + counted.total + ' structures within ' + counted.radiusChunks * 16 + ' blocks'
+          + (kinds ? ' (' + kinds + ')' : ''),
+        'system',
+      );
+    } catch (error) {
+      this.ui.addChatMessage(error.message, 'error');
+    }
+  }
+
+  /**
+   * /teleport <x> <y> <z> | <structure>. A structure name goes to the nearest one this world generates, landing on
+   * dry ground outside it and facing it (see src/teleport.js), after generating the chunks it covers.
+   */
+  runTeleportCommand(parts) {
+    try {
+      const p = this.player.position;
+      const parsed = parseTeleport(parts.slice(1), p);
+      if (!parsed.ok) throw new Error(parsed.reason);
+      let target;
+      if (parsed.kind === 'coords') {
+        target = { x: parsed.x, y: parsed.y, z: parsed.z, say: 'Teleported to ' + parsed.x.toFixed(1) + ', ' + parsed.y.toFixed(1) + ', ' + parsed.z.toFixed(1) };
+      } else {
+        const found = locateNearestStructure(this.world, parsed.id, p.x, p.z, { maxRadiusChunks: 4096 });
+        const arrival = structureArrival(this.world, found);
+        target = {
+          ...arrival,
+          say: 'Teleported to the nearest ' + found.structureId + ' at x ' + found.centre.x + ', z ' + found.centre.z
+            + ' (' + found.distance + ' blocks away, ' + arrival.note + ')'
+        };
+      }
+      this.player.position.set(target.x, target.y, target.z);
+      if (this.player.velocity) this.player.velocity.set(0, 0, 0);
+      if (this.player.fallDistance !== undefined) this.player.fallDistance = 0;
+      if (target.yaw !== undefined) { this.player.yaw = target.yaw; this.player.pitch = target.pitch; }
+      this.loadChunksAroundPlayer?.();
+      this.ui.addChatMessage(target.say, 'system');
     } catch (error) {
       this.ui.addChatMessage(error.message, 'error');
     }
@@ -3899,6 +4047,14 @@ class Game {
     // Bounded, because a hidden tab or a slow frame hands back a delta of seconds. Passing that straight into
     // physics and the spawner is how a player returns to a tab already dead.
     const dt = clampDelta(this.clock.getDelta());
+    // Game packages may supply their own authoritative controllers and policies. The engine still
+    // owns voxel meshing and the renderer; base Survival systems must not run alongside that game.
+    if (this.modRuntime?.exclusiveSimulation) {
+      this.modRuntime.update?.(dt);
+      if(this.modRuntime.render)this.modRuntime.render(dt);
+      else {this.renderer.clear();this.renderer.render(this.scene,this.modRuntime.camera||this.camera);}
+      return;
+    }
     const fps = 1.0 / Math.max(0.0001, dt);
 
     // 1. Update Player Physics & Camera
@@ -3934,6 +4090,19 @@ class Game {
     // throw would still stop every mob. It used to log to the console alone, so when
     // one mob type threw — 28 of them did, on an unguarded `mob.mat.color` — every mob
     // in the world stopped moving and hitting them did nothing, with no indication why.
+    // A painting whose wall is gone breaks a second later and drops.
+    this.paintings?.update(dt);
+    // Building Studio's ground grid follows the player.
+    this.buildingStudio?.update?.();
+
+    // Monster spawners placed by structures (monster rooms, mineshafts, fortresses, strongholds, bastions).
+    this.monsterSpawners ??= new MonsterSpawners({ world: this.world, mobs: this.mobs });
+    this.monsterSpawnerClock = Math.min(40, (this.monsterSpawnerClock ?? 0) + dt * 20);
+    while (this.monsterSpawnerClock >= 1) {
+      this.monsterSpawnerClock -= 1;
+      try { this.monsterSpawners.tick({ position: this.player.position, gamemode: this.player.gamemode }, { difficulty: this.difficulty }); } catch (err) { console.error('monster spawner:', err); break; }
+    }
+
     try {
       this.mobs.update(dt, this.player);
       this.mobUpdateError = null;
@@ -3960,7 +4129,8 @@ class Game {
     //
     // Contained in its own try/catch like the mob update: a fault in the spawner must not stop the
     // world from rendering, and a fault in the world must not leave the spawner half-run.
-    if (this.spawnManager && this.worldGenerated) {
+    if (this.worldGenerated) this.world.structures?.flushSpawns?.();
+    if (this.spawnManager && this.worldGenerated && this.world.generationMode !== 'authored') {
       try {
         this.spawnManager.update(dt);
         this.mobSpawnError = null;
@@ -4068,18 +4238,7 @@ class Game {
     if (this.mechanisms) {
       this.mechanisms.update(dt, this.player);
     }
-    if (this.tournament && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasTournamentAnnouncer') : this.tournament.isTournamentMap)) {
-      this.tournament.update(dt, this.player);
-    }
-    if (this.dragonballSkills && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasDragonBallSkills') : this.dragonballSkills.enabled)) {
-      this.dragonballSkills.update(dt);
-    }
-    if (this.trainingSites && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasTrainingSites') : this.tournament?.isTournamentMap)) {
-      this.trainingSites.update(dt, this.player);
-    }
-    if (this.dungeonMode && (this.mechanisms ? this.mechanisms.isFeatureEnabled('hasDungeonCombatMode') : this.tournament?.isTournamentMap)) {
-      this.dungeonMode.update(dt);
-    }
+    this.modRuntime?.update?.(dt);
 
     this.world.water.update(dt);
 
@@ -4117,7 +4276,7 @@ class Game {
     this.shader.render(dt);
 
     // 9. Render 1st person held item overlay (Hidden in Dungeon Mode)
-    if (this.player.perspective === 0 && !this.player.isDungeonMode && !this.dungeonMode?.isActive) {
+    if (this.player.perspective === 0 && !this.player.isDungeonMode && !this.player?.isDungeonMode) {
       this.heldItemRenderer.render(this.renderer);
     }
   }
@@ -4128,7 +4287,7 @@ class Game {
    * unobstructed view, and it is restored immediately afterwards.
    */
   captureCurrentView(options = {}) {
-    const showHeldItem = this.player?.perspective === 0 && !this.player?.isDungeonMode && !this.dungeonMode?.isActive;
+    const showHeldItem = this.player?.perspective === 0 && !this.player?.isDungeonMode;
     const container = this.heldItemRenderer?.container;
 
     try {

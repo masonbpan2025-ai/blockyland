@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export class DragonballSkillsManager {
   constructor(game) {
     this.game = game;
+    this.events = new AbortController();
     this.scene = game.scene;
     this.player = game.player;
     this.sounds = game.sounds;
@@ -54,7 +55,7 @@ export class DragonballSkillsManager {
       } else if (e.code === 'KeyK' && !e.repeat && !this.activeSkill) {
         this.startCharge('genki_dama');
       }
-    });
+    }, { signal: this.events.signal });
 
     window.addEventListener('keyup', (e) => {
       if (e.code === 'KeyJ' && this.activeSkill === 'kamehameha') {
@@ -62,7 +63,7 @@ export class DragonballSkillsManager {
       } else if (e.code === 'KeyK' && this.activeSkill === 'genki_dama') {
         this.releaseCharge();
       }
-    });
+    }, { signal: this.events.signal });
   }
 
   startCharge(skillType) {

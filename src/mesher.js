@@ -5,6 +5,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createBlockGeometry } from './blockGeometry.js';
 import { lavaCornerHeight, waterCornerHeight, waterCurrent } from './waterGeometry.js';
 import { WATER_COLORS } from './water.js';
+import { isSnowSurface, snowFaceTint } from './snowShading.js';
+import { occludesWholeFace } from './blockOcclusion.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
 
@@ -25,12 +27,14 @@ const PAD_STRIDE_Y = PAD_X * PAD_Z;
 
 /** Scratch buffers, reused across meshes so a mesh allocates nothing for its border. */
 let borderBlocks = null;
+let skyCeilings = null;
 
 function ensureBorderBuffers() {
   if (borderBlocks) return;
   // Match Chunk.voxels: coral and newer blocks have IDs above 255. Truncating
   // them here breaks occlusion and emits thousands of hidden reef/water faces.
   borderBlocks = new Uint16Array(PAD_STRIDE_Y * CHUNK_HEIGHT);
+  skyCeilings = new Int16Array(PAD_STRIDE_Y);
 }
 
 /**
@@ -44,6 +48,7 @@ function fillBorder(chunk, world) {
   const cx = chunk.cx;
   const cz = chunk.cz;
   const voxels = chunk.voxels;
+  skyCeilings.fill(-1);
 
   for (let px = 0; px < PAD_X; px++) {
     const wx = cx * CHUNK_SIZE_X + px - 1;
@@ -62,12 +67,17 @@ function fillBorder(chunk, world) {
         const columnStride = CHUNK_SIZE_X * CHUNK_SIZE_Z;
         const src = lz * CHUNK_SIZE_X + lx;
         for (let y = 0; y < CHUNK_HEIGHT; y++) {
-          borderBlocks[columnBase + y] = voxels[y * columnStride + src];
+          const id = voxels[y * columnStride + src];
+          borderBlocks[columnBase + y] = id;
+          const def = BLOCK_DEFS[id];
+          if (id !== BLOCKS.AIR && def?.solid !== false && !def?.transparent && !def?.plant) skyCeilings[px * PAD_Z + pz] = y;
         }
       } else {
         for (let y = 0; y < CHUNK_HEIGHT; y++) {
           const id = world.getVoxel(wx, y, wz);
           borderBlocks[columnBase + y] = id === undefined ? 0 : id;
+          const def = BLOCK_DEFS[id];
+          if (id && def?.solid !== false && !def?.transparent && !def?.plant) skyCeilings[px * PAD_Z + pz] = y;
         }
       }
     }
@@ -81,6 +91,11 @@ function padGet(x, y, z) {
   const pz = z + 1;
   if (px < 0 || px >= PAD_X || pz < 0 || pz >= PAD_Z) return BLOCKS.AIR;
   return borderBlocks[(px * PAD_Z + pz) * CHUNK_HEIGHT + y];
+}
+
+function faceSkyExposure(x, y, z, nx, ny, nz, ceilings) {
+  const column = (x + nx + 1) * PAD_Z + z + nz + 1;
+  return y + ny > ceilings[column] ? 1 : 0;
 }
 
 /**
@@ -213,6 +228,11 @@ export class ChunkMesher {
   }
 
   *#buildChunkMesh(chunk, world, resumable) {
+    // Resolve model coverage once per block type, not six times per voxel.
+    // Snapshot each build so a resumed mesh keeps its own table and newly
+    // registered mod definitions are picked up by the next build.
+    const faceOcclusion = new Uint8Array(65536);
+    for (const id in BLOCK_DEFS) faceOcclusion[id] = occludesWholeFace(BLOCK_DEFS[id]) ? 1 : 0;
     const lightGeometries = [];
     const lightSources = [];
     const cx = chunk.cx;
@@ -226,6 +246,7 @@ export class ChunkMesher {
     const opUv = [];
     const opCol = [];
     const opWind = [];
+    const opSnow = [];
     const opIdx = [];
     let opVertCount = 0;
 
@@ -235,6 +256,7 @@ export class ChunkMesher {
     const trUv = [];
     const trCol = [];
     const trWind = [];
+    const trSnow = [];
     const trIdx = [];
     let trVertCount = 0;
 
@@ -257,6 +279,7 @@ export class ChunkMesher {
     // Copy the chunk and its border once. Everything the inner loop needs is then a flat array
     // read rather than a world lookup.
     fillBorder(chunk, world);
+    const snowSkyCeilings = skyCeilings.slice();
 
     // Column depth for water corner heights. Keys stay in WORLD coordinates so the two sides of a
     // chunk seam agree on the depth of the shared column.
@@ -316,8 +339,14 @@ export class ChunkMesher {
           // fast path and is drawn full size, which for any of these looks like a rendering bug
           // rather than a missing feature.
           if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.wallSign || def?.wallFan || def?.head || def?.wallHead || def?.sign || def?.rod || def?.rail || def?.flowerPot) {
-            const state = world.redstone?.state([wx, wy, wz]) || {};
+            // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
+            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab) && world.structureOrientations?.get(`${wx},${wy},${wz}`)) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
+            if (def.snowLayer) {
+              const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
+              for (let i = 0; i < normals.count; i++) exposure[i] = faceSkyExposure(lx, ly, lz, normals.getX(i), normals.getY(i), normals.getZ(i), snowSkyCeilings);
+              geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(exposure, 1));
+            } else geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count), 1));
             geometry.translate(wx, wy, wz);
             const origin = new Float32Array(geometry.attributes.position.count * 3);
             for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
@@ -386,8 +415,7 @@ export class ChunkMesher {
             // Separate emitters so their distance-shadow material can suppress
             // self-shadowing while retaining shadows from the sun/other lamps.
             const exposed = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => {
-              const neighbor = BLOCK_DEFS[world.getVoxel(wx + dx, wy + dy, wz + dz)];
-              return !neighbor || neighbor.transparent;
+              return !faceOcclusion[world.getVoxel(wx + dx, wy + dy, wz + dz)];
             });
             if (exposed) {
               const geometry = createBlockGeometry(blockId, this.tm);
@@ -426,6 +454,7 @@ export class ChunkMesher {
               }
               trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
               trWind.push(0,0,1,1);
+              trSnow.push(0,0,0,0);
               trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
               trVertCount += 4;
             };
@@ -467,13 +496,14 @@ export class ChunkMesher {
             // Culling condition
             if (isWater) {
               if (neighborId === BLOCKS.WATER || nDef?.waterPlant) continue; // cull water adjacent to water or water plants
-              if (nDef && !nDef.transparent) continue; // cull water against solid blocks
+              if (faceOcclusion[neighborId]) continue; // partial neighbours leave water visible
             } else if (isTransparent) {
               if (neighborId === blockId) continue;
-              if (nDef && !nDef.transparent) continue;
+              if (faceOcclusion[neighborId]) continue;
             } else {
-              // Opaque block: only render face if neighbor is transparent or air
-              if (neighborId !== BLOCKS.AIR && (!nDef || !nDef.transparent)) continue;
+              // Texture opacity is not shape coverage: a carpet beside a furnace
+              // must never remove its entire side or bottom.
+              if (faceOcclusion[neighborId]) continue;
             }
 
             // The texture manager keys faces by NAME ('top', 'side', 'bottom', ...), not by the
@@ -521,6 +551,10 @@ export class ChunkMesher {
             let light1 = AO_CURVE[ao1];
             let light2 = AO_CURVE[ao2];
             let light3 = AO_CURVE[ao3];
+            if (isSnowSurface(blockId)) {
+              const tint = snowFaceTint(...normal);
+              baseR *= tint[0]; baseG *= tint[1]; baseB *= tint[2];
+            }
             if (def?.portal) {
               light0 = light1 = light2 = light3 = 1.0;
             }
@@ -539,6 +573,8 @@ export class ChunkMesher {
             if (!isWater) {
               const w = isFoliage ? 1 : 0;
               (isTransparent ? trWind : opWind).push(w, w, w, w);
+              const exposure = isSnowSurface(blockId) ? faceSkyExposure(lx, ly, lz, ...normal, snowSkyCeilings) : 0;
+              (isTransparent ? trSnow : opSnow).push(exposure, exposure, exposure, exposure);
             }
 
             for (let v = 0; v < 4; v++) {
@@ -603,7 +639,7 @@ export class ChunkMesher {
     }
 
     // Helper to create Three.js BufferGeometry
-    const createGeo = (pos, norm, uv, col, idx, wind = null) => {
+    const createGeo = (pos, norm, uv, col, idx, wind = null, snow = null) => {
       if (pos.length === 0) return null;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -612,6 +648,7 @@ export class ChunkMesher {
       geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
       geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
       if(wind)geo.setAttribute('wind',new THREE.Float32BufferAttribute(wind,1));
+      if(snow)geo.setAttribute('snowExposure',new THREE.Float32BufferAttribute(snow,1));
       geo.setIndex(idx);
       geo.computeBoundingSphere();
       return geo;
@@ -622,13 +659,14 @@ export class ChunkMesher {
       waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
       waterGeo.setAttribute('waterFlow', new THREE.Float32BufferAttribute(wtFlow, 2));
     }
+    for (const geo of lightGeometries) if (!geo.attributes.snowExposure) geo.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count), 1));
     const lightGeo = lightGeometries.length ? mergeGeometries(lightGeometries) : null;
     if (lightGeo) lightGeo.userData.sources = lightSources;
     for (const geometry of lightGeometries) geometry.dispose();
     return {
       lightGeo,
-      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx, opWind),
-      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx, trWind),
+      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx, opWind, opSnow),
+      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx, trWind, trSnow),
       waterGeo
     };
   }

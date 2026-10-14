@@ -42,9 +42,10 @@ export const COMMANDS = [
   { name: 'summon', args: '<entity>', level: 2, gate: true, help: 'Spawn a mob' },
   { name: 'setblock', args: '<x> <y> <z> <block>', level: 2, gate: true, help: 'Place a block' },
   { name: 'time', args: 'set <day|night>', level: 2, gate: true, help: 'Change world time' },
-  { name: 'weather', args: '<clear|rain|thunder>', level: 2, gate: true, help: 'Change the weather' },
+  { name: 'weather', args: '<clear|rain|thunder> [seconds]', level: 2, gate: true, help: 'Change weather (rain becomes snow in cold biomes)' },
   { name: 'gamemode', args: '<creative|survival>', level: 2, gate: true, help: 'Switch game mode' },
   { name: 'locate', args: '[structure] [id]', level: 2, gate: true, help: 'Find the nearest generated structure' },
+  { name: 'teleport', args: '<x> <y> <z> | <structure>', level: 2, gate: true, aliases: ['tp'], help: 'Teleport to coordinates, or to the nearest structure (e.g. swamp_hut)' },
   { name: 'show_mobs', args: '', level: 2, gate: true, help: 'Why you may see no mobs (Creative)' },
   // NOT gated, though vanilla calls them level 2. These manage SAVE FILES rather than the world, and `/maps`
   // is now the only route to the map loader -- the pause-menu button that used to open it was replaced by the
@@ -114,6 +115,10 @@ function getBlockIndex() {
  *
  * `minecraft:diamond_sword[enchantments={...}]` -> `diamond_sword`, with the component text returned so
  * the caller can refuse it by name rather than treat it as part of the id.
+ *
+ * The namespace is VALIDATED rather than discarded. This used to slice at the last colon whatever came
+ * before it, so `other_namespace:stone` handed over a vanilla stone: a typo or a resource location from
+ * another pack silently resolved to the wrong item, which is the opposite of what a refusal is for.
  */
 export function splitItemArgument(raw) {
   let text = String(raw ?? '').trim();
@@ -124,8 +129,17 @@ export function splitItemArgument(raw) {
     components = text.slice(open + 1, -1);
     text = text.slice(0, open);
   }
-  const colon = text.lastIndexOf(':');
-  if (colon !== -1) text = text.slice(colon + 1);
+  const colon = text.indexOf(':');
+  if (colon !== -1) {
+    const namespace = text.slice(0, colon);
+    const path = text.slice(colon + 1);
+    // Only `minecraft` names the vanilla registry this game implements. An empty path (`minecraft:`) is
+    // not an id either, and a path containing another colon is not a valid resource location.
+    if (namespace.toLowerCase() !== 'minecraft' || !path || path.includes(':')) {
+      return { id: raw, components, namespace, unknownNamespace: true, malformed: false };
+    }
+    text = path;
+  }
   return { id: text, components, malformed: false };
 }
 
@@ -143,7 +157,10 @@ export function splitItemArgument(raw) {
  *          | {ok: false, reason: string}}
  */
 export function resolveItem(raw) {
-  const { id, components, malformed } = splitItemArgument(raw);
+  const { id, components, malformed, unknownNamespace, namespace } = splitItemArgument(raw);
+  if (unknownNamespace) {
+    return { ok: false, reason: `unknown item namespace '${namespace}' in '${raw}' (this game provides minecraft: only)` };
+  }
   if (malformed) return { ok: false, reason: `malformed item argument '${raw}'` };
   if (!id) return { ok: false, reason: 'no item given' };
   if (components !== null) {
@@ -277,6 +294,22 @@ export function resolveTargets(raw) {
 export const GIVE_COUNT = { min: 1, max: 2147483647, default: 1 };
 
 /**
+ * Vanilla's execution limit: "larger than 100 stack worth of items".
+ *
+ * From the `/give` history, 21w10a (Java 1.17): "`/give` can now only give up to 100 stacks worth of items
+ * at a time". The wiki records the over-limit case as currently *succeeding* in vanilla because of
+ * MC-302537, while stating that it "should fail"; this build refuses, which is the documented contract.
+ * The limit is a stack count, not an item count, so it scales with what the item actually stacks to:
+ * 6,400 ordinary items, 1,600 ender pearls, or 100 unstackable swords.
+ */
+export const GIVE_STACK_LIMIT = 100;
+
+/** The largest `<count>` vanilla will hand over in one command, for this item. */
+export function giveCountLimitFor(id) {
+  return (stackLimitFor(id) || 1) * GIVE_STACK_LIMIT;
+}
+
+/**
  * Parse `/give <targets> <item> [<count>]`.
  *
  * Split from the execution so every failure is a value a test can assert on, and so `main.js` has one
@@ -288,9 +321,15 @@ export const GIVE_COUNT = { min: 1, max: 2147483647, default: 1 };
  */
 export function parseGive(args = []) {
   const usage = 'Usage: /give <targets> <item> [<count>]';
-  const [targetArg, itemArg, countArg] = args;
+  const [targetArg, itemArg, countArg, ...extra] = args;
   if (!targetArg || !itemArg) {
     return { ok: false, reason: 'Not enough arguments.', usage };
+  }
+  // `<count>` is the last argument, so anything after it is a parse error in vanilla's Brigadier. This
+  // function used to destructure the first three and drop the rest, which made `/give @s stone 1 extra`
+  // succeed as if it were well formed.
+  if (extra.length > 0) {
+    return { ok: false, reason: `unexpected argument${extra.length > 1 ? 's' : ''} after the count: ${extra.join(' ')}`, usage };
   }
 
   const target = resolveTargets(targetArg);
@@ -305,13 +344,33 @@ export function parseGive(args = []) {
 
   let count = GIVE_COUNT.default;
   if (countArg !== undefined && countArg !== '') {
-    // `Number` rather than `parseInt`, because `parseInt('64abc')` is 64 and vanilla rejects that.
+    // Validate the WHOLE token against vanilla's Brigadier integer grammar before converting.
+    //
+    // Mojang's `StringReader.readInt()` scans a run of digits, a leading minus and a decimal point, then
+    // `Integer.parseInt` on the result -- so a decimal point is *scanned* but never *parses*. `Number()` is
+    // far more permissive than that: it accepted `1e2` as 100, `0x10` as 16, `+1` as 1 and `1.0` as 1, none
+    // of which vanilla's argument tree produces. The old comment here claimed `Number` was the strict choice
+    // because `parseInt('64abc')` is 64; it is strict about *trailing* junk and permissive about everything
+    // else. Only plain decimal digits, with at most one leading minus, are a count.
+    if (!/^-?[0-9]+$/.test(countArg)) {
+      return { ok: false, reason: `${countArg} is not a whole number.`, usage };
+    }
     count = Number(countArg);
     if (!Number.isInteger(count)) {
       return { ok: false, reason: `${countArg} is not a whole number.`, usage };
     }
     if (count < GIVE_COUNT.min || count > GIVE_COUNT.max) {
       return { ok: false, reason: `count must be between ${GIVE_COUNT.min} and ${GIVE_COUNT.max}.`, usage };
+    }
+    // The parser range and the delivery limit are different things: 2,147,483,647 is a valid integer but not
+    // a valid amount to hand over. Refusing here is also what keeps the request bounded.
+    const limit = giveCountLimitFor(item.id);
+    if (count > limit) {
+      return {
+        ok: false,
+        reason: `count ${count} exceeds ${limit} (100 stacks of ${stackLimitFor(item.id) || 1}) for ${item.display}.`,
+        usage,
+      };
     }
   }
 
@@ -327,8 +386,19 @@ export function parseGive(args = []) {
  * the specified item(s). If there is not enough room... gives the specified item(s) until the inventory
  * is full, and summons the rest items as an item entity dropped by the player."
  *
+ * The count has to be decided BEFORE the insert, because `Inventory.addItem` is not a dry run: it fills
+ * every partial stack and every empty slot it can and only reports `false` when the whole request did not
+ * land. Treating that `false` as "nothing happened" and probing repeatedly -- which this function did, by
+ * bisection -- duplicated everything the failed probes had already inserted. A 63-stone stack in an
+ * otherwise full inventory gave one stone AND dropped ten for a request of ten; 101 swords on an empty
+ * inventory left 36 in the inventory AND dropped 101.
+ *
+ * So: ask the inventory how much would fit, place exactly that in one call, and drop the remainder.
+ * `countRoomFor` is the non-mutating query; the delta measured across the insert is authoritative for what
+ * was really placed, so a bundle or an unmodelled path cannot make the report lie.
+ *
  * @param {object} deps
- * @param {{addItem: Function}} deps.inventory
+ * @param {{addItem: Function, countRoomFor?: Function}} deps.inventory
  * @param {(id: string|number, isBlock: boolean, count: number) => void} deps.drop  spawn the remainder
  * @param {string} [deps.gamemode]
  * @param {{id: string|number, isBlock: boolean}} deps.item
@@ -337,25 +407,33 @@ export function parseGive(args = []) {
  */
 export function giveItems({ inventory, drop, gamemode, item, count }) {
   const creative = gamemode === 'creative';
-  let remaining = count;
+  const requested = Math.max(0, count);
+  if (requested === 0) return { given: 0, dropped: 0 };
 
-  // Creative fills the inventory and needs nothing beyond it; vanilla still drops the overflow, but this
-  // game's creative inventory has no such thing as "full", so the whole count lands.
-  const added = inventory?.addItem?.(item.id, item.isBlock, remaining);
-  if (added) return { given: remaining, dropped: 0 };
-
-  // `addItem` is all-or-nothing: it refuses rather than partially filling. So ask for what fits by
-  // bisection, then drop the rest. Bisection rather than adding one at a time because a count can be
-  // 2,147,483,647, and one-at-a-time would be a hang rather than a slow command.
-  let lo = 0;
-  let hi = remaining;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (inventory?.addItem?.(item.id, item.isBlock, mid)) lo = mid;
-    else hi = mid - 1;
+  // No inventory to fill: the request cannot be delivered, and creative has nothing to drop into.
+  if (typeof inventory?.addItem !== 'function') {
+    return { given: 0, dropped: creative ? 0 : requested };
   }
-  const given = lo;
-  const overflow = remaining - given;
+  // A full inventory model exposes its slots and can say how much would fit, which is what the count has to
+  // be decided from. A minimal stand-in that only implements `addItem` cannot answer that, so its return
+  // value is the only available signal; that keeps the documented "missing inventory" behaviour working.
+  const measurable = Boolean(inventory.hotbar || inventory.storage) && typeof inventory.countRoomFor === 'function';
+
+  // Creative ignores inventory space: "If there is enough room in the player's inventory, OR THE PLAYER IS
+  // IN CREATIVE MODE, gives the specified item(s)". This game's creative inventories have no "full" state
+  // for placement, so the whole count is placed and nothing is summoned onto the ground.
+  const toPlace = creative ? requested : Math.min(requested, roomFor(inventory, item, requested, measurable));
+
+  const before = heldCount(inventory, item.id);
+  const accepted = inventory.addItem(item.id, item.isBlock, toPlace);
+  const delta = heldCount(inventory, item.id) - before;
+  // What was actually placed, measured rather than assumed. `addItem` can place part of a request and still
+  // report `false`, so the delta is the only trustworthy answer when the slots are visible; a creative give
+  // into a genuinely full inventory places nothing, and must not claim otherwise.
+  const placed = measurable ? (accepted ? toPlace : delta) : (accepted ? toPlace : 0);
+  const given = Math.max(0, Math.min(placed, requested));
+  const overflow = requested - given;
+
   if (overflow > 0 && !creative) {
     // One entity per stack, as vanilla splits it, so the drop obeys the stack limit.
     let left = overflow;
@@ -365,11 +443,26 @@ export function giveItems({ inventory, drop, gamemode, item, count }) {
       drop?.(item.id, item.isBlock, n);
       left -= n;
     }
-  } else if (overflow > 0) {
-    // Creative: nothing to drop into, so the count is reported as given.
-    return { given: count, dropped: 0 };
   }
+  // Creative has nowhere to drop into, so nothing is summoned onto the ground whatever did not fit.
   return { given, dropped: overflow };
+}
+
+/** How much of the item the inventory would accept right now, or the whole request if it cannot say. */
+function roomFor(inventory, item, count, measurable) {
+  if (!measurable) return count;
+  try {
+    return inventory.countRoomFor(item.id, item.isBlock, count);
+  } catch {
+    // A capacity query that throws must not turn a give into a loss; fall back to the plain insert.
+    return count;
+  }
+}
+
+/** How much of one item the inventory holds, across every compartment `addItem` fills. */
+function heldCount(inventory, id) {
+  return [...(inventory?.hotbar ?? []), ...(inventory?.storage ?? [])]
+    .reduce((n, slot) => n + (slot && slot.id === id ? slot.count : 0), 0);
 }
 
 /**

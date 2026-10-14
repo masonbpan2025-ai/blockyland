@@ -3,6 +3,7 @@ import { enableBlockEmission } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { parseColouredName, shadedHex } from './colourPalette.js';
 import { createWaterMaterial } from './water.js';
+import { prepareWaterMaterial } from './waterPass.js';
 
 export class TextureManager {
   constructor() {
@@ -62,7 +63,12 @@ export class TextureManager {
       transparent: true,
       depthWrite: false,
       alphaTest: 0.2,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      // One pass, not two. Three.js draws a transparent double-sided material twice -- back faces, then front --
+      // and flags it for a program rebuild before each half, which cost two program lookups per chunk mesh per
+      // frame (about 400 a frame in a normal view). Leaves and plants are cut-outs and glass is a flat pane, so
+      // the back-to-front split buys nothing here.
+      forceSinglePass: true
     });
 
     enableBlockEmission(this.opaqueMaterial);
@@ -79,7 +85,7 @@ export class TextureManager {
       shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {\nif (distance(vLightOrigin, referencePosition) < 0.01) discard;');
     };
 
-    this.waterMaterial = createWaterMaterial();
+    this.waterMaterial = prepareWaterMaterial(createWaterMaterial());
     this.waterUniforms = this.waterMaterial.uniforms;
 
     // 5. Load block break destroy stages (0-9)
@@ -93,7 +99,10 @@ export class TextureManager {
       this.lavaClock=0;const image=this.lavaImage,frames=Math.floor(image.height/image.width);
       this.lavaFrame=((this.lavaFrame||0)+1)%frames;
       const tile=this.tileCoords['lava_still.png'];
-      this.ctx.drawImage(image,0,this.lavaFrame*image.width,image.width,image.width,tile.col*this.tileSize,tile.row*this.tileSize,this.tileSize,this.tileSize);this.atlasTexture.needsUpdate=true;
+      this.ctx.drawImage(image,0,this.lavaFrame*image.width,image.width,image.width,tile.col*this.tileSize,tile.row*this.tileSize,this.tileSize,this.tileSize);
+      // Upload only the lava tile. Marking the whole atlas dirty re-sent every block texture to the GPU about
+      // eight times a second, for one 16 x 16 frame of animation.
+      if(!this.uploadLavaTile(tile))this.atlasTexture.needsUpdate=true;
     }
     if (this.waterUniforms) {
       this.waterUniforms.uTime.value += dt;
@@ -110,6 +119,36 @@ export class TextureManager {
     }
   }
 
+  setSnowDaylight(value) {
+    for (const material of [this.opaqueMaterial, this.transparentMaterial, this.lightMaterial]) {
+      if (material?.userData.snowDaylight) material.userData.snowDaylight.value = value;
+    }
+  }
+
+  /**
+   * Copy the current lava frame into the atlas on the GPU, without re-uploading the rest of the atlas.
+   * Returns false when there is no renderer to do it with, so the caller falls back to a full upload.
+   */
+  uploadLavaTile(tile){
+    const renderer=this.renderer;
+    if(!renderer?.copyTextureToTexture||!this.atlasTexture||!renderer.properties?.get(this.atlasTexture)?.__webglTexture)return false;
+    try{
+      if(!this.lavaTileCanvas){
+        this.lavaTileCanvas=document.createElement('canvas');this.lavaTileCanvas.width=this.lavaTileCanvas.height=this.tileSize;
+        this.lavaTileCtx=this.lavaTileCanvas.getContext('2d');
+        this.lavaTileTexture=new THREE.CanvasTexture(this.lavaTileCanvas);this.lavaTileTexture.colorSpace=THREE.SRGBColorSpace;
+        this.lavaTilePosition=new THREE.Vector2();
+      }
+      const size=this.tileSize,x=tile.col*size,y=tile.row*size;
+      this.lavaTileCtx.clearRect(0,0,size,size);
+      this.lavaTileCtx.drawImage(this.atlasCanvas,x,y,size,size,0,0,size,size);
+      // The atlas is uploaded flipped, so a tile's top row in the canvas is its bottom row in the texture.
+      this.lavaTilePosition.set(x,this.atlasCanvas.height-y-size);
+      renderer.copyTextureToTexture(this.lavaTileTexture,this.atlasTexture,null,this.lavaTilePosition);
+      return true;
+    }catch{return false;}
+  }
+
   async loadAndPlaceTile(fileName) {
     const col = this.nextCol;
     const row = this.nextRow;
@@ -123,10 +162,13 @@ export class TextureManager {
     const y = row * this.tileSize;
 
     // UV coordinates in WebGL texture (v is flipped: 1.0 - y/height)
-    const u0 = col / this.atlasGridSize;
-    const u1 = (col + 1) / this.atlasGridSize;
-    const v1 = 1.0 - (row / this.atlasGridSize);
-    const v0 = 1.0 - ((row + 1) / this.atlasGridSize);
+    // Sample texel centres, not neighbouring tile boundaries. Exact atlas edges
+    // leaked dark pixels into snowy terrain as dotted seams and diagonal streaks.
+    const inset = 0.5 / (this.atlasGridSize * this.tileSize);
+    const u0 = col / this.atlasGridSize + inset;
+    const u1 = (col + 1) / this.atlasGridSize - inset;
+    const v1 = 1.0 - (row / this.atlasGridSize) - inset;
+    const v0 = 1.0 - ((row + 1) / this.atlasGridSize) + inset;
 
     this.tileCoords[fileName] = { col, row, u0, v0, u1, v1 };
 

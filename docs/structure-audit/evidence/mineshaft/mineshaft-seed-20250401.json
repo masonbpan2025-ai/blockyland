@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "structure": "mineshaft",
+  "seed": "20250401",
+  "chunk": [
+    -37,
+    -37
+  ],
+  "biome": "flower_forest",
+  "box": {
+    "minX": -657,
+    "minY": 2,
+    "minZ": -666,
+    "maxX": -507,
+    "maxY": 15,
+    "maxZ": -506
+  },
+  "pieces": 74,
+  "blocks": {
+    "Stone": 265055,
+    "Coal Ore": 10235,
+    "Sand": 10041,
+    "Iron Ore": 8895,
+    "Diamond Ore": 3944,
+    "Redstone Ore": 3477,
+    "Gold Ore": 2864,
+    "Water": 915,
+    "Oak Planks": 810,
+    "Oak Fence": 711,
+    "Rail": 385,
+    "Cobweb": 227,
+    "Seagrass": 152,
+    "Dirt": 100,
+    "Tall Seagrass": 84,
+    "Sea Pickle": 45,
+    "Bubble Coral Block": 21,
+    "Chain": 7,
+    "Oak Log": 6,
+    "Bubble Coral Wall Fan": 5,
+    "Brain Coral Block": 4,
+    "Fire Coral Block": 4,
+    "Torch": 3,
+    "Bubble Coral Fan": 2,
+    "Bubble Coral": 2,
+    "Horn Coral Block": 2,
+    "Tube Coral Wall Fan": 1,
+    "Brain Coral Wall Fan": 1,
+    "Monster Spawner": 1
+  },
+  "loot": {
+    "chests": 0,
+    "empty": 0,
+    "totals": []
+  },
+  "entities": {},
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 14,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

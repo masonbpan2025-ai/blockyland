@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { igniteActor } from './heat.js';
+import { exposedToRain } from './weatherRules.js';
 import { applyMobWither } from './witherEffect.js';
 const forward = new THREE.Vector3(0,0,1);
 export function createArrowModel() {
@@ -40,6 +41,7 @@ function projectileHitBounds(manager, target) {
 
 export function updateArrows(manager,dt,player){
   for(const arrow of [...manager.arrows]){
+    if(arrow.flaming&&(exposedToRain(manager.game?.weather,manager.world,arrow.mesh.position)||manager.world.getVoxel(Math.floor(arrow.mesh.position.x),Math.floor(arrow.mesh.position.y),Math.floor(arrow.mesh.position.z))===BLOCKS.WATER))arrow.flaming=false;
     arrow.life-=dt;if(arrow.life<=0){removeArrow(manager,arrow);continue;}
     if(arrow.stuck){
       if(!solid(manager.world,arrow.anchor)){arrow.stuck=false;arrow.velocity.set(0,-1,0);arrow.life=10;arrow.points=[];continue;}

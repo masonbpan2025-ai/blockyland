@@ -40,6 +40,40 @@ function makeGame(options = {}) {
   return game;
 }
 
+test('authored map streaming preserves data and never generates terrain or natural mobs', () => {
+  const game = makeGame();
+  game.world.generationMode = 'authored';
+  let populations = 0;
+  game.world.game = { spawnManager: { chunkGenerationSpawner: { onChunkGenerated() { populations++; } } } };
+  game.world.generateChunkTerrain = () => { throw new Error('Authored map invoked procedural terrain'); };
+  const chunk = game.world.getOrCreateChunk(0, 0);
+  assert.ok(chunk.voxels.every(id => id === BLOCKS.AIR));
+  chunk.setVoxel(4, 22, 4, BLOCKS.SANDSTONE);
+  game.rebuildChunkMesh(chunk);
+  const streamer = new ChunkStreamer(game);
+  streamer.unloadChunk(chunk);
+  assert.equal(chunk.opaqueMesh, null);
+  assert.equal(game.world.getOrCreateChunk(0, 0), chunk);
+  assert.equal(game.world.getVoxel(4, 22, 4), BLOCKS.SANDSTONE);
+  assert.equal(populations, 0);
+});
+
+test('replacing a world discards a mesh job and its streaming plan', () => {
+  const streamer = new ChunkStreamer(makeGame());
+  let cancelled = false;
+  streamer.inProgress = { iterator: { return() { cancelled = true; } } };
+  streamer.loaded.add('0,0');
+  streamer.pending.add('0,0');
+  streamer.centerX = 0;
+  streamer.centerZ = 0;
+  streamer.reset();
+  assert.ok(cancelled);
+  assert.equal(streamer.inProgress, null);
+  assert.equal(streamer.loaded.size, 0);
+  assert.equal(streamer.pending.size, 0);
+  assert.equal(streamer.centerX, null);
+});
+
 function streamerFor(game, opts = {}) {
   return new ChunkStreamer(game, {
     meshRadius: 2,

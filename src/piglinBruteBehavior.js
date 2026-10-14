@@ -157,8 +157,8 @@ export function piglinBruteDrops(mob, random = Math.random) {
   return rows;
 }
 
-/** Wiki: a brute is worth 5 XP with player credit, like other hostile Nether mobs here. */
+/** Wiki: a piglin brute drops 20 experience points when killed by a player or tamed wolf. */
 export function piglinBruteXp(mob) {
   if (!isPiglinBrute(mob)) return 0;
-  return 5;
+  return 20;
 }

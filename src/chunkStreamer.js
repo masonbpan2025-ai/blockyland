@@ -225,8 +225,11 @@ export class ChunkStreamer {
     this.game.blockLighting?.setChunk?.(chunk.cx, chunk.cz, []);
     // The chunk's propagated light goes with it, and the neighbours are marked for relighting
     // because their light was computed against terrain that is now gone.
-    this.game.world.light?.removeChunk?.(chunk.cx, chunk.cz);
-    this.game.world.chunks.delete(this.key(chunk.cx, chunk.cz));
+    // Authored data has no procedural source to regenerate it from. Release geometry only.
+    if (this.game.world.generationMode !== 'authored') {
+      this.game.world.light?.removeChunk?.(chunk.cx, chunk.cz);
+      this.game.world.chunks.delete(this.key(chunk.cx, chunk.cz));
+    }
     this.game.world.invalidateChunkCache();
     this.loaded.delete(this.key(chunk.cx, chunk.cz));
     this.pending.delete(this.key(chunk.cx, chunk.cz));
@@ -433,6 +436,16 @@ export class ChunkStreamer {
   markDirty(cx, cz) {
     const chunk = this.game.world.chunks.get(this.key(cx, cz));
     if (chunk) chunk.dirty = true;
+  }
+
+  /** Discard work associated with the previous world's chunk objects. */
+  reset() {
+    this.inProgress?.iterator?.return?.();
+    this.inProgress = null;
+    this.loaded.clear();
+    this.pending.clear();
+    this.centerX = null;
+    this.centerZ = null;
   }
 
   /** Load everything in the mesh radius immediately, for a synchronous world start. */

@@ -3,6 +3,14 @@ import { BLOCKS } from './blocks.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
 
+/**
+ * Building Studio is not a world: there is no terrain, only an invisible ground at this height. The cells below
+ * it are solid but never drawn, so the player can stand, walk and build on it and cannot go beneath it, and
+ * every building sits on or above it. The build origin (0, 5, 8) is on this ground.
+ */
+export const STUDIO_GROUND_Y = 5;
+const STUDIO_GRID_SIZE = 128;
+
 export class BuildingStudioManager {
   constructor(game) {
     this.game = game;
@@ -98,10 +106,23 @@ export class BuildingStudioManager {
     this.game.player.gamemode = 'creative';
     this.game.worldType = 'building_studio';
 
-    // Position player facing build origin
-    this.game.player.position.set(0, 5, 0);
-    this.game.player.yaw = 0; // facing +Z towards (0, 5, 8)
+    // The ground: invisible, solid, and the lowest anything can be built (world.floorY). A grid like the Mob
+    // Inspector's shows where it is.
+    if (this.game.world) this.game.world.floorY = STUDIO_GROUND_Y;
+    this.showGroundGrid();
+
+    // Daytime and clear skies that stay put, so the light does not change while building. The Agent Terminal's
+    // time and weather requests still change them, and stick. The player's own rules come back on exit.
+    this.savedGamerules = this.game.gamerules ? { ...this.game.gamerules } : null;
+    this.game.gamerules = { ...(this.game.gamerules || {}), doDaylightCycle: false, doWeatherCycle: false, doMobSpawning: false };
+    this.game.worldTime = 6000;
+    this.game.weather?.setWeather?.('clear');
+
+    // Stand on the ground facing the build origin at (0, 5, 8). Yaw 0 looks toward -Z, so +Z is a half turn.
+    this.game.player.position.set(0.5, STUDIO_GROUND_Y, 0.5);
+    this.game.player.yaw = Math.PI;
     this.game.player.pitch = 0;
+    this.game.player.isFlying = false;
     if (this.game.player.velocity) this.game.player.velocity.set(0, 0, 0);
 
     // Open Terminal in Studio Mode
@@ -125,8 +146,48 @@ export class BuildingStudioManager {
     );
   }
 
+  /** The grid marking the invisible ground, recentred under the player as they move (see update). */
+  showGroundGrid() {
+    const scene = this.game?.scene;
+    if (!scene || typeof THREE.GridHelper !== 'function') return;
+    if (!this.groundGrid) {
+      // The Mob Inspector's grid colours (mobDebug.js), one line per block.
+      this.groundGrid = new THREE.GridHelper(STUDIO_GRID_SIZE, STUDIO_GRID_SIZE, 0x66758b, 0x435269);
+      this.groundGrid.name = 'building-studio-ground';
+      for (const material of [].concat(this.groundGrid.material)) {
+        material.transparent = true;
+        material.opacity = 0.55;
+        material.depthWrite = false;
+      }
+    }
+    this.groundGrid.position.set(0, STUDIO_GROUND_Y + 0.002, 0);
+    if (!this.groundGrid.parent) scene.add(this.groundGrid);
+  }
+
+  hideGroundGrid() {
+    this.groundGrid?.parent?.remove(this.groundGrid);
+  }
+
+  /** Keep the grid under the player, in whole-block steps so its lines stay on block edges. */
+  update() {
+    if (!this.isActive || !this.groundGrid) return;
+    const p = this.game?.player?.position;
+    if (!p) return;
+    const step = 8;
+    this.groundGrid.position.x = Math.round(p.x / step) * step;
+    this.groundGrid.position.z = Math.round(p.z / step) * step;
+  }
+
   exitStudio() {
+    const wasActive = this.isActive;
     this.isActive = false;
+    this.hideGroundGrid();
+    if (this.game?.world) this.game.world.floorY = -Infinity;
+    if (wasActive && this.savedGamerules !== undefined) {
+      if (this.savedGamerules) this.game.gamerules = this.savedGamerules;
+      else delete this.game.gamerules;
+      this.savedGamerules = undefined;
+    }
     if (typeof document !== 'undefined') {
       const modal = document.getElementById('gemini-modal');
       if (modal) {
@@ -535,8 +596,8 @@ function generate(origin, params, B) {
     // 1. Clear previous voxels
     if (this.game.world) {
       for (const v of this.placedVoxels) {
-        // Revert to original block (air, or ground level bedrock/dirt/grass)
-        const groundId = v.y === 0 ? BLOCKS.BEDROCK : (v.y <= 3 ? BLOCKS.DIRT : (v.y === 4 ? BLOCKS.GRASS : BLOCKS.AIR));
+        // The Studio has no terrain to restore: below its ground nothing can be placed, above it is air.
+        const groundId = BLOCKS.AIR;
         this.game.world.setVoxel(v.x, v.y, v.z, groundId);
       }
     }
@@ -574,7 +635,8 @@ function generate(origin, params, B) {
   clearCurrentBuilding() {
     if (Array.isArray(this.placedVoxels) && this.game?.world?.setVoxel) {
       for (const v of this.placedVoxels) {
-        const groundId = v.y === 0 ? BLOCKS.BEDROCK : (v.y <= 3 ? BLOCKS.DIRT : (v.y === 4 ? BLOCKS.GRASS : BLOCKS.AIR));
+        // The Studio has no terrain to restore: below its ground nothing can be placed, above it is air.
+        const groundId = BLOCKS.AIR;
         this.game.world.setVoxel(v.x, v.y, v.z, groundId);
       }
     }

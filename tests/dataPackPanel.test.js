@@ -452,18 +452,18 @@ test('the paste type list is offered, and matches what the loader handles', asyn
 
 // --- the markup ---------------------------------------------------------------------------------------
 
-test('the panel markup is in the terminal drawer', () => {
+test('the data pack panel lives in the pause menu outside AI Settings', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   for (const id of ['gemini-datapack-section', 'datapack-list', 'datapack-add-bundled', 'datapack-paste-open',
     'datapack-file-input', 'datapack-apply', 'datapack-revert', 'datapack-paste-area', 'datapack-paste-type',
     'datapack-paste-id', 'datapack-paste-text', 'datapack-paste-load', 'datapack-status', 'datapack-warning']) {
     assert.match(html, new RegExp(`id="${id}"`), id + ' is missing');
   }
-  // Inside the drawer, ahead of the log feed.
+  // Data Packs stay available in the pause menu when AI Settings is locked.
   const panel = html.indexOf('id="gemini-datapack-section"');
-  const drawer = html.indexOf('id="gemini-key-drawer"');
-  const feed = html.indexOf('id="gemini-log-feed"');
-  assert.ok(drawer < panel && panel < feed, 'the panel is inside the drawer, before the log feed');
+  const pause = html.indexOf('id="pause-menu"');
+  const terminal = html.indexOf('id="gemini-modal"');
+  assert.ok(pause < panel && panel < terminal, 'the panel is inside the pause menu, outside the terminal');
 });
 
 test('every element the panel binds by id exists in the markup', () => {

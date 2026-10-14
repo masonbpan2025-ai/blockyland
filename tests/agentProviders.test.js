@@ -98,8 +98,8 @@ const baseRequest = {
 
 // --- vendor catalogue ------------------------------------------------------
 
-test('the agent ships three vendors, defaults to DeepSeek V4.1 Flash at high effort', () => {
-  assert.deepEqual(Object.keys(VENDORS).sort(), ['chatgpt', 'deepseek', 'gemini']);
+test('the agent ships four vendors, defaults to DeepSeek V4.1 Flash at high effort', () => {
+  assert.deepEqual(Object.keys(VENDORS).sort(), ['chatgpt', 'claude', 'deepseek', 'gemini']);
   assert.equal(DEFAULT_VENDOR, 'deepseek');
 
   const settings = new AgentSettings(memoryStorage());
@@ -293,7 +293,8 @@ test('every request carries the world state, the current view and prior conversa
   assert.match(system, /World height: Y=1\.\.63/);
   assert.match(system, /player is at XYZ: \(4\.0, 12\.0, -6\.0\)/);
   assert.match(system, /currently on Grass Block at \(5, 10, -6\)/);
-  assert.match(system, /facing east/);
+  // A quarter turn of positive yaw faces -X. This used to read "facing east", which was the wrong way round.
+  assert.match(system, /facing west/);
   // 33 columns per terrain row.
   assert.equal(system.split('\n').some(line => /^[."#dgsSTt~!*ioc+]{33}$/.test(line)), true);
 
@@ -426,7 +427,9 @@ test('a retry that is also empty reports the truncation clearly', async t => {
   agent.setApiKey('ds-key');
 
   await agent.executePrompt('build a lighthouse');
-  assert.equal(fetchCalls.length, 2);
+  // The request, the retry with thinking off, then one ask for the build as stages before giving up.
+  assert.equal(fetchCalls.length, 3);
+  assert.match(fetchCalls[2].body.messages.at(-1).content, /build_in_stages/);
   assert.match(agent.lastError.message, /hit the 8192-token output limit while still reasoning/);
   assert.match(agent.lastError.message, /Nothing was executed/);
   assert.equal(world.saved.size, 0);

@@ -4,19 +4,25 @@
 // tests drive. This file only turns a plan into pixels -- the preview blocks, the start and piece
 // boxes, the chunk grid, the structure-set candidate grid -- and shows the metadata beside them.
 //
-// Rendering note (a documented limitation, not an oversight): blocks are drawn as coloured unit cubes
-// with a legend, not with their real atlas textures. That is enough to judge a layout, and it keeps
-// this page independent of the renderer, which nothing else in the repo guarantees for a preview. The
-// block *identity* is never approximated, though: the legend, the click readout and the telemetry all
-// report real block names and block-entity data.
+// Rendering: two views. "Textured" (the default) generates the structure in a real `World` and draws it with the
+// game's own mesher and block atlas (see structureInspectorWorldView.js), and it is also what the walk-through and
+// the seed gallery use. "Coloured cubes" is the fast flat preview: one cube per block with a legend, for judging a
+// layout without waiting for terrain. The block *identity* is never approximated in either: the legend, the click
+// readout and the telemetry report real block names and block-entity data.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createStructureInspectorSession, inspectorStructures, PREVIEW_MIN_Y, PREVIEW_MAX_Y } from './structureInspectorSession.js';
 import { renderStructurePanels } from './structureInspectorPanelsUi.js';
 import { createVoxelGeometry, createVoxelMaterial, applyInstanceColours } from './structureInspectorGeometry.js';
+import { fillInspectorSource, inspectorContent } from './mods/inspectorSelector.js';
+import { runAuditAndRender, runAuditAllAndRender } from './structureInspectorAudit.js';
+import { createWorldView, createWalkThrough, renderThumbnail, gallerySeeds } from './structureInspectorWorldView.js';
+import { lootView, blockEntitiesView } from './structureInspectorWorld.js';
+import { buildEvidence, evidenceName } from './structureInspectorEvidence.js';
 
 const $ = (id) => document.getElementById(id);
+let selectedMod = fillInspectorSource($('content-source'), new URLSearchParams(location.search).get('mod'));
 
 // --- palette --------------------------------------------------------------------------------
 // A few blocks are named explicitly because their colour carries meaning in a preview (a chest that
@@ -88,7 +94,7 @@ function log(message) {
 function fillPicker() {
   const select = $('structure');
   const groups = new Map();
-  for (const entry of inspectorStructures()) {
+  for (const entry of inspectorContent('structure', inspectorStructures(), selectedMod).content) {
     if (!groups.has(entry.family)) groups.set(entry.family, []);
     groups.get(entry.family).push(entry);
   }
@@ -292,6 +298,13 @@ function renderPanels() {
 }
 
 function refresh({ reflowCamera = false } = {}) {
+  if (selectedMod) {
+    clearGroup(blockGroup); clearGroup(overlayGroup); clearGroup(candidateGroup);
+    blockIndex = []; selectedPiece = null;
+    for (const id of ['piece-table', 'legend', 'block-info', 'placement-info', 'candidate-info', 'plan-summary', 'seed-diff', 'piece-graph', 'adaptation-info']) $(id).replaceChildren();
+    $('plan-info').textContent = 'This mod does not register any inspectable structures.';
+    return;
+  }
   // Rendered on every refresh, which is the one path every action already takes, so a panel cannot show a
   // stale plan. A rendering failure must not break the page, hence the catch.
   //
@@ -306,6 +319,7 @@ function refresh({ reflowCamera = false } = {}) {
   renderCandidates();
   renderOverlays();
   renderPanels();
+  syncTextured({ reflowCamera });
   if (reflowCamera) {
     const info = session.snapshot();
     const centre = info.planned && info.box
@@ -318,6 +332,209 @@ function refresh({ reflowCamera = false } = {}) {
     worldGrid.position.y = session.world.surface;
   }
 }
+
+// --- textured world view, walk-through, gallery, evidence --------------------------------------------
+const worldView = createWorldView({ scene });
+const walk = createWalkThrough({ renderer, scene, view: worldView, onChange: renderWalkHud });
+const SKY = new THREE.Color('#9bc4f0');
+const SPACE = new THREE.Color('#1d2634');
+let texturedKey = null;
+let buildToken = 0;
+let lastAuditResult = null;
+const worldOverlay = new THREE.Group();
+scene.add(worldOverlay);
+
+const texturedWanted = () => $('view-mode').value === 'textured' && !selectedMod;
+
+function setStatus(text) {
+  const el = $('view-status');
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
+/** Boxes of the generated start, in the real world's coordinates. */
+function renderWorldOverlay(built) {
+  clearGroup(worldOverlay);
+  if (!built) return;
+  if (session.state.showStartBox) worldOverlay.add(boxHelper([built.box.minX, built.box.minY, built.box.minZ, built.box.maxX, built.box.maxY, built.box.maxZ], 0x38bdf8, 0.85));
+  if (session.state.showPieceBoxes) {
+    for (const piece of built.pieces) worldOverlay.add(boxHelper(piece, 0x10b981, 0.7));
+  }
+}
+
+function renderWorldPanels(built) {
+  const loot = $('loot-info');
+  const rows = $('entity-rows');
+  loot.replaceChildren();
+  rows.replaceChildren();
+  if (!built) {
+    loot.textContent = 'build the textured view';
+    rows.textContent = 'build the textured view';
+    return;
+  }
+  const lootData = lootView(built);
+  if (!lootData.chests.length) {
+    loot.textContent = 'this structure created no chests';
+  } else {
+    const head = document.createElement('div');
+    head.textContent = `${lootData.chests.length} chest(s), ${lootData.empty} empty`;
+    loot.append(head);
+    for (const item of lootData.totals) {
+      const line = document.createElement('div');
+      line.textContent = `${item.name} × ${item.count}`;
+      loot.append(line);
+    }
+    lootData.chests.forEach((chest) => {
+      const line = document.createElement('div');
+      line.className = 'muted';
+      line.textContent = `chest ${chest.pos.join(',')}: ${chest.items.map((i) => `${i.name}×${i.count}`).join(', ') || 'empty'}`;
+      loot.append(line);
+    });
+  }
+  const entities = blockEntitiesView(built);
+  const summary = document.createElement('div');
+  summary.textContent = Object.entries(entities.counts).map(([kind, n]) => `${kind} × ${n}`).join(', ') || 'none';
+  const table = document.createElement('table');
+  for (const row of entities.rows.slice(0, 120)) {
+    const tr = document.createElement('tr');
+    for (const text of [row.kind, row.pos.join(','), row.detail]) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.append(td);
+    }
+    tr.onclick = () => { if (walk.active) walk.teleport(row.pos[0] + 0.5, row.pos[1], row.pos[2] + 2.5, 0, 0); };
+    table.append(tr);
+  }
+  rows.append(summary, table);
+}
+
+/** Show or hide the cube preview and the real-terrain scenery according to the view mode. */
+function applyViewMode() {
+  const textured = texturedWanted();
+  blockGroup.visible = !textured;
+  overlayGroup.visible = !textured;
+  candidateGroup.visible = !textured;
+  ground.visible = !textured;
+  worldGrid.visible = !textured;
+  worldOverlay.visible = textured;
+  worldView.group.visible = textured && Boolean(worldView.built);
+  scene.background = textured ? SKY : SPACE;
+}
+
+/** Build the textured world for the current structure and seed when it changed. Never throws into the page. */
+async function syncTextured({ reflowCamera = false, force = false } = {}) {
+  applyViewMode();
+  if (!texturedWanted()) return null;
+  const structureId = session.state.structureId;
+  const info = session.info;
+  if (!info || info.implemented === false) { setStatus('no generator for this structure yet'); return null; }
+  const key = `${structureId}|${session.state.seed}`;
+  if (!force && key === texturedKey && worldView.built) return worldView.built;
+  const token = ++buildToken;
+  setStatus(`generating ${structureId} at seed ${session.state.seed}...`);
+  try {
+    const built = await worldView.show({ structureId, seed: session.state.seed });
+    if (token !== buildToken) return null;
+    texturedKey = key;
+    renderWorldOverlay(built);
+    renderWorldPanels(built);
+    applyViewMode();
+    // Rebuilt while walking: the walker still points at the old world, so put it at the new structure.
+    if (walk.active) walk.rebind();
+    setStatus(`${structureId}, seed ${built.seed}, chunk ${built.found.chunk.join(',')}, ${built.found.biome} biome (${built.biomeMode} world); ${worldView.mobStatus}`);
+    if (reflowCamera || force) {
+      const { box } = built;
+      const cx = (box.minX + box.maxX) / 2; const cy = (box.minY + box.maxY) / 2; const cz = (box.minZ + box.maxZ) / 2;
+      const radius = Math.max(box.maxX - box.minX, box.maxZ - box.minZ, 14) * 1.5;
+      controls.target.set(cx, cy, cz);
+      camera.position.set(cx + radius * 0.6, cy + radius * 0.85, cz + radius * 0.7);
+      camera.far = 1500;
+      camera.updateProjectionMatrix();
+    }
+    return built;
+  } catch (error) {
+    if (token === buildToken) { setStatus(`could not build: ${error.message}`); log(`textured view failed: ${error.message}`); }
+    return null;
+  }
+}
+
+function renderWalkHud(hud) {
+  const el = $('walk-hud');
+  const showing = Boolean(hud);
+  el.style.display = showing ? 'block' : 'none';
+  $('walk-help').style.display = showing ? 'block' : 'none';
+  $('crosshair').style.display = showing ? 'block' : 'none';
+  if (!showing) return;
+  el.textContent = [
+    `position ${hud.position}   facing ${hud.facing}${hud.flying ? '   FLYING' : ''}`,
+    `looking at ${hud.looking}${hud.door ? '   [E] open/close door' : ''}`,
+    hud.nearestMob ? `nearest mob: ${hud.nearestMob}` : 'no mobs requested'
+  ].join('\n');
+}
+
+$('view-mode').onchange = () => { applyViewMode(); refresh({ reflowCamera: true }); };
+
+$('btn-walk').onclick = async () => {
+  if (walk.active) { walk.stop(); return; }
+  $('view-mode').value = 'textured';
+  const built = await syncTextured({ reflowCamera: false, force: !worldView.built });
+  if (!built) { log('walk-through needs the textured view to build first'); return; }
+  walk.start();
+  $('btn-walk').textContent = 'Stop walking (Esc)';
+};
+// The walk-through ends from several places (Esc, the button), so the button label follows the state.
+setInterval(() => { if (!walk.active && $('btn-walk').textContent !== 'Walk through it') $('btn-walk').textContent = 'Walk through it'; }, 250);
+
+$('btn-gallery').onclick = async () => {
+  const gallery = $('gallery');
+  const count = Math.max(2, Math.min(12, Number($('gallery-count').value) || 6));
+  const seeds = gallerySeeds(session.state.seed, count);
+  const structureId = session.state.structureId;
+  gallery.replaceChildren();
+  for (const seed of seeds) {
+    const figure = document.createElement('figure');
+    figure.innerHTML = '<div class="muted" style="padding:20px">generating...</div>';
+    gallery.append(figure);
+    const shot = await renderThumbnail({ structureId, seed });
+    figure.replaceChildren();
+    if (shot.found) {
+      const img = document.createElement('img');
+      img.src = shot.url;
+      const caption = document.createElement('figcaption');
+      caption.textContent = `seed ${shot.seed}  chunk ${shot.chunk.join(',')}`;
+      figure.append(img, caption);
+      figure.onclick = () => { $('seed').value = shot.seed; $('seed').onchange(); };
+    } else {
+      figure.textContent = `seed ${shot.seed}: ${shot.error ?? 'not found'}`;
+    }
+  }
+};
+
+function download(name, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+$('btn-evidence').onclick = async () => {
+  readInputs();
+  const built = await syncTextured({ force: !worldView.built });
+  if (!built) { log('evidence needs the textured view'); return; }
+  let audit = lastAuditResult;
+  try { audit = await runAuditAndRender(session, $, $('audit-mode').value) ?? audit; } catch (error) { log(`audit failed: ${error.message}`); }
+  const name = evidenceName(built);
+  download(`${name}.json`, new Blob([JSON.stringify(buildEvidence(built, audit, { view: 'textured' }), null, 2)], { type: 'application/json' }));
+  renderer.render(scene, walk.active ? walk.camera : camera);
+  renderer.domElement.toBlob((blob) => { if (blob) download(`${name}.png`, blob); }, 'image/png');
+  log(`exported ${name}.json and ${name}.png: move them to docs/structure-audit/evidence/${built.structureId}/`);
+};
+
+// For tests and for driving the page from a browser tool.
+window.structureInspector = { session, worldView, walk, syncTextured, applyViewMode };
 
 // --- controls ------------------------------------------------------------------------------
 /** The summary from the previous render, so the panel can say what a seed change actually changed. */
@@ -356,15 +573,15 @@ $('seed').onchange = () => {
   } catch (error) { log(`error: ${error.message}`); refresh(); }
 };
 
-// A seed to try when the reader has no particular one in mind. It is drawn from the clock because the point is
-// to be UNPREDICTABLE; every draw that decides generation is still the engine's deterministic stream.
-$('btn-random-seed').onclick = () => {
-  const seed = String(Math.floor(Math.random() * 1e9));
-  $('seed').value = seed;
+// Regenerate: build the structure again from the seed in the box (change the seed, press this). It is the one button
+// that always redoes everything: the plan, the cube preview and the textured world.
+$('btn-regenerate').onclick = async () => {
   try {
+    const seed = $('seed').value;
     session.setSeed(seed);
-    log(`random seed ${seed}`);
+    log(`regenerating at seed ${seed}`);
     planNearestAndRefresh();
+    await syncTextured({ force: true, reflowCamera: true });
   } catch (error) { log(`error: ${error.message}`); refresh(); }
 };
 
@@ -382,36 +599,11 @@ $('structure').onchange = (event) => {
     refresh({ reflowCamera: true });
   }
 };
-$('btn-nearest').onclick = () => {
-  try {
-    const found = planNearestAndRefresh();
-    if (found) log(`located at chunk ${found.chunk[0]}, ${found.chunk[1]}`);
-  } catch (error) { log(`error: ${error.message}`); refresh(); }
-};
-$('btn-chunk').onclick = () => {
-  try {
-    readInputs();
-    session.planChunk();
-    refresh({ reflowCamera: true });
-  } catch (error) { log(`error: ${error.message}`); refresh(); }
-};
-$('btn-realize').onclick = () => {
-  const written = session.realize();
-  log(`realized ${written} block(s)`);
-  refresh();
-};
-$('btn-determinism').onclick = () => {
-  try {
-    readInputs();
-    const check = session.determinismCheck();
-    $('determinism').className = check.ok ? 'ok' : 'bad';
-    $('determinism').textContent = check.ok
-      ? `deterministic: ${check.reason}${check.hashA !== undefined ? ` (hash ${check.hashA})` : ''}`
-      : `NOT DETERMINISTIC: ${check.reason}${check.hashA !== undefined ? ` (${check.hashA} vs ${check.hashB})` : ''}`;
-    log(`determinism: ${check.ok ? 'ok' : 'MISMATCH'}`);
-  } catch (error) { log(`error: ${error.message}`); }
-};
 $('btn-reset-view').onclick = () => refresh({ reflowCamera: true });
+
+// The audit: the wiki's facts for the selected structure, checked against what the game would generate.
+$('btn-audit').onclick = async () => { readInputs(); lastAuditResult = await runAuditAndRender(session, $, $('audit-mode').value) ?? lastAuditResult; };
+$('btn-audit-all').onclick = () => { readInputs(); runAuditAllAndRender(session, $, $('audit-mode').value); };
 for (const id of ['show-chunks', 'show-pieces', 'show-start', 'show-candidates']) {
   $(id).onchange = (event) => {
     const key = { 'show-chunks': 'showChunkGrid', 'show-pieces': 'showPieceBoxes', 'show-start': 'showStartBox', 'show-candidates': 'showCandidateGrid' }[id];
@@ -445,6 +637,20 @@ renderer.domElement.addEventListener('click', (event) => {
 
 // --- boot ----------------------------------------------------------------------------------
 fillPicker();
+$('content-source').onchange = () => {
+  selectedMod = $('content-source').value || null;
+  fillPicker();
+  const empty = !$('structure').options.length;
+  for (const control of document.querySelectorAll('#controls button, #controls input, #controls select')) {
+    if (control.id !== 'content-source') control.disabled = empty;
+  }
+  if (empty) {
+    refresh();
+    log('No structures in selected mod');
+  } else {
+    session.planNearest({maxRadiusChunks: 256}); session.realize(); refresh({reflowCamera: true});
+  }
+};
 
 // The initial page can hand off a structure and a seed in the query string, which is what makes a particular
 // structure-and-seed combination LINKABLE: `/structure-inspector.html?structure=igloo&seed=12345`. An unknown
@@ -478,6 +684,7 @@ $('version-note').textContent = `target: Minecraft Java Edition 1.21.4 — previ
 session.planNearest({ maxRadiusChunks: 256 });
 session.realize();
 refresh({ reflowCamera: true });
+if (selectedMod) $('content-source').onchange();
 
 const resize = new ResizeObserver(() => {
   const w = $('view').clientWidth;
@@ -485,6 +692,8 @@ const resize = new ResizeObserver(() => {
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  walk.camera.aspect = w / h;
+  walk.camera.updateProjectionMatrix();
 });
 resize.observe($('view'));
 
@@ -494,5 +703,6 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   controls.update(dt);
-  renderer.render(scene, camera);
+  worldView.tickMobs(dt, walk.active ? walk.camera.position : controls.target);
+  renderer.render(scene, walk.active ? walk.camera : camera);
 });

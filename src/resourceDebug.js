@@ -10,7 +10,7 @@
 // rather than a verdict, which is the same contract the CLI keeps.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BLOCK_DEFS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { createBlockGeometry } from './blockGeometry.js';
 import { TextureManager } from './textures.js';
 import {
@@ -20,17 +20,29 @@ import {
   searchResources,
 } from './resourceRegistry.js';
 import { RESOURCE_CHECKS, ResourceShowcase, buildVanillaIndex } from './resourceShowcase.js';
+import { inspectorSources } from './mods/inspectorScope.js';
+import { fillInspectorSource } from './mods/inspectorSelector.js';
+import { ResourceInspectionWorld, ResourceBehaviorShowcase } from './resourceBehaviorShowcase.js';
 
 const $ = (id) => document.getElementById(id);
 
-// The query string is read once, at load. The start screen's Inspector picker deep-links here with
-// `?kind=item` or `?kind=block` so its two choices land on different lists, and with `?resource=<key>` for
-// the one the player was examining. Reading it per fill would fight the Kind selector, which calls the same
-// function on change.
+// Two pages share this script: item-debug.html and block-debug.html. Each one's <body> carries its kind in
+// `data-kind`, which locks the list to that kind, so the Item Inspector cannot show blocks or the reverse.
+// The query string is read once, at load, for `?resource=<key>` (the one the player was examining) and
+// `?mod=<id>`.
+const PAGE_KIND = document.body.dataset.kind || null;
 const PAGE_PARAMS = new URLSearchParams(location.search);
 const PAGE_RESOURCE = PAGE_PARAMS.get('resource');
-const PAGE_KIND = PAGE_PARAMS.get('kind');
-let pageKindApplied = false;
+let selectedMod = fillInspectorSource($('content-source'), PAGE_PARAMS.get('mod'));
+
+/** Keep the address bar in step with the selection, so a reload or a shared link reopens the same resource. */
+function syncUrl(resourceKey = null) {
+  const params = new URLSearchParams();
+  if (resourceKey) params.set('resource', resourceKey);
+  if (selectedMod) params.set('mod', selectedMod);
+  const query = params.toString();
+  history.replaceState(null, '', query ? `?${query}` : location.pathname);
+}
 
 // --- scene ------------------------------------------------------------------
 const scene = new THREE.Scene();
@@ -63,6 +75,160 @@ let showcase = null;
 let registry = null;
 let selected = null;
 let preview = null;
+let previewVersion = 0;
+let behaviorRun = null;
+let inspectionWorld = null;
+let displayedRevision = -1;
+let displayedDrops = -1;
+let dropPreview = null;
+
+function disposePreview(group) {
+  group?.removeFromParent();
+  group?.traverse(child => {
+    child.geometry?.dispose();
+    if (child.userData.ownsMaterial) {
+      child.material.map?.dispose();
+      child.material.dispose();
+    }
+  });
+}
+
+function stopShowcase({ restore = true } = {}) {
+  renderer.clippingPlanes = [];
+  behaviorRun?.stop();
+  inspectionWorld?.dispose();
+  behaviorRun = null;
+  inspectionWorld = null;
+  disposePreview(dropPreview);
+  dropPreview = null;
+  $('showcase-stop').disabled = true;
+  $('showcase').disabled = !selected;
+  $('showcase-status').textContent = 'Stopped — press Run showcase to start again.';
+  $('showcase-telemetry').textContent = '';
+  if (restore) {
+    camera.position.set(2.2, 1.8, 3.2);
+    controls.target.set(0, 0.35, 0);
+    showPreview(selected).catch(error => { $('error').textContent = error.message; });
+  }
+}
+
+function renderInspectionWorld() {
+  if (!inspectionWorld || inspectionWorld.revision === displayedRevision) return;
+  disposePreview(preview);
+  preview = new THREE.Group();
+  const geometries = inspectionWorld.mesh(textures);
+  const materials = { opaqueGeo: textures.opaqueMaterial, lightGeo: textures.lightMaterial,
+    transparentGeo: textures.transparentMaterial, waterGeo: textures.waterMaterial };
+  for (const [key, material] of Object.entries(materials)) {
+    if (!geometries[key]) continue;
+    preview.add(new THREE.Mesh(geometries[key], material));
+  }
+  preview.position.set(-8.5, -2, -8.5);
+  scene.add(preview);
+  grid.visible = false;
+  displayedRevision = inspectionWorld.revision;
+}
+
+function renderInspectionDrops() {
+  if (!inspectionWorld || inspectionWorld.drops.length === displayedDrops) return;
+  disposePreview(dropPreview);
+  dropPreview = new THREE.Group();
+  inspectionWorld.drops.forEach((drop, index) => {
+    // Real registry icon / geometry, rather than generic coloured cubes.
+    const entry = [...registry.entries.values()].find(e => drop.isBlock ? e.blockId === drop.id : e.id === drop.id);
+    let mesh;
+    if (drop.isBlock) {
+      const geometry = createBlockGeometry(drop.id, textures);
+      geometry.translate(-0.5, -0.5, -0.5);
+      mesh = new THREE.Mesh(geometry, textures.opaqueMaterial);
+    } else if (entry?.icon) {
+      const map = new THREE.TextureLoader().load(entry.icon);
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.magFilter = map.minFilter = THREE.NearestFilter;
+      mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide }));
+      mesh.userData.ownsMaterial = true;
+    }
+    if (mesh) {
+      mesh.scale.setScalar(0.4);
+      mesh.position.set((index - 1) * 0.55, 0.5, 0.15);
+      dropPreview.add(mesh);
+    }
+  });
+  scene.add(dropPreview);
+  displayedDrops = inspectionWorld.drops.length;
+}
+
+function showBehaviorProgress() {
+  if (!behaviorRun) return;
+  const results = behaviorRun.results;
+  const failures = results.filter(r => ['not observed', 'error'].includes(r.status)).length;
+  const skipped = results.filter(r => r.status === 'unsupported').length;
+  const passed = results.length - failures - skipped;
+  $('showcase-status').textContent = behaviorRun.running
+    ? `${behaviorRun.index + 1}/${behaviorRun.steps.length} · ${behaviorRun.current.label}`
+    : `Finished: ${passed} passed, ${failures} failed, ${skipped} unsupported / visual-only.`;
+  $('showcase-results').textContent = results.map(r => `${r.status === 'observed' ? '[ok]' : r.status === 'unsupported' ? '[--]' : '[!!]'} ${r.label}${r.detail ? ` — ${r.detail}` : ''}`).join('\n');
+  $('showcase-stop').disabled = !behaviorRun.running;
+  $('showcase').disabled = behaviorRun.running;
+  if (inspectionWorld && [BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(selected?.blockId)) {
+    const f = inspectionWorld.furnaceManager.getFurnace(8, 2, 8);
+    const stack = s => s ? `${s.count} × ${s.id}` : 'empty';
+    $('showcase-telemetry').textContent = f
+      ? `Input: ${stack(f.input)}\nFuel: ${stack(f.fuel)}\nOutput: ${stack(f.output)}\nCooking: ${Math.round(f.cookTime / f.cookDuration * 100)}% · burn ${f.burnTime.toFixed(1)}s\nLit: ${f.lit ? 'yes' : 'no'}`
+      : inspectionWorld.world.getVoxel(8, 2, 8) === BLOCKS.AIR
+        ? `Furnace broken\nDrops: ${inspectionWorld.drops.map(d => `${d.count} × ${d.id}`).join(', ')}`
+        : 'Shell inspection: carpet beside and below; stone platform underneath.';
+  }
+}
+
+async function startShowcase() {
+  if (!selected) return;
+  stopShowcase({ restore: false });
+  const entry = selected;
+  const version = previewVersion;
+  $('showcase').disabled = true;
+  try {
+    if (entry.blockId !== null && !texturesReady) await ensureTextures();
+    if (entry !== selected || version !== previewVersion) return;
+    showcase.run(entry);
+    showChecks();
+    displayedRevision = displayedDrops = -1;
+    if (entry.blockId !== null) inspectionWorld = new ResourceInspectionWorld(entry.blockId, { scene });
+    behaviorRun = new ResourceBehaviorShowcase({ entry, checks: showcase.results, session: inspectionWorld, textures,
+      onStep(step) {
+        // The support platform would otherwise block a camera below the block.
+        // Clip only the supporting context from the rendered underside view;
+        // ray assertions still inspect the complete world mesh and its culling.
+        renderer.clippingPlanes = step.view?.id === 'bottom' && inspectionWorld
+          ? [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.25)] : [];
+        if (step.view) {
+          const [x, y, z] = step.view.direction;
+          controls.target.set(0, 0.5, 0);
+          // Tiny offset avoids an up-vector singularity when looking straight down.
+          camera.position.set(x * 4.5 + 0.02, y * 4.5 + 0.5, z * 4.5 + 0.02);
+          camera.lookAt(controls.target);
+        } else if (step.enter) {
+          controls.target.set(0, 0.5, 0);
+          camera.position.set(2.2, 2, 3.2);
+          camera.lookAt(controls.target);
+        }
+      },
+    });
+    renderInspectionWorld();
+    showBehaviorProgress();
+    log(`Showcase started: ${entry.name}. Registry checks and six views${inspectionWorld && [BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(entry.blockId) ? '; real furnace simulation' : '; no specialized behavior simulation for this resource'}.`);
+  } catch (error) {
+    $('error').textContent = error.stack || error.message;
+    stopShowcase();
+  }
+}
+
+// A small automation hook for the same scenarios the visible button drives.
+window.resourceInspector = {
+  get run() { return behaviorRun; },
+  get session() { return inspectionWorld; },
+  get ready() { return !!selected && (selected.blockId === null || texturesReady); },
+};
 
 /** Load the pinned vanilla snapshot if the dev server exposes it; absence is not an error. */
 async function loadVanilla() {
@@ -92,6 +258,11 @@ async function loadVanilla() {
 // --- preview ----------------------------------------------------------------
 const textures = new TextureManager();
 let texturesReady = false;
+let textureLoad = null;
+async function ensureTextures() {
+  textureLoad ||= textures.init().then(() => { texturesReady = true; });
+  try { await textureLoad; } catch (error) { textureLoad = null; throw error; }
+}
 
 /**
  * Replace the preview with this resource's real appearance.
@@ -101,9 +272,9 @@ let texturesReady = false;
  * on a double-sided plane, which is how the dropped-item and hand renderers show it.
  */
 async function showPreview(entry) {
+  const version = ++previewVersion;
   if (preview) {
-    preview.removeFromParent();
-    preview.traverse((child) => child.geometry?.dispose());
+    disposePreview(preview);
     preview = null;
   }
   if (!entry) return;
@@ -112,8 +283,7 @@ async function showPreview(entry) {
   if (entry.blockId !== null && BLOCK_DEFS[entry.blockId]) {
     if (!texturesReady) {
       try {
-        await textures.init();
-        texturesReady = true;
+        await ensureTextures();
       } catch (error) {
         log(`Texture atlas failed: ${error.message}`);
       }
@@ -131,7 +301,9 @@ async function showPreview(entry) {
     texture.minFilter = THREE.NearestFilter;
     texture.colorSpace = THREE.SRGBColorSpace;
     const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.05 });
-    group.add(new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), material));
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), material);
+    mesh.userData.ownsMaterial = true;
+    group.add(mesh);
   } else {
     group.add(new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 0.6, 0.6),
@@ -139,6 +311,7 @@ async function showPreview(entry) {
     ));
   }
 
+  if (version !== previewVersion) { group.traverse(child => child.geometry?.dispose()); return; }
   preview = group;
   scene.add(group);
   grid.visible = entry.blockId !== null;
@@ -197,7 +370,14 @@ function showChecks() {
 }
 
 function selectResource(entry) {
+  stopShowcase({ restore: false });
+  camera.position.set(2.2, 1.8, 3.2);
+  controls.target.set(0, 0.35, 0);
+  $('rerun').disabled = false;
   selected = entry;
+  $('showcase').disabled = false;
+  $('showcase-status').textContent = 'Idle — run checks and six views. Furnace adds smelting, fuel, collection and breaking scenarios.';
+  $('showcase-results').textContent = '';
   $('error').textContent = '';
   try {
     const report = resourceReport(entry, registry);
@@ -210,20 +390,14 @@ function selectResource(entry) {
     showcase.run(entry);
     showChecks();
     showPreview(entry).catch((error) => { $('error').textContent = error.stack || error.message; });
-    history.replaceState(null, '', `?resource=${encodeURIComponent(entry.key)}`);
+    syncUrl(entry.key);
   } catch (error) {
     $('error').textContent = error.stack || error.message;
   }
 }
 
 function fillList() {
-  // Applied once, so the selector stays in the driver's hands afterwards.
-  if (!pageKindApplied) {
-    pageKindApplied = true;
-    if (PAGE_KIND === 'item' || PAGE_KIND === 'block') $('kind').value = PAGE_KIND;
-  }
-  const kind = $('kind').value || null;
-  const rows = searchResources($('search').value, { kind, limit: 400, reg: registry });
+  const rows = searchResources($('search').value, { kind: PAGE_KIND, limit: 400, reg: registry });
   const select = $('resource');
   select.replaceChildren(...rows.map((entry) => {
     const option = document.createElement('option');
@@ -237,6 +411,18 @@ function fillList() {
   if (match) {
     select.value = match.key;
     selectResource(match);
+  } else {
+    stopShowcase({ restore: false });
+    selected = null;
+    showcase.results = [];
+    $('facts').textContent = '';
+    $('checks').textContent = '';
+    $('check-status').textContent = 'No checks to run';
+    $('badge').textContent = 'No resources in this scope';
+    $('rerun').disabled = true;
+    $('showcase').disabled = true;
+    showPreview(null);
+    syncUrl();
   }
 }
 
@@ -255,7 +441,7 @@ function showDangling() {
 
 // --- boot -------------------------------------------------------------------
 async function boot() {
-  registry = buildRegistry();
+  registry = buildRegistry({fresh: true, ...inspectorSources({modId: selectedMod})});
   vanilla = await loadVanilla();
   showcase = new ResourceShowcase({
     registry,
@@ -273,12 +459,20 @@ async function boot() {
   fillList();
   showDangling();
   $('search').oninput = fillList;
-  $('kind').onchange = fillList;
+  $('content-source').onchange = () => {
+    selectedMod = $('content-source').value || null;
+    registry = buildRegistry({fresh: true, ...inspectorSources({modId: selectedMod})});
+    showcase.registry = registry;
+    selected = null;
+    fillList(); showDangling();
+  };
   $('resource').onchange = () => {
     const entry = registry.entries.get($('resource').value);
     if (entry) selectResource(entry);
   };
   $('rerun').onclick = () => { if (selected) selectResource(selected); };
+  $('showcase').onclick = startShowcase;
+  $('showcase-stop').onclick = () => stopShowcase();
   $('group').onchange = showChecks;
 }
 
@@ -291,8 +485,17 @@ const resize = new ResizeObserver(() => {
 });
 resize.observe($('view'));
 
-renderer.setAnimationLoop(() => {
-  if (preview) preview.rotation.y += 0.006;
+let lastFrame = performance.now();
+renderer.setAnimationLoop(now => {
+  const dt = Math.min(0.1, Math.max(0, (now - lastFrame) / 1000));
+  lastFrame = now;
+  if (behaviorRun?.running) {
+    behaviorRun.update(dt);
+    renderInspectionWorld();
+    renderInspectionDrops();
+    showBehaviorProgress();
+  }
+  if (texturesReady) textures.update(dt);
   controls.update();
   renderer.render(scene, camera);
 });

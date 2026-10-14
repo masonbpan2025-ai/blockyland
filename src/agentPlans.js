@@ -1,12 +1,56 @@
 import { BLOCKS } from './blocks.js';
 import { validatePlayerCommand } from './playerBot.js';
+import { PAINTING_BY_ID } from './paintings.js';
+
+const WALL_SIDES = ['north', 'south', 'east', 'west'];
+
+/**
+ * build_in_stages: a site and its parts. Each part is a box inside the site that is written later in its own
+ * request, so the plan itself carries no operations. A site may be larger than one build (128 x 128) because a
+ * town is; each part is still at most 64 on a side, like any build.
+ */
+function validateStagedPlan(plan) {
+  const int = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
+  if (typeof plan.name !== 'string' || !plan.name.trim() || plan.name.length > 80) throw new Error('A staged build needs a short name.');
+  const site = plan.site;
+  if (!site || !int(site.width, 1, 128) || !int(site.depth, 1, 128) || !int(site.height, 1, 64)) throw new Error('A staged build needs a site of at most 128 x 64 x 128.');
+  if (plan.theme !== undefined && (typeof plan.theme !== 'string' || plan.theme.length > 600)) throw new Error('The theme must be a short description.');
+  if (!Array.isArray(plan.stages) || !plan.stages.length || plan.stages.length > 24) throw new Error('A staged build needs 1-24 stages.');
+  for (const stage of plan.stages) {
+    if (!stage || typeof stage.name !== 'string' || !stage.name.trim() || stage.name.length > 80) throw new Error('Every stage needs a short name.');
+    if (stage.description !== undefined && (typeof stage.description !== 'string' || stage.description.length > 800)) throw new Error(`The description of "${stage.name}" is too long.`);
+    const s = stage.size, o = stage.offset;
+    if (!s || !int(s.width, 1, 64) || !int(s.height, 1, 64) || !int(s.depth, 1, 64)) throw new Error(`"${stage.name}" needs a size of at most 64 per side.`);
+    if (!Array.isArray(o) || o.length !== 3 || !o.every(n => int(n, 0, 127))) throw new Error(`"${stage.name}" needs an offset [x, y, z] inside the site.`);
+    if (o[0] + s.width > site.width || o[1] + s.height > site.height || o[2] + s.depth > site.depth) throw new Error(`"${stage.name}" does not fit inside the site.`);
+  }
+  return plan;
+}
+
+/** hang_paintings: where (a target id, walls of it, or exact spots), how many, how big and which pictures. */
+function validatePaintingPlan(plan) {
+  if (plan.target !== undefined && (typeof plan.target !== 'string' || plan.target.length > 64)) throw new Error('A painting target must be a short id such as current_room.');
+  if (plan.walls !== undefined && (!Array.isArray(plan.walls) || !plan.walls.every(w => WALL_SIDES.includes(String(w).toLowerCase())))) throw new Error('Walls must be north, south, east or west.');
+  if (plan.count !== undefined && !(Number.isInteger(plan.count) && plan.count >= 1 && plan.count <= 32)) throw new Error('Painting count must be 1-32.');
+  if (plan.size !== undefined && !['small', 'medium', 'large', 'any'].includes(plan.size)) throw new Error('Painting size must be small, medium, large or any.');
+  if (plan.variants !== undefined && (!Array.isArray(plan.variants) || plan.variants.length > 32 || !plan.variants.every(v => PAINTING_BY_ID[v]))) throw new Error('Unknown painting variant.');
+  if (plan.spots !== undefined) {
+    const coordinate = n => Number.isInteger(n) && Math.abs(n) <= 30000000;
+    if (!Array.isArray(plan.spots) || plan.spots.length > 32 || !plan.spots.every(s => s && coordinate(s.x) && coordinate(s.y) && coordinate(s.z) && WALL_SIDES.includes(s.facing) && (s.variant === undefined || PAINTING_BY_ID[s.variant]))) {
+      throw new Error('Painting spots need integer x, y, z, a facing (north/south/east/west) and a known variant.');
+    }
+  }
+  return plan;
+}
 
 // Validate model output before executing any part of a plan.
 export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0 }) {
   if (++budget.steps > 64) throw new Error('Plan has too many steps.');
   if (!plan || typeof plan !== 'object' || Array.isArray(plan) || depth > 4) throw new Error('Invalid agent plan.');
-  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art', 'player_control'];
+  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art', 'player_control', 'hang_paintings', 'build_in_stages'];
   if (!actions.includes(plan.action)) throw new Error(`Unsupported action: ${plan.action}`);
+  if (plan.action === 'hang_paintings') return validatePaintingPlan(plan);
+  if (plan.action === 'build_in_stages') return validateStagedPlan(plan);
   if (plan.action === 'player_control') {
     if (typeof plan.command !== 'string' || !plan.command.trim() || plan.command.length > 256) throw new Error('Player control requires a short command string.');
     validatePlayerCommand(plan.command);

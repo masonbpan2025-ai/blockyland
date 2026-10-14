@@ -1,4 +1,5 @@
 import {BLOCKS} from './blocks.js';
+import { exposedToRain } from './weatherRules.js';
 const states=new WeakMap();
 export function applyHeat(world,actor,position,dt,damage){
   if (actor.fireImmune || actor.isFireImmune || actor.fireResistanceTime > 0 || actor.hasStatusEffect?.('fire_resistance')) return;
@@ -8,7 +9,7 @@ export function applyHeat(world,actor,position,dt,damage){
   const x=Math.floor(position.x),y=Math.floor(position.y+.2),z=Math.floor(position.z);
   let id=world.getVoxel(x,y,z);
   if(id===BLOCKS.LAVA){const level=world.getLavaLevel?.(x,y,z)||0;const height=level===8?1:(8-level)/9;if(position.y>y+height)id=BLOCKS.AIR;}
-  if(id===BLOCKS.WATER){state.burn=0;state.timer=0;}
+  if(id===BLOCKS.WATER||exposedToRain(world.game?.weather??world.weather,world,{x:position.x,y:position.y+.5,z:position.z})){state.burn=0;state.timer=0;}
   else{
     const burnBefore=state.burn;
     if(id===BLOCKS.LAVA||id===BLOCKS.FIRE)state.burn=id===BLOCKS.LAVA?15:8;

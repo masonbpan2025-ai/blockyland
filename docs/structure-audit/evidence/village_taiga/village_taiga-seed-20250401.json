@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "structure": "village_taiga",
+  "seed": "20250401",
+  "chunk": [
+    44,
+    55
+  ],
+  "biome": "taiga",
+  "box": {
+    "minX": 661,
+    "minY": 14,
+    "minZ": 862,
+    "maxX": 754,
+    "maxY": 49,
+    "maxZ": 911
+  },
+  "pieces": 18,
+  "blocks": {
+    "Stone": 29505,
+    "Dirt": 15746,
+    "Grass Block": 3319,
+    "Spruce Leaves": 2139,
+    "Birch Leaves": 1494,
+    "Water": 1493,
+    "Oak Leaves": 1448,
+    "Snow Block": 1244,
+    "Coal Ore": 1190,
+    "Iron Ore": 982,
+    "Gold Ore": 723,
+    "Spruce Log": 712,
+    "Redstone Ore": 454,
+    "Cobblestone": 385,
+    "Dirt Path": 243,
+    "Oak Log": 123,
+    "Birch Log": 117,
+    "Ice": 116,
+    "Poppy": 113,
+    "Spruce Planks": 106,
+    "Dandelion": 91,
+    "Sand": 75,
+    "Spruce Trapdoor": 44,
+    "Wall Torch": 23,
+    "Cobblestone Wall": 21,
+    "Glass Pane": 19,
+    "Gravel": 15,
+    "Spruce Stairs": 12,
+    "Spruce Door": 10,
+    "Spruce Door Top": 10,
+    "Torch": 8,
+    "Bookshelf": 8,
+    "Large Fern": 8,
+    "Blue Bed": 6,
+    "Blue Bed Head": 6,
+    "Spruce Fence": 6,
+    "Crafting Table": 4,
+    "Fern": 4,
+    "Chest": 3,
+    "Purple Bed": 2,
+    "Purple Bed Head": 2,
+    "Cobblestone Stairs": 2,
+    "Spruce Wall Sign": 2,
+    "Grindstone": 1,
+    "Bell": 1
+  },
+  "loot": {
+    "chests": 3,
+    "empty": 0,
+    "totals": [
+      {
+        "name": "wheat",
+        "count": 9
+      },
+      {
+        "name": "carrot",
+        "count": 5
+      },
+      {
+        "name": "bone",
+        "count": 2
+      },
+      {
+        "name": "emerald",
+        "count": 2
+      },
+      {
+        "name": "sweet_berries",
+        "count": 2
+      },
+      {
+        "name": "spruce_sapling",
+        "count": 1
+      }
+    ]
+  },
+  "entities": {
+    "chest": 3,
+    "door": 10,
+    "bed": 8,
+    "mob": 11
+  },
+  "audit": {
+    "mode": "world",
+    "summary": {
+      "pass": 24,
+      "fail": 0,
+      "waived": 0,
+      "unchecked": 0
+    },
+    "failing": [],
+    "waived": []
+  },
+  "view": "node export"
+}

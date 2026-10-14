@@ -247,6 +247,17 @@ export function normaliseManifest(raw) {
   if (!raw.name) problems.push('name is required');
   if (normaliseNamespace(raw.id) === CORE_NAMESPACE) problems.push('a mod may not use the core namespace');
   if (raw.provides && typeof raw.provides !== 'object') problems.push('provides must be an object');
+  if (raw.formatVersion !== undefined && raw.formatVersion !== 1) problems.push('unsupported formatVersion');
+  if (raw.version !== undefined && !/^\d+\.\d+\.\d+$/.test(raw.version)) problems.push('version must be major.minor.patch');
+  if (raw.engineApi !== undefined && !/^(\*|[~^]?\d+\.\d+\.\d+)$/.test(raw.engineApi)) problems.push('unsupported engineApi range');
+  if (raw.type !== undefined && !['game','extension','content','world'].includes(raw.type)) problems.push('unsupported package type');
+  for (const key of ['entrypoint','serverEntrypoint']) if (raw[key] != null && (typeof raw[key] !== 'string' || !/^(?:\.\/)?[a-zA-Z0-9_./-]+$/.test(raw[key]) || raw[key].split('/').includes('..'))) problems.push(key+' must stay inside the package');
+  for (const key of ['dependencies','optionalDependencies']) {
+    if (raw[key] != null && (typeof raw[key] !== 'object' || Array.isArray(raw[key]))) problems.push(key+' must map package ids to version ranges');
+    else for (const [id,range] of Object.entries(raw[key] ?? {})) if (!/^[a-z0-9_]+$/.test(id) || !/^(\*|[~^]?\d+\.\d+\.\d+)$/.test(range)) problems.push('invalid dependency '+id);
+  }
+  if (raw.requires !== undefined && (!Array.isArray(raw.requires) || raw.requires.some(v=>typeof v!=='string'))) problems.push('requires must be a list of capability names');
+  if (raw.maps !== undefined && (!Array.isArray(raw.maps)||raw.maps.some(v=>typeof v!=='string'||!/^[a-zA-Z0-9_-]+\.json$/.test(v)))) problems.push('maps must be package-local JSON filenames');
   if (problems.length) return { ok: false, reason: problems.join('; ') };
 
   return {
@@ -255,6 +266,15 @@ export function normaliseManifest(raw) {
       id: normaliseNamespace(raw.id),
       name: String(raw.name),
       version: String(raw.version ?? '0.0.0'),
+      formatVersion: raw.formatVersion ?? 1,
+      type: raw.type ?? 'extension',
+      engineApi: raw.engineApi ?? '*',
+      protocolVersion: raw.protocolVersion ?? 1,
+      dependencies: raw.dependencies ?? {},
+      optionalDependencies: raw.optionalDependencies ?? {},
+      requires: raw.requires ?? [],
+      serverEntrypoint: raw.serverEntrypoint ?? null,
+      saveSchemaVersion: raw.saveSchemaVersion ?? 1,
       description: String(raw.description ?? ''),
       /** The world mechanism this mod supplies, if any. */
       mechanism: raw.mechanism ? String(raw.mechanism) : null,

@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   COMMANDS, findCommand, splitItemArgument, resolveItem, suggestItems,
-  TARGET_SELECTORS, resolveTargets, GIVE_COUNT, parseGive, giveItems, giveMessage,
+  TARGET_SELECTORS, resolveTargets, GIVE_COUNT, parseGive, giveItems, giveMessage, giveCountLimitFor,
 } from '../src/commands.js';
 import { HANDLED_HERE, HANDLED_ELSEWHERE, buildCommandContext, runCommand } from '../src/commandRunner.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from '../src/blocks.js';
@@ -46,7 +46,7 @@ test('every command in the table is dispatched by exactly one of the two handler
   // `saves` is an alias of `maps` rather than a `case` of its own, and it is in the runner's table.
   assert.deepEqual([...HANDLED_HERE].sort(), [...inRunner].sort(),
     'HANDLED_HERE and the runner switch disagree');
-  const elsewhere = [...inMain].filter((n) => !inRunner.has(n) && n !== 'saves');
+  const elsewhere = [...inMain].filter((n) => !inRunner.has(n) && n !== 'saves' && n !== 'tp');
   assert.deepEqual([...HANDLED_ELSEWHERE].sort(), elsewhere.sort(),
     'HANDLED_ELSEWHERE and the Game switch disagree');
 
@@ -134,7 +134,6 @@ test('the count is a whole number in vanilla\'s range, and defaults to 1', () =>
   assert.equal(parseGive(['@p', 'stone', '1']).ok, true);
   assert.equal(GIVE_COUNT.min, 1, 'the wiki: between 1 and 2147483647');
   assert.equal(GIVE_COUNT.max, 2147483647);
-  assert.equal(parseGive(['@p', 'stone', '2147483647']).ok, true, 'the maximum is inclusive');
   for (const bad of ['0', '-1', '2147483648', '64abc', '1.5', 'many', '']) {
     if (bad === '') continue; // an empty third argument is treated as absent
     const result = parseGive(['@p', 'stone', bad]);
@@ -143,6 +142,12 @@ test('the count is a whole number in vanilla\'s range, and defaults to 1', () =>
   }
   // `parseInt('64abc')` is 64, which is why the parser uses `Number`.
   assert.equal(parseGive(['@p', 'stone', '64abc']).ok, false, 'a trailing letter is not a number');
+  // The integer ceiling is inside the parser's range but above the delivery limit, so it is refused for the
+  // SECOND reason. Asserting only "refused" here would let the two checks be confused for each other.
+  const ceiling = parseGive(['@p', 'stone', String(GIVE_COUNT.max)]);
+  assert.equal(ceiling.ok, false);
+  assert.doesNotMatch(ceiling.reason, /between 1 and/, 'the integer is in range; the execution limit is what refuses it');
+  assert.match(ceiling.reason, /exceeds/);
 });
 
 test('target selectors resolve only where this world can satisfy them', () => {
@@ -260,8 +265,14 @@ test('an unresolvable item is refused with suggestions', () => {
 });
 
 test('the minecraft: namespace is stripped and data components are refused by name', () => {
-  assert.deepEqual(splitItemArgument('minecraft:stone'), { id: 'stone', components: null, malformed: false });
-  assert.deepEqual(splitItemArgument('stone'), { id: 'stone', components: null, malformed: false });
+  // The namespace is VALIDATED, not sliced off: `splitItemArgument` decides whether the caller named this
+  // game's own registry or somebody else's resource location.
+  const namespaced = splitItemArgument('minecraft:stone');
+  assert.equal(namespaced.id, 'stone');
+  assert.equal(namespaced.components, null);
+  assert.equal(namespaced.malformed, false);
+  assert.equal(namespaced.unknownNamespace, undefined, 'minecraft: is this game\'s registry');
+  assert.equal(splitItemArgument('stone').id, 'stone');
   const withComponents = splitItemArgument('diamond_sword[enchantments={"minecraft:sharpness":10}]');
   assert.equal(withComponents.id, 'diamond_sword');
   assert.match(withComponents.components, /sharpness/);
@@ -271,6 +282,18 @@ test('the minecraft: namespace is stripped and data components are refused by na
   const refused = resolveItem('diamond_sword[enchantments={}]');
   assert.equal(refused.ok, false);
   assert.match(refused.reason, /data components are not supported/);
+
+  // A foreign namespace is a DIFFERENT resource location. It used to be sliced at the last colon, so
+  // `other_namespace:stone` handed over a vanilla stone: a typo resolved to the wrong item instead of
+  // failing.
+  const foreign = resolveItem('other_namespace:stone');
+  assert.equal(foreign.ok, false, 'a foreign namespace must not resolve');
+  assert.match(foreign.reason, /unknown item namespace/);
+  assert.equal(splitItemArgument('other_namespace:stone').unknownNamespace, true);
+  // Only the exact namespace counts, and `Minecraft:` is accepted as the same registry.
+  assert.equal(resolveItem('Minecraft:stone').ok, true, 'the namespace is case-insensitive');
+  assert.equal(resolveItem('notminecraft:stone').ok, false);
+  assert.equal(resolveItem('minecraft:crafting:stone').ok, false, 'a path may not contain another colon');
 
   // A namespace with nothing after the colon is not an item.
   assert.equal(resolveItem('minecraft:').ok, false);
@@ -288,23 +311,50 @@ test('the minecraft: namespace is stripped and data components are refused by na
  * implementation that partly filled and refused would be asked the same question repeatedly and count
  * the same items more than once.
  */
-function fakeInventory(capacity) {
-  let used = 0;
-  const calls = [];
-  return {
-    calls,
-    get used() { return used; },
-    addItem(id, isBlock, count) {
-      calls.push({ id, isBlock, count });
-      if (used + count > capacity) return false;
-      used += count;
-      return true;
+function fakeInventory({ slots = 36, limit = 64, stacks = [] } = {}) {
+  const grid = new Array(slots).fill(null);
+  for (let i = 0; i < stacks.length; i++) grid[i] = { ...stacks[i] };
+  const all = () => grid;
+  const room = (id, isBlock, enchantments) => {
+    let r = 0;
+    if (!enchantments) {
+      for (const s of all()) if (s && s.id === id && s.isBlock === isBlock && s.count < limit) r += limit - s.count;
+    }
+    r += all().filter((s) => !s).length * limit;
+    return r;
+  };
+  const inventory = {
+    hotbar: grid,
+    storage: [],
+    get used() { return all().filter(Boolean).reduce((n, s) => n + s.count, 0); },
+    /** Non-mutating, mirroring `Inventory.countRoomFor`. */
+    countRoomFor(id, isBlock) { return room(id, isBlock, null); },
+    /** Fills what it can and reports whether the WHOLE request landed, like the real inventory. */
+    addItem(id, isBlock, count, enchantments = null) {
+      let remaining = count;
+      if (remaining > 0) {
+        for (const s of all()) {
+          if (remaining <= 0) break;
+          if (s && s.id === id && s.isBlock === isBlock && s.count < limit) {
+            const add = Math.min(limit - s.count, remaining);
+            s.count += add; remaining -= add;
+          }
+        }
+        for (let i = 0; i < grid.length && remaining > 0; i++) {
+          if (grid[i]) continue;
+          const n = Math.min(limit, remaining);
+          grid[i] = { id, isBlock, count: n };
+          remaining -= n;
+        }
+      }
+      return remaining === 0;
     },
   };
+  return inventory;
 }
 
 test('an item that fits is given whole and nothing is dropped', () => {
-  const inventory = fakeInventory(100);
+  const inventory = fakeInventory({ slots: 36 });
   const dropped = [];
   const result = giveItems({
     inventory, drop: (id, isBlock, n) => dropped.push({ id, n }), gamemode: 'survival',
@@ -313,30 +363,51 @@ test('an item that fits is given whole and nothing is dropped', () => {
   assert.deepEqual(result, { given: 10, dropped: 0 });
   assert.deepEqual(dropped, []);
   assert.equal(inventory.used, 10);
-  // The first call is the whole count, as the real inventory's happy path expects.
-  assert.deepEqual(inventory.calls[0], { id: 'stone', isBlock: true, count: 10 });
 });
 
-test('a full inventory gives what fits and drops the rest, as vanilla does', () => {
-  // "If there is not enough room in the player's inventory, and the player is not in creative mode,
-  // gives the specified item(s) until the inventory is full, and summons the rest items as an item
-  // entity dropped by the player." The old path called `addItem` and threw its `false` away, so the
-  // whole request vanished.
+test('a nearly full inventory gives what fits and drops the rest, as vanilla does', () => {
+  // "If there is not enough room in the player's inventory, and the player is not in creative mode, gives
+  // the specified item(s) until the inventory is full, and summons the rest items as an item entity
+  // dropped by the player."
   //
-  // The probe is the fitting count, not an accumulating inventory: `giveItems` bisects, so a fake that
-  // filled on every successful call would answer the later probes differently and the search would
-  // converge on the wrong number.
-  const capacity = 7;
-  const inventory = { addItem: (id, isBlock, count) => count <= capacity };
+  // The 63-stone partial stack has room for exactly one more, and every other slot is full, so one fits and
+  // nine must be dropped. This is the case the old bisection got wrong: it probed `addItem(5)`, which
+  // inserted one stone and returned false, then concluded nothing fit, and dropped all ten — duplicating
+  // the one it had already inserted.
+  const inventory = fakeInventory({
+    slots: 36,
+    stacks: [{ id: 'stone', isBlock: true, count: 63 }, ...Array.from({ length: 35 }, () => ({ id: 'dirt', isBlock: true, count: 64 }))],
+  });
+  const stoneHeld = () => inventory.hotbar.reduce((n, s) => n + (s && s.id === 'stone' ? s.count : 0), 0);
+  const heldBefore = stoneHeld();
   const dropped = [];
   const result = giveItems({
     inventory, drop: (id, isBlock, n) => dropped.push({ id, isBlock, n }), gamemode: 'survival',
     item: { id: 'stone', isBlock: true }, count: 10,
   });
-  assert.equal(result.given, 7, 'the inventory took seven');
-  assert.equal(result.dropped, 3, 'and three were dropped');
-  assert.equal(dropped.reduce((n, d) => n + d.n, 0), 3);
-  assert.deepEqual(dropped, [{ id: 'stone', isBlock: true, n: 3 }], 'one entity, since 3 fits a stack');
+  assert.equal(result.given, 1, 'the partial stack takes one');
+  assert.equal(result.dropped, 9, 'and nine are dropped');
+  assert.equal(stoneHeld() - heldBefore, 1, 'the inventory grew by exactly the one it reported');
+  const onGround = dropped.reduce((n, d) => n + d.n, 0);
+  assert.equal((stoneHeld() - heldBefore) + onGround, 10,
+    `conservation: ${stoneHeld() - heldBefore} held + ${onGround} dropped`);
+  assert.deepEqual(dropped, [{ id: 'stone', isBlock: true, n: 9 }], 'one entity, since 9 fits a stack');
+});
+
+test('a saturated inventory duplicates nothing and drops the whole request once', () => {
+  // 36 full stacks of an unstackable item: no slot has room, so all ten are dropped and the inventory is
+  // untouched. The old bisection probed `addItem(10)`, `addItem(5)`, ... and left a partial insert behind
+  // each time, which is how 101 swords became 36 held plus 101 dropped.
+  const inventory = fakeInventory({ slots: 36, limit: 1, stacks: Array.from({ length: 36 }, () => ({ id: 'diamond_sword', isBlock: false, count: 1 })) });
+  const dropped = [];
+  const result = giveItems({
+    inventory, drop: (id, isBlock, n) => dropped.push(n), gamemode: 'survival',
+    item: { id: 'diamond_sword', isBlock: false }, count: 10,
+  });
+  assert.equal(result.given, 0);
+  assert.equal(result.dropped, 10);
+  assert.equal(inventory.used, 36, 'the inventory is untouched');
+  assert.deepEqual(dropped, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ten unstackable entities');
 });
 
 test('an inventory with no room drops everything', () => {
@@ -351,8 +422,9 @@ test('an inventory with no room drops everything', () => {
 });
 
 test('the drop obeys the stack limit, one entity per stack', () => {
-  // A stack of 16 ender pearls cannot be one entity of 64 just because the request was large.
-  const inventory = fakeInventory(0);
+  // A stack of 16 ender pearls cannot be one entity of 64 just because the request was large. The slot
+  // limit here is 1, so all 40 spill onto the ground and must still be split into pearl-sized stacks.
+  const inventory = fakeInventory({ slots: 1, limit: 1, stacks: [{ id: 'dirt', isBlock: true, count: 1 }] });
   const dropped = [];
   giveItems({
     inventory, drop: (id, isBlock, n) => dropped.push(n), gamemode: 'survival',
@@ -367,7 +439,7 @@ test('the drop obeys the stack limit, one entity per stack', () => {
 test('creative takes the whole count rather than dropping it', () => {
   // "If there is enough room in the player's inventory, OR THE PLAYER IS IN CREATIVE MODE, gives the
   // specified item(s)." There is nothing to drop into in creative, so the count is reported as given.
-  const inventory = fakeInventory(0);
+  const inventory = fakeInventory({ slots: 36 });
   const dropped = [];
   const result = giveItems({
     inventory, drop: (id, isBlock, n) => dropped.push(n), gamemode: 'creative',
@@ -383,7 +455,7 @@ test('execution tolerates a missing inventory or drop hook', () => {
     giveItems({ inventory: null, drop: null, gamemode: 'survival', item: { id: 'stone', isBlock: true }, count: 5 }),
     { given: 0, dropped: 5 },
   );
-  const inventory = fakeInventory(0);
+  const inventory = fakeInventory({ slots: 36 });
   assert.doesNotThrow(() => giveItems({
     inventory, drop: undefined, gamemode: 'survival', item: { id: 'stone', isBlock: true }, count: 3,
   }));
@@ -395,21 +467,51 @@ test('the confirmation line is vanilla\'s', () => {
   assert.equal(giveMessage('Stone', 64, 'Steve'), 'Gave 64 [Stone] to Steve');
 });
 
-test('a huge count does not hang the bisection', () => {
-  // `addItem` is all-or-nothing, so the fitting count is found by bisection. Adding one at a time would
-  // be 2 billion calls for the maximum count.
+test('an oversized count is refused before it can be duplicated', () => {
+  // The parser range and the delivery limit are different: 2,147,483,647 is a valid integer and not a valid
+  // amount to hand over. 100 stacks of 64 is 6,400 for an ordinary item, 1,600 for ender pearls (16 per
+  // stack) and 100 for an unstackable sword.
+  for (const [item, atLimit, overLimit] of [['minecraft:stone', 6400, 6401], ['minecraft:ender_pearl', 1600, 1601], ['minecraft:diamond_sword', 100, 101]]) {
+    const limit = giveCountLimitFor(resolveItem(item).id);
+    assert.equal(limit, atLimit, `${item} should cap at ${atLimit}`);
+    assert.equal(parseGive(['@s', item, String(atLimit)]).ok, true, `${item} at its limit is allowed`);
+    const over = parseGive(['@s', item, String(overLimit)]);
+    assert.equal(over.ok, false, `${item} above its limit is refused`);
+    assert.match(over.reason, /exceeds/, `${item} refusal should say the limit was exceeded`);
+  }
+  // The integer maximum is a parseable integer but far above any delivery limit.
+  assert.equal(parseGive(['@s', 'minecraft:stone', String(GIVE_COUNT.max)]).ok, false);
+});
+
+test('a very large count is refused rather than executed', () => {
+  // The old path could be asked for two billion items and would try to spawn billions of drop requests.
+  const started = Date.now();
+  const parsed = parseGive(['@s', 'minecraft:stone', '1000000000']);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.reason, /exceeds/);
+  assert.ok(Date.now() - started < 100, 'refusal is immediate');
+});
+
+
+test('a huge count is placed in a bounded number of calls', () => {
+  // The old path bisected by calling `addItem` up to ~31 times, and every failed probe could leave a
+  // partial insert behind. The new path asks once how much fits and inserts once, so the work does not grow
+  // with the count at all.
   let calls = 0;
-  const inventory = {
-    addItem(id, isBlock, count) { calls++; return count <= 640; },
-  };
+  const inventory = fakeInventory({ slots: 36, limit: 64 });
+  const realAdd = inventory.addItem.bind(inventory);
+  const realRoom = inventory.countRoomFor.bind(inventory);
+  inventory.addItem = (...args) => { calls++; return realAdd(...args); };
+  inventory.countRoomFor = (...args) => { calls++; return realRoom(...args); };
   const started = Date.now();
   const result = giveItems({
     inventory, drop: () => {}, gamemode: 'survival',
-    item: { id: 'stone', isBlock: true }, count: 2147483647,
+    item: { id: 'stone', isBlock: true }, count: 6400,
   });
-  assert.equal(result.given, 640);
-  assert.ok(calls < 200, `expected a logarithmic search, made ${calls} calls`);
-  assert.ok(Date.now() - started < 1000, 'and it should finish immediately');
+  assert.equal(result.given, 2304, '36 slots hold 36 stacks of 64');
+  assert.equal(result.dropped, 6400 - 2304);
+  assert.equal(calls, 2, `one capacity query and one insert, made ${calls} calls`);
+  assert.ok(Date.now() - started < 250, 'and it finishes immediately');
 });
 
 // --- the call site ------------------------------------------------------------------
@@ -474,18 +576,8 @@ function fakeGame(overrides = {}) {
       clearChat: () => { game.chatCleared = true; },
     },
     player: { position: { x: 10, y: 64, z: -5 }, gamemode: 'survival' },
-    // A store that answers "how much fits" without mutating when it can, because `giveItems` bisects and
-    // a fake that accumulated on every successful probe would answer later probes differently.
-    inventory: {
-      capacity: Infinity,
-      stored: [],
-      addItem(id, isBlock, count) {
-        const used = this.stored.reduce((n, s) => n + s.count, 0);
-        if (used + count > this.capacity) return false;
-        this.stored.push({ id, isBlock, count });
-        return true;
-      },
-    },
+    // A slot-backed store, like the real inventory, so `giveItems` can ask how much fits before inserting.
+    inventory: slotInventory(),
     world: { setVoxel: () => {}, getOrCreateChunk: () => null, invalidateChunkCache: () => {} },
     weather: { setWeather: (t) => { game.weatherSet = t; } },
     entities: { spawnDroppedItem: (at, id, isBlock, count) => dropped.push({ at, id, isBlock, count }) },
@@ -506,8 +598,9 @@ const run = (game, line) => runCommand(buildCommandContext(game), line);
 /**
  * An inventory that reports a fixed amount of room, without filling as it is asked.
  *
- * `giveItems` finds the fitting count by bisection, so a capacity fake has to answer the same question the
- * same way every time. This records the last accepted request, which is the amount that fits.
+ * `giveItems` used to find the fitting count by bisection, so a capacity fake had to answer the same
+ * question the same way every time. It now asks `countRoomFor` once, so what this models is a store with
+ * `capacity` total room and nothing else.
  */
 function capacityInventory(capacity) {
   const accepted = [];
@@ -523,6 +616,59 @@ function capacityInventory(capacity) {
   };
 }
 
+/**
+ * A slot-backed inventory, shaped like the real one, for the dispatcher tests.
+ *
+ * `giveItems` decides its count from a non-mutating capacity query and then inserts once, so the store it
+ * is handed has to be able to answer that question: hence real `hotbar`/`storage` arrays and a
+ * `countRoomFor` that agree with `addItem` about the stack limit. `stored` is the flat view the existing
+ * assertions read.
+ */
+function slotInventory({ slots = 36, limit = 64, stacks = [] } = {}) {
+  const grid = new Array(slots).fill(null);
+  for (let i = 0; i < stacks.length; i++) grid[i] = { ...stacks[i] };
+  const room = (id, isBlock) => {
+    let r = 0;
+    for (const s of grid) if (s && s.id === id && s.isBlock === isBlock && s.count < limit) r += limit - s.count;
+    return r + grid.filter((s) => !s).length * limit;
+  };
+  const inventory = {
+    hotbar: grid,
+    storage: [],
+    get capacity() { return grid.length * limit; },
+    set capacity(value) {
+      // `capacity: 0` in a test means "no room at all": fill the slots so the query agrees.
+      grid.fill(null);
+      if (value === 0) for (let i = 0; i < grid.length; i++) grid[i] = { id: 'blocker', isBlock: true, count: limit };
+    },
+    get stored() { return grid.filter(Boolean).map((s) => ({ ...s })); },
+    countRoomFor(id, isBlock) { return room(id, isBlock); },
+    /** Fills what it can and reports whether the WHOLE request landed, like the real inventory. */
+    addItem(id, isBlock, count) {
+      // Track what was actually placed. `left` cannot be the whole story: with no room at all it starts and
+      // ends at zero, which would read as "everything landed".
+      let remaining = count;
+      if (remaining > 0) {
+        for (const s of grid) {
+          if (remaining <= 0) break;
+          if (s && s.id === id && s.isBlock === isBlock && s.count < limit) {
+            const add = Math.min(limit - s.count, remaining);
+            s.count += add; remaining -= add;
+          }
+        }
+        for (let i = 0; i < grid.length && remaining > 0; i++) {
+          if (grid[i]) continue;
+          const n = Math.min(limit, remaining);
+          grid[i] = { id, isBlock, count: n };
+          remaining -= n;
+        }
+      }
+      return remaining === 0;
+    },
+  };
+  return inventory;
+}
+
 test('the dispatcher claims /give and fills the inventory', () => {
   const game = fakeGame();
   assert.equal(run(game, '/give @p diamond_sword'), true, 'the runner should claim /give');
@@ -535,14 +681,17 @@ test('the dispatcher claims /give and fills the inventory', () => {
 });
 
 test('the dispatcher drops the overflow at the player, as an item entity', () => {
-  const game = fakeGame({ inventory: capacityInventory(5) });
+  // Five slots of one, so twelve stone cannot fit and the overflow has to be summoned.
+  const game = fakeGame({ inventory: slotInventory({ slots: 5, limit: 1 }) });
   assert.equal(run(game, '/give @p stone 12'), true);
-  assert.deepEqual(game.inventory.accepted, [{ id: BLOCKS.STONE, isBlock: true, count: 5 }],
-    'five fit');
+  const total = game.inventory.stored.reduce((n, s) => n + s.count, 0);
+  assert.equal(total, 5, 'five fit into the five slots');
+  assert.ok(game.inventory.stored.every((s) => s.id === BLOCKS.STONE && s.isBlock === true));
   assert.equal(game.dropped.length, 1, 'the rest is one entity');
   const drop = game.dropped[0];
   assert.deepEqual(drop, { at: { x: 10, y: 65, z: -5 }, id: BLOCKS.STONE, isBlock: true, count: 7 },
     'dropped one block above the player, as the block');
+  assert.equal(total + drop.count, 12, 'conservation: what fit plus what dropped is the request');
   assert.ok(texts(game).some((t) => t.includes('Inventory full: 7 dropped on the ground')),
     'and the player is told: ' + JSON.stringify(texts(game)));
 });
@@ -595,13 +744,29 @@ test('the dispatcher takes a namespaced id and a block name, and splits by the s
     'the wiki spelling resolves to the block id');
 });
 
-test('creative takes the whole count with nothing dropped', () => {
-  const game = fakeGame();
+test('creative places items with no space limit and never summons a drop', () => {
+  // "If there is enough room in the player's inventory, OR THE PLAYER IS IN CREATIVE MODE, gives the
+  // specified item(s)". Space does not gate creative, and creative never summons an item entity.
+  const game = fakeGame({ inventory: slotInventory({ slots: 2, limit: 64 }) });
   game.player.gamemode = 'creative';
-  game.inventory.capacity = 0;
-  run(game, '/give @p stone 64');
+  run(game, '/give @p stone 100');
   assert.deepEqual(game.dropped, [], 'nothing is summoned onto the ground in creative');
-  assert.ok(texts(game).some((t) => t.startsWith('Gave 64')), 'and the whole count is reported');
+  const held = game.inventory.stored.reduce((n, s) => n + (s.id === BLOCKS.STONE ? s.count : 0), 0);
+  assert.equal(held, 100, 'the whole count is really there, not just reported: ' + JSON.stringify(game.inventory.stored));
+  assert.ok(texts(game).some((t) => t.startsWith('Gave 100')), 'and the whole count is reported');
+});
+
+test('creative never claims to have given what it could not place', () => {
+  // A full inventory in creative has nowhere to put anything. Reporting the requested count here would be
+  // the original defect: a success line with no items behind it.
+  const game = fakeGame({ inventory: slotInventory({ slots: 1, limit: 1, stacks: [{ id: BLOCKS.DIRT, isBlock: true, count: 1 }] }) });
+  game.player.gamemode = 'creative';
+  run(game, '/give @p stone 64');
+  assert.deepEqual(game.dropped, [], 'and it is not summoned onto the ground instead');
+  const held = game.inventory.stored.reduce((n, s) => n + (s.id === BLOCKS.STONE ? s.count : 0), 0);
+  assert.equal(held, 0, 'nothing was placed, so nothing is reported');
+  assert.ok(texts(game).includes('Gave 0 [Stone] to @p'),
+    'the confirmation line reports what was placed: ' + JSON.stringify(texts(game)));
 });
 
 test('a missing inventory is reported rather than throwing', () => {
@@ -612,9 +777,9 @@ test('a missing inventory is reported rather than throwing', () => {
 });
 
 test('a missing entity manager still reports the give, and just cannot drop', () => {
-  const game = fakeGame({ entities: null, inventory: capacityInventory(2) });
+  const game = fakeGame({ entities: null, inventory: slotInventory({ slots: 2, limit: 1 }) });
   assert.doesNotThrow(() => run(game, '/give @p stone 5'));
-  assert.ok(texts(game).some((t) => t.startsWith('Gave 2')), 'the two that fit are reported');
+  assert.ok(texts(game).some((t) => t.startsWith('Gave 2')), 'the two that fit are reported: ' + JSON.stringify(texts(game)));
   assert.ok(texts(game).some((t) => t.includes('3 dropped')), 'and the three that could not be');
 });
 
