@@ -40,11 +40,6 @@ jobs:
       - name: Stop GitHub Pages from ignoring folders that start with an underscore
         run: touch dist/.nojekyll
 
-      - name: Enable GitHub Pages for this repository
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
         with:
