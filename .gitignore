@@ -66,3 +66,15 @@ sections_structure.json
 
 # Authoritative campaign save journals
 saves/mod-games/
+
+# Audit screenshots and wiki images: kept on disk for the audits, not part of the repository.
+docs/structure-audit/**/*.png
+docs/structure-audit/**/*.jpg
+docs/structure-audit/**/*.jpeg
+docs/structure-audit/**/*.gif
+docs/structure-audit/**/*.webp
+docs/mob-visual-evidence/*.png
+docs/mob-visual-evidence/*.jpg
+
+# Claude Code's local, per-user settings
+.claude/
