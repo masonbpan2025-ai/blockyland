@@ -23,7 +23,45 @@ export function designedWorldFiles() {
   return files;
 }
 
+// GitHub Pages serves a project site under /<repo>/, so the GitHub Pages workflow sets BASE_PATH to that prefix. Local
+// dev, the test servers and the Cloudflare Pages build keep '/'.
+const base = process.env.BASE_PATH || '/';
+
+// Public files that the game's scripts name by absolute path ('/assets/…', '/datapacks/…'). Vite rewrites those in HTML
+// and CSS for a sub-path base, but not inside script strings, so the build rewrites them here.
+function rebaseScriptAssetPaths(base) {
+  const prefix = base.replace(/\/$/, '');
+  const pattern = /(['"`])\/(assets|datapacks|designed_worlds)\//g;
+  return {
+    name: 'rebase-script-asset-paths',
+    apply: 'build',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!prefix || !id.endsWith('.js') || id.includes('node_modules') || !/[\\/]src[\\/]/.test(id)) return null;
+      const out = code.replace(pattern, (_, quote, dir) => `${quote}${prefix}/${dir}/`);
+      return out === code ? null : { code: out, map: null };
+    }
+  };
+}
+
+// The mods' designed worlds are served by the dev server at /api/designed-worlds. A static build has no server, so each
+// map is also written to designed_worlds/, where the client's static fallback looks. Files already in public/ win.
+function emitDesignedWorlds() {
+  return {
+    name: 'emit-designed-worlds',
+    apply: 'build',
+    generateBundle() {
+      const publicDir = path.resolve('public', 'designed_worlds');
+      for (const [filename, { fullPath }] of designedWorldFiles()) {
+        if (fs.existsSync(path.join(publicDir, filename))) continue;
+        this.emitFile({ type: 'asset', fileName: `designed_worlds/${filename}`, source: fs.readFileSync(fullPath) });
+      }
+    }
+  };
+}
+
 export default defineConfig({
+  base,
   // Test servers set VITE_CACHE_DIR so they do not share one dependency cache with a developer's own dev server: two Vite
   // servers optimising into the same folder at once leave half-built `deps_temp_*` folders, and pages then hang waiting.
   cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
@@ -39,6 +77,8 @@ export default defineConfig({
   plugins: [
     sharePlugin(),
     modGamesPlugin(),
+    rebaseScriptAssetPaths(base),
+    emitDesignedWorlds(),
     {
       name: 'map-storage-server',
       configureServer(server) {
