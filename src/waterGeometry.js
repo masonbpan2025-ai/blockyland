@@ -4,7 +4,7 @@ export function waterHeight(world,x,y,z) {
   if(world.getVoxel(x,y,z)!==BLOCKS.WATER) return 0;
   const level=world.getWaterLevel?.(x,y,z) ?? 0;
   const above=world.getVoxel(x,y+1,z);
-  if(level===8 || above===BLOCKS.WATER || above===BLOCKS.ICE || above===BLOCKS.FROSTED_ICE) return 1;
+  if(level===8 || (above && above!==BLOCKS.AIR)) return 1;
   return (8-level)/9;
 }
 
@@ -15,7 +15,7 @@ export function waterCornerHeight(world,x,y,z) {
     const id=world.getVoxel(x+dx,y,z+dz);
     if(id===BLOCKS.WATER) {
       const above=world.getVoxel(x+dx,y+1,z+dz);
-      if(above===BLOCKS.WATER || above===BLOCKS.ICE || above===BLOCKS.FROSTED_ICE) return 1;
+      if(above && above!==BLOCKS.AIR) return 1;
       const height=waterHeight(world,x+dx,y,z+dz), weight=height>=8/9?10:1;
       sum+=height*weight; weights+=weight;
     } else if(id===BLOCKS.AIR) weights++;
