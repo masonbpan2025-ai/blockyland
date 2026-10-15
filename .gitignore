@@ -80,3 +80,6 @@ scripts/parity-audit/report.json
 
 # Claude Code's local, per-user settings
 .claude/
+
+# Another agent's linked worktrees live here; committing one stages an embedded repository.
+.worktrees/

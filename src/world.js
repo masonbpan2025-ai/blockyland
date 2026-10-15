@@ -18,6 +18,16 @@ import { rollStructureLoot } from './structureLoot.js';
 import { BED_DIRECTIONS } from './bed.js';
 import { isWallAttached, attachStateForStructure, rememberAttachment } from './wallAttached.js';
 
+// Gradient tables, built once. They were nested array literals inside noise2D/noise3D, so every sample (thousands
+// per chunk) allocated thirteen arrays; same values, so the same terrain.
+const F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
+const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
+const GRAD2_X = Int8Array.of(1, -1, 1, -1, 1, -1, 0, 0, 1, -1, 0, 0);
+const GRAD2_Y = Int8Array.of(1, 1, -1, -1, 0, 0, 1, -1, 1, 1, 0, 0);
+const GRAD3_X = Int8Array.of(1, -1, 1, -1, 1, -1, 1, -1, 0, 0, 0, 0);
+const GRAD3_Y = Int8Array.of(1, 1, -1, -1, 0, 0, 0, 0, 1, -1, 1, -1);
+const GRAD3_Z = Int8Array.of(0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1);
+
 // Fast Simplex Noise 2D & 3D implementation
 class FastNoise {
   constructor(seed = 1337) {
@@ -41,8 +51,6 @@ class FastNoise {
   }
 
   noise2D(xin, yin) {
-    const F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
-    const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
     const s = (xin + yin) * F2;
     const i = Math.floor(xin + s);
     const j = Math.floor(yin + s);
@@ -63,18 +71,13 @@ class FastNoise {
     const ii = i & 255;
     const jj = j & 255;
 
-    const grad3 = [
-      [1, 1], [-1, 1], [1, -1], [-1, -1],
-      [1, 0], [-1, 0], [0, 1], [0, -1],
-      [1, 1], [-1, 1], [0, 0], [0, 0]
-    ];
 
     let t0 = 0.5 - x0 * x0 - y0 * y0;
     let n0 = 0;
     if (t0 > 0) {
       t0 *= t0;
       const gi0 = this.permMod12[ii + this.perm[jj]];
-      n0 = t0 * t0 * (grad3[gi0][0] * x0 + grad3[gi0][1] * y0);
+      n0 = t0 * t0 * (GRAD2_X[gi0] * x0 + GRAD2_Y[gi0] * y0);
     }
 
     let t1 = 0.5 - x1 * x1 - y1 * y1;
@@ -82,7 +85,7 @@ class FastNoise {
     if (t1 > 0) {
       t1 *= t1;
       const gi1 = this.permMod12[ii + i1 + this.perm[jj + j1]];
-      n1 = t1 * t1 * (grad3[gi1][0] * x1 + grad3[gi1][1] * y1);
+      n1 = t1 * t1 * (GRAD2_X[gi1] * x1 + GRAD2_Y[gi1] * y1);
     }
 
     let t2 = 0.5 - x2 * x2 - y2 * y2;
@@ -90,7 +93,7 @@ class FastNoise {
     if (t2 > 0) {
       t2 *= t2;
       const gi2 = this.permMod12[ii + 1 + this.perm[jj + 1]];
-      n2 = t2 * t2 * (grad3[gi2][0] * x2 + grad3[gi2][1] * y2);
+      n2 = t2 * t2 * (GRAD2_X[gi2] * x2 + GRAD2_Y[gi2] * y2);
     }
 
     return 70.0 * (n0 + n1 + n2);
@@ -136,18 +139,13 @@ class FastNoise {
     const jj = j & 255;
     const kk = k & 255;
 
-    const grad3 = [
-      [1, 1, 0], [-1, 1, 0], [1, -1, 0], [-1, -1, 0],
-      [1, 0, 1], [-1, 0, 1], [1, 0, -1], [-1, 0, -1],
-      [0, 1, 1], [0, -1, 1], [0, 1, -1], [0, -1, -1]
-    ];
 
     let t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0;
     let n0 = 0;
     if (t0 > 0) {
       t0 *= t0;
       const gi0 = this.permMod12[ii + this.perm[jj + this.perm[kk]]];
-      n0 = t0 * t0 * (grad3[gi0][0] * x0 + grad3[gi0][1] * y0 + grad3[gi0][2] * z0);
+      n0 = t0 * t0 * (GRAD3_X[gi0] * x0 + GRAD3_Y[gi0] * y0 + GRAD3_Z[gi0] * z0);
     }
 
     let t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1;
@@ -155,7 +153,7 @@ class FastNoise {
     if (t1 > 0) {
       t1 *= t1;
       const gi1 = this.permMod12[ii + i1 + this.perm[jj + j1 + this.perm[kk + k1]]];
-      n1 = t1 * t1 * (grad3[gi1][0] * x1 + grad3[gi1][1] * y1 + grad3[gi1][2] * z1);
+      n1 = t1 * t1 * (GRAD3_X[gi1] * x1 + GRAD3_Y[gi1] * y1 + GRAD3_Z[gi1] * z1);
     }
 
     let t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2;
@@ -163,7 +161,7 @@ class FastNoise {
     if (t2 > 0) {
       t2 *= t2;
       const gi2 = this.permMod12[ii + i2 + this.perm[jj + j2 + this.perm[kk + k2]]];
-      n2 = t2 * t2 * (grad3[gi2][0] * x2 + grad3[gi2][1] * y2 + grad3[gi2][2] * z2);
+      n2 = t2 * t2 * (GRAD3_X[gi2] * x2 + GRAD3_Y[gi2] * y2 + GRAD3_Z[gi2] * z2);
     }
 
     let t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3;
@@ -171,7 +169,7 @@ class FastNoise {
     if (t3 > 0) {
       t3 *= t3;
       const gi3 = this.permMod12[ii + 1 + this.perm[jj + 1 + this.perm[kk + 1]]];
-      n3 = t3 * t3 * (grad3[gi3][0] * x3 + grad3[gi3][1] * y3 + grad3[gi3][2] * z3);
+      n3 = t3 * t3 * (GRAD3_X[gi3] * x3 + GRAD3_Y[gi3] * y3 + GRAD3_Z[gi3] * z3);
     }
 
     return 32.0 * (n0 + n1 + n2 + n3);
@@ -613,8 +611,8 @@ export class World {
     return out;
   }
 
-  serializeOrientations() {
-    return [...this.structureOrientations.values()].map((o) => ({
+  serializeOrientations(orientations=this.structureOrientations) {
+    return [...orientations.values()].map((o) => ({
       x: o.x, y: o.y, z: o.z, id: o.id, name: o.name, facing: o.facing, half: o.half, hinge: o.hinge, lootTable: o.lootTable, slabType: o.slabType ?? null,
       ...(o.spawner ? { spawner: o.spawner } : {}), ...(o.trialSpawner ? { trialSpawner: o.trialSpawner } : {}), ...(o.vault ? { vault: o.vault } : {})
       ,...(o.plantAge!==undefined?{plantAge:o.plantAge}:{}),...(o.anchorCharges!==undefined?{anchorCharges:o.anchorCharges,anchorDimension:o.anchorDimension}:{})
@@ -681,16 +679,20 @@ export class World {
       this.seaLevel = def?.seaLevel !== undefined ? def.seaLevel : 22;
       this.dimensionChunks = { overworld: this.chunks, nether: new Map() };
     }
+    this.dimensionOrientations={[this.dimension]:this.structureOrientations};
   }
 
   switchDimension(newDim) {
     if (this.dimension === newDim) return;
     this.dimensionChunks[this.dimension] = this.chunks;
+    this.dimensionOrientations??={};
+    this.dimensionOrientations[this.dimension]=this.structureOrientations;
     this.dimension = newDim;
     if (!this.dimensionChunks[newDim]) {
       this.dimensionChunks[newDim] = new Map();
     }
     this.chunks = this.dimensionChunks[newDim];
+    this.structureOrientations=this.dimensionOrientations[newDim]??=new Map();
     // `this.chunks` now points at a different Map. A slot cached from the previous dimension
     // would answer with a chunk from the wrong world, so the cache must be dropped.
     this.invalidateChunkCache();

@@ -102,6 +102,10 @@ export function serializeWorld(game, mapName = 'World 1') {
   }));
 
   const mapData = {
+    dimensions: Object.fromEntries(Object.entries(game.world.dimensionChunks??{}).filter(([dimension,chunks])=>dimension!==game.world.dimension&&chunks.size).map(([dimension,chunks])=>[dimension,{
+      chunks:[...chunks.values()].map(c=>({cx:c.cx,cz:c.cz,voxels:encodeVoxelsRLE(c.voxels),waterLevels:encodeVoxelsRLE(c.waterLevels)})),
+      structureOrientations:game.world.serializeOrientations?.(game.world.dimensionOrientations?.[dimension]??new Map())??[]
+    }])),
     redstone: game.world.redstone?.serialize() || [],
     // Which way a structure's doors, beds, chests and stairs face; the voxels hold only the block ids.
     structureOrientations: game.world.serializeOrientations?.() ?? [],
@@ -200,6 +204,24 @@ function configureMapTerrain(game, mapData, worldType) {
   game.world.isFlatWorld = mode === 'flat';
 }
 
+function restoreMapDimension(game,mapData,seed) {
+  const world=game.world;
+  world.reseed(seed,mapData.session?.biomes??world.selectedBiome);
+  const dimension=mapData.session?.dimension;
+  if(['overworld','nether','the_end'].includes(dimension))world.switchDimension(dimension);
+  for(const [name,data]of Object.entries(mapData.dimensions??{})) {
+    if(name===world.dimension||!['overworld','nether','the_end'].includes(name))continue;
+    const chunks=new Map();
+    for(const record of data.chunks??[]) {
+      const chunk=new Chunk(record.cx,record.cz);decodeVoxelsRLE(record.voxels,chunk.voxels);
+      if(record.waterLevels)decodeVoxelsRLE(record.waterLevels,chunk.waterLevels);
+      chunk.dirty=true;chunks.set(world.chunkKey(chunk.cx,chunk.cz),chunk);
+    }
+    world.dimensionChunks[name]=chunks;
+    world.dimensionOrientations[name]=new Map((data.structureOrientations??[]).map(o=>[`${o.x},${o.y},${o.z}`,o]));
+  }
+}
+
 export async function deserializeWorldAsync(game, mapData, options = {}) {
   if (!mapData?.chunks) throw new Error('Invalid map file format: missing chunks data');
   startMapLoad(game);
@@ -266,7 +288,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
 
   // 4. Reseed world noise
   const seed = mapData.seed || 4289;
-  game.world.reseed(seed);
+  restoreMapDimension(game,mapData,seed);
 
   const totalChunks = mapData.chunks.length;
   await report(15, `Preparing map (${totalChunks} chunks)`);
@@ -512,7 +534,7 @@ export function deserializeWorld(game, mapData, options = {}) {
 
   // 4. Reseed world noise
   const seed = mapData.seed || 4289;
-  game.world.reseed(seed);
+  restoreMapDimension(game,mapData,seed);
 
   const totalChunks = mapData.chunks.length;
   report(5, `Reading map data (${totalChunks} chunks)`);

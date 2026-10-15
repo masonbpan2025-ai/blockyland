@@ -2133,7 +2133,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.SUNFLOWER]: { name: 'Sunflower', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SUNFLOWER, textures: { all: 'sunflower.png' } },
   [BLOCKS.LILY_PAD]: { name: 'Lily Pad', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.LILY_PAD, textures: { all: 'lily_pad.png' } },
   [BLOCKS.CHORUS_PLANT]: { name: 'Chorus Plant', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_PLANT, textures: { all: 'chorus_plant.png' } },
-  [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png' } },
+  [BLOCKS.CHORUS_FLOWER]: { name: 'Chorus Flower', hardness: 0.4, sound: 'wood', drop: BLOCKS.CHORUS_FLOWER, textures: { all: 'chorus_flower.png',dead:'chorus_flower_dead.png' } },
   [BLOCKS.COAL_BLOCK]: { name: 'Block of Coal', hardness: 5.0, sound: 'stone', drop: BLOCKS.COAL_BLOCK, textures: { all: 'coal_block.png' } },
   [BLOCKS.SMOOTH_STONE]: { name: 'Smooth Stone', hardness: 2.0, sound: 'stone', drop: BLOCKS.SMOOTH_STONE, textures: { top: 'smooth_stone.png', side: 'smooth_stone.png', bottom: 'smooth_stone.png' } },
 

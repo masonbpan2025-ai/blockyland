@@ -161,3 +161,42 @@ test('the copy texture is reused while the size holds and replaced when it chang
   assert.notEqual(pass.texture, first, 'a resize makes a new one');
   assert.equal(pass.texture.image.width, 1280);
 });
+
+// Performance: the copy and the second traversal exist only to draw water. A frame with none in view -- a cave, the
+// Nether, a desert -- is the first step alone, and the picture is the same: the over-water redraw is limited to
+// where water marked the stencil, which on such a frame is nowhere.
+test('a frame with no water in view is one render and no copy', () => {
+  const { scene, camera, water, waterMesh } = world();
+  camera.position.set(0, 0, 10); camera.lookAt(0, 0, 0);
+  waterMesh.position.set(0, 0, 60); // behind the camera, which looks toward -z
+  scene.updateMatrixWorld(true);
+  const renderer = recordingRenderer();
+  const pass = new WaterPass();
+  const mask = camera.layers.mask;
+  pass.render(renderer, scene, camera, water, { waterMeshes: [waterMesh] });
+  assert.deepEqual(renderer.log.map((e) => e.kind), ['render'], 'one render, no copy');
+  assert.equal(renderer.log[0].mask, 1 << WORLD_LAYER, 'the world layer, as step 1 sees it');
+  assert.equal(camera.layers.mask, mask, 'camera layers restored');
+  assert.equal(pass.stats.skipped, 1);
+
+  // In view again: the full four steps.
+  waterMesh.position.set(0, 0, 0); scene.updateMatrixWorld(true);
+  const again = recordingRenderer();
+  pass.render(again, scene, camera, water, { waterMeshes: [waterMesh] });
+  assert.deepEqual(again.log.map((e) => e.kind), ['render', 'copy', 'render']);
+
+  // A hidden mesh does not count, and no list at all keeps the old behaviour.
+  waterMesh.visible = false;
+  const hidden = recordingRenderer();
+  pass.render(hidden, scene, camera, water, { waterMeshes: [waterMesh] });
+  assert.deepEqual(hidden.log.map((e) => e.kind), ['render']);
+  const legacy = recordingRenderer();
+  pass.render(legacy, scene, camera, water);
+  assert.deepEqual(legacy.log.map((e) => e.kind), ['render', 'copy', 'render']);
+});
+
+test('the shader hands the water pass the loaded chunks\' water meshes', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../src/lightweightShader.js', import.meta.url), 'utf8');
+  assert.match(src, /waterPass\.render\(r,g\.scene,c,g\.textures\?\.waterMaterial\|\|null,\{waterMeshes:this\.waterMeshes\(\)\}\)/);
+  assert.match(src, /for\(const chunk of chunks\.values\(\)\)if\(chunk\.waterMesh\)yield chunk\.waterMesh/);
+});

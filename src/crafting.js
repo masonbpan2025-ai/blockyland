@@ -442,6 +442,19 @@ export function gridMultiset(grid, width, height) {
   return values.sort();
 }
 
+// A shapeless recipe's ingredients as sorted comparison keys, kept per ingredient list (the list object is the
+// key, so a recipe given a new list is worked out again). The keys rest on the same id tables the matcher
+// already builds once (blockKeyFor, itemKeyFor).
+const SORTED_INGREDIENTS = new WeakMap();
+function sortedIngredients(ingredients) {
+  let sorted = SORTED_INGREDIENTS.get(ingredients);
+  if (sorted === undefined || sorted.length !== ingredients.length) {
+    sorted = ingredients.map(ingredientValue).sort();
+    SORTED_INGREDIENTS.set(ingredients, sorted);
+  }
+  return sorted;
+}
+
 function sameMultiset(a, b) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -483,6 +496,10 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
   // Computed once, and only if a shapeless recipe is actually reached, so the shaped path -- which is
   // the overwhelmingly common case -- is not slowed down.
   let multiset = null;
+  // The trimmed grid's comparison keys, worked out once. They were recomputed for every cell of every
+  // same-sized recipe (two thousand recipes), and building those keys was most of a lookup's cost.
+  const actual = new Array(shapeH * shapeW);
+  for (let r = 0; r < shapeH; r++) for (let c = 0; c < shapeW; c++) actual[r * shapeW + c] = matchValue(grid[(minR + r) * width + (minC + c)]);
 
   for (const recipe of recipesList) {
     if (recipe.shapeless) {
@@ -494,9 +511,11 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
       // The TAGGED keys, not the public multiset: the tagged space is what keeps an item id apart from a
       // block id that happens to share the number.
       if (multiset === null) multiset = matchMultiset(grid, width, height);
+      // A different item count cannot match; checked before normalising and sorting the recipe's list, which
+      // was most of the cost of a lookup (every shapeless recipe was mapped and sorted on every grid change).
+      if (ingredients.length !== multiset.length) continue;
       // The same normaliser the grid went through, so both sides speak one language.
-      const normIng = ingredients.map(ingredientValue);
-      if (sameMultiset(multiset, [...normIng].sort())) return recipe.result;
+      if (sameMultiset(multiset, sortedIngredients(ingredients))) return recipe.result;
       continue;
     }
 
@@ -517,7 +536,7 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
       for (let pr = 0; pr < patH && match; pr++) {
         for (let pc = 0; pc < patW; pc++) {
           const expected = pat[pr][mirrored ? patW - 1 - pc : pc];
-          const actualId = matchValue(grid[(minR + pr) * width + (minC + pc)]);
+          const actualId = actual[pr * shapeW + pc];
 
           if (expected === null && actualId !== null) { match = false; break; }
           if (expected !== null) {

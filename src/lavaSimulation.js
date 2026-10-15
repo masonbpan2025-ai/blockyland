@@ -1,6 +1,6 @@
 import { BLOCKS } from './blocks.js';
 import { exposedToRain } from './weatherRules.js';
-import { WaterSimulation, waterReplaceable } from './waterSimulation.js';
+import { WaterSimulation, waterReplaceable, chunkScanIsLocal } from './waterSimulation.js';
 const SIDES=[[1,0],[-1,0],[0,1],[0,-1]];
 const NEIGHBORS=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const key=(x,y,z)=>[x,y,z].join(',');
@@ -20,6 +20,20 @@ export class LavaSimulation extends WaterSimulation {
     if(id===BLOCKS.FIRE){if(!this.fires.has(k))this.fires.set(k,{x,y,z,age:0});}else this.fires.delete(k);
   }
   initChunk(chunk){
+    // Read the chunk's arrays where the world would give the same answer: the same cells, in the same order.
+    if(chunkScanIsLocal(this.world,chunk)){
+      const vox=chunk.voxels,L=BLOCKS.LAVA,F=BLOCKS.FIRE,bx=chunk.cx*16,bz=chunk.cz*16;
+      for(let i=0;i<vox.length;i++){const id=vox[i];if(id===L||id===F)this.notify(bx+(i&15),i>>8,bz+((i>>4)&15));}
+      const sides=[[-1,0],[1,0],[0,-1],[0,1]].map(([dx,dz])=>this.world.getChunk(chunk.cx+dx,chunk.cz+dz)??null);
+      const lava=(n,lx,y,lz)=>!!n&&n.voxels[(y*16+lz)*16+lx]===L;
+      for(let y=0;y<64;y++)for(let i=0;i<16;i++){
+        if(lava(sides[0],15,y,i))this.notify(bx-1,y,bz+i);
+        if(lava(sides[1],0,y,i))this.notify(bx+16,y,bz+i);
+        if(lava(sides[2],i,y,15))this.notify(bx+i,y,bz-1);
+        if(lava(sides[3],i,y,0))this.notify(bx+i,y,bz+16);
+      }
+      return;
+    }
     for(let y=0;y<64;y++)for(let z=0;z<16;z++)for(let x=0;x<16;x++){
       const id=chunk.getVoxel(x,y,z);
       if(id===BLOCKS.LAVA||id===BLOCKS.FIRE)this.notify(chunk.cx*16+x,y,chunk.cz*16+z);

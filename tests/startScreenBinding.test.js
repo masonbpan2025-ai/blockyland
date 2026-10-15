@@ -99,6 +99,57 @@ test('all JavaScript source files parse cleanly with no syntax errors or duplica
   }
 });
 
+test('all static named imports in src/main.js resolve to actual exports in target modules', () => {
+  function isExported(content, name) {
+    const directDecl = new RegExp(`\\bexport\\s+(?:async\\s+)?(?:function\\*?|const|let|var|class)\\s+${name}\\b`);
+    if (directDecl.test(content)) return true;
+    if (name === 'default' && /\bexport\s+default\b/.test(content)) return true;
+    const exportBlocks = content.match(/export\s*\{[^}]+\}/g) || [];
+    for (const block of exportBlocks) {
+      const exportedItems = block.slice(block.indexOf('{') + 1, block.lastIndexOf('}')).split(',');
+      for (const item of exportedItems) {
+        const parts = item.trim().split(/\s+as\s+/);
+        const exportedAs = parts[parts.length - 1].trim();
+        if (exportedAs === name) return true;
+      }
+    }
+    return false;
+  }
+
+  function verifyMainImports(baseDir) {
+    const mainFile = path.join(baseDir, 'src/main.js');
+    if (!fs.existsSync(mainFile)) return;
+    const mainContent = fs.readFileSync(mainFile, 'utf8');
+    const importRegex = /import\s+\{([^}]+)\}\s+from\s+['"](\.\/[^'"]+)['"]/g;
+    let match;
+    const missingExports = [];
+    while ((match = importRegex.exec(mainContent)) !== null) {
+      const rawNames = match[1];
+      const relPath = match[2];
+      const targetPath = path.resolve(baseDir, 'src', relPath);
+      assert.ok(fs.existsSync(targetPath), `Target module exists in ${baseDir}: ${relPath}`);
+      const targetContent = fs.readFileSync(targetPath, 'utf8');
+      const names = rawNames.split(',').map((s) => s.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean);
+      for (const name of names) {
+        if (name.startsWith('type ')) continue;
+        if (!isExported(targetContent, name)) {
+          missingExports.push(`${relPath} does not export "${name}" (imported by ${path.relative(process.cwd(), mainFile)})`);
+        }
+      }
+    }
+    assert.deepEqual(missingExports, [], `All named imports in ${mainFile} must be exported`);
+  }
+
+  // Verify in root repository
+  verifyMainImports(process.cwd());
+
+  // Also verify in active worktrees if present
+  const worktreeDir = path.join(process.cwd(), '.worktrees', 'quadruped-motion');
+  if (fs.existsSync(worktreeDir)) {
+    verifyMainImports(worktreeDir);
+  }
+});
+
 test('bindEvents no longer binds them, so nothing gets two listeners', () => {
   const from = main.indexOf('bindEvents() {');
   const to = main.indexOf('this.renderer.domElement.addEventListener', from);

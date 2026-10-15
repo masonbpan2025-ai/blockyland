@@ -1,4 +1,5 @@
 import { BLOCKS as B, BLOCK_DEFS, stackLimitFor } from './blocks.js';
+import { fluidIdTables } from './waterSimulation.js';
 import * as THREE from 'three';
 // Buttons, pressure plates, torch burn-out and the comparator's container reading, per their wiki pages; see
 // redstoneComponents.js. The engine ticks once per redstone tick (2 game ticks): a hold of n redstone ticks that
@@ -11,6 +12,12 @@ const key = p => p.join(',');
 const add = (a,b,n=1) => a.map((v,i)=>v+b[i]*n);
 const directional = new Set([B.REPEATER,B.COMPARATOR,B.OBSERVER,B.PISTON,B.STICKY_PISTON,B.PISTON_HEAD,B.DISPENSER,B.DROPPER,B.HOPPER,B.RAIL,B.POWERED_RAIL,B.TRIPWIRE_HOOK]);
 const adhesive = id => id===B.SLIME_BLOCK || id===B.HONEY_BLOCK;
+const samePos = (a,b) => a[0]==b[0]&&a[1]==b[1]&&a[2]==b[2]; // what comparing key(a) with key(b) answered
+// The components whose behaviour in a tick depends on the power reaching them (lamps, pistons, doors, dispensers,
+// droppers, note blocks, hoppers). Everything else -- a plain rail, a lever, a wire -- has no use for it, and
+// working it out was ~40 lookups per state per tick: 442 rails in a loaded mineshaft cost 9 ms every redstone tick.
+const READS_INPUT = new Set([B.REDSTONE_LAMP,B.PISTON,B.STICKY_PISTON,B.IRON_DOOR,B.IRON_DOOR_OPEN,B.IRON_TRAPDOOR,B.IRON_TRAPDOOR_OPEN,B.IRON_DOOR_TOP,B.IRON_DOOR_TOP_OPEN,
+  B.OAK_DOOR,B.OAK_DOOR_OPEN,B.OAK_TRAPDOOR,B.OAK_TRAPDOOR_OPEN,B.OAK_DOOR_TOP,B.OAK_DOOR_TOP_OPEN,B.DISPENSER,B.DROPPER,B.NOTE_BLOCK,B.HOPPER].filter(id=>id!==undefined));
 
 export class Redstone {
   constructor(world){this.world=world;this.reset();}
@@ -32,7 +39,7 @@ export class Redstone {
     if(!this.moving && previous?.extended && this.id(add(p,DIRECTIONS[previous.dir]))===B.PISTON_HEAD)this.world.setVoxel(...add(p,DIRECTIONS[previous.dir]),B.AIR);
     if(!this.moving)for(const d of DIRECTIONS){const s=this.state(add(p,d));if(s?.id===B.OBSERVER&&key(add(s.p,DIRECTIONS[s.dir]))===key(p))s.until=this.tickNumber+2;}
   }
-  initChunk(c){for(let y=0;y<64;y++)for(let z=0;z<16;z++)for(let x=0;x<16;x++)if(BLOCK_DEFS[c.getVoxel(x,y,z)]?.redstone)this.notify(c.cx*16+x,y,c.cz*16+z);}
+  initChunk(c){if(c.voxels?.length===16384){const t=fluidIdTables().redstone,v=c.voxels;for(let i=0;i<v.length;i++)if(t[v[i]])this.notify(c.cx*16+(i&15),i>>8,c.cz*16+((i>>4)&15));return;}for(let y=0;y<64;y++)for(let z=0;z<16;z++)for(let x=0;x<16;x++)if(BLOCK_DEFS[c.getVoxel(x,y,z)]?.redstone)this.notify(c.cx*16+x,y,c.cz*16+z);}
   configure(p,dir){const s=this.state(p);if(s&&directional.has(s.id)){s.dir=Math.max(0,Math.min(5,dir|0));this.mark(p);}}
   interact(p,sneak=false,held=null){
     const s=this.state(p);if(!s)return null;
@@ -82,8 +89,10 @@ export class Redstone {
   }
   input(p,exclude=null,skipWire=false){
     let power=0;
-    for(const d of DIRECTIONS){const q=add(p,d);if(exclude&&key(q)===key(exclude))continue;if(!skipWire||this.state(q)?.id!==B.REDSTONE_WIRE)power=Math.max(power,this.output(this.state(q),p));
-      if((!this.state(q)&&BLOCK_DEFS[this.id(q)]?.solid!==false&&this.id(q)!==B.AIR) || adhesive(this.id(q)))for(const e of DIRECTIONS){const r=add(q,e);if(key(r)!==key(p)&&(!exclude||key(r)!==key(exclude))){const source=this.state(r);if(source?.id!==B.REDSTONE_WIRE)power=Math.max(power,this.output(source,q));}}
+    // Each neighbour's state and block are looked up once (they were looked up three times each).
+    for(const d of DIRECTIONS){const q=[p[0]+d[0],p[1]+d[1],p[2]+d[2]];if(exclude&&samePos(q,exclude))continue;const sq=this.state(q);if(!skipWire||sq?.id!==B.REDSTONE_WIRE)power=Math.max(power,this.output(sq,p));
+      const idq=this.id(q);
+      if((!sq&&BLOCK_DEFS[idq]?.solid!==false&&idq!==B.AIR) || adhesive(idq))for(const e of DIRECTIONS){const r=[q[0]+e[0],q[1]+e[1],q[2]+e[2]];if(!samePos(r,p)&&(!exclude||!samePos(r,exclude))){const source=this.state(r);if(source?.id!==B.REDSTONE_WIRE)power=Math.max(power,this.output(source,q));}}
     }return power;
   }
   rear(s){return add(s.p,DIRECTIONS[s.dir],-1);}
@@ -181,7 +190,7 @@ export class Redstone {
     // Powered TNT is primed once and removed from the voxel grid.
     if(this.game)for(const s of list)if(this.output(s,s.p)>0||s.output>0)for(const d of DIRECTIONS){const p=add(s.p,d);if(this.id(p)===B.TNT&&this.output(s,p)>0){this.world.setVoxel(...p,B.AIR);const V=this.game.player.position.constructor;this.game.entities.spawnPrimedTNT(new V(...p));}}
     const pistons=[];
-    for(const s of list){if(this.state(s.p)!==s)continue;const input=this.input(s.p,[B.PISTON,B.STICKY_PISTON].includes(s.id)?add(s.p,DIRECTIONS[s.dir]):null);
+    for(const s of list){if(this.state(s.p)!==s)continue;const readsInput=READS_INPUT.has(s.id);const input=readsInput?this.input(s.p,[B.PISTON,B.STICKY_PISTON].includes(s.id)?add(s.p,DIRECTIONS[s.dir]):null):0;
       if(s.id===B.REDSTONE_WIRE){const connections=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].filter(d=>[-1,0,1].some(dy=>this.state(add(add(s.p,d),[0,dy,0]))));if(JSON.stringify(connections)!==JSON.stringify(s.connections)){s.connections=connections;this.mark(s.p);}if(s.drawPower!==s.power){s.drawPower=s.power;this.mark(s.p);}continue;}
       let desired;
       if(s.id===B.REDSTONE_TORCH){desired=this.input(add(s.p,[0,-1,0]),s.p)>0?0:15;
@@ -235,7 +244,7 @@ export class Redstone {
           this.hopperPull(s);
         }
       }
-      s.lastInput=input;
+      if(readsInput)s.lastInput=input;
     }
     for(const [s,on] of pistons)if(this.state(s.p)===s){if(on&&!s.extended)this.extend(s,actors);else if(!on&&s.extended)this.retract(s,actors);}
   }

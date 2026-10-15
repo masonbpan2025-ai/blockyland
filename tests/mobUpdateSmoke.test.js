@@ -169,8 +169,9 @@ test('every advertised mob actually moves rather than freezing at its spawn poin
     // Aquatic; the adapted arena has no water to swim in.
     'drowned', 'squid', 'glow_squid', 'guardian', 'elder_guardian',
     // Training-arena mobs with their own dedicated loop.
-    // Boss-scale, driven by their own event code rather than ambient locomotion.
-    'ender_dragon', 'wither'
+    // Boss-scale, driven by its own event code rather than ambient locomotion. (The ender dragon was here too;
+    // it now flies under the ordinary update, as it should.)
+    'wither'
   ]);
 
   const frozen = [];

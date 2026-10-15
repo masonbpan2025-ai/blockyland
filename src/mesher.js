@@ -119,10 +119,46 @@ function vertexAO(side1, side2, corner) {
   return 3 - (side1 + side2 + corner);
 }
 
+// --- Per-block lookup tables ----------------------------------------------------
+//
+// The inner loop used to ask BLOCK_DEFS the same questions for every voxel: a twenty-property test of whether the
+// block takes the shaped-geometry path, whether it is a plant or transparent, foliage (a lower-cased name search
+// per visible face), snow, a portal -- and rebuilt the face-occlusion table from all 1,400 definitions for every
+// chunk. They are answered once per block id here, and rebuilt only when the registry changes size (a mod adding
+// blocks). Same answers, so the same mesh; measured 44 ms -> see tests/mesherPerformance.test.js for the parity.
+export const SPECIAL = Object.freeze({ NONE: 0, SHAPED: 1, DOOR: 2, TRAPDOOR: 3, REDSTONE: 4, BED: 5, CHEST: 6 });
+let tables = null;
+function blockTables() {
+  const size = Object.keys(BLOCK_DEFS).length;
+  if (tables && tables.size === size) return tables;
+  const t = {
+    size,
+    occludes: new Uint8Array(65536), solid: new Uint8Array(65536), special: new Uint8Array(65536),
+    plant: new Uint8Array(65536), transparent: new Uint8Array(65536), foliage: new Uint8Array(65536),
+    snow: new Uint8Array(65536), portal: new Uint8Array(65536), waterPlant: new Uint8Array(65536), light: new Uint8Array(65536),
+  };
+  for (const key in BLOCK_DEFS) {
+    const id = Number(key); const def = BLOCK_DEFS[key];
+    if (!(id >= 0 && id < 65536) || !def) continue;
+    t.occludes[id] = occludesWholeFace(def) ? 1 : 0;
+    t.solid[id] = id !== BLOCKS.AIR && id !== BLOCKS.WATER && def.solid !== false && !def.plant ? 1 : 0;
+    t.special[id] = (def.slab || def.pane || def.carpet || def.stair || def.candle || def.chain || def.fence || def.wall || def.pressurePlate || def.button || def.fenceGate || def.banner || def.hangingSign || def.wallSign || def.wallFan || def.head || def.wallHead || def.sign || def.rod || def.rail || def.flowerPot || def.model) ? SPECIAL.SHAPED
+      : def.door ? SPECIAL.DOOR : def.trapdoor ? SPECIAL.TRAPDOOR : def.redstone ? SPECIAL.REDSTONE : def.bed ? SPECIAL.BED
+      : (def.chest || id === BLOCKS.CHEST) ? SPECIAL.CHEST : SPECIAL.NONE;
+    t.plant[id] = def.plant ? 1 : 0;
+    t.transparent[id] = def.transparent || def.plant ? 1 : 0;
+    t.foliage[id] = def.name && def.name.toLowerCase().includes('leaves') ? 1 : 0;
+    t.snow[id] = isSnowSurface(id) ? 1 : 0;
+    t.portal[id] = def.portal ? 1 : 0;
+    t.waterPlant[id] = def.waterPlant ? 1 : 0;
+    t.light[id] = def.light ? 1 : 0;
+  }
+  tables = t;
+  return t;
+}
+
 function isSolidBlock(blockId) {
-  if (blockId === BLOCKS.AIR || blockId === BLOCKS.WATER) return 0;
-  const def = BLOCK_DEFS[blockId];
-  return (def && def.solid !== false && !def.plant) ? 1 : 0;
+  return tables.solid[blockId];
 }
 
 // --- Static per-face geometry tables -----------------------------------------
@@ -232,8 +268,8 @@ export class ChunkMesher {
     // Resolve model coverage once per block type, not six times per voxel.
     // Snapshot each build so a resumed mesh keeps its own table and newly
     // registered mod definitions are picked up by the next build.
-    const faceOcclusion = new Uint8Array(65536);
-    for (const id in BLOCK_DEFS) faceOcclusion[id] = occludesWholeFace(BLOCK_DEFS[id]) ? 1 : 0;
+    const T = blockTables();
+    const faceOcclusion = T.occludes;
     const lightGeometries = [];
     const lightSources = [];
     const cx = chunk.cx;
@@ -328,8 +364,16 @@ export class ChunkMesher {
 
           const def = BLOCK_DEFS[blockId];
           const isWater = blockId === BLOCKS.WATER;
-          const isPlant = def && def.plant;
-          const isTransparent = def && (def.transparent || isPlant);
+          const isPlant = T.plant[blockId] === 1;
+          const isTransparent = T.transparent[blockId] === 1;
+          const special = T.special[blockId];
+
+          // A plain cube with every face against a block that hides it draws nothing: the common case (buried
+          // stone), skipped before any other work. Shaped, lit and plant blocks keep their own paths below.
+          if (special === 0 && !isPlant && !isWater && T.light[blockId] === 0 && blockId !== BLOCKS.RESPAWN_ANCHOR) {
+            const up = padGet(lx, ly + 1, lz), dn = padGet(lx, ly - 1, lz), n = padGet(lx, ly, lz + 1), so = padGet(lx, ly, lz - 1), e = padGet(lx + 1, ly, lz), w = padGet(lx - 1, ly, lz);
+            if (faceOcclusion[up] && faceOcclusion[dn] && faceOcclusion[n] && faceOcclusion[so] && faceOcclusion[e] && faceOcclusion[w]) continue;
+          }
 
           const wx = worldOffsetX + lx;
           const wy = ly;
@@ -339,7 +383,7 @@ export class ChunkMesher {
           // they are routed through createBlockGeometry. An unrecognised shape falls through to the
           // fast path and is drawn full size, which for any of these looks like a rendering bug
           // rather than a missing feature.
-          if (def?.slab || def?.pane || def?.carpet || def?.stair || def?.candle || def?.chain || def?.fence || def?.wall || def?.pressurePlate || def?.button || def?.fenceGate || def?.banner || def?.hangingSign || def?.wallSign || def?.wallFan || def?.head || def?.wallHead || def?.sign || def?.rod || def?.rail || def?.flowerPot || def?.model) {
+          if (special === SPECIAL.SHAPED) {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
             const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab || def.plant || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
               || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
@@ -362,7 +406,7 @@ export class ChunkMesher {
             }
             continue;
           }
-          if (def?.door) {
+          if (special === SPECIAL.DOOR) {
             const doorMgr = world.game?.doorManager || this.game?.doorManager || world.doorManager;
             const state = doorMgr?.getDoor(wx, wy, wz) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
@@ -373,7 +417,7 @@ export class ChunkMesher {
             lightGeometries.push(geometry);
             continue;
           }
-          if (def?.trapdoor) {
+          if (special === SPECIAL.TRAPDOOR) {
             const state = world.redstone?.state([wx, wy, wz]) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);
@@ -383,7 +427,7 @@ export class ChunkMesher {
             lightGeometries.push(geometry);
             continue;
           }
-          if (def?.redstone) {
+          if (special === SPECIAL.REDSTONE) {
             const state=world.redstone?.state([wx,wy,wz]) || {};
             const geometry=createBlockGeometry(blockId,this.tm,state);geometry.translate(wx,wy,wz);
             const origin=new Float32Array(geometry.attributes.position.count*3);for(let i=0;i<origin.length;i+=3)origin.set([wx+.5,wy+.5,wz+.5],i);
@@ -392,7 +436,7 @@ export class ChunkMesher {
             if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.5,wz+.5),level,color:blockId===BLOCKS.REDSTONE_TORCH?0xff4335:0xffc477});
             continue;
           }
-          if (def?.bed) {
+          if (special === SPECIAL.BED) {
             const state = world.game?.bedManager?.getBed(wx, wy, wz) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             geometry.translate(wx, wy, wz);
@@ -402,7 +446,7 @@ export class ChunkMesher {
             lightGeometries.push(geometry);
             continue;
           }
-          if (def?.chest || blockId === BLOCKS.CHEST) {
+          if (special === SPECIAL.CHEST) {
             const chestMgr = world.game?.chestManager || this.game?.chestManager || world.chestManager;
             const state = chestMgr?.getChest(wx, wy, wz) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
@@ -501,17 +545,13 @@ export class ChunkMesher {
           const southZ = (isWater && isGlassOrIce3) ? (wz + 0.005) : wz;
           const eastX = (isWater && isGlassOrIce4) ? (wx + 0.995) : (wx + 1);
           const westX = (isWater && isGlassOrIce5) ? (wx + 0.005) : wx;
-          const faceX = [wx, wx, northZ, southZ, eastX, westX];
-          const faceZ = [wz, wz, northZ, southZ, wz, wz];
-          const faceTop = [topY, botY, topY, topY, topY, topY];
 
           for (let face = 0; face < 6; face++) {
             const neighborId = neighbors[face];
-            const nDef = BLOCK_DEFS[neighborId];
 
             // Culling condition
             if (isWater) {
-              if (neighborId === BLOCKS.WATER || nDef?.waterPlant) continue; // cull water adjacent to water or water plants
+              if (neighborId === BLOCKS.WATER || T.waterPlant[neighborId]) continue; // cull water adjacent to water or water plants
               if (faceOcclusion[neighborId]) continue; // partial neighbours leave water visible
             } else if (isTransparent) {
               if (neighborId === blockId) continue;
@@ -567,11 +607,11 @@ export class ChunkMesher {
             let light1 = AO_CURVE[ao1];
             let light2 = AO_CURVE[ao2];
             let light3 = AO_CURVE[ao3];
-            if (isSnowSurface(blockId)) {
-              const tint = snowFaceTint(...normal);
+            if (T.snow[blockId]) {
+              const tint = snowFaceTint(normal[0], normal[1], normal[2]);
               baseR *= tint[0]; baseG *= tint[1]; baseB *= tint[2];
             }
-            if (def?.portal) {
+            if (T.portal[blockId]) {
               light0 = light1 = light2 = light3 = 1.0;
             }
 
@@ -585,11 +625,11 @@ export class ChunkMesher {
             const vCount = isWater ? wtVertCount : (isTransparent ? trVertCount : opVertCount);
 
             // Wind moves foliage only; terrain and buildings stay fixed.
-            const isFoliage = Boolean(def && def.name && def.name.toLowerCase().includes('leaves'));
+            const isFoliage = T.foliage[blockId] === 1;
             if (!isWater) {
               const w = isFoliage ? 1 : 0;
               (isTransparent ? trWind : opWind).push(w, w, w, w);
-              const exposure = isSnowSurface(blockId) ? faceSkyExposure(lx, ly, lz, ...normal, snowSkyCeilings) : 0;
+              const exposure = T.snow[blockId] ? faceSkyExposure(lx, ly, lz, normal[0], normal[1], normal[2], snowSkyCeilings) : 0;
               (isTransparent ? trSnow : opSnow).push(exposure, exposure, exposure, exposure);
             }
 
@@ -623,8 +663,11 @@ export class ChunkMesher {
                 wtDepth.push(corner.depth);
                 // Inline rather than indexing per-face arrays of corner coordinates: those were
                 // two four-element arrays allocated for every visible face.
-                const vx = face === 2 || face === 3 || face === 4 ? faceX[face] + (v === 1 || v === 2 ? 1 : 0) : wx;
-                const vz = face === 0 || face === 1 ? wz : faceZ[face] + (v >= 2 ? 1 : 0);
+                // The face's corner columns (was two six-element arrays per voxel).
+                const faceXv = face === 2 ? northZ : face === 3 ? southZ : face === 4 ? eastX : face === 5 ? westX : wx;
+                const faceZv = face === 2 ? northZ : face === 3 ? southZ : wz;
+                const vx = face === 2 || face === 3 || face === 4 ? faceXv + (v === 1 || v === 2 ? 1 : 0) : wx;
+                const vz = face === 0 || face === 1 ? wz : faceZv + (v >= 2 ? 1 : 0);
                 const flow = cachedCurrent(vx, wy, vz);
                 wtFlow.push(flow.x, flow.z);
               }

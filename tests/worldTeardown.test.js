@@ -168,7 +168,8 @@ test('a new world waits for the old one to be released, and places the player be
   const src = read('src/main.js');
   const at = src.indexOf('  async generateNewWorld() {');
   const body = src.slice(at, src.indexOf('\n  async startBuildingStudio()', at));
-  const place = body.indexOf('const spawn = placePlayerOnSurface(this);');
+  // The End arrives on its obsidian platform instead; every other dimension asks for the surface.
+  const place = body.search(/spawn\s*=\s*placePlayerOnSurface\(this\);/);
   const load = body.indexOf('await this.loadWorldProgressively();');
   assert.ok(place > 0 && load > 0, 'both steps are in generateNewWorld');
   assert.ok(place < load, 'the spawn is chosen before the chunks are built, so its chunks are meshed too');

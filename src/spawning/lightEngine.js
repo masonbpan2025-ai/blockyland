@@ -40,6 +40,7 @@
 //     time of day.
 
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
+import { DIMENSION_TYPES } from '../dataPackRuntime.js';
 
 /**
  * The chunk dimensions this engine assumes.
@@ -99,6 +100,24 @@ export function blockEmission(blockId,world=null,x=0,y=0,z=0) {
   if (!def) return 0;
   const level = def.light;
   return Number.isFinite(level) ? Math.max(0, Math.min(MAX_LIGHT, level)) : 0;
+}
+
+/**
+ * blockOpacity and blockEmission for every id, worked out once and rebuilt when the registry changes size. The
+ * respawn anchor's emission depends on its charge, so it is never taken from the table.
+ */
+let idTables = null;
+function lightIdTables() {
+  const size = Object.keys(BLOCK_DEFS).length;
+  if (idTables && idTables.size === size) return idTables;
+  const opacity = new Uint8Array(65536), emission = new Uint8Array(65536);
+  for (const k in BLOCK_DEFS) {
+    const id = Number(k); if (!(id >= 0 && id < 65536)) continue;
+    opacity[id] = blockOpacity(id); emission[id] = blockEmission(id);
+  }
+  opacity[BLOCKS.AIR] = 0; emission[BLOCKS.AIR] = 0;
+  idTables = { size, opacity, emission };
+  return idTables;
 }
 
 /**
@@ -279,7 +298,10 @@ export class LightEngine {
     // 1. Sky columns. A column is lit 15 from the top down until something attenuates it; after
     //    that only the downward-15 rule (handled in the BFS) can restore full strength, which is
     //    what gives vanilla its hard shadow edge under an overhang.
-    for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+    const dimension=this.world.dimension??'overworld';
+    const hasSkylight=(DIMENSION_TYPES.get(`minecraft:${dimension}`)??DIMENSION_TYPES.get(dimension))?.hasSkylight??!['nether','the_end','end'].includes(dimension);
+    if(!hasSkylight)sky.fill(0);
+    for (let lz = 0; hasSkylight && lz < CHUNK_SIZE_Z; lz++) {
       for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
         const columnBase = (lz * CHUNK_SIZE_X) + lx;
         const rowOffset = (lz + 1) * strideX + (lx + 1);
@@ -356,6 +378,27 @@ export class LightEngine {
     const opacity = this.opacityField;
     const emission = this.emissionField;
     const world = this.world;
+    // Read the chunks' own arrays through per-id tables: the same answers as getVoxel + blockOpacity/blockEmission
+    // for each of the 20,736 cells, which was most of a relight. Not when a barrier floor rewrites low cells.
+    if (!(world.floorY > 0) && typeof world.getChunk === 'function') {
+      const T = lightIdTables(), anchor = BLOCKS.RESPAWN_ANCHOR;
+      for (let dz = 0; dz < strideZ; dz++) {
+        const wz = baseZ - 1 + dz;
+        for (let dx = 0; dx < strideX; dx++) {
+          const wx = baseX - 1 + dx;
+          const chunk = world.getChunk(Math.floor(wx / CHUNK_SIZE_X), Math.floor(wz / CHUNK_SIZE_Z));
+          const voxels = chunk?.voxels;
+          const column = ((wz & (CHUNK_SIZE_Z - 1)) * CHUNK_SIZE_X) + (wx & (CHUNK_SIZE_X - 1));
+          for (let y = 0; y < CHUNK_HEIGHT; y++) {
+            const index = (y * strideZ + dz) * strideX + dx;
+            const id = voxels ? voxels[y * CHUNK_SIZE_Z * CHUNK_SIZE_X + column] : chunk ? world.getVoxel(wx, y, wz) : BLOCKS.AIR;
+            opacity[index] = T.opacity[id];
+            emission[index] = id === anchor ? blockEmission(id, world, wx, y, wz) : T.emission[id];
+          }
+        }
+      }
+      return { opacity, emission, strideX, strideZ };
+    }
     for (let dz = 0; dz < strideZ; dz++) {
       const wz = baseZ - 1 + dz;
       for (let dx = 0; dx < strideX; dx++) {
@@ -415,12 +458,20 @@ export class LightEngine {
     const maxX = baseX + CHUNK_SIZE_X;
     const minZ = baseZ - 1;
     const maxZ = baseZ + CHUNK_SIZE_Z;
+    // Every write goes to the chunk being relit. A queued cell can be in the margin ring -- a NEIGHBOUR's cell -- and
+    // the spread used to be written into the queued cell's own chunk at the target's index: the neighbour's far
+    // column was overwritten and the light never crossed the border (a torch at x=15 lit nothing at x=16).
+    const target = this.#cachedChunk(Math.floor(baseX / CHUNK_SIZE_X), Math.floor(baseZ / CHUNK_SIZE_Z));
+    if (!target) { this.head = 0; this.tail = 0; return; }
+    const targetSky = target.sky, targetBlock = target.block;
 
     while (this.head < this.tail) {
       const x = queue[this.head++];
       const y = queue[this.head++];
       const z = queue[this.head++];
-      const data = this.#cachedChunk(Math.floor(x / CHUNK_SIZE_X), Math.floor(z / CHUNK_SIZE_Z));
+      // Nearly every queued cell is in the chunk being relit; only the margin ring asks for its neighbour.
+      const data = x >= baseX && x < baseX + CHUNK_SIZE_X && z >= baseZ && z < baseZ + CHUNK_SIZE_Z ? target
+        : this.#cachedChunk(Math.floor(x / CHUNK_SIZE_X), Math.floor(z / CHUNK_SIZE_Z));
       if (!data) continue;
       const index = ((y * CHUNK_SIZE_Z + (z & (CHUNK_SIZE_Z - 1))) * CHUNK_SIZE_X) + (x & (CHUNK_SIZE_X - 1));
       const skyLevel = data.sky[index];
@@ -443,15 +494,15 @@ export class LightEngine {
         if (skyLevel > 1) {
           // Downward full-strength sky light does not attenuate.
           const next = (skyLevel === MAX_LIGHT && face === 2) ? MAX_LIGHT : skyLevel - step;
-          if (next > data.sky[nIndex]) {
-            data.sky[nIndex] = next;
+          if (next > targetSky[nIndex]) {
+            targetSky[nIndex] = next;
             this.#enqueue(nx, ny, nz);
           }
         }
         if (blockLevel > 1) {
           const next = blockLevel - step;
-          if (next > data.block[nIndex]) {
-            data.block[nIndex] = next;
+          if (next > targetBlock[nIndex]) {
+            targetBlock[nIndex] = next;
             this.#enqueue(nx, ny, nz);
           }
         }

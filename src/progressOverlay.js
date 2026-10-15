@@ -22,11 +22,29 @@ export const TITLE_ID = 'world-progress-title';
 /** Default number of items handled per animation frame while yielding. */
 export const DEFAULT_BATCH_SIZE = 4;
 
-/** Give the browser a chance to paint. Must be a macrotask, not a microtask. */
+/**
+ * Give the browser a chance to paint. Must be a macrotask, not a microtask.
+ *
+ * A visible page waits for the next frame, so the bar repaints between batches. A hidden one (the player switched
+ * tabs while a world was being made) gets no frames at all -- browsers pause requestAnimationFrame there -- so
+ * waiting for one stopped generation until the player came back; and timers in a hidden tab are slowed to one a
+ * second or less. There it yields through a message instead, which is a macrotask the browser does not hold back.
+ * A frame that was asked for just before the page was hidden is not waited on for long either.
+ */
 export function yieldToBrowser() {
   return new Promise(resolve => {
+    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    if (hidden && typeof MessageChannel === 'function') {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => { channel.port1.close(); resolve(); };
+      channel.port2.postMessage(null);
+      return;
+    }
     if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => resolve());
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      requestAnimationFrame(finish);
+      setTimeout(finish, 250);
       return;
     }
     setTimeout(resolve, 0);
@@ -150,11 +168,21 @@ export async function loadChunksProgressively(game, options = {}) {
       coordinates.push([cx, cz]);
     }
   }
+  // `generateRing`: terrain this many chunks beyond the meshed square, generated but not meshed. The streamer keeps
+  // one such ring (a chunk is meshed once its neighbours exist), so without it the outer row was meshed against
+  // nothing here and then generated around and meshed again in the first second of play, 10-15 ms a frame.
+  const ring = Math.max(0, Math.floor(options.generateRing || 0));
+  const generate = coordinates.slice();
+  for (let cx = pcx - renderDistance - ring; cx <= pcx + renderDistance + ring; cx++) {
+    for (let cz = pcz - renderDistance - ring; cz <= pcz + renderDistance + ring; cz++) {
+      if (Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > renderDistance) generate.push([cx, cz]);
+    }
+  }
 
   const neighbours = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
 
   // Pass 1 — generate terrain (0 → 55%).
-  await runBatches(coordinates, ([cx, cz]) => {
+  await runBatches(generate, ([cx, cz]) => {
     if (world.getChunk(cx, cz)) return;
     world.getOrCreateChunk(cx, cz);
     for (const [dx, dz] of neighbours) {

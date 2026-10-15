@@ -9,6 +9,32 @@ const NEIGHBORS = [[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const OUTLETS = [[1,0,0],[-1,0,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const key = (x,y,z) => `${x},${y},${z}`;
 
+// Per-id answers the chunk scans ask of every voxel, rebuilt only when the registry changes size.
+let idTables = null;
+export function fluidIdTables() {
+  const size = Object.keys(BLOCK_DEFS).length;
+  if (idTables && idTables.size === size) return idTables;
+  const outlet = new Uint8Array(65536), waterPlant = new Uint8Array(65536), redstone = new Uint8Array(65536);
+  for (const k in BLOCK_DEFS) {
+    const id = Number(k); if (!(id >= 0 && id < 65536)) continue;
+    // A cell water can flow into that holds no water of its own: what needsTick calls an outlet.
+    outlet[id] = id !== BLOCKS.WATER && waterReplaceable(id) ? 1 : 0;
+    waterPlant[id] = BLOCK_DEFS[k]?.waterPlant ? 1 : 0;
+    redstone[id] = BLOCK_DEFS[k]?.redstone ? 1 : 0;
+  }
+  outlet[BLOCKS.AIR] = 1; outlet[BLOCKS.FIRE] = 1;
+  idTables = { size, outlet, waterPlant, redstone };
+  return idTables;
+}
+
+/**
+ * Can a new chunk's scan read its own arrays (and its neighbours') in place of world lookups? Only when it is
+ * the chunk the world holds and no barrier floor rewrites low cells -- then the answers are the same.
+ */
+export function chunkScanIsLocal(world, chunk) {
+  return world.getChunk?.(chunk.cx, chunk.cz) === chunk && !(world.floorY > 0) && chunk.voxels?.length === 16 * 64 * 16;
+}
+
 export function waterReplaceable(id) {
   const def = BLOCK_DEFS[id];
   // Aquatic plants occupy waterlogged cells, not air that flowing water can
@@ -52,6 +78,7 @@ export class WaterSimulation {
   initChunk(chunk) {
     this.world.lava?.initChunk(chunk);
     this.world.redstone?.initChunk(chunk);
+    if (chunkScanIsLocal(this.world, chunk)) { this.#initChunkLocal(chunk); return; }
     // Old maps and generated oceans have zero metadata, meaning source water.
     // Wake exposed water, not every interior voxel of a large ocean.
     for (let y=0;y<64;y++) for(let z=0;z<16;z++) for(let x=0;x<16;x++) {
@@ -64,6 +91,41 @@ export class WaterSimulation {
       for(const [x,z] of [[chunk.cx*16-1,chunk.cz*16+i],[chunk.cx*16+16,chunk.cz*16+i],[chunk.cx*16+i,chunk.cz*16-1],[chunk.cx*16+i,chunk.cz*16+16]]) {
         if(this.needsTick(x,y,z)) this.notify(x,y,z);
       }
+    }
+  }
+
+  /**
+   * initChunk, reading the chunk's arrays. The same cells are woken in the same order: the world lookups it
+   * replaces were five `getChunk` + `getVoxel` pairs per water voxel (an ocean chunk holds thousands) and
+   * 4,096 more along the borders, which was a sixth of generating a chunk. Cells on the chunk's edge, whose
+   * outlets lie in a neighbour, still ask the world.
+   */
+  #initChunkLocal(chunk) {
+    const { outlet, waterPlant } = fluidIdTables();
+    const vox = chunk.voxels, levels = chunk.waterLevels, W = BLOCKS.WATER;
+    const bx = chunk.cx * 16, bz = chunk.cz * 16;
+    for (let i = 0; i < vox.length; i++) {
+      if (vox[i] !== W) continue;
+      const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+      const level = levels[i];
+      let wake = level > 0;
+      if (!wake && level === 0) {
+        if (x === 0 || x === 15 || z === 0 || z === 15) wake = this.needsTick(bx + x, y, bz + z, level);
+        // OUTLETS: +x, -x, below, +z, -z (water does not flow up).
+        else wake = outlet[vox[i + 1]] === 1 || outlet[vox[i - 1]] === 1 || (y > 0 && outlet[vox[i - 256]] === 1)
+          || outlet[vox[i + 16]] === 1 || outlet[vox[i - 16]] === 1;
+      }
+      if (wake) this.notify(bx + x, y, bz + z);
+    }
+    // Resume streams waiting on an unloaded chunk boundary. Only a water (or water-plant) cell in a loaded
+    // neighbour can need a tick, so the rest are skipped without asking the world.
+    const sides = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([dx, dz]) => this.world.getChunk(chunk.cx + dx, chunk.cz + dz) ?? null);
+    const holdsWater = (n, lx, y, lz) => { if (!n) return false; const id = n.voxels[(y * 16 + lz) * 16 + lx]; return id === W || waterPlant[id] === 1; };
+    for (let y = 0; y < 64; y++) for (let i = 0; i < 16; i++) {
+      if (holdsWater(sides[0], 15, y, i) && this.needsTick(bx - 1, y, bz + i)) this.notify(bx - 1, y, bz + i);
+      if (holdsWater(sides[1], 0, y, i) && this.needsTick(bx + 16, y, bz + i)) this.notify(bx + 16, y, bz + i);
+      if (holdsWater(sides[2], i, y, 15) && this.needsTick(bx + i, y, bz - 1)) this.notify(bx + i, y, bz - 1);
+      if (holdsWater(sides[3], i, y, 0) && this.needsTick(bx + i, y, bz + 16)) this.notify(bx + i, y, bz + 16);
     }
   }
 

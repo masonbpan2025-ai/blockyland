@@ -104,7 +104,9 @@ export class WaterPass {
     this.layersWater.set(WATER_LAYER);
     this.layersWater.enable(OVER_WATER_LAYER);
     this.savedLayers = new THREE.Layers();
-    this.stats = { copies: 0, renders: 0 };
+    this.frustum = new THREE.Frustum();
+    this.viewProjection = new THREE.Matrix4();
+    this.stats = { copies: 0, renders: 0, skipped: 0 };
   }
 
   /** The refraction texture for a target of this size, recreated only when the size changes. */
@@ -126,8 +128,24 @@ export class WaterPass {
    * @param {THREE.Camera} camera
    * @param {THREE.ShaderMaterial|null} waterMaterial the shared water material; its `tRefraction`, `uResolution`,
    *   `uRefraction` and `uRefractionSRGB` uniforms are set here
+   * @param {object} [options]
+   * @param {Iterable<THREE.Object3D>} [options.waterMeshes] every water mesh in the scene. When given and none is in
+   *   view, the frame is the first step alone: the copy and the second traversal would only draw water nobody can
+   *   see, and over-water objects redraw only where water marked the stencil -- nowhere. Same picture, one render.
    */
-  render(renderer, scene, camera, waterMaterial) {
+  render(renderer, scene, camera, waterMaterial, { waterMeshes = null } = {}) {
+    if (waterMeshes && !this.waterInView(camera, waterMeshes)) {
+      this.savedLayers.mask = camera.layers.mask;
+      camera.layers.mask = this.layersWorld.mask;
+      try {
+        renderer.render(scene, camera);
+        this.stats.renders++;
+        this.stats.skipped++;
+      } finally {
+        camera.layers.mask = this.savedLayers.mask;
+      }
+      return;
+    }
     const uniforms = waterMaterial?.uniforms;
     const target = renderer.getRenderTarget();
     if (target) this.size.set(target.width, target.height);
@@ -186,6 +204,18 @@ export class WaterPass {
       // Any other render this frame (a capture, a paused frame) has no fresh copy, so it gets the translucent look.
       if (uniforms?.uRefraction) uniforms.uRefraction.value = 0;
     }
+  }
+
+  /** Is any of these water meshes visible and inside the camera's view? */
+  waterInView(camera, waterMeshes) {
+    camera.updateMatrixWorld();
+    this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.viewProjection);
+    for (const mesh of waterMeshes) {
+      if (!mesh || !mesh.visible || !mesh.geometry) continue;
+      if (mesh.frustumCulled === false || this.frustum.intersectsObject(mesh)) return true;
+    }
+    return false;
   }
 
   /**

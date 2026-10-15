@@ -769,6 +769,7 @@ export class UIManager {
   }
 
   initStatusBarsDOM() {
+    this.statsSignature = null; // freshly built bars are drawn on the next updateStats
     const maxHearts = Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
     // Armor shields (10 shields = up to 20 armor points)
@@ -808,6 +809,15 @@ export class UIManager {
 
   updateStats() {
     const isCreative = this.player.gamemode === 'creative';
+    // Called every frame, and it rewrites some forty inline styles (gradients among them) each time. Skipped when
+    // nothing it draws has changed; the bars' own child counts are part of the key, so a rebuilt bar is redrawn.
+    const signature = isCreative ? 'creative' : [
+      this.player.maxHealth, Math.ceil(this.player.health), !!this.player.hasStatusEffect?.('wither'), Math.ceil(this.player.hunger),
+      this.inv?.getTotalArmorPoints ? this.inv.getTotalArmorPoints() : 0, this.player.level, getExpProgress(this.player),
+      this.healthBarEl?.children.length, this.hungerBarEl?.children.length, this.armorBarEl?.children.length,
+    ].join('|');
+    if (signature === this.statsSignature) return;
+    this.statsSignature = signature;
     const statusBars = document.getElementById('status-bars');
     const expContainer = document.getElementById('exp-container');
     if (statusBars) statusBars.style.display = isCreative ? 'none' : 'flex';

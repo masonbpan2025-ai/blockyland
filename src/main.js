@@ -9,7 +9,7 @@ import { resourcePackManager } from './resourcePackManager.js';
 import { placeBonusChest } from './bonusChest.js';
 import { regenerateEndPlatform } from './worldgen/generators/endFeatures.js';
 import { EndItemController } from './endItems.js';
-import { updateEndGatewayTravel, endReturnArrival } from './endProgression.js';
+import { updateEndGatewayTravel, endReturnArrival, cacheEndResidents, restoreEndResidents } from './endProgression.js';
 import { MonsterSpawners } from './monsterSpawner.js';
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
@@ -27,7 +27,7 @@ import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
-import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, clampDelta } from './worldLifecycle.js';
+import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, rendersWorldForPhase, clampDelta } from './worldLifecycle.js';
 import { teardownWorld } from './worldTeardown.js';
 import { createPackStore, allPacks, addPack, removePack, PACK_SOURCES } from './dataPackStore.js';
 import { buildPresetPack } from './dataPackPresets.js';
@@ -101,6 +101,8 @@ import { harvestDrops } from './blockDrops.js';
 import { CampfireCooking, isCampfire, CAMPFIRE_SLOT_POSES, CAMPFIRE_FOOD_HEIGHT } from './campfireCooking.js';
 import { isWallAttached, attachStateForClick, rememberAttachment, onSupportRemoved } from './wallAttached.js';
 
+// The spectator decoy's far-below position (playerAsSeenByWorld); one function rather than three new closures a frame.
+const makeVector3 = (x, y, z) => new THREE.Vector3(x, y, z);
 /** Bad Omen from an ominous bottle lasts 100 minutes (wiki, Bad Omen: "1:40:00" from an ominous bottle). */
 const OMINOUS_BOTTLE_OMEN_SECONDS = 6000;
 import { BlockLighting, configureSunShadows, followSun, createEnvironmentLight, updateOutdoorLighting } from './lighting.js';
@@ -536,6 +538,9 @@ class Game {
     // entire several seconds of terrain loading. `beginLoading` refuses a second call while one is in flight
     // or once the world is ready, so a double-clicked "Create World" cannot run this twice.
     if (!beginLoading(this.lifecycle)) return;
+    // The cover goes up before anything is awaited: the setup dialog has closed and the title screen is hidden, so
+    // without it the canvas would be on show for the whole data-pack load.
+    if (this.overlay) { this.overlay.show('Generating World'); await yieldToBrowser(); }
     // Apply the data packs BEFORE any terrain is built. Biomes and recipes are read while the world loads, so
     // applying afterwards would generate terrain from one content set and then claim another was in effect.
     await this.applyDataPacks();
@@ -649,6 +654,7 @@ class Game {
     // The End portal chamber. Its frames are the first link of the route to the End, and without a room
     // there is nowhere to put an Eye of Ender at all.
     this.placeEndPortalRoom(spawn);
+    await this.settleLighting();
     if (this.ui) {
       if (typeof this.ui.updateHotbar === 'function') this.ui.updateHotbar();
       if (typeof this.ui.updateStats === 'function') this.ui.updateStats();
@@ -664,8 +670,39 @@ class Game {
     // the odd half-empty first frames. Place the camera at the spawn now, so the first frame is the player's view.
     this.player.updateCameraAndModel?.(0);
     this.camera.updateMatrixWorld?.();
+    // And the canvas the size of the window: a resize while the overlays were up (or a canvas sized before the
+    // page settled) left the first frame drawn into part of the window.
+    this.syncViewportSize();
     markReady(this.lifecycle);
     this.worldReady = true;
+  }
+
+  /**
+   * Relight every chunk the load left dirty, under the loading cover. Each new chunk dirties itself and its
+   * neighbours, so a world began play with ~290 chunks to relight -- about a second of work, which the per-frame
+   * budget paid as a 8-10 ms tax on every frame for the first seconds of play. Done here, in batches the progress
+   * bar can paint between.
+   */
+  async settleLighting() {
+    const light = this.world?.light;
+    if (!light?.update || !(light.dirtyCount > 0)) return;
+    const total = light.dirtyCount;
+    while (light.dirtyCount > 0) {
+      light.update(24);
+      this.overlay?.set?.(100 * (1 - light.dirtyCount / total), `Lighting the world - ${total - light.dirtyCount}/${total}`);
+      await yieldToBrowser();
+    }
+  }
+
+  /** Size the canvas, the camera and the held-item view to the window. */
+  syncViewportSize() {
+    if (typeof window === 'undefined') return;
+    const w = window.innerWidth; const h = window.innerHeight;
+    if (!w || !h) return;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+    this.heldItemRenderer?.resize?.(w, h);
   }
 
   async startBuildingStudio() {
@@ -765,6 +802,8 @@ class Game {
       overlay: this.overlay,
       batchSize: options.batchSize || DEFAULT_BATCH_SIZE,
       label: options.label || 'Generating terrain',
+      // The streamer's generate-only ring (ChunkStreamer.generateRadius), so play starts with nothing left to build.
+      generateRing: Math.max(0, (this.streamer?.generateRadius ?? this.renderDistance) - (this.streamer?.meshRadius ?? this.renderDistance)),
       chunkSizeX: CHUNK_SIZE_X,
       chunkSizeZ: CHUNK_SIZE_Z
     });
@@ -808,8 +847,13 @@ class Game {
 
     const onProgress = (percent, stage) => this.overlay.set(percent, stage);
     const result = await work(onProgress);
+    await this.settleLighting(); // the loaded chunks' light, under the cover rather than over the first seconds of play
 
     this.overlay.set(100, 'Map loaded');
+    // The first frame is the player's view, at the window's size (see generateNewWorld).
+    this.player?.updateCameraAndModel?.(0);
+    this.camera.updateMatrixWorld?.();
+    this.syncViewportSize();
     await yieldToBrowser();
     this.overlay.hide();
 
@@ -1058,6 +1102,8 @@ class Game {
   }
 
   switchDimension(newDim, targetPos = null) {    if (!this.world) return;
+    if(this.world.dimension===newDim)return;
+    cacheEndResidents(this);
     this.bossManager?.clearEndVisuals?.();this.endArenaBuilt=false;
 
     // 1. Remove all active chunk meshes from scene
@@ -1082,6 +1128,7 @@ class Game {
     // 3. Switch world dimension
     this.world.switchDimension(newDim);
     this.currentDimension = newDim;
+    if(newDim==='the_end')restoreEndResidents(this);
     // The streamer's sets describe the chunks of the dimension just left. Without this it would
     // think the new dimension's chunks were already loaded, mesh nothing, and never unload the old
     // ones.
@@ -1994,12 +2041,7 @@ class Game {
     });
 
     // Window Resize
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.heldItemRenderer.resize(window.innerWidth, window.innerHeight);
-    });
+    window.addEventListener('resize', () => this.syncViewportSize());
   }
 
   /**
@@ -4327,7 +4369,8 @@ class Game {
       if (this.playerBot?.active) this.playerBot.stop('The world simulation paused or changed; player controls were released.');
       this.clock.getDelta();
       this.renderer.clear();
-      this.renderer.render(this.scene, this.camera);
+      // No world frame until the world is ready (rendersWorldForPhase): a loading world is seen from the origin.
+      if (rendersWorldForPhase(this.lifecycle?.phase)) this.renderer.render(this.scene, this.camera);
       return;
     }
 
@@ -4406,7 +4449,7 @@ class Game {
     while (this.monsterSpawnerClock >= 1) {
       this.monsterSpawnerClock -= 1;
       try {
-        const seen = playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z));
+        const seen = playerAsSeenByWorld(this.player, makeVector3);
         this.monsterSpawners.tick({ position: seen.position, gamemode: this.player.gamemode }, { difficulty: this.difficulty });
         this.trialSpawners.tick([{ id: 'player', position: seen.position, gamemode: this.player.gamemode }], { difficulty: this.difficulty });
       } catch (err) { console.error('spawner:', err); break; }
@@ -4414,7 +4457,7 @@ class Game {
 
     try {
       // A spectator is "not noticed by mobs" and does not "trigger mob spawning ... nor ... prevent mob despawning".
-      this.mobs.update(worldDt, playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z)));
+      this.mobs.update(worldDt, playerAsSeenByWorld(this.player, makeVector3));
       this.mobUpdateError = null;
     } catch (err) {
       const summary = `${err?.constructor?.name || 'Error'}: ${err?.message}`;
@@ -4493,7 +4536,7 @@ class Game {
 
     // 5. Update Dropped Items, TNT, & Particles
     // "Items in the world also cannot be picked up" by a spectator.
-    this.entities.update(worldDt, playerAsSeenByWorld(this.player, (x, y, z) => new THREE.Vector3(x, y, z)), this.inventory);
+    this.entities.update(worldDt, playerAsSeenByWorld(this.player, makeVector3), this.inventory);
 
     // Wiki: "If the merchant takes damage or leaves the player's reach, the trading menu closes." The check
     // lives here because neither the merchant nor the player knows about the other's window.

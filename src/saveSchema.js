@@ -214,7 +214,7 @@ export function captureSessionState(game) {
     dimension: game.currentDimension || game.world?.dimension || 'overworld',
     biomes: game.world?.selectedBiome,
     dayCount: game.dayCount ?? 0,
-    endState: captureEndState(game.world),
+    endState: captureEndState(game.world,game),
     // The loaded data packs. Captured here rather than beside the world, because a pack changes the CONTENT
     // -- biomes, recipes, drops -- and content has to be back in place before the world is regenerated from
     // it. A save that restored the terrain but not the packs would rebuild the world with different rules.

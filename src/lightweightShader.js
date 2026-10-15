@@ -124,8 +124,10 @@ export class LightweightShader {
  renderWorld(){const g=this.game,r=g.renderer,c=g.camera;
   if(!this.waterPass)this.waterPass=new WaterPass();
   if(this.waterPassFailed){r.render(g.scene,c);return;}
-  try{this.waterPass.render(r,g.scene,c,g.textures?.waterMaterial||null);}
+  try{this.waterPass.render(r,g.scene,c,g.textures?.waterMaterial||null,{waterMeshes:this.waterMeshes()});}
   catch(error){this.waterPassFailed=true;console.warn('Water refraction disabled after a rendering error:',error);r.render(g.scene,c);}
  }
+ /** The loaded chunks' water meshes, so the water steps are skipped on a frame with no water in view (waterPass.js). */
+ *waterMeshes(){const chunks=this.game.world?.chunks;if(!chunks)return;for(const chunk of chunks.values())if(chunk.waterMesh)yield chunk.waterMesh;}
  dispose(){this.button?.removeEventListener('click',this.click);this.releaseTargets();this.waterPass?.dispose();this.glowMaterial.dispose();this.compositeMaterial.dispose();this.quad.geometry.dispose();}
 }

@@ -221,8 +221,13 @@ export function createWorldStructures({
 
   /** The start whose origin is this chunk, if it is one this world places. */
   function plansAt(chunkX, chunkZ, dimension = dimensionNow()) {
-    const key = `${dimension}|${chunkX},${chunkZ}`;
-    if (plans.has(key)) return plans.get(key);
+    // Numeric keys in a map per dimension: a chunk asks this of the 289 chunks around it, and building a string key
+    // for each was most of the cost of the lookup.
+    let byChunk = plans.get(dimension);
+    if (!byChunk) plans.set(dimension, byChunk = new Map());
+    const key = (chunkX + 1048576) * 2097152 + (chunkZ + 1048576);
+    const known = byChunk.get(key);
+    if (known !== undefined) return known;
     const engine = engineFor(dimension);
     let starts = [];
     const candidates = engine.candidatesForChunk(chunkX, chunkZ);
@@ -231,7 +236,7 @@ export function createWorldStructures({
       starts = engine.planChunkAll(chunkX, chunkZ).filter((plan) => plan.start && enabled.has(plan.structureId)).map((plan) => plan.start);
       stats.planned += starts.length;
     }
-    plans.set(key, starts);
+    byChunk.set(key, starts);
     return starts;
   }
 

@@ -4,16 +4,18 @@ import { endColumn, END_OUTER_RADIUS } from './endTerrain.js';
 import { CellCanvas } from './worldgen/cellStructure.js';
 import { buildGateway, PLATFORM } from './worldgen/generators/endFeatures.js';
 import { netherRandom as coordinateRandom } from './netherTerrain.js';
+import { serializeMobState, restoreMobState } from './mobState.js';
 
 export function createEndState(seed) {
   return { seed, initialized: false, defeated: false, kills: 0, health: 200,
-    crystals: Array(10).fill(true), gateways: [], respawning: false };
+    crystals: Array(10).fill(true), gateways: [], residents: [], respawning: false };
 }
 export function endStateFor(world) {
   if (!world.endState || world.endState.seed !== world.seed) world.endState = createEndState(world.seed);
   return world.endState;
 }
-export function captureEndState(world) {
+export function captureEndState(world,game=world?.game) {
+  if(world?.dimension==='the_end'&&game?.mobs)cacheEndResidents(game);
   return world?.endState ? JSON.parse(JSON.stringify(world.endState)) : null;
 }
 export function restoreEndState(world, saved) {
@@ -27,9 +29,20 @@ export function restoreEndState(world, saved) {
     state.gateways = (Array.isArray(saved.gateways) ? saved.gateways : []).filter(g=>[g.x,g.y,g.z].every(Number.isFinite)).map(g=>({x:g.x,y:g.y,z:g.z,destination:g.destination && [g.destination.x,g.destination.y,g.destination.z].every(Number.isFinite)?{...g.destination}:null}));
     // A save during the ritual restarts the ritual on next arena entry.
     state.respawning = saved.respawning === true;
+    state.residents=(saved.residents??[]).filter(m=>['enderman','shulker'].includes(m.type)&&[m.x,m.y,m.z,m.health].every(Number.isFinite));
   }
   world.endState = state;
   return state;
+}
+export function cacheEndResidents(game) {
+  if(game.world?.dimension!=='the_end')return;
+  endStateFor(game.world).residents=(game.mobs?.mobs??[]).filter(m=>['enderman','shulker'].includes(m.type)&&m.health>0&&!m.dying).map(m=>({type:m.type,x:m.mesh.position.x,y:m.mesh.position.y,z:m.mesh.position.z,health:m.health,yaw:m.yaw??0,state:serializeMobState(m,game)}));
+}
+export function restoreEndResidents(game) {
+  for(const record of endStateFor(game.world).residents??[]) {
+    const mob=game.mobs?.spawnMob?.(record.type,record.x,record.y,record.z);
+    if(mob){mob.health=record.health;mob.yaw=record.yaw;restoreMobState(mob,record.state,{player:game.player});}
+  }
 }
 export function writeEndCanvas(world, canvas, game=world.game) {
   const chunks = new Set();

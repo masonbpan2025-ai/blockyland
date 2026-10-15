@@ -66,7 +66,7 @@ export function modelBoxes(shape, state = {}) {
 /** The block's model as one geometry with the attributes the block materials read (color, emission, flame). */
 export function createModelGeometry(def, tm, state = {}) {
   const shape = def.model;
-  const parts = modelBoxes(shape, state).map((b) => box(b, def, tm));
+  const parts = modelBoxes(shape, state).map((b) => box(b, def, tm,state.plantAge>=5?def.textures?.dead:null));
   if (shape.content) parts.push(box(shape.content, def, tm, def.textures?.inner ?? def.textures?.top ?? null));
   const count = parts.reduce((n, g) => n + g.attributes.position.count, 0);
   const position = new Float32Array(count * 3); const normal = new Float32Array(count * 3); const uvs = new Float32Array(count * 2);

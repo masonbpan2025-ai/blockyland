@@ -297,3 +297,40 @@ test('pointer lock is not requested after an await, where activation has expired
   assert.match(main, /domElement\.addEventListener\('click',[\s\S]{0,400}requestPointerLock\(\)/);
 });
 
+
+// Switching tabs while a world is made: a hidden page gets no animation frames, so waiting for one stopped
+// generation (seen as "chunk 28/289" for minutes) until the player came back.
+test('yielding in a hidden tab does not wait for an animation frame', async () => {
+  const { yieldToBrowser } = await import('../src/progressOverlay.js');
+  const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame };
+  let frames = 0;
+  globalThis.requestAnimationFrame = () => { frames++; }; // never calls back, as in a background tab
+  try {
+    globalThis.document = { visibilityState: 'hidden' };
+    await yieldToBrowser();
+    assert.equal(frames, 0, 'it returned without a frame (none is asked for while hidden)');
+
+    // Visible when asked, hidden before the frame came: the frame is not waited on for ever.
+    globalThis.document = { visibilityState: 'visible' };
+    await yieldToBrowser();
+    assert.equal(frames, 1, 'a visible page waits for a frame');
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.requestAnimationFrame = saved.raf;
+  }
+});
+
+test('the generate-only ring is built during the load but never meshed', async () => {
+  const chunks = new Map(); const meshed = [];
+  const world = {
+    getChunk: (cx, cz) => chunks.get(`${cx},${cz}`),
+    getOrCreateChunk: (cx, cz) => { const c = { cx, cz, dirty: true }; chunks.set(`${cx},${cz}`, c); return c; },
+  };
+  const game = { player: { position: { x: 8, y: 0, z: 8 } }, world, renderDistance: 2, rebuildChunkMesh: (c) => { meshed.push(`${c.cx},${c.cz}`); c.dirty = false; } };
+  await loadChunksProgressively(game, { yieldFn: async () => {}, generateRing: 1 });
+  assert.equal(chunks.size, 7 * 7, 'the 5x5 square and a ring around it are generated');
+  assert.equal(meshed.length, 5 * 5, 'only the square is meshed');
+  assert.ok(meshed.every((k) => k.split(',').every((v) => Math.abs(Number(v)) <= 2)));
+  const main = fs.readFileSync(path.join(process.cwd(), 'src', 'main.js'), 'utf8');
+  assert.match(main, /generateRing: Math\.max\(0, \(this\.streamer\?\.generateRadius/, 'the game asks for the streamer\'s ring');
+});

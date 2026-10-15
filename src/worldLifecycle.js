@@ -41,6 +41,16 @@ export function allowsSimulationForPhase(phase) {
   return phase === 'ready';
 }
 
+/**
+ * Does the canvas show the world in this phase? Only `ready`. While a world loads (or none is loaded) the camera
+ * is wherever it was left -- the origin, beneath the terrain, for a new world -- so drawing the scene showed the
+ * underside of the world in a half-sized canvas before the game began. Until the world is ready the canvas is
+ * cleared instead, and the progress overlay and title screen are what the player sees.
+ */
+export function rendersWorldForPhase(phase) {
+  return phase === 'ready';
+}
+
 export function isSimulationActive(lifecycle) {
   return allowsSimulationForPhase(lifecycle?.phase);
 }

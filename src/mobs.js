@@ -3351,10 +3351,12 @@ export class MobManager {
     }
   }
 
-  checkMobCollision(mob, pos, dims = this.getMobDimensions(mob.type)) {
+  checkMobCollision(mob, pos, dims = null) {
     const scale = mob.isBaby ? (isSquid(mob) ? .625 : mob.type==='horse' ? 0.7 : 0.5) : 1;
-    const hw = (mob.width || dims.width) * scale / 2;
-    const h = (mob.height || dims.height) * scale;
+    // The type's table entry only when the mob does not carry its own size. It was a default argument, so the
+    // ~100-case lookup ran on every call -- fifteen a mob a frame -- even for the mobs that never use it.
+    const hw = (mob.width || (dims ??= this.getMobDimensions(mob.type)).width) * scale / 2;
+    const h = (mob.height || (dims ??= this.getMobDimensions(mob.type)).height) * scale;
 
     // Small inset (0.02) to prevent precision sticking to block walls
     const minX = Math.floor(pos.x - hw + 0.02);
