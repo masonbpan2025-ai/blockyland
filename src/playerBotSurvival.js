@@ -447,6 +447,16 @@ export class BotSurvival {
     const c=t.command, p=this.game.player;
     // Out of reach of the block an action is aimed at: walk to the nearest spot in reach first, once, as a player does.
     // Every such action used to refuse with "Walk within reach of the station first." (Shelters play-test).
+    // A trade is aimed at a mob: walk up to the nearest one of that kind first.
+    if (c.type === 'trade' && c.mob && !t.approached) {
+      t.approached = true;
+      const mobs = (this.game.mobs?.mobs ?? []).filter((m) => m.type === c.mob && m.health > 0);
+      const mob = mobs.sort((a, b) => a.mesh.position.distanceTo(p.position) - b.mesh.position.distanceTo(p.position))[0];
+      if (mob && mob.mesh.position.distanceTo(p.position) > 2.5) {
+        const m = mob.mesh.position, spot = this.standingSpotNear(Math.floor(m.x), Math.floor(m.y), Math.floor(m.z));
+        if (spot) { this.bot.walkForSurvival(spot); return; }
+      }
+    }
     if (Array.isArray(c.position) && !t.approached && c.type !== 'build' && c.type !== 'wire') {
       t.approached = true;
       const [x, y, z] = c.position;
@@ -967,6 +977,7 @@ export class BotSurvival {
           if (blockId === BLOCKS.WITHER_SKELETON_SKULL_BLOCK || blockId === BLOCKS.WITHER_SKELETON_SKULL) {
             this.game.bossManager?.checkWitherSummon?.(c.position[0], c.position[1], c.position[2]);
           }
+          if (blockId === BLOCKS.CARVED_PUMPKIN || blockId === BLOCKS.JACK_O_LANTERN) this.game.buildGolemAt?.(c.position[0], c.position[1], c.position[2]);
         }
       }
       const [x,y,z]=c.position;

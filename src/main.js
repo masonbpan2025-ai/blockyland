@@ -1,4 +1,5 @@
 import { AdvancementTracker, advancementEvent } from './advancements.js';
+import { tryBuildGolem } from './golemBuilding.js';
 import { TrialSpawners, Vaults } from './trialSpawner.js';
 import { getCommandState, tickCommandState } from './commandState.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
@@ -51,6 +52,8 @@ import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
+import { ZombieSiege } from './zombieSiege.js';
+import { createMapData, exploreMap, MAP_SIZE } from './maps.js';
 import { toolUseOn, applyToolUse } from './toolUse.js';
 import { attuneCompass } from './compass.js';
 import { applyFoodEffects, chorusTeleport } from './foodEffects.js';
@@ -465,6 +468,7 @@ class Game {
     this.bow = new BowController(this);
     this.eating = new EatingController(this);
     this.advancements = new AdvancementTracker(this);
+    this.zombieSiege = new ZombieSiege(this);
     // The fishing rod: another use-item feature with a state machine, so it sits with the bow.
     this.fishing = new FishingController(this);
     // Rails, minecarts and boats: real physics for carts and floating props.
@@ -688,6 +692,120 @@ class Game {
     this.syncViewportSize();
     markReady(this.lifecycle);
     this.worldReady = true;
+    await this.warmUpWorld();
+  }
+
+  /**
+   * Warm up shaders, chunk streaming, and initial rendering passes under the loading cover.
+   *
+   * Without this warm-up, the progress overlay was hidden before any frame had drawn,
+   * showing an empty cleared canvas (black screen) followed by hundreds of milliseconds
+   * of synchronous Three.js WebGL shader compilation and initial streaming stutter.
+   * By pre-compiling materials, pre-rendering warm-up frames to the canvas behind the
+   * opaque cover, and resetting the clock delta, the game appears smoothly and immediately
+   * playable at 60 FPS.
+   */
+  async warmUpWorld(frames = 20) {
+    if (typeof window === 'undefined' || typeof document === 'undefined' || !this.renderer) {
+      return;
+    }
+
+    const startOverlay = document.getElementById('start-overlay');
+    if (startOverlay) startOverlay.style.display = 'none';
+    if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
+    if (this.ui?.closeAllModals) this.ui.closeAllModals();
+
+    // 1. Precompile WebGL shader programs so first draw doesn't freeze the main thread
+    this.overlay?.set?.(92, 'Compiling shaders & pre-rendering…');
+    await yieldToBrowser();
+
+    try {
+      if (this.renderer && this.scene && this.camera) {
+        this.renderer.compile(this.scene, this.camera);
+      }
+      if (this.heldItemRenderer?.scene && this.heldItemRenderer?.camera && this.renderer) {
+        this.renderer.compile(this.heldItemRenderer.scene, this.heldItemRenderer.camera);
+      }
+    } catch (e) {
+      console.warn('[World] Shader pre-compilation note:', e);
+    }
+
+    // 2. Temporarily preserve player physics state
+    const origVel = this.player?.velocity?.clone ? this.player.velocity.clone() : null;
+    if (this.player?.velocity?.set) {
+      this.player.velocity.set(0, 0, 0);
+    }
+    const origInvuln = this.player?.invulnerable;
+    if (this.player) this.player.invulnerable = true;
+
+    // 3. Render warm-up frames to the canvas behind the opaque progress overlay
+    const totalFrames = Math.max(12, frames);
+    for (let i = 0; i < totalFrames; i++) {
+      const pct = Math.min(99, Math.round(92 + (i / totalFrames) * 8));
+      if (this.overlay && i % 3 === 0) {
+        this.overlay.set(pct, `Stabilizing game performance (${Math.round((i / totalFrames) * 100)}%)…`);
+      }
+
+      // Keep camera oriented at player
+      this.player?.updateCameraAndModel?.(0);
+      this.camera?.updateMatrixWorld?.();
+
+      // Flush streamer and chunk mesher
+      if (this.streamer && this.player?.position) {
+        this.streamer.flush?.(this.player.position.x, this.player.position.z, 2);
+        this.streamer.update?.(this.player.position.x, this.player.position.z);
+      }
+      this.refreshDirtyChunks?.();
+      this.world?.light?.update?.(16);
+      this.world?.water?.update?.(0.016);
+
+      // Render actual scene onto the WebGL canvas
+      try {
+        if (this.shader && typeof this.shader.render === 'function') {
+          this.shader.render(0.016);
+        } else if (this.renderer && this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera);
+        }
+        if (this.heldItemRenderer?.render && this.renderer && this.player?.perspective === 0 && !this.player?.isDungeonMode) {
+          this.heldItemRenderer.render(this.renderer);
+        }
+      } catch (err) {
+        console.warn('[World] Warm-up render pass warning:', err);
+      }
+
+      await yieldToBrowser();
+    }
+
+    // 4. Restore player physics / invulnerability state
+    if (origVel && this.player?.velocity?.copy) {
+      this.player.velocity.copy(origVel);
+    }
+    if (this.player && origInvuln !== undefined) {
+      this.player.invulnerable = origInvuln;
+    }
+
+    // 5. Ensure one final frame is painted on the canvas
+    try {
+      if (this.shader && typeof this.shader.render === 'function') {
+        this.shader.render(0.016);
+      } else if (this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
+      }
+      if (this.heldItemRenderer?.render && this.renderer && this.player?.perspective === 0 && !this.player?.isDungeonMode) {
+        this.heldItemRenderer.render(this.renderer);
+      }
+    } catch (e) {}
+
+    // 6. Reset clock delta so gameplay begins with a fresh ~16ms frame, avoiding delta spikes
+    if (this.clock) {
+      this.clock.start();
+      this.clock.getDelta();
+    }
+
+    if (this.overlay) {
+      this.overlay.set(100, 'World ready');
+      await yieldToBrowser();
+    }
   }
 
   /**
@@ -868,7 +986,6 @@ class Game {
     this.camera.updateMatrixWorld?.();
     this.syncViewportSize();
     await yieldToBrowser();
-    this.overlay.hide();
 
     this.worldReady = true;
     this.worldGenerated = true;
@@ -877,6 +994,8 @@ class Game {
       this.lifecycle.finishedAt = Date.now();
       this.lifecycle.error = null;
     }
+    await this.warmUpWorld();
+    this.overlay.hide();
 
     if (this.ui?.closeAllModals) this.ui.closeAllModals();
     if (this.ui?.startOverlay) this.ui.startOverlay.style.display = 'none';
@@ -1114,6 +1233,13 @@ class Game {
     return this.endPortalRoom;
   }
 
+  /** A carved pumpkin or jack o'lantern just placed may finish an iron or snow golem (golemBuilding.js). */
+  buildGolemAt(x, y, z) {
+    const golem = tryBuildGolem(this, x, y, z);
+    if (golem?.type === 'iron_golem') advancementEvent('summon_iron_golem');
+    return golem;
+  }
+
   switchDimension(newDim, targetPos = null) {    if (!this.world) return;
     if(this.world.dimension===newDim)return;
     cacheEndResidents(this);
@@ -1130,8 +1256,13 @@ class Game {
       }
     }
 
-    // 2. Clear mobs in current dimension
+    // 2. Put away the mobs of the dimension being left. They stay in their own dimension, as Java's entities do in
+    // their chunks, and come back when the player does: a Nether trip used to delete every overworld mob -- pets,
+    // villagers, farm animals (wiki-tutorial play-test, Nether portals). The End keeps its own residents list.
     if (this.mobs?.mobs) {
+      const leaving = this.world.dimension || 'overworld';
+      this.mobsByDimension ??= {};
+      if (leaving !== 'the_end') this.mobsByDimension[leaving] = this.mobs.mobs.filter((m) => m.health > 0 && !m.dying && m.type !== 'ender_dragon');
       for (const mob of this.mobs.mobs) {
         if (mob.mesh) this.scene.remove(mob.mesh);
       }
@@ -1142,6 +1273,7 @@ class Game {
     this.world.switchDimension(newDim);
     this.currentDimension = newDim;
     if(newDim==='the_end')restoreEndResidents(this);
+    else for (const mob of this.mobsByDimension?.[newDim]?.splice(0) ?? []) { if (mob.mesh) this.scene.add(mob.mesh); this.mobs.mobs.push(mob); }
     // The streamer's sets describe the chunks of the dimension just left. Without this it would
     // think the new dimension's chunks were already loaded, mesh nothing, and never unload the old
     // ones.
@@ -1207,7 +1339,8 @@ class Game {
 
     // 6. Immediately load chunks around destination
     this.loadChunksAroundPlayer();
-    this.spawnVillageMobs();
+    // The showcase population is for a dimension's first visit; on a return its mobs are the ones put away.
+    if (!this.mobsByDimension?.[newDim]) this.spawnVillageMobs();
     if (this.ui?.updateStats) this.ui.updateStats();
   }
 
@@ -2222,7 +2355,16 @@ class Game {
       // The attack cooldown (attackCooldown.js): the attribute damage scales with the square of the charge,
       // enchantment damage with the charge itself. Every click used to deal full damage.
       const charge = attackCharge(this.player.secondsSinceSwing ?? Infinity, activeItem && !activeItem.isBlock ? activeItem.id : null);
-      damage = scaleBaseDamage(damage, charge) + scaleEnchantDamage(enchantDamage, charge);
+      // Critical hit (Damage): "performed when a player attacks an entity while falling", +50% "after strength is
+      // applied and before enchantments", only at 84.8% charge or more, never sprinting, in water, on a ladder or vines,
+      // with Slow Falling or Blindness, riding or flying. The game had no critical hits (Combat play-test).
+      const p = this.player;
+      const onClimbable = [BLOCKS.LADDER, BLOCKS.VINE].includes(this.world.getVoxel(Math.floor(p.position.x), Math.floor(p.position.y), Math.floor(p.position.z)));
+      const critical = charge >= 0.848 && (p.fallDistance ?? 0) > 0 && !p.onGround && !p.inWater && !onClimbable && !p.isFlying && !p.isSprinting
+        && !p.hasStatusEffect?.('slow_falling') && !p.hasStatusEffect?.('blindness') && !this.riding && !p.ridingMob;
+      damage = scaleBaseDamage(damage, charge) * (critical ? 1.5 : 1) + scaleEnchantDamage(enchantDamage, charge);
+      this.player.lastAttackCritical = critical;
+      if (critical) this.entities?.spawnBlockParticles?.(this.targetMob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), BLOCKS.STONE);
       this.player.lastAttackCharge = charge;
       this.player.secondsSinceSwing = 0;
       // The mace's smash attack (maceSmash.js): after a fall of 1.5 blocks or more, the fall adds damage (more with
@@ -2324,6 +2466,27 @@ class Game {
 
   handleRightClick() {
     if (!modeRules(this.player.gamemode).interact) return;
+    // Dual wielding: "The item in the off-hand will only be used if the item in the main hand lacks a use, or if it's
+    // holding nothing" -- a torch in the off-hand is placed while a sword or pickaxe is held. Only the shield used the
+    // off-hand before (Dual wielding play-test). The off-hand item is used through the same path, in the main hand's
+    // place for this one click.
+    {
+      const inv = this.inventory, main = inv.getActiveItem?.(), off = inv.offhand;
+      const mainLacksUse = !main || (!main.isBlock && /(_sword|_pickaxe)$|^(stick|bone|string|feather|leather|gunpowder|iron_ingot|gold_ingot|diamond|emerald|coal|charcoal)$/.test(main.id));
+      if (off && off.id !== 'shield' && mainLacksUse && !this.usingOffhand && !this.targetMob) {
+        const slot = inv.activeSlot;
+        inv.hotbar[slot] = off; inv.offhand = main ?? null;
+        this.usingOffhand = true;
+        try { this.handleRightClick(); }
+        finally {
+          this.usingOffhand = false;
+          const left = inv.hotbar[slot];
+          inv.hotbar[slot] = inv.offhand; inv.offhand = left && left.count > 0 ? left : null;
+          this.ui.updateHotbar();
+        }
+        return;
+      }
+    }
     // Brushing an armadillo: "drops 1 armadillo scute and costs the brush 16 durability" (armadilloBehavior.js). The
     // rule was written and nothing called it, so a brush did nothing to one. Found by the Durability management play-test.
     {
@@ -2502,9 +2665,12 @@ class Game {
     // sells explorer maps as `filled_map` -- so the honest version of the gesture is the conversion itself,
     // which is what makes the crafted map worth crafting.
     if (bucketItem && !bucketItem.isBlock && bucketItem.id === 'map') {
+      // A new map, centred on the player's grid square, that draws the world as it is carried (maps.js).
       this.inventory.consumeActiveItem?.();
-      if (!this.inventory.addItem('filled_map', false, 1)) {
-        this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 'filled_map', false);
+      const filled = { id: 'filled_map', isBlock: false, count: 1, mapData: createMapData(this.player.position.x, this.player.position.z, 0, this.currentDimension ?? 'overworld') };
+      exploreMap(filled.mapData, this.world, this.player.position.x, this.player.position.z, { columns: MAP_SIZE });
+      if (!this.inventory.addItem(filled)) {
+        this.entities.spawnDroppedItem(this.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 'filled_map', false, 1, { itemData: filled });
       }
       this.sounds.playClick?.();
       this.ui.updateHotbar();
@@ -3329,6 +3495,7 @@ class Game {
 
         // Check Wither summon building
         this.bossManager?.checkWitherSummon(placeX, placeY, placeZ);
+        this.buildGolemAt(placeX, placeY, placeZ);
 
         // Sculk vibration check on block place
         this.deepDarkManager?.onPlayerVibration(this.player.position, 1.0);
@@ -3438,7 +3605,7 @@ class Game {
     this.camera.getWorldDirection(dir);
     const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(dir, 0.8);
 
-    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, requested);
+    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, requested, { thrownByPlayer: true, enchantments: active.enchantments, ...(active.durability !== undefined ? { durability: active.durability } : {}) });
     this.sounds.playClick();
 
     for (let i = 0; i < requested; i++) this.inventory.consumeActiveItem();
@@ -4200,7 +4367,8 @@ class Game {
         this.world.applyStructureOrientation?.({ x: bx, y: by, z: bz, id, facing: props.facing ?? null, half: props.half ?? null, hinge: props.hinge ?? null, slabType: props.type === 'top' ? 'top' : null });
       }
       if (meta?.lootTable && this.chestManager?.adoptChest) {
-        this.chestManager.adoptChest([bx, by, bz], 0, rollStructureLoot(meta.lootTable, (bx * 73856093) ^ (by * 19349663) ^ (bz * 83492791) ^ (this.seed ?? 0)));
+        const lootChest = this.chestManager.adoptChest([bx, by, bz], 0, rollStructureLoot(meta.lootTable, (bx * 73856093) ^ (by * 19349663) ^ (bz * 83492791) ^ (this.seed ?? 0)));
+        if (lootChest) lootChest.fromStructure = true;
       }
       return true;
     }, {
@@ -4567,6 +4735,8 @@ class Game {
     this.bow.update(dt);
     this.eating.update(dt);
     this.advancements?.update(dt);
+    // Zombie sieges (zombieSiege.js): the midnight roll, the start in a village, twenty spawn attempts.
+    if (this.worldGenerated && this.gamerules?.doMobSpawning !== false) this.zombieSiege?.update(dt);
     this.fishing.update(dt);
     this.playerBot?.tick(dt);
     this.player.update(dt);
@@ -4773,6 +4943,13 @@ class Game {
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader
     this.updateDayNightCycle(dt);
     this.ui?.updateCompassNeedles?.(this);
+    // A held map keeps drawing what is around the player, and is shown on screen (maps.js).
+    {
+      const held = this.inventory?.getActiveItem?.();
+      const map = held?.id === 'filled_map' ? held.mapData : null;
+      if (map && map.dimension === (this.currentDimension ?? 'overworld')) exploreMap(map, this.world, this.player.position.x, this.player.position.z);
+      this.ui?.renderHeldMap?.(map, this.player);
+    }
     this.updateUnderwaterState();
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
     this.sky.update(dt, this.camera, this.weather, this.isUnderwater);

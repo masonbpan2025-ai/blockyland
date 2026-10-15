@@ -33,6 +33,20 @@ import {
   replacementFor, writeCachedModels
 } from './agentModelCatalog.js';
 import { FACINGS, PAINTING_BY_ID, PAINTING_VARIANTS, PaintingManager, facingFromNormal } from './paintings.js';
+import { resolveItem, giveItems } from './commands.js';
+import { buildCommandContext, runCommand } from './commandRunner.js';
+import { placePlayerOnSurface } from './worldSpawn.js';
+import { EFFECTS } from './statusEffects.js';
+import {
+  createAgentTurnRecord,
+  saveAgentTurn,
+  getAgentHistory,
+  getLastTurn,
+  clearAgentHistory,
+  formatTurnDiagnostic,
+  sanitizeHeaders,
+  sanitizeRequestBody
+} from './agentHistory.js';
 
 // A thinking model can be silent for a long time before its first token, so we
 // abort on silence rather than on total duration.
@@ -114,7 +128,364 @@ const PLAN_JSON_SCHEMA = `{
   "stages": [ { "name": "Town wall", "description": "What this part is and how it should look", "offset": [0, 0, 0], "size": { "width": 64, "height": 8, "depth": 64 } } ]
 }`;
 
+// --- Offline Command & Vocabulary Helpers ---
+
+const MOB_KEYWORDS = [
+  // Multi-word mobs first
+  { key: 'iron golem', type: 'iron_golem' },
+  { key: 'snow golem', type: 'snow_golem' },
+  { key: 'copper golem', type: 'copper_golem' },
+  { key: 'happy ghast', type: 'happy_ghast' },
+  { key: 'trader llama', type: 'trader_llama' },
+  { key: 'wandering trader', type: 'wandering_trader' },
+  { key: 'zombie villager', type: 'zombie_villager' },
+  { key: 'zombified piglin', type: 'zombified_piglin' },
+  { key: 'zombie pigman', type: 'zombified_piglin' },
+  { key: 'piglin brute', type: 'piglin_brute' },
+  { key: 'wither skeleton', type: 'wither_skeleton' },
+  { key: 'cave spider', type: 'cave_spider' },
+  { key: 'tropical fish', type: 'tropical_fish' },
+  { key: 'glow squid', type: 'glow_squid' },
+  { key: 'elder guardian', type: 'elder_guardian' },
+  { key: 'polar bear', type: 'polar_bear' },
+  { key: 'skeleton horse', type: 'skeleton_horse' },
+  { key: 'zombie horse', type: 'zombie_horse' },
+  { key: 'killer bunny', type: 'killer_bunny' },
+  { key: 'camel husk', type: 'camel_husk' },
+  { key: 'ender dragon', type: 'ender_dragon' },
+  { key: 'lightning bolt', type: 'lightning_bolt' },
+  { key: 'armor stand', type: 'armor_stand' },
+  { key: 'mushroom cow', type: 'mooshroom' },
+
+  // Single-word mobs
+  { key: 'villager', type: 'villager' },
+  { key: 'pillager', type: 'pillager' },
+  { key: 'golem', type: 'iron_golem' },
+  { key: 'snowman', type: 'snow_golem' },
+  { key: 'zombie', type: 'zombie' },
+  { key: 'husk', type: 'husk' },
+  { key: 'drowned', type: 'drowned' },
+  { key: 'skeleton', type: 'skeleton' },
+  { key: 'stray', type: 'stray' },
+  { key: 'bogged', type: 'bogged' },
+  { key: 'parched', type: 'parched' },
+  { key: 'creeper', type: 'creeper' },
+  { key: 'spider', type: 'spider' },
+  { key: 'enderman', type: 'enderman' },
+  { key: 'silverfish', type: 'silverfish' },
+  { key: 'endermite', type: 'endermite' },
+  { key: 'witch', type: 'witch' },
+  { key: 'slime', type: 'slime' },
+  { key: 'magma_cube', type: 'magma_cube' },
+  { key: 'phantom', type: 'phantom' },
+  { key: 'blaze', type: 'blaze' },
+  { key: 'ghast', type: 'ghast' },
+  { key: 'piglin', type: 'piglin' },
+  { key: 'hoglin', type: 'hoglin' },
+  { key: 'zoglin', type: 'zoglin' },
+  { key: 'shulker', type: 'shulker' },
+  { key: 'strider', type: 'strider' },
+  { key: 'guardian', type: 'guardian' },
+  { key: 'breeze', type: 'breeze' },
+  { key: 'creaking', type: 'creaking' },
+  { key: 'vindicator', type: 'vindicator' },
+  { key: 'evoker', type: 'evoker' },
+  { key: 'vex', type: 'vex' },
+  { key: 'ravager', type: 'ravager' },
+  { key: 'illusioner', type: 'illusioner' },
+  { key: 'warden', type: 'warden' },
+  { key: 'wither', type: 'wither' },
+  { key: 'giant', type: 'giant' },
+  { key: 'pig', type: 'pig' },
+  { key: 'cow', type: 'cow' },
+  { key: 'sheep', type: 'sheep' },
+  { key: 'chicken', type: 'chicken' },
+  { key: 'horse', type: 'horse' },
+  { key: 'donkey', type: 'donkey' },
+  { key: 'mule', type: 'mule' },
+  { key: 'llama', type: 'llama' },
+  { key: 'camel', type: 'camel' },
+  { key: 'wolf', type: 'wolf' },
+  { key: 'dog', type: 'wolf' },
+  { key: 'cat', type: 'cat' },
+  { key: 'ocelot', type: 'ocelot' },
+  { key: 'rabbit', type: 'rabbit' },
+  { key: 'bunny', type: 'rabbit' },
+  { key: 'fox', type: 'fox' },
+  { key: 'bat', type: 'bat' },
+  { key: 'bee', type: 'bee' },
+  { key: 'goat', type: 'goat' },
+  { key: 'turtle', type: 'turtle' },
+  { key: 'frog', type: 'frog' },
+  { key: 'tadpole', type: 'tadpole' },
+  { key: 'parrot', type: 'parrot' },
+  { key: 'mooshroom', type: 'mooshroom' },
+  { key: 'panda', type: 'panda' },
+  { key: 'armadillo', type: 'armadillo' },
+  { key: 'sniffer', type: 'sniffer' },
+  { key: 'allay', type: 'allay' },
+  { key: 'trader', type: 'wandering_trader' },
+  { key: 'salmon', type: 'salmon' },
+  { key: 'cod', type: 'cod' },
+  { key: 'pufferfish', type: 'pufferfish' },
+  { key: 'fish', type: 'salmon' },
+  { key: 'fishes', type: 'salmon' },
+  { key: 'fishi', type: 'salmon' },
+  { key: 'dolphin', type: 'dolphin' },
+  { key: 'squid', type: 'squid' },
+  { key: 'octopus', type: 'octopus' },
+  { key: 'axolotl', type: 'axolotl' },
+  { key: 'lightning', type: 'lightning_bolt' }
+];
+
+function tryResolveItem(raw) {
+  if (!raw) return null;
+  let text = String(raw).trim().toLowerCase();
+  text = text.replace(/^(a|an|the|some|of)\s+/, '');
+  text = text.replace(/\s+(item|items|block|blocks)$/, '');
+  text = text.trim();
+  if (!text) return null;
+
+  let res = resolveItem(text);
+  if (res?.ok) return res;
+
+  const underscored = text.replace(/\s+/g, '_');
+  res = resolveItem(underscored);
+  if (res?.ok) return res;
+
+  let singular = underscored;
+  if (singular.endsWith('ies')) {
+    singular = singular.slice(0, -3) + 'y';
+  } else if (singular.endsWith('es') && !singular.endsWith('glass') && !singular.endsWith('grass')) {
+    singular = singular.slice(0, -2);
+    res = resolveItem(singular);
+    if (res?.ok) return res;
+    singular = singular + 'e';
+  } else if (singular.endsWith('s') && !singular.endsWith('glass') && !singular.endsWith('grass')) {
+    singular = singular.slice(0, -1);
+  }
+  res = resolveItem(singular);
+  if (res?.ok) return res;
+
+  const ALIASES = {
+    wood: 'oak_log',
+    logs: 'oak_log',
+    log: 'oak_log',
+    plank: 'oak_planks',
+    planks: 'oak_planks',
+    stone: 'stone',
+    glass: 'glass',
+    dirt: 'dirt',
+    cobble: 'cobblestone',
+    torch: 'torch',
+    torches: 'torch',
+    tnt: 'tnt',
+    iron: 'iron_ingot',
+    gold: 'gold_ingot',
+    diamond: 'diamond',
+    diamonds: 'diamond',
+    netherite: 'netherite_ingot',
+    copper: 'copper_ingot',
+    emerald: 'emerald',
+    emeralds: 'emerald',
+    coal: 'coal',
+    bread: 'bread',
+    apple: 'apple',
+    apples: 'apple',
+    beef: 'cooked_beef',
+    steak: 'cooked_beef',
+    pork: 'cooked_porkchop',
+    chicken: 'cooked_chicken',
+    mutton: 'cooked_mutton',
+    potato: 'potato',
+    potatoes: 'baked_potato',
+    carrot: 'carrot',
+    carrots: 'carrot',
+    sword: 'diamond_sword',
+    pickaxe: 'diamond_pickaxe',
+    pick: 'diamond_pickaxe',
+    axe: 'diamond_axe',
+    shovel: 'diamond_shovel',
+    spade: 'diamond_shovel',
+    hoe: 'diamond_hoe',
+    bow: 'bow',
+    arrow: 'arrow',
+    arrows: 'arrow',
+    shield: 'shield',
+    helmet: 'diamond_helmet',
+    chestplate: 'diamond_chestplate',
+    leggings: 'diamond_leggings',
+    boots: 'diamond_boots',
+    armor: 'diamond_chestplate',
+    elytra: 'elytra',
+    trident: 'trident',
+    pearl: 'ender_pearl',
+    pearls: 'ender_pearl',
+    ender_pearl: 'ender_pearl',
+    eye_of_ender: 'ender_eye',
+    totem: 'totem_of_undying',
+    golden_apple: 'golden_apple',
+    gapple: 'golden_apple',
+    water_bucket: 'water_bucket',
+    lava_bucket: 'lava_bucket',
+    bucket: 'bucket',
+    bed: 'white_bed',
+    redstone: 'redstone',
+    lapis: 'lapis_lazuli'
+  };
+
+  const alias = ALIASES[singular] || ALIASES[underscored] || ALIASES[text];
+  if (alias) {
+    res = resolveItem(alias);
+    if (res?.ok) return res;
+  }
+
+  return null;
+}
+
+function parseGiveItems(text) {
+  let p = text.toLowerCase().trim();
+  p = p.replace(/^\/?give\s+/, '');
+  p = p.replace(/^(@p|@s|@a|me|player|to me)\s+/, '');
+  p = p.replace(/^(please|can you|can i have)\s+/, '');
+
+  if (p.includes('diamond armor') || (p.includes('armor') && p.includes('diamond'))) {
+    return [
+      { name: 'diamond_helmet', count: 1, isBlock: false },
+      { name: 'diamond_chestplate', count: 1, isBlock: false },
+      { name: 'diamond_leggings', count: 1, isBlock: false },
+      { name: 'diamond_boots', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('netherite armor') || (p.includes('armor') && p.includes('netherite'))) {
+    return [
+      { name: 'netherite_helmet', count: 1, isBlock: false },
+      { name: 'netherite_chestplate', count: 1, isBlock: false },
+      { name: 'netherite_leggings', count: 1, isBlock: false },
+      { name: 'netherite_boots', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('iron armor') || (p.includes('armor') && p.includes('iron'))) {
+    return [
+      { name: 'iron_helmet', count: 1, isBlock: false },
+      { name: 'iron_chestplate', count: 1, isBlock: false },
+      { name: 'iron_leggings', count: 1, isBlock: false },
+      { name: 'iron_boots', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('diamond tool') || (p.includes('tools') && p.includes('diamond')) || p === 'tools') {
+    return [
+      { name: 'diamond_sword', count: 1, isBlock: false },
+      { name: 'diamond_pickaxe', count: 1, isBlock: false },
+      { name: 'diamond_axe', count: 1, isBlock: false },
+      { name: 'diamond_shovel', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('netherite tool') || (p.includes('tools') && p.includes('netherite'))) {
+    return [
+      { name: 'netherite_sword', count: 1, isBlock: false },
+      { name: 'netherite_pickaxe', count: 1, isBlock: false },
+      { name: 'netherite_axe', count: 1, isBlock: false },
+      { name: 'netherite_shovel', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('iron tool') || (p.includes('tools') && p.includes('iron'))) {
+    return [
+      { name: 'iron_sword', count: 1, isBlock: false },
+      { name: 'iron_pickaxe', count: 1, isBlock: false },
+      { name: 'iron_axe', count: 1, isBlock: false },
+      { name: 'iron_shovel', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('weapon') || p.includes('weapons')) {
+    return [
+      { name: 'diamond_sword', count: 1, isBlock: false },
+      { name: 'bow', count: 1, isBlock: false },
+      { name: 'arrow', count: 64, isBlock: false },
+      { name: 'shield', count: 1, isBlock: false }
+    ];
+  }
+  if (p.includes('food') || p.includes('rations')) {
+    return [
+      { name: 'cooked_beef', count: 32, isBlock: false },
+      { name: 'bread', count: 32, isBlock: false },
+      { name: 'golden_apple', count: 8, isBlock: false }
+    ];
+  }
+  if (p.includes('building material') || p.includes('building block') || p.includes('building materials')) {
+    return [
+      { name: 'cobblestone', count: 64, isBlock: true },
+      { name: 'oak_planks', count: 64, isBlock: true },
+      { name: 'glass', count: 64, isBlock: true },
+      { name: 'stone_bricks', count: 64, isBlock: true }
+    ];
+  }
+  if (p.includes('ore') || p.includes('ores') || p.includes('minerals')) {
+    return [
+      { name: 'diamond', count: 64, isBlock: false },
+      { name: 'iron_ingot', count: 64, isBlock: false },
+      { name: 'gold_ingot', count: 64, isBlock: false },
+      { name: 'emerald', count: 32, isBlock: false },
+      { name: 'coal', count: 64, isBlock: false }
+    ];
+  }
+  if (p.includes('redstone') && (p.includes('material') || p.includes('kit') || p.includes('pack'))) {
+    return [
+      { name: 'redstone', count: 64, isBlock: true },
+      { name: 'redstone_torch', count: 16, isBlock: true },
+      { name: 'repeater', count: 16, isBlock: true },
+      { name: 'comparator', count: 8, isBlock: true },
+      { name: 'piston', count: 16, isBlock: true }
+    ];
+  }
+
+  const segments = p.split(/\s+and\s+|,\s*/);
+  const items = [];
+
+  for (const seg of segments) {
+    let s = seg.trim();
+    if (!s) continue;
+    let count = 1;
+
+    const stackMatch = s.match(/^(\d+)?\s*stacks?\s+of\s+(.+)$/i);
+    if (stackMatch) {
+      const numStacks = stackMatch[1] ? parseInt(stackMatch[1], 10) : 1;
+      count = Math.min(640, numStacks * 64);
+      s = stackMatch[2].trim();
+    } else {
+      const leadNum = s.match(/^(\d+)\s+(.+)$/);
+      if (leadNum) {
+        count = Math.min(640, parseInt(leadNum[1], 10));
+        s = leadNum[2].trim();
+      } else {
+        const trailNum = s.match(/^(.+?)\s+(\d+)$/);
+        if (trailNum) {
+          count = Math.min(640, parseInt(trailNum[2], 10));
+          s = trailNum[1].trim();
+        } else {
+          if (s.includes('a few') || s.includes('few')) { count = 3; s = s.replace(/\ba few\b|\bfew\b/, '').trim(); }
+          else if (s.includes('a couple') || s.includes('couple')) { count = 2; s = s.replace(/\ba couple\b|\bcouple\b/, '').trim(); }
+          else if (s.includes('several')) { count = 4; s = s.replace(/\bseveral\b/, '').trim(); }
+          else if (s.includes('a stack')) { count = 64; s = s.replace(/\ba stack\b/, '').trim(); }
+        }
+      }
+    }
+
+    const resolved = tryResolveItem(s);
+    if (resolved) {
+      items.push({
+        name: resolved.key || resolved.id,
+        count: Math.max(1, count),
+        isBlock: Boolean(resolved.isBlock)
+      });
+    }
+  }
+
+  return items.length > 0 ? items : null;
+}
+
 export class WorldAgent {
+
   // Live-progress bookkeeping for the in-flight request.
   #requestStartedAt;
   #streamStartedAt;
@@ -155,10 +526,37 @@ export class WorldAgent {
     this.onThought = null;
     this.thinkingEnabled = true;
     // Forced offline mode: keep the key, but use the built-in presets.
-    this.#readOfflineMode();
     this.#requestStartedAt = 0;
     this.#streamStartedAt = null;
     this.#requestVendor = this.settings.vendor;
+
+    // Full request/response history for debugging and diagnostics
+    this.agentHistory = [];
+    this.currentTurnRecord = null;
+    this.lastTurnRecord = null;
+  }
+
+  /** Retrieve persisted or in-memory agent history records */
+  async getHistory(options) {
+    return getAgentHistory(options);
+  }
+
+  /** Retrieve the most recent turn record */
+  async getLastTurn(options) {
+    return this.lastTurnRecord || getLastTurn(options);
+  }
+
+  /** Clear all agent history from memory, localStorage, and disk */
+  async clearHistory(options) {
+    this.agentHistory = [];
+    this.lastTurnRecord = null;
+    this.currentTurnRecord = null;
+    return clearAgentHistory(options);
+  }
+
+  /** Format the most recent turn into a markdown diagnostic report */
+  formatLastTurnDiagnostic() {
+    return formatTurnDiagnostic(this.lastTurnRecord);
   }
 
   // --- Vendor / model / key configuration ---
@@ -452,6 +850,21 @@ export class WorldAgent {
     this.perceptionCache = null;
     this.lastError = null;
     this.currentTaskPrompt = cleanPrompt;
+
+    const turnRecord = createAgentTurnRecord({
+      turnId: this.turnId,
+      vendor: this.vendor,
+      vendorLabel: this.vendorLabel,
+      model: this.model,
+      effort: this.effort,
+      prompt: cleanPrompt,
+      offline: !this.canUseApi,
+      attachments: imageAttachment ? [{ name: imageAttachment.name, mimeType: imageAttachment.mimeType }] : [],
+      hasViewCapture: !!options.viewImage
+    });
+    this.currentTurnRecord = turnRecord;
+    this.lastTurnRecord = turnRecord;
+
     if (imageAttachment) {
       this.log(`Received prompt: "${cleanPrompt || 'Reconstruct Image'}" with attached image [${imageAttachment.name}]`, 'prompt');
     } else {
@@ -462,11 +875,19 @@ export class WorldAgent {
     try {
       let plan = null;
 
-      if (playerCommand) {
+      if (playerCommand && playerCommand.type !== 'command') {
         const result = await this.playerBot.run(playerCommand);
         this.conversationHistory.push({ role: 'user', text: cleanPrompt }, { role: 'assistant', text: result.message });
         if (!result.ok) this.lastError = new Error(result.message);
         this.updateProgress(100, result.message);
+        turnRecord.recordOfflinePlan({ action: 'player_control', command: playerCommand, explanation: result.message });
+        turnRecord.finalizeExecution({
+          status: result.ok ? 'completed' : 'failed',
+          error: result.ok ? null : result.message,
+          explanation: result.message
+        });
+        await saveAgentTurn(turnRecord);
+        this.agentHistory.push(turnRecord);
         return result;
       }
 
@@ -482,6 +903,10 @@ export class WorldAgent {
             { role: 'user', text: cleanPrompt, timestamp: Date.now() },
             { role: 'assistant', text: `Loaded parametric building in Building Studio: ${cleanPrompt}`, timestamp: Date.now() }
           );
+          turnRecord.recordOfflinePlan({ action: 'building_studio', explanation: `Loaded parametric building for: "${cleanPrompt}"` });
+          turnRecord.finalizeExecution({ status: 'completed', explanation: `Loaded parametric building in Building Studio: ${cleanPrompt}` });
+          await saveAgentTurn(turnRecord);
+          this.agentHistory.push(turnRecord);
           if (this.onComplete) this.onComplete();
           return;
         }
@@ -503,6 +928,7 @@ export class WorldAgent {
           this.log(`Offline mode: limited preset commands. Add a ${vendorLabel} API key for free-form requests.`, 'info');
           plan = this.parseIntentLocally(cleanPrompt);
         }
+        turnRecord.recordOfflinePlan(plan);
       }
 
       // 3. Execute the resulting plan
@@ -529,6 +955,14 @@ export class WorldAgent {
         buildingType: plan?.buildingType,
         timestamp: Date.now()
       });
+
+      turnRecord.finalizeExecution({
+        status: 'completed',
+        explanation: plan?.explanation,
+        buildings: this.builtBuildings
+      });
+      await saveAgentTurn(turnRecord);
+      this.agentHistory.push(turnRecord);
     } catch (err) {
       this.lastError = err;
       // Speak like a helpful player, not a stack trace. The raw reason is kept (on
@@ -550,11 +984,22 @@ export class WorldAgent {
       for (const alternative of explanation.alternatives) {
         this.log(`• ${alternative}`, 'info');
       }
+
+      turnRecord.finalizeExecution({
+        status: 'failed',
+        error: err,
+        explanation: explanation.summary
+      });
+      await saveAgentTurn(turnRecord);
+      this.agentHistory.push(turnRecord);
+      this.log(`Turn details saved to agent_history.json. Antigravity can inspect the full request and response to diagnose this issue.`, 'info');
+
       if (this.onError) this.onError(err);
     } finally {
       this.isExecuting = false;
       this.currentTask = null;
       this.activeBuilding = null;
+      this.currentTurnRecord = null;
       this.conversationHistory = this.conversationHistory.slice(-20);
       if (this.onComplete) this.onComplete();
     }
@@ -971,65 +1416,109 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
 
   /** Send one turn to the configured vendor and return a validated plan. */
   async queryLanguageModel(prompt, imageAttachment = null, options = {}) {
-    const images = this.collectTurnImages(imageAttachment, options);
-    const promptText = prompt || 'Reconstruct the attached image as 3D Minecraft voxels';
-    const buildRequest = overrides => buildAgentRequest({
-      vendor: this.vendor,
-      model: this.model,
-      effort: this.effort,
-      apiKey: this.apiKey,
-      systemPrompt: this.buildSystemPrompt(),
-      history: this.conversationHistory || [],
-      prompt: promptText,
-      images,
-      ...overrides
-    });
-
-    const first = buildRequest({ stream: true });
-    const label = `${this.vendorLabel} (${first.model}${first.effort ? `, effort ${first.effort}` : ''})`;
-    this.updateProgress(15, `Sending context to ${this.vendorLabel}...`);
-    let result = await this.#callVendor(first, label);
-    const usable = r => r.plan && !r.unreadable;
-
-    // A thinking model can spend the whole output budget on reasoning tokens and
-    // never emit its JSON. Retry once with thinking off, so the whole budget goes to the plan.
-    // DeepSeek says "enabled", Claude "adaptive"; either can run out the same way.
-    if (!usable(result) && result.truncated && ['enabled', 'adaptive'].includes(first.body.thinking?.type)) {
-      this.log(`${this.vendorLabel} used its entire output budget on reasoning before returning JSON. Retrying with thinking mode off.`, 'warning');
-      this.updateProgress(25, 'Retrying without thinking mode...');
-      const retry = buildRequest({ thinking: false, maxOutputTokens: first.vendor === 'claude' ? CLAUDE_PLAIN_OUTPUT_TOKENS : 8192, stream: true });
-      const retried = await this.#callVendor(retry, `${this.vendorLabel} (${retry.model}, thinking off)`);
-      if (usable(retried)) {
-        this.updateProgress(35, 'Applying generated plan...');
-        return retried.plan;
-      }
-      result = { ...retried, emptyError: retried.emptyError || result.emptyError };
-    }
-
-    // Still out of room: the request is too big for one reply (a town, a castle complex). Ask for the same thing
-    // as a staged plan, a site and a list of parts, each of which is then written in its own reply.
-    if (!usable(result) && result.truncated) {
-      this.log('That is too much to write in one reply. Asking for it as a plan of separate stages instead.', 'warning');
-      this.updateProgress(30, 'Splitting the build into stages...');
-      const staged = buildRequest({
-        thinking: false,
-        maxOutputTokens: first.vendor === 'claude' ? CLAUDE_PLAIN_OUTPUT_TOKENS : 8192,
-        stream: true,
-        prompt: `${promptText}\n\n[Your previous answer to this ran out of room before the plan was complete. Do not write the whole build in this reply. Return action "build_in_stages": the site size, a short shared theme, and the parts as separate stages (one building, wall run or feature per stage), each of which you will be asked to build on its own.]`
+    const isStandalone = !this.currentTurnRecord;
+    if (isStandalone) {
+      const turnRecord = createAgentTurnRecord({
+        turnId: this.turnId || Date.now(),
+        vendor: this.vendor,
+        vendorLabel: this.vendorLabel,
+        model: this.model,
+        effort: this.effort,
+        prompt: prompt || 'Reconstruct the attached image as 3D Minecraft voxels',
+        offline: false,
+        attachments: imageAttachment ? [{ name: imageAttachment.name, mimeType: imageAttachment.mimeType }] : []
       });
-      const stagedResult = await this.#callVendor(staged, `${this.vendorLabel} (${staged.model}, staged plan)`);
-      if (usable(stagedResult)) {
-        this.updateProgress(35, 'Applying generated plan...');
-        return stagedResult.plan;
-      }
-      result = { ...stagedResult, emptyError: stagedResult.emptyError || result.emptyError };
+      this.currentTurnRecord = turnRecord;
+      this.lastTurnRecord = turnRecord;
     }
 
-    if (result.plan) {
-      this.updateProgress(35, 'Applying generated plan...');
-      return result.plan;
+    try {
+      const images = this.collectTurnImages(imageAttachment, options);
+      const promptText = prompt || 'Reconstruct the attached image as 3D Minecraft voxels';
+      const buildRequest = overrides => buildAgentRequest({
+        vendor: this.vendor,
+        model: this.model,
+        effort: this.effort,
+        apiKey: this.apiKey,
+        systemPrompt: this.buildSystemPrompt(),
+        history: this.conversationHistory || [],
+        prompt: promptText,
+        images,
+        ...overrides
+      });
+
+      const first = buildRequest({ stream: true });
+      const label = `${this.vendorLabel} (${first.model}${first.effort ? `, effort ${first.effort}` : ''})`;
+      this.updateProgress(15, `Sending context to ${this.vendorLabel}...`);
+      let result = await this.#callVendor(first, label);
+      const usable = r => r.plan && !r.unreadable;
+
+      // A thinking model can spend the whole output budget on reasoning tokens and
+      // never emit its JSON. Retry once with thinking off, so the whole budget goes to the plan.
+      // DeepSeek says "enabled", Claude "adaptive"; either can run out the same way.
+      if (!usable(result) && result.truncated && ['enabled', 'adaptive'].includes(first.body.thinking?.type)) {
+        this.log(`${this.vendorLabel} used its entire output budget on reasoning before returning JSON. Retrying with thinking mode off.`, 'warning');
+        this.updateProgress(25, 'Retrying without thinking mode...');
+        const retry = buildRequest({ thinking: false, maxOutputTokens: first.vendor === 'claude' ? CLAUDE_PLAIN_OUTPUT_TOKENS : 8192, stream: true });
+        const retried = await this.#callVendor(retry, `${this.vendorLabel} (${retry.model}, thinking off)`);
+        if (usable(retried)) {
+          this.updateProgress(35, 'Applying generated plan...');
+          if (isStandalone && this.currentTurnRecord) {
+            this.currentTurnRecord.finalizeExecution({ status: 'completed', explanation: retried.plan.explanation });
+            await saveAgentTurn(this.currentTurnRecord);
+            this.agentHistory.push(this.currentTurnRecord);
+          }
+          return retried.plan;
+        }
+        result = { ...retried, emptyError: retried.emptyError || result.emptyError };
+      }
+
+      // Still out of room: the request is too big for one reply (a town, a castle complex). Ask for the same thing
+      // as a staged plan, a site and a list of parts, each of which is then written in its own reply.
+      if (!usable(result) && result.truncated) {
+        this.log('That is too much to write in one reply. Asking for it as a plan of separate stages instead.', 'warning');
+        this.updateProgress(30, 'Splitting the build into stages...');
+        const staged = buildRequest({
+          thinking: false,
+          maxOutputTokens: first.vendor === 'claude' ? CLAUDE_PLAIN_OUTPUT_TOKENS : 8192,
+          stream: true,
+          prompt: `${promptText}\n\n[Your previous answer to this ran out of room before the plan was complete. Do not write the whole build in this reply. Return action "build_in_stages": the site size, a short shared theme, and the parts as separate stages (one building, wall run or feature per stage), each of which you will be asked to build on its own.]`
+        });
+        const stagedResult = await this.#callVendor(staged, `${this.vendorLabel} (${staged.model}, staged plan)`);
+        if (usable(stagedResult)) {
+          this.updateProgress(35, 'Applying generated plan...');
+          if (isStandalone && this.currentTurnRecord) {
+            this.currentTurnRecord.finalizeExecution({ status: 'completed', explanation: stagedResult.plan.explanation });
+            await saveAgentTurn(this.currentTurnRecord);
+            this.agentHistory.push(this.currentTurnRecord);
+          }
+          return stagedResult.plan;
+        }
+        result = { ...stagedResult, emptyError: stagedResult.emptyError || result.emptyError };
+      }
+
+      if (result.plan) {
+        this.updateProgress(35, 'Applying generated plan...');
+        if (isStandalone && this.currentTurnRecord) {
+          this.currentTurnRecord.finalizeExecution({ status: 'completed', explanation: result.plan.explanation });
+          await saveAgentTurn(this.currentTurnRecord);
+          this.agentHistory.push(this.currentTurnRecord);
+        }
+        return result.plan;
+      }
+      throw new Error(result.emptyError);
+    } catch (err) {
+      if (isStandalone && this.currentTurnRecord) {
+        this.currentTurnRecord.finalizeExecution({ status: 'failed', error: err });
+        await saveAgentTurn(this.currentTurnRecord);
+        this.agentHistory.push(this.currentTurnRecord);
+      }
+      throw err;
+    } finally {
+      if (isStandalone) {
+        this.currentTurnRecord = null;
+      }
     }
-    throw new Error(result.emptyError);
   }
 
   /**
@@ -1039,13 +1528,23 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
    * the abort fires on idleness rather than total duration so a long but busy
    * generation is never cut off.
    */
-  async #callVendor(request) {
+  async #callVendor(request, label = '') {
     const startedAt = Date.now();
     this.#requestStartedAt = startedAt;
     this.#requestVendor = request.vendor;
     this.#streamStartedAt = null;
     this.lastRequestInfo = { vendor: request.vendor, model: request.model, effort: request.effort, url: request.url };
     if (this.thinkingEnabled && this.onThought) this.onThought({ phase: 'start' });
+
+    // Snapshot full outgoing request into current turn record
+    this.currentTurnRecord?.recordRequestAttempt({
+      url: request.url,
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+      stream: request.stream,
+      label
+    });
 
     const controller = new AbortController();
     const idleTimeoutMs = this.idleTimeoutMs || IDLE_TIMEOUT_MS;
@@ -1112,7 +1611,9 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         const reason = controller.signal.aborted
           ? `${this.vendorLabel} sent nothing for ${Math.round((this.firstTokenTimeoutMs || FIRST_TOKEN_TIMEOUT_MS) / 1000)}s (no response and no stream data)`
           : err.message;
-        throw new Error(`Request to ${this.vendorLabel} failed after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${reason}. Nothing was executed.`);
+        const netErr = new Error(`Request to ${this.vendorLabel} failed after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${reason}. Nothing was executed.`);
+        this.currentTurnRecord?.recordError(netErr, 'network');
+        throw netErr;
       }
 
       // A Claude model with a lower output ceiling than the budget says what its ceiling is
@@ -1123,6 +1624,14 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         if (ceiling && Number(ceiling[1]) > 0 && Number(ceiling[1]) < request.body.max_tokens) {
           request.body = { ...request.body, max_tokens: Number(ceiling[1]) };
           this.log(`${this.vendorLabel} (${request.model}) writes at most ${ceiling[1]} tokens per reply; asking again within that.`, 'warning');
+          this.currentTurnRecord?.recordRequestAttempt({
+            url: request.url,
+            method: 'POST',
+            headers: request.headers,
+            body: request.body,
+            stream: request.stream,
+            label: `${this.vendorLabel} (ceiling retry max_tokens=${request.body.max_tokens})`
+          });
           res = await fetch(request.url, {
             method: 'POST',
             headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
@@ -1143,6 +1652,14 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           request.body = plain;
           request.effort = '';
           this.log(`${this.vendorLabel} (${request.model}) did not accept the thinking settings; asking again without them.`, 'warning');
+          this.currentTurnRecord?.recordRequestAttempt({
+            url: request.url,
+            method: 'POST',
+            headers: request.headers,
+            body: request.body,
+            stream: request.stream,
+            label: `${this.vendorLabel} (thinking off retry)`
+          });
           res = await fetch(request.url, {
             method: 'POST',
             headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
@@ -1166,6 +1683,14 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
             if (request.body.model) request.body.model = replacement;
             if (request.vendor === 'gemini') request.url = request.url.replace(encodeURIComponent(retired), encodeURIComponent(replacement));
             this.lastRequestInfo = { ...this.lastRequestInfo, model: replacement, url: request.url };
+            this.currentTurnRecord?.recordRequestAttempt({
+              url: request.url,
+              method: 'POST',
+              headers: request.headers,
+              body: request.body,
+              stream: request.stream,
+              label: `${this.vendorLabel} (model replacement retry: ${replacement})`
+            });
             res = await fetch(request.url, {
               method: 'POST',
               headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
@@ -1176,17 +1701,40 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         }
       }
 
-      if (!res.ok) throw new Error(await this.#httpError(res));
+      if (!res.ok) {
+        const httpErrMsg = await this.#httpError(res);
+        this.currentTurnRecord?.recordResponse({
+          status: res.status,
+          statusText: res.statusText,
+          rawText: httpErrMsg
+        });
+        const httpErr = new Error(httpErrMsg);
+        httpErr.status = res.status;
+        this.currentTurnRecord?.recordError(httpErr, 'http');
+        throw httpErr;
+      }
 
       const contentType = res.headers?.get?.('content-type') || '';
       const streamed = request.stream && typeof res.body?.getReader === 'function' && contentType.includes('event-stream');
       const collected = streamed
         ? await this.#consumeStream(res, controller, armIdleTimeout)
         : await this.#consumeJson(res);
+
+      this.currentTurnRecord?.recordResponse({
+        status: res.status,
+        statusText: res.statusText,
+        rawText: collected.text,
+        reasoning: collected.reasoning,
+        finishReason: collected.finishReason,
+        usage: collected.usage
+      });
+
       return this.#finishVendorCall(collected, request, startedAt);
     } catch (err) {
       if (controller.signal.aborted && /idle|stream|stall/i.test(String(err?.message || ''))) {
-        throw new Error(`${this.vendorLabel} stopped sending data for ${idleTimeoutMs / 1000}s mid-response (incomplete stream). Nothing was executed.`);
+        const idleErr = new Error(`${this.vendorLabel} stopped sending data for ${idleTimeoutMs / 1000}s mid-response (incomplete stream). Nothing was executed.`);
+        this.currentTurnRecord?.recordError(idleErr, 'network');
+        throw idleErr;
       }
       throw err;
     } finally {
@@ -1330,11 +1878,14 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           : truncated
             ? `it hit the ${budget}-token output limit while still reasoning`
             : `finish reason: ${finishReason || 'unknown'}`;
+      const emptyErr = new Error(`No JSON plan was returned by ${this.vendorLabel}: ${detail}. Nothing was executed.`);
+      this.currentTurnRecord?.recordPlan({ parsedPlan: null, validatedPlan: null, unreadable: true, error: emptyErr.message });
+      this.currentTurnRecord?.recordError(emptyErr, 'parse');
       return {
         plan: null,
         truncated: truncated || idleAborted,
         usage,
-        emptyError: new Error(`No JSON plan was returned by ${this.vendorLabel}: ${detail}. Nothing was executed.`)
+        emptyError: emptyErr
       };
     }
 
@@ -1351,8 +1902,11 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         action: 'message',
         explanation: `${this.vendorLabel} sent a reply that could not be read as a plan (${kind}). Try rephrasing, or ask for something smaller.`
       };
+      const validatedApology = validatePlan(plan);
+      this.currentTurnRecord?.recordPlan({ parsedPlan: null, validatedPlan: validatedApology, unreadable: true, error: detail });
+      this.currentTurnRecord?.recordError(new Error(detail), 'parse');
       // `unreadable` lets the caller retry or stage a cut-off reply instead of showing this apology as the answer.
-      return { plan: validatePlan(plan), truncated, unreadable: true, usage, emptyError: null };
+      return { plan: validatedApology, truncated, unreadable: true, usage, emptyError: null };
     }
 
     // A reply that parsed but cannot become a valid plan is rejected, never turned
@@ -1369,6 +1923,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       if (outcome.repaired) {
         this.log('Recovered an incomplete JSON reply by closing the truncated braces; please double-check the result.', 'warning');
       }
+      this.currentTurnRecord?.recordPlan({ parsedPlan: outcome.plan, validatedPlan: validated, unreadable: false, error: null });
       return { plan: validated, truncated: false, usage, emptyError: null };
     } catch (planError) {
       const shape = describePlanShape(outcome.plan);
@@ -1378,18 +1933,23 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       if (!missingAction) {
         // Structurally invalid: reject it so nothing is silently "succeeded".
         this.log(`The reply from ${this.vendorLabel} could not be used as a plan (${planError.message}). It arrived as ${shape}.`, 'error');
+        const invalidErr = new Error(`The reply from ${this.vendorLabel} was not a usable plan: ${planError.message} (arrived as ${shape}). Nothing was executed.`);
+        this.currentTurnRecord?.recordPlan({ parsedPlan: outcome.plan, validatedPlan: null, unreadable: false, error: planError.message });
+        this.currentTurnRecord?.recordError(invalidErr, 'validation');
         return {
           plan: null,
           truncated: false,
           usage,
-          emptyError: new Error(`The reply from ${this.vendorLabel} was not a usable plan: ${planError.message} (arrived as ${shape}). Nothing was executed.`)
+          emptyError: invalidErr
         };
       }
 
       // Action-less but with text: treat it as the message it is.
       const message = { action: 'message', explanation: String(outcome.plan.explanation).trim() };
       this.log(`Replied without an action field; showing it as a message. It arrived as ${shape}.`, 'info');
-      return { plan: validatePlan(message), truncated: false, usage, emptyError: null };
+      const validatedMsg = validatePlan(message);
+      this.currentTurnRecord?.recordPlan({ parsedPlan: outcome.plan, validatedPlan: validatedMsg, unreadable: false, error: null });
+      return { plan: validatedMsg, truncated: false, usage, emptyError: null };
     }
   }
 
@@ -1791,11 +2351,45 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     });
   }
 
+  // --- Offline Command & Vocabulary Helpers ---
+
+  // Helper: parse natural language quantities
+  static #parseCount(text, defaultCount = 1) {
+    if (text.includes('a few') || text.includes('few')) return 3;
+    if (text.includes('a couple') || text.includes('couple')) return 2;
+    if (text.includes('several')) return 4;
+    if (text.includes('some')) return 3;
+    if (text.includes('a horde') || text.includes('an army') || text.includes('many')) return 6;
+    if (text.includes('one') || text.includes(' a ') || text.startsWith('a ')) return 1;
+    if (text.includes('two')) return 2;
+    if (text.includes('three')) return 3;
+    if (text.includes('four')) return 4;
+    if (text.includes('five')) return 5;
+    if (text.includes('six')) return 6;
+    if (text.includes('seven')) return 7;
+    if (text.includes('eight')) return 8;
+    if (text.includes('nine')) return 9;
+    if (text.includes('ten')) return 10;
+    const numMatch = text.match(/\b(\d+)\b/);
+    if (numMatch) return Math.min(100, parseInt(numMatch[1], 10));
+    return defaultCount;
+  }
+
   // --- High-Performance Built-in Semantic Planner ---
   parseIntentLocally(prompt) {
-    const p = prompt.toLowerCase().trim();
+    const rawPrompt = String(prompt || '').trim();
+    const p = rawPrompt.toLowerCase();
 
-    // Handle removal before keywords such as "house", "water", or "stairs" can trigger a build.
+    // 1. HELP / COMMANDS
+    if (p === 'help' || p === '/help' || p === 'commands' || p === '/commands') {
+      return {
+        action: 'command',
+        command: '/help',
+        explanation: 'Listing available commands'
+      };
+    }
+
+    // 2. DEMOLITION / REMOVAL (Checked early so keywords don't trigger builds)
     if (/\b(destroy|demolish|delete|remove|tear down|knock down|erase)\b/.test(p)) {
       const subject = p.replace(/^.*?\b(destroy|demolish|delete|remove|tear down|knock down|erase)\b\s*/, '').replace(/[.!?]+$/, '');
       const target = this.resolveBuilding(subject);
@@ -1810,27 +2404,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       return { action: 'message', explanation: `Add a ${this.vendorLabel} API key in API Key settings for free-form edits to existing buildings.` };
     }
 
-    // Helper: parse natural language quantities
-    const parseCount = (text, defaultCount = 1) => {
-      if (text.includes('a few') || text.includes('few')) return 3;
-      if (text.includes('a couple') || text.includes('couple')) return 2;
-      if (text.includes('several')) return 4;
-      if (text.includes('some')) return 3;
-      if (text.includes('a horde') || text.includes('an army') || text.includes('many')) return 6;
-      if (text.includes('one') || text.includes(' a ') || text.startsWith('a ')) return 1;
-      if (text.includes('two')) return 2;
-      if (text.includes('three')) return 3;
-      if (text.includes('four')) return 4;
-      if (text.includes('five')) return 5;
-      if (text.includes('six')) return 6;
-      if (text.includes('seven')) return 7;
-      if (text.includes('eight')) return 8;
-      if (text.includes('nine')) return 9;
-      if (text.includes('ten')) return 10;
-      const numMatch = text.match(/\b(\d+)\b/);
-      if (numMatch) return Math.min(30, parseInt(numMatch[1], 10));
-      return defaultCount;
-    };
+    const parseCount = (text, defaultCount = 1) => WorldAgent.#parseCount(text, defaultCount);
 
     // Location detection: Check if user specified "in the house", "in the castle", etc.
     let targetLocation = 'near_player';
@@ -1865,8 +2439,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       targetLocation = `inside_${referencedBuilding.type}`;
     }
 
-    // 0. PAINTINGS: "decorate the house with some paintings", "hang a painting there", "put art on the north wall".
-    // Checked before mobs, so "a skeleton painting" is a painting rather than a skeleton.
+    // 3. PAINTINGS
     if (/\bpaintings?\b|\bartwork|\bpictures?\b|\bart\b/.test(p) && /\b(decorat|hang|put|add|place|cover|fill|some|more)\w*/.test(p)) {
       const walls = ['north', 'south', 'east', 'west'].filter(side => new RegExp(`\\b${side}\\b`).test(p));
       const there = /\b(there|that wall|this wall|where i(?:'m| am) looking)\b/.test(p);
@@ -1888,46 +2461,228 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
     }
 
-    // 1. MOB PLACEMENT / SUMMONING INTENT
-    // Check if any mob name appears:
-    const mobKeywords = [
-      { key: 'villager', type: 'villager' },
-      { key: 'iron golem', type: 'iron_golem' },
-      { key: 'golem', type: 'iron_golem' },
-      { key: 'pillager', type: 'pillager' },
-      { key: 'zombie', type: 'zombie' },
-      { key: 'pig', type: 'pig' },
-      { key: 'cow', type: 'cow' },
-      { key: 'sheep', type: 'sheep' },
-      { key: 'creeper', type: 'creeper' },
-      { key: 'skeleton', type: 'skeleton' },
-      { key: 'salmon', type: 'salmon' },
-      { key: 'fishi', type: 'salmon' },
-      { key: 'fishes', type: 'salmon' },
-      { key: 'fish', type: 'salmon' },
-      { key: 'dolphin', type: 'dolphin' },
-      { key: 'octopus', type: 'octopus' },
-      { key: 'squid', type: 'squid' },
-      { key: 'axolotl', type: 'axolotl' }
-    ];
+    // 4. WEATHER
+    if (
+      p.startsWith('/weather') || p.startsWith('weather ') || p === 'weather' ||
+      p.includes('rain') || p.includes('storm') || p.includes('thunder') || p.includes('downpour') ||
+      p.includes('clear sky') || p.includes('clear weather') || p.includes('sunny') ||
+      (p.includes('clear') && (p.includes('sky') || p.includes('weather') || p.includes('sun') || p.includes('make it') || p === 'clear' || p === '/clear weather'))
+    ) {
+      let weatherType = 'clear';
+      const isThunder = p.includes('thunder') || p.includes('lightning') || p.includes('storm');
+      const isStop = p.includes('stop') || p.includes('clear') || p.includes('no rain') || p.includes('sun') || p.includes('turn off');
+      if (isStop) weatherType = 'clear';
+      else if (isThunder) weatherType = 'thunder';
+      else if (p.includes('rain') || p.includes('downpour')) weatherType = 'rain';
 
-    const foundMobs = [];
-    for (const mk of mobKeywords) {
-      const singular = mk.key;
-      const plural = singular + 's';
-      const esPlural = singular + 'es';
-      if (p.includes(singular) || p.includes(plural) || p.includes(esPlural)) {
-        if (foundMobs.some(m => m.type === mk.type)) continue;
+      let duration = null;
+      const durMatch = p.match(/\b(\d+)\s*(s|seconds?|mins?|minutes?|ticks?)?\b/);
+      if (durMatch) {
+        let val = parseInt(durMatch[1], 10);
+        const unit = durMatch[2] || '';
+        if (unit.startsWith('min')) val *= 60;
+        else if (unit.startsWith('tick')) val = Math.max(1, Math.floor(val / 20));
+        duration = val;
+      }
+      return {
+        action: 'weather',
+        weather: weatherType,
+        ...(duration ? { duration } : {}),
+        explanation: weatherType === 'clear' ? 'Setting weather to clear sunshine' : (weatherType === 'thunder' ? 'Summoning thunderstorm with lightning' : 'Summoning rain')
+      };
+    }
 
-        const count = parseCount(p, (mk.type === 'salmon' || mk.type === 'axolotl') ? 4 : 2);
-        foundMobs.push({ type: mk.type, count });
+    // 5. TIME OF DAY
+    if (p.startsWith('/time') || p.startsWith('time ') || p === 'time' || p.includes('night') || p.includes('sunset') || p.includes('sunrise') || p.includes('noon') || p.includes('midnight') || (p.includes('day') && !p.includes('today') && !p.includes('yesterday'))) {
+      if (p.includes('add') || p.includes('advance')) {
+        const addMatch = p.match(/\b(\d+)\b/);
+        const addVal = addMatch ? parseInt(addMatch[1], 10) : 1000;
+        return { action: 'time', time: 'add', add: addVal, explanation: `Advancing world time by ${addVal} ticks` };
+      }
+      const tickMatch = p.match(/\b(set\s+)?(\d{1,6})\b/);
+      if (tickMatch && tickMatch[2]) {
+        const ticks = parseInt(tickMatch[2], 10);
+        return { action: 'time', time: 'set', ticks, explanation: `Setting world time to ${ticks} ticks` };
+      }
+      if (p.includes('night') || p.includes('midnight') || p.includes('dark')) {
+        return { action: 'time', time: 'night', ticks: 18000, explanation: 'Setting time to midnight (18000)' };
+      } else if (p.includes('sunset') || p.includes('dusk')) {
+        return { action: 'time', time: 'sunset', ticks: 12000, explanation: 'Setting time to sunset (12000)' };
+      } else if (p.includes('sunrise') || p.includes('dawn')) {
+        return { action: 'time', time: 'sunrise', ticks: 0, explanation: 'Setting time to sunrise (0)' };
+      } else if (p.includes('noon')) {
+        return { action: 'time', time: 'noon', ticks: 6000, explanation: 'Setting time to noon (6000)' };
+      } else {
+        return { action: 'time', time: 'day', ticks: 6000, explanation: 'Setting time to daytime (6000)' };
       }
     }
 
+    // 6. GAME MODE
+    if (p.startsWith('/gamemode') || p.startsWith('gamemode ') || p.includes('creative') || p.includes('survival') || p.includes('spectator') || p.includes('adventure')) {
+      let mode = 'survival';
+      if (p.includes('creative') || p.includes('mode 1') || p.includes('mode c')) mode = 'creative';
+      else if (p.includes('spectator') || p.includes('mode 3') || p.includes('mode sp')) mode = 'spectator';
+      else if (p.includes('adventure') || p.includes('mode 2') || p.includes('mode a')) mode = 'adventure';
+      else if (p.includes('survival') || p.includes('mode 0') || p.includes('mode s')) mode = 'survival';
+      return { action: 'gamemode', mode, explanation: `Switching to ${mode.toUpperCase()} mode` };
+    }
+
+    // 7. DIFFICULTY
+    if (p.startsWith('/difficulty') || p.startsWith('difficulty ') || (p.includes('difficulty') && (p.includes('peaceful') || p.includes('easy') || p.includes('normal') || p.includes('hard')))) {
+      let diff = 'normal';
+      if (p.includes('peaceful') || p.endsWith(' p') || p.endsWith(' 0')) diff = 'peaceful';
+      else if (p.includes('easy') || p.endsWith(' e') || p.endsWith(' 1')) diff = 'easy';
+      else if (p.includes('hard') || p.endsWith(' h') || p.endsWith(' 3')) diff = 'hard';
+      else if (p.includes('normal') || p.endsWith(' n') || p.endsWith(' 2')) diff = 'normal';
+      return { action: 'difficulty', difficulty: diff, explanation: `Setting difficulty to ${diff.toUpperCase()}` };
+    }
+
+    // 8. TELEPORT
+    if (p.startsWith('/tp') || p.startsWith('tp ') || p.startsWith('/teleport') || p.startsWith('teleport ') || p.includes('teleport to') || p.includes('tp to')) {
+      const rest = p.replace(/^.*?\b(tp|teleport)(\s+to)?\s+/, '').trim();
+      if (rest === 'spawn' || rest === 'world spawn' || rest === 'home') {
+        return { action: 'teleport', target: 'spawn', explanation: 'Teleporting to world spawn' };
+      }
+      if (rest === 'cave' || rest.startsWith('cave')) {
+        return { action: 'teleport', cave: true, explanation: 'Teleporting to nearest cave entrance' };
+      }
+      const coords = rest.match(/^(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)$/);
+      if (coords) {
+        return {
+          action: 'teleport',
+          coords: { x: parseFloat(coords[1]), y: parseFloat(coords[2]), z: parseFloat(coords[3]) },
+          explanation: `Teleporting to coordinates (${coords[1]}, ${coords[2]}, ${coords[3]})`
+        };
+      }
+      const cleanStruct = rest.replace(/^(the|a|an|nearest)\s+/, '').replace(/\s+/g, '_');
+      return {
+        action: 'teleport',
+        structure: cleanStruct,
+        explanation: `Teleporting towards nearest ${cleanStruct}`
+      };
+    }
+
+    // 9. KILL ENTITIES
+    if (p.startsWith('/kill') || p.startsWith('kill ') || p.includes('kill all') || p.includes('kill mobs') || p.includes('clear monsters') || p.includes('clear mobs') || p.includes('slay ')) {
+      let target = 'all';
+      if (p.includes('@s') || p.includes('@p') || p.includes('player') || p.includes('myself') || p.endsWith(' me') || p === '/kill @s' || p === '/kill @p') target = 'player';
+      else if (p.includes('zombie')) target = 'zombie';
+      else if (p.includes('skeleton')) target = 'skeleton';
+      else if (p.includes('creeper')) target = 'creeper';
+      else if (p.includes('spider')) target = 'spider';
+      else if (p.includes('hostile') || p.includes('monsters') || p.includes('enemies')) target = 'hostile';
+      else if (p.includes('@e[type=')) {
+        const m = p.match(/@e\[type=([a-z_]+)\]/);
+        if (m) target = m[1];
+      }
+      return { action: 'kill', target, explanation: `Eliminating ${target} entities` };
+    }
+
+    // 10. STATUS EFFECTS
+    if (p.startsWith('/effect') || (p.includes('effect') && (p.includes('give') || p.includes('clear')))) {
+      const isClear = p.includes('clear') || p.includes('remove');
+      if (isClear) {
+        let eff = null;
+        for (const key of Object.keys(EFFECTS)) {
+          if (p.includes(key) || p.includes(key.replace(/_/g, ' '))) { eff = key; break; }
+        }
+        return { action: 'effect', mode: 'clear', operation: 'clear', effect: eff, explanation: eff ? `Clearing effect ${eff}` : 'Clearing all effects' };
+      } else {
+        let eff = 'speed';
+        for (const key of Object.keys(EFFECTS)) {
+          if (p.includes(key) || p.includes(key.replace(/_/g, ' '))) { eff = key; break; }
+        }
+        const numMatches = p.match(/\b(\d+)\b/g);
+        let seconds = 30;
+        let amplifier = 0;
+        if (numMatches && numMatches.length > 0) {
+          seconds = parseInt(numMatches[0], 10);
+          if (numMatches.length > 1) amplifier = parseInt(numMatches[1], 10);
+        }
+        return { action: 'effect', mode: 'give', operation: 'give', effect: eff, seconds, amplifier, explanation: `Applying ${eff} effect for ${seconds}s` };
+      }
+    }
+
+    // 11. HEAL / FEED
+    if (p === 'heal' || p === '/heal' || p.includes('heal me') || p.includes('restore health') || p.includes('feed me') || p.includes('fill hunger')) {
+      return { action: 'heal', explanation: 'Restoring full health and hunger' };
+    }
+
+    // 12. CLEAR CHAT / INVENTORY
+    if (p === '/clear' || p === 'clear inventory' || p.startsWith('/clear @p') || p.startsWith('/clear @s')) {
+      return { action: 'command', command: '/clear', explanation: 'Clearing player inventory' };
+    }
+    if (p === '/clearchat' || p === 'clear chat') {
+      return { action: 'command', command: '/clearchat', explanation: 'Clearing chat window' };
+    }
+
+    // 13. GIVE ITEMS
+    if (p.startsWith('/give') || p.startsWith('give ') || p.startsWith('give me ') || p.includes('give') || p.includes('grant') || p.includes('get item') || p.includes('equipment') || p.includes('tools') || p.includes('armor') || p.includes('weapon') || p.includes('food')) {
+      const parsedGive = parseGiveItems(p);
+      if (parsedGive && parsedGive.length > 0) {
+        return {
+          action: 'give',
+          giveItems: parsedGive,
+          explanation: `Granting items to player: ${parsedGive.map(i => `${i.count}x ${i.name}`).join(', ')}`
+        };
+      }
+    }
+
+    // 14. MOB PLACEMENT / SUMMONING INTENT
+    const isSummonCmd = p.startsWith('/summon') || p.startsWith('summon ') || p.startsWith('/spawn') || p.startsWith('spawn ');
+    const isSpawnOrSummon = isSummonCmd || p.includes('spawn mob') || p.includes('summon mob') || p.includes('spawn ') || p.includes('summon ');
+    const foundMobs = [];
+
+    // Check for explicit coordinates in /summon e.g. "/summon pig 10 65 20"
+    let explicitCoords = null;
+    if (isSummonCmd) {
+      const coordMatch = p.match(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)$/);
+      if (coordMatch) {
+        explicitCoords = { x: parseFloat(coordMatch[1]), y: parseFloat(coordMatch[2]), z: parseFloat(coordMatch[3]) };
+      }
+      if (p.includes('lightning')) {
+        foundMobs.push({ type: 'lightning_bolt', count: 1, ...(explicitCoords ? { coords: explicitCoords } : {}) });
+      }
+    }
+
+    for (const mk of MOB_KEYWORDS) {
+      const singular = mk.key;
+      const plural = singular + 's';
+      const esPlural = singular + 'es';
+      const rx = new RegExp(`\\b(${singular}|${plural}|${esPlural})\\b`, 'i');
+      if (rx.test(p)) {
+        if (foundMobs.some(m => m.type === mk.type)) continue;
+        const count = parseCount(p, (mk.type === 'salmon' || mk.type === 'axolotl') ? 4 : 1);
+        foundMobs.push({ type: mk.type, count, ...(explicitCoords ? { coords: explicitCoords } : {}) });
+      }
+    }
+
+    // Explicit build verb check
+    const isExplicitBuild = (
+      p.startsWith('build') || p.startsWith('construct') || p.startsWith('erect') ||
+      p.includes('build a ') || p.includes('construct a ') || p.includes('make a house') ||
+      p.includes('make a castle') || p.includes('make a tower')
+    ) && !p.includes('villager') && !p.includes('golem');
+
+    if ((foundMobs.length > 0 || isSpawnOrSummon) && !isExplicitBuild) {
+      const mobsToUse = foundMobs.length > 0 ? foundMobs : [{ type: 'cow', count: 1, ...(explicitCoords ? { coords: explicitCoords } : {}) }];
+      const target = referencedBuilding || (targetLocation.startsWith('inside') ? this.lastBuiltBuilding : null);
+      const locDesc = target ? ` inside the ${target.name || target.type}` : (targetLocation !== 'near_player' ? ` ${targetLocation.replace('_', ' ')}` : '');
+      return {
+        action: 'summon',
+        mobs: mobsToUse,
+        targetLocation: target ? `inside_${target.type}` : targetLocation,
+        targetBuilding: target,
+        explanation: `Placing ${mobsToUse.map(m => `${m.count} ${m.type}`).join(', ')}${locDesc}`
+      };
+    }
+
+    // 15. DIRECT SLASH COMMAND FALLBACK
+    if (p.startsWith('/')) {
+      return { action: 'command', command: rawPrompt, explanation: `Running command: ${rawPrompt}` };
+    }
+
     // --- CONTEXTUAL BUILDING ATTACHMENT: STAIRS / LADDER / WALKWAY ---
-    // E.g. "build an stair for the aquarium so that I can walk to the top of it"
-    // E.g. "build stairs to the top of the house"
-    // E.g. "add a ladder to the aquarium"
     const hasStairKeyword = (
       p.includes('stair') || p.includes('stairs') || p.includes('staircase') ||
       p.includes('stairway') || p.includes('steps') || p.includes('step') ||
@@ -1966,9 +2721,6 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     }
 
     // --- COMPOUND / MULTI-ACTION DETECTION ---
-    // E.g. "create a pond and put some fish in it"
-    // E.g. "build an aquarium and fill water and put some fish in it"
-    // E.g. "build a house and place villagers inside"
     const hasPondIntent = p.includes('pond') || p.includes('lake') || p.includes('lagoon') || p.includes('water basin') || p.includes('basin');
     const hasPoolIntent = p.includes('pool') || p.includes('swimming pool') || p.includes('fountain') || p.includes('spring');
     const hasAquariumIntent = p.includes('aquarium') || p.includes('fish tank') || p.includes('fishtank');
@@ -1976,7 +2728,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
     const hasWaterIntent = p.includes('water') || p.includes('fill water') || p.includes('fill with water') || p.includes('put water') || p.includes('add water') || hasWaterFeature;
     const hasBuildIntent = p.includes('build') || p.includes('construct') || p.includes('make a') || p.includes('create a') || p.includes('craft a') || p.includes('erect') || hasWaterFeature;
 
-    const isAquaticMob = (t) => ['salmon', 'cod', 'dolphin', 'octopus', 'squid', 'glow_squid', 'guardian', 'elder_guardian', 'drowned', 'axolotl'].includes(t);
+    const isAquaticMob = (t) => ['salmon', 'cod', 'pufferfish', 'tropical_fish', 'dolphin', 'octopus', 'squid', 'glow_squid', 'guardian', 'elder_guardian', 'drowned', 'axolotl', 'tadpole'].includes(t);
     const hasAquaticMobInList = foundMobs.some(m => isAquaticMob(m.type)) || p.includes('fish') || p.includes('fishi') || p.includes('creature') || p.includes('salmon') || p.includes('cod') || p.includes('axolotl');
 
     if (hasBuildIntent || hasWaterFeature) {
@@ -1994,9 +2746,8 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         else if (p.includes('bridge')) buildingType = 'bridge';
         else if (p.includes('bunker')) buildingType = 'bunker';
         else if (p.includes('house') || p.includes('cottage') || p.includes('cabin') || p.includes('hut')) buildingType = 'house';
-        else if (hasAquaticMobInList) buildingType = 'pond'; // Default to pond if user asked for aquatic creatures!
+        else if (hasAquaticMobInList) buildingType = 'pond';
 
-        // Auto-infer fish if user mentioned water feature and asked to put something or fish in it
         let mobsToSpawn = [...foundMobs];
         if (mobsToSpawn.length === 0 && (p.includes('fish') || p.includes('fishi') || p.includes('creature') || buildingType === 'aquarium' || buildingType === 'pond')) {
           mobsToSpawn.push({ type: 'salmon', count: 4 });
@@ -2036,103 +2787,8 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
     }
 
-    // Explicit build verb check
-    const isExplicitBuild = (
-      p.startsWith('build') || p.startsWith('construct') || p.startsWith('erect') ||
-      p.includes('build a ') || p.includes('construct a ') || p.includes('make a house') ||
-      p.includes('make a castle') || p.includes('make a tower')
-    ) && !p.includes('villager') && !p.includes('golem');
-
-    if (foundMobs.length > 0 && !isExplicitBuild) {
-      const target = referencedBuilding || (targetLocation.startsWith('inside') ? this.lastBuiltBuilding : null);
-      const locDesc = target ? ` inside the ${target.name || target.type}` : (targetLocation !== 'near_player' ? ` ${targetLocation.replace('_', ' ')}` : '');
-      return {
-        action: 'summon',
-        mobs: foundMobs,
-        targetLocation: target ? `inside_${target.type}` : targetLocation,
-        targetBuilding: target,
-        explanation: `Placing ${foundMobs.map(m => `${m.count} ${m.type}`).join(', ')}${locDesc}`
-      };
-    }
-
-    // 2. WEATHER REQUESTS
-    if (p.includes('rain') || p.includes('storm') || p.includes('thunder') || p.includes('downpour') || p.includes('precipitation')) {
-      const isThunder = p.includes('thunder') || p.includes('lightning') || p.includes('storm');
-      const isStop = p.includes('stop') || p.includes('clear') || p.includes('no rain') || p.includes('sun') || p.includes('turn off');
-      return {
-        action: 'weather',
-        weather: isStop ? 'clear' : (isThunder ? 'thunder' : 'rain'),
-        explanation: isStop ? 'Clearing weather to bright sunshine' : (isThunder ? 'Summoning thunderstorm with lightning' : 'Summoning rain')
-      };
-    }
-
-    if (p.includes('clear weather') || p.includes('sunny') || p.includes('clear sky')) {
-      return {
-        action: 'weather',
-        weather: 'clear',
-        explanation: 'Setting weather to clear skies'
-      };
-    }
-
-    // 3. TIME OF DAY
-    if (p.includes('time') || p.includes('night') || p.includes('sunset') || p.includes('sunrise') || p.includes('noon') || p.includes('midnight') || (p.includes('day') && !p.includes('today'))) {
-      if (p.includes('night') || p.includes('midnight') || p.includes('dark')) {
-        return { action: 'time', time: 'night', explanation: 'Setting time to midnight (18000)' };
-      } else if (p.includes('sunset') || p.includes('dusk')) {
-        return { action: 'time', time: 'sunset', explanation: 'Setting time to sunset (12000)' };
-      } else if (p.includes('sunrise') || p.includes('dawn')) {
-        return { action: 'time', time: 'sunrise', explanation: 'Setting time to sunrise (0)' };
-      } else if (p.includes('day') || p.includes('noon') || p.includes('morning')) {
-        return { action: 'time', time: 'day', explanation: 'Setting time to daytime (6000)' };
-      }
-    }
-
-    // 4. GIVE ITEMS / INVENTORY
-    if (p.includes('give') || p.includes('get item') || p.includes('equipment') || p.includes('diamond') || p.includes('sword') || p.includes('tnt')) {
-      const giveItems = [];
-      if (p.includes('diamond')) {
-        giveItems.push({ name: 'diamond', count: 64, isBlock: false });
-        giveItems.push({ name: 'diamond_sword', count: 1, isBlock: false });
-        giveItems.push({ name: 'diamond_pickaxe', count: 1, isBlock: false });
-      }
-      if (p.includes('tnt')) {
-        giveItems.push({ name: 'tnt', count: 64, isBlock: true });
-      }
-      if (p.includes('gold')) {
-        giveItems.push({ name: 'gold_ingot', count: 32, isBlock: false });
-      }
-      if (p.includes('iron')) {
-        giveItems.push({ name: 'iron_ingot', count: 32, isBlock: false });
-      }
-      if (p.includes('wood') || p.includes('plank')) {
-        giveItems.push({ name: 'oak_planks', count: 64, isBlock: true });
-      }
-      if (p.includes('torch')) {
-        giveItems.push({ name: 'torch', count: 64, isBlock: true });
-      }
-
-      if (giveItems.length > 0) {
-        return {
-          action: 'give',
-          giveItems,
-          explanation: `Granting items to player: ${giveItems.map(i => `${i.count}x ${i.name}`).join(', ')}`
-        };
-      }
-    }
-
-    // 5. GAME MODE & PLAYER STATE
-    if (p.includes('creative')) {
-      return { action: 'gamemode', mode: 'creative', explanation: 'Switching to Creative Mode' };
-    }
-    if (p.includes('survival')) {
-      return { action: 'gamemode', mode: 'survival', explanation: 'Switching to Survival Mode' };
-    }
-    if (p.includes('heal') || p.includes('health') || p.includes('feed')) {
-      return { action: 'heal', explanation: 'Restoring full health and hunger' };
-    }
-
-    // 6. TERRAIN CLEARING / FLATTENING
-    if (p.includes('clear') || p.includes('flatten') || p.includes('level ground') || p.includes('dig hole') || p.includes('quarry')) {
+    // --- TERRAIN CLEARING / FLATTENING ---
+    if (p.includes('flatten') || p.includes('level ground') || p.includes('dig hole') || p.includes('quarry') || (p.startsWith('clear ') && (p.includes('ground') || p.includes('terrain') || p.includes('area') || p.includes('land')))) {
       const isDig = p.includes('dig') || p.includes('quarry') || p.includes('hole');
       return {
         action: 'clear',
@@ -2143,7 +2799,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
     }
 
-    // 7. LIGHT UP AREA
+    // --- LIGHT UP AREA ---
     if (p.includes('light') && (p.includes('torch') || p.includes('area') || p.includes('around'))) {
       return {
         action: 'light',
@@ -2152,7 +2808,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       };
     }
 
-    // 8. BUILDING INTENT
+    // --- BUILDING INTENT ---
     const hasBuildKeyword = p.includes('build') || p.includes('construct') || p.includes('make a') || p.includes('create a') || p.includes('craft a') || p.includes('erect') || p.startsWith('castle') || p.startsWith('house') || p.startsWith('tower') || p.startsWith('aquarium') || p.includes('aquarium') || p.includes('fish tank') || p.includes('greenhouse') || p.includes('skyscraper') || p.includes('spaceship') || p.includes('dome');
 
     if (hasBuildKeyword || p.includes('build castle') || p.includes('build house') || p.includes('build aquarium') || p.includes('build tower') || p.includes('build pyramid') || p.includes('build pool') || p.includes('build bunker') || p.includes('build bridge') || p.includes('build wall')) {
@@ -2194,7 +2850,6 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         buildingType = 'custom';
       }
 
-      // Check for geometric shapes
       let shape = null;
       if (p.includes('dome')) shape = 'dome';
       else if (p.includes('sphere') || p.includes('ball')) shape = 'sphere';
@@ -2212,7 +2867,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       else if (p.includes('snow')) material = 'snow';
       else if (p.includes('obsidian')) material = 'obsidian';
 
-    if (buildingType === 'custom') return { action: 'message', explanation: `This custom build needs ${this.vendorLabel}. Add an API key to generate it from your description.` };
+      if (buildingType === 'custom') return { action: 'message', explanation: `This custom build needs ${this.vendorLabel}. Add an API key to generate it from your description.` };
       return {
         action: 'build',
         buildingType,
@@ -2230,6 +2885,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       explanation: `This request needs ${this.vendorLabel}. Add a valid API key in API Key settings for free-form prompts and contextual edits. Offline mode supports preset builds and basic world commands.`
     };
   }
+
 
   // --- Execution Engine ---
   async runPlan(plan, originalPrompt) {
@@ -2277,25 +2933,68 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       case 'edit':
         await this.executeOperations(plan.operations, plan.dimensions, plan.explanation || 'Edit', plan.targetBuilding, plan);
         break;
+      case 'command': {
+        await this.executeCommand(plan.command);
+        break;
+      }
+
+      case 'teleport': {
+        await this.executeTeleport(plan);
+        break;
+      }
+
+      case 'kill': {
+        this.executeKill(plan);
+        break;
+      }
+
+      case 'difficulty': {
+        this.executeDifficulty(plan.difficulty);
+        break;
+      }
+
+      case 'effect': {
+        this.executeEffect(plan);
+        break;
+      }
+
       case 'weather': {
         this.updateProgress(50, `Updating weather to ${plan.weather}...`);
-        this.game.weather.setWeather(plan.weather);
-        this.game.sounds.playClick();
+        if (plan.duration) {
+          this.game.weather?.setWeather?.(plan.weather, plan.duration);
+        } else {
+          this.game.weather?.setWeather?.(plan.weather);
+        }
+        this.game.sounds?.playClick?.();
         this.updateProgress(100, 'Weather changed.');
         this.log(`✓ Weather successfully updated to "${plan.weather}".`, 'success');
         break;
       }
 
       case 'time': {
-        this.updateProgress(50, `Updating time to ${plan.time}...`);
-        if (plan.time === 'night') this.game.worldTime = 18000;
-        else if (plan.time === 'sunset') this.game.worldTime = 12000;
-        else if (plan.time === 'sunrise') this.game.worldTime = 0;
-        else this.game.worldTime = 6000; // day
+        this.updateProgress(50, `Updating time...`);
+        let displayTime = plan.time || 'day';
+        if (typeof plan.add === 'number') {
+          this.game.worldTime = ((this.game.worldTime || 0) + plan.add) % 24000;
+          displayTime = `+${plan.add} ticks (${this.game.worldTime})`;
+        } else if (typeof plan.ticks === 'number') {
+          this.game.worldTime = plan.ticks % 24000;
+          displayTime = `${plan.ticks} ticks`;
+        } else if (plan.time === 'night' || plan.time === 'midnight') {
+          this.game.worldTime = 18000;
+        } else if (plan.time === 'sunset' || plan.time === 'dusk') {
+          this.game.worldTime = 12000;
+        } else if (plan.time === 'sunrise' || plan.time === 'dawn') {
+          this.game.worldTime = 0;
+        } else if (plan.time === 'noon') {
+          this.game.worldTime = 6000;
+        } else {
+          this.game.worldTime = 6000; // day
+        }
 
-        this.game.sounds.playClick();
+        this.game.sounds?.playClick?.();
         this.updateProgress(100, 'Time updated.');
-        this.log(`✓ World time set to ${plan.time}.`, 'success');
+        this.log(`✓ World time set to ${displayTime}.`, 'success');
         break;
       }
 
@@ -2310,11 +3009,19 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       }
 
       case 'gamemode': {
-        this.game.player.gamemode = plan.mode;
-        if (plan.mode === 'survival') this.game.player.isFlying = false;
-        this.game.sounds.playLevelUp();
-        this.updateProgress(100, `Game mode set to ${plan.mode}`);
-        this.log(`✓ Switched game mode to ${plan.mode.toUpperCase()}`, 'success');
+        const mode = plan.mode;
+        if (this.game.player) {
+          this.game.player.gamemode = mode;
+          if (mode === 'survival' || mode === 'adventure') {
+            this.game.player.isFlying = false;
+          }
+        }
+        if (this.game.settings) {
+          this.game.settings = { ...this.game.settings, gameMode: mode };
+        }
+        this.game.sounds?.playLevelUp?.();
+        this.updateProgress(100, `Game mode set to ${mode}`);
+        this.log(`✓ Switched game mode to ${mode.toUpperCase()}`, 'success');
         break;
       }
 
@@ -2533,7 +3240,11 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       for (let i = 0; i < count; i++) {
         let sx, sy, sz;
 
-        if (spawnPoints.length > 0) {
+        if (group.coords) {
+          sx = group.coords.x;
+          sy = group.coords.y;
+          sz = group.coords.z;
+        } else if (spawnPoints.length > 0) {
           // Place inside interior spot
           const pt = spawnPoints[ptIdx % spawnPoints.length];
           ptIdx++;
@@ -2564,22 +3275,25 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           }
         }
 
-        // Spawn mob by type
-        if (type === 'villager') this.game.mobs.spawnVillager(sx, sy, sz);
-        else if (type === 'iron_golem') this.game.mobs.spawnIronGolem(sx, sy, sz);
-        else if (type === 'pillager') this.game.mobs.spawnPillager(sx, sy, sz);
-        else if (type === 'zombie') this.game.mobs.spawnZombie(sx, sy, sz);
-        else if (type === 'pig') this.game.mobs.spawnPig(sx, sy, sz);
-        else if (type === 'cow') this.game.mobs.spawnCow(sx, sy, sz);
-        else if (type === 'sheep') this.game.mobs.spawnSheep(sx, sy, sz);
-        else if (type === 'creeper') this.game.mobs.spawnCreeper(sx, sy, sz);
-        else if (type === 'skeleton') this.game.mobs.spawnSkeleton(sx, sy, sz);
-        else if (type === 'salmon') this.game.mobs.spawnSalmon(sx, sy, sz);
-        else if (type === 'dolphin') this.game.mobs.spawnDolphin(sx, sy, sz);
-        else if (type === 'squid') this.game.mobs.spawnSquid(sx, sy, sz);
-        else if (type === 'octopus') this.game.mobs.spawnOctopus(sx, sy, sz);
-        else if (type === 'axolotl') this.game.mobs.spawnAxolotl(sx, sy, sz);
-        else this.game.mobs.spawnSalmon(sx, sy, sz);
+        // Spawn mob or trigger entity effect
+        if (type === 'lightning_bolt' || type === 'lightning') {
+          if (this.game.weather?.triggerLightning) {
+            this.game.weather.triggerLightning(null, null, { x: sx, y: sy, z: sz });
+          }
+        } else {
+          let spawned = null;
+          if (typeof this.game.mobs?.spawnMob === 'function') {
+            spawned = this.game.mobs.spawnMob(type, sx, sy, sz);
+          }
+          if (!spawned && this.game.mobs) {
+            const methodName = 'spawn' + type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+            if (typeof this.game.mobs[methodName] === 'function') {
+              spawned = this.game.mobs[methodName](sx, sy, sz);
+            } else if (typeof this.game.mobs.spawnSalmon === 'function') {
+              spawned = this.game.mobs.spawnSalmon(sx, sy, sz);
+            }
+          }
+        }
 
         totalSpawned++;
         this.updateProgress(20 + Math.floor((totalSpawned / Math.max(1, count)) * 70), `Placed ${type}...`);
@@ -2656,19 +3370,234 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
   // --- Give Items ---
   executeGive(items) {
     if (!items || items.length === 0) return;
+    const inventory = this.game.inventory;
+    const p = this.game.player?.position ?? { x: 0, y: 0, z: 0 };
+    const drop = (id, isBlock, n) => {
+      const entities = this.game.entities;
+      if (!entities?.spawnDroppedItem) return;
+      const at = { x: p.x, y: p.y + 1, z: p.z };
+      entities.spawnDroppedItem(at, id, isBlock, n);
+    };
+    const gamemode = this.game.player?.gamemode;
+
+    let totalGiven = 0;
+    let totalDropped = 0;
+    const itemNames = [];
+
     for (const it of items) {
-      if (it.isBlock) {
-        const blockId = BLOCKS[it.name.toUpperCase()] ?? BLOCKS.OAK_PLANKS;
-        this.game.inventory.addItem(blockId, true, it.count);
+      const resolved = tryResolveItem(it.name) || resolveItem(it.name);
+      const count = it.count || 1;
+      if (resolved && resolved.ok) {
+        const res = giveItems({
+          inventory,
+          drop,
+          gamemode,
+          item: resolved,
+          count,
+        });
+        totalGiven += res.given;
+        totalDropped += res.dropped;
+        itemNames.push(`${count}x ${resolved.display || it.name}`);
       } else {
-        const itemId = it.name.toLowerCase();
-        this.game.inventory.addItem(itemId, false, it.count);
+        const blockId = BLOCKS[it.name.toUpperCase()];
+        if (typeof blockId === 'number') {
+          inventory?.addItem?.(blockId, true, count);
+        } else {
+          inventory?.addItem?.(it.name.toLowerCase(), false, count);
+        }
+        totalGiven += count;
+        itemNames.push(`${count}x ${it.name}`);
       }
     }
-    this.game.ui.updateHotbar();
-    this.game.sounds.playLevelUp();
+
+    this.game.ui?.updateHotbar?.();
+    this.game.sounds?.playLevelUp?.();
     this.updateProgress(100, 'Items delivered.');
-    this.log(`✓ Granted requested items to player inventory.`, 'success');
+    let msg = `✓ Granted ${itemNames.join(', ')} to player inventory.`;
+    if (totalDropped > 0) {
+      msg += ` (${totalDropped} item(s) dropped on the ground)`;
+    }
+    this.log(msg, 'success');
+  }
+
+  // --- Direct Slash Commands ---
+  async executeCommand(commandLine) {
+    if (!commandLine) return;
+    const clean = commandLine.startsWith('/') ? commandLine : `/${commandLine}`;
+    this.log(`Executing command: ${clean}`, 'info');
+    const context = buildCommandContext(this.game);
+    context.say = (text, kind = 'system') => {
+      if (kind === 'error') {
+        context.failed = true;
+        this.log(text, 'warning');
+      } else {
+        this.log(text, 'info');
+      }
+      this.game.ui?.addChatMessage?.(text, kind);
+    };
+    let handled = runCommand(context, clean);
+    if (!handled && typeof this.game.runManagerCommand === 'function') {
+      handled = Boolean(this.game.runManagerCommand(clean, context));
+    }
+    if (handled) {
+      this.game.sounds?.playLevelUp?.();
+      this.updateProgress(100, `Command executed: ${clean}`);
+      this.log(`✓ Command executed: ${clean}`, 'success');
+    } else {
+      this.log(`Command not recognized or failed: ${clean}`, 'warning');
+    }
+  }
+
+  // --- Teleportation ---
+  async executeTeleport(plan) {
+    const player = this.game.player;
+    if (!player) return;
+    this.updateProgress(50, 'Teleporting...');
+
+    if (plan.target === 'spawn') {
+      placePlayerOnSurface(this.game);
+      this.game.sounds?.playLevelUp?.();
+      this.updateProgress(100, 'Teleported to spawn');
+      this.log('✓ Teleported to world spawn.', 'success');
+      return;
+    }
+
+    if (plan.coords) {
+      const { x, y, z } = plan.coords;
+      if (player.position?.set) {
+        player.position.set(x, y, z);
+      } else if (player.position) {
+        player.position.x = x;
+        player.position.y = y;
+        player.position.z = z;
+      }
+      if (player.velocity?.set) player.velocity.set(0, 0, 0);
+      if (player.fallDistance !== undefined) player.fallDistance = 0;
+      this.game.loadChunksAroundPlayer?.();
+      this.game.sounds?.playLevelUp?.();
+      this.updateProgress(100, `Teleported to ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`);
+      this.log(`✓ Teleported to (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}).`, 'success');
+      return;
+    }
+
+    if (plan.structure) {
+      if (typeof this.game.runTeleportCommand === 'function') {
+        this.game.runTeleportCommand(['/tp', plan.structure]);
+      } else {
+        this.log(`Teleport to structure ${plan.structure} requested.`, 'info');
+      }
+      this.updateProgress(100, `Teleported towards ${plan.structure}`);
+      return;
+    }
+
+    if (plan.cave) {
+      if (typeof this.game.runTeleportCommand === 'function') {
+        this.game.runTeleportCommand(['/tp', 'cave']);
+      }
+      this.updateProgress(100, 'Teleported to cave');
+      return;
+    }
+
+    if (plan.rawTarget && typeof this.game.runTeleportCommand === 'function') {
+      this.game.runTeleportCommand(['/tp', ...plan.rawTarget.trim().split(/\s+/)]);
+      this.updateProgress(100, 'Teleported');
+      return;
+    }
+  }
+
+  // --- Kill Entities ---
+  executeKill(plan) {
+    const target = plan.target || '@e';
+    let killed = 0;
+    const player = this.game.player;
+    const mobs = this.game.mobs?.mobs || [];
+
+    if (target === 'player' || target === 'self' || target === '@s' || target === '@p') {
+      if (player) {
+        player.health = 0;
+        player.die?.();
+        killed++;
+      }
+      this.log(`✓ Player killed.`, 'success');
+      this.updateProgress(100, 'Player killed');
+      return;
+    }
+
+    const isHostile = (m) => ['zombie', 'skeleton', 'creeper', 'spider', 'cave_spider', 'enderman', 'witch', 'slime', 'magma_cube', 'blaze', 'ghast', 'wither', 'wither_skeleton', 'phantom', 'drowned', 'husk', 'stray', 'pillager', 'ravager', 'evoker', 'vex', 'warden', 'hoglin', 'zoglin', 'piglin_brute'].includes(m.type);
+
+    const toKill = mobs.filter(m => {
+      if (target === 'all' || target === 'entities' || target === '@e') return true;
+      if (target === 'hostile' || target === 'monsters') return isHostile(m);
+      if (target === 'animals' || target === 'passive') return !isHostile(m);
+      return m.type === target || m.type?.toLowerCase() === target.toLowerCase();
+    });
+
+    for (const mob of toKill) {
+      if (typeof this.game.mobs?.damageMob === 'function') {
+        this.game.mobs.damageMob(mob, Number.MAX_SAFE_INTEGER, null, true, null, true);
+      } else {
+        mob.health = 0;
+        mob.die?.();
+      }
+      killed++;
+    }
+
+    this.game.sounds?.playLevelUp?.();
+    this.updateProgress(100, `Killed ${killed} entities`);
+    this.log(`✓ Killed ${killed} entity/entities (${target}).`, 'success');
+  }
+
+  // --- Set Difficulty ---
+  executeDifficulty(difficulty) {
+    if (!difficulty) return;
+    const diff = difficulty.toLowerCase();
+    if (this.game) {
+      this.game.difficulty = diff;
+      if (this.game.settings) {
+        this.game.settings = { ...this.game.settings, difficulty: diff };
+      }
+      if (this.game.player) {
+        this.game.player.difficulty = diff;
+      }
+    }
+    this.game.sounds?.playClick?.();
+    this.updateProgress(100, `Difficulty set to ${diff}`);
+    this.log(`✓ Difficulty set to ${diff.toUpperCase()}.`, 'success');
+  }
+
+  // --- Apply / Clear Status Effects ---
+  executeEffect(plan) {
+    const player = this.game.player;
+    if (!player) return;
+
+    if (plan.operation === 'clear' || plan.mode === 'clear') {
+      if (plan.effect) {
+        const id = plan.effect.toLowerCase().replace(/^minecraft:/, '');
+        player.clearStatusEffect?.(id);
+        const effectName = EFFECTS[id]?.name || id;
+        this.log(`✓ Cleared status effect ${effectName}.`, 'success');
+      } else {
+        if (player.statusEffects) {
+          if (typeof player.statusEffects.forEach === 'function') {
+            player.statusEffects.forEach((val, key) => player.clearStatusEffect?.(key));
+          } else if (typeof player.statusEffects === 'object') {
+            for (const key of Object.keys(player.statusEffects)) {
+              player.clearStatusEffect?.(key);
+            }
+          }
+        }
+        this.log(`✓ Cleared all status effects.`, 'success');
+      }
+    } else {
+      const id = (plan.effect || 'speed').toLowerCase().replace(/^minecraft:/, '');
+      const seconds = plan.seconds || 30;
+      const amplifier = plan.amplifier || 0;
+      player.applyStatusEffect?.(id, seconds, amplifier);
+      const effectName = EFFECTS[id]?.name || id;
+      this.log(`✓ Applied ${effectName} ${amplifier > 0 ? amplifier + 1 : ''} for ${seconds}s.`, 'success');
+    }
+    this.game.sounds?.playLevelUp?.();
+    this.updateProgress(100, 'Status effects updated.');
   }
 
   // --- Clear / Flatten Ground ---

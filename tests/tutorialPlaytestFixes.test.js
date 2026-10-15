@@ -36,7 +36,7 @@ test('attack cooldown: the wiki formula, clamped, with enchantments scaled linea
 test('attack cooldown: the game and the bot use it', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /const charge = attackCharge\(this\.player\.secondsSinceSwing \?\? Infinity/);
-  assert.match(main, /damage = scaleBaseDamage\(damage, charge\) \+ scaleEnchantDamage\(enchantDamage, charge\);/);
+  assert.match(main, /damage = scaleBaseDamage\(damage, charge\) \* \(critical \? 1\.5 : 1\) \+ scaleEnchantDamage\(enchantDamage, charge\);/);
   assert.match(main, /this\.player\.secondsSinceSwing = 0;/);
   const bot = readFileSync(new URL('../src/playerBot.js', import.meta.url), 'utf8');
   assert.match(bot, /t\.attackTimer = cooldownSeconds\(/, 'the bot waits for a full charge');
@@ -239,7 +239,7 @@ test('the Hunger effect drains 0.1 exhaustion a second per level', async () => {
 // never called from the game (Durability management play-test).
 test('right-clicking an armadillo with a brush goes through brushArmadillo', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const body = main.slice(main.indexOf('  handleRightClick() {'), main.indexOf('  handleRightClick() {') + 1200);
+  const body = main.slice(main.indexOf('  handleRightClick() {'), main.indexOf('  handleRightClick() {') + 3000);
   assert.match(body, /brushArmadillo\(this\.targetMob, held\.id/);
   assert.match(body, /'armadillo_scute'/);
 });
@@ -300,4 +300,24 @@ test('a melee mob cannot reach through the ground or across a wall', async () =>
   assert.equal(meleeCanReach(world, mob(1.5, 2, 0.5), { position: { x: 2.5, y: 2, z: 0.5 } }), true, 'beside it in the open');
   const spider = readFileSync(new URL('../src/spiderBehavior.js', import.meta.url), 'utf8');
   assert.match(spider, /mob\.attackCooldown <= 0 && meleeCanReach\(manager\?\.world, mob, player\)/);
+});
+
+// Combat: critical hits ("while falling", x1.5 of the base damage after Strength, at 84.8% charge, not sprinting, in
+// water, on a ladder, with Slow Falling or Blindness, riding or flying) did not exist.
+test('a falling, fully charged hit is a critical hit', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /const critical = charge >= 0\.848 && \(p\.fallDistance \?\? 0\) > 0 && !p\.onGround && !p\.inWater && !onClimbable && !p\.isFlying && !p\.isSprinting/);
+});
+
+test('a golden pickaxe harvests like wood: no diamonds, iron or gold ore drops, but stone and coal do', async () => {
+  const { tierMeets, harvestsNothing } = await import('../src/miningRules.js');
+  const { BLOCKS, ITEMS } = await import('../src/blocks.js');
+  assert.equal(tierMeets('golden', 'iron'), false);
+  assert.equal(tierMeets('golden', 'stone'), false);
+  assert.equal(tierMeets('golden', 'wooden'), true);
+  assert.equal(tierMeets('iron', 'golden'), true, 'a gold requirement is a wood requirement');
+  assert.equal(harvestsNothing(BLOCKS.DIAMOND_ORE, ITEMS.golden_pickaxe, 'golden_pickaxe'), true);
+  assert.equal(harvestsNothing(BLOCKS.IRON_ORE, ITEMS.golden_pickaxe, 'golden_pickaxe'), true);
+  assert.equal(harvestsNothing(BLOCKS.COAL_ORE, ITEMS.golden_pickaxe, 'golden_pickaxe'), false);
+  assert.equal(harvestsNothing(BLOCKS.DIAMOND_ORE, ITEMS.iron_pickaxe, 'iron_pickaxe'), false);
 });

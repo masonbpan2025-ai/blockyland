@@ -4,6 +4,7 @@ import { isPiglinBrute, piglinBruteRetreats, piglinBruteDistractedByGold, piglin
 import { BLOCKS, ITEMS, stackLimitFor } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
 import { steerGround, flee } from './netherMobAI.js';
+import { advancementEvent } from './advancements.js';
 
 // Java Edition 1.21.6+ barter table (469 total weight, including Dried Ghast).
 export const PIGLIN_BARTER_LOOT = [
@@ -183,6 +184,7 @@ export function updatePiglin(behaviors, mob, dt, player) {
           drops.splice(drops.indexOf(gold), 1);
         }
         startBarter(mob, { id: gold.itemType, isBlock: gold.isBlock, enchantments: gold.enchantments });
+        if (gold.thrownByPlayer) advancementEvent('distract_piglin');
       } else steerGround(manager, mob, gold.group.position, dt, 2);
 
       return;

@@ -38,6 +38,7 @@ import { renderPlayerDoll } from './playerDoll.js';
 import { BrewingManager, getBrewingResult, POTION_DATA } from './brewing.js';
 import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
 import { calculateGrindstoneResult } from './grindstone.js';
+import { advancementEvent } from './advancements.js';
 import { calculateSmithingResult } from './smithing.js';
 import { teardownWorld } from './worldTeardown.js';
 import { escapeHtml } from './multiplayer/shareProtocol.js';
@@ -740,6 +741,31 @@ export class UIManager {
       needle.dataset.angle = angle.toFixed(3);
       needle.dataset.spinning = target ? '0' : '1';
     }
+  }
+
+  /** Show the held map's drawing in a corner of the screen (maps.js), with the player's marker. */
+  renderHeldMap(map, player) {
+    if (typeof document === 'undefined') return;
+    let canvas = this.heldMapCanvas;
+    if (!map) { if (canvas) canvas.style.display = 'none'; return; }
+    if (!canvas) {
+      canvas = this.heldMapCanvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128; canvas.id = 'held-map';
+      Object.assign(canvas.style, { position: 'fixed', right: '16px', bottom: '84px', width: '256px', height: '256px', imageRendering: 'pixelated', background: '#d8c9a3', border: '3px solid #6b5a3a', zIndex: 20, pointerEvents: 'none' });
+      document.body.appendChild(canvas);
+    }
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    if (canvas.dataset.version !== String(map.version) || canvas.dataset.map !== `${map.centerX},${map.centerZ},${map.scale}`) {
+      const img = ctx.createImageData(128, 128);
+      for (let i = 0; i < 128 * 128; i++) { const c = map.colors[i]; if (!c) { img.data[i * 4 + 3] = 0; continue; } img.data[i * 4] = (c >> 16) & 255; img.data[i * 4 + 1] = (c >> 8) & 255; img.data[i * 4 + 2] = c & 255; img.data[i * 4 + 3] = 255; }
+      this.heldMapImage = img;
+      canvas.dataset.version = String(map.version); canvas.dataset.map = `${map.centerX},${map.centerZ},${map.scale}`;
+    }
+    if (this.heldMapImage) ctx.putImageData(this.heldMapImage, 0, 0);
+    const step = 1 << map.scale, px = (player.position.x - map.centerX) / step + 64, pz = (player.position.z - map.centerZ) / step + 64;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000';
+    ctx.beginPath(); ctx.arc(Math.max(1, Math.min(127, px)), Math.max(1, Math.min(127, pz)), 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
   updateHotbar() {
@@ -2018,6 +2044,7 @@ export class UIManager {
     if (!this.chestModal) return;
     this.currentChestPos = { x, y, z };
     const chest = this.game?.chestManager?.getChest(x, y, z);
+    if (chest?.lootGenerated || chest?.fromStructure) advancementEvent('open_loot_chest', { x, y, z });
     if (this.chestTitle) {
       this.chestTitle.textContent = chest?.isDouble ? 'Large Chest' : 'Chest';
     }

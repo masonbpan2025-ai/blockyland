@@ -983,6 +983,7 @@ export function executeTrade(trade, villager, playerInventory, sounds = null, op
   }
 
   recordTrade(villager, playerKey);
+  advancementEvent('trade');
 
   if (leveledUp) {
     // Wiki: a level-up "receives 10 seconds of Regeneration I", which is four hit points.
@@ -1226,6 +1227,7 @@ export function updateZombieVillagerCuring(zombieVillager, dt, mobManager, optio
           unlockTradesForLevel(newVillager, 1, options.random);
         }
         recordCure(newVillager, playerKey);
+        advancementEvent('cure_zombie_villager');
         // Wiki: curing also grants the player positive reputation for gossiping purposes, so keep the
         // zombie's flag so a second cure cannot stack a second discount.
         newVillager.hasBeenCured = true;

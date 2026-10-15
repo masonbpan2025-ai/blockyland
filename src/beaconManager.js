@@ -14,6 +14,7 @@
 // its beacons needing their power chosen again, which is recorded in the batch notes rather than hidden.
 import { calculateBeaconPyramid, calculateConduitFrame, applyBeaconBuffs, applyConduitPower } from './beaconConduit.js';
 import { BLOCKS } from './blocks.js';
+import { advancementEvent } from './advancements.js';
 
 /** How often the structures are re-checked, in seconds. Their effects carry a 16 s buffer, so 1 s is ample. */
 export const BEACON_TICK_SECONDS = 1;
@@ -95,6 +96,11 @@ export class BeaconManager {
     const world = this.game?.world;
 
     for (const beacon of this.beacons.values()) {
+      // "Bring Home the Beacon" / "Beaconator": a powered beacon near the player, and a full pyramid.
+      if (player.position && Math.hypot(player.position.x - beacon.x, player.position.z - beacon.z) <= 20) {
+        const built = calculateBeaconPyramid(world, beacon.x, beacon.y, beacon.z);
+        if (built?.tier > 0) advancementEvent('beacon', { tier: built.tier });
+      }
       if (!beacon.primary) continue;
       const pyramid = calculateBeaconPyramid(world, beacon.x, beacon.y, beacon.z);
       if (!pyramid?.active) continue;

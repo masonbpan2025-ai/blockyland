@@ -4,6 +4,7 @@ import { exposedToRain } from './weatherRules.js';
 import { poseStrider } from './striderModel.js';
 import { updateHorseLead, releaseHorseLead } from './horseLead.js';
 import { BABY_GROWTH_SECONDS, accelerateBabyGrowth } from './babyGrowth.js';
+import { advancementEvent } from './advancements.js';
 
 export const isStriderFood=id=>id==='warped_fungus'||id===BLOCKS.WARPED_FUNGUS;
 const heldItems=p=>[p?.inventory?.getActiveItem?.(),p?.inventory?.getOffhandItem?.()].filter(Boolean);
@@ -41,6 +42,7 @@ export function boostStrider(b,p,item){
     if(!item.durability){item.id='fishing_rod';item.durability=64;}
     p.inventory?.updateUI?.();
   }
+  advancementEvent('ride_strider');
   return true;
 }
 export function striderSpeed(m,ridden=false){

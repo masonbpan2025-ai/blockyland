@@ -233,6 +233,7 @@ export function validateSpawnSpace({
   height = 1.95,
   requireFloor = null,
   isSolidAt = null,
+  mobType = null,
 } = {}) {
   const detail = {};
   if (!world) return { ok: false, reason: SpawnRejection.NO_WORLD, detail };
@@ -286,7 +287,7 @@ export function validateSpawnSpace({
       }
       // A caller may opt out of the floor rule (the chunk-generation spawner snaps Y to the column
       // top and validates the box instead) or opt in explicitly.
-      if (requireFloor !== false && !hasFloor(world, x, y, z, width, solid)) {
+      if (requireFloor !== false && !hasFloor(world, x, y, z, width, solid, mobType)) {
         return { ok: false, reason: SpawnRejection.INVALID_FLOOR, detail };
       }
       break;
@@ -300,13 +301,39 @@ export function validateSpawnSpace({
   return { ok: true, reason: null, detail };
 }
 
+const FLOOR_NAME = new Map(Object.entries(BLOCKS).map(([k, v]) => [v, k]));
+// Blocks without a sturdy full top face, or that Java's `isValidSpawn` refuses outright.
+const NOT_A_SPAWN_FLOOR = /(_CARPET|^CARPET|_FENCE|_FENCE_GATE|_WALL|_PANE|GLASS|IRON_BARS|CHAIN|_BED_|^BED|CHEST|_PRESSURE_PLATE|DIRT_PATH|FARMLAND|BARRIER|^SNOW$|_HEAD$|_SKULL$|LANTERN|CAMPFIRE|_CANDLE|^CANDLE|ENCHANTING_TABLE|DAYLIGHT_DETECTOR|STONECUTTER|LECTERN|BREWING_STAND|HOPPER|CAULDRON|ANVIL|_DOOR|SCAFFOLDING|LEAVES)/;
+
+/**
+ * Can a mob spawn standing on this block? Java's `isValidSpawn`: the top face must be sturdy and full and the block
+ * must give off less than 14 light; leaves (bar ocelots and parrots), glass, barriers and the like are refused, ice
+ * takes only polar bears, a magma block only fire-immune mobs. The rule here was "any solid block", so a floor of bottom
+ * slabs, carpet, glass or dirt paths did nothing (Spawn-proofing play-test: "Areas covered in bottom slabs are unable
+ * to spawn mobs ... dirt path and farmland ... glass ... leaves"). Top slabs, double slabs, soul sand and mud remain
+ * valid.
+ */
+export function isValidSpawnFloor(world, x, y, z, id, mobType = null) {
+  const name = FLOOR_NAME.get(id) ?? '';
+  const def = BLOCK_DEFS[id];
+  const orientation = world?.structureOrientations?.get?.(`${x},${y},${z}`);
+  if (name.endsWith('_SLAB')) return orientation?.slabType === 'top' || orientation?.slabType === 'double';
+  if (name.endsWith('_STAIRS')) return orientation?.half === 'top';
+  if (name.endsWith('_TRAPDOOR')) return orientation?.half === 'top' && !orientation?.open;
+  if (/LEAVES/.test(name)) return mobType === 'ocelot' || mobType === 'parrot';
+  if (/^(ICE|PACKED_ICE|BLUE_ICE|FROSTED_ICE)$/.test(name)) return mobType === 'polar_bear';
+  if (name === 'MAGMA_BLOCK') return ['strider', 'magma_cube', 'blaze', 'ghast', 'zombified_piglin', 'wither_skeleton'].includes(mobType); // fire-immune
+  if ((def?.light ?? 0) >= 14) return false;
+  return !NOT_A_SPAWN_FLOOR.test(name);
+}
+
 /**
  * Is there support under the box for a ground mob?
  *
  * At least one cell directly under the mob's footprint must be a solid, motion-blocking block.
  * Requiring only the CENTRE column would let a mob stand with two thirds of its feet over the void.
  */
-export function hasFloor(world, x, y, z, width, isSolidAt) {
+export function hasFloor(world, x, y, z, width, isSolidAt, mobType = null) {
   const half = Math.max(0.05, width / 2);
   const minX = Math.floor(x - half + 0.02);
   const maxX = Math.floor(x + half - 0.02);
@@ -317,7 +344,7 @@ export function hasFloor(world, x, y, z, width, isSolidAt) {
   for (let bx = minX; bx <= maxX; bx++) {
     for (let bz = minZ; bz <= maxZ; bz++) {
       const id = world.getVoxel(bx, below, bz);
-      if (id !== BLOCKS.AIR && blocksMotion(id) && isSolidAt(bx, below, bz)) return true;
+      if (id !== BLOCKS.AIR && blocksMotion(id) && isSolidAt(bx, below, bz) && isValidSpawnFloor(world, bx, below, bz, id, mobType)) return true;
     }
   }
   return false;
@@ -412,7 +439,7 @@ export function validateGenericSpawn(ctx) {
   //    runtime cycle cannot drift apart on collision, fluid or floor handling -- they differ only in
   //    the policy wrapped around this call (distance, caps, difficulty), not in the spatial rules.
   const spatial = validateSpawnSpace({
-    world, x, y, z, placement, width, height, isSolidAt,
+    world, x, y, z, placement, width, height, isSolidAt, mobType: ctx.mobType ?? ctx.type ?? null,
   });
   Object.assign(detail, spatial.detail);
   if (!spatial.ok) return { ok: false, reason: spatial.reason, detail };

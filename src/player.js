@@ -1716,6 +1716,11 @@ export class Player {
       this.model.position.copy(this.position);
       this.model.rotation.y = this.yaw;
 
+      // Synchronize equipped armor on 3D player model
+      if (typeof this.model.updateArmor === 'function') {
+        this.model.updateArmor(this.inventory?.armor);
+      }
+
       if (this.isRolling) {
         // Full 360 forward flip roll animation
         const rollProgress = Math.max(0, Math.min(1.0, 1.0 - (this.rollTimer / this.rollDuration)));

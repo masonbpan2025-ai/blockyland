@@ -3,6 +3,7 @@ import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { resourcePackManager } from './resourcePackManager.js';
 import { skinManager } from './skinManager.js';
+import { applyBoxUVs } from './playerModel.js';
 
 export class HeldItemRenderer {
   constructor(camera, textureManager) {
@@ -27,6 +28,8 @@ export class HeldItemRenderer {
     // Initial base transform (lower right hand)
     this.basePos = new THREE.Vector3(0.55, -0.45, -0.85);
     this.baseRot = new THREE.Euler(0.2, -0.4, 0.1);
+    this.container.position.copy(this.basePos);
+    this.container.rotation.copy(this.baseRot);
 
     this.currentItem = null;
     this.currentMesh = null;
@@ -44,6 +47,12 @@ export class HeldItemRenderer {
       this.cachedMaterials.clear();
       if (this.currentItem) this.setItem(this.currentItem, true);
     });
+    this.unsubscribeSkin = skinManager.onChange(() => {
+      if (!this.currentItem) this.setItem(null, true);
+    });
+
+    // Initialize default empty hand arm
+    this.setItem(null, true);
   }
 
   loadTexture(url) {
@@ -71,8 +80,8 @@ export class HeldItemRenderer {
     }, 100);
   }
 
-  setItem(item) {
-    if (this.isItemEqual(this.currentItem, item)) return;
+  setItem(item, force = false) {
+    if (!force && this.currentMesh && this.isItemEqual(this.currentItem, item)) return;
 
     this.currentItem = item;
     if (this.currentMesh) {
@@ -80,19 +89,41 @@ export class HeldItemRenderer {
       if (this.currentMesh.userData?.disposeGeo) {
         this.currentMesh.geometry?.dispose();
       }
+      for (const child of this.currentMesh.children) {
+        if (child.userData?.disposeGeo) child.geometry?.dispose();
+      }
       this.currentMesh = null;
     }
 
     if (!item) {
-      // Empty Hand (Rendered using equipped player skin)
-      const isSlim = skinManager.getEquippedSkin()?.model === 'slim';
-      const armWidth = isSlim ? 0.18 : 0.22;
-      const geo = new THREE.BoxGeometry(armWidth, 0.65, 0.22);
-      const mat = skinManager.getArmMaterial();
-      this.currentMesh = new THREE.Mesh(geo, mat);
-      this.currentMesh.userData = { disposeGeo: true };
-      this.currentMesh.rotation.set(-0.35, 0.2, -0.15);
-      this.container.add(this.currentMesh);
+      // Empty Hand (Rendered using equipped player skin and authentic arm model)
+      const skin = skinManager.getEquippedSkin();
+      const isSlim = skin?.model === 'slim';
+      const armTexW = isSlim ? 3 : 4;
+      const armWidth = isSlim ? 0.20 : 0.25;
+      const armLength = 0.75;
+      const armDepth = 0.25;
+
+      // Base Arm (Right Arm: texX 40, texY 16)
+      const baseGeo = new THREE.BoxGeometry(armWidth, armLength, armDepth);
+      applyBoxUVs(baseGeo, 40, 16, armTexW, 12, 4);
+      const baseMat = skinManager.getArmMaterial();
+      const armMesh = new THREE.Mesh(baseGeo, baseMat);
+      armMesh.userData = { disposeGeo: true };
+
+      // Sleeve Overlay (Right Sleeve: texX 40, texY 32)
+      const overlayMat = skinManager.getArmOverlayMaterial();
+      const sleeveGeo = new THREE.BoxGeometry(armWidth + 0.015, armLength + 0.015, armDepth + 0.015);
+      applyBoxUVs(sleeveGeo, 40, 32, armTexW, 12, 4);
+      const sleeveMesh = new THREE.Mesh(sleeveGeo, overlayMat);
+      sleeveMesh.userData = { disposeGeo: true };
+      armMesh.add(sleeveMesh);
+
+      armMesh.rotation.set(1.55, 0.25, -0.2);
+      armMesh.position.set(-0.05, 0.07, -0.05);
+
+      this.currentMesh = armMesh;
+      this.container.add(armMesh);
       return;
     }
 

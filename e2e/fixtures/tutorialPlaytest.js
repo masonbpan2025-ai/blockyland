@@ -18,6 +18,12 @@ export function createPlaytest(game, {
 } = {}) {
   const bot = game.playerBot, steps = [], checks = [], given = [], notes = [];
   // A clean world of real chunks around the origin, flat ground of the requested block, stone below.
+  // Every scenario starts in the Overworld, with no other dimension remembered (a Nether or End trip in the last one).
+  if ((game.world.dimension ?? 'overworld') !== 'overworld') game.switchDimension('overworld');
+  game.mobsByDimension = {};
+  for (const d of Object.keys(game.world.dimensionChunks ?? {})) if (d !== 'overworld') game.world.dimensionChunks[d] = new Map();
+  if (game.world.endState) game.world.endState = null;
+  game.endArenaBuilt = false;
   game.applyWorldSettings?.({ gameMode, difficulty, cheats: false });
   game.difficulty = difficulty;
   game.mobs.clearMobs?.(); game.mobs.mobs.length = 0;

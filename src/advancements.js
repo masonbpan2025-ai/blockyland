@@ -6,7 +6,9 @@
 // does, with the criteria the wiki's Advancement page gives:
 //  - items: "Have X in your inventory" (checked as the inventory changes);
 //  - dimensions: "Enter the Nether" / "Enter the End";
-//  - events reported by the game through `advancementEvent` (a kill, a meal, a trade, a bred animal, ...).
+//  - events reported by the game through `advancementEvent` (a kill, a meal, a trade, a bred animal, ...);
+//  - places: inside a structure (structureIdAt), each Nether biome, a Nether trip of 7000 Overworld blocks, levitating
+//    50 blocks, a strider ride on Overworld lava. The Nether and End tabs of the Advancement guide walk through these.
 // Advancements whose triggers this game cannot produce stay unearned rather than being faked.
 import { WIKI_ADVANCEMENTS } from './systemsWikiData.js';
 import { BLOCKS } from './blocks.js';
@@ -48,6 +50,24 @@ export const HOSTILE_MOBS = ['blaze', 'bogged', 'breeze', 'cave_spider', 'creepe
 /** "Two by Two": every breedable animal (Java 1.21.4). */
 export const BREEDABLE = ['armadillo', 'axolotl', 'bee', 'camel', 'cat', 'chicken', 'cow', 'donkey', 'fox', 'frog', 'goat', 'hoglin', 'horse', 'llama', 'mooshroom', 'mule', 'ocelot', 'panda', 'pig', 'rabbit', 'sheep', 'sniffer', 'strider', 'turtle', 'wolf'];
 
+/** "A Furious Cocktail" and "How Did We Get Here?": every listed effect active at once (wiki, Java 1.21.4). */
+export const COCKTAIL_EFFECTS = ['fire_resistance', 'invisibility', 'jump_boost', 'night_vision', 'poison', 'regeneration', 'resistance', 'slow_falling', 'slowness', 'speed', 'strength', 'water_breathing', 'weakness', 'infested', 'oozing', 'weaving', 'wind_charged'];
+export const ALL_EFFECTS = [...COCKTAIL_EFFECTS, 'absorption', 'bad_omen', 'blindness', 'conduit_power', 'darkness', 'dolphins_grace', 'glowing', 'haste', 'hero_of_the_village', 'hunger', 'levitation', 'mining_fatigue', 'nausea', 'raid_omen', 'trial_omen', 'wither'];
+const EFFECT_ALIASES = { swiftness: 'speed', leaping: 'jump_boost', slow_falling: 'slow_falling' };
+
+/** Structures you "enter" for an advancement, by the ids structureIdAt answers with. */
+export const STRUCTURE_CRITERIA = {
+  'nether/find_fortress': ['fortress', 'nether_fortress'],
+  'nether/find_bastion': ['bastion_remnant', 'bastion'],
+  'end/find_end_city': ['end_city'],
+  'story/follow_ender_eye': ['stronghold'],
+};
+/** "Hot Tourist Destinations": every Nether biome (Java 1.21.4). */
+export const NETHER_BIOMES = ['nether_wastes', 'soul_sand_valley', 'crimson_forest', 'warped_forest', 'basalt_deltas'];
+/** "Subspace Bubble": "travel between two points in the Overworld with a minimum horizontal distance of 7,000 blocks". */
+export const FAST_TRAVEL_BLOCKS = 7000;
+const isGoldenArmour = (s) => typeof s?.id === 'string' && s.id.startsWith('golden_') && /_(helmet|chestplate|leggings|boots)$/.test(s.id);
+
 let active = null;
 /** Report a game event to the tracker of the running game, if any. */
 export function advancementEvent(type, data = {}) { try { active?.event(type, data); } catch (e) { console.error('advancement event', type, e); } }
@@ -58,7 +78,8 @@ export class AdvancementTracker {
     this.byId = new Map(WIKI_ADVANCEMENTS.map((a) => [a.id, a]));
     this.timer = 0;
     this.log = [];
-    this.progress = { killed: new Set(), bred: new Set(), eaten: new Set() };
+    this.progress = { killed: new Set(), bred: new Set(), eaten: new Set(), netherBiomes: new Set() };
+    this.lastDimension = null; this.netherEntry = null; this.levitationStart = null; this.striderRideStart = null; this.slowTimer = 0;
     this.seenTamed = new WeakSet();
     active = this;
   }
@@ -90,9 +111,53 @@ export class AdvancementTracker {
     for (const [id, items] of Object.entries(ALL_ITEM_CRITERIA)) if (!this.has(id) && items.every((i) => held.has(i))) this.grant(id);
     const dim = this.game.currentDimension ?? this.game.world?.dimension;
     for (const id of DIMENSION_CRITERIA[dim] ?? []) this.grant(id);
+    const effects = new Set([...(player.statusEffects?.keys?.() ?? [])].map((e) => EFFECT_ALIASES[e] ?? e));
+    if (effects.size >= COCKTAIL_EFFECTS.length && COCKTAIL_EFFECTS.every((e) => effects.has(e))) this.grant('nether/all_potions');
+    if (effects.size >= ALL_EFFECTS.length && ALL_EFFECTS.every((e) => effects.has(e))) this.grant('nether/all_effects');
+    this.travelCriteria(dim, player);
+    this.slowTimer -= 0.25;
+    if (this.slowTimer <= 0) { this.slowTimer = 1; this.placeCriteria(dim, player); }
     // Taming happens in several places; any mob newly owned by the player counts once.
     for (const mob of this.game.mobs?.mobs ?? []) {
       if (mob?.isTamed && (mob.owner === player || mob.ownerIsPlayer || mob.owner?.isPlayerEntity) && !this.seenTamed.has(mob)) { this.seenTamed.add(mob); this.event('tame', { type: mob.type }); }
+    }
+  }
+
+  /** Dimension changes (Subspace Bubble), levitation (Great View From Up Here), an Overworld strider ride. */
+  travelCriteria(dim, player) {
+    const p = player.position; if (!p) return;
+    if (this.lastDimension === 'overworld' && dim === 'nether') this.netherEntry = this.lastOverworld ?? { x: p.x, z: p.z };
+    if (this.lastDimension === 'nether' && dim === 'overworld' && this.netherEntry) {
+      if (Math.hypot(p.x - this.netherEntry.x, p.z - this.netherEntry.z) >= FAST_TRAVEL_BLOCKS) this.grant('nether/fast_travel');
+      this.netherEntry = null;
+    }
+    if (dim === 'overworld') this.lastOverworld = { x: p.x, z: p.z };
+    this.lastDimension = dim;
+    // "Levitate up 50 blocks from the attacks of a Shulker": measured from where the levitation began.
+    const levitating = player.statusEffects?.has?.('levitation');
+    if (levitating) {
+      this.levitationStart ??= p.y;
+      if (p.y - this.levitationStart >= 50) this.grant('end/levitate');
+    } else this.levitationStart = null;
+    // "Feels Like Home": a strider ride of 50 blocks on Overworld lava.
+    const mount = player.ridingMob;
+    if (dim === 'overworld' && mount?.type === 'strider') {
+      this.striderRideStart ??= { x: p.x, z: p.z };
+      if (Math.hypot(p.x - this.striderRideStart.x, p.z - this.striderRideStart.z) >= 50) this.grant('nether/ride_strider_in_overworld_lava');
+    } else this.striderRideStart = null;
+  }
+
+  /** Where the player is: inside a structure, and which Nether biome. Once a second. */
+  placeCriteria(dim, player) {
+    const p = player.position; if (!p) return;
+    const here = this.game.structureIdAt?.(p.x, p.y, p.z);
+    if (here) for (const [id, ids] of Object.entries(STRUCTURE_CRITERIA)) if (ids.includes(here)) this.grant(id);
+    if (dim === 'nether') {
+      const biome = this.game.world?.getBiome?.(p.x, p.z);
+      if (NETHER_BIOMES.includes(biome)) {
+        this.progress.netherBiomes.add(biome);
+        if (NETHER_BIOMES.every((b) => this.progress.netherBiomes.has(b))) this.grant('nether/explore_nether');
+      }
     }
   }
 
@@ -107,6 +172,8 @@ export class AdvancementTracker {
         }
         if (data.type === 'skeleton' && data.distance >= 50 && data.projectile) this.grant('adventure/sniper_duel');
         if (data.type === 'ghast' && data.fireball) this.grant('nether/return_to_sender');
+        // "Rescue a Ghast from the Nether, bring it safely home to the Overworld... and then kill it."
+        if (data.type === 'ghast' && data.dimension === 'overworld') this.grant('nether/uneasy_alliance');
         if (data.type === 'ender_dragon') this.grant('end/kill_dragon');
         break;
       }
@@ -135,6 +202,18 @@ export class AdvancementTracker {
       case 'summon_iron_golem': this.grant('adventure/summon_iron_golem'); break;
       case 'summon_wither': this.grant('nether/summon_wither'); break;
       case 'end_gateway': this.grant('end/enter_end_gateway'); break;
+      case 'respawn_dragon': this.grant('end/respawn_dragon'); break;
+      case 'ride_strider': this.grant('nether/ride_strider'); break;
+      case 'charge_respawn_anchor': this.grant('nether/charge_respawn_anchor'); break;
+      case 'beacon': this.grant('nether/create_beacon'); if (data.tier >= 4) this.grant('nether/create_full_beacon'); break;
+      // "Oh Shiny": distract a piglin with gold "while not wearing golden armor".
+      case 'distract_piglin': {
+        const armour = Object.values(this.game.inventory?.armor ?? {});
+        if (!armour.some(isGoldenArmour)) this.grant('nether/distract_piglin');
+        break;
+      }
+      // "War Pigs": loot a chest in a bastion remnant.
+      case 'open_loot_chest': if (['bastion_remnant', 'bastion'].includes(this.game.structureIdAt?.(data.x, data.y, data.z))) this.grant('nether/loot_bastion'); break;
       case 'follow_ender_eye': this.grant('story/follow_ender_eye'); break;
       case 'wax_on': this.grant('husbandry/wax_on'); break;
       case 'wax_off': this.grant('husbandry/wax_off'); break;

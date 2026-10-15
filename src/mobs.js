@@ -1,3 +1,4 @@
+import { updateVillagerBreeding } from './villagerBreeding.js';
 import { advancementEvent } from './advancements.js';
 import { createArmorStand, armorStandDrops } from './armorStand.js';
 import { createWitherSkeletonModel } from './witherSkeletonModel.js';
@@ -48,7 +49,7 @@ import { updateWaterAnimalAirSupply } from './waterAnimalAirSupply.js';
 import { updateCreeper, CREEPER_FOLLOW_RANGE } from './creeperBehavior.js';
 import { angerWolf, updateAngryWolf } from './wolfCombat.js';
 import { updateFrogspawn, updatePregnantFrog } from './frogspawn.js';
-import { holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES } from './mobEnvironment.js';
+import { meleeCanReach, holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES } from './mobEnvironment.js';
 import { breachedArmourFraction } from './maceSmash.js';
 import { applyNaturalZombieSpawn, dismountIfChickenDead, lavaChickenDrop, tearsDrop, JOCKEY_CHICKEN_XP } from './chickenJockey.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
@@ -1126,6 +1127,21 @@ export class MobManager {
     return this.mobProviders?.get(type) ?? this.mobProviders?.get(this.activeMobModId + ':' + type);
   }
 
+  /**
+   * Spider: "A spider jockey has a 1% chance of spawning out of every spider or cave spider spawned" -- a skeleton
+   * riding it (Java rolls it in the spider's finalizeSpawn). The rider was never created, so spider jockeys did not
+   * exist (Summoning jockeys play-test). `options.noJockey` opts out; `options.isJockey` forces one.
+   */
+  withSpiderJockeyRoll(spider, options = {}) {
+    if (!spider || options.noJockey || spider.isBaby) return spider;
+    const roll = typeof this.random === 'function' ? this.random : Math.random;
+    if (!(options.isJockey || roll() < 0.01)) return spider;
+    const p = spider.mesh.position;
+    const rider = this.spawnMob('skeleton', p.x, p.y + (spider.height ?? 0.9), p.z, { noJockey: true });
+    if (rider) { rider.vehicle = spider; spider.rider = rider; spider.isJockey = true; rider.persistent = spider.persistent; }
+    return spider;
+  }
+
   spawnMob(type, x, y, z, options = {}) {
     const provider = this.getMobProvider?.(type);
     if (provider) return provider.spawn.call(this, x, y, z, options);
@@ -1150,8 +1166,8 @@ export class MobManager {
       case 'zombie_villager': return this.spawnZombieVillager(x, y, z);
       case 'skeleton': return this.spawnSkeleton(x, y, z);
       case 'creeper': return this.spawnCreeper(x, y, z);
-      case 'spider': return this.spawnSpider(x, y, z, options);
-      case 'cave_spider': return this.spawnCaveSpider(x, y, z, options);
+      case 'spider': return this.withSpiderJockeyRoll(this.spawnSpider(x, y, z, options), options);
+      case 'cave_spider': return this.withSpiderJockeyRoll(this.spawnCaveSpider(x, y, z, options), options);
       case 'silverfish': return this.spawnSilverfish(x, y, z, options);
       case 'endermite': return this.spawnEndermite(x, y, z, options);
       case 'rabbit': return this.spawnRabbit(x, y, z, options);
@@ -10286,7 +10302,7 @@ export class MobManager {
       // A kill the player made (it hit the mob), for the advancements (advancements.js).
       if (mob.playerDamaged || mob.lastAttacker === this.game?.player) {
         const pp = this.game?.player?.position;
-        advancementEvent('kill', { type: mob.type, distance: pp ? pos.distanceTo(pp) : 0, projectile: !!mob.lastHitByProjectile, fireball: !!mob.lastHitByFireball });
+        advancementEvent('kill', { type: mob.type, distance: pp ? pos.distanceTo(pp) : 0, projectile: !!mob.lastHitByProjectile, fireball: !!(mob.lastHitByFireball || mob.killedByDeflectedFireball), dimension: this.game?.currentDimension ?? this.game?.world?.dimension ?? 'overworld' });
       }
       if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
         this.game.player.applyStatusEffect('bad_omen', 100);
@@ -10722,6 +10738,11 @@ export class MobManager {
         // Studio sets this so a mob stands still while you look at it, and the debug
         // inspector sets it so a model can be examined without it wandering off.
         if (mob.vehicle?.type === 'chicken') dismountIfChickenDead(mob);
+        // A spider jockey's skeleton sits on the spider and goes where it goes; it falls off when the spider dies.
+        if (mob.vehicle && (mob.vehicle.type === 'spider' || mob.vehicle.type === 'cave_spider')) {
+          if (mob.vehicle.health <= 0) { mob.vehicle.rider = null; mob.vehicle = null; }
+          else { mob.mesh.position.copy(mob.vehicle.mesh.position); mob.mesh.position.y += (mob.vehicle.height ?? 0.9) * 0.85; mob.velocity?.set?.(0, 0, 0); }
+        }
         // A chicken jockey's chicken goes where its baby zombie rider takes it, and the rider sits on it.
         if (mob.type === 'chicken' && mob.rider?.vehicle === mob && mob.rider.health > 0 && mob.health > 0 && mob.rider.mesh && mob.mesh) {
           mob.mesh.position.copy(mob.rider.mesh.position);
@@ -12999,6 +13020,8 @@ export class MobManager {
       // Wiki: "Every 20 minutes, all gossips of a villager decays by the amount in the 'Decay' column." The
       // curing gossip's decay is zero, which is what makes a cure's discount permanent.
       decayGossip(mob, dt);
+      // Breeding: food, willingness, a partner and a free bed (villagerBreeding.js).
+      updateVillagerBreeding(this, mob, dt);
 
       // Wiki: a level-up grants the villager ten seconds of Regeneration I, worth four hit points.
       const regenerated = updateVillagerRegeneration(mob, dt);
@@ -13063,9 +13086,10 @@ export class MobManager {
         mob.yaw = targetYaw;
         mob.velocity.x = Math.sin(targetYaw) * (mob.speed || 1.4);
         mob.velocity.z = Math.cos(targetYaw) * (mob.speed || 1.4);
-        if (distToPlayer < 1.4 && (!mob.hitCooldown || mob.hitCooldown <= 0)) {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt); // its swing timer, apart from hurt immunity
+        if (distToPlayer < 1.4 && mob.attackCooldown <= 0 && meleeCanReach(this.world, mob, player)) {
           player.takeDamage?.(meleeDamage('zombie_villager', this.game?.difficulty, 3));
-          mob.hitCooldown = 1.0;
+          mob.attackCooldown = 1.0;
           this.sounds?.playZombie?.();
         }
       } else {
@@ -13187,11 +13211,14 @@ export class MobManager {
         }
 
         // Attack player (wiki: camel height protects mounted rider from short melee mobs)
-        if (distToPlayer < 1.4 && mob.hitCooldown <= 0) {
+        // The swing timer is `attackCooldown`: `hitCooldown` is the hurt immunity damageMob reads, and sharing it made a
+        // biting zombie immune to the player's sword (Advancement guide play-test, "Monster Hunter").
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (distToPlayer < 1.4 && mob.attackCooldown <= 0 && meleeCanReach(this.world, mob, player)) {
           if (!camelProtectsRiderFrom(mob, player)) {
             player.takeDamage(meleeDamage(mob.type, this.game?.difficulty, 3), mob.mesh.position, mob.type);
           }
-          mob.hitCooldown = 1.0;
+          mob.attackCooldown = 1.0;
         }
       } else {
         // Wander
@@ -14226,9 +14253,10 @@ export class MobManager {
             this.sounds?.playPop?.();
           }
 
-          if (closestDist < 2.2 && mob.hitCooldown <= 0) {
+          mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+          if (closestDist < 2.2 && mob.attackCooldown <= 0) {
             this.damageMob(targetMob, mob.attackDamage, mob.mesh.position);
-            mob.hitCooldown = 0.8;
+            mob.attackCooldown = 0.8;
             this.handleMobSkills(mob, targetMob.mesh.position, dt);
           }
         } else if (player) {
@@ -14315,9 +14343,10 @@ export class MobManager {
         mob.velocity.x = dir.x * (mob.speed * 1.2);
         mob.velocity.z = dir.z * (mob.speed * 1.2);
 
-        if (closestDist < 1.8 && mob.hitCooldown <= 0) {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (closestDist < 1.8 && mob.attackCooldown <= 0) {
           this.damageMob(targetMob, mob.attackDamage, mob.mesh.position);
-          mob.hitCooldown = 0.8;
+          mob.attackCooldown = 0.8;
           if (mob.leftArm && mob.rightArm) {
             mob.leftArm.rotation.x = -Math.PI / 2.2;
             mob.rightArm.rotation.x = -Math.PI / 2.2;
@@ -14363,11 +14392,12 @@ export class MobManager {
         }
 
         // Melee attack (wiki: camel height protects mounted rider from short melee mobs)
-        if (distToPlayer < 1.7 && mob.hitCooldown <= 0) {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (distToPlayer < 1.7 && mob.attackCooldown <= 0 && meleeCanReach(this.world, mob, player)) {
           if (!camelProtectsRiderFrom(mob, player)) {
             player.takeDamage(mob.attackDamage, mob.mesh.position, mob.type);
           }
-          mob.hitCooldown = 1.0;
+          mob.attackCooldown = 1.0;
           if (mob.leftArm && mob.rightArm) {
             mob.leftArm.rotation.x = -Math.PI / 2.2;
             mob.rightArm.rotation.x = -Math.PI / 2.2;
@@ -14389,13 +14419,14 @@ export class MobManager {
         mob.velocity.x = dir.x * mob.speed;
         mob.velocity.z = dir.z * mob.speed;
         const d = mob.mesh.position.distanceTo(mob.targetEntity.position);
-        if (d < 1.7 && mob.hitCooldown <= 0) {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (d < 1.7 && mob.attackCooldown <= 0) {
           if (mob.targetEntity.takeDamage) {
             mob.targetEntity.takeDamage(mob.attackDamage);
           } else {
             this.damageMob(mob.targetEntity, mob.attackDamage, mob.mesh.position);
           }
-          mob.hitCooldown = 1.0;
+          mob.attackCooldown = 1.0;
         }
       } else {
         wanderMob(this, mob, dt, 1.0);

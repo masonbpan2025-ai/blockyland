@@ -323,16 +323,17 @@ export function getDestinationCoordinates(sourceDim, x, y, z) {
   if (sourceDim === 'nether') {
     // Nether to Overworld: multiply X and Z by 8
     return {
-      x: Math.round(x * 8),
+      x: Math.floor(x * 8),
       y: Math.max(12, Math.min(60, Math.round(y))),
-      z: Math.round(z * 8)
+      z: Math.floor(z * 8)
     };
   } else {
     // Overworld to Nether: divide X and Z by 8
+    // Floored, as Java's BlockPos.containing does: x = -401 is Nether -51 (-50.125 rounded down), not -50.
     return {
-      x: Math.round(x / 8),
+      x: Math.floor(x / 8),
       y: Math.max(16, Math.min(45, Math.round(y))),
-      z: Math.round(z / 8)
+      z: Math.floor(z / 8)
     };
   }
 }
@@ -371,11 +372,13 @@ export function findNearbyPortal(world, targetX, targetY, targetZ, maxRadius = 6
         for (let lz = 0; lz < 16; lz++) {
           const wx = cx * 16 + lx;
           const wz = cz * 16 + lz;
+          // A square, as Java's point-of-interest search is (Nether portals: "within 16 blocks horizontally").
+          if (Math.abs(wx - targetX) > maxRadius || Math.abs(wz - targetZ) > maxRadius) continue;
           const distSq = (wx - targetX) ** 2 + (wz - targetZ) ** 2;
-          if (distSq > maxRadius ** 2) continue;
 
-          for (let wy = 5; wy < 60; wy++) {
-            if (chunk && typeof chunk.getVoxel === 'function' && chunk.getVoxel(lx, wy, lz) === BLOCKS.NETHER_PORTAL) {
+          for (let wy = 1; wy < 63; wy++) {
+            // "For any column of portal blocks ... only the bottom one is considered."
+            if (chunk && typeof chunk.getVoxel === 'function' && chunk.getVoxel(lx, wy, lz) === BLOCKS.NETHER_PORTAL && chunk.getVoxel(lx, wy - 1, lz) !== BLOCKS.NETHER_PORTAL) {
               const totalDist = distSq + (wy - targetY) ** 2;
               if (totalDist < closestDist) {
                 closestDist = totalDist;
@@ -409,55 +412,39 @@ export function findNearbyPortal(world, targetX, targetY, targetZ, maxRadius = 6
  * @param {'x'|'z'} [axis='x'] Orientation axis
  * @returns {object} { spawnX, spawnY, spawnZ, affectedChunks }
  */
-export function generateDestinationPortal(world, x, y, z, axis = 'x') {
+export function generateDestinationPortal(world, x, y, z, axis = 'x', { platform = true } = {}) {
   const isX = axis === 'x';
-  const baseY = Math.max(10, Math.min(52, Math.floor(y)));
+  const baseY = Math.max(1, Math.min(56, Math.floor(y)));
   const anchorX = Math.floor(x);
   const anchorZ = Math.floor(z);
+  const at = (h, depth) => (isX ? [anchorX + h, anchorZ + depth] : [anchorX + depth, anchorZ + h]);
 
   const affectedChunksSet = new Set();
   const markDirty = (bx, bz) => {
     affectedChunksSet.add(`${Math.floor(bx / 16)},${Math.floor(bz / 16)}`);
   };
 
-  // 1. Build a safe 4x4 stone/obsidian platform at baseY - 1
-  for (let dx = -1; dx <= 2; dx++) {
-    for (let dz = -1; dz <= 2; dz++) {
-      const px = isX ? anchorX + dx : anchorX + dz;
-      const pz = isX ? anchorZ + dz : anchorZ + dx;
-      world.setVoxel(px, baseY - 1, pz, BLOCKS.OBSIDIAN);
-      markDirty(px, pz);
-    }
-  }
-
-  // 2. Clear interior air room (4 wide x 5 high x 3 deep) so portal is not obstructed by stone/dirt
-  for (let h = -1; h <= 2; h++) {
-    for (let dy = 0; dy <= 4; dy++) {
+  // Nether portals: when no site was found, "A 2x3 platform of obsidian with air 3 high above is created at the
+  // target location, overwriting whatever might be there." The platform is the frame's bottom row and the rows
+  // either side of it; nothing else around the portal is touched.
+  if (platform) {
+    for (let h = 0; h <= 1; h++) {
       for (let depth = -1; depth <= 1; depth++) {
-        const cx = isX ? anchorX + h : anchorX + depth;
-        const cz = isX ? anchorZ + depth : anchorZ + h;
-        world.setVoxel(cx, baseY + dy, cz, BLOCKS.AIR);
-        markDirty(cx, cz);
+        const [px, pz] = at(h, depth);
+        world.setVoxel(px, baseY, pz, BLOCKS.OBSIDIAN);
+        for (let dy = 1; dy <= 3; dy++) world.setVoxel(px, baseY + dy, pz, BLOCKS.AIR);
+        markDirty(px, pz);
       }
     }
   }
 
-  // 3. Place obsidian frame:
-  // Width 4, Height 5.
-  // Inner space is 2 wide x 3 high at baseY to baseY + 2.
-  // Frame columns are at h = -1 and h = 2.
-  // Inner width columns are at h = 0 and h = 1.
+  // "When creating a portal, the game always makes a 4x5 frame of obsidian, including corner blocks": columns at
+  // h = -1 and h = 2, the bottom row at baseY, the portal 2 wide and 3 high above it.
   for (let h = -1; h <= 2; h++) {
     for (let dy = 0; dy <= 4; dy++) {
-      const fx = isX ? anchorX + h : anchorX;
-      const fz = isX ? anchorZ : anchorZ + h;
+      const [fx, fz] = at(h, 0);
       const isBorder = (h === -1 || h === 2 || dy === 0 || dy === 4);
-
-      if (isBorder) {
-        world.setVoxel(fx, baseY + dy, fz, BLOCKS.OBSIDIAN);
-      } else {
-        world.setVoxel(fx, baseY + dy, fz, BLOCKS.NETHER_PORTAL);
-      }
+      world.setVoxel(fx, baseY + dy, fz, isBorder ? BLOCKS.OBSIDIAN : BLOCKS.NETHER_PORTAL);
       markDirty(fx, fz);
     }
   }
@@ -473,6 +460,53 @@ export function generateDestinationPortal(world, x, y, z, axis = 'x') {
     spawnZ: anchorZ + 0.5,
     affectedChunks
   };
+}
+
+const isBuildable = (id) => id !== undefined && id !== BLOCKS.AIR && id !== BLOCKS.NETHER_PORTAL && BLOCK_DEFS[id]?.solid !== false && !BLOCK_DEFS[id]?.liquid && !BLOCK_DEFS[id]?.plant;
+const isOpen = (id) => id === BLOCKS.AIR || id === BLOCKS.CAVE_AIR;
+
+/**
+ * Where a new destination portal goes (Java, as the Nether portals tutorial gives it): "within 16 blocks
+ * horizontally (but any distance vertically)" of the destination, "a valid location is 3x4 buildable blocks with air
+ * 4 high above all 12 blocks"; "The closest valid position in the 3D distance is always picked"; failing that "a 1x4
+ * area of buildable blocks, still with air 4 high above them". Returns the frame's anchor (its bottom row at the
+ * ground) or null.
+ */
+export function findPortalSite(world, targetX, targetY, targetZ, { radius = 16, minY = 1, maxY = 58 } = {}) {
+  for (const deep of [true, false]) {
+    let best = null, bestDist = Infinity;
+    for (let x = targetX - radius; x <= targetX + radius; x++) {
+      for (let z = targetZ - radius; z <= targetZ + radius; z++) {
+        for (let y = minY; y <= maxY; y++) {
+          const dist = (x - targetX) ** 2 + (y - targetY) ** 2 + (z - targetZ) ** 2;
+          if (dist >= bestDist) continue;
+          for (const axis of ['x', 'z']) {
+            let ok = true;
+            // Four along the portal's axis (the frame's columns and its two portal columns), three across it.
+            for (let a = 0; a <= 3 && ok; a++) {
+              for (let b = deep ? -1 : 0; b <= (deep ? 1 : 0) && ok; b++) {
+                const cx = axis === 'x' ? x + a : x + b, cz = axis === 'x' ? z + b : z + a;
+                if (!isBuildable(world.getVoxel(cx, y - 1, cz))) { ok = false; break; }
+                for (let h = 0; h < 4; h++) if (!isOpen(world.getVoxel(cx, y + h, cz))) { ok = false; break; }
+              }
+            }
+            if (ok) { best = { x: axis === 'x' ? x + 1 : x, y: y - 1, z: axis === 'x' ? z : z + 1, axis }; bestDist = dist; break; }
+          }
+        }
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+/** Find a site and build the destination portal there; failing that, the forced platform at the target. */
+export function placeDestinationPortal(world, x, y, z) {
+  // The search reads real terrain: the chunks it covers are generated first.
+  for (let cx = Math.floor((x - 16) / 16); cx <= Math.floor((x + 19) / 16); cx++) for (let cz = Math.floor((z - 16) / 16); cz <= Math.floor((z + 19) / 16); cz++) world.getOrCreateChunk?.(cx, cz);
+  const site = findPortalSite(world, x, y, z);
+  if (site) return generateDestinationPortal(world, site.x, site.y, site.z, site.axis, { platform: false });
+  return generateDestinationPortal(world, x, Math.max(10, Math.min(52, y)), z, 'x');
 }
 
 /**
@@ -661,9 +695,11 @@ export class NetherPortalManager {
     }
 
     // 4. Look for existing portal or generate a new one
-    let targetSpawn = findNearbyPortal(game.world, destCoords.x, destCoords.y, destCoords.z, 64);
+    // Nether portals: "If going to the Nether it searches a 33x33 block area"; "If going to the Overworld, it searches
+    // a much larger area, 17x17 chunks" -- 16 and 128 blocks either way.
+    let targetSpawn = findNearbyPortal(game.world, destCoords.x, destCoords.y, destCoords.z, targetDim === 'nether' ? 16 : 128);
     if (!targetSpawn) {
-      const generated = generateDestinationPortal(game.world, destCoords.x, destCoords.y, destCoords.z, 'x');
+      const generated = placeDestinationPortal(game.world, destCoords.x, destCoords.y, destCoords.z);
       targetSpawn = generated;
       if (game.rebuildChunkMesh) {
         for (const { cx, cz } of generated.affectedChunks) {

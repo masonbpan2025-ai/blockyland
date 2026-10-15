@@ -63,6 +63,28 @@ export function decodeVoxelsRLE(rle, targetArray) {
   }
 }
 
+/** The mobs saved in the dimensions the player was not in go back to waiting there (main.js switchDimension). */
+function restoreDimensionMobs(game, mapData) {
+  game.mobsByDimension = {};
+  for (const [dimension, records] of Object.entries(mapData.dimensionMobs ?? {})) {
+    if (dimension === game.world?.dimension || !Array.isArray(records)) continue;
+    const kept = [];
+    for (const m of records) {
+      try {
+        const mob = game.mobs?.spawnMob?.(m.type, m.position.x, m.position.y, m.position.z);
+        if (!mob) continue;
+        if (m.health) { mob.health = m.health; mob.maxHealth = Math.max(mob.maxHealth || m.health, m.health); }
+        mob.yaw = m.yaw ?? mob.yaw;
+        restoreMobState(mob, m.state, { player: game.player, applyAppearance: restoreMobAppearance });
+        const i = game.mobs.mobs.indexOf(mob); if (i >= 0) game.mobs.mobs.splice(i, 1);
+        mob.mesh?.removeFromParent?.();
+        kept.push(mob);
+      } catch (err) { console.warn(`Could not restore ${dimension} mob ${m?.type}:`, err); }
+    }
+    game.mobsByDimension[dimension] = kept;
+  }
+}
+
 /**
  * Serializes the current game state into a complete, portable map JSON object.
  */
@@ -82,7 +104,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     });
   }
 
-  const mobsData = (game.mobs?.mobs || []).map(mob => ({
+  const mobRecord = (mob, list) => ({
     type: mob.type,
     position: {
       x: Number(mob.mesh.position.x.toFixed(3)),
@@ -95,11 +117,14 @@ export function serializeWorld(game, mapName = 'World 1') {
     strider: serializeStrider(mob),
     squid: serializeSquid(mob),
     witherSkeleton: serializeWitherSkeleton(mob),
-    striderVehicle: mob.vehicle?.type==='strider' ? game.mobs.mobs.indexOf(mob.vehicle) : undefined,
+    striderVehicle: mob.vehicle?.type==='strider' ? list.indexOf(mob.vehicle) : undefined,
     // Everything the per-mob blobs above do not cover: age, taming, variants, timers and roles.
     state: serializeMobState(mob, game),
     health: mob.health ?? 20
-  }));
+  });
+  const mobsData = (game.mobs?.mobs || []).map((mob, _, list) => mobRecord(mob, list));
+  // The mobs waiting in the dimensions the player is not in (main.js switchDimension).
+  const dimensionMobs = Object.fromEntries(Object.entries(game.mobsByDimension ?? {}).filter(([d, list]) => d !== game.world.dimension && list?.length).map(([d, list]) => [d, list.map((mob) => mobRecord(mob, list))]));
 
   const mapData = {
     dimensions: Object.fromEntries(Object.entries(game.world.dimensionChunks??{}).filter(([dimension,chunks])=>dimension!==game.world.dimension&&chunks.size).map(([dimension,chunks])=>[dimension,{
@@ -147,6 +172,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     inventory: captureInventoryState(game.inventory),
     chunks: chunksData,
     mobs: mobsData,
+    dimensionMobs,
     // Wall paintings: canvas, facing and the air cell they hang from. Older saves have none.
     paintings: game.paintings?.serialize?.() ?? [],
     gemini: {
@@ -402,6 +428,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
     await yieldFn();
   }
 
+  restoreDimensionMobs(game, mapData);
   // 9b. Paintings hang on blocks, so they go back after the chunks and before the meshes.
   game.paintings?.restore?.(mapData.paintings);
 
@@ -652,6 +679,7 @@ export function deserializeWorld(game, mapData, options = {}) {
     const vehicle=mapData.mobs[i].striderVehicle;
     if(Number.isInteger(vehicle)&&restoredMobs?.[vehicle]?.type==='strider'&&restoredMobs[i])attachStriderPassenger(restoredMobs[vehicle],restoredMobs[i]);
   }
+  restoreDimensionMobs(game, mapData);
   // 9b. Paintings hang on blocks, so they go back after the chunks.
   game.paintings?.restore?.(mapData.paintings);
 

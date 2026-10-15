@@ -107,13 +107,22 @@ export function spendDurability(stack, amount = 1, random = Math.random) {
   // remember not to use a broken tool, and the outcome reports a point spent on something unusable.
   if (stack.durability <= 0) return { spent: 0, broke: true, remaining: 0 };
   for (let i = 0; i < Math.max(0, Math.floor(amount)); i++) {
-    // Unbreaking keeps the point with p = level / (level + 1).
-    if (level > 0 && random() < level / (level + 1)) continue;
+    // Unbreaking: a tool keeps the point with p = level / (level + 1); armour is harder to spare -- it takes the damage
+    // with p = 0.6 + 0.4 / (level + 1), so Unbreaking III armour lasts about 43% longer, not four times (Unbreaking;
+    // Best enchantments guide: "Unbreaking III only makes a piece of armor last about 43% longer").
+    if (level > 0 && random() < keepChance(id, level)) continue;
     spent++;
     stack.durability = Math.max(0, stack.durability - 1);
     if (stack.durability === 0) break;
   }
   return { spent, broke: stack.durability === 0, remaining: stack.durability };
+}
+
+/** The chance Unbreaking at `level` spares one point on item `id`. */
+export function keepChance(id, level) {
+  if (!(level > 0)) return 0;
+  const armour = /_(helmet|chestplate|leggings|boots)$/.test(String(id ?? '')) || id === 'turtle_helmet';
+  return armour ? 1 - (0.6 + 0.4 / (level + 1)) : level / (level + 1);
 }
 
 /** The highest unbreaking level on a stack, or 0. */

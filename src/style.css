@@ -3134,7 +3134,8 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 10, 20, 0.82);
+  background: #090e1a;
+  background-image: radial-gradient(circle at center, #162035 0%, #090e1a 100%);
   backdrop-filter: blur(3px);
 }
 
@@ -3389,7 +3390,7 @@ html, body {
 
 .studio-panel-footer {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding-top: 12px;
 }
@@ -3399,8 +3400,9 @@ html, body {
   background: #059669;
   border-color: #10b981;
   color: #ecfdf5;
-  font-size: 13px;
-  padding: 8px;
+  font-size: 11px;
+  padding: 6px 4px;
+  white-space: nowrap;
 }
 
 .studio-btn-save:hover {
@@ -3412,12 +3414,41 @@ html, body {
   background: #3b82f6;
   border-color: #60a5fa;
   color: #eff6ff;
-  font-size: 13px;
-  padding: 8px;
+  font-size: 11px;
+  padding: 6px 4px;
+  white-space: nowrap;
 }
 
 .studio-btn-open:hover {
   background: #2563eb;
+}
+
+.studio-btn-export-schem {
+  flex: 1;
+  background: #7c3aed;
+  border-color: #a78bfa;
+  color: #f5f3ff;
+  font-size: 11px;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+.studio-btn-export-schem:hover {
+  background: #6d28d9;
+}
+
+.studio-btn-import-schem {
+  flex: 1;
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #f0f9ff;
+  font-size: 11px;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+.studio-btn-import-schem:hover {
+  background: #0369a1;
 }
 
 /* Every scenario passed, but some could not be exercised because the behaviour is not

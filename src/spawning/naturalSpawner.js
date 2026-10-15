@@ -582,6 +582,7 @@ export class NaturalSpawner {
       dimension: this.dimension,
       x, y: yInt, z,
       placement: placement.placement,
+      mobType: type,
       width: dims.width,
       height: dims.height,
       requiresHostileDifficulty: !!CATEGORY_INFO[category]?.requiresHostileDifficulty,

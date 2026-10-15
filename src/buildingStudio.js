@@ -1,7 +1,67 @@
 import * as THREE from 'three';
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
+import { CanonicalBlockState, CanonicalStructure, CanonicalRegion, AIR } from './io/canonical.js';
+import { readSpongeSchematic, writeSpongeSchematic } from './io/codecs.js';
+import { normaliseBlockName, NAME_ALIASES } from './blockNameMatch.js';
+
+export function blockIdToCanonicalState(id) {
+  if (id === BLOCKS.AIR || id === undefined || id === null) {
+    return AIR;
+  }
+  const def = BLOCK_DEFS[id];
+  if (def && def.name) {
+    const norm = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    try {
+      return new CanonicalBlockState(`minecraft:${norm}`);
+    } catch {}
+  }
+  for (const [key, val] of Object.entries(BLOCKS)) {
+    if (val === id) {
+      const norm = key.toLowerCase();
+      try {
+        return new CanonicalBlockState(`minecraft:${norm}`);
+      } catch {}
+    }
+  }
+  return new CanonicalBlockState('minecraft:stone');
+}
+
+export function canonicalStateToBlockId(state) {
+  if (!state || state.equals(AIR) || state.name === 'minecraft:air') {
+    return BLOCKS.AIR;
+  }
+  const raw = state.name.replace(/^minecraft:/, '').toLowerCase();
+  const upper = raw.toUpperCase();
+
+  if (BLOCKS[upper] !== undefined) {
+    return BLOCKS[upper];
+  }
+
+  const folded = normaliseBlockName(raw);
+  if (NAME_ALIASES[folded] && BLOCKS[NAME_ALIASES[folded]] !== undefined) {
+    return BLOCKS[NAME_ALIASES[folded]];
+  }
+
+  for (const [id, def] of Object.entries(BLOCK_DEFS)) {
+    if (def?.name && normaliseBlockName(def.name) === folded) {
+      return Number(id);
+    }
+  }
+
+  if (raw.includes('stair')) return BLOCKS.STONE_BRICKS || BLOCKS.COBBLESTONE;
+  if (raw.includes('plank')) return BLOCKS.OAK_PLANKS;
+  if (raw.includes('log') || raw.includes('wood')) return BLOCKS.OAK_LOG;
+  if (raw.includes('leaves')) return BLOCKS.OAK_LEAVES;
+  if (raw.includes('glass')) return BLOCKS.GLASS;
+  if (raw.includes('brick')) return BLOCKS.BRICKS || BLOCKS.STONE_BRICKS;
+  if (raw.includes('sand')) return BLOCKS.SAND;
+  if (raw.includes('dirt')) return BLOCKS.DIRT;
+  if (raw.includes('wool')) return BLOCKS.WHITE_WOOL;
+
+  return BLOCKS.STONE;
+}
 
 /**
  * Building Studio is not a world: there is no terrain, only an invisible ground at this height. The cells below
@@ -30,6 +90,10 @@ export class BuildingStudioManager {
     this.buildingNameBadge = hasDoc ? document.getElementById('studio-current-building-name') : null;
     this.btnSave = hasDoc ? document.getElementById('btn-studio-save') : null;
     this.btnOpen = hasDoc ? document.getElementById('btn-studio-open') : null;
+    this.btnExportSchem = hasDoc ? document.getElementById('btn-studio-export-schem') : null;
+    this.btnImportSchem = hasDoc ? document.getElementById('btn-studio-import-schem') : null;
+    this.btnModalImportSchem = hasDoc ? document.getElementById('btn-studio-modal-import-schem') : null;
+    this.fileInputImportSchem = hasDoc ? document.getElementById('input-studio-import-schem') : null;
 
     this.saveModal = hasDoc ? document.getElementById('modal-save-building') : null;
     this.saveInput = hasDoc ? document.getElementById('input-save-building-name') : null;
@@ -94,6 +158,26 @@ export class BuildingStudioManager {
 
     this.openSearch?.addEventListener('input', (e) => {
       this.renderOpenBuildingList(e.target.value);
+    });
+
+    this.btnExportSchem?.addEventListener('click', () => {
+      this.exportCurrentToSchematic();
+    });
+
+    this.btnImportSchem?.addEventListener('click', () => {
+      this.fileInputImportSchem?.click();
+    });
+
+    this.btnModalImportSchem?.addEventListener('click', () => {
+      this.fileInputImportSchem?.click();
+    });
+
+    this.fileInputImportSchem?.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        await this.importSchematicFiles(files);
+        e.target.value = '';
+      }
     });
   }
 
@@ -274,6 +358,267 @@ export class BuildingStudioManager {
     }
 
     return blocks.length > 0 ? blocks : (this.customBuildBlocks || []);
+  }
+
+  getActiveVoxels() {
+    let voxels = this.captureCurrentVoxels();
+    const orig = this.buildOrigin || { x: 0, y: STUDIO_GROUND_Y, z: 8 };
+    if ((!voxels || voxels.length === 0) && this.currentBuilding && typeof this.currentBuilding.generate === 'function') {
+      const generated = this.currentBuilding.generate(orig, this.currentParameters || {}, BLOCKS) || [];
+      voxels = generated.map(b => ({
+        x: b.x !== undefined ? b.x : (orig.x + (b.dx || 0)),
+        y: b.y !== undefined ? b.y : (orig.y + (b.dy || 0)),
+        z: b.z !== undefined ? b.z : (orig.z + (b.dz || 0)),
+        id: b.id
+      }));
+    }
+    return (voxels || []).filter(v => v && v.id !== undefined && v.id !== BLOCKS.AIR);
+  }
+
+  async exportCurrentToSchematic({ version = 3, gzipped = true } = {}) {
+    const voxels = this.getActiveVoxels();
+    if (!voxels || voxels.length === 0) {
+      const msg = 'No building voxels to export. Please open or build a structure first.';
+      this.game?.ui?.addChatMessage?.(`<span style="color:#ef4444;font-weight:bold;">✦ ${msg}</span>`);
+      if (typeof alert === 'function') alert(msg);
+      return null;
+    }
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    for (const b of voxels) {
+      if (b.x < minX) minX = b.x;
+      if (b.y < minY) minY = b.y;
+      if (b.z < minZ) minZ = b.z;
+      if (b.x > maxX) maxX = b.x;
+      if (b.y > maxY) maxY = b.y;
+      if (b.z > maxZ) maxZ = b.z;
+    }
+
+    const width = maxX - minX + 1;
+    const height = maxY - minY + 1;
+    const length = maxZ - minZ + 1;
+
+    const canonicalBlocks = voxels.map(b => ({
+      pos: { x: b.x - minX, y: b.y - minY, z: b.z - minZ },
+      state: blockIdToCanonicalState(b.id)
+    }));
+
+    const orig = this.buildOrigin || { x: 0, y: 5, z: 8 };
+    const offsetOrigin = {
+      x: minX - orig.x,
+      y: minY - orig.y,
+      z: minZ - orig.z
+    };
+
+    const buildingName = this.currentBuilding?.name || this.customBuildName || 'Building';
+    const region = new CanonicalRegion({
+      name: 'main',
+      origin: offsetOrigin,
+      size: { x: width, y: height, z: length },
+      blocks: canonicalBlocks
+    });
+
+    const structure = new CanonicalStructure({
+      name: buildingName,
+      regions: [region],
+      source: {
+        format: `sponge-schem-v${version}`,
+        edition: 'java',
+        dataVersion: 4189,
+        gameVersion: '1.21.4'
+      },
+      metadata: {
+        author: 'Minecraft in Browser'
+      }
+    });
+
+    const bytes = await writeSpongeSchematic(structure, { version, gzipped });
+    const filename = `${buildingName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'structure'}.schem`;
+
+    if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof document.createElement === 'function') {
+      try {
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        if (document.body) {
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          a.click();
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (err) {
+        console.warn('Auto download failed:', err);
+      }
+    }
+
+    this.game?.ui?.addChatMessage?.(
+      `<span style="color:#10b981;font-weight:bold;">✦ Exported "${buildingName}" as ${filename} (WorldEdit .schem)!</span>`
+    );
+
+    return { bytes, structure, filename };
+  }
+
+  exportSchematic(options) {
+    return this.exportCurrentToSchematic(options);
+  }
+
+  async importSchematicFiles(files) {
+    if (!files) return [];
+    const fileList = Array.isArray(files) ? files : (files.length !== undefined ? Array.from(files) : [files]);
+    if (fileList.length === 0) return [];
+
+    const importedBuildings = [];
+
+    for (const file of fileList) {
+      try {
+        let bytes;
+        let filename = file.name || file.filename || 'imported.schem';
+
+        if (file instanceof Uint8Array) {
+          bytes = file;
+        } else if (file.bytes instanceof Uint8Array) {
+          bytes = file.bytes;
+        } else if (file.data instanceof Uint8Array) {
+          bytes = file.data;
+        } else if (typeof file.arrayBuffer === 'function') {
+          const buf = await file.arrayBuffer();
+          bytes = new Uint8Array(buf);
+        } else if (file instanceof ArrayBuffer) {
+          bytes = new Uint8Array(file);
+        } else {
+          continue;
+        }
+
+        const { structure } = await readSpongeSchematic(bytes);
+        if (!structure || !structure.main || !structure.main.blocks) {
+          continue;
+        }
+
+        const rawBase = (filename || structure.name || 'imported')
+          .replace(/\.schem$/i, '')
+          .replace(/[-_]+/g, ' ')
+          .trim();
+        let baseName = rawBase
+          ? rawBase.split(/\s+/).map(w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '').join(' ')
+          : 'Imported Building';
+
+        if (baseName.toLowerCase() === 'sponge schematic') {
+          baseName = 'Imported Structure';
+        }
+
+        let candidateName = baseName;
+        let counter = 2;
+        while (BuildingLibrary.hasBuilding(candidateName)) {
+          candidateName = `${baseName} (${counter++})`;
+        }
+
+        const region = structure.main;
+        const blocks = region.blocks;
+        if (!blocks || blocks.length === 0) {
+          continue;
+        }
+
+        const hasCustomOrigin = region.origin && (region.origin.x !== 0 || region.origin.y !== 0 || region.origin.z !== 0);
+        const centerX = Math.floor(region.size.x / 2);
+        const centerZ = Math.floor(region.size.z / 2);
+
+        const relBlocks = [];
+        let minDy = Infinity;
+
+        for (const b of blocks) {
+          const id = canonicalStateToBlockId(b.state);
+          if (id === BLOCKS.AIR) continue;
+
+          let dx, dy, dz;
+          if (hasCustomOrigin) {
+            dx = b.pos.x + region.origin.x;
+            dy = b.pos.y + region.origin.y;
+            dz = b.pos.z + region.origin.z;
+          } else {
+            dx = b.pos.x - centerX;
+            dy = b.pos.y;
+            dz = b.pos.z - centerZ;
+          }
+
+          if (dy < minDy) minDy = dy;
+          relBlocks.push({ dx, dy, dz, id });
+        }
+
+        if (relBlocks.length === 0) continue;
+
+        if (minDy < 0) {
+          const shift = -minDy;
+          for (const rb of relBlocks) {
+            rb.dy += shift;
+          }
+        }
+
+        const packedBlocks = relBlocks.map(b => [b.dx, b.dy, b.dz, b.id]);
+        const code = `
+const V = ${JSON.stringify(packedBlocks)};
+function generate(origin, params, B) {
+  const res = [];
+  for (let i = 0; i < V.length; i++) {
+    const item = V[i];
+    res.push({
+      x: origin.x + item[0],
+      y: origin.y + item[1],
+      z: origin.z + item[2],
+      id: item[3]
+    });
+  }
+  return res;
+}
+`.trim();
+
+        const saveRes = BuildingLibrary.saveBuilding({
+          name: candidateName,
+          parameters: [],
+          code,
+          icon: '/assets/blocks/crafting_table_top.png',
+          description: `Imported from ${filename} (${relBlocks.length} voxels, ${region.size.x}x${region.size.y}x${region.size.z})`
+        });
+
+        if (saveRes.success && saveRes.building) {
+          importedBuildings.push(saveRes.building);
+        }
+      } catch (err) {
+        console.error(`Failed to import schematic ${file?.name || 'file'}:`, err);
+      }
+    }
+
+    if (importedBuildings.length > 0) {
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#10b981;font-weight:bold;">✦ Successfully imported ${importedBuildings.length} schematic structure(s) into Building Library!</span>`
+      );
+      if (this.openModal && !this.openModal.classList.contains('hidden')) {
+        this.renderOpenBuildingList(this.openSearch?.value || '');
+      }
+      if (this.game?.ui?.creativeModal && !this.game.ui.creativeModal.classList.contains('hidden')) {
+        this.game.ui.renderCreativeItems?.();
+      }
+      if (importedBuildings.length === 1 && this.isActive && !this.currentBuilding) {
+        this.loadBuilding(importedBuildings[0]);
+      }
+    }
+
+    return importedBuildings;
+  }
+
+  async importSchematic(fileOrBytes, filename = 'imported.schem') {
+    let fileObj;
+    if (fileOrBytes instanceof Uint8Array || fileOrBytes instanceof ArrayBuffer) {
+      fileObj = { bytes: fileOrBytes, name: filename };
+    } else {
+      fileObj = fileOrBytes;
+    }
+    const res = await this.importSchematicFiles([fileObj]);
+    return res[0] || null;
   }
 
   generateCodeFromVoxels(blocks, origin) {

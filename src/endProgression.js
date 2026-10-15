@@ -5,6 +5,7 @@ import { CellCanvas } from './worldgen/cellStructure.js';
 import { buildGateway, PLATFORM } from './worldgen/generators/endFeatures.js';
 import { netherRandom as coordinateRandom } from './netherTerrain.js';
 import { serializeMobState, restoreMobState } from './mobState.js';
+import { advancementEvent } from './advancements.js';
 
 export function createEndState(seed) {
   return { seed, initialized: false, defeated: false, kills: 0, health: 200,
@@ -110,6 +111,7 @@ export function useEndGateway(game,x,y,z) {
   game.endGatewayCooldown=2;
   game.camera?.position?.copy(p.position)?.add?.(new THREE.Vector3(0,p.eyeHeight??1.62,0));
   game.loadChunksAroundPlayer?.();game.sounds?.playLevelUp?.();
+  advancementEvent('end_gateway');
   return true;
 }
 export function updateEndGatewayTravel(game,dt) {

@@ -949,6 +949,8 @@
         <div class="studio-panel-footer">
           <button type="button" class="mc-btn studio-btn-save" id="btn-studio-save">💾 Save</button>
           <button type="button" class="mc-btn studio-btn-open" id="btn-studio-open">📂 Open</button>
+          <button type="button" class="mc-btn studio-btn-export-schem" id="btn-studio-export-schem" title="Export building as WorldEdit .schem file">📤 Export</button>
+          <button type="button" class="mc-btn studio-btn-import-schem" id="btn-studio-import-schem" title="Import multiple .schem files">📥 Import</button>
         </div>
       </div>
 
@@ -1125,7 +1127,9 @@
       </div>
       <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
         <input type="text" id="input-search-open-building" class="mc-input-text" placeholder="Search buildings..." autocomplete="off" style="flex: 1;">
+        <button id="btn-studio-modal-import-schem" class="mc-btn mc-btn-secondary" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Import multiple .schem files">📥 Import .schem</button>
         <button id="btn-restore-default-buildings" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in buildings">Reset Defaults</button>
+        <input type="file" id="input-studio-import-schem" multiple accept=".schem" style="display: none;">
       </div>
       <div class="studio-open-list" id="studio-open-building-list"></div>
     </div>

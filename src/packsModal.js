@@ -1,6 +1,6 @@
 // UI controller for Resource Packs and Skin Packs modal.
 import { resourcePackManager } from './resourcePackManager.js';
-import { skinManager } from './skinManager.js';
+import { skinManager, detectSkinModelFromAlpha, convert64x32to64x64Canvas } from './skinManager.js';
 
 export class PacksModal {
   constructor() {
@@ -157,56 +157,98 @@ export class PacksModal {
 
   renderSkinPacksContent() {
     const equipped = skinManager.getEquippedSkin();
-    const allSkins = skinManager.getAllSkins();
+    const skinPacks = skinManager.getSkinPacks();
 
     return `
       <div style="display: flex; flex-direction: column; gap: 16px;">
         <!-- Equipped Skin Banner -->
-        <div style="display: flex; align-items: center; gap: 16px; background: rgba(0,0,0,0.3); border: 2px solid #555; border-radius: 6px; padding: 12px;">
-          <img src="${skinManager.getFaceDataUrl(equipped.id)}" alt="Face" style="width: 48px; height: 48px; image-rendering: pixelated; border: 2px solid #fff; border-radius: 4px; background: #222;" />
-          <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-weight: bold; font-size: 15px; color: #ffff55;">${equipped.name}</span>
-              <span style="font-size: 11px; background: #0284c7; color: #fff; padding: 1px 6px; border-radius: 3px;">
-                ${equipped.model === 'slim' ? 'Slim (Alex 3px)' : 'Classic (Steve 4px)'}
-              </span>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; background: rgba(0,0,0,0.35); border: 2px solid #555; border-radius: 6px; padding: 14px;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src="${skinManager.getFaceDataUrl(equipped.id)}" alt="Face" style="width: 52px; height: 52px; image-rendering: pixelated; border: 2px solid #fff; border-radius: 4px; background: #222;" />
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: bold; font-size: 16px; color: #ffff55;">${equipped.name}</span>
+                <span style="font-size: 11px; background: ${equipped.model === 'slim' ? '#9333ea' : '#0284c7'}; color: #fff; padding: 2px 7px; border-radius: 3px; font-weight: bold;">
+                  ${equipped.model === 'slim' ? 'Slim (Alex 3px)' : 'Classic (Steve 4px)'}
+                </span>
+              </div>
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">
+                ${equipped.description || 'Custom Player Skin'}
+                ${equipped.packName ? `<span style="color: #94a3b8;"> • ${equipped.packName}</span>` : ''}
+              </div>
             </div>
-            <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">${equipped.description || 'Equipped Player Skin'}</div>
+          </div>
+          <div>
+            <button type="button" class="mc-btn" id="btn-toggle-skin-model" style="height: 32px; font-size: 12px; padding: 0 12px; white-space: nowrap;">
+              ${equipped.model === 'slim' ? 'Switch to Classic (4px)' : 'Switch to Slim (3px)'}
+            </button>
           </div>
         </div>
 
         <!-- Custom Upload Section -->
-        <div style="background: rgba(15, 23, 42, 0.4); border: 1px dashed #38bdf8; border-radius: 6px; padding: 12px; text-align: center;">
-          <div style="font-size: 13px; color: #f1f5f9; margin-bottom: 6px;">👤 Upload Custom Skin or Skin Pack</div>
-          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 10px;">Supports Minecraft 64x64/64x32 .png skins and Bedrock/Java skin packs (.zip / .mcpack).</div>
-          <div style="display: flex; justify-content: center; gap: 8px;">
-            <label class="mc-btn mc-btn-primary" style="width: 170px; height: 32px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        <div style="background: rgba(15, 23, 42, 0.45); border: 1px dashed #38bdf8; border-radius: 6px; padding: 14px; text-align: center;">
+          <div style="font-size: 13px; font-weight: bold; color: #f1f5f9; margin-bottom: 4px;">👤 Use Custom Skins & NameMC Skin Packs</div>
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 12px; line-height: 1.4;">
+            Upload any skin from <span style="color: #38bdf8;">NameMC</span> or Minecraft community (64x64 or legacy 64x32 PNG), or import multi-skin .zip/.mcpack packs.
+          </div>
+          <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <label class="mc-btn mc-btn-primary" style="width: 190px; height: 32px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
               Upload Skin (.png)
               <input type="file" id="upload-skin-png" accept="image/png" style="display: none;">
             </label>
-            <label class="mc-btn" style="width: 170px; height: 32px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <label class="mc-btn" style="width: 190px; height: 32px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
               Import Skin Pack (.zip)
               <input type="file" id="upload-skin-pack" accept=".zip,.mcpack" style="display: none;">
             </label>
           </div>
-          <div id="skin-status" style="font-size: 12px; color: #10b981; margin-top: 8px;"></div>
+          <div id="skin-status" style="font-size: 12px; margin-top: 8px; font-weight: bold;"></div>
         </div>
 
-        <!-- Skin Gallery -->
+        <!-- Curated & Built-in Skin Packs -->
         <div>
-          <div style="font-size: 13px; font-weight: bold; color: #ffff55; margin-bottom: 8px;">Available Skins Gallery</div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;">
-            ${allSkins.map(skin => `
-              <div style="background: ${skin.id === equipped.id ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0,0,0,0.3)'}; border: 2px solid ${skin.id === equipped.id ? '#38bdf8' : '#444'}; border-radius: 4px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="${skinManager.getFaceDataUrl(skin.id)}" alt="${skin.name}" style="width: 40px; height: 40px; image-rendering: pixelated; margin-bottom: 6px; border: 1px solid #777;" />
-                <div style="font-weight: bold; font-size: 12px; color: #fff; margin-bottom: 2px;">${skin.name}</div>
-                <div style="font-size: 10px; color: #aaa; margin-bottom: 6px;">${skin.model === 'slim' ? 'Slim' : 'Classic'}</div>
-                ${skin.id === equipped.id
-                  ? '<div style="font-size: 11px; color: #38bdf8; font-weight: bold; height: 26px; display: flex; align-items: center;">Equipped</div>'
-                  : `<button type="button" class="mc-btn" data-equip-skin="${skin.id}" style="width: 100%; height: 26px; font-size: 11px;">Equip</button>`
-                }
-              </div>
-            `).join('')}
+          <div style="font-size: 14px; font-weight: bold; color: #ffff55; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span>🎭</span> Active & Available Skin Packs
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            ${skinPacks.map(pack => {
+              const isPackActive = pack.skins && pack.skins.some(s => s.id === equipped.id);
+              return `
+                <div style="background: rgba(0,0,0,0.3); border: 2px solid ${isPackActive ? '#38bdf8' : '#444'}; border-radius: 6px; padding: 12px;">
+                  <!-- Pack Header -->
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">${pack.iconEmoji || '📦'}</span>
+                        <span style="font-weight: bold; font-size: 14px; color: #fff;">${pack.name}</span>
+                        ${pack.author ? `<span style="font-size: 10px; color: #94a3b8; background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 3px;">${pack.author}</span>` : ''}
+                      </div>
+                      <div style="font-size: 11px; color: #cbd5e1; margin-top: 3px;">${pack.description || ''}</div>
+                    </div>
+                    <button type="button" class="mc-btn ${isPackActive ? 'mc-btn-primary' : ''}" data-activate-pack="${pack.id}" style="height: 28px; font-size: 12px; padding: 0 12px; white-space: nowrap;">
+                      ${isPackActive ? '✓ Active' : 'Activate Pack'}
+                    </button>
+                  </div>
+
+                  <!-- Skins in this Pack -->
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px;">
+                    ${(pack.skins || []).map(skin => {
+                      const isSkinEquipped = skin.id === equipped.id;
+                      return `
+                        <div style="background: ${isSkinEquipped ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.25)'}; border: 1px solid ${isSkinEquipped ? '#38bdf8' : '#555'}; border-radius: 4px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                          <img src="${skinManager.getFaceDataUrl(skin.id)}" alt="${skin.name}" style="width: 40px; height: 40px; image-rendering: pixelated; margin-bottom: 6px; border: 1px solid #777; background: #222;" />
+                          <div style="font-weight: bold; font-size: 12px; color: #fff; margin-bottom: 2px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 100%;" title="${skin.name}">${skin.name}</div>
+                          <div style="font-size: 10px; color: #aaa; margin-bottom: 6px;">${skin.model === 'slim' ? 'Slim 3px' : 'Classic 4px'}</div>
+                          ${isSkinEquipped
+                            ? '<div style="font-size: 11px; color: #38bdf8; font-weight: bold; height: 26px; display: flex; align-items: center;">✓ Equipped</div>'
+                            : `<button type="button" class="mc-btn" data-equip-skin="${skin.id}" style="width: 100%; height: 26px; font-size: 11px;">Equip</button>`
+                          }
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -326,6 +368,24 @@ export class PacksModal {
       };
     }
 
+    // Activate Pack button
+    this.modal.querySelectorAll('[data-activate-pack]').forEach(btn => {
+      btn.onclick = () => {
+        const packId = btn.getAttribute('data-activate-pack');
+        skinManager.activateSkinPack(packId);
+        this.render();
+      };
+    });
+
+    // Toggle arm width model button
+    const toggleModelBtn = this.modal.querySelector('#btn-toggle-skin-model');
+    if (toggleModelBtn) {
+      toggleModelBtn.onclick = () => {
+        skinManager.toggleEquippedModel();
+        this.render();
+      };
+    }
+
     // Equip Skin button
     this.modal.querySelectorAll('[data-equip-skin]').forEach(btn => {
       btn.onclick = () => {
@@ -335,7 +395,7 @@ export class PacksModal {
       };
     });
 
-    // Upload Custom Skin (.png)
+    // Upload Custom Skin (.png) - Supports NameMC 64x64, 64x32 legacy, and auto-detects Slim vs Classic
     const skinPngInput = this.modal.querySelector('#upload-skin-png');
     if (skinPngInput) {
       skinPngInput.onchange = (e) => {
@@ -343,12 +403,47 @@ export class PacksModal {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (evt) => {
-          const dataUrl = evt.target?.result;
-          if (dataUrl) {
-            const skinName = file.name.replace(/\.png$/i, '');
-            skinManager.registerSkin(skinName, dataUrl, 'default');
+          const rawDataUrl = evt.target?.result;
+          if (!rawDataUrl) return;
+
+          const img = new Image();
+          img.onload = () => {
+            let finalDataUrl = rawDataUrl;
+            let finalCanvas = null;
+
+            // Check if legacy 64x32 skin -> convert to 64x64
+            if (img.width === 64 && img.height === 32) {
+              finalCanvas = convert64x32to64x64Canvas(img);
+              if (finalCanvas) {
+                finalDataUrl = finalCanvas.toDataURL('image/png');
+              }
+            } else if (img.width === 64 && img.height === 64) {
+              finalCanvas = document.createElement('canvas');
+              finalCanvas.width = 64;
+              finalCanvas.height = 64;
+              const ctx = finalCanvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+            }
+
+            // Auto-detect slim (3px) vs classic (4px) model from pixel transparency
+            let detectedModel = 'default';
+            if (finalCanvas) {
+              const ctx = finalCanvas.getContext('2d');
+              const imgData = ctx.getImageData(0, 0, 64, 64);
+              detectedModel = detectSkinModelFromAlpha(64, 64, (x, y) => imgData.data[(y * 64 + x) * 4 + 3]);
+            }
+
+            const cleanName = file.name.replace(/\.png$/i, '').replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const registered = skinManager.registerSkin(cleanName, finalDataUrl, detectedModel, 'custom_skins', 'Custom Uploads');
+
+            const statusEl = this.modal.querySelector('#skin-status');
+            if (statusEl) {
+              statusEl.style.color = '#10b981';
+              statusEl.textContent = `Activated "${registered.name}" (${detectedModel === 'slim' ? 'Slim 3px' : 'Classic 4px'} arm model)!`;
+            }
             this.render();
-          }
+          };
+          img.src = rawDataUrl;
         };
         reader.readAsDataURL(file);
       };
@@ -361,12 +456,18 @@ export class PacksModal {
         const file = e.target.files?.[0];
         if (!file) return;
         const statusEl = this.modal.querySelector('#skin-status');
-        if (statusEl) statusEl.textContent = 'Extracting skin pack...';
+        if (statusEl) {
+          statusEl.style.color = '#38bdf8';
+          statusEl.textContent = 'Extracting and installing skin pack...';
+        }
         try {
           const buffer = await file.arrayBuffer();
-          const packName = file.name.replace(/\.(zip|mcpack)$/i, '');
+          const packName = file.name.replace(/\.(zip|mcpack)$/i, '').replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
           const imported = await skinManager.loadSkinPackFromZip(buffer, packName);
-          if (statusEl) statusEl.textContent = `Imported ${imported.length} skin(s) from ${packName}!`;
+          if (statusEl) {
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = `Successfully imported ${imported.length} skin(s) from "${packName}"!`;
+          }
           this.render();
         } catch (err) {
           console.error(err);

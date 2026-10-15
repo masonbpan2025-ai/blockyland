@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { advancementEvent } from './advancements.js';
 import { endSpikes, buildSpike, buildPodium, gatewayOrder } from './worldgen/generators/endFeatures.js';
 import { CellCanvas } from './worldgen/cellStructure.js';
 import { endStateFor, writeEndCanvas, addEndGateway } from './endProgression.js';
@@ -38,14 +39,16 @@ export class BossFightManager {
   checkWitherSummon(x, y, z) {
     const tryMatchCenter = (cx, cz, dx, dz) => {
       // y-1 is the horizontal Soul Sand row, y-2 is the stem
+      // Wiki (Wither): "four soul sand or soul soil blocks", in any mix.
+      const soul = (id) => id === BLOCKS.SOUL_SAND || id === BLOCKS.SOUL_SOIL;
       const stemBlock = this.world?.getVoxel(cx, y - 2, cz);
-      if (stemBlock !== BLOCKS.SOUL_SAND) return false;
+      if (!soul(stemBlock)) return false;
 
       // Check the 3 horizontal soul sand blocks
       for (let offset = -1; offset <= 1; offset++) {
         const sx = cx + offset * dx;
         const sz = cz + offset * dz;
-        if (this.world?.getVoxel(sx, y - 1, sz) !== BLOCKS.SOUL_SAND) return false;
+        if (!soul(this.world?.getVoxel(sx, y - 1, sz))) return false;
         // Check the 3 skull blocks on top
         if (this.world?.getVoxel(sx, y, sz) !== BLOCKS.WITHER_SKELETON_SKULL_BLOCK) return false;
       }
@@ -59,6 +62,7 @@ export class BossFightManager {
         this.world?.setVoxel(sx, y, sz, BLOCKS.AIR);
       }
       this.spawnWitherBoss(cx, y, cz);
+      advancementEvent('summon_wither');
       return true;
     };
 
@@ -143,13 +147,23 @@ export class BossFightManager {
     const spikes=endSpikes(this.world.seed),index=Math.min(9,Math.floor(state.ritualElapsed/3));
     const target=new THREE.Vector3(spikes[index].x+.5,spikes[index].top+2,spikes[index].z+.5);
     for(const c of this.endCrystals)if(c.alive&&c.placed)this.setCrystalBeam(c,target);
+    // Tutorial:Indestructible End crystals: "the end crystals on the obsidian towers start regenerating one by one",
+    // and "the newly-generated crystals are indestructible until the dragon respawns".
+    state.rebuiltSpikes??=0;
+    while(state.rebuiltSpikes<=index&&state.rebuiltSpikes<spikes.length){
+      const spike=spikes[state.rebuiltSpikes],canvas=new CellCanvas();buildSpike(canvas,spike);writeEndCanvas(this.world,canvas);
+      if(!this.endCrystals.some(c=>c.alive&&c.spikeIndex===state.rebuiltSpikes))this.spawnEndCrystal(spike.x+.5,spike.top+1.5,spike.z+.5,{spikeIndex:state.rebuiltSpikes,invulnerable:true});
+      state.crystals[state.rebuiltSpikes]=true;state.rebuiltSpikes++;
+    }
     if(state.ritualElapsed<30)return;
     for(const c of this.endCrystals){if(c.alive&&c.placed)this.entities?.spawnExplosion?.(c.position);c.mesh?.removeFromParent();}
     const canvas=new CellCanvas();
     for(const spike of endSpikes(this.world.seed))buildSpike(canvas,spike);
     writeEndCanvas(this.world,canvas);
-    state.crystals=Array(10).fill(true);state.health=200;state.defeated=false;state.respawning=false;
+    state.crystals=Array(10).fill(true);state.health=200;state.defeated=false;state.respawning=false;state.rebuiltSpikes=0;
     this.initEndArena();
+    // "The End... Again...": respawn the ender dragon.
+    if(this.game?.player?.position&&this.game.player.position.distanceTo(new THREE.Vector3(0,this.podiumY(),0))<192)advancementEvent('respawn_dragon');
   }
 
   spawnEndCrystal(x, y, z, options={}) {
@@ -201,7 +215,7 @@ export class BossFightManager {
             let blocked=false;
             for(let d=.2;d<Math.max(0,proj-1);d+=.2){const p=rayOrigin.clone().addScaledVector(rayDir,d);if(this.mobManager.isBlockSolid?.(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))){blocked=true;break;}}
             if(blocked)continue;
-            this.destroyEndCrystal(c);
+            this.destroyEndCrystal(c,{creative:this.game?.player?.gamemode==='creative'});
             return true;
           }
         }
@@ -219,8 +233,10 @@ export class BossFightManager {
     return false;
   }
 
-  destroyEndCrystal(crystal) {
+  destroyEndCrystal(crystal, { creative = false } = {}) {
     if(!crystal.alive)return false;
+    // A crystal regenerating during the respawn cannot be destroyed, except by a hit in Creative.
+    if(crystal.invulnerable&&!creative)return false;
     crystal.alive=false;crystal.exploded=true;crystal.mesh?.removeFromParent();
     const state=endStateFor(this.world);
     if(crystal.spikeIndex!==undefined)state.crystals[crystal.spikeIndex]=false;

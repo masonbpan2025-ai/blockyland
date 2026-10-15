@@ -54,3 +54,11 @@ test('an elytra wears to 1 and stops flying, but stays in the chest slot', async
   assert.equal(player.inventory.armor.chest?.durability, 1);
   assert.equal(hasElytraEquipped(player), false, 'cannot glide');
 });
+
+// Unbreaking: armour takes each point with p = 0.6 + 0.4 / (level + 1); tools keep it with p = level / (level + 1).
+// The game used the tool rule for armour too, so Unbreaking III armour lasted 4x instead of ~1.43x.
+test('Unbreaking III: a tool lasts four times as long, armour about 43% longer', async () => {
+  const { keepChance } = await import('../src/durability.js');
+  assert.equal(keepChance('diamond_pickaxe', 3), 0.75);
+  assert.ok(Math.abs(1 / (1 - keepChance('diamond_chestplate', 3)) - 1 / 0.7) < 1e-9, '1 / 0.7 = 1.43');
+});

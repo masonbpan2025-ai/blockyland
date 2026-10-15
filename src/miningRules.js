@@ -73,13 +73,20 @@ export const NON_MINING_TOOLS = new Set([
   'sulfur_cube_bucket',
 ]);
 
+/**
+ * Harvest level by tier. TOOL_TIER_ORDER lists the materials, but gold harvests like wood: Mining/Diamonds says
+ * "diamond ore does not drop diamonds when mined with a wood, stone, copper, or gold pickaxe" (Tiers: gold has
+ * wood's mining level). Found by the wiki-tutorial play-test, where a golden pickaxe collected diamonds.
+ */
+const HARVEST_LEVEL = { wooden: 0, golden: 0, stone: 1, iron: 2, diamond: 3, netherite: 4 };
+
 /** Is `tier` at least `required` on the tool ladder? */
 export function tierMeets(tier, required) {
   if (!required) return true;
-  const have = TOOL_TIER_ORDER.indexOf(tier);
-  const need = TOOL_TIER_ORDER.indexOf(required);
-  if (need < 0) return true;
-  return have >= need;
+  const need = HARVEST_LEVEL[required];
+  if (need === undefined) return true;
+  const have = HARVEST_LEVEL[tier];
+  return have !== undefined && have >= need;
 }
 
 /**

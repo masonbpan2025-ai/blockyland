@@ -47,7 +47,12 @@ function validatePaintingPlan(plan) {
 export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0 }) {
   if (++budget.steps > 64) throw new Error('Plan has too many steps.');
   if (!plan || typeof plan !== 'object' || Array.isArray(plan) || depth > 4) throw new Error('Invalid agent plan.');
-  const actions = ['build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder', 'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light', 'multi', 'fill_water', 'voxel_art', 'player_control', 'hang_paintings', 'build_in_stages'];
+  const actions = [
+    'build', 'edit', 'destroy', 'message', 'build_stairs', 'build_ladder',
+    'weather', 'time', 'summon', 'give', 'gamemode', 'heal', 'clear', 'light',
+    'multi', 'fill_water', 'voxel_art', 'player_control', 'hang_paintings',
+    'build_in_stages', 'command', 'teleport', 'kill', 'difficulty', 'effect'
+  ];
   if (!actions.includes(plan.action)) throw new Error(`Unsupported action: ${plan.action}`);
   if (plan.action === 'hang_paintings') return validatePaintingPlan(plan);
   if (plan.action === 'build_in_stages') return validateStagedPlan(plan);
@@ -94,11 +99,24 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
       if (op.voxels?.some(v => v.block !== undefined && !block(v.block))) throw new Error('Unknown voxel block.');
     }
   }
-  const enums = { weather: ['clear', 'rain', 'thunder'], time: ['day', 'night', 'sunset', 'sunrise'] };
-  if (enums[plan.action] && !enums[plan.action].includes(plan[plan.action])) throw new Error(`Invalid ${plan.action}.`);
-  if (plan.action === 'gamemode' && !['creative', 'survival'].includes(plan.mode)) throw new Error('Invalid game mode.');
+  const enums = {
+    weather: ['clear', 'rain', 'thunder'],
+    time: ['day', 'night', 'sunset', 'sunrise', 'noon', 'midnight', 'set', 'add', 'query']
+  };
+  if (enums[plan.action] && plan[plan.action] !== undefined && !enums[plan.action].includes(plan[plan.action])) {
+    throw new Error(`Invalid ${plan.action}.`);
+  }
+  if (plan.action === 'gamemode' && !['creative', 'survival', 'adventure', 'spectator'].includes(plan.mode)) {
+    throw new Error('Invalid game mode.');
+  }
+  if (plan.action === 'difficulty' && !['peaceful', 'easy', 'normal', 'hard'].includes(plan.difficulty)) {
+    throw new Error('Invalid difficulty.');
+  }
+  if (plan.action === 'command' && (typeof plan.command !== 'string' || !plan.command.trim())) {
+    throw new Error('Command requires a command string.');
+  }
   for (const key of ['radius', 'depth']) if (plan[key] !== undefined && !integer(plan[key], 0, 32)) throw new Error(`Invalid ${key}.`);
-  if (plan.action === 'summon' && (!Array.isArray(plan.mobs) || plan.mobs.length > 16 || !plan.mobs.every(m => ['villager', 'iron_golem', 'pillager', 'zombie', 'pig', 'cow', 'sheep', 'creeper', 'skeleton', 'salmon', 'dolphin', 'octopus', 'axolotl'].includes(m.type) && integer(m.count, 1, 30)))) throw new Error('Invalid mobs.');
-  if (plan.action === 'give' && (!Array.isArray(plan.giveItems) || plan.giveItems.length > 32 || !plan.giveItems.every(i => typeof i.name === 'string' && integer(i.count, 1, 640)))) throw new Error('Invalid items.');
+  if (plan.action === 'summon' && (!Array.isArray(plan.mobs) || plan.mobs.length > 32 || !plan.mobs.every(m => typeof m?.type === 'string' && integer(m.count, 1, 100)))) throw new Error('Invalid mobs.');
+  if (plan.action === 'give' && (!Array.isArray(plan.giveItems) || plan.giveItems.length > 64 || !plan.giveItems.every(i => typeof i.name === 'string' && integer(i.count, 1, 640)))) throw new Error('Invalid items.');
   return plan;
 }

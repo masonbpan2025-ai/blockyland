@@ -139,8 +139,10 @@ export class EntityManager {
         enchantments: options.enchantments ? structuredClone(options.enchantments) : null,
         ...(options.itemData?{itemData:structuredClone(options.itemData)}:{}),
       ...(options.durability!==undefined?{durability:options.durability}:{}),
-      pickupDelay: options.pickupDelay ?? 1.0
+      pickupDelay: options.pickupDelay ?? 1.0,
+      ...(options.thrownByPlayer ? { thrownByPlayer: true } : {})
     });
+    return this.droppedItems[this.droppedItems.length - 1];
   }
 
   // Spawn glowing XP orb entity

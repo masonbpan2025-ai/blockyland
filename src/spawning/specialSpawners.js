@@ -289,25 +289,41 @@ export class PhantomMechanism {
     if (this.manager.peacefulMode) { this.insomniaTicks = 0; return; }
     this.insomniaTicks++;
     if (this.insomniaTicks < 72000) return;
+    // Java's PhantomSpawner, attempted every 60-119 s.
     this.timer++;
-    if (this.timer < 1200) return;
+    this.nextAttempt ??= 1200;
+    if (this.timer < this.nextAttempt) return;
     this.timer = 0;
     const random = this.manager.specialRandom;
-    // (x - 72000) / x, which at 72000 is 0 and rises toward 1.
+    this.nextAttempt = 1200 + random.nextInt(1200);
+    // Only in a dark sky: "Phantoms spawn at night or during a thunderstorm" (skyDarken of 5 or more), never in a
+    // dimension without sky light. The game spawned them at noon too.
+    const world = this.manager.world;
+    if (world?.dimension === 'nether' || world?.dimension === 'the_end') return;
+    if ((this.manager.skyDarken ?? 0) < 5) return;
+    const player = players[0];
+    // The player must be at or above sea level with open sky overhead (Phantom: "as long as there are no blocks to
+    // stop skylight access") -- a roof or a cave keeps them away.
+    const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
+    if (py < (world?.seaLevel ?? 0)) return;
+    if (world?.getSkyLight && world.getSkyLight(px, py + 1, pz) < 15) return;
+    // (x - 72000) / x, which at 72000 is 0 and rises toward 1 -- Java's `nextInt(timeSinceRest) >= 72000`.
     const chance = (this.insomniaTicks - 72000) / this.insomniaTicks;
     if (random.nextDouble() > chance) return;
-    const player = players[0];
     const existing = this.manager.mobs.filter(m => m.type === 'phantom' && m.health > 0).length;
     if (existing >= 5) return;
-    const count = 1 + random.nextInt(4);
+    // A group of 1 + nextInt(difficulty + 1): up to 2 on Easy, 3 on Normal, 4 on Hard.
+    const difficultyId = { easy: 1, normal: 2, hard: 3 }[String(this.manager.difficulty).toLowerCase()] ?? 2;
+    const count = 1 + random.nextInt(difficultyId + 1);
+    // "within 20-34 blocks above the player", up to 10 blocks away on each side.
+    const y = py + 20 + random.nextInt(15);
+    const x = px + random.nextInt(21) - 10;
+    const z = pz + random.nextInt(21) - 10;
     for (let i = 0; i < count; i++) {
-      const x = Math.floor(player.x) + random.nextInt(21) - 10;
-      const z = Math.floor(player.z) + random.nextInt(21) - 10;
-      const y = Math.floor(player.y) + 28;
       const mob = this.manager.createMob('phantom', x + 0.5, y, z + 0.5, {
         natural: false, source: 'phantom',
       });
-      if (mob) { this.stats.spawns++; this.stats.packs++; }
+      if (mob) { this.stats.spawns++; if (i === 0) this.stats.packs++; }
     }
   }
 }

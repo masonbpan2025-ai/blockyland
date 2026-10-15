@@ -239,9 +239,11 @@ test('Nether Portal - Destination Portal & Platform Generation', () => {
   assert.ok(generated.spawnY);
   assert.ok(generated.spawnZ);
 
-  // Check obsidian platform at Y = 19
-  assert.equal(world.getVoxel(10, 19, 10), BLOCKS.OBSIDIAN);
-  assert.equal(world.getVoxel(11, 19, 10), BLOCKS.OBSIDIAN);
+  // Wiki (Tutorial:Nether portals): "A 2x3 platform of obsidian with air 3 high above" -- the frame's bottom row and
+  // the rows either side of it, at Y = 20; nothing is built below it.
+  for (const z of [9, 10, 11]) for (const x of [10, 11]) assert.equal(world.getVoxel(x, 20, z), BLOCKS.OBSIDIAN);
+  assert.equal(world.getVoxel(10, 21, 9), BLOCKS.AIR);
+  assert.equal(world.getVoxel(10, 19, 10), BLOCKS.AIR);
 
   // Check bottom obsidian frame at Y = 20
   assert.equal(world.getVoxel(10, 20, 10), BLOCKS.OBSIDIAN);
@@ -330,4 +332,31 @@ test('Nether Portal - Creative Mode Instant/Fast Transition', () => {
   // In creative mode, 0.5s is needed
   manager.update(0.6, fakePlayer, fakeGame);
   assert.equal(switchedDim, 'nether', 'Creative mode should transition quickly');
+});
+
+test('Nether Portal - a destination portal goes on the nearest valid site, not carved into rock (Tutorial:Nether portals)', async () => {
+  const { findPortalSite, placeDestinationPortal } = await import('../src/netherPortal.js');
+  const world = createTestWorld();
+  // Solid rock everywhere, with one open ledge: a floor at y = 20 (x 4..9, z 2..6), air 4 high above.
+  for (let x = -20; x <= 30; x++) for (let z = -20; z <= 30; z++) for (let y = 0; y <= 62; y++) world.setVoxel(x, y, z, BLOCKS.NETHERRACK);
+  for (let x = 4; x <= 9; x++) for (let z = 2; z <= 6; z++) for (let y = 21; y <= 24; y++) world.setVoxel(x, y, z, BLOCKS.AIR);
+  const site = findPortalSite(world, 0, 25, 0);
+  assert.ok(site, '"a valid location is 3x4 buildable blocks with air 4 high above all 12 blocks"');
+  assert.equal(site.y, 20, 'the frame stands on the ledge floor');
+  const built = placeDestinationPortal(world, 0, 25, 0);
+  assert.equal(world.getVoxel(Math.floor(built.spawnX), built.spawnY, Math.floor(built.spawnZ)), BLOCKS.NETHER_PORTAL);
+  assert.equal(world.getVoxel(0, 26, 0), BLOCKS.NETHERRACK, 'nothing is carved at the ideal point');
+  // More than 16 blocks away is outside the search: the portal is forced at the target on a platform.
+  const far = findPortalSite(world, -8, 25, -8, { radius: 16 });
+  assert.equal(far?.x >= 4 ? 'found' : 'none', 'found', 'a site 12 blocks away is still within 16');
+  const tooFar = findPortalSite(world, 30, 25, 30, { radius: 16 });
+  assert.equal(tooFar, null);
+});
+
+test('Nether Portal - the search only counts the bottom block of each portal column, within a square radius', () => {
+  const world = createTestWorld();
+  generateDestinationPortal(world, 10, 20, 10, 'x');
+  const found = findNearbyPortal(world, 10, 30, 10, 16);
+  assert.equal(found.y, 21, 'the bottom portal block, even though a higher one is nearer the target Y');
+  assert.equal(findNearbyPortal(world, 28, 21, 10, 16), null, '17 blocks away along x is outside a 16-block search');
 });

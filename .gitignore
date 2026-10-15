@@ -83,3 +83,8 @@ scripts/parity-audit/report.json
 
 # Another agent's linked worktrees live here; committing one stages an embedded repository.
 .worktrees/
+ 
+# Agent Terminal diagnostics and turn history
+agent_history.json
+agent_history_latest.json
+agent_history/

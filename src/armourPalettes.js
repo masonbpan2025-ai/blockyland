@@ -40,6 +40,12 @@ export const ARMOR_PALETTES = {
     dark: '#1b5a2b',
     light: '#5ec275',
     accent: '#123f1e'
+  },
+  copper: {
+    main: '#c06d50',
+    dark: '#8c4832',
+    light: '#d88b6c',
+    accent: '#6d301e'
   }
 };
 
@@ -53,6 +59,7 @@ export function getArmorMaterial(item) {
   if (id.includes('chainmail') || id.includes('chain')) return 'chainmail';
   if (id.includes('leather')) return 'leather';
   if (id.includes('turtle')) return 'turtle';
+  if (id.includes('copper')) return 'copper';
   return 'iron';
 }
 

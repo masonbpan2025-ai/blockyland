@@ -284,6 +284,84 @@ export default defineConfig({
             return;
           }
 
+          // 6. Agent history endpoints (accessible immediately on disk for diagnostic inspection)
+          if (url.pathname === '/api/agent-history' && req.method === 'GET') {
+            const historyPath = path.resolve(process.cwd(), 'agent_history.json');
+            if (!fs.existsSync(historyPath)) {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ history: [] }));
+              return;
+            }
+            res.setHeader('Content-Type', 'application/json');
+            fs.createReadStream(historyPath).pipe(res);
+            return;
+          }
+
+          if (url.pathname === '/api/agent-history/latest' && req.method === 'GET') {
+            const latestPath = path.resolve(process.cwd(), 'agent_history_latest.json');
+            if (!fs.existsSync(latestPath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'No agent history recorded yet' }));
+              return;
+            }
+            res.setHeader('Content-Type', 'application/json');
+            fs.createReadStream(latestPath).pipe(res);
+            return;
+          }
+
+          if (url.pathname === '/api/agent-history' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const turn = JSON.parse(body);
+                const historyPath = path.resolve(process.cwd(), 'agent_history.json');
+                const latestPath = path.resolve(process.cwd(), 'agent_history_latest.json');
+                const dirLatest = path.resolve(process.cwd(), 'agent_history');
+                if (!fs.existsSync(dirLatest)) fs.mkdirSync(dirLatest, { recursive: true });
+                const dirLatestPath = path.resolve(dirLatest, 'latest.json');
+
+                let list = [];
+                if (fs.existsSync(historyPath)) {
+                  try {
+                    const raw = fs.readFileSync(historyPath, 'utf-8');
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) list = parsed;
+                    else if (Array.isArray(parsed.history)) list = parsed.history;
+                  } catch {}
+                }
+
+                list.push(turn);
+                if (list.length > 50) list = list.slice(-50);
+
+                fs.writeFileSync(historyPath, JSON.stringify(list, null, 2), 'utf-8');
+                fs.writeFileSync(latestPath, JSON.stringify(turn, null, 2), 'utf-8');
+                fs.writeFileSync(dirLatestPath, JSON.stringify(turn, null, 2), 'utf-8');
+
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, count: list.length }));
+              } catch (err) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message }));
+              }
+            });
+            return;
+          }
+
+          if (url.pathname === '/api/agent-history' && req.method === 'DELETE') {
+            const historyPath = path.resolve(process.cwd(), 'agent_history.json');
+            const latestPath = path.resolve(process.cwd(), 'agent_history_latest.json');
+            const dirLatestPath = path.resolve(process.cwd(), 'agent_history', 'latest.json');
+            if (fs.existsSync(historyPath)) fs.unlinkSync(historyPath);
+            if (fs.existsSync(latestPath)) fs.unlinkSync(latestPath);
+            if (fs.existsSync(dirLatestPath)) fs.unlinkSync(dirLatestPath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+            return;
+          }
+
           next();
         });
       }

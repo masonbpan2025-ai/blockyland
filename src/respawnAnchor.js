@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS as B, BLOCK_DEFS, blockIdForPlacement } from './blocks.js';
+import { advancementEvent } from './advancements.js';
 
 export function anchorCharges(world,x,y,z) {
   const state=world.structureOrientations?.get(`${x},${y},${z}`);
@@ -19,7 +20,9 @@ export function useRespawnAnchor(game,x,y,z) {
     setCharges(world,x,y,z,charge+1);
     if(game.player.gamemode!=='creative')game.inventory.consumeActiveItem();
     game.ui?.updateHotbar?.();game.sounds?.playPlace?.('stone');
-    game.ui?.addChatMessage?.(`Respawn anchor: ${charge+1}/4 charges.`, 'system');return true;
+    game.ui?.addChatMessage?.(`Respawn anchor: ${charge+1}/4 charges.`, 'system');
+    if(charge+1===4)advancementEvent('charge_respawn_anchor');
+    return true;
   }
   if(charge===0)return true;
   if(!['nether','the_nether'].includes(world.dimension)) {

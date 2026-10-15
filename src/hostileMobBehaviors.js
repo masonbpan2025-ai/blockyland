@@ -8,6 +8,7 @@ import { hasGoldTrim } from './smithing.js';
 import { startBarter, updatePiglin } from './piglin.js';
 import { applyDolphinsGrace } from './dolphinBehavior.js';
 import { cubeHealth, cubeSide } from './cubeMobBehavior.js';
+import { advancementEvent } from './advancements.js';
 export { PIGLIN_BARTER_LOOT } from './piglin.js';
 
 export class HostileMobBehaviors {
@@ -101,6 +102,7 @@ export class HostileMobBehaviors {
     if (inventory.getActiveItem()?.id !== 'gold_ingot') return false;
     if (player.gamemode !== 'creative') inventory.consumeActiveItem(1);
     startBarter(mob);
+    advancementEvent('distract_piglin');
     return true;
   }
 
